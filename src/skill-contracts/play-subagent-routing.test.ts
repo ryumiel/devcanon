@@ -2521,6 +2521,9 @@ describe("play subagent routing source contracts", () => {
     expect(normalizeWhitespace(controllerLifecycleLedger)).toContain(
       "the latest reviewer disposition projection plus append-only classification history with each disposition's concise reason and source-state anchor",
     );
+    expect(normalizeWhitespace(controllerLifecycleLedger)).toContain(
+      "the current unavailable-cleanup reason only while the latest cleanup decision is unavailable, plus append-only concrete reason history for every `closure-unavailable` event",
+    );
     expect(controllerLifecycleLedger).toContain(
       "fixup count or blocker state when relevant",
     );
@@ -2591,7 +2594,16 @@ describe("play subagent routing source contracts", () => {
       "These are runtime terminal outcomes, not task failure, reviewer findings, or a workflow-returned `BLOCKED`",
     );
     expect(normalizeWhitespace(orderedLifecycleEvents)).toContain(
-      "When no turn returned, workflow return status and its history remain absent",
+      "The abnormal turn appends no workflow return value",
+    );
+    expect(normalizeWhitespace(orderedLifecycleEvents)).toContain(
+      "Workflow return status and its history remain absent only when the session has never returned; an abnormal same-session follow-up preserves all prior return statuses, reviewer dispositions, their histories, and their latest projections",
+    );
+    expect(normalizeWhitespace(orderedLifecycleEvents)).toContain(
+      "That capture requirement follows the abnormal event through later operational projections such as `superseded`",
+    );
+    expect(normalizeWhitespace(orderedLifecycleEvents)).toContain(
+      "Every `closure-unavailable` event carries its concrete reason as event-associated detail and appends that value to unavailable-reason history",
     );
 
     expect(normalizeWhitespace(resultAndDispositionDimensions)).toContain(
@@ -2657,24 +2669,14 @@ describe("play subagent routing source contracts", () => {
       "Active runtime detection decides whether closure is supported",
     );
 
-    const responsesApiEntry = sliceBetween(
-      normalizedSurfaceMap,
-      "**Responses API Multi-agent:**",
-      "**Claude Code:**",
-    ).split(".", 1)[0];
-    const responsesApiActions = [
-      ...responsesApiEntry.matchAll(/`([^`]+)`/g),
-    ].map((match) => match[1]);
-    expect(responsesApiActions).toEqual([
-      "spawn_agent",
-      "send_message",
-      "followup_task",
-      "wait_agent",
-      "interrupt_agent",
-      "list_agents",
-    ]);
     expect(normalizedSurfaceMap).toContain(
-      "`interrupt_agent` preserves the session context and is not closure",
+      "detect the actions exposed by the active runtime instead of treating a remembered action list as a closed schema",
+    );
+    expect(normalizedSurfaceMap).toContain(
+      "`interrupt_agent` is interruption, not closure",
+    );
+    expect(normalizedSurfaceMap).toContain(
+      "`followup_task` may reuse retained context; and `list_agents` may provide inventory",
     );
     expect(normalizedSurfaceMap).toContain(
       "No hosted close action is promised",
@@ -2730,6 +2732,9 @@ describe("play subagent routing source contracts", () => {
       "An exposed-but-unusable close operation follows this unavailable path, not `closed=no`",
     );
     expect(normalizeWhitespace(cleanupProjection)).toContain(
+      "appends the reason to unavailable-reason history, and projects `close-unavailable: <reason>` with that same current reason",
+    );
+    expect(normalizeWhitespace(cleanupProjection)).toContain(
       "An evaluated session deliberately retained for same-session follow-up appends `close-deferred` with its concrete workflow-owned reason as event-associated detail, records that reason as the current retention reason, and projects `closed=no`",
     );
     expect(normalizeWhitespace(cleanupProjection)).toContain(
@@ -2746,6 +2751,9 @@ describe("play subagent routing source contracts", () => {
     );
     expect(normalizeWhitespace(cleanupProjection)).toContain(
       "The current retention reason no longer applies after the current decision advances, but the historical reason remains recoverable from the event",
+    );
+    expect(normalizeWhitespace(cleanupProjection)).toContain(
+      "a later retention or close attempt clears the current unavailable-cleanup reason while preserving every prior `closure-unavailable` reason in append-only history",
     );
     expect(normalizeWhitespace(cleanupProjection)).toContain(
       "An evaluated row with no applicable decision and reason, or with facts that contradict its events or projection, is invalid or ambiguous",
@@ -2839,6 +2847,7 @@ describe("play subagent routing source contracts", () => {
       "target lifecycle capability classes",
       "surface-specific capability mapping",
       "ordered append-only lifecycle-event history",
+      "append-only value-bearing cleanup-decision reason histories",
       "append-only value-bearing return-status and reviewer-disposition histories",
       "total usable-control capability classification",
       "independent operational, reuse, capability, and cleanup-state semantics",
@@ -2884,10 +2893,19 @@ describe("play subagent routing source contracts", () => {
       "Runtime `timed-out` and `failed` are operational terminal outcomes with sanitized detail, not task or reviewer verdicts",
     );
     expect(normalizeWhitespace(consequences)).toContain(
+      "They add no return status; sessions with prior returned turns preserve their return and disposition histories and projections, while never-returned sessions keep them absent",
+    );
+    expect(normalizeWhitespace(consequences)).toContain(
+      "Every unavailable-cleanup decision preserves its concrete reason in append-only event history",
+    );
+    expect(normalizeWhitespace(consequences)).toContain(
       "Active, waiting, interrupted, pending, and unknown-identity capacity blockers require state-specific classification before cleanup",
     );
     expect(normalizeWhitespace(consequences)).toContain(
       "Manual cleanup confirmation is append-only, row- or inventory-identity-scoped retry evidence with sanitized provenance and time",
+    );
+    expect(normalizeWhitespace(consequences)).toContain(
+      "Known-surface mappings are detection-first capability guidance, not frozen provider action schemas; interruption and inventory never imply closure",
     );
     expect(normalizeWhitespace(consequences)).toContain(
       "Once a spawn reports slot exhaustion, retry remains blocked until actual closure or operator-confirmed manual cleanup",
@@ -2949,9 +2967,10 @@ describe("play subagent routing source contracts", () => {
       retentionReason: string | null;
       deferredEventReasons: string[];
       closeUnavailableReason: string | null;
+      unavailableEventReasons: string[];
     };
 
-    const apiActions = [
+    const observedApiActions = [
       "spawn_agent",
       "send_message",
       "followup_task",
@@ -2970,7 +2989,7 @@ describe("play subagent routing source contracts", () => {
       closeOperationExposed: false,
       closeSucceeded: false,
       interruptionPreservesContext: true,
-      apiActions,
+      apiActions: observedApiActions,
       inheritedControls: false,
       promisedLowLevelCodexClose: false,
       events: [
@@ -2997,6 +3016,7 @@ describe("play subagent routing source contracts", () => {
       retentionReason: null,
       deferredEventReasons: [],
       closeUnavailableReason: "inventory-only; no close operation",
+      unavailableEventReasons: ["inventory-only; no close operation"],
     };
 
     function invalidDimensions(example: LifecycleExample): string[] {
@@ -3010,10 +3030,10 @@ describe("play subagent routing source contracts", () => {
       }
       if (
         example.surface === "responses-api" &&
-        (example.apiActions.join(",") !== apiActions.join(",") ||
-          !example.interruptionPreservesContext)
+        example.apiActions.includes("interrupt_agent") &&
+        !example.interruptionPreservesContext
       ) {
-        errors.push("responses-api-actions");
+        errors.push("responses-api-interruption-semantics");
         return errors;
       }
       if (
@@ -3113,8 +3133,7 @@ describe("play subagent routing source contracts", () => {
         return errors;
       }
       if (
-        (example.operationalState === "timed-out" ||
-          example.operationalState === "failed") &&
+        runtimeTerminalEvents.length > 0 &&
         example.cleanupEvaluation === "evaluated" &&
         !example.abnormalTerminalStateCaptured
       ) {
@@ -3171,6 +3190,7 @@ describe("play subagent routing source contracts", () => {
           example.retentionReason !== null ||
           example.deferredEventReasons.length > 0 ||
           example.closeUnavailableReason !== null ||
+          example.unavailableEventReasons.length > 0 ||
           example.events.some((event) => closureEvents.has(event)))
       ) {
         errors.push("cleanup-evaluation-state");
@@ -3197,6 +3217,18 @@ describe("play subagent routing source contracts", () => {
           )
         ) {
           errors.push("deferred-reason-history");
+          return errors;
+        }
+        const unavailableCount = example.events.filter(
+          (event) => event === "closure-unavailable",
+        ).length;
+        if (
+          example.unavailableEventReasons.length !== unavailableCount ||
+          example.unavailableEventReasons.some(
+            (reason) => reason.trim().length === 0,
+          )
+        ) {
+          errors.push("unavailable-reason-history");
           return errors;
         }
       }
@@ -3306,6 +3338,13 @@ describe("play subagent routing source contracts", () => {
             return errors;
           }
           if (
+            example.closeUnavailableReason !==
+            example.unavailableEventReasons.at(-1)
+          ) {
+            errors.push("close-unavailable-reason-projection");
+            return errors;
+          }
+          if (
             example.trackedStableIdentity &&
             example.closeOperationExposed &&
             example.closeOperationUsable
@@ -3365,6 +3404,15 @@ describe("play subagent routing source contracts", () => {
 
     expect(invalidDimensions(valid)).toEqual([]);
     expect(
+      invalidDimensions({ ...valid, unavailableEventReasons: [] }),
+    ).toEqual(["unavailable-reason-history"]);
+    expect(
+      invalidDimensions({
+        ...valid,
+        closeUnavailableReason: "different current unavailable reason",
+      }),
+    ).toEqual(["close-unavailable-reason-projection"]);
+    expect(
       invalidDimensions({
         ...valid,
         retentionReason: "stale retention reason",
@@ -3387,9 +3435,9 @@ describe("play subagent routing source contracts", () => {
         { ...valid, cleanup: "closed=yes" },
       ],
       [
-        "close_agent is added to the Responses API inventory",
-        "responses-api-actions",
-        { ...valid, apiActions: [...apiActions, "close_agent"] },
+        "Responses API interruption is treated as destructive closure",
+        "responses-api-interruption-semantics",
+        { ...valid, interruptionPreservesContext: false },
       ],
       [
         "Local Codex promises a low-level close action",
@@ -3453,6 +3501,22 @@ describe("play subagent routing source contracts", () => {
     for (const [name, expectedError, example] of invalidFamilies) {
       expect(invalidDimensions(example), name).toEqual([expectedError]);
     }
+    expect(
+      invalidDimensions({
+        ...valid,
+        apiActions: [...observedApiActions, "newly_exposed_close_action"],
+      }),
+      "a newly exposed action name does not change capability by itself",
+    ).toEqual([]);
+    expect(
+      invalidDimensions({
+        ...valid,
+        apiActions: [...observedApiActions, "newly_exposed_close_action"],
+        closeOperationExposed: true,
+        closeOperationUsable: true,
+      }),
+      "an action name does not replace detected capability classification",
+    ).toEqual(["capability-classification"]);
 
     const pending: LifecycleExample = {
       ...valid,
@@ -3466,6 +3530,7 @@ describe("play subagent routing source contracts", () => {
       cleanupEvaluation: "not-evaluated",
       cleanupDecision: "none",
       closeUnavailableReason: null,
+      unavailableEventReasons: [],
     };
     expect(invalidDimensions(pending)).toEqual([]);
     expect(invalidDimensions(superseded)).toEqual([]);
@@ -3514,6 +3579,30 @@ describe("play subagent routing source contracts", () => {
     expect(
       invalidDimensions({ ...runtimeFailed, runtimeTerminalDetails: [] }),
     ).toEqual(["runtime-terminal-history"]);
+    const timedOutThenSuperseded: LifecycleExample = {
+      ...timedOut,
+      operationalState: "superseded",
+      events: [...timedOut.events, "superseded"],
+    };
+    expect(invalidDimensions(timedOutThenSuperseded)).toEqual([]);
+    expect(
+      invalidDimensions({
+        ...timedOutThenSuperseded,
+        abnormalTerminalStateCaptured: false,
+      }),
+    ).toEqual(["abnormal-terminal-capture"]);
+    const failedThenSuperseded: LifecycleExample = {
+      ...runtimeFailed,
+      operationalState: "superseded",
+      events: [...runtimeFailed.events, "superseded"],
+    };
+    expect(invalidDimensions(failedThenSuperseded)).toEqual([]);
+    expect(
+      invalidDimensions({
+        ...failedThenSuperseded,
+        abnormalTerminalStateCaptured: false,
+      }),
+    ).toEqual(["abnormal-terminal-capture"]);
 
     const returned: LifecycleExample = {
       ...valid,
@@ -3576,6 +3665,52 @@ describe("play subagent routing source contracts", () => {
       events: [...followupReviewerActive.events, "waiting"],
     };
     expect(invalidDimensions(followupReviewerWaiting)).toEqual([]);
+    const returnedFollowupTimedOut: LifecycleExample = {
+      ...followupReviewerActive,
+      operationalState: "timed-out",
+      events: [...followupReviewerActive.events, "turn-timed-out"],
+      runtimeTerminalDetails: [
+        {
+          event: "turn-timed-out",
+          reason: "follow-up runtime deadline elapsed before another return",
+        },
+      ],
+      abnormalTerminalStateCaptured: true,
+    };
+    expect(invalidDimensions(returnedFollowupTimedOut)).toEqual([]);
+    expect(returnedFollowupTimedOut.workflowReturnHistory).toEqual(["DONE"]);
+    expect(returnedFollowupTimedOut.reviewerDispositionHistory).toEqual(
+      returnedReviewer.reviewerDispositionHistory,
+    );
+    expect(
+      invalidDimensions({
+        ...returnedFollowupTimedOut,
+        workflowReturnStatus: null,
+        workflowReturnHistory: [],
+      }),
+    ).toEqual(["workflow-result-history"]);
+    const returnedFollowupFailed: LifecycleExample = {
+      ...returnedFollowupTimedOut,
+      operationalState: "failed",
+      events: returnedFollowupTimedOut.events.map((event) =>
+        event === "turn-timed-out" ? "turn-failed" : event,
+      ),
+      runtimeTerminalDetails: [
+        {
+          event: "turn-failed",
+          reason: "follow-up session transport ended before another return",
+        },
+      ],
+    };
+    expect(invalidDimensions(returnedFollowupFailed)).toEqual([]);
+    expect(
+      invalidDimensions({
+        ...returnedFollowupFailed,
+        reviewerDispositionClassified: false,
+        reviewerDisposition: null,
+        reviewerDispositionHistory: [],
+      }),
+    ).toEqual(["reviewer-disposition-history"]);
     expect(
       invalidDimensions({
         ...followupReviewerActive,
@@ -3653,6 +3788,22 @@ describe("play subagent routing source contracts", () => {
       closeUnavailableReason: null,
     };
     expect(invalidDimensions(reevaluatedAfterCapabilityChange)).toEqual([]);
+    expect(reevaluatedAfterCapabilityChange.closeUnavailableReason).toBeNull();
+    expect(reevaluatedAfterCapabilityChange.unavailableEventReasons).toEqual([
+      "inventory-only; no close operation",
+    ]);
+    expect(
+      invalidDimensions({
+        ...reevaluatedAfterCapabilityChange,
+        unavailableEventReasons: [],
+      }),
+    ).toEqual(["unavailable-reason-history"]);
+    expect(
+      invalidDimensions({
+        ...reevaluatedAfterCapabilityChange,
+        closeUnavailableReason: "inventory-only; no close operation",
+      }),
+    ).toEqual(["stale-cleanup-fields"]);
     const capabilityLossAfterSuccess: LifecycleExample = {
       ...reevaluatedAfterCapabilityChange,
       trackedStableIdentity: false,
@@ -3774,6 +3925,7 @@ describe("play subagent routing source contracts", () => {
       closeFailed: true,
       cleanupDecision: "attempted",
       closeUnavailableReason: null,
+      unavailableEventReasons: [],
       events: [
         ...returned.events.filter((event) => event !== "closure-unavailable"),
         "close-attempted",
@@ -3794,6 +3946,7 @@ describe("play subagent routing source contracts", () => {
       retentionReason: "spec reviewer may route a same-session fixup",
       deferredEventReasons: ["spec reviewer may route a same-session fixup"],
       closeUnavailableReason: null,
+      unavailableEventReasons: [],
       events: [
         ...returned.events.filter((event) => event !== "closure-unavailable"),
         "close-deferred",
@@ -3887,6 +4040,7 @@ describe("play subagent routing source contracts", () => {
       invalidDimensions({
         ...valid,
         events: valid.events.filter((event) => event !== "closure-unavailable"),
+        unavailableEventReasons: [],
       }),
     ).toEqual(["cleanup-decision"]);
     expect(
@@ -3901,6 +4055,7 @@ describe("play subagent routing source contracts", () => {
       invalidDimensions({
         ...failedClose,
         events: [...returned.events, "close-failed", "close-attempted"],
+        unavailableEventReasons: ["inventory-only; no close operation"],
       }),
     ).toEqual(["close-attempt-result-pairing"]);
     expect(
@@ -3951,6 +4106,7 @@ describe("play subagent routing source contracts", () => {
         closeOperationExposed: false,
         closeOperationUsable: false,
         closeUnavailableReason: "close operation no longer exposed",
+        unavailableEventReasons: ["close operation no longer exposed"],
         events: [...failedClose.events, "closure-unavailable", "close-failed"],
       }),
     ).toEqual(["close-attempt-result-pairing"]);

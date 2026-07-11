@@ -43,6 +43,9 @@ class, and cleanup outcome are independent ledger dimensions. Each row records:
   every `close-deferred` event;
 - the current workflow-owned retention reason only while the latest cleanup
   decision is deliberate retention;
+- the current unavailable-cleanup reason only while the latest cleanup decision
+  is unavailable, plus append-only concrete reason history for every
+  `closure-unavailable` event;
 - the latest workflow return status projection plus append-only status history
   for every observed returned turn;
 - the latest reviewer disposition projection plus append-only classification
@@ -88,14 +91,24 @@ never erase prior events or their associated detail. An identity assignment,
 wait, interruption, completion, supersession, deferral reason, or closure
 result therefore remains recoverable after current state advances.
 
+Every `closure-unavailable` event carries its concrete reason as
+event-associated detail and appends that value to unavailable-reason history.
+The current unavailable-cleanup reason is a separate latest-decision projection;
+later retention or a real close attempt may clear that projection but never the
+historical event reason.
+
 A runtime timeout appends `turn-timed-out` and sets current operational state
 to `timed-out`; a runtime/session failure appends `turn-failed` and sets it to
 `failed`. Attach only the sanitized reason or error detail needed for recovery.
 These are runtime terminal outcomes, not task failure, reviewer findings, or a
-workflow-returned `BLOCKED`. When no turn returned, workflow return status and
-its history remain absent. A `timed-out` or `failed` row becomes cleanup-eligible
-only after its available role state, sanitized runtime detail, and error or
-blocker context are captured.
+workflow-returned `BLOCKED`. The abnormal turn appends no workflow return value.
+Workflow return status and its history remain absent only when the session has
+never returned; an abnormal same-session follow-up preserves all prior return
+statuses, reviewer dispositions, their histories, and their latest projections.
+A `timed-out` or `failed` row becomes cleanup-eligible only after its available
+role state, sanitized runtime detail, and error or blocker context are captured.
+That capture requirement follows the abnormal event through later operational
+projections such as `superseded`; changing current state does not erase it.
 
 A normal returned turn appends `turn-completed` and sets current operational
 state to `completed`, including when its workflow return status is `DONE`,
@@ -164,7 +177,14 @@ observing the active runtime:
 - **Local Codex:** use model-visible requests to steer, wait, stop, and close
   threads. Do not promise a low-level action name. Active runtime detection
   decides whether closure is supported.
-- **Responses API Multi-agent:** the hosted action inventory is `spawn_agent`, `send_message`, `followup_task`, `wait_agent`, `interrupt_agent`, and `list_agents`. `interrupt_agent` preserves the session context and is not closure; the retained context may be reusable through `followup_task`. No hosted close action is promised.
+- **Responses API Multi-agent:** detect the actions exposed by the active
+  runtime instead of treating a remembered action list as a closed schema.
+  When exposed, spawn, send, and wait actions provide only their observed
+  semantics; `interrupt_agent` is interruption, not closure;
+  `followup_task` may reuse retained context; and `list_agents` may provide
+  inventory. No hosted close action is promised. Even if a close-like action
+  appears, classify automatic closure only from a detected stable identity plus
+  an exposed, usable close operation and its observed result.
 - **Claude Code:** detect actual identity, inventory, interruption, reuse, and
   closure controls. Claude Code inherits no Codex or Responses API assumptions.
 - **Unknown targets:** Unknown targets inherit no known-surface assumptions.
@@ -191,9 +211,11 @@ the projection deterministic:
   and projects `closed=no`. That decision does not append `close-attempted` or
   `close-failed`; deferral is not a fabricated close attempt.
 - An evaluated session without stable identity or without an exposed, usable
-  close operation appends `closure-unavailable` with the concrete reason and
-  projects `close-unavailable: <reason>`. An exposed-but-unusable close
-  operation follows this unavailable path, not `closed=no`.
+  close operation appends `closure-unavailable` with the concrete reason as
+  event-associated detail, appends the reason to unavailable-reason history,
+  and projects `close-unavailable: <reason>` with that same current reason. An
+  exposed-but-unusable close operation follows this unavailable path, not
+  `closed=no`.
 - An evaluated session with stable identity and an exposed, usable close
   operation whose real close attempt fails appends `close-attempted` and
   `close-failed`, then projects `closed=no`.
@@ -216,8 +238,11 @@ event, or capability facts. A failed close is not unavailable, and a deferred
 close is not a failed attempt. A later real attempt appends to the history
 without erasing `close-deferred` or its associated reason. The current retention
 reason no longer applies after the current decision advances, but the historical
-reason remains recoverable from the event. A later success replaces `closed=no`
-with `closed=yes` without deleting the deferral or failed-attempt history.
+reason remains recoverable from the event. Likewise, a later retention or close
+attempt clears the current unavailable-cleanup reason while preserving every
+prior `closure-unavailable` reason in append-only history. A later success
+replaces `closed=no` with `closed=yes` without deleting deferral, unavailable,
+or failed-attempt history.
 
 For rows not already successfully closed, later capability changes trigger
 reevaluation by appending newly observed capability and closure events, keeping

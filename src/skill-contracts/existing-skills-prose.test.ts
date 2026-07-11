@@ -4726,10 +4726,10 @@ describe("existing skills source prose contracts", () => {
       "Operational state, reuse state, target capability class, and cleanup outcome are independent ledger dimensions",
     );
     expect(normalized).toContain(
-      "the hosted action inventory is `spawn_agent`, `send_message`, `followup_task`, `wait_agent`, `interrupt_agent`, and `list_agents`",
+      "detect the actions exposed by the active runtime instead of treating a remembered action list as a closed schema",
     );
     expect(normalized).toContain(
-      "`interrupt_agent` preserves the session context and is not closure",
+      "`interrupt_agent` is interruption, not closure",
     );
     expect(normalized).toContain(
       "Unknown targets inherit no known-surface assumptions",

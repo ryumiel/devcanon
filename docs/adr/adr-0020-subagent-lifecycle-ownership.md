@@ -39,6 +39,8 @@ their spawn points. The shared procedure owns:
 - target lifecycle capability classes;
 - surface-specific capability mapping;
 - ordered append-only lifecycle-event history;
+- append-only value-bearing cleanup-decision reason histories with separate
+  current reason projections;
 - append-only value-bearing return-status and reviewer-disposition histories
   with separate latest projections;
 - total usable-control capability classification;
@@ -86,8 +88,9 @@ implementers continue to read the worktree from disk.
   value-bearing history while a separate latest value serves as the current
   projection through re-entry and reclassification.
 - Runtime `timed-out` and `failed` are operational terminal outcomes with
-  sanitized detail, not task or reviewer verdicts; without an observed return,
-  workflow return status remains absent.
+  sanitized detail, not task or reviewer verdicts. They add no return status;
+  sessions with prior returned turns preserve their return and disposition
+  histories and projections, while never-returned sessions keep them absent.
 - Once observed or classified, workflow return status and reviewer disposition
   survive same-session operational re-entry to active or waiting state.
 - Cleanup projection depends on usable closure, and failed automatic close
@@ -100,6 +103,9 @@ implementers continue to read the worktree from disk.
   concrete workflow-owned reason without fabricating an attempt or failure;
   the reason remains event-associated append-only history after the current
   decision advances, and later real attempts append to rather than erase it.
+- Every unavailable-cleanup decision preserves its concrete reason in
+  append-only event history. Later reevaluation may clear the current
+  unavailable reason projection but cannot erase or conflate that history.
 - Observed successful closure is terminal for its session row; later capability
   loss cannot reverse `closed=yes` or create contradictory unavailable cleanup.
 - A normal cleanup gate may continue after target-honest retained, unavailable,
@@ -115,6 +121,8 @@ implementers continue to read the worktree from disk.
 - Manual cleanup confirmation is append-only, row- or inventory-identity-scoped
   retry evidence with sanitized provenance and time. It preserves the honest
   cleanup outcome and cannot fabricate automatic closure.
+- Known-surface mappings are detection-first capability guidance, not frozen
+  provider action schemas; interruption and inventory never imply closure.
 - Slot-limit failures are handled as orchestration resource exhaustion, with
   state reconstruction and one retry after cleanup or manual confirmation.
 - Workflow-local exceptions remain explicit, so shared cleanup policy does not
