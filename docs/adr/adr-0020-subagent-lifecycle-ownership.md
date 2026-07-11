@@ -106,9 +106,10 @@ implementers continue to read the worktree from disk.
   concrete workflow-owned reason without fabricating an attempt or failure;
   the reason remains event-associated append-only history after the current
   decision advances, and later real attempts append to rather than erase it.
-- Finishing, capturing, or safely replacing that deferred need records
-  `retention-resolved`, clears current retention state, and preserves the
-  historical deferral. Its sole current projection is evaluated, decision
+- Finishing that deferred need, or capturing its required state and safely
+  replacing the follow-up need, records `retention-resolved`, preserves the
+  historical deferral, and clears current retention. Its sole current
+  projection is evaluated, decision
   `none`, no current retention or unavailable reason, and `closed=no`. The event
   neither changes the four cleanup families nor authorizes slot retry without
   actual or operator-confirmed cleanup.

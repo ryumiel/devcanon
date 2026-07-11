@@ -96,9 +96,10 @@ never erase prior events or their associated detail. An identity assignment,
 wait, interruption, completion, supersession, deferral reason, or closure
 result therefore remains recoverable after current state advances.
 
-`followup-dispatch-requested(session-id=...)` is reserved for a row currently
-`completed` after an observed `turn-completed`, when the supplied id matches
-its known stable identity and observed same-session reuse capability is positive.
+`followup-dispatch-requested(session-id=...)` requires a `completed` row,
+matching stable identity, positive observed reuse, and value-bearing capture
+newer than the latest `turn-completed` or capture-invalidating mutation; capture
+precedes dispatch.
 `interrupted-reuse-dispatch-requested(session-id=...)` is legal only when the
 row is currently `interrupted`, the supplied id matches its stable identity,
 observed reuse capability is positive, and required role-state capture is
@@ -111,11 +112,10 @@ Any `active`, `waiting`, or `interrupted` row may be superseded only
 after its latest open-state transition by ordered `required-state-captured`,
 `replacement-secured`, and `superseded` events. Cleanup never authorizes it.
 
-When a deferred need finishes or is safely replaced, append
-`retention-resolved` with evidence.
-It requires an unresolved `close-deferred`, current `completed`, `timed-out`,
-`failed`, or `superseded` state, and capture newer than the latest
-capture-requiring transition; an open re-entry must first return or be
+Append `retention-resolved` only when the deferred need finished, or required
+state was captured and the follow-up need was safely replaced.
+It also requires unresolved `close-deferred`, current `completed`, `timed-out`,
+`failed`, or `superseded`, and fresh capture; open re-entry must return or be
 superseded and recaptured. It preserves deferral history while clearing current
 retention. `retention-resolved` is a
 lifecycle decision event, not a fifth cleanup projection family, cleanup outcome, or proof
@@ -241,8 +241,8 @@ the projection deterministic:
   event-associated detail, records that reason as the current retention reason,
   and projects `closed=no`. That decision does not append `close-attempted` or
   `close-failed`; deferral is not a fabricated close attempt.
-- An evaluated deferred session whose workflow-owned need is finished,
-  captured, or safely replaced appends `retention-resolved` with resolution
+- An evaluated deferred session whose need finished, or whose required state
+  was captured and follow-up need safely replaced, appends `retention-resolved`
   evidence, keeps evaluation `evaluated`, sets the current cleanup decision to
   `none`, clears current retention and unavailable reasons, and projects
   `closed=no`. This evidenced transition is not another cleanup family. A later
@@ -274,9 +274,9 @@ close and its history.
 
 Do not retain a cleanup outcome that contradicts the latest closure decision,
 event, or capability facts. A failed close is not unavailable, and a deferred
-close is not a failed attempt. Before advancing a deferred row to a later real
-attempt or unavailable family, append `retention-resolved` after the need is
-finished, captured, or safely replaced. The current retention reason no longer
+close is not a failed attempt. Before a later attempt or unavailable family,
+append `retention-resolved` only after need completion or capture plus safe
+follow-up replacement. The current retention reason no longer
 applies after that event, but the historical `close-deferred` reason remains
 recoverable. After `retention-resolved`, a later real attempt appends to history
 without erasing `close-deferred`, its associated reason, or the resolution
@@ -360,9 +360,9 @@ When a spawn fails because of a slot/session limit:
    `failed`, or `superseded` sessions.
 9. For any capacity-blocking session whose latest cleanup decision is
    `close-deferred`, require the owning workflow to resolve whether same-session
-   follow-up is still required. After the row is terminal or superseded with fresh
-   capture, append `retention-resolved` with evidence that the need finished or
-   was safely replaced, clear current retention, and
+   follow-up is still required. After the row is terminal or superseded, append
+   `retention-resolved` only if the need finished or fresh capture and safe
+   replacement both occurred, clear current retention, and
    proceed through an actual supported close or operator-confirmed manual
    cleanup before retry. Preserve the historical `close-deferred` reason. If the follow-up need
    remains and safe cleanup or replacement cannot occur, stop and escalate;

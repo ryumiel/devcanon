@@ -2772,7 +2772,7 @@ describe("play subagent routing source contracts", () => {
       "State changes never erase prior events",
     );
     expect(normalizeWhitespace(orderedLifecycleEvents)).toContain(
-      "`followup-dispatch-requested(session-id=...)` is reserved for a row currently `completed` after an observed `turn-completed`, when the supplied id matches its known stable identity and observed same-session reuse capability is positive",
+      "`followup-dispatch-requested(session-id=...)` requires a `completed` row, matching stable identity, positive observed reuse, and value-bearing capture newer than the latest `turn-completed` or capture-invalidating mutation; capture precedes dispatch",
     );
     expect(normalizeWhitespace(orderedLifecycleEvents)).toContain(
       "`interrupted-reuse-dispatch-requested(session-id=...)` is legal only when the row is currently `interrupted`, the supplied id matches its stable identity, observed reuse capability is positive, and required role-state capture is strictly newer than its latest `interrupted` event",
@@ -2814,7 +2814,7 @@ describe("play subagent routing source contracts", () => {
       "Every `closure-unavailable` event carries its concrete reason as event-associated detail and appends that value to unavailable-reason history",
     );
     expect(normalizeWhitespace(orderedLifecycleEvents)).toContain(
-      "When a deferred need finishes or is safely replaced, append `retention-resolved` with evidence",
+      "Append `retention-resolved` only when the deferred need finished, or required state was captured and the follow-up need was safely replaced",
     );
     expect(normalizeWhitespace(orderedLifecycleEvents)).toContain(
       "`retention-resolved` is a lifecycle decision event, not a fifth cleanup projection family, cleanup outcome, or proof of closure",
@@ -2973,7 +2973,7 @@ describe("play subagent routing source contracts", () => {
       "a later retention or close attempt clears the current unavailable-cleanup reason while preserving every prior `closure-unavailable` reason in append-only history",
     );
     expect(normalizeWhitespace(cleanupProjection)).toContain(
-      "An evaluated deferred session whose workflow-owned need is finished, captured, or safely replaced appends `retention-resolved` with resolution evidence, keeps evaluation `evaluated`, sets the current cleanup decision to `none`, clears current retention and unavailable reasons, and projects `closed=no`",
+      "An evaluated deferred session whose need finished, or whose required state was captured and follow-up need safely replaced, appends `retention-resolved` evidence, keeps evaluation `evaluated`, sets the current cleanup decision to `none`, clears current retention and unavailable reasons, and projects `closed=no`",
     );
     expect(normalizeWhitespace(cleanupProjection)).toContain(
       "An evaluated row with no applicable decision and reason is invalid or ambiguous except for the exact evidenced post-`retention-resolved` projection above",
@@ -3014,7 +3014,7 @@ describe("play subagent routing source contracts", () => {
       "For any capacity-blocking session whose latest cleanup decision is `close-deferred`, require the owning workflow to resolve whether same-session follow-up is still required",
     );
     expect(normalizeWhitespace(slotLimitRecovery)).toContain(
-      "After the row is terminal or superseded with fresh capture, append `retention-resolved` with evidence that the need finished or was safely replaced, clear current retention, and proceed through an actual supported close or operator-confirmed manual cleanup before retry",
+      "After the row is terminal or superseded, append `retention-resolved` only if the need finished or fresh capture and safe replacement both occurred, clear current retention, and proceed through an actual supported close or operator-confirmed manual cleanup before retry",
     );
     expect(normalizeWhitespace(slotLimitRecovery)).toContain(
       "`retention-resolved` is necessary for a formerly deferred blocker but is not retry authorization or closure proof",
@@ -3115,7 +3115,7 @@ describe("play subagent routing source contracts", () => {
       "the reason remains event-associated append-only history after the current decision advances",
     );
     expect(normalizeWhitespace(consequences)).toContain(
-      "Finishing, capturing, or safely replacing that deferred need records `retention-resolved`, clears current retention state, and preserves the historical deferral",
+      "Finishing that deferred need, or capturing its required state and safely replacing the follow-up need, records `retention-resolved`, preserves the historical deferral, and clears current retention",
     );
     expect(normalizeWhitespace(consequences)).toContain(
       "Its sole current projection is evaluated, decision `none`, no current retention or unavailable reason, and `closed=no`",
@@ -3468,6 +3468,17 @@ describe("play subagent routing source contracts", () => {
       ) {
         errors.push("workflow-result-history");
         return errors;
+      }
+      for (const [followupIndex, event] of example.events.entries()) {
+        if (event !== "followup-dispatch-requested") continue;
+        const priorEvents = example.events.slice(0, followupIndex);
+        if (
+          priorEvents.lastIndexOf("required-state-captured") <=
+          priorEvents.lastIndexOf("turn-completed")
+        ) {
+          errors.push("completed-followup-capture-stale");
+          return errors;
+        }
       }
       const completedIndexes = example.events.flatMap((event, index) =>
         event === "turn-completed" ? [index] : [],
@@ -4310,7 +4321,7 @@ describe("play subagent routing source contracts", () => {
             index !== secondReturnedTurn.events.indexOf(event),
         ),
       }),
-    ).toEqual(["normal-terminal-capture"]);
+    ).toEqual(["completed-followup-capture-stale"]);
     expect(
       invalidDimensions({
         ...secondReturnedTurn,
@@ -5025,6 +5036,7 @@ describe("play subagent routing source contracts", () => {
       manualTarget?: ManualTarget;
       reason?: string;
       evidence?: string;
+      resolutionBasis?: "need-finished" | "captured-and-replaced";
       provenance?: string;
       observedAt?: string;
     };
@@ -5513,6 +5525,11 @@ describe("play subagent routing source contracts", () => {
             ) {
               return fail("illegal-followup-dispatch-transition");
             }
+            if (
+              state.captureFreshThroughOrder <= state.captureRequiredAfterOrder
+            ) {
+              return fail("completed-followup-capture-stale");
+            }
             advanceOperational(state, "active", event.order);
             break;
           case "interrupted-reuse-dispatch-requested":
@@ -5686,6 +5703,12 @@ describe("play subagent routing source contracts", () => {
             }
             if (!state.retained) {
               return fail("retention-resolution-without-deferral");
+            }
+            if (
+              event.resolutionBasis !== "need-finished" &&
+              event.resolutionBasis !== "captured-and-replaced"
+            ) {
+              return fail("retention-resolution-predicate");
             }
             state.latestRelevantTransitionOrder = event.order;
             state.retained = false;
@@ -5965,9 +5988,14 @@ describe("play subagent routing source contracts", () => {
       event("close-deferred", order, {
         reason,
       });
-    const resolution = (order = 7): LifecycleEvent =>
+    const resolution = (
+      order = 7,
+      overrides: Partial<LifecycleEvent> = {},
+    ): LifecycleEvent =>
       event("retention-resolved", order, {
         evidence: "fixup state captured and safely replaced",
+        resolutionBasis: "captured-and-replaced",
+        ...overrides,
       });
     const reuseCapability = (
       order: number,
@@ -5995,6 +6023,24 @@ describe("play subagent routing source contracts", () => {
         sessionId: "session-1",
         ...overrides,
       });
+    const completedFollowupCaptureFacts = (
+      capture: "missing" | "stale" | "post-dispatch",
+    ): LifecycleEvent[] => {
+      const facts = operationalFacts();
+      if (capture === "stale") {
+        facts[2] = event("required-state-captured", 3, { evidence: "stale" });
+        facts[3] = event("turn-completed", 4);
+      } else {
+        facts.pop();
+      }
+      facts.push(reuseCapability(5), completedFollowup(6));
+      if (capture === "post-dispatch") {
+        facts.push(
+          event("required-state-captured", 7, { evidence: "too late" }),
+        );
+      }
+      return facts;
+    };
     const confirmation = (
       order: number,
       overrides: Partial<LifecycleEvent> = {},
@@ -6033,16 +6079,26 @@ describe("play subagent routing source contracts", () => {
     ];
 
     expect(foldLifecycle(manualPath()).errors).toEqual([]);
-    expect(
-      foldLifecycle([
-        ...operationalFacts(),
-        deferral(),
-        resolution(),
-        episodeStart(),
-        automaticClose("close-attempted", 11),
-        automaticClose("close-succeeded", 12),
-      ]).errors,
-    ).toEqual([]);
+    for (const [basis, evidence, expected] of [
+      ["captured-and-replaced", "state captured and replaced", []],
+      ["need-finished", "same-session need finished", []],
+      [
+        undefined,
+        "required state captured",
+        ["retention-resolution-predicate"],
+      ],
+    ] as const) {
+      expect(
+        foldLifecycle([
+          ...operationalFacts(),
+          deferral(),
+          resolution(7, { evidence, resolutionBasis: basis }),
+          episodeStart(),
+          automaticClose("close-attempted", 11),
+          automaticClose("close-succeeded", 12),
+        ]).errors,
+      ).toEqual(expected);
+    }
     expect(
       foldLifecycle(
         waitingSupersession(["required-state-captured", "replacement-secured"]),
@@ -6417,6 +6473,12 @@ describe("play subagent routing source contracts", () => {
       [...operationalFacts(), completedFollowup(5), episodeStart()],
       "illegal-followup-dispatch-transition",
     );
+    for (const capture of ["missing", "stale", "post-dispatch"] as const) {
+      expectError(
+        completedFollowupCaptureFacts(capture),
+        "completed-followup-capture-stale",
+      );
+    }
     expectError(
       [
         ...operationalFacts(),
@@ -7362,6 +7424,19 @@ describe("play subagent routing source contracts", () => {
       sessionId: string,
     ): string[] => {
       const errors: string[] = [];
+      const followupIndex = section.indexOf(
+        `followup-dispatch-requested(session-id=${sessionId})`,
+      );
+      const completedIndex = section.lastIndexOf(
+        "turn-completed(",
+        followupIndex,
+      );
+      const captureIndex = [
+        ...section.matchAll(/required-state-captured\(evidence=[^)]+\)/gu),
+      ]
+        .map((match) => match.index ?? -1)
+        .filter((index) => index < followupIndex)
+        .at(-1);
       if (!section.includes(`agent_id=${sessionId} is stable`)) {
         errors.push("followup-stable-identity");
       }
@@ -7382,6 +7457,9 @@ describe("play subagent routing source contracts", () => {
         )
       ) {
         errors.push("followup-matching-identity");
+      }
+      if (captureIndex === undefined || captureIndex <= completedIndex) {
+        errors.push("followup-capture-order");
       }
       return errors;
     };
@@ -8255,6 +8333,16 @@ describe("play subagent routing source contracts", () => {
         errors.push("resolved-projection-preservation");
       }
       if (
+        (family === "unavailable" &&
+          !resolutionProjection.includes(
+            "evidence=follow-up state captured and follow-up need safely replaced",
+          )) ||
+        (family === "success" &&
+          !resolutionProjection.includes("evidence=follow-up finished"))
+      ) {
+        errors.push("retention-resolution-predicate");
+      }
+      if (
         family === "unavailable" &&
         (!afterResolution.includes("event=closure-unavailable(reason=") ||
           !afterResolution.includes("unavailable-reason history=[") ||
@@ -8281,6 +8369,15 @@ describe("play subagent routing source contracts", () => {
     expect(
       resolvedProjectionErrors(resolvedRetentionSuccess, "success"),
     ).toEqual([]);
+    expect(
+      resolvedProjectionErrors(
+        resolvedRetentionUnavailable.replace(
+          "follow-up state captured and follow-up need safely replaced",
+          "follow-up state captured",
+        ),
+        "unavailable",
+      ),
+    ).toEqual(["retention-resolution-predicate"]);
     expect(
       resolvedProjectionErrors(
         resolvedRetentionUnavailable.replace(
