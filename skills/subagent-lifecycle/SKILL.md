@@ -23,15 +23,20 @@ The ledger is agent-local/controller-local state; do not write it as durable
 repository documentation and do not pass it to reviewer agents as evidence.
 Reviewers and implementers still read the worktree from disk.
 
-Track one row per active, completed, superseded, or pending session. Each row
-records:
+Track one row per pending, active, waiting, interrupted, completed, or
+superseded session. Operational state, reuse state, target capability class,
+and cleanup outcome are independent ledger dimensions. Each row records:
 
 - task, phase, or review scope;
 - role;
 - one `agent_id` or `agent_id=pending`;
 - optional open-agent inventory when the target exposes it;
 - base/head SHA or equivalent source-state anchor when relevant;
-- status;
+- one operational state: `pending`, `active`, `waiting`, `interrupted`,
+  `completed`, or `superseded`;
+- reuse state when relevant, such as `reusable` after a context-preserving
+  interruption;
+- the target capability class when relevant;
 - role-specific captured state;
 - reviewer result when relevant;
 - fixup count or blocker state when relevant;
@@ -46,9 +51,15 @@ research brief path, CI investigation summary, and any open question or
 blocker detail that must survive session loss.
 
 Update the ledger before and after every dispatch. A pre-dispatch row may use
-`agent_id=pending` until the runtime returns a stable id. The ledger is the
-source for controller recovery after orchestration failures; git remains the
-source for repository state.
+`agent_id=pending` until the runtime returns a stable id. A pre-dispatch row has
+operational state `pending` and `agent_id=pending`; do not fabricate a stable
+id. Replace both fields with observed facts after dispatch. Reuse state may be
+`reusable`; `inventory-only` is a capability class, not an operational state.
+Cleanup remains `closed=yes`, `closed=no`, or
+`close-unavailable: <reason>`. Interruption and supersession never imply
+completion or closure; record completion events and cleanup outcomes
+separately. The ledger is the source for controller recovery after
+orchestration failures; git remains the source for repository state.
 
 ## Target Lifecycle Capability
 
@@ -68,9 +79,29 @@ wrong.
   explicit operator/UI cleanup guidance.
 
 Codex runtimes may expose a `close_agent` operation; Claude Code or other
-targets may expose different lifecycle controls or none at all. Do not infer
-support from another target. If either the id source or close operation is
-missing, automatic closure is unavailable for that target.
+targets may expose different lifecycle controls or none at all. Treat
+`close_agent` as conditional: use it only when active runtime detection exposes
+it. Do not infer support from another target. If either the id source or close
+operation is missing, automatic closure is unavailable for that target.
+
+## Known-Surface Capability Map
+
+Use this compact map as a detection starting point, not as a substitute for
+observing the active runtime:
+
+- **Local Codex:** use model-visible requests to steer, wait, stop, and close
+  threads. Do not promise a low-level action name. Active runtime detection
+  decides whether closure is supported.
+- **Responses API Multi-agent:** the hosted action inventory is `spawn_agent`, `send_message`, `followup_task`, `wait_agent`, `interrupt_agent`, and `list_agents`. `interrupt_agent` preserves the session context and is not closure; the retained context may be reusable through `followup_task`. No hosted close action is promised.
+- **Claude Code:** detect actual identity, inventory, interruption, reuse, and
+  closure controls. Claude Code inherits no Codex or Responses API assumptions.
+- **Unknown targets:** Unknown targets inherit no known-surface assumptions.
+  Use detected capabilities; otherwise classify them as
+  `cleanup-unavailable`.
+
+This map does not change the provider-neutral decision classes above. Stable
+identity plus an exposed close operation plus a successful close are all
+required before recording `closed=yes`.
 
 ## Cleanup Gate Before Spawns
 

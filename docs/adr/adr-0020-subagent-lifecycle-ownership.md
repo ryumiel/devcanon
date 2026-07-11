@@ -32,6 +32,8 @@ their spawn points. The shared procedure owns:
 
 - controller-local lifecycle ledger expectations;
 - target lifecycle capability classes;
+- surface-specific capability mapping;
+- independent operational, reuse, capability, and cleanup-state semantics;
 - target-honest cleanup outcomes;
 - cleanup gates before spawns;
 - slot-limit recovery and one retry after cleanup or manual confirmation.
@@ -55,6 +57,8 @@ implementers continue to read the worktree from disk.
 - Target capability claims remain target-honest: controllers can record
   automatic closure only when the current runtime exposes stable ids and a
   close operation.
+- Interruption, supersession, completion, reuse, capability, and cleanup remain
+  separate facts, so one lifecycle dimension cannot silently imply another.
 - Slot-limit failures are handled as orchestration resource exhaustion, with
   state reconstruction and one retry after cleanup or manual confirmation.
 - Workflow-local exceptions remain explicit, so shared cleanup policy does not

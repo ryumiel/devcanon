@@ -4718,6 +4718,24 @@ describe("existing skills source prose contracts", () => {
     );
   });
 
+  it("keeps portable lifecycle state separate from runtime capability", async () => {
+    const lifecycle = await readSkillSource("subagent-lifecycle");
+    const normalized = normalizeWhitespace(lifecycle);
+
+    expect(normalized).toContain(
+      "Operational state, reuse state, target capability class, and cleanup outcome are independent ledger dimensions",
+    );
+    expect(normalized).toContain(
+      "the hosted action inventory is `spawn_agent`, `send_message`, `followup_task`, `wait_agent`, `interrupt_agent`, and `list_agents`",
+    );
+    expect(normalized).toContain(
+      "`interrupt_agent` preserves the session context and is not closure",
+    );
+    expect(normalized).toContain(
+      "Unknown targets inherit no known-surface assumptions",
+    );
+  });
+
   it("keeps bundled prompt and runtime-reference prose contracts in source", async () => {
     const implementerPrompt = await readRepoFile(
       "skills/play-subagent-execution/references/implementer-prompt.md",

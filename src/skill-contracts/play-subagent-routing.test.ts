@@ -2423,6 +2423,10 @@ describe("play subagent routing source contracts", () => {
       skillSource,
       "Target Lifecycle Capability",
     );
+    const knownSurfaceCapabilityMap = getMarkdownSection(
+      skillSource,
+      "Known-Surface Capability Map",
+    );
     const cleanupGateBeforeSpawns = getMarkdownSection(
       skillSource,
       "Cleanup Gate Before Spawns",
@@ -2451,6 +2455,21 @@ describe("play subagent routing source contracts", () => {
     expect(normalizeWhitespace(controllerLifecycleLedger)).toContain(
       "Role-specific captured state is whatever the owning workflow needs before it can safely close, supersede, or replace that role",
     );
+    expect(normalizeWhitespace(controllerLifecycleLedger)).toContain(
+      "Operational state, reuse state, target capability class, and cleanup outcome are independent ledger dimensions",
+    );
+    expect(normalizeWhitespace(controllerLifecycleLedger)).toContain(
+      "`pending`, `active`, `waiting`, `interrupted`, `completed`, or `superseded`",
+    );
+    expect(normalizeWhitespace(controllerLifecycleLedger)).toContain(
+      "A pre-dispatch row has operational state `pending` and `agent_id=pending`",
+    );
+    expect(normalizeWhitespace(controllerLifecycleLedger)).toContain(
+      "Interruption and supersession never imply completion or closure",
+    );
+    expect(normalizeWhitespace(controllerLifecycleLedger)).toContain(
+      "Reuse state may be `reusable`; `inventory-only` is a capability class, not an operational state",
+    );
 
     expect(targetLifecycleCapability).toContain("automatic-close-supported");
     expect(targetLifecycleCapability).toContain(
@@ -2466,6 +2485,63 @@ describe("play subagent routing source contracts", () => {
     );
     expect(normalizeWhitespace(targetLifecycleCapability)).toContain(
       "Do not infer support from another target",
+    );
+    expect(normalizeWhitespace(targetLifecycleCapability)).toContain(
+      "Treat `close_agent` as conditional",
+    );
+
+    const normalizedSurfaceMap = normalizeWhitespace(knownSurfaceCapabilityMap);
+    for (const surface of [
+      "Local Codex",
+      "Responses API Multi-agent",
+      "Claude Code",
+      "Unknown targets",
+    ]) {
+      expect(knownSurfaceCapabilityMap).toContain(surface);
+    }
+    expect(normalizedSurfaceMap).toContain(
+      "model-visible requests to steer, wait, stop, and close threads",
+    );
+    expect(normalizedSurfaceMap).toContain(
+      "Do not promise a low-level action name",
+    );
+    expect(normalizedSurfaceMap).toContain(
+      "Active runtime detection decides whether closure is supported",
+    );
+
+    const responsesApiEntry = sliceBetween(
+      normalizedSurfaceMap,
+      "**Responses API Multi-agent:**",
+      "**Claude Code:**",
+    ).split(".", 1)[0];
+    const responsesApiActions = [
+      ...responsesApiEntry.matchAll(/`([^`]+)`/g),
+    ].map((match) => match[1]);
+    expect(responsesApiActions).toEqual([
+      "spawn_agent",
+      "send_message",
+      "followup_task",
+      "wait_agent",
+      "interrupt_agent",
+      "list_agents",
+    ]);
+    expect(normalizedSurfaceMap).toContain(
+      "`interrupt_agent` preserves the session context and is not closure",
+    );
+    expect(normalizedSurfaceMap).toContain(
+      "No hosted close action is promised",
+    );
+    expect(normalizedSurfaceMap).toContain(
+      "detect actual identity, inventory, interruption, reuse, and closure controls",
+    );
+    expect(normalizedSurfaceMap).toContain(
+      "inherits no Codex or Responses API assumptions",
+    );
+    expect(normalizedSurfaceMap).toContain(
+      "Unknown targets inherit no known-surface assumptions",
+    );
+    expect(normalizedSurfaceMap).toContain(
+      "Use detected capabilities; otherwise classify them as `cleanup-unavailable`",
     );
 
     expect(cleanupGateBeforeSpawns).toContain(
@@ -2513,6 +2589,8 @@ describe("play subagent routing source contracts", () => {
     for (const ownedSurface of [
       "controller-local lifecycle ledger expectations",
       "target lifecycle capability classes",
+      "surface-specific capability mapping",
+      "independent operational, reuse, capability, and cleanup-state semantics",
       "target-honest cleanup outcomes",
       "cleanup gates before spawns",
       "slot-limit recovery and one retry after cleanup or manual confirmation",
@@ -2532,6 +2610,216 @@ describe("play subagent routing source contracts", () => {
       "Slot-limit failures are handled as orchestration resource exhaustion",
     );
     expect(consequences).toContain("Workflow-local exceptions remain explicit");
+    expect(normalizeWhitespace(consequences)).toContain(
+      "Interruption, supersession, completion, reuse, capability, and cleanup remain separate facts",
+    );
+  });
+
+  it("rejects lifecycle examples that conflate one contract dimension", () => {
+    type LifecycleExample = {
+      surface: "local-codex" | "responses-api" | "claude-code" | "unknown";
+      operationalState:
+        | "pending"
+        | "active"
+        | "waiting"
+        | "interrupted"
+        | "completed"
+        | "superseded";
+      agentId: string;
+      capability:
+        | "automatic-close-supported"
+        | "inventory-only"
+        | "cleanup-unavailable";
+      cleanup: "closed=yes" | "closed=no" | "close-unavailable";
+      reusable: boolean;
+      completionEvent: boolean;
+      closeOperationExposed: boolean;
+      closeSucceeded: boolean;
+      interruptionPreservesContext: boolean;
+      apiActions: string[];
+      inheritedControls: boolean;
+      promisedLowLevelCodexClose: boolean;
+    };
+
+    const apiActions = [
+      "spawn_agent",
+      "send_message",
+      "followup_task",
+      "wait_agent",
+      "interrupt_agent",
+      "list_agents",
+    ];
+    const valid: LifecycleExample = {
+      surface: "responses-api",
+      operationalState: "interrupted",
+      agentId: "agent-1",
+      capability: "inventory-only",
+      cleanup: "close-unavailable",
+      reusable: true,
+      completionEvent: false,
+      closeOperationExposed: false,
+      closeSucceeded: false,
+      interruptionPreservesContext: true,
+      apiActions,
+      inheritedControls: false,
+      promisedLowLevelCodexClose: false,
+    };
+
+    function invalidDimensions(example: LifecycleExample): string[] {
+      const errors: string[] = [];
+      if (
+        (example.operationalState === "pending") !==
+        (example.agentId === "pending")
+      ) {
+        errors.push("pending-identity");
+        return errors;
+      }
+      if (
+        example.surface === "responses-api" &&
+        (example.apiActions.join(",") !== apiActions.join(",") ||
+          !example.interruptionPreservesContext)
+      ) {
+        errors.push("responses-api-actions");
+        return errors;
+      }
+      if (
+        example.operationalState === "interrupted" &&
+        example.cleanup === "closed=yes"
+      ) {
+        errors.push("interruption-is-not-closure");
+        return errors;
+      }
+      if (
+        example.capability === "inventory-only" &&
+        example.operationalState === "completed" &&
+        !example.completionEvent
+      ) {
+        errors.push("capability-is-not-operation");
+        return errors;
+      }
+      if (
+        (example.surface === "claude-code" || example.surface === "unknown") &&
+        example.inheritedControls
+      ) {
+        errors.push("cross-surface-inheritance");
+        return errors;
+      }
+      if (
+        example.surface === "local-codex" &&
+        example.promisedLowLevelCodexClose
+      ) {
+        errors.push("codex-low-level-close-promise");
+        return errors;
+      }
+      if (
+        example.operationalState === "completed" &&
+        !example.completionEvent
+      ) {
+        errors.push("completion-event");
+        return errors;
+      }
+      if (
+        example.cleanup === "closed=yes" &&
+        (example.agentId === "pending" ||
+          !example.closeOperationExposed ||
+          !example.closeSucceeded)
+      ) {
+        errors.push("closure-proof");
+      }
+      return errors;
+    }
+
+    expect(invalidDimensions(valid)).toEqual([]);
+
+    const superseded: LifecycleExample = {
+      ...valid,
+      operationalState: "superseded",
+      reusable: false,
+      capability: "cleanup-unavailable",
+    };
+
+    const invalidFamilies: Array<[string, string, LifecycleExample]> = [
+      [
+        "interrupted becomes closed",
+        "interruption-is-not-closure",
+        { ...valid, cleanup: "closed=yes" },
+      ],
+      [
+        "close_agent is added to the Responses API inventory",
+        "responses-api-actions",
+        { ...valid, apiActions: [...apiActions, "close_agent"] },
+      ],
+      [
+        "Local Codex promises a low-level close action",
+        "codex-low-level-close-promise",
+        {
+          ...valid,
+          surface: "local-codex",
+          apiActions: [],
+          promisedLowLevelCodexClose: true,
+        },
+      ],
+      [
+        "Claude Code inherits another provider's controls",
+        "cross-surface-inheritance",
+        {
+          ...valid,
+          surface: "claude-code",
+          apiActions: [],
+          inheritedControls: true,
+        },
+      ],
+      [
+        "an unknown target inherits another provider's controls",
+        "cross-surface-inheritance",
+        {
+          ...valid,
+          surface: "unknown",
+          apiActions: [],
+          inheritedControls: true,
+        },
+      ],
+      [
+        "inventory-only becomes operational completion",
+        "capability-is-not-operation",
+        {
+          ...valid,
+          operationalState: "completed",
+          completionEvent: false,
+        },
+      ],
+      [
+        "a pending row fabricates a stable id",
+        "pending-identity",
+        { ...valid, operationalState: "pending", agentId: "fabricated-1" },
+      ],
+      [
+        "a pending row omits its pending identity",
+        "pending-identity",
+        { ...valid, operationalState: "pending", agentId: "" },
+      ],
+      [
+        "a superseded row becomes completed without a completion event",
+        "completion-event",
+        {
+          ...superseded,
+          operationalState: "completed",
+        },
+      ],
+    ];
+
+    for (const [name, expectedError, example] of invalidFamilies) {
+      expect(invalidDimensions(example), name).toEqual([expectedError]);
+    }
+
+    const pending: LifecycleExample = {
+      ...valid,
+      operationalState: "pending",
+      agentId: "pending",
+      reusable: false,
+    };
+    expect(invalidDimensions(pending)).toEqual([]);
+    expect(invalidDimensions(superseded)).toEqual([]);
   });
 
   it("keeps play-subagent-execution lifecycle delegation and local exceptions in source", async () => {
