@@ -3222,14 +3222,21 @@ describe("play subagent routing source contracts", () => {
       "interrupt_agent",
       "list_agents",
     ];
+    const unevaluatedCleanup = {
+      cleanup: "closed=no",
+      cleanupEvaluation: "not-evaluated",
+      cleanupDecision: "none",
+      closeUnavailableReason: null,
+      unavailableEventReasons: [],
+    } satisfies Partial<LifecycleExample>;
     const valid: LifecycleExample = {
       surface: "responses-api",
-      operationalState: "interrupted",
+      operationalState: "completed",
       agentId: "agent-1",
       capability: "inventory-only",
       cleanup: "close-unavailable",
       reusable: true,
-      completionEvent: false,
+      completionEvent: true,
       closeOperationExposed: false,
       closeSucceeded: false,
       interruptionPreservesContext: true,
@@ -3239,11 +3246,11 @@ describe("play subagent routing source contracts", () => {
       events: [
         "dispatch-requested",
         "identity-assigned",
-        "interrupted",
+        "turn-completed",
         "closure-unavailable",
       ],
-      workflowReturnStatus: null,
-      workflowReturnHistory: [],
+      workflowReturnStatus: "DONE",
+      workflowReturnHistory: ["DONE"],
       reviewerDispositionClassified: false,
       reviewerDisposition: null,
       reviewerDispositionHistory: [],
@@ -3263,6 +3270,22 @@ describe("play subagent routing source contracts", () => {
       closeUnavailableReason: "inventory-only; no close operation",
       unavailableEventReasons: ["inventory-only; no close operation"],
     };
+    const interruptedOpen: LifecycleExample = {
+      ...valid,
+      ...unevaluatedCleanup,
+      operationalState: "interrupted",
+      events: ["dispatch-requested", "identity-assigned", "interrupted"],
+      workflowReturnStatus: null,
+      workflowReturnHistory: [],
+      completionEvent: false,
+    };
+    const evaluatedUnavailableCleanup = {
+      cleanup: "close-unavailable",
+      cleanupEvaluation: "evaluated",
+      cleanupDecision: "unavailable",
+      closeUnavailableReason: "inventory-only; no close operation",
+      unavailableEventReasons: ["inventory-only; no close operation"],
+    } satisfies Partial<LifecycleExample>;
 
     function invalidDimensions(example: LifecycleExample): string[] {
       const errors: string[] = [];
@@ -3324,6 +3347,14 @@ describe("play subagent routing source contracts", () => {
           errors.push("event-history");
           return errors;
         }
+      }
+      if (
+        example.events.some((event) =>
+          event.startsWith("operational-classified"),
+        )
+      ) {
+        errors.push("unsupported-operational-classification");
+        return errors;
       }
       const operationalStateByEvent = new Map<
         string,
@@ -3407,6 +3438,15 @@ describe("play subagent routing source contracts", () => {
         errors.push("operational-state-projection");
         return errors;
       }
+      if (
+        (projectedOperationalState === "active" ||
+          projectedOperationalState === "waiting" ||
+          projectedOperationalState === "interrupted") &&
+        example.cleanupEvaluation === "evaluated"
+      ) {
+        errors.push("cleanup-ineligible-operational-state");
+        return errors;
+      }
       const returnedTurnCount = example.events.filter(
         (event) => event === "turn-completed",
       ).length;
@@ -3434,10 +3474,29 @@ describe("play subagent routing source contracts", () => {
         errors.push("runtime-terminal-history");
         return errors;
       }
+      const terminalIndex = Math.max(
+        example.events.lastIndexOf("turn-timed-out"),
+        example.events.lastIndexOf("turn-failed"),
+      );
+      const abnormalSupersededIndex = example.events.lastIndexOf("superseded");
+      const abnormalOrder = [
+        terminalIndex,
+        example.events.lastIndexOf("required-state-captured"),
+        example.events.lastIndexOf("abnormal-context-captured"),
+        ...(abnormalSupersededIndex > terminalIndex
+          ? [abnormalSupersededIndex]
+          : []),
+        example.events.findIndex(
+          (event, index) => index > terminalIndex && closureEvents.has(event),
+        ),
+      ];
       if (
         runtimeTerminalEvents.length > 0 &&
         example.cleanupEvaluation === "evaluated" &&
-        !example.abnormalTerminalStateCaptured
+        (!example.abnormalTerminalStateCaptured ||
+          abnormalOrder.some(
+            (order, index) => index > 0 && order <= abnormalOrder[index - 1],
+          ))
       ) {
         errors.push("abnormal-terminal-capture");
         return errors;
@@ -3747,6 +3806,19 @@ describe("play subagent routing source contracts", () => {
 
     expect(invalidDimensions(valid)).toEqual([]);
     expect(
+      invalidDimensions({
+        ...interruptedOpen,
+        ...evaluatedUnavailableCleanup,
+        events: [...interruptedOpen.events, "closure-unavailable"],
+      }),
+    ).toEqual(["cleanup-ineligible-operational-state"]);
+    expect(
+      invalidDimensions({
+        ...valid,
+        events: [...valid.events, "operational-classified(active)"],
+      }),
+    ).toEqual(["unsupported-operational-classification"]);
+    expect(
       invalidDimensions({ ...valid, unavailableEventReasons: [] }),
     ).toEqual(["unavailable-reason-history"]);
     expect(
@@ -3768,6 +3840,18 @@ describe("play subagent routing source contracts", () => {
       ...events,
       "closure-unavailable",
     ];
+    const abnormalEvents = (
+      terminal: "turn-timed-out" | "turn-failed",
+      supersede = false,
+    ): string[] => [
+      "dispatch-requested",
+      "identity-assigned",
+      terminal,
+      "required-state-captured",
+      "abnormal-context-captured",
+      ...(supersede ? ["superseded"] : []),
+      "closure-unavailable",
+    ];
     const superseded: LifecycleExample = {
       ...valid,
       operationalState: "superseded",
@@ -3780,18 +3864,21 @@ describe("play subagent routing source contracts", () => {
         "superseded",
       ),
       trackedStableIdentity: false,
+      workflowReturnStatus: null,
+      workflowReturnHistory: [],
+      completionEvent: false,
     };
 
     const invalidFamilies: Array<[string, string, LifecycleExample]> = [
       [
         "interrupted becomes closed",
         "interruption-is-not-closure",
-        { ...valid, cleanup: "closed=yes" },
+        { ...interruptedOpen, cleanup: "closed=yes" },
       ],
       [
         "Responses API interruption is treated as destructive closure",
         "responses-api-interruption-semantics",
-        { ...valid, interruptionPreservesContext: false },
+        { ...interruptedOpen, interruptionPreservesContext: false },
       ],
       [
         "Local Codex promises a low-level close action",
@@ -3874,17 +3961,16 @@ describe("play subagent routing source contracts", () => {
 
     const pending: LifecycleExample = {
       ...valid,
+      ...unevaluatedCleanup,
       operationalState: "pending",
       agentId: "pending",
       reusable: false,
       events: ["dispatch-requested"],
       capability: "cleanup-unavailable",
       trackedStableIdentity: false,
-      cleanup: "closed=no",
-      cleanupEvaluation: "not-evaluated",
-      cleanupDecision: "none",
-      closeUnavailableReason: null,
-      unavailableEventReasons: [],
+      completionEvent: false,
+      workflowReturnStatus: null,
+      workflowReturnHistory: [],
     };
     expect(invalidDimensions(pending)).toEqual([]);
     expect(invalidDimensions(superseded)).toEqual([]);
@@ -3944,12 +4030,10 @@ describe("play subagent routing source contracts", () => {
       ...valid,
       operationalState: "timed-out",
       reusable: false,
-      events: [
-        "dispatch-requested",
-        "identity-assigned",
-        "turn-timed-out",
-        "closure-unavailable",
-      ],
+      events: abnormalEvents("turn-timed-out"),
+      workflowReturnStatus: null,
+      workflowReturnHistory: [],
+      completionEvent: false,
       runtimeTerminalDetails: [
         {
           event: "turn-timed-out",
@@ -3975,6 +4059,32 @@ describe("play subagent routing source contracts", () => {
       ],
     };
     expect(invalidDimensions(runtimeFailed)).toEqual([]);
+    for (const abnormal of [timedOut, runtimeFailed]) {
+      const terminal = abnormal.runtimeTerminalDetails[0]?.event ?? "";
+      const eventText = abnormal.events.join("|");
+      for (const [from, to] of [
+        ["required-state-captured|", ""],
+        [
+          `${terminal}|required-state-captured`,
+          `required-state-captured|${terminal}`,
+        ],
+        [
+          "required-state-captured|abnormal-context-captured",
+          "abnormal-context-captured|required-state-captured",
+        ],
+        [
+          "abnormal-context-captured|closure-unavailable",
+          "closure-unavailable|abnormal-context-captured",
+        ],
+      ]) {
+        expect(
+          invalidDimensions({
+            ...abnormal,
+            events: eventText.replace(from, to).split("|"),
+          }),
+        ).toEqual(["abnormal-terminal-capture"]);
+      }
+    }
     expect(
       invalidDimensions({
         ...timedOut,
@@ -3987,7 +4097,7 @@ describe("play subagent routing source contracts", () => {
     const timedOutThenSuperseded: LifecycleExample = {
       ...timedOut,
       operationalState: "superseded",
-      events: [...timedOut.events, "superseded"],
+      events: abnormalEvents("turn-timed-out", true),
     };
     expect(invalidDimensions(timedOutThenSuperseded)).toEqual([]);
     expect(
@@ -3999,7 +4109,7 @@ describe("play subagent routing source contracts", () => {
     const failedThenSuperseded: LifecycleExample = {
       ...runtimeFailed,
       operationalState: "superseded",
-      events: [...runtimeFailed.events, "superseded"],
+      events: abnormalEvents("turn-failed", true),
     };
     expect(invalidDimensions(failedThenSuperseded)).toEqual([]);
     expect(
@@ -4009,44 +4119,36 @@ describe("play subagent routing source contracts", () => {
       }),
     ).toEqual(["abnormal-terminal-capture"]);
 
-    const returned: LifecycleExample = {
-      ...valid,
-      operationalState: "completed",
-      completionEvent: true,
-      events: [
-        "dispatch-requested",
-        "identity-assigned",
-        "interrupted",
-        "turn-completed",
-        "closure-unavailable",
-      ],
-      workflowReturnStatus: "DONE",
-      workflowReturnHistory: ["DONE"],
-    };
-    expect(invalidDimensions(returned)).toEqual([]);
     expect(
       invalidDimensions({
-        ...valid,
-        events: valid.events.filter((event) => event !== "interrupted"),
+        ...interruptedOpen,
+        events: interruptedOpen.events.filter(
+          (event) => event !== "interrupted",
+        ),
       }),
     ).toEqual(["operational-state-projection"]);
+    expect(invalidDimensions({ ...valid, operationalState: "active" })).toEqual(
+      ["operational-state-projection"],
+    );
     expect(
-      invalidDimensions({ ...returned, operationalState: "active" }),
+      invalidDimensions({ ...valid, events: interruptedOpen.events }),
     ).toEqual(["operational-state-projection"]);
-    expect(invalidDimensions({ ...returned, events: valid.events })).toEqual([
-      "operational-state-projection",
-    ]);
-    const followupActive: LifecycleExample = {
-      ...returned,
+    const reopen = (example: LifecycleExample): LifecycleExample => ({
+      ...example,
+      ...unevaluatedCleanup,
       operationalState: "active",
-      events: [...returned.events, "followup-dispatch-requested"],
-    };
+      events: [
+        ...example.events.filter((event) => event !== "closure-unavailable"),
+        "followup-dispatch-requested",
+      ],
+    });
+    const followupActive = reopen(valid);
     expect(invalidDimensions(followupActive)).toEqual([]);
     expect(
       invalidDimensions({ ...followupActive, workflowReturnStatus: null }),
     ).toEqual(["workflow-result-history"]);
     const returnedReviewer: LifecycleExample = {
-      ...returned,
+      ...valid,
       reviewerDispositionClassified: true,
       reviewerDisposition: "advisory",
       reviewerDispositionHistory: [
@@ -4056,13 +4158,9 @@ describe("play subagent routing source contracts", () => {
           sourceState: "reviewed task-head-1",
         },
       ],
-      events: [...returned.events, "reviewer-disposition-classified"],
+      events: [...valid.events, "reviewer-disposition-classified"],
     };
-    const followupReviewerActive: LifecycleExample = {
-      ...returnedReviewer,
-      operationalState: "active",
-      events: [...returnedReviewer.events, "followup-dispatch-requested"],
-    };
+    const followupReviewerActive = reopen(returnedReviewer);
     expect(invalidDimensions(followupReviewerActive)).toEqual([]);
     const followupReviewerWaiting: LifecycleExample = {
       ...followupReviewerActive,
@@ -4072,8 +4170,15 @@ describe("play subagent routing source contracts", () => {
     expect(invalidDimensions(followupReviewerWaiting)).toEqual([]);
     const returnedFollowupTimedOut: LifecycleExample = {
       ...followupReviewerActive,
+      ...evaluatedUnavailableCleanup,
       operationalState: "timed-out",
-      events: [...followupReviewerActive.events, "turn-timed-out"],
+      events: [
+        ...followupReviewerActive.events,
+        "turn-timed-out",
+        "required-state-captured",
+        "abnormal-context-captured",
+        "closure-unavailable",
+      ],
       runtimeTerminalDetails: [
         {
           event: "turn-timed-out",
@@ -4170,16 +4275,12 @@ describe("play subagent routing source contracts", () => {
     expect(
       invalidDimensions({
         ...followupWaiting,
-        events: [
-          ...followupWaiting.events.filter(
-            (event) => event !== "closure-unavailable",
-          ),
-          "closure-unavailable",
-        ],
+        ...evaluatedUnavailableCleanup,
+        events: [...followupWaiting.events, "closure-unavailable"],
       }),
-    ).toEqual([]);
+    ).toEqual(["cleanup-ineligible-operational-state"]);
     const reevaluatedAfterCapabilityChange: LifecycleExample = {
-      ...returned,
+      ...valid,
       capability: "automatic-close-supported",
       cleanup: "closed=yes",
       closeOperationExposed: true,
@@ -4187,7 +4288,7 @@ describe("play subagent routing source contracts", () => {
       closeInvocationObserved: true,
       closeAttempted: true,
       closeSucceeded: true,
-      events: [...returned.events, "close-attempted", "close-succeeded"],
+      events: [...valid.events, "close-attempted", "close-succeeded"],
       cleanupEvaluation: "evaluated",
       cleanupDecision: "attempted",
       closeUnavailableReason: null,
@@ -4259,8 +4360,8 @@ describe("play subagent routing source contracts", () => {
     ).toEqual(["cleanup-evaluation-state"]);
     expect(
       invalidDimensions({
-        ...valid,
-        events: [...valid.events, "turn-completed"],
+        ...interruptedOpen,
+        events: [...interruptedOpen.events, "turn-completed"],
         workflowReturnStatus: "DONE",
         workflowReturnHistory: ["DONE"],
         completionEvent: true,
@@ -4290,12 +4391,12 @@ describe("play subagent routing source contracts", () => {
         }),
       ).toContain("operational-state-projection");
     }
-    expect(
-      invalidDimensions({ ...returned, workflowReturnStatus: null }),
-    ).toEqual(["workflow-result-history"]);
+    expect(invalidDimensions({ ...valid, workflowReturnStatus: null })).toEqual(
+      ["workflow-result-history"],
+    );
     expect(
       invalidDimensions({
-        ...returned,
+        ...valid,
         reviewerDispositionClassified: true,
         reviewerDisposition: null,
       }),
@@ -4329,7 +4430,7 @@ describe("play subagent routing source contracts", () => {
     ).toEqual(["cleanup-projection"]);
 
     const failedClose: LifecycleExample = {
-      ...returned,
+      ...valid,
       capability: "automatic-close-supported",
       cleanup: "closed=no",
       closeOperationExposed: true,
@@ -4341,7 +4442,7 @@ describe("play subagent routing source contracts", () => {
       closeUnavailableReason: null,
       unavailableEventReasons: [],
       events: [
-        ...returned.events.filter((event) => event !== "closure-unavailable"),
+        ...valid.events.filter((event) => event !== "closure-unavailable"),
         "close-attempted",
         "close-failed",
       ],
@@ -4351,7 +4452,7 @@ describe("play subagent routing source contracts", () => {
       invalidDimensions({ ...failedClose, cleanup: "close-unavailable" }),
     ).toEqual(["cleanup-projection"]);
     const retainedForFollowup: LifecycleExample = {
-      ...returned,
+      ...valid,
       capability: "automatic-close-supported",
       cleanup: "closed=no",
       closeOperationExposed: true,
@@ -4362,7 +4463,7 @@ describe("play subagent routing source contracts", () => {
       closeUnavailableReason: null,
       unavailableEventReasons: [],
       events: [
-        ...returned.events.filter((event) => event !== "closure-unavailable"),
+        ...valid.events.filter((event) => event !== "closure-unavailable"),
         "close-deferred",
       ],
     };
@@ -4411,14 +4512,14 @@ describe("play subagent routing source contracts", () => {
       }),
     ).toEqual(["retention-resolution-projection"]);
     const unavailableThenResolved: LifecycleExample = {
-      ...returned,
+      ...valid,
       cleanup: "closed=no",
       cleanupDecision: "none",
       retentionReason: null,
       deferredEventReasons: ["same-session reviewer follow-up required"],
       retentionResolutionDetails: ["reviewer state captured and replaced"],
       closeUnavailableReason: null,
-      events: [...returned.events, "close-deferred", "retention-resolved"],
+      events: [...valid.events, "close-deferred", "retention-resolved"],
     };
     expect(invalidDimensions(unavailableThenResolved)).toEqual([]);
     expect(unavailableThenResolved.unavailableEventReasons).toEqual([
@@ -4558,7 +4659,7 @@ describe("play subagent routing source contracts", () => {
     expect(
       invalidDimensions({
         ...failedClose,
-        events: [...returned.events, "close-failed", "close-attempted"],
+        events: [...valid.events, "close-failed", "close-attempted"],
         unavailableEventReasons: ["inventory-only; no close operation"],
       }),
     ).toEqual(["close-attempt-result-pairing"]);
