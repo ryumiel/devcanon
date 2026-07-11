@@ -101,6 +101,8 @@ history according to the shared owner contract before continuing. Missing
 captured role state blocks the handoff. Normal cleanup may continue with
 target-honest open evidence, but shared slot-limit recovery remains blocked
 until actual closure or operator-confirmed manual cleanup.
+A capacity-blocking retained session must first resolve and safely capture or
+replace its follow-up need, or stop and escalate without retrying.
 
 ## Single-Task Final-Review Carve-Out
 

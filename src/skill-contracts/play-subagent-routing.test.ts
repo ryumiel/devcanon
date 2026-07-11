@@ -3926,6 +3926,11 @@ describe("play subagent routing source contracts", () => {
       "[Slot-limit automatic-close failure - separate run]",
       "[Slot-limit spawn failure on cleanup-unavailable target - separate run]",
     );
+    const slotLimitRetainedSession = sliceBetween(
+      targetCapabilityExamples,
+      "[Slot-limit retained-session capacity blocker - separate run]",
+      "[Slot-limit automatic-close failure - separate run]",
+    );
     const checkpointRow = (
       source: string,
       checkpoint: string,
@@ -3973,10 +3978,42 @@ describe("play subagent routing source contracts", () => {
     const expectDeferredCleanupRow = (row: string): void => {
       expect(row).toContain("cleanup evaluation=evaluated");
       expect(row).toContain("close-deferred");
+      expect(
+        row.includes("close-deferred(reason=") ||
+          row.includes("close-deferred reason history=["),
+      ).toBe(true);
       expect(row).toContain("retention reason=");
       expect(row).toContain("cleanup outcome=closed=no");
       expect(row).not.toContain("close-attempted");
       expect(row).not.toContain("close-failed");
+    };
+    const historicalDeferralErrors = (
+      row: string,
+      expectedReasons: string[],
+    ): string[] => {
+      const errors: string[] = [];
+      const deferredIndex = row.indexOf("close-deferred reason history=[");
+      const attemptedIndex = row.indexOf("close-attempted");
+      if (
+        deferredIndex < 0 ||
+        expectedReasons.some((reason) => !row.includes(reason))
+      ) {
+        errors.push("deferral-reason-history");
+      }
+      if (
+        !row.includes("current cleanup decision=attempted") ||
+        !row.includes("current retention reason=none")
+      ) {
+        errors.push("current-cleanup-projection");
+      }
+      if (
+        deferredIndex < 0 ||
+        attemptedIndex < 0 ||
+        deferredIndex >= attemptedIndex
+      ) {
+        errors.push("append-only-event-order");
+      }
+      return errors;
     };
 
     expect(exampleWorkflow).toContain(
@@ -4031,6 +4068,16 @@ describe("play subagent routing source contracts", () => {
         checkpointRow(task1Section, "[Lifecycle cleanup checkpoint]", role),
       );
     }
+    const task1ImplementerCleanup = checkpointRow(
+      task1Section,
+      "[Lifecycle cleanup checkpoint]",
+      "Task 1 implementer",
+    );
+    expect(
+      historicalDeferralErrors(task1ImplementerCleanup, [
+        "same implementer session must remain available for reviewer fixups",
+      ]),
+    ).toEqual([]);
     expect(task3Section).toContain("snapshot state=skipped");
     expect(normalizeWhitespace(task3Section)).toContain(
       "The implementer must report the default DONE fields: status, summary, tests, files changed, base SHA, and head SHA.",
@@ -4126,6 +4173,30 @@ describe("play subagent routing source contracts", () => {
         checkpointRow(task2Section, "[Lifecycle cleanup checkpoint]", role),
       );
     }
+    const task2ImplementerCleanup = checkpointRow(
+      task2Section,
+      "[Lifecycle cleanup checkpoint]",
+      "Task 2 implementer",
+    );
+    const task2DeferralReasons = [
+      "same implementer session must remain available for reviewer fixups",
+      "routed same-head findings need same-session fixup",
+      "spec re-review and any required code-quality re-review or disposition are pending",
+      "spec and required quality dispositions are not yet final",
+      "code-quality findings may still require same-session follow-up",
+    ];
+    expect(
+      historicalDeferralErrors(task2ImplementerCleanup, task2DeferralReasons),
+    ).toEqual([]);
+    expect(
+      historicalDeferralErrors(
+        task2ImplementerCleanup.replace(
+          /close-deferred reason history=\[[^\]]+\] retained, /u,
+          "",
+        ),
+        task2DeferralReasons,
+      ),
+    ).toEqual(["deferral-reason-history", "append-only-event-order"]);
 
     const activeFollowupRow = checkpointRow(
       task2Section,
@@ -4231,6 +4302,64 @@ describe("play subagent routing source contracts", () => {
     expect(targetCapabilityExamples).toContain(
       "same sanitized operator/UI manual-cleanup guidance as unavailable cleanup, waits for operator confirmation, then retries the spawn exactly once",
     );
+    expect(slotLimitRetainedSession).toContain(
+      "resolves whether same-session follow-up remains required",
+    );
+    expect(slotLimitRetainedSession).toContain(
+      "captures the required state and safely replaces the follow-up need",
+    );
+    expect(slotLimitRetainedSession).toContain(
+      "actual close or operator-confirmed manual cleanup",
+    );
+    expect(slotLimitRetainedSession).toContain(
+      "preserves the historical close-deferred event and its associated reason",
+    );
+    expect(slotLimitRetainedSession).toContain(
+      "then retries the spawn exactly once",
+    );
+    expect(slotLimitRetainedSession).toContain(
+      "stop and escalate without retrying",
+    );
+    const retainedSlotRecoveryErrors = (example: string): string[] => {
+      const errors: string[] = [];
+      if (
+        !example.includes("event=close-deferred(reason=") ||
+        !example.includes(
+          "preserves the historical close-deferred event and its associated reason",
+        )
+      ) {
+        errors.push("retained-reason-history");
+      }
+      if (
+        !example.includes(
+          "actual close or operator-confirmed manual cleanup",
+        ) ||
+        !example.includes("then retries the spawn exactly once")
+      ) {
+        errors.push("retained-slot-retry-authorization");
+      }
+      if (!example.includes("stop and escalate without retrying")) {
+        errors.push("unresolved-retention-escalation");
+      }
+      return errors;
+    };
+    expect(retainedSlotRecoveryErrors(slotLimitRetainedSession)).toEqual([]);
+    expect(
+      retainedSlotRecoveryErrors(
+        slotLimitRetainedSession.replace(
+          "actual close or operator-confirmed manual cleanup",
+          "close-deferred",
+        ),
+      ),
+    ).toEqual(["retained-slot-retry-authorization"]);
+    expect(
+      retainedSlotRecoveryErrors(
+        slotLimitRetainedSession.replace(
+          "stop and escalate without retrying",
+          "retry the spawn",
+        ),
+      ),
+    ).toEqual(["unresolved-retention-escalation"]);
     const invalidSlotFailureDimensions = (example: string): string[] => {
       const errors: string[] = [];
       const attemptIndex = example.indexOf("event=close-attempted");
@@ -4331,6 +4460,9 @@ describe("play subagent routing source contracts", () => {
       );
       expect(normalizedSurface).toContain(
         "slot-limit recovery remains blocked until actual closure or operator-confirmed manual cleanup",
+      );
+      expect(normalizedSurface).toContain(
+        "A capacity-blocking retained session must first resolve and safely capture or replace its follow-up need, or stop and escalate without retrying",
       );
     }
 

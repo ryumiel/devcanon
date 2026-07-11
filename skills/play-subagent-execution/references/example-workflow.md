@@ -62,7 +62,7 @@ Task 1 implementer: agent_id=impl-1, role=implementer, operational state=active,
 
 [Ledger shorthand used below]
 Every later implementer, reviewer, re-reviewer, and final reviewer dispatch gets its own row: `agent_id=pending`, operational state=pending, and events=[dispatch-requested] before dispatch; then the observed stable `agent_id`, operational state=active, and events=[dispatch-requested, identity-assigned] after dispatch. Workflow return status and reviewer disposition are absent until observed or classified. Cleanup checkpoints retain the ordered events while projecting cleanup separately.
-For every executor row below, cleanup evaluation is `not-evaluated` only before that row's first cleanup gate. Every cleanup gate transitions each examined row to `evaluated` before deciding whether to close or retain it. An evaluated row deliberately retained for required same-session follow-up records `event=close-deferred`, a concrete retention reason, and `cleanup outcome=closed=no` without fabricating `close-attempted` or `close-failed`; later turns and gates keep it `evaluated`. Rows with `close-succeeded` remain terminal `closed=yes`.
+For every executor row below, cleanup evaluation is `not-evaluated` only before that row's first cleanup gate. Every cleanup gate transitions each examined row to `evaluated` before deciding whether to close or retain it. An evaluated row deliberately retained for required same-session follow-up records `event=close-deferred(reason=<concrete workflow reason>)`, the matching current retention reason, and `cleanup outcome=closed=no` without fabricating `close-attempted` or `close-failed`; later turns and gates keep the event-associated reason as append-only history. Rows with `close-succeeded` remain terminal `closed=yes`.
 
 Implementer: "Before I begin - should the hook be installed at user or system level?"
 You: "User level (~/.config/agent-hooks/)"
@@ -85,7 +85,7 @@ Effective route: `spec-and-quality`.
 Controller keeps Task 1 implementer open for possible reviewer fixups. Because
 the effective route is `spec-and-quality`, the controller dispatches both
 read-only reviewers against the same captured task head.
-Task 1 implementer: cleanup evaluation=evaluated, event=close-deferred, retention reason=the same implementer session must remain available for reviewer fixups, cleanup outcome=closed=no; no close attempt or failure is recorded for this decision.
+Task 1 implementer: cleanup evaluation=evaluated, event=close-deferred(reason=the same implementer session must remain available for reviewer fixups), current retention reason=the same implementer session must remain available for reviewer fixups, cleanup outcome=closed=no; no close attempt or failure is recorded for this decision.
 
 [Ledger pre-dispatch: Task 1 spec reviewer, agent_id=pending, operational state=pending, events=[dispatch-requested]]
 [Ledger pre-dispatch: Task 1 code-quality reviewer, agent_id=pending, operational state=pending, events=[dispatch-requested]]
@@ -96,7 +96,7 @@ Spec reviewer: ✅ Spec compliant - all requirements met, nothing extra
 Code-quality reviewer: Strengths: Good test coverage, clean. Issues: None. Approved.
 
 [Lifecycle cleanup checkpoint]
-Task 1 implementer: operational state=completed, workflow return status=DONE, report captured, base/head SHA captured, changed files captured, snapshot state=emitted, test state captured, cleanup evaluation=evaluated, event=close-attempted then event=close-succeeded, cleanup outcome=closed=yes after reviewer loops passed; prior events retained.
+Task 1 implementer: operational state=completed, workflow return status=DONE, report captured, base/head SHA captured, changed files captured, snapshot state=emitted, test state captured, cleanup evaluation=evaluated, close-deferred reason history=[same implementer session must remain available for reviewer fixups] retained, current cleanup decision=attempted, current retention reason=none, event=close-attempted then event=close-succeeded, cleanup outcome=closed=yes after reviewer loops passed.
 Task 1 spec reviewer: agent_id=spec-1, operational state=completed, workflow return status=DONE, event=turn-completed, review scope captured, base/head SHA captured, reviewed head SHA=task-1-head, report captured, reviewer disposition=final-pass, cleanup evaluation=evaluated, event=close-attempted then event=close-succeeded, cleanup outcome=closed=yes.
 Task 1 code-quality reviewer: agent_id=quality-1, operational state=completed, workflow return status=DONE, event=turn-completed, review scope captured, base/head SHA captured, reviewed head SHA=task-1-head, report captured, reviewer disposition=final-pass because same-head spec passed and task head stayed current, cleanup evaluation=evaluated, event=close-attempted then event=close-succeeded, cleanup outcome=closed=yes.
 
@@ -135,7 +135,7 @@ Effective route: `spec-and-quality`.
 Controller keeps Task 2 implementer open for possible reviewer fixups. Because
 the effective route is `spec-and-quality`, both reviewers inspect the same
 captured task head before either result is final.
-Task 2 implementer: cleanup evaluation=evaluated, event=close-deferred, retention reason=the same implementer session must remain available for reviewer fixups, cleanup outcome=closed=no; no close attempt or failure is recorded for this decision.
+Task 2 implementer: cleanup evaluation=evaluated, event=close-deferred(reason=the same implementer session must remain available for reviewer fixups), current retention reason=the same implementer session must remain available for reviewer fixups, cleanup outcome=closed=no; no close attempt or failure is recorded for this decision.
 
 [Ledger pre-dispatch: Task 2 spec reviewer, agent_id=pending, operational state=pending, events=[dispatch-requested]]
 [Ledger pre-dispatch: Task 2 code-quality reviewer, agent_id=pending, operational state=pending, events=[dispatch-requested]]
@@ -151,20 +151,22 @@ Code-quality reviewer: Strengths: Solid. Issues (Nit): Magic number (100)
 Task 2 spec reviewer: agent_id=spec-2, operational state=completed, workflow return status=findings-recorded, event=turn-completed, review scope captured, base/head SHA captured, reviewed head SHA=task-2-head, report captured, reviewer disposition=final-findings, findings captured: Missing progress reporting; Extra --json flag, routing target=Task 2 implementer, re-review target=spec-2-rereview, cleanup evaluation=evaluated, event=close-attempted then event=close-succeeded, cleanup outcome=closed=yes after findings routed.
 Task 2 code-quality reviewer: agent_id=quality-2, operational state=completed, workflow return status=findings-recorded, event=turn-completed, review scope captured, base/head SHA captured, reviewed head SHA=task-2-head, report captured, reviewer disposition=advisory, findings captured: Magic number (100), routing target=Task 2 implementer if combined same-head findings are routed, re-review target=quality-2-rereview, cleanup evaluation=evaluated, event=close-attempted then event=close-succeeded, cleanup outcome=closed=yes after advisory findings captured and routed.
 Controller records the combined spec and code-quality finding set routed to Task 2 implementer because both reviewers inspected the same head.
-Task 2 implementer: cleanup evaluation=evaluated, event=close-deferred retained, retention reason=routed same-head findings need same-session fixup, cleanup outcome=closed=no.
+Task 2 implementer: cleanup evaluation=evaluated, event=close-deferred(reason=routed same-head findings need same-session fixup) appended, prior deferral reason retained, current retention reason=routed same-head findings need same-session fixup, cleanup outcome=closed=no.
 
 [Implementer fixes issues]
 [Same-session follow-up dispatch]
-Task 2 implementer: agent_id=impl-2 retained, operational state=active, workflow return status=DONE retained from the observed first turn, cleanup evaluation=evaluated, event=close-deferred retained, retention reason=routed same-head findings require this same-session follow-up, cleanup outcome=closed=no, event=followup-dispatch-requested appended after the first turn-completed; all prior events retained and no attempt or failure event is fabricated for the deferral.
+Task 2 implementer: agent_id=impl-2 retained, operational state=active, workflow return status=DONE retained from the observed first turn, cleanup evaluation=evaluated, close-deferred reason history=[same implementer session must remain available for reviewer fixups; routed same-head findings need same-session fixup] retained, current retention reason=routed same-head findings need same-session fixup, cleanup outcome=closed=no, event=followup-dispatch-requested appended after the first turn-completed; all prior events retained with their associated reasons, and no attempt or failure event is fabricated for the deferral.
 Implementer: Removed --json flag, added progress reporting, extracted PROGRESS_INTERVAL constant
 
 [Lifecycle ledger update]
 Task 2 implementer: operational state=completed, workflow return status=DONE,
 a second event=turn-completed appended, fixup count=1, blocker state=none, report
 refreshed, changed files and head SHA refreshed, test state refreshed, snapshot
-state=emitted, cleanup evaluation=evaluated, event=close-deferred retained,
-retention reason=spec re-review and any required code-quality re-review or
-disposition are pending, cleanup outcome=closed=no.
+state=emitted, cleanup evaluation=evaluated,
+event=close-deferred(reason=spec re-review and any required code-quality
+re-review or disposition are pending) appended, prior deferral reasons retained,
+current retention reason=spec re-review and any required code-quality re-review
+or disposition are pending, cleanup outcome=closed=no.
 Task 2 code-quality reviewer: operational state=completed, workflow return status=findings-recorded, reviewer disposition=stale, close history remains close-attempted then close-succeeded, cleanup outcome remains closed=yes. Only the disposition changes because the reviewed head became stale; lifecycle state and prior events are not rewritten. Rerun quality unless irrelevance is proven.
 
 [Revalidate effective review route]
@@ -177,7 +179,7 @@ closed to rerunning code quality.
 [Cleanup gate before Task 2 spec re-review spawn]
 Controller keeps Task 2 implementer open until spec and required quality
 dispositions are final.
-Task 2 implementer: cleanup evaluation=evaluated, event=close-deferred retained, retention reason=spec and required quality dispositions are not yet final, cleanup outcome=closed=no; the later cleanup gate retains the already evaluated row for required follow-up.
+Task 2 implementer: cleanup evaluation=evaluated, event=close-deferred(reason=spec and required quality dispositions are not yet final) appended, prior deferral reasons retained, current retention reason=spec and required quality dispositions are not yet final, cleanup outcome=closed=no.
 
 [Ledger pre-dispatch: Task 2 spec re-reviewer, agent_id=pending, operational state=pending, events=[dispatch-requested]]
 [Spec re-reviewer reviews again]
@@ -186,7 +188,7 @@ Spec reviewer: ✅ Spec compliant now
 
 [Cleanup gate before Task 2 code-quality re-reviewer spawn]
 Task 2 spec re-reviewer: operational state=completed, workflow return status=DONE, event=turn-completed, review scope captured, base/head SHA captured, reviewed head SHA=task-2-fixup-head, report captured, reviewer disposition=final-pass, cleanup evaluation=evaluated, event=close-attempted then event=close-succeeded, cleanup outcome=closed=yes.
-Task 2 implementer: cleanup evaluation=evaluated, event=close-deferred retained, retention reason=code-quality findings may still require same-session follow-up, cleanup outcome=closed=no.
+Task 2 implementer: cleanup evaluation=evaluated, event=close-deferred(reason=code-quality findings may still require same-session follow-up) appended, prior deferral reasons retained, current retention reason=code-quality findings may still require same-session follow-up, cleanup outcome=closed=no.
 
 [Ledger pre-dispatch: Task 2 code-quality re-reviewer, agent_id=pending, operational state=pending, events=[dispatch-requested]]
 [Dispatch code-quality re-reviewer]
@@ -197,7 +199,7 @@ Code-quality reviewer: ✅ Approved
 Task 2 code-quality re-reviewer: operational state=completed, workflow return status=DONE, event=turn-completed, review scope captured, base/head SHA captured, reviewed head SHA=task-2-fixup-head, report captured, reviewer disposition=final-pass after same-head spec pass and current task-head validation, cleanup evaluation=evaluated, event=close-attempted then event=close-succeeded, cleanup outcome=closed=yes.
 
 [Lifecycle cleanup checkpoint]
-Task 2 implementer: operational state=completed, workflow return status=DONE, report captured, base/head SHA captured, changed files captured, snapshot state=emitted, test state captured, cleanup evaluation=evaluated, prior close-deferred events retained, event=close-attempted then event=close-succeeded, cleanup outcome=closed=yes after reviewer loops passed.
+Task 2 implementer: operational state=completed, workflow return status=DONE, report captured, base/head SHA captured, changed files captured, snapshot state=emitted, test state captured, cleanup evaluation=evaluated, close-deferred reason history=[same implementer session must remain available for reviewer fixups; routed same-head findings need same-session fixup; spec re-review and any required code-quality re-review or disposition are pending; spec and required quality dispositions are not yet final; code-quality findings may still require same-session follow-up] retained, current cleanup decision=attempted, current retention reason=none, event=close-attempted then event=close-succeeded, cleanup outcome=closed=yes after reviewer loops passed.
 Task 2 spec reviewer: agent_id=spec-2, operational state=completed, workflow return status=findings-recorded, event=turn-completed, review scope captured, base/head SHA captured, report captured, concrete findings captured, reviewer disposition=final-findings, cleanup evaluation=evaluated, event=close-attempted then event=close-succeeded, cleanup outcome=closed=yes.
 Task 2 spec re-reviewer: agent_id=spec-2-rereview, operational state=completed, workflow return status=DONE, event=turn-completed, review scope captured, base/head SHA captured, report captured, reviewer disposition=final-pass, cleanup evaluation=evaluated, event=close-attempted then event=close-succeeded, cleanup outcome=closed=yes.
 Task 2 code-quality reviewer: agent_id=quality-2, operational state=completed, workflow return status=findings-recorded, event=turn-completed retained, review scope captured, base/head SHA captured, report captured, concrete findings captured, reviewer disposition=stale, cleanup evaluation=evaluated, event=close-attempted then event=close-succeeded retained, cleanup outcome=closed=yes.
@@ -296,6 +298,9 @@ After capture, the controller appends event=closure-unavailable with reason=no c
 
 [Automatic-close retry projection - separate run]
 The session has stable identity and an exposed close operation. The first close records event=close-attempted, event=close-failed, cleanup outcome=closed=no; prior lifecycle events remain. A later retry records event=close-attempted, event=close-succeeded, cleanup outcome=closed=yes without deleting the failed attempt.
+
+[Slot-limit retained-session capacity blocker - separate run]
+A retained implementer blocks capacity with historical event=close-deferred(reason=reviewer fixups require same-session follow-up). The owning workflow resolves whether same-session follow-up remains required. If it no longer remains, or the controller captures the required state and safely replaces the follow-up need, it preserves the historical close-deferred event and its associated reason, obtains an actual close or operator-confirmed manual cleanup, then retries the spawn exactly once. If the need remains and cannot be safely replaced or cleaned up, follow the shared owner: stop and escalate without retrying.
 
 [Slot-limit automatic-close failure - separate run]
 The cleanup gate attempts a usable automatic close, appends event=close-attempted then event=close-failed, and projects cleanup outcome=closed=no. The controller does not retry the spawn yet. It follows the same sanitized operator/UI manual-cleanup guidance as unavailable cleanup, waits for operator confirmation, then retries the spawn exactly once.
