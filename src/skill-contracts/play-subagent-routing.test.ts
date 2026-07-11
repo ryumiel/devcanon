@@ -2751,6 +2751,8 @@ describe("play subagent routing source contracts", () => {
       "interrupted-reuse-dispatch-requested",
       "waiting",
       "interrupted",
+      "required-state-captured",
+      "replacement-secured",
       "turn-completed",
       "superseded",
       "turn-timed-out",
@@ -2780,6 +2782,12 @@ describe("play subagent routing source contracts", () => {
     );
     expect(normalizeWhitespace(orderedLifecycleEvents)).toContain(
       "Project `waiting` only after an observed `waiting` event. This re-entry never fabricates `turn-completed`, a workflow return status, or any other return fact",
+    );
+    expect(normalizeWhitespace(orderedLifecycleEvents)).toContain(
+      "Any `active`, `waiting`, or `interrupted` row may be superseded only after its latest open-state transition by ordered `required-state-captured`, `replacement-secured`, and `superseded` events",
+    );
+    expect(normalizeWhitespace(orderedLifecycleEvents)).toContain(
+      "Cleanup never authorizes it",
     );
     expect(normalizeWhitespace(orderedLifecycleEvents)).toContain(
       "Record the concrete workflow-owned retention reason as event-associated detail on each `close-deferred`; an event name without its reason is incomplete",
@@ -2985,16 +2993,16 @@ describe("play subagent routing source contracts", () => {
       "Classify every capacity-blocking open row before cleanup",
     );
     expect(normalizeWhitespace(slotLimitRecovery)).toContain(
-      "For `active`, reach a safe boundary and capture state. Fresh capture permits deliberate retention without replacement; supersession requires current `replacement-secured` evidence. If capture is unsafe, stop and escalate",
+      "For `active`, reach a safe boundary and capture state; unsafe capture stops and escalates",
     );
     expect(normalizeWhitespace(slotLimitRecovery)).toContain(
-      "For `waiting`, capture the open question and needed context, then decide deliberate retention or safe replacement and supersession",
+      "For `waiting`, capture the open question and needed context",
     );
     expect(normalizeWhitespace(slotLimitRecovery)).toContain(
-      "For reusable `interrupted`, capture available role state and reuse only under the exact `interrupted-reuse-dispatch-requested(session-id=...)` guard above",
+      "For reusable `interrupted`, capture state and reuse only under the exact `interrupted-reuse-dispatch-requested(session-id=...)` guard above",
     );
     expect(normalizeWhitespace(slotLimitRecovery)).toContain(
-      "After fresh capture, guarded reuse or deliberate retention requires no replacement. Supersession alone requires secured replacement state",
+      "Fresh capture permits replacement-free retention or reuse; supersession follows the global invariant",
     );
     expect(normalizeWhitespace(slotLimitRecovery)).toContain(
       "For `pending` or unknown identity, do not fabricate cleanup, guess an id, or close another row",
@@ -3331,6 +3339,53 @@ describe("play subagent routing source contracts", () => {
         ["turn-failed", "failed"],
         ["superseded", "superseded"],
       ]);
+      const closureEvents = new Set([
+        "close-deferred",
+        "retention-resolved",
+        "closure-unavailable",
+        "close-attempted",
+        "close-failed",
+        "close-succeeded",
+      ]);
+      const supersededIndex = example.events.lastIndexOf("superseded");
+      if (supersededIndex >= 0) {
+        const beforeSupersession = example.events.slice(0, supersededIndex);
+        const latestOpenTransitionIndex = Math.max(
+          ...[
+            "identity-assigned",
+            "followup-dispatch-requested",
+            "waiting",
+            "interrupted",
+          ].map((event) => beforeSupersession.lastIndexOf(event)),
+        );
+        const latestTerminalIndex = Math.max(
+          ...["turn-completed", "turn-timed-out", "turn-failed"].map((event) =>
+            beforeSupersession.lastIndexOf(event),
+          ),
+        );
+        if (latestOpenTransitionIndex > latestTerminalIndex) {
+          const captureIndex = example.events.lastIndexOf(
+            "required-state-captured",
+            supersededIndex - 1,
+          );
+          if (captureIndex <= latestOpenTransitionIndex) {
+            errors.push("supersession-capture-stale");
+            return errors;
+          }
+          const replacementIndex = example.events.lastIndexOf(
+            "replacement-secured",
+            supersededIndex - 1,
+          );
+          if (replacementIndex <= captureIndex) {
+            errors.push("supersession-replacement-stale");
+            return errors;
+          }
+          if (beforeSupersession.some((event) => closureEvents.has(event))) {
+            errors.push("cleanup-before-supersession");
+            return errors;
+          }
+        }
+      }
       let projectedOperationalState:
         | LifecycleExample["operationalState"]
         | undefined;
@@ -3413,14 +3468,6 @@ describe("play subagent routing source contracts", () => {
         errors.push("capability-classification");
         return errors;
       }
-      const closureEvents = new Set([
-        "close-deferred",
-        "retention-resolved",
-        "closure-unavailable",
-        "close-attempted",
-        "close-failed",
-        "close-succeeded",
-      ]);
       if (
         example.cleanupEvaluation === "not-evaluated" &&
         (example.cleanup !== "closed=no" ||
@@ -3705,12 +3752,23 @@ describe("play subagent routing source contracts", () => {
       }),
     ).toEqual(["stale-cleanup-fields"]);
 
+    const interruptedSupersessionEvents = (...events: string[]): string[] => [
+      "dispatch-requested",
+      "identity-assigned",
+      ...events,
+      "closure-unavailable",
+    ];
     const superseded: LifecycleExample = {
       ...valid,
       operationalState: "superseded",
       reusable: false,
       capability: "cleanup-unavailable",
-      events: [...valid.events, "superseded"],
+      events: interruptedSupersessionEvents(
+        "interrupted",
+        "required-state-captured",
+        "replacement-secured",
+        "superseded",
+      ),
       trackedStableIdentity: false,
     };
 
@@ -3820,6 +3878,32 @@ describe("play subagent routing source contracts", () => {
     };
     expect(invalidDimensions(pending)).toEqual([]);
     expect(invalidDimensions(superseded)).toEqual([]);
+    const supersededEventText = superseded.events.join("|");
+    for (const [from, to, expectedError] of [
+      ["required-state-captured|", "", "supersession-capture-stale"],
+      [
+        "interrupted|required-state-captured",
+        "required-state-captured|interrupted",
+        "supersession-capture-stale",
+      ],
+      ["replacement-secured|", "", "supersession-replacement-stale"],
+      [
+        "required-state-captured|replacement-secured",
+        "replacement-secured|required-state-captured",
+        "supersession-replacement-stale",
+      ],
+      [
+        "superseded|closure-unavailable",
+        "closure-unavailable|superseded",
+        "cleanup-before-supersession",
+      ],
+    ] as const) {
+      const events = supersededEventText.replace(from, to).split("|");
+      expect(
+        invalidDimensions({ ...superseded, events }),
+        expectedError,
+      ).toEqual([expectedError]);
+    }
 
     const timedOut: LifecycleExample = {
       ...valid,
@@ -4151,7 +4235,16 @@ describe("play subagent routing source contracts", () => {
       [["dispatch-requested"], "active"],
       [["dispatch-requested", "identity-assigned"], "pending"],
       [["dispatch-requested", "identity-assigned", "waiting"], "active"],
-      [["dispatch-requested", "identity-assigned", "superseded"], "active"],
+      [
+        [
+          "dispatch-requested",
+          "identity-assigned",
+          "required-state-captured",
+          "replacement-secured",
+          "superseded",
+        ],
+        "active",
+      ],
     ] as const) {
       expect(
         invalidDimensions({
@@ -7617,13 +7710,13 @@ describe("play subagent routing source contracts", () => {
       "Post-dispatch: agent_id=support-1, role=scoped-support, operational state=active, events=[dispatch-requested, identity-assigned]",
     );
     expect(targetCapabilityExamples).toContain(
-      "captures role-specific state: assigned scope, source-state anchor, and the replacement routing reason",
+      "appends event=required-state-captured(evidence=assigned scope, source-state anchor, and replacement routing reason), then event=replacement-secured(evidence=replacement session is ready), then event=superseded",
     );
     expect(targetCapabilityExamples).toContain(
-      "appends event=superseded, sets current operational state=superseded, preserves dispatch-requested and identity-assigned, and records no turn-completed event or workflow return status",
+      "sets current operational state=superseded, preserves dispatch-requested and identity-assigned, and records no turn-completed event or workflow return status",
     );
     expect(targetCapabilityExamples).toContain(
-      "cleanup evaluation=evaluated; with stable identity and usable closure, it appends event=close-attempted then event=close-succeeded and projects cleanup outcome=closed=yes",
+      "Only afterward does the cleanup gate set cleanup evaluation=evaluated; with stable identity and usable closure, it appends event=close-attempted then event=close-succeeded and projects cleanup outcome=closed=yes",
     );
     expect(targetCapabilityExamples).toContain(
       "inventory-only: no inventory operation is exposed, but the controller retains tracked stable agent ids and no usable close operation",

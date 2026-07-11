@@ -85,7 +85,8 @@ Each row keeps an ordered, append-only lifecycle-event history alongside its
 current operational state. Append events such as `dispatch-requested`,
 `identity-assigned`, `followup-dispatch-requested`,
 `interrupted-reuse-dispatch-requested`, `waiting`, `interrupted`,
-`turn-completed`, `superseded`, `turn-timed-out`, `turn-failed`,
+`required-state-captured`, `replacement-secured`, `turn-completed`,
+`superseded`, `turn-timed-out`, `turn-failed`,
 `close-attempted`, `close-deferred`, `retention-resolved`, `close-failed`,
 `close-succeeded`, `closure-unavailable`, `slot-recovery-started`, and
 `manual-cleanup-confirmed` when those facts occur. Record the concrete
@@ -105,6 +106,10 @@ strictly newer than its latest `interrupted` event. Append the interrupted-reuse
 event without erasing history or detail and project `active`. Project `waiting`
 only after an observed `waiting` event. This re-entry never fabricates
 `turn-completed`, a workflow return status, or any other return fact.
+
+Any `active`, `waiting`, or `interrupted` row may be superseded only
+after its latest open-state transition by ordered `required-state-captured`,
+`replacement-secured`, and `superseded` events. Cleanup never authorizes it.
 
 When a previously deferred same-session need is finished, captured, or safely
 replaced, append `retention-resolved` with concise evidence of that resolution.
@@ -339,15 +344,13 @@ When a spawn fails because of a slot/session limit:
    capacity-blocking row. A spawn without a slot-limit signal remains under the
    normal cleanup gate and does not activate this retry path.
 2. Classify every capacity-blocking open row before cleanup:
-3. For `active`, reach a safe boundary and capture state. Fresh capture permits
-   deliberate retention without replacement; supersession requires current
-   `replacement-secured` evidence. If capture is unsafe, stop and escalate.
-4. For `waiting`, capture the open question and needed context, then decide
-   deliberate retention or safe replacement and supersession.
-5. For reusable `interrupted`, capture available role state and reuse only under
-   the exact `interrupted-reuse-dispatch-requested(session-id=...)` guard above.
-   After fresh capture, guarded reuse or deliberate retention requires no
-   replacement. Supersession alone requires secured replacement state.
+3. For `active`, reach a safe boundary and capture state; unsafe capture stops
+   and escalates.
+4. For `waiting`, capture the open question and needed context.
+5. For reusable `interrupted`, capture state and reuse only under the exact
+   `interrupted-reuse-dispatch-requested(session-id=...)` guard above. Fresh
+   capture permits replacement-free retention or reuse; supersession
+   follows the global invariant.
 6. For `pending` or unknown identity, do not fabricate cleanup, guess an id,
    or close another row. Resolve identity safely or stop and escalate.
 7. Do not make any open row cleanup-eligible until required state is captured
