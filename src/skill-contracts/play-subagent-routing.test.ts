@@ -2786,6 +2786,7 @@ describe("play subagent routing source contracts", () => {
       reliableInventory: boolean;
       trackedStableIdentity: boolean;
       closeOperationUsable: boolean;
+      closeInvocationObserved: boolean;
       closeAttempted: boolean;
       closeFailed: boolean;
       cleanupEvaluation: "not-evaluated" | "evaluated";
@@ -2828,6 +2829,7 @@ describe("play subagent routing source contracts", () => {
       reliableInventory: false,
       trackedStableIdentity: true,
       closeOperationUsable: false,
+      closeInvocationObserved: false,
       closeAttempted: false,
       closeFailed: false,
       cleanupEvaluation: "evaluated",
@@ -2934,6 +2936,13 @@ describe("play subagent routing source contracts", () => {
         errors.push("reviewer-disposition");
         return errors;
       }
+      if (
+        example.events.includes("reviewer-disposition-classified") !==
+        example.reviewerDispositionClassified
+      ) {
+        errors.push("reviewer-disposition-history");
+        return errors;
+      }
       const expectedCapability =
         example.trackedStableIdentity &&
         example.closeOperationExposed &&
@@ -2967,80 +2976,6 @@ describe("play subagent routing source contracts", () => {
         errors.push("cleanup-evaluation-state");
         return errors;
       }
-      if (example.cleanupEvaluation === "evaluated") {
-        if (example.cleanupDecision === "none") {
-          errors.push("cleanup-decision");
-          return errors;
-        }
-        if (example.cleanupDecision === "retained") {
-          if (
-            example.retentionReason === null ||
-            example.retentionReason.trim().length === 0
-          ) {
-            errors.push("retention-reason");
-            return errors;
-          }
-          if (example.cleanup !== "closed=no") {
-            errors.push("cleanup-projection");
-            return errors;
-          }
-          if (!example.events.includes("close-deferred")) {
-            errors.push("cleanup-event-history");
-            return errors;
-          }
-        } else if (example.cleanupDecision === "unavailable") {
-          if (
-            example.closeUnavailableReason === null ||
-            example.closeUnavailableReason.trim().length === 0
-          ) {
-            errors.push("close-unavailable-reason");
-            return errors;
-          }
-          if (
-            example.trackedStableIdentity &&
-            example.closeOperationExposed &&
-            example.closeOperationUsable
-          ) {
-            errors.push("cleanup-decision");
-            return errors;
-          }
-          if (example.cleanup !== "close-unavailable") {
-            errors.push("cleanup-projection");
-            return errors;
-          }
-          if (!example.events.includes("closure-unavailable")) {
-            errors.push("cleanup-event-history");
-            return errors;
-          }
-        } else if (example.cleanupDecision === "attempted") {
-          if (!example.closeAttempted) {
-            errors.push("cleanup-decision");
-            return errors;
-          }
-          const expectedAttemptOutcome = example.closeSucceeded
-            ? "closed=yes"
-            : "closed=no";
-          if (example.cleanup !== expectedAttemptOutcome) {
-            errors.push("cleanup-projection");
-            return errors;
-          }
-          if (!example.events.includes("close-attempted")) {
-            errors.push("cleanup-event-history");
-            return errors;
-          }
-          if (!example.closeSucceeded && !example.closeFailed) {
-            errors.push("cleanup-result-missing");
-            return errors;
-          }
-          if (
-            example.closeSucceeded &&
-            !example.events.includes("close-succeeded")
-          ) {
-            errors.push("cleanup-event-history");
-            return errors;
-          }
-        }
-      }
       const firstCloseSucceededIndex =
         example.events.indexOf("close-succeeded");
       const laterClosureControlIndex = example.events.findIndex(
@@ -3060,6 +2995,104 @@ describe("play subagent routing source contracts", () => {
       ) {
         errors.push("cleanup-event-history");
         return errors;
+      }
+      if (
+        example.cleanupEvaluation === "evaluated" &&
+        example.closeAttempted &&
+        !example.closeInvocationObserved
+      ) {
+        errors.push("fabricated-close-attempt");
+        return errors;
+      }
+      if (example.cleanupEvaluation === "evaluated") {
+        const lastDeferred = example.events.lastIndexOf("close-deferred");
+        const lastUnavailable = example.events.lastIndexOf(
+          "closure-unavailable",
+        );
+        const lastAttempt = example.events.lastIndexOf("close-attempted");
+        const latestDecisionIndex = Math.max(
+          lastDeferred,
+          lastUnavailable,
+          lastAttempt,
+        );
+        if (latestDecisionIndex < 0) {
+          errors.push("cleanup-decision");
+          return errors;
+        }
+
+        const expectedDecision =
+          latestDecisionIndex === lastAttempt
+            ? "attempted"
+            : latestDecisionIndex === lastDeferred
+              ? "retained"
+              : "unavailable";
+        if (example.cleanupDecision !== expectedDecision) {
+          errors.push("cleanup-decision");
+          return errors;
+        }
+
+        if (expectedDecision === "retained") {
+          if (
+            example.retentionReason === null ||
+            example.retentionReason.trim().length === 0
+          ) {
+            errors.push("retention-reason");
+            return errors;
+          }
+          if (example.closeUnavailableReason !== null) {
+            errors.push("stale-cleanup-fields");
+            return errors;
+          }
+          if (example.cleanup !== "closed=no") {
+            errors.push("cleanup-projection");
+            return errors;
+          }
+        } else if (expectedDecision === "unavailable") {
+          if (example.retentionReason !== null) {
+            errors.push("stale-cleanup-fields");
+            return errors;
+          }
+          if (
+            example.closeUnavailableReason === null ||
+            example.closeUnavailableReason.trim().length === 0
+          ) {
+            errors.push("close-unavailable-reason");
+            return errors;
+          }
+          if (
+            example.trackedStableIdentity &&
+            example.closeOperationExposed &&
+            example.closeOperationUsable
+          ) {
+            errors.push("cleanup-decision");
+            return errors;
+          }
+          if (example.cleanup !== "close-unavailable") {
+            errors.push("cleanup-projection");
+            return errors;
+          }
+        } else {
+          if (
+            example.retentionReason !== null ||
+            example.closeUnavailableReason !== null
+          ) {
+            errors.push("stale-cleanup-fields");
+            return errors;
+          }
+          const lastFailed = example.events.lastIndexOf("close-failed");
+          const lastSucceeded = example.events.lastIndexOf("close-succeeded");
+          const latestResultIndex = Math.max(lastFailed, lastSucceeded);
+          if (latestResultIndex <= lastAttempt) {
+            errors.push("cleanup-result-missing");
+            return errors;
+          }
+          const expectedCleanup =
+            latestResultIndex === lastSucceeded ? "closed=yes" : "closed=no";
+          if (example.cleanup !== expectedCleanup) {
+            errors.push("cleanup-projection");
+            return errors;
+          }
+        }
       }
       if (
         example.closeFailed &&
@@ -3085,6 +3118,12 @@ describe("play subagent routing source contracts", () => {
     }
 
     expect(invalidDimensions(valid)).toEqual([]);
+    expect(
+      invalidDimensions({
+        ...valid,
+        retentionReason: "stale retention reason",
+      }),
+    ).toEqual(["stale-cleanup-fields"]);
 
     const superseded: LifecycleExample = {
       ...valid,
@@ -3220,6 +3259,31 @@ describe("play subagent routing source contracts", () => {
     expect(
       invalidDimensions({ ...followupActive, workflowReturnStatus: null }),
     ).toEqual(["workflow-result"]);
+    const returnedReviewer: LifecycleExample = {
+      ...returned,
+      reviewerDispositionClassified: true,
+      reviewerDisposition: "advisory",
+      events: [...returned.events, "reviewer-disposition-classified"],
+    };
+    const followupReviewerActive: LifecycleExample = {
+      ...returnedReviewer,
+      operationalState: "active",
+      events: [...returnedReviewer.events, "followup-dispatch-requested"],
+    };
+    expect(invalidDimensions(followupReviewerActive)).toEqual([]);
+    const followupReviewerWaiting: LifecycleExample = {
+      ...followupReviewerActive,
+      operationalState: "waiting",
+      events: [...followupReviewerActive.events, "waiting"],
+    };
+    expect(invalidDimensions(followupReviewerWaiting)).toEqual([]);
+    expect(
+      invalidDimensions({
+        ...followupReviewerActive,
+        reviewerDispositionClassified: false,
+        reviewerDisposition: null,
+      }),
+    ).toEqual(["reviewer-disposition-history"]);
     const followupWaiting: LifecycleExample = {
       ...followupActive,
       operationalState: "waiting",
@@ -3243,6 +3307,7 @@ describe("play subagent routing source contracts", () => {
       cleanup: "closed=yes",
       closeOperationExposed: true,
       closeOperationUsable: true,
+      closeInvocationObserved: true,
       closeAttempted: true,
       closeSucceeded: true,
       events: [...returned.events, "close-attempted", "close-succeeded"],
@@ -3366,6 +3431,7 @@ describe("play subagent routing source contracts", () => {
       cleanup: "closed=no",
       closeOperationExposed: true,
       closeOperationUsable: true,
+      closeInvocationObserved: true,
       closeAttempted: true,
       closeFailed: true,
       cleanupDecision: "attempted",
@@ -3398,11 +3464,20 @@ describe("play subagent routing source contracts", () => {
     expect(
       invalidDimensions({
         ...retainedForFollowup,
-        events: retainedForFollowup.events.map((event) =>
-          event === "close-deferred" ? "close-attempted" : event,
-        ),
+        cleanupDecision: "attempted",
+        retentionReason: null,
+        closeInvocationObserved: false,
+        closeAttempted: true,
+        closeFailed: true,
+        events: [
+          ...retainedForFollowup.events.filter(
+            (event) => event !== "close-deferred",
+          ),
+          "close-attempted",
+          "close-failed",
+        ],
       }),
-    ).toEqual(["cleanup-event-history"]);
+    ).toEqual(["fabricated-close-attempt"]);
     expect(
       invalidDimensions({
         ...retainedForFollowup,
@@ -3415,6 +3490,8 @@ describe("play subagent routing source contracts", () => {
     const laterFailedClose: LifecycleExample = {
       ...retainedForFollowup,
       cleanupDecision: "attempted",
+      retentionReason: null,
+      closeInvocationObserved: true,
       closeAttempted: true,
       closeFailed: true,
       events: [
@@ -3424,12 +3501,38 @@ describe("play subagent routing source contracts", () => {
       ],
     };
     expect(invalidDimensions(laterFailedClose)).toEqual([]);
+    expect(laterFailedClose.events).toContain("close-deferred");
+    expect(
+      invalidDimensions({
+        ...laterFailedClose,
+        cleanupDecision: "retained",
+        retentionReason: "stale same-session fixup reason",
+      }),
+    ).toEqual(["cleanup-decision"]);
+    expect(
+      invalidDimensions({
+        ...laterFailedClose,
+        retentionReason: "stale same-session fixup reason",
+      }),
+    ).toEqual(["stale-cleanup-fields"]);
+    expect(
+      invalidDimensions({
+        ...laterFailedClose,
+        events: [...laterFailedClose.events, "close-deferred"],
+      }),
+    ).toEqual(["cleanup-decision"]);
+    expect(
+      invalidDimensions({
+        ...retainedForFollowup,
+        closeUnavailableReason: "stale unavailable reason",
+      }),
+    ).toEqual(["stale-cleanup-fields"]);
     expect(
       invalidDimensions({
         ...valid,
         events: valid.events.filter((event) => event !== "closure-unavailable"),
       }),
-    ).toEqual(["cleanup-event-history"]);
+    ).toEqual(["cleanup-decision"]);
     expect(
       invalidDimensions({
         ...failedClose,
@@ -3655,20 +3758,6 @@ describe("play subagent routing source contracts", () => {
     expect(exampleWorkflow).not.toMatch(
       /:\s+status=(?:DONE|findings-recorded)/,
     );
-    for (const line of exampleWorkflow.split("\n")) {
-      if (
-        line.includes("workflow return status=") &&
-        !line.includes("workflow return status absent")
-      ) {
-        expect(line).toMatch(/operational state=(?:completed|superseded)/);
-      }
-      if (
-        line.includes("reviewer disposition=") &&
-        !line.includes("reviewer disposition absent")
-      ) {
-        expect(line).toMatch(/operational state=(?:completed|superseded)/);
-      }
-    }
     expect(exampleWorkflow).toContain(
       "Every later implementer, reviewer, re-reviewer, and final reviewer dispatch gets its own row",
     );
@@ -3678,16 +3767,6 @@ describe("play subagent routing source contracts", () => {
     expect(exampleWorkflow).toContain(
       "Every cleanup gate transitions each examined row to `evaluated`",
     );
-    expect(exampleWorkflow).toContain(
-      "An evaluated row may remain `closed=no` with no closure event when usable cleanup is deliberately unattempted",
-    );
-    expect(task1Section).toContain(
-      "Task 1 implementer: cleanup evaluation=evaluated, cleanup outcome=closed=no; usable cleanup is deliberately unattempted",
-    );
-    expect(task2Section).toContain(
-      "Task 2 implementer: cleanup evaluation=evaluated, cleanup outcome=closed=no; usable cleanup is deliberately unattempted",
-    );
-
     expect(normalizeWhitespace(task1Section)).toContain(
       "operational state=completed, workflow return status=DONE, event=turn-completed appended after dispatch-requested and identity-assigned, report captured, base/head SHA captured, changed files captured, snapshot state=emitted, test state captured, cleanup evaluation=not-evaluated, cleanup outcome=closed=no because reviewer fix loops may still need same-session follow-up",
     );
