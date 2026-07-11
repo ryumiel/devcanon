@@ -3332,6 +3332,7 @@ describe("play subagent routing source contracts", () => {
         ["dispatch-requested", "pending"],
         ["identity-assigned", "active"],
         ["followup-dispatch-requested", "active"],
+        ["interrupted-reuse-dispatch-requested", "active"],
         ["waiting", "waiting"],
         ["interrupted", "interrupted"],
         ["turn-completed", "completed"],
@@ -3350,20 +3351,25 @@ describe("play subagent routing source contracts", () => {
       const supersededIndex = example.events.lastIndexOf("superseded");
       if (supersededIndex >= 0) {
         const beforeSupersession = example.events.slice(0, supersededIndex);
-        const latestOpenTransitionIndex = Math.max(
+        const currentOpenIntervalStart = Math.max(
           ...[
             "identity-assigned",
             "followup-dispatch-requested",
-            "waiting",
-            "interrupted",
+            "interrupted-reuse-dispatch-requested",
           ].map((event) => beforeSupersession.lastIndexOf(event)),
+        );
+        const latestOpenTransitionIndex = Math.max(
+          currentOpenIntervalStart,
+          ...["waiting", "interrupted"].map((event) =>
+            beforeSupersession.lastIndexOf(event),
+          ),
         );
         const latestTerminalIndex = Math.max(
           ...["turn-completed", "turn-timed-out", "turn-failed"].map((event) =>
             beforeSupersession.lastIndexOf(event),
           ),
         );
-        if (latestOpenTransitionIndex > latestTerminalIndex) {
+        if (currentOpenIntervalStart > latestTerminalIndex) {
           const captureIndex = example.events.lastIndexOf(
             "required-state-captured",
             supersededIndex - 1,
@@ -3380,7 +3386,11 @@ describe("play subagent routing source contracts", () => {
             errors.push("supersession-replacement-stale");
             return errors;
           }
-          if (beforeSupersession.some((event) => closureEvents.has(event))) {
+          if (
+            beforeSupersession
+              .slice(currentOpenIntervalStart + 1)
+              .some((event) => closureEvents.has(event))
+          ) {
             errors.push("cleanup-before-supersession");
             return errors;
           }
@@ -3752,7 +3762,7 @@ describe("play subagent routing source contracts", () => {
       }),
     ).toEqual(["stale-cleanup-fields"]);
 
-    const interruptedSupersessionEvents = (...events: string[]): string[] => [
+    const supersessionEvents = (...events: string[]): string[] => [
       "dispatch-requested",
       "identity-assigned",
       ...events,
@@ -3763,7 +3773,7 @@ describe("play subagent routing source contracts", () => {
       operationalState: "superseded",
       reusable: false,
       capability: "cleanup-unavailable",
-      events: interruptedSupersessionEvents(
+      events: supersessionEvents(
         "interrupted",
         "required-state-captured",
         "replacement-secured",
@@ -3893,6 +3903,11 @@ describe("play subagent routing source contracts", () => {
         "supersession-replacement-stale",
       ],
       [
+        "required-state-captured|replacement-secured",
+        "required-state-captured|interrupted-reuse-dispatch-requested|replacement-secured",
+        "supersession-capture-stale",
+      ],
+      [
         "superseded|closure-unavailable",
         "closure-unavailable|superseded",
         "cleanup-before-supersession",
@@ -3904,6 +3919,26 @@ describe("play subagent routing source contracts", () => {
         expectedError,
       ).toEqual([expectedError]);
     }
+    const priorCleanupFollowup: LifecycleExample = {
+      ...superseded,
+      events: supersessionEvents(
+        "turn-completed",
+        "closure-unavailable",
+        "followup-dispatch-requested",
+        "required-state-captured",
+        "replacement-secured",
+        "superseded",
+      ),
+      workflowReturnStatus: "DONE",
+      workflowReturnHistory: ["DONE"],
+      completionEvent: true,
+      trackedStableIdentity: true,
+      capability: "inventory-only",
+      unavailableEventReasons: Array(2).fill(
+        "inventory-only; no close operation",
+      ),
+    };
+    expect(invalidDimensions(priorCleanupFollowup)).toEqual([]);
 
     const timedOut: LifecycleExample = {
       ...valid,
@@ -5415,7 +5450,7 @@ describe("play subagent routing source contracts", () => {
               ) {
                 return fail("supersession-capture-stale");
               }
-              if (state.replacementOrder <= state.operationalTransitionOrder) {
+              if (state.replacementOrder <= state.captureFreshThroughOrder) {
                 return fail("supersession-replacement-stale");
               }
             } else if (
@@ -5799,6 +5834,20 @@ describe("play subagent routing source contracts", () => {
     const expectError = (events: LifecycleEvent[], expected: string): void => {
       expect(foldLifecycle(events).errors).toEqual([expected]);
     };
+    const waitingSupersession = (
+      order: Array<"required-state-captured" | "replacement-secured">,
+    ): LifecycleEvent[] => [
+      event("dispatch-requested", 1),
+      event("session-identity-assigned", 2, { sessionId: "session-1" }),
+      event("waiting", 3),
+      ...order.map((kind, index) =>
+        event(kind, index + 4, { evidence: `${kind} evidence` }),
+      ),
+      event("superseded", 6),
+      episodeStart(),
+      unavailable(11),
+      confirmation(12),
+    ];
 
     expect(foldLifecycle(manualPath()).errors).toEqual([]);
     expect(
@@ -5811,6 +5860,15 @@ describe("play subagent routing source contracts", () => {
         automaticClose("close-succeeded", 12),
       ]).errors,
     ).toEqual([]);
+    expect(
+      foldLifecycle(
+        waitingSupersession(["required-state-captured", "replacement-secured"]),
+      ).errors,
+    ).toEqual([]);
+    expectError(
+      waitingSupersession(["replacement-secured", "required-state-captured"]),
+      "supersession-replacement-stale",
+    );
     expectError(
       [
         event("session-identity-assigned", 1, { sessionId: "session-1" }),
@@ -6275,19 +6333,6 @@ describe("play subagent routing source contracts", () => {
       "snapshot-stable-session-mismatch",
     );
 
-    expect(
-      foldLifecycle([
-        event("dispatch-requested", 1),
-        event("session-identity-assigned", 2, { sessionId: "session-1" }),
-        event("waiting", 3),
-        event("required-state-captured", 4, { evidence: "waiting captured" }),
-        event("replacement-secured", 5, { evidence: "replacement ready" }),
-        event("superseded", 6),
-        episodeStart(),
-        unavailable(11),
-        confirmation(12),
-      ]).errors,
-    ).toEqual([]);
     expectError(
       [event("dispatch-requested", 1), event("superseded", 2), episodeStart()],
       "illegal-supersession-transition",
@@ -7108,20 +7153,27 @@ describe("play subagent routing source contracts", () => {
       terminalEvent: "turn-timed-out" | "turn-failed",
     ): string[] => {
       const errors: string[] = [];
+      const terminalIndex = section.indexOf(`events retain ${terminalEvent}(`);
+      const requiredCaptureIndex = section.indexOf("required-state-captured(");
+      const abnormalCaptureIndex = section.indexOf(
+        "abnormal-context-captured(",
+      );
+      const supersededIndex = section.lastIndexOf("then superseded");
       if (
-        !section.includes(`events retain ${terminalEvent}(`) ||
-        !section.includes("then append superseded") ||
+        terminalIndex < 0 ||
+        requiredCaptureIndex <= terminalIndex ||
+        abnormalCaptureIndex <= requiredCaptureIndex ||
+        supersededIndex <= abnormalCaptureIndex ||
         !section.includes("current operational state=superseded")
       ) {
         errors.push("abnormal-supersession-history");
       }
       if (
-        !section.includes("abnormal capture state=missing") ||
+        !section.includes("abnormal capture state=captured") ||
+        !section.includes("cleanup eligibility=eligible") ||
         !section.includes("cleanup evaluation=not-evaluated") ||
         !section.includes("cleanup outcome=closed=no") ||
-        !section.includes("cleanup eligibility=blocked") ||
-        !section.includes("does not make the row cleanup-eligible") ||
-        !section.includes("Only after the reviewer scope")
+        !section.includes("Only afterward may the cleanup gate evaluate it")
       ) {
         errors.push("abnormal-supersession-capture-gate");
       }
@@ -7617,15 +7669,24 @@ describe("play subagent routing source contracts", () => {
     expect(
       abnormalSupersessionErrors(failedSupersededVariant, "turn-failed"),
     ).toEqual([]);
-    expect(
-      abnormalSupersessionErrors(
-        timedOutSupersededVariant.replace(
-          "cleanup eligibility=blocked",
-          "cleanup eligibility=allowed",
-        ),
-        "turn-timed-out",
-      ),
-    ).toEqual(["abnormal-supersession-capture-gate"]);
+    const abnormalMutation = (events: string[]): string =>
+      `events retain ${events.join(" then ")} current operational state=superseded abnormal capture state=captured cleanup eligibility=eligible cleanup evaluation=not-evaluated cleanup outcome=closed=no Only afterward may the cleanup gate evaluate it`;
+    for (const terminal of ["turn-timed-out", "turn-failed"] as const) {
+      const terminalEvent = `${terminal}(`;
+      const requiredCapture = "required-state-captured(";
+      const abnormalCapture = "abnormal-context-captured(";
+      for (const events of [
+        [terminalEvent, abnormalCapture, "superseded"],
+        [terminalEvent, requiredCapture, "superseded"],
+        [requiredCapture, terminalEvent, abnormalCapture, "superseded"],
+        [abnormalCapture, terminalEvent, requiredCapture, "superseded"],
+        [terminalEvent, "superseded", requiredCapture, abnormalCapture],
+      ]) {
+        expect(
+          abnormalSupersessionErrors(abnormalMutation(events), terminal),
+        ).toContain("abnormal-supersession-history");
+      }
+    }
     expect(
       unavailableReasonHistoryErrors(
         normalGateVariants,
