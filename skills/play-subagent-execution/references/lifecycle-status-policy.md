@@ -28,6 +28,15 @@ session until every reviewer loop required by the task's effective route
 passes, unless the target lacks same-session follow-up and a fresh implementer
 can receive the complete captured state.
 
+When an executor-retained implementer no longer needs same-session follow-up,
+append `retention-resolved` with evidence that the need finished or its state
+was captured and safely replaced. Preserve each historical `close-deferred`
+event and reason, clear the current retained cleanup decision and current
+retention reason, and keep the target-honest `closed=no` or unavailable outcome
+until a later close or unavailable fact selects an existing cleanup family.
+`manual-cleanup-confirmed` remains separate row-scoped retry authorization; it
+is not closure proof, `retention-resolved`, or another cleanup family.
+
 ## Handling Implementer Status
 
 Before acting on any returned status, update the lifecycle ledger for that

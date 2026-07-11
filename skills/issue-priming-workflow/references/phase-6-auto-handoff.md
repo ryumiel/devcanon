@@ -105,7 +105,12 @@ For timed-out or failed rows, preserve the value-bearing runtime terminal event,
 keep return status/history absent when no turn returned, and capture the gate or
 research error/blocker detail before cleanup.
 A capacity-blocking retained session must first resolve and safely capture or
-replace its follow-up need, or stop and escalate without retrying.
+replace its follow-up need, append `retention-resolved` with concise resolution
+evidence, preserve the historical `close-deferred` reason, clear the current
+retained cleanup decision and current retention reason, and then obtain actual
+or operator-confirmed cleanup before retrying. A scoped
+`manual-cleanup-confirmed` event authorizes retry but does not prove closure or
+add a cleanup family. An unresolved need stops and escalates without retrying.
 
 ## Single-Task Final-Review Carve-Out
 

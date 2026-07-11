@@ -356,6 +356,14 @@ superseded after capture; pending or unknown rows resolve identity or stop
 without fabricated cleanup. Record row-scoped `manual-cleanup-confirmed`
 evidence before reconstruction and retry while preserving the row's honest
 cleanup outcome.
+When a capacity-blocking row was deliberately retained, first finish, capture,
+or safely replace that workflow need, then append
+`retention-resolved(evidence=<concise resolution evidence>)`. Preserve the
+historical `close-deferred` event and reason, clear the current retained cleanup
+decision and current retention reason, and keep the target-honest `closed=no`
+or unavailable outcome until a later cleanup family changes it. A scoped
+`manual-cleanup-confirmed` event remains separate retry authorization; it is
+not closure proof, `retention-resolved`, or a cleanup projection family.
 
 For a started immediate internal or external research sibling, those generic
 open-blocker options do not authorize replacement or supersession as a
@@ -696,7 +704,11 @@ Normal cleanup may continue with target-honest open evidence, but shared
 slot-limit recovery remains blocked until actual closure or
 operator-confirmed manual cleanup.
 A capacity-blocking retained session must first resolve and safely capture or
-replace its follow-up need, or stop and escalate without retrying.
+replace its follow-up need, append `retention-resolved` with concise evidence,
+preserve the historical `close-deferred` reason, clear current retention state, and
+then obtain actual or operator-confirmed cleanup before retrying. A scoped
+`manual-cleanup-confirmed` event authorizes retry but does not prove closure or
+add a cleanup family. An unresolved need stops and escalates without retrying.
 
 Invoke `play-subagent-execution` and pass the plan as a `Plan: <path>`
 reference plus `Auto handoff: <repo-relative-path>` in the invocation prose, NOT
