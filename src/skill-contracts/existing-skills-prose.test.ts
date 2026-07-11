@@ -4753,6 +4753,9 @@ describe("existing skills source prose contracts", () => {
       "one cleanup evaluation state: `not-evaluated` or `evaluated`",
     );
     expect(normalized).toContain("Evaluation never returns to `not-evaluated`");
+    expect(normalized).toContain(
+      "Observed `close-succeeded` is terminal and dominant for that session row",
+    );
   });
 
   it("keeps bundled prompt and runtime-reference prose contracts in source", async () => {

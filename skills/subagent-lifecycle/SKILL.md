@@ -162,14 +162,20 @@ projection of the latest applicable closure event and current capability tuple:
   failure, `close-failed` while preserving the prior events.
 - A later successful close appends `close-succeeded` and projects `closed=yes`.
 
+Observed `close-succeeded` is terminal and dominant for that session row. Later
+loss of identity, inventory, or operation capability does not change
+`closed=yes` and must not append `closure-unavailable`; preserve the successful
+close and its history.
+
 Do not retain a cleanup outcome that contradicts the latest closure event or
 capability facts. A failed close is not unavailable, and a later success
 replaces `closed=no` with `closed=yes` without deleting the failed-attempt
 history.
 
-Later capability changes trigger reevaluation by appending newly observed
-capability and closure events, keeping cleanup evaluation `evaluated`, and
-projecting from the latest applicable fact. Evaluation never returns to
+For rows not already successfully closed, later capability changes trigger
+reevaluation by appending newly observed capability and closure events, keeping
+cleanup evaluation `evaluated`, and projecting from the latest applicable fact.
+Successfully closed rows do not undergo capability reevaluation. Evaluation never returns to
 `not-evaluated`; it is not an escape hatch for an outcome, event, or capability
 contradiction.
 
@@ -183,6 +189,8 @@ role-specific state has already been captured.
    closing or superseding any session.
 2. Transition cleanup evaluation from `not-evaluated` to `evaluated`. A row
    already evaluated remains `evaluated` during later reevaluation.
+   A row with observed `close-succeeded` remains terminal and is not
+   reevaluated.
 3. When the target is `automatic-close-supported`, attempt to close completed
    or superseded sessions after the required state is recorded, append the
    observed close events, and project `closed=no` or `closed=yes` from the

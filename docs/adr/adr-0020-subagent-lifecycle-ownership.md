@@ -73,6 +73,8 @@ implementers continue to read the worktree from disk.
 - Cleanup evaluation distinguishes open, not-yet-evaluated rows from evaluated
   projection and remains evaluated when later capability facts cause
   reevaluation.
+- Observed successful closure is terminal for its session row; later capability
+  loss cannot reverse `closed=yes` or create contradictory unavailable cleanup.
 - Slot-limit failures are handled as orchestration resource exhaustion, with
   state reconstruction and one retry after cleanup or manual confirmation.
 - Workflow-local exceptions remain explicit, so shared cleanup policy does not
