@@ -60,6 +60,7 @@ their spawn points. The shared procedure owns:
 - provider-neutral timeout and runtime-failure terminal outcomes;
 - classification and safe capture of open capacity-blocking rows;
 - row-scoped manual-cleanup confirmation evidence;
+- recovery-episode-scoped blocker snapshots and retry evidence;
 - slot-limit recovery and one retry after cleanup or manual confirmation.
 
 Workflow-specific dispatch rules stay with the workflow that owns them. For
@@ -107,8 +108,10 @@ implementers continue to read the worktree from disk.
   decision advances, and later real attempts append to rather than erase it.
 - Finishing, capturing, or safely replacing that deferred need records
   `retention-resolved`, clears current retention state, and preserves the
-  historical deferral. The event neither changes the four cleanup families nor
-  authorizes slot retry without actual or operator-confirmed cleanup.
+  historical deferral. Its sole current projection is evaluated, decision
+  `none`, no current retention or unavailable reason, and `closed=no`. The event
+  neither changes the four cleanup families nor authorizes slot retry without
+  actual or operator-confirmed cleanup.
 - Every unavailable-cleanup decision preserves its concrete reason in
   append-only event history. Later reevaluation may clear the current
   unavailable reason projection but cannot erase or conflate that history.
@@ -127,6 +130,9 @@ implementers continue to read the worktree from disk.
 - Manual cleanup confirmation is append-only, row- or inventory-identity-scoped
   retry evidence with sanitized provenance and time. It preserves the honest
   cleanup outcome and cannot fabricate automatic closure.
+- Each slot-exhaustion recovery episode snapshots its capacity blockers and
+  binds close or manual-confirmation authorization evidence to that episode;
+  older append-only evidence cannot authorize a later retry.
 - Known-surface mappings are detection-first capability guidance, not frozen
   provider action schemas; interruption and inventory never imply closure.
 - Slot-limit failures are handled as orchestration resource exhaustion, with

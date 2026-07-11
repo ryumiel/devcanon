@@ -38,6 +38,8 @@ class, and cleanup outcome are independent ledger dimensions. Each row records:
   interruption;
 - the target capability class when relevant;
 - one cleanup evaluation state: `not-evaluated` or `evaluated`;
+- the current slot-recovery episode identity and its capacity-blocker snapshot,
+  when recovery is active;
 - an ordered, append-only lifecycle-event history with event-associated detail
   needed to recover the fact, including the concrete workflow-owned reason on
   every `close-deferred` event;
@@ -84,7 +86,7 @@ current operational state. Append events such as `dispatch-requested`,
 `identity-assigned`, `waiting`, `interrupted`, `turn-completed`, `superseded`,
 `turn-timed-out`, `turn-failed`, `close-attempted`, `close-deferred`,
 `retention-resolved`, `close-failed`, `close-succeeded`, `closure-unavailable`, and
-`manual-cleanup-confirmed` when those facts occur. Record the concrete
+`slot-recovery-started` and `manual-cleanup-confirmed` when those facts occur. Record the concrete
 workflow-owned retention reason as event-associated detail on each
 `close-deferred`; an event name without its reason is incomplete. State changes
 never erase prior events or their associated detail. An identity assignment,
@@ -97,9 +99,12 @@ The event requires an unresolved prior `close-deferred`; it preserves the
 historical deferral and reason while clearing the current deliberate-retention
 decision and current retention reason. `retention-resolved` is a lifecycle
 decision event, not a fifth cleanup projection family, cleanup outcome, or proof
-of closure. It leaves the current target-honest cleanup outcome and any current
-unavailable projection unchanged until a later close attempt or unavailable
-fact selects one of the existing projection families.
+of closure. Its one canonical current projection keeps cleanup evaluation
+`evaluated`, sets the current cleanup decision to `none`, clears both current
+retention and unavailable reasons, and projects `closed=no`. Historical
+`close-deferred` reasons and resolution evidence remain append-only. A later
+actual close attempt or `closure-unavailable` event selects one of the existing
+four projection families.
 
 Every `closure-unavailable` event carries its concrete reason as
 event-associated detail and appends that value to unavailable-reason history.
@@ -222,10 +227,11 @@ the projection deterministic:
   `close-failed`; deferral is not a fabricated close attempt.
 - An evaluated deferred session whose workflow-owned need is finished,
   captured, or safely replaced appends `retention-resolved` with resolution
-  evidence, clears the current retention decision and reason, and preserves the
-  existing target-honest cleanup projection. This transition is not another
-  cleanup family. A later actual close or unavailable fact still uses one of
-  the four families listed here.
+  evidence, keeps evaluation `evaluated`, sets the current cleanup decision to
+  `none`, clears current retention and unavailable reasons, and projects
+  `closed=no`. This evidenced transition is not another cleanup family. A later
+  actual close or unavailable fact still uses one of the four families listed
+  here.
 - An evaluated session without stable identity or without an exposed, usable
   close operation appends `closure-unavailable` with the concrete reason as
   event-associated detail, appends the reason to unavailable-reason history,
@@ -238,11 +244,12 @@ the projection deterministic:
 - An evaluated session whose real close attempt succeeds appends
   `close-attempted` and `close-succeeded`, then projects `closed=yes`.
 
-An evaluated row with no applicable decision and reason, or with facts that
-contradict its events or projection, is invalid or ambiguous. Do not normalize
-it into another family and do not write external state from it. A missing
-retention or unavailability reason is invalid, as is a claimed attempt without
-an observed success or failure.
+An evaluated row with no applicable decision and reason is invalid or ambiguous
+except for the exact evidenced post-`retention-resolved` projection above.
+Facts that contradict their events or projection remain invalid. Do not
+normalize invalid state into another family and do not write external state from
+it. A missing retention or unavailability reason is invalid, as is a claimed
+attempt without an observed success or failure.
 
 Observed `close-succeeded` is terminal and dominant for that session row. Later
 loss of identity, inventory, or operation capability does not change
@@ -316,8 +323,10 @@ exhaustion, not implementation failure, reviewer failure, or CI failure.
 When a spawn fails because of a slot/session limit:
 
 1. Classify the failure as orchestration resource exhaustion in the lifecycle
-   ledger before considering any retry. A spawn without a slot-limit signal
-   remains under the normal cleanup gate and does not activate this retry path.
+   ledger before considering any retry. Append `slot-recovery-started` with a
+   new sanitized episode identity and the sanitized identity snapshot of every
+   capacity-blocking row. A spawn without a slot-limit signal remains under the
+   normal cleanup gate and does not activate this retry path.
 2. Classify every capacity-blocking open row before cleanup:
 3. For `active`, capture state at an already available safe boundary, or wait
    or steer toward one when the target supports it. If needed state cannot be
@@ -350,16 +359,19 @@ When a spawn fails because of a slot/session limit:
     redaction rule described for retry-failure escalation below. Wait for
     operator confirmation that manual cleanup is complete before continuing.
     For each affected blocking row or sanitized inventory identity, append
-    `manual-cleanup-confirmed` with sanitized confirmation provenance and time.
+    `manual-cleanup-confirmed` with the current recovery episode identity,
+    blocker identity, sanitized confirmation provenance, and time.
     This evidence does not change its target-honest cleanup projection and never
     fabricates `closed=yes`.
 11. Reconstruct active workflow state from the lifecycle ledger and the
     repository state anchors the owning workflow uses, such as `git status`,
     current branch, and relevant base/head SHAs.
-12. Retry the spawn exactly once only when every capacity-blocking row has either
-    observed `close-succeeded` or a correctly scoped
-    `manual-cleanup-confirmed` event. Missing or mis-scoped confirmation is not
-    authorization. `retention-resolved` is necessary for a formerly deferred
+12. Retry the spawn exactly once only when every row in the current episode's
+    blocker snapshot has either current-episode `close-succeeded` evidence or a
+    correctly scoped current-episode `manual-cleanup-confirmed` event. Preserve
+    earlier episode evidence as append-only history, but never use it to
+    authorize the current retry. Missing, stale-episode, or mis-scoped
+    confirmation is not authorization. `retention-resolved` is necessary for a formerly deferred
     blocker but is not retry authorization or closure proof. A manual
     confirmation preserves `closed=no` or
     `close-unavailable: <reason>`; it is not closure proof.
