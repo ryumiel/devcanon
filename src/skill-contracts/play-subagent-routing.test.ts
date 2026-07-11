@@ -2985,7 +2985,7 @@ describe("play subagent routing source contracts", () => {
       "Classify every capacity-blocking open row before cleanup",
     );
     expect(normalizeWhitespace(slotLimitRecovery)).toContain(
-      "For `active`, capture state at an already available safe boundary, or wait or steer toward one when the target supports it",
+      "For `active`, reach a safe boundary and capture state. Fresh capture permits deliberate retention without replacement; supersession requires current `replacement-secured` evidence. If capture is unsafe, stop and escalate",
     );
     expect(normalizeWhitespace(slotLimitRecovery)).toContain(
       "For `waiting`, capture the open question and needed context, then decide deliberate retention or safe replacement and supersession",
@@ -6982,6 +6982,34 @@ describe("play subagent routing source contracts", () => {
       }
       return errors;
     };
+    const completedFollowupGuardErrors = (
+      section: string,
+      sessionId: string,
+    ): string[] => {
+      const errors: string[] = [];
+      if (!section.includes(`agent_id=${sessionId} is stable`)) {
+        errors.push("followup-stable-identity");
+      }
+      if (
+        !section.includes("prior operational state=completed") ||
+        !section.includes("turn-completed(")
+      ) {
+        errors.push("followup-completed-evidence");
+      }
+      if (
+        !section.includes("observed same-session reuse capability=positive")
+      ) {
+        errors.push("followup-reuse-capability");
+      }
+      if (
+        !section.includes(
+          `followup-dispatch-requested(session-id=${sessionId})`,
+        )
+      ) {
+        errors.push("followup-matching-identity");
+      }
+      return errors;
+    };
     const abnormalSupersessionErrors = (
       section: string,
       terminalEvent: "turn-timed-out" | "turn-failed",
@@ -7058,7 +7086,10 @@ describe("play subagent routing source contracts", () => {
     const openCapacityErrors = (section: string): string[] => {
       const errors: string[] = [];
       for (const [name, evidence] of [
-        ["active", "Active row: wait or steer to a safe boundary"],
+        [
+          "active",
+          "Active row: wait or steer to a safe boundary and capture required state. After fresh capture, deliberate retention requires no replacement; supersession requires current event=replacement-secured",
+        ],
         [
           "waiting",
           "Waiting row: capture the open question and context, then retain or safely replace",
@@ -7226,7 +7257,7 @@ describe("play subagent routing source contracts", () => {
     expect(task2Section).toContain("findings captured: Magic number (100)");
     expect(task2Section).toContain("re-review target=quality-2-rereview");
     expect(task2Section).toContain(
-      "event=followup-dispatch-requested appended after the first turn-completed; all prior events retained",
+      "event=followup-dispatch-requested(session-id=impl-2) appended after the first turn-completed; all prior events retained",
     );
     expect(normalizeWhitespace(task2Section)).toContain(
       "event=turn-completed(status=DONE_WITH_CONCERNS) appended, workflow return history=[DONE, DONE_WITH_CONCERNS], current workflow return status=DONE_WITH_CONCERNS",
@@ -7337,6 +7368,34 @@ describe("play subagent routing source contracts", () => {
     expect(activeFollowupRow).toContain("workflow return status=DONE");
     expectDeferredCleanupRow(activeFollowupRow);
     expect(activeFollowupRow).toContain("workflow return history=[DONE]");
+    expect(completedFollowupGuardErrors(activeFollowupRow, "impl-2")).toEqual(
+      [],
+    );
+    for (const [from, to, error] of [
+      [
+        "followup-dispatch-requested(session-id=impl-2)",
+        "followup-dispatch-requested",
+        "followup-matching-identity",
+      ],
+      ["session-id=impl-2", "session-id=other", "followup-matching-identity"],
+      [
+        "observed same-session reuse capability=positive",
+        "reuse capability absent",
+        "followup-reuse-capability",
+      ],
+      [
+        "observed same-session reuse capability=positive",
+        "observed same-session reuse capability=negative",
+        "followup-reuse-capability",
+      ],
+    ] as const) {
+      expect(
+        completedFollowupGuardErrors(
+          activeFollowupRow.replace(from, to),
+          "impl-2",
+        ),
+      ).toContain(error);
+    }
     expectDeferredCleanupRow(
       checkpointRow(
         task2Section,
@@ -7427,11 +7486,17 @@ describe("play subagent routing source contracts", () => {
       ),
     ).toEqual([]);
     expect(
+      completedFollowupGuardErrors(followupTimeoutVariant, "reviewer-timeout"),
+    ).toEqual([]);
+    expect(
       abnormalFollowupHistoryErrors(
         followupFailureVariant,
         "failed",
         "final-findings",
       ),
+    ).toEqual([]);
+    expect(
+      completedFollowupGuardErrors(followupFailureVariant, "reviewer-failure"),
     ).toEqual([]);
     expect(
       abnormalFollowupHistoryErrors(
@@ -7526,11 +7591,19 @@ describe("play subagent routing source contracts", () => {
     expect(
       openCapacityErrors(
         openCapacityVariants.replace(
-          "Active row: wait or steer to a safe boundary, capture required state, then retain or supersede; if capture is unsafe, stop and escalate. ",
+          "Active row: wait or steer to a safe boundary and capture required state. After fresh capture, deliberate retention requires no replacement; supersession requires current event=replacement-secured. ",
           "Active row: clean up manually. ",
         ),
       ),
     ).toEqual(["missing-active"]);
+    expect(
+      openCapacityErrors(
+        openCapacityVariants.replace(
+          "supersession requires current event=replacement-secured",
+          "supersession needs no replacement",
+        ),
+      ),
+    ).toContain("missing-active");
     expect(targetCapabilityExamples).toContain(
       "Isolated lifecycle supersession hypothetical - separate run, not an executor route",
     );

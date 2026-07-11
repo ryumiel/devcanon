@@ -339,9 +339,9 @@ When a spawn fails because of a slot/session limit:
    capacity-blocking row. A spawn without a slot-limit signal remains under the
    normal cleanup gate and does not activate this retry path.
 2. Classify every capacity-blocking open row before cleanup:
-3. For `active`, capture state at an already available safe boundary, or wait
-   or steer toward one when the target supports it. If needed state cannot be
-   captured safely, stop and escalate instead of destroying the session.
+3. For `active`, reach a safe boundary and capture state. Fresh capture permits
+   deliberate retention without replacement; supersession requires current
+   `replacement-secured` evidence. If capture is unsafe, stop and escalate.
 4. For `waiting`, capture the open question and needed context, then decide
    deliberate retention or safe replacement and supersession.
 5. For reusable `interrupted`, capture available role state and reuse only under
