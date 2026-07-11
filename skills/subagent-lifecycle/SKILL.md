@@ -39,6 +39,8 @@ and cleanup outcome are independent ledger dimensions. Each row records:
 - the target capability class when relevant;
 - one cleanup evaluation state: `not-evaluated` or `evaluated`;
 - an ordered, append-only lifecycle-event history;
+- a concrete workflow-owned retention reason when cleanup is deliberately
+  deferred;
 - workflow return status after a return is observed;
 - reviewer disposition after it is classified;
 - role-specific captured state;
@@ -73,7 +75,7 @@ orchestration failures; git remains the source for repository state.
 Each row keeps an ordered, append-only lifecycle-event history alongside its
 current operational state. Append events such as `dispatch-requested`,
 `identity-assigned`, `waiting`, `interrupted`, `turn-completed`, `superseded`,
-`close-attempted`, `close-failed`, `close-succeeded`, and
+`close-attempted`, `close-deferred`, `close-failed`, `close-succeeded`, and
 `closure-unavailable` when those facts occur. State changes never erase prior
 events. An identity assignment, wait, interruption, completion, supersession,
 or closure result therefore remains recoverable after current state advances.
@@ -94,6 +96,13 @@ operational state. A returned reviewer can therefore have operational state
 `completed`, workflow return status `findings-recorded`, and reviewer
 disposition `advisory`; a later classification change updates the disposition
 without rewriting its lifecycle-event history.
+
+After a returned session is observed and classified, preserve its workflow
+return status and reviewer disposition as historical facts. A same-session
+follow-up may append `followup-dispatch-requested` and move current operational
+state back to `active` or `waiting`; that operational re-entry does not remove
+the prior `turn-completed` event, workflow return status, or reviewer
+disposition.
 
 ## Target Lifecycle Capability
 
@@ -147,30 +156,44 @@ all required before recording `closed=yes`.
 
 ## Cleanup Projection
 
-Cleanup evaluation is orthogonal to cleanup outcome. Before the cleanup gate,
+Cleanup evaluation is orthogonal to cleanup outcome. Establish the evaluation
+state, captured role facts, capability tuple, observed events, and any proposed
+retention reason before projecting cleanup. Before the cleanup gate,
 `not-evaluated` permits `closed=no` only as an open-session observation and
-does not project capability or closure events. The cleanup gate transitions the
-row to `evaluated`; after that transition, cleanup outcome is a deterministic
-projection of the latest applicable closure event and current capability tuple:
+does not project a cleanup decision or any closure event. The cleanup gate
+transitions the row to `evaluated`; after that transition, these families make
+the projection deterministic:
 
-- Missing stable identity or a missing exposed, usable close operation appends
-  `closure-unavailable` with the concrete reason and projects
-  `close-unavailable: <reason>`. An exposed-but-unusable close operation follows
-  this unavailable path, not `closed=no`.
-- With stable identity and an exposed, usable close operation, an unattempted or
-  actually failed close projects `closed=no`; append `close-attempted` and, on
-  failure, `close-failed` while preserving the prior events.
-- A later successful close appends `close-succeeded` and projects `closed=yes`.
+- An evaluated session deliberately retained for same-session follow-up
+  appends `close-deferred`, records a concrete workflow-owned retention reason,
+  and projects `closed=no`. That decision does not append `close-attempted` or
+  `close-failed`; deferral is not a fabricated close attempt.
+- An evaluated session without stable identity or without an exposed, usable
+  close operation appends `closure-unavailable` with the concrete reason and
+  projects `close-unavailable: <reason>`. An exposed-but-unusable close
+  operation follows this unavailable path, not `closed=no`.
+- An evaluated session with stable identity and an exposed, usable close
+  operation whose real close attempt fails appends `close-attempted` and
+  `close-failed`, then projects `closed=no`.
+- An evaluated session whose real close attempt succeeds appends
+  `close-attempted` and `close-succeeded`, then projects `closed=yes`.
+
+An evaluated row with no applicable decision and reason, or with facts that
+contradict its events or projection, is invalid or ambiguous. Do not normalize
+it into another family and do not write external state from it. A missing
+retention or unavailability reason is invalid, as is a claimed attempt without
+an observed success or failure.
 
 Observed `close-succeeded` is terminal and dominant for that session row. Later
 loss of identity, inventory, or operation capability does not change
 `closed=yes` and must not append `closure-unavailable`; preserve the successful
 close and its history.
 
-Do not retain a cleanup outcome that contradicts the latest closure event or
-capability facts. A failed close is not unavailable, and a later success
-replaces `closed=no` with `closed=yes` without deleting the failed-attempt
-history.
+Do not retain a cleanup outcome that contradicts the latest closure decision,
+event, or capability facts. A failed close is not unavailable, and a deferred
+close is not a failed attempt. A later real attempt appends to the history
+without erasing `close-deferred`; a later success replaces `closed=no` with
+`closed=yes` without deleting the deferral or failed-attempt history.
 
 For rows not already successfully closed, later capability changes trigger
 reevaluation by appending newly observed capability and closure events, keeping
@@ -191,20 +214,28 @@ role-specific state has already been captured.
    already evaluated remains `evaluated` during later reevaluation.
    A row with observed `close-succeeded` remains terminal and is not
    reevaluated.
-3. When the target is `automatic-close-supported`, attempt to close completed
-   or superseded sessions after the required state is recorded, append the
-   observed close events, and project `closed=no` or `closed=yes` from the
-   result.
-4. When the target is `inventory-only` or `cleanup-unavailable`, first capture
-   the same role-specific state, then record the `close-unavailable` reason
+3. When the owning workflow still requires same-session follow-up, append
+   `close-deferred`, record its concrete workflow-owned reason, and project
+   `closed=no` without appending attempt or failure events for that decision.
+4. Otherwise, when the target is `automatic-close-supported`, attempt to close
+   completed or superseded sessions after the required state is recorded,
+   append the observed attempt and result events, and project `closed=no` or
+   `closed=yes` from the result.
+5. Otherwise, when the target is `inventory-only` or `cleanup-unavailable`,
+   first capture the same role-specific state, then append
+   `closure-unavailable` and record the concrete `close-unavailable` reason
    before spawning instead of claiming closure.
-5. Keep sessions open when the owning workflow still requires same-session
-   follow-up and the captured state is not sufficient for a replacement
-   session.
 
 Target-honest outcomes matter more than a clean-looking ledger. Never record
 `closed=yes` unless the current target actually exposed stable ids plus a usable
 close operation and the close completed.
+
+This normal cleanup gate records target-honest evidence; it is not itself a
+capacity-recovery authorization gate. When no spawn has reported slot or
+session exhaustion, the controller may continue after recording the cleanup
+result, including `close-deferred`, `close-unavailable`, or `close-failed`
+states. Once a spawn reports slot exhaustion, the separate retry guard below
+applies and those states do not authorize a retry.
 
 ## Slot-Limit Recovery
 
@@ -214,7 +245,8 @@ exhaustion, not implementation failure, reviewer failure, or CI failure.
 When a spawn fails because of a slot/session limit:
 
 1. Classify the failure as orchestration resource exhaustion in the lifecycle
-   ledger.
+   ledger before considering any retry. A spawn without a slot-limit signal
+   remains under the normal cleanup gate and does not activate this retry path.
 2. Run the cleanup gate for all completed or superseded sessions.
 3. If automatic cleanup is unavailable or a usable automatic close attempt
    fails, surface the same explicit operator/UI manual-cleanup guidance. Include

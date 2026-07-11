@@ -2502,6 +2502,7 @@ describe("play subagent routing source contracts", () => {
       "turn-completed",
       "superseded",
       "close-attempted",
+      "close-deferred",
       "close-failed",
       "close-succeeded",
       "closure-unavailable",
@@ -2523,6 +2524,9 @@ describe("play subagent routing source contracts", () => {
     );
     expect(normalizeWhitespace(resultAndDispositionDimensions)).toContain(
       "Neither field replaces or determines operational state",
+    );
+    expect(normalizeWhitespace(resultAndDispositionDimensions)).toContain(
+      "A same-session follow-up may append `followup-dispatch-requested` and move current operational state back to `active` or `waiting`; that operational re-entry does not remove the prior `turn-completed` event, workflow return status, or reviewer disposition",
     );
 
     expect(targetLifecycleCapability).toContain("automatic-close-supported");
@@ -2614,17 +2618,17 @@ describe("play subagent routing source contracts", () => {
       "Capture the role-specific state needed by the owning workflow before closing or superseding any session",
     );
     expect(normalizeWhitespace(cleanupGateBeforeSpawns)).toContain(
-      "Keep sessions open when the owning workflow still requires same-session follow-up",
+      "When the owning workflow still requires same-session follow-up, append `close-deferred`, record its concrete workflow-owned reason, and project `closed=no` without appending attempt or failure events for that decision",
     );
     expect(normalizeWhitespace(cleanupGateBeforeSpawns)).toContain(
       "Never record `closed=yes` unless the current target actually exposed stable ids plus a usable close operation",
     );
 
     expect(normalizeWhitespace(cleanupProjection)).toContain(
-      "after that transition, cleanup outcome is a deterministic projection of the latest applicable closure event and current capability tuple",
+      "Establish the evaluation state, captured role facts, capability tuple, observed events, and any proposed retention reason before projecting cleanup",
     );
     expect(normalizeWhitespace(cleanupProjection)).toContain(
-      "`not-evaluated` permits `closed=no` only as an open-session observation and does not project capability or closure events",
+      "`not-evaluated` permits `closed=no` only as an open-session observation and does not project a cleanup decision or any closure event",
     );
     expect(normalizeWhitespace(cleanupProjection)).toContain(
       "The cleanup gate transitions the row to `evaluated`",
@@ -2639,22 +2643,37 @@ describe("play subagent routing source contracts", () => {
       "Later loss of identity, inventory, or operation capability does not change `closed=yes` and must not append `closure-unavailable`",
     );
     expect(normalizeWhitespace(cleanupProjection)).toContain(
-      "Missing stable identity or a missing exposed, usable close operation appends `closure-unavailable`",
+      "An evaluated session without stable identity or without an exposed, usable close operation appends `closure-unavailable`",
     );
     expect(normalizeWhitespace(cleanupProjection)).toContain(
       "An exposed-but-unusable close operation follows this unavailable path, not `closed=no`",
     );
     expect(normalizeWhitespace(cleanupProjection)).toContain(
-      "With stable identity and an exposed, usable close operation, an unattempted or actually failed close projects `closed=no`",
+      "An evaluated session deliberately retained for same-session follow-up appends `close-deferred`, records a concrete workflow-owned retention reason, and projects `closed=no`",
     );
     expect(normalizeWhitespace(cleanupProjection)).toContain(
-      "A later successful close appends `close-succeeded` and projects `closed=yes`",
+      "That decision does not append `close-attempted` or `close-failed`; deferral is not a fabricated close attempt",
     );
     expect(normalizeWhitespace(cleanupProjection)).toContain(
-      "Do not retain a cleanup outcome that contradicts the latest closure event",
+      "whose real close attempt fails appends `close-attempted` and `close-failed`, then projects `closed=no`",
+    );
+    expect(normalizeWhitespace(cleanupProjection)).toContain(
+      "whose real close attempt succeeds appends `close-attempted` and `close-succeeded`, then projects `closed=yes`",
+    );
+    expect(normalizeWhitespace(cleanupProjection)).toContain(
+      "A later real attempt appends to the history without erasing `close-deferred`",
+    );
+    expect(normalizeWhitespace(cleanupProjection)).toContain(
+      "An evaluated row with no applicable decision and reason, or with facts that contradict its events or projection, is invalid or ambiguous",
+    );
+    expect(normalizeWhitespace(cleanupGateBeforeSpawns)).toContain(
+      "When no spawn has reported slot or session exhaustion, the controller may continue after recording the cleanup result, including `close-deferred`, `close-unavailable`, or `close-failed` states",
     );
 
     expect(slotLimitRecovery).toContain("orchestration resource exhaustion");
+    expect(normalizeWhitespace(slotLimitRecovery)).toContain(
+      "A spawn without a slot-limit signal remains under the normal cleanup gate and does not activate this retry path",
+    );
     expect(normalizeWhitespace(slotLimitRecovery)).toContain(
       "If automatic cleanup is unavailable or a usable automatic close attempt fails, surface the same explicit operator/UI manual-cleanup guidance",
     );
@@ -2689,6 +2708,12 @@ describe("play subagent routing source contracts", () => {
     expect(decision).toContain(
       "Generic subagent lifecycle cleanup guidance is owned by the internal\n`subagent-lifecycle` skill",
     );
+    expect(normalizeWhitespace(decision)).toContain(
+      "This ADR owns the durable lifecycle ownership and recovery decision; the source skill owns the reusable controller procedure",
+    );
+    expect(normalizeWhitespace(decision)).toContain(
+      "Examples, tests, and generated target previews are evidence of that contract, not authority",
+    );
     for (const ownedSurface of [
       "controller-local lifecycle ledger expectations",
       "target lifecycle capability classes",
@@ -2698,6 +2723,7 @@ describe("play subagent routing source contracts", () => {
       "independent operational, reuse, capability, and cleanup-state semantics",
       "target-honest cleanup outcomes",
       "cleanup gates before spawns",
+      "normal-gate continuation separately from slot-recovery retry authorization",
       "slot-limit recovery and one retry after cleanup or manual confirmation",
     ]) {
       expect(decision).toContain(ownedSurface);
@@ -2715,6 +2741,15 @@ describe("play subagent routing source contracts", () => {
       "Slot-limit failures are handled as orchestration resource exhaustion",
     );
     expect(consequences).toContain("Workflow-local exceptions remain explicit");
+    expect(normalizeWhitespace(consequences)).toContain(
+      "Evaluated deliberate retention records `close-deferred`, `closed=no`, and a concrete workflow-owned reason without fabricating an attempt or failure",
+    );
+    expect(normalizeWhitespace(consequences)).toContain(
+      "workflow return status and reviewer disposition survive same-session operational re-entry to active or waiting state",
+    );
+    expect(normalizeWhitespace(consequences)).toContain(
+      "Once a spawn reports slot exhaustion, retry remains blocked until actual closure or operator-confirmed manual cleanup",
+    );
     expect(normalizeWhitespace(consequences)).toContain(
       "Interruption, supersession, completion, reuse, capability, and cleanup remain separate facts",
     );
@@ -2754,6 +2789,9 @@ describe("play subagent routing source contracts", () => {
       closeAttempted: boolean;
       closeFailed: boolean;
       cleanupEvaluation: "not-evaluated" | "evaluated";
+      cleanupDecision: "none" | "retained" | "unavailable" | "attempted";
+      retentionReason: string | null;
+      closeUnavailableReason: string | null;
     };
 
     const apiActions = [
@@ -2793,6 +2831,9 @@ describe("play subagent routing source contracts", () => {
       closeAttempted: false,
       closeFailed: false,
       cleanupEvaluation: "evaluated",
+      cleanupDecision: "unavailable",
+      retentionReason: null,
+      closeUnavailableReason: "inventory-only; no close operation",
     };
 
     function invalidDimensions(example: LifecycleExample): string[] {
@@ -2908,14 +2949,8 @@ describe("play subagent routing source contracts", () => {
         errors.push("capability-classification");
         return errors;
       }
-      const expectedCleanup = example.closeSucceeded
-        ? "closed=yes"
-        : !example.trackedStableIdentity ||
-            !example.closeOperationExposed ||
-            !example.closeOperationUsable
-          ? "close-unavailable"
-          : "closed=no";
       const closureEvents = new Set([
+        "close-deferred",
         "closure-unavailable",
         "close-attempted",
         "close-failed",
@@ -2924,41 +2959,87 @@ describe("play subagent routing source contracts", () => {
       if (
         example.cleanupEvaluation === "not-evaluated" &&
         (example.cleanup !== "closed=no" ||
+          example.cleanupDecision !== "none" ||
+          example.retentionReason !== null ||
+          example.closeUnavailableReason !== null ||
           example.events.some((event) => closureEvents.has(event)))
       ) {
         errors.push("cleanup-evaluation-state");
         return errors;
       }
-      if (
-        example.cleanupEvaluation === "evaluated" &&
-        example.cleanup !== expectedCleanup
-      ) {
-        errors.push("cleanup-projection");
-        return errors;
-      }
-      if (
-        example.cleanupEvaluation === "evaluated" &&
-        example.cleanup === "close-unavailable" &&
-        !example.events.includes("closure-unavailable")
-      ) {
-        errors.push("cleanup-event-history");
-        return errors;
-      }
-      if (
-        example.cleanupEvaluation === "evaluated" &&
-        example.closeAttempted &&
-        !example.events.includes("close-attempted")
-      ) {
-        errors.push("cleanup-event-history");
-        return errors;
-      }
-      if (
-        example.cleanupEvaluation === "evaluated" &&
-        example.cleanup === "closed=yes" &&
-        !example.events.includes("close-succeeded")
-      ) {
-        errors.push("cleanup-event-history");
-        return errors;
+      if (example.cleanupEvaluation === "evaluated") {
+        if (example.cleanupDecision === "none") {
+          errors.push("cleanup-decision");
+          return errors;
+        }
+        if (example.cleanupDecision === "retained") {
+          if (
+            example.retentionReason === null ||
+            example.retentionReason.trim().length === 0
+          ) {
+            errors.push("retention-reason");
+            return errors;
+          }
+          if (example.cleanup !== "closed=no") {
+            errors.push("cleanup-projection");
+            return errors;
+          }
+          if (!example.events.includes("close-deferred")) {
+            errors.push("cleanup-event-history");
+            return errors;
+          }
+        } else if (example.cleanupDecision === "unavailable") {
+          if (
+            example.closeUnavailableReason === null ||
+            example.closeUnavailableReason.trim().length === 0
+          ) {
+            errors.push("close-unavailable-reason");
+            return errors;
+          }
+          if (
+            example.trackedStableIdentity &&
+            example.closeOperationExposed &&
+            example.closeOperationUsable
+          ) {
+            errors.push("cleanup-decision");
+            return errors;
+          }
+          if (example.cleanup !== "close-unavailable") {
+            errors.push("cleanup-projection");
+            return errors;
+          }
+          if (!example.events.includes("closure-unavailable")) {
+            errors.push("cleanup-event-history");
+            return errors;
+          }
+        } else if (example.cleanupDecision === "attempted") {
+          if (!example.closeAttempted) {
+            errors.push("cleanup-decision");
+            return errors;
+          }
+          const expectedAttemptOutcome = example.closeSucceeded
+            ? "closed=yes"
+            : "closed=no";
+          if (example.cleanup !== expectedAttemptOutcome) {
+            errors.push("cleanup-projection");
+            return errors;
+          }
+          if (!example.events.includes("close-attempted")) {
+            errors.push("cleanup-event-history");
+            return errors;
+          }
+          if (!example.closeSucceeded && !example.closeFailed) {
+            errors.push("cleanup-result-missing");
+            return errors;
+          }
+          if (
+            example.closeSucceeded &&
+            !example.events.includes("close-succeeded")
+          ) {
+            errors.push("cleanup-event-history");
+            return errors;
+          }
+        }
       }
       const firstCloseSucceededIndex =
         example.events.indexOf("close-succeeded");
@@ -2968,6 +3049,16 @@ describe("play subagent routing source contracts", () => {
       );
       if (firstCloseSucceededIndex >= 0 && laterClosureControlIndex >= 0) {
         errors.push("terminal-close-contradiction");
+        return errors;
+      }
+      if (
+        example.cleanupEvaluation === "evaluated" &&
+        (example.closeAttempted !==
+          example.events.includes("close-attempted") ||
+          example.closeFailed !== example.events.includes("close-failed") ||
+          example.closeSucceeded !== example.events.includes("close-succeeded"))
+      ) {
+        errors.push("cleanup-event-history");
         return errors;
       }
       if (
@@ -3088,6 +3179,8 @@ describe("play subagent routing source contracts", () => {
       trackedStableIdentity: false,
       cleanup: "closed=no",
       cleanupEvaluation: "not-evaluated",
+      cleanupDecision: "none",
+      closeUnavailableReason: null,
     };
     expect(invalidDimensions(pending)).toEqual([]);
     expect(invalidDimensions(superseded)).toEqual([]);
@@ -3124,6 +3217,9 @@ describe("play subagent routing source contracts", () => {
       events: [...returned.events, "followup-dispatch-requested"],
     };
     expect(invalidDimensions(followupActive)).toEqual([]);
+    expect(
+      invalidDimensions({ ...followupActive, workflowReturnStatus: null }),
+    ).toEqual(["workflow-result"]);
     const followupWaiting: LifecycleExample = {
       ...followupActive,
       operationalState: "waiting",
@@ -3151,6 +3247,8 @@ describe("play subagent routing source contracts", () => {
       closeSucceeded: true,
       events: [...returned.events, "close-attempted", "close-succeeded"],
       cleanupEvaluation: "evaluated",
+      cleanupDecision: "attempted",
+      closeUnavailableReason: null,
     };
     expect(invalidDimensions(reevaluatedAfterCapabilityChange)).toEqual([]);
     const capabilityLossAfterSuccess: LifecycleExample = {
@@ -3270,6 +3368,8 @@ describe("play subagent routing source contracts", () => {
       closeOperationUsable: true,
       closeAttempted: true,
       closeFailed: true,
+      cleanupDecision: "attempted",
+      closeUnavailableReason: null,
       events: [
         ...returned.events.filter((event) => event !== "closure-unavailable"),
         "close-attempted",
@@ -3277,6 +3377,53 @@ describe("play subagent routing source contracts", () => {
       ],
     };
     expect(invalidDimensions(failedClose)).toEqual([]);
+    expect(
+      invalidDimensions({ ...failedClose, cleanup: "close-unavailable" }),
+    ).toEqual(["cleanup-projection"]);
+    const retainedForFollowup: LifecycleExample = {
+      ...returned,
+      capability: "automatic-close-supported",
+      cleanup: "closed=no",
+      closeOperationExposed: true,
+      closeOperationUsable: true,
+      cleanupDecision: "retained",
+      retentionReason: "spec reviewer may route a same-session fixup",
+      closeUnavailableReason: null,
+      events: [
+        ...returned.events.filter((event) => event !== "closure-unavailable"),
+        "close-deferred",
+      ],
+    };
+    expect(invalidDimensions(retainedForFollowup)).toEqual([]);
+    expect(
+      invalidDimensions({
+        ...retainedForFollowup,
+        events: retainedForFollowup.events.map((event) =>
+          event === "close-deferred" ? "close-attempted" : event,
+        ),
+      }),
+    ).toEqual(["cleanup-event-history"]);
+    expect(
+      invalidDimensions({
+        ...retainedForFollowup,
+        cleanupEvaluation: "not-evaluated",
+      }),
+    ).toEqual(["cleanup-evaluation-state"]);
+    expect(
+      invalidDimensions({ ...retainedForFollowup, retentionReason: null }),
+    ).toEqual(["retention-reason"]);
+    const laterFailedClose: LifecycleExample = {
+      ...retainedForFollowup,
+      cleanupDecision: "attempted",
+      closeAttempted: true,
+      closeFailed: true,
+      events: [
+        ...retainedForFollowup.events,
+        "close-attempted",
+        "close-failed",
+      ],
+    };
+    expect(invalidDimensions(laterFailedClose)).toEqual([]);
     expect(
       invalidDimensions({
         ...valid,
@@ -3312,6 +3459,90 @@ describe("play subagent routing source contracts", () => {
         closeSucceeded: true,
       }),
     ).toEqual(["cleanup-event-history"]);
+  });
+
+  it("separates normal cleanup continuation from slot-limit retry authorization", () => {
+    type ContinuationExample = {
+      capturedRoleState: boolean;
+      cleanupRecordedBeforeSpawn: boolean;
+      cleanupResult: "retained" | "unavailable" | "failed" | "closed";
+      spawnResult: "succeeded" | "slot-exhausted" | "other-failure";
+      slotFailureClassified: boolean;
+      manualCleanupConfirmed: boolean;
+      retryCount: 0 | 1 | 2;
+    };
+
+    function continuationErrors(example: ContinuationExample): string[] {
+      if (!example.capturedRoleState || !example.cleanupRecordedBeforeSpawn) {
+        return ["cleanup-order"];
+      }
+      if (example.spawnResult !== "slot-exhausted") {
+        return example.retryCount === 0 ? [] : ["normal-gate-is-not-retry"];
+      }
+      if (!example.slotFailureClassified) {
+        return ["slot-failure-classification"];
+      }
+      if (example.retryCount !== 1) {
+        return ["slot-retry-count"];
+      }
+      if (
+        example.cleanupResult !== "closed" &&
+        !example.manualCleanupConfirmed
+      ) {
+        return ["slot-retry-authorization"];
+      }
+      return [];
+    }
+
+    const normalGate: ContinuationExample = {
+      capturedRoleState: true,
+      cleanupRecordedBeforeSpawn: true,
+      cleanupResult: "retained",
+      spawnResult: "succeeded",
+      slotFailureClassified: false,
+      manualCleanupConfirmed: false,
+      retryCount: 0,
+    };
+    for (const cleanupResult of [
+      "retained",
+      "unavailable",
+      "failed",
+      "closed",
+    ] as const) {
+      expect(continuationErrors({ ...normalGate, cleanupResult })).toEqual([]);
+    }
+
+    const slotRecovery: ContinuationExample = {
+      ...normalGate,
+      cleanupResult: "closed",
+      spawnResult: "slot-exhausted",
+      slotFailureClassified: true,
+      retryCount: 1,
+    };
+    expect(continuationErrors(slotRecovery)).toEqual([]);
+    expect(
+      continuationErrors({
+        ...slotRecovery,
+        cleanupResult: "failed",
+        manualCleanupConfirmed: true,
+      }),
+    ).toEqual([]);
+    for (const cleanupResult of [
+      "retained",
+      "unavailable",
+      "failed",
+    ] as const) {
+      expect(
+        continuationErrors({ ...slotRecovery, cleanupResult }),
+        cleanupResult,
+      ).toEqual(["slot-retry-authorization"]);
+    }
+    expect(
+      continuationErrors({ ...slotRecovery, slotFailureClassified: false }),
+    ).toEqual(["slot-failure-classification"]);
+    expect(continuationErrors({ ...slotRecovery, retryCount: 2 })).toEqual([
+      "slot-retry-count",
+    ]);
   });
 
   it("keeps play-subagent-execution lifecycle delegation and local exceptions in source", async () => {
