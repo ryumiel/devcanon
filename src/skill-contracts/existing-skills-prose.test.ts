@@ -4741,7 +4741,7 @@ describe("existing skills source prose contracts", () => {
       "Workflow return status is absent before a return is observed and required after it is observed",
     );
     expect(normalized).toContain(
-      "after that transition, cleanup outcome is a deterministic projection of the latest applicable closure event and current capability tuple",
+      "Establish the evaluation state, captured role facts, capability tuple, observed events, and any proposed retention reason before projecting cleanup",
     );
     expect(normalized).toContain(
       "An exposed-but-unusable close operation follows this unavailable path, not `closed=no`",
