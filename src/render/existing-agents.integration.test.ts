@@ -164,6 +164,48 @@ describe("shipped agents render cleanly", () => {
     }
   });
 
+  it("renders research-agent as a read-only single-scope leaf role", async () => {
+    const config = await loadConfigWithFixedSkillsHome();
+
+    const { outputs } = await renderAll(config, false);
+    const claudeOutput = getAgentOutput(outputs, "research-agent", "claude");
+    const codexOutput = getAgentOutput(outputs, "research-agent", "codex");
+
+    const { frontmatter: claudeFrontmatter, body: claudeInstructions } =
+      parseRenderedMarkdownArtifact(claudeOutput.content);
+    const claudeTools = (claudeFrontmatter.tools as string)
+      .split(",")
+      .map((tool) => tool.trim());
+    expect(claudeTools).toEqual(["Read", "Grep", "WebFetch", "WebSearch"]);
+    expect(claudeTools).not.toContain("Agent");
+    expect(claudeTools).not.toContain("Bash");
+
+    const codexToml = parseRenderedTomlArtifact(codexOutput.content);
+    expect(codexToml.sandbox_mode).toBe("read-only");
+    const codexInstructions = codexToml.developer_instructions as string;
+
+    for (const instructions of [claudeInstructions, codexInstructions]) {
+      expect(instructions).toContain(
+        "exactly one assigned investigation scope",
+      );
+      expect(instructions).toContain("Return a concise, source-linked report");
+      expect(instructions).toContain("using only the scope-report format");
+      expect(instructions).toContain(
+        "Do not produce or format a final synthesized issue brief",
+      );
+      expect(instructions).toContain("even if the caller asks");
+      expect(instructions).toContain("caller owns final-brief composition");
+      expect(instructions).not.toContain("in the format the caller requests");
+      expect(instructions).toContain("Do not delegate");
+      expect(instructions).toContain("Do not write or persist artifacts");
+      expect(instructions).toContain("Do not emit producer notice lines");
+      expect(instructions).not.toContain("parallel sub-investigations");
+      expect(instructions).not.toContain(
+        "Synthesize findings into a single brief",
+      );
+    }
+  });
+
   it("renders the active fast tier through a synthetic agent for both targets", async () => {
     const tempDir = await createTempDir();
     try {

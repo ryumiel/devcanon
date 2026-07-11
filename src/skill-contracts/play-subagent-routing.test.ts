@@ -17,6 +17,60 @@ function sliceBetween(content: string, start: string, end: string): string {
   return content.slice(startIndex, endIndex);
 }
 
+function parseDotDirectedEdges(content: string): Array<[string, string]> {
+  const edges: Array<[string, string]> = [];
+
+  for (const line of content.split("\n")) {
+    const edgeClause = line.split("[", 1)[0].trim().replace(/;$/, "");
+    if (!edgeClause.includes("->")) {
+      continue;
+    }
+
+    const nodes = edgeClause.split("->").map((node) => node.trim());
+    for (let index = 0; index < nodes.length - 1; index += 1) {
+      edges.push([nodes[index], nodes[index + 1]]);
+    }
+  }
+
+  return edges;
+}
+
+function dotNeighbors(
+  edges: Array<[string, string]>,
+  node: string,
+  direction: "predecessors" | "successors",
+): string[] {
+  return edges
+    .filter(([source, target]) =>
+      direction === "successors" ? source === node : target === node,
+    )
+    .map(([source, target]) => (direction === "successors" ? target : source))
+    .sort();
+}
+
+function dotCanReach(
+  edges: Array<[string, string]>,
+  source: string,
+  target: string,
+): boolean {
+  const pending = [source];
+  const visited = new Set<string>();
+
+  while (pending.length > 0) {
+    const current = pending.pop();
+    if (current === undefined || visited.has(current)) {
+      continue;
+    }
+    if (current === target) {
+      return true;
+    }
+    visited.add(current);
+    pending.push(...dotNeighbors(edges, current, "successors"));
+  }
+
+  return false;
+}
+
 const CHILD_AGENT_PROMPT_TEMPLATES = [
   "references/implementer-prompt.md",
   "references/mechanical-implementer-prompt.md",
@@ -92,6 +146,239 @@ const COPIED_BRANCH_FINISH_CHOICE_PATTERNS = [
   /^#{2,6}\s+Option 3: Keep As-Is\s*$/m,
   /^#{2,6}\s+Option 4: Discard\s*$/m,
 ] as const;
+
+type ResearchOutcomeRoute =
+  | "skipped-inline"
+  | "full-success"
+  | "useful-bounded"
+  | "internal-partial"
+  | "internal-no-partial"
+  | "blocked-required";
+
+type ResearchOutcomeExample = {
+  researchSkipped: boolean;
+  internalDispatchCount: number;
+  internalSettled: boolean;
+  internalValid: boolean;
+  internalUsablePartial: boolean;
+  externalCriterionMet: boolean;
+  externalDispatchCount: number;
+  externalSettled: boolean;
+  externalNecessity: "(none)" | "required" | "useful";
+  externalValid: boolean;
+  uncoveredMaterialExternalEvidence: boolean;
+  boundedUncertainty: boolean;
+  childSpawnedChild: boolean;
+  childWroteArtifact: boolean;
+  childEmittedNotice: boolean;
+  claimedRoute: ResearchOutcomeRoute;
+  helperInvoked: boolean;
+  artifactCreated: boolean;
+  noticeEmitted: boolean;
+  phase4Invoked: boolean;
+};
+
+const FULL_RESEARCH_SUCCESS: ResearchOutcomeExample = {
+  researchSkipped: false,
+  internalDispatchCount: 1,
+  internalSettled: true,
+  internalValid: true,
+  internalUsablePartial: false,
+  externalCriterionMet: true,
+  externalDispatchCount: 1,
+  externalSettled: true,
+  externalNecessity: "useful",
+  externalValid: true,
+  uncoveredMaterialExternalEvidence: false,
+  boundedUncertainty: false,
+  childSpawnedChild: false,
+  childWroteArtifact: false,
+  childEmittedNotice: false,
+  claimedRoute: "full-success",
+  helperInvoked: true,
+  artifactCreated: true,
+  noticeEmitted: true,
+  phase4Invoked: true,
+};
+
+const NOT_APPLICABLE_RESEARCH_SUCCESS: ResearchOutcomeExample = {
+  ...FULL_RESEARCH_SUCCESS,
+  externalCriterionMet: false,
+  externalDispatchCount: 0,
+  externalSettled: false,
+  externalNecessity: "(none)",
+  externalValid: false,
+};
+
+const SKIPPED_RESEARCH: ResearchOutcomeExample = {
+  ...NOT_APPLICABLE_RESEARCH_SUCCESS,
+  researchSkipped: true,
+  internalDispatchCount: 0,
+  internalSettled: false,
+  internalValid: false,
+  claimedRoute: "skipped-inline",
+  helperInvoked: false,
+  artifactCreated: false,
+  noticeEmitted: false,
+};
+
+const INTERNAL_PARTIAL: ResearchOutcomeExample = {
+  ...NOT_APPLICABLE_RESEARCH_SUCCESS,
+  internalValid: false,
+  internalUsablePartial: true,
+  claimedRoute: "internal-partial",
+  helperInvoked: false,
+  artifactCreated: false,
+  noticeEmitted: false,
+};
+
+const INTERNAL_NO_PARTIAL: ResearchOutcomeExample = {
+  ...INTERNAL_PARTIAL,
+  internalUsablePartial: false,
+  claimedRoute: "internal-no-partial",
+};
+
+const USEFUL_EXTERNAL_FAILURE: ResearchOutcomeExample = {
+  ...FULL_RESEARCH_SUCCESS,
+  externalValid: false,
+  boundedUncertainty: true,
+  claimedRoute: "useful-bounded",
+};
+
+const REQUIRED_EXTERNAL_FAILURE: ResearchOutcomeExample = {
+  ...FULL_RESEARCH_SUCCESS,
+  internalValid: false,
+  internalUsablePartial: true,
+  externalNecessity: "required",
+  externalValid: false,
+  claimedRoute: "blocked-required",
+  helperInvoked: false,
+  artifactCreated: false,
+  noticeEmitted: false,
+  phase4Invoked: false,
+};
+
+function expectedResearchRoute(
+  example: ResearchOutcomeExample,
+): ResearchOutcomeRoute {
+  if (example.researchSkipped) {
+    return "skipped-inline";
+  }
+
+  const externalFailed =
+    example.externalDispatchCount > 0 &&
+    (!example.externalValid || example.uncoveredMaterialExternalEvidence);
+  if (externalFailed && example.externalNecessity === "required") {
+    return "blocked-required";
+  }
+  if (!example.internalValid) {
+    return example.internalUsablePartial
+      ? "internal-partial"
+      : "internal-no-partial";
+  }
+  if (externalFailed && example.externalNecessity === "useful") {
+    return "useful-bounded";
+  }
+  return "full-success";
+}
+
+function expectedResearchSideEffects(route: ResearchOutcomeRoute) {
+  switch (route) {
+    case "skipped-inline":
+    case "internal-partial":
+    case "internal-no-partial":
+      return {
+        helperInvoked: false,
+        artifactCreated: false,
+        noticeEmitted: false,
+        phase4Invoked: true,
+      };
+    case "blocked-required":
+      return {
+        helperInvoked: false,
+        artifactCreated: false,
+        noticeEmitted: false,
+        phase4Invoked: false,
+      };
+    case "full-success":
+    case "useful-bounded":
+      return {
+        helperInvoked: true,
+        artifactCreated: true,
+        noticeEmitted: true,
+        phase4Invoked: true,
+      };
+  }
+}
+
+function validateResearchOutcome(example: ResearchOutcomeExample): string[] {
+  const errors: string[] = [];
+
+  if (example.childSpawnedChild) {
+    errors.push("child-spawned-child");
+  }
+  if (example.childWroteArtifact) {
+    errors.push("child-wrote-artifact");
+  }
+  if (example.childEmittedNotice) {
+    errors.push("child-emitted-notice");
+  }
+  if (example.researchSkipped && example.internalDispatchCount !== 0) {
+    errors.push("skipped-research-dispatched-internal-child");
+  }
+  if (example.researchSkipped && example.externalDispatchCount !== 0) {
+    errors.push("skipped-research-dispatched-child");
+  }
+  if (!example.researchSkipped && example.internalDispatchCount !== 1) {
+    errors.push("invalid-internal-dispatch-count");
+  }
+  if (example.externalDispatchCount > 1) {
+    errors.push("too-many-external-dispatches");
+  }
+  if (example.externalCriterionMet && example.externalDispatchCount !== 1) {
+    errors.push("met-criterion-skipped");
+  }
+  if (!example.externalCriterionMet && example.externalDispatchCount !== 0) {
+    errors.push("unmet-criterion-dispatched");
+  }
+  if (
+    example.externalDispatchCount > 0 &&
+    !["required", "useful"].includes(example.externalNecessity)
+  ) {
+    errors.push("missing-external-classification");
+  }
+
+  const hasActiveSibling =
+    (example.internalDispatchCount > 0 && !example.internalSettled) ||
+    (example.externalDispatchCount > 0 && !example.externalSettled);
+  if (
+    hasActiveSibling &&
+    (example.helperInvoked || example.noticeEmitted || example.phase4Invoked)
+  ) {
+    errors.push("routed-before-siblings-settled");
+  }
+
+  const expectedRoute = expectedResearchRoute(example);
+  if (example.claimedRoute !== expectedRoute) {
+    errors.push(`wrong-route:${expectedRoute}`);
+  }
+  const expectedEffects = expectedResearchSideEffects(expectedRoute);
+  for (const key of [
+    "helperInvoked",
+    "artifactCreated",
+    "noticeEmitted",
+    "phase4Invoked",
+  ] as const) {
+    if (example[key] !== expectedEffects[key]) {
+      errors.push(`wrong-side-effect:${key}`);
+    }
+  }
+  if (expectedRoute === "useful-bounded" && !example.boundedUncertainty) {
+    errors.push("missing-bounded-uncertainty");
+  }
+
+  return errors;
+}
 
 describe("play subagent routing source contracts", () => {
   it("keeps issue-priming mode, model, lifecycle, and review contracts visible while helpers own mechanics", async () => {
@@ -315,6 +602,658 @@ describe("play subagent routing source contracts", () => {
     );
 
     expect(issuePrimingWorkflow).not.toContain("Project-Specific Overrides");
+  });
+
+  it("routes conditional issue research through depth-1 root-owned leaf siblings", async () => {
+    const issuePrimingWorkflow = await readSkillSource(
+      "issue-priming-workflow",
+    );
+    const researchPrompt = await readRepoFile(
+      "skills/issue-priming-workflow/references/research-agent-prompt.md",
+    );
+    const phase3 = sliceBetween(
+      issuePrimingWorkflow,
+      "## Phase 3: Research (Conditional)",
+      "## Phase 4: Invoke Brainstorming",
+    );
+    const normalizedPhase3 = normalizeWhitespace(phase3);
+
+    expect(normalizedPhase3).toContain(
+      "The depth-0 root is the sole research dispatcher",
+    );
+    expect(normalizedPhase3).toContain(
+      "Every `research-agent` is a direct depth-1 read-only leaf child",
+    );
+    expect(normalizedPhase3).toContain(
+      "Always dispatch exactly one internal-scoped child",
+    );
+    expect(normalizedPhase3).toContain(
+      "immediately and concurrently as a sibling of the internal child",
+    );
+    expect(normalizedPhase3).toContain(
+      "dispatch exactly one late external sibling",
+    );
+    expect(normalizedPhase3).toContain(
+      "record `external research: not applicable` plus a short reason",
+    );
+    expect(normalizedPhase3).toContain(
+      "Complexity or cross-module scope alone is insufficient",
+    );
+    expect(normalizedPhase3).toContain(
+      "Before any external spawn, record `required` or `useful` plus a one-sentence reason",
+    );
+    expect(normalizeWhitespace(researchPrompt)).toContain(
+      "Do not spawn or delegate to another agent",
+    );
+    expect(researchPrompt).not.toContain("Dispatch sub-agents");
+
+    for (const criterion of [
+      "current behavior of an external runtime, API, library, protocol, or hosted service",
+      "external precedent materially affects a design choice",
+      "explicitly requests external research",
+      "material externally owned question",
+      "internal report identifies an externally owned uncertainty",
+    ]) {
+      expect(normalizedPhase3).toContain(criterion);
+    }
+
+    expect(normalizedPhase3).toContain(
+      "Before every internal or external spawn, add an `agent_id=pending` ledger row",
+    );
+    expect(normalizedPhase3).toContain(
+      "classify target lifecycle capability, and run the cleanup gate",
+    );
+    expect(normalizedPhase3).toContain(
+      "capture scope, report result, source references, and blocker state before cleanup",
+    );
+    expect(normalizedPhase3).toContain(
+      "follow `subagent-lifecycle` § Slot-Limit Recovery",
+    );
+    expect(normalizedPhase3).toContain(
+      "captured research scope, report result, source references, blocker state, lifecycle ledger, and repository anchors",
+    );
+    expect(normalizedPhase3).toContain(
+      "applies to internal, immediate external, and late external spawn failures",
+    );
+    expect(normalizedPhase3).toContain(
+      "Resume research outcome routing only when the shared recovery procedure succeeds",
+    );
+    expect(normalizedPhase3).toContain(
+      "Repeated slot failure or escalation stops under that shared policy without research persistence or Phase 4",
+    );
+    expect(normalizedPhase3).not.toContain("retry exactly once");
+
+    expect(normalizedPhase3).toContain(
+      "If internal becomes terminal while external remains active, do not invoke the helper, emit the notice, or enter Phase 4",
+    );
+    expect(normalizedPhase3).toContain(
+      "If external becomes terminal while internal remains active, do not invoke the helper, emit the notice, or enter Phase 4",
+    );
+    expect(normalizedPhase3).toContain(
+      "Every started immediate sibling must reach completion, timeout, or failure",
+    );
+    expect(normalizedPhase3).toContain(
+      "Never cancel or abandon an already-started sibling and never route early",
+    );
+  });
+
+  it("keeps the Phase 3 diagram aligned with root-owned sibling dispatch and synthesis", async () => {
+    const diagram = await readRepoFile(
+      "skills/issue-priming-workflow/references/workflow-diagram.md",
+    );
+    const normalizedDiagram = normalizeWhitespace(diagram);
+    const edges = parseDotDirectedEdges(diagram);
+
+    for (const phrase of [
+      "Root dispatches exactly one required internal research-agent",
+      "Root dispatches zero or one conditional external research-agent total",
+      "Immediate external criterion met before internal report?",
+      "Late external criterion met after internal External Uncertainties?",
+      "Join all applicable direct children",
+      "Root synthesizes final research brief",
+      "Root persists final research brief",
+    ]) {
+      expect(normalizedDiagram).toContain(phrase);
+    }
+
+    expect(
+      dotNeighbors(edges, "immediate_external_decide", "successors"),
+    ).toEqual(["immediate_fork", "late_internal_research"]);
+    expect(dotNeighbors(edges, "immediate_fork", "successors")).toEqual([
+      "immediate_external_research",
+      "immediate_internal_research",
+    ]);
+    expect(
+      dotNeighbors(edges, "immediate_internal_research", "successors"),
+    ).toEqual(["immediate_join"]);
+    expect(
+      dotNeighbors(edges, "immediate_external_research", "successors"),
+    ).toEqual(["immediate_join"]);
+    expect(dotNeighbors(edges, "immediate_join", "predecessors")).toEqual([
+      "immediate_external_research",
+      "immediate_internal_research",
+    ]);
+    expect(dotNeighbors(edges, "immediate_join", "successors")).toEqual([
+      "research_join",
+    ]);
+
+    expect(
+      dotNeighbors(edges, "late_internal_research", "predecessors"),
+    ).toEqual(["immediate_external_decide"]);
+    expect(dotNeighbors(edges, "late_internal_research", "successors")).toEqual(
+      ["late_external_decide"],
+    );
+    expect(dotNeighbors(edges, "late_external_decide", "successors")).toEqual([
+      "late_external_research",
+      "research_join",
+    ]);
+    expect(
+      dotNeighbors(edges, "late_external_research", "predecessors"),
+    ).toEqual(["late_external_decide"]);
+    expect(dotNeighbors(edges, "late_external_research", "successors")).toEqual(
+      ["research_join"],
+    );
+
+    expect(dotCanReach(edges, "immediate_fork", "late_external_research")).toBe(
+      false,
+    );
+    expect(
+      dotCanReach(
+        edges,
+        "late_internal_research",
+        "immediate_external_research",
+      ),
+    ).toBe(false);
+    expect(dotNeighbors(edges, "internal_research", "successors")).toEqual([]);
+    expect(dotNeighbors(edges, "research_join", "predecessors")).toEqual([
+      "immediate_join",
+      "late_external_decide",
+      "late_external_research",
+    ]);
+    expect(dotNeighbors(edges, "research_join", "successors")).toEqual([
+      "research_outcome",
+    ]);
+    expect(dotNeighbors(edges, "research_outcome", "successors")).toEqual([
+      "research_internal_inline",
+      "research_required_stop",
+      "research_synthesize",
+    ]);
+    expect(dotNeighbors(edges, "research_synthesize", "successors")).toEqual([
+      "research_persist",
+    ]);
+    expect(dotNeighbors(edges, "research_persist", "successors")).toEqual([
+      "brainstorm",
+    ]);
+    expect(
+      dotNeighbors(edges, "research_internal_inline", "successors"),
+    ).toEqual(["brainstorm"]);
+    expect(dotNeighbors(edges, "research_required_stop", "successors")).toEqual(
+      [],
+    );
+    expect(
+      dotCanReach(edges, "research_required_stop", "research_persist"),
+    ).toBe(false);
+    expect(dotCanReach(edges, "research_required_stop", "brainstorm")).toBe(
+      false,
+    );
+    expect(
+      dotCanReach(edges, "research_internal_inline", "research_persist"),
+    ).toBe(false);
+    expect(
+      dotCanReach(
+        edges,
+        "immediate_internal_research",
+        "late_external_research",
+      ),
+    ).toBe(false);
+    expect(
+      dotCanReach(
+        edges,
+        "late_external_research",
+        "immediate_external_research",
+      ),
+    ).toBe(false);
+    expect(
+      dotNeighbors(edges, "immediate_internal_research", "predecessors"),
+    ).toEqual(["immediate_fork"]);
+    expect(
+      dotNeighbors(edges, "immediate_external_research", "predecessors"),
+    ).toEqual(["immediate_fork"]);
+    expect(dotNeighbors(edges, "immediate_fork", "predecessors")).toEqual([
+      "immediate_external_decide",
+    ]);
+    expect(
+      dotNeighbors(edges, "immediate_external_decide", "predecessors"),
+    ).toEqual(["external_policy"]);
+    expect(dotNeighbors(edges, "external_policy", "predecessors")).toEqual([
+      "decide",
+    ]);
+    expect(dotNeighbors(edges, "external_policy", "successors")).toEqual([
+      "immediate_external_decide",
+    ]);
+    expect(dotNeighbors(edges, "decide", "successors")).toEqual([
+      "brainstorm",
+      "external_policy",
+    ]);
+    expect(dotCanReach(edges, "immediate_join", "late_internal_research")).toBe(
+      false,
+    );
+    expect(dotCanReach(edges, "late_external_decide", "immediate_join")).toBe(
+      false,
+    );
+    expect(dotNeighbors(edges, "late_external_decide", "predecessors")).toEqual(
+      ["late_internal_research"],
+    );
+  });
+
+  it("keeps brainstorming research-brief provenance caller-owned and untrusted", async () => {
+    const playBrainstorm = await readSkillSource("play-brainstorm");
+    const pathSection = sliceBetween(
+      playBrainstorm,
+      "### Research brief path reference (preferred for controllers)",
+      "### Inline research brief content (preserved for direct invocations)",
+    );
+    const inlineSection = sliceBetween(
+      playBrainstorm,
+      "### Inline research brief content (preserved for direct invocations)",
+      "### Comment evidence path reference (optional)",
+    );
+
+    for (const section of [pathSection, inlineSection]) {
+      const normalized = normalizeWhitespace(section);
+      expect(normalized).toContain(
+        "caller-produced synthesis from possibly untrusted issue prose and scoped child reports",
+      );
+      expect(normalized).toContain(
+        "does not imply that the final brief originated from a `research-agent`",
+      );
+      expect(normalized).toContain("untrusted prose");
+    }
+    expect(playBrainstorm).not.toMatch(
+      /brief originated from a research-agent run against an external issue body/i,
+    );
+    expect(playBrainstorm).not.toMatch(
+      /\.ephemeral\/\d{4}-\d{2}-\d{2}-\d+-research\.md/,
+    );
+  });
+
+  it.each([
+    {
+      route: "full success",
+      example: FULL_RESEARCH_SUCCESS,
+    },
+    {
+      route: "full success with external research not applicable",
+      example: NOT_APPLICABLE_RESEARCH_SUCCESS,
+    },
+    {
+      route: "research skipped inline",
+      example: SKIPPED_RESEARCH,
+    },
+    {
+      route: "internal usable partial",
+      example: INTERNAL_PARTIAL,
+    },
+    {
+      route: "internal failure without partial",
+      example: INTERNAL_NO_PARTIAL,
+    },
+    {
+      route: "useful external bounded uncertainty",
+      example: USEFUL_EXTERNAL_FAILURE,
+    },
+    {
+      route: "required external hard stop wins over internal partial",
+      example: REQUIRED_EXTERNAL_FAILURE,
+    },
+  ])("accepts a canonical research outcome: $route", ({ example }) => {
+    expect(validateResearchOutcome(example)).toEqual([]);
+  });
+
+  it.each([
+    {
+      family: "non-skipped research dispatches no internal child",
+      example: {
+        ...NOT_APPLICABLE_RESEARCH_SUCCESS,
+        internalDispatchCount: 0,
+      },
+      error: "invalid-internal-dispatch-count",
+    },
+    {
+      family: "non-skipped research dispatches two internal children",
+      example: {
+        ...NOT_APPLICABLE_RESEARCH_SUCCESS,
+        internalDispatchCount: 2,
+      },
+      error: "invalid-internal-dispatch-count",
+    },
+    {
+      family: "external criterion dispatches two external children",
+      example: {
+        ...FULL_RESEARCH_SUCCESS,
+        externalDispatchCount: 2,
+      },
+      error: "too-many-external-dispatches",
+    },
+    {
+      family: "unmet external criterion dispatches a child",
+      example: {
+        ...NOT_APPLICABLE_RESEARCH_SUCCESS,
+        externalDispatchCount: 1,
+        externalSettled: true,
+        externalNecessity: "useful" as const,
+        externalValid: true,
+      },
+      error: "unmet-criterion-dispatched",
+    },
+    {
+      family: "skipped research dispatches its required internal child",
+      example: {
+        ...SKIPPED_RESEARCH,
+        internalDispatchCount: 1,
+        internalSettled: true,
+      },
+      error: "skipped-research-dispatched-internal-child",
+    },
+    {
+      family: "skipped research claims full success",
+      example: {
+        ...SKIPPED_RESEARCH,
+        claimedRoute: "full-success" as const,
+      },
+      error: "wrong-route:skipped-inline",
+    },
+    {
+      family: "full success claims the skipped route",
+      example: {
+        ...FULL_RESEARCH_SUCCESS,
+        claimedRoute: "skipped-inline" as const,
+      },
+      error: "wrong-route:full-success",
+    },
+    {
+      family: "internal failure claims full success",
+      example: {
+        ...INTERNAL_PARTIAL,
+        claimedRoute: "full-success" as const,
+      },
+      error: "wrong-route:internal-partial",
+    },
+    {
+      family: "useful external failure claims full success",
+      example: {
+        ...USEFUL_EXTERNAL_FAILURE,
+        claimedRoute: "full-success" as const,
+      },
+      error: "wrong-route:useful-bounded",
+    },
+    {
+      family: "met external criterion skipped",
+      example: {
+        ...NOT_APPLICABLE_RESEARCH_SUCCESS,
+        externalCriterionMet: true,
+      },
+      error: "met-criterion-skipped",
+    },
+    {
+      family: "missing external classification",
+      example: {
+        ...FULL_RESEARCH_SUCCESS,
+        externalNecessity: "(none)" as const,
+      },
+      error: "missing-external-classification",
+    },
+    {
+      family: "research child spawns a child",
+      example: { ...FULL_RESEARCH_SUCCESS, childSpawnedChild: true },
+      error: "child-spawned-child",
+    },
+    {
+      family: "research child writes an artifact",
+      example: { ...FULL_RESEARCH_SUCCESS, childWroteArtifact: true },
+      error: "child-wrote-artifact",
+    },
+    {
+      family: "research child emits the notice",
+      example: { ...FULL_RESEARCH_SUCCESS, childEmittedNotice: true },
+      error: "child-emitted-notice",
+    },
+    {
+      family: "internal sibling still active",
+      example: { ...FULL_RESEARCH_SUCCESS, internalSettled: false },
+      error: "routed-before-siblings-settled",
+    },
+    {
+      family: "external sibling still active",
+      example: { ...FULL_RESEARCH_SUCCESS, externalSettled: false },
+      error: "routed-before-siblings-settled",
+    },
+    {
+      family: "required external failure loses precedence",
+      example: {
+        ...REQUIRED_EXTERNAL_FAILURE,
+        claimedRoute: "internal-partial" as const,
+      },
+      error: "wrong-route:blocked-required",
+    },
+    {
+      family: "skipped route invokes helper",
+      example: {
+        ...SKIPPED_RESEARCH,
+        helperInvoked: true,
+      },
+      error: "wrong-side-effect:helperInvoked",
+    },
+    {
+      family: "internal failure creates artifact",
+      example: {
+        ...INTERNAL_PARTIAL,
+        artifactCreated: true,
+      },
+      error: "wrong-side-effect:artifactCreated",
+    },
+    {
+      family: "required failure invokes Phase 4",
+      example: {
+        ...REQUIRED_EXTERNAL_FAILURE,
+        phase4Invoked: true,
+      },
+      error: "wrong-side-effect:phase4Invoked",
+    },
+    {
+      family: "useful external failure omits bounded uncertainty",
+      example: {
+        ...USEFUL_EXTERNAL_FAILURE,
+        boundedUncertainty: false,
+      },
+      error: "missing-bounded-uncertainty",
+    },
+    {
+      family: "uncovered material evidence claims full success",
+      example: {
+        ...FULL_RESEARCH_SUCCESS,
+        uncoveredMaterialExternalEvidence: true,
+      },
+      error: "wrong-route:useful-bounded",
+    },
+  ])(
+    "rejects a one-dimension-invalid research outcome: $family",
+    ({ example, error }) => {
+      expect(validateResearchOutcome(example)).toContain(error);
+    },
+  );
+
+  it("derives one bounded question for an immediate external sibling", async () => {
+    const phase3 = sliceBetween(
+      await readSkillSource("issue-priming-workflow"),
+      "## Phase 3: Research (Conditional)",
+      "## Phase 4: Invoke Brainstorming",
+    );
+
+    expect(normalizeWhitespace(phase3)).toContain(
+      "For immediate external dispatch, derive one root-curated question from issue-body, comment-evidence, and gate evidence",
+    );
+  });
+
+  it("validates artifact inputs and the complete tuple before lifecycle state", async () => {
+    const phase3 = normalizeWhitespace(
+      sliceBetween(
+        await readSkillSource("issue-priming-workflow"),
+        "## Phase 3: Research (Conditional)",
+        "## Phase 4: Invoke Brainstorming",
+      ),
+    );
+    const artifactValidation = phase3.indexOf(
+      "Validate the worktree and guarded issue-body/comment-evidence inputs first",
+    );
+    const tupleValidation = phase3.indexOf(
+      "Then validate every scalar and closed value before creating lifecycle state",
+    );
+    const pendingLedger = phase3.indexOf(
+      "Before every internal or external spawn, add an `agent_id=pending` ledger row",
+    );
+
+    expect(artifactValidation).toBeGreaterThanOrEqual(0);
+    expect(tupleValidation).toBeGreaterThan(artifactValidation);
+    expect(pendingLedger).toBeGreaterThan(tupleValidation);
+  });
+
+  it("derives a late external question from captured internal uncertainty without raw copying", async () => {
+    const phase3 = sliceBetween(
+      await readSkillSource("issue-priming-workflow"),
+      "## Phase 3: Research (Conditional)",
+      "## Phase 4: Invoke Brainstorming",
+    );
+
+    expect(normalizeWhitespace(phase3)).toContain(
+      "For late external dispatch, summarize the captured internal `External Uncertainties` question without copying raw report prose",
+    );
+  });
+
+  it("requires an external report to answer its supplied question", async () => {
+    const researchPrompt = normalizeWhitespace(
+      await readRepoFile(
+        "skills/issue-priming-workflow/references/research-agent-prompt.md",
+      ),
+    );
+
+    expect(researchPrompt).toContain(
+      "Answer `<EXTERNAL_QUESTION_OR_NONE>` directly in sourced `External Precedent` findings and in `Implications`",
+    );
+  });
+
+  it("routes uncovered immediate-sibling uncertainty as classified external failure", async () => {
+    const phase3 = sliceBetween(
+      await readSkillSource("issue-priming-workflow"),
+      "## Phase 3: Research (Conditional)",
+      "## Phase 4: Invoke Brainstorming",
+    );
+    const normalizedPhase3 = normalizeWhitespace(phase3);
+
+    expect(normalizedPhase3).toContain(
+      "compare every material internal external uncertainty with the supplied external question and the external report's sourced answer",
+    );
+    expect(normalizedPhase3).toContain(
+      "classify the uncovered uncertainty `required` or `useful` and apply that external-failure route",
+    );
+    expect(normalizedPhase3).toContain(
+      "Do not dispatch a second external child and never select full success with uncovered material external evidence",
+    );
+  });
+
+  it("requires classification before every external dispatch", async () => {
+    const phase3 = sliceBetween(
+      await readSkillSource("issue-priming-workflow"),
+      "## Phase 3: Research (Conditional)",
+      "## Phase 4: Invoke Brainstorming",
+    );
+
+    expect(normalizeWhitespace(phase3)).toContain(
+      "**Missing classification:** never spawn an external child until `required` or `useful` and its one-sentence reason are recorded",
+    );
+  });
+
+  it("never skips external dispatch when a criterion is met", async () => {
+    const phase3 = sliceBetween(
+      await readSkillSource("issue-priming-workflow"),
+      "## Phase 3: Research (Conditional)",
+      "## Phase 4: Invoke Brainstorming",
+    );
+
+    expect(normalizeWhitespace(phase3)).toContain(
+      "**Met criterion:** dispatch external research; recording not applicable is invalid",
+    );
+  });
+
+  it("keeps research children from spawning, writing, or announcing", async () => {
+    const researchPrompt = normalizeWhitespace(
+      await readRepoFile(
+        "skills/issue-priming-workflow/references/research-agent-prompt.md",
+      ),
+    );
+
+    expect(researchPrompt).toContain(
+      "Do not spawn or delegate to another agent",
+    );
+    expect(researchPrompt).toContain(
+      "Do not write files, invoke the research-brief helper, create an artifact, or emit the producer notice",
+    );
+  });
+
+  it("delegates slot recovery to the lifecycle owner and keeps research-local state", async () => {
+    const phase3 = sliceBetween(
+      await readSkillSource("issue-priming-workflow"),
+      "## Phase 3: Research (Conditional)",
+      "## Phase 4: Invoke Brainstorming",
+    );
+    const normalizedPhase3 = normalizeWhitespace(phase3);
+
+    expect(normalizedPhase3).toContain(
+      "follow `subagent-lifecycle` § Slot-Limit Recovery",
+    );
+    expect(normalizedPhase3).toContain(
+      "captured research scope, report result, source references, blocker state, lifecycle ledger, and repository anchors",
+    );
+    expect(normalizedPhase3).toContain(
+      "applies to internal, immediate external, and late external spawn failures",
+    );
+    expect(normalizedPhase3).toContain(
+      "Resume research outcome routing only when the shared recovery procedure succeeds",
+    );
+    expect(normalizedPhase3).toContain(
+      "Repeated slot failure or escalation stops under that shared policy without research persistence or Phase 4",
+    );
+    for (const copiedGenericMechanic of [
+      "surface explicit manual cleanup guidance",
+      "wait for operator confirmation",
+      "retry exactly once",
+    ]) {
+      expect(normalizedPhase3).not.toContain(copiedGenericMechanic);
+    }
+  });
+
+  it("blocks routing when internal settles before immediate external", async () => {
+    const phase3 = sliceBetween(
+      await readSkillSource("issue-priming-workflow"),
+      "## Phase 3: Research (Conditional)",
+      "## Phase 4: Invoke Brainstorming",
+    );
+
+    expect(normalizeWhitespace(phase3)).toContain(
+      "If internal becomes terminal while external remains active, do not invoke the helper, emit the notice, or enter Phase 4",
+    );
+  });
+
+  it("blocks routing when immediate external settles before internal", async () => {
+    const phase3 = sliceBetween(
+      await readSkillSource("issue-priming-workflow"),
+      "## Phase 3: Research (Conditional)",
+      "## Phase 4: Invoke Brainstorming",
+    );
+
+    expect(normalizeWhitespace(phase3)).toContain(
+      "If external becomes terminal while internal remains active, do not invoke the helper, emit the notice, or enter Phase 4",
+    );
   });
 
   it("keeps branch policy in a lazy reference map with explicit load triggers", async () => {

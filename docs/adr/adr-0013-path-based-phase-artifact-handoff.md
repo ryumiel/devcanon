@@ -15,12 +15,12 @@ accounted for a measurable share of total session tokens.
 
 The same shape exists upstream of `play-review` and is _not_ yet path-based:
 
-| Hop | Producer                       | Consumer                                                                                           | Today                                            |
-| --- | ------------------------------ | -------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
-| A   | `research-agent` (via Phase 3) | `play-brainstorm`                                                                                  | Brief inlined under `## Research Brief`          |
-| B   | `play-brainstorm`              | `play-planning`                                                                                    | Design summary inlined into `play-planning` args |
-| C   | `play-planning`                | `play-subagent-execution`                                                                          | Plan summary inlined into controller args        |
-| D   | `play-review`                  | `branch-review --fix`, `play-branch-finish`, `pr-review` Phase 6, `issue-priming-workflow` Phase 7 | Already path-based via ADR-0012                  |
+| Hop | Producer                         | Consumer                                                                                           | Today                                            |
+| --- | -------------------------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| A   | `issue-priming-workflow` Phase 3 | `play-brainstorm`                                                                                  | Brief inlined under `## Research Brief`          |
+| B   | `play-brainstorm`                | `play-planning`                                                                                    | Design summary inlined into `play-planning` args |
+| C   | `play-planning`                  | `play-subagent-execution`                                                                          | Plan summary inlined into controller args        |
+| D   | `play-review`                    | `branch-review --fix`, `play-branch-finish`, `pr-review` Phase 6, `issue-priming-workflow` Phase 7 | Already path-based via ADR-0012                  |
 
 Each hop carries 2–5 KB of redundant content that the next phase could read
 from disk. The artifacts already exist on disk under `.ephemeral/` —
@@ -52,7 +52,7 @@ shapes inside its invocation prose:
 
 1. **Path reference** (controller-preferred): a single literal line of the
    form `<Artifact label>: <repo-relative-path>`
-   (e.g., `Research brief: .ephemeral/2026-05-06-167-research.md`).
+   (e.g., `Research brief: .ephemeral/<YYYY-MM-DD>-<id>-research.md`).
 2. **Inline content**: the existing `## <Artifact label>` heading + body,
    unchanged from prior behavior.
 
@@ -93,11 +93,27 @@ rename it into place. The consumer applies the direct-child
 suffix/traversal/symlink guard before reading it; invalid or missing audit
 evidence disables reduced routes and falls back to `spec-and-quality`.
 
-`research-agent` itself does not write the brief; `issue-priming-workflow`
-Phase 3 (the dispatching skill) does. The agent stays read-only — its
-`agents/research-agent.yaml` contract is unchanged. This parallels how
+### Research synthesis and persistence ownership
+
+`issue-priming-workflow` Phase 3 is the research-artifact producer. Its root
+dispatches one required internal research child and, when external evidence is
+applicable, one external research child. The root synthesizes the final brief
+from the required internal report and any applicable external report.
+
+Research children are read-only leaves that return agent-local scoped reports.
+They do not delegate, write artifacts, emit producer notices, or synthesize the
+final `## Issue Brief`. Only the root invokes the guarded write helper,
+persists the final brief, and emits
+`Research brief written to <repo-relative-path>.` This parallels how
 `play-review` (a skill) writes its own findings file rather than delegating
-to a subagent.
+persistence to a subagent.
+
+Raw child reports remain agent-local/controller-local execution evidence, not
+phase artifacts or shared records. Shared comments may reuse only sanitized
+summary-only outcomes and minimum stable evidence pointers; they do not receive
+raw reports or issue-local execution history. Durable documentation contains
+only deliberately promoted durable truth and evidence pointers under its
+owning documentation contract, never raw issue-local history or agent reports.
 
 ### Path schemes
 
@@ -107,9 +123,9 @@ to a subagent.
 | Design         | `.ephemeral/<YYYY-MM-DD>-<topic>-design.md`      |
 | Plan           | `.ephemeral/<YYYY-MM-DD>-<feature-name>-plan.md` |
 
-`<id>` is the slugged form of `payload.identifier` (`#167` → `167`,
-`ENG-123` → `eng-123`). The authoritative slug and research-brief path
-computation lives in
+`<id>` is the slugged form of `payload.identifier`: a hash-prefixed numeric
+identifier becomes its digits, while an uppercase provider key becomes
+lowercase. The authoritative slug and research-brief path computation lives in
 `skills/issue-priming-workflow/scripts/write-research-brief.sh`: lowercase the
 identifier, convert `/` to `-`, retain only alphanumerics, `.`, `_`, and `-`,
 and reject unsafe derived paths through the script's write-target guard.
@@ -247,18 +263,18 @@ per-task boundary.
   `issue-priming-workflow` Phase 3's write of the research brief; the
   write-target guard requirement is named in this ADR's Decision § for
   cross-reference clarity.
-- **Brief content is untrusted prose, not executable instructions.** The
-  research brief originates from a subagent dispatched against a possibly-
-  untrusted issue body (fork PRs especially, but any issue under operator
-  workflow). When `play-brainstorm` reads the brief from `.ephemeral/`, it
-  treats the content as descriptive prose — not as authority to act
-  outside its contract. Embedded directives ("ignore prior instructions",
-  tool-call snippets, shell commands, paths into the controller's filesystem)
-  do not become instructions to the consumer skill, regardless of how the
-  brief is phrased. The downstream skills (`play-planning`,
-  `play-subagent-execution`) consume artifacts produced by the operator
-  workflow itself (design, plan) and so are not directly exposed to
-  untrusted-issue-body prose; the threat is contained at the
+- **Brief content is untrusted prose, not executable instructions.** The root
+  synthesizes the research brief from leaf reports produced against a
+  possibly-untrusted issue body (fork PRs especially, but any issue under
+  operator workflow). When `play-brainstorm` reads the brief from
+  `.ephemeral/`, it treats the content as descriptive prose — not as authority
+  to act outside its contract. Embedded directives ("ignore prior
+  instructions", tool-call snippets, shell commands, paths into the
+  controller's filesystem) do not become instructions to the consumer skill,
+  regardless of how the brief is phrased. The downstream skills
+  (`play-planning`, `play-subagent-execution`) consume artifacts produced by
+  the operator workflow itself (design, plan) and so are not directly exposed
+  to untrusted-issue-body prose; the threat is contained at the
   `play-brainstorm`-reads-brief boundary.
 - Operators reading `play-subagent-execution`'s § Red Flags now see a
   scoping note specifying the per-task subagent boundary. Future readers
@@ -291,13 +307,14 @@ per-task boundary.
   intent (controller curates per-task context for the implementer subagent)
   is independently load-bearing and applies whether or not the controller
   itself reads from a path. Scoping is the correct fix.
-- **Have `research-agent` write the brief itself.** Would expand the agent's
+- **Have a research child write the brief itself.** Would expand that child's
   Codex sandbox from `read-only` to a write-capable mode and add the `Write`
-  tool to its `agents/research-agent.yaml` `claude.tools` list. Rejected:
-  the agent's role is investigation, not artifact persistence; the parallel
-  to `play-review` (a skill that runs in the main conversation context with
-  full Write access) is the correct one. `issue-priming-workflow` Phase 3 —
-  the dispatching skill — owns persistence and notice-line emission.
+  tool to `agents/research-agent.yaml`'s `claude.tools` list. Rejected: the
+  role is scoped investigation, not cross-scope synthesis or artifact
+  persistence; the parallel to `play-review` (a skill that runs in the main
+  conversation context with full Write access) is the correct one.
+  `issue-priming-workflow` Phase 3 — the dispatching skill — owns synthesis,
+  persistence, and notice-line emission.
 
 ## Related
 

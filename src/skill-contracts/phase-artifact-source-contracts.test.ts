@@ -54,6 +54,286 @@ function shellFunctionBody(content: string, functionName: string): string {
   return content.slice(start, end);
 }
 
+type ResearchPromptTuple = {
+  source: string;
+  id: string;
+  title: string;
+  issueBodyPath: string;
+  commentEvidencePathOrNone: string;
+  gateReason: string;
+  repoRoot: string;
+  researchScope: string;
+  externalNecessityOrNone: string;
+  externalQuestionOrNone: string;
+};
+
+const INTERNAL_RESEARCH_TUPLE: ResearchPromptTuple = {
+  source: "github",
+  id: "#517",
+  title: "Make issue research depth safe",
+  issueBodyPath: ".ephemeral/2026-07-10-517-issue-body.md",
+  commentEvidencePathOrNone: "(none)",
+  gateReason: "cross-module workflow change",
+  repoRoot: "/worktrees/devcanon",
+  researchScope: "internal",
+  externalNecessityOrNone: "(none)",
+  externalQuestionOrNone: "(none)",
+};
+
+const EXTERNAL_RESEARCH_QUESTION =
+  "What current runtime behavior constrains depth-1 research dispatch?";
+
+const EXTERNAL_RESEARCH_TUPLE: ResearchPromptTuple = {
+  ...INTERNAL_RESEARCH_TUPLE,
+  researchScope: "external",
+  externalNecessityOrNone: "required",
+  externalQuestionOrNone: EXTERNAL_RESEARCH_QUESTION,
+};
+
+const RESEARCH_PROMPT_KEYS = [
+  "source",
+  "id",
+  "title",
+  "issueBodyPath",
+  "commentEvidencePathOrNone",
+  "gateReason",
+  "repoRoot",
+  "researchScope",
+  "externalNecessityOrNone",
+  "externalQuestionOrNone",
+] as const satisfies ReadonlyArray<keyof ResearchPromptTuple>;
+
+function validateResearchPromptTuple(
+  tuple: Partial<ResearchPromptTuple>,
+): string[] {
+  const errors: string[] = [];
+
+  for (const key of RESEARCH_PROMPT_KEYS) {
+    if (!(key in tuple) || tuple[key] === undefined) {
+      errors.push(`missing:${key}`);
+      continue;
+    }
+
+    const value = tuple[key];
+    if (value?.trim() === "") {
+      errors.push(`empty:${key}`);
+    }
+    if (value?.includes("\n") || value?.includes("\r")) {
+      errors.push(`multiline:${key}`);
+    }
+  }
+
+  if (
+    tuple.source !== undefined &&
+    !["github", "linear"].includes(tuple.source)
+  ) {
+    errors.push("invalid:source");
+  }
+  if (
+    tuple.researchScope !== undefined &&
+    !["internal", "external"].includes(tuple.researchScope)
+  ) {
+    errors.push("invalid:scope");
+  }
+  if (tuple.researchScope === "internal") {
+    if (tuple.externalNecessityOrNone !== "(none)") {
+      errors.push("invalid:necessity-pairing");
+    }
+    if (tuple.externalQuestionOrNone !== "(none)") {
+      errors.push("invalid:question-pairing");
+    }
+  }
+  if (tuple.researchScope === "external") {
+    if (!["required", "useful"].includes(tuple.externalNecessityOrNone ?? "")) {
+      errors.push("invalid:necessity-pairing");
+    }
+    if (
+      tuple.externalQuestionOrNone === undefined ||
+      tuple.externalQuestionOrNone.trim() === "" ||
+      tuple.externalQuestionOrNone === "(none)"
+    ) {
+      errors.push("invalid:question-pairing");
+    }
+  }
+  if ((tuple.externalQuestionOrNone?.length ?? 0) > 500) {
+    errors.push("over-limit:externalQuestionOrNone");
+  }
+
+  return errors;
+}
+
+const INTERNAL_REPORT = `## Internal Research Report
+
+### Policy Constraints
+- AGENTS.md — preserve root-owned lifecycle policy.
+
+### Existing Patterns
+- skills/subagent-lifecycle/SKILL.md — wait before retry.
+
+### External Uncertainties
+None
+
+### Recommended Approaches
+1. Keep direct depth-1 leaves.`;
+
+const EXTERNAL_REPORT = `## External Research Report
+
+### External Precedent
+- ${EXTERNAL_RESEARCH_QUESTION} Current runtime documentation requires direct depth-1 dispatch. https://example.test/runtime
+
+### Primary Sources
+- https://example.test/runtime — current runtime documentation.
+
+### Trade-offs
+- Direct siblings use one additional slot.
+
+### Implications
+- ${EXTERNAL_RESEARCH_QUESTION} Use root-owned sibling dispatch.`;
+
+const INTERNAL_REPORT_HEADINGS = [
+  "## Internal Research Report",
+  "### Policy Constraints",
+  "### Existing Patterns",
+  "### External Uncertainties",
+  "### Recommended Approaches",
+] as const;
+
+const EXTERNAL_REPORT_HEADINGS = [
+  "## External Research Report",
+  "### External Precedent",
+  "### Primary Sources",
+  "### Trade-offs",
+  "### Implications",
+] as const;
+
+function structuralReportLines(report: string): string[] {
+  const lines: string[] = [];
+  let fenced = false;
+  for (const line of report.split(/\r?\n/u)) {
+    if (/^\s*```/u.test(line)) {
+      fenced = !fenced;
+      continue;
+    }
+    if (!fenced && !/^\s*>/u.test(line)) {
+      lines.push(line);
+    }
+  }
+  return lines;
+}
+
+function validateResearchReport(
+  scope: "internal" | "external",
+  report: string,
+  externalQuestionAnswered = true,
+  issueTerms: readonly string[] = ["depth-1", "root-owned"],
+): string[] {
+  if (report.trim() === "") {
+    return ["blank"];
+  }
+
+  const errors: string[] = [];
+  const lines = structuralReportLines(report);
+  const hasInternalFamily = lines.includes("## Internal Research Report");
+  const hasExternalFamily = lines.includes("## External Research Report");
+
+  if (hasInternalFamily && hasExternalFamily) {
+    errors.push("combined-family");
+  } else if (
+    (scope === "internal" && hasExternalFamily) ||
+    (scope === "external" && hasInternalFamily)
+  ) {
+    errors.push("wrong-scope");
+  }
+
+  const requiredHeadings =
+    scope === "internal" ? INTERNAL_REPORT_HEADINGS : EXTERNAL_REPORT_HEADINGS;
+  const positions = requiredHeadings.map((heading) =>
+    lines.flatMap((line, index) => (line === heading ? [index] : [])),
+  );
+  for (const [index, heading] of requiredHeadings.entries()) {
+    if (positions[index].length === 0) {
+      errors.push(`missing-heading:${heading}`);
+    } else if (positions[index].length > 1) {
+      errors.push(`duplicate-heading:${heading}`);
+    }
+  }
+  if (
+    positions.every((matches) => matches.length === 1) &&
+    positions.some(
+      (matches, index) => index > 0 && matches[0] <= positions[index - 1][0],
+    )
+  ) {
+    errors.push("headings-out-of-order");
+  }
+  for (const [index, heading] of requiredHeadings.entries()) {
+    if (index === 0 || positions[index].length !== 1) continue;
+    const start = positions[index][0] + 1;
+    const end = positions[index + 1]?.[0] ?? lines.length;
+    if (lines.slice(start, end).every((line) => line.trim() === "")) {
+      errors.push(`empty-section:${heading}`);
+    }
+  }
+
+  const reportSection = (heading: string, nextHeading?: string): string => {
+    const start = lines.indexOf(heading);
+    if (start < 0) return "";
+    const end = nextHeading
+      ? lines.indexOf(nextHeading, start + 1)
+      : lines.length;
+    return lines.slice(start + 1, end < 0 ? lines.length : end).join("\n");
+  };
+
+  if (scope === "internal") {
+    const hasRepositoryEvidence =
+      report.includes("AGENTS.md") ||
+      /(?:skills|src|docs)\/[A-Za-z0-9._/-]+/u.test(report);
+    const hasIssueRelevantFinding = issueTerms.some((term) =>
+      report.toLowerCase().includes(term.toLowerCase()),
+    );
+    if (!hasRepositoryEvidence || !hasIssueRelevantFinding) {
+      errors.push("off-scope");
+    }
+  }
+
+  if (scope === "external") {
+    const precedent = reportSection(
+      "### External Precedent",
+      "### Primary Sources",
+    );
+    const primarySources = reportSection(
+      "### Primary Sources",
+      "### Trade-offs",
+    );
+    if (
+      !precedent.includes("https://") ||
+      !primarySources.includes("https://")
+    ) {
+      errors.push("missing-primary-source");
+    }
+    if (!externalQuestionAnswered) {
+      errors.push("question-unanswered");
+    }
+  }
+
+  return errors;
+}
+
+type InternalPartialEvidence = {
+  sourceReferenced: boolean;
+  issueRelevant: boolean;
+  repositoryGrounded: boolean;
+  authorityContradicted: boolean;
+};
+
+function isUsableInternalPartial(evidence: InternalPartialEvidence): boolean {
+  return (
+    evidence.sourceReferenced &&
+    evidence.issueRelevant &&
+    evidence.repositoryGrounded &&
+    !evidence.authorityContradicted
+  );
+}
+
 describe("phase artifact source contracts", () => {
   it("keeps issue-priming helper extraction contracts and static RED fallback checks in source", async () => {
     const issuePrimingWorkflow = await readSkillSource(
@@ -260,7 +540,7 @@ describe("phase artifact source contracts", () => {
     );
     expect(issuePrimingWorkflow).toContain("Gate agent fails");
     expect(issuePrimingWorkflow).toContain("Default to `RESEARCH_NEEDED`");
-    expect(issuePrimingWorkflow).toContain("Research agent fails/times out");
+    expect(issuePrimingWorkflow).toContain("Internal research fails/times out");
     expect(issuePrimingWorkflow).toContain("Report partial results");
     expect(issuePrimingWorkflow).toContain("No `docs/adr/` directory");
     expect(issuePrimingWorkflow).toContain('Gate treats as "no covering ADR"');
@@ -449,8 +729,592 @@ describe("phase artifact source contracts", () => {
     }
 
     expect(gatePrompt).toContain("before design work begins");
+    expect(normalizeWhitespace(researchPrompt)).toContain(
+      "before investigating the assigned scope",
+    );
+  });
+
+  it("keeps root-owned issue research validation, report, persistence, and failure contracts in source", async () => {
+    const issuePrimingWorkflow = await readSkillSource(
+      "issue-priming-workflow",
+    );
+    const researchPrompt = await readRepoFile(
+      "skills/issue-priming-workflow/references/research-agent-prompt.md",
+    );
+    const helperReference = await readRepoFile(
+      "skills/issue-priming-workflow/references/helper-invocation-contracts.md",
+    );
+    const phase3 = getMarkdownSection(
+      issuePrimingWorkflow,
+      "Phase 3: Research (Conditional)",
+    );
+    const normalizedPhase3 = normalizeWhitespace(phase3);
+    const normalizedPrompt = normalizeWhitespace(researchPrompt);
+
+    for (const placeholder of [
+      "<SOURCE>",
+      "<ID>",
+      "<TITLE>",
+      "<ISSUE_BODY_PATH>",
+      "<COMMENT_EVIDENCE_PATH_OR_NONE>",
+      "<GATE_REASON>",
+      "<REPO_ROOT>",
+      "<RESEARCH_SCOPE>",
+      "<EXTERNAL_NECESSITY_OR_NONE>",
+      "<EXTERNAL_QUESTION_OR_NONE>",
+    ]) {
+      expect(researchPrompt).toContain(placeholder);
+    }
+    expect(normalizedPhase3).toContain(
+      "Validate the worktree and guarded issue-body/comment-evidence inputs first",
+    );
+    expect(normalizedPhase3).toContain(
+      "Then validate every scalar and closed value before creating lifecycle state",
+    );
+    expect(normalizedPhase3).toContain(
+      "Missing, empty, multiline, over-limit, or otherwise invalid input stops before lifecycle dispatch, helper invocation, artifact creation, notice emission, or Phase 4",
+    );
+    expect(normalizedPrompt).toContain(
+      "`SOURCE` is exactly `github` or `linear`",
+    );
+    expect(normalizedPrompt).toContain(
+      "`RESEARCH_SCOPE` is exactly `internal` or `external`",
+    );
+    expect(normalizedPrompt).toContain(
+      "external uses exactly `required` or `useful`; internal uses exactly `(none)`",
+    );
+
+    for (const heading of [
+      "## Internal Research Report",
+      "### Policy Constraints",
+      "### Existing Patterns",
+      "### External Uncertainties",
+      "### Recommended Approaches",
+      "## External Research Report",
+      "### External Precedent",
+      "### Primary Sources",
+      "### Trade-offs",
+      "### Implications",
+    ]) {
+      expect(researchPrompt).toContain(heading);
+    }
+    expect(normalizedPhase3).toContain(
+      "Validate these report failure families independently",
+    );
+    expect(normalizedPhase3).toContain(
+      "not contradicted by owning repository authority",
+    );
+    expect(normalizedPhase3).toContain(
+      "the root makes the semantic judgment that its sourced findings and `Implications` directly answer the supplied external question",
+    );
+    expect(normalizedPhase3).toContain(
+      "Do not infer that judgment from exact question wording",
+    );
+    expect(normalizedPrompt).toContain(
+      "Put primary-source URLs near the claims they support",
+    );
+    expect(normalizedPrompt).toContain(
+      "distinguish practitioner advice from runtime, protocol, service, or project authority",
+    );
+
+    expect(normalizedPhase3).toContain(
+      "Internal failure with usable partial evidence",
+    );
+    expect(normalizedPhase3).toContain(
+      "Partial — internal research failed: <reason>",
+    );
+    expect(normalizedPhase3).toContain(
+      "Internal failure without usable partial evidence",
+    );
+    expect(normalizedPhase3).toContain(
+      "Do not invoke the helper, create a research artifact, or emit the notice",
+    );
+    expect(normalizedPhase3).toContain(
+      "Required external failure has highest precedence",
+    );
+    expect(normalizedPhase3).toContain(
+      "or invoke Phase 4, and auto mode must not turn the blocker into an assumption",
+    );
+    expect(normalizedPhase3).toContain(
+      "Useful external failure with valid internal evidence",
+    );
+    expect(normalizedPhase3).toContain("bounded uncertainty");
+
+    expect(normalizedPhase3).toContain(
+      "The depth-0 root alone synthesizes the final 500–1000-word brief",
+    );
+    expect(phase3).toContain("## Issue Brief: <ID> — <TITLE>");
+    expect(phase3).toContain("### Policy Constraints");
+    expect(phase3).toContain("### Existing Patterns");
+    expect(phase3).toContain("### External Precedent");
+    expect(phase3).toContain("### Recommended Approaches");
+    expect(phase3).toContain("scripts/write-research-brief.sh");
+    expect(phase3).toContain("Research brief written to <repo-relative-path>.");
+    expect(normalizeWhitespace(helperReference)).toContain(
+      "Write the root-synthesized final brief verbatim to the stdout path",
+    );
+    expect(normalizedPrompt).toContain(
+      "Do not spawn or delegate to another agent",
+    );
+    expect(normalizedPrompt).toContain(
+      "Do not write files, invoke the research-brief helper, create an artifact, or emit the producer notice",
+    );
+  });
+
+  it("accepts canonical internal and external research prompt tuples", () => {
+    expect(validateResearchPromptTuple(INTERNAL_RESEARCH_TUPLE)).toEqual([]);
+    expect(validateResearchPromptTuple(EXTERNAL_RESEARCH_TUPLE)).toEqual([]);
+  });
+
+  it.each([
+    {
+      family: "missing required value",
+      tuple: { ...INTERNAL_RESEARCH_TUPLE, title: undefined },
+      error: "missing:title",
+    },
+    {
+      family: "empty required value",
+      tuple: { ...INTERNAL_RESEARCH_TUPLE, id: "" },
+      error: "empty:id",
+    },
+    {
+      family: "whitespace-only required value",
+      tuple: { ...INTERNAL_RESEARCH_TUPLE, title: " \t " },
+      error: "empty:title",
+    },
+    {
+      family: "whitespace-only external question",
+      tuple: { ...EXTERNAL_RESEARCH_TUPLE, externalQuestionOrNone: "   " },
+      error: "empty:externalQuestionOrNone",
+    },
+    {
+      family: "multiline required value",
+      tuple: {
+        ...INTERNAL_RESEARCH_TUPLE,
+        gateReason: "first line\nsecond line",
+      },
+      error: "multiline:gateReason",
+    },
+    {
+      family: "over-limit external question",
+      tuple: {
+        ...EXTERNAL_RESEARCH_TUPLE,
+        externalQuestionOrNone: "q".repeat(501),
+      },
+      error: "over-limit:externalQuestionOrNone",
+    },
+    {
+      family: "invalid source",
+      tuple: { ...INTERNAL_RESEARCH_TUPLE, source: "jira" },
+      error: "invalid:source",
+    },
+    {
+      family: "invalid scope",
+      tuple: { ...INTERNAL_RESEARCH_TUPLE, researchScope: "combined" },
+      error: "invalid:scope",
+    },
+    {
+      family: "internal plus required necessity",
+      tuple: {
+        ...INTERNAL_RESEARCH_TUPLE,
+        externalNecessityOrNone: "required",
+      },
+      error: "invalid:necessity-pairing",
+    },
+    {
+      family: "internal plus external question",
+      tuple: {
+        ...INTERNAL_RESEARCH_TUPLE,
+        externalQuestionOrNone: EXTERNAL_RESEARCH_QUESTION,
+      },
+      error: "invalid:question-pairing",
+    },
+    {
+      family: "external without classification",
+      tuple: {
+        ...EXTERNAL_RESEARCH_TUPLE,
+        externalNecessityOrNone: "(none)",
+      },
+      error: "invalid:necessity-pairing",
+    },
+    {
+      family: "external without question",
+      tuple: {
+        ...EXTERNAL_RESEARCH_TUPLE,
+        externalQuestionOrNone: "(none)",
+      },
+      error: "invalid:question-pairing",
+    },
+  ])(
+    "rejects a one-dimension-invalid prompt tuple: $family",
+    ({ tuple, error }) => {
+      expect(validateResearchPromptTuple(tuple)).toContain(error);
+    },
+  );
+
+  it("accepts canonical internal and external research report families", () => {
+    expect(validateResearchReport("internal", INTERNAL_REPORT)).toEqual([]);
+    expect(validateResearchReport("external", EXTERNAL_REPORT, true)).toEqual(
+      [],
+    );
+    const paraphrasedAnswer = EXTERNAL_REPORT.replaceAll(
+      EXTERNAL_RESEARCH_QUESTION,
+      "Current depth limits require root-dispatched leaf siblings.",
+    );
+    expect(validateResearchReport("external", paraphrasedAnswer, true)).toEqual(
+      [],
+    );
+  });
+
+  it.each([
+    {
+      family: "blank report",
+      scope: "internal" as const,
+      report: "  \n",
+      question: "(none)",
+      error: "blank",
+    },
+    {
+      family: "one missing internal heading",
+      scope: "internal" as const,
+      report: INTERNAL_REPORT.replace(
+        "### Existing Patterns",
+        "Existing Patterns",
+      ),
+      question: "(none)",
+      error: "missing-heading:### Existing Patterns",
+    },
+    {
+      family: "heading only appears in a fenced example",
+      scope: "internal" as const,
+      report: INTERNAL_REPORT.replace(
+        "### Existing Patterns\n- skills/subagent-lifecycle/SKILL.md — wait before retry.",
+        "```md\n### Existing Patterns\n- skills/subagent-lifecycle/SKILL.md — wait before retry.\n```",
+      ),
+      question: "(none)",
+      error: "missing-heading:### Existing Patterns",
+    },
+    {
+      family: "heading only appears in a quote",
+      scope: "internal" as const,
+      report: INTERNAL_REPORT.replace(
+        "### Existing Patterns",
+        "> ### Existing Patterns",
+      ),
+      question: "(none)",
+      error: "missing-heading:### Existing Patterns",
+    },
+    {
+      family: "duplicate required heading",
+      scope: "internal" as const,
+      report: INTERNAL_REPORT.replace(
+        "### Existing Patterns",
+        "### Existing Patterns\n- skills/example.md — first.\n\n### Existing Patterns",
+      ),
+      question: "(none)",
+      error: "duplicate-heading:### Existing Patterns",
+    },
+    {
+      family: "required headings out of order",
+      scope: "internal" as const,
+      report: INTERNAL_REPORT.replace(
+        /### Policy Constraints[\s\S]*?### External Uncertainties/u,
+        "### Existing Patterns\n- skills/example.md — root-owned depth-1.\n\n### Policy Constraints\n- AGENTS.md — policy.\n\n### External Uncertainties",
+      ),
+      question: "(none)",
+      error: "headings-out-of-order",
+    },
+    {
+      family: "empty required section",
+      scope: "internal" as const,
+      report: INTERNAL_REPORT.replace(
+        "### Existing Patterns\n- skills/subagent-lifecycle/SKILL.md — wait before retry.",
+        "### Existing Patterns",
+      ),
+      question: "(none)",
+      error: "empty-section:### Existing Patterns",
+    },
+    {
+      family: "wrong-scope report",
+      scope: "internal" as const,
+      report: EXTERNAL_REPORT,
+      question: "(none)",
+      error: "wrong-scope",
+    },
+    {
+      family: "combined internal and external families",
+      scope: "internal" as const,
+      report: `${INTERNAL_REPORT}\n\n${EXTERNAL_REPORT}`,
+      question: "(none)",
+      error: "combined-family",
+    },
+    {
+      family: "all headings but off-scope internal prose",
+      scope: "internal" as const,
+      report: `## Internal Research Report
+
+### Policy Constraints
+- Use a warm oven.
+
+### Existing Patterns
+- Sourdough recipes often rest overnight.
+
+### External Uncertainties
+None
+
+### Recommended Approaches
+1. Bake until golden brown.`,
+      question: "(none)",
+      error: "off-scope",
+    },
+    {
+      family: "verbatim question text is still judged a non-answer",
+      scope: "external" as const,
+      report: EXTERNAL_REPORT,
+      question: EXTERNAL_RESEARCH_QUESTION,
+      answeredQuestion: false,
+      error: "question-unanswered",
+    },
+    {
+      family: "external report lacks primary-source URLs",
+      scope: "external" as const,
+      report: EXTERNAL_REPORT.replace(
+        /https:\/\/example\.test\/runtime/gu,
+        "official runtime documentation",
+      ),
+      question: EXTERNAL_RESEARCH_QUESTION,
+      answeredQuestion: true,
+      error: "missing-primary-source",
+    },
+  ])("rejects a one-dimension-invalid research report: $family", (example) => {
+    const answeredQuestion =
+      "answeredQuestion" in example ? example.answeredQuestion : true;
+    expect(
+      validateResearchReport(example.scope, example.report, answeredQuestion),
+    ).toContain(example.error);
+  });
+
+  it("accepts only the canonical usable internal partial evidence tuple", () => {
+    const validPartial: InternalPartialEvidence = {
+      sourceReferenced: true,
+      issueRelevant: true,
+      repositoryGrounded: true,
+      authorityContradicted: false,
+    };
+
+    expect(isUsableInternalPartial(validPartial)).toBe(true);
+    for (const invalidPartial of [
+      { ...validPartial, sourceReferenced: false },
+      { ...validPartial, issueRelevant: false },
+      { ...validPartial, repositoryGrounded: false },
+      { ...validPartial, authorityContradicted: true },
+    ]) {
+      expect(isUsableInternalPartial(invalidPartial)).toBe(false);
+    }
+  });
+
+  it("rejects missing issue-research prompt inputs before every side effect", async () => {
+    const phase3 = getMarkdownSection(
+      await readSkillSource("issue-priming-workflow"),
+      "Phase 3: Research (Conditional)",
+    );
+
+    expect(normalizeWhitespace(phase3)).toContain(
+      "**Missing input:** reject any tuple with an absent required placeholder",
+    );
+  });
+
+  it("rejects empty issue-research prompt inputs before every side effect", async () => {
+    const phase3 = getMarkdownSection(
+      await readSkillSource("issue-priming-workflow"),
+      "Phase 3: Research (Conditional)",
+    );
+
+    expect(normalizeWhitespace(phase3)).toContain(
+      "**Empty input:** reject an empty or whitespace-only required scalar or external question",
+    );
+  });
+
+  it("rejects multiline issue-research prompt inputs before every side effect", async () => {
+    const phase3 = getMarkdownSection(
+      await readSkillSource("issue-priming-workflow"),
+      "Phase 3: Research (Conditional)",
+    );
+
+    expect(normalizeWhitespace(phase3)).toContain(
+      "**Multiline input:** reject a required scalar or external-only value containing a line break",
+    );
+  });
+
+  it("rejects over-limit external questions before every side effect", async () => {
+    const phase3 = getMarkdownSection(
+      await readSkillSource("issue-priming-workflow"),
+      "Phase 3: Research (Conditional)",
+    );
+
+    expect(normalizeWhitespace(phase3)).toContain(
+      "**Over-limit input:** reject an external question longer than 500 characters",
+    );
+  });
+
+  it("rejects invalid issue-research source values", async () => {
+    const researchPrompt = normalizeWhitespace(
+      await readRepoFile(
+        "skills/issue-priming-workflow/references/research-agent-prompt.md",
+      ),
+    );
+
     expect(researchPrompt).toContain(
-      "before dispatching any sub-agents or evaluating the issue",
+      "`SOURCE` is exactly `github` or `linear`",
+    );
+  });
+
+  it("rejects invalid issue-research scope values", async () => {
+    const researchPrompt = normalizeWhitespace(
+      await readRepoFile(
+        "skills/issue-priming-workflow/references/research-agent-prompt.md",
+      ),
+    );
+
+    expect(researchPrompt).toContain(
+      "`RESEARCH_SCOPE` is exactly `internal` or `external`",
+    );
+  });
+
+  it("rejects invalid issue-research necessity pairings", async () => {
+    const researchPrompt = normalizeWhitespace(
+      await readRepoFile(
+        "skills/issue-priming-workflow/references/research-agent-prompt.md",
+      ),
+    );
+
+    expect(researchPrompt).toContain(
+      "external uses exactly `required` or `useful`; internal uses exactly `(none)`",
+    );
+  });
+
+  it("rejects invalid issue-research external-question pairings", async () => {
+    const researchPrompt = normalizeWhitespace(
+      await readRepoFile(
+        "skills/issue-priming-workflow/references/research-agent-prompt.md",
+      ),
+    );
+
+    expect(researchPrompt).toContain(
+      "external requires one nonblank single-line question of at most 500 characters; internal uses exactly `(none)`",
+    );
+  });
+
+  it("classifies blank child research output as failure", async () => {
+    const phase3 = getMarkdownSection(
+      await readSkillSource("issue-priming-workflow"),
+      "Phase 3: Research (Conditional)",
+    );
+
+    expect(normalizeWhitespace(phase3)).toContain(
+      "**Blank report:** classify empty or whitespace-only output as failure",
+    );
+  });
+
+  it("classifies a child report with one missing heading as failure", async () => {
+    const phase3 = getMarkdownSection(
+      await readSkillSource("issue-priming-workflow"),
+      "Phase 3: Research (Conditional)",
+    );
+
+    expect(normalizeWhitespace(phase3)).toContain(
+      "**Missing heading:** classify omission of any required heading as failure",
+    );
+  });
+
+  it("classifies wrong-scope and combined child report families as failure", async () => {
+    const phase3 = getMarkdownSection(
+      await readSkillSource("issue-priming-workflow"),
+      "Phase 3: Research (Conditional)",
+    );
+
+    expect(normalizeWhitespace(phase3)).toContain(
+      "**Wrong or combined family:** classify the other scope's family or a report combining both families as failure",
+    );
+  });
+
+  it("requires repository-grounded evidence for an internal partial route", async () => {
+    const phase3 = getMarkdownSection(
+      await readSkillSource("issue-priming-workflow"),
+      "Phase 3: Research (Conditional)",
+    );
+    const normalizedPhase3 = normalizeWhitespace(phase3);
+
+    expect(normalizedPhase3).toContain(
+      "source-referenced, issue-relevant, repository-grounded, and not contradicted by owning repository authority",
+    );
+    expect(normalizedPhase3).toContain(
+      "An external-URL-only fragment is not repository-grounded",
+    );
+  });
+
+  it("preserves the skipped-research inline route without research side effects", async () => {
+    const workflow = await readSkillSource("issue-priming-workflow");
+    const phase3 = getMarkdownSection(
+      workflow,
+      "Phase 3: Research (Conditional)",
+    );
+    const phase4 = getMarkdownSection(
+      workflow,
+      "Phase 4: Invoke Brainstorming",
+    );
+
+    expect(normalizeWhitespace(phase3)).toContain(
+      "Do not dispatch a research child, invoke the research helper, create a research artifact, or emit the producer notice on that route",
+    );
+    expect(phase4).toContain("Skipped — <reason from gate agent>");
+  });
+
+  it("keeps internal-failure routes inline and forbids research persistence", async () => {
+    const phase3 = getMarkdownSection(
+      await readSkillSource("issue-priming-workflow"),
+      "Phase 3: Research (Conditional)",
+    );
+    const normalizedPhase3 = normalizeWhitespace(phase3);
+
+    expect(normalizedPhase3).toContain(
+      "Internal failure with usable partial evidence",
+    );
+    expect(normalizedPhase3).toContain(
+      "Internal failure without usable partial evidence",
+    );
+    expect(normalizedPhase3).toContain(
+      "Do not invoke the helper, create a research artifact, or emit the notice",
+    );
+  });
+
+  it("keeps required-external failure above internal failure and forbids Phase 4", async () => {
+    const phase3 = getMarkdownSection(
+      await readSkillSource("issue-priming-workflow"),
+      "Phase 3: Research (Conditional)",
+    );
+    const normalizedPhase3 = normalizeWhitespace(phase3);
+
+    expect(
+      normalizedPhase3.indexOf(
+        "Required external failure has highest precedence",
+      ),
+    ).toBeLessThan(
+      normalizedPhase3.indexOf("Internal failure with usable partial evidence"),
+    );
+    expect(normalizedPhase3).toContain(
+      "Do not invoke the helper, create a final research artifact, emit the notice, or invoke Phase 4",
+    );
+  });
+
+  it("requires bounded uncertainty on useful-external failure", async () => {
+    const phase3 = getMarkdownSection(
+      await readSkillSource("issue-priming-workflow"),
+      "Phase 3: Research (Conditional)",
+    );
+
+    expect(normalizeWhitespace(phase3)).toContain(
+      "states that precedent was unavailable, identifies the unanswered external question, and describes the bounded uncertainty",
     );
   });
 
