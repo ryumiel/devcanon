@@ -2834,7 +2834,10 @@ describe("play subagent routing source contracts", () => {
       "Every `closure-unavailable` event carries its concrete reason as event-associated detail and appends that value to unavailable-reason history",
     );
     expect(normalizeWhitespace(orderedLifecycleEvents)).toContain(
-      "Append `retention-resolved` only when the deferred need finished, or required state was captured and the follow-up need was safely replaced",
+      "Use `retention-resolved(basis=need-finished, evidence=...)` only when the deferred need finished",
+    );
+    expect(normalizeWhitespace(orderedLifecycleEvents)).toContain(
+      "latest `close-deferred` < value-bearing `required-state-captured` < `replacement-secured` < `retention-resolved`",
     );
     expect(normalizeWhitespace(orderedLifecycleEvents)).toContain(
       "`retention-resolved` is a lifecycle decision event, not a fifth cleanup projection family, cleanup outcome, or proof of closure",
@@ -2993,7 +2996,7 @@ describe("play subagent routing source contracts", () => {
       "a later retention or close attempt clears the current unavailable-cleanup reason while preserving every prior `closure-unavailable` reason in append-only history",
     );
     expect(normalizeWhitespace(cleanupProjection)).toContain(
-      "An evaluated deferred session whose need finished, or whose required state was captured and follow-up need safely replaced, appends `retention-resolved` evidence, keeps evaluation `evaluated`, sets the current cleanup decision to `none`, clears current retention and unavailable reasons, and projects `closed=no`",
+      "An evaluated deferred session with a valid resolution event keeps evaluation `evaluated`, sets the current cleanup decision to `none`, clears current retention and unavailable reasons, and projects `closed=no`",
     );
     expect(normalizeWhitespace(cleanupProjection)).toContain(
       "An evaluated row with no applicable decision and reason is invalid or ambiguous except for the exact evidenced post-`retention-resolved` projection above",
@@ -3034,7 +3037,7 @@ describe("play subagent routing source contracts", () => {
       "For any capacity-blocking session whose latest cleanup decision is `close-deferred`, require the owning workflow to resolve whether same-session follow-up is still required",
     );
     expect(normalizeWhitespace(slotLimitRecovery)).toContain(
-      "After the row is terminal or superseded, append `retention-resolved` only if the need finished or fresh capture and safe replacement both occurred, clear current retention, and proceed through an actual supported close or operator-confirmed manual cleanup before retry",
+      "After the row is terminal or superseded, append `retention-resolved` only with a valid basis and proof above, clear current retention, and proceed through an actual supported close or operator-confirmed manual cleanup before retry",
     );
     expect(normalizeWhitespace(slotLimitRecovery)).toContain(
       "`retention-resolved` is necessary for a formerly deferred blocker but is not retry authorization or closure proof",
@@ -3229,7 +3232,10 @@ describe("play subagent routing source contracts", () => {
       cleanupDecision: "none" | "retained" | "unavailable" | "attempted";
       retentionReason: string | null;
       deferredEventReasons: string[];
-      retentionResolutionDetails: string[];
+      retentionResolutionDetails: {
+        basis: "need-finished" | "captured-and-replaced";
+        evidence: string;
+      }[];
       closeUnavailableReason: string | null;
       unavailableEventReasons: string[];
     };
@@ -3649,20 +3655,43 @@ describe("play subagent routing source contracts", () => {
           example.retentionResolutionDetails.length !==
             retentionResolvedCount ||
           example.retentionResolutionDetails.some(
-            (detail) => detail.trim().length === 0,
+            (detail) => detail.evidence.trim().length === 0,
           )
         ) {
           errors.push("retention-resolution-history");
           return errors;
         }
         let unresolvedDeferral = false;
-        for (const event of example.events) {
+        let latestDeferralIndex = -1;
+        let resolutionDetailIndex = 0;
+        for (const [eventIndex, event] of example.events.entries()) {
           if (event === "close-deferred") {
             unresolvedDeferral = true;
+            latestDeferralIndex = eventIndex;
           } else if (event === "retention-resolved") {
             if (!unresolvedDeferral) {
               errors.push("retention-resolution-without-deferral");
               return errors;
+            }
+            const detail =
+              example.retentionResolutionDetails[resolutionDetailIndex];
+            resolutionDetailIndex += 1;
+            if (detail?.basis === "captured-and-replaced") {
+              const captureIndex = example.events.lastIndexOf(
+                "required-state-captured",
+                eventIndex - 1,
+              );
+              const replacementIndex = example.events.lastIndexOf(
+                "replacement-secured",
+                eventIndex - 1,
+              );
+              if (
+                captureIndex <= latestDeferralIndex ||
+                replacementIndex <= captureIndex
+              ) {
+                errors.push("retention-resolution-proof");
+                return errors;
+              }
             }
             unresolvedDeferral = false;
           } else if (
@@ -4581,7 +4610,10 @@ describe("play subagent routing source contracts", () => {
       cleanupDecision: "none",
       retentionReason: null,
       retentionResolutionDetails: [
-        "same-session fixup need captured in controller state",
+        {
+          basis: "need-finished",
+          evidence: "same-session fixup need finished",
+        },
       ],
       events: [...retainedForFollowup.events, "retention-resolved"],
     };
@@ -4625,9 +4657,20 @@ describe("play subagent routing source contracts", () => {
       cleanupDecision: "none",
       retentionReason: null,
       deferredEventReasons: ["same-session reviewer follow-up required"],
-      retentionResolutionDetails: ["reviewer state captured and replaced"],
+      retentionResolutionDetails: [
+        {
+          basis: "captured-and-replaced",
+          evidence: "reviewer state captured and replaced",
+        },
+      ],
       closeUnavailableReason: null,
-      events: [...valid.events, "close-deferred", "retention-resolved"],
+      events: [
+        ...valid.events,
+        "close-deferred",
+        "required-state-captured",
+        "replacement-secured",
+        "retention-resolved",
+      ],
     };
     expect(invalidDimensions(unavailableThenResolved)).toEqual([]);
     expect(unavailableThenResolved.unavailableEventReasons).toEqual([
@@ -7039,7 +7082,10 @@ describe("play subagent routing source contracts", () => {
       "preserve the implementer session until every reviewer loop required by the task's effective route passes",
     );
     expect(normalizedLifecycle).toContain(
-      "append `retention-resolved` with evidence that the need finished or its state was captured and safely replaced",
+      "append `retention-resolved(basis=need-finished, evidence=...)` if the need finished",
+    );
+    expect(normalizedLifecycle).toContain(
+      "ordered latest `close-deferred` < value-bearing `required-state-captured` < `replacement-secured` < `retention-resolved(basis=captured-and-replaced, evidence=...)`",
     );
     expect(normalizedLifecycle).toContain(
       "canonical immediate projection keeps cleanup evaluation `evaluated`, sets current cleanup decision to `none`, clears current retention and unavailable reasons, and projects `closed=no`",
@@ -7297,7 +7343,11 @@ describe("play subagent routing source contracts", () => {
       ) {
         errors.push("current-cleanup-projection");
       }
-      if (!/event=retention-resolved\(evidence=[^)]+\)/u.test(row)) {
+      if (
+        !/event=retention-resolved\(basis=need-finished, evidence=[^)]+\)/u.test(
+          row,
+        )
+      ) {
         errors.push("retention-resolution-evidence");
       }
       if (
@@ -7719,8 +7769,8 @@ describe("play subagent routing source contracts", () => {
     expect(
       historicalDeferralErrors(
         task1ImplementerCleanup.replace(
-          "event=retention-resolved(evidence=reviewer loops passed and same-session follow-up finished)",
-          "event=retention-resolved(evidence=)",
+          "event=retention-resolved(basis=need-finished, evidence=reviewer loops passed and same-session follow-up finished)",
+          "event=retention-resolved(basis=need-finished, evidence=)",
         ),
         ["same implementer session must remain available for reviewer fixups"],
       ),
@@ -7889,8 +7939,8 @@ describe("play subagent routing source contracts", () => {
     expect(
       historicalDeferralErrors(
         task2ImplementerCleanup.replace(
-          "event=retention-resolved(evidence=all required reviewer loops passed and same-session fixup need finished)",
-          "event=retention-resolved(evidence=)",
+          "event=retention-resolved(basis=need-finished, evidence=all required reviewer loops passed and same-session fixup need finished)",
+          "event=retention-resolved(basis=need-finished, evidence=)",
         ),
         task2DeferralReasons,
       ),
@@ -8212,10 +8262,13 @@ describe("play subagent routing source contracts", () => {
       "resolves whether same-session follow-up remains required",
     );
     expect(slotLimitRetainedSession).toContain(
-      "captures the required state and safely replaces the follow-up need",
+      "event=required-state-captured(evidence=reviewer fixup state captured)",
     );
     expect(slotLimitRetainedSession).toContain(
-      "event=retention-resolved(evidence=reviewer fixup state captured and replacement handoff prepared)",
+      "event=replacement-secured(evidence=replacement handoff prepared)",
+    );
+    expect(slotLimitRetainedSession).toContain(
+      "event=retention-resolved(basis=captured-and-replaced, evidence=reviewer fixup state captured and replacement handoff prepared)",
     );
     expect(slotLimitRetainedSession).toContain(
       "preserves the historical close-deferred event and its associated reason",
@@ -8237,6 +8290,16 @@ describe("play subagent routing source contracts", () => {
     const retainedSlotRecoveryErrors = (example: string): string[] => {
       const errors: string[] = [];
       const resolutionIndex = example.indexOf("event=retention-resolved(");
+      const deferralIndex = example.indexOf("event=close-deferred(reason=");
+      const captureIndex = example.indexOf(
+        "event=required-state-captured(evidence=reviewer fixup state captured)",
+      );
+      const replacementIndex = example.indexOf(
+        "event=replacement-secured(evidence=replacement handoff prepared)",
+      );
+      const capturedResolutionIndex = example.indexOf(
+        "event=retention-resolved(basis=captured-and-replaced, evidence=reviewer fixup state captured and replacement handoff prepared)",
+      );
       const afterResolution =
         resolutionIndex < 0 ? "" : example.slice(resolutionIndex);
       if (
@@ -8253,19 +8316,12 @@ describe("play subagent routing source contracts", () => {
         errors.push("retained-reason-history");
       }
       if (
-        resolutionIndex < 0 ||
-        !example.includes(
-          "retention-resolved(evidence=reviewer fixup state captured and replacement handoff prepared)",
-        )
+        capturedResolutionIndex < 0 ||
+        deferralIndex >= captureIndex ||
+        captureIndex >= replacementIndex ||
+        replacementIndex >= capturedResolutionIndex
       ) {
         errors.push("retention-resolution-evidence");
-      }
-      if (
-        !example.includes(
-          "If it no longer remains, or the controller captures the required state and safely replaces the follow-up need",
-        )
-      ) {
-        errors.push("retention-resolution-without-resolved-need");
       }
       if (
         !afterResolution.includes("keeps cleanup evaluation=evaluated") ||
@@ -8346,19 +8402,11 @@ describe("play subagent routing source contracts", () => {
     expect(
       retainedSlotRecoveryErrors(
         slotLimitRetainedSession.replace(
-          "event=retention-resolved(evidence=reviewer fixup state captured and replacement handoff prepared)",
-          "event=retention-resolved(evidence=)",
+          "event=retention-resolved(basis=captured-and-replaced, evidence=reviewer fixup state captured and replacement handoff prepared)",
+          "event=retention-resolved(basis=captured-and-replaced, evidence=)",
         ),
       ),
     ).toEqual(["retention-resolution-evidence"]);
-    expect(
-      retainedSlotRecoveryErrors(
-        slotLimitRetainedSession.replace(
-          "If it no longer remains, or the controller captures the required state and safely replaces the follow-up need",
-          "If the need remains unresolved",
-        ),
-      ),
-    ).toEqual(["retention-resolution-without-resolved-need"]);
     expect(
       retainedSlotRecoveryErrors(
         slotLimitRetainedSession.replace(
@@ -8420,11 +8468,19 @@ describe("play subagent routing source contracts", () => {
       }
       if (
         (family === "unavailable" &&
-          !resolutionProjection.includes(
-            "evidence=follow-up state captured and follow-up need safely replaced",
-          )) ||
+          (!resolutionProjection.includes(
+            "basis=captured-and-replaced, evidence=follow-up state captured and follow-up need safely replaced",
+          ) ||
+            example.indexOf("event=required-state-captured(") <=
+              example.indexOf("event=close-deferred(") ||
+            example.indexOf("event=replacement-secured(") <=
+              example.indexOf("event=required-state-captured(") ||
+            resolutionIndex <=
+              example.indexOf("event=replacement-secured("))) ||
         (family === "success" &&
-          !resolutionProjection.includes("evidence=follow-up finished"))
+          !resolutionProjection.includes(
+            "basis=need-finished, evidence=follow-up finished",
+          ))
       ) {
         errors.push("retention-resolution-predicate");
       }

@@ -29,13 +29,15 @@ passes, unless the target lacks same-session follow-up and a fresh implementer
 can receive the complete captured state.
 
 When an executor-retained implementer no longer needs same-session follow-up,
-append `retention-resolved` with evidence that the need finished or its state
-was captured and safely replaced. Preserve each historical `close-deferred`
-event and reason. The canonical immediate projection keeps cleanup evaluation
-`evaluated`, sets current cleanup decision to `none`, clears current retention
-and unavailable reasons, and projects `closed=no`; histories and resolution
-evidence remain append-only. A later close or `closure-unavailable` event
-selects an existing cleanup family.
+append `retention-resolved(basis=need-finished, evidence=...)` if the need
+finished. Otherwise require ordered latest `close-deferred` < value-bearing
+`required-state-captured` < `replacement-secured` <
+`retention-resolved(basis=captured-and-replaced, evidence=...)`. Preserve each
+historical `close-deferred` event and reason. The canonical immediate projection
+keeps cleanup evaluation `evaluated`, sets current cleanup decision to `none`,
+clears current retention and unavailable reasons, and projects `closed=no`;
+histories and resolution evidence remain append-only. A later close or
+`closure-unavailable` event selects an existing cleanup family.
 
 For slot exhaustion, record a new current recovery episode identity and its
 capacity-blocker snapshot before cleanup. Bind every close or

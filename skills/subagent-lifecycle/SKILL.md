@@ -112,9 +112,11 @@ Any `active`, `waiting`, or `interrupted` row may be superseded only
 after its latest open-state transition by ordered `required-state-captured`,
 `replacement-secured`, and `superseded` events. Cleanup never authorizes it.
 
-Append `retention-resolved` only when the deferred need finished, or required
-state was captured and the follow-up need was safely replaced.
-It also requires unresolved `close-deferred`, current `completed`, `timed-out`,
+Use `retention-resolved(basis=need-finished, evidence=...)` only when the
+deferred need finished. `basis=captured-and-replaced` requires latest
+`close-deferred` < value-bearing `required-state-captured` <
+`replacement-secured` < `retention-resolved`. Either basis requires current
+`completed`, `timed-out`,
 `failed`, or `superseded`, and fresh capture; open re-entry must return or be
 superseded and recaptured. It preserves deferral history while clearing current
 retention. `retention-resolved` is a
@@ -241,9 +243,8 @@ the projection deterministic:
   event-associated detail, records that reason as the current retention reason,
   and projects `closed=no`. That decision does not append `close-attempted` or
   `close-failed`; deferral is not a fabricated close attempt.
-- An evaluated deferred session whose need finished, or whose required state
-  was captured and follow-up need safely replaced, appends `retention-resolved`
-  evidence, keeps evaluation `evaluated`, sets the current cleanup decision to
+- An evaluated deferred session with a valid resolution event keeps evaluation
+  `evaluated`, sets the current cleanup decision to
   `none`, clears current retention and unavailable reasons, and projects
   `closed=no`. This evidenced transition is not another cleanup family. A later
   actual close or unavailable fact still uses one of the four families listed
@@ -275,12 +276,11 @@ close and its history.
 Do not retain a cleanup outcome that contradicts the latest closure decision,
 event, or capability facts. A failed close is not unavailable, and a deferred
 close is not a failed attempt. Before a later attempt or unavailable family,
-append `retention-resolved` only after need completion or capture plus safe
-follow-up replacement. The current retention reason no longer
-applies after that event, but the historical `close-deferred` reason remains
-recoverable. After `retention-resolved`, a later real attempt appends to history
-without erasing `close-deferred`, its associated reason, or the resolution
-evidence. Likewise, a later retention or close
+require a valid `retention-resolved` event. The current retention reason no
+longer applies after that event, but the historical `close-deferred` reason
+remains recoverable. After `retention-resolved`, a later real attempt appends to
+history without erasing `close-deferred`, its associated reason, or the
+resolution evidence. Likewise, a later retention or close
 attempt clears the current unavailable-cleanup reason while preserving every
 prior `closure-unavailable` reason in append-only history. A later success
 replaces `closed=no` with `closed=yes` without deleting deferral, unavailable,
@@ -361,12 +361,12 @@ When a spawn fails because of a slot/session limit:
 9. For any capacity-blocking session whose latest cleanup decision is
    `close-deferred`, require the owning workflow to resolve whether same-session
    follow-up is still required. After the row is terminal or superseded, append
-   `retention-resolved` only if the need finished or fresh capture and safe
-   replacement both occurred, clear current retention, and
-   proceed through an actual supported close or operator-confirmed manual
-   cleanup before retry. Preserve the historical `close-deferred` reason. If the follow-up need
-   remains and safe cleanup or replacement cannot occur, stop and escalate;
-   neither the deferral nor an unsafe manual close authorizes a retry.
+   `retention-resolved` only with a valid basis and proof above, clear current
+   retention, and proceed through an actual supported close or
+   operator-confirmed manual cleanup before retry. Preserve the historical
+   `close-deferred` reason. If the follow-up need remains and safe cleanup or
+   replacement cannot occur, stop and escalate; neither the deferral nor an
+   unsafe manual close authorizes a retry.
 10. If automatic cleanup is unavailable or a usable automatic close attempt
     fails, surface the same explicit operator/UI manual-cleanup guidance. Include
     only sanitized open-agent inventory when the target exposes it; otherwise
