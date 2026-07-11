@@ -66,6 +66,9 @@ implementers continue to read the worktree from disk.
 - Ordered lifecycle events preserve observed transitions while current state,
   workflow return status, reviewer disposition, and cleanup outcome remain
   separately derived facts.
+- Cleanup projection depends on usable closure, and failed automatic close
+  attempts enter the same sanitized manual-cleanup confirmation path as
+  unavailable automatic cleanup before the single spawn retry.
 - Slot-limit failures are handled as orchestration resource exhaustion, with
   state reconstruction and one retry after cleanup or manual confirmation.
 - Workflow-local exceptions remain explicit, so shared cleanup policy does not

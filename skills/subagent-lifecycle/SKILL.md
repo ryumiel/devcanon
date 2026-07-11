@@ -138,20 +138,21 @@ observing the active runtime:
   `cleanup-unavailable`.
 
 This map does not change the provider-neutral decision classes above. Stable
-identity plus an exposed close operation plus a successful close are all
-required before recording `closed=yes`.
+identity plus an exposed, usable close operation plus a successful close are
+all required before recording `closed=yes`.
 
 ## Cleanup Projection
 
 Cleanup outcome is a projection of the latest closure event and the current
 capability tuple:
 
-- Missing stable identity or a missing close operation appends
+- Missing stable identity or a missing exposed, usable close operation appends
   `closure-unavailable` with the concrete reason and projects
-  `close-unavailable: <reason>`.
-- With both prerequisites present, an unattempted or failed close projects
-  `closed=no`; append `close-attempted` and, on failure, `close-failed` while
-  preserving the prior events.
+  `close-unavailable: <reason>`. An exposed-but-unusable close operation follows
+  this unavailable path, not `closed=no`.
+- With stable identity and an exposed, usable close operation, an unattempted or
+  actually failed close projects `closed=no`; append `close-attempted` and, on
+  failure, `close-failed` while preserving the prior events.
 - A later successful close appends `close-succeeded` and projects `closed=yes`.
 
 Do not retain a cleanup outcome that contradicts the latest closure event or
@@ -179,8 +180,8 @@ role-specific state has already been captured.
    session.
 
 Target-honest outcomes matter more than a clean-looking ledger. Never record
-`closed=yes` unless the current target actually exposed stable ids plus a close
-operation and the close completed.
+`closed=yes` unless the current target actually exposed stable ids plus a usable
+close operation and the close completed.
 
 ## Slot-Limit Recovery
 
@@ -192,17 +193,19 @@ When a spawn fails because of a slot/session limit:
 1. Classify the failure as orchestration resource exhaustion in the lifecycle
    ledger.
 2. Run the cleanup gate for all completed or superseded sessions.
-3. If automatic cleanup is unavailable, surface explicit operator/UI cleanup
-   guidance. Include only sanitized open-agent inventory when the target exposes
-   it; otherwise state that inventory is unavailable. Use the same field
-   allowlist and redaction rule described for retry-failure escalation below.
-   Wait for operator confirmation that manual cleanup is complete before
-   continuing.
+3. If automatic cleanup is unavailable or a usable automatic close attempt
+   fails, surface the same explicit operator/UI manual-cleanup guidance. Include
+   only sanitized open-agent inventory when the target exposes it; otherwise
+   state that inventory is unavailable. Use the same field allowlist and
+   redaction rule described for retry-failure escalation below. Wait for
+   operator confirmation that manual cleanup is complete before continuing.
 4. Reconstruct active workflow state from the lifecycle ledger and the
    repository state anchors the owning workflow uses, such as `git status`,
    current branch, and relevant base/head SHAs.
-5. Retry the spawn exactly once after automatic cleanup completes or after the
-   operator confirms manual cleanup.
+5. Retry the spawn exactly once only after automatic cleanup projects
+   `closed=yes` for the sessions blocking capacity or after the operator
+   confirms manual cleanup. A failed automatic close with `closed=no` is not
+   permission to retry the spawn.
 6. If the retry still fails, stop and escalate to the user with a sanitized
    summary of the reconstructed state and remaining open-agent inventory, or
    with a clear statement that inventory is unavailable. Include only session

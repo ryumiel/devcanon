@@ -151,6 +151,8 @@ Controller records the combined spec and code-quality finding set routed to Task
 Task 2 implementer: cleanup outcome=closed=no because routed same-head findings need same-session fixup.
 
 [Implementer fixes issues]
+[Same-session follow-up dispatch]
+Task 2 implementer: agent_id=impl-2 retained, event=followup-dispatch-requested appended after the first turn-completed, operational state transitions from completed to active before follow-up work; all prior events retained.
 Implementer: Removed --json flag, added progress reporting, extracted PROGRESS_INTERVAL constant
 
 [Lifecycle ledger update]
@@ -159,7 +161,10 @@ a second event=turn-completed appended, fixup count=1, blocker state=none, repor
 refreshed, changed files and head SHA refreshed, test state refreshed, snapshot
 state=emitted, cleanup outcome=closed=no because spec re-review and any required
 code-quality re-review or disposition are pending.
-Task 2 code-quality reviewer: operational state=superseded, workflow return status=findings-recorded, reviewer disposition=stale, event=superseded appended after turn-completed; prior events retained. Rerun quality unless irrelevance is proven.
+Task 2 code-quality reviewer: operational state=completed, workflow return status=findings-recorded, reviewer disposition=stale, close history remains close-attempted then close-succeeded, cleanup outcome remains closed=yes. Only the disposition changes because the reviewed head became stale; lifecycle state and prior events are not rewritten. Rerun quality unless irrelevance is proven.
+
+[Independent actual session supersession]
+Controller observes that backup reviewer `quality-backup-1` is still active and has not returned after its scope is replaced. It appends event=superseded, sets operational state=superseded, preserves dispatch-requested and identity-assigned, records no turn-completed event or workflow return status, and projects cleanup separately.
 
 [Revalidate effective review route]
 Controller compares the original Task 2 base SHA to the refreshed task head.
@@ -193,7 +198,7 @@ Task 2 code-quality re-reviewer: operational state=completed, workflow return st
 Task 2 implementer: operational state=completed, workflow return status=DONE, report captured, base/head SHA captured, changed files captured, snapshot state=emitted, test state captured, event=close-attempted then event=close-succeeded, cleanup outcome=closed=yes after reviewer loops passed.
 Task 2 spec reviewer: agent_id=spec-2, operational state=completed, workflow return status=findings-recorded, event=turn-completed, review scope captured, base/head SHA captured, report captured, concrete findings captured, reviewer disposition=final-findings, cleanup outcome=closed=yes after its recorded close success.
 Task 2 spec re-reviewer: agent_id=spec-2-rereview, operational state=completed, workflow return status=DONE, event=turn-completed, review scope captured, base/head SHA captured, report captured, reviewer disposition=final-pass, cleanup outcome=closed=yes after its recorded close success.
-Task 2 code-quality reviewer: agent_id=quality-2, operational state=superseded, workflow return status=findings-recorded, events retain turn-completed then superseded, review scope captured, base/head SHA captured, report captured, concrete findings captured, reviewer disposition=stale, cleanup outcome=closed=yes after its recorded close success.
+Task 2 code-quality reviewer: agent_id=quality-2, operational state=completed, workflow return status=findings-recorded, events retain turn-completed and close-succeeded, review scope captured, base/head SHA captured, report captured, concrete findings captured, reviewer disposition=stale, cleanup outcome=closed=yes after its recorded close success.
 Task 2 code-quality re-reviewer: agent_id=quality-2-rereview, operational state=completed, workflow return status=DONE, event=turn-completed, review scope captured, base/head SHA captured, report captured, reviewer disposition=final-pass, cleanup outcome=closed=yes after its recorded close success.
 
 [Mark Task 2 complete]
@@ -281,6 +286,9 @@ After capture, the controller appends event=closure-unavailable with reason=no c
 
 [Automatic-close retry projection - separate run]
 The session has stable identity and an exposed close operation. The first close records event=close-attempted, event=close-failed, cleanup outcome=closed=no; prior lifecycle events remain. A later retry records event=close-attempted, event=close-succeeded, cleanup outcome=closed=yes without deleting the failed attempt.
+
+[Slot-limit automatic-close failure - separate run]
+The cleanup gate attempts a usable automatic close, appends event=close-failed, and projects cleanup outcome=closed=no. The controller does not retry the spawn yet. It follows the same sanitized operator/UI manual-cleanup guidance as unavailable cleanup, waits for operator confirmation, then retries the spawn exactly once.
 
 [Slot-limit spawn failure on cleanup-unavailable target - separate run]
 Using `subagent-lifecycle` slot-limit recovery:

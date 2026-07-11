@@ -4743,6 +4743,12 @@ describe("existing skills source prose contracts", () => {
     expect(normalized).toContain(
       "Cleanup outcome is a projection of the latest closure event and the current capability tuple",
     );
+    expect(normalized).toContain(
+      "An exposed-but-unusable close operation follows this unavailable path, not `closed=no`",
+    );
+    expect(normalized).toContain(
+      "A failed automatic close with `closed=no` is not permission to retry the spawn",
+    );
   });
 
   it("keeps bundled prompt and runtime-reference prose contracts in source", async () => {

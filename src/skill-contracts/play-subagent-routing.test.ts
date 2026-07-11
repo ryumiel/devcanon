@@ -2339,7 +2339,7 @@ describe("play subagent routing source contracts", () => {
     );
     expect(normalizedExample).toContain("Spec-failure stale-quality path");
     expect(normalizedExample).toContain(
-      "operational state=superseded, workflow return status=findings-recorded, reviewer disposition=stale, event=superseded appended after turn-completed; prior events retained",
+      "operational state=completed, workflow return status=findings-recorded, reviewer disposition=stale, close history remains close-attempted then close-succeeded, cleanup outcome remains closed=yes. Only the disposition changes",
     );
     expect(normalizedExample).toContain(
       "combined spec and code-quality finding set routed to Task 2 implementer",
@@ -2611,17 +2611,20 @@ describe("play subagent routing source contracts", () => {
       "Keep sessions open when the owning workflow still requires same-session follow-up",
     );
     expect(normalizeWhitespace(cleanupGateBeforeSpawns)).toContain(
-      "Never record `closed=yes` unless the current target actually exposed stable ids plus a close operation",
+      "Never record `closed=yes` unless the current target actually exposed stable ids plus a usable close operation",
     );
 
     expect(normalizeWhitespace(cleanupProjection)).toContain(
       "Cleanup outcome is a projection of the latest closure event and the current capability tuple",
     );
     expect(normalizeWhitespace(cleanupProjection)).toContain(
-      "Missing stable identity or a missing close operation appends `closure-unavailable`",
+      "Missing stable identity or a missing exposed, usable close operation appends `closure-unavailable`",
     );
     expect(normalizeWhitespace(cleanupProjection)).toContain(
-      "With both prerequisites present, an unattempted or failed close projects `closed=no`",
+      "An exposed-but-unusable close operation follows this unavailable path, not `closed=no`",
+    );
+    expect(normalizeWhitespace(cleanupProjection)).toContain(
+      "With stable identity and an exposed, usable close operation, an unattempted or actually failed close projects `closed=no`",
     );
     expect(normalizeWhitespace(cleanupProjection)).toContain(
       "A later successful close appends `close-succeeded` and projects `closed=yes`",
@@ -2632,13 +2635,19 @@ describe("play subagent routing source contracts", () => {
 
     expect(slotLimitRecovery).toContain("orchestration resource exhaustion");
     expect(normalizeWhitespace(slotLimitRecovery)).toContain(
+      "If automatic cleanup is unavailable or a usable automatic close attempt fails, surface the same explicit operator/UI manual-cleanup guidance",
+    );
+    expect(normalizeWhitespace(slotLimitRecovery)).toContain(
       "Wait for operator confirmation that manual cleanup is complete before continuing",
     );
     expect(slotLimitRecovery).toContain(
       "Reconstruct active workflow state from the lifecycle ledger",
     );
     expect(normalizeWhitespace(slotLimitRecovery)).toContain(
-      "Retry the spawn exactly once after automatic cleanup completes or after the operator confirms manual cleanup",
+      "Retry the spawn exactly once only after automatic cleanup projects `closed=yes` for the sessions blocking capacity or after the operator confirms manual cleanup",
+    );
+    expect(normalizeWhitespace(slotLimitRecovery)).toContain(
+      "A failed automatic close with `closed=no` is not permission to retry the spawn",
     );
     expect(slotLimitRecovery).toContain(
       "Repeated failures after the single retry are not permission to keep spawning",
@@ -2714,6 +2723,15 @@ describe("play subagent routing source contracts", () => {
       apiActions: string[];
       inheritedControls: boolean;
       promisedLowLevelCodexClose: boolean;
+      events: string[];
+      workflowReturnStatus: string | null;
+      reviewerDispositionClassified: boolean;
+      reviewerDisposition: string | null;
+      reliableInventory: boolean;
+      trackedStableIdentity: boolean;
+      closeOperationUsable: boolean;
+      closeAttempted: boolean;
+      closeFailed: boolean;
     };
 
     const apiActions = [
@@ -2738,6 +2756,15 @@ describe("play subagent routing source contracts", () => {
       apiActions,
       inheritedControls: false,
       promisedLowLevelCodexClose: false,
+      events: ["dispatch-requested", "identity-assigned", "interrupted"],
+      workflowReturnStatus: null,
+      reviewerDispositionClassified: false,
+      reviewerDisposition: null,
+      reliableInventory: false,
+      trackedStableIdentity: true,
+      closeOperationUsable: false,
+      closeAttempted: false,
+      closeFailed: false,
     };
 
     function invalidDimensions(example: LifecycleExample): string[] {
@@ -2786,6 +2813,74 @@ describe("play subagent routing source contracts", () => {
         errors.push("codex-low-level-close-promise");
         return errors;
       }
+      for (const [earlier, later] of [
+        ["dispatch-requested", "identity-assigned"],
+        ["identity-assigned", "turn-completed"],
+        ["close-attempted", "close-failed"],
+        ["close-attempted", "close-succeeded"],
+      ] as const) {
+        const earlierIndex = example.events.indexOf(earlier);
+        const laterIndex = example.events.indexOf(later);
+        if (
+          earlierIndex >= 0 &&
+          laterIndex >= 0 &&
+          earlierIndex >= laterIndex
+        ) {
+          errors.push("event-history");
+          return errors;
+        }
+      }
+      const hasCompletion = example.events.includes("turn-completed");
+      if (
+        (example.operationalState === "completed" && !hasCompletion) ||
+        (example.operationalState === "superseded" &&
+          !example.events.includes("superseded"))
+      ) {
+        errors.push("event-history");
+        return errors;
+      }
+      if ((example.workflowReturnStatus !== null) !== hasCompletion) {
+        errors.push("workflow-result");
+        return errors;
+      }
+      if (
+        example.reviewerDispositionClassified !==
+        (example.reviewerDisposition !== null)
+      ) {
+        errors.push("reviewer-disposition");
+        return errors;
+      }
+      const expectedCapability =
+        example.trackedStableIdentity &&
+        example.closeOperationExposed &&
+        example.closeOperationUsable
+          ? "automatic-close-supported"
+          : example.reliableInventory || example.trackedStableIdentity
+            ? "inventory-only"
+            : "cleanup-unavailable";
+      if (example.capability !== expectedCapability) {
+        errors.push("capability-classification");
+        return errors;
+      }
+      const expectedCleanup =
+        !example.trackedStableIdentity ||
+        !example.closeOperationExposed ||
+        !example.closeOperationUsable
+          ? "close-unavailable"
+          : example.closeSucceeded
+            ? "closed=yes"
+            : "closed=no";
+      if (example.cleanup !== expectedCleanup) {
+        errors.push("cleanup-projection");
+        return errors;
+      }
+      if (
+        example.closeFailed &&
+        (!example.closeAttempted || !example.events.includes("close-failed"))
+      ) {
+        errors.push("close-failure-history");
+        return errors;
+      }
       if (
         example.operationalState === "completed" &&
         !example.completionEvent
@@ -2811,6 +2906,8 @@ describe("play subagent routing source contracts", () => {
       operationalState: "superseded",
       reusable: false,
       capability: "cleanup-unavailable",
+      events: [...valid.events, "superseded"],
+      trackedStableIdentity: false,
     };
 
     const invalidFamilies: Array<[string, string, LifecycleExample]> = [
@@ -2875,7 +2972,7 @@ describe("play subagent routing source contracts", () => {
       ],
       [
         "a superseded row becomes completed without a completion event",
-        "completion-event",
+        "event-history",
         {
           ...superseded,
           operationalState: "completed",
@@ -2892,9 +2989,87 @@ describe("play subagent routing source contracts", () => {
       operationalState: "pending",
       agentId: "pending",
       reusable: false,
+      events: ["dispatch-requested"],
+      capability: "cleanup-unavailable",
+      trackedStableIdentity: false,
     };
     expect(invalidDimensions(pending)).toEqual([]);
     expect(invalidDimensions(superseded)).toEqual([]);
+
+    const returned: LifecycleExample = {
+      ...valid,
+      operationalState: "completed",
+      completionEvent: true,
+      events: [...valid.events, "turn-completed"],
+      workflowReturnStatus: "DONE",
+    };
+    expect(invalidDimensions(returned)).toEqual([]);
+    expect(invalidDimensions({ ...returned, events: valid.events })).toEqual([
+      "event-history",
+    ]);
+    expect(
+      invalidDimensions({ ...returned, workflowReturnStatus: null }),
+    ).toEqual(["workflow-result"]);
+    expect(
+      invalidDimensions({
+        ...returned,
+        reviewerDispositionClassified: true,
+        reviewerDisposition: null,
+      }),
+    ).toEqual(["reviewer-disposition"]);
+
+    const inventoryBacked: LifecycleExample = {
+      ...valid,
+      agentId: "untracked",
+      reliableInventory: true,
+      trackedStableIdentity: false,
+    };
+    expect(invalidDimensions(inventoryBacked)).toEqual([]);
+    expect(
+      invalidDimensions({
+        ...valid,
+        agentId: "untracked",
+        capability: "cleanup-unavailable",
+        reliableInventory: false,
+        trackedStableIdentity: false,
+        closeOperationExposed: true,
+        closeOperationUsable: false,
+      }),
+    ).toEqual([]);
+    expect(
+      invalidDimensions({
+        ...valid,
+        closeOperationExposed: true,
+        closeOperationUsable: false,
+        cleanup: "closed=no",
+      }),
+    ).toEqual(["cleanup-projection"]);
+
+    const failedClose: LifecycleExample = {
+      ...returned,
+      capability: "automatic-close-supported",
+      cleanup: "closed=no",
+      closeOperationExposed: true,
+      closeOperationUsable: true,
+      closeAttempted: true,
+      closeFailed: true,
+      events: [...returned.events, "close-attempted", "close-failed"],
+    };
+    expect(invalidDimensions(failedClose)).toEqual([]);
+    expect(
+      invalidDimensions({
+        ...failedClose,
+        events: [...returned.events, "close-failed", "close-attempted"],
+      }),
+    ).toEqual(["event-history"]);
+    expect(
+      invalidDimensions({
+        ...failedClose,
+        cleanup: "closed=yes",
+        closeSucceeded: true,
+        events: [...failedClose.events, "close-succeeded"],
+      }),
+    ).toEqual([]);
   });
 
   it("keeps play-subagent-execution lifecycle delegation and local exceptions in source", async () => {
@@ -3072,7 +3247,22 @@ describe("play subagent routing source contracts", () => {
     expect(task2Section).toContain("findings captured: Magic number (100)");
     expect(task2Section).toContain("re-review target=quality-2-rereview");
     expect(task2Section).toContain(
-      "operational state=superseded, workflow return status=findings-recorded, reviewer disposition=stale, event=superseded appended after turn-completed; prior events retained",
+      "event=followup-dispatch-requested appended after the first turn-completed, operational state transitions from completed to active before follow-up work; all prior events retained",
+    );
+    expect(normalizeWhitespace(task2Section)).toContain(
+      "a second event=turn-completed appended",
+    );
+    expect(task2Section).toContain(
+      "operational state=completed, workflow return status=findings-recorded, reviewer disposition=stale, close history remains close-attempted then close-succeeded, cleanup outcome remains closed=yes. Only the disposition changes",
+    );
+    expect(task2Section).not.toContain(
+      "Task 2 code-quality reviewer: operational state=superseded",
+    );
+    expect(task2Section).toContain(
+      "backup reviewer `quality-backup-1` is still active and has not returned after its scope is replaced",
+    );
+    expect(task2Section).toContain(
+      "appends event=superseded, sets operational state=superseded, preserves dispatch-requested and identity-assigned, records no turn-completed event or workflow return status",
     );
     expect(task2Section).toContain(
       "Task 2 code-quality re-reviewer: operational state=completed, workflow return status=DONE, event=turn-completed, review scope captured",
@@ -3102,6 +3292,12 @@ describe("play subagent routing source contracts", () => {
     );
     expect(targetCapabilityExamples).toContain(
       "event=close-succeeded, cleanup outcome=closed=yes",
+    );
+    expect(targetCapabilityExamples).toContain(
+      "projects cleanup outcome=closed=no. The controller does not retry the spawn yet",
+    );
+    expect(targetCapabilityExamples).toContain(
+      "same sanitized operator/UI manual-cleanup guidance as unavailable cleanup, waits for operator confirmation, then retries the spawn exactly once",
     );
     expect(targetCapabilityExamples).toContain(
       "first captures each completed session's role-specific state",
