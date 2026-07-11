@@ -38,6 +38,7 @@ their spawn points. The shared procedure owns:
 - independent operational, reuse, capability, and cleanup-state semantics;
 - separate current state, workflow return status, reviewer disposition, and
   cleanup projection;
+- orthogonal cleanup evaluation and irreversible reevaluation semantics;
 - target-honest cleanup outcomes;
 - cleanup gates before spawns;
 - slot-limit recovery and one retry after cleanup or manual confirmation.
@@ -69,6 +70,9 @@ implementers continue to read the worktree from disk.
 - Cleanup projection depends on usable closure, and failed automatic close
   attempts enter the same sanitized manual-cleanup confirmation path as
   unavailable automatic cleanup before the single spawn retry.
+- Cleanup evaluation distinguishes open, not-yet-evaluated rows from evaluated
+  projection and remains evaluated when later capability facts cause
+  reevaluation.
 - Slot-limit failures are handled as orchestration resource exhaustion, with
   state reconstruction and one retry after cleanup or manual confirmation.
 - Workflow-local exceptions remain explicit, so shared cleanup policy does not

@@ -2482,6 +2482,12 @@ describe("play subagent routing source contracts", () => {
     expect(normalizeWhitespace(controllerLifecycleLedger)).toContain(
       "Reuse state may be `reusable`; `inventory-only` is a capability class, not an operational state",
     );
+    expect(controllerLifecycleLedger).toContain(
+      "cleanup evaluation state: `not-evaluated` or `evaluated`",
+    );
+    expect(normalizeWhitespace(controllerLifecycleLedger)).toContain(
+      "do not append `closure-unavailable` merely because `agent_id=pending` is temporary",
+    );
 
     expect(normalizeWhitespace(orderedLifecycleEvents)).toContain(
       "ordered, append-only lifecycle-event history",
@@ -2615,7 +2621,16 @@ describe("play subagent routing source contracts", () => {
     );
 
     expect(normalizeWhitespace(cleanupProjection)).toContain(
-      "Cleanup outcome is a projection of the latest closure event and the current capability tuple",
+      "after that transition, cleanup outcome is a deterministic projection of the latest applicable closure event and current capability tuple",
+    );
+    expect(normalizeWhitespace(cleanupProjection)).toContain(
+      "`not-evaluated` permits `closed=no` only as an open-session observation and does not project capability or closure events",
+    );
+    expect(normalizeWhitespace(cleanupProjection)).toContain(
+      "The cleanup gate transitions the row to `evaluated`",
+    );
+    expect(normalizeWhitespace(cleanupProjection)).toContain(
+      "Evaluation never returns to `not-evaluated`",
     );
     expect(normalizeWhitespace(cleanupProjection)).toContain(
       "Missing stable identity or a missing exposed, usable close operation appends `closure-unavailable`",
@@ -2732,7 +2747,7 @@ describe("play subagent routing source contracts", () => {
       closeOperationUsable: boolean;
       closeAttempted: boolean;
       closeFailed: boolean;
-      cleanupEvaluated: boolean;
+      cleanupEvaluation: "not-evaluated" | "evaluated";
     };
 
     const apiActions = [
@@ -2771,7 +2786,7 @@ describe("play subagent routing source contracts", () => {
       closeOperationUsable: false,
       closeAttempted: false,
       closeFailed: false,
-      cleanupEvaluated: true,
+      cleanupEvaluation: "evaluated",
     };
 
     function invalidDimensions(example: LifecycleExample): string[] {
@@ -2892,12 +2907,29 @@ describe("play subagent routing source contracts", () => {
           : example.closeSucceeded
             ? "closed=yes"
             : "closed=no";
-      if (example.cleanupEvaluated && example.cleanup !== expectedCleanup) {
+      const closureEvents = new Set([
+        "closure-unavailable",
+        "close-attempted",
+        "close-failed",
+        "close-succeeded",
+      ]);
+      if (
+        example.cleanupEvaluation === "not-evaluated" &&
+        (example.cleanup !== "closed=no" ||
+          example.events.some((event) => closureEvents.has(event)))
+      ) {
+        errors.push("cleanup-evaluation-state");
+        return errors;
+      }
+      if (
+        example.cleanupEvaluation === "evaluated" &&
+        example.cleanup !== expectedCleanup
+      ) {
         errors.push("cleanup-projection");
         return errors;
       }
       if (
-        example.cleanupEvaluated &&
+        example.cleanupEvaluation === "evaluated" &&
         example.cleanup === "close-unavailable" &&
         !example.events.includes("closure-unavailable")
       ) {
@@ -2905,7 +2937,7 @@ describe("play subagent routing source contracts", () => {
         return errors;
       }
       if (
-        example.cleanupEvaluated &&
+        example.cleanupEvaluation === "evaluated" &&
         example.closeAttempted &&
         !example.events.includes("close-attempted")
       ) {
@@ -2913,7 +2945,7 @@ describe("play subagent routing source contracts", () => {
         return errors;
       }
       if (
-        example.cleanupEvaluated &&
+        example.cleanupEvaluation === "evaluated" &&
         example.cleanup === "closed=yes" &&
         !example.events.includes("close-succeeded")
       ) {
@@ -3039,7 +3071,7 @@ describe("play subagent routing source contracts", () => {
       capability: "cleanup-unavailable",
       trackedStableIdentity: false,
       cleanup: "closed=no",
-      cleanupEvaluated: false,
+      cleanupEvaluation: "not-evaluated",
     };
     expect(invalidDimensions(pending)).toEqual([]);
     expect(invalidDimensions(superseded)).toEqual([]);
@@ -3093,6 +3125,24 @@ describe("play subagent routing source contracts", () => {
         ],
       }),
     ).toEqual([]);
+    const reevaluatedAfterCapabilityChange: LifecycleExample = {
+      ...returned,
+      capability: "automatic-close-supported",
+      cleanup: "closed=yes",
+      closeOperationExposed: true,
+      closeOperationUsable: true,
+      closeAttempted: true,
+      closeSucceeded: true,
+      events: [...returned.events, "close-attempted", "close-succeeded"],
+      cleanupEvaluation: "evaluated",
+    };
+    expect(invalidDimensions(reevaluatedAfterCapabilityChange)).toEqual([]);
+    expect(
+      invalidDimensions({
+        ...reevaluatedAfterCapabilityChange,
+        cleanupEvaluation: "not-evaluated",
+      }),
+    ).toEqual(["cleanup-evaluation-state"]);
     expect(
       invalidDimensions({
         ...valid,
@@ -3333,9 +3383,13 @@ describe("play subagent routing source contracts", () => {
     expect(exampleWorkflow).toContain(
       "Every later implementer, reviewer, re-reviewer, and final reviewer dispatch gets its own row",
     );
+    expect(exampleWorkflow).toContain(
+      "cleanup evaluation is `not-evaluated` while the row merely reports an open `closed=no` session with no closure event",
+    );
+    expect(exampleWorkflow).toContain("later reevaluation remains `evaluated`");
 
     expect(normalizeWhitespace(task1Section)).toContain(
-      "operational state=completed, workflow return status=DONE, event=turn-completed appended after dispatch-requested and identity-assigned, report captured, base/head SHA captured, changed files captured, snapshot state=emitted, test state captured, cleanup outcome=closed=no because reviewer fix loops may still need same-session follow-up",
+      "operational state=completed, workflow return status=DONE, event=turn-completed appended after dispatch-requested and identity-assigned, report captured, base/head SHA captured, changed files captured, snapshot state=emitted, test state captured, cleanup evaluation=not-evaluated, cleanup outcome=closed=no because reviewer fix loops may still need same-session follow-up",
     );
     expect(task1Section).toContain(
       "Parallel happy path: same-head spec and quality pass",
@@ -3438,7 +3492,7 @@ describe("play subagent routing source contracts", () => {
       "appends event=superseded, sets current operational state=superseded, preserves dispatch-requested and identity-assigned, and records no turn-completed event or workflow return status",
     );
     expect(targetCapabilityExamples).toContain(
-      "event=close-attempted then event=close-succeeded and projects cleanup outcome=closed=yes",
+      "cleanup evaluation=evaluated; with stable identity and usable closure, it appends event=close-attempted then event=close-succeeded and projects cleanup outcome=closed=yes",
     );
     expect(targetCapabilityExamples).toContain(
       "inventory-only: no inventory operation is exposed, but the controller retains tracked stable agent ids and no usable close operation",

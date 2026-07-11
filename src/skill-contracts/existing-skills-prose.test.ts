@@ -4741,7 +4741,7 @@ describe("existing skills source prose contracts", () => {
       "Workflow return status is absent before a return is observed and required after it is observed",
     );
     expect(normalized).toContain(
-      "Cleanup outcome is a projection of the latest closure event and the current capability tuple",
+      "after that transition, cleanup outcome is a deterministic projection of the latest applicable closure event and current capability tuple",
     );
     expect(normalized).toContain(
       "An exposed-but-unusable close operation follows this unavailable path, not `closed=no`",
@@ -4749,6 +4749,10 @@ describe("existing skills source prose contracts", () => {
     expect(normalized).toContain(
       "A failed automatic close with `closed=no` is not permission to retry the spawn",
     );
+    expect(normalized).toContain(
+      "one cleanup evaluation state: `not-evaluated` or `evaluated`",
+    );
+    expect(normalized).toContain("Evaluation never returns to `not-evaluated`");
   });
 
   it("keeps bundled prompt and runtime-reference prose contracts in source", async () => {

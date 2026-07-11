@@ -37,6 +37,7 @@ and cleanup outcome are independent ledger dimensions. Each row records:
 - reuse state when relevant, such as `reusable` after a context-preserving
   interruption;
 - the target capability class when relevant;
+- one cleanup evaluation state: `not-evaluated` or `evaluated`;
 - an ordered, append-only lifecycle-event history;
 - workflow return status after a return is observed;
 - reviewer disposition after it is classified;
@@ -58,8 +59,11 @@ operational state `pending` and `agent_id=pending`; do not fabricate a stable
 id. After dispatch, append the observed identity event and set current
 operational state to `active`. Reuse state may be
 `reusable`; `inventory-only` is a capability class, not an operational state.
-Cleanup remains `closed=yes`, `closed=no`, or
-`close-unavailable: <reason>`. Interruption and supersession never imply
+New and pre-dispatch rows use cleanup evaluation `not-evaluated`. They may use
+`closed=no` only to mean the session is currently open; do not append
+`closure-unavailable` merely because `agent_id=pending` is temporary. Cleanup
+outcome remains `closed=yes`, `closed=no`, or `close-unavailable: <reason>`.
+Interruption and supersession never imply
 completion or closure; record completion events and cleanup outcomes
 separately. The ledger is the source for controller recovery after
 orchestration failures; git remains the source for repository state.
@@ -143,8 +147,11 @@ all required before recording `closed=yes`.
 
 ## Cleanup Projection
 
-Cleanup outcome is a projection of the latest closure event and the current
-capability tuple:
+Cleanup evaluation is orthogonal to cleanup outcome. Before the cleanup gate,
+`not-evaluated` permits `closed=no` only as an open-session observation and
+does not project capability or closure events. The cleanup gate transitions the
+row to `evaluated`; after that transition, cleanup outcome is a deterministic
+projection of the latest applicable closure event and current capability tuple:
 
 - Missing stable identity or a missing exposed, usable close operation appends
   `closure-unavailable` with the concrete reason and projects
@@ -160,6 +167,12 @@ capability facts. A failed close is not unavailable, and a later success
 replaces `closed=no` with `closed=yes` without deleting the failed-attempt
 history.
 
+Later capability changes trigger reevaluation by appending newly observed
+capability and closure events, keeping cleanup evaluation `evaluated`, and
+projecting from the latest applicable fact. Evaluation never returns to
+`not-evaluated`; it is not an escape hatch for an outcome, event, or capability
+contradiction.
+
 ## Cleanup Gate Before Spawns
 
 Before every new subagent spawn, inspect the lifecycle ledger for completed or
@@ -168,14 +181,16 @@ role-specific state has already been captured.
 
 1. Capture the role-specific state needed by the owning workflow before
    closing or superseding any session.
-2. When the target is `automatic-close-supported`, attempt to close completed
+2. Transition cleanup evaluation from `not-evaluated` to `evaluated`. A row
+   already evaluated remains `evaluated` during later reevaluation.
+3. When the target is `automatic-close-supported`, attempt to close completed
    or superseded sessions after the required state is recorded, append the
    observed close events, and project `closed=no` or `closed=yes` from the
    result.
-3. When the target is `inventory-only` or `cleanup-unavailable`, first capture
+4. When the target is `inventory-only` or `cleanup-unavailable`, first capture
    the same role-specific state, then record the `close-unavailable` reason
    before spawning instead of claiming closure.
-4. Keep sessions open when the owning workflow still requires same-session
+5. Keep sessions open when the owning workflow still requires same-session
    follow-up and the captured state is not sufficient for a replacement
    session.
 
