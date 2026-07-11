@@ -617,6 +617,40 @@ describe("play subagent routing source contracts", () => {
       "## Phase 4: Invoke Brainstorming",
     );
     const normalizedPhase3 = normalizeWhitespace(phase3);
+    const lifecycleConcurrentJoin = sliceBetween(
+      phase3,
+      "### Lifecycle and Concurrent Join",
+      "### Child Report Validation",
+    );
+    const lifecycleProjectionErrors = (section: string): string[] => {
+      const normalizedSection = normalizeWhitespace(section);
+      const errors: string[] = [];
+      for (const family of [
+        "successful",
+        "deliberately deferred",
+        "failed-attempt",
+        "unavailable",
+      ]) {
+        if (!normalizedSection.includes(family)) {
+          errors.push(`missing-${family}`);
+        }
+      }
+      if (
+        normalizedSection.includes(
+          "otherwise record the honest `close-unavailable` outcome",
+        )
+      ) {
+        errors.push("binary-cleanup-fallback");
+      }
+      if (
+        !normalizedSection.includes(
+          "complete shared cleanup projection contract",
+        )
+      ) {
+        errors.push("owner-projection-delegation");
+      }
+      return errors;
+    };
 
     expect(normalizedPhase3).toContain(
       "The depth-0 root is the sole research dispatcher",
@@ -666,6 +700,15 @@ describe("play subagent routing source contracts", () => {
     expect(normalizedPhase3).toContain(
       "capture scope, report result, source references, and blocker state before cleanup",
     );
+    expect(lifecycleProjectionErrors(lifecycleConcurrentJoin)).toEqual([]);
+    expect(
+      lifecycleProjectionErrors(
+        normalizeWhitespace(lifecycleConcurrentJoin).replace(
+          "successful, deliberately deferred, failed-attempt, and unavailable",
+          "successful and unavailable",
+        ),
+      ),
+    ).toEqual(["missing-deliberately deferred", "missing-failed-attempt"]);
     expect(normalizedPhase3).toContain(
       "follow `subagent-lifecycle` § Slot-Limit Recovery",
     );

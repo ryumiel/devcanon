@@ -328,9 +328,11 @@ classify target lifecycle capability, and run the cleanup gate from
 `subagent-lifecycle`. Keep the issue and comment artifacts readable throughout
 the spawn. After a child becomes terminal, capture scope, report result, source
 references, and blocker state before cleanup, supersession, a late dispatch,
-or route selection. Record `closed=yes` only when the current target actually
-closes the stable session; otherwise record the honest `close-unavailable`
-outcome.
+or route selection. Use `subagent-lifecycle`'s complete shared cleanup
+projection contract for successful, deliberately deferred, failed-attempt,
+and unavailable outcomes. Do not collapse deferred or failed open sessions
+into `close-unavailable`; preserve the owner-projected events, associated
+reason history, and outcome before continuing.
 
 If any internal, immediate external, or late external spawn fails because slots
 are exhausted, follow `subagent-lifecycle` § Slot-Limit Recovery. Preserve the
