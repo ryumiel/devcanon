@@ -4634,7 +4634,7 @@ describe("play subagent routing source contracts", () => {
     type LifecycleEvent = {
       order: number;
       kind:
-        | "session-identity-resolved"
+        | "session-identity-assigned"
         | "operational-classified"
         | "dispatch-requested"
         | "followup-dispatch-requested"
@@ -4660,7 +4660,6 @@ describe("play subagent routing source contracts", () => {
       blockers?: BlockerRecord[];
       sessionId?: string;
       operationalState?: OperationalState;
-      reusable?: boolean;
       manualTarget?: ManualTarget;
       reason?: string;
       evidence?: string;
@@ -4678,8 +4677,11 @@ describe("play subagent routing source contracts", () => {
       sessionIdentity:
         | { kind: "unresolved" }
         | { kind: "stable"; sessionId: string };
+      sessionReusable: boolean;
       operationalState: OperationalState | null;
       operationalTransitionOrder: number;
+      dispatchRequestOrder: number;
+      captureRequiredAfterOrder: number;
       latestTerminalOrder: number;
       abnormalContextRequiredSince: number;
       captureFreshThroughOrder: number;
@@ -4687,6 +4689,7 @@ describe("play subagent routing source contracts", () => {
       abnormalContextOrder: number;
       cleanupEligibilityOrder: number;
       retained: boolean;
+      retentionReasonHistory: string[];
       terminal: boolean;
       outstandingAttempt: {
         scope: string;
@@ -4707,6 +4710,7 @@ describe("play subagent routing source contracts", () => {
       errors: string[];
       histories: Map<string, LifecycleEvent["kind"][]>;
       projections: Map<string, Projection>;
+      retentionReasonHistories: Map<string, string[]>;
     };
 
     const NORMAL_GATE_SCOPE = "normal-gate";
@@ -4733,6 +4737,7 @@ describe("play subagent routing source contracts", () => {
       errors: [error],
       histories: new Map(),
       projections: new Map(),
+      retentionReasonHistories: new Map(),
     });
     const sanitizedIdentity = (value: string): boolean =>
       /^[A-Za-z0-9._-]+$/.test(value);
@@ -4770,8 +4775,11 @@ describe("play subagent routing source contracts", () => {
         const created: RowFold = {
           history: [],
           sessionIdentity: { kind: "unresolved" },
+          sessionReusable: false,
           operationalState: null,
           operationalTransitionOrder: 0,
+          dispatchRequestOrder: 0,
+          captureRequiredAfterOrder: 0,
           latestTerminalOrder: 0,
           abnormalContextRequiredSince: 0,
           captureFreshThroughOrder: 0,
@@ -4779,6 +4787,7 @@ describe("play subagent routing source contracts", () => {
           abnormalContextOrder: 0,
           cleanupEligibilityOrder: 0,
           retained: false,
+          retentionReasonHistory: [],
           terminal: false,
           outstandingAttempt: null,
           manualEligibleEpisode: null,
@@ -4799,9 +4808,13 @@ describe("play subagent routing source contracts", () => {
         state: RowFold,
         nextState: OperationalState,
         order: number,
+        preserveCaptureRequirement = false,
       ): void => {
         state.operationalState = nextState;
         state.operationalTransitionOrder = order;
+        if (!preserveCaptureRequirement) {
+          state.captureRequiredAfterOrder = order;
+        }
         state.cleanupEligibilityOrder = 0;
         state.manualEligibleEpisode = null;
         state.manualPathOrder = 0;
@@ -4814,7 +4827,7 @@ describe("play subagent routing source contracts", () => {
         ) {
           return "cleanup-ineligible-operational-state";
         }
-        if (state.captureFreshThroughOrder < state.operationalTransitionOrder) {
+        if (state.captureFreshThroughOrder <= state.captureRequiredAfterOrder) {
           return "required-state-capture-stale";
         }
         if (
@@ -4975,6 +4988,9 @@ describe("play subagent routing source contracts", () => {
             if (state.terminal) {
               return fail("terminal-row-relisted-as-blocker");
             }
+            if (state.outstandingAttempt !== null) {
+              return fail("recovery-start-with-outstanding-attempt");
+            }
             rowIds.add(blocker.rowId);
             if (blocker.inventoryIdentity !== undefined) {
               inventoryIds.add(blocker.inventoryIdentity);
@@ -5050,20 +5066,28 @@ describe("play subagent routing source contracts", () => {
         };
 
         switch (event.kind) {
-          case "session-identity-resolved":
+          case "session-identity-assigned":
             if (
               event.sessionId === undefined ||
               !stableSessionId(event.sessionId)
             ) {
-              return fail("resolved-session-identity-evidence");
+              return fail("assigned-session-identity-evidence");
             }
             if (state.sessionIdentity.kind === "stable") {
-              return fail("session-identity-already-resolved");
+              return fail("session-identity-already-assigned");
+            }
+            if (
+              state.operationalState !== "pending" ||
+              state.dispatchRequestOrder === 0
+            ) {
+              return fail("identity-assigned-before-dispatch");
             }
             state.sessionIdentity = {
               kind: "stable",
               sessionId: event.sessionId,
             };
+            state.sessionReusable = false;
+            advanceOperational(state, "active", event.order);
             break;
           case "operational-classified":
             if (
@@ -5085,16 +5109,23 @@ describe("play subagent routing source contracts", () => {
             ) {
               return fail("illegal-dispatch-transition");
             }
-            advanceOperational(state, "active", event.order);
+            if (state.sessionIdentity.kind === "stable") {
+              return fail("pre-dispatch-stable-session-identity");
+            }
+            state.dispatchRequestOrder = event.order;
+            advanceOperational(state, "pending", event.order);
             break;
           case "followup-dispatch-requested":
             if (
-              state.operationalState === null ||
-              !cleanupEligibleTerminals.has(state.operationalState)
+              state.operationalState !== "completed" ||
+              state.latestTerminalOrder === 0 ||
+              state.sessionIdentity.kind !== "stable" ||
+              !state.sessionReusable
             ) {
               return fail("illegal-followup-dispatch-transition");
             }
             advanceOperational(state, "active", event.order);
+            state.sessionReusable = false;
             break;
           case "waiting":
             if (state.operationalState !== "active") {
@@ -5112,6 +5143,9 @@ describe("play subagent routing source contracts", () => {
             advanceOperational(state, "interrupted", event.order);
             break;
           case "required-state-captured":
+            if (state.operationalState === "pending") {
+              return fail("progress-before-session-identity");
+            }
             if (
               event.evidence === undefined ||
               event.evidence.trim().length === 0
@@ -5121,6 +5155,9 @@ describe("play subagent routing source contracts", () => {
             state.captureFreshThroughOrder = event.order;
             break;
           case "replacement-secured":
+            if (state.operationalState === "pending") {
+              return fail("progress-before-session-identity");
+            }
             if (
               event.evidence === undefined ||
               event.evidence.trim().length === 0
@@ -5158,6 +5195,7 @@ describe("play subagent routing source contracts", () => {
                   : "failed";
             advanceOperational(state, nextState, event.order);
             state.latestTerminalOrder = event.order;
+            state.sessionReusable = event.kind === "turn-completed";
             if (event.kind !== "turn-completed") {
               state.abnormalContextRequiredSince = event.order;
               state.abnormalContextOrder = 0;
@@ -5166,7 +5204,12 @@ describe("play subagent routing source contracts", () => {
           }
           case "superseded": {
             const previousState = state.operationalState;
-            if (previousState === null || previousState === "superseded") {
+            if (
+              previousState === null ||
+              previousState === "pending" ||
+              previousState === "unknown" ||
+              previousState === "superseded"
+            ) {
               return fail("illegal-supersession-transition");
             }
             if (openStates.has(previousState)) {
@@ -5176,13 +5219,7 @@ describe("play subagent routing source contracts", () => {
               ) {
                 return fail("supersession-capture-stale");
               }
-              const replacementRequired =
-                previousState === "waiting" ||
-                (previousState === "interrupted" && event.reusable === true);
-              if (
-                replacementRequired &&
-                state.replacementOrder <= state.operationalTransitionOrder
-              ) {
+              if (state.replacementOrder <= state.operationalTransitionOrder) {
                 return fail("supersession-replacement-stale");
               }
             } else if (
@@ -5191,16 +5228,18 @@ describe("play subagent routing source contracts", () => {
             ) {
               return fail("terminal-result-capture-stale");
             } else if (
-              (previousState === "timed-out" || previousState === "failed") &&
-              state.abnormalContextOrder <= state.latestTerminalOrder
+              previousState === "timed-out" ||
+              previousState === "failed"
             ) {
-              return fail("abnormal-supersession-context-stale");
+              if (state.captureFreshThroughOrder <= state.latestTerminalOrder) {
+                return fail("abnormal-supersession-capture-stale");
+              }
+              if (state.abnormalContextOrder <= state.latestTerminalOrder) {
+                return fail("abnormal-supersession-context-stale");
+              }
             }
-            advanceOperational(state, "superseded", event.order);
-            state.captureFreshThroughOrder = event.order;
-            if (state.replacementOrder > 0) {
-              state.replacementOrder = event.order;
-            }
+            advanceOperational(state, "superseded", event.order, true);
+            state.sessionReusable = false;
             break;
           }
           case "close-deferred": {
@@ -5214,11 +5253,9 @@ describe("play subagent routing source contracts", () => {
             ) {
               return fail("close-deferred-reason");
             }
-            if (state.retained) {
-              return fail("duplicate-unresolved-deferral");
-            }
             state.latestRelevantTransitionOrder = event.order;
             state.retained = true;
+            state.retentionReasonHistory.push(event.reason);
             state.projection = {
               decision: "retained",
               outcome: "closed=no",
@@ -5410,6 +5447,12 @@ describe("play subagent routing source contracts", () => {
         projections: new Map(
           [...rows].map(([rowId, state]) => [rowId, state.projection]),
         ),
+        retentionReasonHistories: new Map(
+          [...rows].map(([rowId, state]) => [
+            rowId,
+            state.retentionReasonHistory,
+          ]),
+        ),
       };
     }
 
@@ -5438,31 +5481,36 @@ describe("play subagent routing source contracts", () => {
       const facts: LifecycleEvent[] = [];
       if (resolveSession) {
         facts.push(
-          event("session-identity-resolved", 1, {
+          event("dispatch-requested", 1),
+          event("session-identity-assigned", 2, {
             sessionId: "session-1",
           }),
         );
       }
-      const offset = resolveSession ? 1 : 0;
+      const terminalOrder = resolveSession ? 3 : 2;
+      if (!resolveSession) {
+        facts.push(
+          event("operational-classified", 1, {
+            operationalState: "active",
+          }),
+        );
+      }
       facts.push(
-        event("operational-classified", 1 + offset, {
-          operationalState: "active",
-        }),
         event(
           terminal === "completed"
             ? "turn-completed"
             : terminal === "timed-out"
               ? "turn-timed-out"
               : "turn-failed",
-          2 + offset,
+          terminalOrder,
         ),
-        event("required-state-captured", 3 + offset, {
+        event("required-state-captured", terminalOrder + 1, {
           evidence: "current role state captured",
         }),
       );
       if (terminal !== "completed") {
         facts.push(
-          event("abnormal-context-captured", 4 + offset, {
+          event("abnormal-context-captured", terminalOrder + 2, {
             evidence: "abnormal terminal context captured",
           }),
         );
@@ -5498,9 +5546,12 @@ describe("play subagent routing source contracts", () => {
         reason: "no usable close operation",
         ...overrides,
       });
-    const deferral = (order = 6): LifecycleEvent =>
+    const deferral = (
+      order = 6,
+      reason = "same-session fixup required",
+    ): LifecycleEvent =>
       event("close-deferred", order, {
-        reason: "same-session fixup required",
+        reason,
       });
     const resolution = (order = 7): LifecycleEvent =>
       event("retention-resolved", order, {
@@ -5540,6 +5591,27 @@ describe("play subagent routing source contracts", () => {
         automaticClose("close-succeeded", 12),
       ]).errors,
     ).toEqual([]);
+    expectError(
+      [
+        event("session-identity-assigned", 1, { sessionId: "session-1" }),
+        episodeStart(),
+      ],
+      "identity-assigned-before-dispatch",
+    );
+    expectError(
+      [
+        event("dispatch-requested", 1),
+        event("required-state-captured", 2, {
+          evidence: "capture before identity",
+        }),
+        episodeStart(),
+      ],
+      "progress-before-session-identity",
+    );
+    expectError(
+      [event("dispatch-requested", 1), event("waiting", 2), episodeStart()],
+      "illegal-waiting-transition",
+    );
     for (const terminal of ["completed", "timed-out", "failed"] as const) {
       expect(
         foldLifecycle(manualPath(operationalFacts(terminal))).errors,
@@ -5549,11 +5621,8 @@ describe("play subagent routing source contracts", () => {
 
     expect(
       foldLifecycle([
-        event("session-identity-resolved", 1, { sessionId: "session-1" }),
-        event("operational-classified", 2, {
-          operationalState: "pending",
-        }),
-        event("dispatch-requested", 3),
+        event("dispatch-requested", 1),
+        event("session-identity-assigned", 2, { sessionId: "session-1" }),
         event("waiting", 4),
         event("turn-completed", 5),
         event("required-state-captured", 6, { evidence: "result captured" }),
@@ -5580,11 +5649,13 @@ describe("play subagent routing source contracts", () => {
     const pendingSnapshot = blocker({ sessionRef: { kind: "pending" } });
     expect(
       foldLifecycle([
-        ...operationalFacts("completed", false),
+        event("dispatch-requested", 1),
         episodeStart(10, { blockers: [pendingSnapshot] }),
-        event("session-identity-resolved", 11, { sessionId: "session-1" }),
-        automaticClose("close-attempted", 12),
-        automaticClose("close-succeeded", 13),
+        event("session-identity-assigned", 11, { sessionId: "session-1" }),
+        event("turn-completed", 12),
+        event("required-state-captured", 13, { evidence: "result captured" }),
+        automaticClose("close-attempted", 14),
+        automaticClose("close-succeeded", 15),
       ]).errors,
     ).toEqual([]);
     expect(
@@ -5645,6 +5716,14 @@ describe("play subagent routing source contracts", () => {
       ],
       "unpaired-close-result",
     );
+    expectError(
+      [
+        ...operationalFacts(),
+        automaticClose("close-attempted", 5, { episodeId: undefined }),
+        episodeStart(),
+      ],
+      "recovery-start-with-outstanding-attempt",
+    );
 
     expectError(
       [...operationalFacts(), event("turn-failed", 5), episodeStart()],
@@ -5660,6 +5739,33 @@ describe("play subagent routing source contracts", () => {
           operationalState: "active",
         }),
         event("followup-dispatch-requested", 2),
+        episodeStart(),
+      ],
+      "illegal-followup-dispatch-transition",
+    );
+    expectError(
+      [
+        ...operationalFacts("completed", false),
+        event("followup-dispatch-requested", 4),
+        episodeStart(),
+      ],
+      "illegal-followup-dispatch-transition",
+    );
+    for (const terminal of ["timed-out", "failed"] as const) {
+      expectError(
+        [
+          ...operationalFacts(terminal),
+          event("followup-dispatch-requested", 6),
+          episodeStart(),
+        ],
+        "illegal-followup-dispatch-transition",
+      );
+    }
+    expectError(
+      [
+        ...operationalFacts(),
+        event("superseded", 5),
+        event("followup-dispatch-requested", 6),
         episodeStart(),
       ],
       "illegal-followup-dispatch-transition",
@@ -5732,37 +5838,45 @@ describe("play subagent routing source contracts", () => {
 
     expect(
       foldLifecycle([
-        event("session-identity-resolved", 1, { sessionId: "session-1" }),
-        event("operational-classified", 2, {
-          operationalState: "waiting",
-        }),
-        event("required-state-captured", 3, { evidence: "waiting captured" }),
-        event("replacement-secured", 4, { evidence: "replacement ready" }),
-        event("superseded", 5),
+        event("dispatch-requested", 1),
+        event("session-identity-assigned", 2, { sessionId: "session-1" }),
+        event("waiting", 3),
+        event("required-state-captured", 4, { evidence: "waiting captured" }),
+        event("replacement-secured", 5, { evidence: "replacement ready" }),
+        event("superseded", 6),
         episodeStart(),
         unavailable(11),
         confirmation(12),
       ]).errors,
     ).toEqual([]);
     expectError(
+      [event("dispatch-requested", 1), event("superseded", 2), episodeStart()],
+      "illegal-supersession-transition",
+    );
+    expectError(
       [
-        event("session-identity-resolved", 1, { sessionId: "session-1" }),
-        event("operational-classified", 2, {
-          operationalState: "waiting",
-        }),
-        event("replacement-secured", 3, { evidence: "replacement ready" }),
-        event("superseded", 4),
-        event("required-state-captured", 5, { evidence: "too late" }),
+        event("operational-classified", 1, { operationalState: "unknown" }),
+        event("superseded", 2),
+        episodeStart(),
+      ],
+      "illegal-supersession-transition",
+    );
+    expectError(
+      [
+        event("dispatch-requested", 1),
+        event("session-identity-assigned", 2, { sessionId: "session-1" }),
+        event("waiting", 3),
+        event("replacement-secured", 4, { evidence: "replacement ready" }),
+        event("superseded", 5),
+        event("required-state-captured", 6, { evidence: "too late" }),
         episodeStart(),
       ],
       "supersession-capture-stale",
     );
     expectError(
       [
-        event("session-identity-resolved", 1, { sessionId: "session-1" }),
-        event("operational-classified", 2, {
-          operationalState: "active",
-        }),
+        event("dispatch-requested", 1),
+        event("session-identity-assigned", 2, { sessionId: "session-1" }),
         event("replacement-secured", 3, { evidence: "too early" }),
         event("waiting", 4),
         event("required-state-captured", 5, { evidence: "waiting captured" }),
@@ -5773,15 +5887,15 @@ describe("play subagent routing source contracts", () => {
     );
     expect(
       foldLifecycle([
-        event("session-identity-resolved", 1, { sessionId: "session-1" }),
-        event("operational-classified", 2, {
-          operationalState: "interrupted",
-        }),
-        event("required-state-captured", 3, {
+        event("dispatch-requested", 1),
+        event("session-identity-assigned", 2, { sessionId: "session-1" }),
+        event("waiting", 3),
+        event("interrupted", 4),
+        event("required-state-captured", 5, {
           evidence: "interrupted state captured",
         }),
-        event("replacement-secured", 4, { evidence: "replacement ready" }),
-        event("superseded", 5, { reusable: true }),
+        event("replacement-secured", 6, { evidence: "replacement ready" }),
+        event("superseded", 7),
         episodeStart(),
         unavailable(11),
         confirmation(12),
@@ -5789,14 +5903,48 @@ describe("play subagent routing source contracts", () => {
     ).toEqual([]);
     expectError(
       [
-        event("session-identity-resolved", 1, { sessionId: "session-1" }),
-        event("operational-classified", 2, {
-          operationalState: "interrupted",
+        event("dispatch-requested", 1),
+        event("session-identity-assigned", 2, { sessionId: "session-1" }),
+        event("turn-timed-out", 3),
+        event("abnormal-context-captured", 4, {
+          evidence: "timeout context captured",
         }),
-        event("required-state-captured", 3, {
+        event("superseded", 5),
+        episodeStart(),
+      ],
+      "abnormal-supersession-capture-stale",
+    );
+    expectError(
+      [
+        event("dispatch-requested", 1),
+        event("session-identity-assigned", 2, { sessionId: "session-1" }),
+        event("interrupted", 3),
+        event("required-state-captured", 4, {
           evidence: "interrupted state captured",
         }),
-        event("superseded", 4, { reusable: true }),
+        event("superseded", 5),
+        episodeStart(),
+      ],
+      "supersession-replacement-stale",
+    );
+    expect(
+      foldLifecycle([
+        event("dispatch-requested", 1),
+        event("session-identity-assigned", 2, { sessionId: "session-1" }),
+        event("required-state-captured", 3, { evidence: "active captured" }),
+        event("replacement-secured", 4, { evidence: "replacement ready" }),
+        event("superseded", 5),
+        episodeStart(),
+        unavailable(11),
+        confirmation(12),
+      ]).errors,
+    ).toEqual([]);
+    expectError(
+      [
+        event("dispatch-requested", 1),
+        event("session-identity-assigned", 2, { sessionId: "session-1" }),
+        event("required-state-captured", 3, { evidence: "active captured" }),
+        event("superseded", 4),
         episodeStart(),
       ],
       "supersession-replacement-stale",
@@ -5812,10 +5960,8 @@ describe("play subagent routing source contracts", () => {
     ).toEqual([]);
     expectError(
       [
-        event("session-identity-resolved", 1, { sessionId: "session-1" }),
-        event("operational-classified", 2, {
-          operationalState: "active",
-        }),
+        event("dispatch-requested", 1),
+        event("session-identity-assigned", 2, { sessionId: "session-1" }),
         event("turn-completed", 3),
         event("superseded", 4),
         event("required-state-captured", 5, { evidence: "too late" }),
@@ -5825,10 +5971,8 @@ describe("play subagent routing source contracts", () => {
     );
     expect(
       foldLifecycle([
-        event("session-identity-resolved", 1, { sessionId: "session-1" }),
-        event("operational-classified", 2, {
-          operationalState: "active",
-        }),
+        event("dispatch-requested", 1),
+        event("session-identity-assigned", 2, { sessionId: "session-1" }),
         event("turn-timed-out", 3),
         event("required-state-captured", 4, { evidence: "timeout captured" }),
         event("abnormal-context-captured", 5, {
@@ -5842,10 +5986,8 @@ describe("play subagent routing source contracts", () => {
     ).toEqual([]);
     expectError(
       [
-        event("session-identity-resolved", 1, { sessionId: "session-1" }),
-        event("operational-classified", 2, {
-          operationalState: "active",
-        }),
+        event("dispatch-requested", 1),
+        event("session-identity-assigned", 2, { sessionId: "session-1" }),
         event("turn-failed", 3),
         event("required-state-captured", 4, { evidence: "failure captured" }),
         event("superseded", 5),
@@ -5855,6 +5997,39 @@ describe("play subagent routing source contracts", () => {
         episodeStart(),
       ],
       "abnormal-supersession-context-stale",
+    );
+
+    const repeatedDeferralResult = foldLifecycle([
+      ...operationalFacts(),
+      deferral(6, "same-session review fixup required"),
+      deferral(7, "same-session re-review still required"),
+      episodeStart(),
+      resolution(11),
+      automaticClose("close-attempted", 12),
+      automaticClose("close-succeeded", 13),
+    ]);
+    expect(repeatedDeferralResult.errors).toEqual([]);
+    expect(
+      repeatedDeferralResult.retentionReasonHistories.get("block-1"),
+    ).toEqual([
+      "same-session review fixup required",
+      "same-session re-review still required",
+    ]);
+    expect(repeatedDeferralResult.projections.get("block-1")).toEqual({
+      decision: "attempted",
+      outcome: "closed=yes",
+      retentionReason: null,
+      unavailableReason: null,
+    });
+    expectError(
+      [
+        ...operationalFacts(),
+        deferral(6, "first retention reason"),
+        deferral(7, "replacement retention reason"),
+        episodeStart(),
+        automaticClose("close-attempted", 11),
+      ],
+      "retention-unresolved-before-cleanup",
     );
 
     expectError(
@@ -5946,12 +6121,12 @@ describe("play subagent routing source contracts", () => {
     expectError(
       [
         ...operationalFacts(),
-        event("session-identity-resolved", 5, {
+        event("session-identity-assigned", 5, {
           sessionId: "session-2",
         }),
         episodeStart(),
       ],
-      "session-identity-already-resolved",
+      "session-identity-already-assigned",
     );
     expectError(
       [episodeStart(10, { blockers: [] })],
