@@ -163,9 +163,6 @@ state=emitted, cleanup outcome=closed=no because spec re-review and any required
 code-quality re-review or disposition are pending.
 Task 2 code-quality reviewer: operational state=completed, workflow return status=findings-recorded, reviewer disposition=stale, close history remains close-attempted then close-succeeded, cleanup outcome remains closed=yes. Only the disposition changes because the reviewed head became stale; lifecycle state and prior events are not rewritten. Rerun quality unless irrelevance is proven.
 
-[Independent actual session supersession]
-Controller observes that backup reviewer `quality-backup-1` is still active and has not returned after its scope is replaced. It appends event=superseded, sets operational state=superseded, preserves dispatch-requested and identity-assigned, records no turn-completed event or workflow return status, and projects cleanup separately.
-
 [Revalidate effective review route]
 Controller compares the original Task 2 base SHA to the refreshed task head.
 The route may only preserve or escalate; the refreshed diff still requires
@@ -274,6 +271,12 @@ Branch review: no unresolved remaining `Blocking` findings except `INVALID` or
 `issue-priming-workflow` proceeds to PR creation.
 
 [Alternative target capability examples - separate runs, not the automatic-close run above]
+
+[Isolated lifecycle supersession hypothetical - separate run, not an executor route]
+An owning workflow authorizes one generic scoped support session; this does not add a reviewer or fanout branch to `play-subagent-execution`.
+Pre-dispatch: agent_id=pending, role=scoped-support, operational state=pending, events=[dispatch-requested], workflow return status absent, cleanup outcome=closed=no.
+Post-dispatch: agent_id=support-1, role=scoped-support, operational state=active, events=[dispatch-requested, identity-assigned], workflow return status absent, cleanup outcome=closed=no.
+Before supersession, the controller captures role-specific state: assigned scope, source-state anchor, and the replacement routing reason. The owning workflow then replaces the still-active session, appends event=superseded, sets current operational state=superseded, preserves dispatch-requested and identity-assigned, and records no turn-completed event or workflow return status. With stable identity and usable closure, it appends event=close-attempted then event=close-succeeded and projects cleanup outcome=closed=yes.
 
 [Inventory-only target variant]
 Using `subagent-lifecycle` target capability guidance:
