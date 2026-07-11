@@ -2960,12 +2960,13 @@ describe("play subagent routing source contracts", () => {
         errors.push("cleanup-event-history");
         return errors;
       }
-      const closeSucceededIndex = example.events.lastIndexOf("close-succeeded");
-      const laterUnavailableIndex = example.events.findIndex(
+      const firstCloseSucceededIndex =
+        example.events.indexOf("close-succeeded");
+      const laterClosureControlIndex = example.events.findIndex(
         (event, index) =>
-          index > closeSucceededIndex && event === "closure-unavailable",
+          index > firstCloseSucceededIndex && closureEvents.has(event),
       );
-      if (closeSucceededIndex >= 0 && laterUnavailableIndex >= 0) {
+      if (firstCloseSucceededIndex >= 0 && laterClosureControlIndex >= 0) {
         errors.push("terminal-close-contradiction");
         return errors;
       }
@@ -3163,6 +3164,15 @@ describe("play subagent routing source contracts", () => {
     expect(
       invalidDimensions({
         ...capabilityLossAfterSuccess,
+        events: [
+          ...capabilityLossAfterSuccess.events,
+          "capability-loss-observed",
+        ],
+      }),
+    ).toEqual([]);
+    expect(
+      invalidDimensions({
+        ...capabilityLossAfterSuccess,
         cleanup: "close-unavailable",
       }),
     ).toEqual(["cleanup-projection"]);
@@ -3172,6 +3182,19 @@ describe("play subagent routing source contracts", () => {
         events: [...capabilityLossAfterSuccess.events, "closure-unavailable"],
       }),
     ).toEqual(["terminal-close-contradiction"]);
+    for (const laterClosureEvent of [
+      "close-attempted",
+      "close-failed",
+      "close-succeeded",
+    ]) {
+      expect(
+        invalidDimensions({
+          ...capabilityLossAfterSuccess,
+          events: [...capabilityLossAfterSuccess.events, laterClosureEvent],
+        }),
+        `later ${laterClosureEvent}`,
+      ).toEqual(["terminal-close-contradiction"]);
+    }
     expect(
       invalidDimensions({
         ...reevaluatedAfterCapabilityChange,
