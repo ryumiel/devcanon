@@ -39,6 +39,8 @@ their spawn points. The shared procedure owns:
 - target lifecycle capability classes;
 - surface-specific capability mapping;
 - ordered append-only lifecycle-event history;
+- append-only value-bearing return-status and reviewer-disposition histories
+  with separate latest projections;
 - total usable-control capability classification;
 - independent operational, reuse, capability, and cleanup-state semantics;
 - separate current state, workflow return status, reviewer disposition, and
@@ -51,6 +53,9 @@ their spawn points. The shared procedure owns:
 - target-honest cleanup outcomes;
 - cleanup gates before spawns;
 - normal-gate continuation separately from slot-recovery retry authorization;
+- provider-neutral timeout and runtime-failure terminal outcomes;
+- classification and safe capture of open capacity-blocking rows;
+- row-scoped manual-cleanup confirmation evidence;
 - slot-limit recovery and one retry after cleanup or manual confirmation.
 
 Workflow-specific dispatch rules stay with the workflow that owns them. For
@@ -77,6 +82,12 @@ implementers continue to read the worktree from disk.
 - Ordered lifecycle events preserve observed transitions while current state,
   workflow return status, reviewer disposition, and cleanup outcome remain
   separately derived facts.
+- Every observed return status and reviewer disposition remains in append-only
+  value-bearing history while a separate latest value serves as the current
+  projection through re-entry and reclassification.
+- Runtime `timed-out` and `failed` are operational terminal outcomes with
+  sanitized detail, not task or reviewer verdicts; without an observed return,
+  workflow return status remains absent.
 - Once observed or classified, workflow return status and reviewer disposition
   survive same-session operational re-entry to active or waiting state.
 - Cleanup projection depends on usable closure, and failed automatic close
@@ -98,6 +109,12 @@ implementers continue to read the worktree from disk.
 - A capacity-blocking retained session requires an owning-workflow decision:
   resolve and safely capture or replace the follow-up need before actual or
   operator-confirmed cleanup, or stop and escalate while that need remains.
+- Active, waiting, interrupted, pending, and unknown-identity capacity blockers
+  require state-specific classification before cleanup; unsafe or unresolved
+  open state stops recovery instead of being destroyed or guessed.
+- Manual cleanup confirmation is append-only, row- or inventory-identity-scoped
+  retry evidence with sanitized provenance and time. It preserves the honest
+  cleanup outcome and cannot fabricate automatic closure.
 - Slot-limit failures are handled as orchestration resource exhaustion, with
   state reconstruction and one retry after cleanup or manual confirmation.
 - Workflow-local exceptions remain explicit, so shared cleanup policy does not

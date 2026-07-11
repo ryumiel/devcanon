@@ -2498,8 +2498,8 @@ describe("play subagent routing source contracts", () => {
       "one `agent_id` or `agent_id=pending`",
     );
     expect(controllerLifecycleLedger).toContain("role-specific captured state");
-    expect(controllerLifecycleLedger).toContain(
-      "reviewer disposition after it is classified",
+    expect(normalizeWhitespace(controllerLifecycleLedger)).toContain(
+      "the latest reviewer disposition projection plus append-only classification history with each disposition's concise reason and source-state anchor",
     );
     expect(controllerLifecycleLedger).toContain(
       "fixup count or blocker state when relevant",
@@ -2514,7 +2514,7 @@ describe("play subagent routing source contracts", () => {
       "Operational state, reuse state, target capability class, and cleanup outcome are independent ledger dimensions",
     );
     expect(normalizeWhitespace(controllerLifecycleLedger)).toContain(
-      "`pending`, `active`, `waiting`, `interrupted`, `completed`, or `superseded`",
+      "`pending`, `active`, `waiting`, `interrupted`, `completed`, `timed-out`, `failed`, or `superseded`",
     );
     expect(normalizeWhitespace(controllerLifecycleLedger)).toContain(
       "A pre-dispatch row has operational state `pending` and `agent_id=pending`",
@@ -2544,11 +2544,14 @@ describe("play subagent routing source contracts", () => {
       "interrupted",
       "turn-completed",
       "superseded",
+      "turn-timed-out",
+      "turn-failed",
       "close-attempted",
       "close-deferred",
       "close-failed",
       "close-succeeded",
       "closure-unavailable",
+      "manual-cleanup-confirmed",
     ]) {
       expect(orderedLifecycleEvents).toContain(`\`${event}\``);
     }
@@ -2561,6 +2564,15 @@ describe("play subagent routing source contracts", () => {
     expect(normalizeWhitespace(orderedLifecycleEvents)).toContain(
       "A normal returned turn appends `turn-completed` and sets current operational state to `completed`",
     );
+    expect(normalizeWhitespace(orderedLifecycleEvents)).toContain(
+      "A runtime timeout appends `turn-timed-out` and sets current operational state to `timed-out`; a runtime/session failure appends `turn-failed` and sets it to `failed`",
+    );
+    expect(normalizeWhitespace(orderedLifecycleEvents)).toContain(
+      "These are runtime terminal outcomes, not task failure, reviewer findings, or a workflow-returned `BLOCKED`",
+    );
+    expect(normalizeWhitespace(orderedLifecycleEvents)).toContain(
+      "When no turn returned, workflow return status and its history remain absent",
+    );
 
     expect(normalizeWhitespace(resultAndDispositionDimensions)).toContain(
       "Workflow return status is absent before a return is observed and required after it is observed",
@@ -2569,10 +2581,13 @@ describe("play subagent routing source contracts", () => {
       "Reviewer disposition is absent before classification and required after classification",
     );
     expect(normalizeWhitespace(resultAndDispositionDimensions)).toContain(
-      "Neither field replaces or determines operational state",
+      "Every `turn-completed` carries the observed status as event-associated detail and appends that value to status history; the latest value is the current projection",
     );
     expect(normalizeWhitespace(resultAndDispositionDimensions)).toContain(
-      "A same-session follow-up may append `followup-dispatch-requested` and move current operational state back to `active` or `waiting`; that operational re-entry does not remove the prior `turn-completed` event, workflow return status, or reviewer disposition",
+      "Every classification or reclassification appends the disposition plus a concise reason and source-state anchor; the latest value is the current projection",
+    );
+    expect(normalizeWhitespace(resultAndDispositionDimensions)).toContain(
+      "A same-session follow-up may append `followup-dispatch-requested` and move current operational state back to `active` or `waiting`; that operational re-entry does not remove prior `turn-completed` events, status values, disposition values, or their associated detail",
     );
 
     expect(targetLifecycleCapability).toContain("automatic-close-supported");
@@ -2716,12 +2731,27 @@ describe("play subagent routing source contracts", () => {
       "An evaluated row with no applicable decision and reason, or with facts that contradict its events or projection, is invalid or ambiguous",
     );
     expect(normalizeWhitespace(cleanupGateBeforeSpawns)).toContain(
-      "When no spawn has reported slot or session exhaustion, the controller may continue after recording the cleanup result, including `close-deferred`, `close-unavailable`, or `close-failed` states",
+      "When no spawn has reported slot or session exhaustion, the controller may continue after recording a deferred family (`close-deferred` plus `closed=no`), unavailable family (`closure-unavailable` plus `close-unavailable: <reason>`), failed-attempt family (`close-attempted`, `close-failed`, and `closed=no`), or successful-close family",
     );
 
     expect(slotLimitRecovery).toContain("orchestration resource exhaustion");
     expect(normalizeWhitespace(slotLimitRecovery)).toContain(
       "A spawn without a slot-limit signal remains under the normal cleanup gate and does not activate this retry path",
+    );
+    expect(normalizeWhitespace(slotLimitRecovery)).toContain(
+      "Classify every capacity-blocking open row before cleanup",
+    );
+    expect(normalizeWhitespace(slotLimitRecovery)).toContain(
+      "For `active`, capture state at an already available safe boundary, or wait or steer toward one when the target supports it",
+    );
+    expect(normalizeWhitespace(slotLimitRecovery)).toContain(
+      "For `waiting`, capture the open question and needed context, then decide deliberate retention or safe replacement and supersession",
+    );
+    expect(normalizeWhitespace(slotLimitRecovery)).toContain(
+      "For reusable `interrupted`, capture available state, then decide reuse or deliberate retention versus supersession only after replacement state is secured",
+    );
+    expect(normalizeWhitespace(slotLimitRecovery)).toContain(
+      "For `pending` or unknown identity, do not fabricate cleanup, guess an id, or close another row",
     );
     expect(normalizeWhitespace(slotLimitRecovery)).toContain(
       "If automatic cleanup is unavailable or a usable automatic close attempt fails, surface the same explicit operator/UI manual-cleanup guidance",
@@ -2742,7 +2772,19 @@ describe("play subagent routing source contracts", () => {
       "Reconstruct active workflow state from the lifecycle ledger",
     );
     expect(normalizeWhitespace(slotLimitRecovery)).toContain(
-      "Retry the spawn exactly once only after automatic cleanup projects `closed=yes` for the sessions blocking capacity or after the operator confirms manual cleanup",
+      "For each affected blocking row or sanitized inventory identity, append `manual-cleanup-confirmed` with sanitized confirmation provenance and time",
+    );
+    expect(normalizeWhitespace(slotLimitRecovery)).toContain(
+      "This evidence does not change its target-honest cleanup projection and never fabricates `closed=yes`",
+    );
+    expect(slotLimitRecovery.indexOf("manual-cleanup-confirmed")).toBeLessThan(
+      slotLimitRecovery.indexOf("Reconstruct active workflow state"),
+    );
+    expect(
+      slotLimitRecovery.indexOf("Reconstruct active workflow state"),
+    ).toBeLessThan(slotLimitRecovery.indexOf("Retry the spawn exactly once"));
+    expect(normalizeWhitespace(slotLimitRecovery)).toContain(
+      "Retry the spawn exactly once only when every capacity-blocking row has either observed `close-succeeded` or a correctly scoped `manual-cleanup-confirmed` event",
     );
     expect(normalizeWhitespace(slotLimitRecovery)).toContain(
       "A failed automatic close with `closed=no` is not permission to retry the spawn",
@@ -2777,11 +2819,15 @@ describe("play subagent routing source contracts", () => {
       "target lifecycle capability classes",
       "surface-specific capability mapping",
       "ordered append-only lifecycle-event history",
+      "append-only value-bearing return-status and reviewer-disposition histories",
       "total usable-control capability classification",
       "independent operational, reuse, capability, and cleanup-state semantics",
       "target-honest cleanup outcomes",
       "cleanup gates before spawns",
       "normal-gate continuation separately from slot-recovery retry authorization",
+      "provider-neutral timeout and runtime-failure terminal outcomes",
+      "classification and safe capture of open capacity-blocking rows",
+      "row-scoped manual-cleanup confirmation evidence",
       "slot-limit recovery and one retry after cleanup or manual confirmation",
     ]) {
       expect(decision).toContain(ownedSurface);
@@ -2812,6 +2858,18 @@ describe("play subagent routing source contracts", () => {
       "workflow return status and reviewer disposition survive same-session operational re-entry to active or waiting state",
     );
     expect(normalizeWhitespace(consequences)).toContain(
+      "Every observed return status and reviewer disposition remains in append-only value-bearing history while a separate latest value serves as the current projection",
+    );
+    expect(normalizeWhitespace(consequences)).toContain(
+      "Runtime `timed-out` and `failed` are operational terminal outcomes with sanitized detail, not task or reviewer verdicts",
+    );
+    expect(normalizeWhitespace(consequences)).toContain(
+      "Active, waiting, interrupted, pending, and unknown-identity capacity blockers require state-specific classification before cleanup",
+    );
+    expect(normalizeWhitespace(consequences)).toContain(
+      "Manual cleanup confirmation is append-only, row- or inventory-identity-scoped retry evidence with sanitized provenance and time",
+    );
+    expect(normalizeWhitespace(consequences)).toContain(
       "Once a spawn reports slot exhaustion, retry remains blocked until actual closure or operator-confirmed manual cleanup",
     );
     expect(normalizeWhitespace(consequences)).toContain(
@@ -2828,6 +2886,8 @@ describe("play subagent routing source contracts", () => {
         | "waiting"
         | "interrupted"
         | "completed"
+        | "timed-out"
+        | "failed"
         | "superseded";
       agentId: string;
       capability:
@@ -2845,8 +2905,19 @@ describe("play subagent routing source contracts", () => {
       promisedLowLevelCodexClose: boolean;
       events: string[];
       workflowReturnStatus: string | null;
+      workflowReturnHistory: string[];
       reviewerDispositionClassified: boolean;
       reviewerDisposition: string | null;
+      reviewerDispositionHistory: Array<{
+        disposition: string;
+        reason: string;
+        sourceState: string;
+      }>;
+      runtimeTerminalDetails: Array<{
+        event: "turn-timed-out" | "turn-failed";
+        reason: string;
+      }>;
+      abnormalTerminalStateCaptured: boolean;
       reliableInventory: boolean;
       trackedStableIdentity: boolean;
       closeOperationUsable: boolean;
@@ -2889,8 +2960,12 @@ describe("play subagent routing source contracts", () => {
         "closure-unavailable",
       ],
       workflowReturnStatus: null,
+      workflowReturnHistory: [],
       reviewerDispositionClassified: false,
       reviewerDisposition: null,
+      reviewerDispositionHistory: [],
+      runtimeTerminalDetails: [],
+      abnormalTerminalStateCaptured: false,
       reliableInventory: false,
       trackedStableIdentity: true,
       closeOperationUsable: false,
@@ -2975,6 +3050,8 @@ describe("play subagent routing source contracts", () => {
         ["waiting", "waiting"],
         ["interrupted", "interrupted"],
         ["turn-completed", "completed"],
+        ["turn-timed-out", "timed-out"],
+        ["turn-failed", "failed"],
         ["superseded", "superseded"],
       ]);
       let projectedOperationalState:
@@ -2988,9 +3065,40 @@ describe("play subagent routing source contracts", () => {
         errors.push("operational-state-projection");
         return errors;
       }
-      const hasCompletion = example.events.includes("turn-completed");
-      if ((example.workflowReturnStatus !== null) !== hasCompletion) {
-        errors.push("workflow-result");
+      const returnedTurnCount = example.events.filter(
+        (event) => event === "turn-completed",
+      ).length;
+      if (
+        example.workflowReturnHistory.length !== returnedTurnCount ||
+        example.workflowReturnStatus !==
+          (example.workflowReturnHistory.at(-1) ?? null)
+      ) {
+        errors.push("workflow-result-history");
+        return errors;
+      }
+      const runtimeTerminalEvents = example.events.filter(
+        (event): event is "turn-timed-out" | "turn-failed" =>
+          event === "turn-timed-out" || event === "turn-failed",
+      );
+      if (
+        runtimeTerminalEvents.length !==
+          example.runtimeTerminalDetails.length ||
+        runtimeTerminalEvents.some(
+          (event, index) =>
+            example.runtimeTerminalDetails[index]?.event !== event ||
+            example.runtimeTerminalDetails[index]?.reason.trim().length === 0,
+        )
+      ) {
+        errors.push("runtime-terminal-history");
+        return errors;
+      }
+      if (
+        (example.operationalState === "timed-out" ||
+          example.operationalState === "failed") &&
+        example.cleanupEvaluation === "evaluated" &&
+        !example.abnormalTerminalStateCaptured
+      ) {
+        errors.push("abnormal-terminal-capture");
         return errors;
       }
       if (
@@ -3001,8 +3109,15 @@ describe("play subagent routing source contracts", () => {
         return errors;
       }
       if (
-        example.events.includes("reviewer-disposition-classified") !==
-        example.reviewerDispositionClassified
+        example.events.filter(
+          (event) => event === "reviewer-disposition-classified",
+        ).length !== example.reviewerDispositionHistory.length ||
+        example.reviewerDisposition !==
+          (example.reviewerDispositionHistory.at(-1)?.disposition ?? null) ||
+        example.reviewerDispositionHistory.some(
+          ({ reason, sourceState }) =>
+            reason.trim().length === 0 || sourceState.trim().length === 0,
+        )
       ) {
         errors.push("reviewer-disposition-history");
         return errors;
@@ -3335,6 +3450,51 @@ describe("play subagent routing source contracts", () => {
     expect(invalidDimensions(pending)).toEqual([]);
     expect(invalidDimensions(superseded)).toEqual([]);
 
+    const timedOut: LifecycleExample = {
+      ...valid,
+      operationalState: "timed-out",
+      reusable: false,
+      events: [
+        "dispatch-requested",
+        "identity-assigned",
+        "turn-timed-out",
+        "closure-unavailable",
+      ],
+      runtimeTerminalDetails: [
+        {
+          event: "turn-timed-out",
+          reason: "runtime deadline elapsed before a return was observed",
+        },
+      ],
+      abnormalTerminalStateCaptured: true,
+    };
+    expect(invalidDimensions(timedOut)).toEqual([]);
+    expect(timedOut.workflowReturnStatus).toBeNull();
+    expect(timedOut.workflowReturnHistory).toEqual([]);
+    const runtimeFailed: LifecycleExample = {
+      ...timedOut,
+      operationalState: "failed",
+      events: timedOut.events.map((event) =>
+        event === "turn-timed-out" ? "turn-failed" : event,
+      ),
+      runtimeTerminalDetails: [
+        {
+          event: "turn-failed",
+          reason: "session transport ended before a return was observed",
+        },
+      ],
+    };
+    expect(invalidDimensions(runtimeFailed)).toEqual([]);
+    expect(
+      invalidDimensions({
+        ...timedOut,
+        abnormalTerminalStateCaptured: false,
+      }),
+    ).toEqual(["abnormal-terminal-capture"]);
+    expect(
+      invalidDimensions({ ...runtimeFailed, runtimeTerminalDetails: [] }),
+    ).toEqual(["runtime-terminal-history"]);
+
     const returned: LifecycleExample = {
       ...valid,
       operationalState: "completed",
@@ -3347,6 +3507,7 @@ describe("play subagent routing source contracts", () => {
         "closure-unavailable",
       ],
       workflowReturnStatus: "DONE",
+      workflowReturnHistory: ["DONE"],
     };
     expect(invalidDimensions(returned)).toEqual([]);
     expect(
@@ -3369,11 +3530,18 @@ describe("play subagent routing source contracts", () => {
     expect(invalidDimensions(followupActive)).toEqual([]);
     expect(
       invalidDimensions({ ...followupActive, workflowReturnStatus: null }),
-    ).toEqual(["workflow-result"]);
+    ).toEqual(["workflow-result-history"]);
     const returnedReviewer: LifecycleExample = {
       ...returned,
       reviewerDispositionClassified: true,
       reviewerDisposition: "advisory",
+      reviewerDispositionHistory: [
+        {
+          disposition: "advisory",
+          reason: "findings are useful but not final",
+          sourceState: "reviewed task-head-1",
+        },
+      ],
       events: [...returned.events, "reviewer-disposition-classified"],
     };
     const followupReviewerActive: LifecycleExample = {
@@ -3393,6 +3561,44 @@ describe("play subagent routing source contracts", () => {
         ...followupReviewerActive,
         reviewerDispositionClassified: false,
         reviewerDisposition: null,
+      }),
+    ).toEqual(["reviewer-disposition-history"]);
+    const secondReturnedTurn: LifecycleExample = {
+      ...followupActive,
+      operationalState: "completed",
+      workflowReturnStatus: "DONE_WITH_CONCERNS",
+      workflowReturnHistory: ["DONE", "DONE_WITH_CONCERNS"],
+      events: [...followupActive.events, "turn-completed"],
+    };
+    expect(invalidDimensions(secondReturnedTurn)).toEqual([]);
+    expect(
+      invalidDimensions({
+        ...secondReturnedTurn,
+        workflowReturnHistory: ["DONE_WITH_CONCERNS"],
+      }),
+    ).toEqual(["workflow-result-history"]);
+    const staleReviewer: LifecycleExample = {
+      ...followupReviewerWaiting,
+      reviewerDisposition: "stale",
+      reviewerDispositionHistory: [
+        ...followupReviewerWaiting.reviewerDispositionHistory,
+        {
+          disposition: "stale",
+          reason: "a newer task head replaced the reviewed source",
+          sourceState: "task-head-2",
+        },
+      ],
+      events: [
+        ...followupReviewerWaiting.events,
+        "reviewer-disposition-classified",
+      ],
+    };
+    expect(invalidDimensions(staleReviewer)).toEqual([]);
+    expect(
+      invalidDimensions({
+        ...staleReviewer,
+        reviewerDispositionHistory:
+          staleReviewer.reviewerDispositionHistory.slice(1),
       }),
     ).toEqual(["reviewer-disposition-history"]);
     const followupWaiting: LifecycleExample = {
@@ -3480,6 +3686,7 @@ describe("play subagent routing source contracts", () => {
         ...valid,
         events: [...valid.events, "turn-completed"],
         workflowReturnStatus: "DONE",
+        workflowReturnHistory: ["DONE"],
         completionEvent: true,
       }),
     ).toEqual(["operational-state-projection"]);
@@ -3500,7 +3707,7 @@ describe("play subagent routing source contracts", () => {
     }
     expect(
       invalidDimensions({ ...returned, workflowReturnStatus: null }),
-    ).toEqual(["workflow-result"]);
+    ).toEqual(["workflow-result-history"]);
     expect(
       invalidDimensions({
         ...returned,
@@ -3739,6 +3946,161 @@ describe("play subagent routing source contracts", () => {
     ).toEqual(["terminal-close-contradiction"]);
   });
 
+  it("classifies every open capacity blocker before cleanup", () => {
+    type OpenBlocker = {
+      state: "pending" | "active" | "waiting" | "interrupted";
+      identity: "pending" | "stable" | "unknown";
+      classified: boolean;
+      requiredStateCaptured: boolean;
+      safeCaptureBoundaryAvailable: boolean;
+      waitOrSteerSupported: boolean;
+      reusable: boolean;
+      replacementStateSecured: boolean;
+      action:
+        | "wait-or-steer-to-capture"
+        | "defer-and-retain"
+        | "reuse"
+        | "supersede-after-replacement"
+        | "resolve-identity"
+        | "stop-and-escalate"
+        | "close-another-row";
+    };
+
+    function openBlockerErrors(blocker: OpenBlocker): string[] {
+      if (!blocker.classified) {
+        return ["capacity-blocker-unclassified"];
+      }
+      if (blocker.state === "pending" || blocker.identity === "unknown") {
+        return blocker.action === "resolve-identity" ||
+          blocker.action === "stop-and-escalate"
+          ? []
+          : ["pending-identity-cleanup"];
+      }
+      if (blocker.state === "active") {
+        if (blocker.action === "stop-and-escalate") {
+          return [];
+        }
+        if (
+          blocker.safeCaptureBoundaryAvailable &&
+          blocker.requiredStateCaptured
+        ) {
+          return blocker.action === "defer-and-retain" ||
+            (blocker.action === "supersede-after-replacement" &&
+              blocker.replacementStateSecured)
+            ? []
+            : ["active-resolution"];
+        }
+        if (blocker.waitOrSteerSupported) {
+          return blocker.action === "wait-or-steer-to-capture"
+            ? []
+            : ["active-capture-boundary"];
+        }
+        return ["unsafe-active-cleanup"];
+      }
+      if (!blocker.requiredStateCaptured) {
+        return ["open-state-not-captured"];
+      }
+      if (blocker.action === "supersede-after-replacement") {
+        return blocker.replacementStateSecured
+          ? []
+          : ["replacement-not-secured"];
+      }
+      if (blocker.state === "waiting") {
+        return blocker.action === "defer-and-retain"
+          ? []
+          : ["waiting-resolution"];
+      }
+      if (blocker.state === "interrupted") {
+        return (blocker.reusable && blocker.action === "reuse") ||
+          blocker.action === "defer-and-retain"
+          ? []
+          : ["interrupted-resolution"];
+      }
+      return [];
+    }
+
+    const active: OpenBlocker = {
+      state: "active",
+      identity: "stable",
+      classified: true,
+      requiredStateCaptured: false,
+      safeCaptureBoundaryAvailable: false,
+      waitOrSteerSupported: true,
+      reusable: false,
+      replacementStateSecured: false,
+      action: "wait-or-steer-to-capture",
+    };
+    const waiting: OpenBlocker = {
+      ...active,
+      state: "waiting",
+      requiredStateCaptured: true,
+      action: "defer-and-retain",
+    };
+    const interrupted: OpenBlocker = {
+      ...waiting,
+      state: "interrupted",
+      reusable: true,
+      action: "reuse",
+    };
+    const pendingBlocker: OpenBlocker = {
+      ...active,
+      state: "pending",
+      identity: "pending",
+      action: "resolve-identity",
+    };
+    for (const blocker of [active, waiting, interrupted, pendingBlocker]) {
+      expect(openBlockerErrors(blocker)).toEqual([]);
+    }
+    expect(openBlockerErrors({ ...active, classified: false })).toEqual([
+      "capacity-blocker-unclassified",
+    ]);
+    expect(
+      openBlockerErrors({ ...active, action: "stop-and-escalate" }),
+    ).toEqual([]);
+    expect(
+      openBlockerErrors({
+        ...active,
+        safeCaptureBoundaryAvailable: true,
+        requiredStateCaptured: true,
+        action: "defer-and-retain",
+      }),
+    ).toEqual([]);
+    expect(
+      openBlockerErrors({
+        ...waiting,
+        replacementStateSecured: true,
+        action: "supersede-after-replacement",
+      }),
+    ).toEqual([]);
+    expect(
+      openBlockerErrors({
+        ...interrupted,
+        replacementStateSecured: true,
+        action: "supersede-after-replacement",
+      }),
+    ).toEqual([]);
+    expect(
+      openBlockerErrors({
+        ...active,
+        waitOrSteerSupported: false,
+        action: "close-another-row",
+      }),
+    ).toEqual(["unsafe-active-cleanup"]);
+    expect(
+      openBlockerErrors({ ...waiting, requiredStateCaptured: false }),
+    ).toEqual(["open-state-not-captured"]);
+    expect(
+      openBlockerErrors({
+        ...interrupted,
+        action: "supersede-after-replacement",
+        replacementStateSecured: false,
+      }),
+    ).toEqual(["replacement-not-secured"]);
+    expect(
+      openBlockerErrors({ ...pendingBlocker, action: "close-another-row" }),
+    ).toEqual(["pending-identity-cleanup"]);
+  });
+
   it("separates normal cleanup continuation from slot-limit retry authorization", () => {
     type ContinuationExample = {
       capturedRoleState: boolean;
@@ -3746,7 +4108,13 @@ describe("play subagent routing source contracts", () => {
       cleanupResult: "retained" | "unavailable" | "failed" | "closed";
       spawnResult: "succeeded" | "slot-exhausted" | "other-failure";
       slotFailureClassified: boolean;
-      manualCleanupConfirmed: boolean;
+      blockingRowIds: string[];
+      actualClosedRowIds: string[];
+      manualCleanupConfirmations: Array<{
+        rowId: string;
+        provenance: string;
+        observedAt: string;
+      }>;
       capacityBlockedByRetainedSession: boolean;
       retentionNeedResolved: boolean;
       stoppedAndEscalated: boolean;
@@ -3762,6 +4130,33 @@ describe("play subagent routing source contracts", () => {
       }
       if (!example.slotFailureClassified) {
         return ["slot-failure-classification"];
+      }
+      const blockingRows = new Set(example.blockingRowIds);
+      const confirmationRows = new Set<string>();
+      for (const confirmation of example.manualCleanupConfirmations) {
+        if (!blockingRows.has(confirmation.rowId)) {
+          return ["manual-confirmation-scope"];
+        }
+        if (
+          confirmationRows.has(confirmation.rowId) ||
+          confirmation.provenance.trim().length === 0 ||
+          confirmation.observedAt.trim().length === 0
+        ) {
+          return ["manual-confirmation-evidence"];
+        }
+        confirmationRows.add(confirmation.rowId);
+      }
+      const actualClosedRows = new Set(example.actualClosedRowIds);
+      if (
+        example.actualClosedRowIds.some((rowId) => !blockingRows.has(rowId))
+      ) {
+        return ["actual-close-scope"];
+      }
+      if (
+        example.cleanupResult === "closed" &&
+        example.blockingRowIds.some((rowId) => !actualClosedRows.has(rowId))
+      ) {
+        return ["manual-confirmation-is-not-closure"];
       }
       if (
         example.capacityBlockedByRetainedSession &&
@@ -3781,8 +4176,10 @@ describe("play subagent routing source contracts", () => {
         return ["slot-retry-count"];
       }
       if (
-        example.cleanupResult !== "closed" &&
-        !example.manualCleanupConfirmed
+        example.blockingRowIds.some(
+          (rowId) =>
+            !actualClosedRows.has(rowId) && !confirmationRows.has(rowId),
+        )
       ) {
         return ["slot-retry-authorization"];
       }
@@ -3795,7 +4192,9 @@ describe("play subagent routing source contracts", () => {
       cleanupResult: "retained",
       spawnResult: "succeeded",
       slotFailureClassified: false,
-      manualCleanupConfirmed: false,
+      blockingRowIds: [],
+      actualClosedRowIds: [],
+      manualCleanupConfirmations: [],
       capacityBlockedByRetainedSession: false,
       retentionNeedResolved: false,
       stoppedAndEscalated: false,
@@ -3815,6 +4214,8 @@ describe("play subagent routing source contracts", () => {
       cleanupResult: "closed",
       spawnResult: "slot-exhausted",
       slotFailureClassified: true,
+      blockingRowIds: ["block-1"],
+      actualClosedRowIds: ["block-1"],
       retryCount: 1,
     };
     expect(continuationErrors(slotRecovery)).toEqual([]);
@@ -3829,7 +4230,14 @@ describe("play subagent routing source contracts", () => {
       continuationErrors({
         ...slotRecovery,
         cleanupResult: "failed",
-        manualCleanupConfirmed: true,
+        actualClosedRowIds: [],
+        manualCleanupConfirmations: [
+          {
+            rowId: "block-1",
+            provenance: "operator UI confirmation",
+            observedAt: "2026-07-11T20:00:00Z",
+          },
+        ],
       }),
     ).toEqual([]);
     expect(
@@ -3838,7 +4246,14 @@ describe("play subagent routing source contracts", () => {
         cleanupResult: "retained",
         capacityBlockedByRetainedSession: true,
         retentionNeedResolved: true,
-        manualCleanupConfirmed: true,
+        actualClosedRowIds: [],
+        manualCleanupConfirmations: [
+          {
+            rowId: "block-1",
+            provenance: "operator UI confirmation",
+            observedAt: "2026-07-11T20:01:00Z",
+          },
+        ],
       }),
     ).toEqual([]);
     expect(
@@ -3846,7 +4261,14 @@ describe("play subagent routing source contracts", () => {
         ...slotRecovery,
         cleanupResult: "retained",
         capacityBlockedByRetainedSession: true,
-        manualCleanupConfirmed: true,
+        actualClosedRowIds: [],
+        manualCleanupConfirmations: [
+          {
+            rowId: "block-1",
+            provenance: "operator UI confirmation",
+            observedAt: "2026-07-11T20:01:00Z",
+          },
+        ],
       }),
     ).toEqual(["retention-blocker-unresolved"]);
     expect(
@@ -3868,10 +4290,71 @@ describe("play subagent routing source contracts", () => {
     ).toEqual(["retention-blocker-not-escalated"]);
     for (const cleanupResult of ["unavailable", "failed"] as const) {
       expect(
-        continuationErrors({ ...slotRecovery, cleanupResult }),
+        continuationErrors({
+          ...slotRecovery,
+          cleanupResult,
+          actualClosedRowIds: [],
+        }),
         cleanupResult,
       ).toEqual(["slot-retry-authorization"]);
     }
+    expect(
+      continuationErrors({
+        ...slotRecovery,
+        cleanupResult: "failed",
+        actualClosedRowIds: [],
+        manualCleanupConfirmations: [
+          {
+            rowId: "different-row",
+            provenance: "operator UI confirmation",
+            observedAt: "2026-07-11T20:02:00Z",
+          },
+        ],
+      }),
+    ).toEqual(["manual-confirmation-scope"]);
+    expect(
+      continuationErrors({
+        ...slotRecovery,
+        cleanupResult: "failed",
+        actualClosedRowIds: [],
+        manualCleanupConfirmations: [
+          {
+            rowId: "block-1",
+            provenance: "",
+            observedAt: "2026-07-11T20:02:00Z",
+          },
+        ],
+      }),
+    ).toEqual(["manual-confirmation-evidence"]);
+    expect(
+      continuationErrors({
+        ...slotRecovery,
+        blockingRowIds: ["block-1", "block-2"],
+        actualClosedRowIds: ["block-1"],
+        manualCleanupConfirmations: [
+          {
+            rowId: "block-2",
+            provenance: "operator UI confirmation",
+            observedAt: "2026-07-11T20:03:00Z",
+          },
+        ],
+      }),
+    ).toEqual(["manual-confirmation-is-not-closure"]);
+    expect(
+      continuationErrors({
+        ...slotRecovery,
+        cleanupResult: "failed",
+        actualClosedRowIds: ["block-1"],
+        manualCleanupConfirmations: [
+          {
+            rowId: "block-2",
+            provenance: "operator UI confirmation",
+            observedAt: "2026-07-11T20:03:00Z",
+          },
+        ],
+        blockingRowIds: ["block-1", "block-2"],
+      }),
+    ).toEqual([]);
     expect(
       continuationErrors({ ...slotRecovery, slotFailureClassified: false }),
     ).toEqual(["slot-failure-classification"]);
