@@ -83,13 +83,23 @@ Each row keeps an ordered, append-only lifecycle-event history alongside its
 current operational state. Append events such as `dispatch-requested`,
 `identity-assigned`, `waiting`, `interrupted`, `turn-completed`, `superseded`,
 `turn-timed-out`, `turn-failed`, `close-attempted`, `close-deferred`,
-`close-failed`, `close-succeeded`, `closure-unavailable`, and
+`retention-resolved`, `close-failed`, `close-succeeded`, `closure-unavailable`, and
 `manual-cleanup-confirmed` when those facts occur. Record the concrete
 workflow-owned retention reason as event-associated detail on each
 `close-deferred`; an event name without its reason is incomplete. State changes
 never erase prior events or their associated detail. An identity assignment,
 wait, interruption, completion, supersession, deferral reason, or closure
 result therefore remains recoverable after current state advances.
+
+When a previously deferred same-session need is finished, captured, or safely
+replaced, append `retention-resolved` with concise evidence of that resolution.
+The event requires an unresolved prior `close-deferred`; it preserves the
+historical deferral and reason while clearing the current deliberate-retention
+decision and current retention reason. `retention-resolved` is a lifecycle
+decision event, not a fifth cleanup projection family, cleanup outcome, or proof
+of closure. It leaves the current target-honest cleanup outcome and any current
+unavailable projection unchanged until a later close attempt or unavailable
+fact selects one of the existing projection families.
 
 Every `closure-unavailable` event carries its concrete reason as
 event-associated detail and appends that value to unavailable-reason history.
@@ -210,6 +220,12 @@ the projection deterministic:
   event-associated detail, records that reason as the current retention reason,
   and projects `closed=no`. That decision does not append `close-attempted` or
   `close-failed`; deferral is not a fabricated close attempt.
+- An evaluated deferred session whose workflow-owned need is finished,
+  captured, or safely replaced appends `retention-resolved` with resolution
+  evidence, clears the current retention decision and reason, and preserves the
+  existing target-honest cleanup projection. This transition is not another
+  cleanup family. A later actual close or unavailable fact still uses one of
+  the four families listed here.
 - An evaluated session without stable identity or without an exposed, usable
   close operation appends `closure-unavailable` with the concrete reason as
   event-associated detail, appends the reason to unavailable-reason history,
@@ -235,10 +251,13 @@ close and its history.
 
 Do not retain a cleanup outcome that contradicts the latest closure decision,
 event, or capability facts. A failed close is not unavailable, and a deferred
-close is not a failed attempt. A later real attempt appends to the history
-without erasing `close-deferred` or its associated reason. The current retention
-reason no longer applies after the current decision advances, but the historical
-reason remains recoverable from the event. Likewise, a later retention or close
+close is not a failed attempt. Before advancing a deferred row to a later real
+attempt or unavailable family, append `retention-resolved` after the need is
+finished, captured, or safely replaced. The current retention reason no longer
+applies after that event, but the historical `close-deferred` reason remains
+recoverable. After `retention-resolved`, a later real attempt appends to history
+without erasing `close-deferred`, its associated reason, or the resolution
+evidence. Likewise, a later retention or close
 attempt clears the current unavailable-cleanup reason while preserving every
 prior `closure-unavailable` reason in append-only history. A later success
 replaces `closed=no` with `closed=yes` without deleting deferral, unavailable,
@@ -318,9 +337,10 @@ When a spawn fails because of a slot/session limit:
 9. For any capacity-blocking session whose latest cleanup decision is
    `close-deferred`, require the owning workflow to resolve whether same-session
    follow-up is still required. If the need can finish or its required state can
-   be captured and safely replaced, record that resolution and proceed through
-   an actual supported close or operator-confirmed manual cleanup before retry.
-   Preserve the historical `close-deferred` reason. If the follow-up need
+   be captured and safely replaced, append `retention-resolved` with concise
+   resolution evidence, clear the current retention decision and reason, and
+   proceed through an actual supported close or operator-confirmed manual
+   cleanup before retry. Preserve the historical `close-deferred` reason. If the follow-up need
    remains and safe cleanup or replacement cannot occur, stop and escalate;
    neither the deferral nor an unsafe manual close authorizes a retry.
 10. If automatic cleanup is unavailable or a usable automatic close attempt
@@ -339,7 +359,9 @@ When a spawn fails because of a slot/session limit:
 12. Retry the spawn exactly once only when every capacity-blocking row has either
     observed `close-succeeded` or a correctly scoped
     `manual-cleanup-confirmed` event. Missing or mis-scoped confirmation is not
-    authorization. A manual confirmation preserves `closed=no` or
+    authorization. `retention-resolved` is necessary for a formerly deferred
+    blocker but is not retry authorization or closure proof. A manual
+    confirmation preserves `closed=no` or
     `close-unavailable: <reason>`; it is not closure proof.
     A failed automatic close with `closed=no` is not permission to retry the
     spawn without that scoped confirmation evidence.

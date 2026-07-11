@@ -50,6 +50,8 @@ their spawn points. The shared procedure owns:
 - orthogonal cleanup evaluation and irreversible reevaluation semantics;
 - deliberate same-session retention as a reasoned `close-deferred` decision,
   distinct from close attempts and failures;
+- resolved same-session retention as an append-only decision event that clears
+  current retention without adding a cleanup family or proving closure;
 - deterministic cleanup projections for unevaluated, deferred, unavailable,
   failed-attempt, and successful-close histories;
 - target-honest cleanup outcomes;
@@ -103,6 +105,10 @@ implementers continue to read the worktree from disk.
   concrete workflow-owned reason without fabricating an attempt or failure;
   the reason remains event-associated append-only history after the current
   decision advances, and later real attempts append to rather than erase it.
+- Finishing, capturing, or safely replacing that deferred need records
+  `retention-resolved`, clears current retention state, and preserves the
+  historical deferral. The event neither changes the four cleanup families nor
+  authorizes slot retry without actual or operator-confirmed cleanup.
 - Every unavailable-cleanup decision preserves its concrete reason in
   append-only event history. Later reevaluation may clear the current
   unavailable reason projection but cannot erase or conflate that history.

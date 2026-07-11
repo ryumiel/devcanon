@@ -2646,6 +2646,7 @@ describe("play subagent routing source contracts", () => {
       "turn-failed",
       "close-attempted",
       "close-deferred",
+      "retention-resolved",
       "close-failed",
       "close-succeeded",
       "closure-unavailable",
@@ -2679,6 +2680,12 @@ describe("play subagent routing source contracts", () => {
     );
     expect(normalizeWhitespace(orderedLifecycleEvents)).toContain(
       "Every `closure-unavailable` event carries its concrete reason as event-associated detail and appends that value to unavailable-reason history",
+    );
+    expect(normalizeWhitespace(orderedLifecycleEvents)).toContain(
+      "When a previously deferred same-session need is finished, captured, or safely replaced, append `retention-resolved` with concise evidence of that resolution",
+    );
+    expect(normalizeWhitespace(orderedLifecycleEvents)).toContain(
+      "`retention-resolved` is a lifecycle decision event, not a fifth cleanup projection family, cleanup outcome, or proof of closure",
     );
 
     expect(normalizeWhitespace(resultAndDispositionDimensions)).toContain(
@@ -2822,13 +2829,16 @@ describe("play subagent routing source contracts", () => {
       "whose real close attempt succeeds appends `close-attempted` and `close-succeeded`, then projects `closed=yes`",
     );
     expect(normalizeWhitespace(cleanupProjection)).toContain(
-      "A later real attempt appends to the history without erasing `close-deferred` or its associated reason",
+      "After `retention-resolved`, a later real attempt appends to history without erasing `close-deferred`, its associated reason, or the resolution evidence",
     );
     expect(normalizeWhitespace(cleanupProjection)).toContain(
-      "The current retention reason no longer applies after the current decision advances, but the historical reason remains recoverable from the event",
+      "The current retention reason no longer applies after that event, but the historical `close-deferred` reason remains recoverable",
     );
     expect(normalizeWhitespace(cleanupProjection)).toContain(
       "a later retention or close attempt clears the current unavailable-cleanup reason while preserving every prior `closure-unavailable` reason in append-only history",
+    );
+    expect(normalizeWhitespace(cleanupProjection)).toContain(
+      "An evaluated deferred session whose workflow-owned need is finished, captured, or safely replaced appends `retention-resolved` with resolution evidence, clears the current retention decision and reason, and preserves the existing target-honest cleanup projection",
     );
     expect(normalizeWhitespace(cleanupProjection)).toContain(
       "An evaluated row with no applicable decision and reason, or with facts that contradict its events or projection, is invalid or ambiguous",
@@ -2863,7 +2873,10 @@ describe("play subagent routing source contracts", () => {
       "For any capacity-blocking session whose latest cleanup decision is `close-deferred`, require the owning workflow to resolve whether same-session follow-up is still required",
     );
     expect(normalizeWhitespace(slotLimitRecovery)).toContain(
-      "If the need can finish or its required state can be captured and safely replaced, record that resolution and proceed through an actual supported close or operator-confirmed manual cleanup before retry",
+      "If the need can finish or its required state can be captured and safely replaced, append `retention-resolved` with concise resolution evidence, clear the current retention decision and reason, and proceed through an actual supported close or operator-confirmed manual cleanup before retry",
+    );
+    expect(normalizeWhitespace(slotLimitRecovery)).toContain(
+      "`retention-resolved` is necessary for a formerly deferred blocker but is not retry authorization or closure proof",
     );
     expect(normalizeWhitespace(slotLimitRecovery)).toContain(
       "If the follow-up need remains and safe cleanup or replacement cannot occur, stop and escalate; neither the deferral nor an unsafe manual close authorizes a retry",
@@ -2929,6 +2942,7 @@ describe("play subagent routing source contracts", () => {
       "target-honest cleanup outcomes",
       "cleanup gates before spawns",
       "normal-gate continuation separately from slot-recovery retry authorization",
+      "resolved same-session retention as an append-only decision event",
       "provider-neutral timeout and runtime-failure terminal outcomes",
       "classification and safe capture of open capacity-blocking rows",
       "row-scoped manual-cleanup confirmation evidence",
@@ -2954,6 +2968,9 @@ describe("play subagent routing source contracts", () => {
     );
     expect(normalizeWhitespace(consequences)).toContain(
       "the reason remains event-associated append-only history after the current decision advances",
+    );
+    expect(normalizeWhitespace(consequences)).toContain(
+      "Finishing, capturing, or safely replacing that deferred need records `retention-resolved`, clears current retention state, and preserves the historical deferral",
     );
     expect(normalizeWhitespace(consequences)).toContain(
       "A capacity-blocking retained session requires an owning-workflow decision: resolve and safely capture or replace the follow-up need before actual or operator-confirmed cleanup, or stop and escalate while that need remains",
@@ -3041,6 +3058,7 @@ describe("play subagent routing source contracts", () => {
       cleanupDecision: "none" | "retained" | "unavailable" | "attempted";
       retentionReason: string | null;
       deferredEventReasons: string[];
+      retentionResolutionDetails: string[];
       closeUnavailableReason: string | null;
       unavailableEventReasons: string[];
     };
@@ -3090,6 +3108,7 @@ describe("play subagent routing source contracts", () => {
       cleanupDecision: "unavailable",
       retentionReason: null,
       deferredEventReasons: [],
+      retentionResolutionDetails: [],
       closeUnavailableReason: "inventory-only; no close operation",
       unavailableEventReasons: ["inventory-only; no close operation"],
     };
@@ -3253,6 +3272,7 @@ describe("play subagent routing source contracts", () => {
       }
       const closureEvents = new Set([
         "close-deferred",
+        "retention-resolved",
         "closure-unavailable",
         "close-attempted",
         "close-failed",
@@ -3264,6 +3284,7 @@ describe("play subagent routing source contracts", () => {
           example.cleanupDecision !== "none" ||
           example.retentionReason !== null ||
           example.deferredEventReasons.length > 0 ||
+          example.retentionResolutionDetails.length > 0 ||
           example.closeUnavailableReason !== null ||
           example.unavailableEventReasons.length > 0 ||
           example.events.some((event) => closureEvents.has(event)))
@@ -3293,6 +3314,37 @@ describe("play subagent routing source contracts", () => {
         ) {
           errors.push("deferred-reason-history");
           return errors;
+        }
+        const retentionResolvedCount = example.events.filter(
+          (event) => event === "retention-resolved",
+        ).length;
+        if (
+          example.retentionResolutionDetails.length !==
+            retentionResolvedCount ||
+          example.retentionResolutionDetails.some(
+            (detail) => detail.trim().length === 0,
+          )
+        ) {
+          errors.push("retention-resolution-history");
+          return errors;
+        }
+        let unresolvedDeferral = false;
+        for (const event of example.events) {
+          if (event === "close-deferred") {
+            unresolvedDeferral = true;
+          } else if (event === "retention-resolved") {
+            if (!unresolvedDeferral) {
+              errors.push("retention-resolution-without-deferral");
+              return errors;
+            }
+            unresolvedDeferral = false;
+          } else if (
+            unresolvedDeferral &&
+            (event === "close-attempted" || event === "closure-unavailable")
+          ) {
+            errors.push("retention-resolution-missing");
+            return errors;
+          }
         }
         const unavailableCount = example.events.filter(
           (event) => event === "closure-unavailable",
@@ -3359,6 +3411,8 @@ describe("play subagent routing source contracts", () => {
           "closure-unavailable",
         );
         const lastAttempt = example.events.lastIndexOf("close-attempted");
+        const lastRetentionResolved =
+          example.events.lastIndexOf("retention-resolved");
         const latestDecisionIndex = Math.max(
           lastDeferred,
           lastUnavailable,
@@ -3370,17 +3424,31 @@ describe("play subagent routing source contracts", () => {
         }
 
         const expectedDecision =
-          latestDecisionIndex === lastAttempt
-            ? "attempted"
-            : latestDecisionIndex === lastDeferred
-              ? "retained"
-              : "unavailable";
+          lastRetentionResolved > latestDecisionIndex
+            ? "none"
+            : latestDecisionIndex === lastAttempt
+              ? "attempted"
+              : latestDecisionIndex === lastDeferred
+                ? "retained"
+                : "unavailable";
         if (example.cleanupDecision !== expectedDecision) {
           errors.push("cleanup-decision");
           return errors;
         }
 
-        if (expectedDecision === "retained") {
+        if (expectedDecision === "none") {
+          if (
+            example.retentionReason !== null ||
+            example.closeUnavailableReason !== null
+          ) {
+            errors.push("retention-resolution-projection");
+            return errors;
+          }
+          if (example.cleanup !== "closed=no") {
+            errors.push("cleanup-projection");
+            return errors;
+          }
+        } else if (expectedDecision === "retained") {
           if (
             example.retentionReason === null ||
             example.retentionReason.trim().length === 0
@@ -4028,6 +4096,47 @@ describe("play subagent routing source contracts", () => {
       ],
     };
     expect(invalidDimensions(retainedForFollowup)).toEqual([]);
+    const resolvedRetention: LifecycleExample = {
+      ...retainedForFollowup,
+      cleanupDecision: "none",
+      retentionReason: null,
+      retentionResolutionDetails: [
+        "same-session fixup need captured in controller state",
+      ],
+      events: [...retainedForFollowup.events, "retention-resolved"],
+    };
+    expect(invalidDimensions(resolvedRetention)).toEqual([]);
+    expect(resolvedRetention.events).toContain("close-deferred");
+    expect(resolvedRetention.deferredEventReasons).toEqual([
+      "spec reviewer may route a same-session fixup",
+    ]);
+    expect(
+      invalidDimensions({
+        ...resolvedRetention,
+        events: retainedForFollowup.events,
+      }),
+    ).toEqual(["retention-resolution-history"]);
+    expect(
+      invalidDimensions({
+        ...resolvedRetention,
+        cleanupDecision: "retained",
+      }),
+    ).toEqual(["cleanup-decision"]);
+    expect(
+      invalidDimensions({
+        ...resolvedRetention,
+        retentionReason: "stale same-session fixup reason",
+      }),
+    ).toEqual(["retention-resolution-projection"]);
+    expect(
+      invalidDimensions({
+        ...resolvedRetention,
+        events: resolvedRetention.events.filter(
+          (event) => event !== "close-deferred",
+        ),
+        deferredEventReasons: [],
+      }),
+    ).toEqual(["retention-resolution-without-deferral"]);
     expect(
       invalidDimensions({
         ...retainedForFollowup,
@@ -4062,19 +4171,36 @@ describe("play subagent routing source contracts", () => {
       }),
     ).toEqual(["retention-reason-projection"]);
     const laterFailedClose: LifecycleExample = {
-      ...retainedForFollowup,
+      ...resolvedRetention,
       cleanupDecision: "attempted",
-      retentionReason: null,
       closeInvocationObserved: true,
       closeAttempted: true,
       closeFailed: true,
-      events: [
-        ...retainedForFollowup.events,
-        "close-attempted",
-        "close-failed",
-      ],
+      events: [...resolvedRetention.events, "close-attempted", "close-failed"],
     };
     expect(invalidDimensions(laterFailedClose)).toEqual([]);
+    expect(
+      invalidDimensions({
+        ...laterFailedClose,
+        events: laterFailedClose.events.filter(
+          (event) => event !== "retention-resolved",
+        ),
+        retentionResolutionDetails: [],
+      }),
+    ).toEqual(["retention-resolution-missing"]);
+    const unavailableAfterResolution: LifecycleExample = {
+      ...resolvedRetention,
+      capability: "inventory-only",
+      cleanup: "close-unavailable",
+      cleanupDecision: "unavailable",
+      closeOperationExposed: false,
+      closeOperationUsable: false,
+      closeUnavailableReason: "inventory-only; no close operation",
+      unavailableEventReasons: ["inventory-only; no close operation"],
+      events: [...resolvedRetention.events, "closure-unavailable"],
+    };
+    expect(invalidDimensions(unavailableAfterResolution)).toEqual([]);
+    expect(unavailableAfterResolution.events).toContain("retention-resolved");
     expect(laterFailedClose.events).toContain("close-deferred");
     expect(laterFailedClose.deferredEventReasons).toEqual([
       "spec reviewer may route a same-session fixup",
@@ -4368,6 +4494,10 @@ describe("play subagent routing source contracts", () => {
       }>;
       capacityBlockedByRetainedSession: boolean;
       retentionNeedResolved: boolean;
+      priorCloseDeferred: boolean;
+      retentionDecision: "none" | "retained" | "retention-resolved";
+      retentionReason: string | null;
+      retentionResolutionEvidence: string | null;
       stoppedAndEscalated: boolean;
       retryCount: 0 | 1 | 2;
     };
@@ -4409,6 +4539,34 @@ describe("play subagent routing source contracts", () => {
       ) {
         return ["manual-confirmation-is-not-closure"];
       }
+      if (example.capacityBlockedByRetainedSession) {
+        if (
+          example.retentionNeedResolved &&
+          example.retentionDecision !== "retention-resolved"
+        ) {
+          return ["retention-resolution-event-missing"];
+        }
+        if (example.retentionDecision === "retention-resolved") {
+          if (!example.priorCloseDeferred) {
+            return ["retention-resolution-without-deferral"];
+          }
+          if (!example.retentionNeedResolved) {
+            return ["retention-resolution-without-resolved-need"];
+          }
+          if (
+            example.retentionResolutionEvidence === null ||
+            example.retentionResolutionEvidence.trim().length === 0
+          ) {
+            return ["retention-resolution-evidence"];
+          }
+          if (example.retentionReason !== null) {
+            return ["stale-retention-reason"];
+          }
+          if (example.cleanupResult === "retained") {
+            return ["resolved-retention-still-retained"];
+          }
+        }
+      }
       if (
         example.capacityBlockedByRetainedSession &&
         !example.retentionNeedResolved
@@ -4448,6 +4606,10 @@ describe("play subagent routing source contracts", () => {
       manualCleanupConfirmations: [],
       capacityBlockedByRetainedSession: false,
       retentionNeedResolved: false,
+      priorCloseDeferred: false,
+      retentionDecision: "none",
+      retentionReason: null,
+      retentionResolutionEvidence: null,
       stoppedAndEscalated: false,
       retryCount: 0,
     };
@@ -4476,7 +4638,7 @@ describe("play subagent routing source contracts", () => {
         capacityBlockedByRetainedSession: true,
         retentionNeedResolved: true,
       }),
-    ).toEqual([]);
+    ).toEqual(["retention-resolution-event-missing"]);
     expect(
       continuationErrors({
         ...slotRecovery,
@@ -4491,6 +4653,68 @@ describe("play subagent routing source contracts", () => {
         ],
       }),
     ).toEqual([]);
+    const resolvedRetainedBlocker: ContinuationExample = {
+      ...slotRecovery,
+      cleanupResult: "failed",
+      capacityBlockedByRetainedSession: true,
+      retentionNeedResolved: true,
+      priorCloseDeferred: true,
+      retentionDecision: "retention-resolved",
+      retentionReason: null,
+      retentionResolutionEvidence:
+        "same-session state captured before manual cleanup",
+      actualClosedRowIds: [],
+      manualCleanupConfirmations: [
+        {
+          rowId: "block-1",
+          provenance: "operator UI confirmation",
+          observedAt: "2026-07-11T20:01:00Z",
+        },
+      ],
+    };
+    expect(continuationErrors(resolvedRetainedBlocker)).toEqual([]);
+    expect(
+      continuationErrors({
+        ...resolvedRetainedBlocker,
+        cleanupResult: "unavailable",
+      }),
+    ).toEqual([]);
+    expect(
+      continuationErrors({
+        ...resolvedRetainedBlocker,
+        cleanupResult: "retained",
+      }),
+    ).toEqual(["resolved-retention-still-retained"]);
+    expect(
+      continuationErrors({
+        ...resolvedRetainedBlocker,
+        retentionDecision: "retained",
+      }),
+    ).toEqual(["retention-resolution-event-missing"]);
+    expect(
+      continuationErrors({
+        ...resolvedRetainedBlocker,
+        retentionReason: "stale same-session follow-up reason",
+      }),
+    ).toEqual(["stale-retention-reason"]);
+    expect(
+      continuationErrors({
+        ...resolvedRetainedBlocker,
+        priorCloseDeferred: false,
+      }),
+    ).toEqual(["retention-resolution-without-deferral"]);
+    expect(
+      continuationErrors({
+        ...resolvedRetainedBlocker,
+        retentionNeedResolved: false,
+      }),
+    ).toEqual(["retention-resolution-without-resolved-need"]);
+    expect(
+      continuationErrors({
+        ...resolvedRetainedBlocker,
+        retentionResolutionEvidence: null,
+      }),
+    ).toEqual(["retention-resolution-evidence"]);
     expect(
       continuationErrors({
         ...slotRecovery,
@@ -4506,7 +4730,7 @@ describe("play subagent routing source contracts", () => {
           },
         ],
       }),
-    ).toEqual([]);
+    ).toEqual(["retention-resolution-event-missing"]);
     expect(
       continuationErrors({
         ...slotRecovery,
