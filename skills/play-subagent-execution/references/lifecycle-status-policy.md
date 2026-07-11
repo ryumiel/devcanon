@@ -31,11 +31,18 @@ can receive the complete captured state.
 When an executor-retained implementer no longer needs same-session follow-up,
 append `retention-resolved` with evidence that the need finished or its state
 was captured and safely replaced. Preserve each historical `close-deferred`
-event and reason, clear the current retained cleanup decision and current
-retention reason, and keep the target-honest `closed=no` or unavailable outcome
-until a later close or unavailable fact selects an existing cleanup family.
-`manual-cleanup-confirmed` remains separate row-scoped retry authorization; it
-is not closure proof, `retention-resolved`, or another cleanup family.
+event and reason. The canonical immediate projection keeps cleanup evaluation
+`evaluated`, sets current cleanup decision to `none`, clears current retention
+and unavailable reasons, and projects `closed=no`; histories and resolution
+evidence remain append-only. A later close or `closure-unavailable` event
+selects an existing cleanup family.
+
+For slot exhaustion, record a new current recovery episode identity and its
+capacity-blocker snapshot before cleanup. Bind every close or
+`manual-cleanup-confirmed` event used for retry to that episode and blocker.
+Earlier episode evidence remains history but never authorizes a later retry.
+`manual-cleanup-confirmed` is separate row-scoped retry authorization, not
+closure proof, `retention-resolved`, or another cleanup family.
 
 ## Handling Implementer Status
 

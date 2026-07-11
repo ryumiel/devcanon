@@ -100,17 +100,23 @@ successful, unavailable, deliberately deferred, or failed-attempt cleanup
 history according to the shared owner contract before continuing. Missing
 captured role state blocks the handoff. Normal cleanup may continue with
 target-honest open evidence, but shared slot-limit recovery remains blocked
-until actual closure or operator-confirmed manual cleanup.
+until actual closure or operator-confirmed manual cleanup bound to the current
+recovery episode and its capacity-blocker snapshot. Earlier episode evidence
+never authorizes the current retry.
 For timed-out or failed rows, preserve the value-bearing runtime terminal event,
 keep return status/history absent when no turn returned, and capture the gate or
 research error/blocker detail before cleanup.
 A capacity-blocking retained session must first resolve and safely capture or
 replace its follow-up need, append `retention-resolved` with concise resolution
 evidence, preserve the historical `close-deferred` reason, clear the current
-retained cleanup decision and current retention reason, and then obtain actual
-or operator-confirmed cleanup before retrying. A scoped
-`manual-cleanup-confirmed` event authorizes retry but does not prove closure or
-add a cleanup family. An unresolved need stops and escalates without retrying.
+retained cleanup decision and current retention reason, and apply the canonical
+post-resolution projection: cleanup evaluation remains `evaluated`, current
+cleanup decision is `none`, current retention and unavailable reasons are
+absent, and cleanup is `closed=no`. Then obtain actual or operator-confirmed
+cleanup for the current episode before retrying. A current-episode,
+blocker-scoped `manual-cleanup-confirmed` event authorizes retry but does not
+prove closure or add a cleanup family. An unresolved need stops and escalates
+without retrying.
 
 ## Single-Task Final-Review Carve-Out
 

@@ -349,6 +349,12 @@ If any internal, immediate external, or late external spawn fails because slots
 are exhausted, follow `subagent-lifecycle` § Slot-Limit Recovery. Preserve the
 captured research scope, report result, source references, blocker state,
 lifecycle ledger, and repository anchors across that shared recovery procedure.
+Start each slot-exhaustion recovery with a new sanitized recovery episode
+identity and a sanitized snapshot of every capacity-blocking row or identity.
+Bind every `close-succeeded` or `manual-cleanup-confirmed` event used for retry
+to that current episode and blocker. Preserve earlier episode evidence as
+append-only history, but never use stale-episode or non-snapshot evidence to
+authorize the current retry.
 Before any manual cleanup, use the owner classifications for open blockers:
 active rows wait or steer to a safe capture boundary or stop; waiting rows are
 retained or safely replaced; reusable interrupted rows are reused or
@@ -360,8 +366,12 @@ When a capacity-blocking row was deliberately retained, first finish, capture,
 or safely replace that workflow need, then append
 `retention-resolved(evidence=<concise resolution evidence>)`. Preserve the
 historical `close-deferred` event and reason, clear the current retained cleanup
-decision and current retention reason, and keep the target-honest `closed=no`
-or unavailable outcome until a later cleanup family changes it. A scoped
+decision and current retention reason. The sole immediate projection keeps
+cleanup evaluation `evaluated`, sets current cleanup decision to `none`, clears
+current retention and unavailable reasons, and projects `closed=no`; histories
+and resolution evidence remain append-only. A later `closure-unavailable` or
+actual close event selects one of the four cleanup families. A current-episode,
+blocker-scoped
 `manual-cleanup-confirmed` event remains separate retry authorization; it is
 not closure proof, `retention-resolved`, or a cleanup projection family.
 
@@ -702,13 +712,19 @@ keep return status/history absent when no turn returned, and capture the gate or
 research error/blocker detail before cleanup.
 Normal cleanup may continue with target-honest open evidence, but shared
 slot-limit recovery remains blocked until actual closure or
-operator-confirmed manual cleanup.
+operator-confirmed manual cleanup bound to the current recovery episode and
+its capacity-blocker snapshot. Earlier episode evidence never authorizes the
+current retry.
 A capacity-blocking retained session must first resolve and safely capture or
 replace its follow-up need, append `retention-resolved` with concise evidence,
-preserve the historical `close-deferred` reason, clear current retention state, and
-then obtain actual or operator-confirmed cleanup before retrying. A scoped
-`manual-cleanup-confirmed` event authorizes retry but does not prove closure or
-add a cleanup family. An unresolved need stops and escalates without retrying.
+preserve the historical `close-deferred` reason, and apply the canonical
+post-resolution projection: cleanup evaluation remains `evaluated`, current
+cleanup decision is `none`, current retention and unavailable reasons are
+absent, and cleanup is `closed=no`. Then obtain actual or operator-confirmed
+cleanup for the current episode before retrying. A current-episode,
+blocker-scoped `manual-cleanup-confirmed` event authorizes retry but does not
+prove closure or add a cleanup family. An unresolved need stops and escalates
+without retrying.
 
 Invoke `play-subagent-execution` and pass the plan as a `Plan: <path>`
 reference plus `Auto handoff: <repo-relative-path>` in the invocation prose, NOT

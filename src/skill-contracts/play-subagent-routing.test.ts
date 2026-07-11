@@ -718,20 +718,49 @@ describe("play subagent routing source contracts", () => {
           "clear the current retained cleanup decision and current retention reason",
         ) ||
         !normalizedSection.includes(
-          "keep the target-honest `closed=no` or unavailable outcome",
+          "cleanup evaluation `evaluated`, sets current cleanup decision to `none`, clears current retention and unavailable reasons, and projects `closed=no`",
+        ) ||
+        !normalizedSection.includes(
+          "A later `closure-unavailable` or actual close event selects one of the four cleanup families",
         )
       ) {
         errors.push("retention-resolution-current-state");
       }
       if (
         !normalizedSection.includes(
-          "A scoped `manual-cleanup-confirmed` event remains separate retry authorization",
+          "A current-episode, blocker-scoped `manual-cleanup-confirmed` event remains separate retry authorization",
         ) ||
         !normalizedSection.includes(
           "not closure proof, `retention-resolved`, or a cleanup projection family",
         )
       ) {
         errors.push("manual-confirmation-boundary");
+      }
+      return errors;
+    };
+    const recoveryEpisodeErrors = (section: string): string[] => {
+      const normalizedSection = normalizeWhitespace(section);
+      const errors: string[] = [];
+      if (
+        !normalizedSection.includes(
+          "Start each slot-exhaustion recovery with a new sanitized recovery episode identity and a sanitized snapshot of every capacity-blocking row or identity",
+        )
+      ) {
+        errors.push("recovery-episode-snapshot");
+      }
+      if (
+        !normalizedSection.includes(
+          "Bind every `close-succeeded` or `manual-cleanup-confirmed` event used for retry to that current episode and blocker",
+        )
+      ) {
+        errors.push("current-episode-binding");
+      }
+      if (
+        !normalizedSection.includes(
+          "never use stale-episode or non-snapshot evidence to authorize the current retry",
+        )
+      ) {
+        errors.push("stale-episode-rejected");
       }
       return errors;
     };
@@ -807,6 +836,15 @@ describe("play subagent routing source contracts", () => {
     expect(lifecycleProjectionErrors(lifecycleConcurrentJoin)).toEqual([]);
     expect(immediateJoinRecoveryErrors(lifecycleConcurrentJoin)).toEqual([]);
     expect(retainedRecoveryErrors(lifecycleConcurrentJoin)).toEqual([]);
+    expect(recoveryEpisodeErrors(lifecycleConcurrentJoin)).toEqual([]);
+    expect(
+      recoveryEpisodeErrors(
+        lifecycleConcurrentJoin.replace(
+          "that current episode and blocker",
+          "any prior episode",
+        ),
+      ),
+    ).toEqual(["current-episode-binding"]);
     expect(
       retainedRecoveryErrors(
         lifecycleConcurrentJoin.replace(
@@ -5055,10 +5093,19 @@ describe("play subagent routing source contracts", () => {
       "append `retention-resolved` with evidence that the need finished or its state was captured and safely replaced",
     );
     expect(normalizedLifecycle).toContain(
-      "Preserve each historical `close-deferred` event and reason, clear the current retained cleanup decision and current retention reason",
+      "canonical immediate projection keeps cleanup evaluation `evaluated`, sets current cleanup decision to `none`, clears current retention and unavailable reasons, and projects `closed=no`",
     );
     expect(normalizedLifecycle).toContain(
-      "`manual-cleanup-confirmed` remains separate row-scoped retry authorization",
+      "record a new current recovery episode identity and its capacity-blocker snapshot before cleanup",
+    );
+    expect(normalizedLifecycle).toContain(
+      "Bind every close or `manual-cleanup-confirmed` event used for retry to that episode and blocker",
+    );
+    expect(normalizedLifecycle).toContain(
+      "Earlier episode evidence remains history but never authorizes a later retry",
+    );
+    expect(normalizedLifecycle).toContain(
+      "`manual-cleanup-confirmed` is separate row-scoped retry authorization",
     );
     expect(normalizedLifecycle).toContain(
       "not closure proof, `retention-resolved`, or another cleanup family",
@@ -5267,8 +5314,11 @@ describe("play subagent routing source contracts", () => {
         errors.push("deferral-reason-history");
       }
       if (
-        !row.includes("current retained cleanup decision=none") ||
-        !row.includes("current retention reason=none")
+        !row.includes("post-resolution cleanup evaluation=evaluated") ||
+        !row.includes("current cleanup decision=none") ||
+        !row.includes("current retention reason=absent") ||
+        !row.includes("current unavailable-cleanup reason=absent") ||
+        !row.includes("cleanup outcome=closed=no")
       ) {
         errors.push("current-cleanup-projection");
       }
@@ -5326,20 +5376,37 @@ describe("play subagent routing source contracts", () => {
     const manualConfirmationErrors = (
       section: string,
       rowId: string,
+      episodeId: string,
       honestOutcome: string,
     ): string[] => {
       const normalizedSection = normalizeWhitespace(section);
       const errors: string[] = [];
-      const confirmation =
-        "event=manual-cleanup-confirmed(provenance=operator UI, observed-at=";
+      const confirmation = "event=manual-cleanup-confirmed(";
       const confirmationIndex = normalizedSection.indexOf(confirmation);
+      const confirmationEnd =
+        confirmationIndex < 0
+          ? -1
+          : normalizedSection.indexOf(")", confirmationIndex);
+      const confirmationEvent =
+        confirmationIndex < 0 || confirmationEnd < 0
+          ? ""
+          : normalizedSection.slice(confirmationIndex, confirmationEnd + 1);
       const reconstructionIndex = normalizedSection.indexOf("reconstruct");
       const retryIndex = Math.max(
         normalizedSection.lastIndexOf("retry"),
         normalizedSection.lastIndexOf("retries"),
       );
       if (confirmationIndex < 0) errors.push("manual-confirmation-absent");
-      if (!normalizedSection.includes(`to row=${rowId}`)) {
+      if (
+        confirmationIndex >= 0 &&
+        !confirmationEvent.includes(`episode=${episodeId}`)
+      ) {
+        errors.push("manual-confirmation-episode");
+      }
+      if (
+        confirmationIndex >= 0 &&
+        !confirmationEvent.includes(`blocker=${rowId}`)
+      ) {
         errors.push("manual-confirmation-scope");
       }
       if (!normalizedSection.includes(honestOutcome)) {
@@ -6044,6 +6111,7 @@ describe("play subagent routing source contracts", () => {
       manualConfirmationErrors(
         slotLimitRetainedSession,
         "impl-retained",
+        "recovery-retained-1",
         "closed=no remains unchanged",
       ),
     ).toEqual([]);
@@ -6081,13 +6149,14 @@ describe("play subagent routing source contracts", () => {
         errors.push("retention-resolution-without-resolved-need");
       }
       if (
+        !afterResolution.includes("keeps cleanup evaluation=evaluated") ||
+        !afterResolution.includes("sets current cleanup decision=none") ||
+        !afterResolution.includes("current retention reason=absent") ||
         !afterResolution.includes(
-          "clears current retained cleanup decision to none",
+          "current unavailable-cleanup reason=absent",
         ) ||
-        !afterResolution.includes("clears current retention reason to none") ||
-        afterResolution.includes(
-          "current retained cleanup decision=retained",
-        ) ||
+        !afterResolution.includes("cleanup outcome=closed=no") ||
+        afterResolution.includes("current cleanup decision=retained") ||
         afterResolution.includes(
           "current retention reason=reviewer fixups require same-session follow-up",
         )
@@ -6110,7 +6179,22 @@ describe("play subagent routing source contracts", () => {
         errors.push("retention-resolution-order");
       }
       if (
-        !example.includes("this scoped event authorizes the one retry") ||
+        !example.includes(
+          "event=slot-recovery-started(episode=recovery-retained-1, blockers=[impl-retained])",
+        ) ||
+        !example.includes(
+          "event=close-attempted(episode=recovery-retained-1, blocker=impl-retained)",
+        ) ||
+        !example.includes(
+          "event=manual-cleanup-confirmed(episode=recovery-retained-1, blocker=impl-retained",
+        )
+      ) {
+        errors.push("current-episode-evidence");
+      }
+      if (
+        !example.includes(
+          "this current-episode, blocker-scoped event authorizes the one retry",
+        ) ||
         !example.includes(
           "is not closure proof, retention resolution, or a cleanup projection family",
         ) ||
@@ -6118,6 +6202,13 @@ describe("play subagent routing source contracts", () => {
         !example.includes("reconstruct state and retry the spawn exactly once")
       ) {
         errors.push("manual-confirmation-retry-boundary");
+      }
+      if (
+        !example.includes(
+          "Evidence from any earlier recovery episode remains history and cannot authorize this retry",
+        )
+      ) {
+        errors.push("stale-episode-rejected");
       }
       if (!example.includes("stop and escalate without retrying")) {
         errors.push("unresolved-retention-escalation");
@@ -6152,11 +6243,19 @@ describe("play subagent routing source contracts", () => {
     expect(
       retainedSlotRecoveryErrors(
         slotLimitRetainedSession.replace(
-          "clears current retained cleanup decision to none",
-          "keeps current retained cleanup decision=retained",
+          "sets current cleanup decision=none",
+          "keeps current cleanup decision=retained",
         ),
       ),
     ).toEqual(["stale-current-retention"]);
+    expect(
+      retainedSlotRecoveryErrors(
+        slotLimitRetainedSession.replaceAll(
+          "recovery-retained-1",
+          "recovery-retained-0",
+        ),
+      ),
+    ).toEqual(["current-episode-evidence"]);
     expect(
       retainedSlotRecoveryErrors(
         slotLimitRetainedSession.replace(
@@ -6173,12 +6272,24 @@ describe("play subagent routing source contracts", () => {
       const resolutionIndex = example.indexOf("event=retention-resolved(");
       const afterResolution =
         resolutionIndex < 0 ? "" : example.slice(resolutionIndex);
+      const laterFamilyIndex = afterResolution.indexOf("The later");
+      const resolutionProjection =
+        laterFamilyIndex < 0
+          ? afterResolution
+          : afterResolution.slice(0, laterFamilyIndex);
       if (
         !example.includes("event=close-deferred(reason=") ||
         resolutionIndex < 0 ||
-        !afterResolution.includes("current retained cleanup decision=none") ||
-        !afterResolution.includes("current retention reason=none") ||
-        afterResolution.includes("current retained cleanup decision=retained")
+        !resolutionProjection.includes(
+          "cleanup evaluation remains evaluated",
+        ) ||
+        !resolutionProjection.includes("current cleanup decision=none") ||
+        !resolutionProjection.includes("current retention reason=absent") ||
+        !resolutionProjection.includes(
+          "current unavailable-cleanup reason=absent",
+        ) ||
+        !resolutionProjection.includes("cleanup outcome=closed=no") ||
+        resolutionProjection.includes("current cleanup decision=retained")
       ) {
         errors.push("resolved-projection-history");
       }
@@ -6218,8 +6329,8 @@ describe("play subagent routing source contracts", () => {
     expect(
       resolvedProjectionErrors(
         resolvedRetentionUnavailable.replace(
-          "current retained cleanup decision=none",
-          "current retained cleanup decision=retained",
+          "current cleanup decision=none",
+          "current cleanup decision=retained",
         ),
         "unavailable",
       ),
@@ -6248,6 +6359,22 @@ describe("play subagent routing source contracts", () => {
         errors.push("cleanup-projection");
       }
       if (
+        !example.includes(
+          "event=slot-recovery-started(episode=recovery-failed-1, blockers=[impl-failed-close])",
+        ) ||
+        !example.includes(
+          "event=close-attempted(episode=recovery-failed-1, blocker=impl-failed-close)",
+        ) ||
+        !example.includes(
+          "event=manual-cleanup-confirmed(episode=recovery-failed-1, blocker=impl-failed-close",
+        ) ||
+        !example.includes(
+          "an earlier episode's confirmation cannot authorize this retry",
+        )
+      ) {
+        errors.push("recovery-episode-binding");
+      }
+      if (
         !example.includes("does not retry yet") ||
         !example.includes("After operator cleanup") ||
         !example.includes(
@@ -6265,19 +6392,32 @@ describe("play subagent routing source contracts", () => {
       manualConfirmationErrors(
         slotLimitAutomaticCloseFailure,
         "impl-failed-close",
+        "recovery-failed-1",
         "closed=no remains unchanged",
       ),
     ).toEqual([]);
     expect(
       manualConfirmationErrors(
         slotLimitAutomaticCloseFailure.replace(
-          "to row=impl-failed-close",
-          "to row=another-row",
+          "event=manual-cleanup-confirmed(episode=recovery-failed-1, blocker=impl-failed-close",
+          "event=manual-cleanup-confirmed(episode=recovery-failed-1, blocker=another-row",
         ),
         "impl-failed-close",
+        "recovery-failed-1",
         "closed=no remains unchanged",
       ),
     ).toEqual(["manual-confirmation-scope"]);
+    expect(
+      manualConfirmationErrors(
+        slotLimitAutomaticCloseFailure.replaceAll(
+          "recovery-failed-1",
+          "recovery-failed-0",
+        ),
+        "impl-failed-close",
+        "recovery-failed-1",
+        "closed=no remains unchanged",
+      ),
+    ).toEqual(["manual-confirmation-episode"]);
     expect(
       manualConfirmationErrors(
         slotLimitAutomaticCloseFailure.replace(
@@ -6285,6 +6425,7 @@ describe("play subagent routing source contracts", () => {
           "event=manual-cleanup-observed",
         ),
         "impl-failed-close",
+        "recovery-failed-1",
         "closed=no remains unchanged",
       ),
     ).toEqual(["manual-confirmation-absent", "manual-confirmation-order"]);
@@ -6292,14 +6433,15 @@ describe("play subagent routing source contracts", () => {
       manualConfirmationErrors(
         slotLimitUnavailable,
         "impl-unavailable",
+        "recovery-unavailable-1",
         "close-unavailable outcome remains unchanged",
       ),
     ).toEqual([]);
     expect(
       invalidSlotFailureDimensions(
         slotLimitAutomaticCloseFailure.replace(
-          "event=close-attempted then ",
-          "",
+          "event=close-attempted(episode=recovery-failed-1, blocker=impl-failed-close) then event=close-failed(episode=recovery-failed-1, blocker=impl-failed-close)",
+          "event=close-failed(episode=recovery-failed-1, blocker=impl-failed-close) then event=close-attempted(episode=recovery-failed-1, blocker=impl-failed-close)",
         ),
       ),
     ).toEqual(["attempt-failure-history"]);
@@ -6318,6 +6460,15 @@ describe("play subagent routing source contracts", () => {
     );
     expect(slotLimitUnavailable).toContain(
       "event=closure-unavailable(reason=no inventory or close operation)",
+    );
+    expect(slotLimitUnavailable).toContain(
+      "event=slot-recovery-started(episode=recovery-unavailable-1, blockers=[impl-unavailable])",
+    );
+    expect(slotLimitUnavailable).toContain(
+      "event=manual-cleanup-confirmed(episode=recovery-unavailable-1, blocker=impl-unavailable",
+    );
+    expect(slotLimitUnavailable).toContain(
+      "Evidence from an earlier episode cannot authorize this retry",
     );
     expect(slotLimitUnavailable).toContain(
       "reconstructs active task state from the lifecycle ledger and git",
@@ -6368,17 +6519,18 @@ describe("play subagent routing source contracts", () => {
         "preserve the historical `close-deferred` reason",
       );
       expect(
-        normalizedSurface.includes("clear current retention state") ||
-          (normalizedSurface.includes(
-            "clear the current retained cleanup decision",
-          ) &&
-            normalizedSurface.includes("current retention reason")),
+        normalizedSurface.includes(
+          "cleanup evaluation remains `evaluated`, current cleanup decision is `none`, current retention and unavailable reasons are absent, and cleanup is `closed=no`",
+        ),
       ).toBe(true);
       expect(normalizedSurface).toContain(
-        "obtain actual or operator-confirmed cleanup before retrying",
+        "operator-confirmed manual cleanup bound to the current recovery episode and its capacity-blocker snapshot",
       );
       expect(normalizedSurface).toContain(
-        "A scoped `manual-cleanup-confirmed` event authorizes retry but does not prove closure or add a cleanup family",
+        "Earlier episode evidence never authorizes the current retry",
+      );
+      expect(normalizedSurface).toContain(
+        "A current-episode, blocker-scoped `manual-cleanup-confirmed` event authorizes retry but does not prove closure or add a cleanup family",
       );
       expect(normalizedSurface).toContain(
         "An unresolved need stops and escalates without retrying",
