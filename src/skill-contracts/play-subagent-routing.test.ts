@@ -4635,6 +4635,7 @@ describe("play subagent routing source contracts", () => {
       order: number;
       kind:
         | "session-identity-assigned"
+        | "reuse-capability-observed"
         | "operational-classified"
         | "dispatch-requested"
         | "followup-dispatch-requested"
@@ -4659,6 +4660,7 @@ describe("play subagent routing source contracts", () => {
       episodeId?: string;
       blockers?: BlockerRecord[];
       sessionId?: string;
+      reuseSupported?: boolean;
       operationalState?: OperationalState;
       manualTarget?: ManualTarget;
       reason?: string;
@@ -4690,6 +4692,7 @@ describe("play subagent routing source contracts", () => {
       cleanupEligibilityOrder: number;
       retained: boolean;
       retentionReasonHistory: string[];
+      unavailableReasonHistory: string[];
       terminal: boolean;
       outstandingAttempt: {
         scope: string;
@@ -4711,6 +4714,7 @@ describe("play subagent routing source contracts", () => {
       histories: Map<string, LifecycleEvent["kind"][]>;
       projections: Map<string, Projection>;
       retentionReasonHistories: Map<string, string[]>;
+      unavailableReasonHistories: Map<string, string[]>;
     };
 
     const NORMAL_GATE_SCOPE = "normal-gate";
@@ -4738,6 +4742,7 @@ describe("play subagent routing source contracts", () => {
       histories: new Map(),
       projections: new Map(),
       retentionReasonHistories: new Map(),
+      unavailableReasonHistories: new Map(),
     });
     const sanitizedIdentity = (value: string): boolean =>
       /^[A-Za-z0-9._-]+$/.test(value);
@@ -4764,6 +4769,7 @@ describe("play subagent routing source contracts", () => {
       const seenEpisodeIds = new Set<string>();
       const episodeById = new Map<string, EpisodeWindow>();
       const rows = new Map<string, RowFold>();
+      const sessionOwnerById = new Map<string, string>();
       let previousOrder = 0;
       let currentEpisode: EpisodeWindow | undefined;
 
@@ -4788,6 +4794,7 @@ describe("play subagent routing source contracts", () => {
           cleanupEligibilityOrder: 0,
           retained: false,
           retentionReasonHistory: [],
+          unavailableReasonHistory: [],
           terminal: false,
           outstandingAttempt: null,
           manualEligibleEpisode: null,
@@ -4927,6 +4934,10 @@ describe("play subagent routing source contracts", () => {
         if (blocker.sessionRef.kind === "stable") {
           if (!stableSessionId(blocker.sessionRef.sessionId)) {
             return "invalid-stable-session-identity";
+          }
+          const owner = sessionOwnerById.get(blocker.sessionRef.sessionId);
+          if (owner !== undefined && owner !== blocker.rowId) {
+            return "snapshot-session-identity-alias";
           }
           if (
             state.sessionIdentity.kind !== "stable" ||
@@ -5082,12 +5093,30 @@ describe("play subagent routing source contracts", () => {
             ) {
               return fail("identity-assigned-before-dispatch");
             }
+            {
+              const owner = sessionOwnerById.get(event.sessionId);
+              if (owner !== undefined && owner !== event.rowId) {
+                return fail("session-identity-owned-by-another-row");
+              }
+            }
             state.sessionIdentity = {
               kind: "stable",
               sessionId: event.sessionId,
             };
+            sessionOwnerById.set(event.sessionId, event.rowId);
             state.sessionReusable = false;
             advanceOperational(state, "active", event.order);
+            break;
+          case "reuse-capability-observed":
+            if (
+              state.sessionIdentity.kind !== "stable" ||
+              event.reuseSupported === undefined ||
+              event.evidence === undefined ||
+              event.evidence.trim().length === 0
+            ) {
+              return fail("reuse-capability-evidence");
+            }
+            state.sessionReusable = event.reuseSupported;
             break;
           case "operational-classified":
             if (
@@ -5103,14 +5132,11 @@ describe("play subagent routing source contracts", () => {
             break;
           case "dispatch-requested":
             if (
-              state.operationalState !== null &&
-              state.operationalState !== "pending" &&
-              state.operationalState !== "unknown"
+              state.operationalState !== null ||
+              state.dispatchRequestOrder !== 0 ||
+              state.sessionIdentity.kind !== "unresolved"
             ) {
               return fail("illegal-dispatch-transition");
-            }
-            if (state.sessionIdentity.kind === "stable") {
-              return fail("pre-dispatch-stable-session-identity");
             }
             state.dispatchRequestOrder = event.order;
             advanceOperational(state, "pending", event.order);
@@ -5125,7 +5151,6 @@ describe("play subagent routing source contracts", () => {
               return fail("illegal-followup-dispatch-transition");
             }
             advanceOperational(state, "active", event.order);
-            state.sessionReusable = false;
             break;
           case "waiting":
             if (state.operationalState !== "active") {
@@ -5195,7 +5220,6 @@ describe("play subagent routing source contracts", () => {
                   : "failed";
             advanceOperational(state, nextState, event.order);
             state.latestTerminalOrder = event.order;
-            state.sessionReusable = event.kind === "turn-completed";
             if (event.kind !== "turn-completed") {
               state.abnormalContextRequiredSince = event.order;
               state.abnormalContextOrder = 0;
@@ -5299,9 +5323,6 @@ describe("play subagent routing source contracts", () => {
             if (identity !== null) {
               return fail(identity);
             }
-            if (state.retained) {
-              return fail("retention-unresolved-before-cleanup");
-            }
             const scope = episode?.episodeId ?? NORMAL_GATE_SCOPE;
             state.outstandingAttempt = {
               scope,
@@ -5356,9 +5377,6 @@ describe("play subagent routing source contracts", () => {
             if (state.retained) {
               return fail("retention-unresolved-before-cleanup");
             }
-            if (state.retained) {
-              return fail("retention-unresolved-before-cleanup");
-            }
             if (
               event.reason === undefined ||
               event.reason.trim().length === 0
@@ -5368,6 +5386,7 @@ describe("play subagent routing source contracts", () => {
             state.latestRelevantTransitionOrder = event.order;
             state.manualEligibleEpisode = episode?.episodeId ?? null;
             state.manualPathOrder = event.order;
+            state.unavailableReasonHistory.push(event.reason);
             state.projection = {
               decision: "unavailable",
               outcome: "close-unavailable",
@@ -5379,9 +5398,6 @@ describe("play subagent routing source contracts", () => {
           case "manual-cleanup-confirmed":
             if (episode === undefined || episodeBlocker === undefined) {
               return fail("lifecycle-event-episode-scope");
-            }
-            if (state.retained) {
-              return fail("manual-confirmation-before-retention-resolution");
             }
             if (state.retained) {
               return fail("manual-confirmation-before-retention-resolution");
@@ -5451,6 +5467,12 @@ describe("play subagent routing source contracts", () => {
           [...rows].map(([rowId, state]) => [
             rowId,
             state.retentionReasonHistory,
+          ]),
+        ),
+        unavailableReasonHistories: new Map(
+          [...rows].map(([rowId, state]) => [
+            rowId,
+            state.unavailableReasonHistory,
           ]),
         ),
       };
@@ -5557,6 +5579,16 @@ describe("play subagent routing source contracts", () => {
       event("retention-resolved", order, {
         evidence: "fixup state captured and safely replaced",
       });
+    const reuseCapability = (
+      order: number,
+      reuseSupported = true,
+      overrides: Partial<LifecycleEvent> = {},
+    ): LifecycleEvent =>
+      event("reuse-capability-observed", order, {
+        reuseSupported,
+        evidence: "target-reported same-session follow-up capability",
+        ...overrides,
+      });
     const confirmation = (
       order: number,
       overrides: Partial<LifecycleEvent> = {},
@@ -5612,6 +5644,53 @@ describe("play subagent routing source contracts", () => {
       [event("dispatch-requested", 1), event("waiting", 2), episodeStart()],
       "illegal-waiting-transition",
     );
+    expectError(
+      [
+        event("dispatch-requested", 1),
+        event("dispatch-requested", 2),
+        episodeStart(),
+      ],
+      "illegal-dispatch-transition",
+    );
+    expectError(
+      [
+        event("operational-classified", 1, { operationalState: "unknown" }),
+        event("dispatch-requested", 2),
+        episodeStart(),
+      ],
+      "illegal-dispatch-transition",
+    );
+    expectError(
+      [
+        event("dispatch-requested", 1),
+        event("session-identity-assigned", 2, { sessionId: "session-1" }),
+        event("dispatch-requested", 3, { rowId: "block-2" }),
+        event("session-identity-assigned", 4, {
+          rowId: "block-2",
+          sessionId: "session-1",
+        }),
+        episodeStart(),
+      ],
+      "session-identity-owned-by-another-row",
+    );
+    expectError(
+      [
+        ...operationalFacts(),
+        episodeStart(10, {
+          blockers: [
+            blocker({
+              rowId: "block-2",
+              inventoryIdentity: "inventory-2",
+            }),
+          ],
+        }),
+      ],
+      "snapshot-session-identity-alias",
+    );
+    expectError(
+      [event("dispatch-requested", 1), reuseCapability(2), episodeStart()],
+      "reuse-capability-evidence",
+    );
     for (const terminal of ["completed", "timed-out", "failed"] as const) {
       expect(
         foldLifecycle(manualPath(operationalFacts(terminal))).errors,
@@ -5634,10 +5713,11 @@ describe("play subagent routing source contracts", () => {
     expect(
       foldLifecycle([
         ...operationalFacts(),
-        event("followup-dispatch-requested", 5),
-        event("waiting", 6),
-        event("turn-completed", 7),
-        event("required-state-captured", 8, {
+        reuseCapability(5),
+        event("followup-dispatch-requested", 6),
+        event("waiting", 7),
+        event("turn-completed", 8),
+        event("required-state-captured", 9, {
           evidence: "followup result captured",
         }),
         episodeStart(),
@@ -5688,6 +5768,45 @@ describe("play subagent routing source contracts", () => {
         confirmation(12),
       ]).errors,
     ).toEqual([]);
+
+    const successiveUnavailableResult = foldLifecycle([
+      ...operationalFacts(),
+      episodeStart(),
+      unavailable(11, { reason: "close tool missing" }),
+      unavailable(12, { reason: "manual inventory fallback required" }),
+      confirmation(13),
+    ]);
+    expect(successiveUnavailableResult.errors).toEqual([]);
+    expect(
+      successiveUnavailableResult.unavailableReasonHistories.get("block-1"),
+    ).toEqual(["close tool missing", "manual inventory fallback required"]);
+    expect(successiveUnavailableResult.projections.get("block-1")).toEqual({
+      decision: "unavailable",
+      outcome: "close-unavailable",
+      retentionReason: null,
+      unavailableReason: "manual inventory fallback required",
+    });
+
+    const clearedUnavailableResult = foldLifecycle([
+      ...operationalFacts(),
+      episodeStart(),
+      unavailable(11, { reason: "close tool missing" }),
+      unavailable(12, { reason: "fallback also unavailable" }),
+      deferral(13, "preserve until replacement is safe"),
+      resolution(14),
+      automaticClose("close-attempted", 15),
+      automaticClose("close-succeeded", 16),
+    ]);
+    expect(clearedUnavailableResult.errors).toEqual([]);
+    expect(
+      clearedUnavailableResult.unavailableReasonHistories.get("block-1"),
+    ).toEqual(["close tool missing", "fallback also unavailable"]);
+    expect(clearedUnavailableResult.projections.get("block-1")).toEqual({
+      decision: "attempted",
+      outcome: "closed=yes",
+      retentionReason: null,
+      unavailableReason: null,
+    });
 
     for (const overlap of [
       deferral(12),
@@ -5751,11 +5870,29 @@ describe("play subagent routing source contracts", () => {
       ],
       "illegal-followup-dispatch-transition",
     );
+    expectError(
+      [
+        ...operationalFacts(),
+        event("followup-dispatch-requested", 5),
+        episodeStart(),
+      ],
+      "illegal-followup-dispatch-transition",
+    );
+    expectError(
+      [
+        ...operationalFacts(),
+        reuseCapability(5, false),
+        event("followup-dispatch-requested", 6),
+        episodeStart(),
+      ],
+      "illegal-followup-dispatch-transition",
+    );
     for (const terminal of ["timed-out", "failed"] as const) {
       expectError(
         [
           ...operationalFacts(terminal),
-          event("followup-dispatch-requested", 6),
+          reuseCapability(6),
+          event("followup-dispatch-requested", 7),
           episodeStart(),
         ],
         "illegal-followup-dispatch-transition",
@@ -5764,8 +5901,9 @@ describe("play subagent routing source contracts", () => {
     expectError(
       [
         ...operationalFacts(),
-        event("superseded", 5),
-        event("followup-dispatch-requested", 6),
+        reuseCapability(5),
+        event("superseded", 6),
+        event("followup-dispatch-requested", 7),
         episodeStart(),
       ],
       "illegal-followup-dispatch-transition",
@@ -5773,8 +5911,9 @@ describe("play subagent routing source contracts", () => {
     expectError(
       [
         ...operationalFacts(),
-        event("followup-dispatch-requested", 5),
-        event("turn-completed", 6),
+        reuseCapability(5),
+        event("followup-dispatch-requested", 6),
+        event("turn-completed", 7),
         episodeStart(),
       ],
       "required-state-capture-stale",
@@ -5782,6 +5921,7 @@ describe("play subagent routing source contracts", () => {
     expectError(
       [
         ...operationalFacts(),
+        reuseCapability(5),
         episodeStart(),
         unavailable(11),
         confirmation(12),
@@ -5797,6 +5937,7 @@ describe("play subagent routing source contracts", () => {
     expectError(
       [
         ...operationalFacts(),
+        reuseCapability(5),
         episodeStart(),
         unavailable(11),
         event("followup-dispatch-requested", 12),
