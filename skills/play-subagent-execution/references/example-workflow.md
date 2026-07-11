@@ -210,8 +210,12 @@ Task 2 code-quality re-reviewer: agent_id=quality-2-rereview, operational state=
 Task 3: Low-risk example copy
 
 [Cleanup gate before Task 3 implementer spawn]
-Controller verifies completed Task 2 sessions are closed or recorded with
-target-honest `close-unavailable` outcomes before spawning Task 3.
+With no capacity failure in this run, the normal shared gate records whichever
+target-honest projection applies for completed Task 2 sessions: successful
+closure, deliberate deferral with reason, failed-attempt `closed=no`, or
+unavailable closure with reason, then continues to the Task 3 spawn. A capacity
+failure instead routes to shared slot-limit recovery and no retry until closure
+or operator-confirmed manual cleanup.
 
 [Snapshot classification]
 Controller skips the snapshot: this is a clearly localized low-risk example

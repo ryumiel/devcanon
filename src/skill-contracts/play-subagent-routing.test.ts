@@ -3959,6 +3959,11 @@ describe("play subagent routing source contracts", () => {
       "Task 3: Low-risk example copy",
       "[Mark Task 3 complete]",
     );
+    const task3PreSpawnCleanup = sliceBetween(
+      task3Section,
+      "[Cleanup gate before Task 3 implementer spawn]",
+      "[Snapshot classification]",
+    );
     const targetCapabilityExamples = sliceBetween(
       exampleWorkflow,
       "[Alternative target capability examples - separate runs",
@@ -4058,6 +4063,36 @@ describe("play subagent routing source contracts", () => {
       }
       return errors;
     };
+    const normalGateProjectionErrors = (checkpoint: string): string[] => {
+      const normalizedCheckpoint = normalizeWhitespace(checkpoint);
+      const errors: string[] = [];
+      for (const family of [
+        "successful closure",
+        "deliberate deferral with reason",
+        "failed-attempt `closed=no`",
+        "unavailable closure with reason",
+      ]) {
+        if (!normalizedCheckpoint.includes(family)) {
+          errors.push(`missing-${family}`);
+        }
+      }
+      if (
+        normalizedCheckpoint.includes(
+          "closed or recorded with target-honest `close-unavailable` outcomes",
+        )
+      ) {
+        errors.push("binary-normal-gate-fallback");
+      }
+      if (
+        !normalizedCheckpoint.includes("no capacity failure") ||
+        !normalizedCheckpoint.includes(
+          "slot-limit recovery and no retry until closure or operator-confirmed manual cleanup",
+        )
+      ) {
+        errors.push("slot-retry-guard");
+      }
+      return errors;
+    };
 
     expect(exampleWorkflow).toContain(
       "generic\nlifecycle ledger, target capability classes, cleanup gate, target-honest\ncleanup outcomes, and slot-limit recovery live in `subagent-lifecycle`",
@@ -4122,6 +4157,18 @@ describe("play subagent routing source contracts", () => {
       ]),
     ).toEqual([]);
     expect(task3Section).toContain("snapshot state=skipped");
+    expect(normalGateProjectionErrors(task3PreSpawnCleanup)).toEqual([]);
+    expect(
+      normalGateProjectionErrors(
+        normalizeWhitespace(task3PreSpawnCleanup).replace(
+          "deliberate deferral with reason, failed-attempt `closed=no`, ",
+          "",
+        ),
+      ),
+    ).toEqual([
+      "missing-deliberate deferral with reason",
+      "missing-failed-attempt `closed=no`",
+    ]);
     expect(normalizeWhitespace(task3Section)).toContain(
       "The implementer must report the default DONE fields: status, summary, tests, files changed, base SHA, and head SHA.",
     );
