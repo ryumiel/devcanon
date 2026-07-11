@@ -380,6 +380,65 @@ function validateResearchOutcome(example: ResearchOutcomeExample): string[] {
   return errors;
 }
 
+const RETENTION_RESOLUTION_REQUIREMENTS = [
+  [
+    "retention-resolution-terminal-capture",
+    "current `completed`, `timed-out`, `failed`, or `superseded` and fresh capture",
+  ],
+  [
+    "retention-resolution-need-finished-basis",
+    "`retention-resolved(basis=need-finished, evidence=...)`",
+  ],
+  [
+    "retention-resolution-captured-proof",
+    "latest `close-deferred` < value-bearing `required-state-captured` < `replacement-secured` < `retention-resolved(basis=captured-and-replaced, evidence=...)`",
+  ],
+] as const;
+
+const RETENTION_RESOLUTION_MUTATIONS = [
+  [
+    "missing need-finished basis",
+    RETENTION_RESOLUTION_REQUIREMENTS[1][1],
+    "`retention-resolved(evidence=...)`",
+    RETENTION_RESOLUTION_REQUIREMENTS[1][0],
+  ],
+  [
+    "missing captured-and-replaced basis",
+    "`retention-resolved(basis=captured-and-replaced, evidence=...)`",
+    "`retention-resolved(evidence=...)`",
+    RETENTION_RESOLUTION_REQUIREMENTS[2][0],
+  ],
+  [
+    "stale pre-deferral capture",
+    RETENTION_RESOLUTION_REQUIREMENTS[2][1],
+    "value-bearing `required-state-captured` < latest `close-deferred` < `replacement-secured` < `retention-resolved(basis=captured-and-replaced, evidence=...)`",
+    RETENTION_RESOLUTION_REQUIREMENTS[2][0],
+  ],
+  [
+    "replacement before capture",
+    RETENTION_RESOLUTION_REQUIREMENTS[2][1],
+    "latest `close-deferred` < `replacement-secured` < value-bearing `required-state-captured` < `retention-resolved(basis=captured-and-replaced, evidence=...)`",
+    RETENTION_RESOLUTION_REQUIREMENTS[2][0],
+  ],
+] as const;
+
+function retentionResolutionProofErrors(section: string): string[] {
+  const normalizedSection = normalizeWhitespace(section);
+  return RETENTION_RESOLUTION_REQUIREMENTS.filter(
+    ([, evidence]) => !normalizedSection.includes(evidence),
+  ).map(([code]) => code);
+}
+
+function expectRetentionResolutionMutations(section: string): void {
+  const normalizedSection = normalizeWhitespace(section);
+  for (const [name, from, to, code] of RETENTION_RESOLUTION_MUTATIONS) {
+    expect(
+      retentionResolutionProofErrors(normalizedSection.replace(from, to)),
+      name,
+    ).toContain(code);
+  }
+}
+
 describe("play subagent routing source contracts", () => {
   it("keeps issue-priming mode, model, lifecycle, and review contracts visible while helpers own mechanics", async () => {
     const issuePrimingWorkflow = await readSkillSource(
@@ -702,18 +761,8 @@ describe("play subagent routing source contracts", () => {
     };
     const retainedRecoveryErrors = (section: string): string[] => {
       const normalizedSection = normalizeWhitespace(section);
-      const errors: string[] = [];
+      const errors = retentionResolutionProofErrors(normalizedSection);
       if (
-        !normalizedSection.includes(
-          "deferred need finished, or required state was freshly captured and the follow-up need safely replaced",
-        )
-      ) {
-        errors.push("retention-resolution-predicate");
-      }
-      if (
-        !normalizedSection.includes(
-          "append `retention-resolved(evidence=<concise resolution evidence>)`",
-        ) ||
         !normalizedSection.includes(
           "Preserve the historical `close-deferred` event and reason",
         )
@@ -859,19 +908,7 @@ describe("play subagent routing source contracts", () => {
     expect(lifecycleProjectionErrors(lifecycleConcurrentJoin)).toEqual([]);
     expect(immediateJoinRecoveryErrors(lifecycleConcurrentJoin)).toEqual([]);
     expect(retainedRecoveryErrors(lifecycleConcurrentJoin)).toEqual([]);
-    for (const weakenedPredicate of [
-      "deferred need finished, or required state was freshly captured",
-      "deferred need finished, or the follow-up need safely replaced",
-    ]) {
-      expect(
-        retainedRecoveryErrors(
-          normalizeWhitespace(lifecycleConcurrentJoin).replace(
-            "deferred need finished, or required state was freshly captured and the follow-up need safely replaced",
-            weakenedPredicate,
-          ),
-        ),
-      ).toContain("retention-resolution-predicate");
-    }
+    expectRetentionResolutionMutations(lifecycleConcurrentJoin);
     expect(recoveryEpisodeErrors(lifecycleConcurrentJoin)).toEqual([]);
     expect(interruptedReuseGuidanceErrors(lifecycleConcurrentJoin)).toEqual([]);
     for (const evidence of interruptedReuseRequirements) {
@@ -3137,14 +3174,16 @@ describe("play subagent routing source contracts", () => {
     expect(normalizeWhitespace(consequences)).toContain(
       "the reason remains event-associated append-only history after the current decision advances",
     );
+    expect(retentionResolutionProofErrors(consequences)).toEqual([]);
+    expectRetentionResolutionMutations(consequences);
     expect(normalizeWhitespace(consequences)).toContain(
-      "Finishing that deferred need, or capturing its required state and safely replacing the follow-up need, records `retention-resolved`, preserves the historical deferral, and clears current retention",
+      "Resolution preserves the historical deferral and clears current retention",
     );
     expect(normalizeWhitespace(consequences)).toContain(
       "Its sole current projection is evaluated, decision `none`, no current retention or unavailable reason, and `closed=no`",
     );
     expect(normalizeWhitespace(consequences)).toContain(
-      "A capacity-blocking retained session requires an owning-workflow decision: establish that the deferred need finished, or required state was freshly captured and the follow-up need safely replaced before actual or operator-confirmed cleanup; otherwise stop and escalate",
+      "A capacity-blocking retained session requires the basis and proof above before actual or operator-confirmed cleanup; otherwise stop and escalate",
     );
     expect(normalizeWhitespace(consequences)).toContain(
       "workflow return status and reviewer disposition survive same-session operational re-entry to active or waiting state",
@@ -8706,13 +8745,9 @@ describe("play subagent routing source contracts", () => {
       expect(normalizedSurface).toContain(
         "slot-limit recovery remains blocked until actual closure or operator-confirmed manual cleanup",
       );
-      expect(normalizedSurface).toContain(
-        "append `retention-resolved` with concise",
-      );
-      expect(normalizedSurface).toContain(
-        "deferred need finished, or required state was freshly captured and the follow-up need safely replaced",
-      );
-      expect(normalizedSurface).toContain(
+      expect(retentionResolutionProofErrors(normalizedSurface)).toEqual([]);
+      expectRetentionResolutionMutations(normalizedSurface);
+      expect(normalizedSurface.toLowerCase()).toContain(
         "preserve the historical `close-deferred` reason",
       );
       expect(

@@ -106,10 +106,14 @@ implementers continue to read the worktree from disk.
   concrete workflow-owned reason without fabricating an attempt or failure;
   the reason remains event-associated append-only history after the current
   decision advances, and later real attempts append to rather than erase it.
-- Finishing that deferred need, or capturing its required state and safely
-  replacing the follow-up need, records `retention-resolved`, preserves the
-  historical deferral, and clears current retention. Its sole current
-  projection is evaluated, decision
+- A retained row requires current `completed`, `timed-out`, `failed`, or
+  `superseded` and fresh capture. A finished need records
+  `retention-resolved(basis=need-finished, evidence=...)`; otherwise require
+  latest `close-deferred` < value-bearing `required-state-captured` <
+  `replacement-secured` <
+  `retention-resolved(basis=captured-and-replaced, evidence=...)`. Resolution
+  preserves the historical deferral and clears current retention. Its sole
+  current projection is evaluated, decision
   `none`, no current retention or unavailable reason, and `closed=no`. The event
   neither changes the four cleanup families nor authorizes slot retry without
   actual or operator-confirmed cleanup.
@@ -122,10 +126,8 @@ implementers continue to read the worktree from disk.
   or failed results when capacity has not failed. Once a spawn reports slot
   exhaustion, retry remains blocked until actual closure or operator-confirmed
   manual cleanup.
-- A capacity-blocking retained session requires an owning-workflow decision:
-  establish that the deferred need finished, or required state was freshly
-  captured and the follow-up need safely replaced before actual or
-  operator-confirmed cleanup; otherwise stop and escalate.
+- A capacity-blocking retained session requires the basis and proof above before
+  actual or operator-confirmed cleanup; otherwise stop and escalate.
 - Active, waiting, interrupted, pending, and unknown-identity capacity blockers
   require state-specific classification before cleanup; unsafe or unresolved
   open state stops recovery instead of being destroyed or guessed.

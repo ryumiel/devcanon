@@ -367,10 +367,13 @@ retention requires no replacement; supersession alone requires secured
 replacement state. Pending or unknown rows resolve identity or stop without
 fabricated cleanup. Record row-scoped `manual-cleanup-confirmed` evidence before
 reconstruction and retry while preserving the row's honest cleanup outcome.
-When a capacity-blocking row was deliberately retained, first establish that
-the deferred need finished, or required state was freshly captured and the
-follow-up need safely replaced, then append
-`retention-resolved(evidence=<concise resolution evidence>)`. Preserve the
+When a capacity-blocking row was deliberately retained, require current
+`completed`, `timed-out`, `failed`, or `superseded` and fresh capture. If the
+deferred need finished, append
+`retention-resolved(basis=need-finished, evidence=...)`. Otherwise require
+latest `close-deferred` < value-bearing `required-state-captured` <
+`replacement-secured` <
+`retention-resolved(basis=captured-and-replaced, evidence=...)`. Preserve the
 historical `close-deferred` event and reason, clear the current retained cleanup
 decision and current retention reason. The sole immediate projection keeps
 cleanup evaluation `evaluated`, sets current cleanup decision to `none`, clears
@@ -721,10 +724,13 @@ slot-limit recovery remains blocked until actual closure or
 operator-confirmed manual cleanup bound to the current recovery episode and
 its capacity-blocker snapshot. Earlier episode evidence never authorizes the
 current retry.
-A capacity-blocking retained session must first establish that the deferred
-need finished, or required state was freshly captured and the follow-up need
-safely replaced, then append `retention-resolved` with concise evidence,
-preserve the historical `close-deferred` reason, and apply the canonical
+A capacity-blocking retained session requires current `completed`, `timed-out`,
+`failed`, or `superseded` and fresh capture. If the deferred need finished,
+append `retention-resolved(basis=need-finished, evidence=...)`. Otherwise
+require latest `close-deferred` < value-bearing `required-state-captured` <
+`replacement-secured` <
+`retention-resolved(basis=captured-and-replaced, evidence=...)`. Preserve the
+historical `close-deferred` reason and apply the canonical
 post-resolution projection: cleanup evaluation remains `evaluated`, current
 cleanup decision is `none`, current retention and unavailable reasons are
 absent, and cleanup is `closed=no`. Then obtain actual or operator-confirmed
