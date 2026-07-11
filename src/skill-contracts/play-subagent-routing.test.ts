@@ -2887,8 +2887,6 @@ describe("play subagent routing source contracts", () => {
       for (const [earlier, later] of [
         ["dispatch-requested", "identity-assigned"],
         ["identity-assigned", "turn-completed"],
-        ["close-attempted", "close-failed"],
-        ["close-attempted", "close-succeeded"],
       ] as const) {
         const earlierIndex = example.events.indexOf(earlier);
         const laterIndex = example.events.indexOf(later);
@@ -2985,6 +2983,34 @@ describe("play subagent routing source contracts", () => {
       if (firstCloseSucceededIndex >= 0 && laterClosureControlIndex >= 0) {
         errors.push("terminal-close-contradiction");
         return errors;
+      }
+      if (example.cleanupEvaluation === "evaluated") {
+        let unmatchedAttempt = false;
+        for (const event of example.events) {
+          if (event === "close-attempted") {
+            if (unmatchedAttempt) {
+              errors.push("close-attempt-result-pairing");
+              return errors;
+            }
+            unmatchedAttempt = true;
+          } else if (event === "close-failed" || event === "close-succeeded") {
+            if (!unmatchedAttempt) {
+              errors.push("close-attempt-result-pairing");
+              return errors;
+            }
+            unmatchedAttempt = false;
+          } else if (
+            unmatchedAttempt &&
+            (event === "close-deferred" || event === "closure-unavailable")
+          ) {
+            errors.push("close-attempt-result-pairing");
+            return errors;
+          }
+        }
+        if (unmatchedAttempt) {
+          errors.push("cleanup-result-missing");
+          return errors;
+        }
       }
       if (
         example.cleanupEvaluation === "evaluated" &&
@@ -3540,13 +3566,13 @@ describe("play subagent routing source contracts", () => {
           (event) => event !== "close-attempted",
         ),
       }),
-    ).toEqual(["cleanup-event-history"]);
+    ).toEqual(["close-attempt-result-pairing"]);
     expect(
       invalidDimensions({
         ...failedClose,
         events: [...returned.events, "close-failed", "close-attempted"],
       }),
-    ).toEqual(["event-history"]);
+    ).toEqual(["close-attempt-result-pairing"]);
     expect(
       invalidDimensions({
         ...failedClose,
@@ -3554,7 +3580,14 @@ describe("play subagent routing source contracts", () => {
         closeSucceeded: true,
         events: [...failedClose.events, "close-succeeded"],
       }),
-    ).toEqual([]);
+    ).toEqual(["close-attempt-result-pairing"]);
+    const succeededOnRetry: LifecycleExample = {
+      ...failedClose,
+      cleanup: "closed=yes",
+      closeSucceeded: true,
+      events: [...failedClose.events, "close-attempted", "close-succeeded"],
+    };
+    expect(invalidDimensions(succeededOnRetry)).toEqual([]);
     expect(
       invalidDimensions({
         ...failedClose,
@@ -3562,6 +3595,40 @@ describe("play subagent routing source contracts", () => {
         closeSucceeded: true,
       }),
     ).toEqual(["cleanup-event-history"]);
+    expect(
+      invalidDimensions({
+        ...retainedForFollowup,
+        cleanup: "closed=yes",
+        closeSucceeded: true,
+        events: [...retainedForFollowup.events, "close-succeeded"],
+      }),
+    ).toEqual(["close-attempt-result-pairing"]);
+    expect(
+      invalidDimensions({
+        ...failedClose,
+        cleanupDecision: "retained",
+        retentionReason: "same-session follow-up remains necessary",
+        events: [...failedClose.events, "close-deferred", "close-failed"],
+      }),
+    ).toEqual(["close-attempt-result-pairing"]);
+    expect(
+      invalidDimensions({
+        ...failedClose,
+        capability: "inventory-only",
+        cleanup: "close-unavailable",
+        cleanupDecision: "unavailable",
+        closeOperationExposed: false,
+        closeOperationUsable: false,
+        closeUnavailableReason: "close operation no longer exposed",
+        events: [...failedClose.events, "closure-unavailable", "close-failed"],
+      }),
+    ).toEqual(["close-attempt-result-pairing"]);
+    expect(
+      invalidDimensions({
+        ...succeededOnRetry,
+        events: [...succeededOnRetry.events, "close-deferred"],
+      }),
+    ).toEqual(["terminal-close-contradiction"]);
   });
 
   it("separates normal cleanup continuation from slot-limit retry authorization", () => {
