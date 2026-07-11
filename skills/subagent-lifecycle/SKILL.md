@@ -38,9 +38,11 @@ and cleanup outcome are independent ledger dimensions. Each row records:
   interruption;
 - the target capability class when relevant;
 - one cleanup evaluation state: `not-evaluated` or `evaluated`;
-- an ordered, append-only lifecycle-event history;
-- a concrete workflow-owned retention reason when cleanup is deliberately
-  deferred;
+- an ordered, append-only lifecycle-event history with event-associated detail
+  needed to recover the fact, including the concrete workflow-owned reason on
+  every `close-deferred` event;
+- the current workflow-owned retention reason only while the latest cleanup
+  decision is deliberate retention;
 - workflow return status after a return is observed;
 - reviewer disposition after it is classified;
 - role-specific captured state;
@@ -76,9 +78,12 @@ Each row keeps an ordered, append-only lifecycle-event history alongside its
 current operational state. Append events such as `dispatch-requested`,
 `identity-assigned`, `waiting`, `interrupted`, `turn-completed`, `superseded`,
 `close-attempted`, `close-deferred`, `close-failed`, `close-succeeded`, and
-`closure-unavailable` when those facts occur. State changes never erase prior
-events. An identity assignment, wait, interruption, completion, supersession,
-or closure result therefore remains recoverable after current state advances.
+`closure-unavailable` when those facts occur. Record the concrete
+workflow-owned retention reason as event-associated detail on each
+`close-deferred`; an event name without its reason is incomplete. State changes
+never erase prior events or their associated detail. An identity assignment,
+wait, interruption, completion, supersession, deferral reason, or closure
+result therefore remains recoverable after current state advances.
 
 A normal returned turn appends `turn-completed` and sets current operational
 state to `completed`, including when its workflow return status is `DONE`,
@@ -165,7 +170,8 @@ transitions the row to `evaluated`; after that transition, these families make
 the projection deterministic:
 
 - An evaluated session deliberately retained for same-session follow-up
-  appends `close-deferred`, records a concrete workflow-owned retention reason,
+  appends `close-deferred` with its concrete workflow-owned reason as
+  event-associated detail, records that reason as the current retention reason,
   and projects `closed=no`. That decision does not append `close-attempted` or
   `close-failed`; deferral is not a fabricated close attempt.
 - An evaluated session without stable identity or without an exposed, usable
@@ -192,8 +198,10 @@ close and its history.
 Do not retain a cleanup outcome that contradicts the latest closure decision,
 event, or capability facts. A failed close is not unavailable, and a deferred
 close is not a failed attempt. A later real attempt appends to the history
-without erasing `close-deferred`; a later success replaces `closed=no` with
-`closed=yes` without deleting the deferral or failed-attempt history.
+without erasing `close-deferred` or its associated reason. The current retention
+reason no longer applies after the current decision advances, but the historical
+reason remains recoverable from the event. A later success replaces `closed=no`
+with `closed=yes` without deleting the deferral or failed-attempt history.
 
 For rows not already successfully closed, later capability changes trigger
 reevaluation by appending newly observed capability and closure events, keeping
@@ -248,20 +256,28 @@ When a spawn fails because of a slot/session limit:
    ledger before considering any retry. A spawn without a slot-limit signal
    remains under the normal cleanup gate and does not activate this retry path.
 2. Run the cleanup gate for all completed or superseded sessions.
-3. If automatic cleanup is unavailable or a usable automatic close attempt
+3. For any capacity-blocking session whose latest cleanup decision is
+   `close-deferred`, require the owning workflow to resolve whether same-session
+   follow-up is still required. If the need can finish or its required state can
+   be captured and safely replaced, record that resolution and proceed through
+   an actual supported close or operator-confirmed manual cleanup before retry.
+   Preserve the historical `close-deferred` reason. If the follow-up need
+   remains and safe cleanup or replacement cannot occur, stop and escalate;
+   neither the deferral nor an unsafe manual close authorizes a retry.
+4. If automatic cleanup is unavailable or a usable automatic close attempt
    fails, surface the same explicit operator/UI manual-cleanup guidance. Include
    only sanitized open-agent inventory when the target exposes it; otherwise
    state that inventory is unavailable. Use the same field allowlist and
    redaction rule described for retry-failure escalation below. Wait for
    operator confirmation that manual cleanup is complete before continuing.
-4. Reconstruct active workflow state from the lifecycle ledger and the
+5. Reconstruct active workflow state from the lifecycle ledger and the
    repository state anchors the owning workflow uses, such as `git status`,
    current branch, and relevant base/head SHAs.
-5. Retry the spawn exactly once only after automatic cleanup projects
+6. Retry the spawn exactly once only after automatic cleanup projects
    `closed=yes` for the sessions blocking capacity or after the operator
    confirms manual cleanup. A failed automatic close with `closed=no` is not
    permission to retry the spawn.
-6. If the retry still fails, stop and escalate to the user with a sanitized
+7. If the retry still fails, stop and escalate to the user with a sanitized
    summary of the reconstructed state and remaining open-agent inventory, or
    with a clear statement that inventory is unavailable. Include only session
    ids, operational state, observed workflow return status, role, scope, and

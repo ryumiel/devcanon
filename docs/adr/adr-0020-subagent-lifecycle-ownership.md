@@ -87,13 +87,17 @@ implementers continue to read the worktree from disk.
   reevaluation.
 - Evaluated deliberate retention records `close-deferred`, `closed=no`, and a
   concrete workflow-owned reason without fabricating an attempt or failure;
-  later real attempts append to rather than erase that deferral history.
+  the reason remains event-associated append-only history after the current
+  decision advances, and later real attempts append to rather than erase it.
 - Observed successful closure is terminal for its session row; later capability
   loss cannot reverse `closed=yes` or create contradictory unavailable cleanup.
 - A normal cleanup gate may continue after target-honest retained, unavailable,
   or failed results when capacity has not failed. Once a spawn reports slot
   exhaustion, retry remains blocked until actual closure or operator-confirmed
   manual cleanup.
+- A capacity-blocking retained session requires an owning-workflow decision:
+  resolve and safely capture or replace the follow-up need before actual or
+  operator-confirmed cleanup, or stop and escalate while that need remains.
 - Slot-limit failures are handled as orchestration resource exhaustion, with
   state reconstruction and one retry after cleanup or manual confirmation.
 - Workflow-local exceptions remain explicit, so shared cleanup policy does not
