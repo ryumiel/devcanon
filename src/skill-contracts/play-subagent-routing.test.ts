@@ -2814,13 +2814,13 @@ describe("play subagent routing source contracts", () => {
       "Every `closure-unavailable` event carries its concrete reason as event-associated detail and appends that value to unavailable-reason history",
     );
     expect(normalizeWhitespace(orderedLifecycleEvents)).toContain(
-      "When a previously deferred same-session need is finished, captured, or safely replaced, append `retention-resolved` with concise evidence of that resolution",
+      "When a deferred need finishes or is safely replaced, append `retention-resolved` with evidence",
     );
     expect(normalizeWhitespace(orderedLifecycleEvents)).toContain(
       "`retention-resolved` is a lifecycle decision event, not a fifth cleanup projection family, cleanup outcome, or proof of closure",
     );
     expect(normalizeWhitespace(orderedLifecycleEvents)).toContain(
-      "Its one canonical current projection keeps cleanup evaluation `evaluated`, sets the current cleanup decision to `none`, clears both current retention and unavailable reasons, and projects `closed=no`",
+      "Its current projection keeps cleanup `evaluated`, decision `none`, clears current retention and unavailable reasons, and sets `closed=no`",
     );
 
     expect(normalizeWhitespace(resultAndDispositionDimensions)).toContain(
@@ -3014,7 +3014,7 @@ describe("play subagent routing source contracts", () => {
       "For any capacity-blocking session whose latest cleanup decision is `close-deferred`, require the owning workflow to resolve whether same-session follow-up is still required",
     );
     expect(normalizeWhitespace(slotLimitRecovery)).toContain(
-      "If the need can finish or its required state can be captured and safely replaced, append `retention-resolved` with concise resolution evidence, clear the current retention decision and reason, and proceed through an actual supported close or operator-confirmed manual cleanup before retry",
+      "After the row is terminal or superseded with fresh capture, append `retention-resolved` with evidence that the need finished or was safely replaced, clear current retention, and proceed through an actual supported close or operator-confirmed manual cleanup before retry",
     );
     expect(normalizeWhitespace(slotLimitRecovery)).toContain(
       "`retention-resolved` is necessary for a formerly deferred blocker but is not retry authorization or closure proof",
@@ -3469,27 +3469,27 @@ describe("play subagent routing source contracts", () => {
         errors.push("workflow-result-history");
         return errors;
       }
-      const completedIndex = example.events.lastIndexOf("turn-completed");
-      const normalCleanupIndex = example.events.findIndex(
-        (event, index) => index > completedIndex && closureEvents.has(event),
+      const completedIndexes = example.events.flatMap((event, index) =>
+        event === "turn-completed" ? [index] : [],
       );
-      if (completedIndex >= 0 && normalCleanupIndex > completedIndex) {
+      for (const [turnIndex, completedIndex] of completedIndexes.entries()) {
+        const intervalEnd =
+          completedIndexes[turnIndex + 1] ?? example.events.length;
         const normalCaptureIndex = example.events.findIndex(
           (event, index) =>
             index > completedIndex &&
-            index < normalCleanupIndex &&
+            index < intervalEnd &&
             event === "required-state-captured",
         );
-        const normalSupersededIndex = example.events.findIndex(
+        const normalCleanupIndex = example.events.findIndex(
           (event, index) =>
             index > completedIndex &&
-            index < normalCleanupIndex &&
-            event === "superseded",
+            index < intervalEnd &&
+            (event === "superseded" || closureEvents.has(event)),
         );
         if (
           normalCaptureIndex <= completedIndex ||
-          (normalSupersededIndex >= 0 &&
-            normalSupersededIndex <= normalCaptureIndex)
+          (normalCleanupIndex >= 0 && normalCleanupIndex <= normalCaptureIndex)
         ) {
           errors.push("normal-terminal-capture");
           return errors;
@@ -4294,9 +4294,23 @@ describe("play subagent routing source contracts", () => {
       operationalState: "completed",
       workflowReturnStatus: "DONE_WITH_CONCERNS",
       workflowReturnHistory: ["DONE", "DONE_WITH_CONCERNS"],
-      events: [...followupActive.events, "turn-completed"],
+      events: [
+        ...followupActive.events,
+        "turn-completed",
+        "required-state-captured",
+      ],
     };
     expect(invalidDimensions(secondReturnedTurn)).toEqual([]);
+    expect(
+      invalidDimensions({
+        ...secondReturnedTurn,
+        events: secondReturnedTurn.events.filter(
+          (event, index) =>
+            event !== "required-state-captured" ||
+            index !== secondReturnedTurn.events.indexOf(event),
+        ),
+      }),
+    ).toEqual(["normal-terminal-capture"]);
     expect(
       invalidDimensions({
         ...secondReturnedTurn,
@@ -5659,7 +5673,11 @@ describe("play subagent routing source contracts", () => {
             };
             break;
           }
-          case "retention-resolved":
+          case "retention-resolved": {
+            const eligibility = latchCleanupEligibility();
+            if (eligibility !== null) {
+              return fail(eligibility);
+            }
             if (
               event.evidence === undefined ||
               event.evidence.trim().length === 0
@@ -5678,6 +5696,7 @@ describe("play subagent routing source contracts", () => {
               unavailableReason: null,
             };
             break;
+          }
           case "close-attempted": {
             const eligibility = latchCleanupEligibility();
             if (eligibility !== null) {
@@ -6669,6 +6688,34 @@ describe("play subagent routing source contracts", () => {
       retentionReason: null,
       unavailableReason: null,
     });
+    for (const transition of [
+      [],
+      [event("waiting", 9)],
+      [event("interrupted", 9)],
+    ]) {
+      expectError(
+        [
+          ...operationalFacts(),
+          deferral(6),
+          reuseCapability(7),
+          completedFollowup(8),
+          ...transition,
+          resolution(10),
+        ],
+        "cleanup-ineligible-operational-state",
+      );
+    }
+    expectError(
+      [
+        ...operationalFacts(),
+        deferral(6),
+        reuseCapability(7),
+        completedFollowup(8),
+        event("turn-completed", 9),
+        resolution(10),
+      ],
+      "required-state-capture-stale",
+    );
     expectError(
       [
         ...operationalFacts(),
@@ -7032,7 +7079,32 @@ describe("play subagent routing source contracts", () => {
       }
       throw new Error(`${checkpoint} row for ${role} not found`);
     };
+    const normalReturnedCaptureErrors = (source: string): string[] => {
+      const turns = [...source.matchAll(/turn-completed\(status=[^)]+\)/gu)];
+      for (const [turnNumber, turn] of turns.entries()) {
+        const turnIndex = turn.index ?? -1;
+        const intervalEnd = turns[turnNumber + 1]?.index ?? source.length;
+        const interval = source.slice(turnIndex + turn[0].length, intervalEnd);
+        const capture = interval.match(
+          /required-state-captured\(evidence=[^)]+\)/u,
+        );
+        const cleanupIndexes = [
+          interval.indexOf("close-deferred"),
+          interval.indexOf("close-attempted"),
+          interval.indexOf("closure-unavailable"),
+        ].filter((index) => index >= 0);
+        if (
+          capture?.index === undefined ||
+          (cleanupIndexes.length > 0 &&
+            Math.min(...cleanupIndexes) <= capture.index)
+        ) {
+          return ["normal-return-capture"];
+        }
+      }
+      return [];
+    };
     const expectSuccessfulCleanupRow = (row: string): void => {
+      expect(normalReturnedCaptureErrors(row)).toEqual([]);
       expect(row).toContain("cleanup evaluation=evaluated");
       expect(row).toContain("close-attempted");
       expect(row).toContain("close-succeeded");
@@ -7042,6 +7114,7 @@ describe("play subagent routing source contracts", () => {
       );
     };
     const expectDeferredCleanupRow = (row: string): void => {
+      expect(normalReturnedCaptureErrors(row)).toEqual([]);
       expect(row).toContain("cleanup evaluation=evaluated");
       expect(row).toContain("close-deferred");
       expect(
@@ -7347,7 +7420,7 @@ describe("play subagent routing source contracts", () => {
       section: string,
       reason: string,
     ): string[] => {
-      const errors: string[] = [];
+      const errors = normalReturnedCaptureErrors(section);
       if (!section.includes(`closure-unavailable(reason=${reason})`)) {
         errors.push("unavailable-event-reason");
       }
@@ -7452,7 +7525,7 @@ describe("play subagent routing source contracts", () => {
       "Every cleanup gate transitions each examined row to `evaluated`",
     );
     expect(normalizeWhitespace(task1Section)).toContain(
-      "operational state=completed, event=turn-completed(status=DONE) appended after dispatch-requested and identity-assigned, workflow return history=[DONE], current workflow return status=DONE, report captured, base/head SHA captured, changed files captured, snapshot state=emitted, test state captured, cleanup evaluation=not-evaluated, cleanup outcome=closed=no because reviewer fix loops may still need same-session follow-up",
+      "operational state=completed, event=turn-completed(status=DONE) appended after dispatch-requested and identity-assigned, event=required-state-captured(evidence=report, base/head SHA, changed files, snapshot state, and test state captured), workflow return history=[DONE], current workflow return status=DONE, cleanup evaluation=not-evaluated, cleanup outcome=closed=no because reviewer fix loops may still need same-session follow-up",
     );
     expect(task1Section).toContain(
       "Parallel happy path: same-head spec and quality pass",
@@ -7518,6 +7591,15 @@ describe("play subagent routing source contracts", () => {
     );
 
     expect(task2Section).toContain("Spec-failure stale-quality path");
+    expect(normalReturnedCaptureErrors(task2Section)).toEqual([]);
+    expect(
+      normalReturnedCaptureErrors(
+        task2Section.replace(
+          "event=required-state-captured(evidence=report, base/head SHA, changed files, snapshot state, and test state captured)",
+          "required state omitted",
+        ),
+      ),
+    ).toEqual(["normal-return-capture"]);
     for (const reviewer of [
       "Task 2 spec reviewer",
       "Task 2 code-quality reviewer",
@@ -7544,7 +7626,7 @@ describe("play subagent routing source contracts", () => {
       "Cleanup gate before Task 2 code-quality re-reviewer spawn",
     );
     expect(task2Section).toContain(
-      "Task 2 code-quality reviewer: agent_id=quality-2, operational state=completed, event=turn-completed(status=findings-recorded), workflow return history=[findings-recorded], current workflow return status=findings-recorded",
+      "Task 2 code-quality reviewer: agent_id=quality-2, operational state=completed, event=turn-completed(status=findings-recorded), event=required-state-captured(evidence=review scope, report, concrete findings, base/head SHA, and integrated state captured) retained, workflow return history=[findings-recorded], current workflow return status=findings-recorded",
     );
     expect(task2Section).toContain(
       "findings captured: Missing progress reporting",
@@ -7566,10 +7648,10 @@ describe("play subagent routing source contracts", () => {
     expect(task2Section).toContain("findings captured: Magic number (100)");
     expect(task2Section).toContain("re-review target=quality-2-rereview");
     expect(task2Section).toContain(
-      "event=followup-dispatch-requested(session-id=impl-2) appended after the first turn-completed; all prior events retained",
+      "event=followup-dispatch-requested(session-id=impl-2) appended after the first returned-turn capture; all prior events retained",
     );
     expect(normalizeWhitespace(task2Section)).toContain(
-      "event=turn-completed(status=DONE_WITH_CONCERNS) appended, workflow return history=[DONE, DONE_WITH_CONCERNS], current workflow return status=DONE_WITH_CONCERNS",
+      "event=turn-completed(status=DONE_WITH_CONCERNS) appended, then event=required-state-captured(evidence=refreshed report, base/head SHA, changed files, snapshot state, and test state captured), workflow return history=[DONE, DONE_WITH_CONCERNS], current workflow return status=DONE_WITH_CONCERNS",
     );
     expect(task2Section).toContain(
       "reviewer disposition history=[advisory(reason=same-head quality findings are non-final until spec disposition, source-state=task-2-head), stale(reason=task head advanced after fixup, source-state=task-2-fixup-head)], current reviewer disposition=stale",
@@ -7586,7 +7668,7 @@ describe("play subagent routing source contracts", () => {
       "Independent actual session supersession",
     );
     expect(task2Section).toContain(
-      "Task 2 code-quality re-reviewer: operational state=completed, event=turn-completed(status=DONE), workflow return history=[DONE], current workflow return status=DONE, review scope captured",
+      "Task 2 code-quality re-reviewer: operational state=completed, event=turn-completed(status=DONE), event=required-state-captured(evidence=review scope, base/head SHA, reviewed head SHA, and report captured), workflow return history=[DONE], current workflow return status=DONE",
     );
     expect(task2Section).not.toContain(
       "Task 2 code-quality re-reviewer: status=PASS",
@@ -7886,6 +7968,15 @@ describe("play subagent routing source contracts", () => {
         "no inventory or close operation",
       ),
     ).toEqual([]);
+    expect(
+      unavailableReasonHistoryErrors(
+        slotLimitUnavailable.replace(
+          "event=required-state-captured(evidence=completed role state and source anchors captured)",
+          "required state omitted",
+        ),
+        "no inventory or close operation",
+      ),
+    ).toEqual(["normal-return-capture"]);
     expect(
       unavailableReasonHistoryErrors(
         trackedInventoryVariant.replace(

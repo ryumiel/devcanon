@@ -111,18 +111,18 @@ Any `active`, `waiting`, or `interrupted` row may be superseded only
 after its latest open-state transition by ordered `required-state-captured`,
 `replacement-secured`, and `superseded` events. Cleanup never authorizes it.
 
-When a previously deferred same-session need is finished, captured, or safely
-replaced, append `retention-resolved` with concise evidence of that resolution.
-The event requires an unresolved prior `close-deferred`; it preserves the
-historical deferral and reason while clearing the current deliberate-retention
-decision and current retention reason. `retention-resolved` is a lifecycle
-decision event, not a fifth cleanup projection family, cleanup outcome, or proof
-of closure. Its one canonical current projection keeps cleanup evaluation
-`evaluated`, sets the current cleanup decision to `none`, clears both current
-retention and unavailable reasons, and projects `closed=no`. Historical
-`close-deferred` reasons and resolution evidence remain append-only. A later
-actual close attempt or `closure-unavailable` event selects one of the existing
-four projection families.
+When a deferred need finishes or is safely replaced, append
+`retention-resolved` with evidence.
+It requires an unresolved `close-deferred`, current `completed`, `timed-out`,
+`failed`, or `superseded` state, and capture newer than the latest
+capture-requiring transition; an open re-entry must first return or be
+superseded and recaptured. It preserves deferral history while clearing current
+retention. `retention-resolved` is a
+lifecycle decision event, not a fifth cleanup projection family, cleanup outcome, or proof
+of closure. Its current projection keeps cleanup `evaluated`, decision `none`,
+clears current retention and unavailable reasons, and sets `closed=no`.
+Deferral reasons and resolution evidence remain history; a later close attempt
+or `closure-unavailable` selects an existing projection family.
 
 Every `closure-unavailable` event carries its concrete reason as
 event-associated detail and appends that value to unavailable-reason history.
@@ -360,9 +360,9 @@ When a spawn fails because of a slot/session limit:
    `failed`, or `superseded` sessions.
 9. For any capacity-blocking session whose latest cleanup decision is
    `close-deferred`, require the owning workflow to resolve whether same-session
-   follow-up is still required. If the need can finish or its required state can
-   be captured and safely replaced, append `retention-resolved` with concise
-   resolution evidence, clear the current retention decision and reason, and
+   follow-up is still required. After the row is terminal or superseded with fresh
+   capture, append `retention-resolved` with evidence that the need finished or
+   was safely replaced, clear current retention, and
    proceed through an actual supported close or operator-confirmed manual
    cleanup before retry. Preserve the historical `close-deferred` reason. If the follow-up need
    remains and safe cleanup or replacement cannot occur, stop and escalate;
