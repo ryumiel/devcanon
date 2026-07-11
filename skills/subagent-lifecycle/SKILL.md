@@ -32,13 +32,15 @@ and cleanup outcome are independent ledger dimensions. Each row records:
 - one `agent_id` or `agent_id=pending`;
 - optional open-agent inventory when the target exposes it;
 - base/head SHA or equivalent source-state anchor when relevant;
-- one operational state: `pending`, `active`, `waiting`, `interrupted`,
+- one current operational state: `pending`, `active`, `waiting`, `interrupted`,
   `completed`, or `superseded`;
 - reuse state when relevant, such as `reusable` after a context-preserving
   interruption;
 - the target capability class when relevant;
+- an ordered, append-only lifecycle-event history;
+- workflow return status after a return is observed;
+- reviewer disposition after it is classified;
 - role-specific captured state;
-- reviewer result when relevant;
 - fixup count or blocker state when relevant;
 - one cleanup outcome: `closed=yes`, `closed=no`, or
   `close-unavailable: <reason>`.
@@ -50,16 +52,44 @@ report, concrete findings, routing target, re-review target, gate result,
 research brief path, CI investigation summary, and any open question or
 blocker detail that must survive session loss.
 
-Update the ledger before and after every dispatch. A pre-dispatch row may use
+Update the ledger before and after every dispatch. A pre-dispatch row uses
 `agent_id=pending` until the runtime returns a stable id. A pre-dispatch row has
 operational state `pending` and `agent_id=pending`; do not fabricate a stable
-id. Replace both fields with observed facts after dispatch. Reuse state may be
+id. After dispatch, append the observed identity event and set current
+operational state to `active`. Reuse state may be
 `reusable`; `inventory-only` is a capability class, not an operational state.
 Cleanup remains `closed=yes`, `closed=no`, or
 `close-unavailable: <reason>`. Interruption and supersession never imply
 completion or closure; record completion events and cleanup outcomes
 separately. The ledger is the source for controller recovery after
 orchestration failures; git remains the source for repository state.
+
+## Ordered Lifecycle Events
+
+Each row keeps an ordered, append-only lifecycle-event history alongside its
+current operational state. Append events such as `dispatch-requested`,
+`identity-assigned`, `waiting`, `interrupted`, `turn-completed`, `superseded`,
+`close-attempted`, `close-failed`, `close-succeeded`, and
+`closure-unavailable` when those facts occur. State changes never erase prior
+events. An identity assignment, wait, interruption, completion, supersession,
+or closure result therefore remains recoverable after current state advances.
+
+A normal returned turn appends `turn-completed` and sets current operational
+state to `completed`, including when its workflow return status is `DONE`,
+`DONE_WITH_CONCERNS`, `NEEDS_CONTEXT`, `BLOCKED`, or `findings-recorded`.
+Superseding that session later appends `superseded` and changes current
+operational state to `superseded` without erasing its completion or earlier
+events.
+
+## Result and Disposition Dimensions
+
+Workflow return status is absent before a return is observed and required after
+it is observed. Reviewer disposition is absent before classification and
+required after classification. Neither field replaces or determines
+operational state. A returned reviewer can therefore have operational state
+`completed`, workflow return status `findings-recorded`, and reviewer
+disposition `advisory`; a later classification change updates the disposition
+without rewriting its lifecycle-event history.
 
 ## Target Lifecycle Capability
 
@@ -68,15 +98,23 @@ current target runtime exposes. Do this once before the first subagent dispatch
 in the workflow and update the conclusion if later tool availability proves it
 wrong.
 
-- `automatic-close-supported`: stable agent/session ids and a
-  close/session-cleanup operation exist. Close completed or superseded
-  sessions after required state is recorded, then mark `closed=yes`.
-- `inventory-only`: session inventory or ids exist, but no close operation
-  exists. Record open inventory and mark
+- `automatic-close-supported`: a stable agent/session identity and an exposed,
+  usable close/session-cleanup operation exist, so a close attempt is possible;
+  cleanup projection records whether that attempt fails or succeeds.
+- `inventory-only` applies when reliable inventory or a tracked stable identity
+  exists without usable closure. Record available inventory or tracked ids and
+  the concrete `close-unavailable` reason, such as
   `close-unavailable: inventory-only; no close operation`.
-- `cleanup-unavailable`: neither reliable inventory nor close/session-cleanup
-  exists. Record `close-unavailable: no inventory or close operation` and give
-  explicit operator/UI cleanup guidance.
+- `cleanup-unavailable`: no reliable inventory, tracked stable-identity
+  evidence, or usable closure exists. Record
+  the concrete `close-unavailable` reason, such as
+  `close-unavailable: no inventory or close operation`, and give explicit
+  operator/UI cleanup guidance.
+
+These classes are total over the usable controls actually observed. An exposed
+close operation without stable identity is unusable. It selects
+`inventory-only` only when other reliable inventory or tracked stable-identity
+evidence remains; otherwise it selects `cleanup-unavailable`.
 
 Codex runtimes may expose a `close_agent` operation; Claude Code or other
 targets may expose different lifecycle controls or none at all. Treat
@@ -103,6 +141,24 @@ This map does not change the provider-neutral decision classes above. Stable
 identity plus an exposed close operation plus a successful close are all
 required before recording `closed=yes`.
 
+## Cleanup Projection
+
+Cleanup outcome is a projection of the latest closure event and the current
+capability tuple:
+
+- Missing stable identity or a missing close operation appends
+  `closure-unavailable` with the concrete reason and projects
+  `close-unavailable: <reason>`.
+- With both prerequisites present, an unattempted or failed close projects
+  `closed=no`; append `close-attempted` and, on failure, `close-failed` while
+  preserving the prior events.
+- A later successful close appends `close-succeeded` and projects `closed=yes`.
+
+Do not retain a cleanup outcome that contradicts the latest closure event or
+capability facts. A failed close is not unavailable, and a later success
+replaces `closed=no` with `closed=yes` without deleting the failed-attempt
+history.
+
 ## Cleanup Gate Before Spawns
 
 Before every new subagent spawn, inspect the lifecycle ledger for completed or
@@ -111,9 +167,10 @@ role-specific state has already been captured.
 
 1. Capture the role-specific state needed by the owning workflow before
    closing or superseding any session.
-2. When the target is `automatic-close-supported`, close completed or
-   superseded sessions after the required state is recorded, then mark
-   `closed=yes`.
+2. When the target is `automatic-close-supported`, attempt to close completed
+   or superseded sessions after the required state is recorded, append the
+   observed close events, and project `closed=no` or `closed=yes` from the
+   result.
 3. When the target is `inventory-only` or `cleanup-unavailable`, first capture
    the same role-specific state, then record the `close-unavailable` reason
    before spawning instead of claiming closure.
@@ -149,7 +206,8 @@ When a spawn fails because of a slot/session limit:
 6. If the retry still fails, stop and escalate to the user with a sanitized
    summary of the reconstructed state and remaining open-agent inventory, or
    with a clear statement that inventory is unavailable. Include only session
-   ids, status, role, scope, and needed repository anchors by default. Never
+   ids, operational state, observed workflow return status, role, scope, and
+   needed repository anchors by default. Never
    disclose secrets, credentials, tokens, PII, or environment values. For
    shared PR, issue, tracker, or review comments, apply the `Agent-Local
 Evidence Reuse Boundary` in `docs/specs/afds-workflow-routing.md`. Use

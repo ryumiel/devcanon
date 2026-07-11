@@ -4734,6 +4734,15 @@ describe("existing skills source prose contracts", () => {
     expect(normalized).toContain(
       "Unknown targets inherit no known-surface assumptions",
     );
+    expect(normalized).toContain(
+      "ordered, append-only lifecycle-event history",
+    );
+    expect(normalized).toContain(
+      "Workflow return status is absent before a return is observed and required after it is observed",
+    );
+    expect(normalized).toContain(
+      "Cleanup outcome is a projection of the latest closure event and the current capability tuple",
+    );
   });
 
   it("keeps bundled prompt and runtime-reference prose contracts in source", async () => {

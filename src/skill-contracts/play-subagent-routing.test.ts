@@ -2339,13 +2339,13 @@ describe("play subagent routing source contracts", () => {
     );
     expect(normalizedExample).toContain("Spec-failure stale-quality path");
     expect(normalizedExample).toContain(
-      "quality result disposition=stale; rerun quality unless irrelevance is proven",
+      "operational state=superseded, workflow return status=findings-recorded, reviewer disposition=stale, event=superseded appended after turn-completed; prior events retained",
     );
     expect(normalizedExample).toContain(
       "combined spec and code-quality finding set routed to Task 2 implementer",
     );
     expect(normalizedExample).toContain(
-      "closed=yes after advisory findings captured and routed",
+      "cleanup outcome=closed=yes after advisory findings captured and routed",
     );
     expect(normalizedExample).not.toContain(
       "closed=no until disposition is stale, superseded, or final",
@@ -2423,6 +2423,18 @@ describe("play subagent routing source contracts", () => {
       skillSource,
       "Target Lifecycle Capability",
     );
+    const orderedLifecycleEvents = getMarkdownSection(
+      skillSource,
+      "Ordered Lifecycle Events",
+    );
+    const resultAndDispositionDimensions = getMarkdownSection(
+      skillSource,
+      "Result and Disposition Dimensions",
+    );
+    const cleanupProjection = getMarkdownSection(
+      skillSource,
+      "Cleanup Projection",
+    );
     const knownSurfaceCapabilityMap = getMarkdownSection(
       skillSource,
       "Known-Surface Capability Map",
@@ -2444,7 +2456,7 @@ describe("play subagent routing source contracts", () => {
     );
     expect(controllerLifecycleLedger).toContain("role-specific captured state");
     expect(controllerLifecycleLedger).toContain(
-      "reviewer result when relevant",
+      "reviewer disposition after it is classified",
     );
     expect(controllerLifecycleLedger).toContain(
       "fixup count or blocker state when relevant",
@@ -2471,6 +2483,42 @@ describe("play subagent routing source contracts", () => {
       "Reuse state may be `reusable`; `inventory-only` is a capability class, not an operational state",
     );
 
+    expect(normalizeWhitespace(orderedLifecycleEvents)).toContain(
+      "ordered, append-only lifecycle-event history",
+    );
+    expect(normalizeWhitespace(orderedLifecycleEvents)).toContain(
+      "identity-assigned",
+    );
+    for (const event of [
+      "dispatch-requested",
+      "waiting",
+      "interrupted",
+      "turn-completed",
+      "superseded",
+      "close-attempted",
+      "close-failed",
+      "close-succeeded",
+      "closure-unavailable",
+    ]) {
+      expect(orderedLifecycleEvents).toContain(`\`${event}\``);
+    }
+    expect(normalizeWhitespace(orderedLifecycleEvents)).toContain(
+      "State changes never erase prior events",
+    );
+    expect(normalizeWhitespace(orderedLifecycleEvents)).toContain(
+      "A normal returned turn appends `turn-completed` and sets current operational state to `completed`",
+    );
+
+    expect(normalizeWhitespace(resultAndDispositionDimensions)).toContain(
+      "Workflow return status is absent before a return is observed and required after it is observed",
+    );
+    expect(normalizeWhitespace(resultAndDispositionDimensions)).toContain(
+      "Reviewer disposition is absent before classification and required after classification",
+    );
+    expect(normalizeWhitespace(resultAndDispositionDimensions)).toContain(
+      "Neither field replaces or determines operational state",
+    );
+
     expect(targetLifecycleCapability).toContain("automatic-close-supported");
     expect(targetLifecycleCapability).toContain(
       "close/session-cleanup operation exist",
@@ -2482,6 +2530,15 @@ describe("play subagent routing source contracts", () => {
     expect(targetLifecycleCapability).toContain("cleanup-unavailable");
     expect(targetLifecycleCapability).toContain(
       "close-unavailable: no inventory or close operation",
+    );
+    expect(normalizeWhitespace(targetLifecycleCapability)).toContain(
+      "`inventory-only` applies when reliable inventory or a tracked stable identity exists without usable closure",
+    );
+    expect(normalizeWhitespace(targetLifecycleCapability)).toContain(
+      "An exposed close operation without stable identity is unusable",
+    );
+    expect(normalizeWhitespace(targetLifecycleCapability)).toContain(
+      "selects `inventory-only` only when other reliable inventory or tracked stable-identity evidence remains; otherwise it selects `cleanup-unavailable`",
     );
     expect(normalizeWhitespace(targetLifecycleCapability)).toContain(
       "Do not infer support from another target",
@@ -2557,6 +2614,22 @@ describe("play subagent routing source contracts", () => {
       "Never record `closed=yes` unless the current target actually exposed stable ids plus a close operation",
     );
 
+    expect(normalizeWhitespace(cleanupProjection)).toContain(
+      "Cleanup outcome is a projection of the latest closure event and the current capability tuple",
+    );
+    expect(normalizeWhitespace(cleanupProjection)).toContain(
+      "Missing stable identity or a missing close operation appends `closure-unavailable`",
+    );
+    expect(normalizeWhitespace(cleanupProjection)).toContain(
+      "With both prerequisites present, an unattempted or failed close projects `closed=no`",
+    );
+    expect(normalizeWhitespace(cleanupProjection)).toContain(
+      "A later successful close appends `close-succeeded` and projects `closed=yes`",
+    );
+    expect(normalizeWhitespace(cleanupProjection)).toContain(
+      "Do not retain a cleanup outcome that contradicts the latest closure event",
+    );
+
     expect(slotLimitRecovery).toContain("orchestration resource exhaustion");
     expect(normalizeWhitespace(slotLimitRecovery)).toContain(
       "Wait for operator confirmation that manual cleanup is complete before continuing",
@@ -2590,6 +2663,8 @@ describe("play subagent routing source contracts", () => {
       "controller-local lifecycle ledger expectations",
       "target lifecycle capability classes",
       "surface-specific capability mapping",
+      "ordered append-only lifecycle-event history",
+      "total usable-control capability classification",
       "independent operational, reuse, capability, and cleanup-state semantics",
       "target-honest cleanup outcomes",
       "cleanup gates before spawns",
@@ -2917,18 +2992,48 @@ describe("play subagent routing source contracts", () => {
     expect(exampleWorkflow).toContain("Ledger post-dispatch");
     expect(exampleWorkflow).toContain("agent_id=pending");
     expect(exampleWorkflow).toContain(
+      "operational state=pending, events=[dispatch-requested]",
+    );
+    expect(exampleWorkflow).toContain(
+      "operational state=active, events=[dispatch-requested, identity-assigned]",
+    );
+    expect(exampleWorkflow).toContain(
+      "operational state=completed, workflow return status=DONE",
+    );
+    expect(exampleWorkflow).toContain("event=turn-completed");
+    expect(exampleWorkflow).toContain("operational state=superseded");
+    expect(exampleWorkflow).toContain("event=superseded");
+    expect(exampleWorkflow).toContain("prior events retained");
+    expect(exampleWorkflow).not.toMatch(
+      /:\s+status=(?:DONE|findings-recorded)/,
+    );
+    for (const line of exampleWorkflow.split("\n")) {
+      if (
+        line.includes("workflow return status=") &&
+        !line.includes("workflow return status absent")
+      ) {
+        expect(line).toMatch(/operational state=(?:completed|superseded)/);
+      }
+      if (
+        line.includes("reviewer disposition=") &&
+        !line.includes("reviewer disposition absent")
+      ) {
+        expect(line).toMatch(/operational state=(?:completed|superseded)/);
+      }
+    }
+    expect(exampleWorkflow).toContain(
       "Every later implementer, reviewer, re-reviewer, and final reviewer dispatch gets its own row",
     );
 
     expect(normalizeWhitespace(task1Section)).toContain(
-      "status=DONE, report captured, base/head SHA captured, changed files captured, snapshot state=emitted, test state captured, closed=no because reviewer fix loops may still need same-session follow-up",
+      "operational state=completed, workflow return status=DONE, event=turn-completed appended after dispatch-requested and identity-assigned, report captured, base/head SHA captured, changed files captured, snapshot state=emitted, test state captured, cleanup outcome=closed=no because reviewer fix loops may still need same-session follow-up",
     );
     expect(task1Section).toContain(
       "Parallel happy path: same-head spec and quality pass",
     );
     expect(task1Section).toContain("base/head SHA captured (head pending)");
     expect(task1Section).toContain("Lifecycle cleanup checkpoint");
-    expect(task1Section).toContain("closed=yes after PASS verdict recorded");
+    expect(task1Section).toContain("cleanup outcome=closed=yes");
     expect(task3Section).toContain("snapshot state=skipped");
     expect(normalizeWhitespace(task3Section)).toContain(
       "The implementer must report the default DONE fields: status, summary, tests, files changed, base SHA, and head SHA.",
@@ -2945,16 +3050,18 @@ describe("play subagent routing source contracts", () => {
       "Cleanup gate before Task 2 code-quality re-reviewer spawn",
     );
     expect(task2Section).toContain(
-      "Task 2 code-quality reviewer: agent_id=quality-2, status=findings-recorded",
+      "Task 2 code-quality reviewer: agent_id=quality-2, operational state=completed, workflow return status=findings-recorded",
     );
     expect(task2Section).toContain(
       "findings captured: Missing progress reporting",
     );
     expect(task2Section).toContain("routing target=Task 2 implementer");
     expect(task2Section).toContain("re-review target=spec-2-rereview");
-    expect(task2Section).toContain("report refreshed");
-    expect(task2Section).toContain("test state refreshed");
-    expect(task2Section).toContain("snapshot state=emitted");
+    expect(normalizeWhitespace(task2Section)).toContain("report refreshed");
+    expect(normalizeWhitespace(task2Section)).toContain("test state refreshed");
+    expect(normalizeWhitespace(task2Section)).toContain(
+      "snapshot state=emitted",
+    );
     expect(task2Section).toContain("[Revalidate effective review route]");
     expect(task2Section).toContain(
       "Controller compares the original Task 2 base SHA to the refreshed task head",
@@ -2965,17 +3072,17 @@ describe("play subagent routing source contracts", () => {
     expect(task2Section).toContain("findings captured: Magic number (100)");
     expect(task2Section).toContain("re-review target=quality-2-rereview");
     expect(task2Section).toContain(
-      "quality result disposition=stale; rerun quality unless irrelevance is proven",
+      "operational state=superseded, workflow return status=findings-recorded, reviewer disposition=stale, event=superseded appended after turn-completed; prior events retained",
     );
     expect(task2Section).toContain(
-      "Task 2 code-quality re-reviewer: review scope captured",
+      "Task 2 code-quality re-reviewer: operational state=completed, workflow return status=DONE, event=turn-completed, review scope captured",
     );
     expect(task2Section).not.toContain(
       "Task 2 code-quality re-reviewer: status=PASS",
     );
 
     expect(normalizeWhitespace(task3Section)).toContain(
-      "closed=yes after the effective route completed",
+      "cleanup outcome=closed=yes after the effective route completed",
     );
     expect(exampleWorkflow).toContain(
       "Cleanup gate before final code-quality reviewer spawn",
@@ -2985,6 +3092,16 @@ describe("play subagent routing source contracts", () => {
 
     expect(targetCapabilityExamples).toContain(
       "inventory-only: target exposes session inventory but no close operation",
+    );
+    expect(targetCapabilityExamples).toContain(
+      "inventory-only: no inventory operation is exposed, but the controller retains tracked stable agent ids and no usable close operation",
+    );
+    expect(targetCapabilityExamples).toContain("event=closure-unavailable");
+    expect(targetCapabilityExamples).toContain(
+      "event=close-attempted, event=close-failed, cleanup outcome=closed=no",
+    );
+    expect(targetCapabilityExamples).toContain(
+      "event=close-succeeded, cleanup outcome=closed=yes",
     );
     expect(targetCapabilityExamples).toContain(
       "first captures each completed session's role-specific state",
@@ -3000,7 +3117,7 @@ describe("play subagent routing source contracts", () => {
       "Controller classifies a slot-limit spawn failure as orchestration resource exhaustion, not task failure",
     );
     expect(targetCapabilityExamples).toContain(
-      "records `close-unavailable: no inventory or close operation`",
+      "appends event=closure-unavailable and projects `close-unavailable: no inventory or close operation`",
     );
     expect(targetCapabilityExamples).toContain(
       "waits for operator confirmation that manual cleanup is complete",
@@ -3022,7 +3139,7 @@ describe("play subagent routing source contracts", () => {
       "blocker state=context-missing: needs target install path",
     );
     expect(targetCapabilityExamples).toContain(
-      "close-unavailable: no inventory or close operation after BLOCKED report",
+      "close-unavailable: no inventory or close operation after the BLOCKED report",
     );
   });
 

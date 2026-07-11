@@ -49,7 +49,7 @@ Ledger: no completed or superseded sessions to close.
 
 [Get Task 1 text and context (already extracted)]
 [Ledger pre-dispatch]
-Task 1 implementer: agent_id=pending, role=implementer, status=active, base/head SHA captured (head pending), closed=no
+Task 1 implementer: agent_id=pending, role=implementer, operational state=pending, events=[dispatch-requested], workflow return status absent, base/head SHA captured (head pending), cleanup outcome=closed=no
 [Snapshot classification]
 Controller requests a snapshot: install/sync behavior is hard-risk and benefits
 from post-commit line-range extraction. Plan snapshot hints, if any, are
@@ -58,10 +58,10 @@ advisory only.
 Task 1 implementer: snapshot state=requested.
 [Dispatch implementation subagent with full task text + context]
 [Ledger post-dispatch]
-Task 1 implementer: agent_id=impl-1, role=implementer, status=active, base/head SHA captured (head pending), closed=no
+Task 1 implementer: agent_id=impl-1, role=implementer, operational state=active, events=[dispatch-requested, identity-assigned], workflow return status absent, base/head SHA captured (head pending), cleanup outcome=closed=no
 
 [Ledger shorthand used below]
-Every later implementer, reviewer, re-reviewer, and final reviewer dispatch gets its own row: `agent_id=pending` before dispatch, then the stable `agent_id` after dispatch, with role, scope or task context, base/head SHA, status=active, and closed=no. Cleanup checkpoints below still show separate completed-session rows.
+Every later implementer, reviewer, re-reviewer, and final reviewer dispatch gets its own row: `agent_id=pending`, operational state=pending, and events=[dispatch-requested] before dispatch; then the observed stable `agent_id`, operational state=active, and events=[dispatch-requested, identity-assigned] after dispatch. Workflow return status and reviewer disposition are absent until observed or classified. Cleanup checkpoints retain the ordered events while projecting cleanup separately.
 
 Implementer: "Before I begin - should the hook be installed at user or system level?"
 You: "User level (~/.config/agent-hooks/)"
@@ -73,7 +73,7 @@ You: "User level (~/.config/agent-hooks/)"
   - Committed
 
 [Lifecycle ledger update]
-Task 1 implementer: status=DONE, report captured, base/head SHA captured, changed files captured, snapshot state=emitted, test state captured, closed=no because reviewer fix loops may still need same-session follow-up
+Task 1 implementer: operational state=completed, workflow return status=DONE, event=turn-completed appended after dispatch-requested and identity-assigned, report captured, base/head SHA captured, changed files captured, snapshot state=emitted, test state captured, cleanup outcome=closed=no because reviewer fix loops may still need same-session follow-up
 
 [Compute effective review route]
 Hard-risk trigger detected: install/sync behavior or user-home writes.
@@ -85,18 +85,18 @@ Controller keeps Task 1 implementer open for possible reviewer fixups. Because
 the effective route is `spec-and-quality`, the controller dispatches both
 read-only reviewers against the same captured task head.
 
-[Ledger pre-dispatch: Task 1 spec reviewer, agent_id=pending]
-[Ledger pre-dispatch: Task 1 code-quality reviewer, agent_id=pending]
+[Ledger pre-dispatch: Task 1 spec reviewer, agent_id=pending, operational state=pending, events=[dispatch-requested]]
+[Ledger pre-dispatch: Task 1 code-quality reviewer, agent_id=pending, operational state=pending, events=[dispatch-requested]]
 [Dispatch spec compliance reviewer and code-quality reviewer concurrently]
-[Ledger post-dispatch: Task 1 spec reviewer, agent_id=spec-1]
-[Ledger post-dispatch: Task 1 code-quality reviewer, agent_id=quality-1]
+[Ledger post-dispatch: Task 1 spec reviewer, agent_id=spec-1, operational state=active, events=[dispatch-requested, identity-assigned]]
+[Ledger post-dispatch: Task 1 code-quality reviewer, agent_id=quality-1, operational state=active, events=[dispatch-requested, identity-assigned]]
 Spec reviewer: ✅ Spec compliant - all requirements met, nothing extra
 Code-quality reviewer: Strengths: Good test coverage, clean. Issues: None. Approved.
 
 [Lifecycle cleanup checkpoint]
-Task 1 implementer: status=DONE, report captured, base/head SHA captured, changed files captured, snapshot state=emitted, test state captured, closed=yes after reviewer loops passed.
-Task 1 spec reviewer: agent_id=spec-1, review scope captured, base/head SHA captured, reviewed head SHA=task-1-head, report captured, reviewer result disposition=final-pass, closed=yes after PASS verdict recorded.
-Task 1 code-quality reviewer: agent_id=quality-1, review scope captured, base/head SHA captured, reviewed head SHA=task-1-head, report captured, reviewer result disposition=final-pass because same-head spec passed and task head stayed current, closed=yes after final quality disposition recorded.
+Task 1 implementer: operational state=completed, workflow return status=DONE, report captured, base/head SHA captured, changed files captured, snapshot state=emitted, test state captured, event=close-attempted then event=close-succeeded, cleanup outcome=closed=yes after reviewer loops passed; prior events retained.
+Task 1 spec reviewer: agent_id=spec-1, operational state=completed, workflow return status=DONE, event=turn-completed, review scope captured, base/head SHA captured, reviewed head SHA=task-1-head, report captured, reviewer disposition=final-pass, event=close-attempted then event=close-succeeded, cleanup outcome=closed=yes.
+Task 1 code-quality reviewer: agent_id=quality-1, operational state=completed, workflow return status=DONE, event=turn-completed, review scope captured, base/head SHA captured, reviewed head SHA=task-1-head, report captured, reviewer disposition=final-pass because same-head spec passed and task head stayed current, event=close-attempted then event=close-succeeded, cleanup outcome=closed=yes.
 
 [Mark Task 1 complete]
 
@@ -106,14 +106,14 @@ Task 2: Recovery and repair modes
 [Cleanup gate before Task 2 implementer spawn]
 Controller verifies Task 1 completed sessions are already closed before spawning Task 2.
 
-[Ledger pre-dispatch: Task 2 implementer, agent_id=pending]
+[Ledger pre-dispatch: Task 2 implementer, agent_id=pending, operational state=pending, events=[dispatch-requested]]
 [Snapshot classification]
 Controller requests a snapshot: repair-mode behavior changes workflow policy.
 The request is controller-computed; the plan's risk hint is not authoritative.
 [Ledger update]
 Task 2 implementer: snapshot state=requested.
 [Dispatch implementation subagent with full task text + context]
-[Ledger post-dispatch: Task 2 implementer, agent_id=impl-2]
+[Ledger post-dispatch: Task 2 implementer, agent_id=impl-2, operational state=active, events=[dispatch-requested, identity-assigned]]
 Implementer:
   - Added verify/repair modes
   - 8/8 tests passing
@@ -121,7 +121,7 @@ Implementer:
   - Committed
 
 [Lifecycle ledger update]
-Task 2 implementer: agent_id=impl-2, status=DONE, report captured, base/head SHA captured, changed files captured, snapshot state=emitted, test state captured, closed=no because reviewer fix loops may still need same-session follow-up.
+Task 2 implementer: agent_id=impl-2, operational state=completed, workflow return status=DONE, event=turn-completed, report captured, base/head SHA captured, changed files captured, snapshot state=emitted, test state captured, cleanup outcome=closed=no because reviewer fix loops may still need same-session follow-up.
 
 [Compute effective review route]
 Plan hints high risk and `spec-and-quality`; repair-mode behavior changes
@@ -134,31 +134,32 @@ Controller keeps Task 2 implementer open for possible reviewer fixups. Because
 the effective route is `spec-and-quality`, both reviewers inspect the same
 captured task head before either result is final.
 
-[Ledger pre-dispatch: Task 2 spec reviewer, agent_id=pending]
-[Ledger pre-dispatch: Task 2 code-quality reviewer, agent_id=pending]
+[Ledger pre-dispatch: Task 2 spec reviewer, agent_id=pending, operational state=pending, events=[dispatch-requested]]
+[Ledger pre-dispatch: Task 2 code-quality reviewer, agent_id=pending, operational state=pending, events=[dispatch-requested]]
 [Dispatch spec compliance reviewer and code-quality reviewer concurrently]
-[Ledger post-dispatch: Task 2 spec reviewer, agent_id=spec-2]
-[Ledger post-dispatch: Task 2 code-quality reviewer, agent_id=quality-2]
+[Ledger post-dispatch: Task 2 spec reviewer, agent_id=spec-2, operational state=active, events=[dispatch-requested, identity-assigned]]
+[Ledger post-dispatch: Task 2 code-quality reviewer, agent_id=quality-2, operational state=active, events=[dispatch-requested, identity-assigned]]
 Spec reviewer: ❌ Issues:
   - Missing: Progress reporting (spec says "report every 100 items")
   - Extra: Added --json flag (not requested)
 Code-quality reviewer: Strengths: Solid. Issues (Nit): Magic number (100)
 
 [Lifecycle ledger update]
-Task 2 spec reviewer: agent_id=spec-2, status=findings-recorded, review scope captured, base/head SHA captured, reviewed head SHA=task-2-head, report captured, reviewer result disposition=final-findings, findings captured: Missing progress reporting; Extra --json flag, routing target=Task 2 implementer, re-review target=spec-2-rereview, closed=yes after findings routed.
-Task 2 code-quality reviewer: agent_id=quality-2, status=findings-recorded, review scope captured, base/head SHA captured, reviewed head SHA=task-2-head, report captured, reviewer result disposition=advisory, findings captured: Magic number (100), routing target=Task 2 implementer if combined same-head findings are routed, re-review target=quality-2-rereview, closed=yes after advisory findings captured and routed.
+Task 2 spec reviewer: agent_id=spec-2, operational state=completed, workflow return status=findings-recorded, event=turn-completed, review scope captured, base/head SHA captured, reviewed head SHA=task-2-head, report captured, reviewer disposition=final-findings, findings captured: Missing progress reporting; Extra --json flag, routing target=Task 2 implementer, re-review target=spec-2-rereview, event=close-attempted then event=close-succeeded, cleanup outcome=closed=yes after findings routed.
+Task 2 code-quality reviewer: agent_id=quality-2, operational state=completed, workflow return status=findings-recorded, event=turn-completed, review scope captured, base/head SHA captured, reviewed head SHA=task-2-head, report captured, reviewer disposition=advisory, findings captured: Magic number (100), routing target=Task 2 implementer if combined same-head findings are routed, re-review target=quality-2-rereview, event=close-attempted then event=close-succeeded, cleanup outcome=closed=yes after advisory findings captured and routed.
 Controller records the combined spec and code-quality finding set routed to Task 2 implementer because both reviewers inspected the same head.
-Task 2 implementer: closed=no because routed same-head findings need same-session fixup.
+Task 2 implementer: cleanup outcome=closed=no because routed same-head findings need same-session fixup.
 
 [Implementer fixes issues]
 Implementer: Removed --json flag, added progress reporting, extracted PROGRESS_INTERVAL constant
 
 [Lifecycle ledger update]
-Task 2 implementer: fixup count=1, blocker state=none, report refreshed,
-changed files and head SHA refreshed, test state refreshed, snapshot
-state=emitted, closed=no because spec re-review and any required code-quality
-re-review or disposition are pending.
-Task 2 code-quality reviewer: quality result disposition=stale; rerun quality unless irrelevance is proven.
+Task 2 implementer: operational state=completed, workflow return status=DONE,
+a second event=turn-completed appended, fixup count=1, blocker state=none, report
+refreshed, changed files and head SHA refreshed, test state refreshed, snapshot
+state=emitted, cleanup outcome=closed=no because spec re-review and any required
+code-quality re-review or disposition are pending.
+Task 2 code-quality reviewer: operational state=superseded, workflow return status=findings-recorded, reviewer disposition=stale, event=superseded appended after turn-completed; prior events retained. Rerun quality unless irrelevance is proven.
 
 [Revalidate effective review route]
 Controller compares the original Task 2 base SHA to the refreshed task head.
@@ -171,29 +172,29 @@ closed to rerunning code quality.
 Controller keeps Task 2 implementer open until spec and required quality
 dispositions are final.
 
-[Ledger pre-dispatch: Task 2 spec re-reviewer, agent_id=pending]
+[Ledger pre-dispatch: Task 2 spec re-reviewer, agent_id=pending, operational state=pending, events=[dispatch-requested]]
 [Spec re-reviewer reviews again]
-[Ledger post-dispatch: Task 2 spec re-reviewer, agent_id=spec-2-rereview]
+[Ledger post-dispatch: Task 2 spec re-reviewer, agent_id=spec-2-rereview, operational state=active, events=[dispatch-requested, identity-assigned]]
 Spec reviewer: ✅ Spec compliant now
 
 [Cleanup gate before Task 2 code-quality re-reviewer spawn]
-Task 2 spec re-reviewer: review scope captured, base/head SHA captured, reviewed head SHA=task-2-fixup-head, report captured, reviewer result disposition=final-pass, closed=yes after PASS verdict recorded.
-Task 2 implementer: closed=no because code-quality fixups may still need same-session follow-up.
+Task 2 spec re-reviewer: operational state=completed, workflow return status=DONE, event=turn-completed, review scope captured, base/head SHA captured, reviewed head SHA=task-2-fixup-head, report captured, reviewer disposition=final-pass, event=close-attempted then event=close-succeeded, cleanup outcome=closed=yes.
+Task 2 implementer: cleanup outcome=closed=no because code-quality fixups may still need same-session follow-up.
 
-[Ledger pre-dispatch: Task 2 code-quality re-reviewer, agent_id=pending]
+[Ledger pre-dispatch: Task 2 code-quality re-reviewer, agent_id=pending, operational state=pending, events=[dispatch-requested]]
 [Dispatch code-quality re-reviewer]
-[Ledger post-dispatch: Task 2 code-quality re-reviewer, agent_id=quality-2-rereview]
+[Ledger post-dispatch: Task 2 code-quality re-reviewer, agent_id=quality-2-rereview, operational state=active, events=[dispatch-requested, identity-assigned]]
 Code-quality reviewer: ✅ Approved
 
 [Lifecycle ledger update]
-Task 2 code-quality re-reviewer: review scope captured, base/head SHA captured, reviewed head SHA=task-2-fixup-head, report captured, reviewer result disposition=final-pass after same-head spec pass and current task-head validation, closed=yes after PASS verdict recorded.
+Task 2 code-quality re-reviewer: operational state=completed, workflow return status=DONE, event=turn-completed, review scope captured, base/head SHA captured, reviewed head SHA=task-2-fixup-head, report captured, reviewer disposition=final-pass after same-head spec pass and current task-head validation, event=close-attempted then event=close-succeeded, cleanup outcome=closed=yes.
 
 [Lifecycle cleanup checkpoint]
-Task 2 implementer: status=DONE, report captured, base/head SHA captured, changed files captured, snapshot state=emitted, test state captured, closed=yes after reviewer loops passed.
-Task 2 spec reviewer: agent_id=spec-2, review scope captured, base/head SHA captured, report captured, concrete findings captured, reviewer result disposition=final-findings, closed=yes after findings routing.
-Task 2 spec re-reviewer: agent_id=spec-2-rereview, review scope captured, base/head SHA captured, report captured, reviewer result disposition=final-pass, closed=yes after PASS verdict.
-Task 2 code-quality reviewer: agent_id=quality-2, review scope captured, base/head SHA captured, report captured, concrete findings captured, reviewer result disposition=stale after fixup changed head, closed=yes after stale disposition recorded.
-Task 2 code-quality re-reviewer: agent_id=quality-2-rereview, review scope captured, base/head SHA captured, report captured, reviewer result disposition=final-pass, closed=yes after PASS verdict.
+Task 2 implementer: operational state=completed, workflow return status=DONE, report captured, base/head SHA captured, changed files captured, snapshot state=emitted, test state captured, event=close-attempted then event=close-succeeded, cleanup outcome=closed=yes after reviewer loops passed.
+Task 2 spec reviewer: agent_id=spec-2, operational state=completed, workflow return status=findings-recorded, event=turn-completed, review scope captured, base/head SHA captured, report captured, concrete findings captured, reviewer disposition=final-findings, cleanup outcome=closed=yes after its recorded close success.
+Task 2 spec re-reviewer: agent_id=spec-2-rereview, operational state=completed, workflow return status=DONE, event=turn-completed, review scope captured, base/head SHA captured, report captured, reviewer disposition=final-pass, cleanup outcome=closed=yes after its recorded close success.
+Task 2 code-quality reviewer: agent_id=quality-2, operational state=superseded, workflow return status=findings-recorded, events retain turn-completed then superseded, review scope captured, base/head SHA captured, report captured, concrete findings captured, reviewer disposition=stale, cleanup outcome=closed=yes after its recorded close success.
+Task 2 code-quality re-reviewer: agent_id=quality-2-rereview, operational state=completed, workflow return status=DONE, event=turn-completed, review scope captured, base/head SHA captured, report captured, reviewer disposition=final-pass, cleanup outcome=closed=yes after its recorded close success.
 
 [Mark Task 2 complete]
 
@@ -207,7 +208,9 @@ target-honest `close-unavailable` outcomes before spawning Task 3.
 Controller skips the snapshot: this is a clearly localized low-risk example
 copy change. The implementer must report the default DONE fields: status,
 summary, tests, files changed, base SHA, and head SHA.
+[Ledger pre-dispatch: Task 3 implementer, agent_id=pending, operational state=pending, events=[dispatch-requested]]
 [Dispatch implementation subagent with full task text + context]
+[Ledger post-dispatch: Task 3 implementer, agent_id=impl-3, operational state=active, events=[dispatch-requested, identity-assigned]]
 Implementer:
   - Status: DONE
   - Summary: Clarified one example sentence in a neutral demo note
@@ -228,9 +231,11 @@ workflow stops.
 Effective route: `none-final-only`.
 
 [Lifecycle cleanup checkpoint]
-Task 3 implementer: status=DONE, report captured, base/head SHA captured,
-changed files captured, snapshot state=skipped, test state captured, closed=yes
-after the effective route completed. Controller uses its own git diff and
+Task 3 implementer: operational state=completed, workflow return status=DONE,
+event=turn-completed, report captured, base/head SHA captured, changed files
+captured, snapshot state=skipped, test state captured, event=close-attempted
+then event=close-succeeded, cleanup outcome=closed=yes after the effective
+route completed. Controller uses its own git diff and
 committed HEAD reads if it needs file content.
 
 [Mark Task 3 complete]
@@ -239,14 +244,14 @@ committed HEAD reads if it needs file content.
 
 [After all tasks]
 [Cleanup gate before final code-quality reviewer spawn]
-Controller verifies task implementers, reviewers, and re-reviewers are closed, then records the final reviewer pre-dispatch row: agent_id=pending, role=final-code-quality-reviewer, review scope=whole implementation diff, base/head SHA captured, closed=no.
+Controller verifies task implementers, reviewers, and re-reviewers are closed, then records the final reviewer pre-dispatch row: agent_id=pending, role=final-code-quality-reviewer, operational state=pending, events=[dispatch-requested], workflow return status absent, reviewer disposition absent, review scope=whole implementation diff, base/head SHA captured, cleanup outcome=closed=no.
 
 [Dispatch final code-quality reviewer]
-[Ledger post-dispatch: final-code-quality-reviewer, agent_id=final-quality]
+[Ledger post-dispatch: final-code-quality-reviewer, agent_id=final-quality, operational state=active, events=[dispatch-requested, identity-assigned]]
 Final reviewer: All requirements met, ready to merge
 
 [Lifecycle cleanup checkpoint]
-final-code-quality-reviewer: agent_id=final-quality, review scope captured, base/head SHA captured, report captured, reviewer result=PASS, closed=yes after final verdict recorded.
+final-code-quality-reviewer: agent_id=final-quality, operational state=completed, workflow return status=DONE, events retain dispatch-requested, identity-assigned, and turn-completed, review scope captured, base/head SHA captured, report captured, reviewer disposition=final-pass, event=close-attempted then event=close-succeeded, cleanup outcome=closed=yes after final verdict recorded.
 
 [Return to owning caller]
 `play-subagent-execution` returns to `issue-priming-workflow --auto`.
@@ -268,18 +273,25 @@ Branch review: no unresolved remaining `Blocking` findings except `INVALID` or
 [Inventory-only target variant]
 Using `subagent-lifecycle` target capability guidance:
 Target capability for this separate run: inventory-only: target exposes session inventory but no close operation
-Controller first captures each completed session's role-specific state, records open inventory (`impl-1`, `spec-1`, `quality-1`), and records `close-unavailable: inventory-only; no close operation` instead of claiming closed=yes before dispatching the next agent.
+Controller first captures each completed session's role-specific state, records open inventory (`impl-1`, `spec-1`, `quality-1`), appends event=closure-unavailable, and projects cleanup outcome=`close-unavailable: inventory-only; no close operation` instead of claiming closed=yes before dispatching the next agent.
+
+[Tracked-ID-only inventory-only target variant]
+Target capability for this separate run: inventory-only: no inventory operation is exposed, but the controller retains tracked stable agent ids and no usable close operation
+After capture, the controller appends event=closure-unavailable with reason=no close operation and projects cleanup outcome=`close-unavailable: tracked stable identity; no close operation`.
+
+[Automatic-close retry projection - separate run]
+The session has stable identity and an exposed close operation. The first close records event=close-attempted, event=close-failed, cleanup outcome=closed=no; prior lifecycle events remain. A later retry records event=close-attempted, event=close-succeeded, cleanup outcome=closed=yes without deleting the failed attempt.
 
 [Slot-limit spawn failure on cleanup-unavailable target - separate run]
 Using `subagent-lifecycle` slot-limit recovery:
 Target capability for this separate run: cleanup-unavailable: target exposes neither inventory nor close operation
 Controller classifies a slot-limit spawn failure as orchestration resource exhaustion, not task failure.
-Controller runs the cleanup gate, records `close-unavailable: no inventory or close operation` for completed/superseded sessions, states that open-agent inventory is unavailable, gives explicit operator/UI cleanup guidance, waits for operator confirmation that manual cleanup is complete, reconstructs active task state from the lifecycle ledger and git, then retries the spawn exactly once.
+Controller runs the cleanup gate, appends event=closure-unavailable and projects `close-unavailable: no inventory or close operation` for completed/superseded sessions, states that open-agent inventory is unavailable, gives explicit operator/UI cleanup guidance, waits for operator confirmation that manual cleanup is complete, reconstructs active task state from the lifecycle ledger and git, then retries the spawn exactly once.
 Retry succeeds.
 
 [Repeated blocker-family branch in the cleanup-unavailable run]
 Initial blocker-family record:
-  - Task 2 implementer: agent_id=impl-2a, status=BLOCKED, blocker state=context-missing: needs target install path, close-unavailable: no inventory or close operation after BLOCKED report and reconstructed state are captured
+  - Task 2 implementer: agent_id=impl-2a, operational state=completed, workflow return status=BLOCKED, event=turn-completed, blocker state=context-missing: needs target install path, event=closure-unavailable, cleanup outcome=close-unavailable: no inventory or close operation after the BLOCKED report and reconstructed state are captured
 If a later spawned implementer reports BLOCKED with blocker state=context-missing: needs target install path after slot-limit recovery succeeds, the controller escalates through existing BLOCKED handling instead of retrying cleanup again.
 
 Done!
