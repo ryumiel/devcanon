@@ -3799,6 +3799,11 @@ describe("play subagent routing source contracts", () => {
       "[Alternative target capability examples - separate runs",
       "Done!",
     );
+    const slotLimitAutomaticCloseFailure = sliceBetween(
+      targetCapabilityExamples,
+      "[Slot-limit automatic-close failure - separate run]",
+      "[Slot-limit spawn failure on cleanup-unavailable target - separate run]",
+    );
     const checkpointRow = (
       source: string,
       checkpoint: string,
@@ -4104,6 +4109,40 @@ describe("play subagent routing source contracts", () => {
     expect(targetCapabilityExamples).toContain(
       "same sanitized operator/UI manual-cleanup guidance as unavailable cleanup, waits for operator confirmation, then retries the spawn exactly once",
     );
+    const invalidSlotFailureDimensions = (example: string): string[] => {
+      const errors: string[] = [];
+      const attemptIndex = example.indexOf("event=close-attempted");
+      const failureIndex = example.indexOf("event=close-failed");
+      if (
+        attemptIndex < 0 ||
+        failureIndex < 0 ||
+        attemptIndex >= failureIndex
+      ) {
+        errors.push("attempt-failure-history");
+      }
+      if (!example.includes("cleanup outcome=closed=no")) {
+        errors.push("cleanup-projection");
+      }
+      if (
+        !example.includes("does not retry the spawn yet") ||
+        !example.includes("waits for operator confirmation") ||
+        !example.includes("retries the spawn exactly once")
+      ) {
+        errors.push("slot-retry-guard");
+      }
+      return errors;
+    };
+    expect(
+      invalidSlotFailureDimensions(slotLimitAutomaticCloseFailure),
+    ).toEqual([]);
+    expect(
+      invalidSlotFailureDimensions(
+        slotLimitAutomaticCloseFailure.replace(
+          "event=close-attempted then ",
+          "",
+        ),
+      ),
+    ).toEqual(["attempt-failure-history"]);
     expect(targetCapabilityExamples).toContain(
       "first captures each completed session's role-specific state",
     );

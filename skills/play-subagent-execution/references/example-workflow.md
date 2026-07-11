@@ -298,7 +298,7 @@ After capture, the controller appends event=closure-unavailable with reason=no c
 The session has stable identity and an exposed close operation. The first close records event=close-attempted, event=close-failed, cleanup outcome=closed=no; prior lifecycle events remain. A later retry records event=close-attempted, event=close-succeeded, cleanup outcome=closed=yes without deleting the failed attempt.
 
 [Slot-limit automatic-close failure - separate run]
-The cleanup gate attempts a usable automatic close, appends event=close-failed, and projects cleanup outcome=closed=no. The controller does not retry the spawn yet. It follows the same sanitized operator/UI manual-cleanup guidance as unavailable cleanup, waits for operator confirmation, then retries the spawn exactly once.
+The cleanup gate attempts a usable automatic close, appends event=close-attempted then event=close-failed, and projects cleanup outcome=closed=no. The controller does not retry the spawn yet. It follows the same sanitized operator/UI manual-cleanup guidance as unavailable cleanup, waits for operator confirmation, then retries the spawn exactly once.
 
 [Slot-limit spawn failure on cleanup-unavailable target - separate run]
 Using `subagent-lifecycle` slot-limit recovery:
