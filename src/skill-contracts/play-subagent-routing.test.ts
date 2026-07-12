@@ -5202,15 +5202,34 @@ describe("play subagent routing source contracts", () => {
       blocker !== null &&
       "kind" in blocker &&
       (blocker.kind === "ledger-row" || blocker.kind === "inventory-only");
-    const sanitizedIdentity = (value: string): boolean =>
-      /^[A-Za-z0-9._-]+$/.test(value);
-    const validProvenance = (value: string): boolean =>
+    const validAuthorizationKind = (
+      authorization: unknown,
+    ): authorization is Authorization =>
+      typeof authorization === "object" &&
+      authorization !== null &&
+      "kind" in authorization &&
+      (authorization.kind === "row-close" || authorization.kind === "manual");
+    const sanitizedIdentity = (value: unknown): value is string =>
+      typeof value === "string" && /^[A-Za-z0-9._-]+$/.test(value);
+    const validProvenance = (value: unknown): value is string =>
+      typeof value === "string" &&
       value === value.trim() &&
       value.length > 0 &&
       value.length <= 160 &&
       /^[A-Za-z0-9 ._:/@+-]+$/.test(value);
-    const validTime = (value: string): boolean =>
-      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(value);
+    const validTime = (value: unknown): value is string => {
+      if (
+        typeof value !== "string" ||
+        !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(value)
+      ) {
+        return false;
+      }
+      const parsed = Date.parse(value);
+      return (
+        !Number.isNaN(parsed) &&
+        new Date(parsed).toISOString() === value.replace(/Z$/, ".000Z")
+      );
+    };
     const validEscalation = (
       escalation: unknown,
       snapshot: readonly BlockerRef[],
@@ -5421,6 +5440,7 @@ describe("play subagent routing source contracts", () => {
         const authorizationKeys = new Set<string>();
         for (const authorization of episode.authorizations) {
           if (
+            !validAuthorizationKind(authorization) ||
             authorization.episodeId !== episode.episodeId ||
             !validBlockerKind(authorization.blocker) ||
             !sanitizedIdentity(authorization.blocker.identity) ||
@@ -5466,6 +5486,8 @@ describe("play subagent routing source contracts", () => {
           manualEvents.some(
             (event) =>
               event.blocker === undefined ||
+              !validBlockerKind(event.blocker) ||
+              !sanitizedIdentity(event.blocker.identity) ||
               event.provenance === undefined ||
               event.observedAt === undefined ||
               !manualAuthorizations.some(
@@ -5747,12 +5769,21 @@ describe("play subagent routing source contracts", () => {
       }
 
       if (operation.kind === "authorize") {
-        const evidence = operation.evidence;
+        const evidence = operation.evidence as unknown;
         if (episode.state !== "authorizing") {
           return fail(ledger, "episode-not-authorizing");
         }
+        if (!validAuthorizationKind(evidence)) {
+          return fail(ledger, "invalid-authorization-kind");
+        }
         if (evidence.episodeId !== episode.episodeId) {
           return fail(ledger, "stale-episode-evidence");
+        }
+        if (
+          !validBlockerKind(evidence.blocker) ||
+          !sanitizedIdentity(evidence.blocker.identity)
+        ) {
+          return fail(ledger, "invalid-authorization-blocker");
         }
         const evidenceKey = blockerKey(evidence.blocker);
         const blocker = episode.snapshot.find(
@@ -5775,6 +5806,13 @@ describe("play subagent routing source contracts", () => {
           return fail(ledger, "inventory-close-evidence");
         }
         if (evidence.kind === "row-close") {
+          if (
+            !sanitizedIdentity(evidence.rowId) ||
+            !sanitizedIdentity(evidence.rowEventId) ||
+            !sanitizedIdentity(evidence.sessionId)
+          ) {
+            return fail(ledger, "invalid-row-close-evidence-shape");
+          }
           const row = ledger.rows.find(
             (candidate) => candidate.rowId === evidence.rowId,
           );
@@ -5907,6 +5945,9 @@ describe("play subagent routing source contracts", () => {
         };
       }
 
+      if (operation.result !== "succeeded" && operation.result !== "failed") {
+        return fail(ledger, "invalid-retry-result-kind");
+      }
       if (episode.state !== "retry-dispatched") {
         return fail(
           ledger,
@@ -6225,6 +6266,23 @@ describe("play subagent routing source contracts", () => {
       { ...baseStart, snapshot: [unknownTag] },
       "invalid-snapshot-blocker-kind",
     );
+    const invalidIdentityBlockers = [
+      { kind: "inventory-only" },
+      { kind: "inventory-only", identity: null },
+      { kind: "inventory-only", identity: 42 },
+    ] as unknown as BlockerRef[];
+    for (const invalidIdentity of invalidIdentityBlockers) {
+      expectRejected(
+        emptyLedger(),
+        { ...baseStart, observedBlockers: [invalidIdentity] },
+        "unsanitized-observed-blocker",
+      );
+      expectRejected(
+        emptyLedger(),
+        { ...baseStart, snapshot: [invalidIdentity] },
+        "unsanitized-snapshot-blocker",
+      );
+    }
     expectRejected(
       emptyLedger(),
       { ...baseStart, originId: "unsafe origin" },
@@ -6333,6 +6391,74 @@ describe("play subagent routing source contracts", () => {
       },
       "invalid-row-close-record",
     );
+    for (const evidence of [
+      { kind: "unknown" },
+      {},
+      { kind: 7 },
+    ] as unknown as Authorization[]) {
+      expectRejected(
+        authorizing,
+        { kind: "authorize", episodeId: "episode-1", evidence },
+        "invalid-authorization-kind",
+      );
+    }
+    expectRejected(
+      authorizing,
+      {
+        kind: "authorize",
+        episodeId: "episode-1",
+        evidence: {
+          kind: "manual",
+          episodeId: "episode-1",
+          provenance: "operator UI",
+          observedAt: "2026-07-12T00:00:00Z",
+        } as unknown as Authorization,
+      },
+      "invalid-authorization-blocker",
+    );
+    for (const provenance of [undefined, null, 7]) {
+      expectRejected(
+        authorizing,
+        {
+          kind: "authorize",
+          episodeId: "episode-1",
+          evidence: {
+            ...manual("episode-1", inventory()),
+            provenance,
+          } as unknown as Authorization,
+        },
+        "unsafe-manual-provenance",
+      );
+    }
+    for (const observedAt of [undefined, null, 7]) {
+      expectRejected(
+        authorizing,
+        {
+          kind: "authorize",
+          episodeId: "episode-1",
+          evidence: {
+            ...manual("episode-1", inventory()),
+            observedAt,
+          } as unknown as Authorization,
+        },
+        "invalid-manual-observation-time",
+      );
+    }
+    expectRejected(
+      authorizing,
+      {
+        kind: "authorize",
+        episodeId: "episode-1",
+        evidence: {
+          kind: "row-close",
+          episodeId: "episode-1",
+          blocker: ledgerRow(),
+          rowId: "row-1",
+          sessionId: "session-1",
+        } as unknown as Authorization,
+      },
+      "invalid-row-close-evidence-shape",
+    );
     expectRejected(
       authorizing,
       {
@@ -6390,18 +6516,27 @@ describe("play subagent routing source contracts", () => {
       },
       "unsafe-manual-provenance",
     );
-    expectRejected(
-      authorizing,
-      {
-        kind: "authorize",
-        episodeId: "episode-1",
-        evidence: {
-          ...manual("episode-1", inventory()),
-          observedAt: "not-a-time",
+    for (const observedAt of [
+      "not-a-time",
+      "2026-13-12T00:00:00Z",
+      "2026-02-30T00:00:00Z",
+      "2026-07-12T25:00:00Z",
+      "2026-07-12T00:00:00.000Z",
+      "2026-07-12T00:00:00+00:00",
+    ]) {
+      expectRejected(
+        authorizing,
+        {
+          kind: "authorize",
+          episodeId: "episode-1",
+          evidence: {
+            ...manual("episode-1", inventory()),
+            observedAt,
+          },
         },
-      },
-      "invalid-manual-observation-time",
-    );
+        "invalid-manual-observation-time",
+      );
+    }
     expectRejected(
       authorizing,
       {
@@ -6547,6 +6682,17 @@ describe("play subagent routing source contracts", () => {
       "retry-result-without-dispatch",
     );
     const dispatched = apply(ready, dispatch("episode-1"));
+    for (const invalidResult of [undefined, "unknown", 7]) {
+      expectRejected(
+        dispatched,
+        {
+          kind: "result",
+          episodeId: "episode-1",
+          result: invalidResult,
+        } as unknown as Operation,
+        "invalid-retry-result-kind",
+      );
+    }
     expectRejected(
       dispatched,
       dispatch("episode-1"),
