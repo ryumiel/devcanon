@@ -5313,7 +5313,10 @@ describe("play subagent routing source contracts", () => {
       ],
       [
         "snapshot-retagged-or-not-observed",
-        mixedInput({ observedBlockers: [row], snapshot: [inventory] }),
+        mixedInput({
+          observedBlockers: [row],
+          snapshot: [{ kind: "inventory-only", identity: row.identity }],
+        }),
       ],
       [
         "snapshot-blocker-unauthorized",
@@ -7575,6 +7578,27 @@ describe("play subagent routing source contracts", () => {
       "[Slot-limit spawn failure on cleanup-unavailable target - separate run]",
       "[Repeated blocker-family branch in the cleanup-unavailable run]",
     );
+    const taggedRecoveryReferenceErrors = (example: string): string[] => {
+      const errors: string[] = [];
+      const tagged = /^(ledger-row|inventory-only):[A-Za-z0-9._-]+$/;
+      for (const match of example.matchAll(/blockers=\[([^\]]*)\]/g)) {
+        const blockers = (match[1] ?? "")
+          .split(",")
+          .map((value) => value.trim());
+        if (
+          blockers.length === 0 ||
+          blockers.some((value) => !tagged.test(value))
+        ) {
+          errors.push("untagged-snapshot-blocker");
+        }
+      }
+      for (const match of example.matchAll(/blocker=([^,)]+)/g)) {
+        if (!tagged.test((match[1] ?? "").trim())) {
+          errors.push("untagged-authorization-blocker");
+        }
+      }
+      return [...new Set(errors)];
+    };
     const checkpointRow = (
       source: string,
       checkpoint: string,
@@ -8622,16 +8646,60 @@ describe("play subagent routing source contracts", () => {
     expect(slotLimitMixedBlockers).toContain(
       "does not fabricate a row for `inventory-only:orphan-mixed`",
     );
+    const mixedAttempt =
+      "event=close-attempted(episode=recovery-mixed-1, blocker=ledger-row:impl-mixed)";
+    const mixedSuccess =
+      "event=close-succeeded(episode=recovery-mixed-1, blocker=ledger-row:impl-mixed)";
+    expect(slotLimitMixedBlockers).toContain(mixedAttempt);
+    expect(slotLimitMixedBlockers).toContain(mixedSuccess);
+    expect(slotLimitMixedBlockers.indexOf(mixedAttempt)).toBeLessThan(
+      slotLimitMixedBlockers.indexOf(mixedSuccess),
+    );
+    const mixedClosedYes = "projects cleanup outcome=closed=yes";
+    expect(slotLimitMixedBlockers).toContain(mixedClosedYes);
+    expect(slotLimitMixedBlockers.indexOf(mixedSuccess)).toBeLessThan(
+      slotLimitMixedBlockers.indexOf(mixedClosedYes),
+    );
+    expect(slotLimitMixedBlockers).toContain(
+      "blocker=inventory-only:orphan-mixed",
+    );
+    expect(slotLimitMixedBlockers).toContain(
+      "target-honest unavailable record remains `close-unavailable: inventory-only; no close operation`",
+    );
     expect(slotLimitMixedBlockers).toContain(
       "Row close evidence cannot substitute for the inventory-only confirmation",
     );
     expect(slotLimitMixedBlockers).toContain(
       "Only after both exact tagged blockers are independently authorized",
     );
+    for (const example of [
+      slotLimitRetainedSession,
+      slotLimitAutomaticCloseFailure,
+      slotLimitMixedBlockers,
+      slotLimitUnavailable,
+    ]) {
+      expect(taggedRecoveryReferenceErrors(example)).toEqual([]);
+    }
+    expect(
+      taggedRecoveryReferenceErrors(
+        slotLimitAutomaticCloseFailure.replace(
+          "blockers=[ledger-row:impl-failed-close]",
+          "blockers=[impl-failed-close]",
+        ),
+      ),
+    ).toContain("untagged-snapshot-blocker");
+    expect(
+      taggedRecoveryReferenceErrors(
+        slotLimitAutomaticCloseFailure.replace(
+          "blocker=ledger-row:impl-failed-close",
+          "blocker=impl-failed-close",
+        ),
+      ),
+    ).toContain("untagged-authorization-blocker");
     expect(
       manualConfirmationErrors(
         slotLimitRetainedSession,
-        "impl-retained",
+        "ledger-row:impl-retained",
         "recovery-retained-1",
         "closed=no remains unchanged",
       ),
@@ -8704,13 +8772,13 @@ describe("play subagent routing source contracts", () => {
       }
       if (
         !example.includes(
-          "event=slot-recovery-started(episode=recovery-retained-1, blockers=[impl-retained])",
+          "event=slot-recovery-started(episode=recovery-retained-1, blockers=[ledger-row:impl-retained])",
         ) ||
         !example.includes(
-          "event=close-attempted(episode=recovery-retained-1, blocker=impl-retained)",
+          "event=close-attempted(episode=recovery-retained-1, blocker=ledger-row:impl-retained)",
         ) ||
         !example.includes(
-          "event=manual-cleanup-confirmed(episode=recovery-retained-1, blocker=impl-retained",
+          "event=manual-cleanup-confirmed(episode=recovery-retained-1, blocker=ledger-row:impl-retained",
         )
       ) {
         errors.push("current-episode-evidence");
@@ -8903,13 +8971,13 @@ describe("play subagent routing source contracts", () => {
       }
       if (
         !example.includes(
-          "event=slot-recovery-started(episode=recovery-failed-1, blockers=[impl-failed-close])",
+          "event=slot-recovery-started(episode=recovery-failed-1, blockers=[ledger-row:impl-failed-close])",
         ) ||
         !example.includes(
-          "event=close-attempted(episode=recovery-failed-1, blocker=impl-failed-close)",
+          "event=close-attempted(episode=recovery-failed-1, blocker=ledger-row:impl-failed-close)",
         ) ||
         !example.includes(
-          "event=manual-cleanup-confirmed(episode=recovery-failed-1, blocker=impl-failed-close",
+          "event=manual-cleanup-confirmed(episode=recovery-failed-1, blocker=ledger-row:impl-failed-close",
         ) ||
         !example.includes(
           "an earlier episode's confirmation cannot authorize this retry",
@@ -8934,7 +9002,7 @@ describe("play subagent routing source contracts", () => {
     expect(
       manualConfirmationErrors(
         slotLimitAutomaticCloseFailure,
-        "impl-failed-close",
+        "ledger-row:impl-failed-close",
         "recovery-failed-1",
         "closed=no remains unchanged",
       ),
@@ -8942,10 +9010,10 @@ describe("play subagent routing source contracts", () => {
     expect(
       manualConfirmationErrors(
         slotLimitAutomaticCloseFailure.replace(
-          "event=manual-cleanup-confirmed(episode=recovery-failed-1, blocker=impl-failed-close",
-          "event=manual-cleanup-confirmed(episode=recovery-failed-1, blocker=another-row",
+          "event=manual-cleanup-confirmed(episode=recovery-failed-1, blocker=ledger-row:impl-failed-close",
+          "event=manual-cleanup-confirmed(episode=recovery-failed-1, blocker=ledger-row:another-row",
         ),
-        "impl-failed-close",
+        "ledger-row:impl-failed-close",
         "recovery-failed-1",
         "closed=no remains unchanged",
       ),
@@ -8956,7 +9024,7 @@ describe("play subagent routing source contracts", () => {
           "recovery-failed-1",
           "recovery-failed-0",
         ),
-        "impl-failed-close",
+        "ledger-row:impl-failed-close",
         "recovery-failed-1",
         "closed=no remains unchanged",
       ),
@@ -8967,7 +9035,7 @@ describe("play subagent routing source contracts", () => {
           "event=manual-cleanup-confirmed",
           "event=manual-cleanup-observed",
         ),
-        "impl-failed-close",
+        "ledger-row:impl-failed-close",
         "recovery-failed-1",
         "closed=no remains unchanged",
       ),
@@ -8975,7 +9043,7 @@ describe("play subagent routing source contracts", () => {
     expect(
       manualConfirmationErrors(
         slotLimitUnavailable,
-        "impl-unavailable",
+        "ledger-row:impl-unavailable",
         "recovery-unavailable-1",
         "close-unavailable outcome remains unchanged",
       ),
@@ -8983,8 +9051,8 @@ describe("play subagent routing source contracts", () => {
     expect(
       invalidSlotFailureDimensions(
         slotLimitAutomaticCloseFailure.replace(
-          "event=close-attempted(episode=recovery-failed-1, blocker=impl-failed-close) then event=close-failed(episode=recovery-failed-1, blocker=impl-failed-close)",
-          "event=close-failed(episode=recovery-failed-1, blocker=impl-failed-close) then event=close-attempted(episode=recovery-failed-1, blocker=impl-failed-close)",
+          "event=close-attempted(episode=recovery-failed-1, blocker=ledger-row:impl-failed-close) then event=close-failed(episode=recovery-failed-1, blocker=ledger-row:impl-failed-close)",
+          "event=close-failed(episode=recovery-failed-1, blocker=ledger-row:impl-failed-close) then event=close-attempted(episode=recovery-failed-1, blocker=ledger-row:impl-failed-close)",
         ),
       ),
     ).toEqual(["attempt-failure-history"]);
@@ -9005,10 +9073,10 @@ describe("play subagent routing source contracts", () => {
       "event=closure-unavailable(reason=no inventory or close operation)",
     );
     expect(slotLimitUnavailable).toContain(
-      "event=slot-recovery-started(episode=recovery-unavailable-1, blockers=[impl-unavailable])",
+      "event=slot-recovery-started(episode=recovery-unavailable-1, blockers=[ledger-row:impl-unavailable])",
     );
     expect(slotLimitUnavailable).toContain(
-      "event=manual-cleanup-confirmed(episode=recovery-unavailable-1, blocker=impl-unavailable",
+      "event=manual-cleanup-confirmed(episode=recovery-unavailable-1, blocker=ledger-row:impl-unavailable",
     );
     expect(slotLimitUnavailable).toContain(
       "Evidence from an earlier episode cannot authorize this retry",
