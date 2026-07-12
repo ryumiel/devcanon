@@ -2817,11 +2817,9 @@ describe("play subagent routing source contracts", () => {
       "close-attempted",
       "close-deferred",
       "retention-resolved",
-      "slot-recovery-started",
       "close-failed",
       "close-succeeded",
       "closure-unavailable",
-      "manual-cleanup-confirmed",
     ]) {
       expect(orderedLifecycleEvents).toContain(`\`${event}\``);
     }
@@ -3042,84 +3040,59 @@ describe("play subagent routing source contracts", () => {
       "When no spawn has reported slot or session exhaustion, the controller may continue after recording a deferred family (`close-deferred` plus `closed=no`), unavailable family (`closure-unavailable` plus `close-unavailable: <reason>`), failed-attempt family (`close-attempted`, `close-failed`, and `closed=no`), or successful-close family",
     );
 
-    expect(slotLimitRecovery).toContain("orchestration resource exhaustion");
     expect(normalizeWhitespace(slotLimitRecovery)).toContain(
-      "A spawn without a slot-limit signal remains under the normal cleanup gate and does not activate this retry path",
-    );
-    expect(normalizeWhitespace(slotLimitRecovery)).toContain(
-      "Append `slot-recovery-started` with a new sanitized episode identity and a complete, immutable snapshot of every observed capacity blocker",
+      "orchestration resource exhaustion",
     );
     expect(normalizeWhitespace(slotLimitRecovery)).toContain(
-      "Each blocker reference has exactly one tag and sanitized identity: `ledger-row:<row-id>` or `inventory-only:<inventory-id>`",
+      "Recovery uses two controller-local ledger levels",
     );
     expect(normalizeWhitespace(slotLimitRecovery)).toContain(
-      "A pure inventory-only blocker requires no fabricated ledger row",
+      "Session rows continue to own session identity, operational and reuse state, capture, row events, retention, cleanup evaluation and projection, and close attempt/result history",
     );
     expect(normalizeWhitespace(slotLimitRecovery)).toContain(
-      "Classify every capacity-blocking ledger row before cleanup. Inventory-only blockers have no row lifecycle state to classify or mutate",
+      "A controller-level recovery episode record owns the sanitized recovery-origin identity, episode identity, immutable tagged blocker snapshot, ordered episode events, authorization projection, reconstruction, retry dispatch/result, and escalation",
     );
     expect(normalizeWhitespace(slotLimitRecovery)).toContain(
-      "For `active`, reach a safe boundary and capture state; unsafe capture stops and escalates",
+      "Episode facts never live on or fabricate a session row, and episode events never change a row cleanup projection or row history",
     );
     expect(normalizeWhitespace(slotLimitRecovery)).toContain(
-      "For `waiting`, capture the open question and needed context",
+      "One recovery origin identifies the failed spawn attempt. At most one episode may exist for that origin; a later unrelated failed spawn uses a distinct origin",
     );
     expect(normalizeWhitespace(slotLimitRecovery)).toContain(
-      "For reusable `interrupted`, capture state and reuse only under the exact `interrupted-reuse-dispatch-requested(session-id=...)` guard above",
+      "A blocker is exactly `ledger-row:<row-id>` or `inventory-only:<inventory-id>`",
     );
     expect(normalizeWhitespace(slotLimitRecovery)).toContain(
-      "Fresh capture permits replacement-free retention or reuse; supersession follows the global invariant",
+      "Inventory evidence attached to a row does not create a second blocker",
     );
     expect(normalizeWhitespace(slotLimitRecovery)).toContain(
-      "For `pending` or unknown identity, do not fabricate cleanup, guess an id, or close another row",
+      "append the episode event `slot-recovery-started` and project `authorizing`",
     );
     expect(normalizeWhitespace(slotLimitRecovery)).toContain(
-      "If automatic cleanup is unavailable or a usable automatic close attempt fails, surface the same explicit operator/UI manual-cleanup guidance",
+      "Pure inventory blockers never enter row eligibility, retention, cleanup, or close logic",
     );
     expect(normalizeWhitespace(slotLimitRecovery)).toContain(
-      "For any capacity-blocking session whose latest cleanup decision is `close-deferred`, require the owning workflow to resolve whether same-session follow-up is still required",
+      "A row blocker accepts either an exact current-episode reference to that row's observed `close-succeeded` event by row and event identity, or an episode `manual-cleanup-confirmed` event",
     );
     expect(normalizeWhitespace(slotLimitRecovery)).toContain(
-      "After the row is terminal or superseded, append `retention-resolved` only with a valid basis and proof above, clear current retention, and proceed through an actual supported close or operator-confirmed manual cleanup before retry",
+      "An inventory blocker accepts only the episode manual-confirmation event; row close evidence cannot authorize it",
     );
     expect(normalizeWhitespace(slotLimitRecovery)).toContain(
-      "`retention-resolved` is necessary for a formerly deferred blocker but is not retry authorization or closure proof",
+      "Reject duplicate, stale, non-snapshot, cross-kind, incomplete, or inventory-close evidence before mutation",
     );
     expect(normalizeWhitespace(slotLimitRecovery)).toContain(
-      "If the follow-up need remains and safe cleanup or replacement cannot occur, stop and escalate; neither the deferral nor an unsafe manual close authorizes a retry",
+      "Keep the first accepted evidence unchanged when a later authorization fails",
     );
     expect(normalizeWhitespace(slotLimitRecovery)).toContain(
-      "Wait for operator confirmation that manual cleanup is complete before continuing",
+      "Append `recovery-state-reconstructed` and project `ready`",
     );
     expect(normalizeWhitespace(slotLimitRecovery)).toContain(
-      "reconstruct active workflow state from the lifecycle ledger",
+      "From `ready`, append exactly one `slot-retry-dispatched`, consume the authorization once, and project `retry-dispatched`",
     );
     expect(normalizeWhitespace(slotLimitRecovery)).toContain(
-      "For each affected tagged blocker reference, append exactly one `manual-cleanup-confirmed` with the current recovery episode identity, exact blocker tag and identity, sanitized confirmation provenance, and time",
+      "Append exactly one `slot-retry-succeeded` and project terminal `retry-succeeded`, or append `slot-retry-failed`, store only sanitized escalation, and project terminal `retry-failed`",
     );
     expect(normalizeWhitespace(slotLimitRecovery)).toContain(
-      "This evidence does not change any target-honest ledger cleanup projection and never fabricates `closed=yes`",
-    );
-    expect(slotLimitRecovery.indexOf("manual-cleanup-confirmed")).toBeLessThan(
-      slotLimitRecovery.indexOf("reconstruct active workflow state"),
-    );
-    expect(
-      slotLimitRecovery.indexOf("reconstruct active workflow state"),
-    ).toBeLessThan(slotLimitRecovery.indexOf("Retry the spawn exactly once"));
-    expect(normalizeWhitespace(slotLimitRecovery)).toContain(
-      "Retry the spawn exactly once only when every tagged blocker reference in the current episode's immutable snapshot is authorized",
-    );
-    expect(normalizeWhitespace(slotLimitRecovery)).toContain(
-      "An inventory-only blocker accepts exactly one current-episode `manual-cleanup-confirmed` event with sanitized provenance and time; it cannot accept `close-succeeded`",
-    );
-    expect(normalizeWhitespace(slotLimitRecovery)).toContain(
-      "Preserve earlier episode evidence as append-only history, but never use it to authorize the current retry",
-    );
-    expect(normalizeWhitespace(slotLimitRecovery)).toContain(
-      "A failed automatic close with `closed=no` is not permission to retry the spawn",
-    );
-    expect(slotLimitRecovery).toContain(
-      "Repeated failures after the single retry are not permission to keep spawning",
+      "Failure forbids another episode or retry for the same origin; a distinct recovery origin remains eligible for a later unrelated failure",
     );
 
     expect(normalizedSkillSource).not.toContain(
@@ -3158,9 +3131,10 @@ describe("play subagent routing source contracts", () => {
       "resolved same-session retention as an append-only decision event",
       "provider-neutral timeout and runtime-failure terminal outcomes",
       "classification and safe capture of open capacity-blocking rows",
-      "tagged-blocker-scoped manual-cleanup confirmation evidence",
-      "recovery-episode-scoped blocker snapshots and retry evidence",
-      "slot-limit recovery and one retry after cleanup or manual confirmation",
+      "session-row ownership of identity, operational and reuse state",
+      "separate controller-level recovery episodes",
+      "exact `ledger-row:<row-id>` and `inventory-only:<inventory-id>` authorization",
+      "terminal retry success or sanitized failure",
     ]) {
       expect(decision).toContain(ownedSurface);
     }
@@ -3168,7 +3142,7 @@ describe("play subagent routing source contracts", () => {
       "`play-subagent-execution` owns task execution, per-task review routing,\nimplementer snapshot consumption, and same-session implementer fix-loop\nexceptions",
     );
     expect(decision).toContain(
-      "The lifecycle ledger remains controller-local state",
+      "Both ledger levels remain controller-local state",
     );
     expect(consequences).toContain(
       "Target capability claims remain target-honest",
@@ -3213,10 +3187,16 @@ describe("play subagent routing source contracts", () => {
       "Active, waiting, interrupted, pending, and unknown-identity capacity blockers require state-specific classification before cleanup",
     );
     expect(normalizeWhitespace(consequences)).toContain(
-      "Manual cleanup confirmation is append-only, row- or inventory-identity-scoped retry evidence with sanitized provenance and time",
+      "Session rows never own recovery origins, episode identities, blocker snapshots, episode authorization, reconstruction, retry, or escalation",
     );
     expect(normalizeWhitespace(consequences)).toContain(
-      "Each slot-exhaustion recovery episode snapshots its capacity blockers and binds close or manual-confirmation authorization evidence to that episode",
+      "Episode authorization and terminal results leave row histories and cleanup projections unchanged",
+    );
+    expect(normalizeWhitespace(consequences)).toContain(
+      "A row's `close-succeeded` remains a row event referenced by exact row/event identity",
+    );
+    expect(normalizeWhitespace(consequences)).toContain(
+      "Reconstruction requires complete authorization; dispatch requires reconstruction and consumes authorization exactly once; a retry result requires dispatch and is terminal",
     );
     expect(normalizeWhitespace(consequences)).toContain(
       "Known-surface mappings are detection-first capability guidance, not frozen provider action schemas; interruption and inventory never imply closure",
@@ -5090,7 +5070,7 @@ describe("play subagent routing source contracts", () => {
     ).toEqual(["pending-identity-cleanup"]);
   });
 
-  it("folds retry authority over the immutable tagged blocker snapshot", () => {
+  it("validates tagged blocker authorization before the canonical episode fold", () => {
     type BlockerRef = {
       kind: "ledger-row" | "inventory-only";
       identity: string;
@@ -5113,7 +5093,7 @@ describe("play subagent routing source contracts", () => {
     type RecoveryResult = {
       errors: string[];
       authorization: Map<string, boolean>;
-      ready: boolean;
+      fullyAuthorized: boolean;
       actions: string[];
       projections: Map<string, string>;
     };
@@ -5134,7 +5114,7 @@ describe("play subagent routing source contracts", () => {
       const fail = (error: string): RecoveryResult => ({
         errors: [error],
         authorization: new Map(),
-        ready: false,
+        fullyAuthorized: false,
         actions: [],
         projections,
       });
@@ -5214,8 +5194,8 @@ describe("play subagent routing source contracts", () => {
       return {
         errors: [],
         authorization,
-        ready: true,
-        actions: ["all-blockers-authorized", "reconstruct", "retry-once"],
+        fullyAuthorized: true,
+        actions: ["all-blockers-authorized"],
         projections,
       };
     }
@@ -5260,15 +5240,11 @@ describe("play subagent routing source contracts", () => {
       authorizations: [manual(inventory)],
     });
     expect(pureInventory.errors).toEqual([]);
-    expect(pureInventory.ready).toBe(true);
+    expect(pureInventory.fullyAuthorized).toBe(true);
 
     const mixed = foldRecovery(mixedInput());
     expect(mixed.errors).toEqual([]);
-    expect(mixed.actions).toEqual([
-      "all-blockers-authorized",
-      "reconstruct",
-      "retry-once",
-    ]);
+    expect(mixed.actions).toEqual(["all-blockers-authorized"]);
 
     const unchangedProjection = new Map([[row.identity, "closed=no"]]);
     const rowManual = foldRecovery(
@@ -5375,6 +5351,652 @@ describe("play subagent routing source contracts", () => {
     for (const [error, input] of invalidCases) {
       expect(foldRecovery(input).errors, error).toEqual([error]);
     }
+  });
+
+  it("folds controller recovery episodes independently from session rows", () => {
+    type BlockerRef =
+      | { kind: "ledger-row"; identity: string }
+      | { kind: "inventory-only"; identity: string };
+    type EpisodeState =
+      | "authorizing"
+      | "ready"
+      | "retry-dispatched"
+      | "retry-succeeded"
+      | "retry-failed";
+    type EpisodeEvent =
+      | "slot-recovery-started"
+      | "manual-cleanup-confirmed"
+      | "recovery-state-reconstructed"
+      | "slot-retry-dispatched"
+      | "slot-retry-succeeded"
+      | "slot-retry-failed";
+    type Authorization =
+      | {
+          kind: "row-close";
+          episodeId: string;
+          blocker: BlockerRef;
+          rowId: string;
+          rowEventId: string;
+        }
+      | {
+          kind: "manual";
+          episodeId: string;
+          blocker: BlockerRef;
+          provenance?: string;
+          observedAt?: string;
+        };
+    type Episode = {
+      originId: string;
+      episodeId: string;
+      snapshot: BlockerRef[];
+      state: EpisodeState;
+      events: EpisodeEvent[];
+      authorizations: Map<string, Authorization>;
+      escalation?: string;
+    };
+    type ControllerLedger = {
+      episodes: Map<string, Episode>;
+      originEpisodes: Map<string, string>;
+      retryDispatches: number;
+      rowProjections: Map<string, string>;
+      rowHistories: Map<string, string[]>;
+    };
+    type RecoveryOperation =
+      | {
+          kind: "start";
+          originId: string;
+          episodeId: string;
+          snapshot: BlockerRef[];
+        }
+      | { kind: "authorize"; episodeId: string; evidence: Authorization }
+      | {
+          kind: "reconstruct";
+          episodeId: string;
+          lifecycleAnchor: string;
+          repositoryAnchor: string;
+        }
+      | { kind: "dispatch"; episodeId: string }
+      | {
+          kind: "result";
+          episodeId: string;
+          result: "succeeded" | "failed";
+          escalation?: string;
+        };
+    type FoldResult = { ledger: ControllerLedger; error?: string };
+
+    const key = (blocker: BlockerRef): string =>
+      `${blocker.kind}:${blocker.identity}`;
+    const sanitized = (value: string): boolean =>
+      /^[A-Za-z0-9._-]+$/.test(value);
+    const manualMetadataValid = (
+      evidence: Extract<Authorization, { kind: "manual" }>,
+    ): boolean =>
+      evidence.provenance !== undefined &&
+      evidence.provenance === evidence.provenance.trim() &&
+      evidence.provenance.length > 0 &&
+      evidence.observedAt !== undefined &&
+      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(evidence.observedAt);
+    const rowCloseEvents = new Map([
+      [
+        "row-1:close-1",
+        { episodeId: "episode-1", blocker: "ledger-row:row-1" },
+      ],
+      [
+        "same:close-same",
+        { episodeId: "episode-equal", blocker: "ledger-row:same" },
+      ],
+      [
+        "row-1:close-stale",
+        { episodeId: "episode-0", blocker: "ledger-row:row-1" },
+      ],
+    ]);
+    const cloneLedger = (ledger: ControllerLedger): ControllerLedger => ({
+      episodes: new Map(
+        [...ledger.episodes].map(([episodeId, episode]) => [
+          episodeId,
+          {
+            ...episode,
+            snapshot: episode.snapshot.map((blocker) => ({ ...blocker })),
+            events: [...episode.events],
+            authorizations: new Map(episode.authorizations),
+          },
+        ]),
+      ),
+      originEpisodes: new Map(ledger.originEpisodes),
+      retryDispatches: ledger.retryDispatches,
+      rowProjections: new Map(ledger.rowProjections),
+      rowHistories: new Map(
+        [...ledger.rowHistories].map(([rowId, history]) => [
+          rowId,
+          [...history],
+        ]),
+      ),
+    });
+    const fail = (ledger: ControllerLedger, error: string): FoldResult => ({
+      ledger,
+      error,
+    });
+
+    function foldRecoveryEpisode(
+      ledger: ControllerLedger,
+      operation: RecoveryOperation,
+    ): FoldResult {
+      if (operation.kind === "start") {
+        if (!sanitized(operation.originId)) {
+          return fail(ledger, "invalid-recovery-origin");
+        }
+        if (!sanitized(operation.episodeId)) {
+          return fail(ledger, "invalid-recovery-episode");
+        }
+        const existingEpisode = ledger.originEpisodes.get(operation.originId);
+        if (existingEpisode !== undefined) {
+          const existing = ledger.episodes.get(existingEpisode);
+          return fail(
+            ledger,
+            existing?.state === "retry-failed"
+              ? "terminal-failure-origin-closed"
+              : "recovery-origin-already-used",
+          );
+        }
+        if (ledger.episodes.has(operation.episodeId)) {
+          return fail(ledger, "recovery-episode-already-used");
+        }
+        if (operation.snapshot.length === 0) {
+          return fail(ledger, "empty-blocker-snapshot");
+        }
+        if (
+          operation.snapshot.some((blocker) => !sanitized(blocker.identity))
+        ) {
+          return fail(ledger, "unsanitized-blocker-reference");
+        }
+        const snapshotKeys = operation.snapshot.map(key);
+        if (new Set(snapshotKeys).size !== snapshotKeys.length) {
+          return fail(ledger, "duplicate-blocker-reference");
+        }
+        const next = cloneLedger(ledger);
+        next.episodes.set(operation.episodeId, {
+          originId: operation.originId,
+          episodeId: operation.episodeId,
+          snapshot: operation.snapshot.map((blocker) => ({ ...blocker })),
+          state: "authorizing",
+          events: ["slot-recovery-started"],
+          authorizations: new Map(),
+        });
+        next.originEpisodes.set(operation.originId, operation.episodeId);
+        return { ledger: next };
+      }
+
+      const episode = ledger.episodes.get(operation.episodeId);
+      if (episode === undefined) {
+        return fail(ledger, "recovery-episode-not-found");
+      }
+      if (operation.kind === "authorize") {
+        if (episode.state !== "authorizing") {
+          return fail(ledger, "episode-not-authorizing");
+        }
+        if (operation.evidence.episodeId !== episode.episodeId) {
+          return fail(ledger, "stale-episode-evidence");
+        }
+        const blockerKey = key(operation.evidence.blocker);
+        const snapshotBlocker = episode.snapshot.find(
+          (blocker) => key(blocker) === blockerKey,
+        );
+        if (snapshotBlocker === undefined) {
+          return fail(
+            ledger,
+            episode.snapshot.some(
+              (blocker) =>
+                blocker.identity === operation.evidence.blocker.identity,
+            )
+              ? "cross-kind-evidence"
+              : "non-snapshot-evidence",
+          );
+        }
+        if (
+          operation.evidence.kind === "row-close" &&
+          snapshotBlocker.kind === "inventory-only"
+        ) {
+          return fail(ledger, "inventory-close-evidence");
+        }
+        if (operation.evidence.kind === "row-close") {
+          if (
+            snapshotBlocker.kind !== "ledger-row" ||
+            operation.evidence.rowId !== snapshotBlocker.identity
+          ) {
+            return fail(ledger, "cross-kind-evidence");
+          }
+          const rowEvent = rowCloseEvents.get(
+            `${operation.evidence.rowId}:${operation.evidence.rowEventId}`,
+          );
+          if (
+            rowEvent?.episodeId !== episode.episodeId ||
+            rowEvent.blocker !== blockerKey
+          ) {
+            return fail(ledger, "stale-or-unreferenced-row-close");
+          }
+        } else if (!manualMetadataValid(operation.evidence)) {
+          return fail(ledger, "incomplete-manual-confirmation");
+        }
+        if (episode.authorizations.has(blockerKey)) {
+          return fail(ledger, "blocker-already-authorized");
+        }
+        const next = cloneLedger(ledger);
+        const nextEpisode = next.episodes.get(episode.episodeId) as Episode;
+        nextEpisode.authorizations.set(blockerKey, operation.evidence);
+        if (operation.evidence.kind === "manual") {
+          nextEpisode.events.push("manual-cleanup-confirmed");
+        }
+        return { ledger: next };
+      }
+
+      if (operation.kind === "reconstruct") {
+        if (episode.state !== "authorizing") {
+          return fail(
+            ledger,
+            episode.state === "retry-dispatched" ||
+              episode.state === "retry-succeeded" ||
+              episode.state === "retry-failed"
+              ? "episode-already-consumed-or-terminal"
+              : "episode-not-authorizing",
+          );
+        }
+        if (episode.authorizations.size !== episode.snapshot.length) {
+          return fail(ledger, "blocker-authorization-incomplete");
+        }
+        if (
+          operation.lifecycleAnchor.trim().length === 0 ||
+          operation.repositoryAnchor.trim().length === 0
+        ) {
+          return fail(ledger, "reconstruction-anchors-missing");
+        }
+        const next = cloneLedger(ledger);
+        const nextEpisode = next.episodes.get(episode.episodeId) as Episode;
+        nextEpisode.events.push("recovery-state-reconstructed");
+        nextEpisode.state = "ready";
+        return { ledger: next };
+      }
+
+      if (operation.kind === "dispatch") {
+        if (episode.state !== "ready") {
+          return fail(
+            ledger,
+            episode.state === "authorizing"
+              ? "reconstruction-required"
+              : "retry-already-dispatched-or-terminal",
+          );
+        }
+        const next = cloneLedger(ledger);
+        const nextEpisode = next.episodes.get(episode.episodeId) as Episode;
+        nextEpisode.events.push("slot-retry-dispatched");
+        nextEpisode.state = "retry-dispatched";
+        next.retryDispatches += 1;
+        return { ledger: next };
+      }
+
+      if (episode.state !== "retry-dispatched") {
+        return fail(
+          ledger,
+          episode.state === "retry-succeeded" ||
+            episode.state === "retry-failed"
+            ? "retry-result-already-recorded"
+            : "retry-result-without-dispatch",
+        );
+      }
+      if (
+        operation.result === "failed" &&
+        (operation.escalation === undefined ||
+          operation.escalation !== operation.escalation.trim() ||
+          !/^[A-Za-z0-9 ._:/@+-]+$/.test(operation.escalation))
+      ) {
+        return fail(ledger, "unsanitized-retry-escalation");
+      }
+      const next = cloneLedger(ledger);
+      const nextEpisode = next.episodes.get(episode.episodeId) as Episode;
+      if (operation.result === "succeeded") {
+        nextEpisode.events.push("slot-retry-succeeded");
+        nextEpisode.state = "retry-succeeded";
+      } else {
+        nextEpisode.events.push("slot-retry-failed");
+        nextEpisode.state = "retry-failed";
+        nextEpisode.escalation = operation.escalation;
+      }
+      return { ledger: next };
+    }
+
+    const emptyLedger = (): ControllerLedger => ({
+      episodes: new Map(),
+      originEpisodes: new Map(),
+      retryDispatches: 0,
+      rowProjections: new Map([["row-1", "closed=yes"]]),
+      rowHistories: new Map([
+        ["row-1", ["close-attempted", "close-succeeded"]],
+      ]),
+    });
+    const row: BlockerRef = { kind: "ledger-row", identity: "row-1" };
+    const inventory: BlockerRef = {
+      kind: "inventory-only",
+      identity: "inventory-1",
+    };
+    const rowClose = (
+      episodeId = "episode-1",
+      overrides: Partial<Extract<Authorization, { kind: "row-close" }>> = {},
+    ): Authorization => ({
+      kind: "row-close",
+      episodeId,
+      blocker: row,
+      rowId: "row-1",
+      rowEventId: "close-1",
+      ...overrides,
+    });
+    const manual = (
+      episodeId: string,
+      blocker: BlockerRef,
+      overrides: Partial<Extract<Authorization, { kind: "manual" }>> = {},
+    ): Authorization => ({
+      kind: "manual",
+      episodeId,
+      blocker,
+      provenance: "operator UI",
+      observedAt: "2026-07-12T00:00:00Z",
+      ...overrides,
+    });
+    const apply = (
+      ledger: ControllerLedger,
+      operation: RecoveryOperation,
+    ): ControllerLedger => {
+      const result = foldRecoveryEpisode(ledger, operation);
+      expect(result.error).toBeUndefined();
+      return result.ledger;
+    };
+    const start = (
+      originId: string,
+      episodeId: string,
+      snapshot: BlockerRef[],
+    ): RecoveryOperation => ({ kind: "start", originId, episodeId, snapshot });
+    const authorize = (
+      episodeId: string,
+      evidence: Authorization,
+    ): RecoveryOperation => ({ kind: "authorize", episodeId, evidence });
+    const reconstruct = (episodeId: string): RecoveryOperation => ({
+      kind: "reconstruct",
+      episodeId,
+      lifecycleAnchor: "captured controller ledger",
+      repositoryAnchor: "main@abc123",
+    });
+    const dispatch = (episodeId: string): RecoveryOperation => ({
+      kind: "dispatch",
+      episodeId,
+    });
+    const result = (
+      episodeId: string,
+      retryResult: "succeeded" | "failed",
+    ): RecoveryOperation => ({
+      kind: "result",
+      episodeId,
+      result: retryResult,
+      escalation:
+        retryResult === "failed"
+          ? "retry failed inventory unavailable"
+          : undefined,
+    });
+    const authorizeSnapshot = (
+      ledger: ControllerLedger,
+      episodeId: string,
+      snapshot: BlockerRef[],
+    ): ControllerLedger => {
+      let next = ledger;
+      for (const blocker of snapshot) {
+        next = apply(
+          next,
+          authorize(
+            episodeId,
+            blocker.kind === "ledger-row"
+              ? rowClose(episodeId, {
+                  blocker,
+                  rowId: blocker.identity,
+                  rowEventId:
+                    blocker.identity === "same" ? "close-same" : "close-1",
+                })
+              : manual(episodeId, blocker),
+          ),
+        );
+      }
+      return next;
+    };
+    const complete = (
+      snapshot: BlockerRef[],
+      originId = "origin-1",
+      episodeId = "episode-1",
+      retryResult: "succeeded" | "failed" = "succeeded",
+    ): ControllerLedger => {
+      let ledger = apply(emptyLedger(), start(originId, episodeId, snapshot));
+      ledger = authorizeSnapshot(ledger, episodeId, snapshot);
+      ledger = apply(ledger, reconstruct(episodeId));
+      ledger = apply(ledger, dispatch(episodeId));
+      return apply(ledger, result(episodeId, retryResult));
+    };
+
+    for (const snapshot of [[row], [inventory], [row, inventory]]) {
+      const ledger = complete(snapshot);
+      expect(ledger.episodes.get("episode-1")?.state).toBe("retry-succeeded");
+      expect(ledger.retryDispatches).toBe(1);
+      expect(ledger.rowProjections).toEqual(emptyLedger().rowProjections);
+      expect(ledger.rowHistories).toEqual(emptyLedger().rowHistories);
+    }
+
+    const mixed = complete([row, inventory]);
+    expect(mixed.episodes.get("episode-1")?.events).toEqual([
+      "slot-recovery-started",
+      "manual-cleanup-confirmed",
+      "recovery-state-reconstructed",
+      "slot-retry-dispatched",
+      "slot-retry-succeeded",
+    ]);
+    const equalRow: BlockerRef = { kind: "ledger-row", identity: "same" };
+    const equalInventory: BlockerRef = {
+      kind: "inventory-only",
+      identity: "same",
+    };
+    const equalRaw = complete(
+      [equalRow, equalInventory],
+      "origin-equal",
+      "episode-equal",
+    );
+    expect(equalRaw.episodes.get("episode-equal")?.authorizations.size).toBe(2);
+
+    const failed = complete(
+      [inventory],
+      "origin-failed",
+      "episode-failed",
+      "failed",
+    );
+    expect(failed.episodes.get("episode-failed")).toMatchObject({
+      state: "retry-failed",
+      escalation: "retry failed inventory unavailable",
+    });
+    expect(failed.rowProjections).toEqual(emptyLedger().rowProjections);
+    const distinct = apply(
+      failed,
+      start("origin-distinct", "episode-distinct", [inventory]),
+    );
+    expect(distinct.episodes.get("episode-distinct")?.state).toBe(
+      "authorizing",
+    );
+
+    const expectRejectedWithoutMutation = (
+      ledger: ControllerLedger,
+      operation: RecoveryOperation,
+      error: string,
+    ): void => {
+      const before = cloneLedger(ledger);
+      const folded = foldRecoveryEpisode(ledger, operation);
+      expect(folded.error).toBe(error);
+      expect(folded.ledger).toEqual(before);
+      expect(folded.ledger.retryDispatches).toBe(before.retryDispatches);
+      expect(folded.ledger.rowProjections).toEqual(before.rowProjections);
+      expect(folded.ledger.rowHistories).toEqual(before.rowHistories);
+    };
+
+    const authorizing = apply(
+      emptyLedger(),
+      start("origin-1", "episode-1", [row, inventory]),
+    );
+    expect(authorizing.episodes.get("episode-1")).toMatchObject({
+      originId: "origin-1",
+      episodeId: "episode-1",
+      snapshot: [row, inventory],
+      state: "authorizing",
+    });
+    expectRejectedWithoutMutation(
+      emptyLedger(),
+      start("origin-empty", "episode-empty", []),
+      "empty-blocker-snapshot",
+    );
+    expectRejectedWithoutMutation(
+      emptyLedger(),
+      start("origin-duplicate", "episode-duplicate", [row, row]),
+      "duplicate-blocker-reference",
+    );
+    expectRejectedWithoutMutation(
+      emptyLedger(),
+      start("origin-unsafe", "episode-unsafe", [
+        { kind: "inventory-only", identity: "unsafe identity" },
+      ]),
+      "unsanitized-blocker-reference",
+    );
+    expectRejectedWithoutMutation(
+      authorizing,
+      authorize(
+        "episode-1",
+        manual("episode-1", { kind: "inventory-only", identity: "row-1" }),
+      ),
+      "cross-kind-evidence",
+    );
+    const rowAuthorized = apply(
+      authorizing,
+      authorize("episode-1", rowClose()),
+    );
+    expectRejectedWithoutMutation(
+      rowAuthorized,
+      reconstruct("episode-1"),
+      "blocker-authorization-incomplete",
+    );
+    expectRejectedWithoutMutation(
+      rowAuthorized,
+      authorize("episode-1", manual("episode-0", inventory)),
+      "stale-episode-evidence",
+    );
+    expectRejectedWithoutMutation(
+      rowAuthorized,
+      authorize(
+        "episode-1",
+        manual("episode-1", { kind: "inventory-only", identity: "other" }),
+      ),
+      "non-snapshot-evidence",
+    );
+    expectRejectedWithoutMutation(
+      authorizing,
+      authorize(
+        "episode-1",
+        rowClose("episode-1", { rowEventId: "close-stale" }),
+      ),
+      "stale-or-unreferenced-row-close",
+    );
+    expectRejectedWithoutMutation(
+      authorizing,
+      authorize(
+        "episode-1",
+        rowClose("episode-1", { blocker: inventory, rowId: "inventory-1" }),
+      ),
+      "inventory-close-evidence",
+    );
+    expectRejectedWithoutMutation(
+      rowAuthorized,
+      authorize("episode-1", rowClose()),
+      "blocker-already-authorized",
+    );
+    expectRejectedWithoutMutation(
+      rowAuthorized,
+      authorize(
+        "episode-1",
+        manual("episode-1", inventory, { provenance: undefined }),
+      ),
+      "incomplete-manual-confirmation",
+    );
+    expectRejectedWithoutMutation(
+      rowAuthorized,
+      dispatch("episode-1"),
+      "reconstruction-required",
+    );
+
+    let ready = apply(
+      rowAuthorized,
+      authorize("episode-1", manual("episode-1", inventory)),
+    );
+    ready = apply(ready, reconstruct("episode-1"));
+    const dispatched = apply(ready, dispatch("episode-1"));
+    expectRejectedWithoutMutation(
+      dispatched,
+      dispatch("episode-1"),
+      "retry-already-dispatched-or-terminal",
+    );
+    expectRejectedWithoutMutation(
+      dispatched,
+      reconstruct("episode-1"),
+      "episode-already-consumed-or-terminal",
+    );
+    expectRejectedWithoutMutation(
+      authorizing,
+      start("origin-1", "episode-other", [inventory]),
+      "recovery-origin-already-used",
+    );
+    expectRejectedWithoutMutation(
+      ready,
+      result("episode-1", "succeeded"),
+      "retry-result-without-dispatch",
+    );
+    const succeeded = apply(dispatched, result("episode-1", "succeeded"));
+    expectRejectedWithoutMutation(
+      succeeded,
+      result("episode-1", "succeeded"),
+      "retry-result-already-recorded",
+    );
+    expectRejectedWithoutMutation(
+      succeeded,
+      result("episode-1", "failed"),
+      "retry-result-already-recorded",
+    );
+    expectRejectedWithoutMutation(
+      failed,
+      start("origin-failed", "episode-after-failure", [inventory]),
+      "terminal-failure-origin-closed",
+    );
+    const failureDispatched = apply(
+      apply(
+        authorizeSnapshot(
+          apply(
+            emptyLedger(),
+            start("origin-bad-escalation", "episode-bad-escalation", [
+              inventory,
+            ]),
+          ),
+          "episode-bad-escalation",
+          [inventory],
+        ),
+        reconstruct("episode-bad-escalation"),
+      ),
+      dispatch("episode-bad-escalation"),
+    );
+    expectRejectedWithoutMutation(
+      failureDispatched,
+      {
+        kind: "result",
+        episodeId: "episode-bad-escalation",
+        result: "failed",
+        escalation: "raw\nsecret",
+      },
+      "unsanitized-retry-escalation",
+    );
   });
 
   it("preserves ordered per-row lifecycle and cleanup behavior", () => {

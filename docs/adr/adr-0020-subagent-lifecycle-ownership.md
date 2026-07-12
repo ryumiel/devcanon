@@ -59,9 +59,16 @@ their spawn points. The shared procedure owns:
 - normal-gate continuation separately from slot-recovery retry authorization;
 - provider-neutral timeout and runtime-failure terminal outcomes;
 - classification and safe capture of open capacity-blocking rows;
-- tagged-blocker-scoped manual-cleanup confirmation evidence;
-- recovery-episode-scoped blocker snapshots and retry evidence;
-- slot-limit recovery and one retry after cleanup or manual confirmation.
+- session-row ownership of identity, operational and reuse state, capture, row
+  events, retention, cleanup projection, and close history;
+- separate controller-level recovery episodes that own a sanitized failed-spawn
+  origin, immutable exact-tag blocker snapshot, ordered episode events,
+  authorization, reconstruction, one retry dispatch/result, and escalation;
+- exact `ledger-row:<row-id>` and `inventory-only:<inventory-id>` authorization,
+  without fabricating rows for pure inventory or deriving a second blocker from
+  inventory evidence attached to a row;
+- terminal retry success or sanitized failure, with one episode per recovery
+  origin and no same-origin recovery after terminal failure.
 
 Workflow-specific dispatch rules stay with the workflow that owns them. For
 example, `play-subagent-execution` owns task execution, per-task review routing,
@@ -69,9 +76,9 @@ implementer snapshot consumption, and same-session implementer fix-loop
 exceptions. `play-review` owns reviewer and critic fanout, and records
 reviewer state separately from critic verdict state.
 
-The lifecycle ledger remains controller-local state. It is not durable
-repository documentation and is not evidence for reviewers; reviewers and
-implementers continue to read the worktree from disk.
+Both ledger levels remain controller-local state. They are not durable
+repository documentation or reviewer evidence; reviewers and implementers
+continue to read the worktree from disk.
 
 ## Consequences
 
@@ -131,12 +138,23 @@ implementers continue to read the worktree from disk.
 - Active, waiting, interrupted, pending, and unknown-identity capacity blockers
   require state-specific classification before cleanup; unsafe or unresolved
   open state stops recovery instead of being destroyed or guessed.
-- Manual cleanup confirmation is append-only, row- or inventory-identity-scoped
-  retry evidence with sanitized provenance and time. It preserves the honest
-  cleanup outcome and cannot fabricate automatic closure.
-- Each slot-exhaustion recovery episode snapshots its capacity blockers and
-  binds close or manual-confirmation authorization evidence to that episode;
-  older append-only evidence cannot authorize a later retry.
+- Session rows never own recovery origins, episode identities, blocker
+  snapshots, episode authorization, reconstruction, retry, or escalation.
+  Episode authorization and terminal results leave row histories and cleanup
+  projections unchanged.
+- `slot-recovery-started`, `recovery-state-reconstructed`,
+  `slot-retry-dispatched`, `slot-retry-succeeded`, `slot-retry-failed`, and
+  pure-inventory `manual-cleanup-confirmed` are ordered episode events. A row's
+  `close-succeeded` remains a row event referenced by exact row/event identity.
+- Each blocker accepts at most one current-episode authorization. Row blockers
+  accept exact referenced close success or episode manual confirmation;
+  inventory blockers accept only episode manual confirmation. Invalid or
+  duplicate evidence fails before overwriting accepted evidence.
+- Reconstruction requires complete authorization; dispatch requires
+  reconstruction and consumes authorization exactly once; a retry result
+  requires dispatch and is terminal. Terminal failure stores only sanitized
+  escalation, forbids another episode for that origin, and does not prevent a
+  distinct recovery origin.
 - Known-surface mappings are detection-first capability guidance, not frozen
   provider action schemas; interruption and inventory never imply closure.
 - Slot-limit failures are handled as orchestration resource exhaustion, with
