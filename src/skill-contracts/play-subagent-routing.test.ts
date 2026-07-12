@@ -6209,7 +6209,6 @@ describe("play subagent routing source contracts", () => {
       {
         ...baseStart,
         observedBlockers: [unknownTag],
-        snapshot: [unknownTag],
       },
       "invalid-observed-blocker-kind",
     );
@@ -6218,7 +6217,6 @@ describe("play subagent routing source contracts", () => {
       {
         ...baseStart,
         observedBlockers: [missingTag],
-        snapshot: [missingTag],
       },
       "invalid-observed-blocker-kind",
     );
