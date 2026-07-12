@@ -5633,6 +5633,9 @@ describe("play subagent routing source contracts", () => {
             ? "close-unavailable"
             : "closed=no";
         if (row.projection !== derivedProjection) return false;
+        const successfulCloseOrder = row.history.find(
+          (event) => event.kind === "close-succeeded",
+        )?.order;
         previousOrder = 0;
         for (const event of row.preparationHistory) {
           if (
@@ -5640,7 +5643,9 @@ describe("play subagent routing source contracts", () => {
             typeof event.kind !== "string" ||
             !Number.isInteger(event.order) ||
             event.order <= previousOrder ||
-            event.order > ledger.order
+            event.order > ledger.order ||
+            (successfulCloseOrder !== undefined &&
+              event.order > successfulCloseOrder)
           ) {
             return false;
           }
@@ -5895,7 +5900,14 @@ describe("play subagent routing source contracts", () => {
           }
           authorizationKeys.add(blockerKey(authorization.blocker));
           if (authorization.kind === "row-close") {
-            if (!rowCloseAuthorizationValid(ledger, episode, authorization)) {
+            const row = ledger.rows.find(
+              (candidate) => candidate.rowId === authorization.rowId,
+            );
+            if (
+              row === undefined ||
+              rowPreparationError(row, false) !== undefined ||
+              !rowCloseAuthorizationValid(ledger, episode, authorization)
+            ) {
               return false;
             }
           } else if (
@@ -5904,6 +5916,16 @@ describe("play subagent routing source contracts", () => {
             !validTime(authorization.observedAt)
           ) {
             return false;
+          } else if (authorization.blocker.kind === "ledger-row") {
+            const row = ledger.rows.find(
+              (candidate) => candidate.rowId === authorization.blocker.identity,
+            );
+            if (
+              row === undefined ||
+              rowPreparationError(row, true) !== undefined
+            ) {
+              return false;
+            }
           }
         }
         const manualAuthorizations = episode.authorizations.filter(
@@ -6873,6 +6895,28 @@ describe("play subagent routing source contracts", () => {
             sessionId: "session-1",
           },
         ],
+        closedOnce.order + 1,
+      ),
+    );
+    expectInvalidLedger(
+      forgeRows(
+        closedOnce,
+        (rows) =>
+          rows.map((row) =>
+            row.rowId === "row-1"
+              ? {
+                  ...row,
+                  preparationHistory: [
+                    ...row.preparationHistory,
+                    {
+                      kind: "operational-state" as const,
+                      order: closedOnce.order + 1,
+                      state: "completed",
+                    },
+                  ],
+                }
+              : row,
+          ),
         closedOnce.order + 1,
       ),
     );
@@ -7991,6 +8035,73 @@ describe("play subagent routing source contracts", () => {
       });
     const expectInconsistent = (ledger: Ledger): void =>
       expectInvalidLedger(ledger);
+    const expectRestoredAuthorizationRejected = (
+      ledger: Ledger,
+      episodeId: string,
+    ): void => {
+      for (const operation of [reconstruct(episodeId), dispatch(episodeId)]) {
+        const folded = fold(ledger, operation);
+        expect(folded.error).toBe("inconsistent-recovery-ledger");
+        expect(folded.input).toBe(ledger);
+        expect(folded.ledger).toBeUndefined();
+      }
+    };
+    const restoredRowCloseWithInvalidPreparation = forgeRows(rowReady, (rows) =>
+      rows.map((row) =>
+        row.rowId === "row-1"
+          ? {
+              ...row,
+              preparationHistory: row.preparationHistory.map((event) =>
+                event.kind === "operational-state"
+                  ? { ...event, state: "active" }
+                  : event,
+              ),
+            }
+          : row,
+      ),
+    );
+    expectRestoredAuthorizationRejected(
+      restoredRowCloseWithInvalidPreparation,
+      "episode-1",
+    );
+    const restoredManualWithMissingPreparation = forgeRows(
+      preparedManualFailed,
+      (rows) =>
+        rows.map((row) =>
+          row.rowId === "manual-failed-row"
+            ? {
+                ...row,
+                preparationHistory: row.preparationHistory.filter(
+                  (event) => event.kind !== "required-state-captured",
+                ),
+              }
+            : row,
+        ),
+    );
+    expectRestoredAuthorizationRejected(
+      restoredManualWithMissingPreparation,
+      "episode-manual-failed",
+    );
+    const restoredManualWithStaleCleanupPath = forgeRows(
+      preparedManualFailed,
+      (rows) =>
+        rows.map((row) =>
+          row.rowId === "manual-failed-row"
+            ? {
+                ...row,
+                preparationHistory: row.preparationHistory.map((event) =>
+                  event.kind === "required-state-captured"
+                    ? { ...event, order: 5 }
+                    : event,
+                ),
+              }
+            : row,
+        ),
+    );
+    expectRestoredAuthorizationRejected(
+      restoredManualWithStaleCleanupPath,
+      "episode-manual-failed",
+    );
     const rowAuthorization = readyForManual.episodes[0]?.authorizations[0];
     expectInconsistent(
       forgeEpisode(readyForManual, {
