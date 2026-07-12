@@ -10611,7 +10611,7 @@ describe("play subagent routing source contracts", () => {
       {
         error: "exactly-one-terminal-result-after-dispatch",
         from: "After that dispatch, the owner records exactly one terminal retry result",
-        to: "Before dispatch, the owner may record multiple terminal retry results",
+        to: "After that dispatch, the owner may record multiple terminal retry results",
       },
     ] as const;
 
