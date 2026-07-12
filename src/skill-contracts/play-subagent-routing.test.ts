@@ -5099,11 +5099,35 @@ describe("play subagent routing source contracts", () => {
       order: number;
       sessionId: string;
     }>;
+    type PreparationEvent = Readonly<{
+      kind:
+        | "operational-state"
+        | "required-state-captured"
+        | "abnormal-context-captured"
+        | "close-deferred"
+        | "replacement-secured"
+        | "retention-resolved"
+        | "manual-cleanup-path-opened";
+      order: number;
+      state?:
+        | "active"
+        | "waiting"
+        | "interrupted"
+        | "completed"
+        | "timed-out"
+        | "failed"
+        | "superseded";
+      evidence?: string;
+      reason?: string;
+      basis?: "need-finished" | "captured-and-replaced";
+    }>;
     type RowRecord = Readonly<{
       rowId: string;
-      sessionId: string;
+      identityState: "stable" | "pending" | "unknown";
+      sessionId: string | null;
       inventoryEvidenceId?: string;
       history: readonly RowEvent[];
+      preparationHistory: readonly PreparationEvent[];
       projection: "closed=no" | "closed=yes";
     }>;
     type Authorization = Readonly<
@@ -5193,7 +5217,11 @@ describe("play subagent routing source contracts", () => {
           result: "succeeded" | "failed";
           escalation?: RetryFailureEscalation;
         };
-    type FoldResult = { ledger: Ledger; error?: string };
+    type FoldResult = {
+      input: unknown;
+      ledger?: Ledger;
+      error?: string;
+    };
 
     const blockerKey = (blocker: BlockerRef): string =>
       `${blocker.kind}:${blocker.identity}`;
@@ -5314,6 +5342,9 @@ describe("play subagent routing source contracts", () => {
         history: Object.freeze(
           row.history.map((event) => Object.freeze({ ...event })),
         ),
+        preparationHistory: Object.freeze(
+          row.preparationHistory.map((event) => Object.freeze({ ...event })),
+        ),
       });
     const freezeEpisode = (episode: Episode): Episode =>
       Object.freeze({
@@ -5336,8 +5367,162 @@ describe("play subagent routing source contracts", () => {
           ledger.originEpisodes.map((entry) => Object.freeze({ ...entry })),
         ),
       });
+    const isRecord = (value: unknown): value is Record<string, unknown> =>
+      typeof value === "object" && value !== null && !Array.isArray(value);
+    const exactKeys = (
+      value: Record<string, unknown>,
+      required: string[],
+      optional: string[] = [],
+    ): boolean => {
+      const keys = Object.keys(value);
+      return (
+        required.every((key) => keys.includes(key)) &&
+        keys.every((key) => required.includes(key) || optional.includes(key))
+      );
+    };
+    const validLedgerEnvelope = (value: unknown): value is Ledger => {
+      if (
+        !isRecord(value) ||
+        !exactKeys(value, [
+          "order",
+          "rows",
+          "episodes",
+          "originEpisodes",
+          "retryDispatches",
+        ]) ||
+        !Number.isInteger(value.order) ||
+        (value.order as number) < 0 ||
+        !Number.isInteger(value.retryDispatches) ||
+        (value.retryDispatches as number) < 0 ||
+        !Array.isArray(value.rows) ||
+        !Array.isArray(value.episodes) ||
+        !Array.isArray(value.originEpisodes)
+      ) {
+        return false;
+      }
+      return (
+        value.rows.every(
+          (row) =>
+            isRecord(row) &&
+            exactKeys(
+              row,
+              [
+                "rowId",
+                "identityState",
+                "sessionId",
+                "history",
+                "preparationHistory",
+                "projection",
+              ],
+              ["inventoryEvidenceId"],
+            ) &&
+            Array.isArray(row.history) &&
+            row.history.every(isRecord) &&
+            Array.isArray(row.preparationHistory) &&
+            row.preparationHistory.every(isRecord),
+        ) &&
+        value.episodes.every(
+          (episode) =>
+            isRecord(episode) &&
+            exactKeys(
+              episode,
+              [
+                "originId",
+                "episodeId",
+                "snapshot",
+                "state",
+                "events",
+                "authorizations",
+              ],
+              ["escalation"],
+            ) &&
+            Array.isArray(episode.snapshot) &&
+            episode.snapshot.every(isRecord) &&
+            Array.isArray(episode.events) &&
+            episode.events.every(isRecord) &&
+            Array.isArray(episode.authorizations) &&
+            episode.authorizations.every(isRecord),
+        ) &&
+        value.originEpisodes.every(
+          (entry) =>
+            isRecord(entry) &&
+            exactKeys(entry, ["originId", "episodeId"]) &&
+            typeof entry.originId === "string" &&
+            typeof entry.episodeId === "string",
+        )
+      );
+    };
+    const validOperationEnvelope = (value: unknown): value is Operation => {
+      if (!isRecord(value) || typeof value.kind !== "string") return false;
+      switch (value.kind) {
+        case "start":
+          return (
+            exactKeys(value, [
+              "kind",
+              "originId",
+              "episodeId",
+              "observedBlockers",
+              "snapshot",
+            ]) &&
+            typeof value.originId === "string" &&
+            typeof value.episodeId === "string" &&
+            Array.isArray(value.observedBlockers) &&
+            Array.isArray(value.snapshot)
+          );
+        case "record-row-close":
+          return (
+            exactKeys(value, [
+              "kind",
+              "rowId",
+              "sessionId",
+              "attemptEventId",
+              "successEventId",
+            ]) &&
+            typeof value.rowId === "string" &&
+            typeof value.sessionId === "string" &&
+            typeof value.attemptEventId === "string" &&
+            typeof value.successEventId === "string"
+          );
+        case "authorize":
+          return (
+            exactKeys(value, ["kind", "episodeId", "evidence"]) &&
+            typeof value.episodeId === "string" &&
+            isRecord(value.evidence)
+          );
+        case "reconstruct":
+          return (
+            exactKeys(value, [
+              "kind",
+              "episodeId",
+              "lifecycleAnchor",
+              "repositoryAnchor",
+            ]) &&
+            typeof value.episodeId === "string" &&
+            typeof value.lifecycleAnchor === "string" &&
+            typeof value.repositoryAnchor === "string"
+          );
+        case "dispatch":
+          return (
+            exactKeys(value, ["kind", "episodeId"]) &&
+            typeof value.episodeId === "string"
+          );
+        case "result":
+          return (
+            exactKeys(value, ["kind", "episodeId", "result"], ["escalation"]) &&
+            typeof value.episodeId === "string" &&
+            typeof value.result === "string"
+          );
+        default:
+          return false;
+      }
+    };
     const fail = (ledger: Ledger, error: string): FoldResult => ({
+      input: ledger,
       ledger,
+      error,
+    });
+    const failUnknown = (input: unknown, error: string): FoldResult => ({
+      input,
       error,
     });
     const indexesConsistent = (ledger: Ledger): boolean =>
@@ -5364,6 +5549,179 @@ describe("play subagent routing source contracts", () => {
               episode.episodeId === entry.episodeId,
           ).length === 1,
       );
+    const rowsConsistent = (ledger: Ledger): boolean => {
+      const rowIds = new Set<string>();
+      const sessions = new Set<string>();
+      const eventIds = new Set<string>();
+      for (const row of ledger.rows) {
+        if (
+          !sanitizedIdentity(row.rowId) ||
+          rowIds.has(row.rowId) ||
+          (row.identityState !== "stable" &&
+            row.identityState !== "pending" &&
+            row.identityState !== "unknown") ||
+          (row.identityState === "stable"
+            ? !sanitizedIdentity(row.sessionId) || sessions.has(row.sessionId)
+            : row.sessionId !== null) ||
+          (row.inventoryEvidenceId !== undefined &&
+            !sanitizedIdentity(row.inventoryEvidenceId)) ||
+          (row.projection !== "closed=no" && row.projection !== "closed=yes")
+        ) {
+          return false;
+        }
+        rowIds.add(row.rowId);
+        if (row.identityState === "stable")
+          sessions.add(row.sessionId as string);
+        let previousOrder = 0;
+        let sawSuccess = false;
+        for (let index = 0; index < row.history.length; index += 1) {
+          const event = row.history[index];
+          if (
+            !isRecord(event) ||
+            !exactKeys(event, ["eventId", "kind", "order", "sessionId"]) ||
+            (event.kind !== "close-attempted" &&
+              event.kind !== "close-succeeded") ||
+            !sanitizedIdentity(event.eventId) ||
+            eventIds.has(event.eventId) ||
+            !Number.isInteger(event.order) ||
+            event.order <= previousOrder ||
+            event.order > ledger.order ||
+            event.sessionId !== row.sessionId ||
+            row.identityState !== "stable" ||
+            (sawSuccess && index > 0)
+          ) {
+            return false;
+          }
+          if (
+            event.kind === "close-succeeded" &&
+            row.history[index - 1]?.kind !== "close-attempted"
+          ) {
+            return false;
+          }
+          if (
+            event.kind === "close-attempted" &&
+            row.history[index + 1]?.kind !== "close-succeeded"
+          ) {
+            return false;
+          }
+          eventIds.add(event.eventId);
+          previousOrder = event.order;
+          sawSuccess ||= event.kind === "close-succeeded";
+        }
+        if ((row.projection === "closed=yes") !== sawSuccess) return false;
+        previousOrder = 0;
+        for (const event of row.preparationHistory) {
+          if (
+            !isRecord(event) ||
+            typeof event.kind !== "string" ||
+            !Number.isInteger(event.order) ||
+            event.order <= previousOrder ||
+            event.order > ledger.order
+          ) {
+            return false;
+          }
+          const requiredByKind: Record<string, string[]> = {
+            "operational-state": ["kind", "order", "state"],
+            "required-state-captured": ["kind", "order", "evidence"],
+            "abnormal-context-captured": ["kind", "order", "evidence"],
+            "close-deferred": ["kind", "order", "reason"],
+            "replacement-secured": ["kind", "order", "evidence"],
+            "retention-resolved": ["kind", "order", "basis", "evidence"],
+            "manual-cleanup-path-opened": ["kind", "order", "evidence"],
+          };
+          const required = requiredByKind[event.kind];
+          if (required === undefined || !exactKeys(event, required))
+            return false;
+          if (
+            ("evidence" in event && !validProvenance(event.evidence)) ||
+            ("reason" in event && !validProvenance(event.reason)) ||
+            (event.kind === "operational-state" &&
+              ![
+                "active",
+                "waiting",
+                "interrupted",
+                "completed",
+                "timed-out",
+                "failed",
+                "superseded",
+              ].includes(event.state as string)) ||
+            (event.kind === "retention-resolved" &&
+              event.basis !== "need-finished" &&
+              event.basis !== "captured-and-replaced")
+          ) {
+            return false;
+          }
+          previousOrder = event.order;
+        }
+      }
+      return true;
+    };
+    const rowPreparationError = (
+      row: RowRecord,
+      requireManualPath: boolean,
+    ): string | undefined => {
+      if (row.identityState !== "stable" || !sanitizedIdentity(row.sessionId)) {
+        return "row-preparation-identity";
+      }
+      const operational = [...row.preparationHistory]
+        .reverse()
+        .find((event) => event.kind === "operational-state");
+      if (
+        operational === undefined ||
+        !["completed", "timed-out", "failed", "superseded"].includes(
+          operational.state as string,
+        )
+      ) {
+        return "row-preparation-operational-state";
+      }
+      const capture = [...row.preparationHistory]
+        .reverse()
+        .find((event) => event.kind === "required-state-captured");
+      if (capture === undefined || capture.order <= operational.order) {
+        return "row-preparation-capture-stale";
+      }
+      if (operational.state === "timed-out" || operational.state === "failed") {
+        const context = [...row.preparationHistory]
+          .reverse()
+          .find((event) => event.kind === "abnormal-context-captured");
+        if (context === undefined || context.order <= operational.order) {
+          return "row-preparation-abnormal-context";
+        }
+      }
+      const deferral = [...row.preparationHistory]
+        .reverse()
+        .find((event) => event.kind === "close-deferred");
+      if (deferral !== undefined) {
+        const resolution = [...row.preparationHistory]
+          .reverse()
+          .find((event) => event.kind === "retention-resolved");
+        if (resolution === undefined || resolution.order <= deferral.order) {
+          return "row-preparation-retention-unresolved";
+        }
+        if (resolution.basis === "captured-and-replaced") {
+          const replacement = [...row.preparationHistory]
+            .reverse()
+            .find((event) => event.kind === "replacement-secured");
+          if (
+            capture.order <= deferral.order ||
+            replacement === undefined ||
+            replacement.order <= capture.order ||
+            resolution.order <= replacement.order
+          ) {
+            return "row-preparation-retention-proof";
+          }
+        }
+      }
+      if (requireManualPath) {
+        const manualPath = [...row.preparationHistory]
+          .reverse()
+          .find((event) => event.kind === "manual-cleanup-path-opened");
+        if (manualPath === undefined || manualPath.order <= operational.order) {
+          return "row-preparation-manual-path";
+        }
+      }
+      return undefined;
+    };
     const rowCloseAuthorizationValid = (
       ledger: Ledger,
       episode: Episode,
@@ -5403,7 +5761,7 @@ describe("play subagent routing source contracts", () => {
       );
     };
     const ledgerConsistent = (ledger: Ledger): boolean => {
-      if (!indexesConsistent(ledger)) return false;
+      if (!indexesConsistent(ledger) || !rowsConsistent(ledger)) return false;
       let dispatchCount = 0;
       for (const episode of ledger.episodes) {
         if (
@@ -5412,6 +5770,10 @@ describe("play subagent routing source contracts", () => {
           episode.snapshot.length === 0 ||
           episode.snapshot.some(
             (blocker) =>
+              !exactKeys(blocker as unknown as Record<string, unknown>, [
+                "kind",
+                "identity",
+              ]) ||
               !validBlockerKind(blocker) ||
               !sanitizedIdentity(blocker.identity),
           ) ||
@@ -5430,6 +5792,21 @@ describe("play subagent routing source contracts", () => {
           episode.events[0].kind !== "slot-recovery-started" ||
           episode.events.some(
             (event, index) =>
+              ![
+                "slot-recovery-started",
+                "manual-cleanup-confirmed",
+                "recovery-state-reconstructed",
+                "slot-retry-dispatched",
+                "slot-retry-succeeded",
+                "slot-retry-failed",
+              ].includes(event.kind) ||
+              !exactKeys(
+                event as unknown as Record<string, unknown>,
+                event.kind === "manual-cleanup-confirmed"
+                  ? ["kind", "order", "blocker", "provenance", "observedAt"]
+                  : ["kind", "order"],
+              ) ||
+              !Number.isInteger(event.order) ||
               event.order <= 0 ||
               event.order > ledger.order ||
               (index > 0 && event.order <= episode.events[index - 1].order),
@@ -5441,6 +5818,19 @@ describe("play subagent routing source contracts", () => {
         for (const authorization of episode.authorizations) {
           if (
             !validAuthorizationKind(authorization) ||
+            !exactKeys(
+              authorization as unknown as Record<string, unknown>,
+              authorization.kind === "row-close"
+                ? [
+                    "kind",
+                    "episodeId",
+                    "blocker",
+                    "rowId",
+                    "rowEventId",
+                    "sessionId",
+                  ]
+                : ["kind", "episodeId", "blocker", "provenance", "observedAt"],
+            ) ||
             authorization.episodeId !== episode.episodeId ||
             !validBlockerKind(authorization.blocker) ||
             !sanitizedIdentity(authorization.blocker.identity) ||
@@ -5578,10 +5968,22 @@ describe("play subagent routing source contracts", () => {
         retryDispatches: ledger.retryDispatches + retryIncrement,
       });
 
-    function fold(ledger: Ledger, operation: Operation): FoldResult {
-      if (!ledgerConsistent(ledger)) {
-        return fail(ledger, "inconsistent-recovery-ledger");
+    function fold(ledgerInput: unknown, operationInput: unknown): FoldResult {
+      if (!validLedgerEnvelope(ledgerInput)) {
+        return failUnknown(ledgerInput, "invalid-ledger-shape");
       }
+      const ledger = ledgerInput;
+      if (!ledgerConsistent(ledger)) {
+        return failUnknown(ledgerInput, "inconsistent-recovery-ledger");
+      }
+      if (!validOperationEnvelope(operationInput)) {
+        return {
+          input: operationInput,
+          ledger,
+          error: "invalid-operation-shape",
+        };
+      }
+      const operation = operationInput;
 
       if (operation.kind === "start") {
         if (!sanitizedIdentity(operation.originId)) {
@@ -5684,6 +6086,7 @@ describe("play subagent routing source contracts", () => {
           authorizations: [],
         };
         return {
+          input: ledger,
           ledger: freezeLedger({
             ...ledger,
             order: ledger.order + 1,
@@ -5700,9 +6103,10 @@ describe("play subagent routing source contracts", () => {
       }
 
       if (operation.kind === "record-row-close") {
-        const row = ledger.rows.find(
+        const rowMatches = ledger.rows.filter(
           (candidate) => candidate.rowId === operation.rowId,
         );
+        const row = rowMatches.length === 1 ? rowMatches[0] : undefined;
         if (
           row?.projection === "closed=yes" ||
           row?.history.some((event) => event.kind === "close-succeeded")
@@ -5753,6 +6157,7 @@ describe("play subagent routing source contracts", () => {
             : candidate,
         );
         return {
+          input: ledger,
           ledger: freezeLedger({
             ...ledger,
             order: ledger.order + 2,
@@ -5776,6 +6181,24 @@ describe("play subagent routing source contracts", () => {
         if (!validAuthorizationKind(evidence)) {
           return fail(ledger, "invalid-authorization-kind");
         }
+        const allowedEvidenceKeys =
+          evidence.kind === "row-close"
+            ? [
+                "kind",
+                "episodeId",
+                "blocker",
+                "rowId",
+                "rowEventId",
+                "sessionId",
+              ]
+            : ["kind", "episodeId", "blocker", "provenance", "observedAt"];
+        if (
+          !Object.keys(evidence).every((key) =>
+            allowedEvidenceKeys.includes(key),
+          )
+        ) {
+          return fail(ledger, "invalid-authorization-shape");
+        }
         if (evidence.episodeId !== episode.episodeId) {
           return fail(ledger, "stale-episode-evidence");
         }
@@ -5798,6 +6221,21 @@ describe("play subagent routing source contracts", () => {
               ? "cross-kind-evidence"
               : "non-snapshot-evidence",
           );
+        }
+        if (blocker.kind === "ledger-row") {
+          const rowMatches = ledger.rows.filter(
+            (candidate) => candidate.rowId === blocker.identity,
+          );
+          if (rowMatches.length !== 1) {
+            return fail(ledger, "row-preparation-identity");
+          }
+          const preparationError = rowPreparationError(
+            rowMatches[0],
+            evidence.kind === "manual",
+          );
+          if (preparationError !== undefined) {
+            return fail(ledger, preparationError);
+          }
         }
         if (
           evidence.kind === "row-close" &&
@@ -5876,6 +6314,7 @@ describe("play subagent routing source contracts", () => {
               ]
             : [];
         return {
+          input: ledger,
           ledger: replaceEpisode(ledger, {
             ...episode,
             events: [...episode.events, ...event],
@@ -5905,6 +6344,7 @@ describe("play subagent routing source contracts", () => {
           return fail(ledger, "reconstruction-anchors-missing");
         }
         return {
+          input: ledger,
           ledger: replaceEpisode(ledger, {
             ...episode,
             state: "ready",
@@ -5929,6 +6369,7 @@ describe("play subagent routing source contracts", () => {
           );
         }
         return {
+          input: ledger,
           ledger: replaceEpisode(
             ledger,
             {
@@ -5970,6 +6411,7 @@ describe("play subagent routing source contracts", () => {
         return fail(ledger, "success-escalation-forbidden");
       }
       return {
+        input: ledger,
         ledger: replaceEpisode(ledger, {
           ...episode,
           state:
@@ -5999,17 +6441,35 @@ describe("play subagent routing source contracts", () => {
 
     const row = (rowId: string, sessionId: string): RowRecord => ({
       rowId,
+      identityState: "stable",
       sessionId,
       ...(rowId === "row-1"
         ? { inventoryEvidenceId: "attached-inventory" }
         : {}),
       history: [],
+      preparationHistory: [
+        { kind: "operational-state", order: 1, state: "completed" },
+        {
+          kind: "required-state-captured",
+          order: 2,
+          evidence: "row state captured",
+        },
+        {
+          kind: "manual-cleanup-path-opened",
+          order: 3,
+          evidence: "operator cleanup required",
+        },
+      ],
       projection: "closed=no",
     });
     const emptyLedger = (): Ledger =>
       freezeLedger({
-        order: 0,
-        rows: [row("row-1", "session-1"), row("same", "session-same")],
+        order: 3,
+        rows: [
+          row("row-1", "session-1"),
+          row("same", "session-same"),
+          row("manual-row", "session-manual"),
+        ],
         episodes: [],
         originEpisodes: [],
         retryDispatches: 0,
@@ -6061,7 +6521,8 @@ describe("play subagent routing source contracts", () => {
     const apply = (ledger: Ledger, operation: Operation): Ledger => {
       const result = fold(ledger, operation);
       expect(result.error).toBeUndefined();
-      return result.ledger;
+      expect(result.ledger).toBeDefined();
+      return result.ledger as Ledger;
     };
     const prepare = (
       blockers: BlockerRef[],
@@ -6133,6 +6594,185 @@ describe("play subagent routing source contracts", () => {
       expect(folded.error).toBe(error);
       expect(folded.ledger).toBe(before);
     };
+    const expectInvalidLedger = (input: unknown): void => {
+      const folded = fold(input, dispatch("episode-1"));
+      expect(folded.error).toBe("inconsistent-recovery-ledger");
+      expect(folded.input).toBe(input);
+      expect(folded.ledger).toBeUndefined();
+    };
+    for (const malformedLedger of [
+      null,
+      7,
+      {},
+      { ...emptyLedger(), rows: null },
+      { ...emptyLedger(), extra: true },
+      { ...emptyLedger(), rows: [null] },
+      {
+        ...emptyLedger(),
+        episodes: [null],
+        originEpisodes: [{ originId: "origin-1", episodeId: "episode-1" }],
+      },
+    ]) {
+      expect(() => fold(malformedLedger, dispatch("episode-1"))).not.toThrow();
+      const folded = fold(malformedLedger, dispatch("episode-1"));
+      expect(folded.error).toBe("invalid-ledger-shape");
+      expect(folded.input).toBe(malformedLedger);
+      expect(folded.ledger).toBeUndefined();
+    }
+    const validBoundaryLedger = emptyLedger();
+    for (const malformedOperation of [
+      null,
+      {},
+      { ...start("origin-x", "episode-x", [inventory()]), extra: true },
+      {
+        kind: "start",
+        originId: "origin-x",
+        episodeId: "episode-x",
+        observedBlockers: null,
+        snapshot: [],
+      },
+      {
+        kind: "record-row-close",
+        rowId: "row-1",
+        sessionId: 7,
+        attemptEventId: "attempt-x",
+        successEventId: "success-x",
+      },
+      { kind: "authorize", episodeId: "episode-x", evidence: null },
+      {
+        kind: "reconstruct",
+        episodeId: "episode-x",
+        lifecycleAnchor: 7,
+        repositoryAnchor: "main",
+      },
+      { kind: "dispatch", episodeId: "episode-x", extra: true },
+      { kind: "result", episodeId: "episode-x", result: 7 },
+    ]) {
+      expect(() => fold(validBoundaryLedger, malformedOperation)).not.toThrow();
+      const folded = fold(validBoundaryLedger, malformedOperation);
+      expect(folded.error).toBe("invalid-operation-shape");
+      expect(folded.input).toBe(malformedOperation);
+      expect(folded.ledger).toBe(validBoundaryLedger);
+    }
+    const forgeRows = (
+      ledger: Ledger,
+      mutate: (rows: RowRecord[]) => RowRecord[],
+      order = ledger.order,
+    ): Ledger =>
+      freezeLedger({
+        ...ledger,
+        order,
+        rows: mutate(ledger.rows.map((row) => ({ ...row }))),
+      });
+    expectInvalidLedger(
+      forgeRows(emptyLedger(), (rows) =>
+        rows.map((row) =>
+          row.rowId === "same" ? { ...row, rowId: "row-1" } : row,
+        ),
+      ),
+    );
+    expectInvalidLedger(
+      forgeRows(emptyLedger(), (rows) =>
+        rows.map((row) =>
+          row.rowId === "same" ? { ...row, sessionId: "session-1" } : row,
+        ),
+      ),
+    );
+    expectInvalidLedger(
+      forgeRows(emptyLedger(), (rows) =>
+        rows.map((row) =>
+          row.rowId === "row-1" ? { ...row, projection: "closed=yes" } : row,
+        ),
+      ),
+    );
+    const closedOnce = apply(emptyLedger(), {
+      kind: "record-row-close",
+      rowId: "row-1",
+      sessionId: "session-1",
+      attemptEventId: "integrity-attempt-1",
+      successEventId: "integrity-success-1",
+    });
+    const mutateClosedHistory = (
+      mutate: (history: RowEvent[]) => RowEvent[],
+      order = closedOnce.order,
+    ): Ledger =>
+      forgeRows(
+        closedOnce,
+        (rows) =>
+          rows.map((row) =>
+            row.rowId === "row-1"
+              ? { ...row, history: mutate([...row.history]) }
+              : row,
+          ),
+        order,
+      );
+    expectInvalidLedger(
+      mutateClosedHistory((history) => [
+        { ...history[0], extra: true } as unknown as RowEvent,
+        history[1],
+      ]),
+    );
+    expectInvalidLedger(
+      mutateClosedHistory((history) => [
+        history[0],
+        { ...history[1], eventId: history[0].eventId },
+      ]),
+    );
+    expectInvalidLedger(
+      mutateClosedHistory((history) => [
+        history[0],
+        { ...history[1], order: history[0].order },
+      ]),
+    );
+    expectInvalidLedger(
+      mutateClosedHistory((history) => [
+        history[0],
+        { ...history[1], sessionId: "session-other" },
+      ]),
+    );
+    expectInvalidLedger(
+      mutateClosedHistory((history) => [
+        history[0],
+        { ...history[1], kind: "close-attempted" },
+      ]),
+    );
+    expectInvalidLedger(
+      mutateClosedHistory(
+        (history) => [
+          ...history,
+          {
+            eventId: "integrity-late-event",
+            kind: "close-attempted",
+            order: closedOnce.order + 1,
+            sessionId: "session-1",
+          },
+        ],
+        closedOnce.order + 1,
+      ),
+    );
+    const closedTwice = apply(closedOnce, {
+      kind: "record-row-close",
+      rowId: "same",
+      sessionId: "session-same",
+      attemptEventId: "integrity-attempt-2",
+      successEventId: "integrity-success-2",
+    });
+    expectInvalidLedger(
+      forgeRows(closedTwice, (rows) =>
+        rows.map((row) =>
+          row.rowId === "same"
+            ? {
+                ...row,
+                history: row.history.map((event, index) =>
+                  index === 0
+                    ? { ...event, eventId: "integrity-attempt-1" }
+                    : event,
+                ),
+              }
+            : row,
+        ),
+      ),
+    );
     const finish = (
       blockers: BlockerRef[],
       originId = "origin-1",
@@ -6370,6 +7010,281 @@ describe("play subagent routing source contracts", () => {
       emptyLedger(),
       start("origin-1", "episode-1", [ledgerRow(), inventory()]),
     );
+    for (const malformedNestedLedger of [
+      {
+        ...authorizing,
+        episodes: authorizing.episodes.map((episode) => ({
+          ...episode,
+          events: [null],
+        })),
+      },
+      {
+        ...authorizing,
+        episodes: authorizing.episodes.map((episode) => ({
+          ...episode,
+          authorizations: [null],
+        })),
+      },
+      {
+        ...authorizing,
+        rows: authorizing.rows.map((row) =>
+          row.rowId === "row-1" ? { ...row, preparationHistory: [null] } : row,
+        ),
+      },
+    ]) {
+      expect(() =>
+        fold(malformedNestedLedger, dispatch("episode-1")),
+      ).not.toThrow();
+      const folded = fold(malformedNestedLedger, dispatch("episode-1"));
+      expect(folded.error).toBe("invalid-ledger-shape");
+      expect(folded.input).toBe(malformedNestedLedger);
+      expect(folded.ledger).toBeUndefined();
+    }
+    let preparedManual = apply(
+      emptyLedger(),
+      start("origin-manual", "episode-manual", [ledgerRow("manual-row")]),
+    );
+    preparedManual = apply(preparedManual, {
+      kind: "authorize",
+      episodeId: "episode-manual",
+      evidence: manual("episode-manual", ledgerRow("manual-row")),
+    });
+    expect(preparedManual.episodes[0]?.authorizations).toHaveLength(1);
+    const preparationLedger = (
+      history: PreparationEvent[],
+      identityState: RowRecord["identityState"] = "stable",
+    ): Ledger => {
+      const base = emptyLedger();
+      return freezeLedger({
+        ...base,
+        order: Math.max(base.order, history.at(-1)?.order ?? 0),
+        rows: base.rows.map((row) =>
+          row.rowId === "row-1"
+            ? {
+                ...row,
+                identityState,
+                sessionId: identityState === "stable" ? "session-1" : null,
+                preparationHistory: history,
+              }
+            : row,
+        ),
+      });
+    };
+    const expectManualPreparationFailure = (
+      history: PreparationEvent[],
+      error: string,
+      identityState: RowRecord["identityState"] = "stable",
+    ): void => {
+      const started = apply(
+        preparationLedger(history, identityState),
+        start("origin-prep", "episode-prep", [ledgerRow()]),
+      );
+      expectRejected(
+        started,
+        {
+          kind: "authorize",
+          episodeId: "episode-prep",
+          evidence: manual("episode-prep", ledgerRow()),
+        },
+        error,
+      );
+    };
+    let resolvedManual = apply(
+      preparationLedger([
+        { kind: "operational-state", order: 1, state: "completed" },
+        {
+          kind: "required-state-captured",
+          order: 2,
+          evidence: "captured",
+        },
+        { kind: "close-deferred", order: 3, reason: "followup needed" },
+        {
+          kind: "retention-resolved",
+          order: 4,
+          basis: "need-finished",
+          evidence: "followup finished",
+        },
+        {
+          kind: "manual-cleanup-path-opened",
+          order: 5,
+          evidence: "manual path",
+        },
+      ]),
+      start("origin-resolved", "episode-resolved", [ledgerRow()]),
+    );
+    resolvedManual = apply(resolvedManual, {
+      kind: "authorize",
+      episodeId: "episode-resolved",
+      evidence: manual("episode-resolved", ledgerRow()),
+    });
+    expect(resolvedManual.episodes[0]?.authorizations).toHaveLength(1);
+    for (const state of ["active", "waiting", "interrupted"] as const) {
+      expectManualPreparationFailure(
+        [
+          { kind: "operational-state", order: 1, state },
+          {
+            kind: "required-state-captured",
+            order: 2,
+            evidence: "state captured",
+          },
+          {
+            kind: "manual-cleanup-path-opened",
+            order: 3,
+            evidence: "manual path",
+          },
+        ],
+        "row-preparation-operational-state",
+      );
+    }
+    for (const identityState of ["pending", "unknown"] as const) {
+      expectManualPreparationFailure(
+        row("row-1", "session-1").preparationHistory as PreparationEvent[],
+        "row-preparation-identity",
+        identityState,
+      );
+    }
+    expectManualPreparationFailure(
+      [
+        { kind: "required-state-captured", order: 1, evidence: "stale" },
+        { kind: "operational-state", order: 2, state: "completed" },
+        {
+          kind: "manual-cleanup-path-opened",
+          order: 3,
+          evidence: "manual path",
+        },
+      ],
+      "row-preparation-capture-stale",
+    );
+    expectManualPreparationFailure(
+      [
+        { kind: "operational-state", order: 1, state: "completed" },
+        {
+          kind: "manual-cleanup-path-opened",
+          order: 2,
+          evidence: "manual path",
+        },
+      ],
+      "row-preparation-capture-stale",
+    );
+    expectManualPreparationFailure(
+      [
+        { kind: "operational-state", order: 1, state: "failed" },
+        {
+          kind: "required-state-captured",
+          order: 2,
+          evidence: "failure captured",
+        },
+        {
+          kind: "manual-cleanup-path-opened",
+          order: 3,
+          evidence: "manual path",
+        },
+      ],
+      "row-preparation-abnormal-context",
+    );
+    expectManualPreparationFailure(
+      [
+        { kind: "operational-state", order: 1, state: "completed" },
+        {
+          kind: "required-state-captured",
+          order: 2,
+          evidence: "captured",
+        },
+        { kind: "close-deferred", order: 3, reason: "followup needed" },
+        {
+          kind: "manual-cleanup-path-opened",
+          order: 4,
+          evidence: "manual path",
+        },
+      ],
+      "row-preparation-retention-unresolved",
+    );
+    expectManualPreparationFailure(
+      [
+        { kind: "operational-state", order: 1, state: "completed" },
+        {
+          kind: "required-state-captured",
+          order: 2,
+          evidence: "captured",
+        },
+        { kind: "close-deferred", order: 3, reason: "followup needed" },
+        {
+          kind: "retention-resolved",
+          order: 4,
+          basis: "captured-and-replaced",
+          evidence: "invalid proof",
+        },
+        {
+          kind: "manual-cleanup-path-opened",
+          order: 5,
+          evidence: "manual path",
+        },
+      ],
+      "row-preparation-retention-proof",
+    );
+    expectManualPreparationFailure(
+      [
+        {
+          kind: "retention-resolved",
+          order: 1,
+          basis: "need-finished",
+          evidence: "stale resolution",
+        },
+        { kind: "operational-state", order: 2, state: "completed" },
+        {
+          kind: "required-state-captured",
+          order: 3,
+          evidence: "captured",
+        },
+        { kind: "close-deferred", order: 4, reason: "followup needed" },
+        {
+          kind: "manual-cleanup-path-opened",
+          order: 5,
+          evidence: "manual path",
+        },
+      ],
+      "row-preparation-retention-unresolved",
+    );
+    expectManualPreparationFailure(
+      [
+        { kind: "operational-state", order: 1, state: "completed" },
+        {
+          kind: "required-state-captured",
+          order: 2,
+          evidence: "captured",
+        },
+      ],
+      "row-preparation-manual-path",
+    );
+    let unpreparedClose = apply(
+      preparationLedger([
+        { kind: "operational-state", order: 1, state: "active" },
+        {
+          kind: "required-state-captured",
+          order: 2,
+          evidence: "active captured",
+        },
+      ]),
+      start("origin-close-prep", "episode-close-prep", [ledgerRow()]),
+    );
+    unpreparedClose = apply(unpreparedClose, {
+      kind: "record-row-close",
+      rowId: "row-1",
+      sessionId: "session-1",
+      attemptEventId: "close-prep-attempt",
+      successEventId: "close-prep-success",
+    });
+    expectRejected(
+      unpreparedClose,
+      {
+        kind: "authorize",
+        episodeId: "episode-close-prep",
+        evidence: closeEvidence("episode-close-prep", ledgerRow(), {
+          rowEventId: "close-prep-success",
+        }),
+      },
+      "row-preparation-operational-state",
+    );
     expectRejected(
       authorizing,
       start("origin-2", "episode-1", [inventory()]),
@@ -6402,6 +7317,18 @@ describe("play subagent routing source contracts", () => {
         "invalid-authorization-kind",
       );
     }
+    expectRejected(
+      authorizing,
+      {
+        kind: "authorize",
+        episodeId: "episode-1",
+        evidence: {
+          ...manual("episode-1", inventory()),
+          extra: true,
+        } as unknown as Authorization,
+      },
+      "invalid-authorization-shape",
+    );
     expectRejected(
       authorizing,
       {
@@ -6581,8 +7508,8 @@ describe("play subagent routing source contracts", () => {
     });
     expect(secondClose.error).toBe("post-close-success-row-event");
     expect(secondClose.ledger).toBe(rowReady);
-    expect(secondClose.ledger.rows).toEqual(rowsBeforeSecondClose);
-    expect(secondClose.ledger.episodes).toEqual(episodesBeforeSecondClose);
+    expect(secondClose.ledger?.rows).toEqual(rowsBeforeSecondClose);
+    expect(secondClose.ledger?.episodes).toEqual(episodesBeforeSecondClose);
     expectRejected(
       rowReady,
       {
@@ -6619,15 +7546,7 @@ describe("play subagent routing source contracts", () => {
       ),
       order: authorizing.order + 1,
     });
-    expectRejected(
-      contradictory,
-      {
-        kind: "authorize",
-        episodeId: "episode-1",
-        evidence: closeEvidence("episode-1"),
-      },
-      "contradictory-or-stale-row-close-history",
-    );
+    expectInvalidLedger(contradictory);
     const wrongSession = freezeLedger({
       ...rowReady,
       episodes: rowReady.episodes.map((episode) => ({
@@ -6640,15 +7559,7 @@ describe("play subagent routing source contracts", () => {
           : candidate,
       ),
     });
-    expectRejected(
-      wrongSession,
-      {
-        kind: "authorize",
-        episodeId: "episode-1",
-        evidence: closeEvidence("episode-1"),
-      },
-      "row-close-session-ownership",
-    );
+    expectInvalidLedger(wrongSession);
 
     const readyForManual = apply(rowReady, {
       kind: "authorize",
@@ -6682,7 +7593,7 @@ describe("play subagent routing source contracts", () => {
       "retry-result-without-dispatch",
     );
     const dispatched = apply(ready, dispatch("episode-1"));
-    for (const invalidResult of [undefined, "unknown", 7]) {
+    for (const invalidResult of ["unknown"]) {
       expectRejected(
         dispatched,
         {
@@ -6717,11 +7628,7 @@ describe("play subagent routing source contracts", () => {
         ),
       });
     const expectInconsistent = (ledger: Ledger): void =>
-      expectRejected(
-        ledger,
-        dispatch("episode-1"),
-        "inconsistent-recovery-ledger",
-      );
+      expectInvalidLedger(ledger);
     const rowAuthorization = readyForManual.episodes[0]?.authorizations[0];
     expectInconsistent(
       forgeEpisode(readyForManual, {
@@ -6912,15 +7819,7 @@ describe("play subagent routing source contracts", () => {
         }),
       ]),
     });
-    expectRejected(
-      inconsistent,
-      {
-        kind: "authorize",
-        episodeId: "episode-1",
-        evidence: manual("episode-1", inventory()),
-      },
-      "inconsistent-recovery-ledger",
-    );
+    expectInvalidLedger(inconsistent);
 
     const mutableSnapshot = [
       { kind: "inventory-only" as const, identity: "inventory-1" },
