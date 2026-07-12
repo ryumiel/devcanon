@@ -5704,11 +5704,18 @@ describe("play subagent routing source contracts", () => {
         return "row-preparation-capture-stale";
       }
       let abnormalContextOrder = 0;
-      if (operational.state === "timed-out" || operational.state === "failed") {
+      const latestAbnormal = [...row.preparationHistory]
+        .reverse()
+        .find(
+          (event) =>
+            event.kind === "operational-state" &&
+            (event.state === "timed-out" || event.state === "failed"),
+        );
+      if (latestAbnormal !== undefined) {
         const context = [...row.preparationHistory]
           .reverse()
           .find((event) => event.kind === "abnormal-context-captured");
-        if (context === undefined || context.order <= operational.order) {
+        if (context === undefined || context.order <= latestAbnormal.order) {
           return "row-preparation-abnormal-context";
         }
         abnormalContextOrder = context.order;
@@ -7453,6 +7460,70 @@ describe("play subagent routing source contracts", () => {
         },
       ],
       "row-preparation-abnormal-context",
+    );
+    for (const state of ["failed", "timed-out"] as const) {
+      expectManualPreparationFailure(
+        [
+          { kind: "operational-state", order: 1, state },
+          { kind: "operational-state", order: 2, state: "superseded" },
+          {
+            kind: "required-state-captured",
+            order: 3,
+            evidence: `${state} row state captured after supersession`,
+          },
+        ],
+        "row-preparation-abnormal-context",
+      );
+      expectManualPreparationFailure(
+        [
+          {
+            kind: "abnormal-context-captured",
+            order: 1,
+            evidence: `stale ${state} context`,
+          },
+          { kind: "operational-state", order: 2, state },
+          { kind: "operational-state", order: 3, state: "superseded" },
+          {
+            kind: "required-state-captured",
+            order: 4,
+            evidence: `${state} row state captured after supersession`,
+          },
+        ],
+        "row-preparation-abnormal-context",
+      );
+    }
+    const supersededContextAfterCleanup = cleanupPathLedger(
+      [
+        { kind: "operational-state", order: 1, state: "failed" },
+        { kind: "operational-state", order: 2, state: "superseded" },
+        {
+          kind: "required-state-captured",
+          order: 3,
+          evidence: "failed row state captured after supersession",
+        },
+        {
+          kind: "abnormal-context-captured",
+          order: 5,
+          evidence: "failure context captured after supersession",
+        },
+      ],
+      failedCleanup(3),
+      "closed=no",
+    );
+    const supersededContextStarted = apply(
+      supersededContextAfterCleanup,
+      start("origin-superseded-context", "episode-superseded-context", [
+        ledgerRow(),
+      ]),
+    );
+    expectRejected(
+      supersededContextStarted,
+      {
+        kind: "authorize",
+        episodeId: "episode-superseded-context",
+        evidence: manual("episode-superseded-context", ledgerRow()),
+      },
+      "row-preparation-manual-path-stale",
     );
     expectManualPreparationFailure(
       [
