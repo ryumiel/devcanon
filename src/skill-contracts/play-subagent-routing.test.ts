@@ -5703,6 +5703,7 @@ describe("play subagent routing source contracts", () => {
       if (capture === undefined || capture.order <= operational.order) {
         return "row-preparation-capture-stale";
       }
+      let abnormalContextOrder = 0;
       if (operational.state === "timed-out" || operational.state === "failed") {
         const context = [...row.preparationHistory]
           .reverse()
@@ -5710,10 +5711,12 @@ describe("play subagent routing source contracts", () => {
         if (context === undefined || context.order <= operational.order) {
           return "row-preparation-abnormal-context";
         }
+        abnormalContextOrder = context.order;
       }
       const deferral = [...row.preparationHistory]
         .reverse()
         .find((event) => event.kind === "close-deferred");
+      let retentionResolutionOrder = 0;
       if (deferral !== undefined) {
         const resolution = [...row.preparationHistory]
           .reverse()
@@ -5734,24 +5737,29 @@ describe("play subagent routing source contracts", () => {
             return "row-preparation-retention-proof";
           }
         }
+        retentionResolutionOrder = resolution.order;
       }
       if (requireManualPath) {
-        const manualPath = [...row.history]
-          .reverse()
-          .find(
-            (event) =>
-              event.kind === "close-failed" ||
-              event.kind === "closure-unavailable",
-          );
+        const latestCleanup = row.history.at(-1);
+        const manualPath =
+          (latestCleanup?.kind === "close-failed" &&
+            row.projection === "closed=no") ||
+          (latestCleanup?.kind === "closure-unavailable" &&
+            validProvenance(latestCleanup.reason) &&
+            row.projection === "close-unavailable")
+            ? latestCleanup
+            : undefined;
         if (manualPath === undefined) {
           return "row-preparation-manual-path";
         }
-        const resolution = [...row.preparationHistory]
-          .reverse()
-          .find((event) => event.kind === "retention-resolved");
         if (
           manualPath.order <=
-          Math.max(operational.order, capture.order, resolution?.order ?? 0)
+          Math.max(
+            operational.order,
+            capture.order,
+            abnormalContextOrder,
+            retentionResolutionOrder,
+          )
         ) {
           return "row-preparation-manual-path-stale";
         }
@@ -7200,6 +7208,26 @@ describe("play subagent routing source contracts", () => {
         ),
       });
     };
+    const cleanupPathLedger = (
+      preparationHistory: PreparationEvent[],
+      history: RowEvent[],
+      projection: RowRecord["projection"],
+    ): Ledger => {
+      const base = emptyLedger();
+      return freezeLedger({
+        ...base,
+        order: Math.max(
+          base.order,
+          preparationHistory.at(-1)?.order ?? 0,
+          history.at(-1)?.order ?? 0,
+        ),
+        rows: base.rows.map((row) =>
+          row.rowId === "row-1"
+            ? { ...row, preparationHistory, history, projection }
+            : row,
+        ),
+      });
+    };
     const expectManualPreparationFailure = (
       history: PreparationEvent[],
       error: string,
@@ -7265,6 +7293,125 @@ describe("play subagent routing source contracts", () => {
       evidence: manual("episode-resolved", ledgerRow()),
     });
     expect(resolvedManual.episodes[0]?.authorizations).toHaveLength(1);
+    const failedPreparation = (contextOrder: number): PreparationEvent[] => [
+      { kind: "operational-state", order: 1, state: "failed" },
+      {
+        kind: "required-state-captured",
+        order: 2,
+        evidence: "failed row state captured",
+      },
+      {
+        kind: "abnormal-context-captured",
+        order: contextOrder,
+        evidence: "failure context captured",
+      },
+    ];
+    const failedCleanup = (attemptOrder: number): RowEvent[] => [
+      {
+        eventId: `failed-path-attempt-${attemptOrder}`,
+        kind: "close-attempted",
+        order: attemptOrder,
+        sessionId: "session-1",
+      },
+      {
+        eventId: `failed-path-result-${attemptOrder}`,
+        kind: "close-failed",
+        order: attemptOrder + 1,
+        sessionId: "session-1",
+      },
+    ];
+    const pathBeforeContext = cleanupPathLedger(
+      failedPreparation(5),
+      failedCleanup(3),
+      "closed=no",
+    );
+    const beforeContextStarted = apply(
+      pathBeforeContext,
+      start("origin-before-context", "episode-before-context", [ledgerRow()]),
+    );
+    expectRejected(
+      beforeContextStarted,
+      {
+        kind: "authorize",
+        episodeId: "episode-before-context",
+        evidence: manual("episode-before-context", ledgerRow()),
+      },
+      "row-preparation-manual-path-stale",
+    );
+    let pathAfterContext = apply(
+      cleanupPathLedger(failedPreparation(3), failedCleanup(4), "closed=no"),
+      start("origin-after-context", "episode-after-context", [ledgerRow()]),
+    );
+    pathAfterContext = apply(pathAfterContext, {
+      kind: "authorize",
+      episodeId: "episode-after-context",
+      evidence: manual("episode-after-context", ledgerRow()),
+    });
+    expect(pathAfterContext.episodes[0]?.authorizations).toHaveLength(1);
+    for (const [family, history] of [
+      [
+        "failed",
+        [
+          ...failedCleanup(3),
+          {
+            eventId: "success-after-failure-attempt",
+            kind: "close-attempted" as const,
+            order: 5,
+            sessionId: "session-1",
+          },
+          {
+            eventId: "success-after-failure-result",
+            kind: "close-succeeded" as const,
+            order: 6,
+            sessionId: "session-1",
+          },
+        ],
+      ],
+      [
+        "unavailable",
+        [
+          {
+            eventId: "historical-unavailable",
+            kind: "closure-unavailable" as const,
+            order: 3,
+            sessionId: "session-1",
+            reason: "close operation temporarily unavailable",
+          },
+          {
+            eventId: "success-after-unavailable-attempt",
+            kind: "close-attempted" as const,
+            order: 4,
+            sessionId: "session-1",
+          },
+          {
+            eventId: "success-after-unavailable-result",
+            kind: "close-succeeded" as const,
+            order: 5,
+            sessionId: "session-1",
+          },
+        ],
+      ],
+    ] as const) {
+      const terminalStarted = apply(
+        cleanupPathLedger(
+          row("row-1", "session-1").preparationHistory as PreparationEvent[],
+          [...history],
+          "closed=yes",
+        ),
+        start(`origin-terminal-${family}`, `episode-terminal-${family}`, [
+          ledgerRow(),
+        ]),
+      );
+      expectRejected(
+        terminalStarted,
+        {
+          kind: "authorize",
+          episodeId: `episode-terminal-${family}`,
+          evidence: manual(`episode-terminal-${family}`, ledgerRow()),
+        },
+        "row-preparation-manual-path",
+      );
+    }
     for (const state of ["active", "waiting", "interrupted"] as const) {
       expectManualPreparationFailure(
         [
