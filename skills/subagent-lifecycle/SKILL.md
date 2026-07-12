@@ -391,14 +391,20 @@ bidirectionally and uniquely; inconsistent indexes fail before mutation.
    or a second dispatch fails before retry or mutation.
 6. A retry result requires that dispatch and no prior result. Append exactly one
    `slot-retry-succeeded` and project terminal `retry-succeeded`, or append
-   `slot-retry-failed`, store only sanitized escalation, and project terminal
-   `retry-failed`. Duplicate or conflicting results fail. Either result is
-   terminal. Failure forbids another episode or retry for the same origin; a
-   distinct recovery origin remains eligible for a later unrelated failure.
+   `slot-retry-failed`, store only a closed structured escalation containing an
+   `available` or `unavailable` inventory state and a unique list of exact
+   sanitized tagged snapshot blockers that remain, and project terminal
+   `retry-failed`. Reject extra fields, free-form text, non-snapshot blockers,
+   malformed identities, and escalation metadata on success. Duplicate or
+   conflicting results fail. Either result is terminal. Failure forbids another
+   episode or retry for the same origin; a distinct recovery origin remains
+   eligible for a later unrelated failure.
 
-Retry-failure escalation includes only session ids, operational state, observed
-workflow return status, role, scope, needed repository anchors, and sanitized
-open-agent inventory, or states that inventory is unavailable. Never disclose
+The episode ledger's retry-failure escalation uses only the closed inventory
+state and remaining tagged-blocker fields above. Any broader user-facing
+summary may include only session ids, operational state, observed workflow
+return status, role, scope, needed repository anchors, and sanitized open-agent
+inventory, or state that inventory is unavailable. Never disclose
 secrets, credentials, tokens, PII, environment values, raw prompts,
 transcripts, logs, stack traces, validation dumps, captured state, internal
 decision trails, or session chronology. Shared comments also follow the

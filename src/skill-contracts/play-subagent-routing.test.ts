@@ -3104,7 +3104,10 @@ describe("play subagent routing source contracts", () => {
       "From `ready`, append exactly one `slot-retry-dispatched`, consume the authorization once, and project `retry-dispatched`",
     );
     expect(normalizeWhitespace(slotLimitRecovery)).toContain(
-      "Append exactly one `slot-retry-succeeded` and project terminal `retry-succeeded`, or append `slot-retry-failed`, store only sanitized escalation, and project terminal `retry-failed`",
+      "Append exactly one `slot-retry-succeeded` and project terminal `retry-succeeded`, or append `slot-retry-failed`, store only a closed structured escalation",
+    );
+    expect(normalizeWhitespace(slotLimitRecovery)).toContain(
+      "Reject extra fields, free-form text, non-snapshot blockers, malformed identities, and escalation metadata on success",
     );
     expect(normalizeWhitespace(slotLimitRecovery)).toContain(
       "Failure forbids another episode or retry for the same origin; a distinct recovery origin remains eligible for a later unrelated failure",
@@ -5130,6 +5133,12 @@ describe("play subagent routing source contracts", () => {
         | "slot-retry-failed";
       order: number;
       blocker?: BlockerRef;
+      provenance?: string;
+      observedAt?: string;
+    }>;
+    type RetryFailureEscalation = Readonly<{
+      inventory: "available" | "unavailable";
+      remainingBlockers: readonly BlockerRef[];
     }>;
     type Episode = Readonly<{
       originId: string;
@@ -5143,7 +5152,7 @@ describe("play subagent routing source contracts", () => {
         | "retry-failed";
       events: readonly EpisodeEvent[];
       authorizations: readonly Authorization[];
-      escalation?: string;
+      escalation?: RetryFailureEscalation;
     }>;
     type Ledger = Readonly<{
       order: number;
@@ -5182,12 +5191,17 @@ describe("play subagent routing source contracts", () => {
           kind: "result";
           episodeId: string;
           result: "succeeded" | "failed";
-          escalation?: string;
+          escalation?: RetryFailureEscalation;
         };
     type FoldResult = { ledger: Ledger; error?: string };
 
     const blockerKey = (blocker: BlockerRef): string =>
       `${blocker.kind}:${blocker.identity}`;
+    const validBlockerKind = (blocker: unknown): blocker is BlockerRef =>
+      typeof blocker === "object" &&
+      blocker !== null &&
+      "kind" in blocker &&
+      (blocker.kind === "ledger-row" || blocker.kind === "inventory-only");
     const sanitizedIdentity = (value: string): boolean =>
       /^[A-Za-z0-9._-]+$/.test(value);
     const validProvenance = (value: string): boolean =>
@@ -5197,6 +5211,40 @@ describe("play subagent routing source contracts", () => {
       /^[A-Za-z0-9 ._:/@+-]+$/.test(value);
     const validTime = (value: string): boolean =>
       /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(value);
+    const validEscalation = (
+      escalation: unknown,
+      snapshot: readonly BlockerRef[],
+    ): escalation is RetryFailureEscalation => {
+      if (typeof escalation !== "object" || escalation === null) return false;
+      const keys = Object.keys(escalation).sort();
+      if (keys.join(",") !== "inventory,remainingBlockers") return false;
+      const candidate = escalation as Record<string, unknown>;
+      if (
+        candidate.inventory !== "available" &&
+        candidate.inventory !== "unavailable"
+      ) {
+        return false;
+      }
+      if (!Array.isArray(candidate.remainingBlockers)) return false;
+      const remaining = candidate.remainingBlockers as unknown[];
+      if (
+        remaining.some(
+          (blocker) =>
+            !validBlockerKind(blocker) ||
+            typeof blocker.identity !== "string" ||
+            !sanitizedIdentity(blocker.identity) ||
+            !snapshot.some(
+              (member) => blockerKey(member) === blockerKey(blocker),
+            ),
+        )
+      ) {
+        return false;
+      }
+      const keysSeen = remaining.map((blocker) =>
+        blockerKey(blocker as BlockerRef),
+      );
+      return new Set(keysSeen).size === keysSeen.length;
+    };
     const freezeBlocker = (blocker: BlockerRef): BlockerRef =>
       Object.freeze({ kind: blocker.kind, identity: blocker.identity });
     const freezeAuthorization = (
@@ -5225,6 +5273,21 @@ describe("play subagent routing source contracts", () => {
         ...(event.blocker === undefined
           ? {}
           : { blocker: freezeBlocker(event.blocker) }),
+        ...(event.provenance === undefined
+          ? {}
+          : { provenance: event.provenance }),
+        ...(event.observedAt === undefined
+          ? {}
+          : { observedAt: event.observedAt }),
+      });
+    const freezeEscalation = (
+      escalation: RetryFailureEscalation,
+    ): RetryFailureEscalation =>
+      Object.freeze({
+        inventory: escalation.inventory,
+        remainingBlockers: Object.freeze(
+          escalation.remainingBlockers.map(freezeBlocker),
+        ),
       });
     const freezeRow = (row: RowRecord): RowRecord =>
       Object.freeze({
@@ -5241,6 +5304,9 @@ describe("play subagent routing source contracts", () => {
         authorizations: Object.freeze(
           episode.authorizations.map(freezeAuthorization),
         ),
+        ...(episode.escalation === undefined
+          ? {}
+          : { escalation: freezeEscalation(episode.escalation) }),
       });
     const freezeLedger = (ledger: Ledger): Ledger =>
       Object.freeze({
@@ -5279,6 +5345,202 @@ describe("play subagent routing source contracts", () => {
               episode.episodeId === entry.episodeId,
           ).length === 1,
       );
+    const rowCloseAuthorizationValid = (
+      ledger: Ledger,
+      episode: Episode,
+      authorization: Extract<Authorization, { kind: "row-close" }>,
+    ): boolean => {
+      const row = ledger.rows.find(
+        (candidate) => candidate.rowId === authorization.rowId,
+      );
+      if (
+        row === undefined ||
+        authorization.blocker.kind !== "ledger-row" ||
+        authorization.blocker.identity !== row.rowId ||
+        authorization.sessionId !== row.sessionId
+      ) {
+        return false;
+      }
+      const successIndex = row.history.findIndex(
+        (event) =>
+          event.eventId === authorization.rowEventId &&
+          event.kind === "close-succeeded",
+      );
+      const success = row.history[successIndex];
+      const attempt = row.history[successIndex - 1];
+      const reconstruction = episode.events.find(
+        (event) => event.kind === "recovery-state-reconstructed",
+      );
+      return (
+        success !== undefined &&
+        success.sessionId === row.sessionId &&
+        success.order > episode.events[0].order &&
+        attempt?.kind === "close-attempted" &&
+        attempt.sessionId === row.sessionId &&
+        attempt.order < success.order &&
+        (reconstruction === undefined ||
+          success.order < reconstruction.order) &&
+        row.projection === "closed=yes"
+      );
+    };
+    const ledgerConsistent = (ledger: Ledger): boolean => {
+      if (!indexesConsistent(ledger)) return false;
+      let dispatchCount = 0;
+      for (const episode of ledger.episodes) {
+        if (
+          !sanitizedIdentity(episode.originId) ||
+          !sanitizedIdentity(episode.episodeId) ||
+          episode.snapshot.length === 0 ||
+          episode.snapshot.some(
+            (blocker) =>
+              !validBlockerKind(blocker) ||
+              !sanitizedIdentity(blocker.identity),
+          ) ||
+          new Set(episode.snapshot.map(blockerKey)).size !==
+            episode.snapshot.length ||
+          episode.snapshot.some(
+            (blocker) =>
+              (blocker.kind === "ledger-row" &&
+                !ledger.rows.some((row) => row.rowId === blocker.identity)) ||
+              (blocker.kind === "inventory-only" &&
+                ledger.rows.some(
+                  (row) => row.inventoryEvidenceId === blocker.identity,
+                )),
+          ) ||
+          episode.events.length === 0 ||
+          episode.events[0].kind !== "slot-recovery-started" ||
+          episode.events.some(
+            (event, index) =>
+              event.order <= 0 ||
+              event.order > ledger.order ||
+              (index > 0 && event.order <= episode.events[index - 1].order),
+          )
+        ) {
+          return false;
+        }
+        const authorizationKeys = new Set<string>();
+        for (const authorization of episode.authorizations) {
+          if (
+            authorization.episodeId !== episode.episodeId ||
+            !validBlockerKind(authorization.blocker) ||
+            !sanitizedIdentity(authorization.blocker.identity) ||
+            !episode.snapshot.some(
+              (blocker) =>
+                blockerKey(blocker) === blockerKey(authorization.blocker),
+            ) ||
+            authorizationKeys.has(blockerKey(authorization.blocker))
+          ) {
+            return false;
+          }
+          authorizationKeys.add(blockerKey(authorization.blocker));
+          if (authorization.kind === "row-close") {
+            if (!rowCloseAuthorizationValid(ledger, episode, authorization)) {
+              return false;
+            }
+          } else if (
+            authorization.kind !== "manual" ||
+            !validProvenance(authorization.provenance) ||
+            !validTime(authorization.observedAt)
+          ) {
+            return false;
+          }
+        }
+        const manualAuthorizations = episode.authorizations.filter(
+          (authorization) => authorization.kind === "manual",
+        );
+        const manualEvents = episode.events.filter(
+          (event) => event.kind === "manual-cleanup-confirmed",
+        );
+        const reconstructionEvent = episode.events.find(
+          (event) => event.kind === "recovery-state-reconstructed",
+        );
+        if (
+          manualEvents.length !== manualAuthorizations.length ||
+          new Set(
+            manualEvents.map((event) =>
+              event.blocker === undefined
+                ? "missing"
+                : blockerKey(event.blocker),
+            ),
+          ).size !== manualEvents.length ||
+          manualEvents.some(
+            (event) =>
+              event.blocker === undefined ||
+              event.provenance === undefined ||
+              event.observedAt === undefined ||
+              !manualAuthorizations.some(
+                (authorization) =>
+                  blockerKey(authorization.blocker) ===
+                    blockerKey(event.blocker as BlockerRef) &&
+                  authorization.kind === "manual" &&
+                  authorization.provenance === event.provenance &&
+                  authorization.observedAt === event.observedAt,
+              ),
+          ) ||
+          (reconstructionEvent !== undefined &&
+            manualEvents.some(
+              (event) => event.order >= reconstructionEvent.order,
+            ))
+        ) {
+          return false;
+        }
+        const structuralEvents = episode.events.filter(
+          (event) => event.kind !== "manual-cleanup-confirmed",
+        );
+        if (
+          structuralEvents.some(
+            (event) =>
+              event.blocker !== undefined ||
+              event.provenance !== undefined ||
+              event.observedAt !== undefined,
+          )
+        ) {
+          return false;
+        }
+        const structuralKinds = structuralEvents.map((event) => event.kind);
+        const fullAuthorization =
+          episode.authorizations.length === episode.snapshot.length;
+        const expectedByState: Record<
+          Episode["state"],
+          EpisodeEvent["kind"][]
+        > = {
+          authorizing: ["slot-recovery-started"],
+          ready: ["slot-recovery-started", "recovery-state-reconstructed"],
+          "retry-dispatched": [
+            "slot-recovery-started",
+            "recovery-state-reconstructed",
+            "slot-retry-dispatched",
+          ],
+          "retry-succeeded": [
+            "slot-recovery-started",
+            "recovery-state-reconstructed",
+            "slot-retry-dispatched",
+            "slot-retry-succeeded",
+          ],
+          "retry-failed": [
+            "slot-recovery-started",
+            "recovery-state-reconstructed",
+            "slot-retry-dispatched",
+            "slot-retry-failed",
+          ],
+        };
+        const expectedStructuralKinds = expectedByState[episode.state];
+        if (
+          expectedStructuralKinds === undefined ||
+          structuralKinds.join(",") !== expectedStructuralKinds.join(",") ||
+          (episode.state !== "authorizing" && !fullAuthorization) ||
+          (episode.state === "retry-failed"
+            ? !validEscalation(episode.escalation, episode.snapshot)
+            : episode.escalation !== undefined)
+        ) {
+          return false;
+        }
+        dispatchCount += structuralKinds.filter(
+          (kind) => kind === "slot-retry-dispatched",
+        ).length;
+      }
+      return dispatchCount === ledger.retryDispatches;
+    };
     const replaceEpisode = (
       ledger: Ledger,
       replacement: Episode,
@@ -5295,8 +5557,8 @@ describe("play subagent routing source contracts", () => {
       });
 
     function fold(ledger: Ledger, operation: Operation): FoldResult {
-      if (!indexesConsistent(ledger)) {
-        return fail(ledger, "inconsistent-origin-episode-index");
+      if (!ledgerConsistent(ledger)) {
+        return fail(ledger, "inconsistent-recovery-ledger");
       }
 
       if (operation.kind === "start") {
@@ -5332,6 +5594,16 @@ describe("play subagent routing source contracts", () => {
         }
         if (operation.snapshot.length === 0) {
           return fail(ledger, "empty-blocker-snapshot");
+        }
+        if (
+          operation.observedBlockers.some(
+            (blocker) => !validBlockerKind(blocker),
+          )
+        ) {
+          return fail(ledger, "invalid-observed-blocker-kind");
+        }
+        if (operation.snapshot.some((blocker) => !validBlockerKind(blocker))) {
+          return fail(ledger, "invalid-snapshot-blocker-kind");
         }
         if (
           operation.observedBlockers.some(
@@ -5560,6 +5832,8 @@ describe("play subagent routing source contracts", () => {
                   kind: "manual-cleanup-confirmed",
                   order: ledger.order + 1,
                   blocker,
+                  provenance: authorization.provenance,
+                  observedAt: authorization.observedAt,
                 }),
               ]
             : [];
@@ -5644,10 +5918,15 @@ describe("play subagent routing source contracts", () => {
       }
       if (
         operation.result === "failed" &&
-        (operation.escalation === undefined ||
-          !validProvenance(operation.escalation))
+        !validEscalation(operation.escalation, episode.snapshot)
       ) {
-        return fail(ledger, "unsanitized-retry-escalation");
+        return fail(ledger, "invalid-retry-failure-escalation");
+      }
+      if (
+        operation.result === "succeeded" &&
+        operation.escalation !== undefined
+      ) {
+        return fail(ledger, "success-escalation-forbidden");
       }
       return {
         ledger: replaceEpisode(ledger, {
@@ -5667,7 +5946,11 @@ describe("play subagent routing source contracts", () => {
             },
           ],
           ...(operation.result === "failed"
-            ? { escalation: operation.escalation }
+            ? {
+                escalation: freezeEscalation(
+                  operation.escalation as RetryFailureEscalation,
+                ),
+              }
             : {}),
         }),
       };
@@ -5791,7 +6074,12 @@ describe("play subagent routing source contracts", () => {
       episodeId,
       result: retryResult,
       ...(retryResult === "failed"
-        ? { escalation: "retry failed inventory unavailable" }
+        ? {
+            escalation: {
+              inventory: "unavailable" as const,
+              remainingBlockers: [],
+            },
+          }
         : {}),
     });
     const expectRejected = (
@@ -5842,6 +6130,15 @@ describe("play subagent routing source contracts", () => {
       "slot-retry-dispatched",
       "slot-retry-succeeded",
     ]);
+    expect(
+      mixed.episodes[0]?.events.find(
+        (event) => event.kind === "manual-cleanup-confirmed",
+      ),
+    ).toMatchObject({
+      blocker: inventory(),
+      provenance: "operator UI",
+      observedAt: "2026-07-12T00:00:00Z",
+    });
     const equal = finish(
       [ledgerRow("same"), inventory("same")],
       "origin-equal",
@@ -5890,7 +6187,7 @@ describe("play subagent routing source contracts", () => {
     );
     expect(failed.episodes[0]).toMatchObject({
       state: "retry-failed",
-      escalation: "retry failed inventory unavailable",
+      escalation: { inventory: "unavailable", remainingBlockers: [] },
     });
     expect(
       apply(
@@ -5900,6 +6197,36 @@ describe("play subagent routing source contracts", () => {
     ).toBe("authorizing");
 
     const baseStart = start("origin-1", "episode-1", [inventory()]);
+    const unknownTag = {
+      kind: "unknown",
+      identity: "inventory-1",
+    } as unknown as BlockerRef;
+    const missingTag = {
+      identity: "inventory-1",
+    } as unknown as BlockerRef;
+    expectRejected(
+      emptyLedger(),
+      {
+        ...baseStart,
+        observedBlockers: [unknownTag],
+        snapshot: [unknownTag],
+      },
+      "invalid-observed-blocker-kind",
+    );
+    expectRejected(
+      emptyLedger(),
+      {
+        ...baseStart,
+        observedBlockers: [missingTag],
+        snapshot: [missingTag],
+      },
+      "invalid-observed-blocker-kind",
+    );
+    expectRejected(
+      emptyLedger(),
+      { ...baseStart, snapshot: [unknownTag] },
+      "invalid-snapshot-blocker-kind",
+    );
     expectRejected(
       emptyLedger(),
       { ...baseStart, originId: "unsafe origin" },
@@ -6233,6 +6560,108 @@ describe("play subagent routing source contracts", () => {
       "episode-consumed-or-terminal",
     );
     const succeeded = apply(dispatched, result("episode-1", "succeeded"));
+    const forgeEpisode = (
+      ledger: Ledger,
+      forged: Episode,
+      order = ledger.order,
+    ): Ledger =>
+      freezeLedger({
+        ...ledger,
+        order,
+        episodes: ledger.episodes.map((episode) =>
+          episode.episodeId === forged.episodeId ? forged : episode,
+        ),
+      });
+    const expectInconsistent = (ledger: Ledger): void =>
+      expectRejected(
+        ledger,
+        dispatch("episode-1"),
+        "inconsistent-recovery-ledger",
+      );
+    const rowAuthorization = readyForManual.episodes[0]?.authorizations[0];
+    expectInconsistent(
+      forgeEpisode(readyForManual, {
+        ...(readyForManual.episodes[0] as Episode),
+        authorizations: [
+          rowAuthorization as Authorization,
+          rowAuthorization as Authorization,
+        ],
+      }),
+    );
+    expectInconsistent(
+      forgeEpisode(readyForManual, {
+        ...(readyForManual.episodes[0] as Episode),
+        state: "ready",
+      }),
+    );
+    expectInconsistent(
+      forgeEpisode(ready, {
+        ...(ready.episodes[0] as Episode),
+        state: "retry-dispatched",
+      }),
+    );
+    expectInconsistent(
+      forgeEpisode(dispatched, {
+        ...(dispatched.episodes[0] as Episode),
+        state: "retry-succeeded",
+      }),
+    );
+    expectInconsistent(
+      forgeEpisode(succeeded, {
+        ...(succeeded.episodes[0] as Episode),
+        events: (succeeded.episodes[0] as Episode).events.map((event, index) =>
+          index === (succeeded.episodes[0] as Episode).events.length - 1
+            ? { ...event, kind: "slot-retry-failed" }
+            : event,
+        ),
+      }),
+    );
+    expectInconsistent(
+      forgeEpisode(
+        succeeded,
+        {
+          ...(succeeded.episodes[0] as Episode),
+          events: [
+            ...(succeeded.episodes[0] as Episode).events,
+            {
+              kind: "slot-retry-failed",
+              order: succeeded.order + 1,
+            },
+          ],
+        },
+        succeeded.order + 1,
+      ),
+    );
+    expectInconsistent(
+      forgeEpisode(readyForManual, {
+        ...(readyForManual.episodes[0] as Episode),
+        events: (readyForManual.episodes[0] as Episode).events.map((event) =>
+          event.kind === "manual-cleanup-confirmed"
+            ? { ...event, provenance: "different operator" }
+            : event,
+        ),
+      }),
+    );
+    expectInconsistent(
+      forgeEpisode(authorizing, {
+        ...(authorizing.episodes[0] as Episode),
+        snapshot: [unknownTag],
+      }),
+    );
+    expectInconsistent(
+      forgeEpisode(authorizing, {
+        ...(authorizing.episodes[0] as Episode),
+        authorizations: [manual("episode-1", inventory("other"))],
+      }),
+    );
+    expectInconsistent(
+      freezeLedger({
+        ...rowReady,
+        rows: rowReady.rows.map((row) =>
+          row.rowId === "row-1" ? { ...row, history: [] } : row,
+        ),
+      }),
+    );
     expectRejected(
       succeeded,
       result("episode-1", "succeeded"),
@@ -6259,9 +6688,75 @@ describe("play subagent routing source contracts", () => {
         kind: "result",
         episodeId: "episode-1",
         result: "failed",
-        escalation: "raw\nsecret",
+        escalation: {
+          inventory: "unavailable",
+          remainingBlockers: [],
+          token: "raw-secret",
+        } as unknown as RetryFailureEscalation,
       },
-      "unsanitized-retry-escalation",
+      "invalid-retry-failure-escalation",
+    );
+    expectRejected(
+      dispatched,
+      {
+        kind: "result",
+        episodeId: "episode-1",
+        result: "failed",
+        escalation: {
+          inventory: "password=raw-secret",
+          remainingBlockers: [],
+        } as unknown as RetryFailureEscalation,
+      },
+      "invalid-retry-failure-escalation",
+    );
+    expectRejected(
+      dispatched,
+      {
+        kind: "result",
+        episodeId: "episode-1",
+        result: "failed",
+        escalation: {
+          inventory: "available",
+          remainingBlockers: [inventory("unsafe identity")],
+        },
+      },
+      "invalid-retry-failure-escalation",
+    );
+    expectRejected(
+      dispatched,
+      {
+        kind: "result",
+        episodeId: "episode-1",
+        result: "failed",
+        escalation: {
+          inventory: "available",
+          remainingBlockers: [inventory("other")],
+        },
+      },
+      "invalid-retry-failure-escalation",
+    );
+    expectRejected(
+      dispatched,
+      {
+        kind: "result",
+        episodeId: "episode-1",
+        result: "failed",
+        escalation: {
+          inventory: "available",
+          remainingBlockers: [unknownTag],
+        },
+      },
+      "invalid-retry-failure-escalation",
+    );
+    expectRejected(
+      dispatched,
+      {
+        kind: "result",
+        episodeId: "episode-1",
+        result: "succeeded",
+        escalation: { inventory: "unavailable", remainingBlockers: [] },
+      },
+      "success-escalation-forbidden",
     );
 
     const inconsistent = Object.freeze({
@@ -6280,7 +6775,7 @@ describe("play subagent routing source contracts", () => {
         episodeId: "episode-1",
         evidence: manual("episode-1", inventory()),
       },
-      "inconsistent-origin-episode-index",
+      "inconsistent-recovery-ledger",
     );
 
     const mutableSnapshot = [

@@ -153,9 +153,10 @@ continue to read the worktree from disk.
   duplicate evidence fails before overwriting accepted evidence.
 - Reconstruction requires complete authorization; dispatch requires
   reconstruction and consumes authorization exactly once; a retry result
-  requires dispatch and is terminal. Terminal failure stores only sanitized
-  escalation, forbids another episode for that origin, and does not prevent a
-  distinct recovery origin.
+  requires dispatch and is terminal. Terminal failure stores only a closed
+  inventory-availability and exact tagged remaining-blocker payload; success
+  stores no escalation. Failure forbids another episode for that origin and
+  does not prevent a distinct recovery origin.
 - Known-surface mappings are detection-first capability guidance, not frozen
   provider action schemas; interruption and inventory never imply closure.
 - Slot-limit failures are handled as orchestration resource exhaustion, with
