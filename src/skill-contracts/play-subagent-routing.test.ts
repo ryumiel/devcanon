@@ -799,21 +799,27 @@ describe("play subagent routing source contracts", () => {
       const errors: string[] = [];
       if (
         !normalizedSection.includes(
-          "Start each slot-exhaustion recovery with a new sanitized recovery episode identity and the shared owner's complete immutable snapshot of every observed tagged `ledger-row` or `inventory-only` blocker reference",
+          "Defer recovery-episode storage and transitions to the shared owner",
+        ) ||
+        !normalizedSection.includes(
+          "complete immutable snapshot of every observed tagged `ledger-row` or `inventory-only` blocker reference",
         )
       ) {
         errors.push("recovery-episode-snapshot");
       }
       if (
         !normalizedSection.includes(
-          "Bind every `close-succeeded` or `manual-cleanup-confirmed` event used for retry to that current episode and exact tagged blocker identity",
+          "A row-owned `close-succeeded` event may authorize only through the owner's exact current-episode reference to its row and stable event identity",
+        ) ||
+        !normalizedSection.includes(
+          "an episode-owned `manual-cleanup-confirmed` event must match the current episode and exact tagged blocker",
         )
       ) {
         errors.push("current-episode-binding");
       }
       if (
         !normalizedSection.includes(
-          "never use stale-episode, non-snapshot, or cross-kind evidence to authorize the current retry",
+          "Never use stale-episode, non-snapshot, or cross-kind evidence for the current retry",
         )
       ) {
         errors.push("stale-episode-rejected");
@@ -924,7 +930,7 @@ describe("play subagent routing source contracts", () => {
     expect(
       recoveryEpisodeErrors(
         normalizeWhitespace(lifecycleConcurrentJoin).replace(
-          "that current episode and exact tagged blocker identity",
+          "exact current-episode reference to its row and stable event identity",
           "any prior episode",
         ),
       ),
@@ -6902,19 +6908,16 @@ describe("play subagent routing source contracts", () => {
       "canonical immediate projection keeps cleanup evaluation `evaluated`, sets current cleanup decision to `none`, clears current retention and unavailable reasons, and projects `closed=no`",
     );
     expect(normalizedLifecycle).toContain(
-      "record a new current recovery episode identity and the shared owner's complete immutable snapshot of tagged `ledger-row` and `inventory-only` blocker references before cleanup",
+      "defer recovery-episode storage, authorization, reconstruction, retry dispatch/result, and sanitized escalation to `subagent-lifecycle`",
     );
     expect(normalizedLifecycle).toContain(
-      "Bind every close or `manual-cleanup-confirmed` event used for retry to that episode and exact tagged blocker identity",
+      "This workflow contributes only its captured task, reviewer, snapshot, blocker-family, and repository-anchor fields",
     );
     expect(normalizedLifecycle).toContain(
-      "Earlier episode evidence remains history but never authorizes a later retry",
+      "do not route the same recovery origin back through this workflow's BLOCKED handling as a new recovery attempt",
     );
     expect(normalizedLifecycle).toContain(
-      "`manual-cleanup-confirmed` is separate blocker-scoped retry authorization",
-    );
-    expect(normalizedLifecycle).toContain(
-      "not closure proof, `retention-resolved`, reconciliation, or another cleanup family",
+      "Row lifecycle events and cleanup projections remain row-owned and unchanged by episode transitions",
     );
     expect(skillSource).not.toContain("\n## Controller Lifecycle Ledger\n");
 
@@ -7023,7 +7026,7 @@ describe("play subagent routing source contracts", () => {
     );
     const slotLimitAutomaticCloseFailure = sliceBetween(
       targetCapabilityExamples,
-      "[Slot-limit automatic-close failure - separate run]",
+      "[Slot-limit pure inventory-only blocker and terminal retry failure - separate run]",
       "[Slot-limit mixed tagged blockers - separate run]",
     );
     const slotLimitMixedBlockers = sliceBetween(
@@ -7033,13 +7036,13 @@ describe("play subagent routing source contracts", () => {
     );
     const slotLimitRetainedSession = sliceBetween(
       targetCapabilityExamples,
-      "[Slot-limit retained-session capacity blocker - separate run]",
+      "[Slot-limit row-only blocker and terminal retry success - separate run]",
       "[Resolved-retention cleanup projection variants - separate runs]",
     );
     const resolvedRetentionVariants = sliceBetween(
       targetCapabilityExamples,
       "[Resolved-retention cleanup projection variants - separate runs]",
-      "[Slot-limit automatic-close failure - separate run]",
+      "[Slot-limit pure inventory-only blocker and terminal retry failure - separate run]",
     );
     const resolvedRetentionUnavailable = sliceBetween(
       resolvedRetentionVariants,
@@ -8111,10 +8114,10 @@ describe("play subagent routing source contracts", () => {
       "preserves the historical close-deferred event and its associated reason",
     );
     expect(slotLimitRetainedSession).toContain(
-      "reconstruct state and retry the spawn exactly once",
+      "event=recovery-state-reconstructed, event=slot-retry-dispatched, and exactly one event=slot-retry-succeeded",
     );
     expect(slotLimitRetainedSession).toContain(
-      "stop and escalate without retrying",
+      "stops and escalates without dispatching",
     );
     expect(slotLimitMixedBlockers).toContain(
       "blockers=[ledger-row:impl-mixed, inventory-only:orphan-mixed]",
@@ -8122,10 +8125,8 @@ describe("play subagent routing source contracts", () => {
     expect(slotLimitMixedBlockers).toContain(
       "does not fabricate a row for `inventory-only:orphan-mixed`",
     );
-    const mixedAttempt =
-      "event=close-attempted(episode=recovery-mixed-1, blocker=ledger-row:impl-mixed)";
-    const mixedSuccess =
-      "event=close-succeeded(episode=recovery-mixed-1, blocker=ledger-row:impl-mixed)";
+    const mixedAttempt = "event=close-attempted";
+    const mixedSuccess = "event=close-succeeded";
     expect(slotLimitMixedBlockers).toContain(mixedAttempt);
     expect(slotLimitMixedBlockers).toContain(mixedSuccess);
     expect(slotLimitMixedBlockers.indexOf(mixedAttempt)).toBeLessThan(
@@ -8140,13 +8141,13 @@ describe("play subagent routing source contracts", () => {
       "blocker=inventory-only:orphan-mixed",
     );
     expect(slotLimitMixedBlockers).toContain(
-      "target-honest unavailable record remains `close-unavailable: inventory-only; no close operation`",
+      "All episode transitions leave the row cleanup projection closed=yes and its row history unchanged",
     );
     expect(slotLimitMixedBlockers).toContain(
       "Row close evidence cannot substitute for the inventory-only confirmation",
     );
     expect(slotLimitMixedBlockers).toContain(
-      "Only after both exact tagged blockers are independently authorized",
+      "Only after both exact tagged blockers authorize",
     );
     for (const example of [
       slotLimitRetainedSession,
@@ -8159,16 +8160,16 @@ describe("play subagent routing source contracts", () => {
     expect(
       taggedRecoveryReferenceErrors(
         slotLimitAutomaticCloseFailure.replace(
-          "blockers=[ledger-row:impl-failed-close]",
-          "blockers=[impl-failed-close]",
+          "blockers=[inventory-only:orphan-inventory]",
+          "blockers=[orphan-inventory]",
         ),
       ),
     ).toContain("untagged-snapshot-blocker");
     expect(
       taggedRecoveryReferenceErrors(
         slotLimitAutomaticCloseFailure.replace(
-          "blocker=ledger-row:impl-failed-close",
-          "blocker=impl-failed-close",
+          "blocker=inventory-only:orphan-inventory",
+          "blocker=orphan-inventory",
         ),
       ),
     ).toContain("untagged-authorization-blocker");
@@ -8176,8 +8177,8 @@ describe("play subagent routing source contracts", () => {
       manualConfirmationErrors(
         slotLimitRetainedSession,
         "ledger-row:impl-retained",
-        "recovery-retained-1",
-        "closed=no remains unchanged",
+        "episode-row-1",
+        "leaves the row projection unchanged at closed=no",
       ),
     ).toEqual([]);
     const retainedSlotRecoveryErrors = (example: string): string[] => {
@@ -8236,7 +8237,9 @@ describe("play subagent routing source contracts", () => {
       const confirmationIndex = example.indexOf(
         "event=manual-cleanup-confirmed(",
       );
-      const reconstructIndex = example.indexOf("reconstruct state");
+      const reconstructIndex = example.indexOf(
+        "event=recovery-state-reconstructed",
+      );
       if (
         resolutionIndex < 0 ||
         attemptIndex <= resolutionIndex ||
@@ -8248,37 +8251,33 @@ describe("play subagent routing source contracts", () => {
       }
       if (
         !example.includes(
-          "event=slot-recovery-started(episode=recovery-retained-1, blockers=[ledger-row:impl-retained])",
+          "event=slot-recovery-started(origin=origin-row-1, episode=episode-row-1, blockers=[ledger-row:impl-retained])",
         ) ||
         !example.includes(
-          "event=close-attempted(episode=recovery-retained-1, blocker=ledger-row:impl-retained)",
+          "event=manual-cleanup-confirmed(episode=episode-row-1, blocker=ledger-row:impl-retained",
         ) ||
-        !example.includes(
-          "event=manual-cleanup-confirmed(episode=recovery-retained-1, blocker=ledger-row:impl-retained",
-        )
+        /event=close-(?:attempted|succeeded|failed)\(episode=/u.test(example)
       ) {
         errors.push("current-episode-evidence");
       }
       if (
         !example.includes(
-          "this current-episode, blocker-scoped event authorizes the one retry",
+          "this exact tagged authorization is not row closure proof",
         ) ||
-        !example.includes(
-          "is not closure proof, retention resolution, or a cleanup projection family",
-        ) ||
-        !example.includes("closed=no remains unchanged") ||
-        !example.includes("reconstruct state and retry the spawn exactly once")
+        !example.includes("leaves the row projection unchanged at closed=no") ||
+        !example.includes("event=slot-retry-dispatched") ||
+        !example.includes("exactly one event=slot-retry-succeeded")
       ) {
         errors.push("manual-confirmation-retry-boundary");
       }
       if (
         !example.includes(
-          "Evidence from any earlier recovery episode remains history and cannot authorize this retry",
+          "The consumed origin `origin-row-1` cannot dispatch again or start another episode",
         )
       ) {
         errors.push("stale-episode-rejected");
       }
-      if (!example.includes("stop and escalate without retrying")) {
+      if (!example.includes("stops and escalates without dispatching")) {
         errors.push("unresolved-retention-escalation");
       }
       return errors;
@@ -8310,17 +8309,22 @@ describe("play subagent routing source contracts", () => {
     ).toEqual(["stale-current-retention"]);
     expect(
       retainedSlotRecoveryErrors(
-        slotLimitRetainedSession.replaceAll(
-          "recovery-retained-1",
-          "recovery-retained-0",
+        slotLimitRetainedSession.replaceAll("episode-row-1", "episode-row-0"),
+      ),
+    ).toEqual(["current-episode-evidence"]);
+    expect(
+      retainedSlotRecoveryErrors(
+        slotLimitRetainedSession.replace(
+          "event=close-attempted followed by event=close-failed",
+          "event=close-attempted(episode=episode-row-1) followed by event=close-failed",
         ),
       ),
     ).toEqual(["current-episode-evidence"]);
     expect(
       retainedSlotRecoveryErrors(
         slotLimitRetainedSession.replace(
-          "stop and escalate without retrying",
-          "retry the spawn",
+          "stops and escalates without dispatching",
+          "dispatches anyway",
         ),
       ),
     ).toEqual(["unresolved-retention-escalation"]);
@@ -8431,78 +8435,89 @@ describe("play subagent routing source contracts", () => {
         "success",
       ),
     ).toEqual(["resolved-success-family"]);
-    const invalidSlotFailureDimensions = (example: string): string[] => {
+    const terminalInventoryFailureErrors = (example: string): string[] => {
       const errors: string[] = [];
-      const attemptIndex = example.indexOf("event=close-attempted");
-      const failureIndex = example.indexOf("event=close-failed");
+      const reconstructIndex = example.indexOf(
+        "event=recovery-state-reconstructed",
+      );
+      const dispatchIndex = example.indexOf("event=slot-retry-dispatched");
+      const failureIndex = example.indexOf("event=slot-retry-failed");
       if (
-        attemptIndex < 0 ||
+        reconstructIndex < 0 ||
+        dispatchIndex <= reconstructIndex ||
         failureIndex < 0 ||
-        attemptIndex >= failureIndex
+        dispatchIndex >= failureIndex
       ) {
-        errors.push("attempt-failure-history");
-      }
-      if (!example.includes("cleanup outcome=closed=no")) {
-        errors.push("cleanup-projection");
+        errors.push("terminal-retry-order");
       }
       if (
         !example.includes(
-          "event=slot-recovery-started(episode=recovery-failed-1, blockers=[ledger-row:impl-failed-close])",
+          "event=slot-recovery-started(origin=origin-inventory-1, episode=episode-inventory-1, blockers=[inventory-only:orphan-inventory])",
         ) ||
         !example.includes(
-          "event=close-attempted(episode=recovery-failed-1, blocker=ledger-row:impl-failed-close)",
-        ) ||
-        !example.includes(
-          "event=manual-cleanup-confirmed(episode=recovery-failed-1, blocker=ledger-row:impl-failed-close",
-        ) ||
-        !example.includes(
-          "an earlier episode's confirmation cannot authorize this retry",
+          "event=manual-cleanup-confirmed(episode=episode-inventory-1, blocker=inventory-only:orphan-inventory",
         )
       ) {
-        errors.push("recovery-episode-binding");
+        errors.push("exact-inventory-binding");
       }
       if (
-        !example.includes("does not retry yet") ||
-        !example.includes("After operator cleanup") ||
         !example.includes(
-          "reconstructs state and retries the spawn exactly once",
+          "No session row is created for that pure inventory blocker",
+        ) ||
+        /Row `orphan-inventory`|ledger-row:orphan-inventory/u.test(example)
+      ) {
+        errors.push("fabricated-inventory-row");
+      }
+      if (
+        !example.includes(
+          "projecting terminal retry-failed with sanitized escalation limited to",
+        ) ||
+        !example.includes(
+          "contains no prompts, transcripts, logs, stack traces",
         )
       ) {
-        errors.push("slot-retry-guard");
+        errors.push("sanitized-terminal-failure");
+      }
+      if (
+        !example.includes(
+          "The consumed origin `origin-inventory-1` cannot retry or start another recovery episode",
+        )
+      ) {
+        errors.push("consumed-origin-reuse");
       }
       return errors;
     };
     expect(
-      invalidSlotFailureDimensions(slotLimitAutomaticCloseFailure),
+      terminalInventoryFailureErrors(slotLimitAutomaticCloseFailure),
     ).toEqual([]);
     expect(
       manualConfirmationErrors(
         slotLimitAutomaticCloseFailure,
-        "ledger-row:impl-failed-close",
-        "recovery-failed-1",
-        "closed=no remains unchanged",
+        "inventory-only:orphan-inventory",
+        "episode-inventory-1",
+        "a row close event cannot authorize this blocker",
       ),
     ).toEqual([]);
     expect(
       manualConfirmationErrors(
         slotLimitAutomaticCloseFailure.replace(
-          "event=manual-cleanup-confirmed(episode=recovery-failed-1, blocker=ledger-row:impl-failed-close",
-          "event=manual-cleanup-confirmed(episode=recovery-failed-1, blocker=ledger-row:another-row",
+          "event=manual-cleanup-confirmed(episode=episode-inventory-1, blocker=inventory-only:orphan-inventory",
+          "event=manual-cleanup-confirmed(episode=episode-inventory-1, blocker=ledger-row:orphan-inventory",
         ),
-        "ledger-row:impl-failed-close",
-        "recovery-failed-1",
-        "closed=no remains unchanged",
+        "inventory-only:orphan-inventory",
+        "episode-inventory-1",
+        "a row close event cannot authorize this blocker",
       ),
     ).toEqual(["manual-confirmation-scope"]);
     expect(
       manualConfirmationErrors(
         slotLimitAutomaticCloseFailure.replaceAll(
-          "recovery-failed-1",
-          "recovery-failed-0",
+          "episode-inventory-1",
+          "episode-inventory-0",
         ),
-        "ledger-row:impl-failed-close",
-        "recovery-failed-1",
-        "closed=no remains unchanged",
+        "inventory-only:orphan-inventory",
+        "episode-inventory-1",
+        "a row close event cannot authorize this blocker",
       ),
     ).toEqual(["manual-confirmation-episode"]);
     expect(
@@ -8511,27 +8526,51 @@ describe("play subagent routing source contracts", () => {
           "event=manual-cleanup-confirmed",
           "event=manual-cleanup-observed",
         ),
-        "ledger-row:impl-failed-close",
-        "recovery-failed-1",
-        "closed=no remains unchanged",
+        "inventory-only:orphan-inventory",
+        "episode-inventory-1",
+        "a row close event cannot authorize this blocker",
       ),
     ).toEqual(["manual-confirmation-absent", "manual-confirmation-order"]);
     expect(
       manualConfirmationErrors(
         slotLimitUnavailable,
         "ledger-row:impl-unavailable",
-        "recovery-unavailable-1",
-        "close-unavailable outcome remains unchanged",
+        "episode-unavailable-1",
+        "row's unavailable projection and histories remain unchanged",
       ),
     ).toEqual([]);
     expect(
-      invalidSlotFailureDimensions(
+      terminalInventoryFailureErrors(
         slotLimitAutomaticCloseFailure.replace(
-          "event=close-attempted(episode=recovery-failed-1, blocker=ledger-row:impl-failed-close) then event=close-failed(episode=recovery-failed-1, blocker=ledger-row:impl-failed-close)",
-          "event=close-failed(episode=recovery-failed-1, blocker=ledger-row:impl-failed-close) then event=close-attempted(episode=recovery-failed-1, blocker=ledger-row:impl-failed-close)",
+          "event=recovery-state-reconstructed, event=slot-retry-dispatched, and exactly one event=slot-retry-failed",
+          "event=slot-retry-failed, event=slot-retry-dispatched",
         ),
       ),
-    ).toEqual(["attempt-failure-history"]);
+    ).toEqual(["terminal-retry-order"]);
+    expect(
+      terminalInventoryFailureErrors(
+        slotLimitAutomaticCloseFailure.replace(
+          "exactly one event=slot-retry-failed",
+          "retry result is omitted",
+        ),
+      ),
+    ).toEqual(["terminal-retry-order"]);
+    expect(
+      terminalInventoryFailureErrors(
+        slotLimitAutomaticCloseFailure.replace(
+          "No session row is created for that pure inventory blocker",
+          "Row `orphan-inventory` is created for the inventory blocker",
+        ),
+      ),
+    ).toEqual(["fabricated-inventory-row"]);
+    expect(
+      terminalInventoryFailureErrors(
+        slotLimitAutomaticCloseFailure.replace(
+          "The consumed origin `origin-inventory-1` cannot retry or start another recovery episode",
+          "The consumed origin may retry again",
+        ),
+      ),
+    ).toEqual(["consumed-origin-reuse"]);
     expect(targetCapabilityExamples).toContain(
       "first captures each completed session's role-specific state",
     );
@@ -8549,16 +8588,16 @@ describe("play subagent routing source contracts", () => {
       "event=closure-unavailable(reason=no inventory or close operation)",
     );
     expect(slotLimitUnavailable).toContain(
-      "event=slot-recovery-started(episode=recovery-unavailable-1, blockers=[ledger-row:impl-unavailable])",
+      "event=slot-recovery-started(origin=origin-unavailable-1, episode=episode-unavailable-1, blockers=[ledger-row:impl-unavailable])",
     );
     expect(slotLimitUnavailable).toContain(
-      "event=manual-cleanup-confirmed(episode=recovery-unavailable-1, blocker=ledger-row:impl-unavailable",
+      "event=manual-cleanup-confirmed(episode=episode-unavailable-1, blocker=ledger-row:impl-unavailable",
     );
     expect(slotLimitUnavailable).toContain(
-      "Evidence from an earlier episode cannot authorize this retry",
+      "Evidence from another episode, an untagged blocker, or an inventory-only confirmation cannot authorize this row blocker",
     );
     expect(slotLimitUnavailable).toContain(
-      "reconstructs active task state from the lifecycle ledger and git",
+      "event=recovery-state-reconstructed, event=slot-retry-dispatched, and event=slot-retry-succeeded",
     );
     expect(targetCapabilityExamples).toContain(
       "Repeated blocker-family branch",

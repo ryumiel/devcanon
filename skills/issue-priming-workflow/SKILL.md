@@ -349,16 +349,17 @@ If any internal, immediate external, or late external spawn fails because slots
 are exhausted, follow `subagent-lifecycle` § Slot-Limit Recovery. Preserve the
 captured research scope, report result, source references, blocker state,
 lifecycle ledger, and repository anchors across that shared recovery procedure.
-Start each slot-exhaustion recovery with a new sanitized recovery episode
-identity and the shared owner's complete immutable snapshot of every observed
-tagged `ledger-row` or `inventory-only` blocker reference. Bind every
-`close-succeeded` or `manual-cleanup-confirmed` event used for retry to that
-current episode and exact tagged blocker identity. Follow the owner's
-kind-specific evidence rules and authorize retry only after every snapshot
-blocker passes independently; inventory-only blockers accept manual
-confirmation, never row close success. Preserve earlier episode evidence as
-append-only history, but never use stale-episode, non-snapshot, or cross-kind
-evidence to authorize the current retry.
+Defer recovery-episode storage and transitions to the shared owner. For this
+workflow's captured research state, require the owner's complete immutable
+snapshot of every observed tagged `ledger-row` or `inventory-only` blocker
+reference. A row-owned `close-succeeded` event may authorize only through the
+owner's exact current-episode reference to its row and stable event identity;
+an episode-owned `manual-cleanup-confirmed` event must match the current episode
+and exact tagged blocker. Follow the owner's kind-specific evidence rules and
+authorize retry only after every snapshot blocker passes independently;
+inventory-only blockers accept manual confirmation, never row close success.
+Never use stale-episode, non-snapshot, or cross-kind evidence for the current
+retry.
 Before any manual cleanup, use the owner classifications for open blockers:
 active rows wait or steer to a safe capture boundary or stop; waiting rows are
 retained or safely replaced. A row whose current operational state is
