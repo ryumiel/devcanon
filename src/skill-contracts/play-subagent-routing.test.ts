@@ -5553,6 +5553,21 @@ describe("play subagent routing source contracts", () => {
               episode.episodeId === entry.episodeId,
           ).length === 1,
       );
+    const rowBeforeOrder = (row: RowRecord, cutoffOrder: number): RowRecord => {
+      const history = row.history.filter((event) => event.order < cutoffOrder);
+      return {
+        ...row,
+        history,
+        preparationHistory: row.preparationHistory.filter(
+          (event) => event.order < cutoffOrder,
+        ),
+        projection: history.some((event) => event.kind === "close-succeeded")
+          ? "closed=yes"
+          : history.at(-1)?.kind === "closure-unavailable"
+            ? "close-unavailable"
+            : "closed=no",
+      };
+    };
     const rowsConsistent = (ledger: Ledger): boolean => {
       const rowIds = new Set<string>();
       const sessions = new Set<string>();
@@ -5684,6 +5699,15 @@ describe("play subagent routing source contracts", () => {
             return false;
           }
           previousOrder = event.order;
+        }
+        for (const event of row.history) {
+          if (
+            event.kind === "close-attempted" &&
+            rowPreparationError(rowBeforeOrder(row, event.order), false) !==
+              undefined
+          ) {
+            return false;
+          }
         }
       }
       return true;
@@ -5935,29 +5959,10 @@ describe("play subagent routing source contracts", () => {
                 event.observedAt === authorization.observedAt,
             );
             const confirmation = matchingConfirmations[0];
-            const historicalHistory =
-              confirmation === undefined || row === undefined
-                ? []
-                : row.history.filter(
-                    (event) => event.order < confirmation.order,
-                  );
             const historicalRow =
               confirmation === undefined || row === undefined
                 ? undefined
-                : {
-                    ...row,
-                    history: historicalHistory,
-                    preparationHistory: row.preparationHistory.filter(
-                      (event) => event.order < confirmation.order,
-                    ),
-                    projection: historicalHistory.some(
-                      (event) => event.kind === "close-succeeded",
-                    )
-                      ? ("closed=yes" as const)
-                      : historicalHistory.at(-1)?.kind === "closure-unavailable"
-                        ? ("close-unavailable" as const)
-                        : ("closed=no" as const),
-                  };
+                : rowBeforeOrder(row, confirmation.order);
             if (
               matchingConfirmations.length !== 1 ||
               historicalRow === undefined ||
@@ -7357,6 +7362,32 @@ describe("play subagent routing source contracts", () => {
         ),
       });
     };
+    const preparationRecordedAfterAttempt = cleanupPathLedger(
+      [
+        { kind: "operational-state", order: 1, state: "completed" },
+        {
+          kind: "required-state-captured",
+          order: 4,
+          evidence: "captured after the attempt",
+        },
+      ],
+      [
+        {
+          eventId: "post-attempt-capture-attempt",
+          kind: "close-attempted",
+          order: 3,
+          sessionId: "session-1",
+        },
+        {
+          eventId: "post-attempt-capture-failure",
+          kind: "close-failed",
+          order: 5,
+          sessionId: "session-1",
+        },
+      ],
+      "closed=no",
+    );
+    expectInvalidLedger(preparationRecordedAfterAttempt);
     const expectManualPreparationFailure = (
       history: PreparationEvent[],
       error: string,
@@ -7449,8 +7480,58 @@ describe("play subagent routing source contracts", () => {
         sessionId: "session-1",
       },
     ];
+    const freshlyPreparedRetry = cleanupPathLedger(
+      [
+        { kind: "operational-state", order: 1, state: "completed" },
+        {
+          kind: "required-state-captured",
+          order: 2,
+          evidence: "initial attempt state captured",
+        },
+        { kind: "operational-state", order: 5, state: "completed" },
+        {
+          kind: "required-state-captured",
+          order: 6,
+          evidence: "retry state freshly captured",
+        },
+      ],
+      failedCleanup(3),
+      "closed=no",
+    );
+    const retryClosed = apply(freshlyPreparedRetry, {
+      kind: "record-row-close",
+      rowId: "row-1",
+      sessionId: "session-1",
+      attemptEventId: "fresh-retry-attempt",
+      successEventId: "fresh-retry-success",
+    });
+    const retryValidated = apply(
+      retryClosed,
+      start("origin-fresh-retry", "episode-fresh-retry", [inventory()]),
+    );
+    expect(
+      retryValidated.rows.find((row) => row.rowId === "row-1")?.projection,
+    ).toBe("closed=yes");
     const pathBeforeContext = cleanupPathLedger(
-      failedPreparation(5),
+      [
+        { kind: "operational-state", order: 1, state: "completed" },
+        {
+          kind: "required-state-captured",
+          order: 2,
+          evidence: "initial row state captured",
+        },
+        { kind: "operational-state", order: 5, state: "failed" },
+        {
+          kind: "required-state-captured",
+          order: 6,
+          evidence: "later failure state captured",
+        },
+        {
+          kind: "abnormal-context-captured",
+          order: 7,
+          evidence: "later failure context captured",
+        },
+      ],
       failedCleanup(3),
       "closed=no",
     );
@@ -7616,16 +7697,22 @@ describe("play subagent routing source contracts", () => {
     }
     const supersededContextAfterCleanup = cleanupPathLedger(
       [
-        { kind: "operational-state", order: 1, state: "failed" },
-        { kind: "operational-state", order: 2, state: "superseded" },
+        { kind: "operational-state", order: 1, state: "completed" },
         {
           kind: "required-state-captured",
-          order: 3,
+          order: 2,
+          evidence: "initial row state captured",
+        },
+        { kind: "operational-state", order: 5, state: "failed" },
+        { kind: "operational-state", order: 6, state: "superseded" },
+        {
+          kind: "required-state-captured",
+          order: 7,
           evidence: "failed row state captured after supersession",
         },
         {
           kind: "abnormal-context-captured",
-          order: 5,
+          order: 8,
           evidence: "failure context captured after supersession",
         },
       ],
@@ -8158,6 +8245,31 @@ describe("play subagent routing source contracts", () => {
     );
     expectRestoredAuthorizationRejected(
       restoredManualWithMissingPreparation,
+      "episode-manual-failed",
+    );
+    const restoredManualWithPostAttemptCapture = forgeRows(
+      preparedManualFailed,
+      (rows) =>
+        rows.map((row) =>
+          row.rowId === "manual-failed-row"
+            ? {
+                ...row,
+                history: row.history.map((event) =>
+                  event.kind === "close-failed"
+                    ? { ...event, order: 5 }
+                    : event,
+                ),
+                preparationHistory: row.preparationHistory.map((event) =>
+                  event.kind === "required-state-captured"
+                    ? { ...event, order: 4 }
+                    : event,
+                ),
+              }
+            : row,
+        ),
+    );
+    expectRestoredAuthorizationRejected(
+      restoredManualWithPostAttemptCapture,
       "episode-manual-failed",
     );
     const restoredManualWithStaleCleanupPath = forgeRows(
