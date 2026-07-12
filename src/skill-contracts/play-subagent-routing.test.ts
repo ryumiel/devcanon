@@ -5633,9 +5633,13 @@ describe("play subagent routing source contracts", () => {
             ? "close-unavailable"
             : "closed=no";
         if (row.projection !== derivedProjection) return false;
-        const successfulCloseOrder = row.history.find(
+        const successfulCloseIndex = row.history.findIndex(
           (event) => event.kind === "close-succeeded",
-        )?.order;
+        );
+        const successfulCloseAttemptOrder =
+          successfulCloseIndex < 0
+            ? undefined
+            : row.history[successfulCloseIndex - 1]?.order;
         previousOrder = 0;
         for (const event of row.preparationHistory) {
           if (
@@ -5644,8 +5648,8 @@ describe("play subagent routing source contracts", () => {
             !Number.isInteger(event.order) ||
             event.order <= previousOrder ||
             event.order > ledger.order ||
-            (successfulCloseOrder !== undefined &&
-              event.order > successfulCloseOrder)
+            (successfulCloseAttemptOrder !== undefined &&
+              event.order >= successfulCloseAttemptOrder)
           ) {
             return false;
           }
@@ -5920,9 +5924,44 @@ describe("play subagent routing source contracts", () => {
             const row = ledger.rows.find(
               (candidate) => candidate.rowId === authorization.blocker.identity,
             );
+            const matchingConfirmations = episode.events.filter(
+              (event) =>
+                event.kind === "manual-cleanup-confirmed" &&
+                event.blocker !== undefined &&
+                validBlockerKind(event.blocker) &&
+                blockerKey(event.blocker) ===
+                  blockerKey(authorization.blocker) &&
+                event.provenance === authorization.provenance &&
+                event.observedAt === authorization.observedAt,
+            );
+            const confirmation = matchingConfirmations[0];
+            const historicalHistory =
+              confirmation === undefined || row === undefined
+                ? []
+                : row.history.filter(
+                    (event) => event.order < confirmation.order,
+                  );
+            const historicalRow =
+              confirmation === undefined || row === undefined
+                ? undefined
+                : {
+                    ...row,
+                    history: historicalHistory,
+                    preparationHistory: row.preparationHistory.filter(
+                      (event) => event.order < confirmation.order,
+                    ),
+                    projection: historicalHistory.some(
+                      (event) => event.kind === "close-succeeded",
+                    )
+                      ? ("closed=yes" as const)
+                      : historicalHistory.at(-1)?.kind === "closure-unavailable"
+                        ? ("close-unavailable" as const)
+                        : ("closed=no" as const),
+                  };
             if (
-              row === undefined ||
-              rowPreparationError(row, true) !== undefined
+              matchingConfirmations.length !== 1 ||
+              historicalRow === undefined ||
+              rowPreparationError(historicalRow, true) !== undefined
             ) {
               return false;
             }
@@ -6920,6 +6959,22 @@ describe("play subagent routing source contracts", () => {
         closedOnce.order + 1,
       ),
     );
+    expectInvalidLedger(
+      forgeRows(closedOnce, (rows) =>
+        rows.map((row) =>
+          row.rowId === "row-1"
+            ? {
+                ...row,
+                preparationHistory: row.preparationHistory.map((event) =>
+                  event.kind === "required-state-captured"
+                    ? { ...event, order: closedOnce.order - 1 }
+                    : event,
+                ),
+              }
+            : row,
+        ),
+      ),
+    );
     const closedTwice = apply(closedOnce, {
       kind: "record-row-close",
       rowId: "same",
@@ -7239,6 +7294,29 @@ describe("play subagent routing source contracts", () => {
     expect(preparedManualUnavailable.episodes[0]?.authorizations).toHaveLength(
       1,
     );
+    expect(
+      apply(
+        preparedManualUnavailable,
+        reconstruct("episode-manual-unavailable"),
+      ).episodes[0]?.state,
+    ).toBe("ready");
+    const manualThenAutomaticClose = apply(preparedManualFailed, {
+      kind: "record-row-close",
+      rowId: "manual-failed-row",
+      sessionId: "session-manual-failed",
+      attemptEventId: "manual-followup-attempt",
+      successEventId: "manual-followup-success",
+    });
+    const manualThenAutomaticReconstructed = apply(
+      manualThenAutomaticClose,
+      reconstruct("episode-manual-failed"),
+    );
+    expect(manualThenAutomaticReconstructed.episodes[0]?.state).toBe("ready");
+    expect(
+      manualThenAutomaticReconstructed.rows.find(
+        (row) => row.rowId === "manual-failed-row",
+      )?.projection,
+    ).toBe("closed=yes");
     const preparationLedger = (
       history: PreparationEvent[],
       identityState: RowRecord["identityState"] = "stable",
