@@ -10202,9 +10202,88 @@ describe("play subagent routing source contracts", () => {
     const phase6Reference = await readRepoFile(
       "skills/issue-priming-workflow/references/phase-6-auto-handoff.md",
     );
+    const phase6RecoveryParityErrors = (surface: string): string[] => {
+      const normalizedSurface = normalizeWhitespace(surface);
+      const errors: string[] = [];
+      if (
+        !normalizedSurface.includes(
+          "complete immutable exact-tag capacity-blocker snapshot",
+        )
+      ) {
+        errors.push("complete-exact-tag-snapshot");
+      }
+      if (
+        !normalizedSurface.includes("Require every tagged snapshot blocker")
+      ) {
+        errors.push("every-snapshot-blocker");
+      }
+      if (
+        !normalizedSurface.includes(
+          "shared owner's kind-specific current-episode authorization",
+        )
+      ) {
+        errors.push("kind-specific-current-episode-authorization");
+      }
+      if (
+        !normalizedSurface.includes(
+          "authorizes only its exact blocker, never the retry by itself",
+        )
+      ) {
+        errors.push("blocker-scoped-confirmation");
+      }
+      if (
+        !normalizedSurface.includes(
+          "Only after complete all-blocker authorization may the shared owner reconstruct; it then consumes one retry dispatch and records exactly one terminal retry result",
+        )
+      ) {
+        errors.push("reconstruct-dispatch-terminal-order");
+      }
+      return errors;
+    };
 
     for (const surface of [issuePhase6Section, phase6Reference]) {
       const normalizedSurface = normalizeWhitespace(surface);
+      expect(phase6RecoveryParityErrors(surface)).toEqual([]);
+      expect(
+        phase6RecoveryParityErrors(
+          normalizedSurface.replace(
+            "complete immutable exact-tag capacity-blocker snapshot",
+            "representative capacity-blocker snapshot",
+          ),
+        ),
+      ).toEqual(["complete-exact-tag-snapshot"]);
+      expect(
+        phase6RecoveryParityErrors(
+          normalizedSurface.replace(
+            "Require every tagged snapshot blocker",
+            "Require some tagged snapshot blockers",
+          ),
+        ),
+      ).toEqual(["every-snapshot-blocker"]);
+      expect(
+        phase6RecoveryParityErrors(
+          normalizedSurface.replace(
+            "shared owner's kind-specific current-episode authorization",
+            "shared owner's generic authorization",
+          ),
+        ),
+      ).toEqual(["kind-specific-current-episode-authorization"]);
+      expect(
+        phase6RecoveryParityErrors(
+          normalizedSurface.replace(
+            "authorizes only its exact blocker, never the retry by itself",
+            "authorizes the retry",
+          ),
+        ),
+      ).toEqual(["blocker-scoped-confirmation"]);
+      expect(
+        phase6RecoveryParityErrors(
+          normalizedSurface.replace(
+            "Only after complete all-blocker authorization may the shared owner reconstruct; it then consumes one retry dispatch and records exactly one terminal retry result",
+            "The shared owner reconstructs before authorization and may dispatch again",
+          ),
+        ),
+      ).toEqual(["reconstruct-dispatch-terminal-order"]);
       expect(normalizedSurface).toContain(
         "successful, unavailable, deliberately deferred, or failed-attempt cleanup history",
       );
@@ -10237,7 +10316,7 @@ describe("play subagent routing source contracts", () => {
         "A current-episode, blocker-scoped `manual-cleanup-confirmed` event",
       );
       expect(normalizedSurface).toContain(
-        "does not prove closure or add a cleanup family",
+        "authorizes only its exact blocker, never the retry by itself",
       );
       expect(normalizedSurface).toContain(
         "An unresolved need stops and escalates without retrying",

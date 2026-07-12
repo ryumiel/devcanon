@@ -723,7 +723,7 @@ research error/blocker detail before cleanup.
 Normal cleanup may continue with target-honest open evidence, but shared
 slot-limit recovery remains blocked until actual closure or
 operator-confirmed manual cleanup bound to the current recovery episode and
-its complete immutable tagged capacity-blocker snapshot. Earlier episode
+its complete immutable exact-tag capacity-blocker snapshot. Earlier episode
 evidence never authorizes the current retry.
 A capacity-blocking retained session requires current `completed`, `timed-out`,
 `failed`, or `superseded` and fresh capture. If the deferred need finished,
@@ -736,10 +736,13 @@ post-resolution projection: cleanup evaluation remains `evaluated`, current
 cleanup decision is `none`, current retention and unavailable reasons are
 absent, and cleanup is `closed=no`. Then obtain actual or operator-confirmed
 cleanup for the current episode before retrying. Require every tagged snapshot
-blocker to pass the shared owner's kind-specific authorization rules before
-reconstruction. A current-episode, blocker-scoped `manual-cleanup-confirmed`
-event authorizes its exact blocker but does not prove closure or add a cleanup
-family. An unresolved need stops and escalates without retrying.
+blocker to pass the shared owner's kind-specific current-episode authorization
+before reconstruction. A current-episode, blocker-scoped
+`manual-cleanup-confirmed` event authorizes only its exact blocker, never the
+retry by itself, and does not prove closure or add a cleanup family. Only after
+complete all-blocker authorization may the shared owner reconstruct; it then
+consumes one retry dispatch and records exactly one terminal retry result. An
+unresolved need stops and escalates without retrying.
 
 Invoke `play-subagent-execution` and pass the plan as a `Plan: <path>`
 reference plus `Auto handoff: <repo-relative-path>` in the invocation prose, NOT

@@ -101,8 +101,8 @@ history according to the shared owner contract before continuing. Missing
 captured role state blocks the handoff. Normal cleanup may continue with
 target-honest open evidence, but shared slot-limit recovery remains blocked
 until actual closure or operator-confirmed manual cleanup bound to the current
-recovery episode and its capacity-blocker snapshot. Earlier episode evidence
-never authorizes the current retry.
+recovery episode and its complete immutable exact-tag capacity-blocker
+snapshot. Earlier episode evidence never authorizes the current retry.
 For timed-out or failed rows, preserve the value-bearing runtime terminal event,
 keep return status/history absent when no turn returned, and capture the gate or
 research error/blocker detail before cleanup.
@@ -117,10 +117,14 @@ and current retention reason, and apply the canonical
 post-resolution projection: cleanup evaluation remains `evaluated`, current
 cleanup decision is `none`, current retention and unavailable reasons are
 absent, and cleanup is `closed=no`. Then obtain actual or operator-confirmed
-cleanup for the current episode before retrying. A current-episode,
-blocker-scoped `manual-cleanup-confirmed` event authorizes retry but does not
-prove closure or add a cleanup family. An unresolved need stops and escalates
-without retrying.
+cleanup for the current episode before retrying. Require every tagged snapshot
+blocker to pass the shared owner's kind-specific current-episode authorization
+before reconstruction. A current-episode, blocker-scoped
+`manual-cleanup-confirmed` event authorizes only its exact blocker, never the
+retry by itself, and does not prove closure or add a cleanup family. Only after
+complete all-blocker authorization may the shared owner reconstruct; it then
+consumes one retry dispatch and records exactly one terminal retry result. An
+unresolved need stops and escalates without retrying.
 
 ## Single-Task Final-Review Carve-Out
 
