@@ -5404,6 +5404,12 @@ describe("play subagent routing source contracts", () => {
           (candidate) => candidate.rowId === operation.rowId,
         );
         if (
+          row?.projection === "closed=yes" ||
+          row?.history.some((event) => event.kind === "close-succeeded")
+        ) {
+          return fail(ledger, "post-close-success-row-event");
+        }
+        if (
           row === undefined ||
           row.sessionId !== operation.sessionId ||
           !sanitizedIdentity(operation.attemptEventId) ||
@@ -5460,12 +5466,6 @@ describe("play subagent routing source contracts", () => {
       );
       if (episode === undefined) {
         return fail(ledger, "recovery-episode-not-found");
-      }
-      const index = ledger.originEpisodes.find(
-        (entry) => entry.episodeId === episode.episodeId,
-      );
-      if (index?.originId !== episode.originId) {
-        return fail(ledger, "inconsistent-origin-episode-index");
       }
 
       if (operation.kind === "authorize") {
@@ -5896,6 +5896,16 @@ describe("play subagent routing source contracts", () => {
     const baseStart = start("origin-1", "episode-1", [inventory()]);
     expectRejected(
       emptyLedger(),
+      { ...baseStart, originId: "unsafe origin" },
+      "invalid-recovery-origin",
+    );
+    expectRejected(
+      emptyLedger(),
+      { ...baseStart, episodeId: "unsafe episode" },
+      "invalid-recovery-episode",
+    );
+    expectRejected(
+      emptyLedger(),
       { ...baseStart, snapshot: [] },
       "empty-blocker-snapshot",
     );
@@ -5930,12 +5940,14 @@ describe("play subagent routing source contracts", () => {
       },
       "unsanitized-observed-blocker",
     );
+    const validRetagStart = start("origin-retag", "episode-retag", [
+      ledgerRow(),
+    ]);
     expectRejected(
       emptyLedger(),
       {
-        ...baseStart,
-        observedBlockers: [ledgerRow()],
-        snapshot: [inventory("row-1")],
+        ...validRetagStart,
+        snapshot: [{ ...validRetagStart.snapshot[0], kind: "inventory-only" }],
       },
       "observed-snapshot-membership-or-tag-mismatch",
     );
@@ -5957,10 +5969,38 @@ describe("play subagent routing source contracts", () => {
       ]),
       "attached-inventory-double-counted",
     );
+    expectRejected(
+      emptyLedger(),
+      start("origin-missing-row", "episode-missing-row", [
+        ledgerRow("missing-row"),
+      ]),
+      "observed-ledger-row-missing",
+    );
 
     const authorizing = apply(
       emptyLedger(),
       start("origin-1", "episode-1", [ledgerRow(), inventory()]),
+    );
+    expectRejected(
+      authorizing,
+      start("origin-2", "episode-1", [inventory()]),
+      "recovery-episode-already-used",
+    );
+    expectRejected(
+      emptyLedger(),
+      dispatch("missing-episode"),
+      "recovery-episode-not-found",
+    );
+    expectRejected(
+      authorizing,
+      {
+        kind: "record-row-close",
+        rowId: "row-1",
+        sessionId: "session-1",
+        attemptEventId: "unsafe event",
+        successEventId: "close-success-row-1",
+      },
+      "invalid-row-close-record",
     );
     expectRejected(
       authorizing,
@@ -5977,6 +6017,18 @@ describe("play subagent routing source contracts", () => {
         kind: "authorize",
         episodeId: "episode-1",
         evidence: manual("episode-1", inventory("row-1")),
+      },
+      "cross-kind-evidence",
+    );
+    expectRejected(
+      authorizing,
+      {
+        kind: "authorize",
+        episodeId: "episode-1",
+        evidence: closeEvidence("episode-1", ledgerRow(), {
+          rowId: "same",
+          sessionId: "session-same",
+        }),
       },
       "cross-kind-evidence",
     );
@@ -6041,6 +6093,30 @@ describe("play subagent routing source contracts", () => {
       episodeId: "episode-1",
       evidence: closeEvidence("episode-1"),
     });
+    expectRejected(
+      rowReady,
+      {
+        kind: "record-row-close",
+        rowId: "same",
+        sessionId: "session-same",
+        attemptEventId: "close-attempt-row-1",
+        successEventId: "close-success-same",
+      },
+      "duplicate-row-event-identity",
+    );
+    const rowsBeforeSecondClose = rowReady.rows;
+    const episodesBeforeSecondClose = rowReady.episodes;
+    const secondClose = fold(rowReady, {
+      kind: "record-row-close",
+      rowId: "row-1",
+      sessionId: "session-1",
+      attemptEventId: "second-close-attempt",
+      successEventId: "second-close-success",
+    });
+    expect(secondClose.error).toBe("post-close-success-row-event");
+    expect(secondClose.ledger).toBe(rowReady);
+    expect(secondClose.ledger.rows).toEqual(rowsBeforeSecondClose);
+    expect(secondClose.ledger.episodes).toEqual(episodesBeforeSecondClose);
     expectRejected(
       rowReady,
       {
@@ -6113,7 +6189,27 @@ describe("play subagent routing source contracts", () => {
       episodeId: "episode-1",
       evidence: manual("episode-1", inventory()),
     });
+    expectRejected(
+      readyForManual,
+      {
+        kind: "reconstruct",
+        episodeId: "episode-1",
+        lifecycleAnchor: "",
+        repositoryAnchor: "main@abc123",
+      },
+      "reconstruction-anchors-missing",
+    );
     const ready = apply(readyForManual, reconstruct("episode-1"));
+    expectRejected(
+      ready,
+      {
+        kind: "authorize",
+        episodeId: "episode-1",
+        evidence: manual("episode-1", inventory()),
+      },
+      "episode-not-authorizing",
+    );
+    expectRejected(ready, reconstruct("episode-1"), "episode-not-authorizing");
     expectRejected(
       ready,
       result("episode-1", "succeeded"),
