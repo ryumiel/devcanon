@@ -5095,9 +5095,14 @@ describe("play subagent routing source contracts", () => {
     }>;
     type RowEvent = Readonly<{
       eventId: string;
-      kind: "close-attempted" | "close-succeeded";
+      kind:
+        | "close-attempted"
+        | "close-failed"
+        | "close-succeeded"
+        | "closure-unavailable";
       order: number;
       sessionId: string;
+      reason?: string;
     }>;
     type PreparationEvent = Readonly<{
       kind:
@@ -5106,8 +5111,7 @@ describe("play subagent routing source contracts", () => {
         | "abnormal-context-captured"
         | "close-deferred"
         | "replacement-secured"
-        | "retention-resolved"
-        | "manual-cleanup-path-opened";
+        | "retention-resolved";
       order: number;
       state?:
         | "active"
@@ -5128,7 +5132,7 @@ describe("play subagent routing source contracts", () => {
       inventoryEvidenceId?: string;
       history: readonly RowEvent[];
       preparationHistory: readonly PreparationEvent[];
-      projection: "closed=no" | "closed=yes";
+      projection: "closed=no" | "closed=yes" | "close-unavailable";
     }>;
     type Authorization = Readonly<
       | {
@@ -5565,7 +5569,9 @@ describe("play subagent routing source contracts", () => {
             : row.sessionId !== null) ||
           (row.inventoryEvidenceId !== undefined &&
             !sanitizedIdentity(row.inventoryEvidenceId)) ||
-          (row.projection !== "closed=no" && row.projection !== "closed=yes")
+          (row.projection !== "closed=no" &&
+            row.projection !== "closed=yes" &&
+            row.projection !== "close-unavailable")
         ) {
           return false;
         }
@@ -5578,9 +5584,18 @@ describe("play subagent routing source contracts", () => {
           const event = row.history[index];
           if (
             !isRecord(event) ||
-            !exactKeys(event, ["eventId", "kind", "order", "sessionId"]) ||
-            (event.kind !== "close-attempted" &&
-              event.kind !== "close-succeeded") ||
+            !exactKeys(
+              event,
+              event.kind === "closure-unavailable"
+                ? ["eventId", "kind", "order", "sessionId", "reason"]
+                : ["eventId", "kind", "order", "sessionId"],
+            ) ||
+            ![
+              "close-attempted",
+              "close-failed",
+              "close-succeeded",
+              "closure-unavailable",
+            ].includes(event.kind) ||
             !sanitizedIdentity(event.eventId) ||
             eventIds.has(event.eventId) ||
             !Number.isInteger(event.order) ||
@@ -5588,19 +5603,23 @@ describe("play subagent routing source contracts", () => {
             event.order > ledger.order ||
             event.sessionId !== row.sessionId ||
             row.identityState !== "stable" ||
-            (sawSuccess && index > 0)
+            (event.kind === "closure-unavailable" &&
+              !validProvenance(event.reason)) ||
+            sawSuccess
           ) {
             return false;
           }
           if (
-            event.kind === "close-succeeded" &&
+            (event.kind === "close-succeeded" ||
+              event.kind === "close-failed") &&
             row.history[index - 1]?.kind !== "close-attempted"
           ) {
             return false;
           }
           if (
             event.kind === "close-attempted" &&
-            row.history[index + 1]?.kind !== "close-succeeded"
+            row.history[index + 1]?.kind !== "close-succeeded" &&
+            row.history[index + 1]?.kind !== "close-failed"
           ) {
             return false;
           }
@@ -5608,7 +5627,12 @@ describe("play subagent routing source contracts", () => {
           previousOrder = event.order;
           sawSuccess ||= event.kind === "close-succeeded";
         }
-        if ((row.projection === "closed=yes") !== sawSuccess) return false;
+        const derivedProjection = sawSuccess
+          ? "closed=yes"
+          : row.history.at(-1)?.kind === "closure-unavailable"
+            ? "close-unavailable"
+            : "closed=no";
+        if (row.projection !== derivedProjection) return false;
         previousOrder = 0;
         for (const event of row.preparationHistory) {
           if (
@@ -5627,7 +5651,6 @@ describe("play subagent routing source contracts", () => {
             "close-deferred": ["kind", "order", "reason"],
             "replacement-secured": ["kind", "order", "evidence"],
             "retention-resolved": ["kind", "order", "basis", "evidence"],
-            "manual-cleanup-path-opened": ["kind", "order", "evidence"],
           };
           const required = requiredByKind[event.kind];
           if (required === undefined || !exactKeys(event, required))
@@ -5713,11 +5736,24 @@ describe("play subagent routing source contracts", () => {
         }
       }
       if (requireManualPath) {
-        const manualPath = [...row.preparationHistory]
+        const manualPath = [...row.history]
           .reverse()
-          .find((event) => event.kind === "manual-cleanup-path-opened");
-        if (manualPath === undefined || manualPath.order <= operational.order) {
+          .find(
+            (event) =>
+              event.kind === "close-failed" ||
+              event.kind === "closure-unavailable",
+          );
+        if (manualPath === undefined) {
           return "row-preparation-manual-path";
+        }
+        const resolution = [...row.preparationHistory]
+          .reverse()
+          .find((event) => event.kind === "retention-resolved");
+        if (
+          manualPath.order <=
+          Math.max(operational.order, capture.order, resolution?.order ?? 0)
+        ) {
+          return "row-preparation-manual-path-stale";
         }
       }
       return undefined;
@@ -6122,6 +6158,10 @@ describe("play subagent routing source contracts", () => {
         ) {
           return fail(ledger, "invalid-row-close-record");
         }
+        const preparationError = rowPreparationError(row, false);
+        if (preparationError !== undefined) {
+          return fail(ledger, preparationError);
+        }
         if (
           ledger.rows.some((candidate) =>
             candidate.history.some(
@@ -6454,26 +6494,53 @@ describe("play subagent routing source contracts", () => {
           order: 2,
           evidence: "row state captured",
         },
-        {
-          kind: "manual-cleanup-path-opened",
-          order: 3,
-          evidence: "operator cleanup required",
-        },
       ],
       projection: "closed=no",
     });
-    const emptyLedger = (): Ledger =>
-      freezeLedger({
-        order: 3,
+    const emptyLedger = (): Ledger => {
+      const failedManualRow: RowRecord = {
+        ...row("manual-failed-row", "session-manual-failed"),
+        history: [
+          {
+            eventId: "manual-failed-attempt",
+            kind: "close-attempted",
+            order: 3,
+            sessionId: "session-manual-failed",
+          },
+          {
+            eventId: "manual-failed-result",
+            kind: "close-failed",
+            order: 4,
+            sessionId: "session-manual-failed",
+          },
+        ],
+      };
+      const unavailableManualRow: RowRecord = {
+        ...row("manual-unavailable-row", "session-manual-unavailable"),
+        history: [
+          {
+            eventId: "manual-unavailable-result",
+            kind: "closure-unavailable",
+            order: 3,
+            sessionId: "session-manual-unavailable",
+            reason: "no usable close operation",
+          },
+        ],
+        projection: "close-unavailable",
+      };
+      return freezeLedger({
+        order: 4,
         rows: [
           row("row-1", "session-1"),
           row("same", "session-same"),
-          row("manual-row", "session-manual"),
+          failedManualRow,
+          unavailableManualRow,
         ],
         episodes: [],
         originEpisodes: [],
         retryDispatches: 0,
       });
+    };
     const ledgerRow = (identity = "row-1"): BlockerRef => ({
       kind: "ledger-row",
       identity,
@@ -6685,6 +6752,50 @@ describe("play subagent routing source contracts", () => {
         ),
       ),
     );
+    for (const forgedRow of [
+      {
+        history: [
+          {
+            eventId: "unpaired-failed",
+            kind: "close-failed",
+            order: 3,
+            sessionId: "session-1",
+          },
+        ],
+        projection: "closed=no" as const,
+      },
+      {
+        history: [
+          {
+            eventId: "missing-unavailable-reason",
+            kind: "closure-unavailable",
+            order: 3,
+            sessionId: "session-1",
+          } as unknown as RowEvent,
+        ],
+        projection: "close-unavailable" as const,
+      },
+      {
+        history: [
+          {
+            eventId: "mismatched-unavailable-projection",
+            kind: "closure-unavailable",
+            order: 3,
+            sessionId: "session-1",
+            reason: "no usable close operation",
+          },
+        ],
+        projection: "closed=no" as const,
+      },
+    ] as Array<Pick<RowRecord, "history" | "projection">>) {
+      expectInvalidLedger(
+        forgeRows(emptyLedger(), (rows) =>
+          rows.map((row) =>
+            row.rowId === "row-1" ? { ...row, ...forgedRow } : row,
+          ),
+        ),
+      );
+    }
     const closedOnce = apply(emptyLedger(), {
       kind: "record-row-close",
       rowId: "row-1",
@@ -7040,16 +7151,35 @@ describe("play subagent routing source contracts", () => {
       expect(folded.input).toBe(malformedNestedLedger);
       expect(folded.ledger).toBeUndefined();
     }
-    let preparedManual = apply(
+    let preparedManualFailed = apply(
       emptyLedger(),
-      start("origin-manual", "episode-manual", [ledgerRow("manual-row")]),
+      start("origin-manual-failed", "episode-manual-failed", [
+        ledgerRow("manual-failed-row"),
+      ]),
     );
-    preparedManual = apply(preparedManual, {
+    preparedManualFailed = apply(preparedManualFailed, {
       kind: "authorize",
-      episodeId: "episode-manual",
-      evidence: manual("episode-manual", ledgerRow("manual-row")),
+      episodeId: "episode-manual-failed",
+      evidence: manual("episode-manual-failed", ledgerRow("manual-failed-row")),
     });
-    expect(preparedManual.episodes[0]?.authorizations).toHaveLength(1);
+    expect(preparedManualFailed.episodes[0]?.authorizations).toHaveLength(1);
+    let preparedManualUnavailable = apply(
+      emptyLedger(),
+      start("origin-manual-unavailable", "episode-manual-unavailable", [
+        ledgerRow("manual-unavailable-row"),
+      ]),
+    );
+    preparedManualUnavailable = apply(preparedManualUnavailable, {
+      kind: "authorize",
+      episodeId: "episode-manual-unavailable",
+      evidence: manual(
+        "episode-manual-unavailable",
+        ledgerRow("manual-unavailable-row"),
+      ),
+    });
+    expect(preparedManualUnavailable.episodes[0]?.authorizations).toHaveLength(
+      1,
+    );
     const preparationLedger = (
       history: PreparationEvent[],
       identityState: RowRecord["identityState"] = "stable",
@@ -7089,27 +7219,44 @@ describe("play subagent routing source contracts", () => {
         error,
       );
     };
+    const resolvedPreparation = preparationLedger([
+      { kind: "operational-state", order: 1, state: "completed" },
+      {
+        kind: "required-state-captured",
+        order: 2,
+        evidence: "captured",
+      },
+      { kind: "close-deferred", order: 3, reason: "followup needed" },
+      {
+        kind: "retention-resolved",
+        order: 4,
+        basis: "need-finished",
+        evidence: "followup finished",
+      },
+    ]);
+    const resolvedPath = freezeLedger({
+      ...resolvedPreparation,
+      order: 5,
+      rows: resolvedPreparation.rows.map((row) =>
+        row.rowId === "row-1"
+          ? {
+              ...row,
+              history: [
+                {
+                  eventId: "resolved-unavailable",
+                  kind: "closure-unavailable" as const,
+                  order: 5,
+                  sessionId: "session-1",
+                  reason: "no usable close operation",
+                },
+              ],
+              projection: "close-unavailable" as const,
+            }
+          : row,
+      ),
+    });
     let resolvedManual = apply(
-      preparationLedger([
-        { kind: "operational-state", order: 1, state: "completed" },
-        {
-          kind: "required-state-captured",
-          order: 2,
-          evidence: "captured",
-        },
-        { kind: "close-deferred", order: 3, reason: "followup needed" },
-        {
-          kind: "retention-resolved",
-          order: 4,
-          basis: "need-finished",
-          evidence: "followup finished",
-        },
-        {
-          kind: "manual-cleanup-path-opened",
-          order: 5,
-          evidence: "manual path",
-        },
-      ]),
+      resolvedPath,
       start("origin-resolved", "episode-resolved", [ledgerRow()]),
     );
     resolvedManual = apply(resolvedManual, {
@@ -7127,11 +7274,6 @@ describe("play subagent routing source contracts", () => {
             order: 2,
             evidence: "state captured",
           },
-          {
-            kind: "manual-cleanup-path-opened",
-            order: 3,
-            evidence: "manual path",
-          },
         ],
         "row-preparation-operational-state",
       );
@@ -7147,23 +7289,11 @@ describe("play subagent routing source contracts", () => {
       [
         { kind: "required-state-captured", order: 1, evidence: "stale" },
         { kind: "operational-state", order: 2, state: "completed" },
-        {
-          kind: "manual-cleanup-path-opened",
-          order: 3,
-          evidence: "manual path",
-        },
       ],
       "row-preparation-capture-stale",
     );
     expectManualPreparationFailure(
-      [
-        { kind: "operational-state", order: 1, state: "completed" },
-        {
-          kind: "manual-cleanup-path-opened",
-          order: 2,
-          evidence: "manual path",
-        },
-      ],
+      [{ kind: "operational-state", order: 1, state: "completed" }],
       "row-preparation-capture-stale",
     );
     expectManualPreparationFailure(
@@ -7173,11 +7303,6 @@ describe("play subagent routing source contracts", () => {
           kind: "required-state-captured",
           order: 2,
           evidence: "failure captured",
-        },
-        {
-          kind: "manual-cleanup-path-opened",
-          order: 3,
-          evidence: "manual path",
         },
       ],
       "row-preparation-abnormal-context",
@@ -7191,11 +7316,6 @@ describe("play subagent routing source contracts", () => {
           evidence: "captured",
         },
         { kind: "close-deferred", order: 3, reason: "followup needed" },
-        {
-          kind: "manual-cleanup-path-opened",
-          order: 4,
-          evidence: "manual path",
-        },
       ],
       "row-preparation-retention-unresolved",
     );
@@ -7213,11 +7333,6 @@ describe("play subagent routing source contracts", () => {
           order: 4,
           basis: "captured-and-replaced",
           evidence: "invalid proof",
-        },
-        {
-          kind: "manual-cleanup-path-opened",
-          order: 5,
-          evidence: "manual path",
         },
       ],
       "row-preparation-retention-proof",
@@ -7237,11 +7352,6 @@ describe("play subagent routing source contracts", () => {
           evidence: "captured",
         },
         { kind: "close-deferred", order: 4, reason: "followup needed" },
-        {
-          kind: "manual-cleanup-path-opened",
-          order: 5,
-          evidence: "manual path",
-        },
       ],
       "row-preparation-retention-unresolved",
     );
@@ -7256,7 +7366,48 @@ describe("play subagent routing source contracts", () => {
       ],
       "row-preparation-manual-path",
     );
-    let unpreparedClose = apply(
+    const stalePathBase = preparationLedger([
+      { kind: "operational-state", order: 2, state: "completed" },
+      {
+        kind: "required-state-captured",
+        order: 3,
+        evidence: "captured after cleanup path",
+      },
+    ]);
+    const stalePathLedger = freezeLedger({
+      ...stalePathBase,
+      rows: stalePathBase.rows.map((row) =>
+        row.rowId === "row-1"
+          ? {
+              ...row,
+              history: [
+                {
+                  eventId: "stale-unavailable",
+                  kind: "closure-unavailable" as const,
+                  order: 1,
+                  sessionId: "session-1",
+                  reason: "no usable close operation",
+                },
+              ],
+              projection: "close-unavailable" as const,
+            }
+          : row,
+      ),
+    });
+    const stalePathStarted = apply(
+      stalePathLedger,
+      start("origin-stale-path", "episode-stale-path", [ledgerRow()]),
+    );
+    expectRejected(
+      stalePathStarted,
+      {
+        kind: "authorize",
+        episodeId: "episode-stale-path",
+        evidence: manual("episode-stale-path", ledgerRow()),
+      },
+      "row-preparation-manual-path-stale",
+    );
+    const unpreparedClose = apply(
       preparationLedger([
         { kind: "operational-state", order: 1, state: "active" },
         {
@@ -7267,21 +7418,14 @@ describe("play subagent routing source contracts", () => {
       ]),
       start("origin-close-prep", "episode-close-prep", [ledgerRow()]),
     );
-    unpreparedClose = apply(unpreparedClose, {
-      kind: "record-row-close",
-      rowId: "row-1",
-      sessionId: "session-1",
-      attemptEventId: "close-prep-attempt",
-      successEventId: "close-prep-success",
-    });
     expectRejected(
       unpreparedClose,
       {
-        kind: "authorize",
-        episodeId: "episode-close-prep",
-        evidence: closeEvidence("episode-close-prep", ledgerRow(), {
-          rowEventId: "close-prep-success",
-        }),
+        kind: "record-row-close",
+        rowId: "row-1",
+        sessionId: "session-1",
+        attemptEventId: "close-prep-attempt",
+        successEventId: "close-prep-success",
       },
       "row-preparation-operational-state",
     );
