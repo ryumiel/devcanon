@@ -121,10 +121,11 @@ cleanup for the current episode before retrying. Require every tagged snapshot
 blocker to pass the shared owner's kind-specific current-episode authorization
 before reconstruction. A current-episode, blocker-scoped
 `manual-cleanup-confirmed` event authorizes only its exact blocker, never the
-retry by itself, and does not prove closure or add a cleanup family. Only after
-complete all-blocker authorization may the shared owner reconstruct; it then
-consumes one retry dispatch and records exactly one terminal retry result. An
-unresolved need stops and escalates without retrying.
+retry by itself, and does not prove closure or add a cleanup family. Complete
+all-blocker authorization is required before reconstruction. The shared owner
+finishes reconstruction before retry dispatch. The owner consumes exactly one
+retry dispatch. After that dispatch, the owner records exactly one terminal
+retry result. An unresolved need stops and escalates without retrying.
 
 ## Single-Task Final-Review Carve-Out
 

@@ -10496,85 +10496,136 @@ describe("play subagent routing source contracts", () => {
     const phase6RecoveryParityErrors = (surface: string): string[] => {
       const normalizedSurface = normalizeWhitespace(surface);
       const errors: string[] = [];
-      if (
-        !normalizedSurface.includes(
-          "complete immutable exact-tag capacity-blocker snapshot",
-        )
-      ) {
-        errors.push("complete-exact-tag-snapshot");
+      const snapshotPattern =
+        /its (\S+) (\S+) (\S+) capacity-blocker snapshot/u;
+      const snapshot = normalizedSurface.match(snapshotPattern);
+      if (snapshot?.[1] !== "complete") errors.push("snapshot-completeness");
+      if (snapshot?.[2] !== "immutable") errors.push("snapshot-immutability");
+      if (snapshot?.[3] !== "exact-tag") errors.push("snapshot-exact-tag");
+
+      const authorizationPattern =
+        /Require (\S+) tagged snapshot blocker to pass the shared owner's (\S+) (\S+) authorization before reconstruction/u;
+      const authorization = normalizedSurface.match(authorizationPattern);
+      if (authorization?.[1] !== "every") {
+        errors.push("every-blocker-authorization");
+      }
+      if (authorization?.[2] !== "kind-specific") {
+        errors.push("kind-specific-evidence");
+      }
+      if (authorization?.[3] !== "current-episode") {
+        errors.push("current-episode-binding");
+      }
+      if (!normalizedSurface.includes("authorizes only its exact blocker")) {
+        errors.push("exact-blocker-manual-scope");
+      }
+      if (!normalizedSurface.includes("never the retry by itself")) {
+        errors.push("manual-never-authorizes-retry");
       }
       if (
-        !normalizedSurface.includes("Require every tagged snapshot blocker")
+        !normalizedSurface.includes(
+          "Complete all-blocker authorization is required before reconstruction",
+        )
       ) {
-        errors.push("every-snapshot-blocker");
+        errors.push("complete-authorization-before-reconstruction");
       }
       if (
         !normalizedSurface.includes(
-          "shared owner's kind-specific current-episode authorization",
+          "The shared owner finishes reconstruction before retry dispatch",
         )
       ) {
-        errors.push("kind-specific-current-episode-authorization");
+        errors.push("reconstruction-before-dispatch");
       }
       if (
         !normalizedSurface.includes(
-          "authorizes only its exact blocker, never the retry by itself",
+          "The owner consumes exactly one retry dispatch",
         )
       ) {
-        errors.push("blocker-scoped-confirmation");
+        errors.push("exactly-one-dispatch");
       }
       if (
         !normalizedSurface.includes(
-          "Only after complete all-blocker authorization may the shared owner reconstruct; it then consumes one retry dispatch and records exactly one terminal retry result",
+          "After that dispatch, the owner records exactly one terminal retry result",
         )
       ) {
-        errors.push("reconstruct-dispatch-terminal-order");
+        errors.push("exactly-one-terminal-result-after-dispatch");
       }
       return errors;
     };
 
+    const phase6ParityMutations = [
+      {
+        error: "snapshot-completeness",
+        from: "complete immutable exact-tag capacity-blocker snapshot",
+        to: "partial immutable exact-tag capacity-blocker snapshot",
+      },
+      {
+        error: "snapshot-immutability",
+        from: "complete immutable exact-tag capacity-blocker snapshot",
+        to: "complete mutable exact-tag capacity-blocker snapshot",
+      },
+      {
+        error: "snapshot-exact-tag",
+        from: "complete immutable exact-tag capacity-blocker snapshot",
+        to: "complete immutable untagged capacity-blocker snapshot",
+      },
+      {
+        error: "every-blocker-authorization",
+        from: "Require every tagged snapshot blocker",
+        to: "Require some tagged snapshot blocker",
+      },
+      {
+        error: "kind-specific-evidence",
+        from: "shared owner's kind-specific current-episode authorization",
+        to: "shared owner's generic current-episode authorization",
+      },
+      {
+        error: "current-episode-binding",
+        from: "shared owner's kind-specific current-episode authorization",
+        to: "shared owner's kind-specific stale-episode authorization",
+      },
+      {
+        error: "exact-blocker-manual-scope",
+        from: "authorizes only its exact blocker",
+        to: "authorizes a different blocker",
+      },
+      {
+        error: "manual-never-authorizes-retry",
+        from: "never the retry by itself",
+        to: "also the retry by itself",
+      },
+      {
+        error: "complete-authorization-before-reconstruction",
+        from: "Complete all-blocker authorization is required before reconstruction",
+        to: "Reconstruction may begin before complete all-blocker authorization",
+      },
+      {
+        error: "reconstruction-before-dispatch",
+        from: "The shared owner finishes reconstruction before retry dispatch",
+        to: "The shared owner may dispatch before reconstruction finishes",
+      },
+      {
+        error: "exactly-one-dispatch",
+        from: "The owner consumes exactly one retry dispatch",
+        to: "The owner may consume two retry dispatches",
+      },
+      {
+        error: "exactly-one-terminal-result-after-dispatch",
+        from: "After that dispatch, the owner records exactly one terminal retry result",
+        to: "Before dispatch, the owner may record multiple terminal retry results",
+      },
+    ] as const;
+
     for (const surface of [issuePhase6Section, phase6Reference]) {
       const normalizedSurface = normalizeWhitespace(surface);
       expect(phase6RecoveryParityErrors(surface)).toEqual([]);
-      expect(
-        phase6RecoveryParityErrors(
-          normalizedSurface.replace(
-            "complete immutable exact-tag capacity-blocker snapshot",
-            "representative capacity-blocker snapshot",
+      for (const mutation of phase6ParityMutations) {
+        expect(normalizedSurface).toContain(mutation.from);
+        expect(
+          phase6RecoveryParityErrors(
+            normalizedSurface.replace(mutation.from, mutation.to),
           ),
-        ),
-      ).toEqual(["complete-exact-tag-snapshot"]);
-      expect(
-        phase6RecoveryParityErrors(
-          normalizedSurface.replace(
-            "Require every tagged snapshot blocker",
-            "Require some tagged snapshot blockers",
-          ),
-        ),
-      ).toEqual(["every-snapshot-blocker"]);
-      expect(
-        phase6RecoveryParityErrors(
-          normalizedSurface.replace(
-            "shared owner's kind-specific current-episode authorization",
-            "shared owner's generic authorization",
-          ),
-        ),
-      ).toEqual(["kind-specific-current-episode-authorization"]);
-      expect(
-        phase6RecoveryParityErrors(
-          normalizedSurface.replace(
-            "authorizes only its exact blocker, never the retry by itself",
-            "authorizes the retry",
-          ),
-        ),
-      ).toEqual(["blocker-scoped-confirmation"]);
-      expect(
-        phase6RecoveryParityErrors(
-          normalizedSurface.replace(
-            "Only after complete all-blocker authorization may the shared owner reconstruct; it then consumes one retry dispatch and records exactly one terminal retry result",
-            "The shared owner reconstructs before authorization and may dispatch again",
-          ),
-        ),
-      ).toEqual(["reconstruct-dispatch-terminal-order"]);
+        ).toEqual([mutation.error]);
+      }
       expect(normalizedSurface).toContain(
         "successful, unavailable, deliberately deferred, or failed-attempt cleanup history",
       );
