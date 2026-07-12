@@ -8996,13 +8996,13 @@ describe("play subagent routing source contracts", () => {
       }
       if (
         !example.includes(
-          "projecting terminal retry-failed with sanitized escalation limited to",
+          'stored episode escalation={"inventory":"unavailable","remainingBlockers":["inventory-only:orphan-inventory"]}',
         ) ||
         !example.includes(
-          "contains no prompts, transcripts, logs, stack traces",
+          "The closed stored payload contains no extra fields, prompts, transcripts, logs, stack traces",
         )
       ) {
-        errors.push("sanitized-terminal-failure");
+        errors.push("closed-stored-escalation");
       }
       if (
         !example.includes(
@@ -9097,6 +9097,14 @@ describe("play subagent routing source contracts", () => {
         ),
       ),
     ).toEqual(["consumed-origin-reuse"]);
+    expect(
+      terminalInventoryFailureErrors(
+        slotLimitAutomaticCloseFailure.replace(
+          'stored episode escalation={"inventory":"unavailable","remainingBlockers":["inventory-only:orphan-inventory"]}',
+          'stored episode escalation={"inventory":"unavailable","remainingBlockers":["inventory-only:orphan-inventory"],"role":"reviewer"}',
+        ),
+      ),
+    ).toEqual(["closed-stored-escalation"]);
     expect(targetCapabilityExamples).toContain(
       "first captures each completed session's role-specific state",
     );
