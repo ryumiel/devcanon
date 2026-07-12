@@ -340,10 +340,20 @@ When a spawn fails because of a slot/session limit:
 
 1. Classify the failure as orchestration resource exhaustion in the lifecycle
    ledger before considering any retry. Append `slot-recovery-started` with a
-   new sanitized episode identity and the sanitized identity snapshot of every
-   capacity-blocking row. A spawn without a slot-limit signal remains under the
-   normal cleanup gate and does not activate this retry path.
-2. Classify every capacity-blocking open row before cleanup:
+   new sanitized episode identity and a complete, immutable snapshot of every
+   observed capacity blocker. Each blocker reference has exactly one tag and
+   sanitized identity: `ledger-row:<row-id>` or
+   `inventory-only:<inventory-id>`. Snapshot a ledger row once even when it
+   carries inventory evidence; do not create a second blocker from that
+   evidence. A pure inventory-only blocker requires no fabricated ledger row.
+   Equal raw identity values under different tags are distinct only when both
+   tagged blockers were independently observed. Reject an empty snapshot,
+   duplicate same-tag references, missing or unsanitized tags or identities,
+   and any later retagging or reconciliation. A spawn without a slot-limit
+   signal remains under the normal cleanup gate and does not activate this
+   retry path.
+2. Classify every capacity-blocking ledger row before cleanup. Inventory-only
+   blockers have no row lifecycle state to classify or mutate:
 3. For `active`, reach a safe boundary and capture state; unsafe capture stops
    and escalates.
 4. For `waiting`, capture the open question and needed context.
@@ -373,26 +383,37 @@ When a spawn fails because of a slot/session limit:
     state that inventory is unavailable. Use the same field allowlist and
     redaction rule described for retry-failure escalation below. Wait for
     operator confirmation that manual cleanup is complete before continuing.
-    For each affected blocking row or sanitized inventory identity, append
-    `manual-cleanup-confirmed` with the current recovery episode identity,
-    blocker identity, sanitized confirmation provenance, and time.
-    This evidence does not change its target-honest cleanup projection and never
-    fabricates `closed=yes`.
-11. Reconstruct active workflow state from the lifecycle ledger and the
-    repository state anchors the owning workflow uses, such as `git status`,
-    current branch, and relevant base/head SHAs.
-12. Retry the spawn exactly once only when every row in the current episode's
-    blocker snapshot has either current-episode `close-succeeded` evidence or a
-    correctly scoped current-episode `manual-cleanup-confirmed` event. Preserve
+    For each affected tagged blocker reference, append exactly one
+    `manual-cleanup-confirmed` with the current recovery episode identity, exact
+    blocker tag and identity, sanitized confirmation provenance, and time.
+    This evidence does not change any target-honest ledger cleanup projection
+    and never fabricates `closed=yes`.
+11. Validate authorization before reconstruction. First validate the current
+    episode and immutable snapshot shape, then exact snapshot membership and
+    tag, then the evidence kind. A ledger-row blocker accepts exactly one
+    current-episode `close-succeeded` or `manual-cleanup-confirmed` event bound
+    to its exact tagged identity. An inventory-only blocker accepts exactly one
+    current-episode `manual-cleanup-confirmed` event with sanitized provenance
+    and time; it cannot accept `close-succeeded` because it has no row cleanup
+    projection. Reject stale-episode, non-snapshot, cross-kind, repeated, or
+    incomplete evidence. A second otherwise-valid authorization for one
+    blocker fails closed instead of overwriting or deduplicating the first.
+    Invalid evidence never changes ledger projections or append-only history.
+12. Only after every snapshot blocker independently passes its kind-specific
+    authorization, reconstruct active workflow state from the lifecycle ledger
+    and the repository state anchors the owning workflow uses, such as
+    `git status`, current branch, and relevant base/head SHAs.
+13. Retry the spawn exactly once only when every tagged blocker reference in
+    the current episode's immutable snapshot is authorized. Preserve
     earlier episode evidence as append-only history, but never use it to
     authorize the current retry. Missing, stale-episode, or mis-scoped
-    confirmation is not authorization. `retention-resolved` is necessary for a formerly deferred
-    blocker but is not retry authorization or closure proof. A manual
-    confirmation preserves `closed=no` or
+    confirmation is not authorization. `retention-resolved` is necessary for a
+    formerly deferred blocker but is not retry authorization or closure proof.
+    A manual confirmation preserves `closed=no` or
     `close-unavailable: <reason>`; it is not closure proof.
     A failed automatic close with `closed=no` is not permission to retry the
     spawn without that scoped confirmation evidence.
-13. If the retry still fails, stop and escalate to the user with a sanitized
+14. If the retry still fails, stop and escalate to the user with a sanitized
     summary of the reconstructed state and remaining open-agent inventory, or
     with a clear statement that inventory is unavailable. Include only session
     ids, operational state, observed workflow return status, role, scope, and

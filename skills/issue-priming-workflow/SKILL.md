@@ -350,11 +350,15 @@ are exhausted, follow `subagent-lifecycle` § Slot-Limit Recovery. Preserve the
 captured research scope, report result, source references, blocker state,
 lifecycle ledger, and repository anchors across that shared recovery procedure.
 Start each slot-exhaustion recovery with a new sanitized recovery episode
-identity and a sanitized snapshot of every capacity-blocking row or identity.
-Bind every `close-succeeded` or `manual-cleanup-confirmed` event used for retry
-to that current episode and blocker. Preserve earlier episode evidence as
-append-only history, but never use stale-episode or non-snapshot evidence to
-authorize the current retry.
+identity and the shared owner's complete immutable snapshot of every observed
+tagged `ledger-row` or `inventory-only` blocker reference. Bind every
+`close-succeeded` or `manual-cleanup-confirmed` event used for retry to that
+current episode and exact tagged blocker identity. Follow the owner's
+kind-specific evidence rules and authorize retry only after every snapshot
+blocker passes independently; inventory-only blockers accept manual
+confirmation, never row close success. Preserve earlier episode evidence as
+append-only history, but never use stale-episode, non-snapshot, or cross-kind
+evidence to authorize the current retry.
 Before any manual cleanup, use the owner classifications for open blockers:
 active rows wait or steer to a safe capture boundary or stop; waiting rows are
 retained or safely replaced. A row whose current operational state is
@@ -365,8 +369,9 @@ than its latest interruption; project `active`, preserve history, and add no
 completion or return. After fresh capture, guarded reuse or deliberate
 retention requires no replacement; supersession alone requires secured
 replacement state. Pending or unknown rows resolve identity or stop without
-fabricated cleanup. Record row-scoped `manual-cleanup-confirmed` evidence before
-reconstruction and retry while preserving the row's honest cleanup outcome.
+fabricated cleanup. Record blocker-scoped `manual-cleanup-confirmed` evidence
+before reconstruction and retry while preserving the row's honest cleanup
+outcome.
 When a capacity-blocking row was deliberately retained, require current
 `completed`, `timed-out`, `failed`, or `superseded` and fresh capture. If the
 deferred need finished, append
@@ -722,8 +727,8 @@ research error/blocker detail before cleanup.
 Normal cleanup may continue with target-honest open evidence, but shared
 slot-limit recovery remains blocked until actual closure or
 operator-confirmed manual cleanup bound to the current recovery episode and
-its capacity-blocker snapshot. Earlier episode evidence never authorizes the
-current retry.
+its complete immutable tagged capacity-blocker snapshot. Earlier episode
+evidence never authorizes the current retry.
 A capacity-blocking retained session requires current `completed`, `timed-out`,
 `failed`, or `superseded` and fresh capture. If the deferred need finished,
 append `retention-resolved(basis=need-finished, evidence=...)`. Otherwise
@@ -734,10 +739,11 @@ historical `close-deferred` reason and apply the canonical
 post-resolution projection: cleanup evaluation remains `evaluated`, current
 cleanup decision is `none`, current retention and unavailable reasons are
 absent, and cleanup is `closed=no`. Then obtain actual or operator-confirmed
-cleanup for the current episode before retrying. A current-episode,
-blocker-scoped `manual-cleanup-confirmed` event authorizes retry but does not
-prove closure or add a cleanup family. An unresolved need stops and escalates
-without retrying.
+cleanup for the current episode before retrying. Require every tagged snapshot
+blocker to pass the shared owner's kind-specific authorization rules before
+reconstruction. A current-episode, blocker-scoped `manual-cleanup-confirmed`
+event authorizes its exact blocker but does not prove closure or add a cleanup
+family. An unresolved need stops and escalates without retrying.
 
 Invoke `play-subagent-execution` and pass the plan as a `Plan: <path>`
 reference plus `Auto handoff: <repo-relative-path>` in the invocation prose, NOT

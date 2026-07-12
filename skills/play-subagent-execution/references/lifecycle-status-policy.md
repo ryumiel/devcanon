@@ -39,12 +39,16 @@ clears current retention and unavailable reasons, and projects `closed=no`;
 histories and resolution evidence remain append-only. A later close or
 `closure-unavailable` event selects an existing cleanup family.
 
-For slot exhaustion, record a new current recovery episode identity and its
-capacity-blocker snapshot before cleanup. Bind every close or
-`manual-cleanup-confirmed` event used for retry to that episode and blocker.
-Earlier episode evidence remains history but never authorizes a later retry.
-`manual-cleanup-confirmed` is separate row-scoped retry authorization, not
-closure proof, `retention-resolved`, or another cleanup family.
+For slot exhaustion, record a new current recovery episode identity and the
+shared owner's complete immutable snapshot of tagged `ledger-row` and
+`inventory-only` blocker references before cleanup. Bind every close or
+`manual-cleanup-confirmed` event used for retry to that episode and exact tagged
+blocker identity. Follow the owner's kind-specific evidence rules and authorize
+retry only after every snapshot blocker passes independently; inventory-only
+blockers accept manual confirmation, never row close success. Earlier episode
+evidence remains history but never authorizes a later retry.
+`manual-cleanup-confirmed` is separate blocker-scoped retry authorization, not
+closure proof, `retention-resolved`, reconciliation, or another cleanup family.
 
 ## Handling Implementer Status
 

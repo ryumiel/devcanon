@@ -799,21 +799,21 @@ describe("play subagent routing source contracts", () => {
       const errors: string[] = [];
       if (
         !normalizedSection.includes(
-          "Start each slot-exhaustion recovery with a new sanitized recovery episode identity and a sanitized snapshot of every capacity-blocking row or identity",
+          "Start each slot-exhaustion recovery with a new sanitized recovery episode identity and the shared owner's complete immutable snapshot of every observed tagged `ledger-row` or `inventory-only` blocker reference",
         )
       ) {
         errors.push("recovery-episode-snapshot");
       }
       if (
         !normalizedSection.includes(
-          "Bind every `close-succeeded` or `manual-cleanup-confirmed` event used for retry to that current episode and blocker",
+          "Bind every `close-succeeded` or `manual-cleanup-confirmed` event used for retry to that current episode and exact tagged blocker identity",
         )
       ) {
         errors.push("current-episode-binding");
       }
       if (
         !normalizedSection.includes(
-          "never use stale-episode or non-snapshot evidence to authorize the current retry",
+          "never use stale-episode, non-snapshot, or cross-kind evidence to authorize the current retry",
         )
       ) {
         errors.push("stale-episode-rejected");
@@ -903,7 +903,7 @@ describe("play subagent routing source contracts", () => {
       expect(normalizedPhase3).toContain(openStateRule);
     }
     expect(normalizedPhase3).toContain(
-      "Record row-scoped `manual-cleanup-confirmed` evidence before reconstruction and retry while preserving the row's honest cleanup outcome",
+      "Record blocker-scoped `manual-cleanup-confirmed` evidence before reconstruction and retry while preserving the row's honest cleanup outcome",
     );
     expect(lifecycleProjectionErrors(lifecycleConcurrentJoin)).toEqual([]);
     expect(immediateJoinRecoveryErrors(lifecycleConcurrentJoin)).toEqual([]);
@@ -923,8 +923,8 @@ describe("play subagent routing source contracts", () => {
     }
     expect(
       recoveryEpisodeErrors(
-        lifecycleConcurrentJoin.replace(
-          "that current episode and blocker",
+        normalizeWhitespace(lifecycleConcurrentJoin).replace(
+          "that current episode and exact tagged blocker identity",
           "any prior episode",
         ),
       ),
@@ -3047,10 +3047,16 @@ describe("play subagent routing source contracts", () => {
       "A spawn without a slot-limit signal remains under the normal cleanup gate and does not activate this retry path",
     );
     expect(normalizeWhitespace(slotLimitRecovery)).toContain(
-      "Append `slot-recovery-started` with a new sanitized episode identity and the sanitized identity snapshot of every capacity-blocking row",
+      "Append `slot-recovery-started` with a new sanitized episode identity and a complete, immutable snapshot of every observed capacity blocker",
     );
     expect(normalizeWhitespace(slotLimitRecovery)).toContain(
-      "Classify every capacity-blocking open row before cleanup",
+      "Each blocker reference has exactly one tag and sanitized identity: `ledger-row:<row-id>` or `inventory-only:<inventory-id>`",
+    );
+    expect(normalizeWhitespace(slotLimitRecovery)).toContain(
+      "A pure inventory-only blocker requires no fabricated ledger row",
+    );
+    expect(normalizeWhitespace(slotLimitRecovery)).toContain(
+      "Classify every capacity-blocking ledger row before cleanup. Inventory-only blockers have no row lifecycle state to classify or mutate",
     );
     expect(normalizeWhitespace(slotLimitRecovery)).toContain(
       "For `active`, reach a safe boundary and capture state; unsafe capture stops and escalates",
@@ -3085,23 +3091,26 @@ describe("play subagent routing source contracts", () => {
     expect(normalizeWhitespace(slotLimitRecovery)).toContain(
       "Wait for operator confirmation that manual cleanup is complete before continuing",
     );
-    expect(slotLimitRecovery).toContain(
-      "Reconstruct active workflow state from the lifecycle ledger",
+    expect(normalizeWhitespace(slotLimitRecovery)).toContain(
+      "reconstruct active workflow state from the lifecycle ledger",
     );
     expect(normalizeWhitespace(slotLimitRecovery)).toContain(
-      "For each affected blocking row or sanitized inventory identity, append `manual-cleanup-confirmed` with the current recovery episode identity, blocker identity, sanitized confirmation provenance, and time",
+      "For each affected tagged blocker reference, append exactly one `manual-cleanup-confirmed` with the current recovery episode identity, exact blocker tag and identity, sanitized confirmation provenance, and time",
     );
     expect(normalizeWhitespace(slotLimitRecovery)).toContain(
-      "This evidence does not change its target-honest cleanup projection and never fabricates `closed=yes`",
+      "This evidence does not change any target-honest ledger cleanup projection and never fabricates `closed=yes`",
     );
     expect(slotLimitRecovery.indexOf("manual-cleanup-confirmed")).toBeLessThan(
-      slotLimitRecovery.indexOf("Reconstruct active workflow state"),
+      slotLimitRecovery.indexOf("reconstruct active workflow state"),
     );
     expect(
-      slotLimitRecovery.indexOf("Reconstruct active workflow state"),
+      slotLimitRecovery.indexOf("reconstruct active workflow state"),
     ).toBeLessThan(slotLimitRecovery.indexOf("Retry the spawn exactly once"));
     expect(normalizeWhitespace(slotLimitRecovery)).toContain(
-      "Retry the spawn exactly once only when every row in the current episode's blocker snapshot has either current-episode `close-succeeded` evidence or a correctly scoped current-episode `manual-cleanup-confirmed` event",
+      "Retry the spawn exactly once only when every tagged blocker reference in the current episode's immutable snapshot is authorized",
+    );
+    expect(normalizeWhitespace(slotLimitRecovery)).toContain(
+      "An inventory-only blocker accepts exactly one current-episode `manual-cleanup-confirmed` event with sanitized provenance and time; it cannot accept `close-succeeded`",
     );
     expect(normalizeWhitespace(slotLimitRecovery)).toContain(
       "Preserve earlier episode evidence as append-only history, but never use it to authorize the current retry",
@@ -3149,7 +3158,7 @@ describe("play subagent routing source contracts", () => {
       "resolved same-session retention as an append-only decision event",
       "provider-neutral timeout and runtime-failure terminal outcomes",
       "classification and safe capture of open capacity-blocking rows",
-      "row-scoped manual-cleanup confirmation evidence",
+      "tagged-blocker-scoped manual-cleanup confirmation evidence",
       "recovery-episode-scoped blocker snapshots and retry evidence",
       "slot-limit recovery and one retry after cleanup or manual confirmation",
     ]) {
@@ -5081,7 +5090,291 @@ describe("play subagent routing source contracts", () => {
     ).toEqual(["pending-identity-cleanup"]);
   });
 
-  it("folds recovery authority from one ordered per-row lifecycle stream", () => {
+  it("folds retry authority over the immutable tagged blocker snapshot", () => {
+    type BlockerRef = {
+      kind: "ledger-row" | "inventory-only";
+      identity: string;
+    };
+    type Authorization = {
+      episodeId: string;
+      blocker: BlockerRef;
+      evidenceKind: "close-succeeded" | "manual-cleanup-confirmed";
+      provenance?: string;
+      observedAt?: string;
+    };
+    type RecoveryInput = {
+      episodeId: string;
+      observedBlockers: BlockerRef[];
+      snapshot: BlockerRef[];
+      authorizations: Authorization[];
+      ledgerRowsReady?: string[];
+      projections?: Map<string, string>;
+    };
+    type RecoveryResult = {
+      errors: string[];
+      authorization: Map<string, boolean>;
+      ready: boolean;
+      actions: string[];
+      projections: Map<string, string>;
+    };
+
+    const sanitizedIdentity = (value: string): boolean =>
+      /^[A-Za-z0-9._-]+$/.test(value);
+    const key = (blocker: BlockerRef): string =>
+      `${blocker.kind}:${blocker.identity}`;
+    const validManualMetadata = (authorization: Authorization): boolean =>
+      authorization.provenance !== undefined &&
+      authorization.provenance === authorization.provenance.trim() &&
+      authorization.provenance.length > 0 &&
+      authorization.observedAt !== undefined &&
+      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(authorization.observedAt);
+
+    function foldRecovery(input: RecoveryInput): RecoveryResult {
+      const projections = new Map(input.projections ?? []);
+      const fail = (error: string): RecoveryResult => ({
+        errors: [error],
+        authorization: new Map(),
+        ready: false,
+        actions: [],
+        projections,
+      });
+      if (!sanitizedIdentity(input.episodeId)) {
+        return fail("invalid-recovery-episode");
+      }
+      if (input.snapshot.length === 0) {
+        return fail("empty-blocker-snapshot");
+      }
+      const snapshotKeys = input.snapshot.map(key);
+      if (
+        input.snapshot.some((blocker) => !sanitizedIdentity(blocker.identity))
+      ) {
+        return fail("unsanitized-blocker-reference");
+      }
+      if (new Set(snapshotKeys).size !== snapshotKeys.length) {
+        return fail("duplicate-same-tag-blocker-reference");
+      }
+      const observedKeys = input.observedBlockers.map(key);
+      if (
+        new Set(observedKeys).size !== observedKeys.length ||
+        observedKeys.length !== snapshotKeys.length ||
+        snapshotKeys.some((blockerKey) => !observedKeys.includes(blockerKey))
+      ) {
+        return fail("snapshot-retagged-or-not-observed");
+      }
+
+      const snapshotByKey = new Map(
+        input.snapshot.map((blocker) => [key(blocker), blocker]),
+      );
+      const authorization = new Map<string, boolean>();
+      for (const evidence of input.authorizations) {
+        if (evidence.episodeId !== input.episodeId) {
+          return fail("stale-episode-authorization");
+        }
+        const blockerKey = key(evidence.blocker);
+        const blocker = snapshotByKey.get(blockerKey);
+        if (blocker === undefined) {
+          const sameIdentity = input.snapshot.find(
+            (candidate) => candidate.identity === evidence.blocker.identity,
+          );
+          return fail(
+            sameIdentity === undefined
+              ? "non-snapshot-authorization"
+              : "cross-kind-authorization",
+          );
+        }
+        if (authorization.has(blockerKey)) {
+          return fail("repeated-blocker-authorization");
+        }
+        if (
+          blocker.kind === "inventory-only" &&
+          evidence.evidenceKind === "close-succeeded"
+        ) {
+          return fail("inventory-close-success-forbidden");
+        }
+        if (
+          evidence.evidenceKind === "manual-cleanup-confirmed" &&
+          !validManualMetadata(evidence)
+        ) {
+          return fail("incomplete-manual-confirmation");
+        }
+        authorization.set(blockerKey, true);
+      }
+      if (authorization.size !== input.snapshot.length) {
+        return fail("snapshot-blocker-unauthorized");
+      }
+      const readyRows = new Set(input.ledgerRowsReady ?? []);
+      if (
+        input.snapshot.some(
+          (blocker) =>
+            blocker.kind === "ledger-row" && !readyRows.has(blocker.identity),
+        )
+      ) {
+        return fail("unsafe-ledger-row");
+      }
+      return {
+        errors: [],
+        authorization,
+        ready: true,
+        actions: ["all-blockers-authorized", "reconstruct", "retry-once"],
+        projections,
+      };
+    }
+
+    const row: BlockerRef = { kind: "ledger-row", identity: "shared-1" };
+    const inventory: BlockerRef = {
+      kind: "inventory-only",
+      identity: "inventory-1",
+    };
+    const rowClose: Authorization = {
+      episodeId: "recovery-1",
+      blocker: row,
+      evidenceKind: "close-succeeded",
+    };
+    const manual = (
+      blocker: BlockerRef,
+      overrides: Partial<Authorization> = {},
+    ): Authorization => ({
+      episodeId: "recovery-1",
+      blocker,
+      evidenceKind: "manual-cleanup-confirmed",
+      provenance: "operator UI",
+      observedAt: "2026-07-12T00:00:00Z",
+      ...overrides,
+    });
+    const mixedInput = (
+      overrides: Partial<RecoveryInput> = {},
+    ): RecoveryInput => ({
+      episodeId: "recovery-1",
+      observedBlockers: [row, inventory],
+      snapshot: [row, inventory],
+      authorizations: [rowClose, manual(inventory)],
+      ledgerRowsReady: [row.identity],
+      projections: new Map([[row.identity, "closed=yes"]]),
+      ...overrides,
+    });
+
+    const pureInventory = foldRecovery({
+      episodeId: "recovery-1",
+      observedBlockers: [inventory],
+      snapshot: [inventory],
+      authorizations: [manual(inventory)],
+    });
+    expect(pureInventory.errors).toEqual([]);
+    expect(pureInventory.ready).toBe(true);
+
+    const mixed = foldRecovery(mixedInput());
+    expect(mixed.errors).toEqual([]);
+    expect(mixed.actions).toEqual([
+      "all-blockers-authorized",
+      "reconstruct",
+      "retry-once",
+    ]);
+
+    const unchangedProjection = new Map([[row.identity, "closed=no"]]);
+    const rowManual = foldRecovery(
+      mixedInput({
+        authorizations: [manual(row), manual(inventory)],
+        projections: unchangedProjection,
+      }),
+    );
+    expect(rowManual.errors).toEqual([]);
+    expect(rowManual.projections).toEqual(unchangedProjection);
+
+    const equalRawInventory: BlockerRef = {
+      kind: "inventory-only",
+      identity: row.identity,
+    };
+    const equalRaw = foldRecovery(
+      mixedInput({
+        observedBlockers: [row, equalRawInventory],
+        snapshot: [row, equalRawInventory],
+        authorizations: [rowClose, manual(equalRawInventory)],
+      }),
+    );
+    expect(equalRaw.errors).toEqual([]);
+    expect(equalRaw.authorization.size).toBe(2);
+
+    const invalidCases: Array<[string, RecoveryInput]> = [
+      [
+        "empty-blocker-snapshot",
+        mixedInput({ observedBlockers: [], snapshot: [] }),
+      ],
+      [
+        "duplicate-same-tag-blocker-reference",
+        mixedInput({ observedBlockers: [row, row], snapshot: [row, row] }),
+      ],
+      [
+        "unsanitized-blocker-reference",
+        mixedInput({
+          observedBlockers: [{ ...inventory, identity: "unsafe identity" }],
+          snapshot: [{ ...inventory, identity: "unsafe identity" }],
+          authorizations: [],
+        }),
+      ],
+      [
+        "snapshot-retagged-or-not-observed",
+        mixedInput({ observedBlockers: [row], snapshot: [inventory] }),
+      ],
+      [
+        "snapshot-blocker-unauthorized",
+        mixedInput({ authorizations: [rowClose] }),
+      ],
+      [
+        "stale-episode-authorization",
+        mixedInput({
+          authorizations: [
+            rowClose,
+            manual(inventory, { episodeId: "recovery-0" }),
+          ],
+        }),
+      ],
+      [
+        "non-snapshot-authorization",
+        mixedInput({
+          authorizations: [
+            rowClose,
+            manual({ ...inventory, identity: "other" }),
+          ],
+        }),
+      ],
+      [
+        "cross-kind-authorization",
+        mixedInput({
+          authorizations: [
+            rowClose,
+            manual({ kind: "ledger-row", identity: inventory.identity }),
+          ],
+        }),
+      ],
+      [
+        "repeated-blocker-authorization",
+        mixedInput({
+          authorizations: [rowClose, manual(row), manual(inventory)],
+        }),
+      ],
+      [
+        "inventory-close-success-forbidden",
+        mixedInput({
+          authorizations: [rowClose, { ...rowClose, blocker: inventory }],
+        }),
+      ],
+      [
+        "incomplete-manual-confirmation",
+        mixedInput({
+          authorizations: [
+            rowClose,
+            manual(inventory, { provenance: undefined }),
+          ],
+        }),
+      ],
+      ["unsafe-ledger-row", mixedInput({ ledgerRowsReady: [] })],
+    ];
+    for (const [error, input] of invalidCases) {
+      expect(foldRecovery(input).errors, error).toEqual([error]);
+    }
+  });
+
+  it("preserves ordered per-row lifecycle and cleanup behavior", () => {
     type OperationalState =
       | "active"
       | "waiting"
@@ -7130,19 +7423,19 @@ describe("play subagent routing source contracts", () => {
       "canonical immediate projection keeps cleanup evaluation `evaluated`, sets current cleanup decision to `none`, clears current retention and unavailable reasons, and projects `closed=no`",
     );
     expect(normalizedLifecycle).toContain(
-      "record a new current recovery episode identity and its capacity-blocker snapshot before cleanup",
+      "record a new current recovery episode identity and the shared owner's complete immutable snapshot of tagged `ledger-row` and `inventory-only` blocker references before cleanup",
     );
     expect(normalizedLifecycle).toContain(
-      "Bind every close or `manual-cleanup-confirmed` event used for retry to that episode and blocker",
+      "Bind every close or `manual-cleanup-confirmed` event used for retry to that episode and exact tagged blocker identity",
     );
     expect(normalizedLifecycle).toContain(
       "Earlier episode evidence remains history but never authorizes a later retry",
     );
     expect(normalizedLifecycle).toContain(
-      "`manual-cleanup-confirmed` is separate row-scoped retry authorization",
+      "`manual-cleanup-confirmed` is separate blocker-scoped retry authorization",
     );
     expect(normalizedLifecycle).toContain(
-      "not closure proof, `retention-resolved`, or another cleanup family",
+      "not closure proof, `retention-resolved`, reconciliation, or another cleanup family",
     );
     expect(skillSource).not.toContain("\n## Controller Lifecycle Ledger\n");
 
@@ -7252,6 +7545,11 @@ describe("play subagent routing source contracts", () => {
     const slotLimitAutomaticCloseFailure = sliceBetween(
       targetCapabilityExamples,
       "[Slot-limit automatic-close failure - separate run]",
+      "[Slot-limit mixed tagged blockers - separate run]",
+    );
+    const slotLimitMixedBlockers = sliceBetween(
+      targetCapabilityExamples,
+      "[Slot-limit mixed tagged blockers - separate run]",
       "[Slot-limit spawn failure on cleanup-unavailable target - separate run]",
     );
     const slotLimitRetainedSession = sliceBetween(
@@ -8318,6 +8616,18 @@ describe("play subagent routing source contracts", () => {
     expect(slotLimitRetainedSession).toContain(
       "stop and escalate without retrying",
     );
+    expect(slotLimitMixedBlockers).toContain(
+      "blockers=[ledger-row:impl-mixed, inventory-only:orphan-mixed]",
+    );
+    expect(slotLimitMixedBlockers).toContain(
+      "does not fabricate a row for `inventory-only:orphan-mixed`",
+    );
+    expect(slotLimitMixedBlockers).toContain(
+      "Row close evidence cannot substitute for the inventory-only confirmation",
+    );
+    expect(slotLimitMixedBlockers).toContain(
+      "Only after both exact tagged blockers are independently authorized",
+    );
     expect(
       manualConfirmationErrors(
         slotLimitRetainedSession,
@@ -8756,13 +9066,16 @@ describe("play subagent routing source contracts", () => {
         ),
       ).toBe(true);
       expect(normalizedSurface).toContain(
-        "operator-confirmed manual cleanup bound to the current recovery episode and its capacity-blocker snapshot",
+        "operator-confirmed manual cleanup bound to the current recovery episode and its",
       );
       expect(normalizedSurface).toContain(
         "Earlier episode evidence never authorizes the current retry",
       );
       expect(normalizedSurface).toContain(
-        "A current-episode, blocker-scoped `manual-cleanup-confirmed` event authorizes retry but does not prove closure or add a cleanup family",
+        "A current-episode, blocker-scoped `manual-cleanup-confirmed` event",
+      );
+      expect(normalizedSurface).toContain(
+        "does not prove closure or add a cleanup family",
       );
       expect(normalizedSurface).toContain(
         "An unresolved need stops and escalates without retrying",

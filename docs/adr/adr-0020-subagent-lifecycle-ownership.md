@@ -59,7 +59,7 @@ their spawn points. The shared procedure owns:
 - normal-gate continuation separately from slot-recovery retry authorization;
 - provider-neutral timeout and runtime-failure terminal outcomes;
 - classification and safe capture of open capacity-blocking rows;
-- row-scoped manual-cleanup confirmation evidence;
+- tagged-blocker-scoped manual-cleanup confirmation evidence;
 - recovery-episode-scoped blocker snapshots and retry evidence;
 - slot-limit recovery and one retry after cleanup or manual confirmation.
 
