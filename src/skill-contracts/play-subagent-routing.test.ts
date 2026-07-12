@@ -784,13 +784,10 @@ describe("play subagent routing source contracts", () => {
       }
       if (
         !normalizedSection.includes(
-          "A current-episode, blocker-scoped `manual-cleanup-confirmed` event remains separate retry authorization",
-        ) ||
-        !normalizedSection.includes(
-          "not closure proof, `retention-resolved`, or a cleanup projection family",
+          "The shared owner, not this workflow, owns any episode authorization after row capture",
         )
       ) {
-        errors.push("manual-confirmation-boundary");
+        errors.push("episode-authorization-delegation");
       }
       return errors;
     };
@@ -799,30 +796,30 @@ describe("play subagent routing source contracts", () => {
       const errors: string[] = [];
       if (
         !normalizedSection.includes(
-          "Defer recovery-episode storage and transitions to the shared owner",
+          "Defer recovery-episode storage and every episode transition to the shared owner",
         ) ||
         !normalizedSection.includes(
-          "complete immutable snapshot of every observed tagged `ledger-row` or `inventory-only` blocker reference",
+          "The owner records and validates the immutable tagged blocker snapshot, row-close references, episode manual confirmations, authorization, reconstruction, retry dispatch/result, and escalation",
         )
       ) {
         errors.push("recovery-episode-snapshot");
       }
       if (
         !normalizedSection.includes(
-          "A row-owned `close-succeeded` event may authorize only through the owner's exact current-episode reference to its row and stable event identity",
+          "This workflow supplies only its captured research scope, report result, source references, blocker state, lifecycle ledger, and repository anchors",
         ) ||
         !normalizedSection.includes(
-          "an episode-owned `manual-cleanup-confirmed` event must match the current episode and exact tagged blocker",
+          "resumes workflow-local routing only after the owner returns a terminal recovery result",
         )
       ) {
-        errors.push("current-episode-binding");
+        errors.push("workflow-local-recovery-dependency");
       }
       if (
         !normalizedSection.includes(
-          "Never use stale-episode, non-snapshot, or cross-kind evidence for the current retry",
+          "A shared-owner escalation stops research persistence and Phase 4",
         )
       ) {
-        errors.push("stale-episode-rejected");
+        errors.push("owner-escalation-routing");
       }
       return errors;
     };
@@ -909,7 +906,7 @@ describe("play subagent routing source contracts", () => {
       expect(normalizedPhase3).toContain(openStateRule);
     }
     expect(normalizedPhase3).toContain(
-      "Record blocker-scoped `manual-cleanup-confirmed` evidence before reconstruction and retry while preserving the row's honest cleanup outcome",
+      "only that owner records or validates episode manual confirmation, reconstruction, and retry",
     );
     expect(lifecycleProjectionErrors(lifecycleConcurrentJoin)).toEqual([]);
     expect(immediateJoinRecoveryErrors(lifecycleConcurrentJoin)).toEqual([]);
@@ -930,19 +927,19 @@ describe("play subagent routing source contracts", () => {
     expect(
       recoveryEpisodeErrors(
         normalizeWhitespace(lifecycleConcurrentJoin).replace(
-          "exact current-episode reference to its row and stable event identity",
-          "any prior episode",
+          "resumes workflow-local routing only after the owner returns a terminal recovery result",
+          "resumes workflow-local routing before the owner returns a terminal recovery result",
         ),
       ),
-    ).toEqual(["current-episode-binding"]);
+    ).toEqual(["workflow-local-recovery-dependency"]);
     expect(
       retainedRecoveryErrors(
-        lifecycleConcurrentJoin.replace(
-          "remains separate retry authorization",
-          "proves automatic closure",
+        normalizeWhitespace(lifecycleConcurrentJoin).replace(
+          "The shared owner, not this workflow, owns any episode authorization after row capture",
+          "This workflow owns episode authorization after row capture",
         ),
       ),
-    ).toEqual(["manual-confirmation-boundary"]);
+    ).toEqual(["episode-authorization-delegation"]);
     expect(
       immediateJoinRecoveryErrors(
         normalizeWhitespace(lifecycleConcurrentJoin).replace(
@@ -1528,6 +1525,9 @@ describe("play subagent routing source contracts", () => {
       "surface explicit manual cleanup guidance",
       "wait for operator confirmation",
       "retry exactly once",
+      "Record blocker-scoped `manual-cleanup-confirmed` evidence before reconstruction and retry",
+      "an episode-owned `manual-cleanup-confirmed` event must match the current episode",
+      "authorize retry only after every snapshot blocker passes independently",
     ]) {
       expect(normalizedPhase3).not.toContain(copiedGenericMechanic);
     }
@@ -8125,8 +8125,10 @@ describe("play subagent routing source contracts", () => {
     expect(slotLimitMixedBlockers).toContain(
       "does not fabricate a row for `inventory-only:orphan-mixed`",
     );
-    const mixedAttempt = "event=close-attempted";
-    const mixedSuccess = "event=close-succeeded";
+    const mixedAttempt =
+      "event=close-attempted(event-id=impl-mixed-close-attempt-1, session-id=impl-mixed-session)";
+    const mixedSuccess =
+      "event=close-succeeded(event-id=impl-mixed-close-success-1, session-id=impl-mixed-session)";
     expect(slotLimitMixedBlockers).toContain(mixedAttempt);
     expect(slotLimitMixedBlockers).toContain(mixedSuccess);
     expect(slotLimitMixedBlockers.indexOf(mixedAttempt)).toBeLessThan(
@@ -8137,6 +8139,34 @@ describe("play subagent routing source contracts", () => {
     expect(slotLimitMixedBlockers.indexOf(mixedSuccess)).toBeLessThan(
       slotLimitMixedBlockers.indexOf(mixedClosedYes),
     );
+    const mixedCloseReferenceErrors = (example: string): string[] => {
+      const errors: string[] = [];
+      if (
+        !example.includes(
+          "Row `impl-mixed`, owned by session `impl-mixed-session`",
+        ) ||
+        !example.includes(mixedSuccess)
+      ) {
+        errors.push("row-close-identity");
+      }
+      if (
+        !example.includes(
+          "reference(blocker=ledger-row:impl-mixed, row-id=impl-mixed, session-id=impl-mixed-session, close-succeeded-event-id=impl-mixed-close-success-1)",
+        )
+      ) {
+        errors.push("row-close-reference");
+      }
+      return errors;
+    };
+    expect(mixedCloseReferenceErrors(slotLimitMixedBlockers)).toEqual([]);
+    expect(
+      mixedCloseReferenceErrors(
+        slotLimitMixedBlockers.replace(
+          "close-succeeded-event-id=impl-mixed-close-success-1)",
+          "close-succeeded-event-id=impl-mixed-close-success-0)",
+        ),
+      ),
+    ).toEqual(["row-close-reference"]);
     expect(slotLimitMixedBlockers).toContain(
       "blocker=inventory-only:orphan-mixed",
     );
@@ -8309,7 +8339,10 @@ describe("play subagent routing source contracts", () => {
     ).toEqual(["stale-current-retention"]);
     expect(
       retainedSlotRecoveryErrors(
-        slotLimitRetainedSession.replaceAll("episode-row-1", "episode-row-0"),
+        slotLimitRetainedSession.replace(
+          "event=manual-cleanup-confirmed(episode=episode-row-1",
+          "event=manual-cleanup-confirmed(episode=episode-row-0",
+        ),
       ),
     ).toEqual(["current-episode-evidence"]);
     expect(
@@ -8511,9 +8544,9 @@ describe("play subagent routing source contracts", () => {
     ).toEqual(["manual-confirmation-scope"]);
     expect(
       manualConfirmationErrors(
-        slotLimitAutomaticCloseFailure.replaceAll(
-          "episode-inventory-1",
-          "episode-inventory-0",
+        slotLimitAutomaticCloseFailure.replace(
+          "event=manual-cleanup-confirmed(episode=episode-inventory-1",
+          "event=manual-cleanup-confirmed(episode=episode-inventory-0",
         ),
         "inventory-only:orphan-inventory",
         "episode-inventory-1",

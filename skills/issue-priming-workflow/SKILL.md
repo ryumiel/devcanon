@@ -349,17 +349,14 @@ If any internal, immediate external, or late external spawn fails because slots
 are exhausted, follow `subagent-lifecycle` § Slot-Limit Recovery. Preserve the
 captured research scope, report result, source references, blocker state,
 lifecycle ledger, and repository anchors across that shared recovery procedure.
-Defer recovery-episode storage and transitions to the shared owner. For this
-workflow's captured research state, require the owner's complete immutable
-snapshot of every observed tagged `ledger-row` or `inventory-only` blocker
-reference. A row-owned `close-succeeded` event may authorize only through the
-owner's exact current-episode reference to its row and stable event identity;
-an episode-owned `manual-cleanup-confirmed` event must match the current episode
-and exact tagged blocker. Follow the owner's kind-specific evidence rules and
-authorize retry only after every snapshot blocker passes independently;
-inventory-only blockers accept manual confirmation, never row close success.
-Never use stale-episode, non-snapshot, or cross-kind evidence for the current
-retry.
+Defer recovery-episode storage and every episode transition to the shared
+owner. The owner records and validates the immutable tagged blocker snapshot,
+row-close references, episode manual confirmations, authorization,
+reconstruction, retry dispatch/result, and escalation. This workflow supplies
+only its captured research scope, report result, source references, blocker
+state, lifecycle ledger, and repository anchors, then resumes workflow-local
+routing only after the owner returns a terminal recovery result. A shared-owner
+escalation stops research persistence and Phase 4.
 Before any manual cleanup, use the owner classifications for open blockers:
 active rows wait or steer to a safe capture boundary or stop; waiting rows are
 retained or safely replaced. A row whose current operational state is
@@ -370,9 +367,9 @@ than its latest interruption; project `active`, preserve history, and add no
 completion or return. After fresh capture, guarded reuse or deliberate
 retention requires no replacement; supersession alone requires secured
 replacement state. Pending or unknown rows resolve identity or stop without
-fabricated cleanup. Record blocker-scoped `manual-cleanup-confirmed` evidence
-before reconstruction and retry while preserving the row's honest cleanup
-outcome.
+fabricated cleanup. Preserve the row's honest cleanup outcome and pass the
+captured research and repository anchors to the shared owner; only that owner
+records or validates episode manual confirmation, reconstruction, and retry.
 When a capacity-blocking row was deliberately retained, require current
 `completed`, `timed-out`, `failed`, or `superseded` and fresh capture. If the
 deferred need finished, append
@@ -385,10 +382,8 @@ decision and current retention reason. The sole immediate projection keeps
 cleanup evaluation `evaluated`, sets current cleanup decision to `none`, clears
 current retention and unavailable reasons, and projects `closed=no`; histories
 and resolution evidence remain append-only. A later `closure-unavailable` or
-actual close event selects one of the four cleanup families. A current-episode,
-blocker-scoped
-`manual-cleanup-confirmed` event remains separate retry authorization; it is
-not closure proof, `retention-resolved`, or a cleanup projection family.
+actual close event selects one of the four cleanup families. The shared owner,
+not this workflow, owns any episode authorization after row capture.
 
 For a started immediate internal or external research sibling, those generic
 open-blocker options do not authorize replacement or supersession as a
