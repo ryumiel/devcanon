@@ -3071,7 +3071,16 @@ describe("play subagent routing source contracts", () => {
       "Pure inventory blockers never enter row eligibility, retention, cleanup, or close logic",
     );
     expect(normalizeWhitespace(slotLimitRecovery)).toContain(
-      "A row blocker accepts either an exact current-episode reference to that row's observed `close-succeeded` event by row and event identity, or an episode `manual-cleanup-confirmed` event",
+      "A row blocker accepts either an exact current-episode reference to that row's value-bearing `close-succeeded` event by row and stable event identity, or an episode `manual-cleanup-confirmed` event",
+    );
+    expect(normalizeWhitespace(slotLimitRecovery)).toContain(
+      "Require bidirectional membership and tag equality between the observed inventory and proposed snapshot",
+    );
+    expect(normalizeWhitespace(slotLimitRecovery)).toContain(
+      "Treat every accepted snapshot, authorization, and episode event as an immutable controller-owned copy",
+    );
+    expect(normalizeWhitespace(slotLimitRecovery)).toContain(
+      "Before every transition, require the episode record and recovery-origin index to agree bidirectionally and uniquely",
     );
     expect(normalizeWhitespace(slotLimitRecovery)).toContain(
       "An inventory blocker accepts only the episode manual-confirmation event; row close evidence cannot authorize it",
@@ -5070,343 +5079,90 @@ describe("play subagent routing source contracts", () => {
     ).toEqual(["pending-identity-cleanup"]);
   });
 
-  it("validates tagged blocker authorization before the canonical episode fold", () => {
-    type BlockerRef = {
+  it("canonically folds row lifecycle and controller recovery episodes", () => {
+    type BlockerRef = Readonly<{
       kind: "ledger-row" | "inventory-only";
       identity: string;
-    };
-    type Authorization = {
-      episodeId: string;
-      blocker: BlockerRef;
-      evidenceKind: "close-succeeded" | "manual-cleanup-confirmed";
-      provenance?: string;
-      observedAt?: string;
-    };
-    type RecoveryInput = {
-      episodeId: string;
-      observedBlockers: BlockerRef[];
-      snapshot: BlockerRef[];
-      authorizations: Authorization[];
-      ledgerRowsReady?: string[];
-      projections?: Map<string, string>;
-    };
-    type RecoveryResult = {
-      errors: string[];
-      authorization: Map<string, boolean>;
-      fullyAuthorized: boolean;
-      actions: string[];
-      projections: Map<string, string>;
-    };
-
-    const sanitizedIdentity = (value: string): boolean =>
-      /^[A-Za-z0-9._-]+$/.test(value);
-    const key = (blocker: BlockerRef): string =>
-      `${blocker.kind}:${blocker.identity}`;
-    const validManualMetadata = (authorization: Authorization): boolean =>
-      authorization.provenance !== undefined &&
-      authorization.provenance === authorization.provenance.trim() &&
-      authorization.provenance.length > 0 &&
-      authorization.observedAt !== undefined &&
-      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(authorization.observedAt);
-
-    function foldRecovery(input: RecoveryInput): RecoveryResult {
-      const projections = new Map(input.projections ?? []);
-      const fail = (error: string): RecoveryResult => ({
-        errors: [error],
-        authorization: new Map(),
-        fullyAuthorized: false,
-        actions: [],
-        projections,
-      });
-      if (!sanitizedIdentity(input.episodeId)) {
-        return fail("invalid-recovery-episode");
-      }
-      if (input.snapshot.length === 0) {
-        return fail("empty-blocker-snapshot");
-      }
-      const snapshotKeys = input.snapshot.map(key);
-      if (
-        input.snapshot.some((blocker) => !sanitizedIdentity(blocker.identity))
-      ) {
-        return fail("unsanitized-blocker-reference");
-      }
-      if (new Set(snapshotKeys).size !== snapshotKeys.length) {
-        return fail("duplicate-same-tag-blocker-reference");
-      }
-      const observedKeys = input.observedBlockers.map(key);
-      if (
-        new Set(observedKeys).size !== observedKeys.length ||
-        observedKeys.length !== snapshotKeys.length ||
-        snapshotKeys.some((blockerKey) => !observedKeys.includes(blockerKey))
-      ) {
-        return fail("snapshot-retagged-or-not-observed");
-      }
-
-      const snapshotByKey = new Map(
-        input.snapshot.map((blocker) => [key(blocker), blocker]),
-      );
-      const authorization = new Map<string, boolean>();
-      for (const evidence of input.authorizations) {
-        if (evidence.episodeId !== input.episodeId) {
-          return fail("stale-episode-authorization");
-        }
-        const blockerKey = key(evidence.blocker);
-        const blocker = snapshotByKey.get(blockerKey);
-        if (blocker === undefined) {
-          const sameIdentity = input.snapshot.find(
-            (candidate) => candidate.identity === evidence.blocker.identity,
-          );
-          return fail(
-            sameIdentity === undefined
-              ? "non-snapshot-authorization"
-              : "cross-kind-authorization",
-          );
-        }
-        if (authorization.has(blockerKey)) {
-          return fail("repeated-blocker-authorization");
-        }
-        if (
-          blocker.kind === "inventory-only" &&
-          evidence.evidenceKind === "close-succeeded"
-        ) {
-          return fail("inventory-close-success-forbidden");
-        }
-        if (
-          evidence.evidenceKind === "manual-cleanup-confirmed" &&
-          !validManualMetadata(evidence)
-        ) {
-          return fail("incomplete-manual-confirmation");
-        }
-        authorization.set(blockerKey, true);
-      }
-      if (authorization.size !== input.snapshot.length) {
-        return fail("snapshot-blocker-unauthorized");
-      }
-      const readyRows = new Set(input.ledgerRowsReady ?? []);
-      if (
-        input.snapshot.some(
-          (blocker) =>
-            blocker.kind === "ledger-row" && !readyRows.has(blocker.identity),
-        )
-      ) {
-        return fail("unsafe-ledger-row");
-      }
-      return {
-        errors: [],
-        authorization,
-        fullyAuthorized: true,
-        actions: ["all-blockers-authorized"],
-        projections,
-      };
-    }
-
-    const row: BlockerRef = { kind: "ledger-row", identity: "shared-1" };
-    const inventory: BlockerRef = {
-      kind: "inventory-only",
-      identity: "inventory-1",
-    };
-    const rowClose: Authorization = {
-      episodeId: "recovery-1",
-      blocker: row,
-      evidenceKind: "close-succeeded",
-    };
-    const manual = (
-      blocker: BlockerRef,
-      overrides: Partial<Authorization> = {},
-    ): Authorization => ({
-      episodeId: "recovery-1",
-      blocker,
-      evidenceKind: "manual-cleanup-confirmed",
-      provenance: "operator UI",
-      observedAt: "2026-07-12T00:00:00Z",
-      ...overrides,
-    });
-    const mixedInput = (
-      overrides: Partial<RecoveryInput> = {},
-    ): RecoveryInput => ({
-      episodeId: "recovery-1",
-      observedBlockers: [row, inventory],
-      snapshot: [row, inventory],
-      authorizations: [rowClose, manual(inventory)],
-      ledgerRowsReady: [row.identity],
-      projections: new Map([[row.identity, "closed=yes"]]),
-      ...overrides,
-    });
-
-    const pureInventory = foldRecovery({
-      episodeId: "recovery-1",
-      observedBlockers: [inventory],
-      snapshot: [inventory],
-      authorizations: [manual(inventory)],
-    });
-    expect(pureInventory.errors).toEqual([]);
-    expect(pureInventory.fullyAuthorized).toBe(true);
-
-    const mixed = foldRecovery(mixedInput());
-    expect(mixed.errors).toEqual([]);
-    expect(mixed.actions).toEqual(["all-blockers-authorized"]);
-
-    const unchangedProjection = new Map([[row.identity, "closed=no"]]);
-    const rowManual = foldRecovery(
-      mixedInput({
-        authorizations: [manual(row), manual(inventory)],
-        projections: unchangedProjection,
-      }),
-    );
-    expect(rowManual.errors).toEqual([]);
-    expect(rowManual.projections).toEqual(unchangedProjection);
-
-    const equalRawInventory: BlockerRef = {
-      kind: "inventory-only",
-      identity: row.identity,
-    };
-    const equalRaw = foldRecovery(
-      mixedInput({
-        observedBlockers: [row, equalRawInventory],
-        snapshot: [row, equalRawInventory],
-        authorizations: [rowClose, manual(equalRawInventory)],
-      }),
-    );
-    expect(equalRaw.errors).toEqual([]);
-    expect(equalRaw.authorization.size).toBe(2);
-
-    const invalidCases: Array<[string, RecoveryInput]> = [
-      [
-        "empty-blocker-snapshot",
-        mixedInput({ observedBlockers: [], snapshot: [] }),
-      ],
-      [
-        "duplicate-same-tag-blocker-reference",
-        mixedInput({ observedBlockers: [row, row], snapshot: [row, row] }),
-      ],
-      [
-        "unsanitized-blocker-reference",
-        mixedInput({
-          observedBlockers: [{ ...inventory, identity: "unsafe identity" }],
-          snapshot: [{ ...inventory, identity: "unsafe identity" }],
-          authorizations: [],
-        }),
-      ],
-      [
-        "snapshot-retagged-or-not-observed",
-        mixedInput({
-          observedBlockers: [row],
-          snapshot: [{ kind: "inventory-only", identity: row.identity }],
-        }),
-      ],
-      [
-        "snapshot-blocker-unauthorized",
-        mixedInput({ authorizations: [rowClose] }),
-      ],
-      [
-        "stale-episode-authorization",
-        mixedInput({
-          authorizations: [
-            rowClose,
-            manual(inventory, { episodeId: "recovery-0" }),
-          ],
-        }),
-      ],
-      [
-        "non-snapshot-authorization",
-        mixedInput({
-          authorizations: [
-            rowClose,
-            manual({ ...inventory, identity: "other" }),
-          ],
-        }),
-      ],
-      [
-        "cross-kind-authorization",
-        mixedInput({
-          authorizations: [
-            rowClose,
-            manual({ kind: "ledger-row", identity: inventory.identity }),
-          ],
-        }),
-      ],
-      [
-        "repeated-blocker-authorization",
-        mixedInput({
-          authorizations: [rowClose, manual(row), manual(inventory)],
-        }),
-      ],
-      [
-        "inventory-close-success-forbidden",
-        mixedInput({
-          authorizations: [rowClose, { ...rowClose, blocker: inventory }],
-        }),
-      ],
-      [
-        "incomplete-manual-confirmation",
-        mixedInput({
-          authorizations: [
-            rowClose,
-            manual(inventory, { provenance: undefined }),
-          ],
-        }),
-      ],
-      ["unsafe-ledger-row", mixedInput({ ledgerRowsReady: [] })],
-    ];
-    for (const [error, input] of invalidCases) {
-      expect(foldRecovery(input).errors, error).toEqual([error]);
-    }
-  });
-
-  it("folds controller recovery episodes independently from session rows", () => {
-    type BlockerRef =
-      | { kind: "ledger-row"; identity: string }
-      | { kind: "inventory-only"; identity: string };
-    type EpisodeState =
-      | "authorizing"
-      | "ready"
-      | "retry-dispatched"
-      | "retry-succeeded"
-      | "retry-failed";
-    type EpisodeEvent =
-      | "slot-recovery-started"
-      | "manual-cleanup-confirmed"
-      | "recovery-state-reconstructed"
-      | "slot-retry-dispatched"
-      | "slot-retry-succeeded"
-      | "slot-retry-failed";
-    type Authorization =
+    }>;
+    type RowEvent = Readonly<{
+      eventId: string;
+      kind: "close-attempted" | "close-succeeded";
+      order: number;
+      sessionId: string;
+    }>;
+    type RowRecord = Readonly<{
+      rowId: string;
+      sessionId: string;
+      inventoryEvidenceId?: string;
+      history: readonly RowEvent[];
+      projection: "closed=no" | "closed=yes";
+    }>;
+    type Authorization = Readonly<
       | {
           kind: "row-close";
           episodeId: string;
           blocker: BlockerRef;
           rowId: string;
           rowEventId: string;
+          sessionId: string;
         }
       | {
           kind: "manual";
           episodeId: string;
           blocker: BlockerRef;
-          provenance?: string;
-          observedAt?: string;
-        };
-    type Episode = {
+          provenance: string;
+          observedAt: string;
+        }
+    >;
+    type EpisodeEvent = Readonly<{
+      kind:
+        | "slot-recovery-started"
+        | "manual-cleanup-confirmed"
+        | "recovery-state-reconstructed"
+        | "slot-retry-dispatched"
+        | "slot-retry-succeeded"
+        | "slot-retry-failed";
+      order: number;
+      blocker?: BlockerRef;
+    }>;
+    type Episode = Readonly<{
       originId: string;
       episodeId: string;
-      snapshot: BlockerRef[];
-      state: EpisodeState;
-      events: EpisodeEvent[];
-      authorizations: Map<string, Authorization>;
+      snapshot: readonly BlockerRef[];
+      state:
+        | "authorizing"
+        | "ready"
+        | "retry-dispatched"
+        | "retry-succeeded"
+        | "retry-failed";
+      events: readonly EpisodeEvent[];
+      authorizations: readonly Authorization[];
       escalation?: string;
-    };
-    type ControllerLedger = {
-      episodes: Map<string, Episode>;
-      originEpisodes: Map<string, string>;
+    }>;
+    type Ledger = Readonly<{
+      order: number;
+      rows: readonly RowRecord[];
+      episodes: readonly Episode[];
+      originEpisodes: readonly Readonly<{
+        originId: string;
+        episodeId: string;
+      }>[];
       retryDispatches: number;
-      rowProjections: Map<string, string>;
-      rowHistories: Map<string, string[]>;
-    };
-    type RecoveryOperation =
+    }>;
+    type Operation =
       | {
           kind: "start";
           originId: string;
           episodeId: string;
+          observedBlockers: BlockerRef[];
           snapshot: BlockerRef[];
+        }
+      | {
+          kind: "record-row-close";
+          rowId: string;
+          sessionId: string;
+          attemptEventId: string;
+          successEventId: string;
         }
       | { kind: "authorize"; episodeId: string; evidence: Authorization }
       | {
@@ -5422,171 +5178,392 @@ describe("play subagent routing source contracts", () => {
           result: "succeeded" | "failed";
           escalation?: string;
         };
-    type FoldResult = { ledger: ControllerLedger; error?: string };
+    type FoldResult = { ledger: Ledger; error?: string };
 
-    const key = (blocker: BlockerRef): string =>
+    const blockerKey = (blocker: BlockerRef): string =>
       `${blocker.kind}:${blocker.identity}`;
-    const sanitized = (value: string): boolean =>
+    const sanitizedIdentity = (value: string): boolean =>
       /^[A-Za-z0-9._-]+$/.test(value);
-    const manualMetadataValid = (
-      evidence: Extract<Authorization, { kind: "manual" }>,
-    ): boolean =>
-      evidence.provenance !== undefined &&
-      evidence.provenance === evidence.provenance.trim() &&
-      evidence.provenance.length > 0 &&
-      evidence.observedAt !== undefined &&
-      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(evidence.observedAt);
-    const rowCloseEvents = new Map([
-      [
-        "row-1:close-1",
-        { episodeId: "episode-1", blocker: "ledger-row:row-1" },
-      ],
-      [
-        "same:close-same",
-        { episodeId: "episode-equal", blocker: "ledger-row:same" },
-      ],
-      [
-        "row-1:close-stale",
-        { episodeId: "episode-0", blocker: "ledger-row:row-1" },
-      ],
-    ]);
-    const cloneLedger = (ledger: ControllerLedger): ControllerLedger => ({
-      episodes: new Map(
-        [...ledger.episodes].map(([episodeId, episode]) => [
-          episodeId,
-          {
-            ...episode,
-            snapshot: episode.snapshot.map((blocker) => ({ ...blocker })),
-            events: [...episode.events],
-            authorizations: new Map(episode.authorizations),
-          },
-        ]),
-      ),
-      originEpisodes: new Map(ledger.originEpisodes),
-      retryDispatches: ledger.retryDispatches,
-      rowProjections: new Map(ledger.rowProjections),
-      rowHistories: new Map(
-        [...ledger.rowHistories].map(([rowId, history]) => [
-          rowId,
-          [...history],
-        ]),
-      ),
-    });
-    const fail = (ledger: ControllerLedger, error: string): FoldResult => ({
+    const validProvenance = (value: string): boolean =>
+      value === value.trim() &&
+      value.length > 0 &&
+      value.length <= 160 &&
+      /^[A-Za-z0-9 ._:/@+-]+$/.test(value);
+    const validTime = (value: string): boolean =>
+      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(value);
+    const freezeBlocker = (blocker: BlockerRef): BlockerRef =>
+      Object.freeze({ kind: blocker.kind, identity: blocker.identity });
+    const freezeAuthorization = (
+      authorization: Authorization,
+    ): Authorization =>
+      authorization.kind === "row-close"
+        ? Object.freeze({
+            kind: authorization.kind,
+            episodeId: authorization.episodeId,
+            blocker: freezeBlocker(authorization.blocker),
+            rowId: authorization.rowId,
+            rowEventId: authorization.rowEventId,
+            sessionId: authorization.sessionId,
+          })
+        : Object.freeze({
+            kind: authorization.kind,
+            episodeId: authorization.episodeId,
+            blocker: freezeBlocker(authorization.blocker),
+            provenance: authorization.provenance,
+            observedAt: authorization.observedAt,
+          });
+    const freezeEvent = (event: EpisodeEvent): EpisodeEvent =>
+      Object.freeze({
+        kind: event.kind,
+        order: event.order,
+        ...(event.blocker === undefined
+          ? {}
+          : { blocker: freezeBlocker(event.blocker) }),
+      });
+    const freezeRow = (row: RowRecord): RowRecord =>
+      Object.freeze({
+        ...row,
+        history: Object.freeze(
+          row.history.map((event) => Object.freeze({ ...event })),
+        ),
+      });
+    const freezeEpisode = (episode: Episode): Episode =>
+      Object.freeze({
+        ...episode,
+        snapshot: Object.freeze(episode.snapshot.map(freezeBlocker)),
+        events: Object.freeze(episode.events.map(freezeEvent)),
+        authorizations: Object.freeze(
+          episode.authorizations.map(freezeAuthorization),
+        ),
+      });
+    const freezeLedger = (ledger: Ledger): Ledger =>
+      Object.freeze({
+        ...ledger,
+        rows: Object.freeze(ledger.rows.map(freezeRow)),
+        episodes: Object.freeze(ledger.episodes.map(freezeEpisode)),
+        originEpisodes: Object.freeze(
+          ledger.originEpisodes.map((entry) => Object.freeze({ ...entry })),
+        ),
+      });
+    const fail = (ledger: Ledger, error: string): FoldResult => ({
       ledger,
       error,
     });
+    const indexesConsistent = (ledger: Ledger): boolean =>
+      ledger.episodes.length === ledger.originEpisodes.length &&
+      new Set(ledger.episodes.map((episode) => episode.episodeId)).size ===
+        ledger.episodes.length &&
+      new Set(ledger.originEpisodes.map((entry) => entry.originId)).size ===
+        ledger.originEpisodes.length &&
+      new Set(ledger.originEpisodes.map((entry) => entry.episodeId)).size ===
+        ledger.originEpisodes.length &&
+      ledger.episodes.every(
+        (episode) =>
+          ledger.originEpisodes.filter(
+            (entry) =>
+              entry.originId === episode.originId &&
+              entry.episodeId === episode.episodeId,
+          ).length === 1,
+      ) &&
+      ledger.originEpisodes.every(
+        (entry) =>
+          ledger.episodes.filter(
+            (episode) =>
+              episode.originId === entry.originId &&
+              episode.episodeId === entry.episodeId,
+          ).length === 1,
+      );
+    const replaceEpisode = (
+      ledger: Ledger,
+      replacement: Episode,
+      order = ledger.order + 1,
+      retryIncrement = 0,
+    ): Ledger =>
+      freezeLedger({
+        ...ledger,
+        order,
+        episodes: ledger.episodes.map((episode) =>
+          episode.episodeId === replacement.episodeId ? replacement : episode,
+        ),
+        retryDispatches: ledger.retryDispatches + retryIncrement,
+      });
 
-    function foldRecoveryEpisode(
-      ledger: ControllerLedger,
-      operation: RecoveryOperation,
-    ): FoldResult {
+    function fold(ledger: Ledger, operation: Operation): FoldResult {
+      if (!indexesConsistent(ledger)) {
+        return fail(ledger, "inconsistent-origin-episode-index");
+      }
+
       if (operation.kind === "start") {
-        if (!sanitized(operation.originId)) {
+        if (!sanitizedIdentity(operation.originId)) {
           return fail(ledger, "invalid-recovery-origin");
         }
-        if (!sanitized(operation.episodeId)) {
+        if (!sanitizedIdentity(operation.episodeId)) {
           return fail(ledger, "invalid-recovery-episode");
         }
-        const existingEpisode = ledger.originEpisodes.get(operation.originId);
-        if (existingEpisode !== undefined) {
-          const existing = ledger.episodes.get(existingEpisode);
+        const existing = ledger.originEpisodes.find(
+          (entry) => entry.originId === operation.originId,
+        );
+        if (existing !== undefined) {
+          const episode = ledger.episodes.find(
+            (candidate) => candidate.episodeId === existing.episodeId,
+          );
           return fail(
             ledger,
-            existing?.state === "retry-failed"
+            episode?.state === "retry-failed"
               ? "terminal-failure-origin-closed"
               : "recovery-origin-already-used",
           );
         }
-        if (ledger.episodes.has(operation.episodeId)) {
+        if (
+          ledger.episodes.some(
+            (episode) => episode.episodeId === operation.episodeId,
+          )
+        ) {
           return fail(ledger, "recovery-episode-already-used");
+        }
+        if (operation.observedBlockers.length === 0) {
+          return fail(ledger, "empty-observed-blocker-inventory");
         }
         if (operation.snapshot.length === 0) {
           return fail(ledger, "empty-blocker-snapshot");
         }
         if (
-          operation.snapshot.some((blocker) => !sanitized(blocker.identity))
+          operation.observedBlockers.some(
+            (blocker) => !sanitizedIdentity(blocker.identity),
+          )
         ) {
-          return fail(ledger, "unsanitized-blocker-reference");
+          return fail(ledger, "unsanitized-observed-blocker");
         }
-        const snapshotKeys = operation.snapshot.map(key);
+        if (
+          operation.snapshot.some(
+            (blocker) => !sanitizedIdentity(blocker.identity),
+          )
+        ) {
+          return fail(ledger, "unsanitized-snapshot-blocker");
+        }
+        const observedKeys = operation.observedBlockers.map(blockerKey);
+        const snapshotKeys = operation.snapshot.map(blockerKey);
+        if (new Set(observedKeys).size !== observedKeys.length) {
+          return fail(ledger, "duplicate-observed-blocker");
+        }
         if (new Set(snapshotKeys).size !== snapshotKeys.length) {
-          return fail(ledger, "duplicate-blocker-reference");
+          return fail(ledger, "duplicate-snapshot-blocker");
         }
-        const next = cloneLedger(ledger);
-        next.episodes.set(operation.episodeId, {
+        for (const blocker of operation.observedBlockers) {
+          if (blocker.kind !== "ledger-row") continue;
+          const row = ledger.rows.find(
+            (candidate) => candidate.rowId === blocker.identity,
+          );
+          if (row === undefined) {
+            return fail(ledger, "observed-ledger-row-missing");
+          }
+        }
+        for (const blocker of operation.observedBlockers) {
+          if (blocker.kind !== "inventory-only") continue;
+          if (
+            ledger.rows.some(
+              (row) => row.inventoryEvidenceId === blocker.identity,
+            )
+          ) {
+            return fail(ledger, "attached-inventory-double-counted");
+          }
+        }
+        if (
+          observedKeys.length !== snapshotKeys.length ||
+          observedKeys.some((key) => !snapshotKeys.includes(key)) ||
+          snapshotKeys.some((key) => !observedKeys.includes(key))
+        ) {
+          return fail(ledger, "observed-snapshot-membership-or-tag-mismatch");
+        }
+        const episode: Episode = {
           originId: operation.originId,
           episodeId: operation.episodeId,
-          snapshot: operation.snapshot.map((blocker) => ({ ...blocker })),
+          snapshot: operation.snapshot,
           state: "authorizing",
-          events: ["slot-recovery-started"],
-          authorizations: new Map(),
-        });
-        next.originEpisodes.set(operation.originId, operation.episodeId);
-        return { ledger: next };
+          events: [{ kind: "slot-recovery-started", order: ledger.order + 1 }],
+          authorizations: [],
+        };
+        return {
+          ledger: freezeLedger({
+            ...ledger,
+            order: ledger.order + 1,
+            episodes: [...ledger.episodes, episode],
+            originEpisodes: [
+              ...ledger.originEpisodes,
+              {
+                originId: operation.originId,
+                episodeId: operation.episodeId,
+              },
+            ],
+          }),
+        };
       }
 
-      const episode = ledger.episodes.get(operation.episodeId);
+      if (operation.kind === "record-row-close") {
+        const row = ledger.rows.find(
+          (candidate) => candidate.rowId === operation.rowId,
+        );
+        if (
+          row === undefined ||
+          row.sessionId !== operation.sessionId ||
+          !sanitizedIdentity(operation.attemptEventId) ||
+          !sanitizedIdentity(operation.successEventId) ||
+          operation.attemptEventId === operation.successEventId
+        ) {
+          return fail(ledger, "invalid-row-close-record");
+        }
+        if (
+          ledger.rows.some((candidate) =>
+            candidate.history.some(
+              (event) =>
+                event.eventId === operation.attemptEventId ||
+                event.eventId === operation.successEventId,
+            ),
+          )
+        ) {
+          return fail(ledger, "duplicate-row-event-identity");
+        }
+        const nextRows = ledger.rows.map((candidate) =>
+          candidate.rowId === row.rowId
+            ? {
+                ...candidate,
+                history: [
+                  ...candidate.history,
+                  {
+                    eventId: operation.attemptEventId,
+                    kind: "close-attempted" as const,
+                    order: ledger.order + 1,
+                    sessionId: operation.sessionId,
+                  },
+                  {
+                    eventId: operation.successEventId,
+                    kind: "close-succeeded" as const,
+                    order: ledger.order + 2,
+                    sessionId: operation.sessionId,
+                  },
+                ],
+                projection: "closed=yes" as const,
+              }
+            : candidate,
+        );
+        return {
+          ledger: freezeLedger({
+            ...ledger,
+            order: ledger.order + 2,
+            rows: nextRows,
+          }),
+        };
+      }
+
+      const episode = ledger.episodes.find(
+        (candidate) => candidate.episodeId === operation.episodeId,
+      );
       if (episode === undefined) {
         return fail(ledger, "recovery-episode-not-found");
       }
+      const index = ledger.originEpisodes.find(
+        (entry) => entry.episodeId === episode.episodeId,
+      );
+      if (index?.originId !== episode.originId) {
+        return fail(ledger, "inconsistent-origin-episode-index");
+      }
+
       if (operation.kind === "authorize") {
+        const evidence = operation.evidence;
         if (episode.state !== "authorizing") {
           return fail(ledger, "episode-not-authorizing");
         }
-        if (operation.evidence.episodeId !== episode.episodeId) {
+        if (evidence.episodeId !== episode.episodeId) {
           return fail(ledger, "stale-episode-evidence");
         }
-        const blockerKey = key(operation.evidence.blocker);
-        const snapshotBlocker = episode.snapshot.find(
-          (blocker) => key(blocker) === blockerKey,
+        const evidenceKey = blockerKey(evidence.blocker);
+        const blocker = episode.snapshot.find(
+          (candidate) => blockerKey(candidate) === evidenceKey,
         );
-        if (snapshotBlocker === undefined) {
+        if (blocker === undefined) {
           return fail(
             ledger,
             episode.snapshot.some(
-              (blocker) =>
-                blocker.identity === operation.evidence.blocker.identity,
+              (candidate) => candidate.identity === evidence.blocker.identity,
             )
               ? "cross-kind-evidence"
               : "non-snapshot-evidence",
           );
         }
         if (
-          operation.evidence.kind === "row-close" &&
-          snapshotBlocker.kind === "inventory-only"
+          evidence.kind === "row-close" &&
+          blocker.kind === "inventory-only"
         ) {
           return fail(ledger, "inventory-close-evidence");
         }
-        if (operation.evidence.kind === "row-close") {
+        if (evidence.kind === "row-close") {
+          const row = ledger.rows.find(
+            (candidate) => candidate.rowId === evidence.rowId,
+          );
           if (
-            snapshotBlocker.kind !== "ledger-row" ||
-            operation.evidence.rowId !== snapshotBlocker.identity
+            blocker.kind !== "ledger-row" ||
+            evidence.rowId !== blocker.identity
           ) {
             return fail(ledger, "cross-kind-evidence");
           }
-          const rowEvent = rowCloseEvents.get(
-            `${operation.evidence.rowId}:${operation.evidence.rowEventId}`,
-          );
-          if (
-            rowEvent?.episodeId !== episode.episodeId ||
-            rowEvent.blocker !== blockerKey
-          ) {
-            return fail(ledger, "stale-or-unreferenced-row-close");
+          if (row === undefined || row.sessionId !== evidence.sessionId) {
+            return fail(ledger, "row-close-session-ownership");
           }
-        } else if (!manualMetadataValid(operation.evidence)) {
-          return fail(ledger, "incomplete-manual-confirmation");
+          const successIndex = row.history.findIndex(
+            (event) =>
+              event.eventId === evidence.rowEventId &&
+              event.kind === "close-succeeded",
+          );
+          if (successIndex < 0) {
+            return fail(ledger, "row-close-event-missing");
+          }
+          const success = row.history[successIndex];
+          const attempt = row.history[successIndex - 1];
+          if (
+            success === undefined ||
+            success.sessionId !== row.sessionId ||
+            success.order <= episode.events[0].order ||
+            attempt?.kind !== "close-attempted" ||
+            attempt.sessionId !== row.sessionId ||
+            attempt.order >= success.order ||
+            row.projection !== "closed=yes"
+          ) {
+            return fail(ledger, "contradictory-or-stale-row-close-history");
+          }
+        } else {
+          if (!validProvenance(evidence.provenance)) {
+            return fail(ledger, "unsafe-manual-provenance");
+          }
+          if (!validTime(evidence.observedAt)) {
+            return fail(ledger, "invalid-manual-observation-time");
+          }
         }
-        if (episode.authorizations.has(blockerKey)) {
+        if (
+          episode.authorizations.some(
+            (authorization) =>
+              blockerKey(authorization.blocker) === evidenceKey,
+          )
+        ) {
           return fail(ledger, "blocker-already-authorized");
         }
-        const next = cloneLedger(ledger);
-        const nextEpisode = next.episodes.get(episode.episodeId) as Episode;
-        nextEpisode.authorizations.set(blockerKey, operation.evidence);
-        if (operation.evidence.kind === "manual") {
-          nextEpisode.events.push("manual-cleanup-confirmed");
-        }
-        return { ledger: next };
+        const authorization = freezeAuthorization(evidence);
+        const event =
+          authorization.kind === "manual"
+            ? [
+                freezeEvent({
+                  kind: "manual-cleanup-confirmed",
+                  order: ledger.order + 1,
+                  blocker,
+                }),
+              ]
+            : [];
+        return {
+          ledger: replaceEpisode(ledger, {
+            ...episode,
+            events: [...episode.events, ...event],
+            authorizations: [...episode.authorizations, authorization],
+          }),
+        };
       }
 
       if (operation.kind === "reconstruct") {
@@ -5596,11 +5573,11 @@ describe("play subagent routing source contracts", () => {
             episode.state === "retry-dispatched" ||
               episode.state === "retry-succeeded" ||
               episode.state === "retry-failed"
-              ? "episode-already-consumed-or-terminal"
+              ? "episode-consumed-or-terminal"
               : "episode-not-authorizing",
           );
         }
-        if (episode.authorizations.size !== episode.snapshot.length) {
+        if (episode.authorizations.length !== episode.snapshot.length) {
           return fail(ledger, "blocker-authorization-incomplete");
         }
         if (
@@ -5609,11 +5586,19 @@ describe("play subagent routing source contracts", () => {
         ) {
           return fail(ledger, "reconstruction-anchors-missing");
         }
-        const next = cloneLedger(ledger);
-        const nextEpisode = next.episodes.get(episode.episodeId) as Episode;
-        nextEpisode.events.push("recovery-state-reconstructed");
-        nextEpisode.state = "ready";
-        return { ledger: next };
+        return {
+          ledger: replaceEpisode(ledger, {
+            ...episode,
+            state: "ready",
+            events: [
+              ...episode.events,
+              {
+                kind: "recovery-state-reconstructed",
+                order: ledger.order + 1,
+              },
+            ],
+          }),
+        };
       }
 
       if (operation.kind === "dispatch") {
@@ -5625,12 +5610,21 @@ describe("play subagent routing source contracts", () => {
               : "retry-already-dispatched-or-terminal",
           );
         }
-        const next = cloneLedger(ledger);
-        const nextEpisode = next.episodes.get(episode.episodeId) as Episode;
-        nextEpisode.events.push("slot-retry-dispatched");
-        nextEpisode.state = "retry-dispatched";
-        next.retryDispatches += 1;
-        return { ledger: next };
+        return {
+          ledger: replaceEpisode(
+            ledger,
+            {
+              ...episode,
+              state: "retry-dispatched",
+              events: [
+                ...episode.events,
+                { kind: "slot-retry-dispatched", order: ledger.order + 1 },
+              ],
+            },
+            ledger.order + 1,
+            1,
+          ),
+        };
       }
 
       if (episode.state !== "retry-dispatched") {
@@ -5645,420 +5639,627 @@ describe("play subagent routing source contracts", () => {
       if (
         operation.result === "failed" &&
         (operation.escalation === undefined ||
-          operation.escalation !== operation.escalation.trim() ||
-          !/^[A-Za-z0-9 ._:/@+-]+$/.test(operation.escalation))
+          !validProvenance(operation.escalation))
       ) {
         return fail(ledger, "unsanitized-retry-escalation");
       }
-      const next = cloneLedger(ledger);
-      const nextEpisode = next.episodes.get(episode.episodeId) as Episode;
-      if (operation.result === "succeeded") {
-        nextEpisode.events.push("slot-retry-succeeded");
-        nextEpisode.state = "retry-succeeded";
-      } else {
-        nextEpisode.events.push("slot-retry-failed");
-        nextEpisode.state = "retry-failed";
-        nextEpisode.escalation = operation.escalation;
-      }
-      return { ledger: next };
+      return {
+        ledger: replaceEpisode(ledger, {
+          ...episode,
+          state:
+            operation.result === "succeeded"
+              ? "retry-succeeded"
+              : "retry-failed",
+          events: [
+            ...episode.events,
+            {
+              kind:
+                operation.result === "succeeded"
+                  ? "slot-retry-succeeded"
+                  : "slot-retry-failed",
+              order: ledger.order + 1,
+            },
+          ],
+          ...(operation.result === "failed"
+            ? { escalation: operation.escalation }
+            : {}),
+        }),
+      };
     }
 
-    const emptyLedger = (): ControllerLedger => ({
-      episodes: new Map(),
-      originEpisodes: new Map(),
-      retryDispatches: 0,
-      rowProjections: new Map([["row-1", "closed=yes"]]),
-      rowHistories: new Map([
-        ["row-1", ["close-attempted", "close-succeeded"]],
-      ]),
+    const row = (rowId: string, sessionId: string): RowRecord => ({
+      rowId,
+      sessionId,
+      ...(rowId === "row-1"
+        ? { inventoryEvidenceId: "attached-inventory" }
+        : {}),
+      history: [],
+      projection: "closed=no",
     });
-    const row: BlockerRef = { kind: "ledger-row", identity: "row-1" };
-    const inventory: BlockerRef = {
+    const emptyLedger = (): Ledger =>
+      freezeLedger({
+        order: 0,
+        rows: [row("row-1", "session-1"), row("same", "session-same")],
+        episodes: [],
+        originEpisodes: [],
+        retryDispatches: 0,
+      });
+    const ledgerRow = (identity = "row-1"): BlockerRef => ({
+      kind: "ledger-row",
+      identity,
+    });
+    const inventory = (identity = "inventory-1"): BlockerRef => ({
       kind: "inventory-only",
-      identity: "inventory-1",
-    };
-    const rowClose = (
-      episodeId = "episode-1",
-      overrides: Partial<Extract<Authorization, { kind: "row-close" }>> = {},
-    ): Authorization => ({
-      kind: "row-close",
+      identity,
+    });
+    const start = (
+      originId: string,
+      episodeId: string,
+      blockers: BlockerRef[],
+      observedBlockers = blockers,
+    ): Extract<Operation, { kind: "start" }> => ({
+      kind: "start",
+      originId,
       episodeId,
-      blocker: row,
-      rowId: "row-1",
-      rowEventId: "close-1",
-      ...overrides,
+      observedBlockers,
+      snapshot: blockers,
     });
     const manual = (
       episodeId: string,
       blocker: BlockerRef,
-      overrides: Partial<Extract<Authorization, { kind: "manual" }>> = {},
-    ): Authorization => ({
+      provenance = "operator UI",
+    ): Extract<Authorization, { kind: "manual" }> => ({
       kind: "manual",
       episodeId,
       blocker,
-      provenance: "operator UI",
+      provenance,
       observedAt: "2026-07-12T00:00:00Z",
+    });
+    const closeEvidence = (
+      episodeId: string,
+      blocker = ledgerRow(),
+      overrides: Partial<Extract<Authorization, { kind: "row-close" }>> = {},
+    ): Extract<Authorization, { kind: "row-close" }> => ({
+      kind: "row-close",
+      episodeId,
+      blocker,
+      rowId: blocker.identity,
+      rowEventId: `close-success-${blocker.identity}`,
+      sessionId: blocker.identity === "same" ? "session-same" : "session-1",
       ...overrides,
     });
-    const apply = (
-      ledger: ControllerLedger,
-      operation: RecoveryOperation,
-    ): ControllerLedger => {
-      const result = foldRecoveryEpisode(ledger, operation);
+    const apply = (ledger: Ledger, operation: Operation): Ledger => {
+      const result = fold(ledger, operation);
       expect(result.error).toBeUndefined();
       return result.ledger;
     };
-    const start = (
-      originId: string,
-      episodeId: string,
-      snapshot: BlockerRef[],
-    ): RecoveryOperation => ({ kind: "start", originId, episodeId, snapshot });
-    const authorize = (
-      episodeId: string,
-      evidence: Authorization,
-    ): RecoveryOperation => ({ kind: "authorize", episodeId, evidence });
-    const reconstruct = (episodeId: string): RecoveryOperation => ({
+    const prepare = (
+      blockers: BlockerRef[],
+      originId = "origin-1",
+      episodeId = "episode-1",
+    ): Ledger => {
+      let ledger = apply(
+        emptyLedger(),
+        start(originId, episodeId, blockers, blockers),
+      );
+      for (const blocker of blockers) {
+        if (blocker.kind === "ledger-row") {
+          ledger = apply(ledger, {
+            kind: "record-row-close",
+            rowId: blocker.identity,
+            sessionId:
+              blocker.identity === "same" ? "session-same" : "session-1",
+            attemptEventId: `close-attempt-${blocker.identity}`,
+            successEventId: `close-success-${blocker.identity}`,
+          });
+          ledger = apply(ledger, {
+            kind: "authorize",
+            episodeId,
+            evidence: closeEvidence(episodeId, blocker),
+          });
+        } else {
+          ledger = apply(ledger, {
+            kind: "authorize",
+            episodeId,
+            evidence: manual(episodeId, blocker),
+          });
+        }
+      }
+      return ledger;
+    };
+    const reconstruct = (episodeId: string): Operation => ({
       kind: "reconstruct",
       episodeId,
-      lifecycleAnchor: "captured controller ledger",
+      lifecycleAnchor: "captured lifecycle ledger",
       repositoryAnchor: "main@abc123",
     });
-    const dispatch = (episodeId: string): RecoveryOperation => ({
+    const dispatch = (episodeId: string): Operation => ({
       kind: "dispatch",
       episodeId,
     });
     const result = (
       episodeId: string,
       retryResult: "succeeded" | "failed",
-    ): RecoveryOperation => ({
+    ): Operation => ({
       kind: "result",
       episodeId,
       result: retryResult,
-      escalation:
-        retryResult === "failed"
-          ? "retry failed inventory unavailable"
-          : undefined,
+      ...(retryResult === "failed"
+        ? { escalation: "retry failed inventory unavailable" }
+        : {}),
     });
-    const authorizeSnapshot = (
-      ledger: ControllerLedger,
-      episodeId: string,
-      snapshot: BlockerRef[],
-    ): ControllerLedger => {
-      let next = ledger;
-      for (const blocker of snapshot) {
-        next = apply(
-          next,
-          authorize(
-            episodeId,
-            blocker.kind === "ledger-row"
-              ? rowClose(episodeId, {
-                  blocker,
-                  rowId: blocker.identity,
-                  rowEventId:
-                    blocker.identity === "same" ? "close-same" : "close-1",
-                })
-              : manual(episodeId, blocker),
-          ),
-        );
-      }
-      return next;
+    const expectRejected = (
+      ledger: Ledger,
+      operation: Operation,
+      error: string,
+    ): void => {
+      const before = ledger;
+      const folded = fold(ledger, operation);
+      expect(folded.error).toBe(error);
+      expect(folded.ledger).toBe(before);
     };
-    const complete = (
-      snapshot: BlockerRef[],
+    const finish = (
+      blockers: BlockerRef[],
       originId = "origin-1",
       episodeId = "episode-1",
       retryResult: "succeeded" | "failed" = "succeeded",
-    ): ControllerLedger => {
-      let ledger = apply(emptyLedger(), start(originId, episodeId, snapshot));
-      ledger = authorizeSnapshot(ledger, episodeId, snapshot);
+    ): Ledger => {
+      let ledger = prepare(blockers, originId, episodeId);
+      const rowsAfterCleanup = ledger.rows;
       ledger = apply(ledger, reconstruct(episodeId));
       ledger = apply(ledger, dispatch(episodeId));
-      return apply(ledger, result(episodeId, retryResult));
+      ledger = apply(ledger, result(episodeId, retryResult));
+      expect(ledger.rows).toEqual(rowsAfterCleanup);
+      return ledger;
     };
 
-    for (const snapshot of [[row], [inventory], [row, inventory]]) {
-      const ledger = complete(snapshot);
-      expect(ledger.episodes.get("episode-1")?.state).toBe("retry-succeeded");
+    for (const blockers of [
+      [ledgerRow()],
+      [inventory()],
+      [ledgerRow(), inventory()],
+    ]) {
+      const ledger = finish(blockers);
+      expect(ledger.episodes[0]?.state).toBe("retry-succeeded");
       expect(ledger.retryDispatches).toBe(1);
-      expect(ledger.rowProjections).toEqual(emptyLedger().rowProjections);
-      expect(ledger.rowHistories).toEqual(emptyLedger().rowHistories);
+      expect(ledger.rows.flatMap((candidate) => candidate.history)).not.toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ kind: "slot-recovery-started" }),
+          expect.objectContaining({ kind: "manual-cleanup-confirmed" }),
+        ]),
+      );
     }
-
-    const mixed = complete([row, inventory]);
-    expect(mixed.episodes.get("episode-1")?.events).toEqual([
+    const mixed = finish([ledgerRow(), inventory()]);
+    expect(mixed.episodes[0]?.events.map((event) => event.kind)).toEqual([
       "slot-recovery-started",
       "manual-cleanup-confirmed",
       "recovery-state-reconstructed",
       "slot-retry-dispatched",
       "slot-retry-succeeded",
     ]);
-    const equalRow: BlockerRef = { kind: "ledger-row", identity: "same" };
-    const equalInventory: BlockerRef = {
-      kind: "inventory-only",
-      identity: "same",
-    };
-    const equalRaw = complete(
-      [equalRow, equalInventory],
+    const equal = finish(
+      [ledgerRow("same"), inventory("same")],
       "origin-equal",
       "episode-equal",
     );
-    expect(equalRaw.episodes.get("episode-equal")?.authorizations.size).toBe(2);
+    expect(equal.episodes[0]?.authorizations).toHaveLength(2);
+    expect(finish([inventory()]).rows).toEqual(emptyLedger().rows);
 
-    const failed = complete(
-      [inventory],
+    let mixedBoundary = apply(
+      emptyLedger(),
+      start("origin-boundary", "episode-boundary", [ledgerRow(), inventory()]),
+    );
+    mixedBoundary = apply(mixedBoundary, {
+      kind: "record-row-close",
+      rowId: "row-1",
+      sessionId: "session-1",
+      attemptEventId: "boundary-close-attempt",
+      successEventId: "boundary-close-success",
+    });
+    const rowsAfterCleanup = mixedBoundary.rows;
+    mixedBoundary = apply(mixedBoundary, {
+      kind: "authorize",
+      episodeId: "episode-boundary",
+      evidence: closeEvidence("episode-boundary", ledgerRow(), {
+        rowEventId: "boundary-close-success",
+      }),
+    });
+    mixedBoundary = apply(mixedBoundary, {
+      kind: "authorize",
+      episodeId: "episode-boundary",
+      evidence: manual("episode-boundary", inventory()),
+    });
+    mixedBoundary = apply(mixedBoundary, reconstruct("episode-boundary"));
+    mixedBoundary = apply(mixedBoundary, dispatch("episode-boundary"));
+    mixedBoundary = apply(
+      mixedBoundary,
+      result("episode-boundary", "succeeded"),
+    );
+    expect(mixedBoundary.rows).toEqual(rowsAfterCleanup);
+
+    const failed = finish(
+      [inventory()],
       "origin-failed",
       "episode-failed",
       "failed",
     );
-    expect(failed.episodes.get("episode-failed")).toMatchObject({
+    expect(failed.episodes[0]).toMatchObject({
       state: "retry-failed",
       escalation: "retry failed inventory unavailable",
     });
-    expect(failed.rowProjections).toEqual(emptyLedger().rowProjections);
-    const distinct = apply(
-      failed,
-      start("origin-distinct", "episode-distinct", [inventory]),
-    );
-    expect(distinct.episodes.get("episode-distinct")?.state).toBe(
-      "authorizing",
-    );
+    expect(
+      apply(
+        failed,
+        start("origin-distinct", "episode-distinct", [inventory()]),
+      ).episodes.at(-1)?.state,
+    ).toBe("authorizing");
 
-    const expectRejectedWithoutMutation = (
-      ledger: ControllerLedger,
-      operation: RecoveryOperation,
-      error: string,
-    ): void => {
-      const before = cloneLedger(ledger);
-      const folded = foldRecoveryEpisode(ledger, operation);
-      expect(folded.error).toBe(error);
-      expect(folded.ledger).toEqual(before);
-      expect(folded.ledger.retryDispatches).toBe(before.retryDispatches);
-      expect(folded.ledger.rowProjections).toEqual(before.rowProjections);
-      expect(folded.ledger.rowHistories).toEqual(before.rowHistories);
-    };
+    const baseStart = start("origin-1", "episode-1", [inventory()]);
+    expectRejected(
+      emptyLedger(),
+      { ...baseStart, snapshot: [] },
+      "empty-blocker-snapshot",
+    );
+    expectRejected(
+      emptyLedger(),
+      { ...baseStart, observedBlockers: [] },
+      "empty-observed-blocker-inventory",
+    );
+    expectRejected(
+      emptyLedger(),
+      { ...baseStart, snapshot: [inventory(), inventory()] },
+      "duplicate-snapshot-blocker",
+    );
+    expectRejected(
+      emptyLedger(),
+      { ...baseStart, observedBlockers: [inventory(), inventory()] },
+      "duplicate-observed-blocker",
+    );
+    expectRejected(
+      emptyLedger(),
+      {
+        ...baseStart,
+        snapshot: [inventory("unsafe identity")],
+      },
+      "unsanitized-snapshot-blocker",
+    );
+    expectRejected(
+      emptyLedger(),
+      {
+        ...baseStart,
+        observedBlockers: [inventory("unsafe identity")],
+      },
+      "unsanitized-observed-blocker",
+    );
+    expectRejected(
+      emptyLedger(),
+      {
+        ...baseStart,
+        observedBlockers: [ledgerRow()],
+        snapshot: [inventory("row-1")],
+      },
+      "observed-snapshot-membership-or-tag-mismatch",
+    );
+    expectRejected(
+      emptyLedger(),
+      start(
+        "origin-omit",
+        "episode-omit",
+        [ledgerRow()],
+        [ledgerRow(), inventory()],
+      ),
+      "observed-snapshot-membership-or-tag-mismatch",
+    );
+    expectRejected(
+      emptyLedger(),
+      start("origin-attached", "episode-attached", [
+        ledgerRow(),
+        inventory("attached-inventory"),
+      ]),
+      "attached-inventory-double-counted",
+    );
 
     const authorizing = apply(
       emptyLedger(),
-      start("origin-1", "episode-1", [row, inventory]),
+      start("origin-1", "episode-1", [ledgerRow(), inventory()]),
     );
-    expect(authorizing.episodes.get("episode-1")).toMatchObject({
-      originId: "origin-1",
-      episodeId: "episode-1",
-      snapshot: [row, inventory],
-      state: "authorizing",
-    });
-    expectRejectedWithoutMutation(
-      emptyLedger(),
-      start("origin-empty", "episode-empty", []),
-      "empty-blocker-snapshot",
-    );
-    expectRejectedWithoutMutation(
-      emptyLedger(),
-      start("origin-duplicate", "episode-duplicate", [row, row]),
-      "duplicate-blocker-reference",
-    );
-    expectRejectedWithoutMutation(
-      emptyLedger(),
-      start("origin-unsafe", "episode-unsafe", [
-        { kind: "inventory-only", identity: "unsafe identity" },
-      ]),
-      "unsanitized-blocker-reference",
-    );
-    expectRejectedWithoutMutation(
+    expectRejected(
       authorizing,
-      authorize(
-        "episode-1",
-        manual("episode-1", { kind: "inventory-only", identity: "row-1" }),
-      ),
+      {
+        kind: "authorize",
+        episodeId: "episode-1",
+        evidence: manual("episode-1", inventory("other")),
+      },
+      "non-snapshot-evidence",
+    );
+    expectRejected(
+      authorizing,
+      {
+        kind: "authorize",
+        episodeId: "episode-1",
+        evidence: manual("episode-1", inventory("row-1")),
+      },
       "cross-kind-evidence",
     );
-    const rowAuthorized = apply(
+    expectRejected(
       authorizing,
-      authorize("episode-1", rowClose()),
+      {
+        kind: "authorize",
+        episodeId: "episode-1",
+        evidence: closeEvidence("episode-1", inventory()),
+      },
+      "inventory-close-evidence",
     );
-    expectRejectedWithoutMutation(
-      rowAuthorized,
+    expectRejected(
+      authorizing,
+      {
+        kind: "authorize",
+        episodeId: "episode-1",
+        evidence: manual("episode-0", inventory()),
+      },
+      "stale-episode-evidence",
+    );
+    expectRejected(
+      authorizing,
+      {
+        kind: "authorize",
+        episodeId: "episode-1",
+        evidence: manual("episode-1", inventory(), "operator\nraw-secret"),
+      },
+      "unsafe-manual-provenance",
+    );
+    expectRejected(
+      authorizing,
+      {
+        kind: "authorize",
+        episodeId: "episode-1",
+        evidence: {
+          ...manual("episode-1", inventory()),
+          observedAt: "not-a-time",
+        },
+      },
+      "invalid-manual-observation-time",
+    );
+    expectRejected(
+      authorizing,
+      {
+        kind: "authorize",
+        episodeId: "episode-1",
+        evidence: closeEvidence("episode-1"),
+      },
+      "row-close-event-missing",
+    );
+
+    let rowReady = apply(authorizing, {
+      kind: "record-row-close",
+      rowId: "row-1",
+      sessionId: "session-1",
+      attemptEventId: "close-attempt-row-1",
+      successEventId: "close-success-row-1",
+    });
+    rowReady = apply(rowReady, {
+      kind: "authorize",
+      episodeId: "episode-1",
+      evidence: closeEvidence("episode-1"),
+    });
+    expectRejected(
+      rowReady,
+      {
+        kind: "authorize",
+        episodeId: "episode-1",
+        evidence: closeEvidence("episode-1"),
+      },
+      "blocker-already-authorized",
+    );
+    expectRejected(
+      rowReady,
       reconstruct("episode-1"),
       "blocker-authorization-incomplete",
     );
-    expectRejectedWithoutMutation(
-      rowAuthorized,
-      authorize("episode-1", manual("episode-0", inventory)),
-      "stale-episode-evidence",
-    );
-    expectRejectedWithoutMutation(
-      rowAuthorized,
-      authorize(
-        "episode-1",
-        manual("episode-1", { kind: "inventory-only", identity: "other" }),
+    expectRejected(rowReady, dispatch("episode-1"), "reconstruction-required");
+
+    const contradictory = freezeLedger({
+      ...authorizing,
+      rows: authorizing.rows.map((candidate) =>
+        candidate.rowId === "row-1"
+          ? {
+              ...candidate,
+              projection: "closed=yes",
+              history: [
+                {
+                  eventId: "close-success-row-1",
+                  kind: "close-succeeded",
+                  order: authorizing.order + 1,
+                  sessionId: "session-1",
+                },
+              ],
+            }
+          : candidate,
       ),
-      "non-snapshot-evidence",
+      order: authorizing.order + 1,
+    });
+    expectRejected(
+      contradictory,
+      {
+        kind: "authorize",
+        episodeId: "episode-1",
+        evidence: closeEvidence("episode-1"),
+      },
+      "contradictory-or-stale-row-close-history",
     );
-    expectRejectedWithoutMutation(
-      authorizing,
-      authorize(
-        "episode-1",
-        rowClose("episode-1", { rowEventId: "close-stale" }),
+    const wrongSession = freezeLedger({
+      ...rowReady,
+      episodes: rowReady.episodes.map((episode) => ({
+        ...episode,
+        authorizations: [],
+      })),
+      rows: rowReady.rows.map((candidate) =>
+        candidate.rowId === "row-1"
+          ? { ...candidate, sessionId: "different-session" }
+          : candidate,
       ),
-      "stale-or-unreferenced-row-close",
-    );
-    expectRejectedWithoutMutation(
-      authorizing,
-      authorize(
-        "episode-1",
-        rowClose("episode-1", { blocker: inventory, rowId: "inventory-1" }),
-      ),
-      "inventory-close-evidence",
-    );
-    expectRejectedWithoutMutation(
-      rowAuthorized,
-      authorize("episode-1", rowClose()),
-      "blocker-already-authorized",
-    );
-    expectRejectedWithoutMutation(
-      rowAuthorized,
-      authorize(
-        "episode-1",
-        manual("episode-1", inventory, { provenance: undefined }),
-      ),
-      "incomplete-manual-confirmation",
-    );
-    expectRejectedWithoutMutation(
-      rowAuthorized,
-      dispatch("episode-1"),
-      "reconstruction-required",
+    });
+    expectRejected(
+      wrongSession,
+      {
+        kind: "authorize",
+        episodeId: "episode-1",
+        evidence: closeEvidence("episode-1"),
+      },
+      "row-close-session-ownership",
     );
 
-    let ready = apply(
-      rowAuthorized,
-      authorize("episode-1", manual("episode-1", inventory)),
-    );
-    ready = apply(ready, reconstruct("episode-1"));
-    const dispatched = apply(ready, dispatch("episode-1"));
-    expectRejectedWithoutMutation(
-      dispatched,
-      dispatch("episode-1"),
-      "retry-already-dispatched-or-terminal",
-    );
-    expectRejectedWithoutMutation(
-      dispatched,
-      reconstruct("episode-1"),
-      "episode-already-consumed-or-terminal",
-    );
-    expectRejectedWithoutMutation(
-      authorizing,
-      start("origin-1", "episode-other", [inventory]),
-      "recovery-origin-already-used",
-    );
-    expectRejectedWithoutMutation(
+    const readyForManual = apply(rowReady, {
+      kind: "authorize",
+      episodeId: "episode-1",
+      evidence: manual("episode-1", inventory()),
+    });
+    const ready = apply(readyForManual, reconstruct("episode-1"));
+    expectRejected(
       ready,
       result("episode-1", "succeeded"),
       "retry-result-without-dispatch",
     );
+    const dispatched = apply(ready, dispatch("episode-1"));
+    expectRejected(
+      dispatched,
+      dispatch("episode-1"),
+      "retry-already-dispatched-or-terminal",
+    );
+    expectRejected(
+      dispatched,
+      reconstruct("episode-1"),
+      "episode-consumed-or-terminal",
+    );
     const succeeded = apply(dispatched, result("episode-1", "succeeded"));
-    expectRejectedWithoutMutation(
+    expectRejected(
       succeeded,
       result("episode-1", "succeeded"),
       "retry-result-already-recorded",
     );
-    expectRejectedWithoutMutation(
+    expectRejected(
       succeeded,
       result("episode-1", "failed"),
       "retry-result-already-recorded",
     );
-    expectRejectedWithoutMutation(
+    expectRejected(
+      authorizing,
+      start("origin-1", "episode-other", [inventory()]),
+      "recovery-origin-already-used",
+    );
+    expectRejected(
       failed,
-      start("origin-failed", "episode-after-failure", [inventory]),
+      start("origin-failed", "episode-after-failure", [inventory()]),
       "terminal-failure-origin-closed",
     );
-    const failureDispatched = apply(
-      apply(
-        authorizeSnapshot(
-          apply(
-            emptyLedger(),
-            start("origin-bad-escalation", "episode-bad-escalation", [
-              inventory,
-            ]),
-          ),
-          "episode-bad-escalation",
-          [inventory],
-        ),
-        reconstruct("episode-bad-escalation"),
-      ),
-      dispatch("episode-bad-escalation"),
-    );
-    expectRejectedWithoutMutation(
-      failureDispatched,
+    expectRejected(
+      dispatched,
       {
         kind: "result",
-        episodeId: "episode-bad-escalation",
+        episodeId: "episode-1",
         result: "failed",
         escalation: "raw\nsecret",
       },
       "unsanitized-retry-escalation",
     );
+
+    const inconsistent = Object.freeze({
+      ...authorizing,
+      originEpisodes: Object.freeze([
+        Object.freeze({
+          originId: "wrong-origin",
+          episodeId: "episode-1",
+        }),
+      ]),
+    });
+    expectRejected(
+      inconsistent,
+      {
+        kind: "authorize",
+        episodeId: "episode-1",
+        evidence: manual("episode-1", inventory()),
+      },
+      "inconsistent-origin-episode-index",
+    );
+
+    const mutableSnapshot = [
+      { kind: "inventory-only" as const, identity: "inventory-1" },
+    ];
+    const mutableStart = apply(
+      emptyLedger(),
+      start("origin-alias", "episode-alias", mutableSnapshot),
+    );
+    mutableSnapshot[0].identity = "mutated";
+    expect(mutableStart.episodes[0]?.snapshot[0]?.identity).toBe("inventory-1");
+    expect(() => {
+      (
+        mutableStart.episodes[0]?.snapshot as unknown as Array<{
+          identity: string;
+        }>
+      )[0].identity = "mutated-return";
+    }).toThrow();
+
+    const mutableEvidence = {
+      kind: "manual" as const,
+      episodeId: "episode-alias",
+      blocker: { kind: "inventory-only" as const, identity: "inventory-1" },
+      provenance: "operator UI",
+      observedAt: "2026-07-12T00:00:00Z",
+    };
+    const immutableAuthorization = apply(mutableStart, {
+      kind: "authorize",
+      episodeId: "episode-alias",
+      evidence: mutableEvidence,
+    });
+    mutableEvidence.provenance = "mutated";
+    expect(immutableAuthorization.episodes[0]?.authorizations[0]).toMatchObject(
+      { provenance: "operator UI" },
+    );
+    expect(() => {
+      (
+        immutableAuthorization.episodes[0]?.authorizations as unknown as Array<{
+          blocker: { identity: string };
+        }>
+      )[0].blocker.identity = "mutated-return";
+    }).toThrow();
   });
 
-  it("preserves ordered per-row lifecycle and cleanup behavior", () => {
-    type OperationalState =
+  it("folds row-owned lifecycle history without episode facts", () => {
+    type State =
+      | "pending"
       | "active"
       | "waiting"
       | "interrupted"
-      | "pending"
-      | "unknown"
       | "completed"
       | "timed-out"
       | "failed"
       | "superseded";
-    type SessionReference =
-      | { kind: "pending" }
-      | { kind: "stable"; sessionId: string };
-    type ManualTarget =
-      | { kind: "row"; value: string }
-      | { kind: "inventory"; value: string };
-    type BlockerRecord = {
-      rowId: string;
-      sessionRef: SessionReference;
-      inventoryIdentity?: string;
-    };
-    type LifecycleEvent = {
+    type Event = {
       order: number;
       kind:
-        | "session-identity-assigned"
-        | "reuse-capability-observed"
-        | "operational-classified"
         | "dispatch-requested"
-        | "followup-dispatch-requested"
-        | "interrupted-reuse-dispatch-requested"
+        | "identity-assigned"
+        | "reuse-capability-observed"
         | "waiting"
         | "interrupted"
         | "required-state-captured"
         | "replacement-secured"
-        | "abnormal-context-captured"
         | "turn-completed"
         | "turn-timed-out"
         | "turn-failed"
+        | "followup-dispatch-requested"
+        | "interrupted-reuse-dispatch-requested"
         | "superseded"
-        | "slot-recovery-started"
         | "close-deferred"
         | "retention-resolved"
         | "close-attempted"
         | "close-failed"
         | "close-succeeded"
-        | "closure-unavailable"
-        | "manual-cleanup-confirmed";
-      rowId?: string;
-      episodeId?: string;
-      blockers?: BlockerRecord[];
+        | "closure-unavailable";
       sessionId?: string;
       reuseSupported?: boolean;
-      operationalState?: OperationalState;
-      manualTarget?: ManualTarget;
-      reason?: string;
       evidence?: string;
+      reason?: string;
       resolutionBasis?: "need-finished" | "captured-and-replaced";
-      provenance?: string;
-      observedAt?: string;
     };
     type Projection = {
       decision: "none" | "retained" | "attempted" | "unavailable";
@@ -6066,646 +6267,229 @@ describe("play subagent routing source contracts", () => {
       retentionReason: string | null;
       unavailableReason: string | null;
     };
-    type RowFold = {
-      history: LifecycleEvent["kind"][];
-      sessionIdentity:
-        | { kind: "unresolved" }
-        | { kind: "stable"; sessionId: string };
-      sessionReusable: boolean;
-      operationalState: OperationalState | null;
-      operationalTransitionOrder: number;
-      dispatchRequestOrder: number;
-      captureRequiredAfterOrder: number;
-      latestTerminalOrder: number;
-      abnormalContextRequiredSince: number;
-      captureFreshThroughOrder: number;
+    type Row = {
+      state: State | null;
+      sessionId: string | null;
+      reusable: boolean;
+      transitionOrder: number;
+      captureOrder: number;
+      terminalOrder: number;
+      abnormalOrder: number;
+      abnormalCaptureOrder: number;
       replacementOrder: number;
-      abnormalContextOrder: number;
-      cleanupEligibilityOrder: number;
       retained: boolean;
-      latestDeferralOrder: number;
-      retentionReasonHistory: string[];
-      unavailableReasonHistory: string[];
-      terminal: boolean;
-      outstandingAttempt: {
-        scope: string;
-        sessionId: string;
-      } | null;
-      manualEligibleEpisode: string | null;
-      manualPathOrder: number;
-      latestRelevantTransitionOrder: number;
-      authorizationOrders: Map<string, number>;
+      deferralOrder: number;
+      outstandingClose: boolean;
+      terminalClose: boolean;
+      history: Event["kind"][];
+      retentionReasons: string[];
+      unavailableReasons: string[];
       projection: Projection;
     };
-    type EpisodeWindow = {
-      episodeId: string;
-      startOrder: number;
-      blockers: BlockerRecord[];
-    };
-    type FoldResult = {
-      errors: string[];
-      histories: Map<string, LifecycleEvent["kind"][]>;
-      projections: Map<string, Projection>;
-      retentionReasonHistories: Map<string, string[]>;
-      unavailableReasonHistories: Map<string, string[]>;
-    };
+    type Result = { row: Row; error?: string };
 
-    const NORMAL_GATE_SCOPE = "normal-gate";
-    const reservedSessionIds = new Set(["pending", "unknown", "unresolved"]);
-    const cleanupEligibleTerminals = new Set<OperationalState>([
+    const created = (): Row => ({
+      state: null,
+      sessionId: null,
+      reusable: false,
+      transitionOrder: 0,
+      captureOrder: 0,
+      terminalOrder: 0,
+      abnormalOrder: 0,
+      abnormalCaptureOrder: 0,
+      replacementOrder: 0,
+      retained: false,
+      deferralOrder: 0,
+      outstandingClose: false,
+      terminalClose: false,
+      history: [],
+      retentionReasons: [],
+      unavailableReasons: [],
+      projection: {
+        decision: "none",
+        outcome: "closed=no",
+        retentionReason: null,
+        unavailableReason: null,
+      },
+    });
+    const terminalStates = new Set<State>([
       "completed",
       "timed-out",
       "failed",
       "superseded",
     ]);
-    const observationalStates = new Set<OperationalState>([
-      "active",
-      "waiting",
-      "interrupted",
-      "pending",
-      "unknown",
-    ]);
-    const openStates = new Set<OperationalState>([
-      "active",
-      "waiting",
-      "interrupted",
-    ]);
-    const fail = (error: string): FoldResult => ({
-      errors: [error],
-      histories: new Map(),
-      projections: new Map(),
-      retentionReasonHistories: new Map(),
-      unavailableReasonHistories: new Map(),
-    });
-    const sanitizedIdentity = (value: string): boolean =>
-      /^[A-Za-z0-9._-]+$/.test(value);
-    const stableSessionId = (value: string): boolean =>
-      sanitizedIdentity(value) && !reservedSessionIds.has(value.toLowerCase());
-    const validProvenance = (value: string): boolean =>
-      value === value.trim() &&
-      value.length > 0 &&
-      value.length <= 160 &&
-      /^[A-Za-z0-9 ._:/@+-]+$/.test(value);
-    const validObservedAt = (value: string): boolean => {
-      if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(value)) {
-        return false;
+    const fail = (row: Row, error: string): Result => ({ row, error });
+    const captured = (event: Event): boolean =>
+      event.evidence !== undefined && event.evidence.trim().length > 0;
+    const eligible = (row: Row): string | undefined => {
+      if (row.state === null || !terminalStates.has(row.state)) {
+        return "cleanup-ineligible-operational-state";
       }
-      const parsed = Date.parse(value);
-      return (
-        !Number.isNaN(parsed) &&
-        new Date(parsed).toISOString() === value.replace(/Z$/, ".000Z")
-      );
+      if (row.captureOrder <= row.transitionOrder) {
+        return "required-state-capture-stale";
+      }
+      if (
+        row.abnormalOrder > 0 &&
+        row.abnormalCaptureOrder < row.abnormalOrder
+      ) {
+        return "abnormal-context-stale";
+      }
+      return undefined;
     };
 
-    function foldLifecycle(events: LifecycleEvent[]): FoldResult {
-      const seenOrders = new Set<number>();
-      const seenEpisodeIds = new Set<string>();
-      const episodeById = new Map<string, EpisodeWindow>();
-      const rows = new Map<string, RowFold>();
-      const sessionOwnerById = new Map<string, string>();
+    function foldRows(events: Event[]): Result {
+      let row = created();
       let previousOrder = 0;
-      let currentEpisode: EpisodeWindow | undefined;
-
-      const rowState = (rowId: string): RowFold => {
-        const existing = rows.get(rowId);
-        if (existing !== undefined) {
-          return existing;
-        }
-        const created: RowFold = {
-          history: [],
-          sessionIdentity: { kind: "unresolved" },
-          sessionReusable: false,
-          operationalState: null,
-          operationalTransitionOrder: 0,
-          dispatchRequestOrder: 0,
-          captureRequiredAfterOrder: 0,
-          latestTerminalOrder: 0,
-          abnormalContextRequiredSince: 0,
-          captureFreshThroughOrder: 0,
-          replacementOrder: 0,
-          abnormalContextOrder: 0,
-          cleanupEligibilityOrder: 0,
-          retained: false,
-          latestDeferralOrder: 0,
-          retentionReasonHistory: [],
-          unavailableReasonHistory: [],
-          terminal: false,
-          outstandingAttempt: null,
-          manualEligibleEpisode: null,
-          manualPathOrder: 0,
-          latestRelevantTransitionOrder: 0,
-          authorizationOrders: new Map(),
-          projection: {
-            decision: "none",
-            outcome: "closed=no",
-            retentionReason: null,
-            unavailableReason: null,
-          },
-        };
-        rows.set(rowId, created);
-        return created;
-      };
-      const advanceOperational = (
-        state: RowFold,
-        nextState: OperationalState,
-        order: number,
-        preserveCaptureRequirement = false,
-      ): void => {
-        state.operationalState = nextState;
-        state.operationalTransitionOrder = order;
-        if (!preserveCaptureRequirement) {
-          state.captureRequiredAfterOrder = order;
-        }
-        state.cleanupEligibilityOrder = 0;
-        state.manualEligibleEpisode = null;
-        state.manualPathOrder = 0;
-        state.latestRelevantTransitionOrder = order;
-      };
-      const baseEligibilityError = (state: RowFold): string | null => {
-        if (
-          state.operationalState === null ||
-          !cleanupEligibleTerminals.has(state.operationalState)
-        ) {
-          return "cleanup-ineligible-operational-state";
-        }
-        if (state.captureFreshThroughOrder <= state.captureRequiredAfterOrder) {
-          return "required-state-capture-stale";
-        }
-        if (
-          state.abnormalContextRequiredSince > 0 &&
-          state.abnormalContextOrder < state.abnormalContextRequiredSince
-        ) {
-          return "abnormal-terminal-context-stale";
-        }
-        return null;
-      };
-      const stableIdentityError = (
-        state: RowFold,
-        blocker: BlockerRecord | undefined,
-        eventSessionId: string | undefined,
-      ): string | null => {
-        if (state.sessionIdentity.kind !== "stable") {
-          return "stable-session-identity-missing";
-        }
-        if (
-          eventSessionId === undefined ||
-          !stableSessionId(eventSessionId) ||
-          eventSessionId !== state.sessionIdentity.sessionId
-        ) {
-          return "automatic-close-session-mismatch";
-        }
-        if (
-          blocker?.sessionRef.kind === "stable" &&
-          blocker.sessionRef.sessionId !== state.sessionIdentity.sessionId
-        ) {
-          return "snapshot-session-mismatch";
-        }
-        return null;
-      };
-      const episodeError = (
-        episode: EpisodeWindow,
-        intermediate: boolean,
-      ): string | null => {
-        for (const blocker of episode.blockers) {
-          const state = rowState(blocker.rowId);
-          const eligibility = baseEligibilityError(state);
-          if (eligibility !== null) {
-            return eligibility;
-          }
-          if (
-            state.cleanupEligibilityOrder <= state.operationalTransitionOrder
-          ) {
-            return "cleanup-eligibility-stale";
-          }
-          if (state.retained) {
-            return intermediate
-              ? "intermediate-episode-retention-unresolved"
-              : "retention-blocker-unresolved";
-          }
-          if (state.outstandingAttempt !== null) {
-            return intermediate
-              ? "intermediate-episode-attempt-unresolved"
-              : "unpaired-close-attempt";
-          }
-          const authorizationOrder = state.authorizationOrders.get(
-            episode.episodeId,
-          );
-          if (authorizationOrder === undefined) {
-            return intermediate
-              ? "intermediate-episode-unauthorized"
-              : "slot-retry-authorization";
-          }
-          if (authorizationOrder <= state.latestRelevantTransitionOrder) {
-            return intermediate
-              ? "intermediate-episode-stale-authorization"
-              : "stale-slot-retry-authorization";
-          }
-          if (
-            !state.terminal &&
-            (state.manualEligibleEpisode !== episode.episodeId ||
-              state.manualPathOrder <= state.operationalTransitionOrder)
-          ) {
-            return intermediate
-              ? "intermediate-episode-unsafe-final-state"
-              : "unsafe-final-cleanup-state";
-          }
-        }
-        return null;
-      };
-      const reconcileSnapshot = (
-        blocker: BlockerRecord,
-        state: RowFold,
-      ): string | null => {
-        if (!sanitizedIdentity(blocker.rowId)) {
-          return "blank-or-unsanitized-row-identity";
-        }
-        if (
-          blocker.inventoryIdentity !== undefined &&
-          !sanitizedIdentity(blocker.inventoryIdentity)
-        ) {
-          return "invalid-inventory-identity";
-        }
-        if (blocker.sessionRef.kind === "stable") {
-          if (!stableSessionId(blocker.sessionRef.sessionId)) {
-            return "invalid-stable-session-identity";
-          }
-          const owner = sessionOwnerById.get(blocker.sessionRef.sessionId);
-          if (owner !== undefined && owner !== blocker.rowId) {
-            return "snapshot-session-identity-alias";
-          }
-          if (
-            state.sessionIdentity.kind !== "stable" ||
-            state.sessionIdentity.sessionId !== blocker.sessionRef.sessionId
-          ) {
-            return "snapshot-stable-session-mismatch";
-          }
-        } else if (state.sessionIdentity.kind === "stable") {
-          return "snapshot-pending-after-stable-identity";
-        }
-        return null;
-      };
-
       for (const event of events) {
-        if (!Number.isInteger(event.order) || event.order <= 0) {
-          return fail("invalid-lifecycle-order");
-        }
-        if (seenOrders.has(event.order)) {
-          return fail("duplicate-lifecycle-order");
-        }
         if (event.order <= previousOrder) {
-          return fail("unordered-lifecycle-events");
+          return fail(row, "unordered-row-events");
         }
-        seenOrders.add(event.order);
         previousOrder = event.order;
-
-        if (event.kind === "slot-recovery-started") {
-          if (currentEpisode !== undefined) {
-            const error = episodeError(currentEpisode, true);
-            if (error !== null) {
-              return fail(error);
-            }
-          }
-          if (
-            event.episodeId === undefined ||
-            !sanitizedIdentity(event.episodeId) ||
-            seenEpisodeIds.has(event.episodeId)
-          ) {
-            return fail("invalid-or-reused-recovery-episode");
-          }
-          if (event.blockers === undefined || event.blockers.length === 0) {
-            return fail("empty-capacity-blocker-snapshot");
-          }
-          const rowIds = new Set<string>();
-          const inventoryIds = new Set<string>();
-          for (const blocker of event.blockers) {
-            if (
-              rowIds.has(blocker.rowId) ||
-              (blocker.inventoryIdentity !== undefined &&
-                inventoryIds.has(blocker.inventoryIdentity))
-            ) {
-              return fail("duplicate-capacity-blocker-record");
-            }
-            const state = rowState(blocker.rowId);
-            const error = reconcileSnapshot(blocker, state);
-            if (error !== null) {
-              return fail(error);
-            }
-            if (state.terminal) {
-              return fail("terminal-row-relisted-as-blocker");
-            }
-            if (state.outstandingAttempt !== null) {
-              return fail("recovery-start-with-outstanding-attempt");
-            }
-            rowIds.add(blocker.rowId);
-            if (blocker.inventoryIdentity !== undefined) {
-              inventoryIds.add(blocker.inventoryIdentity);
-            }
-            state.history.push(event.kind);
-          }
-          const episode: EpisodeWindow = {
-            episodeId: event.episodeId,
-            startOrder: event.order,
-            blockers: event.blockers,
-          };
-          seenEpisodeIds.add(event.episodeId);
-          episodeById.set(event.episodeId, episode);
-          currentEpisode = episode;
-          continue;
-        }
-
-        if (event.rowId === undefined || !sanitizedIdentity(event.rowId)) {
-          return fail("lifecycle-event-row-scope");
-        }
-        const state = rowState(event.rowId);
-        if (state.terminal) {
-          return fail("post-success-lifecycle-event");
+        if (row.terminalClose) {
+          return fail(row, "post-close-success-row-event");
         }
         if (
-          state.outstandingAttempt !== null &&
+          row.outstandingClose &&
           event.kind !== "close-failed" &&
           event.kind !== "close-succeeded"
         ) {
-          return fail("cleanup-attempt-overlap");
+          return fail(row, "cleanup-attempt-overlap");
         }
-        state.history.push(event.kind);
-
-        const cleanupEvent =
-          event.kind === "close-attempted" ||
-          event.kind === "close-failed" ||
-          event.kind === "close-succeeded" ||
-          event.kind === "closure-unavailable";
-        const episodeBound =
-          event.kind === "manual-cleanup-confirmed" ||
-          (cleanupEvent && event.episodeId !== undefined);
-        let episode: EpisodeWindow | undefined;
-        if (episodeBound) {
-          episode =
-            event.episodeId === undefined
-              ? undefined
-              : episodeById.get(event.episodeId);
-          if (episode === undefined) {
-            return fail("lifecycle-event-episode-scope");
-          }
-          if (currentEpisode?.episodeId !== episode.episodeId) {
-            return fail("stale-evidence-after-next-episode");
-          }
-          if (event.order <= episode.startOrder) {
-            return fail("lifecycle-evidence-before-episode");
-          }
-          if (
-            !episode.blockers.some((blocker) => blocker.rowId === event.rowId)
-          ) {
-            return fail("lifecycle-event-blocker-scope");
-          }
-        }
-        const episodeBlocker = episode?.blockers.find(
-          (blocker) => blocker.rowId === event.rowId,
-        );
-        const latchCleanupEligibility = (): string | null => {
-          const eligibility = baseEligibilityError(state);
-          if (eligibility !== null) {
-            return eligibility;
-          }
-          state.cleanupEligibilityOrder = event.order;
-          return null;
+        const next = {
+          ...row,
+          history: [...row.history, event.kind],
+          retentionReasons: [...row.retentionReasons],
+          unavailableReasons: [...row.unavailableReasons],
         };
-
         switch (event.kind) {
-          case "session-identity-assigned":
+          case "dispatch-requested":
+            if (row.state !== null) return fail(row, "illegal-dispatch");
+            next.state = "pending";
+            next.transitionOrder = event.order;
+            break;
+          case "identity-assigned":
             if (
+              row.state !== "pending" ||
               event.sessionId === undefined ||
-              !stableSessionId(event.sessionId)
+              !/^[A-Za-z0-9._-]+$/.test(event.sessionId)
             ) {
-              return fail("assigned-session-identity-evidence");
+              return fail(row, "illegal-identity-assignment");
             }
-            if (state.sessionIdentity.kind === "stable") {
-              return fail("session-identity-already-assigned");
-            }
-            if (
-              state.operationalState !== "pending" ||
-              state.dispatchRequestOrder === 0
-            ) {
-              return fail("identity-assigned-before-dispatch");
-            }
-            {
-              const owner = sessionOwnerById.get(event.sessionId);
-              if (owner !== undefined && owner !== event.rowId) {
-                return fail("session-identity-owned-by-another-row");
-              }
-            }
-            state.sessionIdentity = {
-              kind: "stable",
-              sessionId: event.sessionId,
-            };
-            sessionOwnerById.set(event.sessionId, event.rowId);
-            state.sessionReusable = false;
-            advanceOperational(state, "active", event.order);
+            next.sessionId = event.sessionId;
+            next.state = "active";
+            next.transitionOrder = event.order;
             break;
           case "reuse-capability-observed":
             if (
-              state.sessionIdentity.kind !== "stable" ||
+              row.sessionId === null ||
               event.reuseSupported === undefined ||
-              event.evidence === undefined ||
-              event.evidence.trim().length === 0
+              !captured(event)
             ) {
-              return fail("reuse-capability-evidence");
+              return fail(row, "reuse-capability-evidence");
             }
-            state.sessionReusable = event.reuseSupported;
-            break;
-          case "operational-classified":
-            if (
-              event.operationalState === undefined ||
-              !observationalStates.has(event.operationalState)
-            ) {
-              return fail("classification-cannot-establish-terminal");
-            }
-            if (state.operationalState !== null) {
-              return fail("operational-classification-not-initial");
-            }
-            advanceOperational(state, event.operationalState, event.order);
-            break;
-          case "dispatch-requested":
-            if (
-              state.operationalState !== null ||
-              state.dispatchRequestOrder !== 0 ||
-              state.sessionIdentity.kind !== "unresolved"
-            ) {
-              return fail("illegal-dispatch-transition");
-            }
-            state.dispatchRequestOrder = event.order;
-            advanceOperational(state, "pending", event.order);
-            break;
-          case "followup-dispatch-requested":
-            if (
-              state.operationalState !== "completed" ||
-              state.latestTerminalOrder === 0 ||
-              state.sessionIdentity.kind !== "stable" ||
-              event.sessionId === undefined ||
-              !stableSessionId(event.sessionId) ||
-              event.sessionId !== state.sessionIdentity.sessionId ||
-              !state.sessionReusable
-            ) {
-              return fail("illegal-followup-dispatch-transition");
-            }
-            if (
-              state.captureFreshThroughOrder <= state.captureRequiredAfterOrder
-            ) {
-              return fail("completed-followup-capture-stale");
-            }
-            advanceOperational(state, "active", event.order);
-            break;
-          case "interrupted-reuse-dispatch-requested":
-            if (state.operationalState !== "interrupted") {
-              return fail("illegal-interrupted-reuse-transition");
-            }
-            if (
-              state.sessionIdentity.kind !== "stable" ||
-              event.sessionId === undefined ||
-              !stableSessionId(event.sessionId) ||
-              event.sessionId !== state.sessionIdentity.sessionId
-            ) {
-              return fail("interrupted-reuse-session-mismatch");
-            }
-            if (!state.sessionReusable) {
-              return fail("interrupted-reuse-capability-missing");
-            }
-            if (
-              state.captureFreshThroughOrder <= state.operationalTransitionOrder
-            ) {
-              return fail("interrupted-reuse-capture-stale");
-            }
-            advanceOperational(state, "active", event.order);
+            next.reusable = event.reuseSupported;
             break;
           case "waiting":
-            if (state.operationalState !== "active") {
-              return fail("illegal-waiting-transition");
-            }
-            advanceOperational(state, "waiting", event.order);
+            if (row.state !== "active") return fail(row, "illegal-wait");
+            next.state = "waiting";
+            next.transitionOrder = event.order;
             break;
           case "interrupted":
-            if (
-              state.operationalState !== "active" &&
-              state.operationalState !== "waiting"
-            ) {
-              return fail("illegal-interruption-transition");
+            if (row.state !== "active" && row.state !== "waiting") {
+              return fail(row, "illegal-interruption");
             }
-            advanceOperational(state, "interrupted", event.order);
+            next.state = "interrupted";
+            next.transitionOrder = event.order;
             break;
           case "required-state-captured":
-            if (state.operationalState === "pending") {
-              return fail("progress-before-session-identity");
+            if (!captured(event) || row.state === "pending") {
+              return fail(row, "required-state-capture-evidence");
             }
-            if (
-              event.evidence === undefined ||
-              event.evidence.trim().length === 0
-            ) {
-              return fail("required-state-capture-evidence");
+            next.captureOrder = event.order;
+            if (row.abnormalOrder > 0) {
+              next.abnormalCaptureOrder = event.order;
             }
-            state.captureFreshThroughOrder = event.order;
             break;
           case "replacement-secured":
-            if (state.operationalState === "pending") {
-              return fail("progress-before-session-identity");
-            }
-            if (
-              event.evidence === undefined ||
-              event.evidence.trim().length === 0
-            ) {
-              return fail("replacement-evidence");
-            }
-            state.replacementOrder = event.order;
-            break;
-          case "abnormal-context-captured":
-            if (state.abnormalContextRequiredSince === 0) {
-              return fail("abnormal-context-without-abnormal-terminal");
-            }
-            if (
-              event.evidence === undefined ||
-              event.evidence.trim().length === 0
-            ) {
-              return fail("abnormal-context-evidence");
-            }
-            state.abnormalContextOrder = event.order;
+            if (!captured(event)) return fail(row, "replacement-evidence");
+            next.replacementOrder = event.order;
             break;
           case "turn-completed":
           case "turn-timed-out":
-          case "turn-failed": {
+          case "turn-failed":
             if (
-              state.operationalState === null ||
-              !openStates.has(state.operationalState)
+              row.state !== "active" &&
+              row.state !== "waiting" &&
+              row.state !== "interrupted"
             ) {
-              return fail("illegal-terminal-transition");
+              return fail(row, "illegal-terminal-transition");
             }
-            const nextState =
+            next.state =
               event.kind === "turn-completed"
                 ? "completed"
                 : event.kind === "turn-timed-out"
                   ? "timed-out"
                   : "failed";
-            advanceOperational(state, nextState, event.order);
-            state.latestTerminalOrder = event.order;
+            next.transitionOrder = event.order;
+            next.terminalOrder = event.order;
             if (event.kind !== "turn-completed") {
-              state.abnormalContextRequiredSince = event.order;
-              state.abnormalContextOrder = 0;
+              next.abnormalOrder = event.order;
+              next.abnormalCaptureOrder = 0;
             }
             break;
-          }
-          case "superseded": {
-            const previousState = state.operationalState;
+          case "followup-dispatch-requested":
             if (
-              previousState === null ||
-              previousState === "pending" ||
-              previousState === "unknown" ||
-              previousState === "superseded"
+              row.state !== "completed" ||
+              !row.reusable ||
+              event.sessionId !== row.sessionId ||
+              row.captureOrder <= row.terminalOrder
             ) {
-              return fail("illegal-supersession-transition");
+              return fail(row, "illegal-completed-reentry");
             }
-            if (openStates.has(previousState)) {
-              if (
-                state.captureFreshThroughOrder <=
-                state.operationalTransitionOrder
-              ) {
-                return fail("supersession-capture-stale");
-              }
-              if (state.replacementOrder <= state.captureFreshThroughOrder) {
-                return fail("supersession-replacement-stale");
-              }
-            } else if (
-              previousState === "completed" &&
-              state.captureFreshThroughOrder <= state.latestTerminalOrder
-            ) {
-              return fail("terminal-result-capture-stale");
-            } else if (
-              previousState === "timed-out" ||
-              previousState === "failed"
-            ) {
-              if (state.captureFreshThroughOrder <= state.latestTerminalOrder) {
-                return fail("abnormal-supersession-capture-stale");
-              }
-              if (state.abnormalContextOrder <= state.latestTerminalOrder) {
-                return fail("abnormal-supersession-context-stale");
-              }
-            }
-            advanceOperational(state, "superseded", event.order, true);
-            state.sessionReusable = false;
+            next.state = "active";
+            next.transitionOrder = event.order;
             break;
-          }
-          case "close-deferred": {
-            const eligibility = latchCleanupEligibility();
-            if (eligibility !== null) {
-              return fail(eligibility);
+          case "interrupted-reuse-dispatch-requested":
+            if (
+              row.state !== "interrupted" ||
+              !row.reusable ||
+              event.sessionId !== row.sessionId ||
+              row.captureOrder <= row.transitionOrder
+            ) {
+              return fail(row, "illegal-interrupted-reentry");
             }
+            next.state = "active";
+            next.transitionOrder = event.order;
+            break;
+          case "superseded":
+            if (
+              row.state === null ||
+              row.state === "pending" ||
+              row.captureOrder <= row.transitionOrder ||
+              ((row.state === "active" ||
+                row.state === "waiting" ||
+                row.state === "interrupted") &&
+                row.replacementOrder <= row.captureOrder)
+            ) {
+              return fail(row, "unsafe-supersession");
+            }
+            next.state = "superseded";
+            next.transitionOrder = event.order;
+            next.reusable = false;
+            break;
+          case "close-deferred": {
+            const error = eligible(row);
+            if (error !== undefined) return fail(row, error);
             if (
               event.reason === undefined ||
               event.reason.trim().length === 0
             ) {
-              return fail("close-deferred-reason");
+              return fail(row, "close-deferred-reason");
             }
-            state.latestRelevantTransitionOrder = event.order;
-            state.retained = true;
-            state.latestDeferralOrder = event.order;
-            state.retentionReasonHistory.push(event.reason);
-            state.projection = {
+            next.retained = true;
+            next.deferralOrder = event.order;
+            next.retentionReasons.push(event.reason);
+            next.projection = {
               decision: "retained",
               outcome: "closed=no",
               retentionReason: event.reason,
@@ -6714,36 +6498,21 @@ describe("play subagent routing source contracts", () => {
             break;
           }
           case "retention-resolved": {
-            const eligibility = latchCleanupEligibility();
-            if (eligibility !== null) {
-              return fail(eligibility);
-            }
-            if (
-              event.evidence === undefined ||
-              event.evidence.trim().length === 0
-            ) {
-              return fail("retention-resolution-evidence");
-            }
-            if (!state.retained) {
-              return fail("retention-resolution-without-deferral");
+            const error = eligible(row);
+            if (error !== undefined) return fail(row, error);
+            if (!row.retained || !captured(event)) {
+              return fail(row, "retention-resolution-evidence");
             }
             if (
               event.resolutionBasis !== "need-finished" &&
-              event.resolutionBasis !== "captured-and-replaced"
+              (event.resolutionBasis !== "captured-and-replaced" ||
+                row.captureOrder <= row.deferralOrder ||
+                row.replacementOrder <= row.captureOrder)
             ) {
-              return fail("retention-resolution-predicate");
+              return fail(row, "retention-resolution-proof");
             }
-            if (
-              event.resolutionBasis === "captured-and-replaced" &&
-              (state.captureFreshThroughOrder <= state.latestDeferralOrder ||
-                state.replacementOrder <= state.captureFreshThroughOrder ||
-                state.replacementOrder >= event.order)
-            ) {
-              return fail("retention-resolution-proof");
-            }
-            state.latestRelevantTransitionOrder = event.order;
-            state.retained = false;
-            state.projection = {
+            next.retained = false;
+            next.projection = {
               decision: "none",
               outcome: "closed=no",
               retentionReason: null,
@@ -6752,30 +6521,14 @@ describe("play subagent routing source contracts", () => {
             break;
           }
           case "close-attempted": {
-            const eligibility = latchCleanupEligibility();
-            if (eligibility !== null) {
-              return fail(eligibility);
+            const error = eligible(row);
+            if (error !== undefined) return fail(row, error);
+            if (row.retained) return fail(row, "retention-unresolved");
+            if (event.sessionId !== row.sessionId) {
+              return fail(row, "close-session-mismatch");
             }
-            if (state.retained) {
-              return fail("retention-unresolved-before-cleanup");
-            }
-            const identity = stableIdentityError(
-              state,
-              episodeBlocker,
-              event.sessionId,
-            );
-            if (identity !== null) {
-              return fail(identity);
-            }
-            const scope = episode?.episodeId ?? NORMAL_GATE_SCOPE;
-            state.outstandingAttempt = {
-              scope,
-              sessionId: event.sessionId as string,
-            };
-            state.latestRelevantTransitionOrder = event.order;
-            state.manualEligibleEpisode = null;
-            state.manualPathOrder = 0;
-            state.projection = {
+            next.outstandingClose = true;
+            next.projection = {
               decision: "attempted",
               outcome: "closed=no",
               retentionReason: null,
@@ -6784,54 +6537,32 @@ describe("play subagent routing source contracts", () => {
             break;
           }
           case "close-failed":
-          case "close-succeeded": {
-            const scope = episode?.episodeId ?? NORMAL_GATE_SCOPE;
-            if (
-              state.outstandingAttempt === null ||
-              state.outstandingAttempt.scope !== scope ||
-              event.sessionId !== state.outstandingAttempt.sessionId
-            ) {
-              return fail("unpaired-close-result");
+          case "close-succeeded":
+            if (!row.outstandingClose || event.sessionId !== row.sessionId) {
+              return fail(row, "unpaired-close-result");
             }
-            state.outstandingAttempt = null;
-            state.projection = {
+            next.outstandingClose = false;
+            next.terminalClose = event.kind === "close-succeeded";
+            next.projection = {
               decision: "attempted",
               outcome:
                 event.kind === "close-succeeded" ? "closed=yes" : "closed=no",
               retentionReason: null,
               unavailableReason: null,
             };
-            if (event.kind === "close-failed") {
-              state.latestRelevantTransitionOrder = event.order;
-              state.manualEligibleEpisode = episode?.episodeId ?? null;
-              state.manualPathOrder = event.order;
-              break;
-            }
-            if (episode !== undefined) {
-              state.authorizationOrders.set(episode.episodeId, event.order);
-            }
-            state.terminal = true;
             break;
-          }
           case "closure-unavailable": {
-            const eligibility = latchCleanupEligibility();
-            if (eligibility !== null) {
-              return fail(eligibility);
-            }
-            if (state.retained) {
-              return fail("retention-unresolved-before-cleanup");
-            }
+            const error = eligible(row);
+            if (error !== undefined) return fail(row, error);
+            if (row.retained) return fail(row, "retention-unresolved");
             if (
               event.reason === undefined ||
               event.reason.trim().length === 0
             ) {
-              return fail("closure-unavailable-reason");
+              return fail(row, "closure-unavailable-reason");
             }
-            state.latestRelevantTransitionOrder = event.order;
-            state.manualEligibleEpisode = episode?.episodeId ?? null;
-            state.manualPathOrder = event.order;
-            state.unavailableReasonHistory.push(event.reason);
-            state.projection = {
+            next.unavailableReasons.push(event.reason);
+            next.projection = {
               decision: "unavailable",
               outcome: "close-unavailable",
               retentionReason: null,
@@ -6839,1173 +6570,200 @@ describe("play subagent routing source contracts", () => {
             };
             break;
           }
-          case "manual-cleanup-confirmed":
-            if (episode === undefined || episodeBlocker === undefined) {
-              return fail("lifecycle-event-episode-scope");
-            }
-            if (state.retained) {
-              return fail("manual-confirmation-before-retention-resolution");
-            }
-            if (
-              state.manualEligibleEpisode !== episode.episodeId ||
-              state.manualPathOrder <= state.operationalTransitionOrder
-            ) {
-              return fail("manual-confirmation-cleanup-path-stale");
-            }
-            if (event.manualTarget === undefined) {
-              return fail("manual-confirmation-target-missing");
-            }
-            if (event.manualTarget.kind === "row") {
-              if (
-                !sanitizedIdentity(event.manualTarget.value) ||
-                event.manualTarget.value !== episodeBlocker.rowId
-              ) {
-                return fail("manual-confirmation-row-mismatch");
-              }
-            } else if (
-              episodeBlocker.inventoryIdentity === undefined ||
-              !sanitizedIdentity(event.manualTarget.value) ||
-              event.manualTarget.value !== episodeBlocker.inventoryIdentity
-            ) {
-              return fail("manual-confirmation-inventory-mismatch");
-            }
-            if (
-              event.provenance === undefined ||
-              !validProvenance(event.provenance)
-            ) {
-              return fail("manual-confirmation-provenance");
-            }
-            if (
-              event.observedAt === undefined ||
-              !validObservedAt(event.observedAt)
-            ) {
-              return fail("manual-confirmation-time");
-            }
-            {
-              const eligibility = baseEligibilityError(state);
-              if (eligibility !== null) {
-                return fail(eligibility);
-              }
-            }
-            state.authorizationOrders.set(episode.episodeId, event.order);
-            break;
         }
+        row = next;
       }
-
-      if (currentEpisode === undefined) {
-        return fail("recovery-episode-missing");
-      }
-      const finalError = episodeError(currentEpisode, false);
-      if (finalError !== null) {
-        return fail(finalError);
-      }
-      return {
-        errors: [],
-        histories: new Map(
-          [...rows].map(([rowId, state]) => [rowId, state.history]),
-        ),
-        projections: new Map(
-          [...rows].map(([rowId, state]) => [rowId, state.projection]),
-        ),
-        retentionReasonHistories: new Map(
-          [...rows].map(([rowId, state]) => [
-            rowId,
-            state.retentionReasonHistory,
-          ]),
-        ),
-        unavailableReasonHistories: new Map(
-          [...rows].map(([rowId, state]) => [
-            rowId,
-            state.unavailableReasonHistory,
-          ]),
-        ),
-      };
+      return row.outstandingClose
+        ? fail(row, "unpaired-close-attempt")
+        : { row };
     }
 
-    const blocker = (
-      overrides: Partial<BlockerRecord> = {},
-    ): BlockerRecord => ({
-      rowId: "block-1",
-      sessionRef: { kind: "stable", sessionId: "session-1" },
-      inventoryIdentity: "inventory-1",
-      ...overrides,
+    const base = (): Event[] => [
+      { order: 1, kind: "dispatch-requested" },
+      {
+        order: 2,
+        kind: "identity-assigned",
+        sessionId: "session-1",
+      },
+      { order: 3, kind: "turn-completed" },
+      {
+        order: 4,
+        kind: "required-state-captured",
+        evidence: "result captured",
+      },
+    ];
+    const close = (result: "close-failed" | "close-succeeded"): Event[] => [
+      ...base(),
+      {
+        order: 5,
+        kind: "close-attempted",
+        sessionId: "session-1",
+      },
+      {
+        order: 6,
+        kind: result,
+        sessionId: "session-1",
+      },
+    ];
+
+    expect(foldRows(close("close-succeeded"))).toMatchObject({
+      row: {
+        projection: { outcome: "closed=yes" },
+        history: expect.arrayContaining(["close-attempted", "close-succeeded"]),
+      },
     });
-    const event = (
-      kind: LifecycleEvent["kind"],
-      order: number,
-      overrides: Partial<LifecycleEvent> = {},
-    ): LifecycleEvent => ({
-      order,
-      kind,
-      rowId: "block-1",
-      ...overrides,
+    expect(foldRows(close("close-failed"))).toMatchObject({
+      row: { projection: { outcome: "closed=no" } },
     });
-    const operationalFacts = (
-      terminal: "completed" | "timed-out" | "failed" = "completed",
-      resolveSession = true,
-    ): LifecycleEvent[] => {
-      const facts: LifecycleEvent[] = [];
-      if (resolveSession) {
-        facts.push(
-          event("dispatch-requested", 1),
-          event("session-identity-assigned", 2, {
-            sessionId: "session-1",
-          }),
-        );
-      }
-      const terminalOrder = resolveSession ? 3 : 2;
-      if (!resolveSession) {
-        facts.push(
-          event("operational-classified", 1, {
-            operationalState: "active",
-          }),
-        );
-      }
-      facts.push(
-        event(
-          terminal === "completed"
-            ? "turn-completed"
-            : terminal === "timed-out"
-              ? "turn-timed-out"
-              : "turn-failed",
-          terminalOrder,
-        ),
-        event("required-state-captured", terminalOrder + 1, {
-          evidence: "current role state captured",
-        }),
-      );
-      if (terminal !== "completed") {
-        facts.push(
-          event("abnormal-context-captured", terminalOrder + 2, {
-            evidence: "abnormal terminal context captured",
-          }),
-        );
-      }
-      return facts;
-    };
-    const episodeStart = (
-      order = 10,
-      overrides: Partial<LifecycleEvent> = {},
-    ): LifecycleEvent =>
-      event("slot-recovery-started", order, {
-        rowId: undefined,
-        episodeId: "recovery-1",
-        blockers: [blocker()],
-        ...overrides,
-      });
-    const automaticClose = (
-      kind: "close-attempted" | "close-failed" | "close-succeeded",
-      order: number,
-      overrides: Partial<LifecycleEvent> = {},
-    ): LifecycleEvent =>
-      event(kind, order, {
-        episodeId: "recovery-1",
-        sessionId: "session-1",
-        ...overrides,
-      });
-    const unavailable = (
-      order: number,
-      overrides: Partial<LifecycleEvent> = {},
-    ): LifecycleEvent =>
-      event("closure-unavailable", order, {
-        episodeId: "recovery-1",
-        reason: "no usable close operation",
-        ...overrides,
-      });
-    const deferral = (
-      order = 6,
-      reason = "same-session fixup required",
-    ): LifecycleEvent =>
-      event("close-deferred", order, {
-        reason,
-      });
-    const resolution = (
-      order = 7,
-      overrides: Partial<LifecycleEvent> = {},
-    ): LifecycleEvent =>
-      event("retention-resolved", order, {
-        evidence: "same-session need finished",
-        resolutionBasis: "need-finished",
-        ...overrides,
-      });
-    type RetentionProofStep = "defer" | "capture" | "replace" | "resolve";
-    const retentionProofFacts = (
-      steps: RetentionProofStep[],
-    ): LifecycleEvent[] => [
-      ...operationalFacts(),
-      ...steps.map((step, index) => {
-        const order = index + 5;
-        if (step === "defer") return deferral(order);
-        if (step === "capture") {
-          return event("required-state-captured", order, {
-            evidence: "follow-up state captured",
-          });
-        }
-        if (step === "replace") {
-          return event("replacement-secured", order, {
-            evidence: "follow-up replacement ready",
-          });
-        }
-        return resolution(order, {
-          evidence: "state captured and follow-up safely replaced",
-          resolutionBasis: "captured-and-replaced",
-        });
-      }),
-      episodeStart(),
-      automaticClose("close-attempted", 11),
-      automaticClose("close-succeeded", 12),
-    ];
-    const reuseCapability = (
-      order: number,
-      reuseSupported = true,
-      overrides: Partial<LifecycleEvent> = {},
-    ): LifecycleEvent =>
-      event("reuse-capability-observed", order, {
-        reuseSupported,
-        evidence: "target-reported same-session follow-up capability",
-        ...overrides,
-      });
-    const interruptedReuse = (
-      order: number,
-      overrides: Partial<LifecycleEvent> = {},
-    ): LifecycleEvent =>
-      event("interrupted-reuse-dispatch-requested", order, {
-        sessionId: "session-1",
-        ...overrides,
-      });
-    const completedFollowup = (
-      order: number,
-      overrides: Partial<LifecycleEvent> = {},
-    ): LifecycleEvent =>
-      event("followup-dispatch-requested", order, {
-        sessionId: "session-1",
-        ...overrides,
-      });
-    const completedFollowupCaptureFacts = (
-      capture: "missing" | "stale" | "post-dispatch",
-    ): LifecycleEvent[] => {
-      const facts = operationalFacts();
-      if (capture === "stale") {
-        facts[2] = event("required-state-captured", 3, { evidence: "stale" });
-        facts[3] = event("turn-completed", 4);
-      } else {
-        facts.pop();
-      }
-      facts.push(reuseCapability(5), completedFollowup(6));
-      if (capture === "post-dispatch") {
-        facts.push(
-          event("required-state-captured", 7, { evidence: "too late" }),
-        );
-      }
-      return facts;
-    };
-    const confirmation = (
-      order: number,
-      overrides: Partial<LifecycleEvent> = {},
-    ): LifecycleEvent =>
-      event("manual-cleanup-confirmed", order, {
-        episodeId: "recovery-1",
-        manualTarget: { kind: "row", value: "block-1" },
-        provenance: "operator UI",
-        observedAt: "2026-07-12T00:00:00Z",
-        ...overrides,
-      });
-    const manualPath = (
-      facts: LifecycleEvent[] = operationalFacts(),
-    ): LifecycleEvent[] => [
-      ...facts,
-      episodeStart(),
-      unavailable(11),
-      confirmation(12),
-    ];
-    const expectError = (events: LifecycleEvent[], expected: string): void => {
-      expect(foldLifecycle(events).errors).toEqual([expected]);
-    };
-    const waitingSupersession = (
-      order: Array<"required-state-captured" | "replacement-secured">,
-    ): LifecycleEvent[] => [
-      event("dispatch-requested", 1),
-      event("session-identity-assigned", 2, { sessionId: "session-1" }),
-      event("waiting", 3),
-      ...order.map((kind, index) =>
-        event(kind, index + 4, { evidence: `${kind} evidence` }),
-      ),
-      event("superseded", 6),
-      episodeStart(),
-      unavailable(11),
-      confirmation(12),
-    ];
-
-    expect(foldLifecycle(manualPath()).errors).toEqual([]);
-    for (const [basis, expected] of [
-      ["need-finished", []],
-      [undefined, ["retention-resolution-predicate"]],
-    ] as const) {
-      expect(
-        foldLifecycle([
-          ...operationalFacts(),
-          deferral(),
-          resolution(7, { resolutionBasis: basis }),
-          episodeStart(),
-          automaticClose("close-attempted", 11),
-          automaticClose("close-succeeded", 12),
-        ]).errors,
-      ).toEqual(expected);
-    }
-    for (const [name, steps, expected] of [
-      ["valid", ["defer", "capture", "replace", "resolve"], []],
-      [
-        "missing capture",
-        ["defer", "replace", "resolve"],
-        ["retention-resolution-proof"],
-      ],
-      [
-        "missing replacement",
-        ["defer", "capture", "resolve"],
-        ["retention-resolution-proof"],
-      ],
-      [
-        "stale pre-deferral capture",
-        ["capture", "defer", "replace", "resolve"],
-        ["retention-resolution-proof"],
-      ],
-      [
-        "replacement before capture",
-        ["defer", "replace", "capture", "resolve"],
-        ["retention-resolution-proof"],
-      ],
-      [
-        "pre-current-deferral proof",
-        ["defer", "capture", "replace", "defer", "resolve"],
-        ["retention-resolution-proof"],
-      ],
-    ] as const) {
-      expect(
-        foldLifecycle(retentionProofFacts([...steps])).errors,
-        name,
-      ).toEqual(expected);
-    }
     expect(
-      foldLifecycle(
-        waitingSupersession(["required-state-captured", "replacement-secured"]),
-      ).errors,
-    ).toEqual([]);
-    expectError(
-      waitingSupersession(["replacement-secured", "required-state-captured"]),
-      "supersession-replacement-stale",
-    );
-    expectError(
-      [
-        event("session-identity-assigned", 1, { sessionId: "session-1" }),
-        episodeStart(),
-      ],
-      "identity-assigned-before-dispatch",
-    );
-    expectError(
-      [
-        event("dispatch-requested", 1),
-        event("required-state-captured", 2, {
-          evidence: "capture before identity",
-        }),
-        episodeStart(),
-      ],
-      "progress-before-session-identity",
-    );
-    expectError(
-      [event("dispatch-requested", 1), event("waiting", 2), episodeStart()],
-      "illegal-waiting-transition",
-    );
-    expectError(
-      [
-        event("dispatch-requested", 1),
-        event("dispatch-requested", 2),
-        episodeStart(),
-      ],
-      "illegal-dispatch-transition",
-    );
-    expectError(
-      [
-        event("operational-classified", 1, { operationalState: "unknown" }),
-        event("dispatch-requested", 2),
-        episodeStart(),
-      ],
-      "illegal-dispatch-transition",
-    );
-    expectError(
-      [
-        event("dispatch-requested", 1),
-        event("session-identity-assigned", 2, { sessionId: "session-1" }),
-        event("dispatch-requested", 3, { rowId: "block-2" }),
-        event("session-identity-assigned", 4, {
-          rowId: "block-2",
+      foldRows([
+        ...base(),
+        {
+          order: 5,
+          kind: "closure-unavailable",
+          reason: "no usable close operation",
+        },
+      ]),
+    ).toMatchObject({
+      row: {
+        projection: {
+          outcome: "close-unavailable",
+          unavailableReason: "no usable close operation",
+        },
+      },
+    });
+
+    const completedReentry = foldRows([
+      ...base(),
+      {
+        order: 5,
+        kind: "reuse-capability-observed",
+        reuseSupported: true,
+        evidence: "target supports reuse",
+      },
+      {
+        order: 6,
+        kind: "followup-dispatch-requested",
+        sessionId: "session-1",
+      },
+      { order: 7, kind: "waiting" },
+    ]);
+    expect(completedReentry).toMatchObject({
+      row: { state: "waiting", reusable: true },
+    });
+    expect(
+      foldRows([
+        ...base().slice(0, 3),
+        {
+          order: 4,
+          kind: "reuse-capability-observed",
+          reuseSupported: true,
+          evidence: "target supports reuse",
+        },
+        {
+          order: 5,
+          kind: "followup-dispatch-requested",
           sessionId: "session-1",
-        }),
-        episodeStart(),
-      ],
-      "session-identity-owned-by-another-row",
-    );
-    expectError(
-      [
-        ...operationalFacts(),
-        episodeStart(10, {
-          blockers: [
-            blocker({
-              rowId: "block-2",
-              inventoryIdentity: "inventory-2",
-            }),
-          ],
-        }),
-      ],
-      "snapshot-session-identity-alias",
-    );
-    expectError(
-      [event("dispatch-requested", 1), reuseCapability(2), episodeStart()],
-      "reuse-capability-evidence",
-    );
-    for (const terminal of ["completed", "timed-out", "failed"] as const) {
-      expect(
-        foldLifecycle(manualPath(operationalFacts(terminal))).errors,
-        terminal,
-      ).toEqual([]);
-    }
+        },
+      ]).error,
+    ).toBe("illegal-completed-reentry");
 
-    expect(
-      foldLifecycle([
-        event("dispatch-requested", 1),
-        event("session-identity-assigned", 2, { sessionId: "session-1" }),
-        event("waiting", 4),
-        event("turn-completed", 5),
-        event("required-state-captured", 6, { evidence: "result captured" }),
-        episodeStart(),
-        unavailable(11),
-        confirmation(12),
-      ]).errors,
-    ).toEqual([]);
-    expect(
-      foldLifecycle([
-        ...operationalFacts(),
-        reuseCapability(5),
-        completedFollowup(6),
-        event("waiting", 7),
-        event("turn-completed", 8),
-        event("required-state-captured", 9, {
-          evidence: "followup result captured",
-        }),
-        episodeStart(),
-        unavailable(11),
-        confirmation(12),
-      ]).errors,
-    ).toEqual([]);
-
-    type InterruptedReuseFixture = {
-      source?: "interrupted" | "active" | "waiting" | "completed";
-      identity?: "matching" | "missing-event" | "mismatched" | "missing-stable";
-      reuse?: true | false | "absent";
-      capture?: "fresh" | "missing" | "stale";
-    };
-    const interruptedReuseFacts = (
-      fixture: InterruptedReuseFixture = {},
-    ): LifecycleEvent[] => {
-      const source = fixture.source ?? "interrupted";
-      const identity = fixture.identity ?? "matching";
-      const reuse = fixture.reuse ?? true;
-      const capture = fixture.capture ?? "fresh";
-      if (source === "completed") {
-        return [...operationalFacts(), reuseCapability(5), interruptedReuse(6)];
-      }
-      const facts =
-        identity === "missing-stable"
-          ? [
-              event("operational-classified", 1, {
-                operationalState: "interrupted",
-              }),
-            ]
-          : [
-              event("dispatch-requested", 1),
-              event("session-identity-assigned", 2, {
-                sessionId: "session-1",
-              }),
-            ];
-      const nextOrder = (): number => (facts.at(-1)?.order ?? 0) + 1;
-      if (capture === "stale") {
-        facts.push(
-          event("required-state-captured", nextOrder(), {
-            evidence: "capture before interruption",
-          }),
-        );
-      }
-      if (reuse !== "absent" && identity !== "missing-stable") {
-        facts.push(reuseCapability(nextOrder(), reuse));
-      }
-      if (identity !== "missing-stable" && source !== "active") {
-        facts.push(event(source, nextOrder()));
-      }
-      if (capture === "fresh") {
-        facts.push(
-          event("required-state-captured", nextOrder(), {
-            evidence: "interrupted role state captured",
-          }),
-        );
-      }
-      facts.push(
-        interruptedReuse(nextOrder(), {
-          sessionId:
-            identity === "missing-event"
-              ? undefined
-              : identity === "mismatched"
-                ? "session-2"
-                : "session-1",
-        }),
-      );
-      return facts;
-    };
-    const interruptedReuseResult = foldLifecycle([
-      ...interruptedReuseFacts(),
-      event("waiting", 7),
-      event("turn-completed", 8),
-      event("required-state-captured", 9, {
-        evidence: "reused turn result captured",
-      }),
-      episodeStart(),
-      unavailable(11),
-      confirmation(12),
+    const interruptedReentry = foldRows([
+      { order: 1, kind: "dispatch-requested" },
+      {
+        order: 2,
+        kind: "identity-assigned",
+        sessionId: "session-1",
+      },
+      {
+        order: 3,
+        kind: "reuse-capability-observed",
+        reuseSupported: true,
+        evidence: "target supports reuse",
+      },
+      { order: 4, kind: "interrupted" },
+      {
+        order: 5,
+        kind: "required-state-captured",
+        evidence: "interrupted state captured",
+      },
+      {
+        order: 6,
+        kind: "interrupted-reuse-dispatch-requested",
+        sessionId: "session-1",
+      },
     ]);
-    expect(interruptedReuseResult.errors).toEqual([]);
-    expect(
-      interruptedReuseResult.histories.get("block-1")?.slice(0, 6),
-    ).toEqual([
-      "dispatch-requested",
-      "session-identity-assigned",
-      "reuse-capability-observed",
-      "interrupted",
-      "required-state-captured",
-      "interrupted-reuse-dispatch-requested",
-    ]);
-    const interruptedReuseErrors: Array<[InterruptedReuseFixture, string]> = [
-      [
-        { identity: "missing-stable", reuse: "absent" },
-        "interrupted-reuse-session-mismatch",
-      ],
-      [{ identity: "missing-event" }, "interrupted-reuse-session-mismatch"],
-      [{ identity: "mismatched" }, "interrupted-reuse-session-mismatch"],
-      [{ reuse: "absent" }, "interrupted-reuse-capability-missing"],
-      [{ reuse: false }, "interrupted-reuse-capability-missing"],
-      [{ capture: "missing" }, "interrupted-reuse-capture-stale"],
-      [{ capture: "stale" }, "interrupted-reuse-capture-stale"],
-      [{ source: "active" }, "illegal-interrupted-reuse-transition"],
-      [{ source: "waiting" }, "illegal-interrupted-reuse-transition"],
-      [{ source: "completed" }, "illegal-interrupted-reuse-transition"],
-    ];
-    for (const [fixture, error] of interruptedReuseErrors) {
-      expectError([...interruptedReuseFacts(fixture), episodeStart()], error);
-    }
-
-    const pendingSnapshot = blocker({ sessionRef: { kind: "pending" } });
-    expect(
-      foldLifecycle([
-        event("dispatch-requested", 1),
-        episodeStart(10, { blockers: [pendingSnapshot] }),
-        event("session-identity-assigned", 11, { sessionId: "session-1" }),
-        event("turn-completed", 12),
-        event("required-state-captured", 13, { evidence: "result captured" }),
-        automaticClose("close-attempted", 14),
-        automaticClose("close-succeeded", 15),
-      ]).errors,
-    ).toEqual([]);
-    expect(
-      foldLifecycle([
-        ...operationalFacts("completed", false),
-        episodeStart(10, { blockers: [pendingSnapshot] }),
-        unavailable(11),
-        confirmation(12, {
-          manualTarget: { kind: "inventory", value: "inventory-1" },
-        }),
-      ]).errors,
-    ).toEqual([]);
-
-    expect(
-      foldLifecycle([
-        ...operationalFacts(),
-        automaticClose("close-attempted", 5, { episodeId: undefined }),
-        automaticClose("close-failed", 6, { episodeId: undefined }),
-        episodeStart(),
-        unavailable(11),
-        confirmation(12),
-      ]).errors,
-    ).toEqual([]);
-    expect(
-      foldLifecycle([
-        ...operationalFacts(),
-        unavailable(5, { episodeId: undefined }),
-        episodeStart(),
-        unavailable(11),
-        confirmation(12),
-      ]).errors,
-    ).toEqual([]);
-
-    const successiveUnavailableResult = foldLifecycle([
-      ...operationalFacts(),
-      episodeStart(),
-      unavailable(11, { reason: "close tool missing" }),
-      unavailable(12, { reason: "manual inventory fallback required" }),
-      confirmation(13),
-    ]);
-    expect(successiveUnavailableResult.errors).toEqual([]);
-    expect(
-      successiveUnavailableResult.unavailableReasonHistories.get("block-1"),
-    ).toEqual(["close tool missing", "manual inventory fallback required"]);
-    expect(successiveUnavailableResult.projections.get("block-1")).toEqual({
-      decision: "unavailable",
-      outcome: "close-unavailable",
-      retentionReason: null,
-      unavailableReason: "manual inventory fallback required",
+    expect(interruptedReentry).toMatchObject({
+      row: { state: "active", reusable: true },
     });
 
-    const clearedUnavailableResult = foldLifecycle([
-      ...operationalFacts(),
-      episodeStart(),
-      unavailable(11, { reason: "close tool missing" }),
-      unavailable(12, { reason: "fallback also unavailable" }),
-      deferral(13, "preserve until replacement is safe"),
-      resolution(14),
-      automaticClose("close-attempted", 15),
-      automaticClose("close-succeeded", 16),
-    ]);
-    expect(clearedUnavailableResult.errors).toEqual([]);
     expect(
-      clearedUnavailableResult.unavailableReasonHistories.get("block-1"),
-    ).toEqual(["close tool missing", "fallback also unavailable"]);
-    expect(clearedUnavailableResult.projections.get("block-1")).toEqual({
-      decision: "attempted",
-      outcome: "closed=yes",
-      retentionReason: null,
-      unavailableReason: null,
+      foldRows([
+        ...base(),
+        {
+          order: 5,
+          kind: "close-deferred",
+          reason: "same-session fixup",
+        },
+        {
+          order: 6,
+          kind: "retention-resolved",
+          resolutionBasis: "need-finished",
+          evidence: "fixup finished",
+        },
+      ]),
+    ).toMatchObject({
+      row: {
+        projection: {
+          decision: "none",
+          outcome: "closed=no",
+          retentionReason: null,
+        },
+        retentionReasons: ["same-session fixup"],
+      },
     });
-
-    for (const overlap of [
-      deferral(12),
-      resolution(12),
-      automaticClose("close-attempted", 12),
-      unavailable(12),
-      confirmation(12),
-      event("waiting", 12),
-    ]) {
-      expectError(
-        [
-          ...operationalFacts(),
-          episodeStart(),
-          automaticClose("close-attempted", 11),
-          overlap,
-        ],
-        "cleanup-attempt-overlap",
-      );
-    }
-    expectError(
-      [
-        ...operationalFacts(),
-        episodeStart(),
-        automaticClose("close-attempted", 11),
-        automaticClose("close-failed", 12, { sessionId: "wrong-session" }),
-      ],
-      "unpaired-close-result",
-    );
-    expectError(
-      [
-        ...operationalFacts(),
-        automaticClose("close-attempted", 5, { episodeId: undefined }),
-        episodeStart(),
-      ],
-      "recovery-start-with-outstanding-attempt",
-    );
-
-    expectError(
-      [...operationalFacts(), event("turn-failed", 5), episodeStart()],
-      "illegal-terminal-transition",
-    );
-    expectError(
-      [...operationalFacts(), event("waiting", 5), episodeStart()],
-      "illegal-waiting-transition",
-    );
-    expectError(
-      [
-        event("operational-classified", 1, {
-          operationalState: "active",
-        }),
-        completedFollowup(2),
-        episodeStart(),
-      ],
-      "illegal-followup-dispatch-transition",
-    );
-    for (const sessionId of [undefined, "session-2"] as const) {
-      expectError(
-        [
-          ...operationalFacts(),
-          reuseCapability(5),
-          completedFollowup(6, { sessionId }),
-          episodeStart(),
-        ],
-        "illegal-followup-dispatch-transition",
-      );
-    }
-    expectError(
-      [
-        ...operationalFacts("completed", false),
-        completedFollowup(4),
-        episodeStart(),
-      ],
-      "illegal-followup-dispatch-transition",
-    );
-    expectError(
-      [...operationalFacts(), completedFollowup(5), episodeStart()],
-      "illegal-followup-dispatch-transition",
-    );
-    for (const capture of ["missing", "stale", "post-dispatch"] as const) {
-      expectError(
-        completedFollowupCaptureFacts(capture),
-        "completed-followup-capture-stale",
-      );
-    }
-    expectError(
-      [
-        ...operationalFacts(),
-        reuseCapability(5, false),
-        completedFollowup(6),
-        episodeStart(),
-      ],
-      "illegal-followup-dispatch-transition",
-    );
-    for (const terminal of ["timed-out", "failed"] as const) {
-      expectError(
-        [
-          ...operationalFacts(terminal),
-          reuseCapability(6),
-          completedFollowup(7),
-          episodeStart(),
-        ],
-        "illegal-followup-dispatch-transition",
-      );
-    }
-    expectError(
-      [
-        ...operationalFacts(),
-        reuseCapability(5),
-        event("superseded", 6),
-        completedFollowup(7),
-        episodeStart(),
-      ],
-      "illegal-followup-dispatch-transition",
-    );
-    expectError(
-      [
-        ...operationalFacts(),
-        reuseCapability(5),
-        completedFollowup(6),
-        event("turn-completed", 7),
-        episodeStart(),
-      ],
-      "required-state-capture-stale",
-    );
-    expectError(
-      [
-        ...operationalFacts(),
-        reuseCapability(5),
-        episodeStart(),
-        unavailable(11),
-        confirmation(12),
-        completedFollowup(13),
-        event("turn-completed", 14),
-        event("required-state-captured", 15, {
-          evidence: "new result captured",
-        }),
-        unavailable(16),
-      ],
-      "stale-slot-retry-authorization",
-    );
-    expectError(
-      [
-        ...operationalFacts(),
-        reuseCapability(5),
-        episodeStart(),
-        unavailable(11),
-        completedFollowup(12),
-        event("turn-completed", 13),
-        event("required-state-captured", 14, {
-          evidence: "new result captured",
-        }),
-        confirmation(15),
-      ],
-      "manual-confirmation-cleanup-path-stale",
-    );
-
-    expectError(
-      [
-        ...operationalFacts(),
-        automaticClose("close-attempted", 5, { episodeId: undefined }),
-        automaticClose("close-failed", 6, { episodeId: undefined }),
-        episodeStart(10, {
-          blockers: [
-            blocker({
-              sessionRef: { kind: "stable", sessionId: "session-2" },
-            }),
-          ],
-        }),
-      ],
-      "snapshot-stable-session-mismatch",
-    );
-    expectError(
-      [
-        ...operationalFacts(),
-        episodeStart(10, { blockers: [pendingSnapshot] }),
-      ],
-      "snapshot-pending-after-stable-identity",
-    );
-    expectError(
-      [...operationalFacts("completed", false), episodeStart()],
-      "snapshot-stable-session-mismatch",
-    );
-
-    expectError(
-      [event("dispatch-requested", 1), event("superseded", 2), episodeStart()],
-      "illegal-supersession-transition",
-    );
-    expectError(
-      [
-        event("operational-classified", 1, { operationalState: "unknown" }),
-        event("superseded", 2),
-        episodeStart(),
-      ],
-      "illegal-supersession-transition",
-    );
-    expectError(
-      [
-        event("dispatch-requested", 1),
-        event("session-identity-assigned", 2, { sessionId: "session-1" }),
-        event("waiting", 3),
-        event("replacement-secured", 4, { evidence: "replacement ready" }),
-        event("superseded", 5),
-        event("required-state-captured", 6, { evidence: "too late" }),
-        episodeStart(),
-      ],
-      "supersession-capture-stale",
-    );
-    expectError(
-      [
-        event("dispatch-requested", 1),
-        event("session-identity-assigned", 2, { sessionId: "session-1" }),
-        event("replacement-secured", 3, { evidence: "too early" }),
-        event("waiting", 4),
-        event("required-state-captured", 5, { evidence: "waiting captured" }),
-        event("superseded", 6),
-        episodeStart(),
-      ],
-      "supersession-replacement-stale",
-    );
     expect(
-      foldLifecycle([
-        event("dispatch-requested", 1),
-        event("session-identity-assigned", 2, { sessionId: "session-1" }),
-        event("waiting", 3),
-        event("interrupted", 4),
-        event("required-state-captured", 5, {
-          evidence: "interrupted state captured",
-        }),
-        event("replacement-secured", 6, { evidence: "replacement ready" }),
-        event("superseded", 7),
-        episodeStart(),
-        unavailable(11),
-        confirmation(12),
-      ]).errors,
-    ).toEqual([]);
-    expectError(
-      [
-        event("dispatch-requested", 1),
-        event("session-identity-assigned", 2, { sessionId: "session-1" }),
-        event("turn-timed-out", 3),
-        event("abnormal-context-captured", 4, {
-          evidence: "timeout context captured",
-        }),
-        event("superseded", 5),
-        episodeStart(),
-      ],
-      "abnormal-supersession-capture-stale",
-    );
-    expectError(
-      [
-        event("dispatch-requested", 1),
-        event("session-identity-assigned", 2, { sessionId: "session-1" }),
-        event("interrupted", 3),
-        event("required-state-captured", 4, {
-          evidence: "interrupted state captured",
-        }),
-        event("superseded", 5),
-        episodeStart(),
-      ],
-      "supersession-replacement-stale",
-    );
+      foldRows([
+        { order: 1, kind: "dispatch-requested" },
+        {
+          order: 2,
+          kind: "identity-assigned",
+          sessionId: "session-1",
+        },
+        { order: 3, kind: "waiting" },
+        {
+          order: 4,
+          kind: "required-state-captured",
+          evidence: "waiting state captured",
+        },
+        {
+          order: 5,
+          kind: "replacement-secured",
+          evidence: "replacement ready",
+        },
+        { order: 6, kind: "superseded" },
+      ]),
+    ).toMatchObject({ row: { state: "superseded" } });
     expect(
-      foldLifecycle([
-        event("dispatch-requested", 1),
-        event("session-identity-assigned", 2, { sessionId: "session-1" }),
-        event("required-state-captured", 3, { evidence: "active captured" }),
-        event("replacement-secured", 4, { evidence: "replacement ready" }),
-        event("superseded", 5),
-        episodeStart(),
-        unavailable(11),
-        confirmation(12),
-      ]).errors,
-    ).toEqual([]);
-    expectError(
-      [
-        event("dispatch-requested", 1),
-        event("session-identity-assigned", 2, { sessionId: "session-1" }),
-        event("required-state-captured", 3, { evidence: "active captured" }),
-        event("superseded", 4),
-        episodeStart(),
-      ],
-      "supersession-replacement-stale",
-    );
-    expect(
-      foldLifecycle([
-        ...operationalFacts(),
-        event("superseded", 5),
-        episodeStart(),
-        unavailable(11),
-        confirmation(12),
-      ]).errors,
-    ).toEqual([]);
-    expectError(
-      [
-        event("dispatch-requested", 1),
-        event("session-identity-assigned", 2, { sessionId: "session-1" }),
-        event("turn-completed", 3),
-        event("superseded", 4),
-        event("required-state-captured", 5, { evidence: "too late" }),
-        episodeStart(),
-      ],
-      "terminal-result-capture-stale",
-    );
-    expect(
-      foldLifecycle([
-        event("dispatch-requested", 1),
-        event("session-identity-assigned", 2, { sessionId: "session-1" }),
-        event("turn-timed-out", 3),
-        event("required-state-captured", 4, { evidence: "timeout captured" }),
-        event("abnormal-context-captured", 5, {
-          evidence: "timeout context captured",
-        }),
-        event("superseded", 6),
-        episodeStart(),
-        unavailable(11),
-        confirmation(12),
-      ]).errors,
-    ).toEqual([]);
-    expectError(
-      [
-        event("dispatch-requested", 1),
-        event("session-identity-assigned", 2, { sessionId: "session-1" }),
-        event("turn-failed", 3),
-        event("required-state-captured", 4, { evidence: "failure captured" }),
-        event("superseded", 5),
-        event("abnormal-context-captured", 6, {
-          evidence: "too late",
-        }),
-        episodeStart(),
-      ],
-      "abnormal-supersession-context-stale",
-    );
-
-    const repeatedDeferralResult = foldLifecycle([
-      ...operationalFacts(),
-      deferral(6, "same-session review fixup required"),
-      deferral(7, "same-session re-review still required"),
-      episodeStart(),
-      resolution(11),
-      automaticClose("close-attempted", 12),
-      automaticClose("close-succeeded", 13),
-    ]);
-    expect(repeatedDeferralResult.errors).toEqual([]);
-    expect(
-      repeatedDeferralResult.retentionReasonHistories.get("block-1"),
-    ).toEqual([
-      "same-session review fixup required",
-      "same-session re-review still required",
-    ]);
-    expect(repeatedDeferralResult.projections.get("block-1")).toEqual({
-      decision: "attempted",
-      outcome: "closed=yes",
-      retentionReason: null,
-      unavailableReason: null,
+      foldRows([
+        { order: 1, kind: "dispatch-requested" },
+        {
+          order: 2,
+          kind: "identity-assigned",
+          sessionId: "session-1",
+        },
+        { order: 3, kind: "turn-failed" },
+        {
+          order: 4,
+          kind: "required-state-captured",
+          evidence: "failure context captured",
+        },
+      ]),
+    ).toMatchObject({
+      row: { state: "failed", abnormalCaptureOrder: 4 },
     });
-    for (const transition of [
-      [],
-      [event("waiting", 9)],
-      [event("interrupted", 9)],
-    ]) {
-      expectError(
-        [
-          ...operationalFacts(),
-          deferral(6),
-          reuseCapability(7),
-          completedFollowup(8),
-          ...transition,
-          resolution(10),
-        ],
-        "cleanup-ineligible-operational-state",
-      );
-    }
-    expectError(
-      [
-        ...operationalFacts(),
-        deferral(6),
-        reuseCapability(7),
-        completedFollowup(8),
-        event("turn-completed", 9),
-        resolution(10),
-      ],
-      "required-state-capture-stale",
-    );
-    expectError(
-      [
-        ...operationalFacts(),
-        deferral(6, "first retention reason"),
-        deferral(7, "replacement retention reason"),
-        episodeStart(),
-        automaticClose("close-attempted", 11),
-      ],
-      "retention-unresolved-before-cleanup",
-    );
-
-    expectError(
-      [
-        ...operationalFacts(),
-        episodeStart(),
-        unavailable(11),
-        confirmation(12),
-        deferral(13),
-        resolution(14),
-      ],
-      "stale-slot-retry-authorization",
-    );
-    expectError(
-      [...operationalFacts(), episodeStart(), confirmation(11)],
-      "manual-confirmation-cleanup-path-stale",
-    );
-    expectError(
-      [
-        ...operationalFacts(),
-        episodeStart(),
-        unavailable(11),
-        deferral(12),
-        confirmation(13),
-      ],
-      "manual-confirmation-before-retention-resolution",
-    );
-    expectError(
-      [
-        ...operationalFacts(),
-        episodeStart(),
-        unavailable(11),
-        confirmation(12, {
-          manualTarget: { kind: "row", value: "block-2" },
-        }),
-      ],
-      "manual-confirmation-row-mismatch",
-    );
-    expectError(
-      [
-        ...operationalFacts(),
-        episodeStart(),
-        unavailable(11),
-        confirmation(12, { provenance: "operator\nUI" }),
-      ],
-      "manual-confirmation-provenance",
-    );
-    expectError(
-      [
-        ...operationalFacts(),
-        episodeStart(),
-        unavailable(11),
-        confirmation(12, { observedAt: "not-a-time" }),
-      ],
-      "manual-confirmation-time",
-    );
-    for (const sentinel of ["pending", "unknown", "unresolved"] as const) {
-      expectError(
-        [
-          episodeStart(10, {
-            blockers: [
-              blocker({
-                sessionRef: { kind: "stable", sessionId: sentinel },
-              }),
-            ],
-          }),
-        ],
-        "invalid-stable-session-identity",
-      );
-    }
-    expectError(
-      [
-        ...operationalFacts("completed", false),
-        episodeStart(10, { blockers: [pendingSnapshot] }),
-        automaticClose("close-attempted", 11),
-      ],
-      "stable-session-identity-missing",
-    );
-    expectError(
-      [
-        ...operationalFacts(),
-        episodeStart(),
-        automaticClose("close-attempted", 11, {
-          sessionId: "guessed-session",
-        }),
-      ],
-      "automatic-close-session-mismatch",
-    );
-    expectError(
-      [
-        ...operationalFacts(),
-        event("session-identity-assigned", 5, {
-          sessionId: "session-2",
-        }),
-        episodeStart(),
-      ],
-      "session-identity-already-assigned",
-    );
-    expectError(
-      [episodeStart(10, { blockers: [] })],
-      "empty-capacity-blocker-snapshot",
-    );
-    expectError(
-      [...operationalFacts(), episodeStart(), unavailable(10)],
-      "duplicate-lifecycle-order",
-    );
-    expectError(
-      [
-        ...operationalFacts(),
-        episodeStart(),
-        automaticClose("close-failed", 11),
-      ],
-      "unpaired-close-result",
-    );
-    expectError(
-      [
-        ...operationalFacts(),
-        episodeStart(),
-        automaticClose("close-attempted", 11),
-      ],
-      "unpaired-close-attempt",
-    );
-    expectError(
-      [
-        ...operationalFacts(),
-        deferral(),
-        resolution(),
-        resolution(8),
-        episodeStart(),
-      ],
-      "retention-resolution-without-deferral",
-    );
   });
+
   it("keeps play-subagent-execution lifecycle delegation and local exceptions in source", async () => {
     const skillSource = await readSkillSource("play-subagent-execution");
     const lifecycleSummary = getMarkdownSection(

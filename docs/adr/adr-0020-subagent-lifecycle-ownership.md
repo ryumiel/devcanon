@@ -144,8 +144,9 @@ continue to read the worktree from disk.
   projections unchanged.
 - `slot-recovery-started`, `recovery-state-reconstructed`,
   `slot-retry-dispatched`, `slot-retry-succeeded`, `slot-retry-failed`, and
-  pure-inventory `manual-cleanup-confirmed` are ordered episode events. A row's
-  `close-succeeded` remains a row event referenced by exact row/event identity.
+  every `manual-cleanup-confirmed` are ordered episode events, including manual
+  confirmation for a row blocker. A row's `close-succeeded` remains a row event
+  referenced by exact row/event identity.
 - Each blocker accepts at most one current-episode authorization. Row blockers
   accept exact referenced close success or episode manual confirmation;
   inventory blockers accept only episode manual confirmation. Invalid or

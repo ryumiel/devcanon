@@ -346,9 +346,18 @@ One recovery origin identifies the failed spawn attempt. At most one episode
 may exist for that origin; a later unrelated failed spawn uses a distinct
 origin. Apply these transitions in order:
 
+Treat every accepted snapshot, authorization, and episode event as an immutable
+controller-owned copy rather than retaining caller-owned objects. Before every
+transition, require the episode record and recovery-origin index to agree
+bidirectionally and uniquely; inconsistent indexes fail before mutation.
+
 1. Validate the sanitized origin and episode identities, unused origin and
-   episode, nonempty exact-tag snapshot, sanitized identities, and unique
-   references before creating anything. A blocker is exactly
+   episode, an independently observed nonempty tagged blocker inventory, the
+   proposed nonempty exact-tag snapshot, sanitized identities, and unique
+   references before creating anything. Require bidirectional membership and
+   tag equality between the observed inventory and proposed snapshot; reject an
+   omission, addition, duplicate, or retag before creating the episode. A
+   blocker is exactly
    `ledger-row:<row-id>` or `inventory-only:<inventory-id>`. Inventory evidence
    attached to a row does not create a second blocker. Equal raw values under
    different tags are distinct only when independently observed. On success,
@@ -362,8 +371,11 @@ origin. Apply these transitions in order:
    episode and origin, exact snapshot tag and identity, evidence kind and
    metadata, then absence of prior authorization before appending. A row
    blocker accepts either an exact current-episode reference to that row's
-   observed `close-succeeded` event by row and event identity, or an episode
-   `manual-cleanup-confirmed` event with sanitized provenance and time. An
+   value-bearing `close-succeeded` event by row and stable event identity, or an
+   episode `manual-cleanup-confirmed` event with sanitized provenance and time.
+   The referenced close event remains row-owned and carries stable row/session
+   ownership, not episode ownership; the episode reference and ordering make it
+   current-episode admissible. Missing or contradictory row history fails. An
    inventory blocker accepts only the episode manual-confirmation event; row
    close evidence cannot authorize it. Reject duplicate, stale, non-snapshot,
    cross-kind, incomplete, or inventory-close evidence before mutation. Keep
