@@ -2,6 +2,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
+  CANONICAL_CAPABILITY_PROFILES,
   cleanupTempDir,
   createAgentFixture,
   createConfigFile,
@@ -186,9 +187,17 @@ describe("doctorAction", () => {
       "Config invalid: Config version 1 is no longer supported.",
     ],
     [
-      "incomplete v2",
-      makeConfigYaml({ capabilityProfiles: {} }),
-      "Config invalid: Invalid config: Required, Required, Required",
+      "v2 missing frontier Codex model",
+      makeConfigYaml({
+        capabilityProfiles: {
+          efficient: CANONICAL_CAPABILITY_PROFILES.efficient,
+          balanced: CANONICAL_CAPABILITY_PROFILES.balanced,
+          frontier: {
+            claude: CANONICAL_CAPABILITY_PROFILES.frontier.claude,
+          },
+        },
+      }),
+      "Config invalid: Invalid config: Required",
     ],
   ])(
     "records %s config failure and skips every config-dependent check",
