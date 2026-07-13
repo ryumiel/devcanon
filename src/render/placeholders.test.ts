@@ -316,9 +316,6 @@ describe("resolvePlaceholders", () => {
     expect(resolvePlaceholders("plain text", "claude", MODEL_ONLY)).toBe(
       "plain text",
     );
-    expect(resolvePlaceholders("plain text", "claude", MODEL_ONLY)).toBe(
-      "plain text",
-    );
   });
 
   it("does not treat a language-tagged fence line as a closing fence", () => {
