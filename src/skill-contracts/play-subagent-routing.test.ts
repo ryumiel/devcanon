@@ -3544,9 +3544,53 @@ describe("play subagent routing source contracts", () => {
       for (const [followupIndex, event] of example.events.entries()) {
         if (event !== "followup-dispatch-requested") continue;
         const priorEvents = example.events.slice(0, followupIndex);
+        const latestCompleted = priorEvents.lastIndexOf("turn-completed");
+        const latestTerminal = Math.max(
+          ...[
+            "turn-completed",
+            "turn-timed-out",
+            "turn-failed",
+            "superseded",
+          ].map((terminal) => priorEvents.lastIndexOf(terminal)),
+        );
+        const latestOperationalTransition = Math.max(
+          ...[
+            "identity-assigned",
+            "followup-dispatch-requested",
+            "interrupted-reuse-dispatch-requested",
+            "waiting",
+            "interrupted",
+            "turn-completed",
+            "turn-timed-out",
+            "turn-failed",
+            "superseded",
+          ].map((transition) => priorEvents.lastIndexOf(transition)),
+        );
+        if (
+          latestCompleted < 0 ||
+          latestTerminal !== latestCompleted ||
+          latestOperationalTransition !== latestCompleted ||
+          !example.reusable ||
+          !example.trackedStableIdentity ||
+          example.agentId === "pending" ||
+          !/^[A-Za-z0-9._-]+$/.test(example.agentId)
+        ) {
+          errors.push("completed-followup-ineligible");
+          return errors;
+        }
+        const latestCaptureInvalidatingMutation = Math.max(
+          latestTerminal,
+          ...[
+            "identity-assigned",
+            "followup-dispatch-requested",
+            "interrupted-reuse-dispatch-requested",
+            "waiting",
+            "interrupted",
+          ].map((mutation) => priorEvents.lastIndexOf(mutation)),
+        );
         if (
           priorEvents.lastIndexOf("required-state-captured") <=
-          priorEvents.lastIndexOf("turn-completed")
+          latestCaptureInvalidatingMutation
         ) {
           errors.push("completed-followup-capture-stale");
           return errors;
@@ -4180,6 +4224,7 @@ describe("play subagent routing source contracts", () => {
       workflowReturnStatus: "DONE",
       workflowReturnHistory: ["DONE"],
       completionEvent: true,
+      reusable: true,
       trackedStableIdentity: true,
       capability: "inventory-only",
       unavailableEventReasons: Array(2).fill(
@@ -4308,6 +4353,57 @@ describe("play subagent routing source contracts", () => {
       closeUnavailableReason: "inventory-only; no close operation",
       unavailableEventReasons: ["inventory-only; no close operation"],
     });
+    expect(
+      invalidDimensions({
+        ...followupActive,
+        completionEvent: false,
+        events: followupActive.events.map((event) =>
+          event === "turn-completed" ? "interrupted" : event,
+        ),
+        workflowReturnStatus: null,
+        workflowReturnHistory: [],
+      }),
+    ).toEqual(["completed-followup-ineligible"]);
+    for (const latestTerminal of ["turn-timed-out", "turn-failed"] as const) {
+      expect(
+        invalidDimensions({
+          ...followupActive,
+          completionEvent: false,
+          events: followupActive.events.flatMap((event) =>
+            event === "turn-completed"
+              ? [latestTerminal]
+              : event === "required-state-captured"
+                ? [event, "abnormal-context-captured"]
+                : [event],
+          ),
+          workflowReturnStatus: null,
+          workflowReturnHistory: [],
+          runtimeTerminalDetails: [
+            { event: latestTerminal, reason: "turn did not return" },
+          ],
+          abnormalTerminalStateCaptured: true,
+        }),
+      ).toEqual(["completed-followup-ineligible"]);
+    }
+    expect(invalidDimensions({ ...followupActive, reusable: false })).toEqual([
+      "completed-followup-ineligible",
+    ]);
+    expect(
+      invalidDimensions({ ...followupActive, trackedStableIdentity: false }),
+    ).toEqual(["completed-followup-ineligible"]);
+    expect(
+      invalidDimensions({ ...followupActive, agentId: "unstable identity" }),
+    ).toEqual(["completed-followup-ineligible"]);
+    expect(
+      invalidDimensions({
+        ...followupActive,
+        events: [
+          ...followupActive.events,
+          "required-state-captured",
+          "followup-dispatch-requested",
+        ],
+      }),
+    ).toEqual(["completed-followup-ineligible"]);
     expect(
       invalidDimensions({ ...followupActive, workflowReturnStatus: null }),
     ).toEqual(["workflow-result-history"]);
@@ -5281,6 +5377,8 @@ describe("play subagent routing source contracts", () => {
       if (
         remaining.some(
           (blocker) =>
+            !isRecord(blocker) ||
+            !exactKeys(blocker, ["kind", "identity"]) ||
             !validBlockerKind(blocker) ||
             typeof blocker.identity !== "string" ||
             !sanitizedIdentity(blocker.identity) ||
@@ -5702,7 +5800,8 @@ describe("play subagent routing source contracts", () => {
         }
         for (const event of row.history) {
           if (
-            event.kind === "close-attempted" &&
+            (event.kind === "close-attempted" ||
+              event.kind === "closure-unavailable") &&
             rowPreparationError(rowBeforeOrder(row, event.order), false) !==
               undefined
           ) {
@@ -6980,6 +7079,66 @@ describe("play subagent routing source contracts", () => {
         ),
       ),
     );
+    const unavailableBeforeCapture = forgeRows(
+      emptyLedger(),
+      (rows) =>
+        rows.map((row) =>
+          row.rowId === "manual-unavailable-row"
+            ? {
+                ...row,
+                preparationHistory: row.preparationHistory.map((event) =>
+                  event.kind === "required-state-captured"
+                    ? { ...event, order: 4 }
+                    : event,
+                ),
+              }
+            : row,
+        ),
+      4,
+    );
+    expectInvalidLedger(unavailableBeforeCapture);
+
+    const reevaluatedUnavailable = forgeRows(
+      emptyLedger(),
+      (rows) =>
+        rows.map((row) =>
+          row.rowId === "manual-unavailable-row"
+            ? {
+                ...row,
+                preparationHistory: [
+                  ...row.preparationHistory,
+                  {
+                    kind: "operational-state" as const,
+                    order: 4,
+                    state: "completed",
+                  },
+                  {
+                    kind: "required-state-captured" as const,
+                    order: 5,
+                    evidence: "state recaptured before reevaluation",
+                  },
+                ],
+                history: [
+                  ...row.history,
+                  {
+                    eventId: "manual-unavailable-reevaluated",
+                    kind: "closure-unavailable" as const,
+                    order: 6,
+                    sessionId: "session-manual-unavailable",
+                    reason: "close operation still unavailable",
+                  },
+                ],
+              }
+            : row,
+        ),
+      6,
+    );
+    expect(
+      fold(
+        reevaluatedUnavailable,
+        start("origin-reevaluated", "episode-reevaluated", [inventory()]),
+      ).error,
+    ).toBeUndefined();
     const closedTwice = apply(closedOnce, {
       kind: "record-row-close",
       rowId: "same",
@@ -7794,11 +7953,17 @@ describe("play subagent routing source contracts", () => {
       "row-preparation-manual-path",
     );
     const stalePathBase = preparationLedger([
-      { kind: "operational-state", order: 2, state: "completed" },
+      { kind: "operational-state", order: 1, state: "completed" },
       {
         kind: "required-state-captured",
-        order: 3,
-        evidence: "captured after cleanup path",
+        order: 2,
+        evidence: "captured before cleanup path",
+      },
+      { kind: "operational-state", order: 4, state: "completed" },
+      {
+        kind: "required-state-captured",
+        order: 5,
+        evidence: "recaptured after cleanup path",
       },
     ]);
     const stalePathLedger = freezeLedger({
@@ -7811,7 +7976,7 @@ describe("play subagent routing source contracts", () => {
                 {
                   eventId: "stale-unavailable",
                   kind: "closure-unavailable" as const,
-                  order: 1,
+                  order: 3,
                   sessionId: "session-1",
                   reason: "no usable close operation",
                 },
@@ -8417,6 +8582,21 @@ describe("play subagent routing source contracts", () => {
         episodeId: "episode-1",
         result: "failed",
         escalation: {
+          inventory: "available",
+          remainingBlockers: [
+            { ...inventory(), extra: true } as unknown as BlockerRef,
+          ],
+        },
+      },
+      "invalid-retry-failure-escalation",
+    );
+    expectRejected(
+      dispatched,
+      {
+        kind: "result",
+        episodeId: "episode-1",
+        result: "failed",
+        escalation: {
           inventory: "password=raw-secret",
           remainingBlockers: [],
         } as unknown as RetryFailureEscalation,
@@ -8472,6 +8652,24 @@ describe("play subagent routing source contracts", () => {
       },
       "success-escalation-forbidden",
     );
+
+    const persistedNestedExtra = Object.freeze({
+      ...failed,
+      episodes: Object.freeze(
+        failed.episodes.map((episode) =>
+          Object.freeze({
+            ...episode,
+            escalation: Object.freeze({
+              inventory: "available" as const,
+              remainingBlockers: Object.freeze([
+                Object.freeze({ ...inventory(), extra: true }),
+              ]),
+            }),
+          }),
+        ),
+      ),
+    }) as unknown as Ledger;
+    expectInconsistent(persistedNestedExtra);
 
     const inconsistent = Object.freeze({
       ...authorizing,
