@@ -5766,6 +5766,14 @@ describe("play subagent routing source contracts", () => {
       for (const row of ledger.rows) {
         let previousIdentityOrder = -1;
         for (const [index, identity] of row.identityHistory.entries()) {
+          const previousIdentity = row.identityHistory[index - 1];
+          const transitionAllowed =
+            index === 0 ||
+            (previousIdentity?.identityState === "pending" &&
+              (identity.identityState === "stable" ||
+                identity.identityState === "unknown")) ||
+            (previousIdentity?.identityState === "unknown" &&
+              identity.identityState === "stable");
           if (
             !isRecord(identity) ||
             !exactKeys(identity, ["order", "identityState", "sessionId"]) ||
@@ -5774,6 +5782,7 @@ describe("play subagent routing source contracts", () => {
             identity.order > ledger.order ||
             (index === 0 && identity.order !== 0) ||
             (index > 0 && identity.order <= previousIdentityOrder) ||
+            !transitionAllowed ||
             (identity.identityState !== "stable" &&
               identity.identityState !== "pending" &&
               identity.identityState !== "unknown") ||
@@ -7274,6 +7283,131 @@ describe("play subagent routing source contracts", () => {
         ),
       ),
     );
+    const identityTransitionLedger = (
+      identityHistory: IdentityEvent[],
+    ): Ledger => {
+      const latestIdentity = identityHistory.at(-1) as IdentityEvent;
+      const operationalOrder = latestIdentity.order + 1;
+      const captureOrder = latestIdentity.order + 2;
+      const unavailableOrder = latestIdentity.order + 3;
+      const base = emptyLedger();
+      return forgeRows(
+        base,
+        (rows) =>
+          rows.map((row) =>
+            row.rowId === "row-1"
+              ? {
+                  ...row,
+                  identityState: latestIdentity.identityState,
+                  sessionId: latestIdentity.sessionId,
+                  identityHistory,
+                  preparationHistory: [
+                    {
+                      kind: "operational-state" as const,
+                      order: operationalOrder,
+                      state: "completed",
+                    },
+                    {
+                      kind: "required-state-captured" as const,
+                      order: captureOrder,
+                      evidence: "captured after final identity transition",
+                    },
+                  ],
+                  history:
+                    latestIdentity.identityState === "unknown"
+                      ? [
+                          {
+                            eventId: "transition-unavailable",
+                            kind: "closure-unavailable" as const,
+                            order: unavailableOrder,
+                            sessionId: null,
+                            reason: "identity remains unknown",
+                          },
+                        ]
+                      : [],
+                  projection:
+                    latestIdentity.identityState === "unknown"
+                      ? ("close-unavailable" as const)
+                      : ("closed=no" as const),
+                }
+              : row,
+          ),
+        Math.max(
+          base.order,
+          latestIdentity.identityState === "unknown"
+            ? unavailableOrder
+            : captureOrder,
+        ),
+      );
+    };
+    const pendingStable = identityTransitionLedger([
+      { order: 0, identityState: "pending", sessionId: null },
+      { order: 1, identityState: "stable", sessionId: "session-1" },
+    ]);
+    expect(
+      apply(pendingStable, {
+        kind: "record-row-close",
+        rowId: "row-1",
+        sessionId: "session-1",
+        attemptEventId: "pending-stable-attempt",
+        successEventId: "pending-stable-success",
+      }).rows[0]?.projection,
+    ).toBe("closed=yes");
+    const pendingUnknown = identityTransitionLedger([
+      { order: 0, identityState: "pending", sessionId: null },
+      { order: 1, identityState: "unknown", sessionId: null },
+    ]);
+    expect(
+      apply(
+        pendingUnknown,
+        start("origin-pending-unknown", "episode-pending-unknown", [
+          inventory(),
+        ]),
+      ).rows[0]?.projection,
+    ).toBe("close-unavailable");
+    const unknownStable = identityTransitionLedger([
+      { order: 0, identityState: "unknown", sessionId: null },
+      { order: 1, identityState: "stable", sessionId: "session-1" },
+    ]);
+    expect(
+      apply(unknownStable, {
+        kind: "record-row-close",
+        rowId: "row-1",
+        sessionId: "session-1",
+        attemptEventId: "unknown-stable-attempt",
+        successEventId: "unknown-stable-success",
+      }).rows[0]?.projection,
+    ).toBe("closed=yes");
+
+    for (const invalidIdentityHistory of [
+      [
+        { order: 0, identityState: "stable" as const, sessionId: "session-a" },
+        { order: 1, identityState: "unknown" as const, sessionId: null },
+      ],
+      [
+        { order: 0, identityState: "stable" as const, sessionId: "session-a" },
+        { order: 1, identityState: "pending" as const, sessionId: null },
+      ],
+      [
+        { order: 0, identityState: "stable" as const, sessionId: "session-a" },
+        { order: 1, identityState: "stable" as const, sessionId: "session-b" },
+      ],
+      [
+        { order: 0, identityState: "stable" as const, sessionId: "session-a" },
+        { order: 1, identityState: "stable" as const, sessionId: "session-a" },
+      ],
+      [
+        { order: 0, identityState: "pending" as const, sessionId: null },
+        { order: 1, identityState: "pending" as const, sessionId: null },
+      ],
+      [
+        { order: 0, identityState: "unknown" as const, sessionId: null },
+        { order: 1, identityState: "pending" as const, sessionId: null },
+      ],
+    ]) {
+      expectInvalidLedger(identityTransitionLedger(invalidIdentityHistory));
+    }
+
     const unknownUnavailable = forgeRows(emptyLedger(), (rows) =>
       rows.map((row) =>
         row.rowId === "row-1"
