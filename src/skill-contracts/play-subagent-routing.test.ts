@@ -3254,6 +3254,7 @@ describe("play subagent routing source contracts", () => {
       inheritedControls: boolean;
       promisedLowLevelCodexClose: boolean;
       events: string[];
+      followupDispatchSessionIds: string[];
       workflowReturnStatus: string | null;
       workflowReturnHistory: string[];
       reviewerDispositionClassified: boolean;
@@ -3322,6 +3323,7 @@ describe("play subagent routing source contracts", () => {
         "required-state-captured",
         "closure-unavailable",
       ],
+      followupDispatchSessionIds: [],
       workflowReturnStatus: "DONE",
       workflowReturnHistory: ["DONE"],
       reviewerDispositionClassified: false,
@@ -3354,6 +3356,21 @@ describe("play subagent routing source contracts", () => {
     };
     function invalidDimensions(example: LifecycleExample): string[] {
       const errors: string[] = [];
+      if (
+        example.completionEvent !== example.events.includes("turn-completed")
+      ) {
+        errors.push("completion-event-history");
+        return errors;
+      }
+      if (
+        example.followupDispatchSessionIds.length !==
+        example.events.filter(
+          (event) => event === "followup-dispatch-requested",
+        ).length
+      ) {
+        errors.push("followup-dispatch-identity-history");
+        return errors;
+      }
       if (
         (example.operationalState === "pending") !==
         (example.agentId === "pending")
@@ -3541,8 +3558,20 @@ describe("play subagent routing source contracts", () => {
         errors.push("workflow-result-history");
         return errors;
       }
+      let followupOrdinal = 0;
       for (const [followupIndex, event] of example.events.entries()) {
         if (event !== "followup-dispatch-requested") continue;
+        const followupSessionId =
+          example.followupDispatchSessionIds[followupOrdinal];
+        followupOrdinal += 1;
+        if (
+          followupSessionId === undefined ||
+          !/^[A-Za-z0-9._-]+$/.test(followupSessionId) ||
+          followupSessionId !== example.agentId
+        ) {
+          errors.push("completed-followup-identity");
+          return errors;
+        }
         const priorEvents = example.events.slice(0, followupIndex);
         const latestCompleted = priorEvents.lastIndexOf("turn-completed");
         const latestTerminal = Math.max(
@@ -3992,6 +4021,9 @@ describe("play subagent routing source contracts", () => {
     }
 
     expect(invalidDimensions(valid)).toEqual([]);
+    expect(invalidDimensions({ ...valid, completionEvent: false })).toEqual([
+      "completion-event-history",
+    ]);
     const normalEventText = valid.events.join("|");
     for (const [from, to] of [
       ["required-state-captured|", ""],
@@ -4116,8 +4148,8 @@ describe("play subagent routing source contracts", () => {
         },
       ],
       [
-        "inventory-only becomes operational completion",
-        "capability-is-not-operation",
+        "completion flag omits its projected event",
+        "completion-event-history",
         {
           ...valid,
           operationalState: "completed",
@@ -4224,6 +4256,7 @@ describe("play subagent routing source contracts", () => {
       workflowReturnStatus: "DONE",
       workflowReturnHistory: ["DONE"],
       completionEvent: true,
+      followupDispatchSessionIds: ["agent-1"],
       reusable: true,
       trackedStableIdentity: true,
       capability: "inventory-only",
@@ -4338,12 +4371,21 @@ describe("play subagent routing source contracts", () => {
       ["operational-state-projection"],
     );
     expect(
-      invalidDimensions({ ...valid, events: interruptedOpen.events }),
+      invalidDimensions({
+        ...valid,
+        completionEvent: false,
+        events: interruptedOpen.events,
+        operationalState: "active",
+      }),
     ).toEqual(["operational-state-projection"]);
     const reopen = (example: LifecycleExample): LifecycleExample => ({
       ...example,
       operationalState: "active",
       events: [...example.events, "followup-dispatch-requested"],
+      followupDispatchSessionIds: [
+        ...example.followupDispatchSessionIds,
+        example.agentId,
+      ],
     });
     const followupActive = reopen(valid);
     expect(invalidDimensions(followupActive)).toEqual([]);
@@ -4353,6 +4395,24 @@ describe("play subagent routing source contracts", () => {
       closeUnavailableReason: "inventory-only; no close operation",
       unavailableEventReasons: ["inventory-only; no close operation"],
     });
+    expect(
+      invalidDimensions({
+        ...followupActive,
+        followupDispatchSessionIds: [],
+      }),
+    ).toEqual(["followup-dispatch-identity-history"]);
+    expect(
+      invalidDimensions({
+        ...followupActive,
+        followupDispatchSessionIds: ["agent-1", "agent-1"],
+      }),
+    ).toEqual(["followup-dispatch-identity-history"]);
+    expect(
+      invalidDimensions({
+        ...followupActive,
+        followupDispatchSessionIds: ["agent-2"],
+      }),
+    ).toEqual(["completed-followup-identity"]);
     expect(
       invalidDimensions({
         ...followupActive,
@@ -4392,8 +4452,12 @@ describe("play subagent routing source contracts", () => {
       invalidDimensions({ ...followupActive, trackedStableIdentity: false }),
     ).toEqual(["completed-followup-ineligible"]);
     expect(
-      invalidDimensions({ ...followupActive, agentId: "unstable identity" }),
-    ).toEqual(["completed-followup-ineligible"]);
+      invalidDimensions({
+        ...followupActive,
+        agentId: "unstable identity",
+        followupDispatchSessionIds: ["unstable identity"],
+      }),
+    ).toEqual(["completed-followup-identity"]);
     expect(
       invalidDimensions({
         ...followupActive,
@@ -4402,6 +4466,7 @@ describe("play subagent routing source contracts", () => {
           "required-state-captured",
           "followup-dispatch-requested",
         ],
+        followupDispatchSessionIds: ["agent-1", "agent-1"],
       }),
     ).toEqual(["completed-followup-ineligible"]);
     expect(
@@ -5197,7 +5262,7 @@ describe("play subagent routing source contracts", () => {
         | "close-succeeded"
         | "closure-unavailable";
       order: number;
-      sessionId: string;
+      sessionId: string | null;
       reason?: string;
     }>;
     type PreparationEvent = Readonly<{
@@ -5714,8 +5779,17 @@ describe("play subagent routing source contracts", () => {
             !Number.isInteger(event.order) ||
             event.order <= previousOrder ||
             event.order > ledger.order ||
-            event.sessionId !== row.sessionId ||
-            row.identityState !== "stable" ||
+            (event.kind === "closure-unavailable"
+              ? !(
+                  (row.identityState === "stable" &&
+                    event.sessionId === row.sessionId) ||
+                  (row.identityState === "unknown" &&
+                    row.sessionId === null &&
+                    event.sessionId === null)
+                )
+              : row.identityState !== "stable" ||
+                !sanitizedIdentity(row.sessionId) ||
+                event.sessionId !== row.sessionId) ||
             (event.kind === "closure-unavailable" &&
               !validProvenance(event.reason)) ||
             sawSuccess
@@ -5802,8 +5876,11 @@ describe("play subagent routing source contracts", () => {
           if (
             (event.kind === "close-attempted" ||
               event.kind === "closure-unavailable") &&
-            rowPreparationError(rowBeforeOrder(row, event.order), false) !==
-              undefined
+            rowPreparationError(
+              rowBeforeOrder(row, event.order),
+              false,
+              event.kind !== "closure-unavailable",
+            ) !== undefined
           ) {
             return false;
           }
@@ -5814,8 +5891,12 @@ describe("play subagent routing source contracts", () => {
     const rowPreparationError = (
       row: RowRecord,
       requireManualPath: boolean,
+      requireStableIdentity = true,
     ): string | undefined => {
-      if (row.identityState !== "stable" || !sanitizedIdentity(row.sessionId)) {
+      if (
+        requireStableIdentity &&
+        (row.identityState !== "stable" || !sanitizedIdentity(row.sessionId))
+      ) {
         return "row-preparation-identity";
       }
       const operational = [...row.preparationHistory]
@@ -6554,6 +6635,19 @@ describe("play subagent routing source contracts", () => {
               : "episode-not-authorizing",
           );
         }
+        for (const blocker of episode.snapshot) {
+          if (blocker.kind !== "ledger-row") continue;
+          const row = ledger.rows.find(
+            (candidate) => candidate.rowId === blocker.identity,
+          );
+          const preparationError =
+            row === undefined
+              ? "row-preparation-identity"
+              : rowPreparationError(row, false);
+          if (preparationError !== undefined) {
+            return fail(ledger, preparationError);
+          }
+        }
         if (episode.authorizations.length !== episode.snapshot.length) {
           return fail(ledger, "blocker-authorization-incomplete");
         }
@@ -7075,6 +7169,54 @@ describe("play subagent routing source contracts", () => {
                     : event,
                 ),
               }
+            : row,
+        ),
+      ),
+    );
+    const unknownUnavailable = forgeRows(emptyLedger(), (rows) =>
+      rows.map((row) =>
+        row.rowId === "row-1"
+          ? {
+              ...row,
+              identityState: "unknown" as const,
+              sessionId: null,
+              history: [
+                {
+                  eventId: "unknown-unavailable",
+                  kind: "closure-unavailable" as const,
+                  order: 3,
+                  sessionId: null,
+                  reason: "stable identity unavailable",
+                },
+              ],
+              projection: "close-unavailable" as const,
+            }
+          : row,
+      ),
+    );
+    const unknownRecovery = apply(
+      unknownUnavailable,
+      start("origin-unknown", "episode-unknown", [ledgerRow()]),
+    );
+    expectRejected(
+      unknownRecovery,
+      {
+        kind: "authorize",
+        episodeId: "episode-unknown",
+        evidence: manual("episode-unknown", ledgerRow()),
+      },
+      "row-preparation-identity",
+    );
+    expectRejected(
+      unknownRecovery,
+      reconstruct("episode-unknown"),
+      "row-preparation-identity",
+    );
+    expectInvalidLedger(
+      forgeRows(unknownUnavailable, (rows) =>
+        rows.map((row) =>
+          row.rowId === "row-1"
+            ? { ...row, identityState: "pending" as const }
             : row,
         ),
       ),
