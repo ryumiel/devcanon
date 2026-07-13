@@ -43,6 +43,10 @@ Quick navigation index for the DevCanon repository.
 - Where are Portable AFDS procedure flow graphs? ->
   [`docs/guidelines/portable-afds-user-procedure-map.md` § Procedure Flow Graphs](docs/guidelines/portable-afds-user-procedure-map.md#procedure-flow-graphs)
 - Where is the config format spec? -> [`docs/specs/configuration.md`](docs/specs/configuration.md)
+- Where is the capability profile catalog and decision? ->
+  [`docs/adr/adr-0026-capability-profiles.md`](docs/adr/adr-0026-capability-profiles.md)
+- Where is the manual v1-to-v2 capability migration procedure? ->
+  [`docs/guidelines/capability-profiles-v2-migration.md`](docs/guidelines/capability-profiles-v2-migration.md)
 - Where is the skill spec? -> [`docs/specs/skills.md`](docs/specs/skills.md)
 - Where is the agent schema spec? -> [`docs/specs/agents.md`](docs/specs/agents.md)
 - Where is the target mapping spec? -> [`docs/specs/target-mapping.md`](docs/specs/target-mapping.md)
@@ -84,8 +88,10 @@ Quick navigation index for the DevCanon repository.
   [`docs/adr/adr-0023-play-planning-implementer-executability-gate.md`](docs/adr/adr-0023-play-planning-implementer-executability-gate.md)
 - Where is the shared support skill runtime decision recorded? ->
   [`docs/adr/adr-0024-shared-support-skill-runtime.md`](docs/adr/adr-0024-shared-support-skill-runtime.md)
-- Where is the Codex model tier selection decision recorded? ->
+- Where is the historical Codex model tier selection evidence recorded? ->
   [`docs/adr/adr-0025-codex-model-tier-selection.md`](docs/adr/adr-0025-codex-model-tier-selection.md)
+- Where is the current capability profile decision recorded? ->
+  [`docs/adr/adr-0026-capability-profiles.md`](docs/adr/adr-0026-capability-profiles.md)
 - Where is durable forward-looking product direction? -> [`docs/roadmap/`](docs/roadmap/)
 
 ---
@@ -103,6 +109,8 @@ Quick navigation index for the DevCanon repository.
   [`docs/guidelines/afds-workflow-capability-governance.md`](docs/guidelines/afds-workflow-capability-governance.md)
 - Where is the shared skill reporting workflow? -> [`docs/guidelines/shared-skill-reporting-workflow.md`](docs/guidelines/shared-skill-reporting-workflow.md)
 - Where is guidance on choosing an agent vs. a skill? -> [`docs/guidelines/agent-authoring-guide.md`](docs/guidelines/agent-authoring-guide.md)
+- Where is the capability profiles v2 migration and rollback procedure? ->
+  [`docs/guidelines/capability-profiles-v2-migration.md`](docs/guidelines/capability-profiles-v2-migration.md)
 - Where is policy for promoting prompt templates into agents? -> [`docs/guidelines/agent-authoring-guide.md`](docs/guidelines/agent-authoring-guide.md)
 - Where is guidance on writing skills in this repo? -> [`docs/guidelines/writing-skills.md`](docs/guidelines/writing-skills.md)
 - Where are the documentation checklists? -> [`docs/guidelines/documentation-checklists.md`](docs/guidelines/documentation-checklists.md)
@@ -163,7 +171,7 @@ Quick navigation index for the DevCanon repository.
 - Where is the Claude skill renderer? -> [`src/render/skill-claude.ts`](src/render/skill-claude.ts)
 - Where is the Codex skill renderer (with sidecar)? -> [`src/render/skill-codex.ts`](src/render/skill-codex.ts)
 - Where is the placeholder resolver (`{{model:*}}`, `{{tool:*}}`, `{{file:*}}`)? -> [`src/render/placeholders.ts`](src/render/placeholders.ts)
-- Where is the model-tier profile resolver? -> [`src/render/model-tier-profiles.ts`](src/render/model-tier-profiles.ts)
+- Where is the agent capability model resolver? -> [`src/render/capability-profiles.ts`](src/render/capability-profiles.ts)
 - Where is frontmatter parse/serialize? -> [`src/render/frontmatter.ts`](src/render/frontmatter.ts)
 
 ---

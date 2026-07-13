@@ -248,12 +248,20 @@ Valid justifications include at least one of:
 
 - tool or sandbox restrictions that a skill cannot enforce;
 - stable role identity with documented target-supported constraints such as
-  model tier, effort, tool access, sandbox mode, or Codex approval policy;
+  model capability, explicit target-native effort, tool access, sandbox mode,
+  or Codex approval policy;
 - a reusable specialist delegate where the operational method remains in source
   skills.
 
 Capability classification should record which agent-authoring justification
 applies and why a skill or guideline alone is insufficient.
+
+Model capability is only one target-supported constraint. Classify and justify
+target-native effort, tools, sandbox, approval policy, context, authority,
+orchestration, retry, and escalation policy independently; none is implied by
+`efficient`, `balanced`, or `frontier`. The current configuration and rendering
+contract is owned by [ADR-0026](../adr/adr-0026-capability-profiles.md), the
+[Configuration spec](../specs/configuration.md), and source schema/renderers.
 
 Reject an agent proposal when it is generic orchestration, duplicated skill
 method, prompt-template scaffolding for one call site, or a convenience wrapper

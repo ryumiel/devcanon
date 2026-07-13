@@ -4,6 +4,11 @@
 
 Accepted
 
+The model-tier glossary and resolution choice in this record is partially
+superseded by [ADR-0026](adr-0026-capability-profiles.md). The per-target skill
+rendering, override, sidecar, substitution-boundary, and namespace decisions
+remain accepted.
+
 ## Context
 
 Before this decision, skills were copied verbatim from
@@ -37,10 +42,10 @@ Authors express divergence in three places:
 1. Optional `claude:` / `codex:` frontmatter override blocks.
 2. An optional top-level `codex_sidecar:` block (emitted as
    a separate file for the Codex target only).
-3. `{{model:fast}}` / `{{model:standard}}` / `{{model:deep}}`
-   placeholders in body prose and top-level string values inside
-   override blocks, resolved at render time against a `modelTiers`
-   glossary in config.
+3. Model placeholders in body prose and top-level string values inside
+   override blocks, resolved at render time against the configured model
+   glossary. ADR-0026 replaces the original `fast` / `standard` / `deep`
+   vocabulary with exact capability tokens.
 
 Codex target config may also provide
 `targets.codex.skillDisplayNameSuffix`. This is not source-level
@@ -72,8 +77,8 @@ requires a new ADR.
   operates on per-target generated directories, not the source.
 - `symlink` install mode relinks from source → per-target
   generated directory on next `sync`; handled automatically.
-- A glossary in `devcanon.config.yaml` maps tier names to
-  target-native model IDs. Changing a tier is one config edit.
+- A glossary in `devcanon.config.yaml` maps portable names to target-native
+  model IDs. ADR-0026 owns the current capability catalog.
 - A Codex display-name suffix can create or mutate only the Codex
   sidecar. It affects Codex content hashing and install planning, but
   does not change Claude output, skill IDs, names, descriptions, or
@@ -98,7 +103,9 @@ requires a new ADR.
 
 - [ADR-0006](adr-0006-tool-and-file-placeholders.md) -- adds `{{tool:*}}` and `{{file:*}}` namespaces
 - [Skills](../specs/skills.md) -- skill authoring and frontmatter
-- [Configuration](../specs/configuration.md) -- `modelTiers` glossary
+- [ADR-0026](adr-0026-capability-profiles.md) -- current capability catalog and
+  model-resolution policy
+- [Configuration](../specs/configuration.md) -- `capabilityProfiles` contract
 - [`src/render/placeholders.ts`](../../src/render/placeholders.ts) -- `{{model:*}}` resolver
 - [`src/render/skill-claude.ts`](../../src/render/skill-claude.ts) -- Claude skill renderer
 - [`src/render/skill-codex.ts`](../../src/render/skill-codex.ts) -- Codex skill renderer (with sidecar)

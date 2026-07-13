@@ -11,9 +11,28 @@ Because Claude and Codex do not use the same native agent format,
 behavior. Unsupported target fields are ignored with warning.**
 
 The source schema does not define first-class delegation or orchestration
-controls in v1. If authors describe coordination behavior, that guidance lives
+controls in v2. If authors describe coordination behavior, that guidance lives
 in the role's prose instructions and remains target-dependent rather than a
 validated source-schema field.
+
+### Agent model and effort mapping
+
+For each target, agent model selection follows one precedence chain:
+
+1. a literal model in the target block;
+2. the target model from the agent's top-level `capability` and the required
+   `capabilityProfiles` catalog;
+3. omission, leaving model choice to the target's ambient configuration.
+
+`src/render/capability-profiles.ts` owns this model-only resolution. It does not
+resolve effort. Claude `effort` and Codex `model_reasoning_effort` are emitted
+only when explicitly present in the corresponding target block; otherwise
+they remain omitted. Tools, sandbox, approval policy, context, authority,
+orchestration, retries, and escalation do not derive from capability.
+
+Skills use the same catalog only through canonical model placeholders in prose
+and supported top-level override strings. Agent target `model` fields accept
+literal strings, not placeholders.
 
 ### Claude mapping
 
@@ -77,6 +96,8 @@ while `src/runtime/` owns the deterministic runtime behavior.
 Do not hand-edit generated preview files to change behavior. If generated
 preview drift appears in a worktree, regenerate from source or fix the
 authoritative source/renderer behavior, but keep `generated/` out of commits.
+Generated previews are local verification only; they are not committed
+authority or migration baselines.
 
 ### Normalization
 

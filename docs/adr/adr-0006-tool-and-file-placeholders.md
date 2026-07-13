@@ -4,6 +4,9 @@
 
 Accepted
 
+ADR-0026 replaces the model glossary named by this historical record. The
+`toolNames` and `fileArtifacts` decision remains accepted.
+
 ## Context
 
 ADR-0005 scope-locks placeholders to `{{model:*}}`. Shared skill prose
@@ -17,12 +20,12 @@ per-target resolution model as model names.
 ## Decision
 
 Extend the placeholder system with two new namespaces sharing the
-`{claude, codex}` shape of `modelTiers`:
+`{claude, codex}` target-pair shape used by the model glossary:
 
 - `{{tool:*}}` resolves against `toolNames.<key>`.
 - `{{file:*}}` resolves against `fileArtifacts.<key>`.
 
-Both glossaries live alongside `modelTiers` in
+Both glossaries live alongside the current `capabilityProfiles` catalog in
 `devcanon.config.yaml`. Resolution semantics (per-target pass,
 backslash escape, fenced-code exemption) match ADR-0005 exactly. The
 resolver is reshaped to dispatch through a `PlaceholderGlossary` map so
@@ -54,12 +57,14 @@ also adds `Foo` and `bar` to the drift token set without code changes.
 - **Namespace registry** (`Map<namespace, resolver>`): over-engineered
   for three namespaces with identical shape.
 - **Hardcode drift tokens for the new namespaces**: rejected. The
-  `modelTiers`-derived approach already exists and is strictly better:
+  config-derived model approach already exists and is strictly better:
   zero maintenance when adding new mappings.
 
 ## See also
 
 - [ADR-0005](adr-0005-per-target-skill-rendering.md) — original scope-lock
+- [ADR-0026](adr-0026-capability-profiles.md) — current model-capability
+  glossary
 - [`src/render/placeholders.ts`](../../src/render/placeholders.ts)
 - [`src/validate/skills.ts`](../../src/validate/skills.ts)
 - [`docs/specs/skills.md`](../specs/skills.md)

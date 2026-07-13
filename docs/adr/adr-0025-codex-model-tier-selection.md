@@ -4,6 +4,11 @@
 
 Accepted
 
+The tier-plus-effort default catalog in this record is partially superseded by
+[ADR-0026](adr-0026-capability-profiles.md). The frozen evaluation protocol,
+dated Codex evidence, named-model pinning rationale, local-validation boundary,
+and runtime-smoke findings remain accepted historical evidence.
+
 ## Context
 
 DevCanon has two Codex default populations. The repository configuration uses
@@ -168,8 +173,12 @@ reproduced; no alias, family member, model, or effort may be substituted.
 
 ### Selected mapping and pinning policy
 
-DevCanon selects this exact Codex mapping for both the active repository config
-and newly initialized libraries:
+The following table records the mapping selected by this historical decision.
+ADR-0026 now owns the active model-only capability catalog and requires effort
+to be selected explicitly and independently.
+
+This decision selected the following Codex mapping for both the then-active
+repository config and newly initialized libraries:
 
 | Tier       | Model           | Reasoning effort |
 | ---------- | --------------- | ---------------- |
@@ -177,17 +186,19 @@ and newly initialized libraries:
 | `standard` | `gpt-5.6-sol`   | `high`           |
 | `deep`     | `gpt-5.6-sol`   | `xhigh`          |
 
-Named family members are pinned instead of the moving `gpt-5.6` alias. This
-makes a DevCanon revision's intended capability tier stable if an alias is
-later retargeted. DevCanon does not add automatic family-member routing. The
-existing Claude profiles remain unchanged and continue to resolve independently
-from Codex profiles.
+Named family members were pinned instead of the moving `gpt-5.6` alias. This
+makes a DevCanon revision's intended model stable if an alias is later
+retargeted. DevCanon does not add automatic family-member routing. ADR-0026
+preserves named Codex models while replacing tiers with independent capability
+and effort choices.
 
-The shared Codex reasoning-effort authority must accept `max` for both tier
-`reasoning_effort` and agent `model_reasoning_effort`. `ultra` remains invalid:
-it is an orchestration mode, not a reasoning-effort value in this contract.
-Local acceptance of `max` does not establish remote support for a particular
-model or account.
+At acceptance, the shared Codex reasoning-effort authority was required to
+accept `max` for both tier `reasoning_effort` and agent
+`model_reasoning_effort`. ADR-0026 removes effort from capability profiles;
+agent `model_reasoning_effort` remains an explicit target-native field.
+`ultra` remains invalid because it is an orchestration mode, not a
+reasoning-effort value in this contract. Local acceptance of `max` does not
+establish remote support for a particular model or account.
 
 Only aggregate measurements, decisions, and public links belong in this ADR.
 Transient execution records, identifiers, and temporary artifacts are not
@@ -195,13 +206,18 @@ durable evidence and must not be committed.
 
 ## Consequences
 
-- The active and initialized Codex defaults can now migrate together to the
-  exact selected named-family mapping; neither population may be updated alone.
-- Shipped standard/deep agents inherit the selected model and effort unless an
-  existing explicit agent override applies.
-- Claude tier values and Claude rendering remain unchanged.
-- Configuration and agent specifications must document named-family pinning,
-  `max`/`ultra`, effort inheritance, and the local-validation/runtime boundary.
+- At acceptance, the active and initialized Codex defaults could migrate
+  together to the exact selected named-family mapping; neither population was
+  to be updated alone.
+- The former standard/deep agents inherited the selected model and effort
+  unless an explicit agent override applied. ADR-0026 now requires independent
+  capability and explicit effort choices.
+- This decision did not change the then-existing Claude tier values or Claude
+  rendering.
+- Configuration and agent specifications were required to document
+  named-family pinning, `max`/`ultra`, effort inheritance, and the
+  local-validation/runtime boundary. Current specs document the successor
+  capability contract.
 - Focused schema, initialization, and shipped-agent render tests must prove the
   new contract. The rendered TOML shape does not change.
 - Future model migrations must declare their corpus and gate before changing

@@ -64,6 +64,24 @@ not as a claim that the dependency direction is ideal:
 - `install/` currently imports `KNOWN_SUBDIRS` from `validate/skills.ts` when
   checking mirrored skill subdirectories for copy-mode executable drift.
 
+### Capability Profile Boundary
+
+`src/config/schema.ts` owns the strict version 2 source contract and required
+`capabilityProfiles` shape. `src/render/capability-profiles.ts` owns the small
+model-only resolver used by both agent renderers: literal target model,
+otherwise top-level capability mapping, otherwise ambient omission.
+
+Capability resolution does not own target-native effort, tools, sandbox,
+approval policy, context, authority, orchestration, retries, or escalation.
+Those fields remain explicit in their source or workflow owners. Skill model
+tokens are resolved separately by `src/render/placeholders.ts` against the same
+catalog, within the existing prose, escape, and fence boundaries.
+
+[ADR-0026](../adr/adr-0026-capability-profiles.md) owns the policy decision,
+[Configuration](../specs/configuration.md) owns the user-facing behavior, and
+[Capability Profiles v2 Migration](../guidelines/capability-profiles-v2-migration.md)
+owns the manual operator cutover and rollback procedure.
+
 ### Render Pipeline Boundary
 
 The render module exposes two orchestration levels:
@@ -139,7 +157,7 @@ formats (Claude `.md`, Codex `.toml`).
 
 ### Target
 
-A supported output environment. v1 supports `claude` and `codex`.
+A supported output environment. Version 2 supports `claude` and `codex`.
 
 ### Managed Output
 
@@ -212,3 +230,4 @@ Unmanaged files are never overwritten unless explicitly forced.
 - Renderer normalizes: trailing newlines, line endings, indentation, multiline
   formatting, and field ordering
 - The `generated/` directory is a preview/debug area, not authoritative
+- Generated previews remain ignored and uncommitted local verification output
