@@ -1,14 +1,15 @@
 import { describe, expect, it } from "vitest";
-import type { FileArtifacts, ModelTiers, ToolNames } from "../config/schema.js";
+import type {
+  CapabilityProfiles,
+  FileArtifacts,
+  ToolNames,
+} from "../config/schema.js";
 import { collectProseSegments, resolvePlaceholders } from "./placeholders.js";
 
-const TIERS: ModelTiers = {
-  fast: { claude: { model: "haiku" }, codex: { model: "gpt-5.4-mini" } },
-  standard: { claude: { model: "sonnet" }, codex: { model: "gpt-5.4" } },
-  deep: {
-    claude: { model: "opus", effort: "high" },
-    codex: { model: "gpt-5.4", reasoning_effort: "high" },
-  },
+const CAPABILITY_PROFILES: CapabilityProfiles = {
+  efficient: { claude: "haiku", codex: "gpt-5.4-mini" },
+  balanced: { claude: "sonnet", codex: "gpt-5.4" },
+  frontier: { claude: "opus", codex: "gpt-5.4-pro" },
 };
 
 const TOOLS: ToolNames = {
@@ -19,8 +20,12 @@ const FILES: FileArtifacts = {
   "project-instructions": { claude: "CLAUDE.md", codex: "AGENTS.md" },
 };
 
-const GLOSSARY = { model: TIERS, tool: TOOLS, file: FILES };
-const MODEL_ONLY = { model: TIERS };
+const GLOSSARY = {
+  model: CAPABILITY_PROFILES,
+  tool: TOOLS,
+  file: FILES,
+};
+const MODEL_ONLY = { model: CAPABILITY_PROFILES };
 
 describe("resolvePlaceholders", () => {
   it("iterates prose and fenced-code segments with fenced code immunity", () => {
@@ -42,27 +47,41 @@ describe("resolvePlaceholders", () => {
     expect(segments.join("\n")).not.toContain("```ts");
   });
 
-  it("substitutes a single tier for the claude target", () => {
-    const out = resolvePlaceholders(
-      "use {{model:deep}} for synthesis",
-      "claude",
-      MODEL_ONLY,
-    );
-    expect(out).toBe("use opus for synthesis");
-  });
+  it.each([
+    ["efficient", "haiku"],
+    ["balanced", "sonnet"],
+    ["frontier", "opus"],
+  ] as const)(
+    "substitutes the %s capability for the claude target",
+    (capability, model) => {
+      const out = resolvePlaceholders(
+        `use {{model:${capability}}} for synthesis`,
+        "claude",
+        MODEL_ONLY,
+      );
+      expect(out).toBe(`use ${model} for synthesis`);
+    },
+  );
 
-  it("substitutes a single tier for the codex target", () => {
-    const out = resolvePlaceholders(
-      "use {{model:fast}} for cleanup",
-      "codex",
-      MODEL_ONLY,
-    );
-    expect(out).toBe("use gpt-5.4-mini for cleanup");
-  });
+  it.each([
+    ["efficient", "gpt-5.4-mini"],
+    ["balanced", "gpt-5.4"],
+    ["frontier", "gpt-5.4-pro"],
+  ] as const)(
+    "substitutes the %s capability for the codex target",
+    (capability, model) => {
+      const out = resolvePlaceholders(
+        `use {{model:${capability}}} for cleanup`,
+        "codex",
+        MODEL_ONLY,
+      );
+      expect(out).toBe(`use ${model} for cleanup`);
+    },
+  );
 
   it("substitutes multiple placeholders in one string", () => {
     const out = resolvePlaceholders(
-      "{{model:deep}} then {{model:fast}}",
+      "{{model:frontier}} then {{model:efficient}}",
       "claude",
       MODEL_ONLY,
     );
@@ -71,66 +90,66 @@ describe("resolvePlaceholders", () => {
 
   it("leaves content inside a fenced code block untouched", () => {
     const input = [
-      "use {{model:deep}} for synthesis.",
+      "use {{model:frontier}} for synthesis.",
       "",
       "```",
-      "example: {{model:deep}} stays literal",
+      "example: {{model:frontier}} stays literal",
       "```",
       "",
-      "and {{model:fast}} after.",
+      "and {{model:efficient}} after.",
     ].join("\n");
     const out = resolvePlaceholders(input, "claude", MODEL_ONLY);
     expect(out).toContain("use opus for synthesis");
-    expect(out).toContain("example: {{model:deep}} stays literal");
+    expect(out).toContain("example: {{model:frontier}} stays literal");
     expect(out).toContain("and haiku after");
   });
 
   it("leaves content inside a blockquoted fenced code block untouched", () => {
     const input = [
-      "before: {{model:fast}}",
+      "before: {{model:efficient}}",
       "> ```ts",
-      '> const model = "{{model:deep}}";',
+      '> const model = "{{model:frontier}}";',
       "> ```",
-      "after: {{model:standard}}",
+      "after: {{model:balanced}}",
     ].join("\n");
 
     const out = resolvePlaceholders(input, "claude", MODEL_ONLY);
     expect(out).toContain("before: haiku");
-    expect(out).toContain('> const model = "{{model:deep}}"');
+    expect(out).toContain('> const model = "{{model:frontier}}"');
     expect(out).toContain("after: sonnet");
   });
 
   it("leaves heading-adjacent indented code blocks untouched", () => {
     const input = [
       "# Example",
-      "    model: {{model:deep}}",
+      "    model: {{model:frontier}}",
       "",
-      "after: {{model:fast}}",
+      "after: {{model:efficient}}",
     ].join("\n");
     const out = resolvePlaceholders(input, "claude", MODEL_ONLY);
-    expect(out).toContain("    model: {{model:deep}}");
+    expect(out).toContain("    model: {{model:frontier}}");
     expect(out).toContain("after: haiku");
   });
 
   it("leaves content inside a blockquoted indented code block untouched", () => {
     const input = [
-      "before: {{model:fast}}",
+      "before: {{model:efficient}}",
       "> # Example",
-      ">     preferred_model: {{model:deep}}",
-      "after: {{model:standard}}",
+      ">     preferred_model: {{model:frontier}}",
+      "after: {{model:balanced}}",
     ].join("\n");
 
     const out = resolvePlaceholders(input, "claude", MODEL_ONLY);
     expect(out).toContain("before: haiku");
     expect(out).toContain("> # Example");
-    expect(out).toContain(">     preferred_model: {{model:deep}}");
+    expect(out).toContain(">     preferred_model: {{model:frontier}}");
     expect(out).toContain("after: sonnet");
   });
 
   it("treats indented list continuation lines as prose", () => {
     const input = [
       "1. Item",
-      "    continuation with {{model:standard}}",
+      "    continuation with {{model:balanced}}",
       "",
     ].join("\n");
     const out = resolvePlaceholders(input, "claude", MODEL_ONLY);
@@ -140,91 +159,108 @@ describe("resolvePlaceholders", () => {
   it("leaves nested list indented code blocks untouched", () => {
     const input = [
       "- Item",
-      "      const bulletPreferred = {{model:standard}}",
+      "      const bulletPreferred = {{model:balanced}}",
       "1. Ordered",
-      "       const orderedPreferred = {{model:deep}}",
+      "       const orderedPreferred = {{model:frontier}}",
       "",
     ].join("\n");
 
     const out = resolvePlaceholders(input, "claude", MODEL_ONLY);
-    expect(out).toContain("const bulletPreferred = {{model:standard}}");
-    expect(out).toContain("const orderedPreferred = {{model:deep}}");
+    expect(out).toContain("const bulletPreferred = {{model:balanced}}");
+    expect(out).toContain("const orderedPreferred = {{model:frontier}}");
   });
 
   it("leaves nested list code blocks untouched when the list marker uses a tab separator", () => {
     const input = [
       "-\tItem",
-      "        const preferred = {{model:standard}}",
+      "        const preferred = {{model:balanced}}",
       "1.\tOrdered",
-      "        const orderedPreferred = {{model:deep}}",
+      "        const orderedPreferred = {{model:frontier}}",
       "",
     ].join("\n");
 
     const out = resolvePlaceholders(input, "claude", MODEL_ONLY);
-    expect(out).toContain("const preferred = {{model:standard}}");
-    expect(out).toContain("const orderedPreferred = {{model:deep}}");
+    expect(out).toContain("const preferred = {{model:balanced}}");
+    expect(out).toContain("const orderedPreferred = {{model:frontier}}");
   });
 
   it("keeps nested list code blocks after continuation prose untouched", () => {
     const input = [
       "- Item",
-      "    continuation with {{model:fast}}",
+      "    continuation with {{model:efficient}}",
       "",
-      "      const preferred = {{model:standard}}",
+      "      const preferred = {{model:balanced}}",
       "",
     ].join("\n");
 
     const out = resolvePlaceholders(input, "claude", MODEL_ONLY);
     expect(out).toContain("continuation with haiku");
-    expect(out).toContain("const preferred = {{model:standard}}");
+    expect(out).toContain("const preferred = {{model:balanced}}");
   });
 
   it("treats single-tab list continuations as prose before nested tab-indented code", () => {
     const input = [
       "- Item",
-      "\tcontinuation with {{model:fast}}",
+      "\tcontinuation with {{model:efficient}}",
       "",
-      "\t\tconst preferred = {{model:standard}}",
+      "\t\tconst preferred = {{model:balanced}}",
       "",
     ].join("\n");
 
     const out = resolvePlaceholders(input, "claude", MODEL_ONLY);
     expect(out).toContain("continuation with haiku");
-    expect(out).toContain("const preferred = {{model:standard}}");
+    expect(out).toContain("const preferred = {{model:balanced}}");
   });
 
   it("respects escape syntax", () => {
     const out = resolvePlaceholders(
-      "literal \\{{model:deep}} here",
+      "literal \\{{model:frontier}} here",
       "claude",
       MODEL_ONLY,
     );
-    expect(out).toBe("literal {{model:deep}} here");
+    expect(out).toBe("literal {{model:frontier}} here");
   });
 
-  it("throws on an unknown tier", () => {
+  it.each(["fast", "standard", "deep", "ultra"])(
+    "rejects unsupported active model capability %s with canonical guidance",
+    (capability) => {
+      expect(() =>
+        resolvePlaceholders(`{{model:${capability}}}`, "claude", MODEL_ONLY, {
+          skillName: "canonical-models",
+          target: "claude",
+        }),
+      ).toThrow(
+        new RegExp(
+          `canonical-models.*claude.*\\{\\{model:${capability}\\}\\}.*efficient.*balanced.*frontier.*devcanon\\.config\\.yaml`,
+          "i",
+        ),
+      );
+    },
+  );
+
+  it("rejects malformed active model keys with canonical guidance", () => {
     expect(() =>
-      resolvePlaceholders("{{model:ultra}}", "claude", MODEL_ONLY),
-    ).toThrow(/unknown model tier "ultra"/i);
+      resolvePlaceholders("{{model: balanced}}", "codex", MODEL_ONLY, {
+        skillName: "canonical-models",
+        target: "codex",
+      }),
+    ).toThrow(/canonical-models.*codex.*model: balanced.*efficient.*frontier/i);
   });
 
-  // MODEL_TIER_KEY = /^\w+$/ accepts "__proto__" / "constructor" since both
-  // satisfy [A-Za-z0-9_]+; PLACEHOLDER_KEY = /^[a-z0-9][a-z0-9-]*$/ rejects
-  // "__proto__" at the regex (no underscore) but accepts "constructor". The
-  // Object.hasOwn guard at placeholders.ts:116 is the only line of defense
-  // for the post-regex case — assert it for each namespace so a regression
-  // to bracket-truthy lookup fails loud rather than resolving the inherited
-  // Object.prototype value.
+  // Active model values accept brace-free text so canonical validation can
+  // report malformed keys; PLACEHOLDER_KEY rejects "__proto__" for tool/file
+  // but accepts "constructor". Object.hasOwn is the defense against inherited
+  // Object.prototype values, so assert it for every namespace.
   it("throws on {{model:__proto__}} rather than resolving via prototype chain", () => {
     expect(() =>
       resolvePlaceholders("{{model:__proto__}}", "claude", MODEL_ONLY),
-    ).toThrow(/unknown model tier "__proto__"/i);
+    ).toThrow(/unsupported model capability "__proto__"/i);
   });
 
   it("throws on {{model:constructor}} rather than resolving via prototype chain", () => {
     expect(() =>
       resolvePlaceholders("{{model:constructor}}", "claude", MODEL_ONLY),
-    ).toThrow(/unknown model tier "constructor"/i);
+    ).toThrow(/unsupported model capability "constructor"/i);
   });
 
   it("throws on {{tool:constructor}} rather than resolving via prototype chain", () => {
@@ -243,12 +279,6 @@ describe("resolvePlaceholders", () => {
     expect(() =>
       resolvePlaceholders("{{path:skills_home}}", "claude", GLOSSARY),
     ).toThrow(/unknown placeholder namespace "path"/i);
-  });
-
-  it("throws when modelTiers is undefined and a placeholder is present", () => {
-    expect(() => resolvePlaceholders("{{model:deep}}", "claude", {})).toThrow(
-      /modelTiers not configured/i,
-    );
   });
 
   it("rejects a tool key that violates the kebab-case format", () => {
@@ -276,22 +306,24 @@ describe("resolvePlaceholders", () => {
     expect(resolvePlaceholders("plain text", "claude", MODEL_ONLY)).toBe(
       "plain text",
     );
-    expect(resolvePlaceholders("plain text", "claude", {})).toBe("plain text");
+    expect(resolvePlaceholders("plain text", "claude", MODEL_ONLY)).toBe(
+      "plain text",
+    );
   });
 
   it("does not treat a language-tagged fence line as a closing fence", () => {
     const input = [
       "```",
       "```typescript",
-      'const model = "{{model:deep}}";',
+      'const model = "{{model:frontier}}";',
       "```",
       "",
-      "after: {{model:fast}}",
+      "after: {{model:efficient}}",
     ].join("\n");
     const out = resolvePlaceholders(input, "claude", MODEL_ONLY);
     // Inside the outer ``` fence, placeholders stay literal even past
     // the nested ```typescript line.
-    expect(out).toContain('const model = "{{model:deep}}"');
+    expect(out).toContain('const model = "{{model:frontier}}"');
     // Substitution resumes after the outer fence closes.
     expect(out).toContain("after: haiku");
   });
@@ -300,29 +332,29 @@ describe("resolvePlaceholders", () => {
     const input = [
       "````",
       "```",
-      "{{model:deep}}",
+      "{{model:frontier}}",
       "```",
       "````",
       "",
-      "after: {{model:fast}}",
+      "after: {{model:efficient}}",
     ].join("\n");
     const out = resolvePlaceholders(input, "claude", MODEL_ONLY);
     // Inside the outer 4-backtick fence, placeholders must remain literal,
     // even past nested triple-backtick lines.
-    expect(out).toContain("{{model:deep}}");
+    expect(out).toContain("{{model:frontier}}");
     expect(out).toContain("after: haiku");
   });
 
   it("treats tilde fences as code fences", () => {
     const input = [
       "~~~",
-      "{{model:deep}}",
+      "{{model:frontier}}",
       "~~~",
       "",
-      "after: {{model:fast}}",
+      "after: {{model:efficient}}",
     ].join("\n");
     const out = resolvePlaceholders(input, "claude", MODEL_ONLY);
-    expect(out).toContain("{{model:deep}}");
+    expect(out).toContain("{{model:frontier}}");
     expect(out).toContain("after: haiku");
   });
 
@@ -330,14 +362,14 @@ describe("resolvePlaceholders", () => {
     const input = [
       "```",
       "~~~",
-      "{{model:deep}}",
+      "{{model:frontier}}",
       "~~~",
       "```",
       "",
-      "after: {{model:fast}}",
+      "after: {{model:efficient}}",
     ].join("\n");
     const out = resolvePlaceholders(input, "claude", MODEL_ONLY);
-    expect(out).toContain("{{model:deep}}");
+    expect(out).toContain("{{model:frontier}}");
     expect(out).toContain("after: haiku");
   });
 
@@ -345,8 +377,12 @@ describe("resolvePlaceholders", () => {
     // Two literal backslashes then a placeholder. The regex only captures
     // one backslash as the escape, so the outer backslash passes through
     // and the inner one marks the placeholder as literal.
-    const out = resolvePlaceholders("\\\\{{model:deep}}", "claude", MODEL_ONLY);
-    expect(out).toBe("\\{{model:deep}}");
+    const out = resolvePlaceholders(
+      "\\\\{{model:frontier}}",
+      "claude",
+      MODEL_ONLY,
+    );
+    expect(out).toBe("\\{{model:frontier}}");
   });
 
   describe("tool: namespace", () => {

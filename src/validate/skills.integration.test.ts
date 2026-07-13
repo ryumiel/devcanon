@@ -2,32 +2,52 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
+  CANONICAL_CAPABILITY_PROFILES,
   cleanupTempDir,
   createSkillFixture,
   createTempDir,
 } from "../__test-helpers__/fixtures.js";
-import type { FileArtifacts, ModelTiers, ToolNames } from "../config/schema.js";
+import type {
+  CapabilityProfiles,
+  FileArtifacts,
+  ToolNames,
+} from "../config/schema.js";
 import { UserError } from "../utils/errors.js";
 import { type Logger, getLogger, setLogger } from "../utils/output.js";
 import type { ValidationDiagnostic } from "./diagnostics.js";
 import { loadAndValidateSkills } from "./skills.js";
 
+const TEST_CAPABILITY_PROFILES: CapabilityProfiles = {
+  efficient: { claude: "haiku", codex: "gpt-5.4-mini" },
+  balanced: { claude: "sonnet", codex: "gpt-5.4" },
+  frontier: { claude: "opus", codex: "gpt-5.4-pro" },
+};
+
 describe("loadAndValidateSkills", () => {
   let tempDir: string;
   let skillsDir: string;
-  const loadAndValidateSkillsWithDiagnostics = loadAndValidateSkills as (
+  const loadAndValidateSkillsWithDiagnostics = (
     skillsDir: string,
     options?: {
       diagnostics?: {
         enabled?: boolean;
         strict?: boolean;
-        modelTiers?: ModelTiers;
+        capabilityProfiles?: CapabilityProfiles;
         toolNames?: ToolNames;
         fileArtifacts?: FileArtifacts;
         reporter?: (diagnostic: ValidationDiagnostic) => void;
       };
     },
-  ) => Promise<Awaited<ReturnType<typeof loadAndValidateSkills>>>;
+  ): ReturnType<typeof loadAndValidateSkills> =>
+    loadAndValidateSkills(skillsDir, {
+      ...options,
+      diagnostics: options?.diagnostics
+        ? {
+            capabilityProfiles: CANONICAL_CAPABILITY_PROFILES,
+            ...options.diagnostics,
+          }
+        : undefined,
+    });
 
   beforeEach(async () => {
     tempDir = await createTempDir();
@@ -667,6 +687,61 @@ describe("loadAndValidateSkills", () => {
     });
   });
 
+  it.each(["fast", "standard", "deep", "arbitrary", " balanced"])(
+    "rejects active model capability key %s with canonical guidance",
+    async (modelKey) => {
+      await mkdir(skillsDir, { recursive: true });
+      await createSkillFixture(
+        skillsDir,
+        "invalid-model-capability",
+        [
+          "---",
+          "name: invalid-model-capability",
+          "description: Reject invalid active model placeholders.",
+          "---",
+          "",
+          `Use {{model:${modelKey}}} for synthesis.`,
+          "",
+        ].join("\n"),
+      );
+
+      await expect(
+        loadAndValidateSkillsWithDiagnostics(skillsDir, {
+          diagnostics: { enabled: true },
+        }),
+      ).rejects.toThrow(
+        /invalid-model-capability.*model:.*efficient.*balanced.*frontier.*devcanon\.config\.yaml/i,
+      );
+    },
+  );
+
+  it("keeps escaped and fenced legacy model tokens literal during validation", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    await createSkillFixture(
+      skillsDir,
+      "literal-model-capability",
+      [
+        "---",
+        "name: literal-model-capability",
+        "description: Preserve literal model placeholder examples.",
+        "---",
+        "",
+        "Escaped: \\{{model:deep}}",
+        "",
+        "```yaml",
+        "model: {{model:fast}}",
+        "```",
+        "",
+      ].join("\n"),
+    );
+
+    await expect(
+      loadAndValidateSkillsWithDiagnostics(skillsDir, {
+        diagnostics: { enabled: true },
+      }),
+    ).resolves.toHaveLength(1);
+  });
+
   it("reports structured drift-token diagnostics when a reporter is supplied", async () => {
     await mkdir(skillsDir, { recursive: true });
     await createSkillFixture(
@@ -706,7 +781,7 @@ describe("loadAndValidateSkills", () => {
       strictBehavior: "strictable",
       summary: 'drift-prone prose token "sonnet" detected',
       details: ["token: sonnet", "reason: model"],
-      hint: "Prefer {{model:<tier>}} placeholders or target-neutral wording.",
+      hint: "Prefer {{model:<capability>}} placeholders or target-neutral wording.",
     });
   });
 
@@ -838,16 +913,7 @@ describe("loadAndValidateSkills", () => {
         diagnostics: {
           enabled: true,
           strict: false,
-          modelTiers: {
-            fast: {
-              claude: { model: "haiku" },
-              codex: { model: "gpt-5.4-mini" },
-            },
-            standard: {
-              claude: { model: "sonnet" },
-              codex: { model: "gpt-5.4" },
-            },
-          },
+          capabilityProfiles: TEST_CAPABILITY_PROFILES,
         },
       });
 
@@ -878,16 +944,7 @@ describe("loadAndValidateSkills", () => {
         diagnostics: {
           enabled: true,
           strict: false,
-          modelTiers: {
-            fast: {
-              claude: { model: "haiku" },
-              codex: { model: "gpt-5.4-mini" },
-            },
-            standard: {
-              claude: { model: "sonnet" },
-              codex: { model: "gpt-5.4" },
-            },
-          },
+          capabilityProfiles: TEST_CAPABILITY_PROFILES,
         },
       });
 
@@ -1016,12 +1073,7 @@ describe("loadAndValidateSkills", () => {
           diagnostics: {
             enabled: true,
             strict: true,
-            modelTiers: {
-              standard: {
-                claude: { model: "sonnet" },
-                codex: { model: "gpt-5.4" },
-              },
-            },
+            capabilityProfiles: TEST_CAPABILITY_PROFILES,
           },
         }),
       ).resolves.toHaveLength(1);
@@ -1059,12 +1111,7 @@ describe("loadAndValidateSkills", () => {
           diagnostics: {
             enabled: true,
             strict: true,
-            modelTiers: {
-              standard: {
-                claude: { model: "sonnet" },
-                codex: { model: "gpt-5.4" },
-              },
-            },
+            capabilityProfiles: TEST_CAPABILITY_PROFILES,
           },
         }),
       ).resolves.toHaveLength(1);
@@ -1100,12 +1147,7 @@ describe("loadAndValidateSkills", () => {
           diagnostics: {
             enabled: true,
             strict: true,
-            modelTiers: {
-              standard: {
-                claude: { model: "sonnet" },
-                codex: { model: "gpt-5.4" },
-              },
-            },
+            capabilityProfiles: TEST_CAPABILITY_PROFILES,
           },
         }),
       ).resolves.toHaveLength(1);
@@ -1142,12 +1184,7 @@ describe("loadAndValidateSkills", () => {
           diagnostics: {
             enabled: true,
             strict: true,
-            modelTiers: {
-              standard: {
-                claude: { model: "sonnet" },
-                codex: { model: "gpt-5.4" },
-              },
-            },
+            capabilityProfiles: TEST_CAPABILITY_PROFILES,
           },
         }),
       ).resolves.toHaveLength(1);
@@ -1182,12 +1219,7 @@ describe("loadAndValidateSkills", () => {
           diagnostics: {
             enabled: true,
             strict: true,
-            modelTiers: {
-              standard: {
-                claude: { model: "sonnet" },
-                codex: { model: "gpt-5.4" },
-              },
-            },
+            capabilityProfiles: TEST_CAPABILITY_PROFILES,
           },
         }),
       ).resolves.toHaveLength(1);
@@ -1219,12 +1251,7 @@ describe("loadAndValidateSkills", () => {
           diagnostics: {
             enabled: true,
             strict: true,
-            modelTiers: {
-              standard: {
-                claude: { model: "sonnet" },
-                codex: { model: "gpt-5.4" },
-              },
-            },
+            capabilityProfiles: TEST_CAPABILITY_PROFILES,
           },
         }),
       ).rejects.toThrow(/drift-prone prose token "sonnet"/i);
@@ -1260,16 +1287,7 @@ describe("loadAndValidateSkills", () => {
           diagnostics: {
             enabled: true,
             strict: true,
-            modelTiers: {
-              fast: {
-                claude: { model: "haiku" },
-                codex: { model: "gpt-5.4-mini" },
-              },
-              standard: {
-                claude: { model: "sonnet" },
-                codex: { model: "gpt-5.4" },
-              },
-            },
+            capabilityProfiles: TEST_CAPABILITY_PROFILES,
           },
         }),
       ).resolves.toHaveLength(1);

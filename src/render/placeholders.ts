@@ -1,8 +1,8 @@
 import { CONFIG_FILE_NAME } from "../config/identity.js";
 import {
+  type CapabilityProfiles,
+  CapabilitySchema,
   type FileArtifacts,
-  MODEL_TIER_KEY,
-  type ModelTiers,
   PLACEHOLDER_KEY,
   type ResolvedConfig,
   type ToolNames,
@@ -12,16 +12,17 @@ import { visitMarkdownLines } from "../utils/markdown-prose.js";
 /**
  * Matches an optional escape (`\`) followed by `{{namespace:value}}`.
  * Namespace uses `\w+` (letters, digits, underscore).
- * Value uses `[\w-]+` to support kebab-case keys (e.g. `task-tracker`).
+ * Value accepts any single-line, brace-free text so malformed active tokens
+ * reach namespace-specific validation instead of passing through silently.
  * The captured key is then re-validated per-namespace against the stricter
  * config-time format in `substituteLine`, so e.g. `{{tool:taskTracker}}`
  * yields a clear "invalid key" error instead of "unknown key".
  */
-const PLACEHOLDER = /(\\)?\{\{(\w+):([\w-]+)\}\}/g;
+const PLACEHOLDER = /(\\)?\{\{(\w+):([^{}\r\n]*)\}\}/g;
 export { collectProseSegments } from "../utils/markdown-prose.js";
 
 export interface PlaceholderGlossary {
-  model?: ModelTiers;
+  model: CapabilityProfiles;
   tool?: ToolNames;
   file?: FileArtifacts;
 }
@@ -35,13 +36,15 @@ const SUPPORTED_NAMESPACES = ["model", "tool", "file"] as const;
 type SupportedNamespace = (typeof SUPPORTED_NAMESPACES)[number];
 
 const NAMESPACE_CONFIG_KEY: Record<SupportedNamespace, string> = {
-  model: "modelTiers",
+  model: "capabilityProfiles",
   tool: "toolNames",
   file: "fileArtifacts",
 };
 
-const NAMESPACE_KEY_FORMAT: Record<SupportedNamespace, RegExp> = {
-  model: MODEL_TIER_KEY,
+const NAMESPACE_KEY_FORMAT: Record<
+  Exclude<SupportedNamespace, "model">,
+  RegExp
+> = {
   tool: PLACEHOLDER_KEY,
   file: PLACEHOLDER_KEY,
 };
@@ -52,7 +55,7 @@ function isSupportedNamespace(value: string): value is SupportedNamespace {
 
 export function buildGlossary(config: ResolvedConfig): PlaceholderGlossary {
   return {
-    model: config.modelTiers,
+    model: config.capabilityProfiles,
     tool: config.toolNames,
     file: config.fileArtifacts,
   };
@@ -97,6 +100,9 @@ function substituteLine(
         context,
       );
     }
+    if (namespace === "model") {
+      return resolveModelPlaceholder(value, target, glossary.model, context);
+    }
     if (!NAMESPACE_KEY_FORMAT[namespace].test(value)) {
       throw renderError(
         `invalid ${namespace} placeholder key "${value}" — ${formatKeyHint(namespace)}`,
@@ -115,17 +121,34 @@ function substituteLine(
     // "constructor" resolving to Object.prototype and bypassing the
     // unknown-key check.
     if (!Object.hasOwn(dict, value)) {
-      const subject = namespace === "model" ? "model tier" : `${namespace} key`;
       throw renderError(
-        `unknown ${subject} "${value}" — define it under ${configKey} in config`,
+        `unknown ${namespace} key "${value}" — define it under ${configKey} in config`,
         context,
       );
     }
-    if (namespace === "model") {
-      return (dict as ModelTiers)[value][target].model;
-    }
     return (dict as ToolNames | FileArtifacts)[value][target];
   });
+}
+
+function resolveModelPlaceholder(
+  value: string,
+  target: "claude" | "codex",
+  profiles: CapabilityProfiles,
+  context: PlaceholderRenderContext | undefined,
+): string {
+  const capability = CapabilitySchema.safeParse(value);
+  if (!capability.success || !Object.hasOwn(profiles, capability.data)) {
+    const token = `{{model:${value}}}`;
+    const supported = CapabilitySchema.options
+      .map((capability) => `{{model:${capability}}}`)
+      .join(", ");
+    throw renderError(
+      `unsupported model capability "${value}" in token "${token}" — use ${supported}; ${NAMESPACE_CONFIG_KEY.model} in ${CONFIG_FILE_NAME} defines the target model strings`,
+      context,
+    );
+  }
+
+  return profiles[capability.data][target];
 }
 
 function renderError(
@@ -139,8 +162,5 @@ function renderError(
 }
 
 function formatKeyHint(namespace: SupportedNamespace): string {
-  if (namespace === "model") {
-    return "model tier keys must match /^\\w+$/ (letters, digits, underscores)";
-  }
   return `${namespace} keys must match /^[a-z0-9][a-z0-9-]*$/ (lowercase, digits, hyphens)`;
 }

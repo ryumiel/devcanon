@@ -12,19 +12,11 @@ import {
   canCreateSymlinks,
   makeResolvedConfig,
 } from "../__test-helpers__/fixtures.js";
-import type { ModelTiers, SkillSource } from "../config/schema.js";
+import type { SkillSource } from "../config/schema.js";
 import type { LoadedSkill } from "../models/types.js";
 import { sha256 } from "../utils/hash.js";
 import { buildSkillContentHash, renderSkillForTarget } from "./skill.js";
 
-const TIERS: ModelTiers = {
-  fast: { claude: { model: "haiku" }, codex: { model: "gpt-5.4-mini" } },
-  standard: { claude: { model: "sonnet" }, codex: { model: "gpt-5.4" } },
-  deep: {
-    claude: { model: "opus", effort: "high" },
-    codex: { model: "gpt-5.4", reasoning_effort: "high" },
-  },
-};
 const symlinkAvailable = await canCreateSymlinks();
 
 function makeLoaded(source: SkillSource, body = "# body\n"): LoadedSkill {
@@ -57,7 +49,6 @@ function makeLoadedWithDir(
 describe("renderSkillForTarget contentHash", () => {
   it("changes when only the codex sidecar changes (codex target)", () => {
     const config = makeResolvedConfig("/tmp/test-hash");
-    config.modelTiers = TIERS;
 
     const baseSource: SkillSource = {
       name: "x",
@@ -94,11 +85,9 @@ describe("renderSkillForTarget contentHash", () => {
 
   it("changes the codex hash but not the claude hash when only the display suffix is configured", () => {
     const baseConfig = makeResolvedConfig("/tmp/test-hash");
-    baseConfig.modelTiers = TIERS;
     const suffixConfig = makeResolvedConfig("/tmp/test-hash", {
       codex: { skillDisplayNameSuffix: "devcanon" },
     });
-    suffixConfig.modelTiers = TIERS;
 
     const source: SkillSource = {
       name: "branch-review",
@@ -142,7 +131,6 @@ describe("renderSkillForTarget contentHash", () => {
 
   it("changes when only the claude override changes (claude target)", () => {
     const config = makeResolvedConfig("/tmp/test-hash");
-    config.modelTiers = TIERS;
 
     const baseSource: SkillSource = {
       name: "x",
@@ -173,7 +161,6 @@ describe("renderSkillForTarget contentHash", () => {
 
   it("is deterministic across renders of the same source+sidecar", () => {
     const config = makeResolvedConfig("/tmp/test-hash");
-    config.modelTiers = TIERS;
 
     const source: SkillSource = {
       name: "x",
@@ -191,7 +178,6 @@ describe("renderSkillForTarget contentHash", () => {
     // with `agents/openai.yaml` (forward-slash) and asserting equality. A
     // regression that hashed `agents\openai.yaml` on Windows would diverge.
     const config = makeResolvedConfig("/tmp/test-hash");
-    config.modelTiers = TIERS;
 
     const source: SkillSource = {
       name: "x",
@@ -218,7 +204,6 @@ describe("renderSkillForTarget contentHash", () => {
     // so a regression that hashed the entire SkillSource (rather than the
     // per-target render) would also be caught.
     const config = makeResolvedConfig("/tmp/test-hash");
-    config.modelTiers = TIERS;
 
     const baseSource: SkillSource = {
       name: "x",
@@ -264,7 +249,6 @@ describe("renderSkillForTarget contentHash", () => {
     // regression that hashed the entire SkillSource (rather than the
     // per-target render) would also be caught.
     const config = makeResolvedConfig("/tmp/test-hash");
-    config.modelTiers = TIERS;
 
     const baseSource: SkillSource = {
       name: "x",
@@ -318,7 +302,6 @@ describe("renderSkillForTarget contentHash", () => {
         description: "d",
       };
       const config = makeResolvedConfig(tempDir);
-      config.modelTiers = TIERS;
 
       writeFileSync(path.join(scriptsDir, "setup-worktree.sh"), "echo old\n");
       const baseRendered = renderSkillForTarget(
@@ -360,7 +343,6 @@ describe("renderSkillForTarget contentHash", () => {
           description: "d",
         };
         const config = makeResolvedConfig(tempDir);
-        config.modelTiers = TIERS;
 
         writeFileSync(path.join(targetDirA, "payload.txt"), "alpha\n");
         writeFileSync(path.join(targetDirB, "payload.txt"), "beta\n");

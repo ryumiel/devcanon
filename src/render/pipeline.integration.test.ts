@@ -671,61 +671,114 @@ describe("renderAll", () => {
     expect(content).toContain("display_name: SC Skill");
   });
 
-  it("substitutes {{model:*}} placeholders per target", async () => {
-    const tieredConfig = makeResolvedConfig(tempDir);
-    tieredConfig.modelTiers = {
-      fast: {
-        claude: { model: "haiku" },
-        codex: { model: "gpt-5.4-mini" },
-      },
-      standard: {
-        claude: { model: "sonnet", effort: "medium" },
-        codex: { model: "gpt-5.4", reasoning_effort: "medium" },
-      },
-      deep: {
-        claude: { model: "opus", effort: "high" },
-        codex: { model: "gpt-5.4", reasoning_effort: "high" },
-      },
-    };
+  it.each([
+    ["efficient", "claude-haiku-4-5-20251001", "gpt-5.6-luna"],
+    ["balanced", "claude-sonnet-5", "gpt-5.6-terra"],
+    ["frontier", "claude-opus-4-8", "gpt-5.6-sol"],
+  ] as const)(
+    "substitutes the canonical %s model capability per target",
+    async (capability, claudeModel, codexModel) => {
+      await createSkillFixture(
+        config.library.skillsDir,
+        "capability-skill",
+        [
+          "---",
+          "name: capability-skill",
+          "description: A test skill.",
+          "claude:",
+          `  model: "{{model:${capability}}}"`,
+          "  effort: high",
+          "---",
+          "",
+          `use {{model:${capability}}} for synthesis`,
+          "",
+        ].join("\n"),
+      );
 
+      await renderAll(config, true);
+
+      const claudeContent = await readFile(
+        path.join(
+          config.library.generatedDir,
+          "claude",
+          "skills",
+          "capability-skill",
+          "SKILL.md",
+        ),
+        "utf-8",
+      );
+      const codexContent = await readFile(
+        path.join(
+          config.library.generatedDir,
+          "codex",
+          "skills",
+          "capability-skill",
+          "SKILL.md",
+        ),
+        "utf-8",
+      );
+      const claudeArtifact = parseRenderedMarkdownArtifact(claudeContent);
+      expect(claudeArtifact.frontmatter.model).toBe(claudeModel);
+      expect(claudeArtifact.frontmatter.effort).toBe("high");
+      expect(claudeArtifact.body).toContain(`use ${claudeModel} for synthesis`);
+      expect(codexContent).toContain(`use ${codexModel} for synthesis`);
+      expect(codexContent).not.toContain("effort:");
+    },
+  );
+
+  it.each(["fast", "standard", "deep", "arbitrary", " balanced"])(
+    "rejects active skill model key %s before writing any artifact",
+    async (modelKey) => {
+      await createSkillFixture(
+        config.library.skillsDir,
+        "invalid-capability",
+        [
+          "---",
+          "name: invalid-capability",
+          "description: A test skill.",
+          "---",
+          "",
+          `Use {{model:${modelKey}}} for synthesis.`,
+          "",
+        ].join("\n"),
+      );
+
+      await expect(renderAll(config, true, false, "claude")).rejects.toThrow(
+        /invalid-capability.*claude.*model:.*efficient.*balanced.*frontier.*devcanon\.config\.yaml/i,
+      );
+      expect(await pathExists(config.library.generatedDir)).toBe(false);
+    },
+  );
+
+  it("keeps escaped and fenced legacy model tokens literal and ambient", async () => {
     await createSkillFixture(
-      tieredConfig.library.skillsDir,
-      "tier-skill",
+      config.library.skillsDir,
+      "literal-model-examples",
       [
         "---",
-        "name: tier-skill",
+        "name: literal-model-examples",
         "description: A test skill.",
         "---",
         "",
-        "use {{model:deep}} for synthesis",
+        "Escaped: \\{{model:deep}}",
+        "",
+        "```yaml",
+        "model: {{model:fast}}",
+        "```",
         "",
       ].join("\n"),
     );
 
-    await renderAll(tieredConfig, true);
+    const result = await renderAll(config, false, false, "claude");
+    const skill = result.outputs.find(
+      (output) => output.type === "skill" && output.target === "claude",
+    );
+    const parsed = parseRenderedMarkdownArtifact(skill?.content ?? "");
 
-    const claudeContent = await readFile(
-      path.join(
-        tieredConfig.library.generatedDir,
-        "claude",
-        "skills",
-        "tier-skill",
-        "SKILL.md",
-      ),
-      "utf-8",
-    );
-    const codexContent = await readFile(
-      path.join(
-        tieredConfig.library.generatedDir,
-        "codex",
-        "skills",
-        "tier-skill",
-        "SKILL.md",
-      ),
-      "utf-8",
-    );
-    expect(claudeContent).toContain("use opus for synthesis");
-    expect(codexContent).toContain("use gpt-5.4 for synthesis");
+    expect(parsed.frontmatter).not.toHaveProperty("model");
+    expect(parsed.frontmatter).not.toHaveProperty("effort");
+    expect(parsed.body).toContain("Escaped: {{model:deep}}");
+    expect(parsed.body).toContain("model: {{model:fast}}");
   });
 
   it("resolves capability with a one-target literal override and explicit effort", async () => {

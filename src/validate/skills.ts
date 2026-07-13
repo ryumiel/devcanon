@@ -1,9 +1,12 @@
 import { readdir } from "node:fs/promises";
 import path from "node:path";
 import type { ZodIssue } from "zod";
+import { CONFIG_FILE_NAME } from "../config/identity.js";
 import {
+  type CapabilityProfiles,
+  CapabilitySchema,
   type FileArtifacts,
-  type ModelTiers,
+  type SkillSource,
   SkillSourceSchema,
   type ToolNames,
 } from "../config/schema.js";
@@ -41,7 +44,7 @@ const TARGET_PATH_TOKENS = [".claude/", ".codex/", ".agents/"] as const;
 export interface SkillValidationDiagnosticsOptions {
   enabled?: boolean;
   strict?: boolean;
-  modelTiers?: ModelTiers;
+  capabilityProfiles: CapabilityProfiles;
   toolNames?: ToolNames;
   fileArtifacts?: FileArtifacts;
   reporter?: ValidationDiagnosticReporter;
@@ -143,6 +146,18 @@ export async function loadAndValidateSkills(
       continue;
     }
 
+    if (diagnostics?.enabled) {
+      errors.push(
+        ...collectActiveModelPlaceholderErrors(
+          name,
+          result.data,
+          parsed.body,
+          ["claude", "codex"],
+          diagnostics.capabilityProfiles,
+        ),
+      );
+    }
+
     const subdirs: string[] = [];
     for (const sub of KNOWN_SUBDIRS) {
       if (await isDirectory(path.join(dirPath, sub))) subdirs.push(sub);
@@ -152,7 +167,7 @@ export async function loadAndValidateSkills(
       const driftDiagnostics = collectDriftDiagnostics(
         [result.data.description, parsed.body],
         {
-          modelTiers: diagnostics.modelTiers,
+          capabilityProfiles: diagnostics.capabilityProfiles,
           toolNames: diagnostics.toolNames,
           fileArtifacts: diagnostics.fileArtifacts,
         },
@@ -216,8 +231,57 @@ export async function loadAndValidateSkills(
   return skills;
 }
 
+const ACTIVE_MODEL_PLACEHOLDER = /(?<!\\)\{\{model:([^{}\r\n]*)\}\}/g;
+
+export function collectActiveModelPlaceholderErrors(
+  skillName: string,
+  source: SkillSource,
+  body: string,
+  targets: readonly ("claude" | "codex")[],
+  capabilityProfiles: CapabilityProfiles,
+): string[] {
+  const errors: string[] = [];
+  const supported = CapabilitySchema.options
+    .map((capability) => `{{model:${capability}}}`)
+    .join(", ");
+
+  for (const target of targets) {
+    const targetOverride = source[target];
+    const inputs = [
+      body,
+      ...Object.values(targetOverride ?? {}).filter(
+        (value): value is string => typeof value === "string",
+      ),
+    ];
+    const seenTokens = new Set<string>();
+
+    for (const input of inputs) {
+      for (const segment of collectProseSegments(input)) {
+        for (const match of segment.matchAll(ACTIVE_MODEL_PLACEHOLDER)) {
+          const value = match[1];
+          const token = match[0];
+          const capability = CapabilitySchema.safeParse(value);
+          if (
+            (capability.success &&
+              Object.hasOwn(capabilityProfiles, capability.data)) ||
+            seenTokens.has(token)
+          ) {
+            continue;
+          }
+          seenTokens.add(token);
+          errors.push(
+            `Skill "${skillName}" (${target}): unsupported model capability "${value}" in token "${token}" — use ${supported}; capabilityProfiles in ${CONFIG_FILE_NAME} defines the target model strings`,
+          );
+        }
+      }
+    }
+  }
+
+  return errors;
+}
+
 interface DriftGlossaries {
-  modelTiers?: ModelTiers;
+  capabilityProfiles: CapabilityProfiles;
   toolNames?: ToolNames;
   fileArtifacts?: FileArtifacts;
 }
@@ -234,11 +298,9 @@ function collectDriftDiagnostics(
   const found = new Map<string, DriftDiagnostic>();
 
   const modelTokens = new Set<string>(RAW_CLAUDE_ALIASES);
-  if (glossaries.modelTiers) {
-    for (const tier of Object.values(glossaries.modelTiers)) {
-      modelTokens.add(tier.claude.model);
-      modelTokens.add(tier.codex.model);
-    }
+  for (const profile of Object.values(glossaries.capabilityProfiles)) {
+    modelTokens.add(profile.claude);
+    modelTokens.add(profile.codex);
   }
 
   const toolTokens = new Set<string>();
@@ -322,7 +384,7 @@ function getDriftDiagnosticHint(reason: DriftDiagnostic["reason"]): string {
     case "file":
       return "Prefer {{file:<key>}} placeholders or target-neutral wording.";
     case "model":
-      return "Prefer {{model:<tier>}} placeholders or target-neutral wording.";
+      return "Prefer {{model:<capability>}} placeholders or target-neutral wording.";
     default: {
       const _exhaustive: never = reason;
       throw new Error(`unhandled drift reason: ${String(_exhaustive)}`);

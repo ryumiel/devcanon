@@ -13,7 +13,11 @@ import type {
 import { UserError } from "../utils/errors.js";
 import { ensureDir, readdir, writeTextFile } from "../utils/fs.js";
 import { loadAndValidateAgents } from "../validate/agents.js";
-import { KNOWN_SUBDIRS, loadAndValidateSkills } from "../validate/skills.js";
+import {
+  KNOWN_SUBDIRS,
+  collectActiveModelPlaceholderErrors,
+  loadAndValidateSkills,
+} from "../validate/skills.js";
 import { renderClaudeAgent } from "./claude.js";
 import { renderCodexAgent } from "./codex.js";
 import { renderSkillForTarget } from "./skill.js";
@@ -91,7 +95,13 @@ async function renderLoadedInternal<
 }: RenderLoadedInternalOptions<TSkills, TAgents>): Promise<
   RenderResult<TSkills, TAgents>
 > {
-  validateLoadedInputs(config, skills, agents, validatedSkills ?? skills);
+  validateLoadedInputs(
+    config,
+    skills,
+    agents,
+    validatedSkills ?? skills,
+    targetFilter,
+  );
 
   const skillMap = new Map(skills.map((s) => [s.name, s]));
 
@@ -267,6 +277,7 @@ function validateLoadedInputs(
   skills: readonly LoadedSkill[],
   agents: readonly LoadedAgent[],
   validatedSkills: readonly LoadedSkill[],
+  targetFilter: "claude" | "codex" | undefined,
 ): void {
   const validatedSkillNames = new Set<string>();
   for (const skill of validatedSkills) {
@@ -274,7 +285,7 @@ function validateLoadedInputs(
   }
   const renderedSkillNames = new Set<string>();
   for (const skill of skills) {
-    validateLoadedSkill(config, skill, renderedSkillNames);
+    validateLoadedSkill(config, skill, renderedSkillNames, targetFilter);
     if (!validatedSkillNames.has(skill.name)) {
       throw new UserError(
         `Loaded skill "${skill.name}" is missing from validatedSkills.`,
@@ -337,8 +348,24 @@ function validateLoadedSkill(
   config: ResolvedConfig,
   skill: LoadedSkill,
   names: Set<string>,
+  targetFilter: "claude" | "codex" | undefined,
 ): void {
   validateLoadedSkillReference(skill, names);
+  const selectedTargets = (["claude", "codex"] as const).filter(
+    (target) =>
+      config.targets[target].enabled &&
+      (targetFilter === undefined || targetFilter === target),
+  );
+  const placeholderErrors = collectActiveModelPlaceholderErrors(
+    skill.name,
+    skill.source,
+    skill.body,
+    selectedTargets,
+    config.capabilityProfiles,
+  );
+  if (placeholderErrors.length > 0) {
+    throw new UserError(placeholderErrors.join("\n"));
+  }
   assertDirectNamedPathShapeInside(
     config.library.skillsDir,
     skill.name,
