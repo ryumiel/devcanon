@@ -5,6 +5,7 @@ import {
   cleanupTempDir,
   createAgentFixture,
   createConfigFile,
+  createSkillFixture,
   createTempDir,
   makeAgentYaml,
   makeConfigYaml,
@@ -17,11 +18,13 @@ describe("listAction", () => {
   let tempDir: string;
   let configPath: string;
   let agentsDir: string;
+  let skillsDir: string;
 
   beforeEach(async () => {
     tempDir = await createTempDir();
     agentsDir = path.join(tempDir, "agents");
-    await mkdir(path.join(tempDir, "skills"), { recursive: true });
+    skillsDir = path.join(tempDir, "skills");
+    await mkdir(skillsDir, { recursive: true });
     await mkdir(agentsDir, { recursive: true });
     configPath = await createConfigFile(
       tempDir,
@@ -87,4 +90,34 @@ describe("listAction", () => {
       infos.some((entry) => entry.includes("reviewer: Test agent reviewer")),
     ).toBe(true);
   });
+
+  it.each(["fast", " balanced"])(
+    "rejects active model token key %s even with advisory diagnostics disabled",
+    async (modelKey) => {
+      await createSkillFixture(
+        skillsDir,
+        "invalid-model-token",
+        [
+          "---",
+          "name: invalid-model-token",
+          "description: A skill with an invalid active model token.",
+          "---",
+          "",
+          `Use {{model:${modelKey}}} for synthesis.`,
+          "",
+        ].join("\n"),
+      );
+
+      await expect(
+        listAction(
+          {},
+          {
+            parent: {
+              opts: () => ({ config: configPath, strict: false, json: false }),
+            },
+          },
+        ),
+      ).rejects.toThrow(`{{model:${modelKey}}}`);
+    },
+  );
 });

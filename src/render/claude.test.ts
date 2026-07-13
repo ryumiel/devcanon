@@ -136,6 +136,81 @@ describe("renderClaudeAgent", () => {
     expect(frontmatter).not.toHaveProperty("effort");
   });
 
+  it("rejects a schema-bypassed custom capability even when its profile is owned", () => {
+    const customConfig = {
+      ...config,
+      capabilityProfiles: {
+        ...config.capabilityProfiles,
+        experimental: { claude: "custom-claude", codex: "custom-codex" },
+      },
+    } as ResolvedConfig;
+
+    expect(() =>
+      renderClaudeAgent(
+        {
+          ...agent,
+          source: {
+            ...agent.source,
+            capability: "experimental" as "balanced",
+            claude: undefined,
+          },
+        },
+        emptySkills,
+        customConfig,
+      ),
+    ).toThrow(/unknown capability "experimental"/);
+  });
+
+  it.each(["foo # dropped", "null", "true", "123", 'quote"slash\\'])(
+    "round-trips YAML-significant capability model %j as a string",
+    (model) => {
+      const modelConfig = {
+        ...config,
+        capabilityProfiles: {
+          ...config.capabilityProfiles,
+          balanced: { ...config.capabilityProfiles.balanced, claude: model },
+        },
+      } satisfies ResolvedConfig;
+      const result = renderClaudeAgent(
+        {
+          ...agent,
+          source: {
+            ...agent.source,
+            capability: "balanced",
+            claude: undefined,
+          },
+        },
+        emptySkills,
+        modelConfig,
+      );
+
+      expect(
+        parseRenderedMarkdownArtifact(result.content).frontmatter.model,
+      ).toBe(model);
+      expect(result.content).toContain(`model: ${JSON.stringify(model)}`);
+    },
+  );
+
+  it.each(["foo # dropped", "null", "true", "123", 'quote"slash\\'])(
+    "round-trips YAML-significant literal model %j as a string",
+    (model) => {
+      const literalAgent = withClaude(agent, { model });
+      const result = renderClaudeAgent(
+        {
+          ...literalAgent,
+          source: { ...literalAgent.source, capability: "balanced" },
+        },
+        emptySkills,
+        config,
+      );
+
+      expect(
+        parseRenderedMarkdownArtifact(result.content).frontmatter.model,
+      ).toBe(model);
+      expect(result.content).toContain(`model: ${JSON.stringify(model)}`);
+    },
+  );
+
   it("prefers a literal model and emits only explicit effort", () => {
     const literalAgent = withClaude(agent, {
       model: "literal-claude",

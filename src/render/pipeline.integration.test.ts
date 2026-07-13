@@ -454,7 +454,7 @@ describe("renderAll", () => {
       expect(claudeOutput).toBeDefined();
       expect(claudeOutput?.content).toContain('experimental_mode: "beta"');
       expect(claudeOutput?.content).toContain('mcp_servers: ["fs", "web"]');
-      expect(claudeOutput?.content).toContain("model: sonnet");
+      expect(claudeOutput?.content).toContain('model: "sonnet"');
     });
 
     it("preserves unknown codex field end-to-end into rendered .toml", async () => {
@@ -499,7 +499,7 @@ describe("renderAll", () => {
         (o): o is RenderedAgent => o.type === "agent" && o.target === "claude",
       );
       expect(claudeOutput?.content).not.toContain("nested_object");
-      expect(claudeOutput?.content).toContain("model: sonnet");
+      expect(claudeOutput?.content).toContain('model: "sonnet"');
     });
   });
 

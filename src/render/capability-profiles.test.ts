@@ -44,6 +44,38 @@ describe("resolveCapabilityModel", () => {
     },
   );
 
+  it("rejects a non-canonical owned custom profile", () => {
+    const profiles = {
+      ...PROFILES,
+      experimental: { claude: "custom-claude", codex: "custom-codex" },
+    } as CapabilityProfiles;
+
+    expect(() =>
+      resolveCapabilityModel(
+        undefined,
+        "experimental" as "balanced",
+        "claude",
+        profiles,
+      ),
+    ).toThrow(/unknown capability "experimental"/);
+  });
+
+  it("preserves literal precedence without validating a bypassed capability", () => {
+    const profiles = {
+      ...PROFILES,
+      experimental: { claude: "custom-claude", codex: "custom-codex" },
+    } as CapabilityProfiles;
+
+    expect(
+      resolveCapabilityModel(
+        "literal-model",
+        "experimental" as "balanced",
+        "claude",
+        profiles,
+      ),
+    ).toBe("literal-model");
+  });
+
   it.each([
     ["claude", "codex"],
     ["codex", "claude"],

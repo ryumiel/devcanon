@@ -260,22 +260,21 @@ For the full selection and process diagrams, load
 
 ## Model Selection
 
-Use the least powerful model that can handle each role to conserve cost and increase speed.
-
-**Straightforward implementation tasks** (isolated functions, clear specs,
-1-2 files): use a fast, cheap model. This model-selection category is separate
-from `**Mode:** mechanical`; the mechanical task hint below is limited to
-approved verbatim artifact work and unambiguous identifier replacement.
-
-**Integration and judgment tasks** (multi-file coordination, pattern matching, debugging): use a standard model.
-
-**Architecture, design, and review tasks**: use the most capable available model.
+When model selection is available, choose a capability that matches the role:
 
 **Task complexity signals:**
 
-- Touches 1-2 files with a complete spec → cheap model
-- Touches multiple files with integration concerns → standard model
-- Requires design judgment or broad codebase understanding → most capable model
+- Bounded, straightforward work with a complete specification → `efficient`
+- Integration work or ordinary implementation → `balanced`
+- Architecture, design, or adversarial review → `frontier`
+
+Capability selects only the model. It never implies effort, authority, tools,
+sandbox, approvals, or `**Mode:** mechanical`. Mechanical mode does not select a
+capability.
+
+Preserve the capability configured by a shipped role instead of overriding it
+at dispatch time. The dogfood implementer uses `balanced`; the spec-compliance
+and code-quality reviewers use `frontier`; the research agent remains ambient.
 
 ## Mechanical Task Hint
 
@@ -289,7 +288,8 @@ instead of the default [`references/implementer-prompt.md`](references/implement
 
 The default template is used when the hint is absent. There is no runtime auto-detection of plan structure — the plan author marks mechanical tasks explicitly.
 
-When you set `**Mode:** mechanical`, you typically also want the cheap model from Model Selection above — the two knobs are correlated.
+`**Mode:** mechanical` changes only the prompt template. It does not change or
+select the role's capability.
 
 ## Mechanical Task Taxonomy
 

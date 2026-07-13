@@ -94,7 +94,7 @@ export function renderClaudeAgent(
     config.capabilityProfiles,
   );
   if (model) {
-    lines.push(`model: ${model}`);
+    lines.push(`model: ${JSON.stringify(model)}`);
   }
   const effort = claude?.effort;
   if (effort) {

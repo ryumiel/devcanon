@@ -203,6 +203,31 @@ describe("renderCodexAgent", () => {
     expect(parsed).not.toHaveProperty("model_reasoning_effort");
   });
 
+  it("rejects a schema-bypassed custom capability even when its profile is owned", () => {
+    const customConfig = {
+      ...config,
+      capabilityProfiles: {
+        ...config.capabilityProfiles,
+        experimental: { claude: "custom-claude", codex: "custom-codex" },
+      },
+    } as ResolvedConfig;
+
+    expect(() =>
+      renderCodexAgent(
+        {
+          ...agent,
+          source: {
+            ...agent.source,
+            capability: "experimental" as "balanced",
+            codex: { sandbox_mode: "read-only" },
+          },
+        },
+        emptySkills,
+        customConfig,
+      ),
+    ).toThrow(/unknown capability "experimental"/);
+  });
+
   it("prefers a literal model and emits only explicit reasoning effort", () => {
     const literalAgent = withCodex(agent, {
       model: "literal-codex",

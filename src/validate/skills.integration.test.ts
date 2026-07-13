@@ -708,9 +708,7 @@ describe("loadAndValidateSkills", () => {
       const skillPath = path.join(skillDir, "SKILL.md");
 
       try {
-        await loadAndValidateSkillsWithDiagnostics(skillsDir, {
-          diagnostics: { enabled: true },
-        });
+        await loadAndValidateSkills(skillsDir);
         expect.fail("expected invalid model placeholder validation to fail");
       } catch (error) {
         expect(error).toBeInstanceOf(UserError);
@@ -743,11 +741,7 @@ describe("loadAndValidateSkills", () => {
       ].join("\n"),
     );
 
-    await expect(
-      loadAndValidateSkillsWithDiagnostics(skillsDir, {
-        diagnostics: { enabled: true },
-      }),
-    ).resolves.toHaveLength(1);
+    await expect(loadAndValidateSkills(skillsDir)).resolves.toHaveLength(1);
   });
 
   it("reports structured drift-token diagnostics when a reporter is supplied", async () => {

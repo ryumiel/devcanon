@@ -1,4 +1,8 @@
-import type { Capability, CapabilityProfiles } from "../config/schema.js";
+import {
+  type Capability,
+  type CapabilityProfiles,
+  CapabilitySchema,
+} from "../config/schema.js";
 
 type CapabilityTarget = "claude" | "codex";
 
@@ -13,14 +17,20 @@ export function resolveCapabilityModel(
   if (capability === undefined) return undefined;
 
   // Keep defense in depth for programmatic callers that bypass the schema.
-  if (!Object.hasOwn(profiles, capability)) {
+  const parsedCapability = CapabilitySchema.safeParse(capability);
+  if (!parsedCapability.success) {
     throw new Error(`unknown capability "${capability}"`);
   }
 
-  const profile = profiles[capability];
+  const canonicalCapability = parsedCapability.data;
+  if (!Object.hasOwn(profiles, canonicalCapability)) {
+    throw new Error(`unknown capability "${capability}"`);
+  }
+
+  const profile = profiles[canonicalCapability];
   if (!Object.hasOwn(profile, target)) {
     throw new Error(
-      `capability "${capability}" has no own ${target} model mapping`,
+      `capability "${canonicalCapability}" has no own ${target} model mapping`,
     );
   }
 

@@ -148,20 +148,17 @@ export async function loadAndValidateSkills(
       continue;
     }
 
-    if (diagnostics?.enabled) {
-      const placeholderErrors = collectActiveModelPlaceholderErrors(
-        name,
-        result.data,
-        parsed.body,
-        ["claude", "codex"],
-        diagnostics.capabilityProfiles,
-        skillMdPath,
-      );
-      if (placeholderErrors.length > 0) {
-        activeModelErrorPaths.add(skillMdPath);
-        activeModelErrorCount += placeholderErrors.length;
-        errors.push(...placeholderErrors);
-      }
+    const placeholderErrors = collectActiveModelPlaceholderErrors(
+      name,
+      result.data,
+      parsed.body,
+      ["claude", "codex"],
+      skillMdPath,
+    );
+    if (placeholderErrors.length > 0) {
+      activeModelErrorPaths.add(skillMdPath);
+      activeModelErrorCount += placeholderErrors.length;
+      errors.push(...placeholderErrors);
     }
 
     const subdirs: string[] = [];
@@ -248,7 +245,6 @@ export function collectActiveModelPlaceholderErrors(
   source: SkillSource,
   body: string,
   targets: readonly ("claude" | "codex")[],
-  capabilityProfiles: CapabilityProfiles,
   sourceFilePath: string,
 ): string[] {
   const errors: string[] = [];
@@ -272,11 +268,7 @@ export function collectActiveModelPlaceholderErrors(
           const value = match[1];
           const token = match[0];
           const capability = CapabilitySchema.safeParse(value);
-          if (
-            (capability.success &&
-              Object.hasOwn(capabilityProfiles, capability.data)) ||
-            seenTokens.has(token)
-          ) {
+          if (capability.success || seenTokens.has(token)) {
             continue;
           }
           seenTokens.add(token);

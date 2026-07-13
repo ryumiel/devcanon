@@ -6,6 +6,7 @@ import {
   cleanupTempDir,
   createAgentFixture,
   createConfigFile,
+  createSkillFixture,
   createTempDir,
   makeAgentYaml,
   makeConfigYaml,
@@ -21,6 +22,7 @@ describe("doctorAction", () => {
   let tempDir: string;
   let configPath: string;
   let agentsDir: string;
+  let skillsDir: string;
   let infos: string[];
   let testLogger: TestLoggerResult;
   let restore: () => void;
@@ -29,7 +31,8 @@ describe("doctorAction", () => {
   beforeEach(async () => {
     tempDir = await createTempDir();
     agentsDir = path.join(tempDir, "agents");
-    await mkdir(path.join(tempDir, "skills"), { recursive: true });
+    skillsDir = path.join(tempDir, "skills");
+    await mkdir(skillsDir, { recursive: true });
     await mkdir(agentsDir, { recursive: true });
     configPath = await createConfigFile(
       tempDir,
@@ -79,6 +82,48 @@ describe("doctorAction", () => {
       infos.some((entry) => entry.includes("agents-valid: 1 agent(s) valid")),
     ).toBe(true);
   });
+
+  it.each(["fast", " balanced"])(
+    "reports skills-valid error for active model token key %s even with advisory diagnostics disabled",
+    async (modelKey) => {
+      await createSkillFixture(
+        skillsDir,
+        "invalid-model-token",
+        [
+          "---",
+          "name: invalid-model-token",
+          "description: A skill with an invalid active model token.",
+          "---",
+          "",
+          `Use {{model:${modelKey}}} for synthesis.`,
+          "",
+        ].join("\n"),
+      );
+
+      await doctorAction(
+        {},
+        {
+          parent: {
+            opts: () => ({ config: configPath, json: true }),
+          },
+        },
+      );
+
+      expect(process.exitCode).toBe(1);
+      const results = testLogger.jsons[0] as Array<{
+        name: string;
+        status: string;
+        message: string;
+      }>;
+      expect(results).toContainEqual(
+        expect.objectContaining({
+          name: "skills-valid",
+          status: "error",
+          message: expect.stringContaining(`{{model:${modelKey}}}`),
+        }),
+      );
+    },
+  );
 
   it("reports managed-worktrees ok when no worktree directory exists", async () => {
     await doctorAction(

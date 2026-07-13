@@ -361,7 +361,6 @@ function validateLoadedSkill(
     skill.source,
     skill.body,
     selectedTargets,
-    config.capabilityProfiles,
     path.join(skill.dirPath, "SKILL.md"),
   );
   if (placeholderErrors.length > 0) {
