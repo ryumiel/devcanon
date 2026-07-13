@@ -3,7 +3,7 @@
 exports[`existing skills render cleanly > renders shipped per-target metadata for the priming and review skills > github-issue-priming-claude-frontmatter 1`] = `
 {
   "description": "Primes a GitHub issue into a research-backed implementation workflow with isolated worktree and brainstorming. Use when starting work on a GitHub issue — triggers on issue numbers, issue URLs, or phrases like "start issue", "work on issue", "prime issue".",
-  "model": "claude-opus-4-7",
+  "model": "claude-opus-4-8",
   "name": "github-issue-priming",
 }
 `;
@@ -32,7 +32,7 @@ exports[`existing skills render cleanly > renders shipped per-target metadata fo
 exports[`existing skills render cleanly > renders shipped per-target metadata for the priming and review skills > issue-batch-routing-claude-frontmatter 1`] = `
 {
   "description": "Provider-neutral batch routing for GitHub and Linear issue work across owner threads, PR gates, approvals, merges, and archival. Use when monitoring or routing a mixed batch of issue-provider records through existing issue, review, CI, PR, and thread workflows.",
-  "model": "claude-opus-4-7",
+  "model": "claude-opus-4-8",
   "name": "issue-batch-routing",
 }
 `;
@@ -61,7 +61,7 @@ exports[`existing skills render cleanly > renders shipped per-target metadata fo
 exports[`existing skills render cleanly > renders shipped per-target metadata for the priming and review skills > issue-priming-workflow-claude-frontmatter 1`] = `
 {
   "description": "Continues a normalized issue-priming workflow into design and implementation readiness, with optional autonomous execution to a reviewable PR. Use when \`linear-issue-priming\` or \`github-issue-priming\` hands off a normalized issue payload. Do not use when starting from a raw Linear identifier or GitHub issue number — invoke the entrypoint instead.",
-  "model": "claude-opus-4-7",
+  "model": "claude-opus-4-8",
   "name": "issue-priming-workflow",
   "user-invocable": false,
 }
@@ -81,7 +81,7 @@ exports[`existing skills render cleanly > renders shipped per-target metadata fo
 exports[`existing skills render cleanly > renders shipped per-target metadata for the priming and review skills > linear-issue-priming-claude-frontmatter 1`] = `
 {
   "description": "Primes a Linear issue into a research-backed implementation workflow with isolated worktree and brainstorming. Use when starting work on a Linear issue — triggers on Linear identifiers (ENG-123), Linear URLs, or phrases like "start issue", "work on issue", "prime issue".",
-  "model": "claude-opus-4-7",
+  "model": "claude-opus-4-8",
   "name": "linear-issue-priming",
 }
 `;

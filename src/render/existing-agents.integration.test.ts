@@ -1,5 +1,7 @@
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { parse as parseYaml } from "yaml";
 import {
   cleanupTempDir,
   createAgentFixture,
@@ -38,18 +40,18 @@ type ShippedAgentExpectations = Record<
 const SHIPPED_AGENT_EXPECTATIONS: ShippedAgentExpectations = {
   implementer: {
     claude: {
-      model: "claude-sonnet-4-6",
+      model: "claude-sonnet-5",
       effort: "high",
     },
     codex: {
-      model: "gpt-5.6-sol",
+      model: "gpt-5.6-terra",
       model_reasoning_effort: "high",
       sandbox_mode: "workspace-write",
     },
   },
   "spec-compliance-reviewer": {
     claude: {
-      model: "claude-opus-4-7",
+      model: "claude-opus-4-8",
       effort: "xhigh",
     },
     codex: {
@@ -60,7 +62,7 @@ const SHIPPED_AGENT_EXPECTATIONS: ShippedAgentExpectations = {
   },
   "code-quality-reviewer": {
     claude: {
-      model: "claude-opus-4-7",
+      model: "claude-opus-4-8",
       effort: "xhigh",
     },
     codex: {
@@ -104,6 +106,55 @@ function getAgentOutput(
 }
 
 describe("shipped agents render cleanly", () => {
+  it("uses canonical capabilities and explicit effort in shipped source roles", async () => {
+    const migratedExpectations = {
+      implementer: {
+        capability: "balanced",
+        claudeEffort: "high",
+        codexEffort: "high",
+      },
+      "spec-compliance-reviewer": {
+        capability: "frontier",
+        claudeEffort: "xhigh",
+        codexEffort: "xhigh",
+      },
+      "code-quality-reviewer": {
+        capability: "frontier",
+        claudeEffort: "xhigh",
+        codexEffort: "xhigh",
+      },
+    } as const;
+
+    for (const [name, expected] of Object.entries(migratedExpectations)) {
+      const source = parseYaml(
+        await readFile(
+          path.join(process.cwd(), "agents", `${name}.yaml`),
+          "utf8",
+        ),
+      ) as Record<string, unknown>;
+      const claude = source.claude as Record<string, unknown>;
+      const codex = source.codex as Record<string, unknown>;
+
+      expect(source.capability).toBe(expected.capability);
+      expect(claude).not.toHaveProperty("model");
+      expect(claude.effort).toBe(expected.claudeEffort);
+      expect(codex).not.toHaveProperty("model");
+      expect(codex.model_reasoning_effort).toBe(expected.codexEffort);
+    }
+
+    const researchSource = parseYaml(
+      await readFile(
+        path.join(process.cwd(), "agents", "research-agent.yaml"),
+        "utf8",
+      ),
+    ) as Record<string, unknown>;
+    expect(researchSource).not.toHaveProperty("capability");
+    expect(researchSource.claude).not.toHaveProperty("model");
+    expect(researchSource.claude).not.toHaveProperty("effort");
+    expect(researchSource.codex).not.toHaveProperty("model");
+    expect(researchSource.codex).not.toHaveProperty("model_reasoning_effort");
+  });
+
   it("renders every shipped agent to both targets", async () => {
     const config = await loadConfigWithFixedSkillsHome();
 
@@ -206,40 +257,49 @@ describe("shipped agents render cleanly", () => {
     }
   });
 
-  it("renders the active fast tier through a synthetic agent for both targets", async () => {
+  it("renders the efficient capability through a synthetic agent for both targets", async () => {
     const tempDir = await createTempDir();
     try {
       const config = await loadConfigWithFixedSkillsHome();
       config.library.agentsDir = path.join(tempDir, "agents");
       await createAgentFixture(
         config.library.agentsDir,
-        "fast-tier-probe",
-        makeAgentYaml("fast-tier-probe", {
-          claude: { model: "{{model:fast}}" },
-          codex: {
-            model: "{{model:fast}}",
-            sandbox_mode: "read-only",
-          },
+        "efficient-capability-probe",
+        makeAgentYaml("efficient-capability-probe", {
+          capability: "efficient",
+          codex: { sandbox_mode: "read-only" },
         }),
       );
 
       const { outputs } = await renderAll(config, false);
-      const claudeOutput = getAgentOutput(outputs, "fast-tier-probe", "claude");
-      const codexOutput = getAgentOutput(outputs, "fast-tier-probe", "codex");
+      const claudeOutput = getAgentOutput(
+        outputs,
+        "efficient-capability-probe",
+        "claude",
+      );
+      const codexOutput = getAgentOutput(
+        outputs,
+        "efficient-capability-probe",
+        "codex",
+      );
 
       expect(
         parseRenderedMarkdownArtifact(claudeOutput.content).frontmatter,
       ).toMatchObject({
-        name: "fast-tier-probe",
-        model: "claude-sonnet-4-6",
-        effort: "medium",
+        name: "efficient-capability-probe",
+        model: "claude-haiku-4-5-20251001",
       });
+      expect(
+        parseRenderedMarkdownArtifact(claudeOutput.content).frontmatter,
+      ).not.toHaveProperty("effort");
       expect(parseRenderedTomlArtifact(codexOutput.content)).toMatchObject({
-        name: "fast-tier-probe",
-        model: "gpt-5.6-terra",
-        model_reasoning_effort: "low",
+        name: "efficient-capability-probe",
+        model: "gpt-5.6-luna",
         sandbox_mode: "read-only",
       });
+      expect(parseRenderedTomlArtifact(codexOutput.content)).not.toHaveProperty(
+        "model_reasoning_effort",
+      );
       expect(claudeOutput.content).not.toContain("{{model:");
       expect(codexOutput.content).not.toContain("{{model:");
     } finally {

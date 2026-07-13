@@ -2,7 +2,7 @@
 name: issue-batch-routing
 description: Provider-neutral batch routing for GitHub and Linear issue work across owner threads, PR gates, approvals, merges, and archival. Use when monitoring or routing a mixed batch of issue-provider records through existing issue, review, CI, PR, and thread workflows.
 claude:
-  model: "{{model:deep}}"
+  model: "{{model:frontier}}"
 codex:
   license: MIT
   metadata:

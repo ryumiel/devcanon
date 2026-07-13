@@ -431,7 +431,7 @@ describe("existing skills render cleanly", () => {
         parseFrontmatter(claudeOutput.content);
 
       expect(claudeFrontmatter).toMatchObject({
-        model: "claude-opus-4-7",
+        model: "claude-opus-4-8",
       });
       expect(claudeBody).not.toContain("{{model:");
       expect(claudeFrontmatter).toMatchSnapshot(

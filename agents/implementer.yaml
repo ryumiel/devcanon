@@ -9,8 +9,9 @@ instructions: |
 skills:
   - play-tdd
   - play-verification
+capability: balanced
 claude:
-  model: "{{model:standard}}"
+  effort: high
   tools:
     - Read
     - Edit
@@ -18,5 +19,5 @@ claude:
     - Bash
     - Grep
 codex:
-  model: "{{model:standard}}"
+  model_reasoning_effort: high
   sandbox_mode: workspace-write

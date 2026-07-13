@@ -449,12 +449,12 @@ describe("play subagent routing source contracts", () => {
     expect(phase2).toContain("payload.research = gated");
     expect(phase2).toContain("payload.research = forced");
     expect(phase2).toContain("forced by --research");
-    expect(phase2).toContain("{{model:standard}}");
-    expect(phase2).toContain("{{model:deep}}");
+    expect(phase2).toContain("{{model:balanced}}");
+    expect(phase2).toContain("{{model:frontier}}");
     expect(phase3).toContain("research-agent");
     expect(phase3).toContain("read-only");
-    expect(phase3).toContain("{{model:standard}}");
-    expect(phase3).toContain("{{model:deep}}");
+    expect(phase3).toContain("{{model:balanced}}");
+    expect(phase3).toContain("{{model:frontier}}");
     expect(phase3).toContain("Research brief written to");
     expect(normalizedPhase5).toContain(
       "Comment evidence: <repo-relative-path from payload.comment-evidence-path>",
