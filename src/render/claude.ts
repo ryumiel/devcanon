@@ -1,9 +1,5 @@
 import path from "node:path";
-import {
-  CLAUDE_TARGET_FIELDS,
-  MODEL_TIER_PLACEHOLDER_PREFIX,
-  type ResolvedConfig,
-} from "../config/schema.js";
+import { CLAUDE_TARGET_FIELDS, type ResolvedConfig } from "../config/schema.js";
 import type {
   LoadedAgent,
   LoadedSkill,
@@ -11,10 +7,7 @@ import type {
 } from "../models/types.js";
 import { UserError } from "../utils/errors.js";
 import { sha256 } from "../utils/hash.js";
-import {
-  extractModelTierKey,
-  resolveTierProfile,
-} from "./model-tier-profiles.js";
+import { resolveCapabilityModel } from "./capability-profiles.js";
 import {
   SAFE_PASSTHROUGH_KEY,
   describeValueShape,
@@ -84,32 +77,26 @@ export function renderClaudeAgent(
   lines.push(`description: ${JSON.stringify(agent.source.description)}`);
 
   const claude = agent.source.claude;
-  // If the model field looks like a tier placeholder but the strict
-  // anchored regex did not match (e.g. surrounding whitespace, hyphens),
-  // refuse to emit the literal placeholder string into rendered output.
-  // Validation usually catches this earlier; this is defense in depth.
-  if (
-    claude?.model?.includes(MODEL_TIER_PLACEHOLDER_PREFIX) &&
-    extractModelTierKey(claude.model) === null
-  ) {
+  if (claude?.model?.includes("{{model:")) {
     throw new UserError(
-      `Agent "${agent.name}": claude.model has invalid model placeholder syntax "${claude.model}".`,
+      `Agent "${agent.name}": claude.model no longer supports model placeholders (received "${claude.model}"); set top-level capability to efficient, balanced, or frontier, or use a literal target model.`,
       agent.filePath,
     );
   }
-  const tierKey = extractModelTierKey(claude?.model);
-  const tierProfile = tierKey
-    ? resolveTierProfile(tierKey, "claude", config.modelTiers)
-    : null;
 
   if (claude?.tools?.length) {
     lines.push(`tools: ${claude.tools.join(", ")}`);
   }
-  const model = tierProfile?.model ?? claude?.model;
+  const model = resolveCapabilityModel(
+    claude?.model,
+    agent.source.capability,
+    "claude",
+    config.capabilityProfiles,
+  );
   if (model) {
     lines.push(`model: ${model}`);
   }
-  const effort = claude?.effort ?? tierProfile?.effort;
+  const effort = claude?.effort;
   if (effort) {
     lines.push(`effort: ${effort}`);
   }

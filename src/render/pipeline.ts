@@ -2,12 +2,7 @@ import { type Stats, lstatSync } from "node:fs";
 import { cp, lstat, rm, unlink } from "node:fs/promises";
 import path from "node:path";
 import type { ResolvedConfig } from "../config/schema.js";
-import {
-  AgentSourceSchema,
-  MODEL_TIER_PLACEHOLDER,
-  MODEL_TIER_PLACEHOLDER_PREFIX,
-  SkillSourceSchema,
-} from "../config/schema.js";
+import { AgentSourceSchema, SkillSourceSchema } from "../config/schema.js";
 import type {
   LoadedAgent,
   LoadedSkill,
@@ -53,7 +48,6 @@ export async function renderAll(
   const skills = await loadAndValidateSkills(config.library.skillsDir);
   const agents = await loadAndValidateAgents(config.library.agentsDir, skills, {
     strict,
-    modelTiers: config.modelTiers,
   });
 
   return renderLoadedInternal({
@@ -307,17 +301,15 @@ function validateLoadedInputs(
       agent.filePath,
       `Loaded agent "${agent.name}" file`,
     );
-    validateAgentModelTierReference(
+    validateLoadedAgentLiteralModel(
       agent.name,
       "claude.model",
       agent.source.claude?.model,
-      config,
     );
-    validateAgentModelTierReference(
+    validateLoadedAgentLiteralModel(
       agent.name,
       "codex.model",
       agent.source.codex?.model,
-      config,
     );
     for (const skillRef of agent.source.skills) {
       if (!validatedSkillNames.has(skillRef)) {
@@ -329,20 +321,16 @@ function validateLoadedInputs(
   }
 }
 
-function validateAgentModelTierReference(
+function validateLoadedAgentLiteralModel(
   agentName: string,
   fieldPath: "claude.model" | "codex.model",
   value: string | undefined,
-  config: ResolvedConfig,
 ): void {
-  if (!value?.includes(MODEL_TIER_PLACEHOLDER_PREFIX)) return;
+  if (!value?.includes("{{model:")) return;
 
-  const tier = value.match(MODEL_TIER_PLACEHOLDER)?.[1];
-  if (!tier || !config.modelTiers || !Object.hasOwn(config.modelTiers, tier)) {
-    throw new UserError(
-      `Loaded agent "${agentName}": ${fieldPath} references invalid model tier.`,
-    );
-  }
+  throw new UserError(
+    `Loaded agent "${agentName}": ${fieldPath} no longer supports model placeholders (received "${value}"); set top-level capability to efficient, balanced, or frontier, or use a literal target model.`,
+  );
 }
 
 function validateLoadedSkill(

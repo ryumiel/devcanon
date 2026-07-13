@@ -118,6 +118,9 @@ export const CapabilityProfilesSchema = z
 
 export type CapabilityProfiles = z.infer<typeof CapabilityProfilesSchema>;
 
+export const CapabilitySchema = z.enum(["efficient", "balanced", "frontier"]);
+export type Capability = z.infer<typeof CapabilitySchema>;
+
 function makePlaceholderGlossarySchema(
   semanticName: "tool name" | "file artifact",
   configKey: "toolNames" | "fileArtifacts",
@@ -375,6 +378,7 @@ const AgentSourceShape = {
     }),
   instructions: z.string().min(1),
   skills: z.array(z.string()).default([]),
+  capability: CapabilitySchema.optional(),
   claude: ClaudeTargetSchema.optional(),
   codex: CodexTargetSchema.optional(),
   tags: z.array(z.string()).optional(),

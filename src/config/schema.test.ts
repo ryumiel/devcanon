@@ -150,16 +150,36 @@ describe("AgentSourceSchema", () => {
     expect(result.success).toBe(false);
   });
 
-  it("accepts optional fields (tags, notes, skills)", () => {
+  it("accepts optional fields (capability, tags, notes, skills)", () => {
     const result = AgentSourceSchema.parse({
       ...validAgent,
+      capability: "balanced",
       tags: ["coding", "review"],
       notes: "Some notes here.",
       skills: ["skill-a", "skill-b"],
     });
+    expect(result.capability).toBe("balanced");
     expect(result.tags).toEqual(["coding", "review"]);
     expect(result.notes).toBe("Some notes here.");
     expect(result.skills).toEqual(["skill-a", "skill-b"]);
+  });
+
+  it.each(["efficient", "balanced", "frontier"] as const)(
+    "accepts canonical capability %s",
+    (capability) => {
+      expect(
+        AgentSourceSchema.parse({ ...validAgent, capability }).capability,
+      ).toBe(capability);
+    },
+  );
+
+  it("rejects an unknown capability", () => {
+    expect(
+      AgentSourceSchema.safeParse({
+        ...validAgent,
+        capability: "standard",
+      }).success,
+    ).toBe(false);
   });
 
   it("defaults skills to empty array", () => {
@@ -226,13 +246,14 @@ describe("AgentSourceSchema", () => {
         "description",
         "instructions",
         "skills",
+        "capability",
         "claude",
         "codex",
         "tags",
         "notes",
       ]),
     );
-    expect(AGENT_SOURCE_FIELDS).toHaveLength(8);
+    expect(AGENT_SOURCE_FIELDS).toHaveLength(9);
     expect(new Set(CLAUDE_TARGET_FIELDS)).toEqual(
       new Set(["model", "effort", "tools"]),
     );

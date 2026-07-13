@@ -9,7 +9,6 @@ import {
 } from "../__test-helpers__/fixtures.js";
 import { installTestLogger } from "../__test-helpers__/logger.js";
 import type { TestLoggerResult } from "../__test-helpers__/logger.js";
-import type { ModelTiers } from "../config/schema.js";
 import type { LoadedSkill } from "../models/types.js";
 import { UserError } from "../utils/errors.js";
 import { loadAndValidateAgents } from "./agents.js";
@@ -34,12 +33,6 @@ describe("loadAndValidateAgents", () => {
   });
 
   const noSkills: LoadedSkill[] = [];
-  const modelTiers: ModelTiers = {
-    standard: {
-      claude: { model: "claude-sonnet-4-6", effort: "medium" },
-      codex: { model: "gpt-5.4", reasoning_effort: "medium" },
-    },
-  };
 
   it("returns empty array when agents directory does not exist", async () => {
     const result = await loadAndValidateAgents(
@@ -137,94 +130,44 @@ describe("loadAndValidateAgents", () => {
     );
   });
 
-  it("rejects agent model tier placeholders when modelTiers is not configured", async () => {
-    const yaml = makeAgentYaml("tier-agent", {
-      claude: {
-        model: "{{model:standard}}",
-        tools: ["Read"],
-      },
-      codex: {
-        model: "{{model:standard}}",
-        sandbox_mode: "read-only",
-      },
-    });
-    await createAgentFixture(agentsDir, "tier-agent", yaml);
+  it.each([
+    ["claude", "{{model:standard}}"],
+    ["codex", "{{model:standard}}"],
+    ["claude", "  {{model:standard}}  "],
+    ["codex", "{{model: standard}}"],
+    ["claude", "{{model:deep-tier}}"],
+  ] as const)(
+    "rejects obsolete %s model placeholder %s with migration guidance",
+    async (target, model) => {
+      const yaml = makeAgentYaml("placeholder-agent", {
+        [target]: { model },
+      });
+      await createAgentFixture(agentsDir, "placeholder-agent", yaml);
 
-    await expect(loadAndValidateAgents(agentsDir, noSkills)).rejects.toSatisfy(
-      (err: unknown) => {
+      await expect(
+        loadAndValidateAgents(agentsDir, noSkills),
+      ).rejects.toSatisfy((err: unknown) => {
         expect(err).toBeInstanceOf(UserError);
-        expect((err as UserError).message).toContain('model tier "standard"');
-        expect((err as UserError).message).toContain("claude.model");
-        expect((err as UserError).message).toContain("modelTiers");
+        expect((err as UserError).message).toContain(`${target}.model`);
+        expect((err as UserError).message).toMatch(
+          /top-level capability.*literal target model/,
+        );
         return true;
-      },
+      });
+    },
+  );
+
+  it("accepts canonical capability without target blocks", async () => {
+    await createAgentFixture(
+      agentsDir,
+      "capability-agent",
+      makeAgentYaml("capability-agent", { capability: "balanced" }),
     );
-  });
 
-  it("rejects agent model tier placeholders that reference an unknown tier", async () => {
-    const yaml = makeAgentYaml("tier-agent", {
-      claude: {
-        model: "{{model:deep}}",
-        tools: ["Read"],
-      },
-      codex: {
-        model: "{{model:deep}}",
-        sandbox_mode: "read-only",
-      },
-    });
-    await createAgentFixture(agentsDir, "tier-agent", yaml);
-
-    await expect(
-      loadAndValidateAgents(agentsDir, noSkills, { modelTiers }),
-    ).rejects.toSatisfy((err: unknown) => {
-      expect(err).toBeInstanceOf(UserError);
-      expect((err as UserError).message).toContain('unknown model tier "deep"');
-      expect((err as UserError).message).toContain("codex.model");
-      return true;
-    });
-  });
-
-  it("rejects malformed agent model tier placeholders", async () => {
-    const yaml = makeAgentYaml("tier-agent", {
-      claude: {
-        model: "{{model:bad-tier}}",
-        tools: ["Read"],
-      },
-      codex: {
-        model: "{{model:bad-tier}}",
-        sandbox_mode: "read-only",
-      },
-    });
-    await createAgentFixture(agentsDir, "tier-agent", yaml);
-
-    await expect(
-      loadAndValidateAgents(agentsDir, noSkills, { modelTiers }),
-    ).rejects.toSatisfy((err: unknown) => {
-      expect(err).toBeInstanceOf(UserError);
-      expect((err as UserError).message).toContain("invalid model placeholder");
-      expect((err as UserError).message).toContain("claude.model");
-      return true;
-    });
-  });
-
-  it("rejects prototype-chain tier names like __proto__", async () => {
-    const yaml = makeAgentYaml("tier-agent", {
-      claude: {
-        model: "{{model:__proto__}}",
-        tools: ["Read"],
-      },
-    });
-    await createAgentFixture(agentsDir, "tier-agent", yaml);
-
-    await expect(
-      loadAndValidateAgents(agentsDir, noSkills, { modelTiers }),
-    ).rejects.toSatisfy((err: unknown) => {
-      expect(err).toBeInstanceOf(UserError);
-      expect((err as UserError).message).toContain(
-        'unknown model tier "__proto__"',
-      );
-      return true;
-    });
+    const [loaded] = await loadAndValidateAgents(agentsDir, noSkills);
+    expect(loaded.source.capability).toBe("balanced");
+    expect(loaded.source.claude).toBeUndefined();
+    expect(loaded.source.codex).toBeUndefined();
   });
 
   it("succeeds when agent references a valid skill", async () => {
@@ -255,7 +198,6 @@ describe("loadAndValidateAgents", () => {
 
     const result = await loadAndValidateAgents(agentsDir, noSkills, {
       strict: false,
-      modelTiers,
     });
 
     expect(result).toHaveLength(1);
@@ -293,7 +235,6 @@ describe("loadAndValidateAgents", () => {
 
     const result = await loadAndValidateAgents(agentsDir, noSkills, {
       strict: false,
-      modelTiers,
     });
 
     expect(result).toHaveLength(1);
@@ -332,7 +273,6 @@ describe("loadAndValidateAgents", () => {
 
     const result = await loadAndValidateAgents(agentsDir, noSkills, {
       strict: false,
-      modelTiers,
     });
 
     expect(result).toHaveLength(1);
@@ -411,7 +351,7 @@ describe("loadAndValidateAgents", () => {
   it("accepts all supported target-specific fields without warnings", async () => {
     const yaml = makeAgentYaml("all-target-fields", {
       claude: {
-        model: "{{model:standard}}",
+        model: "claude-sonnet-4-6",
         effort: "high",
         tools: ["Read", "Grep"],
       },
@@ -435,13 +375,12 @@ describe("loadAndValidateAgents", () => {
 
     const result = await loadAndValidateAgents(agentsDir, noSkills, {
       strict: false,
-      modelTiers,
     });
 
     expect(result).toHaveLength(1);
     expect(result[0].name).toBe("all-target-fields");
     expect(result[0].source.claude).toEqual({
-      model: "{{model:standard}}",
+      model: "claude-sonnet-4-6",
       effort: "high",
       tools: ["Read", "Grep"],
     });
@@ -516,7 +455,7 @@ describe("loadAndValidateAgents", () => {
   it("accepts all supported target-specific fields in strict mode", async () => {
     const yaml = makeAgentYaml("all-target-fields-strict", {
       claude: {
-        model: "{{model:standard}}",
+        model: "claude-sonnet-4-6",
         effort: "high",
         tools: ["Read", "Grep"],
       },
@@ -541,14 +480,13 @@ describe("loadAndValidateAgents", () => {
     await expect(
       loadAndValidateAgents(agentsDir, noSkills, {
         strict: true,
-        modelTiers,
       }),
     ).resolves.toEqual([
       expect.objectContaining({
         name: "all-target-fields-strict",
         source: expect.objectContaining({
           claude: {
-            model: "{{model:standard}}",
+            model: "claude-sonnet-4-6",
             effort: "high",
             tools: ["Read", "Grep"],
           },

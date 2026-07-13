@@ -1,0 +1,60 @@
+import { describe, expect, expectTypeOf, it } from "vitest";
+import type { CapabilityProfiles } from "../config/schema.js";
+import { resolveCapabilityModel } from "./capability-profiles.js";
+
+const PROFILES: CapabilityProfiles = {
+  efficient: { claude: "claude-haiku", codex: "gpt-mini" },
+  balanced: { claude: "claude-sonnet", codex: "gpt" },
+  frontier: { claude: "claude-opus", codex: "gpt-frontier" },
+};
+
+describe("resolveCapabilityModel", () => {
+  it.each([
+    ["claude", "claude-sonnet"],
+    ["codex", "gpt"],
+  ] as const)("maps capability to the %s model", (target, expected) => {
+    expect(
+      resolveCapabilityModel(undefined, "balanced", target, PROFILES),
+    ).toBe(expected);
+  });
+
+  it("prefers a target-local literal model", () => {
+    expect(
+      resolveCapabilityModel("literal-model", "balanced", "claude", PROFILES),
+    ).toBe("literal-model");
+  });
+
+  it("returns undefined for ambient model selection", () => {
+    expect(
+      resolveCapabilityModel(undefined, undefined, "codex", PROFILES),
+    ).toBeUndefined();
+  });
+
+  it.each(["__proto__", "constructor"])(
+    "rejects non-own capability %s",
+    (capability) => {
+      expect(() =>
+        resolveCapabilityModel(
+          undefined,
+          capability as "balanced",
+          "claude",
+          PROFILES,
+        ),
+      ).toThrow(/unknown capability/);
+    },
+  );
+
+  it("returns only a model string or undefined and accepts no effort", () => {
+    expectTypeOf(resolveCapabilityModel).parameters.toEqualTypeOf<
+      [
+        string | undefined,
+        "efficient" | "balanced" | "frontier" | undefined,
+        "claude" | "codex",
+        CapabilityProfiles,
+      ]
+    >();
+    expectTypeOf(resolveCapabilityModel).returns.toEqualTypeOf<
+      string | undefined
+    >();
+  });
+});

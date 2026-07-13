@@ -63,7 +63,6 @@ export async function validateAction(
 
   const agents = await loadAndValidateAgents(config.library.agentsDir, skills, {
     strict,
-    modelTiers: config.modelTiers,
   }).catch((error: unknown) => {
     printSkillWarnings();
     throw error;
