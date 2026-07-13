@@ -75,8 +75,7 @@ export const CODEX_CONFIG_TARGET_FIELDS = Object.keys(
   CodexTargetConfigShape,
 ) as Array<keyof typeof CodexTargetConfigShape>;
 
-// Shared effort/reasoning enums, declared once so model-tier profiles,
-// agent target shapes, and skill overrides stay in lockstep.
+// Shared effort/reasoning enums for target-native agent and skill fields.
 const ClaudeEffortSchema = z.enum(["low", "medium", "high", "xhigh", "max"]);
 const CodexReasoningEffortSchema = z.enum([
   "none",
@@ -93,51 +92,31 @@ const TargetEntrySchema = z.object({
   codex: renderSafeString(1, TARGET_ENTRY_VALUE_MAX),
 });
 
-const ClaudeModelTierProfileSchema = z.object({
-  model: renderSafeString(1, TARGET_ENTRY_VALUE_MAX),
-  effort: ClaudeEffortSchema.optional(),
-});
-
-const CodexModelTierProfileSchema = z.object({
-  model: renderSafeString(1, TARGET_ENTRY_VALUE_MAX),
-  reasoning_effort: CodexReasoningEffortSchema.optional(),
-});
-
-const ModelTierProfileSchema = z.object({
-  claude: ClaudeModelTierProfileSchema,
-  codex: CodexModelTierProfileSchema,
-});
-
-export const MODEL_TIER_KEY = /^\w+$/;
 export const PLACEHOLDER_KEY = /^[a-z0-9][a-z0-9-]*$/;
 
-// Placeholder syntax accepted in agent target `model` fields. The captured
-// group is the tier key, validated against MODEL_TIER_KEY at render time.
-export const MODEL_TIER_PLACEHOLDER = /^\{\{model:(\w+)\}\}$/;
-export const MODEL_TIER_PLACEHOLDER_PREFIX = "{{model:";
+const CapabilityProfileModelSchema = renderSafeString(
+  1,
+  TARGET_ENTRY_VALUE_MAX,
+).refine((value) => value.trim().length > 0, {
+  message: "model identifier must not be blank",
+});
 
-export const ModelTiersSchema = z
-  .record(z.string(), ModelTierProfileSchema)
-  .superRefine((tiers, ctx) => {
-    if (Object.keys(tiers).length === 0) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "modelTiers must define at least one tier",
-      });
-      return;
-    }
-    for (const key of Object.keys(tiers)) {
-      if (!MODEL_TIER_KEY.test(key)) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: `Model tier name "${key}" must match /^\\w+$/ (letters, digits, underscore)`,
-          path: [key],
-        });
-      }
-    }
-  });
+const CapabilityProfileSchema = z
+  .object({
+    claude: CapabilityProfileModelSchema,
+    codex: CapabilityProfileModelSchema,
+  })
+  .strict();
 
-export type ModelTiers = z.infer<typeof ModelTiersSchema>;
+export const CapabilityProfilesSchema = z
+  .object({
+    efficient: CapabilityProfileSchema,
+    balanced: CapabilityProfileSchema,
+    frontier: CapabilityProfileSchema,
+  })
+  .strict();
+
+export type CapabilityProfiles = z.infer<typeof CapabilityProfilesSchema>;
 
 function makePlaceholderGlossarySchema(
   semanticName: "tool name" | "file artifact",
@@ -177,7 +156,7 @@ export type FileArtifacts = z.infer<typeof FileArtifactsSchema>;
 
 // --- Main config ---
 export const ConfigSchema = z.object({
-  version: z.literal(1),
+  version: z.literal(2),
   library: z
     .object({
       skillsDir: z.string().default("./skills"),
@@ -216,7 +195,7 @@ export const ConfigSchema = z.object({
       path: z.string().default(DEFAULT_MANIFEST_PATH),
     })
     .default({}),
-  modelTiers: ModelTiersSchema.optional(),
+  capabilityProfiles: CapabilityProfilesSchema,
   toolNames: ToolNamesSchema.optional(),
   fileArtifacts: FileArtifactsSchema.optional(),
 });
@@ -226,15 +205,6 @@ export type Config = z.infer<typeof ConfigSchema>;
 export const CONFIG_TOP_LEVEL_KEYS = Object.keys(ConfigSchema.shape) as Array<
   keyof typeof ConfigSchema.shape
 >;
-export const MODEL_TIER_PROFILE_TARGET_KEYS = Object.keys(
-  ModelTierProfileSchema.shape,
-) as Array<keyof typeof ModelTierProfileSchema.shape>;
-export const CLAUDE_MODEL_TIER_PROFILE_KEYS = Object.keys(
-  ClaudeModelTierProfileSchema.shape,
-) as Array<keyof typeof ClaudeModelTierProfileSchema.shape>;
-export const CODEX_MODEL_TIER_PROFILE_KEYS = Object.keys(
-  CodexModelTierProfileSchema.shape,
-) as Array<keyof typeof CodexModelTierProfileSchema.shape>;
 
 // --- Resolved config (all paths absolute) ---
 export interface ResolvedConfig {
@@ -259,7 +229,7 @@ export interface ResolvedConfig {
   manifest: {
     path: string;
   };
-  modelTiers?: ModelTiers;
+  capabilityProfiles: CapabilityProfiles;
   toolNames?: ToolNames;
   fileArtifacts?: FileArtifacts;
 }

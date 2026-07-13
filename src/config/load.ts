@@ -6,30 +6,18 @@ import { getLogger } from "../utils/output.js";
 import { expandHome, resolveFromBase } from "../utils/paths.js";
 import { CLI_COMMAND, CONFIG_ENV_VAR, CONFIG_FILE_NAME } from "./identity.js";
 import {
-  CLAUDE_MODEL_TIER_PROFILE_KEYS,
   CODEX_CONFIG_TARGET_FIELDS,
-  CODEX_MODEL_TIER_PROFILE_KEYS,
   CONFIG_TARGET_FIELDS,
   CONFIG_TOP_LEVEL_KEYS,
   type Config,
   ConfigSchema,
   type InstallMode,
-  MODEL_TIER_PROFILE_TARGET_KEYS,
   type ResolvedConfig,
 } from "./schema.js";
 
 const KNOWN_CONFIG_KEYS = new Set<string>(CONFIG_TOP_LEVEL_KEYS);
 const KNOWN_TARGET_KEYS = new Set<string>(CONFIG_TARGET_FIELDS);
 const KNOWN_CODEX_TARGET_KEYS = new Set<string>(CODEX_CONFIG_TARGET_FIELDS);
-const KNOWN_MODEL_TIER_TARGET_KEYS = new Set<string>(
-  MODEL_TIER_PROFILE_TARGET_KEYS,
-);
-const KNOWN_CLAUDE_MODEL_TIER_PROFILE_KEYS = new Set<string>(
-  CLAUDE_MODEL_TIER_PROFILE_KEYS,
-);
-const KNOWN_CODEX_MODEL_TIER_PROFILE_KEYS = new Set<string>(
-  CODEX_MODEL_TIER_PROFILE_KEYS,
-);
 
 export async function findConfigPath(explicitPath?: string): Promise<string> {
   if (explicitPath) {
@@ -80,6 +68,8 @@ export async function loadConfig(
     );
   }
 
+  preflightConfigVersion(parsed, configPath);
+
   if (strict) {
     const result = ConfigSchema.safeParse(parsed);
     const unknownFields = collectUnknownConfigFields(parsed);
@@ -121,6 +111,29 @@ export async function loadConfig(
   return resolveConfig(result.data, configPath);
 }
 
+function preflightConfigVersion(parsed: unknown, configPath: string): void {
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return;
+  }
+
+  const parsedRecord = parsed as Record<string, unknown>;
+  if (parsedRecord.version === 1) {
+    throw new UserError(
+      "Config version 1 is no longer supported.",
+      configPath,
+      "Migrate to version: 2 and define the required capabilityProfiles catalog.",
+    );
+  }
+
+  if (parsedRecord.version === 2 && Object.hasOwn(parsedRecord, "modelTiers")) {
+    throw new UserError(
+      'Config field "modelTiers" is no longer supported in version 2.',
+      configPath,
+      "Replace modelTiers with the required efficient, balanced, and frontier capabilityProfiles entries using direct Claude and Codex model strings.",
+    );
+  }
+}
+
 function collectUnknownConfigFields(parsed: unknown): string[] {
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
     return [];
@@ -132,58 +145,6 @@ function collectUnknownConfigFields(parsed: unknown): string[] {
     .map((key) => key);
 
   collectUnknownTargetFields(parsedRecord, unknownFields);
-
-  const modelTiers = parsedRecord.modelTiers;
-  if (
-    !modelTiers ||
-    typeof modelTiers !== "object" ||
-    Array.isArray(modelTiers)
-  ) {
-    return unknownFields;
-  }
-
-  for (const [tierKey, tierValue] of Object.entries(modelTiers)) {
-    if (
-      !tierValue ||
-      typeof tierValue !== "object" ||
-      Array.isArray(tierValue)
-    ) {
-      continue;
-    }
-
-    const tierRecord = tierValue as Record<string, unknown>;
-    for (const key of Object.keys(tierRecord)) {
-      if (!KNOWN_MODEL_TIER_TARGET_KEYS.has(key)) {
-        unknownFields.push(`modelTiers.${tierKey}.${key}`);
-      }
-    }
-
-    const claudeProfile = tierRecord.claude;
-    if (
-      claudeProfile &&
-      typeof claudeProfile === "object" &&
-      !Array.isArray(claudeProfile)
-    ) {
-      for (const key of Object.keys(claudeProfile)) {
-        if (!KNOWN_CLAUDE_MODEL_TIER_PROFILE_KEYS.has(key)) {
-          unknownFields.push(`modelTiers.${tierKey}.claude.${key}`);
-        }
-      }
-    }
-
-    const codexProfile = tierRecord.codex;
-    if (
-      codexProfile &&
-      typeof codexProfile === "object" &&
-      !Array.isArray(codexProfile)
-    ) {
-      for (const key of Object.keys(codexProfile)) {
-        if (!KNOWN_CODEX_MODEL_TIER_PROFILE_KEYS.has(key)) {
-          unknownFields.push(`modelTiers.${tierKey}.codex.${key}`);
-        }
-      }
-    }
-  }
 
   return unknownFields;
 }
@@ -267,7 +228,7 @@ function resolveConfig(config: Config, configPath: string): ResolvedConfig {
     manifest: {
       path: expandHome(config.manifest.path),
     },
-    modelTiers: config.modelTiers,
+    capabilityProfiles: config.capabilityProfiles,
     toolNames: config.toolNames,
     fileArtifacts: config.fileArtifacts,
   };
