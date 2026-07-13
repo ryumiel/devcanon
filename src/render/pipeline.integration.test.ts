@@ -729,7 +729,7 @@ describe("renderAll", () => {
   it.each(["fast", "standard", "deep", "arbitrary", " balanced"])(
     "rejects active skill model key %s before writing any artifact",
     async (modelKey) => {
-      await createSkillFixture(
+      const skillDir = await createSkillFixture(
         config.library.skillsDir,
         "invalid-capability",
         [
@@ -743,9 +743,19 @@ describe("renderAll", () => {
         ].join("\n"),
       );
 
-      await expect(renderAll(config, true, false, "claude")).rejects.toThrow(
-        /invalid-capability.*claude.*model:.*efficient.*balanced.*frontier.*devcanon\.config\.yaml/i,
-      );
+      const skillPath = path.join(skillDir, "SKILL.md");
+
+      try {
+        await renderAll(config, true, false, "claude");
+        expect.fail("expected invalid model placeholder rendering to fail");
+      } catch (error) {
+        expect(error).toBeInstanceOf(UserError);
+        expect((error as UserError).filePath).toBe(skillPath);
+        expect((error as UserError).message).toContain(`{{model:${modelKey}}}`);
+        expect((error as UserError).message).toMatch(
+          /invalid-capability.*claude.*efficient.*balanced.*frontier.*devcanon\.config\.yaml/i,
+        );
+      }
       expect(await pathExists(config.library.generatedDir)).toBe(false);
     },
   );
@@ -1137,6 +1147,39 @@ describe("renderLoaded", () => {
     expect(generatedSkillContent).toContain("A test skill.");
     expect(generatedSkillContent).not.toContain("Mutated source");
     expect(generatedSkillContent).not.toContain("# changed");
+  });
+
+  it("reports the exact loaded SKILL.md path for invalid model tokens", async () => {
+    const skillDir = await createSkillFixture(
+      config.library.skillsDir,
+      "loaded-invalid-model",
+    );
+    const validatedSkills = await loadAndValidateSkills(
+      config.library.skillsDir,
+    );
+    const loadedSkill = {
+      ...validatedSkills[0],
+      body: "Use {{model: standard}} for synthesis.\n",
+    };
+    const skillPath = path.join(skillDir, "SKILL.md");
+
+    try {
+      await renderLoaded({
+        config,
+        skills: [loadedSkill],
+        validatedSkills,
+        agents: [],
+        writeToGenerated: true,
+        targetFilter: "claude",
+      });
+      expect.fail("expected invalid loaded model placeholder to fail");
+    } catch (error) {
+      expect(error).toBeInstanceOf(UserError);
+      expect((error as UserError).filePath).toBe(skillPath);
+      expect((error as UserError).message).toContain("{{model: standard}}");
+    }
+
+    expect(await pathExists(config.library.generatedDir)).toBe(false);
   });
 
   it("requires mirrored subdirs to remain source-backed for loaded skills", async () => {

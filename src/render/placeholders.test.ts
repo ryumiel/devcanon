@@ -281,6 +281,16 @@ describe("resolvePlaceholders", () => {
     ).toThrow(/unknown placeholder namespace "path"/i);
   });
 
+  it.each([
+    "{{tool:bad key}}",
+    "{{file:}}",
+    "{{bogus:a b}}",
+    "\\{{tool:bad key}}",
+    "\\{{file:}}",
+  ])("preserves established pass-through behavior for %s", (input) => {
+    expect(resolvePlaceholders(input, "claude", GLOSSARY)).toBe(input);
+  });
+
   it("rejects a tool key that violates the kebab-case format", () => {
     expect(() =>
       resolvePlaceholders("{{tool:taskTracker}}", "claude", GLOSSARY),

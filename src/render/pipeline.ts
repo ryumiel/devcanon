@@ -362,9 +362,13 @@ function validateLoadedSkill(
     skill.body,
     selectedTargets,
     config.capabilityProfiles,
+    path.join(skill.dirPath, "SKILL.md"),
   );
   if (placeholderErrors.length > 0) {
-    throw new UserError(placeholderErrors.join("\n"));
+    throw new UserError(
+      placeholderErrors.join("\n"),
+      path.join(skill.dirPath, "SKILL.md"),
+    );
   }
   assertDirectNamedPathShapeInside(
     config.library.skillsDir,

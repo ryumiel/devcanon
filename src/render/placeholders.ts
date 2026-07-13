@@ -12,13 +12,14 @@ import { visitMarkdownLines } from "../utils/markdown-prose.js";
 /**
  * Matches an optional escape (`\`) followed by `{{namespace:value}}`.
  * Namespace uses `\w+` (letters, digits, underscore).
- * Value accepts any single-line, brace-free text so malformed active tokens
- * reach namespace-specific validation instead of passing through silently.
+ * Value uses `[\w-]+` to support kebab-case keys (e.g. `task-tracker`).
  * The captured key is then re-validated per-namespace against the stricter
  * config-time format in `substituteLine`, so e.g. `{{tool:taskTracker}}`
  * yields a clear "invalid key" error instead of "unknown key".
  */
-const PLACEHOLDER = /(\\)?\{\{(\w+):([^{}\r\n]*)\}\}/g;
+const PLACEHOLDER = /(\\)?\{\{(\w+):([\w-]+)\}\}/g;
+const ACTIVE_MODEL_PLACEHOLDER = /(?<!\\)\{\{model:([^{}\r\n]*)\}\}/g;
+const SHARED_PLACEHOLDER_VALUE = /^[\w-]+$/;
 export { collectProseSegments } from "../utils/markdown-prose.js";
 
 export interface PlaceholderGlossary {
@@ -90,6 +91,7 @@ function substituteLine(
   glossary: PlaceholderGlossary,
   context: PlaceholderRenderContext | undefined,
 ): string {
+  validateMalformedModelPlaceholders(line, context);
   return line.replace(PLACEHOLDER, (_match, esc, namespace, value) => {
     if (esc) {
       return `{{${namespace}:${value}}}`;
@@ -130,6 +132,17 @@ function substituteLine(
   });
 }
 
+function validateMalformedModelPlaceholders(
+  line: string,
+  context: PlaceholderRenderContext | undefined,
+): void {
+  for (const match of line.matchAll(ACTIVE_MODEL_PLACEHOLDER)) {
+    const value = match[1];
+    if (SHARED_PLACEHOLDER_VALUE.test(value)) continue;
+    throw unsupportedModelPlaceholderError(value, context);
+  }
+}
+
 function resolveModelPlaceholder(
   value: string,
   target: "claude" | "codex",
@@ -138,17 +151,24 @@ function resolveModelPlaceholder(
 ): string {
   const capability = CapabilitySchema.safeParse(value);
   if (!capability.success || !Object.hasOwn(profiles, capability.data)) {
-    const token = `{{model:${value}}}`;
-    const supported = CapabilitySchema.options
-      .map((capability) => `{{model:${capability}}}`)
-      .join(", ");
-    throw renderError(
-      `unsupported model capability "${value}" in token "${token}" — use ${supported}; ${NAMESPACE_CONFIG_KEY.model} in ${CONFIG_FILE_NAME} defines the target model strings`,
-      context,
-    );
+    throw unsupportedModelPlaceholderError(value, context);
   }
 
   return profiles[capability.data][target];
+}
+
+function unsupportedModelPlaceholderError(
+  value: string,
+  context: PlaceholderRenderContext | undefined,
+): Error {
+  const token = `{{model:${value}}}`;
+  const supported = CapabilitySchema.options
+    .map((capability) => `{{model:${capability}}}`)
+    .join(", ");
+  return renderError(
+    `unsupported model capability "${value}" in token "${token}" — use ${supported}; ${NAMESPACE_CONFIG_KEY.model} in ${CONFIG_FILE_NAME} defines the target model strings`,
+    context,
+  );
 }
 
 function renderError(

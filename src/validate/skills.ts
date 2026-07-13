@@ -81,6 +81,8 @@ export async function loadAndValidateSkills(
   const skills: LoadedSkill[] = [];
   const names = new Set<string>();
   const errors: string[] = [];
+  const activeModelErrorPaths = new Set<string>();
+  let activeModelErrorCount = 0;
 
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
@@ -147,15 +149,19 @@ export async function loadAndValidateSkills(
     }
 
     if (diagnostics?.enabled) {
-      errors.push(
-        ...collectActiveModelPlaceholderErrors(
-          name,
-          result.data,
-          parsed.body,
-          ["claude", "codex"],
-          diagnostics.capabilityProfiles,
-        ),
+      const placeholderErrors = collectActiveModelPlaceholderErrors(
+        name,
+        result.data,
+        parsed.body,
+        ["claude", "codex"],
+        diagnostics.capabilityProfiles,
+        skillMdPath,
       );
+      if (placeholderErrors.length > 0) {
+        activeModelErrorPaths.add(skillMdPath);
+        activeModelErrorCount += placeholderErrors.length;
+        errors.push(...placeholderErrors);
+      }
     }
 
     const subdirs: string[] = [];
@@ -222,9 +228,13 @@ export async function loadAndValidateSkills(
   }
 
   if (errors.length > 0) {
+    const [onlyActiveModelErrorPath] = activeModelErrorPaths;
     throw new UserError(
       `Skill validation failed:\n  ${errors.join("\n  ")}`,
-      skillsDir,
+      activeModelErrorCount === errors.length &&
+        activeModelErrorPaths.size === 1
+        ? onlyActiveModelErrorPath
+        : skillsDir,
     );
   }
 
@@ -239,6 +249,7 @@ export function collectActiveModelPlaceholderErrors(
   body: string,
   targets: readonly ("claude" | "codex")[],
   capabilityProfiles: CapabilityProfiles,
+  sourceFilePath: string,
 ): string[] {
   const errors: string[] = [];
   const supported = CapabilitySchema.options
@@ -270,7 +281,7 @@ export function collectActiveModelPlaceholderErrors(
           }
           seenTokens.add(token);
           errors.push(
-            `Skill "${skillName}" (${target}): unsupported model capability "${value}" in token "${token}" — use ${supported}; capabilityProfiles in ${CONFIG_FILE_NAME} defines the target model strings`,
+            `Skill "${skillName}" (${target}): unsupported model capability "${value}" in token "${token}" — use ${supported}; capabilityProfiles in ${CONFIG_FILE_NAME} defines the target model strings (source: ${sourceFilePath})`,
           );
         }
       }

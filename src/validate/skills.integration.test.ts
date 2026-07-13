@@ -691,7 +691,7 @@ describe("loadAndValidateSkills", () => {
     "rejects active model capability key %s with canonical guidance",
     async (modelKey) => {
       await mkdir(skillsDir, { recursive: true });
-      await createSkillFixture(
+      const skillDir = await createSkillFixture(
         skillsDir,
         "invalid-model-capability",
         [
@@ -705,13 +705,21 @@ describe("loadAndValidateSkills", () => {
         ].join("\n"),
       );
 
-      await expect(
-        loadAndValidateSkillsWithDiagnostics(skillsDir, {
+      const skillPath = path.join(skillDir, "SKILL.md");
+
+      try {
+        await loadAndValidateSkillsWithDiagnostics(skillsDir, {
           diagnostics: { enabled: true },
-        }),
-      ).rejects.toThrow(
-        /invalid-model-capability.*model:.*efficient.*balanced.*frontier.*devcanon\.config\.yaml/i,
-      );
+        });
+        expect.fail("expected invalid model placeholder validation to fail");
+      } catch (error) {
+        expect(error).toBeInstanceOf(UserError);
+        expect((error as UserError).filePath).toBe(skillPath);
+        expect((error as UserError).message).toContain(`{{model:${modelKey}}}`);
+        expect((error as UserError).message).toMatch(
+          /efficient.*balanced.*frontier.*devcanon\.config\.yaml/i,
+        );
+      }
     },
   );
 
