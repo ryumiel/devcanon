@@ -23,27 +23,29 @@ The ledger is agent-local/controller-local state; do not write it as durable
 repository documentation and do not pass it to reviewer agents as evidence.
 Reviewers and implementers still read the worktree from disk.
 
-Track one row per active, completed, superseded, or pending session. Each row
-records:
+Track one row per active, completed, superseded, or pending session. Keep these
+ledger dimensions separate:
 
-- task, phase, or review scope;
-- role;
-- one `agent_id` or `agent_id=pending`;
-- optional open-agent inventory when the target exposes it;
-- base/head SHA or equivalent source-state anchor when relevant;
-- status;
-- role-specific captured state;
-- reviewer result when relevant;
-- fixup count or blocker state when relevant;
-- one cleanup outcome: `closed=yes`, `closed=no`, or
+- session identity when available, or `agent_id=pending` before dispatch;
+- role and task, phase, or review scope;
+- current operational state: `active`, `waiting`, `interrupted`, or
+  `completed`;
+- observed reuse when relevant;
+- inventory evidence when relevant;
+- captured role result;
+- current cleanup outcome: `closed=yes`, `closed=no`, or
   `close-unavailable: <reason>`.
 
-Role-specific captured state is whatever the owning workflow needs before it
-can safely close, supersede, or replace that role. Examples include implementer
-reports, changed files, test results, snapshot state, reviewer scope, reviewer
-report, concrete findings, routing target, re-review target, gate result,
-research brief path, CI investigation summary, and any open question or
-blocker detail that must survive session loss.
+`reusable` and `inventory-only` are not operational states. Waiting,
+interruption, completion, inventory, and reuse are not closure. Do not project
+one ledger dimension into another.
+
+The captured role result is whatever the owning workflow needs before it can
+safely clean up, supersede, or replace that role. Examples include an
+implementer report, changed files and tests, a reviewer report and concrete
+findings, a gate result, a research brief path, a CI investigation summary, or
+an open question or blocker detail that must survive session loss. Capture the
+role-specific result before cleanup or supersession.
 
 Update the ledger before and after every dispatch. A pre-dispatch row may use
 `agent_id=pending` until the runtime returns a stable id. The ledger is the
@@ -53,24 +55,46 @@ source for repository state.
 ## Target Lifecycle Capability
 
 Before promising automatic cleanup, identify what lifecycle controls the
-current target runtime exposes. Do this once before the first subagent dispatch
-in the workflow and update the conclusion if later tool availability proves it
+current target runtime actually exposes. Do this once before the first
+subagent dispatch and update the conclusion if later observations prove it
 wrong.
 
-- `automatic-close-supported`: stable agent/session ids and a
-  close/session-cleanup operation exist. Close completed or superseded
-  sessions after required state is recorded, then mark `closed=yes`.
-- `inventory-only`: session inventory or ids exist, but no close operation
-  exists. Record open inventory and mark
-  `close-unavailable: inventory-only; no close operation`.
-- `cleanup-unavailable`: neither reliable inventory nor close/session-cleanup
-  exists. Record `close-unavailable: no inventory or close operation` and give
-  explicit operator/UI cleanup guidance.
+| Capability class            | Observed runtime capability                                  | Cleanup claim                                                                                  |
+| --------------------------- | ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- |
+| `automatic-close-supported` | Stable identity and an exposed, usable close operation       | A close may be attempted; `closed=yes` still requires an observed successful close result      |
+| `inventory-only`            | Session identity or inventory, but no usable close operation | Record inventory and `close-unavailable: inventory-only; no close operation`                   |
+| `cleanup-unavailable`       | Neither reliable inventory nor a usable close operation      | Record `close-unavailable: no inventory or close operation` and give operator/UI cleanup steps |
 
-Codex runtimes may expose a `close_agent` operation; Claude Code or other
-targets may expose different lifecycle controls or none at all. Do not infer
-support from another target. If either the id source or close operation is
-missing, automatic closure is unavailable for that target.
+Map the current agent surface without inheriting another provider's
+capabilities:
+
+| Agent surface                  | Target-honest mapping                                                                                                                                                                                      |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Local Codex                    | Classify from exposed runtime actions. Model-visible requests to steer, stop, or close tasks or threads do not prove identically named low-level actions; name a low-level action only when it is exposed. |
+| Responses API Multi-agent      | `inventory-only`: hosted inventory exists, but no hosted close action is documented. The exact documented hosted action set appears below.                                                                 |
+| Claude Code                    | Classify only from capabilities observed in the current runtime; inherit no Local Codex, Responses API, or other provider assumption.                                                                      |
+| Unknown or future agent target | Classify only from capabilities observed in that runtime; inherit no known-provider assumption.                                                                                                            |
+
+For Responses API Multi-agent, the documented hosted action set is exactly
+`spawn_agent`, `send_message`, `followup_task`, `wait_agent`,
+`interrupt_agent`, and `list_agents`. `interrupt_agent` stops an active turn
+without deleting its context and is never closure. `followup_task` can reuse
+retained context, while `wait_agent` and `list_agents` expose waiting and
+inventory observations. No hosted close action is documented.
+
+A compact Responses API ledger observation therefore keeps the dimensions
+separate: session identity=`resp-1`; role/scope=`researcher`/assigned scope;
+current operational state=`interrupted`; observed reuse=retained context
+available to `followup_task`; inventory evidence=session observed through
+`list_agents`; captured role result=partial report; current cleanup
+outcome=`close-unavailable: inventory-only; no close operation`. A
+preceding wait, the interruption, retained-context reuse, and inventory evidence
+are distinct observations; none is closure.
+
+For every surface, `closed=yes` requires all three observed facts for that
+session: a stable identity, an exposed usable close operation, and a successful
+close result. Capability-class support alone is insufficient. If any fact is
+missing, automatic closure is unavailable for that session.
 
 ## Cleanup Gate Before Spawns
 
@@ -80,9 +104,10 @@ role-specific state has already been captured.
 
 1. Capture the role-specific state needed by the owning workflow before
    closing or superseding any session.
-2. When the target is `automatic-close-supported`, close completed or
-   superseded sessions after the required state is recorded, then mark
-   `closed=yes`.
+2. When the target is `automatic-close-supported`, attempt to close completed
+   or superseded sessions after the required state is recorded. Mark
+   `closed=yes` only after observing a successful close result for that stable
+   session identity and exposed usable close operation.
 3. When the target is `inventory-only` or `cleanup-unavailable`, first capture
    the same role-specific state, then record the `close-unavailable` reason
    before spawning instead of claiming closure.
@@ -90,9 +115,9 @@ role-specific state has already been captured.
    follow-up and the captured state is not sufficient for a replacement
    session.
 
-Target-honest outcomes matter more than a clean-looking ledger. Never record
-`closed=yes` unless the current target actually exposed stable ids plus a close
-operation and the close completed.
+Target-honest outcomes matter more than a clean-looking ledger. Waiting,
+interruption, completion, inventory, reuse, and a runtime's capability class do
+not substitute for an observed successful close result.
 
 ## Slot-Limit Recovery
 

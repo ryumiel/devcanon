@@ -2435,37 +2435,103 @@ describe("play subagent routing source contracts", () => {
     expect(controllerLifecycleLedger).toContain(
       "agent-local/controller-local state",
     );
-    expect(controllerLifecycleLedger).toContain(
-      "one `agent_id` or `agent_id=pending`",
-    );
-    expect(controllerLifecycleLedger).toContain("role-specific captured state");
-    expect(controllerLifecycleLedger).toContain(
-      "reviewer result when relevant",
-    );
-    expect(controllerLifecycleLedger).toContain(
-      "fixup count or blocker state when relevant",
+    for (const ledgerDimension of [
+      "session identity when available",
+      "role and task, phase, or review scope",
+      "current operational state: `active`, `waiting`, `interrupted`, or `completed`",
+      "observed reuse when relevant",
+      "inventory evidence when relevant",
+      "captured role result",
+      "current cleanup outcome: `closed=yes`, `closed=no`, or `close-unavailable: <reason>`",
+    ]) {
+      expect(normalizeWhitespace(controllerLifecycleLedger)).toContain(
+        ledgerDimension,
+      );
+    }
+    expect(normalizeWhitespace(controllerLifecycleLedger)).toContain(
+      "`reusable` and `inventory-only` are not operational states",
     );
     expect(normalizeWhitespace(controllerLifecycleLedger)).toContain(
-      "one cleanup outcome: `closed=yes`, `closed=no`, or `close-unavailable: <reason>`",
+      "Waiting, interruption, completion, inventory, and reuse are not closure",
     );
     expect(normalizeWhitespace(controllerLifecycleLedger)).toContain(
-      "Role-specific captured state is whatever the owning workflow needs before it can safely close, supersede, or replace that role",
+      "Capture the role-specific result before cleanup or supersession",
     );
 
-    expect(targetLifecycleCapability).toContain("automatic-close-supported");
-    expect(targetLifecycleCapability).toContain(
-      "close/session-cleanup operation exist",
-    );
-    expect(targetLifecycleCapability).toContain("inventory-only");
-    expect(targetLifecycleCapability).toContain(
-      "close-unavailable: inventory-only; no close operation",
-    );
-    expect(targetLifecycleCapability).toContain("cleanup-unavailable");
-    expect(targetLifecycleCapability).toContain(
-      "close-unavailable: no inventory or close operation",
+    const capabilityClasses = [
+      {
+        name: "automatic-close-supported",
+        evidence: "Stable identity and an exposed, usable close operation",
+      },
+      {
+        name: "inventory-only",
+        evidence:
+          "Session identity or inventory, but no usable close operation",
+      },
+      {
+        name: "cleanup-unavailable",
+        evidence: "Neither reliable inventory nor a usable close operation",
+      },
+    ] as const;
+    for (const capabilityClass of capabilityClasses) {
+      expect(targetLifecycleCapability).toContain(capabilityClass.name);
+      expect(targetLifecycleCapability).toContain(capabilityClass.evidence);
+    }
+
+    const surfaceMappings = [
+      {
+        surface: "Local Codex",
+        evidence:
+          "Model-visible requests to steer, stop, or close tasks or threads do not prove identically named low-level actions",
+      },
+      {
+        surface: "Responses API Multi-agent",
+        evidence:
+          "hosted inventory exists, but no hosted close action is documented",
+      },
+      {
+        surface: "Claude Code",
+        evidence:
+          "Classify only from capabilities observed in the current runtime; inherit no Local Codex, Responses API, or other provider assumption",
+      },
+      {
+        surface: "Unknown or future agent target",
+        evidence:
+          "Classify only from capabilities observed in that runtime; inherit no known-provider assumption",
+      },
+    ] as const;
+    for (const surfaceMapping of surfaceMappings) {
+      expect(targetLifecycleCapability).toContain(surfaceMapping.surface);
+      expect(normalizeWhitespace(targetLifecycleCapability)).toContain(
+        surfaceMapping.evidence,
+      );
+    }
+
+    const responsesActionSet =
+      /documented hosted action set is exactly\s+([\s\S]*?)\. `interrupt_agent`/.exec(
+        targetLifecycleCapability,
+      );
+    expect(responsesActionSet).not.toBeNull();
+    const documentedResponsesActions = [
+      ...(responsesActionSet?.[1].matchAll(/`([a-z_]+)`/g) ?? []),
+    ].map((match) => match[1]);
+    expect(documentedResponsesActions).toEqual([
+      "spawn_agent",
+      "send_message",
+      "followup_task",
+      "wait_agent",
+      "interrupt_agent",
+      "list_agents",
+    ]);
+    expect(targetLifecycleCapability).not.toContain("close_agent");
+    expect(normalizeWhitespace(targetLifecycleCapability)).toContain(
+      "`interrupt_agent` stops an active turn without deleting its context and is never closure",
     );
     expect(normalizeWhitespace(targetLifecycleCapability)).toContain(
-      "Do not infer support from another target",
+      "session identity=`resp-1`; role/scope=`researcher`/assigned scope; current operational state=`interrupted`; observed reuse=retained context available to `followup_task`; inventory evidence=session observed through `list_agents`; captured role result=partial report; current cleanup outcome=`close-unavailable: inventory-only; no close operation`",
+    );
+    expect(normalizeWhitespace(targetLifecycleCapability)).toContain(
+      "`closed=yes` requires all three observed facts for that session: a stable identity, an exposed usable close operation, and a successful close result",
     );
 
     expect(cleanupGateBeforeSpawns).toContain(
@@ -2478,7 +2544,7 @@ describe("play subagent routing source contracts", () => {
       "Keep sessions open when the owning workflow still requires same-session follow-up",
     );
     expect(normalizeWhitespace(cleanupGateBeforeSpawns)).toContain(
-      "Never record `closed=yes` unless the current target actually exposed stable ids plus a close operation",
+      "Mark `closed=yes` only after observing a successful close result for that stable session identity and exposed usable close operation",
     );
 
     expect(slotLimitRecovery).toContain("orchestration resource exhaustion");
@@ -2494,6 +2560,19 @@ describe("play subagent routing source contracts", () => {
     expect(slotLimitRecovery).toContain(
       "Repeated failures after the single retry are not permission to keep spawning",
     );
+    for (const unchangedRecoveryAnchor of [
+      "Run the cleanup gate for all completed or superseded sessions",
+      "surface explicit operator/UI cleanup guidance",
+      "sanitized open-agent inventory",
+      "Wait for operator confirmation that manual cleanup is complete",
+      "Reconstruct active workflow state from the lifecycle ledger",
+      "Retry the spawn exactly once",
+      "stop and escalate to the user with a sanitized summary",
+    ]) {
+      expect(normalizeWhitespace(slotLimitRecovery)).toContain(
+        unchangedRecoveryAnchor,
+      );
+    }
 
     expect(normalizedSkillSource).not.toContain(
       "play-subagent-execution owns task execution",
@@ -2511,14 +2590,24 @@ describe("play subagent routing source contracts", () => {
       "Generic subagent lifecycle cleanup guidance is owned by the internal\n`subagent-lifecycle` skill",
     );
     for (const ownedSurface of [
-      "controller-local lifecycle ledger expectations",
-      "target lifecycle capability classes",
-      "target-honest cleanup outcomes",
+      "compact controller-local ledger dimensions",
+      "three target lifecycle capability classes",
+      "four-surface capability map for Local Codex, Responses API Multi-agent, Claude Code, and unknown targets",
+      "target-honest conditional cleanup outcomes",
       "cleanup gates before spawns",
       "slot-limit recovery and one retry after cleanup or manual confirmation",
     ]) {
-      expect(decision).toContain(ownedSurface);
+      expect(normalizeWhitespace(decision)).toContain(ownedSurface);
     }
+    expect(normalizeWhitespace(decision)).toContain(
+      "Responses API Multi-agent's documented hosted set is exactly `spawn_agent`, `send_message`, `followup_task`, `wait_agent`, `interrupt_agent`, and `list_agents`",
+    );
+    expect(normalizeWhitespace(decision)).toContain(
+      "Interruption stops an active turn without deleting its context; it is not closure",
+    );
+    expect(normalizeWhitespace(decision)).toContain(
+      "`closed=yes` only when the controller observes all three session facts: stable identity, an exposed usable close operation, and a successful close result",
+    );
     expect(decision).toContain(
       "`play-subagent-execution` owns task execution, per-task review routing,\nimplementer snapshot consumption, and same-session implementer fix-loop\nexceptions",
     );
@@ -2532,6 +2621,9 @@ describe("play subagent routing source contracts", () => {
       "Slot-limit failures are handled as orchestration resource exhaustion",
     );
     expect(consequences).toContain("Workflow-local exceptions remain explicit");
+    expect(normalizeWhitespace(consequences)).toContain(
+      "not an event-sourced lifecycle engine, retention proof system, or duplicated consumer recovery algorithm",
+    );
   });
 
   it("keeps play-subagent-execution lifecycle delegation and local exceptions in source", async () => {
@@ -2618,6 +2710,11 @@ describe("play subagent routing source contracts", () => {
       "[Alternative target capability examples - separate runs",
       "Done!",
     );
+    const automaticCloseRun = sliceBetween(
+      exampleWorkflow,
+      "Target capability for this run: automatic-close-supported",
+      "[Alternative target capability examples - separate runs",
+    );
 
     expect(exampleWorkflow).toContain(
       "generic\nlifecycle ledger, target capability classes, cleanup gate, target-honest\ncleanup outcomes, and slot-limit recovery live in `subagent-lifecycle`",
@@ -2695,14 +2792,54 @@ describe("play subagent routing source contracts", () => {
     expect(exampleWorkflow).toContain("final-code-quality-reviewer");
     expect(exampleWorkflow).toContain("review scope captured");
 
+    const automaticClosureClaims = [
+      ...automaticCloseRun.matchAll(/closed=yes/g),
+    ];
+    expect(automaticClosureClaims.length).toBeGreaterThan(0);
+    for (const claim of automaticClosureClaims) {
+      const claimIndex = claim.index ?? 0;
+      expect(
+        normalizeWhitespace(
+          automaticCloseRun.slice(Math.max(0, claimIndex - 80), claimIndex),
+        ),
+      ).toContain("observed close result=success");
+    }
+
     expect(targetCapabilityExamples).toContain(
-      "inventory-only: target exposes session inventory but no close operation",
+      "Responses API Multi-agent inventory-only target variant",
+    );
+    const exampleResponsesActions =
+      /Hosted actions: ([^\n]+) — exactly these six\./.exec(
+        targetCapabilityExamples,
+      );
+    expect(exampleResponsesActions).not.toBeNull();
+    expect(
+      [...(exampleResponsesActions?.[1].matchAll(/`([a-z_]+)`/g) ?? [])].map(
+        (match) => match[1],
+      ),
+    ).toEqual([
+      "spawn_agent",
+      "send_message",
+      "followup_task",
+      "wait_agent",
+      "interrupt_agent",
+      "list_agents",
+    ]);
+    expect(targetCapabilityExamples).not.toContain("close_agent");
+    expect(targetCapabilityExamples).toContain(
+      "inventory-only: target exposes session inventory but no hosted close operation",
     );
     expect(targetCapabilityExamples).toContain(
-      "first captures each completed session's role-specific state",
+      "captures each completed session's role-specific state before cleanup or supersession",
     );
     expect(targetCapabilityExamples).toContain(
       "close-unavailable: inventory-only; no close operation",
+    );
+    expect(normalizeWhitespace(targetCapabilityExamples)).toContain(
+      "current operational state=`interrupted`; wait observation=settled after `wait_agent`; observed reuse=retained context available to `followup_task`; inventory evidence=`list_agents` returned `impl-1`",
+    );
+    expect(normalizeWhitespace(targetCapabilityExamples)).toContain(
+      "`interrupt_agent` stopped the active turn without deleting its context; interruption is never closure",
     );
     expect(targetCapabilityExamples).toContain(
       "cleanup-unavailable: target exposes neither inventory nor close operation",
