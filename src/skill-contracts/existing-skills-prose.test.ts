@@ -44,6 +44,18 @@ function expectSharedLifecycleReference(section: string): void {
   expect(section).toContain("target-honest cleanup outcomes");
   expect(section).toContain("slot-limit");
   expect(section).toContain("recovery");
+
+  for (const copiedRecoveryStep of [
+    "Classify the failure as orchestration resource exhaustion",
+    "Run the cleanup gate for all completed or superseded sessions",
+    "surface explicit operator/UI cleanup guidance",
+    "Wait for operator confirmation that manual cleanup is complete",
+    "Reconstruct active workflow state from the lifecycle ledger",
+    "Retry the spawn exactly once",
+    "stop and escalate to the user with a sanitized summary",
+  ]) {
+    expect(normalizeWhitespace(section)).not.toContain(copiedRecoveryStep);
+  }
 }
 
 function expectSubstringsInOrder(content: string, substrings: string[]): void {
