@@ -5286,10 +5286,16 @@ describe("play subagent routing source contracts", () => {
       reason?: string;
       basis?: "need-finished" | "captured-and-replaced";
     }>;
+    type IdentityEvent = Readonly<{
+      order: number;
+      identityState: "stable" | "pending" | "unknown";
+      sessionId: string | null;
+    }>;
     type RowRecord = Readonly<{
       rowId: string;
       identityState: "stable" | "pending" | "unknown";
       sessionId: string | null;
+      identityHistory: readonly IdentityEvent[];
       inventoryEvidenceId?: string;
       history: readonly RowEvent[];
       preparationHistory: readonly PreparationEvent[];
@@ -5509,6 +5515,9 @@ describe("play subagent routing source contracts", () => {
         history: Object.freeze(
           row.history.map((event) => Object.freeze({ ...event })),
         ),
+        identityHistory: Object.freeze(
+          row.identityHistory.map((event) => Object.freeze({ ...event })),
+        ),
         preparationHistory: Object.freeze(
           row.preparationHistory.map((event) => Object.freeze({ ...event })),
         ),
@@ -5577,12 +5586,15 @@ describe("play subagent routing source contracts", () => {
                 "rowId",
                 "identityState",
                 "sessionId",
+                "identityHistory",
                 "history",
                 "preparationHistory",
                 "projection",
               ],
               ["inventoryEvidenceId"],
             ) &&
+            Array.isArray(row.identityHistory) &&
+            row.identityHistory.every(isRecord) &&
             Array.isArray(row.history) &&
             row.history.every(isRecord) &&
             Array.isArray(row.preparationHistory) &&
@@ -5716,10 +5728,26 @@ describe("play subagent routing source contracts", () => {
               episode.episodeId === entry.episodeId,
           ).length === 1,
       );
-    const rowBeforeOrder = (row: RowRecord, cutoffOrder: number): RowRecord => {
+    const identityBeforeOrder = (
+      row: RowRecord,
+      cutoffOrder: number,
+    ): IdentityEvent | undefined =>
+      row.identityHistory.filter((event) => event.order < cutoffOrder).at(-1);
+    const rowBeforeOrder = (
+      row: RowRecord,
+      cutoffOrder: number,
+    ): RowRecord | undefined => {
       const history = row.history.filter((event) => event.order < cutoffOrder);
+      const identityHistory = row.identityHistory.filter(
+        (event) => event.order < cutoffOrder,
+      );
+      const identity = identityHistory.at(-1);
+      if (identity === undefined) return undefined;
       return {
         ...row,
+        identityState: identity.identityState,
+        sessionId: identity.sessionId,
+        identityHistory,
         history,
         preparationHistory: row.preparationHistory.filter(
           (event) => event.order < cutoffOrder,
@@ -5736,9 +5764,34 @@ describe("play subagent routing source contracts", () => {
       const sessions = new Set<string>();
       const eventIds = new Set<string>();
       for (const row of ledger.rows) {
+        let previousIdentityOrder = -1;
+        for (const [index, identity] of row.identityHistory.entries()) {
+          if (
+            !isRecord(identity) ||
+            !exactKeys(identity, ["order", "identityState", "sessionId"]) ||
+            !Number.isInteger(identity.order) ||
+            identity.order < 0 ||
+            identity.order > ledger.order ||
+            (index === 0 && identity.order !== 0) ||
+            (index > 0 && identity.order <= previousIdentityOrder) ||
+            (identity.identityState !== "stable" &&
+              identity.identityState !== "pending" &&
+              identity.identityState !== "unknown") ||
+            (identity.identityState === "stable"
+              ? !sanitizedIdentity(identity.sessionId)
+              : identity.sessionId !== null)
+          ) {
+            return false;
+          }
+          previousIdentityOrder = identity.order;
+        }
+        const currentIdentity = row.identityHistory.at(-1);
         if (
           !sanitizedIdentity(row.rowId) ||
           rowIds.has(row.rowId) ||
+          currentIdentity === undefined ||
+          currentIdentity.identityState !== row.identityState ||
+          currentIdentity.sessionId !== row.sessionId ||
           (row.identityState !== "stable" &&
             row.identityState !== "pending" &&
             row.identityState !== "unknown") ||
@@ -5760,6 +5813,7 @@ describe("play subagent routing source contracts", () => {
         let sawSuccess = false;
         for (let index = 0; index < row.history.length; index += 1) {
           const event = row.history[index];
+          const eventIdentity = identityBeforeOrder(row, event.order);
           if (
             !isRecord(event) ||
             !exactKeys(
@@ -5779,17 +5833,18 @@ describe("play subagent routing source contracts", () => {
             !Number.isInteger(event.order) ||
             event.order <= previousOrder ||
             event.order > ledger.order ||
+            eventIdentity === undefined ||
             (event.kind === "closure-unavailable"
               ? !(
-                  (row.identityState === "stable" &&
-                    event.sessionId === row.sessionId) ||
-                  (row.identityState === "unknown" &&
-                    row.sessionId === null &&
+                  (eventIdentity.identityState === "stable" &&
+                    event.sessionId === eventIdentity.sessionId) ||
+                  (eventIdentity.identityState === "unknown" &&
+                    eventIdentity.sessionId === null &&
                     event.sessionId === null)
                 )
-              : row.identityState !== "stable" ||
-                !sanitizedIdentity(row.sessionId) ||
-                event.sessionId !== row.sessionId) ||
+              : eventIdentity.identityState !== "stable" ||
+                !sanitizedIdentity(eventIdentity.sessionId) ||
+                event.sessionId !== eventIdentity.sessionId) ||
             (event.kind === "closure-unavailable" &&
               !validProvenance(event.reason)) ||
             sawSuccess
@@ -5873,14 +5928,16 @@ describe("play subagent routing source contracts", () => {
           previousOrder = event.order;
         }
         for (const event of row.history) {
+          const historicalRow = rowBeforeOrder(row, event.order);
           if (
             (event.kind === "close-attempted" ||
               event.kind === "closure-unavailable") &&
-            rowPreparationError(
-              rowBeforeOrder(row, event.order),
-              false,
-              event.kind !== "closure-unavailable",
-            ) !== undefined
+            (historicalRow === undefined ||
+              rowPreparationError(
+                historicalRow,
+                false,
+                event.kind !== "closure-unavailable",
+              ) !== undefined)
           ) {
             return false;
           }
@@ -5913,7 +5970,12 @@ describe("play subagent routing source contracts", () => {
       const capture = [...row.preparationHistory]
         .reverse()
         .find((event) => event.kind === "required-state-captured");
-      if (capture === undefined || capture.order <= operational.order) {
+      const identityOrder = row.identityHistory.at(-1)?.order;
+      if (
+        identityOrder === undefined ||
+        capture === undefined ||
+        capture.order <= Math.max(operational.order, identityOrder)
+      ) {
         return "row-preparation-capture-stale";
       }
       let abnormalContextOrder = 0;
@@ -6757,6 +6819,7 @@ describe("play subagent routing source contracts", () => {
       rowId,
       identityState: "stable",
       sessionId,
+      identityHistory: [{ order: 0, identityState: "stable", sessionId }],
       ...(rowId === "row-1"
         ? { inventoryEvidenceId: "attached-inventory" }
         : {}),
@@ -6950,6 +7013,12 @@ describe("play subagent routing source contracts", () => {
       { ...emptyLedger(), rows: [null] },
       {
         ...emptyLedger(),
+        rows: emptyLedger().rows.map(
+          ({ identityHistory: _identityHistory, ...rest }) => rest,
+        ),
+      },
+      {
+        ...emptyLedger(),
         episodes: [null],
         originEpisodes: [{ originId: "origin-1", episodeId: "episode-1" }],
       },
@@ -7009,6 +7078,23 @@ describe("play subagent routing source contracts", () => {
       forgeRows(emptyLedger(), (rows) =>
         rows.map((row) =>
           row.rowId === "same" ? { ...row, rowId: "row-1" } : row,
+        ),
+      ),
+    );
+    expectInvalidLedger(
+      forgeRows(emptyLedger(), (rows) =>
+        rows.map((row) =>
+          row.rowId === "row-1"
+            ? {
+                ...row,
+                identityHistory: [
+                  {
+                    ...row.identityHistory[0],
+                    extra: true,
+                  } as unknown as IdentityEvent,
+                ],
+              }
+            : row,
         ),
       ),
     );
@@ -7173,6 +7259,21 @@ describe("play subagent routing source contracts", () => {
         ),
       ),
     );
+    expectInvalidLedger(
+      forgeRows(emptyLedger(), (rows) =>
+        rows.map((row) =>
+          row.rowId === "row-1"
+            ? {
+                ...row,
+                identityHistory: row.identityHistory.map((identity) => ({
+                  ...identity,
+                  order: 1,
+                })),
+              }
+            : row,
+        ),
+      ),
+    );
     const unknownUnavailable = forgeRows(emptyLedger(), (rows) =>
       rows.map((row) =>
         row.rowId === "row-1"
@@ -7180,6 +7281,13 @@ describe("play subagent routing source contracts", () => {
               ...row,
               identityState: "unknown" as const,
               sessionId: null,
+              identityHistory: [
+                {
+                  order: 0,
+                  identityState: "unknown" as const,
+                  sessionId: null,
+                },
+              ],
               history: [
                 {
                   eventId: "unknown-unavailable",
@@ -7212,11 +7320,184 @@ describe("play subagent routing source contracts", () => {
       reconstruct("episode-unknown"),
       "row-preparation-identity",
     );
+    const resolvedAfterUnavailable = forgeRows(
+      emptyLedger(),
+      (rows) =>
+        rows.map((row) =>
+          row.rowId === "row-1"
+            ? {
+                ...row,
+                identityState: "stable" as const,
+                sessionId: "session-1",
+                identityHistory: [
+                  {
+                    order: 0,
+                    identityState: "unknown" as const,
+                    sessionId: null,
+                  },
+                  {
+                    order: 4,
+                    identityState: "stable" as const,
+                    sessionId: "session-1",
+                  },
+                ],
+                preparationHistory: [
+                  {
+                    kind: "operational-state" as const,
+                    order: 1,
+                    state: "completed",
+                  },
+                  {
+                    kind: "required-state-captured" as const,
+                    order: 2,
+                    evidence: "unknown terminal state captured",
+                  },
+                  {
+                    kind: "operational-state" as const,
+                    order: 5,
+                    state: "completed",
+                  },
+                  {
+                    kind: "required-state-captured" as const,
+                    order: 6,
+                    evidence: "stable identity state recaptured",
+                  },
+                ],
+                history: [
+                  {
+                    eventId: "resolved-old-unavailable",
+                    kind: "closure-unavailable" as const,
+                    order: 3,
+                    sessionId: null,
+                    reason: "stable identity unavailable",
+                  },
+                ],
+                projection: "close-unavailable" as const,
+              }
+            : row,
+        ),
+      6,
+    );
+    const resolvedRecovery = apply(
+      resolvedAfterUnavailable,
+      start("origin-resolved", "episode-resolved", [ledgerRow()]),
+    );
+    const resolvedClosed = apply(resolvedRecovery, {
+      kind: "record-row-close",
+      rowId: "row-1",
+      sessionId: "session-1",
+      attemptEventId: "resolved-close-attempt",
+      successEventId: "resolved-close-success",
+    });
+    const resolvedAuthorized = apply(resolvedClosed, {
+      kind: "authorize",
+      episodeId: "episode-resolved",
+      evidence: closeEvidence("episode-resolved", ledgerRow(), {
+        rowEventId: "resolved-close-success",
+      }),
+    });
+    expect(
+      apply(resolvedAuthorized, reconstruct("episode-resolved")).episodes[0]
+        ?.state,
+    ).toBe("ready");
+    expect(resolvedClosed.rows[0]?.history[0]).toMatchObject({
+      kind: "closure-unavailable",
+      sessionId: null,
+    });
+
+    expectInvalidLedger(
+      forgeRows(resolvedAfterUnavailable, (rows) =>
+        rows.map((row) =>
+          row.rowId === "row-1"
+            ? {
+                ...row,
+                identityHistory: [
+                  {
+                    order: 0,
+                    identityState: "stable" as const,
+                    sessionId: "session-before",
+                  },
+                  ...row.identityHistory.slice(1),
+                ],
+              }
+            : row,
+        ),
+      ),
+    );
+    expectInvalidLedger(
+      forgeRows(resolvedAfterUnavailable, (rows) =>
+        rows.map((row) =>
+          row.rowId === "row-1" ? { ...row, sessionId: "session-other" } : row,
+        ),
+      ),
+    );
+    const staleIdentityCapture = forgeRows(
+      emptyLedger(),
+      (rows) =>
+        rows.map((row) =>
+          row.rowId === "row-1"
+            ? {
+                ...row,
+                identityHistory: [
+                  {
+                    order: 0,
+                    identityState: "unknown" as const,
+                    sessionId: null,
+                  },
+                  {
+                    order: 3,
+                    identityState: "stable" as const,
+                    sessionId: "session-1",
+                  },
+                ],
+                preparationHistory: [
+                  {
+                    kind: "operational-state" as const,
+                    order: 1,
+                    state: "completed",
+                  },
+                  {
+                    kind: "required-state-captured" as const,
+                    order: 2,
+                    evidence: "captured before identity resolution",
+                  },
+                ],
+                history: [
+                  {
+                    eventId: "stale-identity-attempt",
+                    kind: "close-attempted" as const,
+                    order: 4,
+                    sessionId: "session-1",
+                  },
+                  {
+                    eventId: "stale-identity-success",
+                    kind: "close-succeeded" as const,
+                    order: 5,
+                    sessionId: "session-1",
+                  },
+                ],
+                projection: "closed=yes" as const,
+              }
+            : row,
+        ),
+      5,
+    );
+    expectInvalidLedger(staleIdentityCapture);
     expectInvalidLedger(
       forgeRows(unknownUnavailable, (rows) =>
         rows.map((row) =>
           row.rowId === "row-1"
-            ? { ...row, identityState: "pending" as const }
+            ? {
+                ...row,
+                identityState: "pending" as const,
+                identityHistory: [
+                  {
+                    order: 0,
+                    identityState: "pending" as const,
+                    sessionId: null,
+                  },
+                ],
+              }
             : row,
         ),
       ),
@@ -7637,6 +7918,13 @@ describe("play subagent routing source contracts", () => {
                 ...row,
                 identityState,
                 sessionId: identityState === "stable" ? "session-1" : null,
+                identityHistory: [
+                  {
+                    order: 0,
+                    identityState,
+                    sessionId: identityState === "stable" ? "session-1" : null,
+                  },
+                ],
                 preparationHistory: history,
               }
             : row,
