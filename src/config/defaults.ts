@@ -1,6 +1,6 @@
 import { DEFAULT_MANIFEST_PATH } from "./identity.js";
 
-export const DEFAULT_CONFIG_YAML = `version: 1
+export const DEFAULT_CONFIG_YAML = `version: 2
 
 library:
   skillsDir: ./skills
@@ -31,27 +31,16 @@ platform:
 manifest:
   path: ${DEFAULT_MANIFEST_PATH}
 
-modelTiers:
-  fast:
-    claude:
-      model: claude-haiku-4-5
-    codex:
-      model: gpt-5.6-terra
-      reasoning_effort: low
-  standard:
-    claude:
-      model: claude-sonnet-4-6
-      effort: medium
-    codex:
-      model: gpt-5.6-sol
-      reasoning_effort: high
-  deep:
-    claude:
-      model: claude-opus-4-7
-      effort: high
-    codex:
-      model: gpt-5.6-sol
-      reasoning_effort: xhigh
+capabilityProfiles:
+  efficient:
+    claude: claude-haiku-4-5-20251001
+    codex: gpt-5.6-luna
+  balanced:
+    claude: claude-sonnet-5
+    codex: gpt-5.6-terra
+  frontier:
+    claude: claude-opus-4-8
+    codex: gpt-5.6-sol
 `;
 
 export const SAMPLE_SKILL_MD = `---
@@ -80,14 +69,13 @@ instructions: |
   Describe what this agent does and how it should behave.
 
 skills: []
+capability: balanced
 
 claude:
-  model: "{{model:standard}}"
   tools:
     - Read
     - Grep
 
 codex:
-  model: "{{model:standard}}"
   sandbox_mode: read-only
 `;

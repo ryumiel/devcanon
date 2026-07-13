@@ -1,6 +1,7 @@
 import { chmod, cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { parse as parseYaml } from "yaml";
 import {
   canMutateExecutableMode,
   cleanupTempDir,
@@ -9,11 +10,15 @@ import {
 import { installTestLogger } from "../../__test-helpers__/logger.js";
 import type { TestLoggerResult } from "../../__test-helpers__/logger.js";
 import { loadConfig } from "../../config/load.js";
-import type { ResolvedConfig } from "../../config/schema.js";
+import {
+  AgentSourceSchema,
+  ConfigSchema,
+  type ResolvedConfig,
+} from "../../config/schema.js";
 import { sync } from "../../install/sync.js";
 import { renderAll } from "../../render/pipeline.js";
 import type { UserError } from "../../utils/errors.js";
-import { pathExists } from "../../utils/fs.js";
+import { pathExists, readTextFile } from "../../utils/fs.js";
 import { initAction } from "./init.js";
 
 const executableModeMutable = await canMutateExecutableMode();
@@ -63,25 +68,73 @@ describe("initAction", () => {
     );
   });
 
-  it("emits the selected Codex tiers without changing the initialized Claude tiers", async () => {
+  it("emits the exact version 2 capability profile catalog", async () => {
     await initAction();
 
-    const config = await loadConfig(path.join(tempDir, "devcanon.config.yaml"));
+    const raw = await readTextFile(path.join(tempDir, "devcanon.config.yaml"));
+    const config = ConfigSchema.parse(parseYaml(raw));
 
-    expect(config.modelTiers).toEqual({
-      fast: {
-        claude: { model: "claude-haiku-4-5" },
-        codex: { model: "gpt-5.6-terra", reasoning_effort: "low" },
+    expect(config.version).toBe(2);
+    expect(config.capabilityProfiles).toEqual({
+      efficient: {
+        claude: "claude-haiku-4-5-20251001",
+        codex: "gpt-5.6-luna",
       },
-      standard: {
-        claude: { model: "claude-sonnet-4-6", effort: "medium" },
-        codex: { model: "gpt-5.6-sol", reasoning_effort: "high" },
+      balanced: {
+        claude: "claude-sonnet-5",
+        codex: "gpt-5.6-terra",
       },
-      deep: {
-        claude: { model: "claude-opus-4-7", effort: "high" },
-        codex: { model: "gpt-5.6-sol", reasoning_effort: "xhigh" },
+      frontier: {
+        claude: "claude-opus-4-8",
+        codex: "gpt-5.6-sol",
       },
     });
+  });
+
+  it("emits a balanced sample agent without target model or effort fields", async () => {
+    await initAction();
+
+    const raw = await readTextFile(
+      path.join(tempDir, "agents", "example-agent.yaml"),
+    );
+    const agent = AgentSourceSchema.parse(parseYaml(raw));
+
+    expect(agent.capability).toBe("balanced");
+    expect(agent.claude).toEqual({ tools: ["Read", "Grep"] });
+    expect(agent.codex).toEqual({ sandbox_mode: "read-only" });
+  });
+
+  it("checks config collision before runtime preflight", async () => {
+    const configPath = path.join(tempDir, "devcanon.config.yaml");
+    await writeFile(configPath, "existing config\n", "utf-8");
+
+    await expect(
+      initAction({ runtimeSourceDir: path.join(tempDir, "missing-runtime") }),
+    ).rejects.toMatchObject({
+      message: "devcanon.config.yaml already exists in this directory.",
+      filePath: expect.stringMatching(/devcanon\.config\.yaml$/u),
+    } satisfies Partial<UserError>);
+    expect(await readFile(configPath, "utf-8")).toBe("existing config\n");
+  });
+
+  it("preserves partial scaffold state after a post-config write failure", async () => {
+    const blockedSamplePath = path.join(
+      tempDir,
+      "skills",
+      "example-skill",
+      "SKILL.md",
+    );
+    await mkdir(blockedSamplePath, { recursive: true });
+
+    await expect(initAction()).rejects.toThrow();
+
+    expect(await pathExists(path.join(tempDir, "devcanon.config.yaml"))).toBe(
+      true,
+    );
+    expect(await pathExists(blockedSamplePath)).toBe(true);
+    expect(
+      await pathExists(path.join(tempDir, "agents", "example-agent.yaml")),
+    ).toBe(false);
   });
 
   it("preserves an existing matching runtime support skill path", async () => {

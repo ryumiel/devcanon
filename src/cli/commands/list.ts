@@ -25,7 +25,14 @@ export async function listAction(
     strict,
   );
 
-  const skills = await loadAndValidateSkills(config.library.skillsDir);
+  const skills = await loadAndValidateSkills(config.library.skillsDir, {
+    diagnostics: {
+      enabled: false,
+      capabilityProfiles: config.capabilityProfiles,
+      toolNames: config.toolNames,
+      fileArtifacts: config.fileArtifacts,
+    },
+  });
   const agents = await loadAndValidateAgents(config.library.agentsDir, skills, {
     strict,
   });
