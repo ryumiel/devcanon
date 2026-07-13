@@ -23,8 +23,8 @@ The ledger is agent-local/controller-local state; do not write it as durable
 repository documentation and do not pass it to reviewer agents as evidence.
 Reviewers and implementers still read the worktree from disk.
 
-Track one row per active, completed, superseded, or pending session. Keep these
-ledger dimensions separate:
+Track one row per pending or dispatched session, including sessions the
+workflow has completed or superseded. Keep these ledger dimensions separate:
 
 - session identity when available, or `agent_id=pending` before dispatch;
 - role and task, phase, or review scope;
@@ -46,6 +46,12 @@ implementer report, changed files and tests, a reviewer report and concrete
 findings, a gate result, a research brief path, a CI investigation summary, or
 an open question or blocker detail that must survive session loss. Capture the
 role-specific result before cleanup or supersession.
+
+Supersession is a workflow/controller decision recorded with the captured role
+result after the required role-specific state is captured. It never replaces
+the session's actual operational state. Cleanup eligibility reads that captured
+supersession decision; do not invent a `superseded` operational state or add a
+separate ledger dimension.
 
 Update the ledger before and after every dispatch. A pre-dispatch row may use
 `agent_id=pending` until the runtime returns a stable id. The ledger is the
@@ -98,16 +104,18 @@ missing, automatic closure is unavailable for that session.
 
 ## Cleanup Gate Before Spawns
 
-Before every new subagent spawn, inspect the lifecycle ledger for completed or
-superseded sessions. The cleanup gate may close only sessions whose
+Before every new subagent spawn, inspect the lifecycle ledger for completed
+sessions or sessions whose captured role result records a workflow/controller
+supersession decision. The cleanup gate may close only sessions whose required
 role-specific state has already been captured.
 
 1. Capture the role-specific state needed by the owning workflow before
-   closing or superseding any session.
+   closing any session or recording its supersession decision.
 2. When the target is `automatic-close-supported`, attempt to close completed
-   or superseded sessions after the required state is recorded. Mark
-   `closed=yes` only after observing a successful close result for that stable
-   session identity and exposed usable close operation.
+   sessions or sessions with a captured supersession decision after the
+   required state is recorded. Mark `closed=yes` only after observing a
+   successful close result for that stable session identity and exposed usable
+   close operation.
 3. When the target is `inventory-only` or `cleanup-unavailable`, first capture
    the same role-specific state, then record the `close-unavailable` reason
    before spawning instead of claiming closure.

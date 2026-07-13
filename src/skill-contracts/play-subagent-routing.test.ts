@@ -17,6 +17,31 @@ function sliceBetween(content: string, start: string, end: string): string {
   return content.slice(startIndex, endIndex);
 }
 
+function markdownTableRow(content: string, firstCell: string): string {
+  const escapedCell = firstCell.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const row = new RegExp(`^\\|\\s*${escapedCell}\\s*\\|.*$`, "m").exec(content);
+
+  expect(row, `missing Markdown table row: ${firstCell}`).not.toBeNull();
+  return normalizeWhitespace(row?.[0] ?? "");
+}
+
+function expectSubstringsInOrder(content: string, substrings: string[]): void {
+  let previousIndex = -1;
+
+  for (const substring of substrings) {
+    const currentIndex = content.indexOf(substring, previousIndex + 1);
+    expect(
+      currentIndex,
+      `missing ordered substring: ${substring}`,
+    ).toBeGreaterThanOrEqual(0);
+    expect(
+      currentIndex,
+      `substring out of order: ${substring}`,
+    ).toBeGreaterThan(previousIndex);
+    previousIndex = currentIndex;
+  }
+}
+
 function parseDotDirectedEdges(content: string): Array<[string, string]> {
   const edges: Array<[string, string]> = [];
 
@@ -2457,25 +2482,47 @@ describe("play subagent routing source contracts", () => {
     expect(normalizeWhitespace(controllerLifecycleLedger)).toContain(
       "Capture the role-specific result before cleanup or supersession",
     );
+    expect(normalizeWhitespace(controllerLifecycleLedger)).toContain(
+      "Supersession is a workflow/controller decision recorded with the captured role result after the required role-specific state is captured",
+    );
+    expect(normalizeWhitespace(controllerLifecycleLedger)).toContain(
+      "It never replaces the session's actual operational state",
+    );
+    expect(normalizeWhitespace(controllerLifecycleLedger)).toContain(
+      "Cleanup eligibility reads that captured supersession decision",
+    );
+    expect(normalizeWhitespace(controllerLifecycleLedger)).toContain(
+      "do not invent a `superseded` operational state or add a separate ledger dimension",
+    );
 
     const capabilityClasses = [
       {
-        name: "automatic-close-supported",
+        firstCell: "`automatic-close-supported`",
         evidence: "Stable identity and an exposed, usable close operation",
+        cleanupClaim:
+          "A close may be attempted; `closed=yes` still requires an observed successful close result",
       },
       {
-        name: "inventory-only",
+        firstCell: "`inventory-only`",
         evidence:
           "Session identity or inventory, but no usable close operation",
+        cleanupClaim:
+          "Record inventory and `close-unavailable: inventory-only; no close operation`",
       },
       {
-        name: "cleanup-unavailable",
+        firstCell: "`cleanup-unavailable`",
         evidence: "Neither reliable inventory nor a usable close operation",
+        cleanupClaim:
+          "Record `close-unavailable: no inventory or close operation` and give operator/UI cleanup steps",
       },
     ] as const;
     for (const capabilityClass of capabilityClasses) {
-      expect(targetLifecycleCapability).toContain(capabilityClass.name);
-      expect(targetLifecycleCapability).toContain(capabilityClass.evidence);
+      const row = markdownTableRow(
+        targetLifecycleCapability,
+        capabilityClass.firstCell,
+      );
+      expect(row).toContain(capabilityClass.evidence);
+      expect(row).toContain(capabilityClass.cleanupClaim);
     }
 
     const surfaceMappings = [
@@ -2501,10 +2548,11 @@ describe("play subagent routing source contracts", () => {
       },
     ] as const;
     for (const surfaceMapping of surfaceMappings) {
-      expect(targetLifecycleCapability).toContain(surfaceMapping.surface);
-      expect(normalizeWhitespace(targetLifecycleCapability)).toContain(
-        surfaceMapping.evidence,
+      const row = markdownTableRow(
+        targetLifecycleCapability,
+        surfaceMapping.surface,
       );
+      expect(row).toContain(surfaceMapping.evidence);
     }
 
     const responsesActionSet =
@@ -2538,7 +2586,7 @@ describe("play subagent routing source contracts", () => {
       "Before every new subagent spawn",
     );
     expect(normalizeWhitespace(cleanupGateBeforeSpawns)).toContain(
-      "Capture the role-specific state needed by the owning workflow before closing or superseding any session",
+      "sessions whose captured role result records a workflow/controller supersession decision",
     );
     expect(normalizeWhitespace(cleanupGateBeforeSpawns)).toContain(
       "Keep sessions open when the owning workflow still requires same-session follow-up",
@@ -2546,6 +2594,15 @@ describe("play subagent routing source contracts", () => {
     expect(normalizeWhitespace(cleanupGateBeforeSpawns)).toContain(
       "Mark `closed=yes` only after observing a successful close result for that stable session identity and exposed usable close operation",
     );
+    expectSubstringsInOrder(normalizeWhitespace(cleanupGateBeforeSpawns), [
+      "Capture the role-specific state needed by the owning workflow",
+      "before closing any session or recording its supersession decision",
+      "When the target is `automatic-close-supported`, attempt to close",
+      "after the required state is recorded",
+      "Mark `closed=yes` only after observing a successful close result",
+      "When the target is `inventory-only` or `cleanup-unavailable`, first capture the same role-specific state",
+      "then record the `close-unavailable` reason",
+    ]);
 
     expect(slotLimitRecovery).toContain("orchestration resource exhaustion");
     expect(normalizeWhitespace(slotLimitRecovery)).toContain(
@@ -2607,6 +2664,12 @@ describe("play subagent routing source contracts", () => {
     );
     expect(normalizeWhitespace(decision)).toContain(
       "`closed=yes` only when the controller observes all three session facts: stable identity, an exposed usable close operation, and a successful close result",
+    );
+    expect(normalizeWhitespace(decision)).toContain(
+      "Supersession is a workflow/controller decision recorded with the captured role result after required role-specific state is captured",
+    );
+    expect(normalizeWhitespace(decision)).toContain(
+      "It does not replace the session's actual operational state or add another ledger dimension. Cleanup eligibility reads that captured decision",
     );
     expect(decision).toContain(
       "`play-subagent-execution` owns task execution, per-task review routing,\nimplementer snapshot consumption, and same-session implementer fix-loop\nexceptions",

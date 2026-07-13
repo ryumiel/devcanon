@@ -66,6 +66,11 @@ successful close result. Capability class, waiting, interruption, completion,
 inventory, or reuse cannot stand in for that evidence. Role-specific state is
 captured before cleanup or supersession.
 
+Supersession is a workflow/controller decision recorded with the captured role
+result after required role-specific state is captured. It does not replace the
+session's actual operational state or add another ledger dimension. Cleanup
+eligibility reads that captured decision.
+
 Workflow-specific dispatch rules stay with the workflow that owns them. For
 example, `play-subagent-execution` owns task execution, per-task review routing,
 implementer snapshot consumption, and same-session implementer fix-loop
