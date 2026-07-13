@@ -16,8 +16,10 @@ renderers that consume them. See
 1. Record the exact known v1 DevCanon CLI version or immutable revision that
    successfully validates and renders the current library. Do not rely on a
    moving global installation.
-2. Back up the v1 source directories, `devcanon.config.yaml`, and the current
-   install manifest. Preserve any installed managed output needed for rollback.
+2. Back up the v1 source directories, `devcanon.config.yaml`, the current
+   install manifest, installed managed outputs, and any generated paths that
+   symlink-mode installs reference. Preserve the manifest, installed paths, and
+   symlink targets as one matched rollback set.
 3. Using only that pinned v1 CLI, run strict validation and render a baseline
    in an isolated temporary checkout or directory.
 4. Record the complete relative artifact inventory for both targets and retain
@@ -92,17 +94,23 @@ or effort silently.
 1. Stop using the version 2 CLI for the restored library.
 2. Restore the backed-up v1 source directories and v1 config.
 3. Choose one managed-state path; never combine them:
-   - Restore the backed-up v1 manifest and its corresponding installed managed
-     outputs together as one matched pair.
-   - Or leave the current manifest and installed managed outputs together and
-     intact. Use only the exact pinned v1 CLI to validate and render, then run
-     and inspect a successful non-force `devcanon sync --dry-run`. After
-     explicit operator authorization, the pinned v1 CLI may perform the
-     corresponding non-force sync.
+   - Restore the backed-up v1 manifest, installed managed outputs, and any
+     generated targets referenced by symlink-mode installs together as one
+     matched set.
+   - Or leave the current manifest, generated tree, and installed managed
+     outputs together and intact. Use only the exact pinned v1 CLI to validate.
+     If separate rendered inspection is needed, render into an isolated
+     generated directory that no installed symlink references. Then run and
+     inspect a successful non-force `devcanon sync --dry-run` against the live
+     pair; dry-run performs its render and plan without writing generated,
+     installed, or manifest state. After explicit operator authorization, the
+     pinned v1 CLI may perform the corresponding non-force live sync.
 4. Compare the resulting installed artifacts and manifest-owned state with the
    preserved v1 baseline.
 
-Never restore only the manifest or only the installed content; copy-mode
-identity depends on their matching state. Do not use `--force` during rollback.
-Never run the v2 CLI against restored v1 input: version 2 intentionally rejects
-version 1 and provides no compatibility or translation layer.
+Never restore only one part of the manifest, generated symlink target, and
+installed-content set; copy-mode identity and symlink-mode live behavior depend
+on matching state. Do not run a standalone render into the live generated tree
+before operator authorization. Do not use `--force` during rollback. Never run
+the v2 CLI against restored v1 input: version 2 intentionally rejects version 1
+and provides no compatibility or translation layer.

@@ -171,8 +171,10 @@ have distinct diagnostics:
   capability" error with the canonical token list.
 - Captured `tool` and `file` keys are checked against
   `^[a-z0-9][a-z0-9-]*$`. A key such as `{{tool:taskTracker}}` raises an
-  "invalid placeholder key" error before glossary lookup. A well-formed key
-  that is absent from its glossary raises an undefined-placeholder error.
+  "invalid placeholder key" error before glossary lookup. If the relevant
+  glossary is absent, the error says `toolNames` or `fileArtifacts` is not
+  configured. If the glossary exists but lacks a well-formed key, the error is
+  `unknown tool key` or `unknown file key`.
 
 The shared runtime matcher remains permissive enough to capture and diagnose
 these invalid forms rather than silently leaving them unresolved.

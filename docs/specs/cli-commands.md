@@ -187,7 +187,8 @@ Reports:
 - changed
 - unmanaged conflicts
 
-Diff output may be line-based for v1.
+Changed agent files use a line-based patch. Skill-directory changes are
+reported as status summaries.
 
 ---
 
