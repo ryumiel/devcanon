@@ -44,6 +44,24 @@ describe("resolveCapabilityModel", () => {
     },
   );
 
+  it.each([
+    ["claude", "codex"],
+    ["codex", "claude"],
+  ] as const)(
+    "rejects an inherited %s mapping even when %s is own",
+    (target, ownTarget) => {
+      const profile = Object.create({
+        [target]: "inherited-model",
+      }) as CapabilityProfiles["balanced"];
+      profile[ownTarget] = "own-model";
+      const profiles = { ...PROFILES, balanced: profile };
+
+      expect(() =>
+        resolveCapabilityModel(undefined, "balanced", target, profiles),
+      ).toThrow(new RegExp(`no own ${target} model mapping`));
+    },
+  );
+
   it("returns only a model string or undefined and accepts no effort", () => {
     expectTypeOf(resolveCapabilityModel).parameters.toEqualTypeOf<
       [

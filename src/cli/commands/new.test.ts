@@ -4,7 +4,6 @@ import {
   cleanupTempDir,
   createConfigFile,
   createTempDir,
-  makeConfigYaml,
 } from "../../__test-helpers__/fixtures.js";
 import { installTestLogger } from "../../__test-helpers__/logger.js";
 import { loadConfig } from "../../config/load.js";
@@ -21,13 +20,21 @@ describe("newAgentAction", () => {
     tempDir = await createTempDir();
     configPath = await createConfigFile(
       tempDir,
-      makeConfigYaml({
-        library: {
-          skillsDir: "./skills",
-          agentsDir: "./agents",
-          generatedDir: "./generated",
-        },
-      }),
+      [
+        "version: 1",
+        "library:",
+        "  skillsDir: ./skills",
+        "  agentsDir: ./agents",
+        "  generatedDir: ./generated",
+        "modelTiers:",
+        "  standard:",
+        "    claude:",
+        "      model: claude-sonnet-4-6",
+        "      effort: medium",
+        "    codex:",
+        "      model: gpt-5.4",
+        "      reasoning_effort: medium",
+      ].join("\n"),
     );
     ({ restore } = installTestLogger());
   });
@@ -37,7 +44,7 @@ describe("newAgentAction", () => {
     await cleanupTempDir(tempDir);
   });
 
-  async function scaffoldReviewer(): Promise<void> {
+  it("writes a new agent scaffold using the tier placeholder pattern", async () => {
     await newAgentAction(
       "reviewer",
       {},
@@ -49,25 +56,33 @@ describe("newAgentAction", () => {
         },
       },
     );
-  }
-
-  it("writes a balanced capability scaffold without model placeholders", async () => {
-    await scaffoldReviewer();
 
     const content = await readTextFile(
       path.join(tempDir, "agents", "reviewer.yaml"),
     );
-    expect(content).toContain("capability: balanced");
-    expect(content).not.toContain("{{model:");
-    expect(content).not.toContain("\n  model:");
+
+    expect(content).toContain('model: "{{model:standard}}"');
+    expect(content).not.toContain("model: sonnet");
     expect(content).toContain("codex:");
+    expect(content).toContain('model: "{{model:standard}}"');
   });
 
-  it("renders the scaffold through both native targets without inferred effort", async () => {
-    await scaffoldReviewer();
+  it("renders the scaffold successfully when the standard tier exists", async () => {
+    await newAgentAction(
+      "reviewer",
+      {},
+      {
+        parent: {
+          parent: {
+            opts: () => ({ config: configPath }),
+          },
+        },
+      },
+    );
 
     const config = await loadConfig(configPath);
     const result = await renderAll(config, false);
+
     const claudeAgent = result.outputs.find(
       (output) => output.type === "agent" && output.target === "claude",
     );
@@ -75,13 +90,125 @@ describe("newAgentAction", () => {
       (output) => output.type === "agent" && output.target === "codex",
     );
 
-    expect(claudeAgent?.content).toContain(
-      `model: ${config.capabilityProfiles.balanced.claude}`,
+    expect(claudeAgent?.content).toContain("model: claude-sonnet-4-6");
+    expect(claudeAgent?.content).toContain("effort: medium");
+    expect(codexAgent?.content).toContain('model = "gpt-5.4"');
+    expect(codexAgent?.content).toContain('model_reasoning_effort = "medium"');
+  });
+
+  it("uses the first configured tier when standard is missing", async () => {
+    const missingStandardConfigPath = await createConfigFile(
+      tempDir,
+      [
+        "version: 1",
+        "library:",
+        "  skillsDir: ./skills",
+        "  agentsDir: ./agents",
+        "  generatedDir: ./generated",
+        "modelTiers:",
+        "  default:",
+        "    claude:",
+        "      model: claude-haiku-4-5",
+        "    codex:",
+        "      model: gpt-5.4-mini",
+      ].join("\n"),
     );
-    expect(claudeAgent?.content).not.toContain("effort:");
-    expect(codexAgent?.content).toContain(
-      `model = "${config.capabilityProfiles.balanced.codex}"`,
+
+    await newAgentAction(
+      "reviewer",
+      {},
+      {
+        parent: {
+          parent: {
+            opts: () => ({ config: missingStandardConfigPath }),
+          },
+        },
+      },
     );
-    expect(codexAgent?.content).not.toContain("model_reasoning_effort");
+
+    const content = await readTextFile(
+      path.join(tempDir, "agents", "reviewer.yaml"),
+    );
+    expect(content).toContain('model: "{{model:default}}"');
+  });
+
+  it("uses the first inserted tier when multiple tiers exist without standard", async () => {
+    const multiTierConfigPath = await createConfigFile(
+      tempDir,
+      [
+        "version: 1",
+        "library:",
+        "  skillsDir: ./skills",
+        "  agentsDir: ./agents",
+        "  generatedDir: ./generated",
+        "modelTiers:",
+        "  fast:",
+        "    claude:",
+        "      model: claude-haiku-4-5",
+        "    codex:",
+        "      model: gpt-5.4-mini",
+        "  deep:",
+        "    claude:",
+        "      model: claude-opus-4-7",
+        "    codex:",
+        "      model: gpt-5.4",
+      ].join("\n"),
+    );
+
+    await newAgentAction(
+      "reviewer",
+      {},
+      {
+        parent: {
+          parent: {
+            opts: () => ({ config: multiTierConfigPath }),
+          },
+        },
+      },
+    );
+
+    const content = await readTextFile(
+      path.join(tempDir, "agents", "reviewer.yaml"),
+    );
+    expect(content).toContain('model: "{{model:fast}}"');
+    expect(content).not.toContain('model: "{{model:deep}}"');
+  });
+
+  it("omits model scaffolding when no model tiers are configured", async () => {
+    const noTierConfigPath = await createConfigFile(
+      tempDir,
+      [
+        "version: 1",
+        "library:",
+        "  skillsDir: ./skills",
+        "  agentsDir: ./agents",
+        "  generatedDir: ./generated",
+      ].join("\n"),
+    );
+
+    await newAgentAction(
+      "reviewer",
+      {},
+      {
+        parent: {
+          parent: {
+            opts: () => ({ config: noTierConfigPath }),
+          },
+        },
+      },
+    );
+
+    const content = await readTextFile(
+      path.join(tempDir, "agents", "reviewer.yaml"),
+    );
+    expect(content).not.toContain("{{model:");
+    expect(content).not.toContain("\n  model:");
+
+    const config = await loadConfig(noTierConfigPath);
+    const result = await renderAll(config, false);
+    const agentOutputs = result.outputs.filter(
+      (output) => output.type === "agent",
+    );
+    expect(agentOutputs).toHaveLength(2);
   });
 });
