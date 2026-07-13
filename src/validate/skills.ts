@@ -273,7 +273,7 @@ export function collectActiveModelPlaceholderErrors(
           }
           seenTokens.add(token);
           errors.push(
-            `Skill "${skillName}" (${target}): unsupported model capability "${value}" in token "${token}" — use ${supported}; capabilityProfiles in ${CONFIG_FILE_NAME} defines the target model strings (source: ${sourceFilePath})`,
+            `Skill "${skillName}" (${target}): unsupported model capability "${value}" in token "${token}" — use ${supported}; the capabilityProfiles catalog in ${CONFIG_FILE_NAME} defines the target model strings (source: ${sourceFilePath})`,
           );
         }
       }

@@ -166,7 +166,7 @@ function unsupportedModelPlaceholderError(
     .map((capability) => `{{model:${capability}}}`)
     .join(", ");
   return renderError(
-    `unsupported model capability "${value}" in token "${token}" — use ${supported}; ${NAMESPACE_CONFIG_KEY.model} in ${CONFIG_FILE_NAME} defines the target model strings`,
+    `unsupported model capability "${value}" in token "${token}" — use ${supported}; the ${NAMESPACE_CONFIG_KEY.model} catalog in ${CONFIG_FILE_NAME} defines the target model strings`,
     context,
   );
 }
