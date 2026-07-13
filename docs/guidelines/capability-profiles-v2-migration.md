@@ -71,9 +71,17 @@ authority.
 ## Controlled sync
 
 Only after the isolated inventory and allowlisted content comparison pass may
-an operator authorize `devcanon sync`. Review the install plan or use a dry run
-first. The migration procedure itself never performs a live sync and never
-uses mutation shortcuts.
+an operator prepare a live sync:
+
+1. Run `devcanon sync --dry-run` successfully with the exact target and install
+   mode intended for the live operation.
+2. Inspect every planned action, conflict, overwrite, and removal. Resolve or
+   explicitly accept each item; a partial or unexplained plan is a blocker.
+3. Obtain explicit operator authorization for that reviewed plan.
+4. Only then run the corresponding live `devcanon sync`.
+
+These instructions do not themselves grant operator authorization and never
+permit mutation shortcuts.
 
 Verify each provider client and account separately. A model or effort rejected
 at runtime blocks deployment; do not substitute an alias, family member, model,
@@ -82,12 +90,19 @@ or effort silently.
 ## Rollback
 
 1. Stop using the version 2 CLI for the restored library.
-2. Restore the backed-up v1 source directories, v1 config, and manifest or
-   managed-output backup.
-3. Use only the exact pinned v1 CLI to validate, render, inspect, and, if the
-   operator authorizes it, restore installed managed outputs.
-4. Compare restored artifacts with the preserved v1 baseline.
+2. Restore the backed-up v1 source directories and v1 config.
+3. Choose one managed-state path; never combine them:
+   - Restore the backed-up v1 manifest and its corresponding installed managed
+     outputs together as one matched pair.
+   - Or leave the current manifest and installed managed outputs together and
+     intact. Use only the exact pinned v1 CLI to validate and render, then run
+     and inspect a successful non-force `devcanon sync --dry-run`. After
+     explicit operator authorization, the pinned v1 CLI may perform the
+     corresponding non-force sync.
+4. Compare the resulting installed artifacts and manifest-owned state with the
+   preserved v1 baseline.
 
-Do not use `--force` during rollback. Never run the v2 CLI against restored v1
-input: version 2 intentionally rejects version 1 and provides no compatibility
-or translation layer.
+Never restore only the manifest or only the installed content; copy-mode
+identity depends on their matching state. Do not use `--force` during rollback.
+Never run the v2 CLI against restored v1 input: version 2 intentionally rejects
+version 1 and provides no compatibility or translation layer.

@@ -163,15 +163,19 @@ Escape with a leading backslash: `\{{model:frontier}}`,
 Placeholders inside fenced code blocks (backtick or tilde) are
 not substituted.
 
-Other namespaces are rejected at render time. The renderer also
-re-validates each captured key against the namespace's stricter
-config-time format -- the runtime regex `[\w-]+` is intentionally
-permissive for matching, but a key that does not match the
-namespace's contract (the exact `efficient`, `balanced`, or `frontier`
-capability enum for `model`; `^[a-z0-9][a-z0-9-]*$` for `tool` / `file`)
-raises an "invalid placeholder key" error
-before glossary lookup, so e.g. `{{tool:taskTracker}}` fails
-fast rather than appearing as an undefined entry.
+Other namespaces are rejected at render time. Model and glossary-key errors
+have distinct diagnostics:
+
+- An active model token whose value is malformed or is not exactly
+  `efficient`, `balanced`, or `frontier` raises an "unsupported model
+  capability" error with the canonical token list.
+- Captured `tool` and `file` keys are checked against
+  `^[a-z0-9][a-z0-9-]*$`. A key such as `{{tool:taskTracker}}` raises an
+  "invalid placeholder key" error before glossary lookup. A well-formed key
+  that is absent from its glossary raises an undefined-placeholder error.
+
+The shared runtime matcher remains permissive enough to capture and diagnose
+these invalid forms rather than silently leaving them unresolved.
 
 ---
 

@@ -67,7 +67,8 @@ Most skills need only `name`, `description`, and optionally
 
 ### `claude:` for model and effort
 
-Use when a Claude run benefits from a specific reasoning tier or effort.
+Use when a Claude run benefits from a specific model capability or explicit
+target-native effort.
 The `claude:` block accepts `model`, `effort`, `when_to_use`,
 `argument-hint`, `arguments`, `disable-model-invocation`,
 `user-invocable`, `context`, `agent`, `paths`, and `shell`.

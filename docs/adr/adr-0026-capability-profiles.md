@@ -81,8 +81,11 @@ documentation above. Exact Claude Code runtime availability and the
 compatibility of every mapped model with every explicit effort remain
 unverified because no live Claude session was available. That limitation does
 not block the local source-policy decision; operators must verify their own
-client and account before deployment. The Codex mapping retains the dated
-selection evidence recorded in ADR-0025, while effort is now chosen separately.
+client and account before deployment. The Terra and Sol rows retain the dated
+local runtime-smoke evidence recorded in ADR-0025, while effort is now chosen
+separately. The Luna row is supported by the current official Codex model guide
+and provider catalog linked above, but remains locally runtime-unverified.
+Operators must verify Luna in their own client and account before deployment.
 
 ## Consequences
 

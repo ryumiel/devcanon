@@ -46,7 +46,7 @@ Avoid these cases:
   method content into skills.
 - Giving broad permissions by default when least privilege would work.
 - Treating delegation or orchestration as a YAML field or schema control knob.
-  In v1, those expectations belong only in prose instructions, not in
+  Those expectations belong only in prose instructions, not in
   first-class source-schema fields.
 - **Project-internal references in `instructions:` prose.** Agent
   instructions render into user-wide installations and must read
