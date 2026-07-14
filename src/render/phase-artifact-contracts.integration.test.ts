@@ -169,21 +169,19 @@ describe("rendered phase artifact smoke coverage", () => {
         "blockers or intentional implementation choices",
       );
 
+      expect(playPlanning).toContain("references/planning-criteria.md");
       expect(normalizedPlayPlanning).toContain(
-        "Exact `Contract Decisions` sections and equivalent clearly labeled contract-decision sections are both design contract authority",
+        "For contract-heavy work, boundary changes, generated or side-channel artifacts, hard requirements, and contract examples, apply the canonical reference",
       );
       expect(normalizedPlayPlanning).toContain(
-        "creates or changes a boundary but lacks exact or equivalent contract-decision authority",
-      );
-      expect(normalizedPlayPlanning).toContain(
-        "explicit blocker or intentional implementation choice disposition",
+        "Unknown authority is a blocker, not permission to generalize",
       );
       expect(playPlanning).toContain("validation-before-write ordering");
       expect(normalizedPlayPlanning).toContain(
-        "observable evidence categories and source surfaces",
+        "Every task must map to an authoritative requirement and be necessary for an in-scope outcome",
       );
       expect(normalizedPlayPlanning).toContain(
-        "does not fail solely because exact command sequences are omitted",
+        "Normal implementation choices discoverable from named sources remain implementer work",
       );
 
       const playReviewResponse = bodies[`play-review-response:${target}`];

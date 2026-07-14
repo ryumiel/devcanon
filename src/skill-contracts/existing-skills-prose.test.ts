@@ -373,14 +373,14 @@ describe("existing skills source prose contracts", () => {
   it("keeps design-to-plan requirement traceability contracts in source", async () => {
     const playBrainstorm = await readSkillSource("play-brainstorm");
     const playPlanning = await readSkillSource("play-planning");
+    const planningCriteria = await readRepoFile(
+      "skills/play-planning/references/planning-criteria.md",
+    );
     const hardRequirements = getMarkdownSection(
       playBrainstorm,
       "Hard Requirements Ledger",
     );
-    const traceability = getMarkdownSection(
-      playPlanning,
-      "Requirements Traceability",
-    );
+    const traceability = planningCriteria;
     const planningSelfReview = getMarkdownSection(playPlanning, "Self-Review");
     const planningReview = getMarkdownSection(playPlanning, "Plan Review");
     const normalizedHardRequirements = normalizeWhitespace(hardRequirements);
@@ -407,63 +407,114 @@ describe("existing skills source prose contracts", () => {
     );
 
     expect(traceability).toContain("## Traceability Matrix");
-    expect(traceability).toContain(
-      "plans based on designs with hard requirements",
+    expect(normalizedTraceability).toContain(
+      "Every requirement maps to current task coverage, acceptance criteria, and minimum-sufficient proof",
     );
     expect(normalizedTraceability).toContain(
-      "task coverage, acceptance criteria, and proof or verification obligation",
-    );
-    expect(normalizedTraceability).toContain(
-      "| Requirement | Task coverage | Acceptance criteria | Proof obligation |",
-    );
-    expect(normalizedTraceability).toContain("plan-review failures");
-    expect(normalizedTraceability).toContain(
-      "lacks explicit task coverage, acceptance criteria, or proof coverage",
-    );
-    expect(normalizedTraceability).toContain(
-      "docs/guidelines/writing-skills.md",
-    );
-    expect(normalizedTraceability).toContain(
-      "docs/guidelines/documentation-checklists.md",
-    );
-    expect(normalizedTraceability).toContain("Adjacent Governance Policy Set");
-
-    expect(normalizedPlanningSelfReview).toContain(
-      "Requirements traceability check",
-    );
-    expect(normalizedPlanningSelfReview).toContain("`## Traceability Matrix`");
-    expect(normalizedPlanningSelfReview).toContain(
-      "every ledger row has explicit task coverage, acceptance criteria, and proof coverage",
+      "Incidental modal prose, examples, comments, or live evidence do not create additional hard requirements",
     );
 
-    expect(normalizedPlanningReview).toContain("`## Hard Requirements` ledger");
-    expect(normalizedPlanningReview).toContain("`## Traceability Matrix`");
+    expect(normalizedPlanningSelfReview).toContain("Scope Envelope");
+    expect(normalizedPlanningSelfReview).toContain("Scope Delta");
+    expect(normalizedPlanningSelfReview).toContain("minimum-sufficient proof");
     expect(normalizedPlanningReview).toContain(
-      "every hard requirement has explicit task coverage, acceptance criteria, and proof coverage",
+      "authoritative requirement coverage",
+    );
+    expect(normalizedPlanningReview).toContain(
+      "The canonical reference owns the detailed criteria",
+    );
+    expect(playPlanning).toContain("references/planning-criteria.md");
+  });
+
+  it("keeps planning scope authority and proof proportionality in one canonical reference", async () => {
+    const playPlanning = await readSkillSource("play-planning");
+    const planningCriteria = await readRepoFile(
+      "skills/play-planning/references/planning-criteria.md",
+    );
+    const normalizedCriteria = normalizeWhitespace(planningCriteria);
+
+    expect(normalizedCriteria).toContain(
+      "Planning may make approved scope executable, but it must not create new product, infrastructure, governance, or verification obligations",
+    );
+    for (const section of [
+      "## Scope Envelope",
+      "### Expansion triggers",
+      "### Scope Delta",
+      "## Minimum-sufficient proof",
+      "## Finding classifications",
+    ]) {
+      expect(planningCriteria).toContain(section);
+    }
+    for (const classification of [
+      "`CURRENT`",
+      "`BLOCKER`",
+      "`FOLLOW-UP`",
+      "`OPTIONAL`",
+    ]) {
+      expect(planningCriteria).toContain(classification);
+    }
+    expect(normalizedCriteria).toContain(
+      "PASS may coexist with FOLLOW-UP and OPTIONAL findings",
+    );
+    expect(normalizedCriteria).toContain(
+      "Only CURRENT findings may be fixed automatically",
+    );
+    expect(normalizedCriteria).toContain(
+      "Plan Review fails any unauthorized task addition",
+    );
+    expect(normalizedCriteria).toContain(
+      "Use the narrowest existing repository mechanism that demonstrates each acceptance criterion",
+    );
+    expect(normalizedCriteria).toContain(
+      "generalized benchmark corpora, evidence-retention protocols, marker languages, and broad integrity frameworks as FOLLOW-UP",
+    );
+    expect(normalizedCriteria).toContain(
+      "The owning requirements, not the example, determine the actual disposition",
+    );
+    expect(planningCriteria).not.toContain("READY_WITH_RECORDED_ASSUMPTIONS");
+    expect(planningCriteria).not.toContain("Every issue #530");
+    expect(normalizeWhitespace(playPlanning)).toContain(
+      "compare every surface in the Adjacent Governance Policy Set",
+    );
+    expect(normalizeWhitespace(playPlanning)).toContain(
+      "Update only triggered surfaces and record a task-specific inapplicability reason for every unchanged surface",
+    );
+    expect(normalizeWhitespace(playPlanning)).toContain(
+      "The reference, not duplicated gate prose, owns the detailed scope, contract, traceability, task, proof, and finding criteria",
     );
   });
 
   it("keeps play-planning boundary-contract traceability contracts in source", async () => {
     const playPlanning = await readSkillSource("play-planning");
-    const boundaryTraceability = getMarkdownSection(
-      playPlanning,
-      "Boundary-Contract Traceability",
+    const planningCriteria = await readRepoFile(
+      "skills/play-planning/references/planning-criteria.md",
     );
-    const contractChecklist = getMarkdownSection(
-      playPlanning,
-      "Contract Checklist Triggers",
+    const planningAuthority = sliceBetween(
+      planningCriteria,
+      "## Planning authority and readiness",
+      "## Contract and traceability criteria",
     );
-    const planningSelfReview = getMarkdownSection(playPlanning, "Self-Review");
-    const planningReview = getMarkdownSection(playPlanning, "Plan Review");
+    const boundaryTraceability = sliceBetween(
+      planningCriteria,
+      "### Boundary-contract traceability",
+      "### Contract Example Discipline",
+    );
+    const normalizedPlanningAuthority = normalizeWhitespace(planningAuthority);
     const normalizedBoundaryTraceability =
       normalizeWhitespace(boundaryTraceability);
-    const normalizedContractChecklist = normalizeWhitespace(contractChecklist);
-    const normalizedPlanningSelfReview =
-      normalizeWhitespace(planningSelfReview);
-    const normalizedPlanningReview = normalizeWhitespace(planningReview);
+    const fileStructure = getMarkdownSection(playPlanning, "File Structure");
+    const taskStructure = getMarkdownSection(playPlanning, "Task Structure");
+    const remember = getMarkdownSection(playPlanning, "Remember");
+    const normalizedFileStructure = normalizeWhitespace(fileStructure);
+    const normalizedTaskStructure = normalizeWhitespace(taskStructure);
+    const normalizedRemember = normalizeWhitespace(remember);
+
+    expect(normalizedPlanningAuthority).toContain(
+      "map every design contract decision to current task coverage, acceptance criteria, ownership, and proof obligations",
+    );
 
     expect(normalizedBoundaryTraceability).toContain(
-      "contract-heavy plans involving producer, validator, adapter, or consumer boundaries",
+      "For producer, validator, adapter, or consumer boundaries",
     );
 
     for (const requiredBoundaryField of [
@@ -473,74 +524,59 @@ describe("existing skills source prose contracts", () => {
       "producer",
       "validator or policy authority",
       "adapter or consumer",
-      "failure mode",
-      "required proof per boundary participant",
+      "failure behavior for missing or mismatched authority",
+      "observable proof per participant",
     ]) {
       expect(normalizedBoundaryTraceability).toContain(requiredBoundaryField);
     }
 
     expect(normalizedBoundaryTraceability).toContain(
-      "at least one implementation task or an explicit no-code disposition",
-    );
-    expect(normalizedContractChecklist).toContain(
-      "must reference relevant boundary row IDs",
-    );
-    expect(normalizedContractChecklist).toContain(
-      "explicitly name the boundary rows",
-    );
-    expect(normalizedContractChecklist).toContain(
-      "omits relevant boundary row IDs or row ownership",
-    );
-    expect(normalizedContractChecklist).toContain(
-      "even when the checklist precisely restates boundary details",
-    );
-
-    for (const reviewSurface of [
-      normalizedPlanningSelfReview,
-      normalizedPlanningReview,
-    ]) {
-      expect(reviewSurface).toContain(
-        "named boundary participant has no task coverage",
-      );
-      expect(reviewSurface).toContain(
-        "named boundary participant has no proof obligation",
-      );
-      expect(reviewSurface).toContain(
-        "final consumer path is covered but an earlier adapter",
-      );
-      expect(reviewSurface).toContain(
-        "restate vague contract concepts without tying back to the boundary rows",
-      );
-      expect(reviewSurface).toContain(
-        "omits relevant boundary row IDs or row ownership",
-      );
-      expect(reviewSurface).toContain("precisely restates boundary details");
-    }
-
-    expect(normalizedBoundaryTraceability).toContain("Invalid example");
-    expect(normalizedBoundaryTraceability).toContain(
-      "final posting validation",
+      "Every row maps to a current task or an explicit no-code disposition",
     );
     expect(normalizedBoundaryTraceability).toContain(
-      "scope-decision validation",
+      "A final consumer test does not cover a missing producer, validator, or adapter obligation",
     );
-    expect(normalizedBoundaryTraceability).toContain("Valid example");
-
-    for (const requiredParticipant of [
-      "producer artifact",
-      "shared validator",
-      "prior-thread adapter",
-      "approved-review adapter",
-      "workflow prose",
-    ]) {
-      expect(normalizedBoundaryTraceability).toContain(requiredParticipant);
-    }
-
-    expect(normalizedBoundaryTraceability).toContain("boundary row");
     expect(normalizedBoundaryTraceability).toContain(
-      "does not prescribe concrete implementation code",
+      "Every applicable task contract checklist references its governing boundary row IDs",
     );
-    expect(normalizedBoundaryTraceability).toContain("command recipes");
+    expect(normalizedBoundaryTraceability).toContain(
+      "Plan Review fails a checklist that omits relevant row IDs or row ownership",
+    );
+    expect(normalizedBoundaryTraceability).toContain(
+      "Every governed boundary row cites the relevant design contract decision or records why that decision is non-applicable",
+    );
+    expect(normalizedBoundaryTraceability).toContain(
+      "A no-code disposition still names the governing decision",
+    );
+    expect(normalizedBoundaryTraceability).toContain(
+      "Proof must be executable without prescribing implementation",
+    );
+    expect(normalizedFileStructure).toContain(
+      "map the exact files that current tasks will create or modify when those paths are known",
+    );
+    expect(normalizedFileStructure).toContain(
+      "provide bounded authoritative discovery criteria inside already named in-scope consumers or boundaries",
+    );
+    expect(normalizedFileStructure).toContain(
+      "do not use discovery to determine which consumers or boundary participants are in scope",
+    );
+    expect(normalizedFileStructure).toContain(
+      "do not use vague discovery placeholders",
+    );
+    expect(normalizedTaskStructure).toContain(
+      "Discover affected paths (only when individual paths are not yet known)",
+    );
+    expect(normalizedTaskStructure).toContain(
+      "authority: <named source>; criterion: <explicit inclusion rule>",
+    );
+    expect(normalizedRemember).toContain(
+      "Exact affected file paths when known; otherwise bounded authoritative discovery criteria for individual paths inside already named in-scope consumers or boundaries",
+    );
+    expect(normalizedRemember).toContain(
+      "it never determines the in-scope consumers or boundary participants and is never a vague placeholder",
+    );
+    expect(remember).not.toContain("Exact file paths always");
+    expect(playPlanning).toContain("references/planning-criteria.md");
   });
 
   it("keeps play-planning contract example discipline required for contract-changing plans", async () => {
@@ -548,24 +584,16 @@ describe("existing skills source prose contracts", () => {
     const documentationChecklists = await readRepoFile(
       "docs/guidelines/documentation-checklists.md",
     );
-    const contractExampleDiscipline = getMarkdownSection(
-      playPlanning,
-      "Contract Example Discipline",
+    const planningCriteria = await readRepoFile(
+      "skills/play-planning/references/planning-criteria.md",
     );
-    const planningSelfReview = getMarkdownSection(playPlanning, "Self-Review");
-    const planningReview = getMarkdownSection(playPlanning, "Plan Review");
-    const implementerExecutabilityReview = getMarkdownSection(
-      playPlanning,
-      "Implementer Executability Review",
+    const contractExampleDiscipline = sliceBetween(
+      planningCriteria,
+      "### Contract Example Discipline",
+      "### Documentation-impact traceability",
     );
     const normalizedContractExampleDiscipline = normalizeWhitespace(
       contractExampleDiscipline,
-    );
-    const normalizedPlanningSelfReview =
-      normalizeWhitespace(planningSelfReview);
-    const normalizedPlanningReview = normalizeWhitespace(planningReview);
-    const normalizedExecutabilityReview = normalizeWhitespace(
-      implementerExecutabilityReview,
     );
     const normalizedDocumentationChecklists = normalizeWhitespace(
       documentationChecklists,
@@ -577,7 +605,7 @@ describe("existing skills source prose contracts", () => {
       "function shapes",
       "artifacts",
       "CLI output",
-      "helper I/O contracts",
+      "helper I/O",
       "cross-skill contracts",
     ]) {
       expect(normalizedContractExampleDiscipline).toContain(trigger);
@@ -585,102 +613,69 @@ describe("existing skills source prose contracts", () => {
 
     for (const requiredSectionContent of [
       "canonical valid post-change example",
-      "source authority",
-      "invalid example families derived from that canonical valid example",
-      "required proof",
-      "out-of-scope invalid families",
+      "authority",
+      "representative invalid families",
+      "required positive and negative proof",
+      "intentionally out-of-scope invalid families",
     ]) {
       expect(normalizedContractExampleDiscipline).toContain(
         requiredSectionContent,
       );
     }
 
-    for (const tightenedExampleObligation of [
-      "positive examples",
-      "match the target post-change contract",
-      "not the pre-change contract",
-      "invalid examples must mutate exactly one named contract dimension",
-      "mutate exactly one named contract dimension",
-      "unless multi-fault behavior is intentional and named",
-      "source facts change",
-      "derived fields",
-      "explicitly justify",
-    ]) {
-      expect(normalizedContractExampleDiscipline).toContain(
-        tightenedExampleObligation,
-      );
-    }
-
     expect(normalizedContractExampleDiscipline).toContain(
-      "Non-triggered plans state why no trigger applies",
+      "Do not author implementation code, test bodies, fixture bodies, helper names, line edits, shell recipes, or command sequences",
     );
     expect(normalizedContractExampleDiscipline).toContain(
-      "before task planning",
+      "Do not expand a focused acceptance test into an exhaustive matrix unless authority requires it",
     );
     expect(normalizedContractExampleDiscipline).toContain(
-      "Invalid examples without that canonical valid anchor are insufficient",
+      "existing output conventions and named source types may authorize the canonical valid example",
     );
     expect(normalizedContractExampleDiscipline).toContain(
-      "minimal, verifiable, and contract-focused",
+      "do not invent a format decision or negative-test matrix",
     );
     expect(normalizedContractExampleDiscipline).toContain(
-      "incidental phrasing",
-    );
-    expect(normalizedContractExampleDiscipline).toContain("task history");
-    expect(normalizedContractExampleDiscipline).toContain("comment wording");
-    expect(normalizedContractExampleDiscipline).toContain(
-      "reviewer preference",
+      "Positive examples match the target post-change contract, not the pre-change contract",
     );
     expect(normalizedContractExampleDiscipline).toContain(
-      "must not include plan-authored implementation code, test bodies",
+      "unless intentional multi-fault behavior is explicitly named",
     );
     expect(normalizedContractExampleDiscipline).toContain(
-      "helper-name prescriptions, or command recipes",
+      "derived fields in examples or fixtures remain consistent with those facts or the plan explicitly justifies why they do not",
     );
-    expect(
-      normalizedContractExampleDiscipline.indexOf(
-        "canonical valid post-change example",
-      ),
-    ).toBeLessThan(
-      normalizedContractExampleDiscipline.indexOf(
-        "invalid example families derived from that canonical valid example",
-      ),
-    );
-
-    for (const reviewSurface of [
-      normalizedPlanningSelfReview,
-      normalizedPlanningReview,
-      normalizedExecutabilityReview,
-    ]) {
-      expect(reviewSurface).toContain("Contract Example Discipline");
-      expect(reviewSurface).toContain("canonical valid post-change example");
-      expect(reviewSurface).toContain(
-        "invalid example families derived from that canonical valid example",
-      );
-      expect(reviewSurface).toContain("out-of-scope invalid families");
-      expect(reviewSurface).toContain(
-        "positive examples match the target post-change contract",
-      );
-      expect(reviewSurface).toContain(
-        "invalid examples mutate exactly one named contract dimension",
-      );
-      expect(reviewSurface).toContain(
-        "derived fields stay consistent with source facts",
-      );
-      expect(reviewSurface).toContain("fail");
-    }
-
-    expect(normalizeWhitespace(playPlanning)).toContain(
-      "carry forward the adjacent governance surfaces from the design and reconcile them against the Adjacent Governance Policy Set",
-    );
-    expect(normalizeWhitespace(playPlanning)).toContain(
-      "inspect it and either update it for a concrete contradiction or record why the owning source skill remains the right surface",
-    );
+    expect(playPlanning).toContain("references/planning-criteria.md");
     expect(normalizedDocumentationChecklists).toContain(
       "Governance or workflow policy changed: use the Adjacent Governance Policy Set",
     );
     expect(normalizedDocumentationChecklists).toContain(
       "Generated outputs, installed managed outputs, PR descriptions, issues, comments, and `.ephemeral/` notes can provide evidence",
+    );
+  });
+
+  it("keeps play-planning documentation-impact handoff traceable", async () => {
+    const planningCriteria = await readRepoFile(
+      "skills/play-planning/references/planning-criteria.md",
+    );
+    const documentationImpact = sliceBetween(
+      planningCriteria,
+      "### Documentation-impact traceability",
+      "### Hard-requirement traceability",
+    );
+    const planReview = sliceBetween(
+      planningCriteria,
+      "### Plan Review",
+      "### Implementer Executability Review",
+    );
+
+    expect(normalizeWhitespace(documentationImpact)).toContain(
+      "Every `Documentation impact` item from the issue, design, or owning source maps to at least one current plan task",
+    );
+    expect(normalizeWhitespace(documentationImpact)).toContain(
+      "Plan Review fails when an item has no task coverage",
+    );
+    expect(normalizeWhitespace(planReview)).toContain(
+      "fail missing design Contract Decision and Documentation impact item mappings",
     );
   });
 
@@ -1378,126 +1373,92 @@ describe("existing skills source prose contracts", () => {
 
   it("keeps play-planning contract decisions executable without command recipes", async () => {
     const playPlanning = await readSkillSource("play-planning");
-    const contractHeavyWork = getMarkdownSection(
-      playPlanning,
-      "Contract-Heavy Work",
+    const planningCriteria = await readRepoFile(
+      "skills/play-planning/references/planning-criteria.md",
     );
-    const boundaryTraceability = getMarkdownSection(
-      playPlanning,
-      "Boundary-Contract Traceability",
+    const contractHeavyWork = sliceBetween(
+      planningCriteria,
+      "### Contract-heavy work",
+      "### Boundary-contract traceability",
     );
-    const taskStructure = getMarkdownSection(playPlanning, "Task Structure");
-    const planningSelfReview = getMarkdownSection(playPlanning, "Self-Review");
-    const planningReview = getMarkdownSection(playPlanning, "Plan Review");
+    const boundaryTraceability = sliceBetween(
+      planningCriteria,
+      "### Boundary-contract traceability",
+      "### Contract Example Discipline",
+    );
+    const taskContractCriteria = getMarkdownSection(
+      planningCriteria,
+      "Task contract criteria",
+    );
     const normalizedContractHeavyWork = normalizeWhitespace(contractHeavyWork);
     const normalizedBoundaryTraceability =
       normalizeWhitespace(boundaryTraceability);
-    const normalizedTaskStructure = normalizeWhitespace(taskStructure);
-    const normalizedPlanningSelfReview =
-      normalizeWhitespace(planningSelfReview);
-    const normalizedPlanningReview = normalizeWhitespace(planningReview);
+    const normalizedTaskContractCriteria =
+      normalizeWhitespace(taskContractCriteria);
 
     expect(normalizedContractHeavyWork).toContain(
-      "Exact `Contract Decisions` sections and equivalent clearly labeled contract-decision sections are both design contract authority",
+      "cross-skill handoffs, generated or derived paths, helper scripts, source-owned policy, schemas, interfaces, execution roots, state transitions, or fail-closed behavior",
     );
     expect(normalizedContractHeavyWork).toContain(
-      "before implementation tasks begin",
+      "source-of-truth and precedence",
     );
     expect(normalizedContractHeavyWork).toContain(
-      "task coverage, acceptance criteria, ownership, and proof obligations",
+      "mutation or side-effect owner",
     );
     expect(normalizedContractHeavyWork).toContain(
-      "creates or changes a boundary but lacks exact or equivalent contract-decision authority",
+      "missing, invalid, failure, recovery, and cleanup behavior",
     );
-    expect(normalizedContractHeavyWork).toContain("stop before task planning");
     expect(normalizedContractHeavyWork).toContain(
-      "explicit blocker or intentional implementation choice disposition",
+      "Do not create a new artifact family merely to make planning more exhaustive",
     );
     expect(normalizedBoundaryTraceability).toContain(
-      "design contract decisions",
+      "Proof must be executable without prescribing implementation",
     );
-
-    for (const reviewSurface of [
-      normalizedPlanningSelfReview,
-      normalizedPlanningReview,
-    ]) {
-      expect(reviewSurface).toContain(
-        "every contract decision maps to task coverage, acceptance criteria, ownership, and proof obligations",
-      );
-      expect(reviewSurface).toContain(
-        "exact or equivalent contract-decision authority",
-      );
-      expect(reviewSurface).toContain("governed boundary row");
-      expect(reviewSurface).toContain("design contract decisions");
-      expect(reviewSurface).toContain(
-        "explicit blocker or intentional implementation choice disposition",
-      );
-    }
 
     for (const ioContractField of [
       "required inputs",
       "optional inputs",
       "missing or empty behavior",
       "outputs",
-      "write targets",
-      "validation-before-write ordering",
+      "explicit write targets or side-effect owner",
+      "validation-before-write or other validation-order requirements",
       "failure behavior",
       "forbidden side effects",
+      "dirty or rollback behavior",
+      "required verification",
     ]) {
-      expect(normalizedTaskStructure).toContain(ioContractField);
-      expect(normalizedPlanningSelfReview).toContain(ioContractField);
-      expect(normalizedPlanningReview).toContain(ioContractField);
+      expect(normalizedTaskContractCriteria).toContain(ioContractField);
     }
 
-    for (const reviewSurface of [
-      normalizedPlanningSelfReview,
-      normalizedPlanningReview,
-    ]) {
-      expect(reviewSurface).toContain(
-        "observable evidence categories and source surfaces",
-      );
-      expect(reviewSurface.toLowerCase()).toContain(
-        'vague evidence such as "run tests"',
-      );
-      expect(reviewSurface).toContain(
-        "does not fail solely because exact command sequences are omitted",
-      );
-    }
-
+    expect(normalizedTaskContractCriteria).toContain(
+      "It must not prescribe private implementation choices discoverable from the named sources",
+    );
+    expect(playPlanning).toContain("references/planning-criteria.md");
     expect(playPlanning).not.toContain("`Contract\nDecisions`");
   });
 
   it("keeps play-planning implementer-executability review contracts in source", async () => {
     const playPlanning = await readSkillSource("play-planning");
+    const planningCriteria = await readRepoFile(
+      "skills/play-planning/references/planning-criteria.md",
+    );
     const overview = getMarkdownSection(playPlanning, "Overview");
-    const taskStructure = getMarkdownSection(playPlanning, "Task Structure");
-    const planningSelfReview = getMarkdownSection(playPlanning, "Self-Review");
     const planReview = getMarkdownSection(playPlanning, "Plan Review");
     const implementerExecutabilityReview = getMarkdownSection(
       playPlanning,
       "Implementer Executability Review",
     );
-    const normalizedTaskStructure = normalizeWhitespace(taskStructure);
     const normalizedOverview = normalizeWhitespace(overview);
-    const normalizedPlanningSelfReview =
-      normalizeWhitespace(planningSelfReview);
     const normalizedPlanReview = normalizeWhitespace(planReview);
     const normalizedExecutabilityReview = normalizeWhitespace(
       implementerExecutabilityReview,
     );
-    const normalizedImplementerContractSurface = normalizeWhitespace(
-      [
-        overview,
-        taskStructure,
-        planningSelfReview,
-        implementerExecutabilityReview,
-      ].join("\n\n"),
+    const normalizedCriteria = normalizeWhitespace(planningCriteria);
+    const scopeAndCriteria = getMarkdownSection(
+      playPlanning,
+      "Scope Envelope and Canonical Criteria",
     );
-    const vagueLanguageRule = markdownBlocksContaining(
-      planningSelfReview,
-      /where feasible|as appropriate|preserve existing behavior|safe selector|source inspection|migrate handlers/i,
-    );
-    const normalizedVagueLanguageRule = normalizeWhitespace(vagueLanguageRule);
+    const normalizedScopeAndCriteria = normalizeWhitespace(scopeAndCriteria);
 
     expect(playPlanning.indexOf("## Plan Review")).toBeLessThan(
       playPlanning.indexOf("## Implementer Executability Review"),
@@ -1505,149 +1466,83 @@ describe("existing skills source prose contracts", () => {
     expect(
       playPlanning.indexOf("## Implementer Executability Review"),
     ).toBeLessThan(playPlanning.indexOf("## Execution Handoff"));
-    expect(normalizedOverview).not.toContain(
-      "After writing, emit the literal line `Plan written to <repo-relative-path>.`",
-    );
     expect(normalizedOverview).toContain(
       "keep the saved path in controller-local state while self-review, Plan Review, and Implementer Executability Review run",
     );
     expect(normalizedOverview).toContain(
       "Emit the literal line `Plan written to <repo-relative-path>.` to the conversation only after the applicable review gates have passed",
     );
-
-    expect(normalizedImplementerContractSurface).toContain(
-      "competent non-senior",
+    expect(normalizedScopeAndCriteria).toContain(
+      "from the loaded or installed `play-planning` skill bundle, not from the target repository or current working directory",
     );
-    expect(normalizedImplementerContractSurface).toContain(
-      "named source files",
+    expect(normalizedScopeAndCriteria).toContain(
+      "concrete path, require it to be a readable regular file",
     );
-    expect(normalizedImplementerContractSurface).toContain(
-      "without reverse-engineering",
-    );
-
-    for (const vaguePhrase of [
-      "where feasible",
-      "as appropriate",
-      "preserve existing behavior",
-      "safe selector",
-      "source inspection",
-      "migrate handlers",
-    ]) {
-      expect(normalizedVagueLanguageRule).toContain(vaguePhrase);
-    }
-
-    expect(normalizedVagueLanguageRule).toContain("fail");
-    expect(normalizedVagueLanguageRule).toContain("without");
-    expect(normalizedVagueLanguageRule).toContain("exact source target");
-    expect(normalizedVagueLanguageRule).toContain("pass/fail criteria");
-    expect(normalizedVagueLanguageRule).toContain("operation mapping");
-
-    for (const operationMapField of [
-      "current source",
-      "target surface",
-      "required inputs",
-      "optional inputs where applicable",
-      "missing or empty behavior",
-      "outputs",
-      "errors",
-      "explicit write targets or side-effect owner",
-      "validation-before-write or validation-order requirements",
-      "failure behavior",
-      "forbidden side effects",
-      "dirty/rollback behavior",
-      "required verification",
-    ]) {
-      expect(normalizedTaskStructure).toContain(operationMapField);
-      expect(normalizedPlanningSelfReview).toContain(operationMapField);
-      expect(normalizedExecutabilityReview).toContain(operationMapField);
-    }
 
     expectSharedLifecycleReference(implementerExecutabilityReview);
-    expect(
-      normalizedExecutabilityReview.indexOf("`subagent-lifecycle`"),
-    ).toBeLessThan(
-      normalizedExecutabilityReview.indexOf(
-        "dispatching the implementer-executability reviewer",
-      ),
-    );
-    expect(normalizedExecutabilityReview).toContain(
-      "before dispatching the implementer-executability reviewer",
-    );
-    expect(normalizedExecutabilityReview).toContain(
-      "After the reviewer returns PASS or FAIL",
-    );
-    expect(
-      normalizedExecutabilityReview.indexOf(
-        "before dispatching the implementer-executability reviewer",
-      ),
-    ).toBeLessThan(
-      normalizedExecutabilityReview.indexOf(
-        "After the reviewer returns PASS or FAIL",
-      ),
-    );
     expect(normalizedExecutabilityReview).toContain("workflow-local");
+    expect(implementerExecutabilityReview).toContain("{{model:frontier}}");
     expect(normalizedExecutabilityReview).toContain("PASS or FAIL");
-    expect(normalizedExecutabilityReview).toContain("concrete gaps");
     expect(normalizedExecutabilityReview).toContain(
-      "restart Plan Review before re-running the implementer-executability reviewer",
+      "restart Plan Review before rerunning Executability Review",
     );
-    expect(normalizedExecutabilityReview).toContain(
-      "both review gates pass on the same final plan contents",
-    );
-    expect(normalizedExecutabilityReview).toContain(
-      "current plan contents do not have both Plan Review PASS and Implementer Executability Review PASS",
-    );
+    for (const reviewSection of [planReview, implementerExecutabilityReview]) {
+      const normalizedReviewSection = normalizeWhitespace(reviewSection);
 
-    for (const hiddenJudgmentSurface of [
-      "scope",
-      "source policy",
-      "call sites",
-      "side-effect ownership",
-      "error mapping",
-      "allowed guardrail outcomes",
-    ]) {
-      expect(normalizedExecutabilityReview).toContain(hiddenJudgmentSurface);
-    }
-
-    expect(normalizedExecutabilityReview).toContain(
-      "senior reverse-engineering",
-    );
-    expect(normalizedExecutabilityReview).toContain("structurally present");
-    expect(normalizedExecutabilityReview).toContain("FAIL");
-
-    for (const prohibitedDetail of [
-      "implementation code",
-      "test code",
-      "plan-authored test bodies",
-      "shell snippets",
-      "shell recipes",
-      "exact command sequences",
-      "helper-name prescriptions",
-      "line-number edits",
-      "commit recipes",
-    ]) {
-      expect(normalizedPlanningSelfReview).toContain(prohibitedDetail);
-      expect(normalizedPlanReview).toContain(prohibitedDetail);
-      expect(normalizedExecutabilityReview).toContain(prohibitedDetail);
-    }
-
-    for (const allowedBoundaryContractDetail of [
-      "boundary contract names",
-      "public API surfaces",
-      "selector fields",
-      "summary fields",
-      "error families",
-      "operation mappings",
-    ]) {
-      expect(normalizedImplementerContractSurface).toContain(
-        allowedBoundaryContractDetail,
+      expect(reviewSection).toContain(
+        "Criteria: <validated-bundle-owned-path>",
       );
-      expect(normalizedExecutabilityReview).toContain(
-        allowedBoundaryContractDetail,
+      expect(normalizedReviewSection).toContain(
+        "pass the guarded `Design: <path>` when the invocation selected the path form",
+      );
+      expect(normalizedReviewSection).toContain(
+        "otherwise pass the preserved inline `## Design` content for a direct invocation",
+      );
+      expect(normalizedReviewSection).toContain(
+        "the path form wins when both forms exist",
+      );
+      expect(normalizedReviewSection).toContain(
+        "missing selected inline design content",
+      );
+      expect(normalizedReviewSection).toContain(
+        "Absence of the unselected path or inline form does not block",
+      );
+      expect(normalizedReviewSection).toContain(
+        "Never direct the reviewer to find criteria relative to the target repository",
+      );
+      expect(normalizedReviewSection).not.toContain(
+        "read `references/planning-criteria.md` from the repository",
       );
     }
+    expect(normalizedExecutabilityReview).toContain(
+      "discovery of individual references inside already named in-scope consumers or boundaries",
+    );
+    expect(normalizedExecutabilityReview).toContain(
+      "an omitted known mapping is `CURRENT`, while missing authority for that mapping is `BLOCKER`",
+    );
+    expect(normalizedExecutabilityReview).toContain(
+      "must not broaden the Scope Envelope or proof obligations",
+    );
+    expect(normalizedPlanReview).toContain(
+      "The canonical reference owns the detailed criteria",
+    );
+    expect(normalizedCriteria).toContain(
+      "Validate whether a competent non-senior implementer can begin after reading the task and named sources",
+    );
+    expect(normalizedCriteria).toContain(
+      "locating individual references inside already named in-scope consumers or boundaries remain normal implementation choices when a named authority or explicit discovery criterion governs the mapping",
+    );
+    expect(normalizedCriteria).toContain(
+      "Determining which consumers or boundary participants are in scope is planning work, not normal call-site discovery",
+    );
+    expect(normalizedCriteria).toContain(
+      "An omitted known consumer or boundary mapping is a `CURRENT` task-contract gap; missing authority for the required mapping is a `BLOCKER`",
+    );
+    expect(normalizedCriteria).toContain(
+      "Do not broaden the Scope Envelope or proof obligations",
+    );
+    expect(normalizedCriteria).toContain("Apply minimum-sufficient proof");
   });
-
   it("keeps play-skill-authoring pressure verification required for skill edits", async () => {
     const playSkillAuthoring = await readSkillSource("play-skill-authoring");
     const overview = getMarkdownSection(playSkillAuthoring, "Overview");
