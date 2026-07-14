@@ -4514,6 +4514,31 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedRouteSection).toContain(
       "Do not use an ambient model or ambient effort",
     );
+    expectSubstringsInOrder(normalizedRouteSection, [
+      "The owning controller's classification is the dispatch authority",
+      "It is a controller-owned pre-spawn decision",
+      "child prompts do not discover or select their own route",
+    ]);
+  });
+
+  it("preserves the existing parallel join without adding parallelism", async () => {
+    const playAgentDispatch = await readSkillSource("play-agent-dispatch");
+    const dispatchSection = sliceBetween(
+      playAgentDispatch,
+      "### 3. Dispatch in Parallel",
+      "### 4. Review and Integrate",
+    );
+    const normalizedDispatchSection = normalizeWhitespace(dispatchSection);
+
+    expect(normalizedDispatchSection).toContain(
+      "Dispatch one specialist agent per failing test file in the existing parallel join",
+    );
+    expect(normalizedDispatchSection).toContain(
+      "This route classification adds no new parallelism",
+    );
+    expect(normalizedDispatchSection).toContain(
+      "retain the existing independent-task and no-shared-state checks",
+    );
   });
 
   it("guards source-immutable focused specialists as response-only leaves", async () => {
@@ -4598,21 +4623,20 @@ describe("existing skills source prose contracts", () => {
     );
     const normalizedFailureSection = normalizeWhitespace(failureSection);
 
-    expect(normalizedFailureSection).toContain(
+    expectSubstringsInOrder(normalizedFailureSection, [
       "ordinary child failure, verification rejection, or payload rejection",
-    );
-    expect(normalizedFailureSection).toContain(
+      "first complete safe exact cleanup",
       "let every already-started sibling settle and complete its exact cleanup",
-    );
-    expect(normalizedFailureSection).toContain(
       "integrate no specialist results",
-    );
-    expect(normalizedFailureSection).toContain(
       "return the failed domains plus the successful summaries to the controller",
-    );
-    expect(normalizedFailureSection).toContain(
+    ]);
+    expectSubstringsInOrder(normalizedFailureSection, [
       "Detected source mutation or cleanup failure is guard-integrity terminal",
-    );
+      "preserve the visible source state",
+      "integrate no results",
+      "let already-started siblings reach their terminal cleanup attempts",
+      "report the integrity failure",
+    ]);
     expect(normalizedFailureSection).toContain(
       "does not start replacement siblings or add another parallel dispatch wave",
     );
