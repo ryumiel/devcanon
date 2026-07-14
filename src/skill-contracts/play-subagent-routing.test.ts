@@ -664,6 +664,13 @@ describe("play subagent routing source contracts", () => {
       "## Phase 4: Invoke Brainstorming",
     );
     const normalizedPhase3 = normalizeWhitespace(phase3);
+    const normalizedConcurrentJoin = normalizeWhitespace(
+      sliceBetween(
+        phase3,
+        "### Lifecycle and Concurrent Join",
+        "### Child Report Validation",
+      ),
+    );
 
     expect(normalizedPhase3).toContain(
       "The depth-0 root is the sole research dispatcher",
@@ -710,8 +717,18 @@ describe("play subagent routing source contracts", () => {
     expect(normalizedPhase3).toContain(
       "classify target lifecycle capability, and run the cleanup gate",
     );
-    expect(normalizedPhase3).toContain(
-      "After exact source-immutability cleanup succeeds, capture and apply scope, report result, source references, and blocker state before subagent-lifecycle cleanup",
+    expectSubstringsInOrder(normalizedConcurrentJoin, [
+      "until source-immutability verification succeeds",
+      "Then semantically validate the response and retain scope, report result, source references, and blocker state in controller memory",
+      "before exact source-immutability cleanup",
+      "Only after exact cleanup succeeds, apply those retained fields to lifecycle state and routing",
+      "before subagent-lifecycle cleanup",
+    ]);
+    expect(normalizedConcurrentJoin).not.toContain(
+      "until the source-immutability lifecycle finishes",
+    );
+    expect(normalizedConcurrentJoin).not.toContain(
+      "After exact source-immutability cleanup succeeds, capture and apply",
     );
     expect(normalizedPhase3).toContain(
       "follow `subagent-lifecycle` § Slot-Limit Recovery",

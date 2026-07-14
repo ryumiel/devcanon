@@ -416,12 +416,14 @@ Before every internal or external spawn, add an `agent_id=pending` ledger row,
 classify target lifecycle capability, and run the cleanup gate from
 `subagent-lifecycle`. Keep the issue and comment artifacts readable throughout
 the spawn. After a child becomes terminal, capture only its raw response and
-terminal status until the source-immutability lifecycle finishes. After exact
-source-immutability cleanup succeeds, capture and apply scope, report result,
-source references, and blocker state before subagent-lifecycle cleanup,
-supersession, a late dispatch, or route selection. Record `closed=yes` only
-when the current target actually closes the stable session; otherwise record
-the honest `close-unavailable` outcome.
+terminal status until source-immutability verification succeeds. Then
+semantically validate the response and retain scope, report result, source
+references, and blocker state in controller memory before exact
+source-immutability cleanup. Only after exact cleanup succeeds, apply those
+retained fields to lifecycle state and routing before subagent-lifecycle
+cleanup, supersession, a late dispatch, or route selection. Record `closed=yes`
+only when the current target actually closes the stable session; otherwise
+record the honest `close-unavailable` outcome.
 
 If any internal, immediate external, or late external spawn fails because slots
 are exhausted, follow `subagent-lifecycle` § Slot-Limit Recovery. Preserve the
