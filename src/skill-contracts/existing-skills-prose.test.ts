@@ -4471,6 +4471,153 @@ describe("existing skills source prose contracts", () => {
     }
   });
 
+  it("requires a complete semantic route tuple before each focused specialist spawn", async () => {
+    const playAgentDispatch = await readSkillSource("play-agent-dispatch");
+    const routeSection = sliceBetween(
+      playAgentDispatch,
+      "### Semantic Route Contract",
+      "### Source-Immutable Specialists",
+    );
+    const normalizedRouteSection = normalizeWhitespace(routeSection);
+
+    expect(normalizedRouteSection).toContain(
+      "Before each focused specialist spawn, independently classify and declare the full semantic route tuple",
+    );
+    for (const field of [
+      "cognitive demand",
+      "stance",
+      "source mutation default",
+      "exactly one of the six semantic roles",
+      "exact configured capability and effort",
+      "dispatch scope",
+      "termination and output behavior",
+      "external authority `none`",
+    ]) {
+      expect(normalizedRouteSection).toContain(field);
+    }
+    expect(normalizedRouteSection).toContain("without per-call substitution");
+
+    for (const route of [
+      "`assessor` | balanced | medium | source-immutable",
+      "`investigator` | balanced | high | source-immutable",
+      "`executor` | efficient | medium | source-mutable",
+      "`implementer` | balanced | high | source-mutable",
+      "`reviewer` | frontier | high | source-immutable",
+      "`deep-reviewer` | frontier | xhigh | source-immutable",
+    ]) {
+      expect(normalizedRouteSection).toContain(route);
+    }
+
+    expect(normalizedRouteSection).toContain(
+      "Classify each independent problem domain separately",
+    );
+    expect(normalizedRouteSection).toContain(
+      "Do not use an ambient model or ambient effort",
+    );
+  });
+
+  it("guards source-immutable focused specialists as response-only leaves", async () => {
+    const playAgentDispatch = await readSkillSource("play-agent-dispatch");
+    const immutableSection = sliceBetween(
+      playAgentDispatch,
+      "### Source-Immutable Specialists",
+      "### Source-Mutable Specialists",
+    );
+    const normalizedImmutableSection = normalizeWhitespace(immutableSection);
+
+    expect(normalizedImmutableSection).toContain(
+      "response-only leaf with zero handoffs",
+    );
+    expect(normalizedImmutableSection).toContain(
+      "`scripts/source-immutability.sh`",
+    );
+    expectSubstringsInOrder(normalizedImmutableSection, [
+      "capture before spawn",
+      "verify before semantic validation or consumption",
+      "validate and retain the response in controller memory",
+      "cleanup the exact retained baseline",
+      "integrate the retained response",
+    ]);
+    expect(normalizedImmutableSection).toContain(
+      'SOURCE_IMMUTABILITY_BASELINE="$(bash "$SOURCE_IMMUTABILITY_HELPER" capture)"',
+    );
+    expect(normalizedImmutableSection).toContain(
+      'bash "$SOURCE_IMMUTABILITY_HELPER" verify --baseline "$SOURCE_IMMUTABILITY_BASELINE"',
+    );
+    expect(normalizedImmutableSection).toContain(
+      'bash "$SOURCE_IMMUTABILITY_HELPER" cleanup --baseline "$SOURCE_IMMUTABILITY_BASELINE"',
+    );
+    expect(normalizedImmutableSection).not.toContain("--handoff");
+    expect(normalizedImmutableSection).not.toContain("child persists");
+  });
+
+  it("preserves authorized integration for source-mutable focused specialists", async () => {
+    const playAgentDispatch = await readSkillSource("play-agent-dispatch");
+    const mutableSection = sliceBetween(
+      playAgentDispatch,
+      "### Source-Mutable Specialists",
+      "### 2. Create Focused Agent Tasks",
+    );
+    const normalizedMutableSection = normalizeWhitespace(mutableSection);
+
+    expect(normalizedMutableSection).toContain(
+      "only the dispatch-authorized durable workspace paths",
+    );
+    expect(normalizedMutableSection).toContain(
+      "preserve the existing successful-result review and integration policy",
+    );
+    expect(normalizedMutableSection).not.toContain("source-immutability.sh");
+    expect(normalizedMutableSection).not.toContain("external-mutable");
+  });
+
+  it("blocks unresolved focused specialist routes before spawn", async () => {
+    const playAgentDispatch = await readSkillSource("play-agent-dispatch");
+    const routeSection = sliceBetween(
+      playAgentDispatch,
+      "### Semantic Route Contract",
+      "### Source-Immutable Specialists",
+    );
+    const normalizedRouteSection = normalizeWhitespace(routeSection);
+
+    expect(normalizedRouteSection).toContain(
+      "If any tuple field is unresolved, do not spawn that specialist",
+    );
+    expect(normalizedRouteSection).toContain(
+      "Do not infer authority from tools, sandbox, network, model, effort, the owning workflow, or the controller's own authority",
+    );
+    expect(normalizedRouteSection).toContain(
+      "The route inventory is not a marker, annotation, or discovery grammar",
+    );
+  });
+
+  it("joins already-started specialists and integrates nothing after ordinary rejection", async () => {
+    const playAgentDispatch = await readSkillSource("play-agent-dispatch");
+    const failureSection = getMarkdownSection(
+      playAgentDispatch,
+      "Joined Failure Disposition",
+    );
+    const normalizedFailureSection = normalizeWhitespace(failureSection);
+
+    expect(normalizedFailureSection).toContain(
+      "ordinary child failure, verification rejection, or payload rejection",
+    );
+    expect(normalizedFailureSection).toContain(
+      "let every already-started sibling settle and complete its exact cleanup",
+    );
+    expect(normalizedFailureSection).toContain(
+      "integrate no specialist results",
+    );
+    expect(normalizedFailureSection).toContain(
+      "return the failed domains plus the successful summaries to the controller",
+    );
+    expect(normalizedFailureSection).toContain(
+      "Detected source mutation or cleanup failure is guard-integrity terminal",
+    );
+    expect(normalizedFailureSection).toContain(
+      "does not start replacement siblings or add another parallel dispatch wave",
+    );
+  });
+
   it("keeps the autosquash fixture stable when git init defaults to main", async () => {
     const repoDir = await createAutosquashFixture({
       initDefaultBranch: "main",

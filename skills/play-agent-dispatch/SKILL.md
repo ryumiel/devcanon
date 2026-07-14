@@ -65,11 +65,96 @@ Group failures by what's broken:
 
 Each domain is independent - fixing tool approval doesn't affect abort tests.
 
+### Semantic Route Contract
+
+Before each focused specialist spawn, independently classify and declare the
+full semantic route tuple:
+
+1. cognitive demand: `mechanical`, `bounded`, `synthesis`, or `inherited`;
+2. stance: `normal` or `adversarial`;
+3. source mutation default: `source-immutable` or `source-mutable`;
+4. exactly one of the six semantic roles;
+5. the role's exact configured capability and effort, without per-call
+   substitution;
+6. dispatch scope;
+7. termination and output behavior; and
+8. external authority `none`.
+
+Use the selected role's complete configured tuple:
+
+| Semantic role   | Capability | Effort | Source mutation default |
+| --------------- | ---------- | ------ | ----------------------- |
+| `assessor`      | balanced   | medium | source-immutable        |
+| `investigator`  | balanced   | high   | source-immutable        |
+| `executor`      | efficient  | medium | source-mutable          |
+| `implementer`   | balanced   | high   | source-mutable          |
+| `reviewer`      | frontier   | high   | source-immutable        |
+| `deep-reviewer` | frontier   | xhigh  | source-immutable        |
+
+Classify each independent problem domain separately. The owning controller's
+classification is the dispatch authority; a generic or inherited workflow does
+not supply a child route by itself. Do not use an ambient model or ambient
+effort, and do not substitute another capability or effort at spawn time.
+
+If any tuple field is unresolved, do not spawn that specialist. Do not infer
+authority from tools, sandbox, network, model, effort, the owning workflow, or
+the controller's own authority. The route inventory is not a marker,
+annotation, or discovery grammar. It is a controller-owned pre-spawn decision,
+and child prompts do not discover or select their own route.
+
+### Source-Immutable Specialists
+
+A source-immutable focused specialist is a response-only leaf with zero
+handoffs. Do not declare a named handoff, permit child persistence, or accept a
+filesystem path as its result. Resolve `SOURCE_IMMUTABILITY_HELPER` to the
+installed `play-agent-dispatch` bundle's
+`scripts/source-immutability.sh` shim and run it from the current worktree root.
+
+For each such specialist, keep this order exact:
+
+1. capture before spawn and retain the returned baseline path in the
+   controller;
+2. spawn the already-classified specialist and capture only its raw terminal
+   response and status;
+3. verify before semantic validation or consumption;
+4. after successful verification, validate and retain the response in
+   controller memory;
+5. cleanup the exact retained baseline; and
+6. only after successful cleanup, integrate the retained response under the
+   existing successful-result integration policy.
+
+The no-handoff command shape is:
+
+```bash
+SOURCE_IMMUTABILITY_BASELINE="$(bash "$SOURCE_IMMUTABILITY_HELPER" capture)"
+# Spawn the specialist and capture its raw response/status.
+bash "$SOURCE_IMMUTABILITY_HELPER" verify --baseline "$SOURCE_IMMUTABILITY_BASELINE"
+# Validate and retain the response in controller memory.
+bash "$SOURCE_IMMUTABILITY_HELPER" cleanup --baseline "$SOURCE_IMMUTABILITY_BASELINE"
+# Only now integrate the retained response.
+```
+
+Capture failure prevents that spawn. Every spawned terminal branch attempts
+exact cleanup, including child failure and response, verification, or payload
+rejection. Never reset, repair, stage, check out, or otherwise hide a detected
+source change.
+
+### Source-Mutable Specialists
+
+A source-mutable specialist may alter only the dispatch-authorized durable
+workspace paths named in its focused task. Its prompt must keep those paths and
+the task's scope explicit, and external authority remains `none`. Review its
+returned summary and changes, check for conflicts, run the required
+verification, and preserve the existing successful-result review and
+integration policy in this skill. The source-immutable guard does not replace
+or broaden that authorization.
+
 ### 2. Create Focused Agent Tasks
 
 Each agent gets:
 
 - **Specific scope:** One test file or subsystem
+- **Semantic route:** The complete pre-spawn route tuple
 - **Clear goal:** Make these tests pass
 - **Constraints:** Don't change other code
 - **Expected output:** Summary of what you found and fixed
@@ -80,9 +165,15 @@ Before parallel dispatch, use `subagent-lifecycle` for the controller-local
 lifecycle ledger, target lifecycle capability classification, cleanup gate
 before spawns, target-honest cleanup outcomes, and slot-limit recovery. Record
 one pending ledger row per planned agent with its problem domain, expected
-output, constraints, and any source-state anchor relevant to that domain.
+output, constraints, complete semantic route tuple, and any source-state anchor
+relevant to that domain. A pending row is not spawn authority: resolve every
+tuple and, for each source-immutable specialist, capture its baseline before
+that specialist's spawn.
 
-Dispatch one specialist agent per failing test file in parallel. Each agent gets a focused scope (one test file or subsystem) and returns a summary of findings and fixes.
+Dispatch one specialist agent per failing test file in the existing parallel
+join. Each agent gets a focused scope (one test file or subsystem) and returns
+the declared output. This route classification adds no new parallelism: retain
+the existing independent-task and no-shared-state checks.
 
 ### 4. Review and Integrate
 
@@ -91,11 +182,30 @@ When agents return:
 - Read each summary
 - Update the `subagent-lifecycle` ledger with each returned session's
   role-specific state before closing or superseding it
+- Verify each result under its declared source-mutation contract
 - Verify fixes don't conflict
 - Run full test suite
-- Integrate all changes
+- Integrate successful changes under the existing policy only after the full
+  batch is eligible
 - After each returned session is integrated, run the `subagent-lifecycle`
   cleanup gate before keeping or spawning any additional agent sessions
+
+## Joined Failure Disposition
+
+After an ordinary child failure, verification rejection, or payload rejection,
+first complete safe exact cleanup for the affected source-immutable specialist.
+Then let every already-started sibling settle and complete its exact cleanup
+when applicable. After that, integrate no specialist results from that parallel
+batch, and return the failed domains plus the successful summaries to the
+controller. A successful sibling summary remains diagnostic context; it does
+not authorize partial integration after any domain rejects.
+
+This joined failure path does not start replacement siblings or add another
+parallel dispatch wave. Detected source mutation or cleanup failure is
+guard-integrity terminal: preserve the visible source state, integrate no
+results, let already-started siblings reach their terminal cleanup attempts,
+and report the integrity failure instead of treating it as an ordinary child
+failure.
 
 ## Agent Prompt Structure
 
