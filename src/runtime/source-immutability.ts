@@ -383,12 +383,13 @@ async function fingerprint(
 
 async function completeIndexEntryState(root: string): Promise<Buffer> {
   // These stable, NUL-delimited plumbing views jointly cover entry identity,
-  // stage, assume-unchanged, skip-worktree, and fsmonitor-valid state without
-  // including the mutable stat-cache fields from `ls-files --debug`.
+  // stage, assume-unchanged, skip-worktree, fsmonitor-valid, and intent-to-add
+  // state without including mutable index stat-cache fields.
   const views = await Promise.all([
     gitRaw(["ls-files", "--stage", "-z"], root),
     gitRaw(["ls-files", "--cached", "-v", "-z"], root),
     gitRaw(["ls-files", "--cached", "-f", "-z"], root),
+    persistentIntentToAddState(root),
   ]);
   const framed: Buffer[] = [];
   for (const view of views) {
@@ -396,6 +397,44 @@ async function completeIndexEntryState(root: string): Promise<Buffer> {
     length.writeBigUInt64BE(BigInt(view.length));
     framed.push(length, view);
   }
+  return Buffer.concat(framed);
+}
+
+async function persistentIntentToAddState(root: string): Promise<Buffer> {
+  const debug = await gitRaw(["ls-files", "--cached", "--debug", "-z"], root);
+  const framed: Buffer[] = [];
+  let offset = 0;
+
+  while (offset < debug.length) {
+    const pathEnd = debug.indexOf(0, offset);
+    if (pathEnd === -1) {
+      throw new Error("unexpected git ls-files --debug output");
+    }
+    const relativePath = debug.subarray(offset, pathEnd);
+    let metadataEnd = pathEnd + 1;
+    for (let line = 0; line < 5; line += 1) {
+      metadataEnd = debug.indexOf(0x0a, metadataEnd);
+      if (metadataEnd === -1) {
+        throw new Error("unexpected git ls-files --debug output");
+      }
+      metadataEnd += 1;
+    }
+    const metadata = debug.subarray(pathEnd + 1, metadataEnd).toString("ascii");
+    const match = metadata.match(
+      /^ {2}ctime: \d+:\d+\n {2}mtime: \d+:\d+\n {2}dev: \d+\tino: \d+\n {2}uid: \d+\tgid: \d+\n {2}size: \d+\tflags: ([0-9a-f]+)\n$/iu,
+    );
+    if (match === null) {
+      throw new Error("unexpected git ls-files --debug output");
+    }
+
+    const pathLength = Buffer.allocUnsafe(8);
+    pathLength.writeBigUInt64BE(BigInt(relativePath.length));
+    const flags = BigInt(`0x${match[1]}`);
+    const intentToAdd = Buffer.from([(flags & 0x20000000n) === 0n ? 0 : 1]);
+    framed.push(pathLength, relativePath, intentToAdd);
+    offset = metadataEnd;
+  }
+
   return Buffer.concat(framed);
 }
 

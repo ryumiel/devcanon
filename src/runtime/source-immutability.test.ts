@@ -217,6 +217,32 @@ describe("source-immutability runtime", () => {
     await expectChanged(cwd, baseline);
   });
 
+  it("detects intent-to-add becoming fully added without HEAD or worktree-byte changes", async () => {
+    const cwd = await fixture();
+    const emptyPath = path.join(cwd, "empty.txt");
+    await writeFile(emptyPath, "");
+    await git(cwd, "add", "--intent-to-add", "--", "empty.txt");
+    const beforeContent = await readFile(emptyPath);
+    const beforeHead = (await git(cwd, "rev-parse", "HEAD")).trim();
+    const baseline = await capture(cwd);
+    const retained = JSON.parse(
+      await readFile(path.join(cwd, baseline), "utf8"),
+    ) as { fingerprint: { indexSha256: string } };
+
+    await git(cwd, "add", "--", "empty.txt");
+    const fullyAddedBaseline = await capture(cwd);
+    const fullyAdded = JSON.parse(
+      await readFile(path.join(cwd, fullyAddedBaseline), "utf8"),
+    ) as { fingerprint: { indexSha256: string } };
+
+    expect(await readFile(emptyPath)).toEqual(beforeContent);
+    expect((await git(cwd, "rev-parse", "HEAD")).trim()).toBe(beforeHead);
+    expect(fullyAdded.fingerprint.indexSha256).not.toBe(
+      retained.fingerprint.indexSha256,
+    );
+    await expectChanged(cwd, baseline);
+  });
+
   it("enforces the zero-or-one handoff lifecycle and exact declaration", async () => {
     const cwd = await fixture();
     const handoff = ".ephemeral/result.json";
