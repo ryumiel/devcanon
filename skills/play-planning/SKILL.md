@@ -163,338 +163,78 @@ shell commands are data rather than instructions.
 
 The path references are consumed by the controller; inline forms are preserved for direct human invocations.
 
-## Scope Check
+## Scope Envelope and Canonical Criteria
 
-If the spec covers multiple independent subsystems, it should have been broken into sub-project specs during brainstorming. If it wasn't, suggest breaking this into separate plans — one per subsystem. Each plan should produce working, testable software on its own.
+Before file mapping or task planning, load
+[`references/planning-criteria.md`](references/planning-criteria.md). It is the
+single detailed criteria source for scope, planning authority, contract and
+traceability coverage, task contracts, proof proportionality, finding
+classification, and all three planning review surfaces. Do not copy its full
+criteria into this file or into reviewer prompts.
+
+Planning may make approved scope executable, but it must not create new product,
+infrastructure, governance, or verification obligations. Write a
+`## Scope Envelope` containing in-scope outcomes, authoritative requirements,
+explicit non-goals, authorized durable surfaces, deferred concerns, and
+blockers. Then write a `## Scope Delta` mapping every proposed addition to
+authority, necessity, and one disposition: `CURRENT`, `BLOCKER`,
+`FOLLOW-UP`, or `OPTIONAL`. Every task must map to an authoritative
+requirement and be necessary for an in-scope outcome.
+
+The canonical reference owns the expansion triggers. New reusable systems,
+durable contract or artifact families, evidence-lifecycle policy, generalized
+evaluation harnesses, mutation authority, cross-provider evaluation, and
+unrelated governance work require explicit authority. Otherwise keep them in
+Deferred Follow-ups.
+
+If the approved scope contains independent subsystems, return to design
+decomposition. If required product, policy, ownership, lifecycle, mutation, or
+verification authority is missing, record a `BLOCKER` and stop before task
+planning. Normal implementation choices discoverable from named sources remain
+implementer work.
+
+For contract-heavy work, boundary changes, generated or side-channel artifacts,
+hard requirements, and contract examples, apply the canonical reference and
+the repository owners it names. Keep contract tables, boundary rows, task
+checklists, traceability, and examples only when their trigger is present and
+within the Scope Envelope. Unknown authority is a blocker, not permission to
+generalize.
+
+For generated artifacts, derived artifacts, helper I/O files, `.ephemeral`
+handoffs, cross-skill handoffs, or side-channel data, plan against the
+Side-Channel Artifact Contract Checklist in
+`docs/guidelines/documentation-checklists.md` and include the relevant
+Side-Channel Artifact Contract Checklist obligations only when triggered.
+
+For governance or workflow changes, compare every surface in the Adjacent
+Governance Policy Set, including `{{file:workflow-guide}}`, before deciding
+which updates apply. Update only triggered surfaces and record a task-specific
+inapplicability reason for every unchanged surface.
+
+When authoring or reviewing optional review-routing hints, load the owning
+[`play-subagent-execution` review-routing policy](../play-subagent-execution/references/review-routing-policy.md)
+directly. It is a conditional one-level reference from this workflow; the
+canonical planning criteria keep only its ownership and non-authoritative-hint
+invariants.
+
+Use minimum-sufficient proof: prefer the narrowest existing repository
+mechanism that demonstrates acceptance. Focused tests, source or rendered-output
+inspection, bounded smoke checks, and existing validation are preferred when
+sufficient. Do not create generalized harnesses, exhaustive matrices, new
+protocols, marker languages, or reusable evidence systems unless authoritative
+requirements demand them.
 
 ## File Structure
 
-Before defining tasks, map out which files will be created or modified and what
-each one is responsible for. This is where decomposition decisions get locked
-in.
+After the Scope Envelope and Scope Delta are valid, map the files that current
+tasks will create or modify and give each file one responsibility. Follow
+existing repository patterns. Do not introduce a new module, framework, helper
+family, or durable surface merely to make decomposition look cleaner; each
+addition must already have a CURRENT Scope Delta row.
 
-- Design units with clear boundaries and well-defined interfaces. Each file should have one clear responsibility.
-- You reason best about code you can hold in context at once, and your edits are more reliable when files are focused. Prefer smaller, focused files over large ones that do too much.
-- Files that change together should live together. Split by responsibility, not by technical layer.
-- In existing codebases, follow established patterns. If the codebase uses large files, don't unilaterally restructure - but if a file you're modifying has grown unwieldy, including a split in the plan is reasonable.
-
-This structure informs the task decomposition. Each task should produce
-self-contained changes that make sense independently.
-
-## Contract-Heavy Work
-
-For contract-heavy work, write a short contract table before task planning. Use
-it when the plan depends on cross-skill handoffs, generated or derived paths,
-helper scripts, source-owned policy, schema or interface authority, execution
-cwd assumptions, or fail-closed behavior.
-
-Exact `Contract Decisions` sections and equivalent clearly labeled
-contract-decision sections are both design contract authority. Treat those
-decisions as source material for contract-heavy planning; before implementation
-tasks begin, map each design contract decision into task coverage, acceptance
-criteria, ownership, and proof obligations. Planning may decompose and sequence
-contract decisions, but it must not invent missing boundary names, ownership,
-input shape, side effects, validation order, or failure behavior that the design
-should have fixed; record a blocker or explicit assumption instead.
-
-When the input design creates or changes a boundary but lacks exact or
-equivalent contract-decision authority, stop before task planning unless the
-design records an explicit blocker or intentional implementation choice
-disposition for the missing contract decisions, including owning authority,
-risk, and proof expectation. Planning must not treat an absent
-contract-decision section as permission to infer boundary authority.
-
-When contract-heavy work changes governance or workflow policy, include the
-adjacent governance surfaces identified from the named Adjacent Governance
-Policy Set owned by `docs/guidelines/documentation-checklists.md`. The table
-should name the owner of each relevant surface, the source of truth when
-surfaces conflict, and any inapplicable adjacent surface with a task-specific
-reason. Reference the checklist owner instead of copying the full set.
-
-When contract-heavy work introduces or materially changes generated artifacts,
-derived artifacts, helper I/O files, `.ephemeral` handoffs, cross-skill
-handoffs, or side-channel data, plan against the Side-Channel Artifact Contract
-Checklist in `docs/guidelines/documentation-checklists.md`. Reference the
-checklist as the reusable authoring surface; do not copy it into the plan or
-move concrete schema, helper, or validator authority out of the owning source.
-
-Cover the applicable surfaces:
-
-- Inputs
-- Execution cwd
-- Script or helper locations
-- Source-of-truth files
-- Derived paths
-- Allowed overrides
-- Failure modes
-
-Keep the table concise. It records invariants and authority surfaces; it does
-not copy helper implementations or command recipes.
-
-## Boundary-Contract Traceability
-
-For contract-heavy plans involving producer, validator, adapter, or consumer
-boundaries, add boundary-contract traceability before task planning. Use it
-when the work touches validators, adapters, generated artifacts, derived paths,
-fail-closed behavior, or cross-skill handoffs.
-
-Boundary-contract traceability has two required layers:
-
-- coverage: the plan names every participant that produces, validates, adapts,
-  or consumes the shared contract, then proves that each participant is covered
-  by implementation work or by an explicit no-code disposition;
-- executability: each covered participant has observable pass/fail evidence
-  that an implementer or reviewer can verify without inferring the missing
-  contract details.
-
-When the design includes contract decisions, boundary rows must reference the
-relevant design contract decisions or explicitly state why a boundary
-participant is not governed by them. The boundary table is where design contract
-decisions become executable coverage; it is not a place to substitute new
-unstated decisions for missing design authority.
-
-The boundary table should use stable row IDs so task contract checklists can
-reference relevant boundary rows instead of restating all details.
-
-Each boundary row must identify:
-
-- boundary name;
-- authoritative source;
-- required input tuple;
-- producer;
-- validator or policy authority;
-- adapter or consumer;
-- failure mode when an authority input is missing or mismatched;
-- required proof per boundary participant.
-
-Every boundary row must map to at least one implementation task or an explicit
-no-code disposition. A named participant with no task coverage or proof
-obligation is a plan-review failure. A plan-review result must also fail when a
-final consumer path is covered but an earlier adapter, producer, or validator
-for the same contract is not covered.
-
-Structurally present rows still fail when an implementer or reviewer cannot
-verify pass/fail evidence without inference. Required proof should name the
-observable evidence category that makes the row executable where relevant:
-diagnostic shape, validation ordering, source inspection targets or discovery
-criteria, no-code disposition evidence location, rollback/fail-closed proof,
-and forbidden-surface absence proof.
-
-Invalid example: a contract-heavy review workflow plan tests only final posting
-validation while an earlier scope-decision validation path for the same
-artifact contract remains under-bound. The plan mentions upstream context, but
-it does not assign task coverage or proof obligations to the earlier adapter.
-
-Valid example: a review workflow plan names the producer artifact, shared
-validator, prior-thread adapter, approved-review adapter, workflow prose, and
-final posting consumer in boundary rows. Each row has task coverage or an
-explicit no-code disposition, and proof obligations are tied to the boundary
-row that owns the participant.
-
-Invalid structurally complete but non-executable row:
-
-| ID  | Boundary name                    | Authoritative source                      | Required input tuple                                      | Producer                 | Validator or policy authority | Adapter or consumer      | Failure mode                                                                   | Required proof per boundary participant                                                                                                                                                              |
-| --- | -------------------------------- | ----------------------------------------- | --------------------------------------------------------- | ------------------------ | ----------------------------- | ------------------------ | ------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| B2  | Review-response handoff boundary | Approved design and source skill contract | Review feedback, disposition, and generated plan artifact | Review-response workflow | Planning policy               | Plan author and reviewer | Missing or mismatched authority input lets vague feedback drive implementation | Producer: emits stable diagnostic. Validator: confirms validation ordering. Consumer: performs source inspection. No-code paths record a disposition. Rollback covered. No-recovery surface covered. |
-
-This row is invalid because it has every required field, but the proof language
-does not say what diagnostic shape is observable, what ordering must be
-verified, which source targets or discovery criteria define inspection, where
-the no-code disposition evidence lives, what proves rollback or fail-closed
-behavior, or how forbidden surfaces are proven absent.
-
-Tightened executable row:
-
-| ID  | Boundary name                    | Authoritative source                      | Required input tuple                                      | Producer                 | Validator or policy authority | Adapter or consumer      | Failure mode                                                                   | Required proof per boundary participant                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| --- | -------------------------------- | ----------------------------------------- | --------------------------------------------------------- | ------------------------ | ----------------------------- | ------------------------ | ------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| B2  | Review-response handoff boundary | Approved design and source skill contract | Review feedback, disposition, and generated plan artifact | Review-response workflow | Planning policy               | Plan author and reviewer | Missing or mismatched authority input lets vague feedback drive implementation | Producer: diagnostic artifact shows `thread_id`, `comment_id`, `feedback_state`, `disposition`, and `route` fields; uses the `review-thread` location category; and lists related items in review feedback, approved design, generated plan order. Validator: feedback-source current-state validation precedes disposition validation, and both precede plan handoff validation. Consumer: inspect the approved design artifact and `skills/play-planning/SKILL.md`; if the design path is absent, use the controller handoff record containing `Route: review-response-parent-owned` and `Design:` fields. No-code disposition evidence is recorded in the design's concern-disposition table with the source skill contract cited as authority. Fail-closed proof is an executor report of `BLOCKED` with no generated plan artifact accepted when either required authority input is missing. Forbidden-surface absence proof is that executor task scope contains no push, reply, resolve, refetch, or PR closeout surface. |
-
-This table constrains contract authority, participant coverage, and proof. It
-does not prescribe concrete implementation code, test bodies, helper names,
-line edits, shell recipes, or command recipes.
-
-## Contract Checklist Triggers
-
-For non-trivial work, every task must include a contract checklist. Non-trivial
-means the work matches at least one of these triggers:
-
-- multi-step implementation;
-- durable documentation, spec, Architecture Decision Record (ADR),
-  architecture, Inter-Process Communication (IPC), contract, guideline,
-  roadmap, or MAP navigation changes;
-- cross-skill or cross-agent handoffs;
-- source-owned policy, schema, interface, bridge, or protocol changes;
-- generated or derived artifact behavior;
-- state-machine, failure, retry, cleanup, recovery, or terminal-state behavior;
-- fail-closed behavior, safety-sensitive behavior, or user-visible error
-  handling;
-- compatibility or versioning behavior.
-
-For trivial work, the plan may omit the contract checklist only when the task
-states why none of the trigger conditions apply. A bare `N/A` is not enough.
-
-When the checklist is required, every field must either be filled in or marked
-`N/A` with a task-specific reason. Blank fields, unreplaced placeholders, and
-unexplained `N/A` entries are plan-review failures. If the owner, authority,
-source of truth, or required evidence cannot be identified, name the blocker or
-assumption instead of inventing a contract.
-
-The checklist records executable contracts, not implementation mechanics. It
-must not prescribe concrete code, test bodies, helper names, shell recipes,
-line-number edits, or command sequences unless the content is explicitly
-labeled as already-approved verbatim artifact content with an authority source.
-
-Use the target repository's own authority vocabulary after reading its entry
-documents, such as `AGENTS.md`, `MAP.md`, contract registries, and spec or
-documentation guidelines. If the repository lacks an authority model, state that
-assumption instead of silently inventing one.
-
-Required checklist surfaces for qualifying work:
-
-- **Trigger criteria:** the specific non-trivial checklist trigger(s) that make
-  the checklist required for this task, or the task-specific reason no trigger
-  applies.
-- **Owner / authority:** behavior owner, contract owner, code owner,
-  documentation owner, source of truth if artifacts conflict, and consumer repo
-  authority vocabulary used.
-- **Affected consumers / generated outputs:** downstream skills, agents,
-  prompts, generated Claude/Codex outputs, installed outputs, docs, workflows,
-  or external callers that must observe the contract; state task-specific `N/A`
-  when no generated or downstream consumer surface is affected.
-- **Must preserve:** boundary invariants, existing workflow or domain
-  contracts, current/target/draft/deferred behavior labels when applicable, and
-  compatibility constraints.
-- **Required behavior:** preconditions, happy path, failure classes,
-  retry/recovery behavior, cleanup ownership, terminal states, and re-entry or
-  re-review behavior.
-- **Spec / procedure work:** for specs, procedures, ADRs, architecture docs,
-  contract docs, IPC docs, guidelines, or roadmap items, identify the owning
-  artifact category, behavior status labels, fact ownership, conflict
-  precedence, normative expectations, example or fixture validation
-  expectations, cross-document drift risks, and review-blocking semantic risks.
-  For governance or workflow-policy changes, include the adjacent governance
-  surfaces triggered by `docs/guidelines/documentation-checklists.md`'s named
-  Adjacent Governance Policy Set.
-- **Risk surfaces:** include only relevant risks, such as persistence or data
-  loss, bridge/protocol drift, external input validation, path/file safety,
-  secrets or credential disclosure, prompt/log disclosure, compatibility or
-  versioning, and user-facing error surfaces.
-- **Proof obligations:** tests or fixtures that must exist or be updated,
-  generated-output or mirrored-reference evidence, documentation/spec/ADR/MAP
-  updates required by trigger, adjacent governance surface checks required by
-  the named set when triggered, manual verification required, and branch-review
-  focus areas.
-
-Documentation impact stays trigger-based. If the change alters durable workflow
-policy, contract ownership, verification expectations, navigation, or
-architectural decision state, update the owning AFDS artifact in the same PR or
-name the follow-up blocker. Do not require ADR or MAP updates unless their AFDS
-triggers are met. An ADR trigger means the plan must ask whether the change
-crosses the durable-decision threshold; it does not mean every feature or spec
-plan needs an ADR.
-
-For governance or workflow-policy changes, planning must carry forward the
-adjacent governance surfaces named by `play-brainstorm` and reconcile them
-against the Adjacent Governance Policy Set owned by
-`docs/guidelines/documentation-checklists.md`. Include relevant adjacent
-surfaces in contract tables, task contract checklists, and proof obligations.
-Do not require PR guideline, PR template, `{{file:workflow-guide}}`, ADR, MAP, generated
-output, or installed-output updates unless the repository's existing AFDS
-triggers apply; when a surface is not updated, the plan should state why it is
-not in scope.
-
-For generated artifacts, derived artifacts, helper I/O files, `.ephemeral`
-handoffs, cross-skill handoffs, or side-channel data, include the relevant
-Side-Channel Artifact Contract Checklist obligations from
-`docs/guidelines/documentation-checklists.md` in the contract table, task
-contract checklist, and proof obligations. The plan should name the checklist
-owner and the concrete artifact authority separately.
-
-For contract-heavy work with boundary-contract traceability, contract
-checklists must reference relevant boundary row IDs or explicitly name the
-boundary rows that own the task's participant coverage and proof obligations.
-If a checklist covers only a final consumer while an earlier producer,
-validator, or adapter row for the same contract has no task coverage or proof
-obligation, the plan must fail review. If an applicable checklist omits
-relevant boundary row IDs or row ownership, the plan must fail review even when
-the checklist precisely restates boundary details. If a checklist restates
-vague contract concepts without tying back to the boundary rows that own
-participant coverage, the plan must fail review.
-
-## Contract Example Discipline
-
-Plans that change schemas, APIs, function shapes, artifacts, CLI output,
-helper I/O contracts, or cross-skill contracts must include a
-`Contract Example Discipline` section or an equivalent clearly labeled section
-before task planning. Trivial non-contract plans do not need the section.
-Non-triggered plans state why no trigger applies.
-
-The section must name:
-
-- canonical valid post-change example;
-- source authority for that valid example;
-- invalid example families derived from that canonical valid example;
-- required proof that valid examples pass and derived invalid families fail;
-- out-of-scope invalid families that the plan intentionally does not require.
-
-The canonical valid post-change example is the anchor. Invalid examples without
-that canonical valid anchor are insufficient. The canonical valid example must
-be minimal, verifiable, and contract-focused: it shows only the durable
-post-change contract shape needed to prove validity, names the observable proof
-surface, and avoids overfitting to incidental phrasing, task history, comment
-wording, or reviewer preference. Invalid families must be derived from the
-canonical valid shape rather than invented from comment evidence, task history,
-or reviewer preference.
-
-The discipline is broad example policy, not fixture-only policy. The positive
-examples, fixtures, API samples, helper I/O samples, CLI output samples, and
-cross-skill artifact examples must match the target post-change contract, not
-the pre-change contract. The invalid examples must mutate exactly one named
-contract dimension from the canonical valid example unless multi-fault behavior
-is intentional and named. When source facts change, derived fields in examples
-or fixtures stay consistent with source facts, or the plan must explicitly
-justify why a derived field remains unchanged. These rules do not require
-exhaustive invalid examples for every field; the plan names representative
-invalid families and any intentionally out-of-scope invalid families.
-
-The section identifies example and proof obligations only; it must not include
-plan-authored implementation code, test bodies, fixture contents, shell recipes,
-helper-name prescriptions, or command recipes.
-
-## Requirements Traceability
-
-For plans based on designs with hard requirements, the plan must include a
-`## Traceability Matrix` before task planning. This applies when the input
-design contains a `## Hard Requirements` ledger. This matrix complements the
-contract-heavy table and task contract checklists; it does not replace either
-one.
-
-Use this shape:
-
-```md
-## Traceability Matrix
-
-| Requirement | Task coverage | Acceptance criteria              | Proof obligation                             |
-| ----------- | ------------- | -------------------------------- | -------------------------------------------- |
-| R1          | Task 1        | <observable acceptance coverage> | <test, inspection, or verification evidence> |
-```
-
-Every hard-requirements ledger row must map to task coverage, acceptance
-criteria, and proof or verification obligation. Missing rows, blank coverage,
-or vague proof coverage are plan-review failures. The matrix is driven by the
-design ledger, not by incidental modal verbs in examples, quoted issue text,
-shell snippets, or explanatory prose outside the ledger.
-
-A plan-review result must fail when any hard-requirements ledger row lacks
-explicit task coverage, acceptance criteria, or proof coverage.
-
-For governance or workflow-policy changes, carry forward the adjacent
-governance surfaces from the design and reconcile them against the Adjacent
-Governance Policy Set owned by
-`docs/guidelines/documentation-checklists.md`. If the issue or design names
-conditional adjacent guidance such as `docs/guidelines/writing-skills.md`,
-inspect it and either update it for a concrete contradiction or record why the
-owning source skill remains the right surface.
+Files that change together should live together. Split by responsibility when
+separate authority, verification, rollback, or dependency boundaries require
+it. Do not refactor unrelated code or documentation.
 
 ## Cohesive Task Composition
 
@@ -567,6 +307,8 @@ before starting.
 
 **Non-goals:** <scope boundaries and forbidden expansions>
 
+**Scope mapping:** <authoritative requirement IDs, in-scope outcome, and CURRENT Scope Delta row that make this task necessary>
+
 **Source-of-truth references:** <issue, design, ADR, spec, guideline, source file, or existing behavior authority>
 
 **Authority surfaces:** <which source files, contracts, schemas, helpers, renderers, install/sync flows, or policies own the behavior; generated outputs are derived evidence, not authority>
@@ -580,6 +322,8 @@ before starting.
 **Dependencies:** <prior tasks or external prerequisites, or "None">
 
 **Verification expectations:** <what evidence must prove the task is complete, without prescribing exact command sequences>
+
+**Proof sufficiency:** <why this is the narrowest existing repository mechanism that proves acceptance, or the explicit authority for broader proof>
 ```
 
 Task specs should prefer references to existing behavior, source files,
@@ -641,6 +385,8 @@ Example mechanical-task header:
 
 **Non-goals:** Do not change surrounding prose, example behavior, or additional files.
 
+**Scope mapping:** CURRENT Scope Delta row for the approved exact rename.
+
 **Source-of-truth references:** The approved issue requirement for this exact rename.
 
 **Authority surfaces:** `examples/demo-note.md`
@@ -656,6 +402,9 @@ failure route, review rule, documentation navigation, or compatibility surface.
 **Dependencies:** None.
 
 **Verification expectations:** Confirm the approved before/after token replacement in the named file.
+
+**Proof sufficiency:** Focused inspection of the named file proves the exact
+replacement; no generalized harness or broader matrix is required.
 
 **Replace:** `OldExampleToken`
 **With:** `NewExampleToken`
@@ -693,6 +442,8 @@ Every task spec must contain the actual contract an engineer needs. These are
 - "Write tests for the above" without naming the behavior and verification expectation
 - "Similar to Task N" without restating the task-specific contract
 - Tasks that describe desired change without purpose, boundaries, acceptance criteria, authority surfaces, or verification expectations
+- Tasks without an authoritative requirement, necessary in-scope outcome, and CURRENT Scope Delta mapping
+- Generalized harnesses, protocols, marker languages, evidence systems, or broad matrices introduced only to strengthen proof beyond approved scope
 - References to source-of-truth files, functions, methods, ADRs, specs, or helpers that do not exist unless the task is explicitly responsible for creating them
 - Required contract checklist fields left blank, marked only `N/A`, or filled
   with generic text that does not explain the task-specific reason
@@ -704,400 +455,139 @@ Every task spec must contain the actual contract an engineer needs. These are
 - Contract checklists for triggered work, or a task-specific reason the
   checklist does not apply
 - Source-of-truth references over copied logic
+- Scope Envelope and Scope Delta before file or task planning
+- CURRENT task mappings to authoritative requirements and necessity
 - Authority surfaces and dependencies made explicit
-- Verification expectations without command recipes
+- Minimum-sufficient verification expectations without command recipes
 
 ## Self-Review
 
-After writing the complete plan, look at the spec with fresh eyes and check the plan against it. This is a checklist you run yourself — not a subagent dispatch.
+After writing the plan, reload
+[`references/planning-criteria.md`](references/planning-criteria.md) and review
+the saved artifact against that canonical source. The reference, not duplicated
+gate prose, owns the detailed scope, contract, traceability, task, proof, and
+finding criteria.
 
-**1. Spec coverage:** Skim each section/requirement in the spec. Can you point to a task that implements it? List any gaps.
+Review in this order:
 
-**2. Placeholder scan:** Search your plan for red flags — any of the patterns from the "No Placeholders" section above. Fix them.
+1. Validate the Scope Envelope and Scope Delta. Every current task must map to
+   authoritative scope and necessity. Unauthorized additions fail review.
+2. Check requirements, contract decisions, boundary participants, hard
+   requirements, and documentation impact for current task and proof coverage.
+3. Check task completeness, placeholders, citations, dependencies, mechanical
+   and review-routing hints, and minimum-sufficient proof.
+4. Confirm optional comment evidence remains non-authoritative.
+5. Classify every finding as `CURRENT`, `BLOCKER`, `FOLLOW-UP`, or
+   `OPTIONAL` before changing the plan.
 
-**3. Task-spec contract:** Does every task include purpose, goal, non-goals,
-acceptance criteria, risks, dependencies, source-of-truth references, authority
-surfaces, and verification expectations? Fix any missing field.
+Only verified CURRENT findings may be fixed inline. A BLOCKER stops and returns
+to its owning decision surface. FOLLOW-UP and OPTIONAL findings remain in
+Deferred Follow-ups and must not become current tasks. PASS may coexist with
+FOLLOW-UP and OPTIONAL findings.
 
-**4. Contract-heavy table check:** If the work depends on cross-skill
-handoffs, generated or derived paths, helper scripts, source-owned policy,
-schema or interface authority, execution cwd assumptions, or fail-closed
-behavior, does the plan include a short contract table covering the applicable
-surfaces? For governance or workflow-policy changes, does it include adjacent
-governance surfaces from the named set owned by
-`docs/guidelines/documentation-checklists.md`? Fix missing contract surfaces
-before task planning.
-
-**4a. Boundary-contract traceability check:** If contract-heavy work touches
-producer, validator, adapter, or consumer boundaries, does the plan include
-boundary rows for every participant? Fail and fix the plan when a named
-boundary participant has no task coverage, when a named boundary participant
-has no proof obligation, or when a final consumer path is covered but an
-earlier adapter, producer, or validator for the same contract is not covered.
-Fail and fix the plan when task checklists restate vague contract concepts
-without tying back to the boundary rows that own participant coverage.
-Fail and fix the plan when an applicable task checklist omits relevant
-boundary row IDs or row ownership, even when it precisely restates boundary
-details. Fail and fix the plan when boundary rows or task checklists are
-structurally present but use non-executable boundary or proof language, such as
-stable diagnostic, source inspection, no-code disposition, no-recovery surface,
-broad validation ordering, rollback covered, fail-closed covered, or
-forbidden-surface absence without the observable diagnostic shape, ordering
-relationship, source target or discovery criteria, evidence location,
-terminal-state proof, or absence check needed to verify pass/fail evidence. When
-exact executable evidence cannot be identified from source or durable
-requirements, record a blocker or assumption instead of inventing authority.
-When the design includes exact or equivalent contract-decision authority, fail
-and fix the plan unless every contract decision maps to task coverage,
-acceptance criteria, ownership, and proof obligations, and every governed
-boundary row references the relevant design contract decisions or explains why
-that participant is not governed by them.
-When the design creates or changes a boundary but lacks exact or equivalent
-contract-decision authority, fail before task planning unless the design
-records an explicit blocker or intentional implementation choice disposition
-for the missing contract decisions, including owning authority, risk, and proof
-expectation.
-
-**5. Contract checklist trigger check:** For every task, determine whether any
-non-trivial trigger applies. Triggered tasks must name the trigger criteria and
-include owner/authority, affected consumers/generated outputs, must-preserve,
-required behavior, spec/procedure work, risk surfaces, and proof obligations.
-Trivial tasks may omit the checklist only when they state why no trigger applies.
-For governance or workflow-policy changes, confirm triggered tasks include the
-relevant adjacent governance surfaces in the applicable checklist fields.
-For helper, script, API, adapter, validator, producer, or consumer tasks that
-touch boundaries, confirm the task-local I/O contract names required inputs,
-optional inputs, missing or empty behavior, outputs, write targets,
-validation-before-write ordering, failure behavior, and forbidden side effects.
-For plans that change schemas, APIs, function shapes, artifacts, CLI output,
-helper I/O contracts, or cross-skill contracts, fail and fix the plan unless
-it includes Contract Example Discipline or an equivalent clearly labeled
-section naming a canonical valid post-change example, source authority, invalid
-example families derived from that canonical valid example, required proof, and
-out-of-scope invalid families. Fail and fix triggered plans unless positive
-examples match the target post-change contract, not the pre-change contract;
-invalid examples mutate exactly one named contract dimension unless multi-fault
-behavior is intentional and named; and derived fields stay consistent with
-source facts or are explicitly justified. For non-triggered plans, confirm the
-plan states why no trigger applies.
-
-**6. Contract checklist completeness:** For every required checklist, confirm
-each field is populated or marked `N/A` with a task-specific reason. Blank
-fields, unreplaced placeholders, and unexplained `N/A` entries are failures.
-If owner, authority, source of truth, or evidence cannot be identified, the plan
-must name the blocker or assumption instead of inventing a contract.
-
-**7. Implementer executability scan:** Confirm a competent non-senior
-developer can execute each task after reading the task and named source files,
-without reverse-engineering missing scope, source policy, call sites,
-side-effect ownership, error mapping, or allowed guardrail outcomes. Fail and
-fix vague phrases such as "where feasible", "as appropriate", "preserve
-existing behavior", "safe selector", "source inspection", and "migrate
-handlers" when they appear without an exact source target, pass/fail criteria,
-or operation mapping. For boundary-touching tasks that change or depend on
-source, adapter, handler, side-effect, validation, rollback, or guardrail
-behavior, confirm any applicable task-local operation map names current source,
-target surface, required inputs, optional inputs where applicable, missing or
-empty behavior, outputs, errors, explicit write targets or side-effect owner,
-validation-before-write or validation-order requirements, failure behavior,
-forbidden side effects, dirty/rollback behavior, and required verification. Do
-not require operation maps for trivial non-boundary tasks; when the needed map
-cannot be completed from source or durable requirements, record a blocker or
-assumption instead of inventing authority.
-
-**8. Prohibited detail scan:** Confirm the plan does not include concrete
-implementation code, test code, plan-authored test bodies, shell snippets,
-shell recipes, exact command sequences, helper-name prescriptions, line-number
-edits, or commit recipes unless the content is explicitly labeled as
-already-approved verbatim artifact content with an authority source.
-
-Verification expectations should name observable evidence categories and source
-surfaces, not exact command recipes. Fail and fix vague evidence such as "run
-tests" when it does not name behavior coverage, source surfaces, validation
-ordering, rendered-output surfaces, absence checks, or another observable proof
-surface. The plan does not fail solely because exact command sequences are
-omitted; implementers choose concrete commands after reading source.
-
-**9. Citation verification:** For any task reference that purports to cite
-existing code, files, behavior, docs, history, issue or PR numbers, ADRs,
-helpers, or generated paths, verify the cited artifact exists and supports the
-claim. Forward-looking files in `Files: Create:` blocks are not subject to this
-check. Concrete-looking specifics that turn out to be fabricated are the most
-common silent defect class in plans.
-
-**10. Requirement/evidence distinction:** If optional comment evidence was
-provided, confirm every task keeps authoritative requirements separate from
-supporting evidence. Comment evidence may explain context, observations, or
-ambiguity, but it must not appear as an authority surface or acceptance
-requirement unless an authoritative design, spec, issue body, guideline, ADR, or
-source file independently supports it.
-
-**11. Documentation impact tasks:** Same-PR documentation impact is normal
-implementation work when the design changes durable truth. AFDS repositories
-should provide the canonical trigger list at
-`docs/guidelines/documentation-standard.md` §5.2; common examples include
-interfaces or schemas, major paths or layout, behavior, workflow, commands,
-ownership, verification, architecture, and policy. If the target repository has
-not adopted that path, use its discovered equivalent documentation standard
-before applying same-PR triggers. If the input design has a "Documentation
-impact" section, every listed file must have a corresponding task in the plan.
-New ADRs use `docs/adr/adr-template.md` as the source. For routing boundaries,
-follow
-`docs/guidelines/portable-afds-user-procedure-map.md`.
-
-Do not turn issue comments, PR review history, validation logs, or agent-local plans into repository documentation. Those artifacts can be evidence for the owning durable update, but the plan must write durable truth in the owning source, spec, guideline, ADR, architecture doc, or agent entry point instead of copying live work history.
-
-**12. Requirements traceability check:** If the input design has a
-`## Hard Requirements` ledger, confirm the plan has a
-`## Traceability Matrix` and that every ledger row has explicit task coverage,
-acceptance criteria, and proof coverage. Missing rows, missing coverage, or
-coverage that only points at general prose are plan-review failures.
-
-**13. Mechanical-task hint check:** For each task that fits the mechanical taxonomy (single-file create from verbatim content; unambiguous identifier replacement — see [`skills/play-subagent-execution/references/skip-dispatch-policy.md` § Mechanical Task Taxonomy](../play-subagent-execution/references/skip-dispatch-policy.md#mechanical-task-taxonomy)), confirm `**Mode:** mechanical` is set. For any task with judgment (TDD expectations, multi-file coordination, new modules/interfaces), confirm it is **not** set.
-
-**14. Review-routing hint check:** If tasks include review-routing hints,
-confirm hard-risk triggers are not under-classified, hints are described as
-non-authoritative, unclear cases default to `spec-and-quality`, and
-foundation-producing tasks are not marked below `spec-only`. The field order
-must be heading, optional `**Mode:** mechanical`, optional review-routing hint
-fields, then `**Files:**`.
-
-If you find issues, fix them inline. No need to re-review — just fix and move on. If you find a spec requirement with no task, add the task.
+Do not treat normal implementation choices discoverable from named sources as
+missing planning contracts. Do not broaden proof obligations beyond the Scope
+Envelope. Recompute task and traceability coverage after any authorized edit,
+then continue to Plan Review.
 
 ## Plan Review
 
-After self-review, dispatch a dedicated `{{model:frontier}}` agent to validate plan-vs-spec alignment before offering execution options. This catches spec coverage gaps and scope drift that self-review may miss.
+After self-review, dispatch a dedicated `{{model:frontier}}` agent to validate
+plan alignment before offering execution options.
 
-Before dispatching the plan-review agent, use `subagent-lifecycle` for the
-controller-local lifecycle ledger, target lifecycle capability classification,
-cleanup gate before spawns, target-honest cleanup outcomes, and slot-limit
-recovery. Capture the plan-review session's role-specific state before
-closing or superseding it: plan path or inline plan scope, source spec/design
-scope, concise PASS/FAIL result, and specific gaps when present.
+Before dispatching the plan-review agent, use `subagent-lifecycle` for the controller-local lifecycle ledger, target
+lifecycle capability classification, cleanup gate, target-honest cleanup outcomes,
+and slot-limit recovery. Capture the plan path or inline scope, design
+scope, concise PASS/FAIL result, classified findings, and blockers before
+cleanup or supersession.
 
-**Subagent contract:**
+Pass `Plan: <path>` and `Design: <path>` when artifacts exist; prefer artifact
+path references over inlined full documents. Use inline content only for direct
+invocations without paths. Instruct the reviewer to receive both artifacts by
+path and read them from disk, then read
+[`references/planning-criteria.md`](references/planning-criteria.md) from the
+repository before evaluating. Missing or unreadable required inputs block the
+review.
 
-- **Model:** `{{model:frontier}}`
-- **Input:** `Plan: <path>` and `Design: <path>` when artifact paths exist;
-  inline plan/design content only for direct invocations without paths
-- **Role:** Independent validation of plan completeness and spec alignment
+The reviewer independently validates the Scope Envelope, Scope Delta,
+authoritative requirement coverage, unjustified tasks, dependency order,
+contract and boundary traceability, task contracts, documentation impact, and
+minimum-sufficient proof. It also checks citations and applicable
+review-routing hints. The canonical reference owns the detailed criteria.
 
-Plan review should prefer artifact path references over inlined full documents.
-When the plan and design were saved under `.ephemeral/`, pass those paths to
-the review agent and instruct it to read them from disk before evaluating. If a
-direct human invocation provides only inline content and no artifact paths,
-inline content remains valid.
+The reviewer reports every concrete in-remit finding and classifies it as
+`CURRENT`, `BLOCKER`, `FOLLOW-UP`, or `OPTIONAL`. CURRENT and BLOCKER
+findings prevent PASS. PASS may coexist with FOLLOW-UP and OPTIONAL findings,
+which remain deferred and must not become current tasks. The reviewer must not
+repeat Implementer Executability Review, invent requirements, or propose
+speculative improvements.
 
-**The subagent checks:**
+**Output:** concise PASS or FAIL with gaps.
 
-- Every spec requirement maps to at least one task
-- No tasks that aren't justified by the spec (scope creep)
-- Task ordering respects dependencies
-- Verification expectations exist and cover acceptance criteria
-- File paths reference real locations (the agent can search, pattern-match, and read project files to verify)
-- No placeholder violations (catches what self-review missed)
-- Contract-heavy work includes the applicable contract table surfaces before
-  task planning
-- Contract-heavy work touching producer, validator, adapter, or consumer
-  boundaries includes boundary-contract traceability rows before task planning
-- Boundary rows identify boundary name, authoritative source, required input
-  tuple, producer, validator or policy authority, adapter or consumer, failure
-  mode for missing or mismatched authority inputs, and required proof per
-  boundary participant
-- When the design includes exact or equivalent contract-decision authority,
-  every contract decision maps to task coverage, acceptance criteria,
-  ownership, and proof obligations, and every governed boundary row references
-  the relevant design contract decisions or explains why that participant is not
-  governed by them
-- Boundary-changing designs without exact or equivalent contract-decision
-  authority fail before task planning unless the design records an explicit
-  blocker or intentional implementation choice disposition for the missing
-  contract decisions, including owning authority, risk, and proof expectation
-- Every boundary row maps to at least one task or an explicit no-code
-  disposition
-- The plan fails when a named boundary participant has no task coverage, when a
-  named boundary participant has no proof obligation, or when a final consumer
-  path is covered but an earlier adapter, producer, or validator for the same
-  contract is not covered
-- The plan fails when task checklists restate vague contract concepts without
-  tying back to the boundary rows that own participant coverage
-- The plan fails when an applicable task checklist omits relevant boundary row
-  IDs or row ownership, even when it precisely restates boundary details
-- The plan fails when boundary rows or task checklists are structurally present
-  but use non-executable boundary or proof language, such as stable diagnostic,
-  source inspection, no-code disposition, no-recovery surface, broad validation
-  ordering, rollback covered, fail-closed covered, or forbidden-surface absence
-  without the observable diagnostic shape, ordering relationship, source target
-  or discovery criteria, evidence location, terminal-state proof, or absence
-  check needed to verify pass/fail evidence
-- When exact executable evidence cannot be identified from source or durable
-  requirements, the plan records a blocker or assumption rather than inventing
-  authority
-- The contract checklist is present for every triggered task, or the task gives
-  a specific reason no trigger applies
-- Required checklist fields cover trigger criteria, owner/authority,
-  must-preserve boundaries, affected consumers/generated outputs, required
-  behavior including state and failure behavior, spec/procedure work, risk
-  surfaces, and proof obligations
-- Boundary-touching helper, script, API, adapter, validator, producer, or
-  consumer tasks include task-local I/O contract fields for required inputs,
-  optional inputs, missing or empty behavior, outputs, write targets,
-  validation-before-write ordering, failure behavior, and forbidden side
-  effects
-- Contract-changing plans for schemas, APIs, function shapes, artifacts, CLI
-  output, helper I/O contracts, or cross-skill contracts include Contract
-  Example Discipline or an equivalent clearly labeled section naming a
-  canonical valid post-change example, source authority, invalid example
-  families derived from that canonical valid example, required proof, and
-  out-of-scope invalid families; positive examples match the target
-  post-change contract, not the pre-change contract; invalid examples mutate
-  exactly one named contract dimension unless multi-fault behavior is
-  intentional and named; derived fields stay consistent with source facts or
-  are explicitly justified; non-triggered plans state why no trigger applies
-- Every checklist field is populated or marked `N/A` with a task-specific
-  reason; blank fields, unreplaced placeholders, and unexplained `N/A` entries
-  are failures
-- Unknown owner, authority, source-of-truth, or evidence surfaces are named as
-  blockers or assumptions rather than invented
-- Tasks include purpose, goal, non-goals, acceptance criteria, risks,
-  dependencies, source-of-truth references, authority surfaces, and
-  verification expectations
-- The plan does not include concrete implementation code, test code,
-  plan-authored test bodies, shell snippets, shell recipes, exact command
-  sequences, helper-name prescriptions, line-number edits, or commit recipes
-  unless explicitly labeled as already-approved verbatim artifact content with
-  an authority source
-- Task specs prefer references to existing behavior and source-of-truth files
-  over copied logic
-- Verification expectations name observable evidence categories and source
-  surfaces. Vague evidence such as "run tests" fails when no behavior or source
-  surface is named, but a plan does not fail solely because exact command
-  sequences are omitted
-- Every "Documentation impact" item from the issue, design, or owning source
-  artifact maps to at least one task in the plan
-- When the design includes a `## Hard Requirements` ledger, the plan includes a
-  `## Traceability Matrix`, and every hard requirement has explicit task
-  coverage, acceptance criteria, and proof coverage
-- Review-routing hints, when present, are non-authoritative inputs to
-  `play-subagent-execution`
-- Hard-risk triggers from
-  `skills/play-subagent-execution/references/review-routing-policy.md` § Risk
-  Classes are not under-classified
-- Unclear review classification defaults to `spec-and-quality`
-- Foundation-producing tasks are not marked below `spec-only`
-- Hint field ordering is heading, optional `**Mode:** mechanical`, optional
-  review-routing hint fields, then `**Files:**`
+Include classifications and specific gaps. A PASS may include
+FOLLOW-UP or OPTIONAL findings and one short confidence note. A FAIL identifies
+all CURRENT and BLOCKER gaps specifically enough to act without dumping raw
+artifacts or broad commentary.
 
-**Output:** concise PASS or FAIL with gaps. A PASS may include one short
-confidence note. FAIL gaps must be specific enough to fix, but the reviewer
-must not dump raw artifact bodies or broad commentary.
+**On FAIL:** verify each finding against the Scope Envelope and authoritative
+sources before editing. Fix only CURRENT findings inline, then rerun Plan
+Review. A BLOCKER stops and returns to the owning decision surface. Preserve
+FOLLOW-UP and OPTIONAL findings under Deferred Follow-ups. Maximum 2 Plan
+Review rounds. If CURRENT findings remain after round 2, or a BLOCKER remains,
+present them to the user or owning workflow and stop.
 
-**On FAIL:** Fix the identified gaps inline in the plan and re-run the review subagent. Maximum 2 review rounds. If the plan still fails after 2 rounds, present remaining concerns to the user and let them decide whether to proceed.
-
-**In `--auto` flows** (e.g., `github-issue-priming --auto`): A Plan Review
-PASS advances to Implementer Executability Review; it is not sufficient for
-parent execution handoff. Only both review gates returning PASS may hand off to
-the parent skill per the Execution Handoff section below. `play-planning`
-itself does not start execution. A FAIL after 2 rounds stops and reports to the
-user.
+In `--auto` flows, Plan Review PASS advances to Implementer Executability
+Review; it is not sufficient for parent execution handoff. Only both planning
+gates returning PASS may hand off. A failing or blocked second round stops and
+reports to the user.
 
 ## Implementer Executability Review
 
-After plan review passes, dispatch a separate workflow-local
-implementer-executability reviewer before offering execution options. This
-review does not repeat plan-vs-spec alignment and does not own execution review
-routing. It validates whether every implementation task is executable by a
-competent non-senior developer from the task text and named source files,
-without reverse-engineering hidden scope, source policy, call sites,
-side-effect ownership, error mapping, or allowed guardrail outcomes.
+After Plan Review passes, dispatch a separate workflow-local
+implementer-executability reviewer before execution handoff. This gate validates
+whether each CURRENT task is executable by a competent non-senior developer
+from the task and named authoritative sources. It does not repeat plan
+alignment or own executor review routing.
+
+Use a fresh `{{model:frontier}}` session for the
+implementer-executability reviewer until an owning routing policy explicitly
+supersedes this dispatch contract.
 
 Use `subagent-lifecycle` for the controller-local lifecycle ledger, target
-lifecycle capability classification, cleanup gate before spawns,
-target-honest cleanup outcomes, and slot-limit recovery before dispatching the
-implementer-executability reviewer. After the reviewer returns PASS or FAIL,
-capture the reviewer session's role-specific state before closing or
-superseding it: plan path or inline plan scope, source spec/design scope,
-optional comment evidence path when one was received, concise PASS/FAIL result,
-and concrete gaps when present.
+lifecycle capability classification, cleanup gate, target-honest cleanup outcomes,
+and slot-limit recovery before dispatch. Capture the plan and design
+scope, optional comment-evidence path, concise PASS/FAIL result, classified
+findings, and blockers before cleanup or supersession.
 
-**Subagent contract:**
+Pass guarded plan and design paths, plus comment evidence only when the planning
+invocation received it. Instruct the reviewer to read those artifacts and
+[`references/planning-criteria.md`](references/planning-criteria.md). Missing
+or unreadable required inputs block execution handoff.
 
-- **Model:** `{{model:frontier}}`
-- **Input:** `Plan: <path>` and `Design: <path>` when artifact paths exist;
-  `Comment evidence: <path>` only when the planning invocation received one;
-  inline plan/design content only for direct invocations without paths
-- **Role:** Independent validation of implementer execution readiness, not
-  requirement coverage or executor review routing
+The reviewer checks for hidden product, policy, ownership, source mapping,
+side-effect, error, recovery, rollback, or guardrail decisions that a task
+requires but its named sources do not resolve. The canonical reference owns the
+detailed criteria.
 
-Implementer-executability review should prefer artifact path references over
-inlined full documents. When the plan, design, or optional comment evidence was
-saved under `.ephemeral/`, pass those paths to the reviewer and instruct it to
-read them from disk before evaluating. If artifact paths are unavailable in a
-direct human invocation, inline content remains valid. If required inputs are
-missing or unreadable, block execution handoff rather than relying on
-controller memory.
+The reviewer must not turn normal implementation choices, call-site discovery,
+private helper structure, concrete tests, fixtures, or commands discoverable
+from named sources into missing contracts. It must not broaden the Scope
+Envelope or proof obligations. Apply minimum-sufficient proof.
 
-**The subagent checks:**
+**Output:** concise PASS or FAIL with findings classified as `CURRENT`,
+`BLOCKER`, `FOLLOW-UP`, or `OPTIONAL`. CURRENT and BLOCKER prevent PASS.
+PASS may coexist with FOLLOW-UP and OPTIONAL findings. A FAIL names the task and
+missing execution contract without dumping raw artifacts or broad commentary.
 
-- The plan defines tasks that a competent non-senior developer can begin after
-  reading the task and named source files
-- Tasks do not require senior reverse-engineering to discover real scope,
-  source policy, call sites, side-effect ownership, error mapping, or allowed
-  guardrail outcomes
-- Vague phrases such as "where feasible", "as appropriate", "preserve existing
-  behavior", "safe selector", "source inspection", and "migrate handlers" fail
-  when they lack an exact source target, pass/fail criteria, or operation
-  mapping
-- Boundary-touching tasks that change or depend on source, adapter, handler,
-  side-effect, validation, rollback, or guardrail behavior include task-local
-  operation maps when applicable
-- Operation maps name current source, target surface, required inputs, optional
-  inputs where applicable, missing or empty behavior, outputs, errors, explicit
-  write targets or side-effect owner, validation-before-write or
-  validation-order requirements, failure behavior, forbidden side effects,
-  dirty/rollback behavior, and required verification
-- Task-local contracts that are structurally present still fail when the
-  implementer must infer missing policy, ownership, mappings, error behavior,
-  guardrail outcomes, rollback or dirty-state behavior, or verification
-  criteria
-- Contract-changing tasks for schemas, APIs, function shapes, artifacts, CLI
-  output, helper I/O contracts, or cross-skill contracts fail when Contract
-  Example Discipline or an equivalent clearly labeled section is missing,
-  omits a canonical valid post-change example, lacks source authority, lists
-  invalid example families derived from that canonical valid example
-  incorrectly or not at all, omits required proof, or omits out-of-scope
-  invalid families. They also fail unless positive examples match the target
-  post-change contract, invalid examples mutate exactly one named contract
-  dimension unless multi-fault behavior is intentional and named, and derived
-  fields stay consistent with source facts or are explicitly justified
-- Unknown source policy, ownership, side effects, evidence, or allowed outcomes
-  are named as blockers or assumptions instead of invented
-- The plan preserves the rule against plan-authored implementation code, test
-  code, plan-authored test bodies, shell snippets, shell recipes, exact command
-  sequences, helper-name prescriptions, line-number edits, or commit recipes,
-  while allowing boundary contract names, public API surfaces, selector fields,
-  summary fields, error families, and operation mappings as planned boundary
-  contracts
+**On FAIL:** block execution handoff. Verify authoritative scope first. Fix only
+CURRENT gaps inline, then restart Plan Review before rerunning Executability
+Review so both gates pass on the same final plan contents. A BLOCKER returns to
+the owning decision surface. FOLLOW-UP and OPTIONAL remain deferred. Maximum 2
+Executability Review rounds. Remaining CURRENT or BLOCKER findings stop and are
+presented to the user or owning workflow.
 
-**Output:** concise PASS or FAIL with concrete gaps. A PASS may include one
-short confidence note. FAIL gaps must identify the task and missing execution
-contract, but the reviewer must not dump raw artifact bodies or broad
-commentary.
-
-**On FAIL:** Block execution handoff. Fix the identified gaps inline in the
-plan, then restart Plan Review before re-running the implementer-executability
-reviewer so both review gates pass on the same final plan contents. Maximum 2
-executability review rounds. If the plan still fails after 2 rounds, present
-remaining concrete gaps to the user and let them decide whether to revise scope,
-provide missing authority, or stop. Do not offer execution handoff options while
-this review is failing, required inputs remain missing or unreadable, or the
-current plan contents do not have both Plan Review PASS and Implementer
-Executability Review PASS.
-
-**In `--auto` flows** (e.g., `github-issue-priming --auto`): Only a PASS from
-both Plan Review and Implementer Executability Review hands off to the parent
-skill, which invokes `play-subagent-execution` per the Execution Handoff
-section below. A FAIL after 2 rounds stops and reports to the user.
+In `--auto` flows, only PASS from both planning gates hands off to the parent.
+A failing or blocked second round stops and reports to the user.
 `play-planning` itself does not start execution.
 
 ## Execution Handoff

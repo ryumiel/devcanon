@@ -62,29 +62,27 @@ describe("play-subagent planning and routing render smoke coverage", () => {
     for (const target of ["claude", "codex"] as const) {
       const playPlanning = bodies[`play-planning:${target}`];
       const normalizedPlayPlanning = normalizeWhitespace(playPlanning);
-      expect(playPlanning).toContain("## Contract Checklist Triggers");
-      expect(playPlanning).toContain("## Boundary-Contract Traceability");
+      expect(playPlanning).toContain(
+        "## Scope Envelope and Canonical Criteria",
+      );
+      expect(playPlanning).toContain("references/planning-criteria.md");
       expect(normalizedPlayPlanning).toContain(
-        "Exact `Contract Decisions` sections and equivalent clearly labeled contract-decision sections are both design contract authority",
+        "Planning may make approved scope executable, but it must not create new product, infrastructure, governance, or verification obligations",
       );
       expect(normalizedPlayPlanning).toContain(
-        "creates or changes a boundary but lacks exact or equivalent contract-decision authority",
+        "Every task must map to an authoritative requirement and be necessary for an in-scope outcome",
       );
       expect(normalizedPlayPlanning).toContain(
-        "explicit blocker or intentional implementation choice disposition",
+        "Only verified CURRENT findings may be fixed inline",
       );
       expect(normalizedPlayPlanning).toContain(
-        "observable evidence categories and source surfaces",
+        "PASS may coexist with FOLLOW-UP and OPTIONAL findings",
       );
       expect(normalizedPlayPlanning).toContain(
-        "does not fail solely because exact command sequences are omitted",
+        "prefer the narrowest existing repository mechanism that demonstrates acceptance",
       );
-      expect(playPlanning).toContain("required proof per boundary participant");
-      expect(playPlanning).toContain("Invalid example");
-      expect(playPlanning).toContain("final posting");
-      expect(playPlanning).toContain("scope-decision validation");
-      expect(playPlanning).toContain("prior-thread adapter");
-      expect(playPlanning).toContain("approved-review adapter");
+      expect(playPlanning).toContain("## Scope Envelope");
+      expect(playPlanning).toContain("## Scope Delta");
       expect(playPlanning).toContain("## Execution Handoff");
       expect(playPlanning).toContain("play-subagent-execution");
 
