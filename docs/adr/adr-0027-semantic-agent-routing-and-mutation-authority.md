@@ -42,28 +42,19 @@ termination conditions. Agent definitions remain thin role wrappers.
 
 ### Closed mutation vocabulary
 
-Mutation authority uses two separate axes:
+The architectural decision is that durable source mutation and external-system
+mutation are separate authority axes. Source permissions never imply an
+external effect. Semantic child roles receive no external-system mutation
+authority; only the owning root/controller may hold separately authorized
+authority for a named external mutation. Model, effort, tools, sandbox, network
+access, and provider capability do not change that boundary.
 
-- Source authority is exactly `source-immutable` or `source-mutable`.
-  `source-immutable` may inspect, run permitted commands, and write only one
-  dispatch-named direct-child `.ephemeral` handoff. It may not change durable
-  source, tests, configuration, or documentation. `source-mutable` may alter
-  only dispatch-authorized durable workspace paths.
-- External authority is exactly `none` or `external-mutable`.
-  `external-mutable` permits only the owning root/controller to perform a
-  separately named and authorized mutation in GitHub, Linear, Notion, or
-  another external system.
-
-Every semantic child role has external authority `none` and may not receive
-`external-mutable` authority. Only the owning root/controller may hold that
-authority under separate authorization; it must not infer the authority from
-source authority, model, effort, tools, sandbox, network access, or provider
-capability.
-
-The current complete skill and direct-child inventories live in the
+The [Agent Routing and Mutation Policy](../guidelines/agent-routing-and-mutation-policy.md#mutation-axes)
+is the sole normative owner of the exact closed values and their operational
+permissions. This ADR records the separation rationale and does not reproduce
+that vocabulary. The current complete skill and direct-child inventories also
+live in the
 [Agent Routing and Mutation Policy](../guidelines/agent-routing-and-mutation-policy.md).
-The inventory is the current procedure owner; this ADR owns the stable role,
-classification, and authority decisions.
 
 ### Cognitive classification and escalation boundary
 
@@ -82,61 +73,23 @@ escalation rule; issue #528 remains the separate escalation-policy owner.
 
 ### Minimum source-immutable guard
 
-The existing packaged `devcanon-runtime` entrypoint gains one command group:
+The architecture requires a minimal content-sensitive guard around
+source-immutable child work and any named direct-child `.ephemeral` handoff.
+Its purpose is to detect unexpected Git-visible source mutation before a result
+is consumed while keeping controller-owned artifact cleanup bounded.
 
-```text
-source-immutability capture [--handoff .ephemeral/<direct-child>]
-source-immutability verify --baseline .ephemeral/<generated> [--handoff <same-path>]
-source-immutability cleanup --baseline .ephemeral/<generated> [--handoff <same-path>]
-```
+The [AFDS workflow spec](../specs/afds-workflow-routing.md#guard-001-source-immutable-result-gate)
+is the sole normative owner of observable guard behavior, including command
+syntax, path preconditions, fingerprint coverage, lifecycle ordering, output
+and failure behavior, and cleanup rules. Runtime commands and workflow shims
+implement that contract; they do not create a second protocol, and this ADR
+does not restate one.
 
-The command uses the existing runtime compatibility boundary. Workflow-owned
-shims are thin argument, stdout, stderr, and exit-code forwarders and do not
-define a second protocol.
-
-`capture` requires a real Git worktree with `HEAD`, a real nonsymlinked ignored
-`.ephemeral` directory, and at most one declared handoff that is absent,
-ignored, untracked, and a direct child of `.ephemeral`. It retains an internal
-collision-safe baseline and prints only the repository-relative baseline path.
-The internal JSON shape is not a public or versioned schema.
-
-The fingerprint covers canonical worktree identity, `HEAD` and symbolic ref,
-raw index entries, and file kind, mode, and content for every tracked and
-non-ignored untracked path. It preserves already-dirty staged, unstaged,
-binary, and untracked content.
-
-`verify` recomputes the fingerprint before any child result is semantically
-validated or consumed. A declared handoff must be the exact fresh readable,
-nonempty, nonsymlinked regular file. The owning skill validates its payload.
-Success prints only `unchanged`; verification never repairs source or removes
-artifacts.
-
-`cleanup` runs after every terminal branch and may unlink only the retained
-baseline and declared handoff leaves. Missing leaves are already clean,
-symlinks are unlinked without following, and directories or other file kinds
-fail. Success prints only `cleaned`. Cleanup never discovers paths from child
-output, recursively deletes, resets, checks out, stages, or repairs source.
-
-The controller order is fixed:
-
-1. validate the route and optional handoff path;
-2. capture;
-3. spawn;
-4. verify before semantic validation or consumption;
-5. validate the response or read and validate the handoff into controller
-   memory;
-6. clean up the exact owned paths;
-7. consume or apply the validated result.
-
-Capture failure prevents spawn. Spawn, child, verification, or payload failure
-rejects the result and still runs exact cleanup. Cleanup failure is a manual
-blocker. A detected source mutation stays visible and is never repaired.
-
-This deliberately minimal guard is not a filesystem monitor, security sandbox,
-durable evidence protocol, race detector, cleanup receipt, retention state
-machine, stable error ontology, ordered JSON protocol, or duplicate-key parser.
-Ignored files, paths outside the worktree, external-system mutation, and
-provider-internal behavior are outside its coverage.
+The guard remains deliberately minimal. It is not a general filesystem monitor,
+security sandbox, durable evidence protocol, race detector, retention system,
+or public interchange protocol. Comprehensive workspace enforcement and
+broader evidence machinery remain explicit follow-up categories rather than
+part of this decision.
 
 ### Bounded runtime acceptance
 
