@@ -223,9 +223,7 @@ describe("play-subagent planning and routing render smoke coverage", () => {
       expect(playSubagentExecution).toContain(
         "references/implementer-prompt.md",
       );
-      expect(playSubagentExecution).toContain(
-        "references/mechanical-implementer-prompt.md",
-      );
+      expect(playSubagentExecution).toContain("references/executor-prompt.md");
       expect(playSubagentExecution).toContain(
         "references/spec-reviewer-prompt.md",
       );
@@ -240,7 +238,34 @@ describe("play-subagent planning and routing render smoke coverage", () => {
       );
       expect(playSubagentExecution).toContain("issue-priming/auto-handoff/v1");
       expect(normalizedPlaySubagentExecution).toContain(
-        "spec-compliance and code-quality reviewers concurrently when practical",
+        "D14 and D15 may run concurrently when practical against the same committed task head",
+      );
+      expect(normalizedPlaySubagentExecution).toContain(
+        "D12 uses the source-mutable `implementer`, balanced/high, for judgment-bearing scoped implementation",
+      );
+      expect(normalizedPlaySubagentExecution).toContain(
+        "D13 uses guarded inline execution or the source-mutable `executor`, efficient/medium, only when all five exact guardrails pass",
+      );
+      expect(normalizedPlaySubagentExecution).toContain(
+        "D14 is a separate response-only `deep-reviewer`, frontier/xhigh and source-immutable, with zero handoffs",
+      );
+      expect(normalizedPlaySubagentExecution).toContain(
+        "D15 is a separate response-only `deep-reviewer`, frontier/xhigh and source-immutable, with zero handoffs",
+      );
+      expect(normalizedPlaySubagentExecution).toContain(
+        "D16 is a fresh response-only `deep-reviewer`, frontier/xhigh and source-immutable, with zero handoffs, after all tasks complete",
+      );
+      expect(normalizedPlaySubagentExecution).toContain(
+        "scripts/source-immutability.sh",
+      );
+      expect(normalizedPlaySubagentExecution).toContain(
+        "ordinary unavailable, failed, malformed, or verification-rejected D14 or D15 keeps the task incomplete and returns `BLOCKED` naming the failed review",
+      );
+      expect(normalizedPlaySubagentExecution).toContain(
+        "ordinary unavailable, failed, malformed, or verification-rejected D16 keeps final review incomplete and returns `BLOCKED`",
+      );
+      expect(normalizedPlaySubagentExecution).not.toContain(
+        "references/mechanical-implementer-prompt.md",
       );
       expect(normalizedPlaySubagentExecution).toContain(
         "Single-task plans skip per-task review and use the final whole-implementation reviewer plus direct/manual branch-level review status resolution",
@@ -249,7 +274,7 @@ describe("play-subagent planning and routing render smoke coverage", () => {
         "rely on the final whole-implementation reviewer for direct/manual calls",
       );
       expect(normalizedPlaySubagentExecution).toContain(
-        "A quality result is final only after same-head spec compliance passes",
+        "A D15 quality result is final only after same-head D14 spec compliance passes",
       );
       expect(normalizedPlaySubagentExecution).toContain(
         "load the detailed references only when the trigger applies",

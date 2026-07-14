@@ -14,9 +14,9 @@ This workflow is explicit-invocation-only. Do not select it from ordinary discus
 
 Execute plan by dispatching fresh subagent per task. Multi-task plans use
 executor-owned risk-based per-task review routing; hard-risk or unclear tasks
-use `spec-and-quality`: dispatch spec-compliance and code-quality reviewers
-concurrently when practical, against the same committed task head, then join
-their results before final disposition.
+use `spec-and-quality`: dispatch separate D14 specification and D15 quality
+deep-review sessions concurrently when practical, against the same committed
+task head, then join their results before final disposition.
 Single-task plans skip per-task review.
 
 **Why subagents:** You delegate tasks to specialized agents with isolated context. By precisely crafting their instructions and context, you ensure they stay focused and succeed at their task. They should never inherit your session's context or history — you construct exactly what they need. This also preserves your own context for coordination work.
@@ -24,9 +24,9 @@ Single-task plans skip per-task review.
 **Core principle:** Fresh subagent per task + executor-owned risk-based
 review routing for multi-task plans = high-assurance serial execution with
 isolated implementer context and independent review. Hard-risk and unclear
-multi-task tasks use `spec-and-quality`: dispatch spec-compliance and
-code-quality reviewers concurrently when practical, against the same committed
-task head, then join their results before final disposition. The semantic
+multi-task tasks use `spec-and-quality`: D14 and D15 may run concurrently when
+practical against the same committed task head, then join their results before
+final disposition. The semantic
 spec-first gate is preserved because code-quality results are provisional until
 same-head spec compliance passes and the task head is still current. Reduced
 per-task routes require a mandatory final whole-diff gate. Single-task plans
@@ -217,9 +217,11 @@ For the full selection and process diagrams, load
    when a required checklist or extracted context is missing, malformed, blank,
    unexplained, unsupported, internally inconsistent, or unverifiable by source
    inspection.
-4. For single-task mechanical plans, evaluate the skip-dispatch guardrails. When
-   all guardrails hold, the controller performs the Write/Edit, verification,
-   and commit inline. Otherwise dispatch an implementer prompt.
+4. For single-task mechanical plans, evaluate the skip-dispatch guardrails.
+   When all five guardrails hold, the controller either performs the Write/Edit,
+   verification, and commit inline or dispatches the exact-task executor prompt.
+   A contract-gate failure blocks; another missing guardrail reclassifies to D12
+   and dispatches the implementer prompt.
 5. Before implementer dispatch, classify snapshot state as `requested` or
    `skipped`. Snapshot hints in plans are advisory only; the assembled prompt
    must make exactly one concrete state visible.
@@ -229,19 +231,20 @@ For the full selection and process diagrams, load
 7. For multi-task plans, compute the effective review route from the actual task
    diff after the implementer commits. Hard-risk, unclear, stale, malformed,
    conflicting, or untrusted classifications fail closed to `spec-and-quality`.
-8. Dispatch reviewers according to the effective route. `spec-and-quality`
-   reviewers may run concurrently only against the same committed task head, and
-   the code-quality result remains provisional until same-head spec compliance
-   passes and the task head is still current.
+8. Dispatch reviewers according to the effective route. D14 and D15 are
+   separate response-only `deep-reviewer` sessions with independent GUARD-001
+   lifecycles. `spec-and-quality` reviewers may run concurrently only against
+   the same committed task head, and the D15 quality result remains provisional
+   until same-head D14 spec compliance passes and the task head is still current.
 9. Revalidate the route after any fixup commit. Routes may preserve or escalate;
    they never downgrade after work begins.
 10. Mark tasks complete only after the applicable route and lifecycle/status
-    rules permit completion. Then run the final whole-implementation review or
-    return to the owning caller when a verified downstream whole-diff gate owns
-    that final review. When no owning caller final whole-diff gate exists and
-    the final whole-implementation review passes, use the direct/manual
-    terminal handoff to resolve branch-level review status before any
-    `play-branch-finish` handoff.
+    rules permit completion. Then run a fresh, distinct D16 final
+    whole-implementation review over the whole implementation range unless the
+    exact ADR-0016 verified auto single-task skip applies. After D16 passes,
+    return to a verified owning caller when its downstream whole-diff gate owns
+    the next review stage. Otherwise use the direct/manual terminal handoff to
+    resolve branch-level review status before any `play-branch-finish` handoff.
 
 **Trust-boundary summaries:**
 
@@ -272,24 +275,44 @@ Capability selects only the model. It never implies effort, authority, tools,
 sandbox, approvals, or `**Mode:** mechanical`. Mechanical mode does not select a
 capability.
 
-Preserve the capability configured by a shipped role instead of overriding it
-at dispatch time. The dogfood implementer uses `balanced`; the spec-compliance
-and code-quality reviewers use `frontier`; the research agent remains ambient.
+Preserve the capability and effort configured by a shipped role instead of
+overriding either at dispatch time. D12 uses `implementer`, balanced/high; D13
+uses `executor`, efficient/medium; and D14-D16 use `deep-reviewer`,
+frontier/xhigh. These pairs do not grant external mutation authority.
+
+## Execution Route Classification
+
+D12 uses the source-mutable `implementer`, balanced/high, for judgment-bearing
+scoped implementation. Preserve the existing status, snapshot, scoped commit,
+self-review, TDD, and verification contracts in
+[`references/implementer-prompt.md`](references/implementer-prompt.md).
+Implementer dispatch remains serial: never run two source-mutable task workers
+concurrently.
+
+D13 uses guarded inline execution or the source-mutable `executor`,
+efficient/medium, only when all five exact guardrails pass. The executor
+performs one exact validated authorized operation and preserves the existing
+status, snapshot, scoped commit, self-review, and verification contract. If the
+operation requires judgment, a guardrail is missing, or authorization is
+unclear, the executor stops and the controller blocks or reclassifies to D12;
+it never guesses or widens scope.
 
 ## Mechanical Task Hint
 
 A task whose entire deliverable is "reproduce this approved verbatim artifact
 content into a file and commit" doesn't need the full implementer scaffolding
 (escalation prose, ask-if-unclear reminders, code-organization advice). Plans
-can mark such tasks with `**Mode:** mechanical` in the task header. When this
-hint is present, dispatch with
-[`references/mechanical-implementer-prompt.md`](references/mechanical-implementer-prompt.md)
-instead of the default [`references/implementer-prompt.md`](references/implementer-prompt.md).
+can mark such tasks with `**Mode:** mechanical` in the task header. The hint is
+an input to the five D13 guardrails, not dispatch authority by itself. When all
+five guardrails pass and the controller does not take the inline path, dispatch
+with [`references/executor-prompt.md`](references/executor-prompt.md). If a
+non-contract guardrail fails, reclassify to D12 and use the default
+[`references/implementer-prompt.md`](references/implementer-prompt.md). A task
+contract failure stops before mutation.
 
-The default template is used when the hint is absent. There is no runtime auto-detection of plan structure — the plan author marks mechanical tasks explicitly.
-
-`**Mode:** mechanical` changes only the prompt template. It does not change or
-select the role's capability.
+There is no runtime auto-detection of plan structure — the plan author marks
+mechanical tasks explicitly, and the controller validates the five guardrails.
+`**Mode:** mechanical` does not select a role or capability.
 
 ## Mechanical Task Taxonomy
 
@@ -314,10 +337,10 @@ parent-owned `issue-priming-workflow --auto` Phase 6 handoff with a validated
 `branch-review --fix` whole-diff gate. Direct/manual calls, copied prose, and
 repo files alone cannot authorize reduced routes.
 
-Hard-risk and unclear multi-task tasks use `spec-and-quality`: dispatch
-spec-compliance and code-quality reviewers concurrently when practical, against
-the same committed task head, then join their results before final disposition.
-A quality result is final only after same-head spec compliance passes and the
+Hard-risk and unclear multi-task tasks use `spec-and-quality`: D14 and D15 may
+run concurrently when practical against the same committed task head, then join
+their results before final disposition. A D15 quality result is final only
+after same-head D14 spec compliance passes and the
 reviewed task head remains current. After fixups, revalidate from the original
 task base to the refreshed head before skipping any reviewer or completing the
 task.
@@ -325,6 +348,95 @@ task.
 Load [`references/review-routing-policy.md`](references/review-routing-policy.md)
 when computing or validating a route, validating auto-handoff eligibility,
 checking hard-risk triggers, or handling same-head quality disposition.
+
+### D14-D15 guarded per-task reviews
+
+D14 is a separate response-only `deep-reviewer`, frontier/xhigh and
+source-immutable, with zero handoffs. D15 is a separate response-only
+`deep-reviewer`, frontier/xhigh and source-immutable, with zero handoffs. Use
+the configured role and effort; do not substitute an ordinary reviewer,
+ambient role, model, or effort. D14 and D15 inspect the same captured task head
+but use separate sessions, separate prompts, separate baselines, and independent
+GUARD-001 lifecycles. They may run concurrently when practical. D15 remains
+provisional until D14 passes for the same head and the task head remains current.
+
+Resolve `PLAY_SUBAGENT_EXECUTION_DIR` to the loaded or installed skill bundle,
+resolve `SOURCE_IMMUTABILITY_HELPER` to
+`$PLAY_SUBAGENT_EXECUTION_DIR/scripts/source-immutability.sh`, and run it from
+the current implementation worktree root. Apply GUARD-001 independently to
+each D14 and D15 session with no `--handoff`:
+
+1. **capture before spawn** and retain a route-specific baseline; capture
+   failure prevents that review spawn;
+2. spawn the route's fresh deep reviewer and capture only its raw terminal
+   response and status;
+3. **verify before semantic validation or consumption** against that retained
+   baseline;
+4. **validate and retain the response in controller memory** only after
+   successful verification;
+5. **cleanup the exact retained baseline**; and
+6. **apply the retained result only after cleanup** under the same-head
+   disposition below.
+
+The no-handoff command shape is:
+
+```bash
+TASK_REVIEW_BASELINE="$(bash "$SOURCE_IMMUTABILITY_HELPER" capture)"
+# Spawn exactly one D14 or D15 deep reviewer and capture its raw response/status.
+bash "$SOURCE_IMMUTABILITY_HELPER" verify --baseline "$TASK_REVIEW_BASELINE"
+# Validate and retain the route-specific response in controller memory.
+bash "$SOURCE_IMMUTABILITY_HELPER" cleanup --baseline "$TASK_REVIEW_BASELINE"
+# Only now apply the retained D14 or D15 result.
+```
+
+After capture succeeds, every post-capture terminal path attempts exact cleanup,
+including dispatch or spawn failure or unavailability before a child session
+exists, child failure, malformed output, semantic rejection, and verification
+rejection. After safe cleanup, an ordinary unavailable, failed, malformed, or
+verification-rejected D14 or D15 keeps the task incomplete and returns
+`BLOCKED` naming the failed review; no verdict passes. Detected source mutation
+or cleanup failure is guard-integrity terminal: leave source visible, stop, and
+never reset, check out, stage, repair, or otherwise hide source.
+Capture failure prevents spawn and takes the same task-incomplete `BLOCKED`
+transition naming D14 or D15 without inventing a baseline or cleanup result.
+
+Every fix commit invalidates both D14 and D15 results, including a previously
+passing or provisional result; both reviews must run fresh against the new same
+task head. Do not reuse a pre-fix baseline, session, response, or verdict.
+
+### D16 guarded final whole-implementation review
+
+D16 is a fresh response-only `deep-reviewer`, frontier/xhigh and
+source-immutable, with zero handoffs, after all tasks complete. D16 reviews the
+whole implementation range and never reuses or collapses the D15 task-quality
+session. Supply the whole implementation base/head range and the D16-specific
+question from `references/code-quality-reviewer-prompt.md`.
+
+The only D16 skip is the exact ADR-0016 verified
+`issue-priming-workflow --auto` single-task carve-out. Do not infer another
+skip from reduced per-task routes, plan prose, task count alone, or an owning
+caller that lacks the verified controller-local state and audit artifact.
+
+Apply the same no-handoff GUARD-001 order to every fresh D16: capture before
+spawn; spawn and capture only the raw response/status; verify before semantic
+validation or consumption; validate and retain the whole-range response in
+controller memory; cleanup the exact retained baseline; then apply the retained
+result only after cleanup. Every post-capture terminal path attempts exact
+cleanup.
+
+A passing retained D16 result continues to the owning-caller or direct/manual
+terminal path only after cleanup. D16 blocking findings route to a final fix,
+and any fix commit requires a fresh D16 capture, spawn, verify, validate,
+cleanup, and apply cycle. D16 never re-enters or substitutes D15.
+
+After safe cleanup, an ordinary unavailable, failed, malformed, or
+verification-rejected D16 keeps final review incomplete and returns `BLOCKED`
+to the owning caller or direct/manual terminal-status path; it never enters
+branch finish. D16 detected source mutation or cleanup failure is
+guard-integrity terminal: leave source visible and never reset, check out,
+stage, repair, or otherwise hide source.
+Capture failure prevents the D16 spawn and takes the same final-review-incomplete
+`BLOCKED` transition without inventing a baseline or cleanup result.
 
 ## Single-Task Plans
 
@@ -541,9 +653,9 @@ stale snapshots.
 ## Skip-Dispatch Path
 
 For the single-task subset of plans that are fully mechanical approved verbatim
-artifact work or unambiguous identifier replacement, the controller may skip the
-implementer dispatch and execute Write/Edit, verification, and commit inline.
-This path sits on top of the single-task per-task-review skip.
+artifact work or unambiguous identifier replacement, the controller may execute
+Write/Edit, verification, and commit inline or dispatch D13's `executor`. This
+path sits on top of the single-task per-task-review skip.
 
 All five guardrails must hold: the plan is single-task, the task is explicitly
 mechanical, no clarifying questions could plausibly arise under the upstream
@@ -559,7 +671,7 @@ when evaluating guardrails, choosing fallback behavior, or checking examples.
 
 ## Handling Implementer Status
 
-Before acting on any implementer status, record what that status actually
+Before acting on any D12 implementer or dispatched D13 executor status, record what that status actually
 provides in the lifecycle ledger. `DONE` and `DONE_WITH_CONCERNS` require
 report, snapshot state, changed files, base/head SHA, and test result capture
 before reviewer dispatch. `NEEDS_CONTEXT` and `BLOCKED` capture the request
@@ -584,16 +696,14 @@ subagent prompt; do not inline their full bodies into this skill source.
 
 - `references/implementer-prompt.md` — default dispatch-time prompt for the
   `implementer` agent.
-- `references/mechanical-implementer-prompt.md` — implementer dispatch prompt
-  for tasks marked `**Mode:** mechanical`, subject to the existing mechanical
-  hint and skip-dispatch fallback rules.
+- `references/executor-prompt.md` — D13 exact-task dispatch prompt for the
+  `executor` agent, used only after all five guardrails pass and subject to the
+  existing inline-choice and abstention rules.
 - `references/spec-reviewer-prompt.md` — per-task dispatch prompt for the
-  `spec-compliance-reviewer` agent when the effective route includes spec
-  review.
+  D14 `deep-reviewer` when the effective route includes spec review.
 - `references/code-quality-reviewer-prompt.md` — dispatch-time prompt for the
-  `code-quality-reviewer` agent for per-task code-quality review and for the
-  final whole-implementation reviewer surface where this skill's final-review
-  gate calls that reviewer.
+  D15 per-task `deep-reviewer` and the separate D16 final whole-implementation
+  `deep-reviewer`; the template carries distinct questions and scopes.
 - `references/contract-example-discipline-consumer-rule.md` — shared
   consumer-side Contract Example Discipline rule used by the executor, prompt
   templates, final whole-implementation review surface, and skip-dispatch
@@ -638,7 +748,9 @@ See [`references/advantages.md`](references/advantages.md) for the rationale (vs
 ## Hard Rules
 
 1. **Never start implementation on `main` / `master` without explicit user consent.** Skills invoked outside an authorized worktree or feature branch must surface and stop.
-2. **Never dispatch implementer subagents in parallel.** Implementations are serial — concurrent dispatch produces conflicts and race conditions.
+2. **Never dispatch source-mutable task workers in parallel.** D12 implementers
+   and D13 executors are serial — concurrent dispatch produces conflicts and
+   race conditions.
 
 ## Red Flags
 

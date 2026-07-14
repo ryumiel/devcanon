@@ -4,7 +4,16 @@ Use this template when dispatching a spec compliance reviewer subagent.
 
 **Purpose:** Verify implementer built what was requested (nothing more, nothing less)
 
-**Promotion classification:** Workflow-local prompt template paired with the source agent at [`agents/spec-compliance-reviewer.yaml`](../../../agents/spec-compliance-reviewer.yaml) — referenced from `skills/play-subagent-execution/SKILL.md` for dispatch-time placeholder substitution. The role identity is already promoted; per [`docs/guidelines/agent-authoring-guide.md`](../../../docs/guidelines/agent-authoring-guide.md) §4, workflow-local prompt assembly stays as a template.
+**Promotion classification:** Workflow-local prompt template paired with the source agent at [`agents/deep-reviewer.yaml`](../../../agents/deep-reviewer.yaml) — referenced from `skills/play-subagent-execution/SKILL.md` for dispatch-time placeholder substitution. The role identity is already promoted; per [`docs/guidelines/agent-authoring-guide.md`](../../../docs/guidelines/agent-authoring-guide.md) §4, workflow-local prompt assembly stays as a template.
+
+**Route:** D14 is a response-only `deep-reviewer`, frontier/xhigh and
+source-immutable, with zero handoffs. The controller supplies the captured task
+head and applies GUARD-001 outside this prompt. Do not change source, tests,
+configuration, documentation, or external systems; return only the response.
+
+**D14 question:** Does the implementation at the supplied task head satisfy
+Task N exactly, including its extracted contract, without missing or extra
+behavior?
 
 ```
 Task tool (general-purpose):

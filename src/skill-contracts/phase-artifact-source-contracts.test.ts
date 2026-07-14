@@ -3790,43 +3790,34 @@ None
     );
   });
 
-  it("keeps mechanical implementer snapshot handoff text in the mechanical prompt source", async () => {
-    const mechanicalImplementerPrompt = await readRepoFile(
-      "skills/play-subagent-execution/references/mechanical-implementer-prompt.md",
+  it("keeps executor snapshot handoff text in the exact-task prompt source", async () => {
+    const executorPrompt = await readRepoFile(
+      "skills/play-subagent-execution/references/executor-prompt.md",
     );
 
-    expect(mechanicalImplementerPrompt).toContain(
-      "references/snapshot-manifest-recipe.md",
-    );
-    expect(mechanicalImplementerPrompt).toContain(
-      "scripts/write-snapshot-manifest.sh",
-    );
-    expect(mechanicalImplementerPrompt).toContain(
+    expect(executorPrompt).toContain("references/snapshot-manifest-recipe.md");
+    expect(executorPrompt).toContain("scripts/write-snapshot-manifest.sh");
+    expect(executorPrompt).toContain(
       "Snapshot Manifest Recipe path: <SNAPSHOT_MANIFEST_RECIPE_PATH>",
     );
-    expect(mechanicalImplementerPrompt).toContain(
+    expect(executorPrompt).toContain(
       "Snapshot Manifest Helper Script path: <SNAPSHOT_HELPER_SCRIPT>",
     );
-    expect(mechanicalImplementerPrompt).toContain(
-      "script with the captured `BASE_SHA`",
-    );
-    expect(mechanicalImplementerPrompt).toContain(
+    expect(executorPrompt).toContain("script with the captured `BASE_SHA`");
+    expect(executorPrompt).toContain(
       "script with the captured `BASE_SHA` and the task header identifier",
     );
-    expect(mechanicalImplementerPrompt).toContain(
-      "compute the changed-file list",
-    );
-    expect(mechanicalImplementerPrompt).toContain(
+    expect(executorPrompt).toContain("compute the changed-file list");
+    expect(executorPrompt).toContain(
       "Snapshot written to <repo-relative-path>.",
     );
-    expect(mechanicalImplementerPrompt).toContain("exits nonzero");
-    expect(mechanicalImplementerPrompt).toContain(
+    expect(executorPrompt).toContain("exits nonzero");
+    expect(executorPrompt).toContain(
       "Review-routing hint fields (`Risk hint`, `Review hint`, and",
     );
-    expect(mechanicalImplementerPrompt).toContain(
-      "the controller owns reviewer dispatch",
-    );
-    expect(mechanicalImplementerPrompt).not.toContain(
+    expect(executorPrompt).toContain("the controller owns reviewer dispatch");
+    expect(executorPrompt).toContain("schema `implementer/snapshot/v1`");
+    expect(executorPrompt).not.toContain(
       "Build a JSON envelope conforming to schema",
     );
   });

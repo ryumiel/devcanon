@@ -11,7 +11,8 @@ lifecycle capability classification, cleanup gate before spawns, target-honest
 cleanup outcomes, and slot-limit recovery. `play-subagent-execution` owns only
 the execution-specific lifecycle details below.
 
-For this workflow, role-specific captured state includes implementer reports,
+For this workflow, role-specific captured state includes D12 implementer and
+D13 executor reports,
 changed files, test results, snapshot state (`requested`, `emitted`, `skipped`,
 or `malformed`), reviewer scope, reviewer report, concrete findings, reviewer
 result disposition (`pending`, `final-pass`, `final-findings`, `advisory`,
@@ -20,17 +21,18 @@ reviewed head SHA, fixup count, and blocker state when applicable. Run the
 shared cleanup gate before dispatching the next implementer, reviewer,
 re-reviewer, or final reviewer.
 
-The cleanup gate must not close a task implementer while same-session
-spec-compliance or code-quality reviewer fix loops may still route fixups back
-to that implementer session. For multi-task plans, preserve the implementer
+The cleanup gate must not close a task implementer while same-session D14 or
+D15 reviewer fix loops may still route fixups back to that implementer session.
+For multi-task plans, preserve the implementer
 session until every reviewer loop required by the task's effective route
 passes, unless the target lacks same-session follow-up and a fresh implementer
 can receive the complete captured state.
 
-## Handling Implementer Status
+## Handling Mutable Task-Worker Status
 
-Before acting on any returned status, update the lifecycle ledger for that
-session with the status and the artifacts that status actually provides. For
+Before acting on any returned D12 implementer or dispatched D13 executor
+status, update the lifecycle ledger for that session with the status and the
+artifacts that status actually provides. For
 `DONE` and `DONE_WITH_CONCERNS`, capture the report, snapshot state
 (`requested`, `emitted`, `skipped`, or `malformed`), changed-file list,
 base/head SHA, and test result before dispatching reviewers. When snapshot
@@ -47,9 +49,9 @@ implementer, or final reviewer.
 ### DONE
 
 For multi-task plans, apply the task's effective review route.
-`spec-and-quality` dispatches spec-compliance and code-quality review against
+`spec-and-quality` dispatches separate D14 and D15 deep-review sessions against
 the same captured task head when practical, then applies the same-head
-disposition rules. `spec-only` proceeds to spec-compliance review and then marks
+disposition rules. `spec-only` proceeds to D14 spec review and then marks
 the task complete after approval. `none-final-only` marks the task complete
 after implementer self-review and commit. For single-task plans, mark the task
 complete.
@@ -64,10 +66,13 @@ concerns are observations, note them and proceed to the next route step.
 
 ### Spec-And-Quality Reviewer Disposition
 
-For multi-task `spec-and-quality` routes, dispatch both reviewers against the
-same captured task head when practical and record both as `pending` until their
-reports are integrated. A quality result may become final only after same-head
-spec pass and current task-head validation. A same-head quality pass becomes
+For multi-task `spec-and-quality` routes, D14 is a separate response-only
+`deep-reviewer`, frontier/xhigh and source-immutable, with zero handoffs. D15 is
+a separate response-only `deep-reviewer`, frontier/xhigh and source-immutable,
+with zero handoffs. Dispatch both against the same captured task head when
+practical and record both as `pending` until their reports are integrated. A
+quality result may become final only after same-head spec pass and current
+task-head validation. A same-head quality pass becomes
 `final-pass` only when the spec reviewer also passes for that reviewed head;
 same-head quality findings become `final-findings` only after same-head spec
 pass and current task-head validation.
@@ -75,11 +80,9 @@ pass and current task-head validation.
 If spec fails, concurrent quality findings may be routed with the spec findings
 as advisory same-head context, but the quality result remains `advisory` until a
 same-head spec pass exists. The advisory, stale, and superseded quality results
-remain lifecycle evidence but must not mark the task complete. After a spec
-fixup or any other head-changing commit, the prior quality result is `stale` or
-`superseded` for final disposition. Rerun quality after any spec fixup unless
-irrelevance is proven from the refreshed diff; unclear freshness or unclear
-irrelevance fails closed to rerunning code quality.
+remain lifecycle evidence but must not mark the task complete. Every fix commit
+invalidates both D14 and D15 results, including a previously passing or
+provisional result; both reviews must run fresh against the new same task head.
 
 ### Fixup Route Revalidation
 
@@ -92,8 +95,42 @@ marking the task complete. The route may only stay the same or escalate
 
 If revalidation escalates a `spec-only` task to `spec-and-quality` after spec
 review has already passed, dispatch the code-quality reviewer before
-completion. If a `spec-and-quality` spec fixup lands, rerun spec and rerun
-quality unless irrelevance is proven; when unsure, rerun quality.
+completion. If a `spec-and-quality` fixup lands, rerun both D14 and D15. A fix
+never preserves either review verdict.
+
+### Guarded Review Lifecycle
+
+D14 and D15 inspect the same captured task head but use separate sessions,
+separate prompts, separate baselines, and independent GUARD-001 lifecycles.
+Each route follows this exact order: capture before spawn verify before
+semantic validation or consumption validate and retain the response in
+controller memory cleanup the exact retained baseline apply the retained result
+only after cleanup. Every post-capture terminal path attempts cleanup.
+
+After safe cleanup, an unavailable, failed, malformed, or
+verification-rejected D14 or D15 keeps the task incomplete and returns
+`BLOCKED` naming the failed review; no verdict passes. Detected source mutation
+or cleanup failure is guard-integrity terminal. Keep the source visible and do
+not repair it. Capture failure prevents spawn and returns the same
+task-incomplete `BLOCKED` state without inventing cleanup evidence.
+
+### D16 Final Review Lifecycle
+
+D16 is a fresh response-only `deep-reviewer`, frontier/xhigh and
+source-immutable, with zero handoffs, after all tasks complete. D16 reviews the
+whole implementation range and never reuses or collapses the D15 task-quality
+session. The only D16 skip is the exact ADR-0016 verified
+`issue-priming-workflow --auto` single-task carve-out.
+
+A passing retained D16 result continues to the owning-caller or direct/manual
+terminal path only after cleanup. D16 blocking findings route to a final fix,
+and any fix commit requires a fresh D16 capture, spawn, verify, validate,
+cleanup, and apply cycle. After safe cleanup, an unavailable, failed,
+malformed, or verification-rejected D16 keeps final review incomplete and
+returns `BLOCKED` to the owning caller or direct/manual terminal-status path;
+it never enters branch finish. D16 detected source mutation or cleanup failure
+is guard-integrity terminal. Capture failure prevents spawn and returns the
+same final-review-incomplete `BLOCKED` state without inventing cleanup evidence.
 
 ### NEEDS_CONTEXT
 

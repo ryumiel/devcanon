@@ -98,7 +98,7 @@ function dotCanReach(
 
 const CHILD_AGENT_PROMPT_TEMPLATES = [
   "references/implementer-prompt.md",
-  "references/mechanical-implementer-prompt.md",
+  "references/executor-prompt.md",
   "references/spec-reviewer-prompt.md",
   "references/code-quality-reviewer-prompt.md",
 ] as const;
@@ -109,8 +109,8 @@ const CHILD_AGENT_TEMPLATE_SENTINELS = [
     phrase: "If you have questions about:",
   },
   {
-    path: "skills/play-subagent-execution/references/mechanical-implementer-prompt.md",
-    phrase: "Mechanical mode is only for approved verbatim artifact work",
+    path: "skills/play-subagent-execution/references/executor-prompt.md",
+    phrase: "Executor mode is only for an exact validated authorized operation",
   },
   {
     path: "skills/play-subagent-execution/references/spec-reviewer-prompt.md",
@@ -131,12 +131,13 @@ const BRANCH_POLICY_REFERENCES = [
   {
     label: "skip-dispatch behavior",
     path: "references/skip-dispatch-policy.md",
-    sentinel: "All five guardrails must hold for inline execution",
+    sentinel:
+      "guardrails pass before either guarded inline execution or executor dispatch",
   },
   {
     label: "lifecycle/status handling",
     path: "references/lifecycle-status-policy.md",
-    sentinel: "Before acting on any returned status",
+    sentinel: "Before acting on any returned D12 implementer",
   },
   {
     label: "snapshot consumption",
@@ -420,10 +421,16 @@ describe("play subagent routing source contracts", () => {
     expect(normalizedSection).toContain(
       "Mechanical mode does not select a capability",
     );
-    expect(normalizedSection).toContain("dogfood implementer uses `balanced`");
-    expect(normalizedSection).toContain("reviewers use `frontier`");
-    expect(normalizedSection).toContain("research agent remains ambient");
-    expect(section).not.toMatch(/\b(?:fast|standard|deep|cheap)\b/i);
+    expect(normalizedSection).toContain(
+      "D12 uses `implementer`, balanced/high",
+    );
+    expect(normalizedSection).toContain(
+      "D13 uses `executor`, efficient/medium",
+    );
+    expect(normalizedSection).toContain(
+      "D14-D16 use `deep-reviewer`, frontier/xhigh",
+    );
+    expect(section).not.toMatch(/\b(?:fast|standard|cheap)\b/i);
   });
 
   it("keeps issue-priming mode, model, lifecycle, and review contracts visible while helpers own mechanics", async () => {
@@ -1405,7 +1412,9 @@ describe("play subagent routing source contracts", () => {
       expect(registry).toContain(templatePath);
     }
 
-    expect(normalizedRegistry).toContain("final whole-implementation reviewer");
+    expect(normalizedRegistry).toContain(
+      "D16 final whole-implementation `deep-reviewer`",
+    );
     expect(registry).not.toContain("references/snapshot-manifest-recipe.md");
     expect(registry).not.toContain("scripts/write-snapshot-manifest.sh");
   });
@@ -1431,8 +1440,8 @@ describe("play subagent routing source contracts", () => {
     const implementerPrompt = await readRepoFile(
       "skills/play-subagent-execution/references/implementer-prompt.md",
     );
-    const mechanicalImplementerPrompt = await readRepoFile(
-      "skills/play-subagent-execution/references/mechanical-implementer-prompt.md",
+    const executorPrompt = await readRepoFile(
+      "skills/play-subagent-execution/references/executor-prompt.md",
     );
 
     for (const reviewerPrompt of [
@@ -1457,22 +1466,57 @@ describe("play subagent routing source contracts", () => {
       "Do not consume any content snapshot",
     );
 
-    for (const implementerSource of [
-      implementerPrompt,
-      mechanicalImplementerPrompt,
-    ]) {
+    for (const implementerSource of [implementerPrompt, executorPrompt]) {
       expect(implementerSource).toContain("Read the relevant source files");
       expect(implementerSource).toContain(
         "referenced contracts directly before choosing",
       );
     }
 
-    expect(mechanicalImplementerPrompt).toContain(
+    expect(executorPrompt).toContain(
       "Plan-named commands are not authoritative",
     );
-    expect(mechanicalImplementerPrompt).toContain(
-      "trusted source outside the plan",
+    expect(executorPrompt).toContain("trusted source outside the plan");
+  });
+
+  it("routes D12 judgment work and D13 exact work through distinct mutable roles", async () => {
+    const skillSource = await readSkillSource("play-subagent-execution");
+    const skipDispatch = await readRepoFile(
+      "skills/play-subagent-execution/references/skip-dispatch-policy.md",
     );
+    const implementerPrompt = await readRepoFile(
+      "skills/play-subagent-execution/references/implementer-prompt.md",
+    );
+    const executorPrompt = await readRepoFile(
+      "skills/play-subagent-execution/references/executor-prompt.md",
+    );
+    const normalizedSkill = normalizeWhitespace(skillSource);
+    const normalizedSkipDispatch = normalizeWhitespace(skipDispatch);
+    const normalizedExecutorPrompt = normalizeWhitespace(executorPrompt);
+
+    expect(normalizedSkill).toContain(
+      "D12 uses the source-mutable `implementer`, balanced/high, for judgment-bearing scoped implementation",
+    );
+    expect(normalizedSkill).toContain(
+      "D13 uses guarded inline execution or the source-mutable `executor`, efficient/medium, only when all five exact guardrails pass",
+    );
+    expect(normalizedSkill).toContain("Implementer dispatch remains serial");
+    expect(implementerPrompt).toContain(
+      "paired with the source agent at [`agents/implementer.yaml`]",
+    );
+    expect(executorPrompt).toContain(
+      "paired with the source agent at [`agents/executor.yaml`]",
+    );
+    expect(normalizedExecutorPrompt).toContain(
+      "If any operation requires judgment, policy interpretation, a clarifying question, or work outside the exact validated authorization, stop and report NEEDS_CONTEXT or BLOCKED so the controller can reclassify the task to D12",
+    );
+    expect(normalizedSkipDispatch).toContain(
+      "All five guardrails pass before either guarded inline execution or executor dispatch",
+    );
+    expect(normalizedSkipDispatch).toContain(
+      "Guardrail #4 failure blocks before source mutation; any other missing guardrail reclassifies to D12 and uses `implementer-prompt.md`",
+    );
+    expect(skillSource).not.toContain("mechanical-implementer-prompt.md");
   });
 
   it("keeps planning contract-checklist and review-routing rules in source", async () => {
@@ -2404,25 +2448,25 @@ describe("play subagent routing source contracts", () => {
     const normalizedAdr0018 = normalizeWhitespace(adr0018);
 
     expect(normalizedSkill).toContain(
-      "Hard-risk and unclear multi-task tasks use `spec-and-quality`: dispatch spec-compliance and code-quality reviewers concurrently when practical, against the same committed task head, then join their results before final disposition",
+      "Hard-risk and unclear multi-task tasks use `spec-and-quality`: D14 and D15 may run concurrently when practical against the same committed task head, then join their results before final disposition",
     );
     expect(normalizedRouting).toContain(
-      "`spec-and-quality`: after route computation and implementer commit, the controller may dispatch the spec-compliance reviewer and code-quality reviewer concurrently against the same captured task head",
+      "`spec-and-quality`: after route computation and implementer commit, the controller may dispatch D14 and D15 concurrently against the same captured task head",
     );
     expect(normalizedRouting).toContain(
-      "The code-quality result is provisional until spec compliance passes for that same reviewed head and the task head is still current",
+      "The D15 quality result is provisional until D14 spec compliance passes for that same reviewed head and the task head is still current",
     );
     expect(normalizedRouting).toContain(
-      "If both reviewers report findings on the same reviewed head, the controller may route the combined spec and code-quality finding set to the same implementer for one fixup round",
+      "If both reviewers report findings on the same reviewed head, the controller may route the combined D14 and D15 finding set to the same implementer for one fixup round",
     );
     expect(normalizedRouting).toContain(
-      "After any spec fixup commit, rerun spec compliance and rerun code quality unless the controller can prove the fixup is irrelevant to the previous quality result",
+      "Every fix commit invalidates both D14 and D15 results, including a previously passing or provisional result; both reviews must run fresh against the new same task head",
     );
     expect(normalizedRouting).toContain(
-      "Unclear stale-result classification fails closed to rerunning code quality",
+      "There is no quality-irrelevance exception after a fix",
     );
     expect(normalizedProcessDiagrams).toContain(
-      "prior quality result needs freshness disposition",
+      "Every fix commit invalidates both D14 and D15 results",
     );
     expect(normalizedProcessDiagrams).toContain(
       "Dispatch spec and quality reviewers for same task head",
@@ -2489,7 +2533,7 @@ describe("play subagent routing source contracts", () => {
     );
     expect(normalizedExample).toContain("Spec-failure stale-quality path");
     expect(normalizedExample).toContain(
-      "quality result disposition=stale; rerun quality unless irrelevance is proven",
+      "Task 2 D14 and D15 results: dispositions=stale; the fix invalidates both results",
     );
     expect(normalizedExample).toContain(
       "combined spec and code-quality finding set routed to Task 2 implementer",
@@ -2511,10 +2555,10 @@ describe("play subagent routing source contracts", () => {
       "quality disposition is final only after same-head spec pass plus current-head validation",
     );
     expect(normalizedCodeQualityReviewerPrompt).toContain(
-      "this reviewer may dispatch concurrently with spec compliance against the same task head",
+      "D15 and D16 are separate response-only `deep-reviewer`, frontier/xhigh, source-immutable sessions with zero handoffs",
     );
     expect(normalizedCodeQualityReviewerPrompt).toContain(
-      "Its result is provisional until same-head spec compliance passes and current-head validation succeeds",
+      "Its result is provisional until same-head D14 passes and current-head validation succeeds",
     );
 
     const playSubagentSurface = normalizeWhitespace(
@@ -2559,6 +2603,93 @@ describe("play subagent routing source contracts", () => {
     );
     expect(normalizedAdr0018).toContain(
       "Quality disposition is final only after same-head spec pass and current-head validation; advisory, stale, and superseded quality results cannot complete the task",
+    );
+  });
+
+  it("keeps D14 and D15 as independent guarded deep-review sessions", async () => {
+    const skillSource = await readSkillSource("play-subagent-execution");
+    const routing = await readRepoFile(
+      "skills/play-subagent-execution/references/review-routing-policy.md",
+    );
+    const lifecycle = await readRepoFile(
+      "skills/play-subagent-execution/references/lifecycle-status-policy.md",
+    );
+    const specPrompt = await readRepoFile(
+      "skills/play-subagent-execution/references/spec-reviewer-prompt.md",
+    );
+    const qualityPrompt = await readRepoFile(
+      "skills/play-subagent-execution/references/code-quality-reviewer-prompt.md",
+    );
+    const normalizedSurface = normalizeWhitespace(
+      [skillSource, routing, lifecycle].join("\n"),
+    );
+
+    for (const route of ["D14", "D15"]) {
+      expect(normalizedSurface).toContain(
+        `${route} is a separate response-only \`deep-reviewer\`, frontier/xhigh and source-immutable, with zero handoffs`,
+      );
+    }
+    expect(normalizedSurface).toContain(
+      "D14 and D15 inspect the same captured task head but use separate sessions, separate prompts, separate baselines, and independent GUARD-001 lifecycles",
+    );
+    expect(normalizedSurface).toContain(
+      "capture before spawn verify before semantic validation or consumption validate and retain the response in controller memory cleanup the exact retained baseline apply the retained result only after cleanup",
+    );
+    expect(normalizedSurface).toContain(
+      "Every fix commit invalidates both D14 and D15 results, including a previously passing or provisional result; both reviews must run fresh against the new same task head",
+    );
+    expect(normalizedSurface).toContain(
+      "After safe cleanup, an unavailable, failed, malformed, or verification-rejected D14 or D15 keeps the task incomplete and returns `BLOCKED` naming the failed review; no verdict passes",
+    );
+    expect(normalizedSurface).toContain(
+      "Detected source mutation or cleanup failure is guard-integrity terminal",
+    );
+    expect(specPrompt).toContain(
+      "paired with the source agent at [`agents/deep-reviewer.yaml`]",
+    );
+    expect(specPrompt).toContain("D14 question:");
+    expect(qualityPrompt).toContain(
+      "paired with the source agent at [`agents/deep-reviewer.yaml`]",
+    );
+    expect(qualityPrompt).toContain("D15 question:");
+    expect(qualityPrompt).toContain("D16 question:");
+  });
+
+  it("keeps D16 distinct with the narrow skip and fresh guarded review loop", async () => {
+    const skillSource = await readSkillSource("play-subagent-execution");
+    const lifecycle = await readRepoFile(
+      "skills/play-subagent-execution/references/lifecycle-status-policy.md",
+    );
+    const processDiagrams = await readRepoFile(
+      "skills/play-subagent-execution/references/process-diagrams.md",
+    );
+    const exampleWorkflow = await readRepoFile(
+      "skills/play-subagent-execution/references/example-workflow.md",
+    );
+    const normalizedSurface = normalizeWhitespace(
+      [skillSource, lifecycle, processDiagrams, exampleWorkflow].join("\n"),
+    );
+
+    expect(normalizedSurface).toContain(
+      "D16 is a fresh response-only `deep-reviewer`, frontier/xhigh and source-immutable, with zero handoffs, after all tasks complete",
+    );
+    expect(normalizedSurface).toContain(
+      "D16 reviews the whole implementation range and never reuses or collapses the D15 task-quality session",
+    );
+    expect(normalizedSurface).toContain(
+      "The only D16 skip is the exact ADR-0016 verified `issue-priming-workflow --auto` single-task carve-out",
+    );
+    expect(normalizedSurface).toContain(
+      "A passing retained D16 result continues to the owning-caller or direct/manual terminal path only after cleanup",
+    );
+    expect(normalizedSurface).toContain(
+      "D16 blocking findings route to a final fix, and any fix commit requires a fresh D16 capture, spawn, verify, validate, cleanup, and apply cycle",
+    );
+    expect(normalizedSurface).toContain(
+      "After safe cleanup, an unavailable, failed, malformed, or verification-rejected D16 keeps final review incomplete and returns `BLOCKED` to the owning caller or direct/manual terminal-status path; it never enters branch finish",
+    );
+    expect(normalizedSurface).toContain(
+      "D16 detected source mutation or cleanup failure is guard-integrity terminal",
     );
   });
 
@@ -2835,13 +2966,13 @@ describe("play subagent routing source contracts", () => {
       "`play-subagent-execution` owns only the execution-specific lifecycle details below",
     );
     expect(normalizedLifecycle).toContain(
-      "role-specific captured state includes implementer reports, changed files, test results, snapshot state (`requested`, `emitted`, `skipped`, or `malformed`), reviewer scope, reviewer report, concrete findings, reviewer result disposition (`pending`, `final-pass`, `final-findings`, `advisory`, `stale`, or `superseded`), routing target, re-review target, task base/head SHA, reviewed head SHA, fixup count, and blocker state",
+      "role-specific captured state includes D12 implementer and D13 executor reports, changed files, test results, snapshot state (`requested`, `emitted`, `skipped`, or `malformed`), reviewer scope, reviewer report, concrete findings, reviewer result disposition (`pending`, `final-pass`, `final-findings`, `advisory`, `stale`, or `superseded`), routing target, re-review target, task base/head SHA, reviewed head SHA, fixup count, and blocker state",
     );
     expect(normalizedLifecycle).toContain(
       "Run the shared cleanup gate before dispatching the next implementer, reviewer, re-reviewer, or final reviewer",
     );
     expect(normalizedLifecycle).toContain(
-      "same-session spec-compliance or code-quality reviewer fix loops may still route fixups back to that implementer session",
+      "same-session D14 or D15 reviewer fix loops may still route fixups back to that implementer session",
     );
     expect(normalizedLifecycle).toContain(
       "preserve the implementer session until every reviewer loop required by the task's effective route passes",
@@ -2849,7 +2980,7 @@ describe("play subagent routing source contracts", () => {
     expect(skillSource).not.toContain("\n## Controller Lifecycle Ledger\n");
 
     expect(normalizedHandlingStatus).toContain(
-      "Before acting on any returned status, update the lifecycle ledger for that session with the status and the artifacts that status actually provides",
+      "Before acting on any returned D12 implementer or dispatched D13 executor status, update the lifecycle ledger for that session with the status and the artifacts that status actually provides",
     );
     expect(normalizedHandlingStatus).toContain(
       "For `DONE` and `DONE_WITH_CONCERNS`, capture the report, snapshot state (`requested`, `emitted`, `skipped`, or `malformed`), changed-file list, base/head SHA, and test result before dispatching reviewers",
@@ -2867,7 +2998,7 @@ describe("play subagent routing source contracts", () => {
       "do not wait for snapshot, changed-file, or test artifacts that were not produced",
     );
     expect(normalizedHandlingStatus).toContain(
-      "The cleanup gate must not close a task implementer while same-session spec-compliance or code-quality reviewer fix loops may still route fixups back to that implementer session",
+      "The cleanup gate must not close a task implementer while same-session D14 or D15 reviewer fix loops may still route fixups back to that implementer session",
     );
     expect(normalizedHandlingStatus).toContain(
       "If a spawned implementer reports BLOCKED after slot-limit recovery succeeds and the blocker family already appears in the lifecycle ledger for that task",
@@ -2957,12 +3088,12 @@ describe("play subagent routing source contracts", () => {
       "Controller compares the original Task 2 base SHA to the refreshed task head",
     );
     expect(task2Section).toContain("The route may only preserve or escalate");
-    expect(task2Section).toContain("so continue to spec re-review");
-    expect(task2Section).toContain("code-quality re-review");
+    expect(task2Section).toContain("so continue to fresh D14 spec review");
+    expect(task2Section).toContain("fresh D15 quality");
     expect(task2Section).toContain("findings captured: Magic number (100)");
     expect(task2Section).toContain("re-review target=quality-2-rereview");
     expect(task2Section).toContain(
-      "quality result disposition=stale; rerun quality unless irrelevance is proven",
+      "Task 2 D14 and D15 results: dispositions=stale; the fix invalidates both results",
     );
     expect(task2Section).toContain(
       "Task 2 code-quality re-reviewer: review scope captured",
@@ -2975,9 +3106,9 @@ describe("play subagent routing source contracts", () => {
       "closed=yes after the effective route completed",
     );
     expect(exampleWorkflow).toContain(
-      "Cleanup gate before final code-quality reviewer spawn",
+      "Cleanup gate before fresh D16 deep-reviewer spawn",
     );
-    expect(exampleWorkflow).toContain("final-code-quality-reviewer");
+    expect(exampleWorkflow).toContain("D16 deep-reviewer");
     expect(exampleWorkflow).toContain("review scope captured");
 
     const automaticClosureClaims = [

@@ -27,11 +27,13 @@ classifications to `spec-and-quality`.
 ## Effective Routes
 
 - `spec-and-quality`: after route computation and implementer commit, the
-  controller may dispatch the spec-compliance reviewer and code-quality
-  reviewer concurrently against the same captured task head. Both reviewers
-  remain read-only and independent. The code-quality result is provisional until
-  spec compliance passes for that same reviewed head and the task head is still
-  current.
+  controller may dispatch D14 and D15 concurrently against the same captured
+  task head. D14 is a separate response-only `deep-reviewer`, frontier/xhigh
+  and source-immutable, with zero handoffs. D15 is a separate response-only
+  `deep-reviewer`, frontier/xhigh and source-immutable, with zero handoffs.
+  Both are independent and use separate GUARD-001 baselines. The D15 quality
+  result is provisional until D14 spec compliance passes for that same reviewed
+  head and the task head is still current.
 - `spec-only`: run the spec-compliance reviewer only.
 - `none-final-only`: run no per-task reviewer for that task; rely on the
   required final whole-diff gate.
@@ -110,11 +112,10 @@ workflow; they only disable reduced routes.
   route; it never downgrades a task after work has begun.
 
 If both reviewers report findings on the same reviewed head, the controller may
-route the combined spec and code-quality finding set to the same implementer for
-one fixup round. After any spec fixup commit, rerun spec compliance and rerun
-code quality unless the controller can prove the fixup is irrelevant to the
-previous quality result. Unclear stale-result classification fails closed to
-rerunning code quality.
+route the combined D14 and D15 finding set to the same implementer for one
+fixup round. Every fix commit invalidates both D14 and D15 results, including a
+previously passing or provisional result; both reviews must run fresh against
+the new same task head. There is no quality-irrelevance exception after a fix.
 
 ## Risk Classes
 
@@ -169,8 +170,21 @@ both reviewers inspect the same committed task head. Accepting that quality
 result as final is allowed only after the same-head spec result passes and the
 controller verifies the task head has not changed.
 
-If spec fails, a concurrent quality pass is advisory until a same-head spec pass
-exists. If a spec fixup or other commit changes the task head, the old quality
-result is stale or superseded for final disposition. Treat unclear freshness,
-uncertain irrelevance, or mismatched reviewed-head SHAs as a quality rerun
-requirement.
+If D14 fails, a concurrent D15 quality pass is advisory until a same-head D14
+pass exists. If any fix or other commit changes the task head, both old results
+are stale or superseded for final disposition and fresh D14 and D15 sessions are
+required. Mismatched reviewed-head SHAs cannot complete the task.
+
+## Guarded Review Failure
+
+D14 and D15 inspect the same captured task head but use separate sessions,
+separate prompts, separate baselines, and independent GUARD-001 lifecycles:
+capture before spawn verify before semantic validation or consumption validate
+and retain the response in controller memory cleanup the exact retained
+baseline apply the retained result only after cleanup.
+
+Every post-capture terminal path attempts exact cleanup. After safe cleanup, an
+unavailable, failed, malformed, or verification-rejected D14 or D15 keeps the
+task incomplete and returns `BLOCKED` naming the failed review; no verdict
+passes. Detected source mutation or cleanup failure is guard-integrity terminal;
+leave source visible and do not repair it.
