@@ -1,8 +1,8 @@
 import { CONFIG_FILE_NAME } from "../config/identity.js";
 import {
+  type CapabilityProfiles,
+  CapabilitySchema,
   type FileArtifacts,
-  MODEL_TIER_KEY,
-  type ModelTiers,
   PLACEHOLDER_KEY,
   type ResolvedConfig,
   type ToolNames,
@@ -18,10 +18,12 @@ import { visitMarkdownLines } from "../utils/markdown-prose.js";
  * yields a clear "invalid key" error instead of "unknown key".
  */
 const PLACEHOLDER = /(\\)?\{\{(\w+):([\w-]+)\}\}/g;
+const ACTIVE_MODEL_PLACEHOLDER = /(?<!\\)\{\{model:([^{}\r\n]*)\}\}/g;
+const SHARED_PLACEHOLDER_VALUE = /^[\w-]+$/;
 export { collectProseSegments } from "../utils/markdown-prose.js";
 
 export interface PlaceholderGlossary {
-  model?: ModelTiers;
+  model: CapabilityProfiles;
   tool?: ToolNames;
   file?: FileArtifacts;
 }
@@ -35,13 +37,15 @@ const SUPPORTED_NAMESPACES = ["model", "tool", "file"] as const;
 type SupportedNamespace = (typeof SUPPORTED_NAMESPACES)[number];
 
 const NAMESPACE_CONFIG_KEY: Record<SupportedNamespace, string> = {
-  model: "modelTiers",
+  model: "capabilityProfiles",
   tool: "toolNames",
   file: "fileArtifacts",
 };
 
-const NAMESPACE_KEY_FORMAT: Record<SupportedNamespace, RegExp> = {
-  model: MODEL_TIER_KEY,
+const NAMESPACE_KEY_FORMAT: Record<
+  Exclude<SupportedNamespace, "model">,
+  RegExp
+> = {
   tool: PLACEHOLDER_KEY,
   file: PLACEHOLDER_KEY,
 };
@@ -52,7 +56,7 @@ function isSupportedNamespace(value: string): value is SupportedNamespace {
 
 export function buildGlossary(config: ResolvedConfig): PlaceholderGlossary {
   return {
-    model: config.modelTiers,
+    model: config.capabilityProfiles,
     tool: config.toolNames,
     file: config.fileArtifacts,
   };
@@ -87,6 +91,7 @@ function substituteLine(
   glossary: PlaceholderGlossary,
   context: PlaceholderRenderContext | undefined,
 ): string {
+  validateMalformedModelPlaceholders(line, context);
   return line.replace(PLACEHOLDER, (_match, esc, namespace, value) => {
     if (esc) {
       return `{{${namespace}:${value}}}`;
@@ -96,6 +101,9 @@ function substituteLine(
         `unknown placeholder namespace "${namespace}" — supported: ${SUPPORTED_NAMESPACES.join(", ")}`,
         context,
       );
+    }
+    if (namespace === "model") {
+      return resolveModelPlaceholder(value, target, glossary.model, context);
     }
     if (!NAMESPACE_KEY_FORMAT[namespace].test(value)) {
       throw renderError(
@@ -115,17 +123,52 @@ function substituteLine(
     // "constructor" resolving to Object.prototype and bypassing the
     // unknown-key check.
     if (!Object.hasOwn(dict, value)) {
-      const subject = namespace === "model" ? "model tier" : `${namespace} key`;
       throw renderError(
-        `unknown ${subject} "${value}" — define it under ${configKey} in config`,
+        `unknown ${namespace} key "${value}" — define it under ${configKey} in config`,
         context,
       );
     }
-    if (namespace === "model") {
-      return (dict as ModelTiers)[value][target].model;
-    }
     return (dict as ToolNames | FileArtifacts)[value][target];
   });
+}
+
+function validateMalformedModelPlaceholders(
+  line: string,
+  context: PlaceholderRenderContext | undefined,
+): void {
+  for (const match of line.matchAll(ACTIVE_MODEL_PLACEHOLDER)) {
+    const value = match[1];
+    if (SHARED_PLACEHOLDER_VALUE.test(value)) continue;
+    throw unsupportedModelPlaceholderError(value, context);
+  }
+}
+
+function resolveModelPlaceholder(
+  value: string,
+  target: "claude" | "codex",
+  profiles: CapabilityProfiles,
+  context: PlaceholderRenderContext | undefined,
+): string {
+  const capability = CapabilitySchema.safeParse(value);
+  if (!capability.success || !Object.hasOwn(profiles, capability.data)) {
+    throw unsupportedModelPlaceholderError(value, context);
+  }
+
+  return profiles[capability.data][target];
+}
+
+function unsupportedModelPlaceholderError(
+  value: string,
+  context: PlaceholderRenderContext | undefined,
+): Error {
+  const token = `{{model:${value}}}`;
+  const supported = CapabilitySchema.options
+    .map((capability) => `{{model:${capability}}}`)
+    .join(", ");
+  return renderError(
+    `unsupported model capability "${value}" in token "${token}" — use ${supported}; the ${NAMESPACE_CONFIG_KEY.model} catalog in ${CONFIG_FILE_NAME} defines the target model strings`,
+    context,
+  );
 }
 
 function renderError(
@@ -139,8 +182,5 @@ function renderError(
 }
 
 function formatKeyHint(namespace: SupportedNamespace): string {
-  if (namespace === "model") {
-    return "model tier keys must match /^\\w+$/ (letters, digits, underscores)";
-  }
   return `${namespace} keys must match /^[a-z0-9][a-z0-9-]*$/ (lowercase, digits, hyphens)`;
 }

@@ -6,8 +6,11 @@
 
 - config parsing
 - schema validation
+- strict version 2 capability-profile shape and default catalog
 - path resolution
 - renderer mapping
+- literal-model, capability-model, and ambient-omission precedence
+- explicit target-native effort without capability inheritance
 - manifest update logic
 
 ---
@@ -34,6 +37,12 @@ Render tests prove generated artifact behavior:
 - generated packaging, mirrored skill files, metadata, hashes, and stale-output
   cleanup
 - shipped skill and agent smoke coverage for both supported targets
+- all three capability profiles rendered for both targets
+- shipped implementer/reviewer capability plus explicit effort and research
+  agent ambient-model/ambient-effort omission
+- canonical skill model placeholders, former-token diagnostics, escapes, and
+  fenced-code boundaries
+- agent model-placeholder rejection in validation and direct render entrypoints
 
 Render tests should not own broad skill prose, prompt wording, ADR wording,
 workflow policy, or helper runtime behavior. Keep those contracts in the
@@ -72,6 +81,12 @@ Do not use source-contract tests for:
 Only assert exact text when that text is itself the contract surface, such as a
 schema name, emitted notice, CLI flag, environment variable, helper path, or
 documented error consumed by another workflow.
+
+For a breaking source-contract migration, compare deterministic v1 and v2
+renders in isolation: require identical relative artifact inventory, parse
+representative outputs, and enumerate an explicit allowlist of intentional
+semantic deltas. Ignored `generated/` previews remain local evidence and are
+not committed snapshot authority.
 
 During review response, add the smallest source-owned assertion set that would
 fail for a real contract regression and leave non-load-bearing wording to

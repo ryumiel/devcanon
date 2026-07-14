@@ -2,7 +2,7 @@
 name: linear-issue-priming
 description: Primes a Linear issue into a research-backed implementation workflow with isolated worktree and brainstorming. Use when starting work on a Linear issue — triggers on Linear identifiers (ENG-123), Linear URLs, or phrases like "start issue", "work on issue", "prime issue".
 claude:
-  model: "{{model:deep}}"
+  model: "{{model:frontier}}"
 codex:
   license: MIT
   metadata:

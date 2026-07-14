@@ -2,9 +2,11 @@ import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  CANONICAL_CAPABILITY_PROFILES,
   cleanupTempDir,
   createConfigFile,
   createTempDir,
+  makeConfigYaml,
 } from "../__test-helpers__/fixtures.js";
 import { installTestLogger } from "../__test-helpers__/logger.js";
 import { UserError } from "../utils/errors.js";
@@ -100,8 +102,8 @@ describe("loadConfig", () => {
     await cleanupTempDir(tempDir);
   });
 
-  it("returns ResolvedConfig with defaults for minimal YAML (version: 1)", async () => {
-    const configPath = await createConfigFile(tempDir, "version: 1\n");
+  it("returns ResolvedConfig with defaults and the required catalog", async () => {
+    const configPath = await createConfigFile(tempDir, makeConfigYaml());
     const result = await loadConfig(configPath);
 
     expect(result.configDir).toBe(path.dirname(path.resolve(configPath)));
@@ -109,21 +111,27 @@ describe("loadConfig", () => {
     expect(result.library.agentsDir).toBeTruthy();
     expect(result.library.generatedDir).toBeTruthy();
     expect(result.defaults.installMode).toBe("symlink");
+    expect(result.capabilityProfiles.balanced).toEqual({
+      claude: "claude-sonnet-5",
+      codex: "gpt-5.6-terra",
+    });
   });
 
   it("resolves tilde paths in targets to absolute paths without tilde", async () => {
-    const yaml = [
-      "version: 1",
-      "targets:",
-      "  claude:",
-      "    enabled: true",
-      "    skillsHome: ~/claude-skills",
-      "    agentsHome: ~/claude-agents",
-      "  codex:",
-      "    enabled: true",
-      "    skillsHome: ~/codex-skills",
-      "    agentsHome: ~/codex-agents",
-    ].join("\n");
+    const yaml = makeConfigYaml({
+      targets: {
+        claude: {
+          enabled: true,
+          skillsHome: "~/claude-skills",
+          agentsHome: "~/claude-agents",
+        },
+        codex: {
+          enabled: true,
+          skillsHome: "~/codex-skills",
+          agentsHome: "~/codex-agents",
+        },
+      },
+    });
     const configPath = await createConfigFile(tempDir, yaml);
     const result = await loadConfig(configPath);
 
@@ -138,12 +146,12 @@ describe("loadConfig", () => {
   });
 
   it("resolves relative skillsDir and agentsDir relative to config file directory", async () => {
-    const yaml = [
-      "version: 1",
-      "library:",
-      "  skillsDir: ./my-skills",
-      "  agentsDir: ./my-agents",
-    ].join("\n");
+    const yaml = makeConfigYaml({
+      library: {
+        skillsDir: "./my-skills",
+        agentsDir: "./my-agents",
+      },
+    });
     const configPath = await createConfigFile(tempDir, yaml);
     const result = await loadConfig(configPath);
 
@@ -153,7 +161,7 @@ describe("loadConfig", () => {
   });
 
   it("warns about unknown top-level fields in non-strict mode but still returns config", async () => {
-    const yaml = ["version: 1", "bogusField: surprise"].join("\n");
+    const yaml = makeConfigYaml({ bogusField: "surprise" });
     const configPath = await createConfigFile(tempDir, yaml);
     const result = await loadConfig(configPath);
 
@@ -165,7 +173,7 @@ describe("loadConfig", () => {
   });
 
   it("throws UserError for unknown top-level field in strict mode", async () => {
-    const yaml = ["version: 1", "bogusField: surprise"].join("\n");
+    const yaml = makeConfigYaml({ bogusField: "surprise" });
     const configPath = await createConfigFile(tempDir, yaml);
 
     await expect(loadConfig(configPath, true)).rejects.toThrow(UserError);
@@ -186,27 +194,85 @@ describe("loadConfig", () => {
     });
   });
 
-  it("throws UserError for schema-invalid content (version: 2)", async () => {
-    const yaml = "version: 2\n";
+  it.each([false, true])(
+    "rejects version 1 with an actionable migration diagnostic (strict=%s)",
+    async (strict) => {
+      const yaml = "version: 1\n";
+      const configPath = await createConfigFile(tempDir, yaml);
+
+      await expect(loadConfig(configPath, strict)).rejects.toSatisfy(
+        (err: unknown) => {
+          expect(err).toBeInstanceOf(UserError);
+          expect((err as UserError).filePath).toBe(configPath);
+          expect((err as UserError).message).toMatch(
+            /version 1.*no longer supported/i,
+          );
+          expect((err as UserError).hint).toMatch(
+            /version: 2.*capabilityProfiles/i,
+          );
+          return true;
+        },
+      );
+      expect(logCtx.testLogger.warnings).toEqual([]);
+    },
+  );
+
+  it.each([false, true])(
+    "rejects version 2 modelTiers before ordinary/strict validation (strict=%s)",
+    async (strict) => {
+      const yaml = makeConfigYaml({
+        modelTiers: {
+          balanced: {
+            claude: { model: "claude-sonnet-5" },
+            codex: { model: "gpt-5.6-terra" },
+          },
+        },
+      });
+      const configPath = await createConfigFile(tempDir, yaml);
+
+      await expect(loadConfig(configPath, strict)).rejects.toSatisfy(
+        (err: unknown) => {
+          expect(err).toBeInstanceOf(UserError);
+          expect((err as UserError).filePath).toBe(configPath);
+          expect((err as UserError).message).toMatch(
+            /modelTiers.*no longer supported/i,
+          );
+          expect((err as UserError).hint).toMatch(/capabilityProfiles/i);
+          return true;
+        },
+      );
+      expect(logCtx.testLogger.warnings).toEqual([]);
+    },
+  );
+
+  it("parses YAML before applying version migration preflight", async () => {
+    const yaml = "version: 1\n  invalid: indentation";
     const configPath = await createConfigFile(tempDir, yaml);
 
-    await expect(loadConfig(configPath)).rejects.toThrow(UserError);
+    await expect(loadConfig(configPath)).rejects.toSatisfy((err: unknown) => {
+      expect(err).toBeInstanceOf(UserError);
+      expect((err as UserError).message).toContain("Invalid config YAML:");
+      expect((err as UserError).message).not.toContain("no longer supported");
+      return true;
+    });
   });
 
   it("respects target-level installMode: copy overriding default symlink", async () => {
-    const yaml = [
-      "version: 1",
-      "targets:",
-      "  claude:",
-      "    enabled: true",
-      "    skillsHome: ~/claude-skills",
-      "    agentsHome: ~/claude-agents",
-      "    installMode: copy",
-      "  codex:",
-      "    enabled: true",
-      "    skillsHome: ~/codex-skills",
-      "    agentsHome: ~/codex-agents",
-    ].join("\n");
+    const yaml = makeConfigYaml({
+      targets: {
+        claude: {
+          enabled: true,
+          skillsHome: "~/claude-skills",
+          agentsHome: "~/claude-agents",
+          installMode: "copy",
+        },
+        codex: {
+          enabled: true,
+          skillsHome: "~/codex-skills",
+          agentsHome: "~/codex-agents",
+        },
+      },
+    });
     const configPath = await createConfigFile(tempDir, yaml);
     const result = await loadConfig(configPath);
 
@@ -216,15 +282,16 @@ describe("loadConfig", () => {
   });
 
   it("loads the Codex display name suffix into resolved config", async () => {
-    const yaml = [
-      "version: 1",
-      "targets:",
-      "  codex:",
-      "    enabled: true",
-      "    skillsHome: ~/codex-skills",
-      "    agentsHome: ~/codex-agents",
-      "    skillDisplayNameSuffix: devcanon",
-    ].join("\n");
+    const yaml = makeConfigYaml({
+      targets: {
+        codex: {
+          enabled: true,
+          skillsHome: "~/codex-skills",
+          agentsHome: "~/codex-agents",
+          skillDisplayNameSuffix: "devcanon",
+        },
+      },
+    });
     const configPath = await createConfigFile(tempDir, yaml);
     const result = await loadConfig(configPath);
 
@@ -232,14 +299,15 @@ describe("loadConfig", () => {
   });
 
   it("warns about unknown target fields in non-strict mode", async () => {
-    const yaml = [
-      "version: 1",
-      "targets:",
-      "  codex:",
-      "    skillsHome: ~/codex-skills",
-      "    agentsHome: ~/codex-agents",
-      "    displayNameSufix: typo",
-    ].join("\n");
+    const yaml = makeConfigYaml({
+      targets: {
+        codex: {
+          skillsHome: "~/codex-skills",
+          agentsHome: "~/codex-agents",
+          displayNameSufix: "typo",
+        },
+      },
+    });
     const configPath = await createConfigFile(tempDir, yaml);
     const result = await loadConfig(configPath);
 
@@ -252,18 +320,20 @@ describe("loadConfig", () => {
   });
 
   it("rejects unknown target fields in strict mode", async () => {
-    const yaml = [
-      "version: 1",
-      "targets:",
-      "  claude:",
-      "    skillsHome: ~/claude-skills",
-      "    agentsHome: ~/claude-agents",
-      "    skillDisplayNameSuffix: devcanon",
-      "  codex:",
-      "    skillsHome: ~/codex-skills",
-      "    agentsHome: ~/codex-agents",
-      "    displayNameSufix: typo",
-    ].join("\n");
+    const yaml = makeConfigYaml({
+      targets: {
+        claude: {
+          skillsHome: "~/claude-skills",
+          agentsHome: "~/claude-agents",
+          skillDisplayNameSuffix: "devcanon",
+        },
+        codex: {
+          skillsHome: "~/codex-skills",
+          agentsHome: "~/codex-agents",
+          displayNameSufix: "typo",
+        },
+      },
+    });
     const configPath = await createConfigFile(tempDir, yaml);
 
     await expect(loadConfig(configPath, true)).rejects.toSatisfy(
@@ -280,91 +350,97 @@ describe("loadConfig", () => {
     );
   });
 
-  it("loads nested model tier profiles into resolved config", async () => {
-    const yaml = [
-      "version: 1",
-      "modelTiers:",
-      "  standard:",
-      "    claude:",
-      "      model: claude-sonnet-4-6",
-      "      effort: medium",
-      "    codex:",
-      "      model: gpt-5.4",
-      "      reasoning_effort: medium",
-    ].join("\n");
-    const configPath = await createConfigFile(tempDir, yaml);
-    const result = await loadConfig(configPath);
+  it.each([false, true])(
+    "loads the exact model-only catalog (strict=%s)",
+    async (strict) => {
+      const configPath = await createConfigFile(tempDir, makeConfigYaml());
+      const result = await loadConfig(configPath, strict);
 
-    expect(result.modelTiers?.standard.claude.model).toBe("claude-sonnet-4-6");
-    expect(result.modelTiers?.standard.claude.effort).toBe("medium");
-    expect(result.modelTiers?.standard.codex.model).toBe("gpt-5.4");
-    expect(result.modelTiers?.standard.codex.reasoning_effort).toBe("medium");
-  });
+      expect(result.capabilityProfiles).toEqual(CANONICAL_CAPABILITY_PROFILES);
+    },
+  );
 
-  it("warns about unknown nested model tier profile keys in non-strict mode", async () => {
-    const yaml = [
-      "version: 1",
-      "modelTiers:",
-      "  standard:",
-      "    claude:",
-      "      model: claude-sonnet-4-6",
-      "      effort: medium",
-      "      typo_field: true",
-      "    codex:",
-      "      model: gpt-5.4",
-      "      reasoning_effort: medium",
-      "    typo_target:",
-      "      model: unexpected",
-    ].join("\n");
-    const configPath = await createConfigFile(tempDir, yaml);
-
-    const result = await loadConfig(configPath);
-
-    expect(result.modelTiers?.standard.claude.model).toBe("claude-sonnet-4-6");
-    expect(
-      logCtx.testLogger.warnings.some((warning) =>
-        warning.includes("modelTiers.standard.claude.typo_field"),
-      ),
-    ).toBe(true);
-    expect(
-      logCtx.testLogger.warnings.some((warning) =>
-        warning.includes("modelTiers.standard.typo_target"),
-      ),
-    ).toBe(true);
-  });
-
-  it("rejects unknown nested model tier profile keys in strict mode", async () => {
-    const yaml = [
-      "version: 1",
-      "modelTiers:",
-      "  standard:",
-      "    claude:",
-      "      model: claude-sonnet-4-6",
-      "      effort: medium",
-      "      typo_field: true",
-      "    codex:",
-      "      model: gpt-5.4",
-      "      reasoning_effort: medium",
-      "      typo_field: true",
-      "    typo_target:",
-      "      model: unexpected",
-    ].join("\n");
-    const configPath = await createConfigFile(tempDir, yaml);
-
-    await expect(loadConfig(configPath, true)).rejects.toSatisfy(
-      (err: unknown) => {
-        expect(err).toBeInstanceOf(UserError);
-        expect((err as UserError).message).toContain(
-          "modelTiers.standard.claude.typo_field",
-        );
-        expect((err as UserError).message).toContain(
-          "modelTiers.standard.codex.typo_field",
-        );
-        expect((err as UserError).message).toContain(
-          "modelTiers.standard.typo_target",
-        );
-        return true;
+  for (const strict of [false, true]) {
+    it.each([
+      {
+        name: "a missing profile",
+        value: {
+          balanced: CANONICAL_CAPABILITY_PROFILES.balanced,
+          frontier: CANONICAL_CAPABILITY_PROFILES.frontier,
+        },
       },
-    );
-  });
+      {
+        name: "an extra profile",
+        value: {
+          ...CANONICAL_CAPABILITY_PROFILES,
+          experimental: { claude: "claude-test", codex: "gpt-test" },
+        },
+      },
+      {
+        name: "a missing target",
+        value: {
+          ...CANONICAL_CAPABILITY_PROFILES,
+          balanced: { claude: "claude-sonnet-5" },
+        },
+      },
+      {
+        name: "an extra target",
+        value: {
+          ...CANONICAL_CAPABILITY_PROFILES,
+          balanced: {
+            ...CANONICAL_CAPABILITY_PROFILES.balanced,
+            other: "model",
+          },
+        },
+      },
+      {
+        name: "a nested model object",
+        value: {
+          ...CANONICAL_CAPABILITY_PROFILES,
+          balanced: {
+            ...CANONICAL_CAPABILITY_PROFILES.balanced,
+            claude: { model: "claude-sonnet-5" },
+          },
+        },
+      },
+      {
+        name: "effort metadata",
+        value: {
+          ...CANONICAL_CAPABILITY_PROFILES,
+          balanced: {
+            ...CANONICAL_CAPABILITY_PROFILES.balanced,
+            effort: "high",
+          },
+        },
+      },
+      {
+        name: "a blank model string",
+        value: {
+          ...CANONICAL_CAPABILITY_PROFILES,
+          balanced: {
+            ...CANONICAL_CAPABILITY_PROFILES.balanced,
+            claude: "   ",
+          },
+        },
+      },
+      {
+        name: "an unsafe model string",
+        value: {
+          ...CANONICAL_CAPABILITY_PROFILES,
+          frontier: {
+            ...CANONICAL_CAPABILITY_PROFILES.frontier,
+            codex: `gpt${String.fromCharCode(0x85)}injected`,
+          },
+        },
+      },
+    ])(`rejects $name when strict=${strict}`, async ({ value }) => {
+      const configPath = await createConfigFile(
+        tempDir,
+        makeConfigYaml({ capabilityProfiles: value }),
+      );
+
+      await expect(loadConfig(configPath, strict)).rejects.toThrow(UserError);
+      expect(logCtx.testLogger.warnings).toEqual([]);
+    });
+  }
 });

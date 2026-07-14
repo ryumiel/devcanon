@@ -26,7 +26,7 @@ In this repository, create an agent only when one of these is true:
 
 - You need tool or sandbox restrictions that a skill cannot enforce.
 - You need a stable role identity with documented target-supported constraints,
-  such as model tier, effort level, tool access, sandbox mode, or Codex
+  such as model capability, effort level, tool access, sandbox mode, or Codex
   approval policy (`codex.approval_policy`).
 - You need a reusable specialist delegate, but the reusable operational
   knowledge still lives in skills.
@@ -46,7 +46,7 @@ Avoid these cases:
   method content into skills.
 - Giving broad permissions by default when least privilege would work.
 - Treating delegation or orchestration as a YAML field or schema control knob.
-  In v1, those expectations belong only in prose instructions, not in
+  Those expectations belong only in prose instructions, not in
   first-class source-schema fields.
 - **Project-internal references in `instructions:` prose.** Agent
   instructions render into user-wide installations and must read
@@ -70,7 +70,7 @@ are true:
   evidenced by **cross-skill reuse OR a role boundary that would still make
   sense outside the originating skill**.
 - The delegate benefits from documented target-supported constraints such as
-  dedicated model tier, effort level, tool access, sandbox mode, or Codex
+  dedicated model capability, effort level, tool access, sandbox mode, or Codex
   approval policy (`codex.approval_policy`). Constraint potential is necessary
   but not sufficient — it sharpens an already-justified promotion, it does not
   justify one.
@@ -124,13 +124,14 @@ description: Focused code review role with limited tools and read-only access fo
 instructions: |
   Review for correctness and regressions.
   Report only concrete findings.
+capability: balanced
 claude:
-  model: "{{model:standard}}"
+  effort: high
   tools:
     - Read
     - Grep
 codex:
-  model: "{{model:standard}}"
+  model_reasoning_effort: high
   sandbox_mode: read-only
 ```
 
@@ -140,13 +141,12 @@ description: Release validation role for surfacing blockers in a release candida
 instructions: |
   Verify the release candidate.
   Surface blocking issues first.
+capability: balanced
 claude:
-  model: "{{model:standard}}"
   tools:
     - Read
     - Grep
 codex:
-  model: "{{model:standard}}"
   sandbox_mode: read-only
 ```
 
@@ -156,12 +156,11 @@ description: Documentation review role with narrow read-only access for clarity 
 instructions: |
   Check clarity and consistency.
   Keep recommendations minimal.
+capability: efficient
 claude:
-  model: "{{model:standard}}"
   tools:
     - Read
 codex:
-  model: "{{model:standard}}"
   sandbox_mode: read-only
 ```
 
@@ -180,8 +179,11 @@ codex:
    expectations need to be described in prose instructions.
 6. Start with least privilege: minimum tools, minimum sandbox, and no new
    schema knobs for coordination behavior.
-7. Validate with `devcanon validate`.
-8. Preview the generated output with `devcanon render`.
+7. Choose model capability independently from target-native effort. Capability
+   does not imply tools, sandbox, approval policy, context, authority,
+   orchestration, retries, or escalation behavior.
+8. Validate with `devcanon validate`.
+9. Preview the generated output with `devcanon render`.
 
 ## 8. See Also
 

@@ -8,11 +8,12 @@ instructions: |
   Report concrete gaps and extras with file:line references. Do not propose
   fixes outside the scoped task.
 skills: []
+capability: frontier
 claude:
-  model: "{{model:deep}}"
+  effort: xhigh
   tools:
     - Read
     - Grep
 codex:
-  model: "{{model:deep}}"
+  model_reasoning_effort: xhigh
   sandbox_mode: read-only

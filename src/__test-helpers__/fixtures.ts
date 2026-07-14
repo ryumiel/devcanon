@@ -15,6 +15,31 @@ import type { LoadedAgent } from "../models/types.js";
 
 type CodexSource = NonNullable<LoadedAgent["source"]["codex"]>;
 
+export const CANONICAL_CAPABILITY_PROFILES = {
+  efficient: {
+    claude: "claude-haiku-4-5-20251001",
+    codex: "gpt-5.6-luna",
+  },
+  balanced: {
+    claude: "claude-sonnet-5",
+    codex: "gpt-5.6-terra",
+  },
+  frontier: {
+    claude: "claude-opus-4-8",
+    codex: "gpt-5.6-sol",
+  },
+};
+
+export function makeConfigYaml(
+  overrides: Record<string, unknown> = {},
+): string {
+  return yamlStringify({
+    version: 2,
+    capabilityProfiles: CANONICAL_CAPABILITY_PROFILES,
+    ...overrides,
+  });
+}
+
 // Widens enum-typed fields to plain strings so renderer tests can supply
 // payloads that would not pass Zod validation (the single downcast at
 // makeCodexSource preserves type-safety for non-enum fields).
@@ -96,7 +121,13 @@ export async function createConfigFile(
 ): Promise<string> {
   const content =
     yamlContent ??
-    "version: 1\nlibrary:\n  skillsDir: ./skills\n  agentsDir: ./agents\n  generatedDir: ./generated\n";
+    makeConfigYaml({
+      library: {
+        skillsDir: "./skills",
+        agentsDir: "./agents",
+        generatedDir: "./generated",
+      },
+    });
   const configPath = path.join(dir, "devcanon.config.yaml");
   await writeFile(configPath, content, "utf-8");
   return configPath;
@@ -153,6 +184,11 @@ export function makeResolvedConfig(
     manifest: {
       path: path.join(tempDir, "manifest.json"),
       ...overrides.manifest,
+    },
+    capabilityProfiles: {
+      efficient: { ...CANONICAL_CAPABILITY_PROFILES.efficient },
+      balanced: { ...CANONICAL_CAPABILITY_PROFILES.balanced },
+      frontier: { ...CANONICAL_CAPABILITY_PROFILES.frontier },
     },
   };
 }

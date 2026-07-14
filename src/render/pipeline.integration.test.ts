@@ -11,6 +11,10 @@ import {
   makeResolvedConfig,
 } from "../__test-helpers__/fixtures.js";
 import { installTestLogger } from "../__test-helpers__/logger.js";
+import {
+  parseRenderedMarkdownArtifact,
+  parseRenderedTomlArtifact,
+} from "../__test-helpers__/render.js";
 import type { ResolvedConfig } from "../config/schema.js";
 import type { RenderedAgent } from "../models/types.js";
 import { UserError } from "../utils/errors.js";
@@ -450,7 +454,7 @@ describe("renderAll", () => {
       expect(claudeOutput).toBeDefined();
       expect(claudeOutput?.content).toContain('experimental_mode: "beta"');
       expect(claudeOutput?.content).toContain('mcp_servers: ["fs", "web"]');
-      expect(claudeOutput?.content).toContain("model: sonnet");
+      expect(claudeOutput?.content).toContain('model: "sonnet"');
     });
 
     it("preserves unknown codex field end-to-end into rendered .toml", async () => {
@@ -495,7 +499,7 @@ describe("renderAll", () => {
         (o): o is RenderedAgent => o.type === "agent" && o.target === "claude",
       );
       expect(claudeOutput?.content).not.toContain("nested_object");
-      expect(claudeOutput?.content).toContain("model: sonnet");
+      expect(claudeOutput?.content).toContain('model: "sonnet"');
     });
   });
 
@@ -667,112 +671,192 @@ describe("renderAll", () => {
     expect(content).toContain("display_name: SC Skill");
   });
 
-  it("substitutes {{model:*}} placeholders per target", async () => {
-    const tieredConfig = makeResolvedConfig(tempDir);
-    tieredConfig.modelTiers = {
-      fast: {
-        claude: { model: "haiku" },
-        codex: { model: "gpt-5.4-mini" },
-      },
-      standard: {
-        claude: { model: "sonnet", effort: "medium" },
-        codex: { model: "gpt-5.4", reasoning_effort: "medium" },
-      },
-      deep: {
-        claude: { model: "opus", effort: "high" },
-        codex: { model: "gpt-5.4", reasoning_effort: "high" },
-      },
-    };
+  it.each([
+    ["efficient", "claude-haiku-4-5-20251001", "gpt-5.6-luna"],
+    ["balanced", "claude-sonnet-5", "gpt-5.6-terra"],
+    ["frontier", "claude-opus-4-8", "gpt-5.6-sol"],
+  ] as const)(
+    "substitutes the canonical %s model capability per target",
+    async (capability, claudeModel, codexModel) => {
+      await createSkillFixture(
+        config.library.skillsDir,
+        "capability-skill",
+        [
+          "---",
+          "name: capability-skill",
+          "description: A test skill.",
+          "claude:",
+          `  model: "{{model:${capability}}}"`,
+          "  effort: high",
+          "---",
+          "",
+          `use {{model:${capability}}} for synthesis`,
+          "",
+        ].join("\n"),
+      );
 
+      await renderAll(config, true);
+
+      const claudeContent = await readFile(
+        path.join(
+          config.library.generatedDir,
+          "claude",
+          "skills",
+          "capability-skill",
+          "SKILL.md",
+        ),
+        "utf-8",
+      );
+      const codexContent = await readFile(
+        path.join(
+          config.library.generatedDir,
+          "codex",
+          "skills",
+          "capability-skill",
+          "SKILL.md",
+        ),
+        "utf-8",
+      );
+      const claudeArtifact = parseRenderedMarkdownArtifact(claudeContent);
+      expect(claudeArtifact.frontmatter.model).toBe(claudeModel);
+      expect(claudeArtifact.frontmatter.effort).toBe("high");
+      expect(claudeArtifact.body).toContain(`use ${claudeModel} for synthesis`);
+      expect(codexContent).toContain(`use ${codexModel} for synthesis`);
+      expect(codexContent).not.toContain("effort:");
+    },
+  );
+
+  it.each(["fast", "standard", "deep", "arbitrary", " balanced"])(
+    "rejects active skill model key %s before writing any artifact",
+    async (modelKey) => {
+      const skillDir = await createSkillFixture(
+        config.library.skillsDir,
+        "invalid-capability",
+        [
+          "---",
+          "name: invalid-capability",
+          "description: A test skill.",
+          "---",
+          "",
+          `Use {{model:${modelKey}}} for synthesis.`,
+          "",
+        ].join("\n"),
+      );
+
+      const skillPath = path.join(skillDir, "SKILL.md");
+
+      try {
+        await renderAll(config, true, false, "claude");
+        expect.fail("expected invalid model placeholder rendering to fail");
+      } catch (error) {
+        expect(error).toBeInstanceOf(UserError);
+        expect((error as UserError).filePath).toBe(skillPath);
+        expect((error as UserError).message).toContain(`{{model:${modelKey}}}`);
+        expect((error as UserError).message).toMatch(
+          /invalid-capability.*claude.*efficient.*balanced.*frontier.*devcanon\.config\.yaml/i,
+        );
+      }
+      expect(await pathExists(config.library.generatedDir)).toBe(false);
+    },
+  );
+
+  it("keeps escaped and fenced legacy model tokens literal and ambient", async () => {
     await createSkillFixture(
-      tieredConfig.library.skillsDir,
-      "tier-skill",
+      config.library.skillsDir,
+      "literal-model-examples",
       [
         "---",
-        "name: tier-skill",
+        "name: literal-model-examples",
         "description: A test skill.",
         "---",
         "",
-        "use {{model:deep}} for synthesis",
+        "Escaped: \\{{model:deep}}",
+        "",
+        "```yaml",
+        "model: {{model:fast}}",
+        "```",
         "",
       ].join("\n"),
     );
 
-    await renderAll(tieredConfig, true);
+    const result = await renderAll(config, false, false, "claude");
+    const skill = result.outputs.find(
+      (output) => output.type === "skill" && output.target === "claude",
+    );
+    const parsed = parseRenderedMarkdownArtifact(skill?.content ?? "");
 
-    const claudeContent = await readFile(
-      path.join(
-        tieredConfig.library.generatedDir,
-        "claude",
-        "skills",
-        "tier-skill",
-        "SKILL.md",
-      ),
-      "utf-8",
-    );
-    const codexContent = await readFile(
-      path.join(
-        tieredConfig.library.generatedDir,
-        "codex",
-        "skills",
-        "tier-skill",
-        "SKILL.md",
-      ),
-      "utf-8",
-    );
-    expect(claudeContent).toContain("use opus for synthesis");
-    expect(codexContent).toContain("use gpt-5.4 for synthesis");
+    expect(parsed.frontmatter).not.toHaveProperty("model");
+    expect(parsed.frontmatter).not.toHaveProperty("effort");
+    expect(parsed.body).toContain("Escaped: {{model:deep}}");
+    expect(parsed.body).toContain("model: {{model:fast}}");
   });
 
-  it("resolves tier placeholders in agent targets and hydrates target-native effort", async () => {
-    const tieredConfig = makeResolvedConfig(tempDir);
-    tieredConfig.modelTiers = {
-      standard: {
-        claude: { model: "claude-sonnet-4-6", effort: "medium" },
-        codex: { model: "gpt-5.4", reasoning_effort: "medium" },
-      },
-    };
-
+  it("resolves capability with a one-target literal override and explicit effort", async () => {
     await createAgentFixture(
-      tieredConfig.library.agentsDir,
-      "tier-agent",
-      makeAgentYaml("tier-agent", {
+      config.library.agentsDir,
+      "capability-agent",
+      makeAgentYaml("capability-agent", {
+        capability: "balanced",
         claude: {
-          model: "{{model:standard}}",
+          model: "literal-claude",
+          effort: "high",
           tools: ["Read", "Grep"],
         },
         codex: {
-          model: "{{model:standard}}",
+          model_reasoning_effort: "low",
           sandbox_mode: "read-only",
         },
       }),
     );
 
-    await renderAll(tieredConfig, true);
-
-    const claudeAgentContent = await readFile(
-      path.join(
-        tieredConfig.library.generatedDir,
-        "claude",
-        "agents",
-        "tier-agent.md",
-      ),
-      "utf-8",
+    const result = await renderAll(config, false);
+    const claude = result.outputs.find(
+      (output) => output.type === "agent" && output.target === "claude",
     );
-    const codexAgentContent = await readFile(
-      path.join(
-        tieredConfig.library.generatedDir,
-        "codex",
-        "agents",
-        "tier-agent.toml",
-      ),
-      "utf-8",
+    const codex = result.outputs.find(
+      (output) => output.type === "agent" && output.target === "codex",
+    );
+    expect(claude?.content).not.toContain("{{model:");
+    expect(codex?.content).not.toContain("{{model:");
+
+    const { frontmatter } = parseRenderedMarkdownArtifact(
+      claude?.content ?? "",
+    );
+    const toml = parseRenderedTomlArtifact(codex?.content ?? "");
+    expect(frontmatter).toMatchObject({
+      model: "literal-claude",
+      effort: "high",
+      tools: "Read, Grep",
+    });
+    expect(toml).toMatchObject({
+      model: config.capabilityProfiles.balanced.codex,
+      model_reasoning_effort: "low",
+      sandbox_mode: "read-only",
+    });
+  });
+
+  it("keeps ambient model and effort omitted through the pipeline", async () => {
+    await createAgentFixture(
+      config.library.agentsDir,
+      "ambient-agent",
+      makeAgentYaml("ambient-agent"),
+    );
+    const result = await renderAll(config, false);
+    const claude = result.outputs.find(
+      (output) => output.type === "agent" && output.target === "claude",
+    );
+    const codex = result.outputs.find(
+      (output) => output.type === "agent" && output.target === "codex",
     );
 
-    expect(claudeAgentContent).toContain("model: claude-sonnet-4-6");
-    expect(claudeAgentContent).toContain("effort: medium");
-    expect(codexAgentContent).toContain('model = "gpt-5.4"');
-    expect(codexAgentContent).toContain('model_reasoning_effort = "medium"');
+    const { frontmatter } = parseRenderedMarkdownArtifact(
+      claude?.content ?? "",
+    );
+    const toml = parseRenderedTomlArtifact(codex?.content ?? "");
+    expect(frontmatter).not.toHaveProperty("model");
+    expect(frontmatter).not.toHaveProperty("effort");
+    expect(toml).not.toHaveProperty("model");
+    expect(toml).not.toHaveProperty("model_reasoning_effort");
   });
 
   it("mirrors known subdirs into each target's generated dir", async () => {
@@ -1015,7 +1099,6 @@ describe("renderLoaded", () => {
       skills,
       {
         strict: false,
-        modelTiers: config.modelTiers,
       },
     );
     await writeFile(
@@ -1066,6 +1149,39 @@ describe("renderLoaded", () => {
     expect(generatedSkillContent).not.toContain("# changed");
   });
 
+  it("reports the exact loaded SKILL.md path for invalid model tokens", async () => {
+    const skillDir = await createSkillFixture(
+      config.library.skillsDir,
+      "loaded-invalid-model",
+    );
+    const validatedSkills = await loadAndValidateSkills(
+      config.library.skillsDir,
+    );
+    const loadedSkill = {
+      ...validatedSkills[0],
+      body: "Use {{model: standard}} for synthesis.\n",
+    };
+    const skillPath = path.join(skillDir, "SKILL.md");
+
+    try {
+      await renderLoaded({
+        config,
+        skills: [loadedSkill],
+        validatedSkills,
+        agents: [],
+        writeToGenerated: true,
+        targetFilter: "claude",
+      });
+      expect.fail("expected invalid loaded model placeholder to fail");
+    } catch (error) {
+      expect(error).toBeInstanceOf(UserError);
+      expect((error as UserError).filePath).toBe(skillPath);
+      expect((error as UserError).message).toContain("{{model: standard}}");
+    }
+
+    expect(await pathExists(config.library.generatedDir)).toBe(false);
+  });
+
   it("requires mirrored subdirs to remain source-backed for loaded skills", async () => {
     await createSkillFixture(
       config.library.skillsDir,
@@ -1111,7 +1227,6 @@ describe("renderLoaded", () => {
     );
     const agents = await loadAndValidateAgents(config.library.agentsDir, [], {
       strict: false,
-      modelTiers: config.modelTiers,
     });
     await rm(config.library.agentsDir, { recursive: true, force: true });
 
@@ -1144,7 +1259,6 @@ describe("renderLoaded", () => {
       skills,
       {
         strict: false,
-        modelTiers: config.modelTiers,
       },
     );
 
@@ -1191,7 +1305,6 @@ describe("renderLoaded", () => {
       loadedSkills,
       {
         strict: false,
-        modelTiers: config.modelTiers,
       },
     );
     const skills = loadedSkills.filter((skill) => skill.name === "kept-skill");
@@ -1227,7 +1340,6 @@ describe("renderLoaded", () => {
       loadedSkills,
       {
         strict: false,
-        modelTiers: config.modelTiers,
       },
     );
     const agents = loadedAgents.filter((agent) => agent.name === "agent-only");
@@ -1250,6 +1362,51 @@ describe("renderLoaded", () => {
     expect(result.outputs[0].content).toContain("referenced-skill");
     expect(await pathExists(config.library.generatedDir)).toBe(false);
   });
+
+  it.each([
+    ["claude", "{{model:standard}}"],
+    ["codex", "  {{model:standard}}  "],
+    ["claude", "{{model: standard}}"],
+    ["codex", "{{model:deep-tier}}"],
+  ] as const)(
+    "rejects direct-loaded %s model placeholder %s before output",
+    async (target, model) => {
+      const source = {
+        name: "bypassed-agent",
+        description: "Bypassed validation fixture.",
+        instructions: "Do the work.",
+        skills: [],
+        [target]: { model },
+      };
+
+      await expect(
+        renderLoaded({
+          config,
+          skills: [],
+          agents: [
+            {
+              name: source.name,
+              filePath: path.join(
+                config.library.agentsDir,
+                "bypassed-agent.yaml",
+              ),
+              source,
+            },
+          ],
+          writeToGenerated: true,
+        }),
+      ).rejects.toSatisfy((err: unknown) => {
+        expect(err).toBeInstanceOf(UserError);
+        expect((err as UserError).message).toContain(`${target}.model`);
+        expect((err as UserError).message).toMatch(
+          /top-level capability.*literal target model/,
+        );
+        return true;
+      });
+
+      expect(await pathExists(config.library.generatedDir)).toBe(false);
+    },
+  );
 
   it("rejects unvalidated loaded inputs before writing generated output", async () => {
     await createSkillFixture(config.library.skillsDir, "safe-skill");
@@ -1412,7 +1569,6 @@ describe("renderLoaded", () => {
     );
     const [agent] = await loadAndValidateAgents(config.library.agentsDir, [], {
       strict: false,
-      modelTiers: config.modelTiers,
     });
 
     await expect(
@@ -1432,7 +1588,6 @@ describe("renderLoaded", () => {
     await writeFile(agentPath, makeAgentYaml("backup-agent"), "utf-8");
     const [agent] = await loadAndValidateAgents(config.library.agentsDir, [], {
       strict: false,
-      modelTiers: config.modelTiers,
     });
 
     const result = await renderLoaded({
@@ -1455,7 +1610,6 @@ describe("renderLoaded", () => {
     );
     const [agent] = await loadAndValidateAgents(config.library.agentsDir, [], {
       strict: false,
-      modelTiers: config.modelTiers,
     });
 
     await expect(
@@ -1481,7 +1635,6 @@ describe("renderLoaded", () => {
     );
     const [agent] = await loadAndValidateAgents(config.library.agentsDir, [], {
       strict: false,
-      modelTiers: config.modelTiers,
     });
 
     await expect(
@@ -1515,7 +1668,6 @@ describe("renderLoaded", () => {
         [],
         {
           strict: false,
-          modelTiers: config.modelTiers,
         },
       );
       const externalAgentPath = path.join(tempDir, "external-agent.yaml");
@@ -1543,7 +1695,6 @@ describe("renderLoaded", () => {
     );
     const [agent] = await loadAndValidateAgents(config.library.agentsDir, [], {
       strict: false,
-      modelTiers: config.modelTiers,
     });
     const sourceWithoutDefaultSkills = { ...agent.source };
     (sourceWithoutDefaultSkills as { skills?: unknown }).skills = undefined;
@@ -1565,7 +1716,6 @@ describe("renderLoaded", () => {
     );
     const [agent] = await loadAndValidateAgents(config.library.agentsDir, [], {
       strict: false,
-      modelTiers: config.modelTiers,
     });
     const sourceWithExtraUndefined = {
       name: agent.source.name,
@@ -1591,7 +1741,6 @@ describe("renderLoaded", () => {
     );
     const [agent] = await loadAndValidateAgents(config.library.agentsDir, [], {
       strict: false,
-      modelTiers: config.modelTiers,
     });
 
     await expect(
@@ -1651,7 +1800,6 @@ describe("renderLoaded", () => {
       );
       const agents = await loadAndValidateAgents(config.library.agentsDir, [], {
         strict: false,
-        modelTiers: config.modelTiers,
       });
       const externalDir = path.join(tempDir, "external-generated-agents");
       await mkdir(externalDir, { recursive: true });

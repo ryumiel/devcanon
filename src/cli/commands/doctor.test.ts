@@ -2,13 +2,19 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
+  CANONICAL_CAPABILITY_PROFILES,
   cleanupTempDir,
   createAgentFixture,
   createConfigFile,
+  createSkillFixture,
   createTempDir,
   makeAgentYaml,
+  makeConfigYaml,
 } from "../../__test-helpers__/fixtures.js";
-import { installTestLogger } from "../../__test-helpers__/logger.js";
+import {
+  type TestLoggerResult,
+  installTestLogger,
+} from "../../__test-helpers__/logger.js";
 import { runGit } from "../../runtime/git.js";
 import { doctorAction } from "./doctor.js";
 
@@ -16,49 +22,50 @@ describe("doctorAction", () => {
   let tempDir: string;
   let configPath: string;
   let agentsDir: string;
+  let skillsDir: string;
   let infos: string[];
+  let testLogger: TestLoggerResult;
   let restore: () => void;
+  let priorExitCode: typeof process.exitCode;
 
   beforeEach(async () => {
     tempDir = await createTempDir();
     agentsDir = path.join(tempDir, "agents");
-    await mkdir(path.join(tempDir, "skills"), { recursive: true });
+    skillsDir = path.join(tempDir, "skills");
+    await mkdir(skillsDir, { recursive: true });
     await mkdir(agentsDir, { recursive: true });
     configPath = await createConfigFile(
       tempDir,
-      [
-        "version: 1",
-        "library:",
-        "  skillsDir: ./skills",
-        "  agentsDir: ./agents",
-        "  generatedDir: ./generated",
-        "modelTiers:",
-        "  standard:",
-        "    claude:",
-        "      model: claude-sonnet-4-6",
-        "      effort: medium",
-        "    codex:",
-        "      model: gpt-5.4",
-        "      reasoning_effort: medium",
-      ].join("\n"),
+      makeConfigYaml({
+        library: {
+          skillsDir: "./skills",
+          agentsDir: "./agents",
+          generatedDir: "./generated",
+        },
+      }),
     );
     const installed = installTestLogger();
-    infos = installed.testLogger.infos;
+    testLogger = installed.testLogger;
+    infos = testLogger.infos;
     restore = installed.restore;
+    priorExitCode = process.exitCode;
+    process.exitCode = undefined;
   });
 
   afterEach(async () => {
+    process.exitCode = priorExitCode;
     restore();
     await cleanupTempDir(tempDir);
   });
 
-  it("reports agents-valid ok for agents using configured model tiers", async () => {
+  it("reports agents-valid ok for agents using a neutral capability", async () => {
     await createAgentFixture(
       agentsDir,
       "reviewer",
       makeAgentYaml("reviewer", {
-        claude: { model: "{{model:standard}}", tools: ["Read"] },
-        codex: { model: "{{model:standard}}", sandbox_mode: "read-only" },
+        capability: "balanced",
+        claude: { tools: ["Read"] },
+        codex: { sandbox_mode: "read-only" },
       }),
     );
 
@@ -75,6 +82,48 @@ describe("doctorAction", () => {
       infos.some((entry) => entry.includes("agents-valid: 1 agent(s) valid")),
     ).toBe(true);
   });
+
+  it.each(["fast", " balanced"])(
+    "reports skills-valid error for active model token key %s even with advisory diagnostics disabled",
+    async (modelKey) => {
+      await createSkillFixture(
+        skillsDir,
+        "invalid-model-token",
+        [
+          "---",
+          "name: invalid-model-token",
+          "description: A skill with an invalid active model token.",
+          "---",
+          "",
+          `Use {{model:${modelKey}}} for synthesis.`,
+          "",
+        ].join("\n"),
+      );
+
+      await doctorAction(
+        {},
+        {
+          parent: {
+            opts: () => ({ config: configPath, json: true }),
+          },
+        },
+      );
+
+      expect(process.exitCode).toBe(1);
+      const results = testLogger.jsons[0] as Array<{
+        name: string;
+        status: string;
+        message: string;
+      }>;
+      expect(results).toContainEqual(
+        expect.objectContaining({
+          name: "skills-valid",
+          status: "error",
+          message: expect.stringContaining(`{{model:${modelKey}}}`),
+        }),
+      );
+    },
+  );
 
   it("reports managed-worktrees ok when no worktree directory exists", async () => {
     await doctorAction(
@@ -138,13 +187,13 @@ describe("doctorAction", () => {
     await mkdir(path.join(linkedWorktree, "agents"), { recursive: true });
     const linkedConfigPath = await createConfigFile(
       linkedWorktree,
-      [
-        "version: 1",
-        "library:",
-        "  skillsDir: ./skills",
-        "  agentsDir: ./agents",
-        "  generatedDir: ./generated",
-      ].join("\n"),
+      makeConfigYaml({
+        library: {
+          skillsDir: "./skills",
+          agentsDir: "./agents",
+          generatedDir: "./generated",
+        },
+      }),
     );
     const orphan = path.join(tempDir, ".worktrees", "orphan");
     await mkdir(orphan, { recursive: true });
@@ -175,6 +224,72 @@ describe("doctorAction", () => {
       ),
     ).toBe(true);
   });
+
+  it.each([
+    [
+      "legacy v1",
+      "version: 1\n",
+      "Config invalid: Config version 1 is no longer supported.",
+    ],
+    [
+      "v2 missing frontier Codex model",
+      makeConfigYaml({
+        capabilityProfiles: {
+          efficient: CANONICAL_CAPABILITY_PROFILES.efficient,
+          balanced: CANONICAL_CAPABILITY_PROFILES.balanced,
+          frontier: {
+            claude: CANONICAL_CAPABILITY_PROFILES.frontier.claude,
+          },
+        },
+      }),
+      "Config invalid: Invalid config: Required",
+    ],
+  ])(
+    "records %s config failure and skips every config-dependent check",
+    async (_label, invalidConfig, expectedMessage) => {
+      await writeFile(configPath, invalidConfig, "utf-8");
+
+      await expect(
+        doctorAction(
+          {},
+          {
+            parent: {
+              opts: () => ({ config: configPath, json: true }),
+            },
+          },
+        ),
+      ).resolves.toBeUndefined();
+
+      expect(process.exitCode).toBe(1);
+      expect(testLogger.jsons).toHaveLength(1);
+      const results = testLogger.jsons[0] as Array<{
+        name: string;
+        status: string;
+        message: string;
+      }>;
+      expect(results).toEqual([
+        {
+          name: "node-version",
+          status: "ok",
+          message: `Node ${process.versions.node}`,
+        },
+        {
+          name: "config-found",
+          status: "ok",
+          message: "Config file found",
+        },
+        {
+          name: "config-valid",
+          status: "error",
+          message: expectedMessage,
+        },
+      ]);
+      expect(infos).toHaveLength(3);
+      expect(infos[0]).toContain("node-version:");
+      expect(infos[1]).toContain("config-found:");
+      expect(infos[2]).toContain("config-valid:");
+    },
+  );
 });
 
 async function initRepo(repoDir: string): Promise<void> {

@@ -15,7 +15,7 @@ identity plus documented target-supported constraints.
 
 Valid reasons include dedicated:
 
-- model tier
+- model capability
 - effort level
 - tool access
 - sandbox mode
@@ -41,15 +41,17 @@ skills:
   - pr-review
   - release-check
 
+capability: balanced
+
 claude:
-  model: "{{model:standard}}"
+  effort: high
   tools:
     - Read
     - Grep
     - Bash
 
 codex:
-  model: "{{model:standard}}"
+  model_reasoning_effort: high
   sandbox_mode: read-only
 ```
 
@@ -63,10 +65,12 @@ codex:
 | `description`  | string | yes      | ≤ 1024 chars, no `<` / `>`                                               |
 | `instructions` | string | yes      | Non-empty                                                                |
 | `skills`       | list   | no       | List of skill names (must exist in `skills/`); defaults to `[]`          |
+| `capability`   | enum   | no       | `efficient`, `balanced`, or `frontier`; selects only a target model      |
 | `tags`         | list   | no       | Free-form tag strings                                                    |
 | `notes`        | string | no       | Free-form notes                                                          |
 
-The optional `claude:` and `codex:` blocks host per-target overrides — see § Documented target-specific fields in v1 below.
+The optional `claude:` and `codex:` blocks host per-target overrides — see
+§ Documented target-specific fields in v2 below.
 
 ---
 
@@ -101,7 +105,7 @@ These are enforced by `AgentSourceSchema` and surfaced by
 The style rules above (third person, capability + trigger) are not
 mechanically validated.
 
-### Documented target-specific fields in v1
+### Documented target-specific fields in v2
 
 Within `claude`:
 
@@ -117,7 +121,7 @@ Within `codex`:
 - `nickname_candidates`
 - `approval_policy`
 
-These are the repository's documented target-specific fields in v1. Do not use
+These are the repository's documented target-specific fields in v2. Do not use
 this spec to imply support for other target fields unless they are documented
 here.
 
@@ -137,17 +141,21 @@ Field constraints:
   `sandbox_approval` booleans. It may also include `request_permissions` and
   `skill_approval` booleans.
 
-A dedicated model tier or effort level is a valid reason to define an agent
+A dedicated model capability or effort level is a valid reason to define an agent
 when the role itself is stable and reusable. Those settings are part of the
 role boundary, not just render-time metadata.
 
-When an agent target uses `model: "{{model:<tier>}}"`, the renderer resolves
-that placeholder against `modelTiers.<tier>.<target>`. For Claude, the tier's
-`effort` is emitted unless the agent explicitly sets `claude.effort`. For
-Codex, the tier's `model_reasoning_effort` is emitted unless the agent
-explicitly sets `codex.model_reasoning_effort`; an explicit value takes
-precedence over the inherited tier value. When neither source supplies an
-effort, the field remains omitted.
+Model selection is target-local. A literal `claude.model` or `codex.model`
+takes precedence over the model mapped by top-level `capability`. If neither is
+present, the rendered model field is omitted and the target's ambient model
+selection applies. Literal target model fields must not contain `{{model:*}}`;
+validation and both render paths reject those former agent placeholders with
+guidance to use top-level capability or a literal model.
+
+Effort is independent. An explicit `claude.effort` or
+`codex.model_reasoning_effort` is emitted as written; when absent it remains
+omitted and ambient target behavior applies. Capability never supplies or
+inherits effort.
 
 Effort validation is local and syntactic. Accepting an effort such as `max`
 does not prove that a particular Codex client, model, or account can run it;
@@ -155,13 +163,15 @@ operators must establish runtime availability separately.
 
 ---
 
-## Not supported in v1
+## Not supported in v2
 
 - inheritance
 - extends/merge behavior
 - overlays as a first-class feature
 - automatic prompt composition from multiple files
 - first-class delegation or orchestration policy fields
+- custom, transitional, compatibility, or legacy capabilities
+- automatic v1 tier translation or agent model placeholders
 
 ---
 

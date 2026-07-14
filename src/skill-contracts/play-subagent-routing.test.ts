@@ -406,6 +406,26 @@ function validateResearchOutcome(example: ResearchOutcomeExample): string[] {
 }
 
 describe("play subagent routing source contracts", () => {
+  it("uses capability vocabulary in the active model-selection contract", async () => {
+    const skill = await readSkillSource("play-subagent-execution");
+    const section = getMarkdownSection(skill, "Model Selection");
+    const normalizedSection = normalizeWhitespace(section);
+
+    for (const capability of ["efficient", "balanced", "frontier"]) {
+      expect(section).toContain(`\`${capability}\``);
+    }
+    expect(normalizedSection).toContain(
+      "Capability selects only the model. It never implies effort, authority, tools, sandbox, approvals, or `**Mode:** mechanical`.",
+    );
+    expect(normalizedSection).toContain(
+      "Mechanical mode does not select a capability",
+    );
+    expect(normalizedSection).toContain("dogfood implementer uses `balanced`");
+    expect(normalizedSection).toContain("reviewers use `frontier`");
+    expect(normalizedSection).toContain("research agent remains ambient");
+    expect(section).not.toMatch(/\b(?:fast|standard|deep|cheap)\b/i);
+  });
+
   it("keeps issue-priming mode, model, lifecycle, and review contracts visible while helpers own mechanics", async () => {
     const issuePrimingWorkflow = await readSkillSource(
       "issue-priming-workflow",
@@ -449,12 +469,12 @@ describe("play subagent routing source contracts", () => {
     expect(phase2).toContain("payload.research = gated");
     expect(phase2).toContain("payload.research = forced");
     expect(phase2).toContain("forced by --research");
-    expect(phase2).toContain("{{model:standard}}");
-    expect(phase2).toContain("{{model:deep}}");
+    expect(phase2).toContain("{{model:balanced}}");
+    expect(phase2).toContain("{{model:frontier}}");
     expect(phase3).toContain("research-agent");
     expect(phase3).toContain("read-only");
-    expect(phase3).toContain("{{model:standard}}");
-    expect(phase3).toContain("{{model:deep}}");
+    expect(phase3).toContain("{{model:balanced}}");
+    expect(phase3).toContain("{{model:frontier}}");
     expect(phase3).toContain("Research brief written to");
     expect(normalizedPhase5).toContain(
       "Comment evidence: <repo-relative-path from payload.comment-evidence-path>",

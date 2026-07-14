@@ -2,12 +2,7 @@ import { type Stats, lstatSync } from "node:fs";
 import { cp, lstat, rm, unlink } from "node:fs/promises";
 import path from "node:path";
 import type { ResolvedConfig } from "../config/schema.js";
-import {
-  AgentSourceSchema,
-  MODEL_TIER_PLACEHOLDER,
-  MODEL_TIER_PLACEHOLDER_PREFIX,
-  SkillSourceSchema,
-} from "../config/schema.js";
+import { AgentSourceSchema, SkillSourceSchema } from "../config/schema.js";
 import type {
   LoadedAgent,
   LoadedSkill,
@@ -18,7 +13,11 @@ import type {
 import { UserError } from "../utils/errors.js";
 import { ensureDir, readdir, writeTextFile } from "../utils/fs.js";
 import { loadAndValidateAgents } from "../validate/agents.js";
-import { KNOWN_SUBDIRS, loadAndValidateSkills } from "../validate/skills.js";
+import {
+  KNOWN_SUBDIRS,
+  collectActiveModelPlaceholderErrors,
+  loadAndValidateSkills,
+} from "../validate/skills.js";
 import { renderClaudeAgent } from "./claude.js";
 import { renderCodexAgent } from "./codex.js";
 import { renderSkillForTarget } from "./skill.js";
@@ -53,7 +52,6 @@ export async function renderAll(
   const skills = await loadAndValidateSkills(config.library.skillsDir);
   const agents = await loadAndValidateAgents(config.library.agentsDir, skills, {
     strict,
-    modelTiers: config.modelTiers,
   });
 
   return renderLoadedInternal({
@@ -97,7 +95,13 @@ async function renderLoadedInternal<
 }: RenderLoadedInternalOptions<TSkills, TAgents>): Promise<
   RenderResult<TSkills, TAgents>
 > {
-  validateLoadedInputs(config, skills, agents, validatedSkills ?? skills);
+  validateLoadedInputs(
+    config,
+    skills,
+    agents,
+    validatedSkills ?? skills,
+    targetFilter,
+  );
 
   const skillMap = new Map(skills.map((s) => [s.name, s]));
 
@@ -273,6 +277,7 @@ function validateLoadedInputs(
   skills: readonly LoadedSkill[],
   agents: readonly LoadedAgent[],
   validatedSkills: readonly LoadedSkill[],
+  targetFilter: "claude" | "codex" | undefined,
 ): void {
   const validatedSkillNames = new Set<string>();
   for (const skill of validatedSkills) {
@@ -280,7 +285,7 @@ function validateLoadedInputs(
   }
   const renderedSkillNames = new Set<string>();
   for (const skill of skills) {
-    validateLoadedSkill(config, skill, renderedSkillNames);
+    validateLoadedSkill(config, skill, renderedSkillNames, targetFilter);
     if (!validatedSkillNames.has(skill.name)) {
       throw new UserError(
         `Loaded skill "${skill.name}" is missing from validatedSkills.`,
@@ -307,17 +312,15 @@ function validateLoadedInputs(
       agent.filePath,
       `Loaded agent "${agent.name}" file`,
     );
-    validateAgentModelTierReference(
+    validateLoadedAgentLiteralModel(
       agent.name,
       "claude.model",
       agent.source.claude?.model,
-      config,
     );
-    validateAgentModelTierReference(
+    validateLoadedAgentLiteralModel(
       agent.name,
       "codex.model",
       agent.source.codex?.model,
-      config,
     );
     for (const skillRef of agent.source.skills) {
       if (!validatedSkillNames.has(skillRef)) {
@@ -329,28 +332,43 @@ function validateLoadedInputs(
   }
 }
 
-function validateAgentModelTierReference(
+function validateLoadedAgentLiteralModel(
   agentName: string,
   fieldPath: "claude.model" | "codex.model",
   value: string | undefined,
-  config: ResolvedConfig,
 ): void {
-  if (!value?.includes(MODEL_TIER_PLACEHOLDER_PREFIX)) return;
+  if (!value?.includes("{{model:")) return;
 
-  const tier = value.match(MODEL_TIER_PLACEHOLDER)?.[1];
-  if (!tier || !config.modelTiers || !Object.hasOwn(config.modelTiers, tier)) {
-    throw new UserError(
-      `Loaded agent "${agentName}": ${fieldPath} references invalid model tier.`,
-    );
-  }
+  throw new UserError(
+    `Loaded agent "${agentName}": ${fieldPath} no longer supports model placeholders (received "${value}"); set top-level capability to efficient, balanced, or frontier, or use a literal target model.`,
+  );
 }
 
 function validateLoadedSkill(
   config: ResolvedConfig,
   skill: LoadedSkill,
   names: Set<string>,
+  targetFilter: "claude" | "codex" | undefined,
 ): void {
   validateLoadedSkillReference(skill, names);
+  const selectedTargets = (["claude", "codex"] as const).filter(
+    (target) =>
+      config.targets[target].enabled &&
+      (targetFilter === undefined || targetFilter === target),
+  );
+  const placeholderErrors = collectActiveModelPlaceholderErrors(
+    skill.name,
+    skill.source,
+    skill.body,
+    selectedTargets,
+    path.join(skill.dirPath, "SKILL.md"),
+  );
+  if (placeholderErrors.length > 0) {
+    throw new UserError(
+      placeholderErrors.join("\n"),
+      path.join(skill.dirPath, "SKILL.md"),
+    );
+  }
   assertDirectNamedPathShapeInside(
     config.library.skillsDir,
     skill.name,

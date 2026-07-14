@@ -5,6 +5,7 @@ import {
   cleanupTempDir,
   createConfigFile,
   createTempDir,
+  makeConfigYaml,
   makeManifestJson,
 } from "../../__test-helpers__/fixtures.js";
 import {
@@ -31,22 +32,24 @@ describe("uninstallAction", () => {
     manifestPath = path.join(tempDir, "manifest.json");
     configPath = await createConfigFile(
       tempDir,
-      [
-        "version: 1",
-        "library:",
-        "  skillsDir: ./skills",
-        "  agentsDir: ./agents",
-        "  generatedDir: ./generated",
-        "manifest:",
-        `  path: ${manifestPath}`,
-        "targets:",
-        "  claude:",
-        `    skillsHome: ${path.join(tempDir, "home", "claude", "skills")}`,
-        `    agentsHome: ${path.join(tempDir, "home", "claude", "agents")}`,
-        "  codex:",
-        `    skillsHome: ${path.join(tempDir, "home", "codex", "skills")}`,
-        `    agentsHome: ${path.join(tempDir, "home", "codex", "agents")}`,
-      ].join("\n"),
+      makeConfigYaml({
+        library: {
+          skillsDir: "./skills",
+          agentsDir: "./agents",
+          generatedDir: "./generated",
+        },
+        manifest: { path: manifestPath },
+        targets: {
+          claude: {
+            skillsHome: path.join(tempDir, "home", "claude", "skills"),
+            agentsHome: path.join(tempDir, "home", "claude", "agents"),
+          },
+          codex: {
+            skillsHome: path.join(tempDir, "home", "codex", "skills"),
+            agentsHome: path.join(tempDir, "home", "codex", "agents"),
+          },
+        },
+      }),
     );
     const installed = installTestLogger();
     testLogger = installed.testLogger;

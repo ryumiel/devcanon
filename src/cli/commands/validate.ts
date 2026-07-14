@@ -47,7 +47,7 @@ export async function validateAction(
     diagnostics: {
       enabled: true,
       strict,
-      modelTiers: config.modelTiers,
+      capabilityProfiles: config.capabilityProfiles,
       toolNames: config.toolNames,
       fileArtifacts: config.fileArtifacts,
       reporter: (diagnostic) => skillDiagnostics.push(diagnostic),
@@ -63,7 +63,6 @@ export async function validateAction(
 
   const agents = await loadAndValidateAgents(config.library.agentsDir, skills, {
     strict,
-    modelTiers: config.modelTiers,
   }).catch((error: unknown) => {
     printSkillWarnings();
     throw error;

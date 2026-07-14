@@ -27,6 +27,8 @@ state, and active agent sessions for temporary execution detail.
 - [Behavior Spec Evidence Routing](behavior-spec-evidence-routing.md) -
   behavior-spec evidence pointers, readiness-review handoff, and issue-slicing
   boundaries.
+- [Capability Profiles v2 Migration](capability-profiles-v2-migration.md) -
+  manual v1-to-v2 configuration cutover, verification, and rollback procedure.
 - [Code Review Guideline](code-review-guideline.md) - review finding model,
   workflow, and self-review checklist.
 - [Commit Guideline](commit-guideline.md) - commit message format, body, and

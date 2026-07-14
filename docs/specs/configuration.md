@@ -11,7 +11,7 @@
 ## Example
 
 ```yaml
-version: 1
+version: 2
 
 library:
   skillsDir: ./skills
@@ -42,27 +42,16 @@ platform:
 manifest:
   path: ~/.devcanon/manifest.json
 
-modelTiers:
-  fast:
-    claude:
-      model: claude-haiku-4-5
-    codex:
-      model: gpt-5.6-terra
-      reasoning_effort: low
-  standard:
-    claude:
-      model: claude-sonnet-4-6
-      effort: medium
-    codex:
-      model: gpt-5.6-sol
-      reasoning_effort: high
-  deep:
-    claude:
-      model: claude-opus-4-7
-      effort: high
-    codex:
-      model: gpt-5.6-sol
-      reasoning_effort: xhigh
+capabilityProfiles:
+  efficient:
+    claude: claude-haiku-4-5-20251001
+    codex: gpt-5.6-luna
+  balanced:
+    claude: claude-sonnet-5
+    codex: gpt-5.6-terra
+  frontier:
+    claude: claude-opus-4-8
+    codex: gpt-5.6-sol
 
 toolNames:
   task-tracker:
@@ -86,6 +75,10 @@ fileArtifacts:
   appended to generated Codex skill UI display names in `(<value>)` form
 - unknown top-level config fields produce warnings in normal mode and errors in
   strict mode
+- source configuration accepts only `version: 2`; version 1 is rejected with a
+  dedicated migration diagnostic before ordinary schema validation
+- a version 2 config that still declares `modelTiers` is rejected with a
+  dedicated replacement diagnostic before ordinary schema validation
 
 ---
 
@@ -108,55 +101,56 @@ for rendered skill sidecar display names.
 
 ---
 
-## modelTiers
+## capabilityProfiles
 
-Optional. Defines a glossary of model tier aliases that skills can reference
-through the `{{model:<tier>}}` placeholder.
+Required. This exact strict object is the portable model-capability catalog.
+The executable details live in `CapabilityProfilesSchema`; this spec records
+the user-facing boundary without replacing that source authority.
 
-- Tier keys must match `^\w+$` (letters, digits, underscores).
-- Each tier maps to a nested per-target profile:
-  `{ claude: { model, effort? }, codex: { model, reasoning_effort? } }`.
-- Both `claude.model` and `codex.model` are required, non-empty strings capped
-  at 256 characters.
-- `claude.effort` is optional and must be one of `low`, `medium`, `high`,
-  `xhigh`, or `max`.
-- `codex.reasoning_effort` is optional and must be one of `none`, `minimal`,
-  `low`, `medium`, `high`, `xhigh`, or `max`. `ultra` is an orchestration mode,
-  not a reasoning-effort value, and is rejected.
-- In skill prose and skill-side overrides, `{{model:<tier>}}` resolves to the
-  model ID for the active target: `{{model:deep}}` becomes
-  `modelTiers.deep.claude.model` for Claude output and
-  `modelTiers.deep.codex.model` for Codex output.
-- In agent target blocks, `model: "{{model:<tier>}}"` resolves against the full
-  target profile. Claude inherits `effort` from the tier unless the agent sets
-  `claude.effort`, and Codex inherits `model_reasoning_effort` unless the agent
-  sets `codex.model_reasoning_effort`.
-- An empty `modelTiers: {}` is rejected; either omit the key entirely or
-  define at least one tier.
+- The only profile keys are `efficient`, `balanced`, and `frontier`; all three
+  are required and additional keys are rejected.
+- Every profile is a strict `{ claude: <model>, codex: <model> }` object. Both
+  values are required render-safe, non-blank strings capped at 256 characters.
+  Additional profile fields, including effort, are rejected.
+- The default and repository catalog is exact:
 
-### Codex defaults and availability
+  | Capability  | Claude                      | Codex           |
+  | ----------- | --------------------------- | --------------- |
+  | `efficient` | `claude-haiku-4-5-20251001` | `gpt-5.6-luna`  |
+  | `balanced`  | `claude-sonnet-5`           | `gpt-5.6-terra` |
+  | `frontier`  | `claude-opus-4-8`           | `gpt-5.6-sol`   |
 
-The active repository config and newly initialized libraries use the same
-Codex defaults:
+- The paired values are DevCanon policy mappings, not provider equivalences.
+- Capability selects a model only. Claude `effort` and Codex
+  `model_reasoning_effort` remain explicit target-native agent or skill fields
+  and are never inherited from a profile.
+- Skill tokens resolve per target: `{{model:frontier}}` becomes the configured
+  `frontier.claude` or `frontier.codex` string. Agent target model fields do not
+  accept model placeholders.
+- DevCanon provides no custom, compatibility, transitional, or legacy profiles
+  and no automatic translation from v1.
 
-| Tier       | Model           | Reasoning effort |
-| ---------- | --------------- | ---------------- |
-| `fast`     | `gpt-5.6-terra` | `low`            |
-| `standard` | `gpt-5.6-sol`   | `high`           |
-| `deep`     | `gpt-5.6-sol`   | `xhigh`          |
+Configuration validation is local and syntactic. Acceptance of a model or
+effort does not prove that a provider client recognizes it or that an account
+can run it. Runtime incompatibility must fail closed; DevCanon does not
+substitute a fallback model, alias, family member, or effort.
 
-These defaults pin named family members. DevCanon does not use the moving
-`gpt-5.6` alias or automatically select a different family member, model, or
-effort. This pinning keeps the intended tier stable if an alias is retargeted.
+See [Agents](agents.md) for capability and model precedence,
+[Skills](skills.md) for model placeholders, and
+[Capability Profiles v2 Migration](../guidelines/capability-profiles-v2-migration.md)
+for the manual cutover and rollback procedure.
 
-Configuration validation is local and syntactic. Acceptance of a model and
-effort does not prove that a Codex client version recognizes the model or that
-an account can run it. An incompatible client or unavailable account
-entitlement must fail closed at runtime; DevCanon does not substitute a
-fallback model, alias, family member, or effort.
+### Target-native effort
 
-See [Skills](skills.md) for skill-frontmatter overrides that consume tier
-placeholders.
+Effort is not part of `capabilityProfiles`. Where the agent or skill source
+schema supports it, `claude.effort` accepts `low`, `medium`, `high`, `xhigh`,
+or `max`. Agent `codex.model_reasoning_effort` accepts `none`, `minimal`,
+`low`, `medium`, `high`, `xhigh`, or `max`. `ultra` is orchestration, not a
+reasoning-effort value, and is rejected by this source contract.
+
+Local acceptance does not prove a selected provider model, client, or account
+supports the effort. Explicit effort takes effect independently of model
+capability; omission preserves ambient target behavior.
 
 ---
 
@@ -225,7 +219,7 @@ See [Skills](skills.md) for the full list of allowed keys per block.
 
 ---
 
-## Recommended v1 Defaults
+## Recommended v2 defaults
 
 - source layout: `skills/`, `agents/`, `generated/`
 - agent format: YAML
@@ -234,6 +228,8 @@ See [Skills](skills.md) for the full list of allowed keys per block.
 - ownership: manifest
 - overwrite policy: overwrite managed only
 - shared skill source, native generated agents
+- required exact `capabilityProfiles` catalog
+- new agent scaffolds use top-level `capability: balanced` and omit effort
 
 ---
 

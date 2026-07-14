@@ -5,7 +5,7 @@ exports[`renderClaudeAgent > renders a sample agent to Claude markdown format (s
 name: test-agent
 description: "A test agent for unit testing."
 tools: Read, Grep, Bash
-model: sonnet
+model: "sonnet"
 ---
 
 Follow these steps:

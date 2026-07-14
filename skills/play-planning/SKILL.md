@@ -866,7 +866,7 @@ If you find issues, fix them inline. No need to re-review — just fix and move 
 
 ## Plan Review
 
-After self-review, dispatch a dedicated `{{model:deep}}` agent to validate plan-vs-spec alignment before offering execution options. This catches spec coverage gaps and scope drift that self-review may miss.
+After self-review, dispatch a dedicated `{{model:frontier}}` agent to validate plan-vs-spec alignment before offering execution options. This catches spec coverage gaps and scope drift that self-review may miss.
 
 Before dispatching the plan-review agent, use `subagent-lifecycle` for the
 controller-local lifecycle ledger, target lifecycle capability classification,
@@ -877,7 +877,7 @@ scope, concise PASS/FAIL result, and specific gaps when present.
 
 **Subagent contract:**
 
-- **Model:** `{{model:deep}}`
+- **Model:** `{{model:frontier}}`
 - **Input:** `Plan: <path>` and `Design: <path>` when artifact paths exist;
   inline plan/design content only for direct invocations without paths
 - **Role:** Independent validation of plan completeness and spec alignment
@@ -1022,7 +1022,7 @@ and concrete gaps when present.
 
 **Subagent contract:**
 
-- **Model:** `{{model:deep}}`
+- **Model:** `{{model:frontier}}`
 - **Input:** `Plan: <path>` and `Design: <path>` when artifact paths exist;
   `Comment evidence: <path>` only when the planning invocation received one;
   inline plan/design content only for direct invocations without paths

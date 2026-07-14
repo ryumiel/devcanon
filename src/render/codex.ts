@@ -1,9 +1,5 @@
 import path from "node:path";
-import {
-  CODEX_TARGET_FIELDS,
-  MODEL_TIER_PLACEHOLDER_PREFIX,
-  type ResolvedConfig,
-} from "../config/schema.js";
+import { CODEX_TARGET_FIELDS, type ResolvedConfig } from "../config/schema.js";
 import type {
   LoadedAgent,
   LoadedSkill,
@@ -11,10 +7,7 @@ import type {
 } from "../models/types.js";
 import { UserError } from "../utils/errors.js";
 import { sha256 } from "../utils/hash.js";
-import {
-  extractModelTierKey,
-  resolveTierProfile,
-} from "./model-tier-profiles.js";
+import { resolveCapabilityModel } from "./capability-profiles.js";
 import {
   SAFE_PASSTHROUGH_KEY,
   describeValueShape,
@@ -163,28 +156,23 @@ export function renderCodexAgent(
 
   // Optional codex-specific fields
   const codex = agent.source.codex;
+  if (codex?.model?.includes("{{model:")) {
+    throw new UserError(
+      `Agent "${agent.name}": codex.model no longer supports model placeholders (received "${codex.model}"); set top-level capability to efficient, balanced, or frontier, or use a literal target model.`,
+      agent.filePath,
+    );
+  }
+
+  const model = resolveCapabilityModel(
+    codex?.model,
+    agent.source.capability,
+    "codex",
+    config.capabilityProfiles,
+  );
+  if (model) lines.push(`model = ${tomlQuote(model)}`);
+
   if (codex) {
-    // Defense in depth: validation usually rejects malformed placeholders
-    // earlier; refuse to emit a literal "{{model:...}}" if extraction fails.
-    if (
-      codex.model?.includes(MODEL_TIER_PLACEHOLDER_PREFIX) &&
-      extractModelTierKey(codex.model) === null
-    ) {
-      throw new UserError(
-        `Agent "${agent.name}": codex.model has invalid model placeholder syntax "${codex.model}".`,
-        agent.filePath,
-      );
-    }
-    const tierKey = extractModelTierKey(codex.model);
-    const tierProfile = tierKey
-      ? resolveTierProfile(tierKey, "codex", config.modelTiers)
-      : null;
-
-    const model = tierProfile?.model ?? codex.model;
-    if (model) lines.push(`model = ${tomlQuote(model)}`);
-
-    const modelReasoningEffort =
-      codex.model_reasoning_effort ?? tierProfile?.reasoning_effort;
+    const modelReasoningEffort = codex.model_reasoning_effort;
     if (modelReasoningEffort)
       lines.push(`model_reasoning_effort = ${tomlQuote(modelReasoningEffort)}`);
     if (codex.sandbox_mode)

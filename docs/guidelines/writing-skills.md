@@ -18,7 +18,8 @@ checklists, reference material, and methods that apply across projects.
 
 Choose differently when:
 
-- You need a role wrapper with tool, sandbox, or model constraints. Create
+- You need a role wrapper with tool, sandbox, model-capability, or explicit
+  effort constraints. Create
   an agent. See [`agent-authoring-guide.md`](agent-authoring-guide.md).
 - The content is a project rule or convention specific to this repo. Put it
   in [`AGENTS.md`](../../AGENTS.md) or a `docs/guidelines/` doc.
@@ -66,22 +67,28 @@ Most skills need only `name`, `description`, and optionally
 
 ### `claude:` for model and effort
 
-Use when a Claude run benefits from a specific reasoning tier or effort.
+Use when a Claude run benefits from a specific model capability or explicit
+target-native effort.
 The `claude:` block accepts `model`, `effort`, `when_to_use`,
 `argument-hint`, `arguments`, `disable-model-invocation`,
 `user-invocable`, `context`, `agent`, `paths`, and `shell`.
 
 ```yaml
 claude:
-  model: "{{model:deep}}"
+  model: "{{model:frontier}}"
 ```
 
 Shipped example: `skills/issue-priming-workflow/SKILL.md` uses
-`{{model:deep}}` because its workflow orchestrates gate, research,
+`{{model:frontier}}` because its workflow orchestrates gate, research,
 planning, and execution. The `skills/github-issue-priming/SKILL.md` and
 `skills/linear-issue-priming/SKILL.md` entrypoints that hand off to it
-also pin `{{model:deep}}` so the source-specific fetch runs on the same
-tier.
+also pin `{{model:frontier}}` so the source-specific fetch runs on the same
+model capability.
+
+Skill model placeholders choose only the target model. Set `claude.effort`
+explicitly when the skill requires an effort constraint; otherwise omit it and
+allow ambient Claude behavior. Do not infer effort, tools, context, authority,
+or workflow policy from model capability.
 
 #### `user-invocable: false` vs `disable-model-invocation: true`
 
@@ -184,8 +191,8 @@ Three placeholder namespaces resolve at render time against
 glossaries in
 [`devcanon.config.yaml`](../../devcanon.config.yaml):
 
-- `{{model:fast}}`, `{{model:standard}}`, `{{model:deep}}` for
-  reasoning-tier references.
+- `{{model:efficient}}`, `{{model:balanced}}`, `{{model:frontier}}` for
+  model-capability references.
 - `{{tool:<key>}}` for tool names that differ across targets, e.g.
   `{{tool:task-tracker}}` → `TodoWrite` (Claude) / `update_plan`
   (Codex).
@@ -203,9 +210,9 @@ Rules:
 - Override-block top-level string values are substituted; nested
   values (for example `codex.metadata.*`) pass through unchanged.
 
-Glossaries (`modelTiers`, `toolNames`, `fileArtifacts`) are
-config-driven. Adding a new key is a one-line edit to
-`devcanon.config.yaml`.
+`capabilityProfiles` has exactly three required model-only keys. `toolNames`
+and `fileArtifacts` remain configurable glossaries. Capability names are not
+customizable and do not carry effort.
 
 ## 6. Shared-Prose Conventions
 
@@ -228,7 +235,7 @@ Shared body prose must read sensibly under both targets.
    purpose is to point external consumers at this repo — e.g., a
    skill that helps users open issues against this repo.)
 
-Drift diagnostics flag literal target-specific tokens (model IDs,
+Drift diagnostics flag literal target-specific tokens (configured model IDs,
 tool names, artifact files, and target paths). Token sets for
 models, tools, and files are auto-derived from
 `devcanon.config.yaml`; the path check covers `.claude/`,

@@ -156,7 +156,14 @@ export async function doctorAction(
 
     // 10. Skills valid
     try {
-      const skills = await loadAndValidateSkills(config.library.skillsDir);
+      const skills = await loadAndValidateSkills(config.library.skillsDir, {
+        diagnostics: {
+          enabled: false,
+          capabilityProfiles: config.capabilityProfiles,
+          toolNames: config.toolNames,
+          fileArtifacts: config.fileArtifacts,
+        },
+      });
       results.push({
         name: "skills-valid",
         status: "ok",
@@ -168,7 +175,6 @@ export async function doctorAction(
         const agents = await loadAndValidateAgents(
           config.library.agentsDir,
           skills,
-          { modelTiers: config.modelTiers },
         );
         results.push({
           name: "agents-valid",

@@ -3,20 +3,17 @@ import {
   parseRenderedMarkdownArtifact,
   parseRenderedYamlArtifact,
 } from "../__test-helpers__/render.js";
-import type { ModelTiers, SkillSource } from "../config/schema.js";
+import type { CapabilityProfiles, SkillSource } from "../config/schema.js";
 import type { PlaceholderGlossary } from "./placeholders.js";
 import { renderCodexSkill } from "./skill-codex.js";
 
-const TIERS: ModelTiers = {
-  fast: { claude: { model: "haiku" }, codex: { model: "gpt-5.4-mini" } },
-  standard: { claude: { model: "sonnet" }, codex: { model: "gpt-5.4" } },
-  deep: {
-    claude: { model: "opus", effort: "high" },
-    codex: { model: "gpt-5.4", reasoning_effort: "high" },
-  },
+const CAPABILITY_PROFILES: CapabilityProfiles = {
+  efficient: { claude: "haiku", codex: "gpt-5.4-mini" },
+  balanced: { claude: "sonnet", codex: "gpt-5.4" },
+  frontier: { claude: "opus", codex: "gpt-5.4-pro" },
 };
 
-const GLOSSARY: PlaceholderGlossary = { model: TIERS };
+const GLOSSARY: PlaceholderGlossary = { model: CAPABILITY_PROFILES };
 
 function make(
   source: Partial<SkillSource> & Pick<SkillSource, "name" | "description">,
@@ -173,7 +170,7 @@ describe("renderCodexSkill", () => {
     const out = renderCodexSkill(
       make(
         { name: "x", description: "d" },
-        "use {{model:fast}} for cleanup.\n",
+        "use {{model:efficient}} for cleanup.\n",
       ),
       GLOSSARY,
     );
@@ -220,7 +217,7 @@ describe("renderCodexSkill", () => {
             dependencies: { tools: ["fs", "web"] },
           },
         },
-        "Use {{model:deep}} for synthesis.\n",
+        "Use {{model:frontier}} for synthesis.\n",
       ),
       GLOSSARY,
     );
@@ -236,7 +233,7 @@ describe("renderCodexSkill", () => {
     expect(frontmatter).not.toHaveProperty("model");
     expect(frontmatter).not.toHaveProperty("claude");
     expect(frontmatter).not.toHaveProperty("codex_sidecar");
-    expect(body).toBe("Use gpt-5.4 for synthesis.\n");
+    expect(body).toBe("Use gpt-5.4-pro for synthesis.\n");
     expect(sidecar).toEqual({
       interface: {
         display_name: "Snap",

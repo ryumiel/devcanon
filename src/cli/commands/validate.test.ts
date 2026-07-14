@@ -8,6 +8,7 @@ import {
   createSkillFixture,
   createTempDir,
   makeAgentYaml,
+  makeConfigYaml,
 } from "../../__test-helpers__/fixtures.js";
 import { UserError } from "../../utils/errors.js";
 import { type Logger, getLogger, setLogger } from "../../utils/output.js";
@@ -27,34 +28,13 @@ describe("validateAction", () => {
     await mkdir(agentsDir, { recursive: true });
     configPath = await createConfigFile(
       tempDir,
-      [
-        "version: 1",
-        "library:",
-        "  skillsDir: ./skills",
-        "  agentsDir: ./agents",
-        "  generatedDir: ./generated",
-        "modelTiers:",
-        "  fast:",
-        "    claude:",
-        "      model: claude-haiku-4-5",
-        "    codex:",
-        "      model: gpt-5.4-mini",
-        "  standard:",
-        "    claude:",
-        "      model: claude-sonnet-4-6",
-        "      effort: medium",
-        "    codex:",
-        "      model: gpt-5.4",
-        "      reasoning_effort: medium",
-        "  deep:",
-        "    claude:",
-        "      model: claude-opus-4-7",
-        "      effort: high",
-        "    codex:",
-        "      model: gpt-5.4",
-        "      reasoning_effort: high",
-        "",
-      ].join("\n"),
+      makeConfigYaml({
+        library: {
+          skillsDir: "./skills",
+          agentsDir: "./agents",
+          generatedDir: "./generated",
+        },
+      }),
     );
   });
 
@@ -335,15 +315,15 @@ describe("validateAction", () => {
   });
 
   it("prints collected skill warnings before later agent validation failures", async () => {
-    const noTierConfigPath = await createConfigFile(
+    const configWithAgentFailurePath = await createConfigFile(
       tempDir,
-      [
-        "version: 1",
-        "library:",
-        "  skillsDir: ./skills",
-        "  agentsDir: ./agents",
-        "  generatedDir: ./generated",
-      ].join("\n"),
+      makeConfigYaml({
+        library: {
+          skillsDir: "./skills",
+          agentsDir: "./agents",
+          generatedDir: "./generated",
+        },
+      }),
     );
     await createSkillFixture(
       skillsDir,
@@ -368,7 +348,7 @@ describe("validateAction", () => {
     const command = {
       parent: {
         opts: () => ({
-          config: noTierConfigPath,
+          config: configWithAgentFailurePath,
           json: false,
           strict: false,
         }),
@@ -376,7 +356,9 @@ describe("validateAction", () => {
     };
 
     await withRecordingLogger(async ({ infos, warnings }) => {
-      await expect(validateAction({}, command)).rejects.toThrow(/modelTiers/i);
+      await expect(validateAction({}, command)).rejects.toThrow(
+        /model placeholders|top-level capability/i,
+      );
 
       expect(warnings).toEqual([]);
       expect(infos).toContain("Skills: 1 valid, 1 warning");
@@ -390,15 +372,15 @@ describe("validateAction", () => {
   });
 
   it("emits json-mode skill warnings before later agent validation failures", async () => {
-    const noTierConfigPath = await createConfigFile(
+    const configWithAgentFailurePath = await createConfigFile(
       tempDir,
-      [
-        "version: 1",
-        "library:",
-        "  skillsDir: ./skills",
-        "  agentsDir: ./agents",
-        "  generatedDir: ./generated",
-      ].join("\n"),
+      makeConfigYaml({
+        library: {
+          skillsDir: "./skills",
+          agentsDir: "./agents",
+          generatedDir: "./generated",
+        },
+      }),
     );
     await createSkillFixture(
       skillsDir,
@@ -423,7 +405,7 @@ describe("validateAction", () => {
     const command = {
       parent: {
         opts: () => ({
-          config: noTierConfigPath,
+          config: configWithAgentFailurePath,
           json: true,
           strict: false,
         }),
@@ -431,7 +413,9 @@ describe("validateAction", () => {
     };
 
     await withRecordingLogger(async ({ infos, warnings, jsonPayloads }) => {
-      await expect(validateAction({}, command)).rejects.toThrow(/modelTiers/i);
+      await expect(validateAction({}, command)).rejects.toThrow(
+        /model placeholders|top-level capability/i,
+      );
 
       expect(infos).toEqual([]);
       expect(warnings).toHaveLength(1);
@@ -478,17 +462,7 @@ describe("validateAction", () => {
     });
   });
 
-  it("fails validate when an agent tier placeholder has no configured glossary", async () => {
-    const noTierConfigPath = await createConfigFile(
-      tempDir,
-      [
-        "version: 1",
-        "library:",
-        "  skillsDir: ./skills",
-        "  agentsDir: ./agents",
-        "  generatedDir: ./generated",
-      ].join("\n"),
-    );
+  it("fails validate when an agent uses a removed model placeholder", async () => {
     await createAgentFixture(
       agentsDir,
       "tier-agent",
@@ -510,13 +484,13 @@ describe("validateAction", () => {
         {
           parent: {
             opts: () => ({
-              config: noTierConfigPath,
+              config: configPath,
               json: false,
               strict: false,
             }),
           },
         },
       ),
-    ).rejects.toThrow(/modelTiers/i);
+    ).rejects.toThrow(/model placeholders|top-level capability/i);
   });
 });

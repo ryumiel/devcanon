@@ -145,7 +145,8 @@ for the rewrite triggers.
 Three placeholder namespaces resolve at render time against
 glossaries in `devcanon.config.yaml`:
 
-- `{{model:<tier>}}` against `modelTiers` (e.g. `{{model:deep}}`).
+- `{{model:<capability>}}` against `capabilityProfiles` (for example,
+  `{{model:frontier}}`).
 - `{{tool:<key>}}` against `toolNames` (e.g.
   `{{tool:task-tracker}}`).
 - `{{file:<key>}}` against `fileArtifacts` (e.g.
@@ -157,26 +158,33 @@ All three share the same shape: each glossary entry is a
 value. The same skill source therefore produces different rendered
 strings in `generated/claude/...` and `generated/codex/...`.
 
-Escape with a leading backslash: `\{{model:deep}}`,
+Escape with a leading backslash: `\{{model:frontier}}`,
 `\{{tool:task-tracker}}`, `\{{file:project-instructions}}`.
 Placeholders inside fenced code blocks (backtick or tilde) are
 not substituted.
 
-Other namespaces are rejected at render time. The renderer also
-re-validates each captured key against the namespace's stricter
-config-time format -- the runtime regex `[\w-]+` is intentionally
-permissive for matching, but a key that does not match the
-namespace's contract (`^\w+$` for `model`, `^[a-z0-9][a-z0-9-]*$`
-for `tool` / `file`) raises an "invalid placeholder key" error
-before glossary lookup, so e.g. `{{tool:taskTracker}}` fails
-fast rather than appearing as an undefined entry.
+Other namespaces are rejected at render time. Model and glossary-key errors
+have distinct diagnostics:
+
+- An active model token whose value is malformed or is not exactly
+  `efficient`, `balanced`, or `frontier` raises an "unsupported model
+  capability" error with the canonical token list.
+- Captured `tool` and `file` keys are checked against
+  `^[a-z0-9][a-z0-9-]*$`. A key such as `{{tool:taskTracker}}` raises an
+  "invalid placeholder key" error before glossary lookup. If the relevant
+  glossary is absent, the error says `toolNames` or `fileArtifacts` is not
+  configured. If the glossary exists but lacks a well-formed key, the error is
+  `unknown tool key` or `unknown file key`.
+
+The shared runtime matcher remains permissive enough to capture and diagnose
+these invalid forms rather than silently leaving them unresolved.
 
 ---
 
 ## Shared prose conventions
 
-- Use `{{model:fast}}`, `{{model:standard}}`, and
-  `{{model:deep}}` for reasoning-tier references in shared
+- Use `{{model:efficient}}`, `{{model:balanced}}`, and
+  `{{model:frontier}}` for model-capability references in shared
   skill bodies.
 - Use `{{tool:<key>}}` and `{{file:<key>}}` for tool and
   artifact names whose spelling differs across targets. Example:
@@ -187,10 +195,10 @@ fast rather than appearing as an undefined entry.
 - Describe delegation, review, and skill invocation by intent
   rather than product-specific API spellings.
 
-In `validate`, drift diagnostics cover reasoning tiers, tool
-names, artifact files, and target-specific path segments in
-shared prose. The token list is auto-derived from `modelTiers`,
-`toolNames`, and `fileArtifacts`; new entries become drift tokens
+In `validate`, drift diagnostics cover configured model IDs, tool names,
+artifact files, and target-specific path segments in
+shared prose. The model token list is auto-derived from `capabilityProfiles`,
+`toolNames`, and `fileArtifacts`; configured values become drift tokens
 automatically. The path check additionally flags `.claude/`,
 `.codex/`, and `.agents/`. Diagnostics are reported as warnings
 in normal mode and as validation failures in `validate --strict`.
@@ -257,14 +265,17 @@ or `.cache/`) are ignored.
 - Frontmatter `name` must match the stricter skill-name regex above and equal
   the directory name.
 - Skill names must be unique.
-- Every `{{X:Y}}` placeholder must use `X` ∈ {`model`, `tool`,
-  `file`}, and `Y` must be defined in the corresponding glossary
-  (`modelTiers`, `toolNames`, or `fileArtifacts`).
-- Glossary key formats differ by namespace: `modelTiers` keys
-  match `^\w+$` (letters, digits, underscores; e.g.
-  `fast`, `standard`, `deep`); `toolNames` and `fileArtifacts`
-  keys match `^[a-z0-9][a-z0-9-]*$` (lowercase, digits, hyphens;
-  e.g. `task-tracker`, `project-instructions`).
+- Every active `{{X:Y}}` placeholder must use `X` ∈ {`model`, `tool`,
+  `file`}. Model `Y` must be exactly `efficient`, `balanced`, or `frontier`;
+  tool and file keys must exist in the corresponding glossary.
+- Model placeholders use the exact capability enum. `toolNames` and
+  `fileArtifacts` keys match `^[a-z0-9][a-z0-9-]*$` (lowercase, digits,
+  hyphens; e.g. `task-tracker`, `project-instructions`).
+- Former model tokens, malformed active model tokens, and unknown model
+  capabilities fail validation with the exact source `SKILL.md` path and
+  guidance naming the three canonical tokens and `capabilityProfiles`.
+- The backslash escape and fenced-code exemption are unchanged. Escaped or
+  fenced historical examples remain literal and are not migration failures.
 - Broken internal symlinks are errors.
 - `SKILL.md` files estimated above `5,000` GPT tokens using
   `o200k_base`, or at least `500` lines long, emit an advisory
@@ -304,7 +315,7 @@ description: Use when X. Triggers on Y.
 allowed-tools: Bash Read Grep
 
 claude:
-  model: "{{model:deep}}"
+  model: "{{model:frontier}}"
   effort: high
 
 codex:
@@ -322,7 +333,7 @@ codex_sidecar:
 
 # Example
 
-Use {{model:deep}} for synthesis, then {{model:fast}} for cleanup.
+Use {{model:frontier}} for synthesis, then {{model:efficient}} for cleanup.
 ```
 
 ---
@@ -332,12 +343,13 @@ Use {{model:deep}} for synthesis, then {{model:fast}} for cleanup.
 The synthetic example above shows the full shape. These shipped skills show
 when each block is actually useful:
 
-- `skills/issue-priming-workflow/SKILL.md` uses `claude.model` because its
+- `skills/issue-priming-workflow/SKILL.md` uses a Claude model placeholder
+  because its
   workflow orchestrates gate, research, planning, and execution. The
   `skills/github-issue-priming/SKILL.md` and
   `skills/linear-issue-priming/SKILL.md` entrypoints that hand off to it
-  also pin `claude.model` so the source-specific fetch and routing run on
-  the same tier.
+  also pin the same capability so the source-specific fetch and routing run on
+  the same model class.
 - `skills/github-issue-priming/SKILL.md` and
   `skills/linear-issue-priming/SKILL.md` use
   `codex.metadata.short-description` in rendered Codex frontmatter and
@@ -348,7 +360,7 @@ when each block is actually useful:
 
 ```yaml
 claude:
-  model: "{{model:deep}}"
+  model: "{{model:frontier}}"
 
 codex:
   license: MIT

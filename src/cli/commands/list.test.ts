@@ -5,8 +5,10 @@ import {
   cleanupTempDir,
   createAgentFixture,
   createConfigFile,
+  createSkillFixture,
   createTempDir,
   makeAgentYaml,
+  makeConfigYaml,
 } from "../../__test-helpers__/fixtures.js";
 import { installTestLogger } from "../../__test-helpers__/logger.js";
 import { type Logger, getLogger, setLogger } from "../../utils/output.js";
@@ -16,29 +18,23 @@ describe("listAction", () => {
   let tempDir: string;
   let configPath: string;
   let agentsDir: string;
+  let skillsDir: string;
 
   beforeEach(async () => {
     tempDir = await createTempDir();
     agentsDir = path.join(tempDir, "agents");
-    await mkdir(path.join(tempDir, "skills"), { recursive: true });
+    skillsDir = path.join(tempDir, "skills");
+    await mkdir(skillsDir, { recursive: true });
     await mkdir(agentsDir, { recursive: true });
     configPath = await createConfigFile(
       tempDir,
-      [
-        "version: 1",
-        "library:",
-        "  skillsDir: ./skills",
-        "  agentsDir: ./agents",
-        "  generatedDir: ./generated",
-        "modelTiers:",
-        "  standard:",
-        "    claude:",
-        "      model: claude-sonnet-4-6",
-        "      effort: medium",
-        "    codex:",
-        "      model: gpt-5.4",
-        "      reasoning_effort: medium",
-      ].join("\n"),
+      makeConfigYaml({
+        library: {
+          skillsDir: "./skills",
+          agentsDir: "./agents",
+          generatedDir: "./generated",
+        },
+      }),
     );
   });
 
@@ -61,13 +57,14 @@ describe("listAction", () => {
     };
   }
 
-  it("lists agents that use configured model tier placeholders", async () => {
+  it("lists agents that use a neutral capability", async () => {
     await createAgentFixture(
       agentsDir,
       "reviewer",
       makeAgentYaml("reviewer", {
-        claude: { model: "{{model:standard}}", tools: ["Read"] },
-        codex: { model: "{{model:standard}}", sandbox_mode: "read-only" },
+        capability: "balanced",
+        claude: { tools: ["Read"] },
+        codex: { sandbox_mode: "read-only" },
       }),
     );
 
@@ -93,4 +90,34 @@ describe("listAction", () => {
       infos.some((entry) => entry.includes("reviewer: Test agent reviewer")),
     ).toBe(true);
   });
+
+  it.each(["fast", " balanced"])(
+    "rejects active model token key %s even with advisory diagnostics disabled",
+    async (modelKey) => {
+      await createSkillFixture(
+        skillsDir,
+        "invalid-model-token",
+        [
+          "---",
+          "name: invalid-model-token",
+          "description: A skill with an invalid active model token.",
+          "---",
+          "",
+          `Use {{model:${modelKey}}} for synthesis.`,
+          "",
+        ].join("\n"),
+      );
+
+      await expect(
+        listAction(
+          {},
+          {
+            parent: {
+              opts: () => ({ config: configPath, strict: false, json: false }),
+            },
+          },
+        ),
+      ).rejects.toThrow(`{{model:${modelKey}}}`);
+    },
+  );
 });

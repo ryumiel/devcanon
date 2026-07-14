@@ -51,9 +51,9 @@ devcanon new agent reviewer
 
 Scaffold behavior:
 
-- uses `{{model:standard}}` when a `standard` tier exists
-- otherwise uses the first configured tier key
-- if no `modelTiers` are configured, omits target `model` fields
+- writes top-level `capability: balanced`
+- omits target model placeholders and target effort fields
+- relies on the required version 2 `capabilityProfiles` catalog during render
 
 ---
 
@@ -67,6 +67,14 @@ devcanon validate
 
 Current behavior:
 
+- version 1 config fails with a dedicated migration diagnostic; version 2
+  `modelTiers` fails with a dedicated `capabilityProfiles` replacement
+  diagnostic before ordinary schema validation
+- active skill model placeholders accept only `efficient`, `balanced`, and
+  `frontier`; former or malformed model tokens fail with the source
+  `SKILL.md` path and canonical migration guidance
+- agent target `model` fields reject model placeholders and direct authors to
+  top-level capability or literal target models
 - skill drift diagnostics are emitted as warnings in normal mode
 - oversized `SKILL.md` prompt diagnostics are emitted as advisory warnings
   when the raw file is estimated above the `5,000` GPT-token soft upper
@@ -79,8 +87,9 @@ Current behavior:
 - `validate --strict` promotes those warnings to validation failures
   except for the oversized `SKILL.md` prompt diagnostic, which remains
   warning-only in this first implementation
-- the current skill drift checks cover reasoning-tier tokens and
-  target-specific path segments in shared prose
+- the current skill drift checks cover configured model tokens and
+  target-specific path segments in shared prose; configured capability model
+  strings are included in the model drift set
 
 For human output, `validate` groups skill warnings into a readable warning
 report after the skill status line. The skill status line includes the number
@@ -178,7 +187,8 @@ Reports:
 - changed
 - unmanaged conflicts
 
-Diff output may be line-based for v1.
+Changed agent files use a line-based patch. Skill-directory changes are
+reported as status summaries.
 
 ---
 

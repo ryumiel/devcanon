@@ -2,7 +2,7 @@
 name: issue-priming-workflow
 description: Continues a normalized issue-priming workflow into design and implementation readiness, with optional autonomous execution to a reviewable PR. Use when `linear-issue-priming` or `github-issue-priming` hands off a normalized issue payload. Do not use when starting from a raw Linear identifier or GitHub issue number — invoke the entrypoint instead.
 claude:
-  model: "{{model:deep}}"
+  model: "{{model:frontier}}"
   user-invocable: false
 codex_sidecar:
   policy:
@@ -168,7 +168,7 @@ child, owns the final research brief path and synthesized report.
 The gate is evaluated for `payload.research = gated`. Only the research phase
 (Phase 3) is conditional based on the gate's output.
 
-Dispatch a **dedicated exploration agent** using the prompt template in `references/gate-agent-prompt.md`. The agent reads the issue-body file from `ISSUE_BODY_PATH`, scans `docs/adr/` titles, and checks `AGENTS.md` for relevant rules. Use `{{model:standard}}` as the floor — escalate to `{{model:deep}}` for issues with ambiguous scope or multiple conflicting signals.
+Dispatch a **dedicated exploration agent** using the prompt template in `references/gate-agent-prompt.md`. The agent reads the issue-body file from `ISSUE_BODY_PATH`, scans `docs/adr/` titles, and checks `AGENTS.md` for relevant rules. Use `{{model:balanced}}` as the floor — escalate to `{{model:frontier}}` for issues with ambiguous scope or multiple conflicting signals.
 
 **Pass to the gate agent:**
 
@@ -213,8 +213,8 @@ synthesizer, and persistence owner. Every `research-agent` is a direct depth-1
 read-only leaf child and must not spawn children, write files, invoke helpers,
 persist reports, or emit controller-visible notice lines. Use the single prompt
 template in [`references/research-agent-prompt.md`](references/research-agent-prompt.md)
-for both scopes. Use `{{model:standard}}` as the floor — escalate to
-`{{model:deep}}` for cross-module or architecturally complex issues.
+for both scopes. Use `{{model:balanced}}` as the floor — escalate to
+`{{model:frontier}}` for cross-module or architecturally complex issues.
 
 When Phase 2 returns `SKIP_RESEARCH`, bypass this phase and preserve the
 existing inline skipped route in Phase 4. Do not dispatch a research child,

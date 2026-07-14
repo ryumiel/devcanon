@@ -23,6 +23,6 @@ license: MIT
 metadata:
   short-description: Snapshot blurb
 ---
-Use gpt-5.4 for synthesis.
+Use gpt-5.4-pro for synthesis.
 "
 `;

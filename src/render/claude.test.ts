@@ -71,15 +71,10 @@ const config = {
   },
   platform: { windowsSymlinkFallback: "copy" as const },
   manifest: { path: "~/.devcanon/manifest.json" },
-  modelTiers: {
-    standard: {
-      claude: { model: "claude-sonnet-4-6", effort: "medium" },
-      codex: { model: "gpt-5.4", reasoning_effort: "medium" },
-    },
-    deep: {
-      claude: { model: "claude-opus-4-7", effort: "high" },
-      codex: { model: "gpt-5.4", reasoning_effort: "high" },
-    },
+  capabilityProfiles: {
+    efficient: { claude: "claude-haiku-4-5", codex: "gpt-mini" },
+    balanced: { claude: "claude-sonnet-4-6", codex: "gpt" },
+    frontier: { claude: "claude-opus-4-7", codex: "gpt-frontier" },
   },
 } satisfies ResolvedConfig;
 
@@ -127,43 +122,190 @@ describe("renderClaudeAgent", () => {
     }
   });
 
-  it("resolves a tier placeholder to the target-native model and effort", () => {
+  it("resolves top-level capability to the target-native model without effort", () => {
     const result = renderClaudeAgent(
-      withClaude(agent, { model: "{{model:standard}}" }),
+      {
+        ...agent,
+        source: { ...agent.source, capability: "balanced", claude: undefined },
+      },
       emptySkills,
       config,
     );
     const { frontmatter } = parseRenderedMarkdownArtifact(result.content);
     expect(frontmatter.model).toBe("claude-sonnet-4-6");
-    expect(frontmatter.effort).toBe("medium");
+    expect(frontmatter).not.toHaveProperty("effort");
   });
 
-  it("prefers an explicit claude effort over the tier profile default", () => {
+  it("rejects a schema-bypassed custom capability even when its profile is owned", () => {
+    const customConfig = {
+      ...config,
+      capabilityProfiles: {
+        ...config.capabilityProfiles,
+        experimental: { claude: "custom-claude", codex: "custom-codex" },
+      },
+    } as ResolvedConfig;
+
+    expect(() =>
+      renderClaudeAgent(
+        {
+          ...agent,
+          source: {
+            ...agent.source,
+            capability: "experimental" as "balanced",
+            claude: undefined,
+          },
+        },
+        emptySkills,
+        customConfig,
+      ),
+    ).toThrow(/unknown capability "experimental"/);
+  });
+
+  it.each(["foo # dropped", "null", "true", "123", 'quote"slash\\'])(
+    "round-trips YAML-significant capability model %j as a string",
+    (model) => {
+      const modelConfig = {
+        ...config,
+        capabilityProfiles: {
+          ...config.capabilityProfiles,
+          balanced: { ...config.capabilityProfiles.balanced, claude: model },
+        },
+      } satisfies ResolvedConfig;
+      const result = renderClaudeAgent(
+        {
+          ...agent,
+          source: {
+            ...agent.source,
+            capability: "balanced",
+            claude: undefined,
+          },
+        },
+        emptySkills,
+        modelConfig,
+      );
+
+      expect(
+        parseRenderedMarkdownArtifact(result.content).frontmatter.model,
+      ).toBe(model);
+      expect(result.content).toContain(`model: ${JSON.stringify(model)}`);
+    },
+  );
+
+  it.each(["foo # dropped", "null", "true", "123", 'quote"slash\\'])(
+    "round-trips YAML-significant literal model %j as a string",
+    (model) => {
+      const literalAgent = withClaude(agent, { model });
+      const result = renderClaudeAgent(
+        {
+          ...literalAgent,
+          source: { ...literalAgent.source, capability: "balanced" },
+        },
+        emptySkills,
+        config,
+      );
+
+      expect(
+        parseRenderedMarkdownArtifact(result.content).frontmatter.model,
+      ).toBe(model);
+      expect(result.content).toContain(`model: ${JSON.stringify(model)}`);
+    },
+  );
+
+  it("prefers a literal model and emits only explicit effort", () => {
+    const literalAgent = withClaude(agent, {
+      model: "literal-claude",
+      effort: "high",
+    });
     const result = renderClaudeAgent(
-      withClaude(agent, {
-        model: "{{model:standard}}",
-        effort: "high",
-      }),
+      {
+        ...literalAgent,
+        source: { ...literalAgent.source, capability: "balanced" },
+      },
       emptySkills,
       config,
     );
     const { frontmatter } = parseRenderedMarkdownArtifact(result.content);
-    expect(frontmatter.model).toBe("claude-sonnet-4-6");
+    expect(frontmatter.model).toBe("literal-claude");
     expect(frontmatter.effort).toBe("high");
   });
 
-  it("throws when claude.model contains the placeholder prefix but is not a valid placeholder", () => {
-    // Defense-in-depth: validation usually rejects this earlier, but the
-    // renderer must refuse to emit a literal "{{model:...}}" if a caller
-    // bypasses validation (e.g. a programmatic API consumer).
-    expect(() =>
-      renderClaudeAgent(
-        withClaude(agent, { model: "  {{model:standard}}  " }),
+  it("omits ambient model and effort", () => {
+    const result = renderClaudeAgent(
+      {
+        ...agent,
+        source: { ...agent.source, claude: undefined },
+      },
+      emptySkills,
+      config,
+    );
+    const { frontmatter } = parseRenderedMarkdownArtifact(result.content);
+    expect(frontmatter).not.toHaveProperty("model");
+    expect(frontmatter).not.toHaveProperty("effort");
+  });
+
+  it.each([
+    ["capability", undefined, "balanced"],
+    ["literal", "literal-claude", undefined],
+    ["ambient", undefined, undefined],
+  ] as const)(
+    "emits explicit effort on the %s model path",
+    (_path, model, capability) => {
+      const result = renderClaudeAgent(
+        {
+          ...agent,
+          source: {
+            ...agent.source,
+            capability,
+            claude: { model, effort: "high" },
+          },
+        },
         emptySkills,
         config,
-      ),
-    ).toThrow(/invalid model placeholder syntax/);
-  });
+      );
+      const { frontmatter } = parseRenderedMarkdownArtifact(result.content);
+      expect(frontmatter.effort).toBe("high");
+    },
+  );
+
+  it.each([
+    ["capability", undefined, "balanced"],
+    ["literal", "literal-claude", undefined],
+    ["ambient", undefined, undefined],
+  ] as const)(
+    "does not infer effort on the %s model path",
+    (_path, model, capability) => {
+      const result = renderClaudeAgent(
+        {
+          ...agent,
+          source: {
+            ...agent.source,
+            capability,
+            claude: model === undefined ? undefined : { model },
+          },
+        },
+        emptySkills,
+        config,
+      );
+      const { frontmatter } = parseRenderedMarkdownArtifact(result.content);
+      expect(frontmatter).not.toHaveProperty("effort");
+    },
+  );
+
+  it.each([
+    "{{model:standard}}",
+    "  {{model:standard}}  ",
+    "{{model: standard}}",
+    "{{model:deep-tier}}",
+  ])(
+    "rejects obsolete model placeholder %s with migration guidance",
+    (model) => {
+      // Defense-in-depth: validation usually rejects this earlier, but the
+      // renderer must refuse placeholders from callers that bypass validation.
+      expect(() =>
+        renderClaudeAgent(withClaude(agent, { model }), emptySkills, config),
+      ).toThrow(/top-level capability.*literal target model/);
+    },
+  );
 
   it("emits instructions body directly without ## Instructions wrapper", () => {
     const result = renderClaudeAgent(agent, emptySkills, config);

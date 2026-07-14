@@ -77,15 +77,10 @@ const config = {
   },
   platform: { windowsSymlinkFallback: "copy" as const },
   manifest: { path: "~/.devcanon/manifest.json" },
-  modelTiers: {
-    standard: {
-      claude: { model: "claude-sonnet-4-6", effort: "medium" },
-      codex: { model: "gpt-5.4", reasoning_effort: "medium" },
-    },
-    deep: {
-      claude: { model: "claude-opus-4-7", effort: "high" },
-      codex: { model: "gpt-5.4", reasoning_effort: "high" },
-    },
+  capabilityProfiles: {
+    efficient: { claude: "claude-haiku", codex: "gpt-mini" },
+    balanced: { claude: "claude-sonnet", codex: "gpt-5.4" },
+    frontier: { claude: "claude-opus", codex: "gpt-frontier" },
   },
 } satisfies ResolvedConfig;
 
@@ -194,45 +189,137 @@ describe("renderCodexAgent", () => {
     expect(parsed.approval_policy).toBe("on-failure");
   });
 
-  it("resolves a tier placeholder to the target-native model and reasoning effort", () => {
+  it("resolves top-level capability without reasoning effort or a codex block", () => {
     const result = renderCodexAgent(
-      withCodex(agent, {
-        model: "{{model:standard}}",
-      }),
+      {
+        ...agent,
+        source: { ...agent.source, capability: "balanced", codex: undefined },
+      },
       emptySkills,
       config,
     );
     const parsed = parseRenderedTomlArtifact(result.content);
     expect(parsed.model).toBe("gpt-5.4");
-    expect(parsed.model_reasoning_effort).toBe("medium");
+    expect(parsed).not.toHaveProperty("model_reasoning_effort");
   });
 
-  it("prefers an explicit codex reasoning effort over the tier profile default", () => {
+  it("rejects a schema-bypassed custom capability even when its profile is owned", () => {
+    const customConfig = {
+      ...config,
+      capabilityProfiles: {
+        ...config.capabilityProfiles,
+        experimental: { claude: "custom-claude", codex: "custom-codex" },
+      },
+    } as ResolvedConfig;
+
+    expect(() =>
+      renderCodexAgent(
+        {
+          ...agent,
+          source: {
+            ...agent.source,
+            capability: "experimental" as "balanced",
+            codex: { sandbox_mode: "read-only" },
+          },
+        },
+        emptySkills,
+        customConfig,
+      ),
+    ).toThrow(/unknown capability "experimental"/);
+  });
+
+  it("prefers a literal model and emits only explicit reasoning effort", () => {
+    const literalAgent = withCodex(agent, {
+      model: "literal-codex",
+      model_reasoning_effort: "high",
+    });
     const result = renderCodexAgent(
-      withCodex(agent, {
-        model: "{{model:standard}}",
-        model_reasoning_effort: "high",
-      }),
+      {
+        ...literalAgent,
+        source: { ...literalAgent.source, capability: "balanced" },
+      },
       emptySkills,
       config,
     );
     const parsed = parseRenderedTomlArtifact(result.content);
-    expect(parsed.model).toBe("gpt-5.4");
+    expect(parsed.model).toBe("literal-codex");
     expect(parsed.model_reasoning_effort).toBe("high");
   });
 
-  it("throws when codex.model contains the placeholder prefix but is not a valid placeholder", () => {
-    // Defense-in-depth: validation usually rejects this earlier, but the
-    // renderer must refuse to emit a literal "{{model:...}}" if a caller
-    // bypasses validation (e.g. a programmatic API consumer).
-    expect(() =>
-      renderCodexAgent(
-        withCodex(agent, { model: "  {{model:standard}}  " }),
+  it("omits ambient model and reasoning effort", () => {
+    const result = renderCodexAgent(
+      { ...agent, source: { ...agent.source, codex: undefined } },
+      emptySkills,
+      config,
+    );
+    const parsed = parseRenderedTomlArtifact(result.content);
+    expect(parsed).not.toHaveProperty("model");
+    expect(parsed).not.toHaveProperty("model_reasoning_effort");
+  });
+
+  it.each([
+    ["capability", undefined, "balanced"],
+    ["literal", "literal-codex", undefined],
+    ["ambient", undefined, undefined],
+  ] as const)(
+    "emits explicit reasoning effort on the %s model path",
+    (_path, model, capability) => {
+      const result = renderCodexAgent(
+        {
+          ...agent,
+          source: {
+            ...agent.source,
+            capability,
+            codex: { model, model_reasoning_effort: "high" },
+          },
+        },
         emptySkills,
         config,
-      ),
-    ).toThrow(/invalid model placeholder syntax/);
-  });
+      );
+      const parsed = parseRenderedTomlArtifact(result.content);
+      expect(parsed.model_reasoning_effort).toBe("high");
+    },
+  );
+
+  it.each([
+    ["capability", undefined, "balanced"],
+    ["literal", "literal-codex", undefined],
+    ["ambient", undefined, undefined],
+  ] as const)(
+    "does not infer reasoning effort on the %s model path",
+    (_path, model, capability) => {
+      const result = renderCodexAgent(
+        {
+          ...agent,
+          source: {
+            ...agent.source,
+            capability,
+            codex: model === undefined ? undefined : { model },
+          },
+        },
+        emptySkills,
+        config,
+      );
+      const parsed = parseRenderedTomlArtifact(result.content);
+      expect(parsed).not.toHaveProperty("model_reasoning_effort");
+    },
+  );
+
+  it.each([
+    "{{model:standard}}",
+    "  {{model:standard}}  ",
+    "{{model: standard}}",
+    "{{model:deep-tier}}",
+  ])(
+    "rejects obsolete model placeholder %s with migration guidance",
+    (model) => {
+      // Defense-in-depth: validation usually rejects this earlier, but the
+      // renderer must refuse placeholders from callers that bypass validation.
+      expect(() =>
+        renderCodexAgent(withCodex(agent, { model }), emptySkills, config),
+      ).toThrow(/top-level capability.*literal target model/);
+    },
+  );
 
   it("returns correct metadata fields", () => {
     const result = renderCodexAgent(agent, emptySkills, config);

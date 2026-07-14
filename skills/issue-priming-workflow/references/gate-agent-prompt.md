@@ -8,7 +8,7 @@ Use this template when dispatching the complexity gate agent in Phase 2.
 Agent(
   description: "Assess issue complexity for research gate",
   subagent_type: "Explore",
-  model: "{{model:standard}}",
+  model: "{{model:balanced}}",
   prompt: |
     You are assessing whether an issue requires multi-agent research
     before design work begins. Read the issue-body file and scan the

@@ -9,9 +9,6 @@ import {
   CODEX_APPROVAL_POLICY_FIELDS,
   CODEX_APPROVAL_POLICY_GRANULAR_FIELDS,
   CODEX_TARGET_FIELDS,
-  MODEL_TIER_PLACEHOLDER,
-  MODEL_TIER_PLACEHOLDER_PREFIX,
-  type ModelTiers,
 } from "../config/schema.js";
 import type { LoadedAgent, LoadedSkill } from "../models/types.js";
 import { UserError } from "../utils/errors.js";
@@ -53,12 +50,10 @@ function formatZodIssue(issue: ZodIssue): string {
 export async function loadAndValidateAgents(
   agentsDir: string,
   skills: LoadedSkill[],
-  options: boolean | { strict?: boolean; modelTiers?: ModelTiers } = false,
+  options: boolean | { strict?: boolean } = false,
 ): Promise<LoadedAgent[]> {
   const strict =
     typeof options === "boolean" ? options : (options.strict ?? false);
-  const modelTiers =
-    typeof options === "boolean" ? undefined : options.modelTiers;
   if (!(await pathExists(agentsDir))) {
     return [];
   }
@@ -161,18 +156,16 @@ export async function loadAndValidateAgents(
       }
     }
 
-    validateAgentModelTierReference(
+    validateAgentLiteralModel(
       source.name,
       "claude.model",
       source.claude?.model,
-      modelTiers,
       errors,
     );
-    validateAgentModelTierReference(
+    validateAgentLiteralModel(
       source.name,
       "codex.model",
       source.codex?.model,
-      modelTiers,
       errors,
     );
 
@@ -198,40 +191,15 @@ export async function loadAndValidateAgents(
   return agents;
 }
 
-function validateAgentModelTierReference(
+function validateAgentLiteralModel(
   agentName: string,
   fieldPath: "claude.model" | "codex.model",
   value: string | undefined,
-  modelTiers: ModelTiers | undefined,
   errors: string[],
 ): void {
-  if (!value) return;
+  if (!value?.includes("{{model:")) return;
 
-  const looksLikeModelPlaceholder = value.includes(
-    MODEL_TIER_PLACEHOLDER_PREFIX,
+  errors.push(
+    `Agent "${agentName}": ${fieldPath} no longer supports model placeholders (received "${value}"); set top-level capability to efficient, balanced, or frontier, or use a literal target model.`,
   );
-  if (!looksLikeModelPlaceholder) return;
-
-  const tier = value.match(MODEL_TIER_PLACEHOLDER)?.[1];
-  if (!tier) {
-    errors.push(
-      `Agent "${agentName}": ${fieldPath} has invalid model placeholder syntax "${value}".`,
-    );
-    return;
-  }
-
-  if (!modelTiers) {
-    errors.push(
-      `Agent "${agentName}": ${fieldPath} references model tier "${tier}" but modelTiers is not configured.`,
-    );
-    return;
-  }
-
-  // Use Object.hasOwn so prototype-chain keys like "__proto__" do not
-  // resolve to Object.prototype and silently bypass this guard.
-  if (!Object.hasOwn(modelTiers, tier)) {
-    errors.push(
-      `Agent "${agentName}": ${fieldPath} references unknown model tier "${tier}".`,
-    );
-  }
 }

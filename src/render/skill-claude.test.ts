@@ -1,19 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { parseRenderedMarkdownArtifact } from "../__test-helpers__/render.js";
-import type { ModelTiers, SkillSource } from "../config/schema.js";
+import type { CapabilityProfiles, SkillSource } from "../config/schema.js";
 import type { PlaceholderGlossary } from "./placeholders.js";
 import { renderClaudeSkill } from "./skill-claude.js";
 
-const TIERS: ModelTiers = {
-  fast: { claude: { model: "haiku" }, codex: { model: "gpt-5.4-mini" } },
-  standard: { claude: { model: "sonnet" }, codex: { model: "gpt-5.4" } },
-  deep: {
-    claude: { model: "opus", effort: "high" },
-    codex: { model: "gpt-5.4", reasoning_effort: "high" },
-  },
+const CAPABILITY_PROFILES: CapabilityProfiles = {
+  efficient: { claude: "haiku", codex: "gpt-5.4-mini" },
+  balanced: { claude: "sonnet", codex: "gpt-5.4" },
+  frontier: { claude: "opus", codex: "gpt-5.4-pro" },
 };
 
-const GLOSSARY: PlaceholderGlossary = { model: TIERS };
+const GLOSSARY: PlaceholderGlossary = { model: CAPABILITY_PROFILES };
 
 function make(
   source: Partial<SkillSource> & Pick<SkillSource, "name" | "description">,
@@ -97,15 +94,16 @@ describe("renderClaudeSkill", () => {
         {
           name: "x",
           description: "d",
-          claude: { model: "{{model:deep}}" },
+          claude: { model: "{{model:balanced}}", effort: "high" },
         },
-        "use {{model:deep}} for synthesis.\n",
+        "use {{model:balanced}} for synthesis.\n",
       ),
       GLOSSARY,
     );
     const { frontmatter, body } = parseRenderedMarkdownArtifact(out);
-    expect(frontmatter.model).toBe("opus");
-    expect(body).toContain("use opus for synthesis.");
+    expect(frontmatter.model).toBe("sonnet");
+    expect(frontmatter.effort).toBe("high");
+    expect(body).toContain("use sonnet for synthesis.");
   });
 
   it("matches snapshot for a representative skill", () => {
@@ -116,14 +114,14 @@ describe("renderClaudeSkill", () => {
           description: "Snapshot fixture skill.",
           "allowed-tools": ["Bash", "Read"],
           claude: {
-            model: "{{model:deep}}",
+            model: "{{model:frontier}}",
             effort: "high",
             when_to_use: "Use when synthesizing.",
           },
           codex: { license: "MIT" },
           codex_sidecar: { interface: { display_name: "Snap" } },
         },
-        "Use {{model:deep}} for synthesis.\n",
+        "Use {{model:frontier}} for synthesis.\n",
       ),
       GLOSSARY,
     );
