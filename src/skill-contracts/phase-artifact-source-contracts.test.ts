@@ -971,6 +971,62 @@ describe("phase artifact source contracts", () => {
       "The D10 child is a leaf and cannot recurse",
     );
 
+    for (const [route, topic] of [
+      ["D7", "Code-quality"],
+      ["D8", "Architecture"],
+      ["D9", "Spec"],
+    ] as const) {
+      const routeRow = phase3
+        .split("\n")
+        .find((line) => line.includes(`| ${route} \`${topic}\``));
+      expect(routeRow, `missing ${route} trace row`).toBeDefined();
+      const normalizedRouteRow = normalizeWhitespace(routeRow ?? "");
+      let previousIndex = -1;
+      for (const step of [
+        `capture ${route}`,
+        `spawn ${route}`,
+        `verify ${route}`,
+        `validate/retain ${route}`,
+        `cleanup ${route}`,
+        `apply ${route}`,
+      ]) {
+        const stepIndex = normalizedRouteRow.indexOf(step, previousIndex + 1);
+        expect(
+          stepIndex,
+          `${route} missing ordered step: ${step}`,
+        ).toBeGreaterThan(previousIndex);
+        previousIndex = stepIndex;
+      }
+      for (const cleanupBranch of [
+        "dispatch/spawn failure",
+        "child failure",
+        "invalid/malformed response",
+        "semantic rejection",
+        "verification rejection",
+      ]) {
+        expect(normalizedRouteRow).toContain(cleanupBranch);
+      }
+      expect(normalizedRouteRow).toContain(
+        `every ${route} post-capture terminal branch attempts exact cleanup`,
+      );
+    }
+
+    let previousCriticStep = -1;
+    for (const step of [
+      "capture before spawn",
+      "spawn the D10 critic",
+      "verify before semantic validation or consumption",
+      "validate and retain the critic verdict response in controller memory",
+      "cleanup the exact retained baseline",
+      "apply the retained critic verdicts only after cleanup",
+    ]) {
+      const stepIndex = normalizedPhase5.indexOf(step, previousCriticStep + 1);
+      expect(stepIndex, `D10 missing ordered step: ${step}`).toBeGreaterThan(
+        previousCriticStep,
+      );
+      previousCriticStep = stepIndex;
+    }
+
     expect(phase3).toContain(
       'TOPICAL_BASELINE="$(bash "$SOURCE_IMMUTABILITY_HELPER" capture)"',
     );

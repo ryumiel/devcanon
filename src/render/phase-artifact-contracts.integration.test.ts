@@ -1062,6 +1062,38 @@ describe("rendered phase artifact smoke coverage", () => {
         "response-only `deep-reviewer`, frontier/xhigh and source-immutable, with zero handoffs",
       );
 
+      for (const [route, topic] of [
+        ["D7", "Code-quality"],
+        ["D8", "Architecture"],
+        ["D9", "Spec"],
+      ] as const) {
+        const routeRow = phase3
+          .split("\n")
+          .find((line) => line.includes(`| ${route} \`${topic}\``));
+        expect(routeRow, `missing rendered ${route} trace row`).toBeDefined();
+        const normalizedRouteRow = normalizeRenderedWhitespace(routeRow ?? "");
+        expectSubstringsInOrder(normalizedRouteRow, [
+          `capture ${route}`,
+          `spawn ${route}`,
+          `verify ${route}`,
+          `validate/retain ${route}`,
+          `cleanup ${route}`,
+          `apply ${route}`,
+        ]);
+        for (const cleanupBranch of [
+          "dispatch/spawn failure",
+          "child failure",
+          "invalid/malformed response",
+          "semantic rejection",
+          "verification rejection",
+        ]) {
+          expect(normalizedRouteRow).toContain(cleanupBranch);
+        }
+        expect(normalizedRouteRow).toContain(
+          `every ${route} post-capture terminal branch attempts exact cleanup`,
+        );
+      }
+
       for (const phase of [phase3, phase5]) {
         expect(phase).toContain("scripts/source-immutability.sh");
         expect(phase).toContain('bash "$SOURCE_IMMUTABILITY_HELPER" capture');
@@ -1072,14 +1104,23 @@ describe("rendered phase artifact smoke coverage", () => {
           'bash "$SOURCE_IMMUTABILITY_HELPER" cleanup --baseline',
         );
       }
+      expectSubstringsInOrder(normalizedPhase3, [
+        "capture before spawn",
+        "spawn that already-selected topical reviewer",
+        "verify before semantic validation or consumption",
+        "controller memory",
+        "cleanup the exact retained baseline",
+        "only after cleanup",
+      ]);
+      expectSubstringsInOrder(normalizedPhase5, [
+        "capture before spawn",
+        "spawn the D10 critic",
+        "verify before semantic validation or consumption",
+        "controller memory",
+        "cleanup the exact retained baseline",
+        "only after cleanup",
+      ]);
       for (const phase of [normalizedPhase3, normalizedPhase5]) {
-        expectSubstringsInOrder(phase, [
-          "capture before spawn",
-          "verify before semantic validation or consumption",
-          "controller memory",
-          "cleanup the exact retained baseline",
-          "only after cleanup",
-        ]);
         expect(phase).toContain(
           "every post-capture terminal path attempts exact cleanup",
         );

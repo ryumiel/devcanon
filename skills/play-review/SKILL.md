@@ -252,17 +252,13 @@ Each selected topical route is an independent response-only `reviewer`,
 frontier/high and source-immutable, with zero handoffs. Use the configured
 `reviewer` role and effort; do not substitute an ambient role, model, or effort.
 The topical labels remain skill-local prompt specializations, not source-agent
-identities:
+identities. Their route-local proof anchors are:
 
-- D7 `Code-quality` is always selected for any non-empty active review,
-  including tiny-diff mode. It asks the existing correctness, data-safety,
-  language quality, tests, error handling, API-contract, and
-  external-invocation question.
-- D8 `Architecture` asks the existing architecture, responsibility, ownership,
-  boundary, and durable-decision question when its current trigger fires.
-- D9 `Spec` asks the existing spec, documentation, API, example,
-  operator-guidance, and identifier-drift question when its current trigger
-  fires.
+| Route             | Existing selection and distinct question                                                                                                                                                                       | Independent guarded trace                                                                                                                                                                                                                                         |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| D7 `Code-quality` | always selected for any non-empty active review, including tiny-diff mode; asks the existing correctness, data-safety, language quality, tests, error handling, API-contract, and external-invocation question | capture D7 → spawn D7 → verify D7 → validate/retain D7 → cleanup D7 → apply D7; every D7 post-capture terminal branch attempts exact cleanup for dispatch/spawn failure, child failure, invalid/malformed response, semantic rejection, or verification rejection |
+| D8 `Architecture` | Selected only when its current trigger fires; asks the existing architecture, responsibility, ownership, boundary, and durable-decision question                                                               | capture D8 → spawn D8 → verify D8 → validate/retain D8 → cleanup D8 → apply D8; every D8 post-capture terminal branch attempts exact cleanup for dispatch/spawn failure, child failure, invalid/malformed response, semantic rejection, or verification rejection |
+| D9 `Spec`         | Selected only when its current trigger fires; asks the existing spec, documentation, API, example, operator-guidance, and identifier-drift question                                                            | capture D9 → spawn D9 → verify D9 → validate/retain D9 → cleanup D9 → apply D9; every D9 post-capture terminal branch attempts exact cleanup for dispatch/spawn failure, child failure, invalid/malformed response, semantic rejection, or verification rejection |
 
 Risk-triggered reviewers fail closed:
 
