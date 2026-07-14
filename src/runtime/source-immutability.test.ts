@@ -160,6 +160,33 @@ describe("source-immutability runtime", () => {
     await expectChanged(cwd, baseline);
   });
 
+  it.each([
+    {
+      name: "assume-unchanged",
+      args: ["--assume-unchanged", "--", "tracked.txt"],
+    },
+    {
+      name: "skip-worktree",
+      args: ["--skip-worktree", "--", "tracked.txt"],
+    },
+  ])(
+    "detects the $name index-entry flag without file-byte changes",
+    async ({ args }) => {
+      const cwd = await fixture();
+      const baseline = await capture(cwd);
+      const beforeContent = await readFile(path.join(cwd, "tracked.txt"));
+      const beforeHead = (await git(cwd, "rev-parse", "HEAD")).trim();
+
+      await git(cwd, "update-index", ...args);
+
+      expect(await readFile(path.join(cwd, "tracked.txt"))).toEqual(
+        beforeContent,
+      );
+      expect((await git(cwd, "rev-parse", "HEAD")).trim()).toBe(beforeHead);
+      await expectChanged(cwd, baseline);
+    },
+  );
+
   it("enforces the zero-or-one handoff lifecycle and exact declaration", async () => {
     const cwd = await fixture();
     const handoff = ".ephemeral/result.json";
@@ -388,6 +415,55 @@ describe("source-immutability runtime", () => {
     });
     expect((await lstat(path.join(cwd, baseline))).isFile()).toBe(true);
   });
+
+  it.each([
+    {
+      name: "truncated JSON",
+      malformed: () => "{\n",
+    },
+    {
+      name: "structurally incomplete fingerprint",
+      malformed: (cwd: string, handoff: string) =>
+        `${JSON.stringify({
+          kind: "devcanon-source-immutability-private",
+          handoff,
+          fingerprint: { worktree: cwd },
+        })}\n`,
+    },
+  ])(
+    "rejects a regular baseline with $name before verify or cleanup removes either leaf",
+    async ({ malformed }) => {
+      const cwd = await fixture();
+      const handoff = ".ephemeral/result.json";
+      const baseline = await capture(cwd, handoff);
+      const malformedContent = malformed(cwd, handoff);
+      await writeFile(path.join(cwd, baseline), malformedContent);
+      await writeFile(path.join(cwd, handoff), "payload\n");
+
+      await expect(
+        runSourceImmutabilityCommand(
+          ["verify", "--baseline", baseline, "--handoff", handoff],
+          cwd,
+        ),
+      ).resolves.toMatchObject({
+        exitCode: 1,
+        stderr: `retained baseline is invalid: ${baseline}\n`,
+      });
+      await expect(
+        runSourceImmutabilityCommand(
+          ["cleanup", "--baseline", baseline, "--handoff", handoff],
+          cwd,
+        ),
+      ).resolves.toMatchObject({
+        exitCode: 1,
+        stderr: `retained baseline is invalid: ${baseline}\n`,
+      });
+      expect(await readFile(path.join(cwd, baseline), "utf8")).toBe(
+        malformedContent,
+      );
+      expect(await readFile(path.join(cwd, handoff), "utf8")).toBe("payload\n");
+    },
+  );
 
   it("treats leaves as clean when their parent disappeared and does not require repaired Git metadata", async () => {
     const missingParent = await fixture();

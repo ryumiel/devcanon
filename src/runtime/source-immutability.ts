@@ -29,6 +29,19 @@ const GIT_ENVIRONMENT_OVERRIDES = new Set([
   "GIT_REPLACE_REF_BASE",
   "GIT_WORK_TREE",
 ]);
+const HEX_SHA256 = /^[0-9a-f]{64}$/u;
+const GIT_OBJECT_ID = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
+const FILE_KINDS = new Set([
+  "regular",
+  "symlink",
+  "missing",
+  "directory",
+  "block-device",
+  "character-device",
+  "fifo",
+  "socket",
+  "other",
+]);
 
 interface ParsedArgs {
   operation: "capture" | "verify" | "cleanup";
@@ -336,7 +349,7 @@ async function fingerprint(
   );
   const symbolicRef =
     symbolic.exitCode === 0 ? symbolic.stdout.toString("utf8").trim() : null;
-  const rawIndex = await gitRaw(["ls-files", "--stage", "-z"], workspace.root);
+  const rawIndex = await completeIndexEntryState(workspace.root);
 
   const pathSets = await Promise.all([
     gitRaw(["ls-tree", "-r", "--name-only", "-z", "HEAD"], workspace.root),
@@ -366,6 +379,24 @@ async function fingerprint(
     indexSha256: sha256(rawIndex),
     files,
   };
+}
+
+async function completeIndexEntryState(root: string): Promise<Buffer> {
+  // These stable, NUL-delimited plumbing views jointly cover entry identity,
+  // stage, assume-unchanged, skip-worktree, and fsmonitor-valid state without
+  // including the mutable stat-cache fields from `ls-files --debug`.
+  const views = await Promise.all([
+    gitRaw(["ls-files", "--stage", "-z"], root),
+    gitRaw(["ls-files", "--cached", "-v", "-z"], root),
+    gitRaw(["ls-files", "--cached", "-f", "-z"], root),
+  ]);
+  const framed: Buffer[] = [];
+  for (const view of views) {
+    const length = Buffer.allocUnsafe(8);
+    length.writeBigUInt64BE(BigInt(view.length));
+    framed.push(length, view);
+  }
+  return Buffer.concat(framed);
 }
 
 async function fingerprintPath(
@@ -461,13 +492,133 @@ async function readBaseline(
 }
 
 function isRetainedBaseline(value: unknown): value is RetainedBaseline {
-  if (value === null || typeof value !== "object") return false;
-  const candidate = value as Partial<RetainedBaseline>;
+  if (!isRecordWithKeys(value, ["kind", "handoff", "fingerprint"])) {
+    return false;
+  }
+  if (value.kind !== PRIVATE_BASELINE_KIND) return false;
+  if (value.handoff !== null) {
+    if (typeof value.handoff !== "string") return false;
+    try {
+      requireDirectEphemeralChild(value.handoff);
+    } catch {
+      return false;
+    }
+  }
+  return isWorkspaceFingerprint(value.fingerprint);
+}
+
+function isWorkspaceFingerprint(value: unknown): value is WorkspaceFingerprint {
+  if (
+    !isRecordWithKeys(value, [
+      "worktree",
+      "gitDir",
+      "head",
+      "symbolicRef",
+      "indexSha256",
+      "files",
+    ])
+  ) {
+    return false;
+  }
+  if (!isAbsolutePrivatePath(value.worktree)) return false;
+  if (!isAbsolutePrivatePath(value.gitDir)) return false;
+  if (typeof value.head !== "string" || !GIT_OBJECT_ID.test(value.head)) {
+    return false;
+  }
+  if (
+    value.symbolicRef !== null &&
+    (typeof value.symbolicRef !== "string" ||
+      !value.symbolicRef.startsWith("refs/") ||
+      /[\0\r\n]/u.test(value.symbolicRef))
+  ) {
+    return false;
+  }
+  if (
+    typeof value.indexSha256 !== "string" ||
+    !HEX_SHA256.test(value.indexSha256)
+  ) {
+    return false;
+  }
+  if (!Array.isArray(value.files)) return false;
+
+  let previousPath: Buffer | undefined;
+  for (const entry of value.files) {
+    if (!isFileFingerprint(entry)) return false;
+    const decodedPath = Buffer.from(entry.path, "base64");
+    if (
+      previousPath !== undefined &&
+      Buffer.compare(previousPath, decodedPath) >= 0
+    ) {
+      return false;
+    }
+    previousPath = decodedPath;
+  }
+  return true;
+}
+
+function isFileFingerprint(value: unknown): value is FileFingerprint {
+  if (!isRecordWithKeys(value, ["path", "kind", "mode", "contentSha256"])) {
+    return false;
+  }
+  if (
+    typeof value.path !== "string" ||
+    !isCanonicalNonemptyBase64(value.path)
+  ) {
+    return false;
+  }
+  if (typeof value.kind !== "string" || !FILE_KINDS.has(value.kind)) {
+    return false;
+  }
+  if (value.kind === "missing") {
+    return value.mode === null && value.contentSha256 === null;
+  }
+  if (
+    typeof value.mode !== "number" ||
+    !Number.isInteger(value.mode) ||
+    value.mode < 0 ||
+    value.mode > 0o7777
+  ) {
+    return false;
+  }
+  if (value.kind === "regular" || value.kind === "symlink") {
+    return (
+      typeof value.contentSha256 === "string" &&
+      HEX_SHA256.test(value.contentSha256)
+    );
+  }
+  return value.contentSha256 === null;
+}
+
+function isRecordWithKeys(
+  value: unknown,
+  expectedKeys: readonly string[],
+): value is Record<string, unknown> {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+  const actualKeys = Object.keys(value).sort();
+  const sortedExpected = [...expectedKeys].sort();
   return (
-    candidate.kind === PRIVATE_BASELINE_KIND &&
-    (candidate.handoff === null || typeof candidate.handoff === "string") &&
-    candidate.fingerprint !== null &&
-    typeof candidate.fingerprint === "object"
+    actualKeys.length === sortedExpected.length &&
+    actualKeys.every((key, index) => key === sortedExpected[index])
+  );
+}
+
+function isAbsolutePrivatePath(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    path.isAbsolute(value) &&
+    !/[\0\r\n]/u.test(value)
+  );
+}
+
+function isCanonicalNonemptyBase64(value: string): boolean {
+  if (value.length === 0 || value.length % 4 !== 0) return false;
+  const decoded = Buffer.from(value, "base64");
+  return (
+    decoded.length > 0 &&
+    !decoded.includes(0) &&
+    decoded.toString("base64") === value
   );
 }
 
