@@ -718,6 +718,33 @@ describe("existing skills render cleanly", () => {
       }
     }
 
+    const playPlanningReferencesRoot = path.join(
+      repoRoot,
+      "skills/play-planning/references",
+    );
+    const playPlanningReferenceFiles = await listRelativeFiles(
+      playPlanningReferencesRoot,
+    );
+
+    for (const reference of playPlanningReferenceFiles) {
+      const sourcePath = path.join(playPlanningReferencesRoot, reference);
+      const sourceContent = await readFile(sourcePath, "utf-8");
+
+      for (const target of ["claude", "codex"] as const) {
+        const generatedPath = path.join(
+          config.library.generatedDir,
+          target,
+          "skills",
+          "play-planning",
+          "references",
+          reference,
+        );
+
+        expect(await pathExists(generatedPath)).toBe(true);
+        expect(await readFile(generatedPath, "utf-8")).toBe(sourceContent);
+      }
+    }
+
     for (const script of [
       "write-snapshot-manifest.sh",
       "validate-snapshot-manifest.sh",

@@ -62,29 +62,70 @@ describe("play-subagent planning and routing render smoke coverage", () => {
     for (const target of ["claude", "codex"] as const) {
       const playPlanning = bodies[`play-planning:${target}`];
       const normalizedPlayPlanning = normalizeWhitespace(playPlanning);
-      expect(playPlanning).toContain("## Contract Checklist Triggers");
-      expect(playPlanning).toContain("## Boundary-Contract Traceability");
+      expect(playPlanning).toContain(
+        "## Scope Envelope and Canonical Criteria",
+      );
+      expect(playPlanning).toContain("references/planning-criteria.md");
       expect(normalizedPlayPlanning).toContain(
-        "Exact `Contract Decisions` sections and equivalent clearly labeled contract-decision sections are both design contract authority",
+        "from the loaded or installed `play-planning` skill bundle, not from the target repository or current working directory",
       );
       expect(normalizedPlayPlanning).toContain(
-        "creates or changes a boundary but lacks exact or equivalent contract-decision authority",
+        "Criteria: <validated-bundle-owned-path>",
       );
       expect(normalizedPlayPlanning).toContain(
-        "explicit blocker or intentional implementation choice disposition",
+        "otherwise pass the preserved inline `## Design` content for a direct invocation",
       );
       expect(normalizedPlayPlanning).toContain(
-        "observable evidence categories and source surfaces",
+        "pass the guarded `Design: <path>` when the invocation selected the path form",
       );
       expect(normalizedPlayPlanning).toContain(
-        "does not fail solely because exact command sequences are omitted",
+        "missing selected inline design content",
       );
-      expect(playPlanning).toContain("required proof per boundary participant");
-      expect(playPlanning).toContain("Invalid example");
-      expect(playPlanning).toContain("final posting");
-      expect(playPlanning).toContain("scope-decision validation");
-      expect(playPlanning).toContain("prior-thread adapter");
-      expect(playPlanning).toContain("approved-review adapter");
+      expect(normalizedPlayPlanning).toContain(
+        "Absence of the unselected path or inline form does not block",
+      );
+      expect(normalizedPlayPlanning).toContain(
+        "Never direct the reviewer to find criteria relative to the target repository",
+      );
+      expect(normalizedPlayPlanning).toContain(
+        "an omitted known mapping is `CURRENT`, while missing authority for that mapping is `BLOCKER`",
+      );
+      expect(normalizedPlayPlanning).toContain(
+        "provide bounded authoritative discovery criteria inside already named in-scope consumers or boundaries",
+      );
+      expect(normalizedPlayPlanning).toContain(
+        "do not use discovery to determine which consumers or boundary participants are in scope",
+      );
+      expect(normalizedPlayPlanning).toContain(
+        "Discover affected paths (only when individual paths are not yet known)",
+      );
+      expect(normalizedPlayPlanning).toContain(
+        "authority: <named source>; criterion: <explicit inclusion rule>",
+      );
+      expect(normalizedPlayPlanning).toContain(
+        "Exact affected file paths when known; otherwise bounded authoritative discovery criteria for individual paths inside already named in-scope consumers or boundaries",
+      );
+      expect(normalizedPlayPlanning).not.toContain("Exact file paths always");
+      expect(normalizedPlayPlanning).not.toContain(
+        "read `references/planning-criteria.md` from the repository",
+      );
+      expect(normalizedPlayPlanning).toContain(
+        "Planning may make approved scope executable, but it must not create new product, infrastructure, governance, or verification obligations",
+      );
+      expect(normalizedPlayPlanning).toContain(
+        "Every task must map to an authoritative requirement and be necessary for an in-scope outcome",
+      );
+      expect(normalizedPlayPlanning).toContain(
+        "Only verified CURRENT findings may be fixed inline",
+      );
+      expect(normalizedPlayPlanning).toContain(
+        "PASS may coexist with FOLLOW-UP and OPTIONAL findings",
+      );
+      expect(normalizedPlayPlanning).toContain(
+        "prefer the narrowest existing repository mechanism that demonstrates acceptance",
+      );
+      expect(playPlanning).toContain("## Scope Envelope");
+      expect(playPlanning).toContain("## Scope Delta");
       expect(playPlanning).toContain("## Execution Handoff");
       expect(playPlanning).toContain("play-subagent-execution");
 
