@@ -170,6 +170,35 @@ describe("play-subagent planning and routing render smoke coverage", () => {
       expect(executabilityReview).toContain(
         "Only a retained D5 PASS followed by a separate retained D6 PASS",
       );
+      for (const [reviewSection, spawnStep] of [
+        [planReview, "spawn the D5 reviewer and capture only"],
+        [executabilityReview, "spawn the fresh D6 reviewer and capture only"],
+      ]) {
+        const orderedSteps = [
+          "capture before spawn",
+          spawnStep,
+          "verify before semantic validation or consumption",
+          "validate and retain the PASS/FAIL response in controller memory",
+          "cleanup the exact retained baseline",
+          "apply the retained PASS/FAIL result only after cleanup",
+        ];
+        for (let index = 1; index < orderedSteps.length; index += 1) {
+          expect(reviewSection.indexOf(orderedSteps[index - 1])).toBeLessThan(
+            reviewSection.indexOf(orderedSteps[index]),
+          );
+        }
+        expect(reviewSection).toContain(
+          "every post-capture terminal path attempts exact cleanup",
+        );
+        expect(reviewSection).toContain(
+          "dispatch or spawn failure or unavailability before a reviewer session exists",
+        );
+        expect(reviewSection).toContain("After safe cleanup");
+        expect(reviewSection).toContain("a non-passing second round stops");
+      }
+      expect(executabilityReview).toContain(
+        "must not reuse or collapse the D5 session, review question, PASS/FAIL result, or lifecycle state",
+      );
 
       const playSubagentExecution = bodies[`play-subagent-execution:${target}`];
       const normalizedPlaySubagentExecution = normalizeWhitespace(

@@ -849,7 +849,7 @@ describe("phase artifact source contracts", () => {
       }
       expect(normalizedReview).toContain("with no `--handoff`");
       expect(normalizedReview).toContain(
-        "Every spawned terminal branch attempts exact cleanup",
+        "every post-capture terminal path attempts exact cleanup",
       );
       expect(normalizedReview).toContain(
         "never reset, check out, stage, repair, or otherwise hide source",
@@ -860,6 +860,40 @@ describe("phase artifact source contracts", () => {
     expect(executabilityReview).toContain("EXECUTABILITY_REVIEW_BASELINE");
     expect(planReview).not.toContain("EXECUTABILITY_REVIEW_BASELINE");
     expect(executabilityReview).not.toContain("PLAN_REVIEW_BASELINE");
+
+    for (const [reviewSection, spawnStep] of [
+      [
+        normalizeWhitespace(planReview),
+        "spawn the D5 reviewer and capture only",
+      ],
+      [
+        normalizeWhitespace(executabilityReview),
+        "spawn the fresh D6 reviewer and capture only",
+      ],
+    ]) {
+      const orderedSteps = [
+        "capture before spawn",
+        spawnStep,
+        "verify before semantic validation or consumption",
+        "validate and retain the PASS/FAIL response in controller memory",
+        "cleanup the exact retained baseline",
+        "apply the retained PASS/FAIL result only after cleanup",
+      ];
+      for (let index = 1; index < orderedSteps.length; index += 1) {
+        expect(reviewSection.indexOf(orderedSteps[index - 1])).toBeLessThan(
+          reviewSection.indexOf(orderedSteps[index]),
+        );
+      }
+      expect(reviewSection).toContain(
+        "every post-capture terminal path attempts exact cleanup",
+      );
+      expect(reviewSection).toContain(
+        "dispatch or spawn failure or unavailability before a reviewer session exists",
+      );
+      expect(reviewSection).toContain("After safe cleanup");
+      expect(reviewSection).toContain("a non-passing second round stops");
+      expect(reviewSection).toContain("guard-integrity terminal");
+    }
   });
 
   it("keeps root-owned issue research validation, report, persistence, and failure contracts in source", async () => {

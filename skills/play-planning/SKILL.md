@@ -553,15 +553,17 @@ bash "$SOURCE_IMMUTABILITY_HELPER" cleanup --baseline "$PLAN_REVIEW_BASELINE"
 # Only now apply the retained D5 result.
 ```
 
-Every spawned terminal branch attempts exact cleanup, including child failure,
-malformed output, semantic rejection, and verification rejection. An ordinary
-unavailable, failed, malformed, or verification-rejected review cannot pass.
-After safe cleanup it follows the existing D5 failure path: verify any retained
-findings against authoritative scope, revise only verified CURRENT gaps, and
-rerun a fresh D5 session when the two-round budget remains; a non-passing
-second round stops. Detected source mutation or cleanup failure is
-guard-integrity terminal: leave the source state visible, stop planning, and
-never reset, check out, stage, repair, or otherwise hide source.
+After capture succeeds, every post-capture terminal path attempts exact
+cleanup, including dispatch or spawn failure or unavailability before a
+reviewer session exists, child failure, malformed output, semantic rejection,
+and verification rejection. An ordinary unavailable, failed, malformed, or
+verification-rejected review cannot pass. After safe cleanup it follows the
+existing D5 failure path: verify any retained findings against authoritative
+scope, revise only verified CURRENT gaps, and rerun a fresh D5 session when the
+two-round budget remains; a non-passing second round stops. Detected source
+mutation or cleanup failure is guard-integrity terminal: leave the source state
+visible, stop planning, and never reset, check out, stage, repair, or otherwise
+hide source.
 
 Pass `Plan: <path>` and `Criteria: <validated-bundle-owned-path>`. For design
 input, pass the guarded `Design: <path>` when the invocation selected the path
@@ -619,9 +621,9 @@ alignment or own executor review routing.
 Use a fresh response-only `reviewer`, frontier/high and source-immutable, with
 zero handoffs, for this D6 Implementer Executability Review. The fresh D6
 session is sequentially after the retained D5 PASS and must not reuse or
-collapse the D5 session, question, response, or lifecycle state. The role's
-`{{model:frontier}}` capability is supplied by the configured semantic role,
-not selected as an ambient or per-call substitute.
+collapse the D5 session, review question, PASS/FAIL result, or lifecycle state.
+The role's `{{model:frontier}}` capability is supplied by the configured
+semantic role, not selected as an ambient or per-call substitute.
 
 Use `subagent-lifecycle` for the controller-local lifecycle ledger, target
 lifecycle capability classification, cleanup gate, target-honest cleanup outcomes,
@@ -657,16 +659,17 @@ bash "$SOURCE_IMMUTABILITY_HELPER" cleanup --baseline "$EXECUTABILITY_REVIEW_BAS
 # Only now apply the retained D6 result.
 ```
 
-Every spawned terminal branch attempts exact cleanup, including child failure,
-malformed output, semantic rejection, and verification rejection. An ordinary
-unavailable, failed, malformed, or verification-rejected review cannot pass.
-After safe cleanup it follows the existing D6 failure path: block execution,
-verify any retained findings against authoritative scope, revise only verified
-CURRENT gaps, restart Plan Review, and rerun a fresh D6 session only when the
-two-round Executability Review budget remains; a non-passing second round
-stops. Detected source mutation or cleanup failure is guard-integrity terminal:
-leave the source state visible, stop planning, and never reset, check out,
-stage, repair, or otherwise hide source.
+After capture succeeds, every post-capture terminal path attempts exact
+cleanup, including dispatch or spawn failure or unavailability before a
+reviewer session exists, child failure, malformed output, semantic rejection,
+and verification rejection. An ordinary unavailable, failed, malformed, or
+verification-rejected review cannot pass. After safe cleanup it follows the
+existing D6 failure path: block execution, verify any retained findings against
+authoritative scope, revise only verified CURRENT gaps, restart Plan Review,
+and rerun a fresh D6 session only when the two-round Executability Review budget
+remains; a non-passing second round stops. Detected source mutation or cleanup
+failure is guard-integrity terminal: leave the source state visible, stop
+planning, and never reset, check out, stage, repair, or otherwise hide source.
 
 Pass the guarded plan path and `Criteria: <validated-bundle-owned-path>`. For
 design input, pass the guarded `Design: <path>` when the invocation selected

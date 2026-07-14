@@ -1604,6 +1604,48 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedExecutabilityReview).toContain(
       "Only a retained D5 PASS followed by a separate retained D6 PASS",
     );
+
+    for (const [section, spawnStep] of [
+      [normalizedPlanReview, "spawn the D5 reviewer and capture only"],
+      [
+        normalizedExecutabilityReview,
+        "spawn the fresh D6 reviewer and capture only",
+      ],
+    ]) {
+      const orderedSteps = [
+        "capture before spawn",
+        spawnStep,
+        "verify before semantic validation or consumption",
+        "validate and retain the PASS/FAIL response in controller memory",
+        "cleanup the exact retained baseline",
+        "apply the retained PASS/FAIL result only after cleanup",
+      ];
+      for (let index = 1; index < orderedSteps.length; index += 1) {
+        expect(section.indexOf(orderedSteps[index - 1])).toBeLessThan(
+          section.indexOf(orderedSteps[index]),
+        );
+      }
+      expect(section).toContain(
+        "every post-capture terminal path attempts exact cleanup",
+      );
+      expect(section).toContain(
+        "dispatch or spawn failure or unavailability before a reviewer session exists",
+      );
+    }
+    expect(normalizedPlanReview).toContain(
+      "After safe cleanup it follows the existing D5 failure path",
+    );
+    expect(normalizedPlanReview).toContain("a non-passing second round stops");
+    expect(normalizedExecutabilityReview).toContain(
+      "After safe cleanup it follows the existing D6 failure path",
+    );
+    expect(normalizedExecutabilityReview).toContain("restart Plan Review");
+    expect(normalizedExecutabilityReview).toContain(
+      "a non-passing second round stops",
+    );
+    expect(normalizedExecutabilityReview).toContain(
+      "must not reuse or collapse the D5 session, review question, PASS/FAIL result, or lifecycle state",
+    );
   });
 
   it("keeps play-skill-authoring pressure verification required for skill edits", async () => {
