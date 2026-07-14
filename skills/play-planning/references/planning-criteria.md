@@ -92,9 +92,14 @@ Before task planning, confirm that authoritative inputs decide:
 - verification authority and acceptance evidence.
 
 Planning details that remain discoverable from named source files are not
-missing authority. Private helper decomposition, internal names, call-site
-discovery, test implementation, fixtures, and concrete commands remain normal
-implementation choices unless the approved design fixes them as contract.
+missing authority. Private helper decomposition, internal names, test
+implementation, fixtures, concrete commands, and locating individual
+references inside already named in-scope consumers or boundaries remain normal
+implementation choices when a named authority or explicit discovery criterion
+governs the mapping. Determining which consumers or boundary participants are
+in scope is planning work, not normal call-site discovery. An omitted known
+consumer or boundary mapping is a `CURRENT` task-contract gap; missing authority
+for the required mapping is a `BLOCKER`.
 
 For boundary-changing work, exact `Contract Decisions` or an equivalent
 clearly labeled design section is authority. If required behavior semantics are
@@ -329,9 +334,12 @@ Validate whether a competent non-senior implementer can begin after reading the
 task and named sources without choosing missing product, policy, ownership,
 side-effect, error, rollback, or guardrail semantics.
 
-Do not require the plan to pre-resolve normal implementation choices,
-call-site discovery, private helper structure, concrete tests, fixtures, or
-commands discoverable from named sources. Do not broaden the Scope Envelope or
-proof obligations. Apply minimum-sufficient proof. Classify missing authority
-as BLOCKER, genuine task-contract omissions as CURRENT, and useful hardening as
-FOLLOW-UP or OPTIONAL.
+Do not require the plan to pre-resolve normal implementation choices, private
+helper structure, concrete tests, fixtures, commands, or individual-reference
+discovery inside already named in-scope consumers or boundaries when a named
+authority or explicit discovery criterion governs that discovery. Determining
+the in-scope consumers or boundary participants is not normal call-site
+discovery. Classify an omitted known mapping as CURRENT and missing mapping
+authority as BLOCKER. Do not broaden the Scope Envelope or proof obligations.
+Apply minimum-sufficient proof, and classify useful hardening as FOLLOW-UP or
+OPTIONAL.

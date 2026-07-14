@@ -1423,6 +1423,11 @@ describe("existing skills source prose contracts", () => {
       implementerExecutabilityReview,
     );
     const normalizedCriteria = normalizeWhitespace(planningCriteria);
+    const scopeAndCriteria = getMarkdownSection(
+      playPlanning,
+      "Scope Envelope and Canonical Criteria",
+    );
+    const normalizedScopeAndCriteria = normalizeWhitespace(scopeAndCriteria);
 
     expect(playPlanning.indexOf("## Plan Review")).toBeLessThan(
       playPlanning.indexOf("## Implementer Executability Review"),
@@ -1436,6 +1441,12 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedOverview).toContain(
       "Emit the literal line `Plan written to <repo-relative-path>.` to the conversation only after the applicable review gates have passed",
     );
+    expect(normalizedScopeAndCriteria).toContain(
+      "from the loaded or installed `play-planning` skill bundle, not from the target repository or current working directory",
+    );
+    expect(normalizedScopeAndCriteria).toContain(
+      "concrete path, require it to be a readable regular file",
+    );
 
     expectSharedLifecycleReference(implementerExecutabilityReview);
     expect(normalizedExecutabilityReview).toContain("workflow-local");
@@ -1444,8 +1455,39 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedExecutabilityReview).toContain(
       "restart Plan Review before rerunning Executability Review",
     );
+    for (const reviewSection of [planReview, implementerExecutabilityReview]) {
+      const normalizedReviewSection = normalizeWhitespace(reviewSection);
+
+      expect(reviewSection).toContain(
+        "Criteria: <validated-bundle-owned-path>",
+      );
+      expect(normalizedReviewSection).toContain(
+        "pass the guarded `Design: <path>` when the invocation selected the path form",
+      );
+      expect(normalizedReviewSection).toContain(
+        "otherwise pass the preserved inline `## Design` content for a direct invocation",
+      );
+      expect(normalizedReviewSection).toContain(
+        "the path form wins when both forms exist",
+      );
+      expect(normalizedReviewSection).toContain(
+        "missing selected inline design content",
+      );
+      expect(normalizedReviewSection).toContain(
+        "Absence of the unselected path or inline form does not block",
+      );
+      expect(normalizedReviewSection).toContain(
+        "Never direct the reviewer to find criteria relative to the target repository",
+      );
+      expect(normalizedReviewSection).not.toContain(
+        "read `references/planning-criteria.md` from the repository",
+      );
+    }
     expect(normalizedExecutabilityReview).toContain(
-      "normal implementation choices, call-site discovery, private helper structure, concrete tests, fixtures, or commands discoverable from named sources",
+      "discovery of individual references inside already named in-scope consumers or boundaries",
+    );
+    expect(normalizedExecutabilityReview).toContain(
+      "an omitted known mapping is `CURRENT`, while missing authority for that mapping is `BLOCKER`",
     );
     expect(normalizedExecutabilityReview).toContain(
       "must not broaden the Scope Envelope or proof obligations",
@@ -1457,7 +1499,13 @@ describe("existing skills source prose contracts", () => {
       "Validate whether a competent non-senior implementer can begin after reading the task and named sources",
     );
     expect(normalizedCriteria).toContain(
-      "Do not require the plan to pre-resolve normal implementation choices",
+      "locating individual references inside already named in-scope consumers or boundaries remain normal implementation choices when a named authority or explicit discovery criterion governs the mapping",
+    );
+    expect(normalizedCriteria).toContain(
+      "Determining which consumers or boundary participants are in scope is planning work, not normal call-site discovery",
+    );
+    expect(normalizedCriteria).toContain(
+      "An omitted known consumer or boundary mapping is a `CURRENT` task-contract gap; missing authority for the required mapping is a `BLOCKER`",
     );
     expect(normalizedCriteria).toContain(
       "Do not broaden the Scope Envelope or proof obligations",

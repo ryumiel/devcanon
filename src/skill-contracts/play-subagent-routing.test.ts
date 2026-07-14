@@ -1421,13 +1421,8 @@ describe("play subagent routing source contracts", () => {
       "Example mechanical-task header:",
       "Omit `**Mode:** mechanical`",
     );
-    const planReview = getMarkdownSection(
-      planningCriteria,
-      "Task contract criteria",
-    );
     const normalizedContractChecklist = normalizeWhitespace(contractChecklist);
     const normalizedOptionalModeField = normalizeWhitespace(optionalModeField);
-    const normalizedPlanReview = normalizeWhitespace(planReview);
 
     expect(normalizedContractChecklist).toContain(
       "Each field is populated or marked `N/A` with a task-specific reason",
@@ -1473,20 +1468,22 @@ describe("play subagent routing source contracts", () => {
       expect(mechanicalTaskExample).toContain(requiredField);
     }
 
-    expect(planReview).toContain(
+    expect(contractChecklist).toContain(
       "Review-routing hints remain non-authoritative inputs",
     );
-    expect(normalizedPlanReview).toContain(
+    expect(normalizedContractChecklist).toContain(
       "Hard-risk triggers from `skills/play-subagent-execution/references/review-routing-policy.md` are not under-classified",
     );
-    expect(normalizedPlanReview).not.toContain(
+    expect(normalizedContractChecklist).not.toContain(
       "Hard-risk triggers from `skills/play-subagent-execution/SKILL.md`",
     );
-    expect(planReview).toContain("unclear cases default to `spec-and-quality`");
-    expect(planReview).toContain(
+    expect(contractChecklist).toContain(
+      "unclear cases default to `spec-and-quality`",
+    );
+    expect(contractChecklist).toContain(
       "foundation-producing tasks are not below `spec-only`",
     );
-    expect(normalizedPlanReview).toContain(
+    expect(normalizedContractChecklist).toContain(
       "Field order is the task heading, optional `**Mode:** mechanical`, optional review-routing hints, then `**Files:**`",
     );
     expect(playPlanning).toContain("references/planning-criteria.md");

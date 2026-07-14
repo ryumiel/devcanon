@@ -165,9 +165,14 @@ The path references are consumed by the controller; inline forms are preserved f
 
 ## Scope Envelope and Canonical Criteria
 
-Before file mapping or task planning, load
-[`references/planning-criteria.md`](references/planning-criteria.md). It is the
-single detailed criteria source for scope, planning authority, contract and
+Before file mapping or task planning, resolve
+[`references/planning-criteria.md`](references/planning-criteria.md) from the
+loaded or installed `play-planning` skill bundle, not from the target
+repository or current working directory. Resolve that bundle-owned reference
+to a concrete path, require it to be a readable regular file, and retain the
+validated path in controller-local state for self-review and both reviewer
+gates. A missing or unreadable criteria file blocks planning. It is the single
+detailed criteria source for scope, planning authority, contract and
 traceability coverage, task contracts, proof proportionality, finding
 classification, and all three planning review surfaces. Do not copy its full
 criteria into this file or into reviewer prompts.
@@ -462,11 +467,11 @@ Every task spec must contain the actual contract an engineer needs. These are
 
 ## Self-Review
 
-After writing the plan, reload
-[`references/planning-criteria.md`](references/planning-criteria.md) and review
-the saved artifact against that canonical source. The reference, not duplicated
-gate prose, owns the detailed scope, contract, traceability, task, proof, and
-finding criteria.
+After writing the plan, reload the validated bundle-owned criteria path and
+review the saved artifact against that canonical source. Do not substitute a
+target-repository-relative `references/planning-criteria.md`. The reference,
+not duplicated gate prose, owns the detailed scope, contract, traceability,
+task, proof, and finding criteria.
 
 Review in this order:
 
@@ -501,13 +506,18 @@ and slot-limit recovery. Capture the plan path or inline scope, design
 scope, concise PASS/FAIL result, classified findings, and blockers before
 cleanup or supersession.
 
-Pass `Plan: <path>` and `Design: <path>` when artifacts exist; prefer artifact
-path references over inlined full documents. Use inline content only for direct
-invocations without paths. Instruct the reviewer to receive both artifacts by
-path and read them from disk, then read
-[`references/planning-criteria.md`](references/planning-criteria.md) from the
-repository before evaluating. Missing or unreadable required inputs block the
-review.
+Pass `Plan: <path>` and `Criteria: <validated-bundle-owned-path>`. For design
+input, pass the guarded `Design: <path>` when the invocation selected the path
+form; otherwise pass the preserved inline `## Design` content for a direct
+invocation. Always prefer artifact path references over inlined full documents;
+the path form wins when both forms exist. When inputs are path-backed, instruct
+the reviewer to read them from disk, and always instruct it to read the plan, the
+selected path-or-inline design input, and the concrete criteria path before
+evaluating. Missing or unreadable plan or criteria input blocks the review. A
+selected design path that is missing or unreadable also blocks, as does missing
+selected inline design content. Absence of the unselected path or inline form
+does not block. Never direct the reviewer to find criteria relative to the
+target repository.
 
 The reviewer independently validates the Scope Envelope, Scope Delta,
 authoritative requirement coverage, unjustified tasks, dependency order,
@@ -559,20 +569,33 @@ and slot-limit recovery before dispatch. Capture the plan and design
 scope, optional comment-evidence path, concise PASS/FAIL result, classified
 findings, and blockers before cleanup or supersession.
 
-Pass guarded plan and design paths, plus comment evidence only when the planning
-invocation received it. Instruct the reviewer to read those artifacts and
-[`references/planning-criteria.md`](references/planning-criteria.md). Missing
-or unreadable required inputs block execution handoff.
+Pass the guarded plan path and `Criteria: <validated-bundle-owned-path>`. For
+design input, pass the guarded `Design: <path>` when the invocation selected
+the path form; otherwise pass the preserved inline `## Design` content for a
+direct invocation. Always prefer artifact path references over inlined full
+documents; the path form wins when both forms exist. Pass comment evidence only
+when the planning invocation received it. When inputs are path-backed, instruct
+the reviewer to read them from disk, and always instruct it to read the plan, the
+selected path-or-inline design input, and the concrete criteria path. Missing
+or unreadable plan or criteria input blocks execution handoff. A selected
+design path that is missing or unreadable also blocks; missing selected inline
+design content also blocks. Absence of the unselected path or inline form does
+not block. Never direct the reviewer to find criteria relative to the target
+repository.
 
 The reviewer checks for hidden product, policy, ownership, source mapping,
 side-effect, error, recovery, rollback, or guardrail decisions that a task
 requires but its named sources do not resolve. The canonical reference owns the
 detailed criteria.
 
-The reviewer must not turn normal implementation choices, call-site discovery,
-private helper structure, concrete tests, fixtures, or commands discoverable
-from named sources into missing contracts. It must not broaden the Scope
-Envelope or proof obligations. Apply minimum-sufficient proof.
+The reviewer must not turn normal implementation choices, private helper
+structure, concrete tests, fixtures, commands, or discovery of individual
+references inside already named in-scope consumers or boundaries into missing
+contracts when the plan also names the mapping authority or an explicit
+discovery criterion. Determining which consumers or boundaries are in scope is
+planning work: an omitted known mapping is `CURRENT`, while missing authority
+for that mapping is `BLOCKER`. The reviewer must not broaden the Scope Envelope
+or proof obligations. Apply minimum-sufficient proof.
 
 **Output:** concise PASS or FAIL with findings classified as `CURRENT`,
 `BLOCKER`, `FOLLOW-UP`, or `OPTIONAL`. CURRENT and BLOCKER prevent PASS.

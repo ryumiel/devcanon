@@ -67,6 +67,33 @@ describe("play-subagent planning and routing render smoke coverage", () => {
       );
       expect(playPlanning).toContain("references/planning-criteria.md");
       expect(normalizedPlayPlanning).toContain(
+        "from the loaded or installed `play-planning` skill bundle, not from the target repository or current working directory",
+      );
+      expect(normalizedPlayPlanning).toContain(
+        "Criteria: <validated-bundle-owned-path>",
+      );
+      expect(normalizedPlayPlanning).toContain(
+        "otherwise pass the preserved inline `## Design` content for a direct invocation",
+      );
+      expect(normalizedPlayPlanning).toContain(
+        "pass the guarded `Design: <path>` when the invocation selected the path form",
+      );
+      expect(normalizedPlayPlanning).toContain(
+        "missing selected inline design content",
+      );
+      expect(normalizedPlayPlanning).toContain(
+        "Absence of the unselected path or inline form does not block",
+      );
+      expect(normalizedPlayPlanning).toContain(
+        "Never direct the reviewer to find criteria relative to the target repository",
+      );
+      expect(normalizedPlayPlanning).toContain(
+        "an omitted known mapping is `CURRENT`, while missing authority for that mapping is `BLOCKER`",
+      );
+      expect(normalizedPlayPlanning).not.toContain(
+        "read `references/planning-criteria.md` from the repository",
+      );
+      expect(normalizedPlayPlanning).toContain(
         "Planning may make approved scope executable, but it must not create new product, infrastructure, governance, or verification obligations",
       );
       expect(normalizedPlayPlanning).toContain(
