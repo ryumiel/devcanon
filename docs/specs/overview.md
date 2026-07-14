@@ -29,7 +29,8 @@ Behavior specs under this directory own exact intended behavior for:
 - CLI commands and command output;
 - configuration format and schema behavior;
 - skill and agent source formats;
-- Portable AFDS Toolkit lifecycle routing and evidence behavior;
+- Portable AFDS Toolkit lifecycle routing, semantic child routing, mutation
+  authority, and evidence behavior;
 - target rendering for Claude Code and Codex;
 - install, sync, uninstall, and diff behavior;
 - platform, security, error handling, and testing requirements.
@@ -83,10 +84,12 @@ devcanon/
 │  └─ write-product-spec/
 │     └─ SKILL.md
 ├─ agents/
-│  ├─ code-quality-reviewer.yaml
+│  ├─ assessor.yaml
+│  ├─ deep-reviewer.yaml
+│  ├─ executor.yaml
 │  ├─ implementer.yaml
-│  ├─ research-agent.yaml
-│  └─ spec-compliance-reviewer.yaml
+│  ├─ investigator.yaml
+│  └─ reviewer.yaml
 ├─ generated/
 │  ├─ claude/
 │  │  └─ agents/
@@ -114,10 +117,12 @@ Notes:
    └─ write-product-spec/
 
 ~/.claude/agents/
-├─ code-quality-reviewer.md
+├─ assessor.md
+├─ deep-reviewer.md
+├─ executor.md
 ├─ implementer.md
-├─ research-agent.md
-└─ spec-compliance-reviewer.md
+├─ investigator.md
+└─ reviewer.md
 ```
 
 ### Codex Target
@@ -129,10 +134,12 @@ Notes:
    └─ write-product-spec/
 
 ~/.codex/agents/
-├─ code-quality-reviewer.toml
+├─ assessor.toml
+├─ deep-reviewer.toml
+├─ executor.toml
 ├─ implementer.toml
-├─ research-agent.toml
-└─ spec-compliance-reviewer.toml
+├─ investigator.toml
+└─ reviewer.toml
 ```
 
 Notes:
@@ -140,3 +147,5 @@ Notes:
 - Codex shared skills are installed to `~/.agents/skills`.
 - Codex native custom agents are installed to `~/.codex/agents/`.
 - `devcanon` does not manage `~/.codex/config.toml` in v1.
+- The exact semantic catalog and direct-child routes are owned by the
+  [Agent Routing and Mutation Policy](../guidelines/agent-routing-and-mutation-policy.md).

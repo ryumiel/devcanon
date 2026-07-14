@@ -30,30 +30,105 @@ template instead.
 ## Example
 
 ```yaml
-name: reviewer
-description: Focused code review role for correctness, regressions, and missing tests. Use when reviewing implementation against a plan or before merging. Do not use for general coding work or broad orchestration.
+name: assessor
+description: Bounded assessment role for classification or evaluation against a closed acceptance condition. Use when a workflow needs a focused source-immutable decision. Do not use for open-ended investigation, implementation, or synthesis review.
 instructions: |
-  Lead with concrete findings.
-  Prefer correctness and regression issues over style comments.
-  Use the pr-review skill when relevant.
-
-skills:
-  - pr-review
-  - release-check
+  Evaluate only the dispatch-defined scope and acceptance condition.
+  You may inspect files, run permitted commands, and write only one
+  dispatch-named direct-child .ephemeral handoff when requested.
+  Do not modify durable source, tests, configuration, or documentation.
+  Do not mutate external systems.
 
 capability: balanced
 
 claude:
-  effort: high
+  effort: medium
   tools:
     - Read
     - Grep
     - Bash
+    - Write
 
 codex:
-  model_reasoning_effort: high
-  sandbox_mode: read-only
+  model_reasoning_effort: medium
+  sandbox_mode: workspace-write
 ```
+
+---
+
+## Shipped semantic role catalog
+
+The shipped source library contains exactly six semantic roles. Agent names
+describe reusable work identity, not provider models, effort levels, or
+workflow phases.
+
+| Agent           | Capability | Claude effort | Codex effort | Source default     | Primary use                                           |
+| --------------- | ---------- | ------------- | ------------ | ------------------ | ----------------------------------------------------- |
+| `assessor`      | balanced   | medium        | medium       | `source-immutable` | Bounded classification or evaluation                  |
+| `investigator`  | balanced   | high          | high         | `source-immutable` | Repository, document, or external evidence collection |
+| `executor`      | efficient  | medium        | medium       | `source-mutable`   | Exact validated no-policy operations                  |
+| `implementer`   | balanced   | high          | high         | `source-mutable`   | Judgment-bearing scoped implementation                |
+| `reviewer`      | frontier   | high          | high         | `source-immutable` | Ordinary synthesis and adversarial review             |
+| `deep-reviewer` | frontier   | xhigh         | xhigh        | `source-immutable` | Existing high-assurance review gates                  |
+
+Capability and target-native effort are both explicit for all six roles and
+remain independent. Neither setting implies tools, sandbox, network, mutation,
+or escalation behavior.
+
+### Tool and sandbox behavior
+
+| Agent           | Claude tools                                 | Codex sandbox   | Default network |
+| --------------- | -------------------------------------------- | --------------- | --------------- |
+| `assessor`      | Read, Grep, Bash, Write                      | workspace-write | None            |
+| `investigator`  | Read, Grep, Bash, Write, WebFetch, WebSearch | workspace-write | Dispatch-owned  |
+| `executor`      | Read, Grep, Bash, Edit, Write                | workspace-write | None            |
+| `implementer`   | Read, Grep, Bash, Edit, Write                | workspace-write | Task-owned      |
+| `reviewer`      | Read, Grep, Bash, Write                      | workspace-write | None            |
+| `deep-reviewer` | Read, Grep, Bash, Write                      | workspace-write | None            |
+
+Every role may run permitted routine commands and may write one
+dispatch-named direct-child `.ephemeral` handoff. The four source-immutable
+roles must carry self-contained instructions prohibiting changes to durable
+source, tests, configuration, and documentation. Their write-capable envelope
+exists for the optional handoff; it is not durable mutation authority.
+
+`executor` instructions must limit it to exact validated operations on
+dispatch-authorized paths and require it to stop or hand off when a guardrail is
+missing or judgment appears. `implementer` remains the role for scoped
+judgment-bearing implementation.
+
+Every shared role defaults to no external-system mutation. An owning workflow
+may separately grant one named external mutation, but external authority must
+not be inferred from role, capability, effort, tools, sandbox, network access,
+or source authority.
+
+`investigator` receives network access or a diagnostic handoff path only when
+the dispatch explicitly names it. Ambient network availability and an unnamed
+diagnostic artifact are outside the role contract.
+
+### Render and runtime acceptance
+
+Each source role renders to both targets with the same semantic identity,
+capability-selected model, explicit target effort, and target-native tool or
+sandbox envelope above. Exactly six source roles must produce exactly six
+Claude agent files and six Codex agent files. Generated previews remain
+disposable and do not become authority.
+
+The canonical `assessor` example above must render balanced/medium on both
+targets, retain its command and named-handoff envelope, prohibit durable and
+external mutation, and omit no Codex effort. A rendered role count other than
+six, omitted effort, or broader mutation instructions fails the contract.
+
+After local validation and both-target render parsing, runtime acceptance is
+bounded to one no-tool attempt for each selected capability/effort pair on each
+target plus one guarded Codex named-role handoff for each of the six roles. The
+exact pair matrix, output tokens, blocker rules, and human-only deployment gate
+are owned by
+[ADR-0027](../adr/adr-0027-semantic-agent-routing-and-mutation-authority.md)
+and the
+[Agent Routing and Mutation Policy](../guidelines/agent-routing-and-mutation-policy.md).
+Local validation does not prove client, account, model, effort, or named-agent
+availability and must never substitute an alias or fallback.
 
 ---
 
@@ -161,6 +236,12 @@ Effort validation is local and syntactic. Accepting an effort such as `max`
 does not prove that a particular Codex client, model, or account can run it;
 operators must establish runtime availability separately.
 
+Mutation authority is a workflow contract rather than a first-class schema
+field. The closed source and external axes, complete skill inventory, and
+direct-child routes are owned by the
+[Agent Routing and Mutation Policy](../guidelines/agent-routing-and-mutation-policy.md).
+Target fields document executable capability; they do not authorize mutation.
+
 ---
 
 ## Not supported in v2
@@ -191,3 +272,5 @@ operators must establish runtime availability separately.
 - [Skill specification](skills.md) -- skills referenced by agents
 - [Target mapping](target-mapping.md) -- how agents render to native formats
 - [Configuration](configuration.md) -- target-level settings
+- [Agent routing and mutation policy](../guidelines/agent-routing-and-mutation-policy.md)
+- [Semantic routing decision](../adr/adr-0027-semantic-agent-routing-and-mutation-authority.md)

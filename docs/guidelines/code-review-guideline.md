@@ -73,6 +73,27 @@ Side-Channel Artifact Contract Checklist in
 contract gap while preserving the owning source's authority for schemas,
 helpers, validators, and diagnostics.
 
+When a diff changes shared-agent dispatch, also compare every affected route
+with the [Agent Routing and Mutation Policy](agent-routing-and-mutation-policy.md).
+Review capability and effort, source authority, external authority, task-local
+prompt ownership, and unavailable-child termination as separate dimensions.
+Do not infer mutation authority from tools, sandbox, network access, model, or
+effort.
+
+For source-immutable routes, verify the owner captures before spawn, verifies
+Git-visible state before semantically validating or consuming the child result,
+retains any valid named handoff in memory, cleans only the exact baseline and
+handoff leaves, and consumes afterward. Capture failure prevents spawn;
+verification or payload failure rejects the result and still cleans up; cleanup
+failure is a manual blocker; detected source mutation remains visible and is
+never repaired.
+
+Do not overstate this check as a filesystem or security boundary. Ignored files
+other than the named handoff, paths outside the worktree, external systems,
+races, and provider-internal behavior are outside the minimum guard. A finding
+that requires broader enforcement belongs to a follow-up rather than silently
+expanding the current contract.
+
 ### Lifecycle-State Disclosure
 
 When reviewing workflow prose that surfaces subagent lifecycle state to a user
@@ -235,5 +256,14 @@ Agent-assisted review follows this contract:
 - When dispatching a standalone reviewer agent, the caller must provide
   explicit review scope as a `base..head` ref or unified diff; reviewers
   must not be asked to discover the scope themselves
-- When dispatching `spec-compliance-reviewer`, the caller must also provide
-  the scoped requirements or task spec it should compare against
+- Ordinary topical, plan, and executability synthesis uses `reviewer` at
+  frontier/high; the critic, per-task spec and quality sessions, and final
+  whole-implementation review use distinct `deep-reviewer` sessions at
+  frontier/xhigh
+- When dispatching the per-task spec `deep-reviewer` session, the caller must
+  also provide the scoped requirements or task spec it should compare against
+- Task-specific spec, quality, critic, and final-review instructions stay in
+  the owning skill prompt; sharing `deep-reviewer` does not collapse distinct
+  prompts, scopes, verdicts, fix loops, or termination
+- Source-immutable reviewer results must pass the owning workflow's minimum
+  source-immutability guard before their findings or verdicts are consumed
