@@ -33,6 +33,46 @@ superseding the session.
 
 **Official guidance:** For Anthropic's official skill authoring best practices, see `references/anthropic-best-practices.md`. This document provides additional patterns and guidelines that complement the TDD-focused approach in this skill.
 
+## Pressure-Scenario Evaluator Contract
+
+Every pressure-scenario evaluator is a response-only `assessor`,
+balanced/medium and source-immutable, with zero handoffs. Use the scenario's
+existing closed acceptance condition as a bounded evaluation; do not substitute
+another role, capability, or effort.
+
+Resolve `SKILL_PRESSURE_GUARD` to this installed skill bundle's
+`scripts/source-immutability.sh` shim. For every RED baseline, GREEN
+same-scenario check, and REFACTOR retest, keep this order exact:
+
+1. capture before spawn and retain the returned baseline path in the
+   controller;
+2. spawn the already-defined pressure scenario and capture only the evaluator's
+   raw terminal response and status;
+3. verify before semantic validation or consumption;
+4. validate and retain the raw response in controller memory;
+5. cleanup the exact retained baseline; and
+6. apply the retained scenario evidence only after cleanup.
+
+Only a valid guarded response can prove RED or GREEN. Capture failure prevents
+the spawn. After capture, every post-capture terminal path attempts exact
+cleanup, including dispatch or spawn failure or unavailability before an
+evaluator session exists, child failure, response rejection, verification
+rejection, and semantic validation rejection. A failed, invalid, malformed, or
+verification-rejected response, after safe cleanup, follows the existing
+fresh-scenario/retest path and cannot count as baseline failure, compliance, or
+retained rationalization evidence. Rerun the same pressure scenario with a
+fresh evaluator under the applicable RED, GREEN, or REFACTOR retest step.
+
+Detected source mutation or cleanup failure is guard-integrity terminal:
+preserve the visible source state, stop the skill-authoring run, and never
+repair the source to make the evidence appear acceptable. A source-mutation
+verification failure never enters the ordinary fresh-scenario/retest path.
+
+This evaluator route and guard do not change the pressure scenarios, scenario
+options or pressures, RED baseline observation, GREEN same-scenario evidence,
+rationalizations captured verbatim, REFACTOR loophole closure, new-
+rationalization handling, or fresh-evaluator retest lifecycle.
+
 ## What is a Skill?
 
 A **skill** is a reference guide for proven techniques, patterns, or tools. Skills help future agents find and apply effective approaches.

@@ -5,12 +5,15 @@ import path from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
 import { cleanupTempDir } from "../__test-helpers__/fixtures.js";
+import { getSkillOutput } from "../__test-helpers__/render.js";
 import {
   getMarkdownSection,
   normalizeWhitespace,
   readRepoFile,
   readSkillSource,
 } from "../__test-helpers__/skill-contracts.js";
+import { loadConfig } from "../config/load.js";
+import { renderAll } from "../render/pipeline.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -1650,7 +1653,18 @@ describe("existing skills source prose contracts", () => {
 
   it("keeps play-skill-authoring pressure verification required for skill edits", async () => {
     const playSkillAuthoring = await readSkillSource("play-skill-authoring");
+    const testingReference = await readRepoFile(
+      "skills/play-skill-authoring/references/testing-skills-with-subagents.md",
+    );
     const overview = getMarkdownSection(playSkillAuthoring, "Overview");
+    const pressureEvaluatorContract = getMarkdownSection(
+      playSkillAuthoring,
+      "Pressure-Scenario Evaluator Contract",
+    );
+    const guardedEvaluatorLifecycle = getMarkdownSection(
+      testingReference,
+      "Guarded Evaluator Lifecycle",
+    );
     const ruleSection = sliceBetween(
       playSkillAuthoring,
       "## The Rule (Same as TDD)",
@@ -1685,6 +1699,111 @@ describe("existing skills source prose contracts", () => {
     expect(checklistSection).toContain(
       "Run scenarios WITHOUT skill - document baseline behavior verbatim",
     );
+
+    for (const contract of [
+      pressureEvaluatorContract,
+      guardedEvaluatorLifecycle,
+    ]) {
+      const normalizedContract = normalizeWhitespace(contract);
+
+      expect(normalizedContract).toContain(
+        "Every pressure-scenario evaluator is a response-only `assessor`, balanced/medium and source-immutable, with zero handoffs",
+      );
+      expect(contract).toContain("scripts/source-immutability.sh");
+      expectSubstringsInOrder(normalizedContract, [
+        "capture before spawn",
+        "spawn the already-defined pressure scenario",
+        "verify before semantic validation or consumption",
+        "validate and retain the raw response in controller memory",
+        "cleanup the exact retained baseline",
+        "apply the retained scenario evidence only after cleanup",
+      ]);
+      expect(normalizedContract).toContain(
+        "Only a valid guarded response can prove RED or GREEN",
+      );
+      expect(normalizedContract).toContain(
+        "every post-capture terminal path attempts exact cleanup",
+      );
+      expect(normalizedContract).toContain(
+        "dispatch or spawn failure or unavailability before an evaluator session exists",
+      );
+      expect(normalizedContract).toContain(
+        "failed, invalid, malformed, or verification-rejected response",
+      );
+      expect(normalizedContract).toContain(
+        "after safe cleanup, follows the existing fresh-scenario/retest path",
+      );
+      expect(normalizedContract).toContain(
+        "cannot count as baseline failure, compliance, or retained rationalization evidence",
+      );
+      expect(normalizedContract).toContain(
+        "Detected source mutation or cleanup failure is guard-integrity terminal",
+      );
+      expect(normalizedContract).toContain("preserve the visible source state");
+      expect(normalizedContract).toContain("never repair the source");
+      expect(normalizedContract).toContain(
+        "A source-mutation verification failure never enters the ordinary fresh-scenario/retest path",
+      );
+      expect(normalizedContract).not.toContain("`reviewer`");
+      expect(normalizedContract).not.toContain("`deep-reviewer`");
+      expect(normalizedContract).not.toContain("escalat");
+      expect(normalizedContract).not.toContain("benchmark");
+      expect(normalizedContract).not.toContain("corpus");
+      expect(normalizedContract).not.toContain("fixture");
+      expect(normalizedContract).not.toContain("infrastructure");
+    }
+
+    expect(normalizeWhitespace(guardedEvaluatorLifecycle)).toContain(
+      "RED retains only a valid guarded baseline failure and its rationalizations verbatim",
+    );
+    expect(normalizeWhitespace(guardedEvaluatorLifecycle)).toContain(
+      "GREEN uses the same pressure scenario and retains only valid guarded compliance evidence",
+    );
+    expect(normalizeWhitespace(guardedEvaluatorLifecycle)).toContain(
+      "REFACTOR preserves the existing new-rationalization and fresh-evaluator retest loop",
+    );
+
+    for (const unchangedEvidence of [
+      "You spent 4 hours implementing a feature. It's working perfectly.",
+      '"I already manually tested it"',
+      '"Tests after achieve same goals"',
+      '"Deleting is wasteful"',
+      '"Being pragmatic not dogmatic"',
+    ]) {
+      expect(testingReference).toContain(unchangedEvidence);
+    }
+
+    const config = await loadConfig(
+      path.join(process.cwd(), "devcanon.config.yaml"),
+    );
+    const { outputs } = await renderAll(config, false);
+    for (const target of ["claude", "codex"] as const) {
+      const output = getSkillOutput(outputs, "play-skill-authoring", target);
+      const renderedContract = normalizeWhitespace(
+        getMarkdownSection(
+          output.content,
+          "Pressure-Scenario Evaluator Contract",
+        ),
+      );
+
+      expect(renderedContract).toContain(
+        "Every pressure-scenario evaluator is a response-only `assessor`, balanced/medium and source-immutable, with zero handoffs",
+      );
+      expectSubstringsInOrder(renderedContract, [
+        "capture before spawn",
+        "spawn the already-defined pressure scenario",
+        "verify before semantic validation or consumption",
+        "validate and retain the raw response in controller memory",
+        "cleanup the exact retained baseline",
+        "apply the retained scenario evidence only after cleanup",
+      ]);
+      expect(renderedContract).toContain(
+        "Only a valid guarded response can prove RED or GREEN",
+      );
+      expect(renderedContract).toContain(
+        "Detected source mutation or cleanup failure is guard-integrity terminal",
+      );
+    }
   });
 
   it("makes the play-brainstorm interactive design review gate explicit", async () => {

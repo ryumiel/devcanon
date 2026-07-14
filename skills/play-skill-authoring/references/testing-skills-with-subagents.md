@@ -42,6 +42,47 @@ Don't test:
 
 Same cycle as code TDD, different test format.
 
+## Guarded Evaluator Lifecycle
+
+Every pressure-scenario evaluator is a response-only `assessor`,
+balanced/medium and source-immutable, with zero handoffs. Resolve
+`SKILL_PRESSURE_GUARD` to the installed `play-skill-authoring` bundle's
+`scripts/source-immutability.sh` shim. Apply this lifecycle independently to
+each RED baseline, GREEN same-scenario run, and REFACTOR retest:
+
+1. capture before spawn and retain the returned baseline path in the
+   controller;
+2. spawn the already-defined pressure scenario and capture only the evaluator's
+   raw terminal response and status;
+3. verify before semantic validation or consumption;
+4. validate and retain the raw response in controller memory;
+5. cleanup the exact retained baseline; and
+6. apply the retained scenario evidence only after cleanup.
+
+Only a valid guarded response can prove RED or GREEN. RED retains only a valid
+guarded baseline failure and its rationalizations verbatim. GREEN uses the same
+pressure scenario and retains only valid guarded compliance evidence. REFACTOR
+preserves the existing new-rationalization and fresh-evaluator retest loop.
+
+Capture failure prevents spawn. After capture, every post-capture terminal path
+attempts exact cleanup, including dispatch or spawn failure or unavailability
+before an evaluator session exists, child failure, response rejection,
+verification rejection, and semantic validation rejection. A failed, invalid,
+malformed, or verification-rejected response, after safe cleanup, follows the
+existing fresh-scenario/retest path and cannot count as baseline failure,
+compliance, or retained rationalization evidence. Rerun the same pressure
+scenario with a fresh evaluator under the applicable RED, GREEN, or REFACTOR
+retest step.
+
+Detected source mutation or cleanup failure is guard-integrity terminal:
+preserve the visible source state, stop the skill-testing run, and never repair
+the source to make the evidence appear acceptable. A source-mutation
+verification failure never enters the ordinary fresh-scenario/retest path.
+
+This lifecycle leaves the existing scenarios, pressures, forced choices, RED
+baseline, GREEN same-scenario evidence, verbatim rationalizations, loophole
+closure, new-rationalization handling, and retest behavior unchanged.
+
 ## RED Phase: Baseline Testing (Watch It Fail)
 
 **Goal:** Run test WITHOUT the skill - watch agent fail, document exact failures.
