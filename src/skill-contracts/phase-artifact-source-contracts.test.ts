@@ -413,6 +413,12 @@ describe("phase artifact source contracts", () => {
       "Treat a nonzero helper exit as a contract failure",
     );
     expect(normalizedHelperInvocationSection).toContain(
+      "This blanket early-stop rule does not apply to `scripts/source-immutability.sh`",
+    );
+    expect(normalizedHelperInvocationSection).toContain(
+      "Phase 2 and Phase 3 GUARD-001 procedures own every nonzero disposition for that helper",
+    );
+    expect(normalizedHelperInvocationSection).toContain(
       "Do not move workflow judgment, routing, lifecycle, model selection, review classification, or PR authority into shell",
     );
     expect(normalizedHelperInvocationSection).toContain(

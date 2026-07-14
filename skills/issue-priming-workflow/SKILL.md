@@ -104,7 +104,7 @@ See [`references/workflow-diagram.md`](references/workflow-diagram.md) for the D
 
 ## Helper Invocation Contracts
 
-Resolve `ISSUE_PRIMING_WORKFLOW_DIR` to the installed `issue-priming-workflow` skill bundle, not the issue worktree. Invoke helpers from the issue worktree root after Phase 1 has run `cd "$WORKTREE_PATH"`; helpers verify repository-root cwd. Treat a nonzero helper exit as a contract failure and stop the current phase rather than falling back to inline path handling. Do not move workflow judgment, routing, lifecycle, model selection, review classification, or PR authority into shell.
+Resolve `ISSUE_PRIMING_WORKFLOW_DIR` to the installed `issue-priming-workflow` skill bundle, not the issue worktree. Invoke helpers from the issue worktree root after Phase 1 has run `cd "$WORKTREE_PATH"`; helpers verify repository-root cwd. Treat a nonzero helper exit as a contract failure and stop the current phase rather than falling back to inline path handling. This blanket early-stop rule does not apply to `scripts/source-immutability.sh`; the Phase 2 and Phase 3 GUARD-001 procedures own every nonzero disposition for that helper. Do not move workflow judgment, routing, lifecycle, model selection, review classification, or PR authority into shell.
 
 The script-owned deterministic surfaces are:
 
