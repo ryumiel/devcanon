@@ -103,4 +103,31 @@ describe("runtime command helpers", () => {
         '{"ok":false,"code":"runtime-error","message":"unknown platform: plan9"}\n',
     });
   });
+
+  it("routes source-immutability command parsing failures with plain stderr", async () => {
+    await expect(
+      runRuntimeCommand(["source-immutability", "verify"]),
+    ).resolves.toEqual({
+      exitCode: 1,
+      stdout: "",
+      stderr: "verify requires --baseline\n",
+    });
+  });
+
+  it("rejects duplicate source-immutability handoff declarations", async () => {
+    await expect(
+      runRuntimeCommand([
+        "source-immutability",
+        "capture",
+        "--handoff",
+        ".ephemeral/one.json",
+        "--handoff",
+        ".ephemeral/two.json",
+      ]),
+    ).resolves.toEqual({
+      exitCode: 1,
+      stdout: "",
+      stderr: "--handoff may be supplied only once\n",
+    });
+  });
 });

@@ -1,0 +1,711 @@
+import { execFile } from "node:child_process";
+import { createHash, randomBytes } from "node:crypto";
+import { type Stats, createReadStream } from "node:fs";
+import {
+  lstat,
+  open,
+  readFile,
+  readlink,
+  realpath,
+  unlink,
+} from "node:fs/promises";
+import path from "node:path";
+import { promisify } from "node:util";
+import type { RuntimeCommandOutcome } from "./command.js";
+import { requireDirectEphemeralChild } from "./paths.js";
+
+const execFileAsync = promisify(execFile);
+const BASELINE_PREFIX = ".devcanon-source-immutability-";
+const BASELINE_PATTERN =
+  /^\.ephemeral\/\.devcanon-source-immutability-[0-9a-f]{32}\.json$/u;
+const PRIVATE_BASELINE_KIND = "devcanon-source-immutability-private";
+const GIT_ENVIRONMENT_OVERRIDES = new Set([
+  "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+  "GIT_COMMON_DIR",
+  "GIT_DIR",
+  "GIT_INDEX_FILE",
+  "GIT_NAMESPACE",
+  "GIT_OBJECT_DIRECTORY",
+  "GIT_REPLACE_REF_BASE",
+  "GIT_WORK_TREE",
+]);
+
+interface ParsedArgs {
+  operation: "capture" | "verify" | "cleanup";
+  baseline?: string;
+  handoff?: string;
+}
+
+interface FileFingerprint {
+  path: string;
+  kind: string;
+  mode: number | null;
+  contentSha256: string | null;
+}
+
+interface WorkspaceFingerprint {
+  worktree: string;
+  gitDir: string;
+  head: string;
+  symbolicRef: string | null;
+  indexSha256: string;
+  files: FileFingerprint[];
+}
+
+interface RetainedBaseline {
+  kind: typeof PRIVATE_BASELINE_KIND;
+  handoff: string | null;
+  fingerprint: WorkspaceFingerprint;
+}
+
+export async function runSourceImmutabilityCommand(
+  args: readonly string[],
+  cwd = process.cwd(),
+): Promise<RuntimeCommandOutcome> {
+  try {
+    const parsed = parseArgs(args);
+    switch (parsed.operation) {
+      case "capture":
+        return plainOk(`${await capture(cwd, parsed.handoff)}\n`);
+      case "verify":
+        await verify(cwd, requiredBaseline(parsed), parsed.handoff);
+        return plainOk("unchanged\n");
+      case "cleanup":
+        await cleanup(cwd, requiredBaseline(parsed), parsed.handoff);
+        return plainOk("cleaned\n");
+    }
+  } catch (err) {
+    return plainFail(singleLineMessage(err));
+  }
+}
+
+async function capture(
+  cwd: string,
+  handoff: string | undefined,
+): Promise<string> {
+  const workspace = await requireWorkspace(cwd);
+  if (handoff !== undefined) {
+    validateDirectChild(handoff, "handoff");
+    await requireAbsent(workspace.root, handoff, "handoff");
+    await requireIgnored(workspace.root, handoff, "handoff");
+    await requireUntracked(workspace.root, handoff, "handoff");
+  }
+
+  const baseline: RetainedBaseline = {
+    kind: PRIVATE_BASELINE_KIND,
+    handoff: handoff ?? null,
+    fingerprint: await fingerprint(workspace),
+  };
+  const payload = `${JSON.stringify(baseline)}\n`;
+
+  for (let attempt = 0; attempt < 32; attempt += 1) {
+    const candidate = `.ephemeral/${BASELINE_PREFIX}${randomBytes(16).toString("hex")}.json`;
+    if (candidate === handoff) continue;
+    await requireIgnored(workspace.root, candidate, "retained baseline");
+    let created = false;
+    try {
+      const handle = await open(
+        path.join(workspace.root, candidate),
+        "wx",
+        0o600,
+      );
+      created = true;
+      try {
+        await handle.writeFile(payload, { encoding: "utf8" });
+      } finally {
+        await handle.close();
+      }
+      return candidate;
+    } catch (err) {
+      if (isNodeError(err, "EEXIST")) continue;
+      if (created) {
+        await unlink(path.join(workspace.root, candidate)).catch(
+          () => undefined,
+        );
+      }
+      throw err;
+    }
+  }
+  throw new Error("could not allocate a collision-safe retained baseline");
+}
+
+async function verify(
+  cwd: string,
+  baselinePath: string,
+  handoff: string | undefined,
+): Promise<void> {
+  const workspace = await requireWorkspace(cwd, {
+    requireIgnoredEphemeral: false,
+  });
+  validateBaselinePath(baselinePath);
+  if (handoff !== undefined) validateDirectChild(handoff, "handoff");
+  requireDistinctLeaves(baselinePath, handoff);
+
+  const baseline = await readBaseline(workspace.root, baselinePath);
+  requireSameHandoff(baseline, handoff);
+  await validateFreshHandoff(workspace.root, handoff);
+  const current = await fingerprint(workspace);
+  if (!fingerprintsEqual(baseline.fingerprint, current)) {
+    throw new Error("source changed since the retained baseline was captured");
+  }
+}
+
+async function cleanup(
+  cwd: string,
+  baselinePath: string,
+  handoff: string | undefined,
+): Promise<void> {
+  const root = await requireCleanupRoot(cwd);
+  validateBaselinePath(baselinePath);
+  if (handoff !== undefined) validateDirectChild(handoff, "handoff");
+  requireDistinctLeaves(baselinePath, handoff);
+
+  const baselineLeaf = await cleanupLeaf(root, baselinePath, "baseline");
+  const handoffLeaf =
+    handoff === undefined
+      ? undefined
+      : await cleanupLeaf(root, handoff, "handoff");
+  if (baselineLeaf === "regular") {
+    const baseline = await readBaseline(root, baselinePath);
+    requireSameHandoff(baseline, handoff);
+    if (baseline.fingerprint.worktree !== root) {
+      throw new Error("retained baseline belongs to a different worktree");
+    }
+  }
+
+  // All requested leaves and the retained declaration have been validated.
+  if (baselineLeaf !== "missing") {
+    await unlink(path.join(root, baselinePath));
+  }
+  if (handoff !== undefined && handoffLeaf !== "missing") {
+    await unlink(path.join(root, handoff));
+  }
+}
+
+async function requireCleanupRoot(inputCwd: string): Promise<string> {
+  const root = await realpath(inputCwd);
+  const ephemeralPath = path.join(root, ".ephemeral");
+  try {
+    const stat = await lstat(ephemeralPath);
+    if (stat.isSymbolicLink() || !stat.isDirectory()) {
+      throw new Error(".ephemeral must be a real nonsymlinked directory");
+    }
+    if ((await realpath(ephemeralPath)) !== ephemeralPath) {
+      throw new Error(".ephemeral must resolve inside the cleanup root");
+    }
+  } catch (err) {
+    if (!isNodeError(err, "ENOENT")) throw err;
+  }
+  return root;
+}
+
+function parseArgs(args: readonly string[]): ParsedArgs {
+  const [operation, ...rest] = args;
+  if (
+    operation !== "capture" &&
+    operation !== "verify" &&
+    operation !== "cleanup"
+  ) {
+    throw new Error(
+      "usage: source-immutability capture [--handoff <path>] | verify --baseline <path> [--handoff <path>] | cleanup --baseline <path> [--handoff <path>]",
+    );
+  }
+
+  let baseline: string | undefined;
+  let handoff: string | undefined;
+  for (let index = 0; index < rest.length; index += 2) {
+    const flag = rest[index];
+    const value = rest[index + 1];
+    if (value === undefined) throw new Error(`${flag} requires a value`);
+    if (flag === "--baseline") {
+      if (baseline !== undefined) {
+        throw new Error("--baseline may be supplied only once");
+      }
+      baseline = value;
+    } else if (flag === "--handoff") {
+      if (handoff !== undefined) {
+        throw new Error("--handoff may be supplied only once");
+      }
+      handoff = value;
+    } else {
+      throw new Error(`unknown source-immutability argument: ${flag}`);
+    }
+  }
+
+  if (operation === "capture" && baseline !== undefined) {
+    throw new Error("capture does not accept --baseline");
+  }
+  if (operation !== "capture" && baseline === undefined) {
+    throw new Error(`${operation} requires --baseline`);
+  }
+  return { operation, baseline, handoff };
+}
+
+function requiredBaseline(parsed: ParsedArgs): string {
+  if (parsed.baseline === undefined) {
+    throw new Error(`${parsed.operation} requires --baseline`);
+  }
+  return parsed.baseline;
+}
+
+interface Workspace {
+  root: string;
+  gitDir: string;
+}
+
+async function requireWorkspace(
+  inputCwd: string,
+  options: {
+    requireHead?: boolean;
+    requireIgnoredEphemeral?: boolean;
+  } = {},
+): Promise<Workspace> {
+  const cwd = await realpath(inputCwd);
+  const inside = (
+    await gitText(["rev-parse", "--is-inside-work-tree"], cwd)
+  ).trim();
+  const bare = (
+    await gitText(["rev-parse", "--is-bare-repository"], cwd)
+  ).trim();
+  if (inside !== "true" || bare !== "false") {
+    throw new Error("source-immutability requires a real Git worktree");
+  }
+
+  const topLevel = (
+    await gitText(["rev-parse", "--show-toplevel"], cwd)
+  ).trim();
+  const root = await realpath(topLevel);
+  if (cwd !== root) {
+    throw new Error("source-immutability must run from the repository root");
+  }
+  if (options.requireHead !== false) {
+    await gitText(["rev-parse", "--verify", "HEAD^{commit}"], root);
+  }
+
+  const gitDirOutput = (
+    await gitText(["rev-parse", "--absolute-git-dir"], root)
+  ).trim();
+  const gitDir = await realpath(gitDirOutput);
+  await requireEphemeralDirectory(
+    root,
+    options.requireIgnoredEphemeral !== false,
+  );
+  return { root, gitDir };
+}
+
+async function requireEphemeralDirectory(
+  root: string,
+  validateIgnored: boolean,
+): Promise<void> {
+  const ephemeralPath = path.join(root, ".ephemeral");
+  let stat: Stats;
+  try {
+    stat = await lstat(ephemeralPath);
+  } catch (err) {
+    if (isNodeError(err, "ENOENT")) {
+      throw new Error(".ephemeral must already exist as an ignored directory");
+    }
+    throw err;
+  }
+  if (stat.isSymbolicLink() || !stat.isDirectory()) {
+    throw new Error(".ephemeral must be a real nonsymlinked directory");
+  }
+  const physical = await realpath(ephemeralPath);
+  if (physical !== path.join(root, ".ephemeral")) {
+    throw new Error(".ephemeral must resolve inside the canonical worktree");
+  }
+  if (validateIgnored) {
+    await requireIgnored(
+      root,
+      ".ephemeral/.devcanon-ignore-probe",
+      ".ephemeral",
+    );
+  }
+}
+
+async function fingerprint(
+  workspace: Workspace,
+): Promise<WorkspaceFingerprint> {
+  const head = (
+    await gitText(["rev-parse", "--verify", "HEAD^{commit}"], workspace.root)
+  ).trim();
+  const symbolic = await gitResult(
+    ["symbolic-ref", "-q", "HEAD"],
+    workspace.root,
+    [0, 1],
+  );
+  const symbolicRef =
+    symbolic.exitCode === 0 ? symbolic.stdout.toString("utf8").trim() : null;
+  const rawIndex = await gitRaw(["ls-files", "--stage", "-z"], workspace.root);
+
+  const pathSets = await Promise.all([
+    gitRaw(["ls-tree", "-r", "--name-only", "-z", "HEAD"], workspace.root),
+    gitRaw(["ls-files", "-z"], workspace.root),
+    gitRaw(
+      ["ls-files", "--others", "--exclude-standard", "-z"],
+      workspace.root,
+    ),
+  ]);
+  const uniquePaths = new Map<string, Buffer>();
+  for (const output of pathSets) {
+    for (const entry of splitNul(output)) {
+      uniquePaths.set(entry.toString("hex"), entry);
+    }
+  }
+
+  const sortedPaths = [...uniquePaths.values()].sort(Buffer.compare);
+  const files: FileFingerprint[] = [];
+  for (const relativePath of sortedPaths) {
+    files.push(await fingerprintPath(workspace.root, relativePath));
+  }
+  return {
+    worktree: workspace.root,
+    gitDir: workspace.gitDir,
+    head,
+    symbolicRef,
+    indexSha256: sha256(rawIndex),
+    files,
+  };
+}
+
+async function fingerprintPath(
+  root: string,
+  relativePath: Buffer,
+): Promise<FileFingerprint> {
+  const absolutePath = Buffer.concat([
+    Buffer.from(root),
+    Buffer.from(path.sep),
+    relativePath,
+  ]);
+  const encodedPath = relativePath.toString("base64");
+  let stat: Stats;
+  try {
+    stat = await lstat(absolutePath);
+  } catch (err) {
+    if (isNodeError(err, "ENOENT")) {
+      return {
+        path: encodedPath,
+        kind: "missing",
+        mode: null,
+        contentSha256: null,
+      };
+    }
+    throw err;
+  }
+
+  const mode = stat.mode & 0o7777;
+  if (stat.isFile()) {
+    return {
+      path: encodedPath,
+      kind: "regular",
+      mode,
+      contentSha256: await sha256File(absolutePath),
+    };
+  }
+  if (stat.isSymbolicLink()) {
+    const target = await readlink(absolutePath, { encoding: "buffer" });
+    return {
+      path: encodedPath,
+      kind: "symlink",
+      mode,
+      contentSha256: sha256(target),
+    };
+  }
+  return {
+    path: encodedPath,
+    kind: fileKind(stat),
+    mode,
+    contentSha256: null,
+  };
+}
+
+function fileKind(stat: Awaited<ReturnType<typeof lstat>>): string {
+  if (stat.isDirectory()) return "directory";
+  if (stat.isBlockDevice()) return "block-device";
+  if (stat.isCharacterDevice()) return "character-device";
+  if (stat.isFIFO()) return "fifo";
+  if (stat.isSocket()) return "socket";
+  return "other";
+}
+
+async function readBaseline(
+  root: string,
+  relativePath: string,
+): Promise<RetainedBaseline> {
+  const absolutePath = path.join(root, relativePath);
+  const stat = await lstat(absolutePath).catch((err: unknown) => {
+    if (isNodeError(err, "ENOENT")) {
+      throw new Error(`retained baseline is missing: ${relativePath}`);
+    }
+    throw err;
+  });
+  if (stat.isSymbolicLink() || !stat.isFile()) {
+    throw new Error(
+      `retained baseline must be a nonsymlinked regular file: ${relativePath}`,
+    );
+  }
+  if (stat.size === 0) {
+    throw new Error(`retained baseline must be nonempty: ${relativePath}`);
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(await readFile(absolutePath, "utf8"));
+  } catch {
+    throw new Error(`retained baseline is invalid: ${relativePath}`);
+  }
+  if (!isRetainedBaseline(parsed)) {
+    throw new Error(`retained baseline is invalid: ${relativePath}`);
+  }
+  return parsed;
+}
+
+function isRetainedBaseline(value: unknown): value is RetainedBaseline {
+  if (value === null || typeof value !== "object") return false;
+  const candidate = value as Partial<RetainedBaseline>;
+  return (
+    candidate.kind === PRIVATE_BASELINE_KIND &&
+    (candidate.handoff === null || typeof candidate.handoff === "string") &&
+    candidate.fingerprint !== null &&
+    typeof candidate.fingerprint === "object"
+  );
+}
+
+function requireSameHandoff(
+  baseline: RetainedBaseline,
+  handoff: string | undefined,
+): void {
+  if (baseline.handoff !== (handoff ?? null)) {
+    throw new Error("handoff declaration does not match the retained baseline");
+  }
+}
+
+async function validateFreshHandoff(
+  root: string,
+  handoff: string | undefined,
+): Promise<void> {
+  if (handoff === undefined) return;
+  const absolutePath = path.join(root, handoff);
+  let stat: Stats;
+  try {
+    stat = await lstat(absolutePath);
+  } catch (err) {
+    if (isNodeError(err, "ENOENT")) {
+      throw new Error(`declared handoff is missing: ${handoff}`);
+    }
+    throw err;
+  }
+  if (stat.isSymbolicLink() || !stat.isFile()) {
+    throw new Error(
+      `declared handoff must be a nonsymlinked regular file: ${handoff}`,
+    );
+  }
+  if (stat.size === 0) {
+    throw new Error(`declared handoff must be nonempty: ${handoff}`);
+  }
+  try {
+    const handle = await open(absolutePath, "r");
+    await handle.close();
+  } catch {
+    throw new Error(`declared handoff must be readable: ${handoff}`);
+  }
+}
+
+type CleanupLeaf = "missing" | "regular" | "symlink";
+
+async function cleanupLeaf(
+  root: string,
+  relativePath: string,
+  label: string,
+): Promise<CleanupLeaf> {
+  try {
+    const stat = await lstat(path.join(root, relativePath));
+    if (stat.isSymbolicLink()) return "symlink";
+    if (stat.isFile()) return "regular";
+    throw new Error(
+      `${label} cleanup path has a disallowed file kind: ${relativePath}`,
+    );
+  } catch (err) {
+    if (isNodeError(err, "ENOENT")) return "missing";
+    throw err;
+  }
+}
+
+function validateBaselinePath(value: string): void {
+  validateDirectChild(value, "baseline");
+  if (!BASELINE_PATTERN.test(value)) {
+    throw new Error(
+      "baseline path is not a retained source-immutability baseline",
+    );
+  }
+}
+
+function requireDistinctLeaves(
+  baseline: string,
+  handoff: string | undefined,
+): void {
+  if (handoff === baseline) {
+    throw new Error("baseline and handoff must be distinct leaves");
+  }
+}
+
+function validateDirectChild(value: string, label: string): void {
+  try {
+    requireDirectEphemeralChild(value);
+  } catch {
+    throw new Error(`${label} must be a direct child of .ephemeral`);
+  }
+}
+
+async function requireAbsent(
+  root: string,
+  relativePath: string,
+  label: string,
+): Promise<void> {
+  try {
+    await lstat(path.join(root, relativePath));
+  } catch (err) {
+    if (isNodeError(err, "ENOENT")) return;
+    throw err;
+  }
+  throw new Error(`${label} must be absent at capture: ${relativePath}`);
+}
+
+async function requireIgnored(
+  root: string,
+  relativePath: string,
+  label: string,
+): Promise<void> {
+  const result = await gitResult(
+    ["check-ignore", "-q", "--", relativePath],
+    root,
+    [0, 1],
+  );
+  if (result.exitCode !== 0) {
+    throw new Error(`${label} must be ignored by Git: ${relativePath}`);
+  }
+}
+
+async function requireUntracked(
+  root: string,
+  relativePath: string,
+  label: string,
+): Promise<void> {
+  const result = await gitResult(
+    ["ls-files", "--error-unmatch", "--", relativePath],
+    root,
+    [0, 1],
+  );
+  if (result.exitCode === 0) {
+    throw new Error(`${label} must be untracked: ${relativePath}`);
+  }
+}
+
+function fingerprintsEqual(
+  baseline: WorkspaceFingerprint,
+  current: WorkspaceFingerprint,
+): boolean {
+  return JSON.stringify(baseline) === JSON.stringify(current);
+}
+
+async function gitText(args: readonly string[], cwd: string): Promise<string> {
+  return (await gitResult(args, cwd)).stdout.toString("utf8");
+}
+
+async function gitRaw(args: readonly string[], cwd: string): Promise<Buffer> {
+  return (await gitResult(args, cwd)).stdout;
+}
+
+async function gitResult(
+  args: readonly string[],
+  cwd: string,
+  allowedExitCodes: readonly number[] = [0],
+): Promise<{ exitCode: number; stdout: Buffer; stderr: Buffer }> {
+  try {
+    const { stdout, stderr } = await execFileAsync("git", [...args], {
+      cwd,
+      encoding: "buffer",
+      env: canonicalGitEnv(),
+      shell: false,
+      windowsHide: true,
+      maxBuffer: 64 * 1024 * 1024,
+    });
+    return { exitCode: 0, stdout, stderr };
+  } catch (err) {
+    const failure = err as NodeJS.ErrnoException & {
+      code?: number | string;
+      stdout?: Buffer;
+      stderr?: Buffer;
+    };
+    const code = typeof failure.code === "number" ? failure.code : 1;
+    const result = {
+      exitCode: code,
+      stdout: failure.stdout ?? Buffer.alloc(0),
+      stderr: failure.stderr ?? Buffer.from(failure.message),
+    };
+    if (allowedExitCodes.includes(code)) return result;
+    throw new Error(result.stderr.toString("utf8").trim() || failure.message);
+  }
+}
+
+function canonicalGitEnv(): NodeJS.ProcessEnv {
+  const env = Object.fromEntries(
+    Object.entries(process.env).filter(
+      ([name]) => !GIT_ENVIRONMENT_OVERRIDES.has(name),
+    ),
+  );
+  env.GIT_NO_REPLACE_OBJECTS = "1";
+  return env;
+}
+
+function splitNul(value: Buffer): Buffer[] {
+  const result: Buffer[] = [];
+  let start = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    if (value[index] === 0) {
+      if (index > start) result.push(value.subarray(start, index));
+      start = index + 1;
+    }
+  }
+  if (start < value.length) result.push(value.subarray(start));
+  return result;
+}
+
+function sha256(value: Buffer): string {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+async function sha256File(filePath: Buffer): Promise<string> {
+  const hash = createHash("sha256");
+  await new Promise<void>((resolve, reject) => {
+    const stream = createReadStream(filePath);
+    stream.on("data", (chunk) => hash.update(chunk));
+    stream.on("error", reject);
+    stream.on("end", resolve);
+  });
+  return hash.digest("hex");
+}
+
+function isNodeError(err: unknown, code: string): boolean {
+  return (
+    err !== null &&
+    typeof err === "object" &&
+    "code" in err &&
+    (err as NodeJS.ErrnoException).code === code
+  );
+}
+
+function singleLineMessage(err: unknown): string {
+  const message = err instanceof Error ? err.message : String(err);
+  return (
+    message.replace(/[\r\n]+/gu, " ").trim() || "source-immutability failed"
+  );
+}
+
+function plainOk(stdout: string): RuntimeCommandOutcome {
+  return { exitCode: 0, stdout, stderr: "" };
+}
+
+function plainFail(message: string): RuntimeCommandOutcome {
+  return { exitCode: 1, stdout: "", stderr: `${message}\n` };
+}
