@@ -559,7 +559,7 @@ describe("existing skills source prose contracts", () => {
     const contractExampleDiscipline = sliceBetween(
       planningCriteria,
       "### Contract Example Discipline",
-      "### Hard-requirement traceability",
+      "### Documentation-impact traceability",
     );
     const normalizedContractExampleDiscipline = normalizeWhitespace(
       contractExampleDiscipline,

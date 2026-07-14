@@ -1416,6 +1416,11 @@ describe("play subagent routing source contracts", () => {
       "### Optional `**Mode:**` field",
       "### Optional Review-Routing Hint Fields",
     );
+    const mechanicalTaskExample = sliceBetween(
+      optionalModeField,
+      "Example mechanical-task header:",
+      "Omit `**Mode:** mechanical`",
+    );
     const planReview = getMarkdownSection(
       planningCriteria,
       "Task contract criteria",
@@ -1446,12 +1451,27 @@ describe("play subagent routing source contracts", () => {
     expect(normalizedOptionalModeField).not.toContain(
       "SKILL.md` § Mechanical Task Taxonomy",
     );
-    expect(normalizedOptionalModeField).toContain(
-      "**Scope mapping:** CURRENT Scope Delta row for the approved exact rename",
-    );
-    expect(normalizedOptionalModeField).toContain(
-      "**Proof sufficiency:** Focused inspection of the named file proves the exact replacement",
-    );
+    for (const requiredField of [
+      "**Mode:** mechanical",
+      "**Risk hint:**",
+      "**Review hint:**",
+      "**Review rationale:**",
+      "**Files:**",
+      "**Purpose:**",
+      "**Goal:**",
+      "**Non-goals:**",
+      "**Scope mapping:**",
+      "**Source-of-truth references:**",
+      "**Authority surfaces:**",
+      "**Contract checklist:**",
+      "**Acceptance criteria:**",
+      "**Risks:**",
+      "**Dependencies:**",
+      "**Verification expectations:**",
+      "**Proof sufficiency:**",
+    ]) {
+      expect(mechanicalTaskExample).toContain(requiredField);
+    }
 
     expect(planReview).toContain(
       "Review-routing hints remain non-authoritative inputs",
