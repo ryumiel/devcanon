@@ -896,6 +896,89 @@ describe("phase artifact source contracts", () => {
     }
   });
 
+  it("consumes GUARD-001 independently for play-review D7-D10", async () => {
+    const workflow = await readSkillSource("play-review");
+    const spec = await readRepoFile("docs/specs/afds-workflow-routing.md");
+    const guardStart = spec.indexOf(
+      "### GUARD-001: Source-Immutable Result Gate",
+    );
+    const guardEnd = spec.indexOf(
+      "### GUARD-002: Guarded Child Failure Routing",
+    );
+    const guardOwner = spec.slice(guardStart, guardEnd);
+    const phase3 = getMarkdownSection(workflow, "Phase 3: Spawn agents");
+    const phase5 = getMarkdownSection(workflow, "Phase 5: Critic verification");
+    const normalizedOwner = normalizeWhitespace(guardOwner);
+    const normalizedPhase3 = normalizeWhitespace(phase3);
+    const normalizedPhase5 = normalizeWhitespace(phase5);
+
+    expect(guardStart).toBeGreaterThanOrEqual(0);
+    expect(guardEnd).toBeGreaterThan(guardStart);
+    for (const phase of [normalizedPhase3, normalizedPhase5]) {
+      for (const [ownerContract, workflowContract] of [
+        ["capture", "capture before spawn"],
+        [
+          "verify before semantic validation or consumption",
+          "verify before semantic validation or consumption",
+        ],
+        ["controller memory", "controller memory"],
+        [
+          "clean up the exact owned paths",
+          "cleanup the exact retained baseline",
+        ],
+        ["consume or apply the retained result", "only after cleanup"],
+      ]) {
+        expect(normalizedOwner).toContain(ownerContract);
+        expect(phase).toContain(workflowContract);
+      }
+      expect(phase).toContain("with no `--handoff`");
+      expect(phase).toContain("scripts/source-immutability.sh");
+      expect(phase).toContain(
+        "every post-capture terminal path attempts exact cleanup",
+      );
+      expect(phase).toContain(
+        "dispatch or spawn failure or unavailability before a child session exists",
+      );
+      expect(phase).toContain("guard-integrity terminal");
+      expect(phase).toContain(
+        "never reset, check out, stage, repair, or otherwise hide source",
+      );
+    }
+
+    expect(phase3).toContain("TOPICAL_BASELINE");
+    expect(phase5).toContain("CRITIC_BASELINE");
+    expect(phase3).not.toContain("CRITIC_BASELINE");
+    expect(phase5).not.toContain("TOPICAL_BASELINE");
+    expect(normalizedPhase3).toContain(
+      "Give each selected topical reviewer its own retained baseline",
+    );
+    expect(normalizedPhase3).toContain(
+      "failed, invalid, malformed, or verification-rejected topical response contributes no findings",
+    );
+    expect(normalizedPhase3).toContain(
+      "After safe cleanup, only that missing topical reviewer follows the existing partial-findings path",
+    );
+    expect(normalizedPhase3).toContain(
+      "aggregate only the independently retained topical findings after every selected route has cleaned up safely",
+    );
+    expect(normalizedPhase5).toContain(
+      "failed, invalid, malformed, or verification-rejected critic response contributes no verdicts",
+    );
+    expect(normalizedPhase5).toContain(
+      "After safe cleanup, preserve the existing fallback: report the retained topical findings without critic verdicts and mark them unverified",
+    );
+    expect(normalizedPhase5).toContain(
+      "The D10 child is a leaf and cannot recurse",
+    );
+
+    expect(phase3).toContain(
+      'TOPICAL_BASELINE="$(bash "$SOURCE_IMMUTABILITY_HELPER" capture)"',
+    );
+    expect(phase5).toContain(
+      'CRITIC_BASELINE="$(bash "$SOURCE_IMMUTABILITY_HELPER" capture)"',
+    );
+  });
+
   it("keeps root-owned issue research validation, report, persistence, and failure contracts in source", async () => {
     const issuePrimingWorkflow = await readSkillSource(
       "issue-priming-workflow",

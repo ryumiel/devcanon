@@ -2607,6 +2607,75 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedPhase5).toContain("verdicts");
   });
 
+  it("routes play-review D7-D10 through the exact semantic reviewer roles", async () => {
+    const skillSource = await readSkillSource("play-review");
+    const briefingTemplate = await readRepoFile(
+      "skills/play-review/references/agent-briefing-template.md",
+    );
+    const routingPolicy = await readRepoFile(
+      "skills/play-review/references/reviewer-routing-policy.md",
+    );
+    const redFlags = await readRepoFile(
+      "skills/play-review/references/red-flags.md",
+    );
+    const phase3 = getMarkdownSection(skillSource, "Phase 3: Spawn agents");
+    const phase5 = getMarkdownSection(
+      skillSource,
+      "Phase 5: Critic verification",
+    );
+    const normalizedPhase3 = normalizeWhitespace(phase3);
+    const normalizedPhase5 = normalizeWhitespace(phase5);
+    const normalizedBriefing = normalizeWhitespace(briefingTemplate);
+    const normalizedRouting = normalizeWhitespace(routingPolicy);
+
+    expect(normalizedPhase3).toContain(
+      "Each selected topical route is an independent response-only `reviewer`, frontier/high and source-immutable, with zero handoffs",
+    );
+    for (const route of [
+      "D7 `Code-quality`",
+      "D8 `Architecture`",
+      "D9 `Spec`",
+    ]) {
+      expect(normalizedPhase3).toContain(route);
+    }
+    expect(normalizedPhase3).toContain("configured `reviewer` role and effort");
+    expect(normalizedPhase5).toContain(
+      "D10 is one response-only `deep-reviewer`, frontier/xhigh and source-immutable, with zero handoffs",
+    );
+    expect(normalizedPhase5).toContain(
+      "must never spawn another critic or reviewer",
+    );
+    expect(normalizedPhase5).toContain("no recursive review dispatch");
+
+    expect(normalizedBriefing).toContain(
+      "The semantic route is `reviewer`, frontier/high, source-immutable, response-only, with zero handoffs",
+    );
+    expect(briefingTemplate).toContain("Review question: <review-question>");
+    expect(normalizedBriefing).toContain(
+      "Each selected topical prompt keeps its own role-specific review question",
+    );
+    expect(normalizedRouting).toContain(
+      "These trigger rules select D7-D9 without changing their prompts",
+    );
+    expect(normalizedRouting).toContain(
+      "Every selected topical route uses `reviewer`, frontier/high, source-immutable, response-only, and zero handoffs",
+    );
+    expect(normalizedRouting).toContain(
+      "D10 remains a separate `deep-reviewer`, frontier/xhigh critic route",
+    );
+
+    const currentReviewSources = `${skillSource}\n${briefingTemplate}\n${redFlags}`;
+    expect(currentReviewSources).not.toContain(
+      "agents/code-quality-reviewer.yaml",
+    );
+    expect(currentReviewSources).not.toContain(
+      "source `code-quality-reviewer`",
+    );
+    expect(normalizeWhitespace(redFlags)).toContain(
+      "You routed D7-D9 through anything other than `reviewer` frontier/high, or routed D10 through anything other than `deep-reviewer` frontier/xhigh",
+    );
+  });
+
   it("keeps wrapper language hints from implying dynamic or language-agent fanout", async () => {
     const branchReview = await readSkillSource("branch-review");
     const prReview = await readSkillSource("pr-review");
