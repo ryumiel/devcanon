@@ -231,11 +231,17 @@ requirements demand them.
 
 ## File Structure
 
-After the Scope Envelope and Scope Delta are valid, map the files that current
-tasks will create or modify and give each file one responsibility. Follow
-existing repository patterns. Do not introduce a new module, framework, helper
-family, or durable surface merely to make decomposition look cleaner; each
-addition must already have a CURRENT Scope Delta row.
+After the Scope Envelope and Scope Delta are valid, map the exact files that
+current tasks will create or modify when those paths are known, and give each
+file one responsibility. When individual affected paths are discoverable only
+during implementation, provide bounded authoritative discovery criteria inside
+already named in-scope consumers or boundaries. Name the mapping authority and
+an explicit inclusion criterion; do not use discovery to determine which
+consumers or boundary participants are in scope, and do not use vague discovery
+placeholders. Follow existing repository patterns. Do not introduce a new
+module, framework, helper family, or durable surface merely to make
+decomposition look cleaner; each addition must already have a CURRENT Scope
+Delta row.
 
 Files that change together should live together. Split by responsibility when
 separate authority, verification, rollback, or dependency boundaries require
@@ -302,9 +308,12 @@ before starting.
 
 **Files:**
 
-- Create: `exact/path/to/file`
-- Modify: `exact/path/to/existing`
-- Test: `tests/exact/path/to/test`
+- Create (exact path when known): `exact/path/to/file`
+- Modify (exact path when known): `exact/path/to/existing`
+- Discover affected paths (only when individual paths are not yet known):
+  `<already named in-scope consumer or boundary>; authority: <named source>;
+criterion: <explicit inclusion rule>`
+- Test (exact path when known): `tests/exact/path/to/test`
 
 **Purpose:** <why this task exists>
 
@@ -455,7 +464,12 @@ Every task spec must contain the actual contract an engineer needs. These are
 
 ## Remember
 
-- Exact file paths always
+- Exact affected file paths when known; otherwise bounded authoritative
+  discovery criteria for individual paths inside already named in-scope
+  consumers or boundaries
+- Discovery names the mapping authority and an explicit inclusion criterion;
+  it never determines the in-scope consumers or boundary participants and is
+  never a vague placeholder
 - Complete task contracts, not implementation sketches
 - Contract checklists for triggered work, or a task-specific reason the
   checklist does not apply

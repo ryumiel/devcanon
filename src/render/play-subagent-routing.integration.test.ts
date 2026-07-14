@@ -90,6 +90,22 @@ describe("play-subagent planning and routing render smoke coverage", () => {
       expect(normalizedPlayPlanning).toContain(
         "an omitted known mapping is `CURRENT`, while missing authority for that mapping is `BLOCKER`",
       );
+      expect(normalizedPlayPlanning).toContain(
+        "provide bounded authoritative discovery criteria inside already named in-scope consumers or boundaries",
+      );
+      expect(normalizedPlayPlanning).toContain(
+        "do not use discovery to determine which consumers or boundary participants are in scope",
+      );
+      expect(normalizedPlayPlanning).toContain(
+        "Discover affected paths (only when individual paths are not yet known)",
+      );
+      expect(normalizedPlayPlanning).toContain(
+        "authority: <named source>; criterion: <explicit inclusion rule>",
+      );
+      expect(normalizedPlayPlanning).toContain(
+        "Exact affected file paths when known; otherwise bounded authoritative discovery criteria for individual paths inside already named in-scope consumers or boundaries",
+      );
+      expect(normalizedPlayPlanning).not.toContain("Exact file paths always");
       expect(normalizedPlayPlanning).not.toContain(
         "read `references/planning-criteria.md` from the repository",
       );

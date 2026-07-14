@@ -502,6 +502,12 @@ describe("existing skills source prose contracts", () => {
     const normalizedPlanningAuthority = normalizeWhitespace(planningAuthority);
     const normalizedBoundaryTraceability =
       normalizeWhitespace(boundaryTraceability);
+    const fileStructure = getMarkdownSection(playPlanning, "File Structure");
+    const taskStructure = getMarkdownSection(playPlanning, "Task Structure");
+    const remember = getMarkdownSection(playPlanning, "Remember");
+    const normalizedFileStructure = normalizeWhitespace(fileStructure);
+    const normalizedTaskStructure = normalizeWhitespace(taskStructure);
+    const normalizedRemember = normalizeWhitespace(remember);
 
     expect(normalizedPlanningAuthority).toContain(
       "map every design contract decision to current task coverage, acceptance criteria, ownership, and proof obligations",
@@ -545,6 +551,31 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedBoundaryTraceability).toContain(
       "Proof must be executable without prescribing implementation",
     );
+    expect(normalizedFileStructure).toContain(
+      "map the exact files that current tasks will create or modify when those paths are known",
+    );
+    expect(normalizedFileStructure).toContain(
+      "provide bounded authoritative discovery criteria inside already named in-scope consumers or boundaries",
+    );
+    expect(normalizedFileStructure).toContain(
+      "do not use discovery to determine which consumers or boundary participants are in scope",
+    );
+    expect(normalizedFileStructure).toContain(
+      "do not use vague discovery placeholders",
+    );
+    expect(normalizedTaskStructure).toContain(
+      "Discover affected paths (only when individual paths are not yet known)",
+    );
+    expect(normalizedTaskStructure).toContain(
+      "authority: <named source>; criterion: <explicit inclusion rule>",
+    );
+    expect(normalizedRemember).toContain(
+      "Exact affected file paths when known; otherwise bounded authoritative discovery criteria for individual paths inside already named in-scope consumers or boundaries",
+    );
+    expect(normalizedRemember).toContain(
+      "it never determines the in-scope consumers or boundary participants and is never a vague placeholder",
+    );
+    expect(remember).not.toContain("Exact file paths always");
     expect(playPlanning).toContain("references/planning-criteria.md");
   });
 
