@@ -23,28 +23,18 @@ monitor or a security sandbox.
 
 ### Semantic roles
 
-DevCanon has exactly six shared semantic agent roles. Role names describe the
-reusable work identity and contain neither provider model names nor effort
-levels.
+DevCanon adopts the compact post-migration semantic role catalog defined by the
+[agent spec](../specs/agents.md#semantic-role-catalog). That spec is the sole
+normative owner of the exact role identities and envelope, including capability
+and target-native effort tuples, tools, sandbox, network behavior, source and
+external defaults, and handoff fields. This ADR does not repeat those values;
+examples and runtime checks consume the spec-owned catalog.
 
-| Agent           | Capability | Claude effort | Codex effort | Source default     | Primary use                                           |
-| --------------- | ---------- | ------------- | ------------ | ------------------ | ----------------------------------------------------- |
-| `assessor`      | balanced   | medium        | medium       | `source-immutable` | Bounded classification or evaluation                  |
-| `investigator`  | balanced   | high          | high         | `source-immutable` | Repository, document, or external evidence collection |
-| `executor`      | efficient  | medium        | medium       | `source-mutable`   | Exact validated no-policy operations                  |
-| `implementer`   | balanced   | high          | high         | `source-mutable`   | Judgment-bearing scoped implementation                |
-| `reviewer`      | frontier   | high          | high         | `source-immutable` | Ordinary synthesis and adversarial review             |
-| `deep-reviewer` | frontier   | xhigh         | xhigh        | `source-immutable` | Existing high-assurance review gates                  |
-
-Capability resolves through the configured capability profile. Claude and
-Codex effort remain explicit, target-native, and independent. Capability,
-effort, tools, sandbox, network access, mutation authority, and escalation are
-separate choices.
-
-All six roles may run permitted commands and may write one dispatch-named
-direct-child `.ephemeral` handoff. Source-immutable roles use write-capable
-target envelopes only for that limited handoff need. Tool or sandbox
-availability never grants durable source or external mutation.
+The architectural decision is that shared roles describe stable reusable work
+identity rather than provider models, effort levels, or workflow phases.
+Capability, target-native effort, tools, sandbox, network access, mutation
+authority, and escalation remain separate choices. Tool or sandbox availability
+never grants durable source or external mutation.
 
 Skills remain the reusable method owner. They assemble task-local prompts,
 inputs, output contracts, retry and fallback behavior, skip criteria, and
@@ -88,7 +78,7 @@ effort selection.
 Adversarial stance is independent of cognitive demand. `deep-reviewer` is
 reserved for the existing critic, per-task high-assurance reviews, and final
 whole-implementation review. This decision establishes no capability or effort
-escalation rule; escalation remains owned by its separate policy work.
+escalation rule; issue #528 remains the separate escalation-policy owner.
 
 ### Minimum source-immutable guard
 
@@ -151,7 +141,13 @@ provider-internal behavior are outside its coverage.
 ### Bounded runtime acceptance
 
 After local tests and both-target render parsing pass, the selected capability
-and effort pairs receive exactly one native no-tool attempt on each target:
+and effort pairs receive exactly one native no-tool attempt on each target.
+
+This smoke matrix defines acceptance attempts, not role-to-pair assignments.
+Each named-role case resolves its exact tuple and envelope from the
+[agent spec](../specs/agents.md#semantic-role-catalog).
+
+The required attempts are:
 
 | Capability / effort | Claude                      | Codex           |
 | ------------------- | --------------------------- | --------------- |
@@ -245,5 +241,5 @@ decision's implementation:
 - [ADR-0024: Shared Support Skill Runtime](adr-0024-shared-support-skill-runtime.md)
 - [ADR-0025: Select Named GPT-5.6 Codex Tiers](adr-0025-codex-model-tier-selection.md)
 - [ADR-0026: Replace Model Tiers with Capability Profiles](adr-0026-capability-profiles.md)
-- [Agent source schema](../specs/agents.md)
+- [Agent source schema and semantic role catalog](../specs/agents.md#semantic-role-catalog)
 - [AFDS workflow routing and evidence behavior](../specs/afds-workflow-routing.md)
