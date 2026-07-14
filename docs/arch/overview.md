@@ -84,11 +84,18 @@ owns the manual operator cutover and rollback procedure.
 
 ### Semantic Agent Routing Boundary
 
-DevCanon exposes six thin semantic source roles: `assessor`, `investigator`,
-`executor`, `implementer`, `reviewer`, and `deep-reviewer`. Agent definitions
-own stable identity plus target-native capability, effort, tools, and sandbox
-constraints. Skills own task-local prompts, phase logic, schemas, fallbacks,
-retries, and termination.
+ADR-0027 defines this section as the post-migration architecture. The
+pre-migration implementation has four legacy source roles and no converged
+six-role render inventory. While ADR-0027 remains Proposed, source files and
+fresh render output remain the implementation-state evidence; this section does
+not assert that migration has landed. Acceptance requires source, tests, and
+both target outputs to converge on the target below.
+
+The post-migration architecture exposes six thin semantic source roles:
+`assessor`, `investigator`, `executor`, `implementer`, `reviewer`, and
+`deep-reviewer`. Agent definitions own stable identity plus target-native
+capability, effort, tools, and sandbox constraints. Skills own task-local
+prompts, phase logic, schemas, fallbacks, retries, and termination.
 
 Direct dispatch resolves cognitive demand and stance before selecting a
 semantic role and exact capability/effort pair. Capability, effort, source
@@ -106,12 +113,14 @@ named external mutation separately.
 
 ### Source-Immutability Runtime Boundary
 
-The packaged `devcanon-runtime` owns the deterministic capture, verify, and
-cleanup mechanics for the minimum source-immutable guard. The existing runtime
-entrypoint and compatibility contract remain the only runtime-version boundary.
-Thin adapters under `issue-priming-workflow`, `play-agent-dispatch`,
+The pre-migration runtime has no source-immutability command group or seven
+workflow shims. Under the ADR-0027 post-migration architecture, packaged
+`devcanon-runtime` owns the deterministic capture, verify, and cleanup mechanics
+for the minimum source-immutable guard. The existing runtime entrypoint and
+compatibility contract remain the only runtime-version boundary. Acceptance
+requires thin adapters under `issue-priming-workflow`, `play-agent-dispatch`,
 `play-planning`, `play-review`, `play-skill-authoring`,
-`play-subagent-execution`, and `pr-merge` only locate the runtime and forward
+`play-subagent-execution`, and `pr-merge` to locate the runtime and forward only
 arguments, stdout, stderr, and exit status.
 
 The guard fingerprints canonical worktree identity, `HEAD`, symbolic ref, raw

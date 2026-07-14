@@ -128,6 +128,13 @@ must not use ambient model or effort, infer a route from the owning skill's
 highest mutation authority, collapse distinct review sessions because they
 share a semantic agent, or dispatch when the route is unresolved.
 
+For D4, pre-spawn resolution must select exactly one of the six semantic roles,
+use that role's exact configured capability and effort plus its matching
+`source-immutable` or `source-mutable` default, and declare the child scope and
+termination. The dispatch receives external authority `none`; no external
+authority is inferred. Under the B3 routing boundary, a source-immutable D4
+selection is response-only. Any unresolved field blocks spawn.
+
 Task-specific prompts, schemas, network authorization, failure fallbacks, skip
 criteria, retry loops, and termination remain owned by the source skill. A
 shared role provides stable work identity and target-native constraints, not
@@ -387,9 +394,10 @@ effort, or treat review unavailability as a passing verdict.
 D17 first routes diagnosis to `investigator` at balanced/high under
 source-immutable authority. The owner guards and consumes that diagnosis before
 classifying any fix. An exact no-policy fix may then route to `executor` at
-efficient/medium; a judgment-bearing fix routes to `implementer` at
-balanced/high. Mutable children may commit only the scoped fix. The root alone
-owns push and merge.
+efficient/medium with `source-mutable` authority; a judgment-bearing fix routes
+to `implementer` at balanced/high with `source-mutable` authority. Those
+children may commit only the scoped fix. The root alone separately owns
+`external-mutable` push and merge authority.
 
 If diagnosis fails or is rejected, retry count remains unchanged, no fix,
 push, or merge occurs, and the workflow reports the failed check plus a manual

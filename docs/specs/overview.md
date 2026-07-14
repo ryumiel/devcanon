@@ -71,7 +71,14 @@ These boundaries apply across DevCanon behavior specs:
 
 ## Source Layout Context
 
-Behavior specs use this layout as shared context for source and generated paths:
+The pre-migration source layout has four legacy agent definitions. The agent
+portion of the diagram below is the ADR-0027 post-migration target, not a claim
+that those six files already exist while the ADR is Proposed. Acceptance
+requires `agents/` and both generated targets to converge on the diagram;
+current implementation state is determined from source and a fresh render.
+
+Behavior specs use this target layout as shared context for source and
+generated paths:
 
 ```text
 devcanon/
@@ -107,6 +114,9 @@ Notes:
   tracked.
 
 ## Installed Target Layout Context
+
+The agent filenames below are likewise the post-migration target. Installed
+managed outputs do not prove source convergence and remain derived.
 
 ### Claude Target
 

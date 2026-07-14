@@ -39,7 +39,9 @@ those constraints, prefer the skill alone.
 DevCanon's shared catalog has exactly six semantic roles: `assessor`,
 `investigator`, `executor`, `implementer`, `reviewer`, and `deep-reviewer`.
 Their exact capability, effort, tool, sandbox, and mutation defaults live in
-the [Agent Routing and Mutation Policy](agent-routing-and-mutation-policy.md).
+the [agent spec](../specs/agents.md#semantic-role-catalog). The
+[Agent Routing and Mutation Policy](agent-routing-and-mutation-policy.md) owns
+the evolving skill and direct-child matrices, not the role envelope.
 
 Use the existing role when its semantic identity fits, and keep the dispatch's
 task prompt, inputs, output contract, retry behavior, and termination in the
@@ -124,45 +126,25 @@ sibling agents.
 description: <Role — what the agent does>. Use when <delegation triggers>. Do not use when <contrastive cue>.
 ```
 
-The shipped examples in § 6 model this. For the full rule, red flags, and
-mechanical constraints, see
+The spec-owned example linked in § 6 models this. For the full rule, red flags,
+and mechanical constraints, see
 [`../specs/skills.md`](../specs/skills.md) § Description style. The agent spec
 mirrors the same rule:
 [`../specs/agents.md`](../specs/agents.md) § Description style.
 
-## 6. Example Agent Definition
+## 6. Canonical Agent Example
 
-This example stays inside the documented schema surface from
-`docs/specs/agents.md`. The instructions are intentionally short; reusable
-methods stay in skills. It is the canonical source-immutable role shape:
-balanced capability, medium effort on both targets, command and named-handoff
-tools, no durable-source authority, and no external authority.
+The [agent spec's target example](../specs/agents.md#adr-0027-target-example)
+is the single owner of the canonical `assessor` source definition and its exact
+observable target fields. Use that example when checking capability, effort,
+tools, sandbox, source-immutable instructions, and external default. Do not copy
+the YAML into this guide; keeping one exact example prevents the authoring
+procedure from becoming a competing role-envelope owner.
 
-```yaml
-name: assessor
-description: Bounded assessment role for classification or evaluation against a closed acceptance condition. Use when a workflow needs a focused source-immutable decision. Do not use for open-ended investigation, implementation, or synthesis review.
-instructions: |
-  Evaluate only the dispatch-defined scope and acceptance condition.
-  You may inspect files, run permitted commands, and write only one
-  dispatch-named direct-child .ephemeral handoff when requested.
-  Do not modify durable source, tests, configuration, or documentation.
-  Do not mutate external systems.
-capability: balanced
-claude:
-  effort: medium
-  tools:
-    - Read
-    - Grep
-    - Bash
-    - Write
-codex:
-  model_reasoning_effort: medium
-  sandbox_mode: workspace-write
-```
-
-The owning workflow must guard source-immutable dispatches before consuming the
-result. `workspace-write` is required for the optional handoff and is not a
-durable-source grant.
+Reusable methods still stay in skills. The owning workflow must guard a
+source-immutable dispatch before consuming the result; the spec-owned
+write-capable envelope permits the optional named handoff and does not grant
+durable-source authority.
 
 ## 7. Authoring Workflow in This Repo
 

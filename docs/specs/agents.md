@@ -27,7 +27,11 @@ template instead.
 
 ---
 
-## Example
+## ADR-0027 target example
+
+This is the canonical ADR-0027 post-migration `assessor` source example. While
+ADR-0027 is Proposed, it is an acceptance target rather than evidence that the
+current source file already exists.
 
 ```yaml
 name: assessor
@@ -56,20 +60,24 @@ codex:
 
 ---
 
-## Shipped semantic role catalog
+## Semantic role catalog
 
-The shipped source library contains exactly six semantic roles. Agent names
-describe reusable work identity, not provider models, effort levels, or
-workflow phases.
+ADR-0027 defines this section as the post-migration target. The migration begins
+from four legacy source roles and no accepted six-role render inventory. While
+the ADR remains Proposed, `agents/` and fresh render output remain the authority
+for implementation state; this table does not claim source convergence.
+Acceptance requires the source library and both generated targets to converge
+on exactly these six semantic roles. Agent names describe reusable work
+identity, not provider models, effort levels, or workflow phases.
 
-| Agent           | Capability | Claude effort | Codex effort | Source default     | Primary use                                           |
-| --------------- | ---------- | ------------- | ------------ | ------------------ | ----------------------------------------------------- |
-| `assessor`      | balanced   | medium        | medium       | `source-immutable` | Bounded classification or evaluation                  |
-| `investigator`  | balanced   | high          | high         | `source-immutable` | Repository, document, or external evidence collection |
-| `executor`      | efficient  | medium        | medium       | `source-mutable`   | Exact validated no-policy operations                  |
-| `implementer`   | balanced   | high          | high         | `source-mutable`   | Judgment-bearing scoped implementation                |
-| `reviewer`      | frontier   | high          | high         | `source-immutable` | Ordinary synthesis and adversarial review             |
-| `deep-reviewer` | frontier   | xhigh         | xhigh        | `source-immutable` | Existing high-assurance review gates                  |
+| Agent           | Capability | Claude effort | Codex effort | Source default     | External default | Primary use                                           |
+| --------------- | ---------- | ------------- | ------------ | ------------------ | ---------------- | ----------------------------------------------------- |
+| `assessor`      | balanced   | medium        | medium       | `source-immutable` | `none`           | Bounded classification or evaluation                  |
+| `investigator`  | balanced   | high          | high         | `source-immutable` | `none`           | Repository, document, or external evidence collection |
+| `executor`      | efficient  | medium        | medium       | `source-mutable`   | `none`           | Exact validated no-policy operations                  |
+| `implementer`   | balanced   | high          | high         | `source-mutable`   | `none`           | Judgment-bearing scoped implementation                |
+| `reviewer`      | frontier   | high          | high         | `source-immutable` | `none`           | Ordinary synthesis and adversarial review             |
+| `deep-reviewer` | frontier   | xhigh         | xhigh        | `source-immutable` | `none`           | Existing high-assurance review gates                  |
 
 Capability and target-native effort are both explicit for all six roles and
 remain independent. Neither setting implies tools, sandbox, network, mutation,
@@ -108,11 +116,12 @@ diagnostic artifact are outside the role contract.
 
 ### Render and runtime acceptance
 
-Each source role renders to both targets with the same semantic identity,
-capability-selected model, explicit target effort, and target-native tool or
-sandbox envelope above. Exactly six source roles must produce exactly six
-Claude agent files and six Codex agent files. Generated previews remain
-disposable and do not become authority.
+Under the post-migration contract, each source role renders to both targets with
+the same semantic identity, capability-selected model, explicit target effort,
+and target-native tool or sandbox envelope above. Acceptance requires exactly
+six source roles to produce exactly six Claude agent files and six Codex agent
+files. Generated previews remain disposable and do not become authority; a
+fresh render is convergence evidence, not source authority.
 
 The canonical `assessor` example above must render balanced/medium on both
 targets, retain its command and named-handoff envelope, prohibit durable and
@@ -124,9 +133,7 @@ bounded to one no-tool attempt for each selected capability/effort pair on each
 target plus one guarded Codex named-role handoff for each of the six roles. The
 exact pair matrix, output tokens, blocker rules, and human-only deployment gate
 are owned by
-[ADR-0027](../adr/adr-0027-semantic-agent-routing-and-mutation-authority.md)
-and the
-[Agent Routing and Mutation Policy](../guidelines/agent-routing-and-mutation-policy.md).
+[ADR-0027](../adr/adr-0027-semantic-agent-routing-and-mutation-authority.md).
 Local validation does not prove client, account, model, effort, or named-agent
 availability and must never substitute an alias or fallback.
 
