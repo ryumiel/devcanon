@@ -1543,6 +1543,69 @@ describe("existing skills source prose contracts", () => {
     );
     expect(normalizedCriteria).toContain("Apply minimum-sufficient proof");
   });
+
+  it("keeps the two planning review gates distinct and source-immutable", async () => {
+    const playPlanning = await readSkillSource("play-planning");
+    const planReview = getMarkdownSection(playPlanning, "Plan Review");
+    const executabilityReview = getMarkdownSection(
+      playPlanning,
+      "Implementer Executability Review",
+    );
+    const normalizedPlanReview = normalizeWhitespace(planReview);
+    const normalizedExecutabilityReview =
+      normalizeWhitespace(executabilityReview);
+
+    for (const reviewSection of [
+      normalizedPlanReview,
+      normalizedExecutabilityReview,
+    ]) {
+      expect(reviewSection).toContain(
+        "response-only `reviewer`, frontier/high and source-immutable, with zero handoffs",
+      );
+      expect(reviewSection).toContain("scripts/source-immutability.sh");
+      expect(reviewSection).toContain("capture before spawn");
+      expect(reviewSection).toContain(
+        "verify before semantic validation or consumption",
+      );
+      expect(reviewSection).toContain(
+        "validate and retain the PASS/FAIL response in controller memory",
+      );
+      expect(reviewSection).toContain("cleanup the exact retained baseline");
+      expect(reviewSection).toContain(
+        "apply the retained PASS/FAIL result only after cleanup",
+      );
+      expect(reviewSection).toContain(
+        "unavailable, failed, malformed, or verification-rejected review cannot pass",
+      );
+      expect(reviewSection).toContain(
+        "Detected source mutation or cleanup failure is guard-integrity terminal",
+      );
+      expect(reviewSection).not.toContain("`deep-reviewer`");
+      expect(reviewSection).not.toContain("escalat");
+    }
+
+    expect(normalizedPlanReview).toContain("D5");
+    expect(normalizedPlanReview).toContain("PLAN_REVIEW_BASELINE");
+    expect(normalizedPlanReview).toContain("Maximum 2 Plan Review rounds");
+    expect(normalizedExecutabilityReview).toContain("D6");
+    expect(normalizedExecutabilityReview).toContain(
+      "EXECUTABILITY_REVIEW_BASELINE",
+    );
+    expect(normalizedExecutabilityReview).toContain(
+      "restart Plan Review before rerunning Executability Review",
+    );
+    expect(normalizedExecutabilityReview).toContain(
+      "Maximum 2 Executability Review rounds",
+    );
+    expect(normalizedPlanReview).toContain("D5 FAIL never advances to D6");
+    expect(normalizedExecutabilityReview).toContain(
+      "D5 PASS followed by D6 FAIL never reaches execution handoff",
+    );
+    expect(normalizedExecutabilityReview).toContain(
+      "Only a retained D5 PASS followed by a separate retained D6 PASS",
+    );
+  });
+
   it("keeps play-skill-authoring pressure verification required for skill edits", async () => {
     const playSkillAuthoring = await readSkillSource("play-skill-authoring");
     const overview = getMarkdownSection(playSkillAuthoring, "Overview");

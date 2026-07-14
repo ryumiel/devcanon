@@ -807,6 +807,61 @@ describe("phase artifact source contracts", () => {
     }
   });
 
+  it("consumes GUARD-001 independently for planning gates D5 and D6", async () => {
+    const workflow = await readSkillSource("play-planning");
+    const spec = await readRepoFile("docs/specs/afds-workflow-routing.md");
+    const guardStart = spec.indexOf(
+      "### GUARD-001: Source-Immutable Result Gate",
+    );
+    const guardEnd = spec.indexOf(
+      "### GUARD-002: Guarded Child Failure Routing",
+    );
+    const guardOwner = spec.slice(guardStart, guardEnd);
+    const planReview = getMarkdownSection(workflow, "Plan Review");
+    const executabilityReview = getMarkdownSection(
+      workflow,
+      "Implementer Executability Review",
+    );
+    const normalizedOwner = normalizeWhitespace(guardOwner);
+
+    expect(guardStart).toBeGreaterThanOrEqual(0);
+    expect(guardEnd).toBeGreaterThan(guardStart);
+    for (const reviewSection of [planReview, executabilityReview]) {
+      const normalizedReview = normalizeWhitespace(reviewSection);
+      for (const [ownerContract, workflowContract] of [
+        ["capture", "capture before spawn"],
+        [
+          "verify before semantic validation or consumption",
+          "verify before semantic validation or consumption",
+        ],
+        ["controller memory", "controller memory"],
+        [
+          "clean up the exact owned paths",
+          "cleanup the exact retained baseline",
+        ],
+        [
+          "consume or apply the retained result",
+          "apply the retained PASS/FAIL result only after cleanup",
+        ],
+      ]) {
+        expect(normalizedOwner).toContain(ownerContract);
+        expect(normalizedReview).toContain(workflowContract);
+      }
+      expect(normalizedReview).toContain("with no `--handoff`");
+      expect(normalizedReview).toContain(
+        "Every spawned terminal branch attempts exact cleanup",
+      );
+      expect(normalizedReview).toContain(
+        "never reset, check out, stage, repair, or otherwise hide source",
+      );
+    }
+
+    expect(planReview).toContain("PLAN_REVIEW_BASELINE");
+    expect(executabilityReview).toContain("EXECUTABILITY_REVIEW_BASELINE");
+    expect(planReview).not.toContain("EXECUTABILITY_REVIEW_BASELINE");
+    expect(executabilityReview).not.toContain("PLAN_REVIEW_BASELINE");
+  });
+
   it("keeps root-owned issue research validation, report, persistence, and failure contracts in source", async () => {
     const issuePrimingWorkflow = await readSkillSource(
       "issue-priming-workflow",

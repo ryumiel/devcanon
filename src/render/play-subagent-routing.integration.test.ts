@@ -129,6 +129,48 @@ describe("play-subagent planning and routing render smoke coverage", () => {
       expect(playPlanning).toContain("## Execution Handoff");
       expect(playPlanning).toContain("play-subagent-execution");
 
+      const planReviewStart = playPlanning.indexOf("## Plan Review");
+      const executabilityReviewStart = playPlanning.indexOf(
+        "## Implementer Executability Review",
+      );
+      const executionHandoffStart = playPlanning.indexOf(
+        "## Execution Handoff",
+      );
+      expect(planReviewStart).toBeGreaterThanOrEqual(0);
+      expect(executabilityReviewStart).toBeGreaterThan(planReviewStart);
+      expect(executionHandoffStart).toBeGreaterThan(executabilityReviewStart);
+      const planReview = normalizeWhitespace(
+        playPlanning.slice(planReviewStart, executabilityReviewStart),
+      );
+      const executabilityReview = normalizeWhitespace(
+        playPlanning.slice(executabilityReviewStart, executionHandoffStart),
+      );
+      for (const reviewSection of [planReview, executabilityReview]) {
+        expect(reviewSection).toContain(
+          "response-only `reviewer`, frontier/high and source-immutable, with zero handoffs",
+        );
+        expect(reviewSection).toContain("scripts/source-immutability.sh");
+        expect(reviewSection).toContain("capture before spawn");
+        expect(reviewSection).toContain(
+          "verify before semantic validation or consumption",
+        );
+        expect(reviewSection).toContain(
+          "apply the retained PASS/FAIL result only after cleanup",
+        );
+        expect(reviewSection).toContain(
+          "unavailable, failed, malformed, or verification-rejected review cannot pass",
+        );
+        expect(reviewSection).toContain("guard-integrity terminal");
+        expect(reviewSection).not.toContain("`deep-reviewer`");
+      }
+      expect(planReview).toContain("D5 FAIL never advances to D6");
+      expect(executabilityReview).toContain(
+        "D5 PASS followed by D6 FAIL never reaches execution handoff",
+      );
+      expect(executabilityReview).toContain(
+        "Only a retained D5 PASS followed by a separate retained D6 PASS",
+      );
+
       const playSubagentExecution = bodies[`play-subagent-execution:${target}`];
       const normalizedPlaySubagentExecution = normalizeWhitespace(
         playSubagentExecution,
