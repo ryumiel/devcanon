@@ -1,18 +1,28 @@
 # Gate Agent Prompt Template
 
-Use this template when dispatching the complexity gate agent in Phase 2.
+Use this template when dispatching the response-only complexity assessor in
+Phase 2. The source workflow owns the source-immutability guard around this
+prompt; the assessor returns only the gate response and receives zero handoffs.
 
-**Promotion classification:** Workflow-local prompt template, single call site at `skills/issue-priming-workflow/SKILL.md` (Phase 2 dispatch). Promotion to a source agent is gated by [`docs/guidelines/agent-authoring-guide.md`](../../../docs/guidelines/agent-authoring-guide.md) §4 (cross-skill reuse OR standalone-role boundary; two-call-sites operational threshold) — single-skill scaffolding is below the threshold.
+**Promotion classification:** Workflow-local prompt template paired with the
+semantic source role at
+[`agents/assessor.yaml`](../../../agents/assessor.yaml). The source role owns
+the balanced/medium target pair and source-immutable constraint; this template
+owns only issue-priming gate method and response shape.
 
 ```
 Agent(
   description: "Assess issue complexity for research gate",
-  subagent_type: "Explore",
-  model: "{{model:balanced}}",
+  subagent_type: "assessor",
   prompt: |
     You are assessing whether an issue requires multi-agent research
     before design work begins. Read the issue-body file and scan the
     repository for existing architectural decisions.
+
+    This dispatch is source-immutable and response-only. Do not modify durable
+    source, tests, configuration, or documentation. Do not write a handoff or
+    any other file, access the network, delegate, or mutate an external system.
+    Return only the required one-line gate response to the owning root.
 
     ## Issue
 

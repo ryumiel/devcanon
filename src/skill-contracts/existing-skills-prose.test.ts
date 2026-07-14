@@ -4511,9 +4511,9 @@ describe("existing skills source prose contracts", () => {
     );
     expectSharedLifecycleReference(issueLifecycleSection);
     expect(issueLifecycleSection).toContain(
-      "Before dispatching the Phase 2 gate agent",
+      "Before dispatching the Phase 2 assessor",
     );
-    expect(issueLifecycleSection).toContain("either Phase 3 research leaf");
+    expect(issueLifecycleSection).toContain("either Phase 3 investigator leaf");
     expect(normalizeWhitespace(issueLifecycleSection)).toContain("gate result");
     expect(normalizeWhitespace(issueLifecycleSection)).toContain(
       "assigned scope, report result, source references, and blocker state for each research leaf",
@@ -4638,8 +4638,8 @@ describe("existing skills source prose contracts", () => {
     const writeProductSpecRouting = await readRepoFile(
       "skills/write-product-spec/references/behavior-spec-evidence-routing.md",
     );
-    const researchPrompt = await readRepoFile(
-      "skills/issue-priming-workflow/references/research-agent-prompt.md",
+    const investigatorPrompt = await readRepoFile(
+      "skills/issue-priming-workflow/references/investigator-prompt.md",
     );
 
     expect(implementerPrompt).toContain(
@@ -4719,17 +4719,18 @@ describe("existing skills source prose contracts", () => {
     expect(writeProductSpecRouting).not.toContain("EVID-001");
     expect(writeProductSpecRouting).not.toContain("source of origin");
 
-    const normalizedResearchPrompt = normalizeWhitespace(researchPrompt);
-    expect(researchPrompt).not.toContain("subagent-lifecycle");
+    const normalizedInvestigatorPrompt =
+      normalizeWhitespace(investigatorPrompt);
+    expect(investigatorPrompt).not.toContain("subagent-lifecycle");
     for (const phrase of [
       "depth-0 `issue-priming-workflow` root",
-      "internal or external depth-1 `research-agent`",
+      "internal or external depth-1 `investigator`",
       "A research child performs one assigned scope and never dispatches another agent",
       "Do not spawn or delegate to another agent",
       "Return only the assigned report body to the dispatching root",
       "The root validates this report, joins all started siblings, synthesizes the final brief",
     ]) {
-      expect(normalizedResearchPrompt).toContain(phrase);
+      expect(normalizedInvestigatorPrompt).toContain(phrase);
     }
   });
 
@@ -4737,13 +4738,13 @@ describe("existing skills source prose contracts", () => {
     const issuePrimingWorkflow = await readSkillSource(
       "issue-priming-workflow",
     );
-    const researchPrompt = await readRepoFile(
-      "skills/issue-priming-workflow/references/research-agent-prompt.md",
+    const investigatorPrompt = await readRepoFile(
+      "skills/issue-priming-workflow/references/investigator-prompt.md",
     );
     const helperContracts = await readRepoFile(
       "skills/issue-priming-workflow/references/helper-invocation-contracts.md",
     );
-    const researchAgent = await readRepoFile("agents/research-agent.yaml");
+    const investigator = await readRepoFile("agents/investigator.yaml");
     const adr0013 = await readRepoFile(
       "docs/adr/adr-0013-path-based-phase-artifact-handoff.md",
     );
@@ -4755,9 +4756,9 @@ describe("existing skills source prose contracts", () => {
     );
 
     const normalizedWorkflow = normalizeWhitespace(issuePrimingWorkflow);
-    const normalizedPrompt = normalizeWhitespace(researchPrompt);
+    const normalizedPrompt = normalizeWhitespace(investigatorPrompt);
     const normalizedHelper = normalizeWhitespace(helperContracts);
-    const normalizedAgent = normalizeWhitespace(researchAgent);
+    const normalizedAgent = normalizeWhitespace(investigator);
     const normalizedAdr0013 = normalizeWhitespace(adr0013);
 
     expect(normalizedWorkflow).toContain(
@@ -4773,7 +4774,7 @@ describe("existing skills source prose contracts", () => {
       "Raw internal and external child reports remain agent-local/controller-local and are never helper inputs or separately persisted artifacts",
     );
     expect(normalizedHelper).not.toContain(
-      "Write the `research-agent` returned brief verbatim",
+      "Write the `investigator` returned brief verbatim",
     );
     expect(normalizedPrompt).toContain(
       "Do not synthesize the final `## Issue Brief`, combine scopes, persist raw findings, or emit `Research brief written to <repo-relative-path>.`",
@@ -4807,17 +4808,25 @@ describe("existing skills source prose contracts", () => {
     expect(adr0013).not.toContain("`research-agent` (via Phase 3)");
 
     expect(normalizedAgent).toContain(
-      "Do not delegate, spawn children, or coordinate other agents",
+      "Do not delegate, orchestrate, persist ambient artifacts, or produce final-owner synthesis",
     );
     expect(normalizedAgent).toContain(
-      "The caller owns final-brief composition, multi-agent orchestration, cross-scope synthesis, persistence, and notices",
+      "Use network access only when the dispatch explicitly names external research",
     );
-    expect(sliceBetween(researchAgent, "claude:\n", "codex:\n").trim()).toBe(
-      "claude:\n  tools:\n    - Read\n    - Grep\n    - WebFetch\n    - WebSearch",
-    );
-    expect(researchAgent.slice(researchAgent.indexOf("codex:\n")).trim()).toBe(
-      "codex:\n  sandbox_mode: read-only",
-    );
+    expect(investigator).toContain("capability: balanced");
+    expect(investigator).toContain("effort: high");
+    expect(investigator).toContain("model_reasoning_effort: high");
+    expect(investigator).toContain("sandbox_mode: workspace-write");
+    for (const tool of [
+      "Read",
+      "Grep",
+      "Bash",
+      "Write",
+      "WebFetch",
+      "WebSearch",
+    ]) {
+      expect(investigator).toContain(`- ${tool}`);
+    }
 
     expect(normalizeWhitespace(adr0001)).toContain(
       "Skills are the primary reusable unit. Agent roles are thin wrappers",

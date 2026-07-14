@@ -462,6 +462,7 @@ describe("play subagent routing source contracts", () => {
       "### Phase 8: Create PR",
     );
     const normalizedPhase5 = normalizeWhitespace(phase5);
+    const normalizedPhase3 = normalizeWhitespace(phase3);
     const normalizedPhase6 = normalizeWhitespace(phase6);
     const normalizedPhase7 = normalizeWhitespace(phase7);
     const normalizedPhase6Reference = normalizeWhitespace(phase6Reference);
@@ -469,12 +470,13 @@ describe("play subagent routing source contracts", () => {
     expect(phase2).toContain("payload.research = gated");
     expect(phase2).toContain("payload.research = forced");
     expect(phase2).toContain("forced by --research");
-    expect(phase2).toContain("{{model:balanced}}");
-    expect(phase2).toContain("{{model:frontier}}");
-    expect(phase3).toContain("research-agent");
-    expect(phase3).toContain("read-only");
-    expect(phase3).toContain("{{model:balanced}}");
-    expect(phase3).toContain("{{model:frontier}}");
+    expect(phase2).toContain("`assessor`, balanced/medium");
+    expect(phase2).toContain("source-immutable");
+    expect(phase2).toContain("response-only");
+    expect(phase3).toContain("`investigator`, balanced/high");
+    expect(phase3).toContain("source-immutable");
+    expect(phase3).toContain("response-only");
+    expect(normalizedPhase3).toContain("named network access");
     expect(phase3).toContain("Research brief written to");
     expect(normalizedPhase5).toContain(
       "Comment evidence: <repo-relative-path from payload.comment-evidence-path>",
@@ -653,8 +655,8 @@ describe("play subagent routing source contracts", () => {
     const issuePrimingWorkflow = await readSkillSource(
       "issue-priming-workflow",
     );
-    const researchPrompt = await readRepoFile(
-      "skills/issue-priming-workflow/references/research-agent-prompt.md",
+    const investigatorPrompt = await readRepoFile(
+      "skills/issue-priming-workflow/references/investigator-prompt.md",
     );
     const phase3 = sliceBetween(
       issuePrimingWorkflow,
@@ -667,7 +669,7 @@ describe("play subagent routing source contracts", () => {
       "The depth-0 root is the sole research dispatcher",
     );
     expect(normalizedPhase3).toContain(
-      "Every `research-agent` is a direct depth-1 read-only leaf child",
+      "Every `investigator` is a direct depth-1 source-immutable leaf child",
     );
     expect(normalizedPhase3).toContain(
       "Always dispatch exactly one internal-scoped child",
@@ -687,10 +689,10 @@ describe("play subagent routing source contracts", () => {
     expect(normalizedPhase3).toContain(
       "Before any external spawn, record `required` or `useful` plus a one-sentence reason",
     );
-    expect(normalizeWhitespace(researchPrompt)).toContain(
+    expect(normalizeWhitespace(investigatorPrompt)).toContain(
       "Do not spawn or delegate to another agent",
     );
-    expect(researchPrompt).not.toContain("Dispatch sub-agents");
+    expect(investigatorPrompt).not.toContain("Dispatch sub-agents");
 
     for (const criterion of [
       "current behavior of an external runtime, API, library, protocol, or hosted service",
@@ -709,7 +711,7 @@ describe("play subagent routing source contracts", () => {
       "classify target lifecycle capability, and run the cleanup gate",
     );
     expect(normalizedPhase3).toContain(
-      "capture scope, report result, source references, and blocker state before cleanup",
+      "After exact source-immutability cleanup succeeds, capture and apply scope, report result, source references, and blocker state before subagent-lifecycle cleanup",
     );
     expect(normalizedPhase3).toContain(
       "follow `subagent-lifecycle` § Slot-Limit Recovery",
@@ -742,6 +744,60 @@ describe("play subagent routing source contracts", () => {
     );
   });
 
+  it("guards each response-only D1-D3 leaf before consuming its result", async () => {
+    const issuePrimingWorkflow = await readSkillSource(
+      "issue-priming-workflow",
+    );
+    const phase2 = normalizeWhitespace(
+      sliceBetween(
+        issuePrimingWorkflow,
+        "## Phase 2: Complexity Gate",
+        "## Phase 3: Research (Conditional)",
+      ),
+    );
+    const phase3 = normalizeWhitespace(
+      sliceBetween(
+        issuePrimingWorkflow,
+        "## Phase 3: Research (Conditional)",
+        "## Phase 4: Invoke Brainstorming",
+      ),
+    );
+
+    for (const phase of [phase2, phase3]) {
+      expect(phase).toContain("scripts/source-immutability.sh");
+      expect(phase).toContain('bash "$SOURCE_IMMUTABILITY_HELPER" capture');
+      expect(phase).toContain(
+        'bash "$SOURCE_IMMUTABILITY_HELPER" verify --baseline',
+      );
+      expect(phase).toContain(
+        'bash "$SOURCE_IMMUTABILITY_HELPER" cleanup --baseline',
+      );
+      expect(phase).toContain("zero handoffs");
+      expectSubstringsInOrder(phase, [
+        "capture before spawn",
+        "verify before semantic validation or consumption",
+        "validate and retain the response in controller memory",
+        "cleanup the exact retained baseline",
+        "apply the retained result",
+      ]);
+      expect(phase).toContain(
+        "Only detected source mutation or cleanup failure is terminal",
+      );
+      expect(phase).toContain(
+        "never reset, check out, stage, or repair source",
+      );
+    }
+
+    expect(phase2).toContain(
+      "ordinary unavailable, failed, malformed, or verification-rejected gate result",
+    );
+    expect(phase2).toContain("`RESEARCH_NEEDED`");
+    expect(phase3).toContain(
+      "ordinary unavailable, failed, malformed, or verification-rejected investigator result",
+    );
+    expect(phase3).toContain("existing outcome precedence");
+  });
+
   it("keeps the Phase 3 diagram aligned with root-owned sibling dispatch and synthesis", async () => {
     const diagram = await readRepoFile(
       "skills/issue-priming-workflow/references/workflow-diagram.md",
@@ -750,8 +806,8 @@ describe("play subagent routing source contracts", () => {
     const edges = parseDotDirectedEdges(diagram);
 
     for (const phrase of [
-      "Root dispatches exactly one required internal research-agent",
-      "Root dispatches zero or one conditional external research-agent total",
+      "Root dispatches exactly one required internal investigator",
+      "Root dispatches zero or one conditional external investigator total",
       "Immediate external criterion met before internal report?",
       "Late external criterion met after internal External Uncertainties?",
       "Join all applicable direct children",
@@ -1178,7 +1234,7 @@ describe("play subagent routing source contracts", () => {
   it("requires an external report to answer its supplied question", async () => {
     const researchPrompt = normalizeWhitespace(
       await readRepoFile(
-        "skills/issue-priming-workflow/references/research-agent-prompt.md",
+        "skills/issue-priming-workflow/references/investigator-prompt.md",
       ),
     );
 
@@ -1233,7 +1289,7 @@ describe("play subagent routing source contracts", () => {
   it("keeps research children from spawning, writing, or announcing", async () => {
     const researchPrompt = normalizeWhitespace(
       await readRepoFile(
-        "skills/issue-priming-workflow/references/research-agent-prompt.md",
+        "skills/issue-priming-workflow/references/investigator-prompt.md",
       ),
     );
 

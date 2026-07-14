@@ -538,7 +538,7 @@ describe("phase artifact source contracts", () => {
     expect(normalizedIssuePriming).toContain(
       "durable owner referral with cleanup",
     );
-    expect(issuePrimingWorkflow).toContain("Gate agent fails");
+    expect(issuePrimingWorkflow).toContain("Assessor fails");
     expect(issuePrimingWorkflow).toContain("Default to `RESEARCH_NEEDED`");
     expect(issuePrimingWorkflow).toContain("Internal research fails/times out");
     expect(issuePrimingWorkflow).toContain("Report partial results");
@@ -706,11 +706,11 @@ describe("phase artifact source contracts", () => {
     const gatePrompt = await readRepoFile(
       "skills/issue-priming-workflow/references/gate-agent-prompt.md",
     );
-    const researchPrompt = await readRepoFile(
-      "skills/issue-priming-workflow/references/research-agent-prompt.md",
+    const investigatorPrompt = await readRepoFile(
+      "skills/issue-priming-workflow/references/investigator-prompt.md",
     );
 
-    for (const prompt of [gatePrompt, researchPrompt]) {
+    for (const prompt of [gatePrompt, investigatorPrompt]) {
       const normalizedPrompt = normalizeWhitespace(prompt);
 
       expect(prompt).toContain("**Issue body path:** <ISSUE_BODY_PATH>");
@@ -729,17 +729,84 @@ describe("phase artifact source contracts", () => {
     }
 
     expect(gatePrompt).toContain("before design work begins");
-    expect(normalizeWhitespace(researchPrompt)).toContain(
+    expect(normalizeWhitespace(investigatorPrompt)).toContain(
       "before investigating the assigned scope",
     );
+  });
+
+  it("consumes the GUARD-001 owner for issue-priming D1-D3 lifecycle examples", async () => {
+    const workflow = await readSkillSource("issue-priming-workflow");
+    const spec = await readRepoFile("docs/specs/afds-workflow-routing.md");
+    const guardStart = spec.indexOf(
+      "### GUARD-001: Source-Immutable Result Gate",
+    );
+    const guardEnd = spec.indexOf(
+      "### GUARD-002: Guarded Child Failure Routing",
+    );
+    expect(guardStart).toBeGreaterThanOrEqual(0);
+    expect(guardEnd).toBeGreaterThan(guardStart);
+    const guardOwner = spec.slice(guardStart, guardEnd);
+    const normalizedOwner = normalizeWhitespace(guardOwner);
+    const normalizedWorkflow = normalizeWhitespace(workflow);
+
+    for (const ownerContract of [
+      "capture",
+      "verify before semantic validation or consumption",
+      "response or handoff payload into controller memory",
+      "clean up the exact owned paths",
+      "consume or apply the retained result",
+    ]) {
+      expect(normalizedOwner).toContain(ownerContract);
+      expect(normalizedWorkflow).toContain(ownerContract);
+    }
+
+    expect(normalizedOwner).toContain(
+      "Spawn, child, verification, and payload failures reject the result and still run exact cleanup",
+    );
+    expect(normalizedOwner).toContain(
+      "A detected source mutation stays visible and must not be reset, checked out, staged, repaired, or recursively deleted",
+    );
+    expect(normalizedWorkflow).toContain(
+      "ordinary unavailable, failed, malformed, or verification-rejected",
+    );
+    expect(normalizedWorkflow).toContain(
+      "Only detected source mutation or cleanup failure is terminal",
+    );
+
+    const scenarioStart = spec.indexOf(
+      "### Scenario E: Valid Source-Immutable Handoff",
+    );
+    const scenarioEnd = spec.indexOf(
+      "### Scenario F: Final Whole-Implementation Review",
+    );
+    expect(scenarioStart).toBeGreaterThanOrEqual(0);
+    expect(scenarioEnd).toBeGreaterThan(scenarioStart);
+    const validScenario = spec.slice(scenarioStart, scenarioEnd);
+    const normalizedScenario = normalizeWhitespace(validScenario);
+    expect(normalizedScenario).toContain(
+      "The owner captures a new private baseline `B`",
+    );
+    for (const invalidFamily of [
+      "tracked or non-ignored untracked content changes",
+      "nested",
+      "pre-existing",
+      "symlinked",
+      "missing",
+      "empty",
+      "unreadable",
+      "outside `.ephemeral`",
+      "owned leaf is a directory",
+    ]) {
+      expect(normalizedScenario).toContain(invalidFamily);
+    }
   });
 
   it("keeps root-owned issue research validation, report, persistence, and failure contracts in source", async () => {
     const issuePrimingWorkflow = await readSkillSource(
       "issue-priming-workflow",
     );
-    const researchPrompt = await readRepoFile(
-      "skills/issue-priming-workflow/references/research-agent-prompt.md",
+    const investigatorPrompt = await readRepoFile(
+      "skills/issue-priming-workflow/references/investigator-prompt.md",
     );
     const helperReference = await readRepoFile(
       "skills/issue-priming-workflow/references/helper-invocation-contracts.md",
@@ -749,7 +816,7 @@ describe("phase artifact source contracts", () => {
       "Phase 3: Research (Conditional)",
     );
     const normalizedPhase3 = normalizeWhitespace(phase3);
-    const normalizedPrompt = normalizeWhitespace(researchPrompt);
+    const normalizedPrompt = normalizeWhitespace(investigatorPrompt);
 
     for (const placeholder of [
       "<SOURCE>",
@@ -763,7 +830,7 @@ describe("phase artifact source contracts", () => {
       "<EXTERNAL_NECESSITY_OR_NONE>",
       "<EXTERNAL_QUESTION_OR_NONE>",
     ]) {
-      expect(researchPrompt).toContain(placeholder);
+      expect(investigatorPrompt).toContain(placeholder);
     }
     expect(normalizedPhase3).toContain(
       "Validate the worktree and guarded issue-body/comment-evidence inputs first",
@@ -796,7 +863,7 @@ describe("phase artifact source contracts", () => {
       "### Trade-offs",
       "### Implications",
     ]) {
-      expect(researchPrompt).toContain(heading);
+      expect(investigatorPrompt).toContain(heading);
     }
     expect(normalizedPhase3).toContain(
       "Validate these report failure families independently",
@@ -1160,7 +1227,7 @@ None
   it("rejects invalid issue-research source values", async () => {
     const researchPrompt = normalizeWhitespace(
       await readRepoFile(
-        "skills/issue-priming-workflow/references/research-agent-prompt.md",
+        "skills/issue-priming-workflow/references/investigator-prompt.md",
       ),
     );
 
@@ -1172,7 +1239,7 @@ None
   it("rejects invalid issue-research scope values", async () => {
     const researchPrompt = normalizeWhitespace(
       await readRepoFile(
-        "skills/issue-priming-workflow/references/research-agent-prompt.md",
+        "skills/issue-priming-workflow/references/investigator-prompt.md",
       ),
     );
 
@@ -1184,7 +1251,7 @@ None
   it("rejects invalid issue-research necessity pairings", async () => {
     const researchPrompt = normalizeWhitespace(
       await readRepoFile(
-        "skills/issue-priming-workflow/references/research-agent-prompt.md",
+        "skills/issue-priming-workflow/references/investigator-prompt.md",
       ),
     );
 
@@ -1196,7 +1263,7 @@ None
   it("rejects invalid issue-research external-question pairings", async () => {
     const researchPrompt = normalizeWhitespace(
       await readRepoFile(
-        "skills/issue-priming-workflow/references/research-agent-prompt.md",
+        "skills/issue-priming-workflow/references/investigator-prompt.md",
       ),
     );
 
@@ -1267,7 +1334,7 @@ None
     expect(normalizeWhitespace(phase3)).toContain(
       "Do not dispatch a research child, invoke the research helper, create a research artifact, or emit the producer notice on that route",
     );
-    expect(phase4).toContain("Skipped — <reason from gate agent>");
+    expect(phase4).toContain("Skipped — <reason from assessor>");
   });
 
   it("keeps internal-failure routes inline and forbids research persistence", async () => {
@@ -1442,14 +1509,14 @@ None
     const gatePrompt = await readRepoFile(
       "skills/issue-priming-workflow/references/gate-agent-prompt.md",
     );
-    const researchPrompt = await readRepoFile(
-      "skills/issue-priming-workflow/references/research-agent-prompt.md",
+    const investigatorPrompt = await readRepoFile(
+      "skills/issue-priming-workflow/references/investigator-prompt.md",
     );
     expect(gatePrompt).toContain("Issue body or comment evidence contains");
     expect(gatePrompt).toContain(
       "No present comment evidence introduces ambiguity, risk, or a design choice",
     );
-    expect(researchPrompt).toContain(
+    expect(investigatorPrompt).toContain(
       "Gate response reason, or `forced by --research`",
     );
   });

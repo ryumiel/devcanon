@@ -984,6 +984,54 @@ describe("rendered phase artifact smoke coverage", () => {
     }
   });
 
+  it("renders guarded semantic D1-D3 routes for both targets", () => {
+    for (const target of ["claude", "codex"] as const) {
+      const workflow = bodies[`issue-priming-workflow:${target}`];
+      const phase2 = sliceRenderedSection(
+        workflow,
+        "## Phase 2: Complexity Gate",
+        "## Phase 3: Research (Conditional)",
+      );
+      const phase3 = sliceRenderedSection(
+        workflow,
+        "## Phase 3: Research (Conditional)",
+        "## Phase 4: Invoke Brainstorming",
+      );
+      const normalizedPhase2 = normalizeRenderedWhitespace(phase2);
+      const normalizedPhase3 = normalizeRenderedWhitespace(phase3);
+
+      expect(normalizedPhase2).toContain("`assessor`, balanced/medium");
+      expect(normalizedPhase3).toContain("`investigator`, balanced/high");
+      expect(normalizedPhase3).toContain("named network access");
+      for (const phase of [normalizedPhase2, normalizedPhase3]) {
+        expect(phase).toContain("source-immutable");
+        expect(phase).toContain("response-only");
+        expect(phase).toContain("zero handoffs");
+        expect(phase).toContain("scripts/source-immutability.sh");
+        expect(phase).toContain('bash "$SOURCE_IMMUTABILITY_HELPER" capture');
+        expect(phase).toContain(
+          'bash "$SOURCE_IMMUTABILITY_HELPER" verify --baseline',
+        );
+        expect(phase).toContain(
+          'bash "$SOURCE_IMMUTABILITY_HELPER" cleanup --baseline',
+        );
+        expectSubstringsInOrder(phase, [
+          "capture before spawn",
+          "verify before semantic validation or consumption",
+          "validate and retain the response in controller memory",
+          "cleanup the exact retained baseline",
+          "apply the retained result",
+        ]);
+        expect(phase).toContain(
+          "Only detected source mutation or cleanup failure is terminal",
+        );
+      }
+
+      expect(normalizedPhase2).toContain("`RESEARCH_NEEDED`");
+      expect(normalizedPhase3).toContain("existing outcome precedence");
+    }
+  });
+
   it("renders the play-brainstorm design review option menu for both targets", () => {
     for (const target of ["claude", "codex"] as const) {
       const playBrainstorm = bodies[`play-brainstorm:${target}`];
