@@ -142,44 +142,69 @@ workflow method.
 
 ### AUTH-001: Separate Mutation Axes
 
-Source authority is closed to `source-immutable` and `source-mutable`.
-External authority is separately closed to `none` and `external-mutable`.
+Routes record source and external authority independently using the exact
+closed vocabulary and permissions owned by the
+[Agent Routing and Mutation Policy](../guidelines/agent-routing-and-mutation-policy.md#mutation-axes).
+This spec does not redefine that vocabulary.
 
-`source-immutable` permits inspection, permitted commands, and at most one
-dispatch-named direct-child `.ephemeral` handoff. It prohibits durable source,
-test, configuration, and documentation edits. `source-mutable` permits only
-dispatch-authorized durable workspace paths. `external-mutable` permits only
-the owning root/controller to perform a separately named external-system
-mutation.
-
-Every semantic child has external authority `none` and may not receive
-`external-mutable` authority. Only the owning root/controller may hold that
-authority under separate authorization. Model, effort, tools, sandbox, network
-access, approval policy, and source authority must not imply external authority.
-Write-capable tools and workspace-write sandboxing must not imply durable source
-authority.
+Observable route resolution must reject a semantic-child dispatch that carries
+external-system mutation authority. Only the owning root/controller may perform
+a separately authorized named external mutation. Model, effort, tools, sandbox,
+network access, approval policy, and source authority do not satisfy or imply a
+different authority field. Write-capable tools and workspace-write sandboxing
+do not by themselves authorize durable source mutation.
 
 ### GUARD-001: Source-Immutable Result Gate
 
-Before spawning a source-immutable child, the owner must validate the route and
-optional handoff path, then capture a private Git-visible baseline. Capture
-failure prevents spawn.
+The packaged runtime exposes these command forms through its existing
+compatibility boundary:
 
-Before semantically validating or consuming the response or handoff, the owner
-must verify the baseline. When declared, the handoff must be the exact fresh,
-readable, nonempty, nonsymlinked regular direct-child file. The owner validates
-the payload into controller memory, then cleans exactly the baseline and
-handoff leaves before consuming or applying the retained result.
+```text
+source-immutability capture [--handoff .ephemeral/<direct-child>]
+source-immutability verify --baseline .ephemeral/<generated> [--handoff <same-path>]
+source-immutability cleanup --baseline .ephemeral/<generated> [--handoff <same-path>]
+```
 
-Spawn, child, verification, and payload failures reject the result and still
-run exact cleanup. Cleanup failure is a manual blocker. A detected source
-mutation stays visible and must not be reset, checked out, staged, repaired, or
-recursively deleted.
+Before spawning a source-immutable child, the owner validates the route and
+optional handoff path, then runs capture. Capture requires a real Git worktree
+with `HEAD` and a real, ignored, nonsymlinked `.ephemeral` directory. The
+optional handoff is zero or one absent, ignored, untracked direct child of that
+directory. Capture retains a private collision-safe baseline and prints only
+its repository-relative path. Capture failure prevents spawn.
 
 The guard covers canonical worktree identity, `HEAD` and symbolic ref, raw
 index entries, and file kind, mode, and content for tracked and non-ignored
 untracked paths. It preserves pre-existing staged, unstaged, binary, and
 untracked dirt.
+
+Before semantically validating or consuming the response or handoff, the owner
+runs verify against the retained baseline and the same optional handoff path.
+When declared, the handoff must be the exact fresh, readable, nonempty,
+nonsymlinked regular direct-child file. Verification success prints only
+`unchanged`. The owner then validates the response or handoff payload into
+controller memory.
+
+Cleanup may act only on the retained baseline and declared handoff leaves. A
+missing leaf is already clean, a symlink is unlinked without following it, and
+a directory or other file kind fails cleanup. Cleanup never discovers paths
+from child output, recursively deletes, resets, checks out, stages, or repairs
+source. Success prints only `cleaned`.
+
+The lifecycle order is fixed:
+
+1. validate the route and optional handoff path;
+2. capture;
+3. spawn;
+4. verify before semantic validation or consumption;
+5. validate the response or read and validate the handoff into controller
+   memory;
+6. clean up the exact owned paths;
+7. consume or apply the retained result.
+
+Spawn, child, verification, and payload failures reject the result and still
+run exact cleanup. Cleanup failure is a manual blocker. A detected source
+mutation stays visible and must not be reset, checked out, staged, repaired, or
+recursively deleted.
 
 The guard does not cover ignored-file changes other than the declared handoff,
 paths outside the worktree, external systems, races, provider-internal
@@ -382,25 +407,23 @@ changes one guard dimension and is rejected before consumption.
 
 ### Scenario F: Final Whole-Implementation Review
 
-D16 is a response-only `deep-reviewer` session using frontier capability and
-`xhigh` effort. It reviews the whole implementation range under
-source-immutable instructions. It may take only the narrow ADR-0016 skip.
-Otherwise, findings enter a final fix and fresh-review loop; an unavailable or
-invalid pass returns the owning blocked terminal transition and does not enter
-branch finish.
+D16 consumes the exact route owned by the
+[policy inventory](../guidelines/agent-routing-and-mutation-policy.md#direct-child-route-inventory).
+It reviews the whole implementation range and may take only the narrow
+ADR-0016 skip. Otherwise, findings enter a final fix and fresh-review loop; an
+unavailable or invalid pass returns the owning blocked terminal transition and
+does not enter branch finish.
 
-D16 must not collapse into the D15 task-quality session, use `high` or ambient
-effort, or treat review unavailability as a passing verdict.
+D16 must not collapse into the D15 task-quality session, substitute ambient
+routing, or treat review unavailability as a passing verdict.
 
 ### Scenario G: CI Diagnosis Before Fix Classification
 
-D17 first routes diagnosis to `investigator` at balanced/high under
-source-immutable authority. The owner guards and consumes that diagnosis before
-classifying any fix. An exact no-policy fix may then route to `executor` at
-efficient/medium with `source-mutable` authority; a judgment-bearing fix routes
-to `implementer` at balanced/high with `source-mutable` authority. Those
-children may commit only the scoped fix. The root alone separately owns
-`external-mutable` push and merge authority.
+D17 consumes the exact diagnosis and fix-classification routes owned by the
+[policy inventory](../guidelines/agent-routing-and-mutation-policy.md#direct-child-route-inventory).
+The owner guards and consumes the diagnosis before classifying any fix. The
+selected fix child may commit only the scoped fix. The root alone separately
+owns push and merge authority.
 
 If diagnosis fails or is rejected, retry count remains unchanged, no fix,
 push, or merge occurs, and the workflow reports the failed check plus a manual

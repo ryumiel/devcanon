@@ -254,24 +254,25 @@ Agent-assisted review follows this contract:
 - Check the CONTRIBUTING.md PR checklist items that can be verified
   mechanically (schema alignment, snapshot freshness, MAP.md coverage)
 
-The role-specific dispatch and source-immutability guard requirements below are
-ADR-0027 post-migration policy. While ADR-0027 remains Proposed, operators must
-use the reviewer roles and guard behavior present in the current source
-implementation rather than dispatching `reviewer` or `deep-reviewer` by this
-target procedure. Once the ADR acceptance gate passes, the following
-requirements become the active agent-assisted review procedure:
+The exact D15, D16, and D17 routes are owned by the
+[Agent Routing and Mutation Policy](agent-routing-and-mutation-policy.md#direct-child-route-inventory),
+and source-immutability guard behavior is owned by
+[AFDS GUARD-001](../specs/afds-workflow-routing.md#guard-001-source-immutable-result-gate).
+While ADR-0027 remains Proposed, operators must use the reviewer routes and
+guard behavior present in the current source implementation rather than the
+post-migration target. Once its acceptance gate passes, the following
+review-consumer requirements become active:
 
 - When dispatching a standalone reviewer agent, the caller must provide
   explicit review scope as a `base..head` ref or unified diff; reviewers
   must not be asked to discover the scope themselves
-- Ordinary topical, plan, and executability synthesis uses `reviewer` at
-  frontier/high; the critic, per-task spec and quality sessions, and final
-  whole-implementation review use distinct `deep-reviewer` sessions at
-  frontier/xhigh
-- When dispatching the per-task spec `deep-reviewer` session, the caller must
-  also provide the scoped requirements or task spec it should compare against
+- Verify that ordinary and high-assurance review dispatches use their exact
+  policy-owned routes, and keep D15 task-quality and D16 final-review sessions
+  distinct
+- When dispatching the per-task spec review session, the caller must also
+  provide the scoped requirements or task spec it should compare against
 - Task-specific spec, quality, critic, and final-review instructions stay in
-  the owning skill prompt; sharing `deep-reviewer` does not collapse distinct
+  the owning skill prompt; sharing a semantic role does not collapse distinct
   prompts, scopes, verdicts, fix loops, or termination
-- Source-immutable reviewer results must pass the owning workflow's minimum
-  source-immutability guard before their findings or verdicts are consumed
+- Guard reviewer results before consuming findings or verdicts, and never
+  treat an unavailable or invalid D15 or D16 result as a passing verdict

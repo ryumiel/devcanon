@@ -24,22 +24,15 @@ spec-owned roles and record only skill- and route-specific classification.
 
 ### Cognitive demand and stance
 
-| Demand       | Meaning                                                                 | Default route                                              |
-| ------------ | ----------------------------------------------------------------------- | ---------------------------------------------------------- |
-| `mechanical` | Closed algorithm over validated facts; no semantic or policy choice     | Deterministic helper, guarded inline path, or `executor`   |
-| `bounded`    | One scope and closed acceptance condition                               | `assessor`, `investigator`, or `implementer`               |
-| `synthesis`  | Multiple authorities, ambiguity, trade-offs, or cross-module conclusion | `reviewer` or an owning controller                         |
-| `inherited`  | Wrapper or generic workflow whose active phase owns classification      | Resolve before dispatch; never use ambient model or effort |
+The
+[ADR cognitive-classification decision](../adr/adr-0027-semantic-agent-routing-and-mutation-authority.md#cognitive-classification-and-escalation-boundary)
+owns the definitions of mechanical, bounded, synthesis, and inherited demand;
+the independence of adversarial stance; and the issue #528 escalation boundary.
+This policy consumes those classifications in the inventories below without
+redefining their meanings or default routes.
 
-Stance is exactly `normal` or `adversarial` and is independent of demand.
-`deep-reviewer` is not an ambient escalation target. It is selected only for
-the critic, per-task high-assurance reviews, and final whole-implementation
-review named in the direct-child inventory.
-
-This policy adds no capability or effort escalation rules. The separately
-tracked escalation owner, issue #528, remains authoritative for that work. Until
-that owner establishes a durable policy, direct routes use the exact pairs
-below and unresolved routing blocks rather than escalating by guesswork.
+Direct-child rows use their exact recorded capability and effort pair. An
+unresolved route blocks rather than escalating by guesswork.
 
 ### Mutation axes
 
