@@ -253,6 +253,14 @@ Agent-assisted review follows this contract:
 - Verify CI status rather than assuming correctness
 - Check the CONTRIBUTING.md PR checklist items that can be verified
   mechanically (schema alignment, snapshot freshness, MAP.md coverage)
+
+The role-specific dispatch and source-immutability guard requirements below are
+ADR-0027 post-migration policy. While ADR-0027 remains Proposed, operators must
+use the reviewer roles and guard behavior present in the current source
+implementation rather than dispatching `reviewer` or `deep-reviewer` by this
+target procedure. Once the ADR acceptance gate passes, the following
+requirements become the active agent-assisted review procedure:
+
 - When dispatching a standalone reviewer agent, the caller must provide
   explicit review scope as a `base..head` ref or unified diff; reviewers
   must not be asked to discover the scope themselves

@@ -53,18 +53,23 @@ Source authority is exactly one of:
 External authority is exactly one of:
 
 - `none`: perform no external-system mutation.
-- `external-mutable`: perform only a separately named and authorized mutation
-  in GitHub, Linear, Notion, or another external system.
+- `external-mutable`: permit only the owning root/controller to perform a
+  separately named and authorized mutation in GitHub, Linear, Notion, or
+  another external system.
 
-The two axes are recorded separately. A source-mutable route may still have
-external authority `none`; a source-immutable workflow may hold a separately
-named external mutation. Never infer one axis from the other.
+The two axes are recorded separately. Every semantic child route has external
+authority `none`; no semantic child may receive `external-mutable` authority.
+Only the owning root/controller may hold that separately authorized authority,
+regardless of whether its source work is mutable or immutable. Never infer one
+axis from the other.
 
 ## Complete Skill Inventory
 
 This table contains every current source skill exactly once. Phase
 qualifications belong in the final column; the source and external columns use
-only the closed values above.
+only the closed values above. An `external-mutable` entry records authority of
+the owning root/controller for that workflow, never authority of a semantic
+child role.
 
 | Skill                              | Demand / stance         | Source authority | External authority | Material override / owner note                                              |
 | ---------------------------------- | ----------------------- | ---------------- | ------------------ | --------------------------------------------------------------------------- |
@@ -136,9 +141,9 @@ distinct sessions just because they share a semantic agent.
 Before D4 spawns, the owner must select exactly one spec-owned semantic role,
 use that role's configured capability and effort without per-call substitution,
 and use the role's matching `source-immutable` or `source-mutable` default. The
-dispatch declares its bounded scope and termination. It grants no external
-authority by inference. Under the B3 routing boundary, a source-immutable D4
-selection is response-only; a route that cannot satisfy every field blocks.
+dispatch declares its bounded scope and termination and has external authority
+`none`. Under the B3 routing boundary, a source-immutable D4 selection is
+response-only; a route that cannot satisfy every field blocks.
 
 ### Ordinary child failure disposition
 

@@ -148,13 +148,16 @@ External authority is separately closed to `none` and `external-mutable`.
 `source-immutable` permits inspection, permitted commands, and at most one
 dispatch-named direct-child `.ephemeral` handoff. It prohibits durable source,
 test, configuration, and documentation edits. `source-mutable` permits only
-dispatch-authorized durable workspace paths. `external-mutable` permits only a
-separately named external-system mutation.
+dispatch-authorized durable workspace paths. `external-mutable` permits only
+the owning root/controller to perform a separately named external-system
+mutation.
 
-Every shared agent defaults to external authority `none`. Model, effort, tools,
-sandbox, network access, approval policy, and source authority must not imply
-external authority. Write-capable tools and workspace-write sandboxing must not
-imply durable source authority.
+Every semantic child has external authority `none` and may not receive
+`external-mutable` authority. Only the owning root/controller may hold that
+authority under separate authorization. Model, effort, tools, sandbox, network
+access, approval policy, and source authority must not imply external authority.
+Write-capable tools and workspace-write sandboxing must not imply durable source
+authority.
 
 ### GUARD-001: Source-Immutable Result Gate
 
@@ -424,7 +427,9 @@ resolution recommendation.
 - Every D1-D17 direct-child route matches the policy inventory exactly and
   keeps task prompts and termination in its source skill.
 - Source and external authority use separate closed axes; no target capability
-  or source permission grants external mutation.
+  or source permission grants external mutation, every semantic child has
+  external authority `none`, and only the owning root/controller may hold
+  separately authorized `external-mutable` authority.
 - Source-immutable results are verified before semantic validation or
   consumption, exact cleanup precedes application, detected source mutation is
   never repaired, and the minimum guard's limitations remain explicit.
@@ -448,7 +453,7 @@ resolution recommendation.
   leaves.
 - Both-target agent render tests prove exactly six roles, explicit capability
   and effort, command/handoff envelopes, source-immutable instructions, and no
-  default external authority.
+  semantic-child external authority.
 
 ## Agent Context
 

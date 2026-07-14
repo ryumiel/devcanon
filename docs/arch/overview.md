@@ -86,10 +86,11 @@ owns the manual operator cutover and rollback procedure.
 
 ADR-0027 defines this section as the post-migration architecture. The
 pre-migration implementation has four legacy source roles and no converged
-six-role render inventory. While ADR-0027 remains Proposed, source files and
-fresh render output remain the implementation-state evidence; this section does
-not assert that migration has landed. Acceptance requires source, tests, and
-both target outputs to converge on the target below.
+six-role render inventory. While ADR-0027 remains Proposed, source definitions
+under `agents/` are authoritative for implementation state and fresh render
+output is convergence evidence; this section does not assert that migration has
+landed. Acceptance requires source, tests, and both target outputs to converge
+on the target below.
 
 The post-migration architecture exposes six thin semantic source roles:
 `assessor`, `investigator`, `executor`, `implementer`, `reviewer`, and
@@ -108,8 +109,9 @@ owns the stable decision.
 Source authority and external authority are separate closed axes. A
 source-immutable role may run permitted commands and write one
 dispatch-named direct-child `.ephemeral` handoff, but it may not edit durable
-source. Every shared role defaults to no external authority; workflows grant a
-named external mutation separately.
+source. Every semantic child role has external authority `none`. Only the
+owning root/controller may hold separately authorized `external-mutable`
+authority for a named external mutation.
 
 ### Source-Immutability Runtime Boundary
 

@@ -60,12 +60,15 @@ Mutation authority uses two separate axes:
   source, tests, configuration, or documentation. `source-mutable` may alter
   only dispatch-authorized durable workspace paths.
 - External authority is exactly `none` or `external-mutable`.
-  `external-mutable` permits only a separately named and authorized mutation
-  in GitHub, Linear, Notion, or another external system.
+  `external-mutable` permits only the owning root/controller to perform a
+  separately named and authorized mutation in GitHub, Linear, Notion, or
+  another external system.
 
-Every shared agent defaults to external authority `none`. A workflow may grant
-external authority separately, but it must not infer it from source authority,
-model, effort, tools, sandbox, network access, or provider capability.
+Every semantic child role has external authority `none` and may not receive
+`external-mutable` authority. Only the owning root/controller may hold that
+authority under separate authorization; it must not infer the authority from
+source authority, model, effort, tools, sandbox, network access, or provider
+capability.
 
 The current complete skill and direct-child inventories live in the
 [Agent Routing and Mutation Policy](../guidelines/agent-routing-and-mutation-policy.md).

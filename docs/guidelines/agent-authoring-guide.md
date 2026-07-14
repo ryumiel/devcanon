@@ -36,10 +36,14 @@ those constraints, prefer the skill alone.
 
 ### Use the semantic catalog before creating a role
 
-DevCanon's shared catalog has exactly six semantic roles: `assessor`,
+ADR-0027's post-migration catalog has exactly six semantic roles: `assessor`,
 `investigator`, `executor`, `implementer`, `reviewer`, and `deep-reviewer`.
-Their exact capability, effort, tool, sandbox, and mutation defaults live in
-the [agent spec](../specs/agents.md#semantic-role-catalog). The
+While ADR-0027 remains Proposed, this catalog is an authoring target: use the
+roles and procedures present in the current source implementation, and do not
+dispatch a target-only role or rely on the target-only runtime guard. After the
+ADR acceptance gate passes, use the six-role catalog as the existing catalog.
+Its exact capability, effort, tool, sandbox, and mutation defaults live in the
+[agent spec](../specs/agents.md#semantic-role-catalog). The
 [Agent Routing and Mutation Policy](agent-routing-and-mutation-policy.md) owns
 the evolving skill and direct-child matrices, not the role envelope.
 
@@ -50,7 +54,9 @@ an effort-named role, or a second role solely to carry a different task prompt.
 
 Source mutation and external-system mutation are independent dispatch
 authorities. Neither is granted by model capability, effort, tools, network,
-sandbox, or approval policy. All shared roles default to no external authority.
+sandbox, or approval policy. Every semantic child role has external authority
+`none`; only the owning root/controller may hold separately authorized
+`external-mutable` authority.
 
 ## 3. Anti-Patterns
 
@@ -164,8 +170,10 @@ durable-source authority.
 7. Choose model capability independently from target-native effort. Capability
    does not imply tools, sandbox, approval policy, context, authority,
    orchestration, retries, or escalation behavior.
-8. Declare source and external authority independently using the closed policy
-   vocabulary. For source-immutable dispatches, require owner-side capture,
+8. Declare source authority using the closed policy vocabulary. Keep every
+   semantic child's external authority at `none`; reserve separately authorized
+   `external-mutable` authority for the owning root/controller. For
+   source-immutable dispatches, require owner-side capture,
    verify-before-consume, and exact cleanup.
 9. Validate with `devcanon validate`.
 10. Preview the generated output with `devcanon render`.

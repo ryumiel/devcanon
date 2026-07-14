@@ -64,11 +64,12 @@ codex:
 
 ADR-0027 defines this section as the post-migration target. The migration begins
 from four legacy source roles and no accepted six-role render inventory. While
-the ADR remains Proposed, `agents/` and fresh render output remain the authority
-for implementation state; this table does not claim source convergence.
-Acceptance requires the source library and both generated targets to converge
-on exactly these six semantic roles. Agent names describe reusable work
-identity, not provider models, effort levels, or workflow phases.
+the ADR remains Proposed, source definitions under `agents/` are authoritative
+for implementation state; fresh render output is convergence evidence against
+those definitions, not co-authority. This table does not claim source
+convergence. Acceptance requires the source library and both generated targets
+to converge on exactly these six semantic roles. Agent names describe reusable
+work identity, not provider models, effort levels, or workflow phases.
 
 | Agent           | Capability | Claude effort | Codex effort | Source default     | External default | Primary use                                           |
 | --------------- | ---------- | ------------- | ------------ | ------------------ | ---------------- | ----------------------------------------------------- |
@@ -105,10 +106,11 @@ dispatch-authorized paths and require it to stop or hand off when a guardrail is
 missing or judgment appears. `implementer` remains the role for scoped
 judgment-bearing implementation.
 
-Every shared role defaults to no external-system mutation. An owning workflow
-may separately grant one named external mutation, but external authority must
-not be inferred from role, capability, effort, tools, sandbox, network access,
-or source authority.
+Every semantic child role has external authority `none`; no workflow may grant
+`external-mutable` authority to a child. Only the owning root/controller may
+hold one separately authorized, named external mutation. External authority
+must not be inferred from role, capability, effort, tools, sandbox, network
+access, or source authority.
 
 `investigator` receives network access or a diagnostic handoff path only when
 the dispatch explicitly names it. Ambient network availability and an unnamed

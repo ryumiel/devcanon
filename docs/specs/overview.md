@@ -75,7 +75,8 @@ The pre-migration source layout has four legacy agent definitions. The agent
 portion of the diagram below is the ADR-0027 post-migration target, not a claim
 that those six files already exist while the ADR is Proposed. Acceptance
 requires `agents/` and both generated targets to converge on the diagram;
-current implementation state is determined from source and a fresh render.
+source definitions under `agents/` are authoritative for current implementation
+state, and a fresh render supplies convergence evidence.
 
 Behavior specs use this target layout as shared context for source and
 generated paths:
@@ -157,5 +158,8 @@ Notes:
 - Codex shared skills are installed to `~/.agents/skills`.
 - Codex native custom agents are installed to `~/.codex/agents/`.
 - `devcanon` does not manage `~/.codex/config.toml` in v1.
-- The exact semantic catalog and direct-child routes are owned by the
+- The exact semantic catalog and role envelope are owned by the
+  [agent spec](agents.md#semantic-role-catalog).
+- The mutation vocabulary and complete 33-skill and D1-D17 inventories are
+  owned by the
   [Agent Routing and Mutation Policy](../guidelines/agent-routing-and-mutation-policy.md).
