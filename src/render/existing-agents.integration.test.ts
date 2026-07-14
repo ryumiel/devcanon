@@ -1,13 +1,7 @@
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { parse as parseYaml } from "yaml";
-import {
-  cleanupTempDir,
-  createAgentFixture,
-  createTempDir,
-  makeAgentYaml,
-} from "../__test-helpers__/fixtures.js";
 import {
   parseRenderedMarkdownArtifact,
   parseRenderedTomlArtifact,
@@ -16,72 +10,123 @@ import { loadConfig } from "../config/load.js";
 import type { ResolvedConfig } from "../config/schema.js";
 import { renderAll } from "./pipeline.js";
 
-const SHIPPED_AGENTS = [
-  "implementer",
+const RETIRED_AGENTS = [
+  "research-agent",
   "spec-compliance-reviewer",
   "code-quality-reviewer",
-  "research-agent",
 ] as const;
 
-type ShippedAgent = (typeof SHIPPED_AGENTS)[number];
-type RenderOutput = Awaited<ReturnType<typeof renderAll>>["outputs"][number];
-type ShippedAgentExpectations = Record<
-  ShippedAgent,
-  {
-    claude: { model?: string; effort?: string };
-    codex: {
-      model?: string;
-      model_reasoning_effort?: string;
-      sandbox_mode: string;
-    };
-  }
->;
+interface SemanticRoleContract {
+  name: string;
+  capability: "efficient" | "balanced" | "frontier";
+  claudeEffort: string;
+  codexEffort: string;
+  sourceDefault: "source-immutable" | "source-mutable";
+  externalDefault: "none";
+}
 
-const SHIPPED_AGENT_EXPECTATIONS: ShippedAgentExpectations = {
-  implementer: {
-    claude: {
-      model: "claude-sonnet-5",
-      effort: "high",
-    },
-    codex: {
-      model: "gpt-5.6-terra",
-      model_reasoning_effort: "high",
-      sandbox_mode: "workspace-write",
-    },
-  },
-  "spec-compliance-reviewer": {
-    claude: {
-      model: "claude-opus-4-8",
-      effort: "xhigh",
-    },
-    codex: {
-      model: "gpt-5.6-sol",
-      model_reasoning_effort: "xhigh",
-      sandbox_mode: "read-only",
-    },
-  },
-  "code-quality-reviewer": {
-    claude: {
-      model: "claude-opus-4-8",
-      effort: "xhigh",
-    },
-    codex: {
-      model: "gpt-5.6-sol",
-      model_reasoning_effort: "xhigh",
-      sandbox_mode: "read-only",
-    },
-  },
-  "research-agent": {
-    claude: {},
-    codex: {
-      sandbox_mode: "read-only",
-    },
-  },
-};
+interface ToolContract {
+  name: string;
+  claudeTools: string[];
+  codexSandbox: string;
+  defaultNetwork: "None" | "Dispatch-owned" | "Task-owned";
+}
+
+interface AgentSourceFixture {
+  name: string;
+  description: string;
+  instructions: string;
+  skills: string[];
+  capability: "efficient" | "balanced" | "frontier";
+  claude: {
+    model?: string;
+    effort: string;
+    tools: string[];
+  };
+  codex: {
+    model?: string;
+    model_reasoning_effort: string;
+    sandbox_mode: string;
+  };
+}
+
+type RenderOutput = Awaited<ReturnType<typeof renderAll>>["outputs"][number];
+
+function tableCells(line: string): string[] {
+  return line
+    .split("|")
+    .slice(1, -1)
+    .map((cell) => cell.trim().replaceAll("`", ""));
+}
+
+function tableRowsAfter(markdown: string, heading: string): string[][] {
+  const sectionStart = markdown.indexOf(heading);
+  if (sectionStart === -1)
+    throw new Error(`Missing contract heading: ${heading}`);
+
+  const lines = markdown.slice(sectionStart + heading.length).split("\n");
+  const headerIndex = lines.findIndex((line) => line.startsWith("| Agent"));
+  if (headerIndex === -1)
+    throw new Error(`Missing contract table after: ${heading}`);
+
+  const rows: string[][] = [];
+  for (const line of lines.slice(headerIndex + 2)) {
+    if (!line.startsWith("|")) break;
+    rows.push(tableCells(line));
+  }
+  return rows;
+}
+
+function parseSemanticRoleContract(markdown: string): SemanticRoleContract[] {
+  return tableRowsAfter(markdown, "## Semantic role catalog").map((cells) => ({
+    name: cells[0],
+    capability: cells[1] as SemanticRoleContract["capability"],
+    claudeEffort: cells[2],
+    codexEffort: cells[3],
+    sourceDefault: cells[4] as SemanticRoleContract["sourceDefault"],
+    externalDefault: cells[5] as SemanticRoleContract["externalDefault"],
+  }));
+}
+
+function parseToolContract(markdown: string): ToolContract[] {
+  return tableRowsAfter(markdown, "### Tool and sandbox behavior").map(
+    (cells) => ({
+      name: cells[0],
+      claudeTools: cells[1].split(",").map((tool) => tool.trim()),
+      codexSandbox: cells[2],
+      defaultNetwork: cells[3] as ToolContract["defaultNetwork"],
+    }),
+  );
+}
+
+async function readContract() {
+  const markdown = await readFile(
+    path.join(process.cwd(), "docs", "specs", "agents.md"),
+    "utf8",
+  );
+  return {
+    roles: parseSemanticRoleContract(markdown),
+    tools: parseToolContract(markdown),
+  };
+}
+
+async function readAgentSources(): Promise<AgentSourceFixture[]> {
+  const agentsDir = path.join(process.cwd(), "agents");
+  const entries = (await readdir(agentsDir))
+    .filter((entry) => entry.endsWith(".yaml"))
+    .sort();
+
+  return Promise.all(
+    entries.map(async (entry) =>
+      parseYaml(await readFile(path.join(agentsDir, entry), "utf8")),
+    ),
+  ) as Promise<AgentSourceFixture[]>;
+}
 
 async function loadConfigWithFixedSkillsHome(): Promise<ResolvedConfig> {
   const config = await loadConfig(
     path.join(process.cwd(), "devcanon.config.yaml"),
+    true,
   );
   config.targets.claude.skillsHome = "/test/claude/skills";
   config.targets.codex.skillsHome = "/test/codex/skills";
@@ -105,205 +150,196 @@ function getAgentOutput(
   return output;
 }
 
-describe("shipped agents render cleanly", () => {
-  it("uses canonical capabilities and explicit effort in shipped source roles", async () => {
-    const migratedExpectations = {
-      implementer: {
-        capability: "balanced",
-        claudeEffort: "high",
-        codexEffort: "high",
-      },
-      "spec-compliance-reviewer": {
-        capability: "frontier",
-        claudeEffort: "xhigh",
-        codexEffort: "xhigh",
-      },
-      "code-quality-reviewer": {
-        capability: "frontier",
-        claudeEffort: "xhigh",
-        codexEffort: "xhigh",
-      },
-    } as const;
+function normalizeWhitespace(value: string): string {
+  return value.replace(/\s+/g, " ").trim();
+}
 
-    for (const [name, expected] of Object.entries(migratedExpectations)) {
-      const source = parseYaml(
-        await readFile(
-          path.join(process.cwd(), "agents", `${name}.yaml`),
-          "utf8",
-        ),
-      ) as Record<string, unknown>;
-      const claude = source.claude as Record<string, unknown>;
-      const codex = source.codex as Record<string, unknown>;
+function expectSharedBoundaries(instructions: string): void {
+  const normalized = normalizeWhitespace(instructions);
+  expect(normalized).toContain("permitted routine commands");
+  expect(normalized).toMatch(
+    /write exactly one[\s\S]*dispatch-named direct-child \.ephemeral[\s\S]*handoff/,
+  );
+  expect(normalized).toContain(
+    "Do not mutate GitHub, Linear, Notion, or any other external system.",
+  );
+}
 
-      expect(source.capability).toBe(expected.capability);
-      expect(claude).not.toHaveProperty("model");
-      expect(claude.effort).toBe(expected.claudeEffort);
-      expect(codex).not.toHaveProperty("model");
-      expect(codex.model_reasoning_effort).toBe(expected.codexEffort);
-    }
-
-    const researchSource = parseYaml(
-      await readFile(
-        path.join(process.cwd(), "agents", "research-agent.yaml"),
-        "utf8",
-      ),
-    ) as Record<string, unknown>;
-    expect(researchSource).not.toHaveProperty("capability");
-    expect(researchSource.claude).not.toHaveProperty("model");
-    expect(researchSource.claude).not.toHaveProperty("effort");
-    expect(researchSource.codex).not.toHaveProperty("model");
-    expect(researchSource.codex).not.toHaveProperty("model_reasoning_effort");
-  });
-
-  it("renders every shipped agent to both targets", async () => {
-    const config = await loadConfigWithFixedSkillsHome();
-
-    const { outputs } = await renderAll(config, false);
-    const agentOutputs = outputs.filter((o) => o.type === "agent");
-
-    expect(agentOutputs).toHaveLength(SHIPPED_AGENTS.length * 2);
-    for (const output of agentOutputs) {
-      expect(SHIPPED_AGENTS).toContain(output.name);
-    }
-  });
-
-  it("renders parseable target-native role settings for every shipped agent", async () => {
-    const config = await loadConfigWithFixedSkillsHome();
-
-    const { outputs } = await renderAll(config, false);
-
-    expect(Object.keys(SHIPPED_AGENT_EXPECTATIONS).sort()).toEqual(
-      [...SHIPPED_AGENTS].sort(),
+describe("shipped semantic agents", () => {
+  it("matches the documented six-role source catalog and target envelopes", async () => {
+    const [{ roles, tools }, sources, sourceFiles] = await Promise.all([
+      readContract(),
+      readAgentSources(),
+      readdir(path.join(process.cwd(), "agents")),
+    ]);
+    const toolsByName = new Map(
+      tools.map((contract) => [contract.name, contract]),
     );
 
-    for (const name of SHIPPED_AGENTS) {
-      const expected = SHIPPED_AGENT_EXPECTATIONS[name];
-      const claudeOutput = getAgentOutput(outputs, name, "claude");
-      const codexOutput = getAgentOutput(outputs, name, "codex");
+    expect(roles).toHaveLength(6);
+    expect(tools).toHaveLength(6);
+    expect(sourceFiles.sort()).toEqual(
+      roles.map((role) => `${role.name}.yaml`).sort(),
+    );
+    expect(sources.map((source) => source.name).sort()).toEqual(
+      roles.map((role) => role.name).sort(),
+    );
 
-      const { frontmatter: claudeFrontmatter, body: claudeBody } =
-        parseRenderedMarkdownArtifact(claudeOutput.content);
-      expect(claudeFrontmatter).toMatchObject({
-        name,
-        ...expected.claude,
-      });
-      if (expected.claude.model === undefined) {
-        expect(claudeFrontmatter).not.toHaveProperty("model");
-      }
-      if (expected.claude.effort === undefined) {
-        expect(claudeFrontmatter).not.toHaveProperty("effort");
-      }
-      expect(claudeBody.trim()).not.toHaveLength(0);
-      expect(claudeOutput.content).not.toContain("{{model:");
+    for (const role of roles) {
+      const source = sources.find((candidate) => candidate.name === role.name);
+      const toolContract = toolsByName.get(role.name);
+      expect(source, `missing source role ${role.name}`).toBeDefined();
+      expect(toolContract, `missing tool contract ${role.name}`).toBeDefined();
+      if (!source || !toolContract) continue;
 
+      expect(source.capability).toBe(role.capability);
+      expect(source.claude).not.toHaveProperty("model");
+      expect(source.claude.effort).toBe(role.claudeEffort);
+      expect(source.claude.tools).toEqual(toolContract.claudeTools);
+      expect(source.codex).not.toHaveProperty("model");
+      expect(source.codex.model_reasoning_effort).toBe(role.codexEffort);
+      expect(source.codex.sandbox_mode).toBe(toolContract.codexSandbox);
+      expect(role.externalDefault).toBe("none");
+      expectSharedBoundaries(source.instructions);
+
+      if (role.sourceDefault === "source-immutable") {
+        const normalized = normalizeWhitespace(source.instructions);
+        expect(normalized).toContain(
+          "Do not modify durable source, tests, configuration, or documentation.",
+        );
+        expect(normalized).toMatch(
+          /Write access exists only for (?:the|that) optional handoff\./,
+        );
+      }
+
+      if (toolContract.defaultNetwork === "None") {
+        expect(normalizeWhitespace(source.instructions)).toContain(
+          "Do not use network access.",
+        );
+      } else if (toolContract.defaultNetwork === "Dispatch-owned") {
+        expect(normalizeWhitespace(source.instructions)).toContain(
+          "Use network access only when the dispatch explicitly names external research",
+        );
+      } else {
+        expect(normalizeWhitespace(source.instructions)).toContain(
+          "Use network access only when the task explicitly authorizes and owns it.",
+        );
+      }
+    }
+  });
+
+  it("keeps specialized mutation and leaf-role boundaries in neutral instructions", async () => {
+    const sources = await readAgentSources();
+    const byName = new Map(sources.map((source) => [source.name, source]));
+    const investigator = byName.get("investigator");
+    const executor = byName.get("executor");
+    const implementer = byName.get("implementer");
+    const reviewer = byName.get("reviewer");
+    const deepReviewer = byName.get("deep-reviewer");
+    const investigatorInstructions = normalizeWhitespace(
+      investigator?.instructions ?? "",
+    );
+    const executorInstructions = normalizeWhitespace(
+      executor?.instructions ?? "",
+    );
+    const implementerInstructions = normalizeWhitespace(
+      implementer?.instructions ?? "",
+    );
+
+    expect(investigatorInstructions).toContain("handoff for diagnostics");
+    expect(investigatorInstructions).toContain("Do not delegate, orchestrate");
+    expect(investigatorInstructions).toContain("persist ambient artifacts");
+    expect(investigatorInstructions).toContain("final-owner synthesis");
+
+    expect(executorInstructions).toContain(
+      "exact validated no-policy operation",
+    );
+    expect(executorInstructions).toContain("exact dispatch-authorized paths");
+    expect(executorInstructions).toContain("within every stated guardrail");
+    expect(executorInstructions).toContain("Stop and hand off");
+    expect(executorInstructions).toContain("judgment or policy appears");
+
+    expect(implementer?.skills).toEqual(["play-tdd", "play-verification"]);
+    expect(implementerInstructions).toContain(
+      "Follow TDD when the task says to",
+    );
+    expect(implementerInstructions).toContain("Commit your own work");
+    expect(implementerInstructions).toContain(
+      "Self-review before reporting back",
+    );
+    expect(implementerInstructions).toContain(
+      "DONE, DONE_WITH_CONCERNS, BLOCKED, NEEDS_CONTEXT",
+    );
+
+    for (const source of [reviewer, deepReviewer]) {
+      expect(source?.instructions).not.toMatch(
+        /base\.\.head|line by line|Blocking|Nit|spec-compliance|code-quality/,
+      );
+    }
+  });
+
+  it("renders and parses exactly six configured roles for both targets", async () => {
+    const [{ roles, tools }, config] = await Promise.all([
+      readContract(),
+      loadConfigWithFixedSkillsHome(),
+    ]);
+    const toolsByName = new Map(
+      tools.map((contract) => [contract.name, contract]),
+    );
+    const { outputs, agents } = await renderAll(config, false, true);
+    const agentOutputs = outputs.filter((output) => output.type === "agent");
+    const renderedNames = agentOutputs.map((output) => output.name);
+    const renderedFiles = agentOutputs
+      .map((output) => path.basename(output.generatedPath))
+      .sort();
+
+    expect(agentOutputs).toHaveLength(12);
+    expect(renderedFiles).toEqual(
+      roles.flatMap((role) => [`${role.name}.md`, `${role.name}.toml`]).sort(),
+    );
+    expect(new Set(renderedNames)).toEqual(
+      new Set(roles.map((role) => role.name)),
+    );
+    for (const retired of RETIRED_AGENTS) {
+      expect(agents.map((agent) => agent.name)).not.toContain(retired);
+      expect(renderedNames).not.toContain(retired);
+    }
+
+    for (const role of roles) {
+      const source = agents.find((agent) => agent.name === role.name)?.source;
+      const toolContract = toolsByName.get(role.name);
+      expect(source, `missing loaded role ${role.name}`).toBeDefined();
+      expect(toolContract, `missing tool contract ${role.name}`).toBeDefined();
+      if (!source || !toolContract) continue;
+
+      const claudeOutput = getAgentOutput(agentOutputs, role.name, "claude");
+      const codexOutput = getAgentOutput(agentOutputs, role.name, "codex");
+      const { frontmatter, body } = parseRenderedMarkdownArtifact(
+        claudeOutput.content,
+      );
       const codexToml = parseRenderedTomlArtifact(codexOutput.content);
-      expect(codexToml).toMatchObject({
-        name,
-        ...expected.codex,
+
+      expect(frontmatter).toEqual({
+        name: role.name,
+        description: source.description,
+        tools: toolContract.claudeTools.join(", "),
+        model: config.capabilityProfiles[role.capability].claude,
+        effort: role.claudeEffort,
       });
-      if (expected.codex.model === undefined) {
-        expect(codexToml).not.toHaveProperty("model");
-      }
-      if (expected.codex.model_reasoning_effort === undefined) {
-        expect(codexToml).not.toHaveProperty("model_reasoning_effort");
-      }
-      expect(codexToml.developer_instructions).toEqual(expect.any(String));
-      expect(
-        (codexToml.developer_instructions as string).trim(),
-      ).not.toHaveLength(0);
-      expect(codexOutput.content).not.toContain("{{model:");
-    }
-  });
-
-  it("renders research-agent as a read-only single-scope leaf role", async () => {
-    const config = await loadConfigWithFixedSkillsHome();
-
-    const { outputs } = await renderAll(config, false);
-    const claudeOutput = getAgentOutput(outputs, "research-agent", "claude");
-    const codexOutput = getAgentOutput(outputs, "research-agent", "codex");
-
-    const { frontmatter: claudeFrontmatter, body: claudeInstructions } =
-      parseRenderedMarkdownArtifact(claudeOutput.content);
-    const claudeTools = (claudeFrontmatter.tools as string)
-      .split(",")
-      .map((tool) => tool.trim());
-    expect(claudeTools).toEqual(["Read", "Grep", "WebFetch", "WebSearch"]);
-    expect(claudeTools).not.toContain("Agent");
-    expect(claudeTools).not.toContain("Bash");
-
-    const codexToml = parseRenderedTomlArtifact(codexOutput.content);
-    expect(codexToml.sandbox_mode).toBe("read-only");
-    const codexInstructions = codexToml.developer_instructions as string;
-
-    for (const instructions of [claudeInstructions, codexInstructions]) {
-      expect(instructions).toContain(
-        "exactly one assigned investigation scope",
-      );
-      expect(instructions).toContain("Return a concise, source-linked report");
-      expect(instructions).toContain("using only the scope-report format");
-      expect(instructions).toContain(
-        "Do not produce or format a final synthesized issue brief",
-      );
-      expect(instructions).toContain("even if the caller asks");
-      expect(instructions).toContain("caller owns final-brief composition");
-      expect(instructions).not.toContain("in the format the caller requests");
-      expect(instructions).toContain("Do not delegate");
-      expect(instructions).toContain("Do not write or persist artifacts");
-      expect(instructions).toContain("Do not emit producer notice lines");
-      expect(instructions).not.toContain("parallel sub-investigations");
-      expect(instructions).not.toContain(
-        "Synthesize findings into a single brief",
-      );
-    }
-  });
-
-  it("renders the efficient capability through a synthetic agent for both targets", async () => {
-    const tempDir = await createTempDir();
-    try {
-      const config = await loadConfigWithFixedSkillsHome();
-      config.library.agentsDir = path.join(tempDir, "agents");
-      await createAgentFixture(
-        config.library.agentsDir,
-        "efficient-capability-probe",
-        makeAgentYaml("efficient-capability-probe", {
-          capability: "efficient",
-          codex: { sandbox_mode: "read-only" },
-        }),
-      );
-
-      const { outputs } = await renderAll(config, false);
-      const claudeOutput = getAgentOutput(
-        outputs,
-        "efficient-capability-probe",
-        "claude",
-      );
-      const codexOutput = getAgentOutput(
-        outputs,
-        "efficient-capability-probe",
-        "codex",
-      );
-
-      expect(
-        parseRenderedMarkdownArtifact(claudeOutput.content).frontmatter,
-      ).toMatchObject({
-        name: "efficient-capability-probe",
-        model: "claude-haiku-4-5-20251001",
-      });
-      expect(
-        parseRenderedMarkdownArtifact(claudeOutput.content).frontmatter,
-      ).not.toHaveProperty("effort");
-      expect(parseRenderedTomlArtifact(codexOutput.content)).toMatchObject({
-        name: "efficient-capability-probe",
-        model: "gpt-5.6-luna",
-        sandbox_mode: "read-only",
-      });
-      expect(parseRenderedTomlArtifact(codexOutput.content)).not.toHaveProperty(
-        "model_reasoning_effort",
-      );
+      expect(body).toContain(source.instructions.trim());
       expect(claudeOutput.content).not.toContain("{{model:");
+
+      expect(codexToml).toEqual({
+        name: role.name,
+        description: source.description,
+        model: config.capabilityProfiles[role.capability].codex,
+        model_reasoning_effort: role.codexEffort,
+        sandbox_mode: toolContract.codexSandbox,
+        developer_instructions: expect.stringContaining(
+          source.instructions.trim(),
+        ),
+      });
       expect(codexOutput.content).not.toContain("{{model:");
-    } finally {
-      await cleanupTempDir(tempDir);
     }
   });
 });
