@@ -1,4 +1,4 @@
-import { execFile } from "node:child_process";
+import { execFile, spawnSync } from "node:child_process";
 import {
   chmod,
   lstat,
@@ -186,6 +186,36 @@ describe("source-immutability runtime", () => {
       await expectChanged(cwd, baseline);
     },
   );
+
+  it("detects nonzero conflict stages without HEAD or worktree-byte changes", async () => {
+    const cwd = await fixture();
+    const baseline = await capture(cwd);
+    const beforeContent = await readFile(path.join(cwd, "tracked.txt"));
+    const beforeHead = (await git(cwd, "rev-parse", "HEAD")).trim();
+    const objectId = (await git(cwd, "rev-parse", "HEAD:tracked.txt")).trim();
+    const indexInfo = [
+      "0 0000000000000000000000000000000000000000\ttracked.txt",
+      `100644 ${objectId} 1\ttracked.txt`,
+      `100644 ${objectId} 2\ttracked.txt`,
+      `100644 ${objectId} 3\ttracked.txt`,
+      "",
+    ].join("\n");
+
+    const result = spawnSync("git", ["update-index", "--index-info"], {
+      cwd,
+      encoding: "utf8",
+      input: indexInfo,
+    });
+    expect(result.status, result.stderr).toBe(0);
+    expect(await readFile(path.join(cwd, "tracked.txt"))).toEqual(
+      beforeContent,
+    );
+    expect((await git(cwd, "rev-parse", "HEAD")).trim()).toBe(beforeHead);
+    expect(await git(cwd, "ls-files", "--stage", "tracked.txt")).toMatch(
+      / 1\ttracked\.txt[\s\S]* 2\ttracked\.txt[\s\S]* 3\ttracked\.txt/u,
+    );
+    await expectChanged(cwd, baseline);
+  });
 
   it("enforces the zero-or-one handoff lifecycle and exact declaration", async () => {
     const cwd = await fixture();
@@ -461,6 +491,45 @@ describe("source-immutability runtime", () => {
       expect(await readFile(path.join(cwd, baseline), "utf8")).toBe(
         malformedContent,
       );
+      expect(await readFile(path.join(cwd, handoff), "utf8")).toBe("payload\n");
+    },
+  );
+
+  it.each([
+    "../outside",
+    "/absolute",
+    "nested/./file",
+    "nested/../file",
+    "nested//file",
+    "nested/file/",
+  ])(
+    "rejects noncanonical retained fingerprint path %s before verify or cleanup deletion",
+    async (invalidPath) => {
+      const cwd = await fixture();
+      const handoff = ".ephemeral/result.json";
+      const baseline = await capture(cwd, handoff);
+      const baselinePath = path.join(cwd, baseline);
+      const retained = JSON.parse(await readFile(baselinePath, "utf8")) as {
+        fingerprint: { files: Array<{ path: string }> };
+      };
+      retained.fingerprint.files[0].path =
+        Buffer.from(invalidPath).toString("base64");
+      const malformedContent = `${JSON.stringify(retained)}\n`;
+      await writeFile(baselinePath, malformedContent);
+      await writeFile(path.join(cwd, handoff), "payload\n");
+
+      for (const operation of ["verify", "cleanup"] as const) {
+        await expect(
+          runSourceImmutabilityCommand(
+            [operation, "--baseline", baseline, "--handoff", handoff],
+            cwd,
+          ),
+        ).resolves.toMatchObject({
+          exitCode: 1,
+          stderr: `retained baseline is invalid: ${baseline}\n`,
+        });
+      }
+      expect(await readFile(baselinePath, "utf8")).toBe(malformedContent);
       expect(await readFile(path.join(cwd, handoff), "utf8")).toBe("payload\n");
     },
   );

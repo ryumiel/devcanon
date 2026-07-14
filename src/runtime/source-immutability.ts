@@ -616,10 +616,43 @@ function isCanonicalNonemptyBase64(value: string): boolean {
   if (value.length === 0 || value.length % 4 !== 0) return false;
   const decoded = Buffer.from(value, "base64");
   return (
-    decoded.length > 0 &&
-    !decoded.includes(0) &&
-    decoded.toString("base64") === value
+    decoded.toString("base64") === value &&
+    isCanonicalRepositoryRelativeGitPath(decoded)
   );
+}
+
+function isCanonicalRepositoryRelativeGitPath(value: Buffer): boolean {
+  if (value.length === 0 || value.includes(0)) return false;
+
+  const separators =
+    process.platform === "win32" ? new Set([0x2f, 0x5c]) : new Set([0x2f]);
+  if (separators.has(value[0]) || separators.has(value[value.length - 1])) {
+    return false;
+  }
+  if (
+    process.platform === "win32" &&
+    value.length >= 2 &&
+    ((value[0] >= 0x41 && value[0] <= 0x5a) ||
+      (value[0] >= 0x61 && value[0] <= 0x7a)) &&
+    value[1] === 0x3a
+  ) {
+    return false;
+  }
+
+  let componentStart = 0;
+  for (let index = 0; index <= value.length; index += 1) {
+    if (index < value.length && !separators.has(value[index])) continue;
+    const component = value.subarray(componentStart, index);
+    if (
+      component.length === 0 ||
+      (component.length === 1 && component[0] === 0x2e) ||
+      (component.length === 2 && component[0] === 0x2e && component[1] === 0x2e)
+    ) {
+      return false;
+    }
+    componentStart = index + 1;
+  }
+  return true;
 }
 
 function requireSameHandoff(
