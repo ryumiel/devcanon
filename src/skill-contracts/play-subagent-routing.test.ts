@@ -67,10 +67,6 @@ const BRANCH_POLICY_REFERENCES = [
     path: "references/snapshot-consumption.md",
   },
   {
-    label: "diagrams",
-    path: "references/process-diagrams.md",
-  },
-  {
     label: "examples",
     path: "references/example-workflow.md",
   },
@@ -1240,9 +1236,6 @@ describe("play subagent routing source contracts", () => {
 
   it("routes D12 judgment work and D13 exact work through distinct mutable roles", async () => {
     const skillSource = await readSkillSource("play-subagent-execution");
-    const processDiagrams = await readRepoFile(
-      "skills/play-subagent-execution/references/process-diagrams.md",
-    );
     const skipDispatch = await readRepoFile(
       "skills/play-subagent-execution/references/skip-dispatch-policy.md",
     );
@@ -1262,7 +1255,6 @@ describe("play subagent routing source contracts", () => {
       "skills/play-subagent-execution/references/executor-prompt.md",
     );
     const normalizedSkill = normalizeWhitespace(skillSource);
-    const normalizedProcessDiagrams = normalizeWhitespace(processDiagrams);
     const normalizedSkipDispatch = normalizeWhitespace(skipDispatch);
     const normalizedLifecycle = normalizeWhitespace(lifecycle);
     const normalizedReviewRouting = normalizeWhitespace(reviewRouting);
@@ -1403,9 +1395,6 @@ describe("play subagent routing source contracts", () => {
     );
     expect(normalizedSkill).not.toContain(
       "review-routing-policy.md` | Computing effective per-task routes, validating reduced-route auto-handoff, checking hard-risk triggers, or resolving same-head reviewer disposition",
-    );
-    expect(normalizedProcessDiagrams).not.toContain(
-      "controller executes the file change inline instead of dispatching an implementer subagent",
     );
     expect(skillSource).not.toContain("mechanical-implementer-prompt.md");
   });
@@ -2093,16 +2082,12 @@ describe("play subagent routing source contracts", () => {
     const exampleWorkflow = await readRepoFile(
       "skills/play-subagent-execution/references/example-workflow.md",
     );
-    const processDiagrams = await readRepoFile(
-      "skills/play-subagent-execution/references/process-diagrams.md",
-    );
     const redFlags = await readRepoFile(
       "skills/play-subagent-execution/references/red-flags.md",
     );
     const normalizedSkill = normalizeWhitespace(playSubagentExecution);
     const normalizedAdvantages = normalizeWhitespace(advantages);
     const normalizedExampleWorkflow = normalizeWhitespace(exampleWorkflow);
-    const normalizedProcessDiagrams = normalizeWhitespace(processDiagrams);
     const normalizedRedFlags = normalizeWhitespace(redFlags);
 
     expect(normalizedSkill).toContain(
@@ -2133,27 +2118,6 @@ describe("play subagent routing source contracts", () => {
       "use `branch-review --fix` only with owning-workflow authority or explicit operator confirmation for auto-committed fixes",
     );
 
-    expect(normalizedProcessDiagrams).toContain(
-      "Report implementation and final review status; resolve branch-level review status",
-    );
-    expect(normalizedProcessDiagrams).toContain(
-      "Active workflow requires branch-level review before PR creation?",
-    );
-    expect(normalizedProcessDiagrams).toContain(
-      '"Active workflow requires branch-level review before PR creation?" -> "Hand off to branch-review before play-branch-finish" [label="yes"]',
-    );
-    expect(normalizedProcessDiagrams).toContain(
-      '"Branch-review approval evidence or explicit waiver present?" -> "Invoke play-branch-finish" [label="yes"]',
-    );
-    expect(normalizedProcessDiagrams).toContain(
-      '"Active workflow requires branch-level review before PR creation?" -> "Invoke play-branch-finish" [label="no"]',
-    );
-    expect(normalizedProcessDiagrams).not.toContain(
-      "Report implementation and final review passed; invoke play-branch-finish",
-    );
-    expect(normalizedProcessDiagrams).not.toContain(
-      "then invokes `play-branch-finish`",
-    );
     for (const staleUnconditionalHandoff of [
       "terminal handoff to `play-branch-finish`",
       "final whole-implementation code-quality reviewer -> `play-branch-finish`",
@@ -2279,9 +2243,6 @@ describe("play subagent routing source contracts", () => {
       "skills/play-subagent-execution/references/lifecycle-status-policy.md",
     );
     const lifecycle = handlingStatus;
-    const processDiagrams = await readRepoFile(
-      "skills/play-subagent-execution/references/process-diagrams.md",
-    );
     const redFlags = await readRepoFile(
       "skills/play-subagent-execution/references/red-flags.md",
     );
@@ -2304,7 +2265,6 @@ describe("play subagent routing source contracts", () => {
     const normalizedRouting = normalizeWhitespace(routing);
     const normalizedHandlingStatus = normalizeWhitespace(handlingStatus);
     const normalizedLifecycle = normalizeWhitespace(lifecycle);
-    const normalizedProcessDiagrams = normalizeWhitespace(processDiagrams);
     const normalizedRedFlags = normalizeWhitespace(redFlags);
     const normalizedExample = normalizeWhitespace(exampleWorkflow);
     const normalizedAdvantages = normalizeWhitespace(advantages);
@@ -2328,36 +2288,6 @@ describe("play subagent routing source contracts", () => {
     );
     expect(normalizedRouting).not.toContain(
       "Every fix commit invalidates both D14 and D15 results",
-    );
-    expect(normalizedProcessDiagrams).toContain(
-      "Dispatch spec and quality reviewers for same task head",
-    );
-    expect(normalizedProcessDiagrams).toContain(
-      '"Spec-only review passes?" -> "Mark task complete" [label="yes"]',
-    );
-    expect(normalizedProcessDiagrams).toContain(
-      "Join same-head review results",
-    );
-    expect(normalizedProcessDiagrams).toContain(
-      "Quality result final for same reviewed head?",
-    );
-    expect(normalizedProcessDiagrams).toContain(
-      '"Quality result final for same reviewed head?" -> "Resolve quality disposition or rerun quality" [label="no"]',
-    );
-    expect(normalizedProcessDiagrams).toContain(
-      '"Resolve quality disposition or rerun quality" -> "Join same-head review results"',
-    );
-    expect(normalizedProcessDiagrams).toContain(
-      '"Quality findings present?" -> "Implementer fixes findings" [label="yes"]',
-    );
-    expect(normalizedProcessDiagrams).toContain(
-      '"Quality findings present?" -> "Mark task complete" [label="no"]',
-    );
-    expect(normalizedProcessDiagrams).toContain(
-      "Spec passes for reviewed head?",
-    );
-    expect(normalizedProcessDiagrams).not.toContain(
-      '"Quality result final for same reviewed head?" -> "Implementer fixes findings" [label="no"]',
     );
     expect(normalizedSkill).not.toContain("quality-only rerun proven valid");
     expect(normalizedLifecycle).toContain(
@@ -2549,9 +2479,6 @@ describe("play subagent routing source contracts", () => {
     const lifecycle = await readRepoFile(
       "skills/play-subagent-execution/references/lifecycle-status-policy.md",
     );
-    const processDiagrams = await readRepoFile(
-      "skills/play-subagent-execution/references/process-diagrams.md",
-    );
     const exampleWorkflow = await readRepoFile(
       "skills/play-subagent-execution/references/example-workflow.md",
     );
@@ -2563,7 +2490,7 @@ describe("play subagent routing source contracts", () => {
       "D16 dispatch fields",
     );
     const normalizedSurface = normalizeWhitespace(
-      [skillSource, lifecycle, processDiagrams, exampleWorkflow].join("\n"),
+      [skillSource, lifecycle, exampleWorkflow].join("\n"),
     );
 
     expect(normalizedSurface).toContain(
