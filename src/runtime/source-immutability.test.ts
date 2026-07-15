@@ -78,7 +78,9 @@ describe("source-immutability runtime", () => {
   it("captures, verifies, and cleans a clean workspace with exact stdout", async () => {
     const cwd = await fixture();
     const baseline = await capture(cwd);
-    expect((await lstat(path.join(cwd, baseline))).mode & 0o777).toBe(0o600);
+    if (process.platform !== "win32") {
+      expect((await lstat(path.join(cwd, baseline))).mode & 0o777).toBe(0o600);
+    }
 
     await expect(
       runSourceImmutabilityCommand(["verify", "--baseline", baseline], cwd),
@@ -122,10 +124,15 @@ describe("source-immutability runtime", () => {
       mutate: async (cwd: string) =>
         writeFile(path.join(cwd, "tracked.txt"), "changed\n"),
     },
-    {
-      name: "tracked file mode",
-      mutate: async (cwd: string) => chmod(path.join(cwd, "mode.sh"), 0o755),
-    },
+    ...(process.platform === "win32"
+      ? []
+      : [
+          {
+            name: "tracked file mode",
+            mutate: async (cwd: string) =>
+              chmod(path.join(cwd, "mode.sh"), 0o755),
+          },
+        ]),
     {
       name: "tracked file kind",
       mutate: async (cwd: string) => {
