@@ -132,14 +132,23 @@ it never enters branch finish. D16 detected source mutation or cleanup failure
 is guard-integrity terminal. Capture failure prevents spawn and returns the
 same final-review-incomplete `BLOCKED` state without inventing cleanup evidence.
 
+### D13 Exact-Task Boundary Failure
+
+For a dispatched D13 executor, `NEEDS_CONTEXT` or `BLOCKED` caused by judgment,
+policy interpretation, a clarifying question, missing authorization, or widened
+scope stops D13 and reclassifies the task to D12. Do not redispatch D13 with
+more context or a more capable model. The controller applies this boundary
+check before the D12 status handling below.
+
 ### NEEDS_CONTEXT
 
-The implementer needs information that was not provided. Provide the missing
-context and re-dispatch.
+For a D12 implementer, `NEEDS_CONTEXT` means required information was not
+provided; provide the missing context and redispatch D12 when the task remains
+within its judgment-bearing scope.
 
 ### BLOCKED
 
-Assess the blocker:
+For a D12 implementer, assess the blocker:
 
 1. If it is a context problem, provide more context and re-dispatch with the
    same model.
@@ -152,9 +161,9 @@ Record blocker state as a stable family plus brief detail, for example
 prompt exceeds context`. The family is the text before the first colon and is
 what repeated-blocker checks compare.
 
-If a spawned implementer reports BLOCKED after slot-limit recovery succeeds and
-the blocker family already appears in the lifecycle ledger for that task, treat
-it as repeated blocker-family behavior and escalate through the existing path
-above instead of running another cleanup retry.
+If a spawned D12 implementer reports BLOCKED after slot-limit recovery succeeds
+and the blocker family already appears in the lifecycle ledger for that task,
+treat it as repeated blocker-family behavior and escalate through the existing
+path above instead of running another cleanup retry.
 
 Never ignore an escalation or force the same model to retry without changes.

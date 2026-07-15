@@ -1487,6 +1487,9 @@ describe("play subagent routing source contracts", () => {
     const skipDispatch = await readRepoFile(
       "skills/play-subagent-execution/references/skip-dispatch-policy.md",
     );
+    const lifecycle = await readRepoFile(
+      "skills/play-subagent-execution/references/lifecycle-status-policy.md",
+    );
     const implementerPrompt = await readRepoFile(
       "skills/play-subagent-execution/references/implementer-prompt.md",
     );
@@ -1496,6 +1499,7 @@ describe("play subagent routing source contracts", () => {
     const normalizedSkill = normalizeWhitespace(skillSource);
     const normalizedProcessDiagrams = normalizeWhitespace(processDiagrams);
     const normalizedSkipDispatch = normalizeWhitespace(skipDispatch);
+    const normalizedLifecycle = normalizeWhitespace(lifecycle);
     const normalizedExecutorPrompt = normalizeWhitespace(executorPrompt);
 
     expect(normalizedSkill).toContain(
@@ -1519,6 +1523,15 @@ describe("play subagent routing source contracts", () => {
     );
     expect(normalizedSkipDispatch).toContain(
       "Guardrail #4 failure blocks before source mutation; any other missing guardrail reclassifies to D12 and uses `implementer-prompt.md`",
+    );
+    expect(normalizedLifecycle).toContain(
+      "For a dispatched D13 executor, `NEEDS_CONTEXT` or `BLOCKED` caused by judgment, policy interpretation, a clarifying question, missing authorization, or widened scope stops D13 and reclassifies the task to D12",
+    );
+    expect(normalizedLifecycle).toContain(
+      "Do not redispatch D13 with more context or a more capable model",
+    );
+    expect(normalizedLifecycle).toContain(
+      "For a D12 implementer, `NEEDS_CONTEXT` means required information was not provided; provide the missing context and redispatch D12 when the task remains within its judgment-bearing scope",
     );
     expect(normalizedSkill).toContain(
       "The guarded inline branch produces no child DONE report and no child snapshot request",
@@ -3066,7 +3079,7 @@ describe("play subagent routing source contracts", () => {
       "The cleanup gate must not close a task implementer while same-session D14 or D15 reviewer fix loops may still route fixups back to that implementer session",
     );
     expect(normalizedHandlingStatus).toContain(
-      "If a spawned implementer reports BLOCKED after slot-limit recovery succeeds and the blocker family already appears in the lifecycle ledger for that task",
+      "If a spawned D12 implementer reports BLOCKED after slot-limit recovery succeeds and the blocker family already appears in the lifecycle ledger for that task",
     );
   });
 
