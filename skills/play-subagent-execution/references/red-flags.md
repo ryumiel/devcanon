@@ -14,7 +14,8 @@ Behavioral signals that this skill is being violated.
 - Dispatch multiple implementation subagents in parallel (the workflow is serial by design; isolation is not authorization for concurrent implementer dispatch)
 - Make per-task implementer subagent read the plan file (controller still curates and inlines the per-task text). The controller MAY accept the plan via a `Plan: <path>` reference from its caller (see [SKILL.md § Inputs](../SKILL.md#inputs)); the per-task boundary is what stays inlined. Skip-dispatch (see [skip-dispatch policy](skip-dispatch-policy.md)) is the explicitly-gated exception: with no dispatched subagent, this Red Flag does not apply on that path.
 - Skip scene-setting context (subagent needs to understand where task fits)
-- Ignore subagent questions (answer before letting them proceed)
+- Ignore questions from a D12 implementer when they remain within
+  judgment-bearing scope (answer before letting D12 proceed)
 - Move to next task while an executor-required review has open issues
 - Stop after an implementation summary, verification summary, or review pass
   report instead of returning to the verified owning caller or resolving
@@ -51,11 +52,18 @@ Behavioral signals that this skill is being violated.
   provisional result; both reviews must run fresh against the new same task
   head. There is no quality-irrelevance exception after a fix.
 
-**If subagent asks questions:**
+**If a D12 implementer asks questions:**
 
-- Answer clearly and completely
-- Provide additional context if needed
-- Don't rush them into implementation
+For D12 implementer questions within judgment-bearing scope, answer clearly,
+provide needed context, and let D12 proceed. Do not rush D12 into
+implementation before the question is resolved.
+
+**If a D13 executor reaches an exact-task boundary:**
+
+For a D13 executor, a clarifying question or `NEEDS_CONTEXT`/`BLOCKED` caused by
+judgment, policy interpretation, missing authorization, or widened scope stops
+D13 and reclassifies the task to D12. Do not answer and let D13 proceed,
+redispatch D13, or use a more capable model for D13.
 
 **If reviewer finds issues:**
 

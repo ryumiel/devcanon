@@ -1490,6 +1490,9 @@ describe("play subagent routing source contracts", () => {
     const lifecycle = await readRepoFile(
       "skills/play-subagent-execution/references/lifecycle-status-policy.md",
     );
+    const redFlags = await readRepoFile(
+      "skills/play-subagent-execution/references/red-flags.md",
+    );
     const implementerPrompt = await readRepoFile(
       "skills/play-subagent-execution/references/implementer-prompt.md",
     );
@@ -1500,6 +1503,7 @@ describe("play subagent routing source contracts", () => {
     const normalizedProcessDiagrams = normalizeWhitespace(processDiagrams);
     const normalizedSkipDispatch = normalizeWhitespace(skipDispatch);
     const normalizedLifecycle = normalizeWhitespace(lifecycle);
+    const normalizedRedFlags = normalizeWhitespace(redFlags);
     const normalizedExecutorPrompt = normalizeWhitespace(executorPrompt);
 
     expect(normalizedSkill).toContain(
@@ -1532,6 +1536,15 @@ describe("play subagent routing source contracts", () => {
     );
     expect(normalizedLifecycle).toContain(
       "For a D12 implementer, `NEEDS_CONTEXT` means required information was not provided; provide the missing context and redispatch D12 when the task remains within its judgment-bearing scope",
+    );
+    expect(normalizedRedFlags).toContain(
+      "For D12 implementer questions within judgment-bearing scope, answer clearly, provide needed context, and let D12 proceed",
+    );
+    expect(normalizedRedFlags).toContain(
+      "For a D13 executor, a clarifying question or `NEEDS_CONTEXT`/`BLOCKED` caused by judgment, policy interpretation, missing authorization, or widened scope stops D13 and reclassifies the task to D12",
+    );
+    expect(normalizedRedFlags).toContain(
+      "Do not answer and let D13 proceed, redispatch D13, or use a more capable model for D13",
     );
     expect(normalizedSkill).toContain(
       "The guarded inline branch produces no child DONE report and no child snapshot request",
