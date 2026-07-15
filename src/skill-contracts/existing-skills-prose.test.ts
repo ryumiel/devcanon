@@ -1,9 +1,10 @@
 import { execFile } from "node:child_process";
-import { chmod, mkdtemp, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, readFile, readdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
+import { parse as parseYaml } from "yaml";
 import { cleanupTempDir } from "../__test-helpers__/fixtures.js";
 import { getSkillOutput } from "../__test-helpers__/render.js";
 import {
@@ -90,6 +91,107 @@ const PUBLIC_EXPLICIT_PLAY_SKILLS = [
   "play-tdd",
   "play-verification",
 ] as const;
+
+const SEMANTIC_ROLE_CONTRACTS = {
+  assessor: {
+    capability: "balanced",
+    effort: "medium",
+    sourceAuthority: "source-immutable",
+  },
+  investigator: {
+    capability: "balanced",
+    effort: "high",
+    sourceAuthority: "source-immutable",
+  },
+  executor: {
+    capability: "efficient",
+    effort: "medium",
+    sourceAuthority: "source-mutable",
+  },
+  implementer: {
+    capability: "balanced",
+    effort: "high",
+    sourceAuthority: "source-mutable",
+  },
+  reviewer: {
+    capability: "frontier",
+    effort: "high",
+    sourceAuthority: "source-immutable",
+  },
+  "deep-reviewer": {
+    capability: "frontier",
+    effort: "xhigh",
+    sourceAuthority: "source-immutable",
+  },
+} as const;
+
+type SemanticRoleName = keyof typeof SEMANTIC_ROLE_CONTRACTS;
+
+const DIRECT_ROUTE_ROLES: Record<`D${number}`, readonly SemanticRoleName[]> = {
+  D1: ["assessor"],
+  D2: ["investigator"],
+  D3: ["investigator"],
+  D4: [],
+  D5: ["reviewer"],
+  D6: ["reviewer"],
+  D7: ["reviewer"],
+  D8: ["reviewer"],
+  D9: ["reviewer"],
+  D10: ["deep-reviewer"],
+  D11: ["assessor"],
+  D12: ["implementer"],
+  D13: ["executor"],
+  D14: ["deep-reviewer"],
+  D15: ["deep-reviewer"],
+  D16: ["deep-reviewer"],
+  D17: ["investigator", "executor", "implementer"],
+};
+
+const DIRECT_ROUTE_OWNER_TOKENS: Record<`D${number}`, readonly string[]> = {
+  D1: ["issue-priming-workflow", "Phase 2"],
+  D2: ["issue priming", "Phase 3"],
+  D3: ["issue priming", "Phase 3"],
+  D4: ["play-agent-dispatch"],
+  D5: ["play-planning"],
+  D6: ["play-planning"],
+  D7: ["play-review", "Phase 3"],
+  D8: ["play-review", "Phase 3"],
+  D9: ["play-review", "Phase 3"],
+  D10: ["play-review", "Phase 5"],
+  D11: ["play-skill-authoring"],
+  D12: ["play-subagent-execution"],
+  D13: ["play-subagent-execution"],
+  D14: ["execution review routing"],
+  D15: ["execution review routing"],
+  D16: ["execution Process step 10/final-review gate"],
+  D17: ["pr-merge", "Step 4"],
+};
+
+interface AgentSourceContract {
+  name: string;
+  instructions: string;
+  capability: string;
+  claude: { effort: string; tools: string[] };
+  codex: { model_reasoning_effort: string };
+}
+
+function markdownTableRows(section: string): string[][] {
+  const lines = section.split("\n");
+  const headerIndex = lines.findIndex((line) => line.startsWith("|"));
+  if (headerIndex === -1) return [];
+
+  const rows: string[][] = [];
+  for (const line of lines.slice(headerIndex + 2)) {
+    if (!line.startsWith("|")) break;
+    rows.push(
+      line
+        .split("|")
+        .slice(1, -1)
+        .map((cell) => cell.trim()),
+    );
+  }
+  return rows;
+}
 
 async function git(args: string[], cwd: string): Promise<void> {
   await execFileAsync("git", args, { cwd });
@@ -4820,6 +4922,158 @@ describe("existing skills source prose contracts", () => {
     } finally {
       await cleanupTempDir(repoDir);
     }
+  });
+
+  it("reconciles the current routing policy with source skills, routes, and semantic agents", async () => {
+    const repoRoot = process.cwd();
+    const policy = await readRepoFile(
+      "docs/guidelines/agent-routing-and-mutation-policy.md",
+    );
+    const inventoryRows = markdownTableRows(
+      getMarkdownSection(policy, "Complete Skill Inventory"),
+    );
+    const skillNames = (
+      await readdir(path.join(repoRoot, "skills"), { withFileTypes: true })
+    )
+      .filter((entry) => entry.isDirectory() && !entry.name.startsWith("."))
+      .map((entry) => entry.name)
+      .sort();
+    const inventoryNames = inventoryRows
+      .map(([name]) => name.replaceAll("`", ""))
+      .sort();
+
+    expect(skillNames).toHaveLength(33);
+    expect(inventoryRows).toHaveLength(33);
+    expect(new Set(inventoryNames).size).toBe(33);
+    expect(inventoryNames).toEqual(skillNames);
+
+    for (const [
+      name,
+      demandAndStance,
+      sourceAuthority,
+      externalAuthority,
+      note,
+    ] of inventoryRows) {
+      expect(name).toMatch(/^`[a-z0-9-]+`$/);
+      expect(demandAndStance).toMatch(
+        /^(mechanical|bounded|synthesis|inherited) \/ (normal|adversarial)$/,
+      );
+      expect(["source-immutable", "source-mutable"]).toContain(sourceAuthority);
+      expect(["none", "external-mutable"]).toContain(externalAuthority);
+      expect(note).not.toHaveLength(0);
+    }
+
+    const routeRows = markdownTableRows(
+      getMarkdownSection(policy, "Direct-Child Route Inventory"),
+    );
+    const expectedRouteIds = Array.from(
+      { length: 17 },
+      (_, index) => `D${index + 1}`,
+    );
+
+    expect(routeRows).toHaveLength(17);
+    expect(routeRows.map(([id]) => id)).toEqual(expectedRouteIds);
+    expect(new Set(routeRows.map(([id]) => id)).size).toBe(17);
+
+    for (const [id, surface, route, output] of routeRows) {
+      expect([id, surface, route, output]).toHaveLength(4);
+      const routeId = id as `D${number}`;
+      for (const ownerToken of DIRECT_ROUTE_OWNER_TOKENS[routeId]) {
+        expect(surface).toContain(ownerToken);
+      }
+      expect(output).not.toHaveLength(0);
+
+      for (const roleName of DIRECT_ROUTE_ROLES[routeId]) {
+        const role = SEMANTIC_ROLE_CONTRACTS[roleName];
+        expect(route).toContain(
+          `\`${roleName}\`, ${role.capability}/${role.effort}, ${role.sourceAuthority}`,
+        );
+      }
+    }
+
+    const d4Route = routeRows.find(([id]) => id === "D4")?.[2] ?? "";
+    expect(normalizeWhitespace(d4Route)).toContain(
+      "Resolve exactly one of the six semantic roles before spawn",
+    );
+    expect(normalizeWhitespace(d4Route)).toContain(
+      "exact configured capability/effort and matching source default",
+    );
+    expect(normalizeWhitespace(d4Route)).toContain("external authority `none`");
+
+    const normalizedPolicy = normalizeWhitespace(policy);
+    expect(normalizedPolicy).toContain(
+      "Every semantic child route has external authority `none`",
+    );
+    expect(normalizedPolicy).toContain(
+      "Only the owning root/controller may hold that separately authorized authority",
+    );
+    expect(routeRows.find(([id]) => id === "D17")?.[3]).toContain(
+      "root alone separately owns external-mutable push/merge",
+    );
+
+    const agentFiles = (await readdir(path.join(repoRoot, "agents")))
+      .filter((entry) => entry.endsWith(".yaml"))
+      .sort();
+    expect(agentFiles).toEqual(
+      Object.keys(SEMANTIC_ROLE_CONTRACTS)
+        .map((name) => `${name}.yaml`)
+        .sort(),
+    );
+
+    for (const [roleName, role] of Object.entries(SEMANTIC_ROLE_CONTRACTS)) {
+      const source = parseYaml(
+        await readFile(
+          path.join(repoRoot, "agents", `${roleName}.yaml`),
+          "utf8",
+        ),
+      ) as AgentSourceContract;
+      const normalizedInstructions = normalizeWhitespace(source.instructions);
+
+      expect(source.name).toBe(roleName);
+      expect(source.capability).toBe(role.capability);
+      expect(source.claude.effort).toBe(role.effort);
+      expect(source.codex.model_reasoning_effort).toBe(role.effort);
+      expect(normalizedInstructions).toContain(
+        "Do not mutate GitHub, Linear, Notion, or any other external system.",
+      );
+
+      if (role.sourceAuthority === "source-immutable") {
+        expect(source.claude.tools).not.toContain("Edit");
+        expect(normalizedInstructions).toContain(
+          "Do not modify durable source, tests, configuration, or documentation.",
+        );
+      } else {
+        expect(source.claude.tools).toContain("Edit");
+        expect(normalizedInstructions).toMatch(
+          /(?:dispatch-authorized|dispatch-authorized task scope)/,
+        );
+      }
+    }
+
+    const brainstorm = await readSkillSource("play-brainstorm");
+    const routingChangeCheck = getMarkdownSection(
+      brainstorm,
+      "Agent Routing and Mutation Changes",
+    );
+    const normalizedRoutingChangeCheck =
+      normalizeWhitespace(routingChangeCheck);
+    expect(routingChangeCheck).toContain(
+      "docs/guidelines/agent-routing-and-mutation-policy.md",
+    );
+    expect(normalizedRoutingChangeCheck).toContain(
+      "reconcile the current source skill directories with the complete skill inventory",
+    );
+    expect(normalizedRoutingChangeCheck).toContain(
+      "reconcile D1-D17 with their current source anchors and full route fields",
+    );
+    expect(normalizedRoutingChangeCheck).toContain(
+      "exactly six semantic agent sources and both Claude and Codex rendered outputs",
+    );
+    expect(normalizedRoutingChangeCheck).toContain(
+      "Tests are current migration checks, not runtime discovery or dispatch authority",
+    );
+    expect(routingChangeCheck).not.toContain("| D1");
+    expect(routingChangeCheck).not.toContain("| `assessor`");
   });
 
   it("requires a complete semantic route tuple before each focused specialist spawn", async () => {

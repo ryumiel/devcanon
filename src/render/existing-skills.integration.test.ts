@@ -6,6 +6,8 @@ import {
   getSkillOutput,
   listRelativeFiles,
   normalizeWhitespace,
+  parseRenderedMarkdownArtifact,
+  parseRenderedTomlArtifact,
 } from "../__test-helpers__/render.js";
 import { loadConfig } from "../config/load.js";
 import { CODEX_SKILL_OVERRIDE_FIELDS } from "../config/schema.js";
@@ -55,6 +57,63 @@ const PUBLIC_EXPLICIT_PLAY_SKILLS = [
   "play-tdd",
   "play-verification",
 ] as const;
+
+const SEMANTIC_ROLE_RENDER_CONTRACTS = {
+  assessor: {
+    capability: "balanced",
+    effort: "medium",
+    sourceAuthority: "source-immutable",
+  },
+  investigator: {
+    capability: "balanced",
+    effort: "high",
+    sourceAuthority: "source-immutable",
+  },
+  executor: {
+    capability: "efficient",
+    effort: "medium",
+    sourceAuthority: "source-mutable",
+  },
+  implementer: {
+    capability: "balanced",
+    effort: "high",
+    sourceAuthority: "source-mutable",
+  },
+  reviewer: {
+    capability: "frontier",
+    effort: "high",
+    sourceAuthority: "source-immutable",
+  },
+  "deep-reviewer": {
+    capability: "frontier",
+    effort: "xhigh",
+    sourceAuthority: "source-immutable",
+  },
+} as const;
+
+type SemanticRoleName = keyof typeof SEMANTIC_ROLE_RENDER_CONTRACTS;
+
+const ROUTE_SKILL_RENDER_CONTRACTS: ReadonlyArray<{
+  skill: string;
+  roles: readonly SemanticRoleName[];
+}> = [
+  { skill: "issue-priming-workflow", roles: ["assessor", "investigator"] },
+  {
+    skill: "play-agent-dispatch",
+    roles: Object.keys(SEMANTIC_ROLE_RENDER_CONTRACTS) as SemanticRoleName[],
+  },
+  { skill: "play-planning", roles: ["reviewer"] },
+  { skill: "play-review", roles: ["reviewer", "deep-reviewer"] },
+  { skill: "play-skill-authoring", roles: ["assessor"] },
+  {
+    skill: "play-subagent-execution",
+    roles: ["implementer", "executor", "deep-reviewer"],
+  },
+  {
+    skill: "pr-merge",
+    roles: ["investigator", "executor", "implementer"],
+  },
+];
 
 const TOUCHED_SKILL_COVERAGE = {
   "github-issue-priming":
@@ -182,6 +241,24 @@ function expectPlaceholderLinesRendered(
   }
 }
 
+function expectObservableRouteTuple(
+  content: string,
+  roleName: SemanticRoleName,
+): void {
+  const role = SEMANTIC_ROLE_RENDER_CONTRACTS[roleName];
+  const normalized = normalizeWhitespace(content).replaceAll("`", "");
+  const roleFirst = new RegExp(
+    `${roleName}[\\s\\S]{0,120}${role.capability}[\\s\\S]{0,40}${role.effort}[\\s\\S]{0,120}${role.sourceAuthority}`,
+  );
+  const authorityFirst = new RegExp(
+    `${role.sourceAuthority}[\\s\\S]{0,120}${roleName}[\\s\\S]{0,120}${role.capability}[\\s\\S]{0,40}${role.effort}`,
+  );
+
+  expect(roleFirst.test(normalized) || authorityFirst.test(normalized)).toBe(
+    true,
+  );
+}
+
 describe("existing skills render cleanly", () => {
   it("dogfoods tool and file glossary placeholders in selected skills", async () => {
     const repoRoot = process.cwd();
@@ -282,6 +359,96 @@ describe("existing skills render cleanly", () => {
     for (const output of skillOutputs) {
       expect(output.content.startsWith("---\n")).toBe(true);
       expect(output.content).toContain(`name: ${output.name}`);
+    }
+  });
+
+  it("renders current routing contracts and semantic authority with target parity", async () => {
+    const repoRoot = process.cwd();
+    const config = await loadConfig(
+      path.join(repoRoot, "devcanon.config.yaml"),
+    );
+    const { outputs } = await renderAll(config, false, true);
+    const roleNames = Object.keys(
+      SEMANTIC_ROLE_RENDER_CONTRACTS,
+    ) as SemanticRoleName[];
+
+    for (const target of ["claude", "codex"] as const) {
+      const brainstorm = getSkillOutput(outputs, "play-brainstorm", target);
+      const normalizedBrainstorm = normalizeWhitespace(brainstorm.content);
+      expect(brainstorm.content).toContain(
+        "docs/guidelines/agent-routing-and-mutation-policy.md",
+      );
+      expect(normalizedBrainstorm).toContain(
+        "reconcile the current source skill directories with the complete skill inventory",
+      );
+      expect(normalizedBrainstorm).toContain(
+        "reconcile D1-D17 with their current source anchors and full route fields",
+      );
+      expect(normalizedBrainstorm).toContain(
+        "exactly six semantic agent sources and both Claude and Codex rendered outputs",
+      );
+      expect(normalizedBrainstorm).toContain(
+        "Every semantic child keeps external authority `none`",
+      );
+
+      for (const contract of ROUTE_SKILL_RENDER_CONTRACTS) {
+        const skillOutput = getSkillOutput(outputs, contract.skill, target);
+        for (const roleName of contract.roles) {
+          expectObservableRouteTuple(skillOutput.content, roleName);
+        }
+      }
+
+      const agentOutputs = outputs
+        .filter((output) => output.type === "agent" && output.target === target)
+        .sort((left, right) => left.name.localeCompare(right.name));
+      expect(agentOutputs).toHaveLength(6);
+      expect(agentOutputs.map((output) => output.name)).toEqual(
+        [...roleNames].sort(),
+      );
+
+      for (const roleName of roleNames) {
+        const role = SEMANTIC_ROLE_RENDER_CONTRACTS[roleName];
+        const output = agentOutputs.find(
+          (candidate) => candidate.name === roleName,
+        );
+        expect(output, `missing ${target} agent ${roleName}`).toBeDefined();
+        if (!output) continue;
+
+        let instructions: string;
+        if (target === "claude") {
+          const { frontmatter, body } = parseRenderedMarkdownArtifact(
+            output.content,
+          );
+          expect(frontmatter.name).toBe(roleName);
+          expect(frontmatter.model).toBe(
+            config.capabilityProfiles[role.capability].claude,
+          );
+          expect(frontmatter.effort).toBe(role.effort);
+          instructions = body;
+        } else {
+          const parsed = parseRenderedTomlArtifact(output.content);
+          expect(parsed.name).toBe(roleName);
+          expect(parsed.model).toBe(
+            config.capabilityProfiles[role.capability].codex,
+          );
+          expect(parsed.model_reasoning_effort).toBe(role.effort);
+          instructions = String(parsed.developer_instructions ?? "");
+        }
+
+        const normalizedInstructions = normalizeWhitespace(instructions);
+        expect(normalizedInstructions).toContain(
+          "Do not mutate GitHub, Linear, Notion, or any other external system.",
+        );
+        if (role.sourceAuthority === "source-immutable") {
+          expect(normalizedInstructions).toContain(
+            "Do not modify durable source, tests, configuration, or documentation.",
+          );
+        } else {
+          expect(normalizedInstructions).toMatch(
+            /(?:dispatch-authorized|dispatch-authorized task scope)/,
+          );
+        }
+      }
     }
   });
 
