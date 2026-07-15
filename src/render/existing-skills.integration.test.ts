@@ -93,27 +93,208 @@ const SEMANTIC_ROLE_RENDER_CONTRACTS = {
 
 type SemanticRoleName = keyof typeof SEMANTIC_ROLE_RENDER_CONTRACTS;
 
-const ROUTE_SKILL_RENDER_CONTRACTS: ReadonlyArray<{
-  skill: string;
+interface RenderedRouteCheck {
+  anchor: string;
+  tupleAnchor?: string;
   roles: readonly SemanticRoleName[];
-}> = [
-  { skill: "issue-priming-workflow", roles: ["assessor", "investigator"] },
-  {
+  before?: number;
+  after?: number;
+}
+
+interface RenderedRouteContract {
+  skill: string;
+  checks: readonly RenderedRouteCheck[];
+}
+
+const RENDERED_ROUTE_CONTRACTS: Record<`D${number}`, RenderedRouteContract> = {
+  D1: {
+    skill: "issue-priming-workflow",
+    checks: [
+      {
+        anchor: "## Phase 2: Complexity Gate",
+        roles: ["assessor"],
+        after: 900,
+      },
+    ],
+  },
+  D2: {
+    skill: "issue-priming-workflow",
+    checks: [
+      {
+        anchor: "Internal research receives external",
+        tupleAnchor: "Each route is a response-only `investigator`",
+        roles: ["investigator"],
+        after: 300,
+      },
+    ],
+  },
+  D3: {
+    skill: "issue-priming-workflow",
+    checks: [
+      {
+        anchor: "External research also receives",
+        tupleAnchor: "Each route is a response-only `investigator`",
+        roles: ["investigator"],
+        after: 300,
+      },
+    ],
+  },
+  D4: {
     skill: "play-agent-dispatch",
-    roles: Object.keys(SEMANTIC_ROLE_RENDER_CONTRACTS) as SemanticRoleName[],
+    checks: [
+      {
+        anchor: "### Semantic Route Contract",
+        roles: Object.keys(
+          SEMANTIC_ROLE_RENDER_CONTRACTS,
+        ) as SemanticRoleName[],
+        after: 1900,
+      },
+    ],
   },
-  { skill: "play-planning", roles: ["reviewer"] },
-  { skill: "play-review", roles: ["reviewer", "deep-reviewer"] },
-  { skill: "play-skill-authoring", roles: ["assessor"] },
-  {
+  D5: {
+    skill: "play-planning",
+    checks: [{ anchor: "## Plan Review", roles: ["reviewer"], after: 700 }],
+  },
+  D6: {
+    skill: "play-planning",
+    checks: [
+      {
+        anchor: "## Implementer Executability Review",
+        roles: ["reviewer"],
+        after: 850,
+      },
+    ],
+  },
+  D7: {
+    skill: "play-review",
+    checks: [
+      {
+        anchor: "| D7 `Code-quality`",
+        tupleAnchor:
+          "Each selected topical route is an independent response-only `reviewer`",
+        roles: ["reviewer"],
+        after: 300,
+      },
+    ],
+  },
+  D8: {
+    skill: "play-review",
+    checks: [
+      {
+        anchor: "| D8 `Architecture`",
+        tupleAnchor:
+          "Each selected topical route is an independent response-only `reviewer`",
+        roles: ["reviewer"],
+        after: 300,
+      },
+    ],
+  },
+  D9: {
+    skill: "play-review",
+    checks: [
+      {
+        anchor: "| D9 `Spec`",
+        tupleAnchor:
+          "Each selected topical route is an independent response-only `reviewer`",
+        roles: ["reviewer"],
+        after: 300,
+      },
+    ],
+  },
+  D10: {
+    skill: "play-review",
+    checks: [
+      {
+        anchor: "## Phase 5: Critic verification",
+        roles: ["deep-reviewer"],
+        after: 900,
+      },
+    ],
+  },
+  D11: {
+    skill: "play-skill-authoring",
+    checks: [
+      {
+        anchor: "## Pressure-Scenario Evaluator Contract",
+        roles: ["assessor"],
+        after: 600,
+      },
+    ],
+  },
+  D12: {
     skill: "play-subagent-execution",
-    roles: ["implementer", "executor", "deep-reviewer"],
+    checks: [
+      {
+        anchor: "D12 uses the source-mutable `implementer`",
+        roles: ["implementer"],
+        after: 350,
+      },
+    ],
   },
-  {
+  D13: {
+    skill: "play-subagent-execution",
+    checks: [
+      {
+        anchor:
+          "D13 uses guarded inline execution or the source-mutable `executor`",
+        roles: ["executor"],
+        after: 400,
+      },
+    ],
+  },
+  D14: {
+    skill: "play-subagent-execution",
+    checks: [
+      {
+        anchor: "D14 is a separate response-only `deep-reviewer`",
+        roles: ["deep-reviewer"],
+        after: 260,
+      },
+    ],
+  },
+  D15: {
+    skill: "play-subagent-execution",
+    checks: [
+      {
+        anchor: "D15 is a separate response-only",
+        roles: ["deep-reviewer"],
+        after: 260,
+      },
+    ],
+  },
+  D16: {
+    skill: "play-subagent-execution",
+    checks: [
+      {
+        anchor: "### D16 guarded final whole-implementation review",
+        roles: ["deep-reviewer"],
+        after: 450,
+      },
+    ],
+  },
+  D17: {
     skill: "pr-merge",
-    roles: ["investigator", "executor", "implementer"],
+    checks: [
+      {
+        anchor: "### 4b. Dispatch investigation agent",
+        roles: ["investigator"],
+        after: 1200,
+      },
+      {
+        anchor:
+          "Route an exact mechanical fix to one source-mutable `executor`",
+        roles: ["executor"],
+        after: 180,
+      },
+      {
+        anchor:
+          "Route a judgment-bearing fix to one source-mutable `implementer`",
+        roles: ["implementer"],
+        after: 180,
+      },
+    ],
   },
-];
+};
 
 const TOUCHED_SKILL_COVERAGE = {
   "github-issue-priming":
@@ -241,17 +422,40 @@ function expectPlaceholderLinesRendered(
   }
 }
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 function expectObservableRouteTuple(
   content: string,
+  check: RenderedRouteCheck,
   roleName: SemanticRoleName,
 ): void {
   const role = SEMANTIC_ROLE_RENDER_CONTRACTS[roleName];
-  const normalized = normalizeWhitespace(content).replaceAll("`", "");
+  const anchorIndex = content.indexOf(check.anchor);
+  expect(
+    anchorIndex,
+    `missing route anchor: ${check.anchor}`,
+  ).toBeGreaterThanOrEqual(0);
+  expect(content.split(check.anchor).length - 1).toBe(1);
+  const tupleAnchor = check.tupleAnchor ?? check.anchor;
+  const tupleAnchorIndex = content.indexOf(tupleAnchor);
+  expect(
+    tupleAnchorIndex,
+    `missing route tuple anchor: ${tupleAnchor}`,
+  ).toBeGreaterThanOrEqual(0);
+  expect(content.split(tupleAnchor).length - 1).toBe(1);
+  const window = content.slice(
+    Math.max(0, tupleAnchorIndex - (check.before ?? 0)),
+    tupleAnchorIndex + tupleAnchor.length + (check.after ?? 600),
+  );
+  const normalized = normalizeWhitespace(window).replaceAll("`", "");
+  const roleToken = `(?<![a-z0-9-])${escapeRegExp(roleName)}(?![a-z0-9-])`;
   const roleFirst = new RegExp(
-    `${roleName}[\\s\\S]{0,120}${role.capability}[\\s\\S]{0,40}${role.effort}[\\s\\S]{0,120}${role.sourceAuthority}`,
+    `${roleToken}[\\s\\S]{0,120}${role.capability}[\\s\\S]{0,40}${role.effort}[\\s\\S]{0,120}${role.sourceAuthority}`,
   );
   const authorityFirst = new RegExp(
-    `${role.sourceAuthority}[\\s\\S]{0,120}${roleName}[\\s\\S]{0,120}${role.capability}[\\s\\S]{0,40}${role.effort}`,
+    `${role.sourceAuthority}[\\s\\S]{0,120}${roleToken}[\\s\\S]{0,120}${role.capability}[\\s\\S]{0,40}${role.effort}`,
   );
 
   expect(roleFirst.test(normalized) || authorityFirst.test(normalized)).toBe(
@@ -260,6 +464,18 @@ function expectObservableRouteTuple(
 }
 
 describe("existing skills render cleanly", () => {
+  it("does not confuse reviewer with deep-reviewer route tuples", () => {
+    const content =
+      "anchor: `deep-reviewer`, frontier/high and source-immutable";
+    expect(() =>
+      expectObservableRouteTuple(
+        content,
+        { anchor: "anchor:", roles: ["reviewer"] },
+        "reviewer",
+      ),
+    ).toThrow();
+  });
+
   it("dogfoods tool and file glossary placeholders in selected skills", async () => {
     const repoRoot = process.cwd();
     const config = await loadConfig(
@@ -371,6 +587,9 @@ describe("existing skills render cleanly", () => {
     const roleNames = Object.keys(
       SEMANTIC_ROLE_RENDER_CONTRACTS,
     ) as SemanticRoleName[];
+    expect(Object.keys(RENDERED_ROUTE_CONTRACTS)).toEqual(
+      Array.from({ length: 17 }, (_, index) => `D${index + 1}`),
+    );
 
     for (const target of ["claude", "codex"] as const) {
       const brainstorm = getSkillOutput(outputs, "play-brainstorm", target);
@@ -391,10 +610,20 @@ describe("existing skills render cleanly", () => {
         "Every semantic child keeps external authority `none`",
       );
 
-      for (const contract of ROUTE_SKILL_RENDER_CONTRACTS) {
+      for (const [routeId, contract] of Object.entries(
+        RENDERED_ROUTE_CONTRACTS,
+      )) {
         const skillOutput = getSkillOutput(outputs, contract.skill, target);
-        for (const roleName of contract.roles) {
-          expectObservableRouteTuple(skillOutput.content, roleName);
+        for (const check of contract.checks) {
+          for (const roleName of check.roles) {
+            try {
+              expectObservableRouteTuple(skillOutput.content, check, roleName);
+            } catch (error) {
+              throw new Error(
+                `${target} ${routeId} ${contract.skill} route mismatch: ${String(error)}`,
+              );
+            }
+          }
         }
       }
 

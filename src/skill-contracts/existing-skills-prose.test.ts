@@ -127,45 +127,261 @@ const SEMANTIC_ROLE_CONTRACTS = {
 
 type SemanticRoleName = keyof typeof SEMANTIC_ROLE_CONTRACTS;
 
-const DIRECT_ROUTE_ROLES: Record<`D${number}`, readonly SemanticRoleName[]> = {
-  D1: ["assessor"],
-  D2: ["investigator"],
-  D3: ["investigator"],
-  D4: [],
-  D5: ["reviewer"],
-  D6: ["reviewer"],
-  D7: ["reviewer"],
-  D8: ["reviewer"],
-  D9: ["reviewer"],
-  D10: ["deep-reviewer"],
-  D11: ["assessor"],
-  D12: ["implementer"],
-  D13: ["executor"],
-  D14: ["deep-reviewer"],
-  D15: ["deep-reviewer"],
-  D16: ["deep-reviewer"],
-  D17: ["investigator", "executor", "implementer"],
+type InventoryExpectation = readonly [
+  demand: "mechanical" | "bounded" | "synthesis" | "inherited",
+  stance: "normal" | "adversarial",
+  sourceAuthority: "source-immutable" | "source-mutable",
+  externalAuthority: "none" | "external-mutable",
+];
+
+const INVENTORY_EXPECTATIONS: Record<string, InventoryExpectation> = {
+  "branch-review": ["inherited", "adversarial", "source-mutable", "none"],
+  "devcanon-runtime": ["mechanical", "normal", "source-mutable", "none"],
+  "doc-gardening": ["synthesis", "adversarial", "source-mutable", "none"],
+  "git-workspace-cleanup": ["mechanical", "normal", "source-mutable", "none"],
+  "github-issue-priming": [
+    "inherited",
+    "normal",
+    "source-mutable",
+    "external-mutable",
+  ],
+  "issue-batch-routing": [
+    "synthesis",
+    "normal",
+    "source-immutable",
+    "external-mutable",
+  ],
+  "issue-priming-workflow": [
+    "synthesis",
+    "normal",
+    "source-mutable",
+    "external-mutable",
+  ],
+  "issue-slicing": ["synthesis", "normal", "source-immutable", "none"],
+  "issue-worktree-setup": ["mechanical", "normal", "source-mutable", "none"],
+  "linear-issue-priming": [
+    "inherited",
+    "normal",
+    "source-mutable",
+    "external-mutable",
+  ],
+  "play-agent-dispatch": ["inherited", "normal", "source-mutable", "none"],
+  "play-brainstorm": ["synthesis", "normal", "source-immutable", "none"],
+  "play-branch-finish": [
+    "synthesis",
+    "normal",
+    "source-mutable",
+    "external-mutable",
+  ],
+  "play-debug": ["bounded", "normal", "source-mutable", "none"],
+  "play-planning": ["synthesis", "normal", "source-immutable", "none"],
+  "play-review": ["synthesis", "adversarial", "source-immutable", "none"],
+  "play-review-response": [
+    "synthesis",
+    "adversarial",
+    "source-mutable",
+    "external-mutable",
+  ],
+  "play-skill-authoring": [
+    "synthesis",
+    "adversarial",
+    "source-mutable",
+    "none",
+  ],
+  "play-subagent-execution": ["inherited", "normal", "source-mutable", "none"],
+  "play-tdd": ["inherited", "normal", "source-mutable", "none"],
+  "play-validate-review-artifacts": [
+    "mechanical",
+    "normal",
+    "source-immutable",
+    "none",
+  ],
+  "play-verification": ["bounded", "adversarial", "source-immutable", "none"],
+  "pr-authoring": ["synthesis", "normal", "source-immutable", "none"],
+  "pr-merge": ["inherited", "normal", "source-mutable", "external-mutable"],
+  "pr-review": [
+    "inherited",
+    "adversarial",
+    "source-mutable",
+    "external-mutable",
+  ],
+  "report-devcanon-issue": [
+    "synthesis",
+    "normal",
+    "source-immutable",
+    "external-mutable",
+  ],
+  "spec-readiness-review": [
+    "synthesis",
+    "adversarial",
+    "source-immutable",
+    "none",
+  ],
+  "subagent-lifecycle": ["bounded", "normal", "source-immutable", "none"],
+  "write-linear-project-description": [
+    "synthesis",
+    "normal",
+    "source-immutable",
+    "external-mutable",
+  ],
+  "write-linear-project-update": [
+    "synthesis",
+    "normal",
+    "source-immutable",
+    "external-mutable",
+  ],
+  "write-product-requirements": [
+    "synthesis",
+    "normal",
+    "source-mutable",
+    "none",
+  ],
+  "write-product-spec": ["synthesis", "normal", "source-mutable", "none"],
+  "write-prose": ["bounded", "normal", "source-mutable", "none"],
 };
 
-const DIRECT_ROUTE_OWNER_TOKENS: Record<`D${number}`, readonly string[]> = {
-  D1: ["issue-priming-workflow", "Phase 2"],
-  D2: ["issue priming", "Phase 3"],
-  D3: ["issue priming", "Phase 3"],
-  D4: ["play-agent-dispatch"],
-  D5: ["play-planning"],
-  D6: ["play-planning"],
-  D7: ["play-review", "Phase 3"],
-  D8: ["play-review", "Phase 3"],
-  D9: ["play-review", "Phase 3"],
-  D10: ["play-review", "Phase 5"],
-  D11: ["play-skill-authoring"],
-  D12: ["play-subagent-execution"],
-  D13: ["play-subagent-execution"],
-  D14: ["execution review routing"],
-  D15: ["execution review routing"],
-  D16: ["execution Process step 10/final-review gate"],
-  D17: ["pr-merge", "Step 4"],
-};
+interface DirectRouteExpectation {
+  surface: string;
+  roles: readonly SemanticRoleName[];
+  multiplicity: "one" | "exactly-one-of-six" | "inline-or-one" | "three-path";
+  externalAuthority: "none";
+  outputTokens: readonly string[];
+}
+
+const DIRECT_ROUTE_EXPECTATIONS: Record<`D${number}`, DirectRouteExpectation> =
+  {
+    D1: {
+      surface: "Issue gate — `issue-priming-workflow` Phase 2",
+      roles: ["assessor"],
+      multiplicity: "one",
+      externalAuthority: "none",
+      outputTokens: ["Gate enum", "terminal Phase 2 route"],
+    },
+    D2: {
+      surface: "Internal research — issue priming Phase 3",
+      roles: ["investigator"],
+      multiplicity: "one",
+      externalAuthority: "none",
+      outputTokens: ["report headings", "root synthesizes"],
+    },
+    D3: {
+      surface: "External research — issue priming Phase 3",
+      roles: ["investigator"],
+      multiplicity: "one",
+      externalAuthority: "none",
+      outputTokens: ["necessity/URL/headings", "root synthesizes"],
+    },
+    D4: {
+      surface: "Focused specialist — `play-agent-dispatch`",
+      roles: Object.keys(SEMANTIC_ROLE_CONTRACTS) as SemanticRoleName[],
+      multiplicity: "exactly-one-of-six",
+      externalAuthority: "none",
+      outputTokens: [
+        "Source-immutable selection is response-only under B3",
+        "unresolved route blocks",
+      ],
+    },
+    D5: {
+      surface: "Plan review — `play-planning`",
+      roles: ["reviewer"],
+      multiplicity: "one",
+      externalAuthority: "none",
+      outputTokens: ["PASS/FAIL", "revise or advance"],
+    },
+    D6: {
+      surface: "Executability review — `play-planning`",
+      roles: ["reviewer"],
+      multiplicity: "one",
+      externalAuthority: "none",
+      outputTokens: ["Distinct PASS/FAIL", "restart or advance"],
+    },
+    D7: {
+      surface: "Code-quality topical — `play-review` Phase 3",
+      roles: ["reviewer"],
+      multiplicity: "one",
+      externalAuthority: "none",
+      outputTokens: ["findings", "controller aggregates"],
+    },
+    D8: {
+      surface: "Architecture topical — `play-review` Phase 3",
+      roles: ["reviewer"],
+      multiplicity: "one",
+      externalAuthority: "none",
+      outputTokens: ["triggered findings", "controller aggregates"],
+    },
+    D9: {
+      surface: "Spec topical — `play-review` Phase 3",
+      roles: ["reviewer"],
+      multiplicity: "one",
+      externalAuthority: "none",
+      outputTokens: ["triggered findings", "controller aggregates"],
+    },
+    D10: {
+      surface: "Critic — `play-review` Phase 5",
+      roles: ["deep-reviewer"],
+      multiplicity: "one",
+      externalAuthority: "none",
+      outputTokens: ["finding verdicts", "no recursion"],
+    },
+    D11: {
+      surface: "Skill pressure scenario — `play-skill-authoring`",
+      roles: ["assessor"],
+      multiplicity: "one",
+      externalAuthority: "none",
+      outputTokens: ["scenario evidence", "invalid evidence retested"],
+    },
+    D12: {
+      surface: "Default implementation — `play-subagent-execution`",
+      roles: ["implementer"],
+      multiplicity: "one",
+      externalAuthority: "none",
+      outputTokens: ["status/snapshot", "scoped commit"],
+    },
+    D13: {
+      surface: "Exact task — `play-subagent-execution`",
+      roles: ["executor"],
+      multiplicity: "inline-or-one",
+      externalAuthority: "none",
+      outputTokens: ["Five guardrails", "stop/reclassify on judgment"],
+    },
+    D14: {
+      surface: "Per-task spec review — execution review routing",
+      roles: ["deep-reviewer"],
+      multiplicity: "one",
+      externalAuthority: "none",
+      outputTokens: ["distinct prompt", "same-head fix loop"],
+    },
+    D15: {
+      surface: "Per-task quality review — execution review routing",
+      roles: ["deep-reviewer"],
+      multiplicity: "one",
+      externalAuthority: "none",
+      outputTokens: ["distinct prompt", "provisional same-head loop"],
+    },
+    D16: {
+      surface:
+        "Final whole-implementation quality review — execution Process step 10/final-review gate",
+      roles: ["deep-reviewer"],
+      multiplicity: "one",
+      externalAuthority: "none",
+      outputTokens: [
+        "Whole-range prompt",
+        "narrow ADR-0016 skip",
+        "terminal-owner route",
+      ],
+    },
+    D17: {
+      surface: "CI diagnosis/fix — `pr-merge` Step 4",
+      roles: ["investigator", "executor", "implementer"],
+      multiplicity: "three-path",
+      externalAuthority: "none",
+      outputTokens: [
+        "Guard diagnosis before fix classification",
+        "mutable child commits only",
+        "root alone separately owns external-mutable push/merge",
+      ],
+    },
+  };
 
 interface AgentSourceContract {
   name: string;
@@ -4941,25 +5157,30 @@ describe("existing skills source prose contracts", () => {
     const inventoryNames = inventoryRows
       .map(([name]) => name.replaceAll("`", ""))
       .sort();
+    const expectedInventoryNames = Object.keys(INVENTORY_EXPECTATIONS).sort();
+    const inventoryByName = new Map(
+      inventoryRows.map((row) => [row[0].replaceAll("`", ""), row]),
+    );
 
     expect(skillNames).toHaveLength(33);
     expect(inventoryRows).toHaveLength(33);
     expect(new Set(inventoryNames).size).toBe(33);
     expect(inventoryNames).toEqual(skillNames);
+    expect(inventoryNames).toEqual(expectedInventoryNames);
 
-    for (const [
-      name,
-      demandAndStance,
-      sourceAuthority,
-      externalAuthority,
-      note,
-    ] of inventoryRows) {
-      expect(name).toMatch(/^`[a-z0-9-]+`$/);
-      expect(demandAndStance).toMatch(
-        /^(mechanical|bounded|synthesis|inherited) \/ (normal|adversarial)$/,
-      );
-      expect(["source-immutable", "source-mutable"]).toContain(sourceAuthority);
-      expect(["none", "external-mutable"]).toContain(externalAuthority);
+    for (const [skillName, expected] of Object.entries(
+      INVENTORY_EXPECTATIONS,
+    )) {
+      const row = inventoryByName.get(skillName);
+      expect(row, `missing inventory row for ${skillName}`).toBeDefined();
+      if (!row) continue;
+      const [name, demandAndStance, sourceAuthority, externalAuthority, note] =
+        row;
+
+      expect(name).toBe(`\`${skillName}\``);
+      expect(demandAndStance).toBe(`${expected[0]} / ${expected[1]}`);
+      expect(sourceAuthority).toBe(expected[2]);
+      expect(externalAuthority).toBe(expected[3]);
       expect(note).not.toHaveLength(0);
     }
 
@@ -4971,24 +5192,54 @@ describe("existing skills source prose contracts", () => {
       (_, index) => `D${index + 1}`,
     );
 
+    const routeIds = routeRows.map(([id]) => id);
+    const routeById = new Map(routeRows.map((row) => [row[0], row]));
+
     expect(routeRows).toHaveLength(17);
-    expect(routeRows.map(([id]) => id)).toEqual(expectedRouteIds);
-    expect(new Set(routeRows.map(([id]) => id)).size).toBe(17);
+    expect(routeIds).toEqual(expectedRouteIds);
+    expect(new Set(routeIds).size).toBe(17);
+    expect(Object.keys(DIRECT_ROUTE_EXPECTATIONS)).toEqual(expectedRouteIds);
 
-    for (const [id, surface, route, output] of routeRows) {
-      expect([id, surface, route, output]).toHaveLength(4);
-      const routeId = id as `D${number}`;
-      for (const ownerToken of DIRECT_ROUTE_OWNER_TOKENS[routeId]) {
-        expect(surface).toContain(ownerToken);
+    for (const [id, expected] of Object.entries(DIRECT_ROUTE_EXPECTATIONS)) {
+      const row = routeById.get(id);
+      expect(row, `missing route row ${id}`).toBeDefined();
+      if (!row) continue;
+      const [, surface, route, output] = row;
+
+      expect(surface).toBe(expected.surface);
+      for (const outputToken of expected.outputTokens) {
+        expect(output).toContain(outputToken);
       }
-      expect(output).not.toHaveLength(0);
 
-      for (const roleName of DIRECT_ROUTE_ROLES[routeId]) {
-        const role = SEMANTIC_ROLE_CONTRACTS[roleName];
-        expect(route).toContain(
-          `\`${roleName}\`, ${role.capability}/${role.effort}, ${role.sourceAuthority}`,
+      if (id !== "D4") {
+        for (const roleName of expected.roles) {
+          const role = SEMANTIC_ROLE_CONTRACTS[roleName];
+          const tuple = `\`${roleName}\`, ${role.capability}/${role.effort}, ${role.sourceAuthority}`;
+          expect(route.split(tuple).length - 1).toBe(1);
+        }
+      }
+
+      if (expected.multiplicity === "exactly-one-of-six") {
+        expect(normalizeWhitespace(route)).toContain(
+          "Resolve exactly one of the six semantic roles before spawn",
         );
+        expect(expected.roles).toHaveLength(6);
+        expect([...expected.roles].sort()).toEqual(
+          Object.keys(SEMANTIC_ROLE_CONTRACTS).sort(),
+        );
+      } else if (expected.multiplicity === "inline-or-one") {
+        expect(route).toContain("Inline or `executor`");
+        expect(expected.roles).toHaveLength(1);
+      } else if (expected.multiplicity === "three-path") {
+        expect(route).toContain("Diagnosis:");
+        expect(route).toContain("exact fix:");
+        expect(route).toContain("judgment fix:");
+        expect(expected.roles).toHaveLength(3);
+      } else {
+        expect(expected.roles).toHaveLength(1);
       }
+
+      expect(expected.externalAuthority).toBe("none");
     }
 
     const d4Route = routeRows.find(([id]) => id === "D4")?.[2] ?? "";
