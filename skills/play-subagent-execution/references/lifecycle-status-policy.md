@@ -1,8 +1,16 @@
 # Lifecycle And Status Policy - `play-subagent-execution`
 
-This file contains execution-specific lifecycle and implementer status details.
-Load it when updating the lifecycle ledger, interpreting implementer statuses,
+This file is the sole normative owner of returned D12/D13 dispositions,
+D14/D15 result freshness and invalidation, D14-D16 guard capture and cleanup
+failure, and incomplete or terminal outcomes. Load it after initial route
+selection when updating the lifecycle ledger, interpreting returned statuses,
 or deciding whether sessions may be closed.
+
+Pre-dispatch D13 selection and fallback belong to
+[`skip-dispatch-policy.md`](skip-dispatch-policy.md). Initial per-task review
+selection belongs to
+[`review-routing-policy.md`](review-routing-policy.md). Child prompts own child
+actions and report schemas; they do not override the transitions below.
 
 ## Subagent Lifecycle
 
@@ -96,10 +104,10 @@ marking the task complete. The route may only stay the same or escalate
 (`none-final-only` -> `spec-only` or `spec-and-quality`; `spec-only` ->
 `spec-and-quality`). It must not downgrade after fixups.
 
-If revalidation escalates a `spec-only` task to `spec-and-quality` after spec
-review has already passed, dispatch the code-quality reviewer before
-completion. If a `spec-and-quality` fixup lands, rerun both D14 and D15. A fix
-never preserves either review verdict.
+If revalidation escalates a `spec-only` task to `spec-and-quality` after a
+head-changing fix, rerun both D14 and D15 fresh against the new same task head
+before completion. If a `spec-and-quality` fixup lands, rerun both D14 and D15.
+A fix never preserves either review verdict.
 
 ### Guarded Review Lifecycle
 

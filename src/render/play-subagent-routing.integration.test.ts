@@ -259,10 +259,10 @@ describe("play-subagent planning and routing render smoke coverage", () => {
         "scripts/source-immutability.sh",
       );
       expect(normalizedPlaySubagentExecution).toContain(
-        "ordinary unavailable, failed, malformed, or verification-rejected D14 or D15 keeps the task incomplete and returns `BLOCKED` naming the failed review",
+        "references/lifecycle-status-policy.md",
       );
       expect(normalizedPlaySubagentExecution).toContain(
-        "ordinary unavailable, failed, malformed, or verification-rejected D16 keeps final review incomplete and returns `BLOCKED`",
+        "Returned D12/D13 status interpretation and all post-selection D14-D16 state transitions are owned by the lifecycle/status policy; this index does not restate them",
       );
       expect(normalizedPlaySubagentExecution).not.toContain(
         "references/mechanical-implementer-prompt.md",
@@ -274,13 +274,7 @@ describe("play-subagent planning and routing render smoke coverage", () => {
         "rely on the final whole-implementation reviewer for direct/manual calls",
       );
       expect(normalizedPlaySubagentExecution).toContain(
-        "A D15 quality result is final only after same-head D14 spec compliance passes",
-      );
-      expect(normalizedPlaySubagentExecution).toContain(
         "load the detailed references only when the trigger applies",
-      );
-      expect(normalizedPlaySubagentExecution).toContain(
-        "same-head quality results remain pending or advisory",
       );
     }
 

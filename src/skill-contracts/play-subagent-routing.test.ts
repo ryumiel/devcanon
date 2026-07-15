@@ -1490,6 +1490,9 @@ describe("play subagent routing source contracts", () => {
     const lifecycle = await readRepoFile(
       "skills/play-subagent-execution/references/lifecycle-status-policy.md",
     );
+    const reviewRouting = await readRepoFile(
+      "skills/play-subagent-execution/references/review-routing-policy.md",
+    );
     const redFlags = await readRepoFile(
       "skills/play-subagent-execution/references/red-flags.md",
     );
@@ -1503,6 +1506,7 @@ describe("play subagent routing source contracts", () => {
     const normalizedProcessDiagrams = normalizeWhitespace(processDiagrams);
     const normalizedSkipDispatch = normalizeWhitespace(skipDispatch);
     const normalizedLifecycle = normalizeWhitespace(lifecycle);
+    const normalizedReviewRouting = normalizeWhitespace(reviewRouting);
     const normalizedRedFlags = normalizeWhitespace(redFlags);
     const normalizedExecutorPrompt = normalizeWhitespace(executorPrompt);
 
@@ -1511,6 +1515,12 @@ describe("play subagent routing source contracts", () => {
     );
     expect(normalizedSkill).toContain(
       "D13 uses guarded inline execution or the source-mutable `executor`, efficient/medium, only when all five exact guardrails pass",
+    );
+    expect(normalizedSkill).toContain(
+      "The [skip-dispatch policy](references/skip-dispatch-policy.md) owns pre-dispatch selection and fallback",
+    );
+    expect(normalizedSkill).toContain(
+      "the [lifecycle/status policy](references/lifecycle-status-policy.md) owns returned D13 dispositions",
     );
     expect(normalizedSkill).toContain("Implementer dispatch remains serial");
     expect(implementerPrompt).toContain(
@@ -1537,33 +1547,45 @@ describe("play subagent routing source contracts", () => {
     expect(normalizedLifecycle).toContain(
       "For a D12 implementer, `NEEDS_CONTEXT` means required information was not provided; provide the missing context and redispatch D12 when the task remains within its judgment-bearing scope",
     );
-    expectSubstringsInOrder(
-      [
-        normalizedExecutorPrompt,
-        normalizedLifecycle,
-        normalizedProcessDiagrams,
-      ].join("\n"),
-      [
-        "If `git rev-parse HEAD` fails for any reason, report BLOCKED",
-        "Only a D13 `DONE` or `DONE_WITH_CONCERNS` enters DONE-report and snapshot capture before task completion",
-        "For a dispatched D13 executor, `NEEDS_CONTEXT` or `BLOCKED` caused by judgment, policy interpretation, a clarifying question, missing authorization, or widened scope stops D13 and reclassifies the task to D12",
-        "A non-boundary operational D13 `BLOCKED` also stops D13, keeps the task incomplete, and routes the blocker plus any available base/head SHA and snapshot state to D12 for judgment-bearing recovery",
-        "Never redispatch or model-escalate D13, and never mark a non-DONE D13 result complete",
-        '"Dispatch D13 executor for exact validated operation" -> "D13 returned DONE or DONE_WITH_CONCERNS?";',
-        '"D13 returned DONE or DONE_WITH_CONCERNS?" -> "Dispatched D13: capture DONE report and snapshot state" [label="yes"];',
-        '"D13 returned DONE or DONE_WITH_CONCERNS?" -> "D13 blocker is an exact-task boundary?" [label="no: NEEDS_CONTEXT/BLOCKED"];',
-        '"D13 blocker is an exact-task boundary?" -> "Stop D13 and reclassify task to D12" [label="yes"];',
-        '"D13 blocker is an exact-task boundary?" -> "Task incomplete: route D13 operational blocker and available state to D12" [label="no"];',
-      ],
+    expect(normalizedLifecycle).toContain(
+      "This file is the sole normative owner of returned D12/D13 dispositions, D14/D15 result freshness and invalidation, D14-D16 guard capture and cleanup failure, and incomplete or terminal outcomes",
+    );
+    expect(normalizedLifecycle).toContain(
+      "If revalidation escalates a `spec-only` task to `spec-and-quality` after a head-changing fix, rerun both D14 and D15 fresh against the new same task head before completion",
+    );
+    expect(normalizedLifecycle).toContain(
+      "Every fix commit invalidates both D14 and D15 results",
+    );
+    expect(normalizedLifecycle).toContain(
+      "Capture failure prevents spawn and returns the same task-incomplete `BLOCKED` state",
+    );
+    expect(normalizedLifecycle).toContain(
+      "D16 detected source mutation or cleanup failure is guard-integrity terminal",
+    );
+
+    expect(normalizedReviewRouting).toContain(
+      "This file owns initial executor-computed per-task review route selection only",
+    );
+    expect(normalizedReviewRouting).toContain(
+      "After selection, [`lifecycle-status-policy.md`](lifecycle-status-policy.md) owns reviewer result disposition, freshness, fix invalidation, guard failures, and incomplete or terminal transitions",
+    );
+    expect(normalizedReviewRouting).not.toContain(
+      "Every fix commit invalidates both D14 and D15 results",
+    );
+    expect(reviewRouting).not.toContain("## Guarded Review Failure");
+    expect(reviewRouting).not.toContain("## Same-Head Quality Disposition");
+
+    expect(normalizedRedFlags).toContain(
+      "Non-normative warning index for likely workflow violations",
     );
     expect(normalizedRedFlags).toContain(
-      "For D12 implementer questions within judgment-bearing scope, answer clearly, provide needed context, and let D12 proceed",
+      "Returned D12/D13 questions, blockers, reviewer findings, fixups, re-reviews, and failures all route through the lifecycle/status policy",
     );
-    expect(normalizedRedFlags).toContain(
-      "For a D13 executor, a clarifying question or `NEEDS_CONTEXT`/`BLOCKED` caused by judgment, policy interpretation, missing authorization, or widened scope stops D13 and reclassifies the task to D12",
+    expect(normalizedRedFlags).not.toContain(
+      "Every fix commit invalidates both D14 and D15 results",
     );
-    expect(normalizedRedFlags).toContain(
-      "Do not answer and let D13 proceed, redispatch D13, or use a more capable model for D13",
+    expect(normalizedRedFlags).not.toContain(
+      "For a D13 executor, a clarifying question or `NEEDS_CONTEXT`/`BLOCKED`",
     );
     expect(normalizedSkill).toContain(
       "The guarded inline branch produces no child DONE report and no child snapshot request",
@@ -1579,6 +1601,28 @@ describe("play subagent routing source contracts", () => {
     );
     expect(normalizedProcessDiagrams).toContain(
       "Dispatched D13: capture DONE report and snapshot state",
+    );
+    expect(normalizedProcessDiagrams).toContain(
+      "These diagrams are non-normative summaries of the controller flow",
+    );
+    expect(normalizedProcessDiagrams).toContain(
+      "Capture-to-spawn arrows are labeled `capture succeeds`; omitted capture, cleanup, verification, returned-status, and terminal failure edges are deliberate and are governed by [`lifecycle-status-policy.md`](lifecycle-status-policy.md)",
+    );
+    for (const edge of [
+      '"Capture separate D14 and D15 baselines" -> "Dispatch spec and quality reviewers for same task head" [label="capture succeeds"]',
+      '"Capture D14 baseline" -> "Dispatch spec reviewer" [label="capture succeeds"]',
+      '"Fresh D16 capture" -> "Dispatch final whole-implementation code-quality reviewer" [label="capture succeeds"]',
+    ]) {
+      expect(processDiagrams).toContain(edge);
+    }
+    expect(processDiagrams).not.toContain("captures succeeded?");
+    expect(processDiagrams).not.toContain("capture succeeded?");
+    expect(processDiagrams).not.toContain("no: capture failure");
+    expect(normalizedSkill).not.toContain(
+      "Every fix commit invalidates both D14 and D15 results",
+    );
+    expect(normalizedSkill).not.toContain(
+      "Capture failure prevents spawn and takes the same task-incomplete `BLOCKED` transition",
     );
     expect(normalizedProcessDiagrams).not.toContain(
       "controller executes the file change inline instead of dispatching an implementer subagent",
@@ -2336,18 +2380,6 @@ describe("play subagent routing source contracts", () => {
     expect(normalizedProcessDiagrams).toContain(
       '"Active workflow requires branch-level review before PR creation?" -> "Invoke play-branch-finish" [label="no"]',
     );
-    expect(normalizedProcessDiagrams).toContain(
-      "If the active workflow requires branch-level review before PR creation, hand off to `branch-review` before any `play-branch-finish` handoff",
-    );
-    expect(normalizedProcessDiagrams).toContain(
-      "Use `branch-review --fix` as the branch-level gate only when the owning workflow already grants auto-fix authority or the operator explicitly confirms that branch-review may auto-commit fixes",
-    );
-    expect(normalizedProcessDiagrams).toContain(
-      "Do not invoke `play-branch-finish` until `branch-review` returns review approval evidence or the active workflow explicitly waives branch-level review",
-    );
-    expect(normalizedProcessDiagrams).toContain(
-      "If that workflow does not require branch-level review, invoke `play-branch-finish`",
-    );
     expect(normalizedProcessDiagrams).not.toContain(
       "Report implementation and final review passed; invoke play-branch-finish",
     );
@@ -2515,24 +2547,18 @@ describe("play subagent routing source contracts", () => {
     const normalizedAdr0018 = normalizeWhitespace(adr0018);
 
     expect(normalizedSkill).toContain(
-      "Hard-risk and unclear multi-task tasks use `spec-and-quality`: D14 and D15 may run concurrently when practical against the same committed task head, then join their results before final disposition",
+      "Hard-risk and unclear multi-task tasks select `spec-and-quality`, which assigns D14 and D15 to the task",
     );
     expect(normalizedRouting).toContain(
-      "`spec-and-quality`: after route computation and implementer commit, the controller may dispatch D14 and D15 concurrently against the same captured task head",
+      "`spec-and-quality`: after route computation and implementer commit, the controller selects both D14 and D15 for the task",
     );
     expect(normalizedRouting).toContain(
-      "The D15 quality result is provisional until D14 spec compliance passes for that same reviewed head and the task head is still current",
+      "After selection, [`lifecycle-status-policy.md`](lifecycle-status-policy.md) owns reviewer result disposition, freshness, fix invalidation, guard failures, and incomplete or terminal transitions",
     );
-    expect(normalizedRouting).toContain(
-      "If both reviewers report findings on the same reviewed head, the controller may route the combined D14 and D15 finding set to the same implementer for one fixup round",
-    );
-    expect(normalizedRouting).toContain(
+    expect(normalizedHandlingStatus).toContain(
       "Every fix commit invalidates both D14 and D15 results, including a previously passing or provisional result; both reviews must run fresh against the new same task head",
     );
-    expect(normalizedRouting).toContain(
-      "There is no quality-irrelevance exception after a fix",
-    );
-    expect(normalizedProcessDiagrams).toContain(
+    expect(normalizedRouting).not.toContain(
       "Every fix commit invalidates both D14 and D15 results",
     );
     expect(normalizedProcessDiagrams).toContain(
@@ -2580,16 +2606,10 @@ describe("play subagent routing source contracts", () => {
     );
 
     expect(normalizedRedFlags).toContain(
-      "Accept a code-quality result as final before same-head spec compliance passes and current task-head validation succeeds",
+      "Apply a stale or incomplete reviewer result instead of using the [lifecycle/status policy](lifecycle-status-policy.md)",
     );
-    expect(normalizedRedFlags).toContain(
-      "Treat advisory, stale, or superseded quality as final task approval",
-    );
-    expect(normalizedRedFlags).toContain(
-      "Every fix commit invalidates both D14 and D15 results, including a previously passing or provisional result; both reviews must run fresh against the new same task head",
-    );
-    expect(normalizedRedFlags).toContain(
-      "There is no quality-irrelevance exception after a fix",
+    expect(normalizedRedFlags).not.toContain(
+      "Every fix commit invalidates both D14 and D15 results",
     );
     expect(normalizedRedFlags).not.toContain("unless irrelevance is proven");
     expect(normalizedRedFlags).not.toContain(

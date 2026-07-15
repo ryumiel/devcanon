@@ -1,8 +1,10 @@
 # Process Diagrams - `play-subagent-execution`
 
-These diagrams are reference material for the controller flow in `SKILL.md`.
-Load this file when you need the full branch diagram, transition labels, or
-diagram interpretation notes.
+These diagrams are non-normative summaries of the controller flow in
+`SKILL.md`. Load this file for orientation only. Initial review selection is
+owned by [`review-routing-policy.md`](review-routing-policy.md); returned
+status, freshness, guard-failure, cleanup, and terminal transitions are owned
+by [`lifecycle-status-policy.md`](lifecycle-status-policy.md).
 
 ## When to Use
 
@@ -38,11 +40,7 @@ digraph process {
     "Controller executes Write/Edit + verify + commit inline" [shape=box];
     "Inline branch: no child DONE report or snapshot request" [shape=box];
     "Dispatch D13 executor for exact validated operation" [shape=box];
-    "D13 returned DONE or DONE_WITH_CONCERNS?" [shape=diamond];
     "Dispatched D13: capture DONE report and snapshot state" [shape=box];
-    "D13 blocker is an exact-task boundary?" [shape=diamond];
-    "Stop D13 and reclassify task to D12" [shape=box];
-    "Task incomplete: route D13 operational blocker and available state to D12" [shape=box];
     "Dispatch implementer prompt" [shape=box];
     "Implementer asks questions?" [shape=diamond];
     "Answer questions and provide context" [shape=box];
@@ -78,9 +76,6 @@ digraph process {
     "Branch-review approval evidence or explicit waiver present?" [shape=diamond];
     "Invoke play-branch-finish" [shape=box style=filled fillcolor=lightgreen];
     "Stop: BLOCKED/NEEDS_CONTEXT for task contract" [shape=box];
-    "Task incomplete: BLOCKED naming failed D14 or D15" [shape=box];
-    "Final review incomplete: BLOCKED owner/manual path" [shape=box];
-    "Guard-integrity terminal: leave source visible" [shape=box];
 
     "Read plan and extract authored tasks" -> "Task contract structurally valid?";
     "Task contract structurally valid?" -> "Stop: BLOCKED/NEEDS_CONTEXT for task contract" [label="no"];
@@ -97,27 +92,17 @@ digraph process {
     "Implementer asks questions?" -> "Implementer implements, verifies, commits, self-reviews" [label="no"];
     "Implementer implements, verifies, commits, self-reviews" -> "Mark task complete" [label="single-task plan"];
     "Implementer implements, verifies, commits, self-reviews" -> "Compute effective review route" [label="multi-task plan"];
-    "Dispatch D13 executor for exact validated operation" -> "D13 returned DONE or DONE_WITH_CONCERNS?";
-    "D13 returned DONE or DONE_WITH_CONCERNS?" -> "Dispatched D13: capture DONE report and snapshot state" [label="yes"];
-    "D13 returned DONE or DONE_WITH_CONCERNS?" -> "D13 blocker is an exact-task boundary?" [label="no: NEEDS_CONTEXT/BLOCKED"];
-    "D13 blocker is an exact-task boundary?" -> "Stop D13 and reclassify task to D12" [label="yes"];
-    "D13 blocker is an exact-task boundary?" -> "Task incomplete: route D13 operational blocker and available state to D12" [label="no"];
-    "Stop D13 and reclassify task to D12" -> "Dispatch implementer prompt";
-    "Task incomplete: route D13 operational blocker and available state to D12" -> "Dispatch implementer prompt";
+    "Dispatch D13 executor for exact validated operation" -> "Dispatched D13: capture DONE report and snapshot state" [label="DONE or DONE_WITH_CONCERNS"];
     "Dispatched D13: capture DONE report and snapshot state" -> "Mark task complete" [label="single-task plan"];
     "Compute effective review route" -> "Capture separate D14 and D15 baselines" [label="spec-and-quality"];
-    "Capture separate D14 and D15 baselines" -> "Dispatch spec and quality reviewers for same task head";
+    "Capture separate D14 and D15 baselines" -> "Dispatch spec and quality reviewers for same task head" [label="capture succeeds"];
     "Dispatch spec and quality reviewers for same task head" -> "Independent D14 and D15 verify-validate-cleanup-apply";
     "Independent D14 and D15 verify-validate-cleanup-apply" -> "Join same-head review results";
-    "Independent D14 and D15 verify-validate-cleanup-apply" -> "Task incomplete: BLOCKED naming failed D14 or D15" [label="ordinary rejection after cleanup"];
-    "Independent D14 and D15 verify-validate-cleanup-apply" -> "Guard-integrity terminal: leave source visible" [label="source mutation or cleanup failure"];
     "Compute effective review route" -> "Capture D14 baseline" [label="spec-only"];
-    "Capture D14 baseline" -> "Dispatch spec reviewer";
+    "Capture D14 baseline" -> "Dispatch spec reviewer" [label="capture succeeds"];
     "Compute effective review route" -> "Mark task complete" [label="none-final-only"];
     "Dispatch spec reviewer" -> "D14 verify-validate-cleanup-apply";
     "D14 verify-validate-cleanup-apply" -> "Spec-only review passes?";
-    "D14 verify-validate-cleanup-apply" -> "Task incomplete: BLOCKED naming failed D14 or D15" [label="ordinary rejection after cleanup"];
-    "D14 verify-validate-cleanup-apply" -> "Guard-integrity terminal: leave source visible" [label="source mutation or cleanup failure"];
     "Join same-head review results" -> "Spec passes for reviewed head?";
     "Spec-only review passes?" -> "Implementer fixes findings" [label="no"];
     "Spec-only review passes?" -> "Mark task complete" [label="yes"];
@@ -137,11 +122,9 @@ digraph process {
     "More tasks remain?" -> "Single-task caller-scoped final-review skip applies?" [label="no"];
     "Single-task caller-scoped final-review skip applies?" -> "Return to caller" [label="yes"];
     "Single-task caller-scoped final-review skip applies?" -> "Fresh D16 capture" [label="no"];
-    "Fresh D16 capture" -> "Dispatch final whole-implementation code-quality reviewer";
+    "Fresh D16 capture" -> "Dispatch final whole-implementation code-quality reviewer" [label="capture succeeds"];
     "Dispatch final whole-implementation code-quality reviewer" -> "D16 verify-validate-cleanup-apply";
     "D16 verify-validate-cleanup-apply" -> "Final whole-implementation review passes?";
-    "D16 verify-validate-cleanup-apply" -> "Final review incomplete: BLOCKED owner/manual path" [label="ordinary rejection after cleanup"];
-    "D16 verify-validate-cleanup-apply" -> "Guard-integrity terminal: leave source visible" [label="source mutation or cleanup failure"];
     "Final whole-implementation review passes?" -> "Implementer fixes final-review findings" [label="no"];
     "Implementer fixes final-review findings" -> "Fresh D16 capture";
     "Final whole-implementation review passes?" -> "Owning caller final whole-diff gate present?" [label="yes"];
@@ -156,70 +139,17 @@ digraph process {
 }
 ```
 
-The diagram routes each multi-task task through effective route computation
-before reviewer dispatch. `spec-and-quality` may dispatch both read-only
-reviewers concurrently against the same captured task head, then joins their
-results; `spec-only` stops after spec-compliance approval, and
-`none-final-only` marks the task complete after implementer self-review and
-commit because the final whole-diff gate is mandatory.
+The process graph is a success-path summary, not a second policy owner.
+Capture-to-spawn arrows are labeled `capture succeeds`; omitted capture,
+cleanup, verification, returned-status, and terminal failure edges are
+deliberate and are governed by
+[`lifecycle-status-policy.md`](lifecycle-status-policy.md). Initial route labels
+are governed by [`review-routing-policy.md`](review-routing-policy.md), and
+pre-dispatch D13 selection is governed by
+[`skip-dispatch-policy.md`](skip-dispatch-policy.md).
 
-Every fix commit invalidates both D14 and D15 results, including a previously
-passing or provisional result. Run both reviews fresh against the new same task
-head before marking the task complete.
-
-D16 is a fresh response-only `deep-reviewer`, frontier/xhigh and
-source-immutable, with zero handoffs, after all tasks complete. D16 reviews the
-whole implementation range and never reuses or collapses the D15 task-quality
-session. The only D16 skip is the exact ADR-0016 verified
-`issue-priming-workflow --auto` single-task carve-out. D16 blocking findings
-route to a final fix, and any fix commit requires a fresh D16 capture, spawn,
-verify, validate, cleanup, and apply cycle. Final fixes do not re-enter per-task
-route computation.
-
-After safe cleanup, an unavailable, failed, malformed, or
-verification-rejected D16 keeps final review incomplete and returns `BLOCKED`
-to the owning caller or direct/manual terminal-status path; it never enters
-branch finish. D16 detected source mutation or cleanup failure is
-guard-integrity terminal.
-
-The terminal path splits on ownership. If a verified owning caller final
-whole-diff gate exists, return to that caller. For direct/manual invocations
-without that owning caller gate, a passing final whole-implementation review
-reports implementation and final review status, then resolves branch-level
-review status before any finish handoff. If the active workflow requires
-branch-level review before PR creation, hand off to `branch-review` before any
-`play-branch-finish` handoff. Use `branch-review --fix` as the branch-level
-gate only when the owning workflow already grants auto-fix authority or the
-operator explicitly confirms that branch-review may auto-commit fixes;
-otherwise hand off to branch-review without auto-fix authority. Do not invoke
-`play-branch-finish` until `branch-review` returns review approval evidence or
-the active workflow explicitly waives branch-level review. If that workflow
-does not require branch-level review, invoke `play-branch-finish`; that skill
-presents the authoritative finish options. Implementation summaries,
-verification summaries, and review pass reports are status reports only on both
-paths, not terminal workflow states. The return-to-caller path leaves final
-continuation ownership with the caller; the direct/manual path either resolves
-required branch review before finish or hands finish ownership to
-`play-branch-finish` when branch review is not required.
-
-The D12 dispatch boxes use `references/implementer-prompt.md`. D13 uses guarded
-inline execution or `references/executor-prompt.md` only after all five exact
-guardrails pass. Any non-contract miss reclassifies to D12; a contract miss
-blocks before mutation.
-
-Before assembling either mutable task-worker dispatch prompt, classify whether this
-task requires a DONE-report snapshot. If requested, include readable paths for
-`references/snapshot-manifest-recipe.md` and
-`scripts/write-snapshot-manifest.sh`. If skipped, require the default DONE
-fields: status, summary, tests, files changed, base SHA, and head SHA.
-
-When the plan has exactly one task and all skip-dispatch guardrails pass, the
-controller explicitly chooses guarded inline execution or a D13 executor
-dispatch. Only the inline branch omits a child DONE report and snapshot request;
-the dispatched D13 branch captures the executor's unchanged DONE report and
-snapshot state before task completion only for `DONE` or
-`DONE_WITH_CONCERNS`. A boundary `NEEDS_CONTEXT` or `BLOCKED` stops D13 and
-reclassifies the task to D12. Any other operational D13 `BLOCKED` also stops
-D13, keeps the task incomplete, and routes the blocker plus any available
-base/head SHA and snapshot state to D12. Neither path redispatches or
-model-escalates D13, and neither marks a non-DONE result complete.
+Prompt boxes point to the child-action/report owners in `implementer-prompt.md`,
+`executor-prompt.md`, `spec-reviewer-prompt.md`, and
+`code-quality-reviewer-prompt.md`. Snapshot construction and consumption remain
+owned by their dedicated references. Do not infer a missing failure transition
+from this summary diagram.

@@ -290,12 +290,13 @@ Implementer dispatch remains serial: never run two source-mutable task workers
 concurrently.
 
 D13 uses guarded inline execution or the source-mutable `executor`,
-efficient/medium, only when all five exact guardrails pass. The executor
-performs one exact validated authorized operation and preserves the existing
-status, snapshot, scoped commit, self-review, and verification contract. If the
-operation requires judgment, a guardrail is missing, or authorization is
-unclear, the executor stops and the controller blocks or reclassifies to D12;
-it never guesses or widens scope.
+efficient/medium, only when all five exact guardrails pass. The
+[skip-dispatch policy](references/skip-dispatch-policy.md) owns pre-dispatch
+selection and fallback, the [executor prompt](references/executor-prompt.md)
+owns child action and report shape, and the
+[lifecycle/status policy](references/lifecycle-status-policy.md) owns returned
+D13 dispositions. None of these surfaces permits the executor to guess or
+widen scope.
 
 ## Mechanical Task Hint
 
@@ -337,17 +338,13 @@ parent-owned `issue-priming-workflow --auto` Phase 6 handoff with a validated
 `branch-review --fix` whole-diff gate. Direct/manual calls, copied prose, and
 repo files alone cannot authorize reduced routes.
 
-Hard-risk and unclear multi-task tasks use `spec-and-quality`: D14 and D15 may
-run concurrently when practical against the same committed task head, then join
-their results before final disposition. A D15 quality result is final only
-after same-head D14 spec compliance passes and the
-reviewed task head remains current. After fixups, revalidate from the original
-task base to the refreshed head before skipping any reviewer or completing the
-task.
+Hard-risk and unclear multi-task tasks select `spec-and-quality`, which assigns
+D14 and D15 to the task. Post-selection result disposition, freshness,
+invalidation, and failure transitions belong to the lifecycle/status policy.
 
 Load [`references/review-routing-policy.md`](references/review-routing-policy.md)
-when computing or validating a route, validating auto-handoff eligibility,
-checking hard-risk triggers, or handling same-head quality disposition.
+when computing the initial effective route, validating auto-handoff
+eligibility, or checking hard-risk triggers.
 
 ### D14-D15 guarded per-task reviews
 
@@ -355,54 +352,12 @@ D14 is a separate response-only `deep-reviewer`, frontier/xhigh and
 source-immutable, with zero handoffs. D15 is a separate response-only
 `deep-reviewer`, frontier/xhigh and source-immutable, with zero handoffs. Use
 the configured role and effort; do not substitute an ordinary reviewer,
-ambient role, model, or effort. D14 and D15 inspect the same captured task head
-but use separate sessions, separate prompts, separate baselines, and independent
-GUARD-001 lifecycles. They may run concurrently when practical. D15 remains
-provisional until D14 passes for the same head and the task head remains current.
-
-Resolve `PLAY_SUBAGENT_EXECUTION_DIR` to the loaded or installed skill bundle,
-resolve `SOURCE_IMMUTABILITY_HELPER` to
-`$PLAY_SUBAGENT_EXECUTION_DIR/scripts/source-immutability.sh`, and run it from
-the current implementation worktree root. Apply GUARD-001 independently to
-each D14 and D15 session with no `--handoff`:
-
-1. **capture before spawn** and retain a route-specific baseline; capture
-   failure prevents that review spawn;
-2. spawn the route's fresh deep reviewer and capture only its raw terminal
-   response and status;
-3. **verify before semantic validation or consumption** against that retained
-   baseline;
-4. **validate and retain the response in controller memory** only after
-   successful verification;
-5. **cleanup the exact retained baseline**; and
-6. **apply the retained result only after cleanup** under the same-head
-   disposition below.
-
-The no-handoff command shape is:
-
-```bash
-TASK_REVIEW_BASELINE="$(bash "$SOURCE_IMMUTABILITY_HELPER" capture)"
-# Spawn exactly one D14 or D15 deep reviewer and capture its raw response/status.
-bash "$SOURCE_IMMUTABILITY_HELPER" verify --baseline "$TASK_REVIEW_BASELINE"
-# Validate and retain the route-specific response in controller memory.
-bash "$SOURCE_IMMUTABILITY_HELPER" cleanup --baseline "$TASK_REVIEW_BASELINE"
-# Only now apply the retained D14 or D15 result.
-```
-
-After capture succeeds, every post-capture terminal path attempts exact cleanup,
-including dispatch or spawn failure or unavailability before a child session
-exists, child failure, malformed output, semantic rejection, and verification
-rejection. After safe cleanup, an ordinary unavailable, failed, malformed, or
-verification-rejected D14 or D15 keeps the task incomplete and returns
-`BLOCKED` naming the failed review; no verdict passes. Detected source mutation
-or cleanup failure is guard-integrity terminal: leave source visible, stop, and
-never reset, check out, stage, repair, or otherwise hide source.
-Capture failure prevents spawn and takes the same task-incomplete `BLOCKED`
-transition naming D14 or D15 without inventing a baseline or cleanup result.
-
-Every fix commit invalidates both D14 and D15 results, including a previously
-passing or provisional result; both reviews must run fresh against the new same
-task head. Do not reuse a pre-fix baseline, session, response, or verdict.
+ambient role, model, or effort. The
+[lifecycle/status policy](references/lifecycle-status-policy.md) is the
+normative owner of their independent guard lifecycles, same-head disposition,
+fix invalidation, cleanup, and incomplete or terminal outcomes. That policy
+applies the bundle's `scripts/source-immutability.sh`; this index does not copy
+its command sequence.
 
 ### D16 guarded final whole-implementation review
 
@@ -417,26 +372,9 @@ The only D16 skip is the exact ADR-0016 verified
 skip from reduced per-task routes, plan prose, task count alone, or an owning
 caller that lacks the verified controller-local state and audit artifact.
 
-Apply the same no-handoff GUARD-001 order to every fresh D16: capture before
-spawn; spawn and capture only the raw response/status; verify before semantic
-validation or consumption; validate and retain the whole-range response in
-controller memory; cleanup the exact retained baseline; then apply the retained
-result only after cleanup. Every post-capture terminal path attempts exact
-cleanup.
-
-A passing retained D16 result continues to the owning-caller or direct/manual
-terminal path only after cleanup. D16 blocking findings route to a final fix,
-and any fix commit requires a fresh D16 capture, spawn, verify, validate,
-cleanup, and apply cycle. D16 never re-enters or substitutes D15.
-
-After safe cleanup, an ordinary unavailable, failed, malformed, or
-verification-rejected D16 keeps final review incomplete and returns `BLOCKED`
-to the owning caller or direct/manual terminal-status path; it never enters
-branch finish. D16 detected source mutation or cleanup failure is
-guard-integrity terminal: leave source visible and never reset, check out,
-stage, repair, or otherwise hide source.
-Capture failure prevents the D16 spawn and takes the same final-review-incomplete
-`BLOCKED` transition without inventing a baseline or cleanup result.
+The [lifecycle/status policy](references/lifecycle-status-policy.md) is the
+normative owner of D16 guard ordering, cleanup, fix-loop freshness, and final
+incomplete or terminal outcomes.
 
 ## Single-Task Plans
 
@@ -676,17 +614,9 @@ when evaluating guardrails, choosing fallback behavior, or checking examples.
 
 ## Handling Implementer Status
 
-Before acting on any D12 implementer or dispatched D13 executor status, record what that status actually
-provides in the lifecycle ledger. `DONE` and `DONE_WITH_CONCERNS` require
-report, snapshot state, changed files, base/head SHA, and test result capture
-before reviewer dispatch. `NEEDS_CONTEXT` and `BLOCKED` capture the request
-or blocker and available SHAs without waiting for artifacts that were not
-produced.
-
-For multi-task `spec-and-quality` routes, same-head quality results remain
-pending or advisory until same-head spec compliance passes and the task head is
-still current. Advisory, stale, and superseded quality results remain lifecycle
-evidence but cannot complete a task.
+Returned D12/D13 status interpretation and all post-selection D14-D16 state
+transitions are owned by the lifecycle/status policy; this index does not
+restate them.
 
 Load
 [`references/lifecycle-status-policy.md`](references/lifecycle-status-policy.md)
