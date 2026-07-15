@@ -568,76 +568,157 @@ describe("existing skills source prose contracts", () => {
       "### Ownership-topology mapping",
       "### Boundary-contract traceability",
     );
-    const normalizedDesignTopology = normalizeWhitespace(designTopology);
-    const normalizedPlanningTopology = normalizeWhitespace(planningTopology);
-    const normalizedPlanningWorkflow = normalizeWhitespace(playPlanning);
+    const ownershipPhase = normalizeWhitespace(
+      markdownBlocksContaining(
+        designTopology,
+        /universal design-time ownership method/,
+      ),
+    );
+    const topologyRows = new Map(
+      markdownTableRows(designTopology).map(([field, decision]) => [
+        field,
+        decision,
+      ]),
+    );
+    const portableModes = normalizeWhitespace(
+      markdownBlocksContaining(
+        designTopology,
+        /\*\*(?:normative owner|reference|derived representation|non-normative summary|Verification)\*\*/,
+      ),
+    );
+    const topologyPolicy = normalizeWhitespace(
+      markdownBlocksContaining(
+        designTopology,
+        /Repetition never grants normative authority/,
+      ),
+    );
+    const validExample = normalizeWhitespace(
+      markdownBlocksContaining(designTopology, /^A valid portable example/),
+    );
+    const invalidExample = markdownBlocksContaining(
+      designTopology,
+      /^Representative invalid examples/,
+    );
+    const invalidFamilies = invalidExample
+      .slice(invalidExample.indexOf(":") + 1, invalidExample.indexOf("."))
+      .split(";")
+      .map(normalizeWhitespace);
+    const planningMapping = normalizeWhitespace(
+      markdownBlocksContaining(
+        planningTopology,
+        /the stable behavior or contract name and governing design decision/,
+      ),
+    );
+    const planningRoutes = normalizeWhitespace(
+      markdownBlocksContaining(
+        planningTopology,
+        /project-specific topology is a `BLOCKER`/,
+      ),
+    );
+    const planningExamples = normalizeWhitespace(
+      markdownBlocksContaining(planningTopology, /Contract Example Discipline/),
+    );
 
-    expect(normalizedDesignTopology).toContain(
-      "This source skill owns the universal design-time ownership method",
+    expect(ownershipPhase).toMatch(
+      /source skill[\s\S]*universal design-time ownership method/,
     );
-    expect(normalizedDesignTopology).toContain(
-      "The approved design artifact owns the project-specific topology decisions",
+    expect(ownershipPhase).toMatch(
+      /approved design artifact[\s\S]*project-specific topology decisions/i,
+    );
+    expect(ownershipPhase).toMatch(/planning[\s\S]*second owner/);
+
+    expect(topologyRows.get("Normative owner")).toMatch(
+      /Exactly one project artifact[\s\S]*responsibility/,
+    );
+    expect(topologyRows.get("Supporting owners")).toMatch(
+      /non-overlapping normative responsibility/,
+    );
+    expect(topologyRows.get("Conflict precedence")).toMatch(
+      /normative owner[\s\S]*supporting owner[\s\S]*named partition[\s\S]*fails closed/,
+    );
+    expect(topologyRows.get("Affected surfaces")).toMatch(
+      /owner source[\s\S]*exactly one mode/,
+    );
+    expect(topologyRows.get("Verification owner")).toMatch(
+      /owner invariant[\s\S]*reference-validity[\s\S]*derived-parity/,
     );
 
-    // Canonical valid case: one project owner and classified consumers whose
-    // repetition or verification role never promotes them to policy owners.
-    expect(normalizedDesignTopology).toContain(
-      "selects `src/policy/retry.ts` as the normative owner of retry eligibility",
-    );
     for (const mode of [
-      "reference",
-      "derived representation",
-      "non-normative summary",
-      "verification",
+      "**normative owner**",
+      "**reference**",
+      "**derived representation**",
+      "**non-normative summary**",
+      "**Verification**",
     ]) {
-      expect(normalizedDesignTopology).toContain(mode);
+      expect(portableModes).toContain(mode);
     }
-    expect(normalizedDesignTopology).toContain(
-      "Repetition never grants normative authority",
-    );
-    expect(normalizedDesignTopology).toContain(
-      "reports mismatch without defining policy",
+    expect(topologyPolicy).toMatch(
+      /Repetition[\s\S]*normative authority[\s\S]*do not overlap[\s\S]*conflict precedence/,
     );
 
-    // Invalid cases change one authority dimension: duplicate ownership or an
-    // overlapping partition. Both fail before planning can invent a repair.
-    expect(normalizedDesignTopology).toContain(
-      "declaring the operator guide a second normative owner duplicates authority",
+    expect(validExample).toMatch(
+      /`src\/policy\/retry\.ts`[\s\S]*normative owner[\s\S]*retry eligibility/,
     );
-    expect(normalizedDesignTopology).toContain(
-      "adding a supporting owner for the same retry-eligibility partition overlaps responsibility",
+    expect(validExample).toMatch(/operator guide[\s\S]*reference/);
+    expect(validExample).toMatch(
+      /generated client table[\s\S]*derived representation/,
     );
-    expect(normalizedDesignTopology).toContain(
-      "omitting the generated table's owner source or mode leaves a consumer unclassified",
-    );
-    expect(normalizedDesignTopology).toContain(
-      "treating the retry test as the policy owner confuses verification with authority",
-    );
-    expect(normalizedDesignTopology).toContain(
-      "Supporting owners are valid only when their responsibilities do not overlap and the design states conflict precedence",
+    expect(validExample).toMatch(/onboarding note[\s\S]*non-normative summary/);
+    expect(validExample).toMatch(/retry policy test[\s\S]*verification/);
+    expect(validExample).toMatch(
+      /verification surface[\s\S]*source owner[\s\S]*invariant[\s\S]*not restate[\s\S]*independent policy/,
     );
 
-    // Consumer-project plans retain project-specific owner sources while using
-    // the same portable modes and proportional verification boundaries.
-    expect(normalizedPlanningTopology).toContain(
-      "exactly one normative owner and the responsibility it defines",
+    expect(invalidFamilies).toHaveLength(4);
+    expect(invalidFamilies[0]).toMatch(
+      /operator guide[\s\S]*second normative owner[\s\S]*duplicate/,
     );
-    expect(normalizedPlanningTopology).toContain(
-      "every other affected surface, its owner source, and exactly one consumption mode",
+    expect(invalidFamilies[1]).toMatch(
+      /supporting owner[\s\S]*same retry-eligibility partition[\s\S]*overlap/,
     );
-    expect(normalizedPlanningTopology).toContain(
-      "owner invariant, reference-validity boundary, or derived-parity boundary",
+    expect(invalidFamilies[2]).toMatch(
+      /generated table[\s\S]*owner source or mode[\s\S]*unclassified/,
     );
-    expect(normalizedPlanningWorkflow).toContain(
-      "Every changed behavior and affected surface must reach a current task with its normative owner",
+    expect(invalidFamilies[3]).toMatch(
+      /retry test[\s\S]*policy owner[\s\S]*verification[\s\S]*authority/,
     );
 
-    expect(normalizedPlanningTopology).toContain(
-      "Missing, duplicated, or conflicting project-specific topology is a `BLOCKER` returned to the owning design",
+    expect(planningMapping).toMatch(
+      /governing design decision[\s\S]*exactly one normative owner/,
     );
-    expect(normalizedPlanningTopology).toContain(
-      "incomplete or contradictory task coverage is a `CURRENT` planning gap returned to `play-planning`",
+    expect(planningMapping).toMatch(
+      /supporting owner[\s\S]*non-overlapping normative[\s\S]*conflict precedence/,
     );
+    expect(planningMapping).toMatch(
+      /affected surface[\s\S]*owner source[\s\S]*exactly one consumption mode/,
+    );
+    expect(planningMapping).toMatch(
+      /current task coverage[\s\S]*owner and every consumer/,
+    );
+    expect(planningMapping).toMatch(
+      /verification owner[\s\S]*owner invariant[\s\S]*reference-validity[\s\S]*derived-parity/,
+    );
+    expect(normalizeWhitespace(playPlanning)).toMatch(
+      /Every changed behavior[\s\S]*affected surface[\s\S]*current task[\s\S]*normative owner/,
+    );
+
+    expectSubstringsInOrder(planningRoutes, [
+      "`BLOCKER`",
+      "owning design",
+      "`CURRENT`",
+      "`play-planning`",
+    ]);
+    expect(planningExamples).toMatch(
+      /one canonical valid post-change example[\s\S]*one dimension at a time/,
+    );
+    for (const invalidDimension of [
+      "duplicate the normative owner",
+      "overlap a supporting partition",
+      "omit a consumer's owner source or mode",
+      "treat verification as policy authority",
+    ]) {
+      expect(planningExamples).toContain(invalidDimension);
+    }
   });
 
   it("keeps planning scope authority and proof proportionality in one canonical reference", async () => {
