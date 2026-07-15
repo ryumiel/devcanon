@@ -96,6 +96,8 @@ type SemanticRoleName = keyof typeof SEMANTIC_ROLE_RENDER_CONTRACTS;
 interface RenderedRouteCheck {
   anchor: string;
   tupleAnchor?: string;
+  localTokens?: readonly string[];
+  localEnd?: string;
   roles: readonly SemanticRoleName[];
   before?: number;
   after?: number;
@@ -106,7 +108,26 @@ interface RenderedRouteContract {
   checks: readonly RenderedRouteCheck[];
 }
 
-const RENDERED_ROUTE_CONTRACTS: Record<`D${number}`, RenderedRouteContract> = {
+type RenderedRouteId =
+  | "D1"
+  | "D2"
+  | "D3"
+  | "D4"
+  | "D5"
+  | "D6"
+  | "D7"
+  | "D8"
+  | "D9"
+  | "D10"
+  | "D11"
+  | "D12"
+  | "D13"
+  | "D14"
+  | "D15"
+  | "D16"
+  | "D17";
+
+const RENDERED_ROUTE_CONTRACTS = {
   D1: {
     skill: "issue-priming-workflow",
     checks: [
@@ -123,6 +144,8 @@ const RENDERED_ROUTE_CONTRACTS: Record<`D${number}`, RenderedRouteContract> = {
       {
         anchor: "Internal research receives external",
         tupleAnchor: "Each route is a response-only `investigator`",
+        localTokens: ["external authority `none`", "no network access"],
+        localEnd: ".",
         roles: ["investigator"],
         after: 300,
       },
@@ -134,6 +157,11 @@ const RENDERED_ROUTE_CONTRACTS: Record<`D${number}`, RenderedRouteContract> = {
       {
         anchor: "External research also receives",
         tupleAnchor: "Each route is a response-only `investigator`",
+        localTokens: [
+          "named network access",
+          "one root-curated external question",
+        ],
+        localEnd: ".",
         roles: ["investigator"],
         after: 300,
       },
@@ -172,6 +200,8 @@ const RENDERED_ROUTE_CONTRACTS: Record<`D${number}`, RenderedRouteContract> = {
         anchor: "| D7 `Code-quality`",
         tupleAnchor:
           "Each selected topical route is an independent response-only `reviewer`",
+        localTokens: ["capture D7", "spawn D7"],
+        localEnd: "\n",
         roles: ["reviewer"],
         after: 300,
       },
@@ -184,6 +214,8 @@ const RENDERED_ROUTE_CONTRACTS: Record<`D${number}`, RenderedRouteContract> = {
         anchor: "| D8 `Architecture`",
         tupleAnchor:
           "Each selected topical route is an independent response-only `reviewer`",
+        localTokens: ["capture D8", "spawn D8"],
+        localEnd: "\n",
         roles: ["reviewer"],
         after: 300,
       },
@@ -196,6 +228,8 @@ const RENDERED_ROUTE_CONTRACTS: Record<`D${number}`, RenderedRouteContract> = {
         anchor: "| D9 `Spec`",
         tupleAnchor:
           "Each selected topical route is an independent response-only `reviewer`",
+        localTokens: ["capture D9", "spawn D9"],
+        localEnd: "\n",
         roles: ["reviewer"],
         after: 300,
       },
@@ -294,7 +328,7 @@ const RENDERED_ROUTE_CONTRACTS: Record<`D${number}`, RenderedRouteContract> = {
       },
     ],
   },
-};
+} satisfies Record<RenderedRouteId, RenderedRouteContract>;
 
 const TOUCHED_SKILL_COVERAGE = {
   "github-issue-priming":
@@ -438,6 +472,25 @@ function expectObservableRouteTuple(
     `missing route anchor: ${check.anchor}`,
   ).toBeGreaterThanOrEqual(0);
   expect(content.split(check.anchor).length - 1).toBe(1);
+  if (check.localTokens) {
+    const localEnd = check.localEnd ?? "\n";
+    const localEndIndex = content.indexOf(localEnd, anchorIndex);
+    expect(
+      localEndIndex,
+      `missing route-local boundary after ${check.anchor}`,
+    ).toBeGreaterThanOrEqual(0);
+    const localBlock = content.slice(
+      anchorIndex,
+      localEndIndex + localEnd.length,
+    );
+    const normalizedLocalBlock = normalizeWhitespace(localBlock);
+    for (const token of check.localTokens) {
+      expect(
+        normalizedLocalBlock,
+        `missing route-local token for ${check.anchor}`,
+      ).toContain(normalizeWhitespace(token));
+    }
+  }
   const tupleAnchor = check.tupleAnchor ?? check.anchor;
   const tupleAnchorIndex = content.indexOf(tupleAnchor);
   expect(
@@ -464,6 +517,28 @@ function expectObservableRouteTuple(
 }
 
 describe("existing skills render cleanly", () => {
+  it("requires shared route tuples to retain route-local proof", () => {
+    const content = [
+      "Each selected topical route is an independent response-only `reviewer`, frontier/high and source-immutable.",
+      "| D8 `Architecture` | unrelated route text | unrelated trace |",
+      "",
+    ].join("\n");
+
+    expect(() =>
+      expectObservableRouteTuple(
+        content,
+        {
+          anchor: "| D8 `Architecture`",
+          tupleAnchor:
+            "Each selected topical route is an independent response-only `reviewer`",
+          localTokens: ["capture D8", "spawn D8"],
+          roles: ["reviewer"],
+        },
+        "reviewer",
+      ),
+    ).toThrow();
+  });
+
   it("does not confuse reviewer with deep-reviewer route tuples", () => {
     const content =
       "anchor: `deep-reviewer`, frontier/high and source-immutable";
@@ -587,10 +662,6 @@ describe("existing skills render cleanly", () => {
     const roleNames = Object.keys(
       SEMANTIC_ROLE_RENDER_CONTRACTS,
     ) as SemanticRoleName[];
-    expect(Object.keys(RENDERED_ROUTE_CONTRACTS)).toEqual(
-      Array.from({ length: 17 }, (_, index) => `D${index + 1}`),
-    );
-
     for (const target of ["claude", "codex"] as const) {
       const brainstorm = getSkillOutput(outputs, "play-brainstorm", target);
       const normalizedBrainstorm = normalizeWhitespace(brainstorm.content);
