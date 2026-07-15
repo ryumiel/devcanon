@@ -1539,6 +1539,9 @@ describe("play subagent routing source contracts", () => {
     expect(normalizedExecutorPrompt).toContain(
       "If any operation requires judgment, policy interpretation, a clarifying question, or work outside the exact validated authorization, stop and report NEEDS_CONTEXT or BLOCKED so the controller can reclassify the task to D12",
     );
+    expect(normalizedExecutorPrompt).toContain(
+      "For `DONE_WITH_CONCERNS`, include a concern description and classify it as `judgment-bearing` or `purely observational`",
+    );
     expect(normalizedSkipDispatch).toContain(
       "All five guardrails pass before either guarded inline execution or executor dispatch",
     );

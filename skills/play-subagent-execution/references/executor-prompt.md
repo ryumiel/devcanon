@@ -132,6 +132,8 @@ Task tool (general-purpose):
     ## Report Format
 
     - **Status:** DONE | DONE_WITH_CONCERNS | BLOCKED | NEEDS_CONTEXT
+    - For `DONE_WITH_CONCERNS`, include a concern description and classify it as
+      `judgment-bearing` or `purely observational`.
     - What you changed
     - What you verified
     - Files changed
