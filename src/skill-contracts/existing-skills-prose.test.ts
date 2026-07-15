@@ -3758,6 +3758,66 @@ describe("existing skills source prose contracts", () => {
     );
   });
 
+  it("routes pr-merge CI diagnosis and fixes through the three D17 authority paths", async () => {
+    const skillSource = await readSkillSource("pr-merge");
+    const failureSection = getMarkdownSection(
+      skillSource,
+      "Step 4: Investigate and Fix Failures",
+    );
+    const normalized = normalizeWhitespace(failureSection);
+
+    expect(normalized).toContain(
+      "response-only `investigator`, balanced/high and source-immutable, with zero handoffs",
+    );
+    expect(failureSection).toContain(
+      "skills/pr-merge/scripts/source-immutability.sh",
+    );
+    expectSubstringsInOrder(normalized, [
+      "capture before spawn",
+      "verify before semantic validation or consumption",
+      "validate and retain the evidence-only response in controller memory",
+      "cleanup the exact retained baseline",
+      "classify the fix route from the retained diagnosis",
+    ]);
+    expect(normalized).toContain(
+      "Every post-capture terminal path attempts exact cleanup",
+    );
+    expect(normalized).toContain(
+      "Detected source mutation or cleanup failure is guard-integrity terminal",
+    );
+    expect(normalized).toContain(
+      "An ordinary unavailable, failed, malformed, or verification-rejected diagnosis keeps the retry count unchanged",
+    );
+    expect(normalized).toContain(
+      "If the PR head SHA changes, invalidate the retained diagnosis",
+    );
+
+    expect(normalized).toContain(
+      "exact mechanical fix to one source-mutable `executor`, balanced/medium",
+    );
+    expect(normalized).toContain(
+      "judgment-bearing fix to one source-mutable `implementer`, balanced/high",
+    );
+    expect(normalized).toContain(
+      "These are the only two fix routes; do not add or infer a fourth D17 path",
+    );
+    expect(normalized).toContain(
+      "The mutable child may edit only the authorized paths, run verification, and commit",
+    );
+    expect(normalized).toContain(
+      "The controller/root alone owns push and merge",
+    );
+    expect(normalized).toContain(
+      "Every semantic child has external authority `none`",
+    );
+    expect(normalized).toContain(
+      "After the controller/root pushes the validated commit, increment the retry count and return to Step 2",
+    );
+    expect(normalized).not.toMatch(
+      /investigation agent[^.]*fixes the issue[^.]*before pushing/i,
+    );
+  });
+
   it("keeps PR authoring policy shared and PR creation worktrees preserved", async () => {
     const prAuthoring = await readSkillSource("pr-authoring");
     const playBranchFinish = await readSkillSource("play-branch-finish");

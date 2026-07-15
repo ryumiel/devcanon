@@ -384,6 +384,21 @@ describe("existing skills render cleanly", () => {
     expect(normalized).toMatch(
       /REMOTE_BRANCH_CLEANUP=deleted\|retained\|skipped\|failed/i,
     );
+    expect(normalized).toContain(
+      "response-only `investigator`, balanced/high and source-immutable, with zero handoffs",
+    );
+    expect(normalized).toContain(
+      "exact mechanical fix to one source-mutable `executor`, balanced/medium",
+    );
+    expect(normalized).toContain(
+      "judgment-bearing fix to one source-mutable `implementer`, balanced/high",
+    );
+    expect(normalized).toContain(
+      "The mutable child may edit only the authorized paths, run verification, and commit",
+    );
+    expect(normalized).toContain(
+      "The controller/root alone owns push and merge",
+    );
   });
 
   it("keeps explicit metadata expectations covered by touched-skill reasons", () => {
