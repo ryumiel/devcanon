@@ -398,7 +398,8 @@ overlaps responsibility; omitting the generated table's owner source or mode
 leaves a consumer unclassified; and treating the retry test as the policy owner
 confuses verification with authority. Do not expand these examples into an
 exhaustive matrix or invent unsupported facts; unresolved example inputs return
-`NEEDS_CONTEXT` or `BLOCKED` to the owning workflow.
+as a `BLOCKER` to the owning design or decision surface rather than being
+guessed by the current workflow.
 
 ## Agent Routing and Mutation Changes
 

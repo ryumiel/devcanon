@@ -194,7 +194,8 @@ supporting partition, omit a consumer's owner source or mode, or treat
 verification as policy authority. Keep derived facts consistent, require only
 the positive and negative proof authorized by the design, and do not create an
 exhaustive matrix. Unsupported or inconsistent example facts are
-`NEEDS_CONTEXT` or `BLOCKED`, not invitations to guess.
+a `BLOCKER` returned to the owning design or decision surface, not invitations
+to guess.
 
 ### Boundary-contract traceability
 
