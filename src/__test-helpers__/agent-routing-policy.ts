@@ -73,6 +73,16 @@ export interface AgentRoutingDirectChildRouteRow {
   readonly evidenceLabel: string;
   readonly evidenceLocator?: string;
   readonly clauses: readonly AgentRoutingRouteClause[];
+  readonly d4Contract?: AgentRoutingD4RouteContract;
+}
+
+export interface AgentRoutingD4RouteContract {
+  readonly roleCardinality: 6;
+  readonly selectionTiming: "before spawn";
+  readonly configuration: "exact configured capability/effort";
+  readonly sourceDefault: "matching source default";
+  readonly scopeAndTermination: "scope/termination";
+  readonly externalAuthority: "none";
 }
 
 export interface AgentRoutingRouteClause {
@@ -508,6 +518,7 @@ function parseRouteRow(
     );
   }
 
+  const d4Contract = id === "D4" ? parseD4RouteContract(cells[2]) : undefined;
   const clauses = id === "D4" ? [] : parseRouteClauses(id, cells[2]);
   const [evidenceLabel, ownerSurface = ""] = cells[1].split(/\s+—\s+/, 2);
   const explicitOwners = [...ownerSurface.matchAll(/`([a-z][a-z0-9-]*)`/g)]
@@ -537,6 +548,68 @@ function parseRouteRow(
     evidenceLabel,
     evidenceLocator,
     clauses,
+    d4Contract,
+  };
+}
+
+function parseD4RouteContract(route: string): AgentRoutingD4RouteContract {
+  const segments = route.split(";").map((segment) => segment.trim());
+  if (segments.length !== 4) {
+    throw new Error(
+      "Agent routing policy owner direct-route D4 must contain exactly four route dimensions",
+    );
+  }
+
+  const selection =
+    /^Resolve exactly one of the ([a-z]+) semantic roles (.+)$/.exec(
+      segments[0],
+    );
+  const roleConfiguration = /^use its (.+) and (.+)$/.exec(segments[1]);
+  const scopeAndTermination = /^declare (.+)$/.exec(segments[2]);
+  const externalAuthority = /^external authority `([^`]+)`$/.exec(segments[3]);
+  if (
+    !selection ||
+    !roleConfiguration ||
+    !scopeAndTermination ||
+    !externalAuthority
+  ) {
+    throw new Error(
+      "Agent routing policy owner direct-route D4 has malformed route structure",
+    );
+  }
+
+  closedValue(
+    selection[1],
+    ["six"] as const,
+    "direct-route D4 role cardinality",
+  );
+  return {
+    roleCardinality: 6,
+    selectionTiming: closedValue(
+      selection[2],
+      ["before spawn"] as const,
+      "direct-route D4 selection timing",
+    ),
+    configuration: closedValue(
+      roleConfiguration[1],
+      ["exact configured capability/effort"] as const,
+      "direct-route D4 configured capability and effort",
+    ),
+    sourceDefault: closedValue(
+      roleConfiguration[2],
+      ["matching source default"] as const,
+      "direct-route D4 source default",
+    ),
+    scopeAndTermination: closedValue(
+      scopeAndTermination[1],
+      ["scope/termination"] as const,
+      "direct-route D4 scope and termination",
+    ),
+    externalAuthority: closedValue(
+      externalAuthority[1],
+      ["none"] as const,
+      "direct-route D4 external authority",
+    ),
   };
 }
 

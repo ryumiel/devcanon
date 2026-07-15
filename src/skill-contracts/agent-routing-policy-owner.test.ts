@@ -462,6 +462,61 @@ describe("agent routing and mutation policy owner", () => {
       parseAgentRoutingPolicyOwner(extraD12Clause, sourceSkills),
     ).toThrow(/direct-route D12 must contain exactly 1 route clause/i);
   });
+
+  it("validates the complete dynamic D4 route before role derivation", async () => {
+    const { markdown, sourceSkills } = await ownerInputs();
+    const owner = parseAgentRoutingPolicyOwner(markdown, sourceSkills);
+    expect(
+      owner.directChildRoutes.find((route) => route.id === "D4")?.d4Contract,
+    ).toEqual({
+      roleCardinality: 6,
+      selectionTiming: "before spawn",
+      configuration: "exact configured capability/effort",
+      sourceDefault: "matching source default",
+      scopeAndTermination: "scope/termination",
+      externalAuthority: "none",
+    });
+
+    const mutations = [
+      ["six semantic roles", "seven semantic roles", /role cardinality/i],
+      ["before spawn", "after spawn", /selection timing/i],
+      [
+        "exact configured capability/effort",
+        "ambient capability/effort",
+        /configured capability and effort/i,
+      ],
+      ["matching source default", "ambient source default", /source default/i],
+      ["scope/termination", "scope only", /scope and termination/i],
+      [
+        "external authority `none`",
+        "external authority `external-mutable`",
+        /external authority/i,
+      ],
+    ] as const;
+
+    for (const [from, to, error] of mutations) {
+      const mutated = mutateRouteRow(markdown, "D4", (cells) => {
+        cells[2] = cells[2].replace(from, to);
+        return cells;
+      });
+      expect(() => parseAgentRoutingPolicyOwner(mutated, sourceSkills)).toThrow(
+        error,
+      );
+    }
+
+    for (const field of [
+      " and matching source default",
+      "; declare scope/termination",
+    ]) {
+      const mutated = mutateRouteRow(markdown, "D4", (cells) => {
+        cells[2] = cells[2].replace(field, "");
+        return cells;
+      });
+      expect(() => parseAgentRoutingPolicyOwner(mutated, sourceSkills)).toThrow(
+        /direct-route D4/i,
+      );
+    }
+  });
 });
 
 async function ownerInputs(): Promise<{
