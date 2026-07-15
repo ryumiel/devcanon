@@ -140,7 +140,7 @@ mirrors the same rule:
 
 ## 6. Canonical Agent Example
 
-The [agent spec's target example](../specs/agents.md#adr-0027-target-example)
+The [agent spec's target example](../specs/agents.md#adr-0027-assessor-source-example)
 is the single owner of the canonical `assessor` source definition and its exact
 observable target fields. Use that example when checking capability, effort,
 tools, sandbox, source-immutable instructions, and external default. Do not copy
