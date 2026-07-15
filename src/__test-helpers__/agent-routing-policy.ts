@@ -255,6 +255,10 @@ function parseInventoryRow(
 
 const ROUTE_CAPABILITIES = ["efficient", "balanced", "frontier"] as const;
 const ROUTE_EFFORTS = ["medium", "high", "xhigh"] as const;
+const ROUTE_CLAUSE_PATTERN =
+  /^(?:[A-Za-z][A-Za-z -]{0,38}:?\s+)?`([a-z][a-z0-9-]*)`,\s*([a-z][a-z-]*)\/([a-z][a-z0-9-]*),\s*(source-[^,;\s]+)(?:,\s*[A-Za-z][A-Za-z -]{0,38})?$/;
+const ROUTE_CLAUSE_WITHOUT_SOURCE_PATTERN =
+  /^(?:[A-Za-z][A-Za-z -]{0,38}:?\s+)?`[a-z][a-z0-9-]*`,\s*[a-z][a-z-]*\/[a-z][a-z0-9-]*\s*,?$/;
 
 function parseRouteRow(
   cells: readonly string[],
@@ -293,30 +297,22 @@ function validateRouteTuples(id: string, route: string): void {
   const clauses = route.split(";").map((clause) => clause.trim());
 
   for (const [index, clause] of clauses.entries()) {
-    const tuplePrefixes =
-      clause.match(
-        /(?<![`a-z0-9-])(?:`[a-z][a-z0-9-]*`|[a-z][a-z0-9-]*),\s*[a-z][a-z-]*\/[a-z][a-z0-9-]*/g,
-      ) ?? [];
-    if (tuplePrefixes.length !== 1) {
-      throw new Error(
-        `Agent routing policy owner direct-route ${id} clause ${index + 1} has a malformed role/capability/effort structure`,
-      );
-    }
-
-    const tuplePattern =
-      /(?<![`a-z0-9-])(?:`([a-z][a-z0-9-]*)`|([a-z][a-z0-9-]*)),\s*([a-z][a-z-]*)\/([a-z][a-z0-9-]*),\s*(source-[^,;\s]+)/g;
-    const tuples = [...clause.matchAll(tuplePattern)];
-    if (tuples.length !== 1) {
+    const tuple = ROUTE_CLAUSE_PATTERN.exec(clause);
+    if (!tuple && ROUTE_CLAUSE_WITHOUT_SOURCE_PATTERN.test(clause)) {
       throw new Error(
         `Agent routing policy owner direct-route ${id} clause ${index + 1} is missing a source authority dimension`,
       );
     }
+    if (!tuple) {
+      throw new Error(
+        `Agent routing policy owner direct-route ${id} clause ${index + 1} has malformed clause structure`,
+      );
+    }
 
-    const tuple = tuples[0];
-    closedValue(tuple[3], ROUTE_CAPABILITIES, `direct-route ${id} capability`);
-    closedValue(tuple[4], ROUTE_EFFORTS, `direct-route ${id} effort`);
+    closedValue(tuple[2], ROUTE_CAPABILITIES, `direct-route ${id} capability`);
+    closedValue(tuple[3], ROUTE_EFFORTS, `direct-route ${id} effort`);
     closedValue(
-      tuple[5],
+      tuple[4],
       SOURCE_AUTHORITIES,
       `direct-route ${id} source authority`,
     );

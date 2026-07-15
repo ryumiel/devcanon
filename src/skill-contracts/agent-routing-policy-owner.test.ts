@@ -222,7 +222,7 @@ describe("agent routing and mutation policy owner", () => {
     });
 
     expect(() => parseAgentRoutingPolicyOwner(mutated, sourceSkills)).toThrow(
-      /direct-route D17 clause 1 has a malformed role\/capability\/effort structure/i,
+      /direct-route D17 clause 1 has malformed clause structure/i,
     );
   });
 
@@ -246,7 +246,34 @@ describe("agent routing and mutation policy owner", () => {
     });
 
     expect(() => parseAgentRoutingPolicyOwner(mutated, sourceSkills)).toThrow(
-      /direct-route D12 clause 1 has a malformed role\/capability\/effort structure/i,
+      /direct-route D12 clause 1 has malformed clause structure/i,
+    );
+  });
+
+  it("rejects an extra malformed tuple appended to a valid D17 clause", async () => {
+    const { markdown, sourceSkills } = await ownerInputs();
+    const mutated = mutateRouteRow(markdown, "D17", (cells) => {
+      cells[2] = cells[2].replace(
+        "source-immutable;",
+        "source-immutable, `executor!`, efficient/medium, source-mutable;",
+      );
+      return cells;
+    });
+
+    expect(() => parseAgentRoutingPolicyOwner(mutated, sourceSkills)).toThrow(
+      /direct-route D17 clause 1 has malformed clause structure/i,
+    );
+  });
+
+  it("rejects an uppercase unquoted role without suffix reparsing", async () => {
+    const { markdown, sourceSkills } = await ownerInputs();
+    const mutated = mutateRouteRow(markdown, "D13", (cells) => {
+      cells[2] = cells[2].replace("`executor`", "Executor");
+      return cells;
+    });
+
+    expect(() => parseAgentRoutingPolicyOwner(mutated, sourceSkills)).toThrow(
+      /direct-route D13 clause 1 has malformed clause structure/i,
     );
   });
 });
