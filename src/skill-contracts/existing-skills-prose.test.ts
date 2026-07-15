@@ -987,8 +987,8 @@ describe("existing skills source prose contracts", () => {
     const implementerPrompt = await readRepoFile(
       "skills/play-subagent-execution/references/implementer-prompt.md",
     );
-    const mechanicalImplementerPrompt = await readRepoFile(
-      "skills/play-subagent-execution/references/mechanical-implementer-prompt.md",
+    const executorPrompt = await readRepoFile(
+      "skills/play-subagent-execution/references/executor-prompt.md",
     );
     const specReviewerPrompt = await readRepoFile(
       "skills/play-subagent-execution/references/spec-reviewer-prompt.md",
@@ -998,9 +998,7 @@ describe("existing skills source prose contracts", () => {
     );
     const normalizedExecution = normalizeWhitespace(playSubagentExecution);
     const normalizedImplementerPrompt = normalizeWhitespace(implementerPrompt);
-    const normalizedMechanicalImplementerPrompt = normalizeWhitespace(
-      mechanicalImplementerPrompt,
-    );
+    const normalizedExecutorPrompt = normalizeWhitespace(executorPrompt);
     const normalizedSpecReviewerPrompt =
       normalizeWhitespace(specReviewerPrompt);
     const normalizedSkipDispatchPolicy =
@@ -1016,7 +1014,7 @@ describe("existing skills source prose contracts", () => {
     for (const executorMirrorSurface of [
       normalizedExecution,
       normalizedImplementerPrompt,
-      normalizedMechanicalImplementerPrompt,
+      normalizedExecutorPrompt,
       normalizedSpecReviewerPrompt,
       normalizedSkipDispatchPolicy,
     ]) {
@@ -1024,7 +1022,7 @@ describe("existing skills source prose contracts", () => {
     }
     for (const promptSurface of [
       normalizedImplementerPrompt,
-      normalizedMechanicalImplementerPrompt,
+      normalizedExecutorPrompt,
       normalizedSpecReviewerPrompt,
     ]) {
       expect(promptSurface).toContain(
@@ -1035,8 +1033,8 @@ describe("existing skills source prose contracts", () => {
       );
     }
 
-    expect(normalizedMechanicalImplementerPrompt).toContain(
-      "Mechanical mode does not bypass present Contract Example Discipline obligations",
+    expect(normalizedExecutorPrompt).toContain(
+      "Executor mode does not bypass present Contract Example Discipline obligations",
     );
 
     const normalizedExecutorMirrorBlocks = normalizeWhitespace(
@@ -1049,10 +1047,7 @@ describe("existing skills source prose contracts", () => {
           implementerPrompt,
           /Contract Example Discipline/,
         ),
-        markdownBlocksContaining(
-          mechanicalImplementerPrompt,
-          /Contract Example Discipline/,
-        ),
+        markdownBlocksContaining(executorPrompt, /Contract Example Discipline/),
         markdownBlocksContaining(
           specReviewerPrompt,
           /Contract Example Discipline/,
@@ -1093,8 +1088,8 @@ describe("existing skills source prose contracts", () => {
     const implementerPrompt = await readRepoFile(
       "skills/play-subagent-execution/references/implementer-prompt.md",
     );
-    const mechanicalImplementerPrompt = await readRepoFile(
-      "skills/play-subagent-execution/references/mechanical-implementer-prompt.md",
+    const executorPrompt = await readRepoFile(
+      "skills/play-subagent-execution/references/executor-prompt.md",
     );
     const specReviewerPrompt = await readRepoFile(
       "skills/play-subagent-execution/references/spec-reviewer-prompt.md",
@@ -1124,7 +1119,7 @@ describe("existing skills source prose contracts", () => {
     for (const consumerSurface of [
       playSubagentExecution,
       implementerPrompt,
-      mechanicalImplementerPrompt,
+      executorPrompt,
       specReviewerPrompt,
       codeQualityReviewerPrompt,
       skipDispatchPolicy,
@@ -1152,8 +1147,8 @@ describe("existing skills source prose contracts", () => {
     const implementerPrompt = await readRepoFile(
       "skills/play-subagent-execution/references/implementer-prompt.md",
     );
-    const mechanicalImplementerPrompt = await readRepoFile(
-      "skills/play-subagent-execution/references/mechanical-implementer-prompt.md",
+    const executorPrompt = await readRepoFile(
+      "skills/play-subagent-execution/references/executor-prompt.md",
     );
     const specReviewerPrompt = await readRepoFile(
       "skills/play-subagent-execution/references/spec-reviewer-prompt.md",
@@ -1181,7 +1176,7 @@ describe("existing skills source prose contracts", () => {
 
     for (const promptSurface of [
       implementerPrompt,
-      mechanicalImplementerPrompt,
+      executorPrompt,
       specReviewerPrompt,
       codeQualityReviewerPrompt,
     ]) {
@@ -5093,8 +5088,8 @@ describe("existing skills source prose contracts", () => {
     const implementerPrompt = await readRepoFile(
       "skills/play-subagent-execution/references/implementer-prompt.md",
     );
-    const mechanicalImplementerPrompt = await readRepoFile(
-      "skills/play-subagent-execution/references/mechanical-implementer-prompt.md",
+    const executorPrompt = await readRepoFile(
+      "skills/play-subagent-execution/references/executor-prompt.md",
     );
     const specReviewerPrompt = await readRepoFile(
       "skills/play-subagent-execution/references/spec-reviewer-prompt.md",
@@ -5119,19 +5114,19 @@ describe("existing skills source prose contracts", () => {
       "helper-name prescriptions, line-number edits, or commit recipes",
     );
 
-    expect(mechanicalImplementerPrompt).toContain(
+    expect(executorPrompt).toContain(
       "helper-name prescriptions, line-number edits, or commit recipes",
     );
-    expect(mechanicalImplementerPrompt).toContain(
+    expect(executorPrompt).toContain(
       "affected consumers/generated outputs, must-preserve, required behavior",
     );
-    expect(mechanicalImplementerPrompt).toContain(
+    expect(executorPrompt).toContain(
       "Read the relevant source files, existing docs, ADRs, helpers, generated",
     );
-    expect(normalizeWhitespace(mechanicalImplementerPrompt)).toContain(
+    expect(normalizeWhitespace(executorPrompt)).toContain(
       "A blank checklist field, unexplained `N/A`, or unconfirmed owner/authority",
     );
-    expect(normalizeWhitespace(mechanicalImplementerPrompt)).toContain(
+    expect(normalizeWhitespace(executorPrompt)).toContain(
       "source-of-truth, consumer, generated-output, or evidence surface is not a mechanical replacement target",
     );
 

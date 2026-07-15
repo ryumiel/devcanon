@@ -573,10 +573,7 @@ describe("existing skills render cleanly", () => {
 
     const { outputs } = await renderAll(config, true);
 
-    const promptReferences = [
-      "implementer-prompt.md",
-      "mechanical-implementer-prompt.md",
-    ];
+    const promptReferences = ["implementer-prompt.md", "executor-prompt.md"];
 
     for (const target of ["claude", "codex"] as const) {
       const output = getSkillOutput(outputs, "play-subagent-execution", target);
