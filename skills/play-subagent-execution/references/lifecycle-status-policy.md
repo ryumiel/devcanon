@@ -69,6 +69,10 @@ complete.
 
 ### DONE_WITH_CONCERNS
 
+A D13 `DONE_WITH_CONCERNS` report with judgment-bearing concerns keeps the task
+incomplete and routes the report to D12; purely observational concerns may
+proceed through the selected route.
+
 The implementer completed the work but flagged doubts. Read the concerns before
 proceeding. If concerns are about correctness or scope, address them before
 continuing. For multi-task plans, then apply the task's effective review route;
@@ -134,9 +138,10 @@ session. The only D16 skip is the exact ADR-0016 verified
 `issue-priming-workflow --auto` single-task carve-out.
 
 A passing retained D16 result continues to the owning-caller or direct/manual
-terminal path only after cleanup. D16 blocking findings route to a final fix,
-and any fix commit requires a fresh D16 capture, spawn, verify, validate,
-cleanup, and apply cycle. After safe cleanup, an unavailable, failed,
+terminal path only after cleanup. D16 blocking findings keep final review
+incomplete, route to the D12 implementer for a fix, and require a fresh D16
+capture, spawn, verify, validate, cleanup, and apply cycle after the fix commit.
+After safe cleanup, an unavailable, failed,
 malformed, or verification-rejected D16 keeps final review incomplete and
 returns `BLOCKED` to the owning caller or direct/manual terminal-status path;
 it never enters branch finish. D16 detected source mutation or cleanup failure
@@ -166,13 +171,13 @@ within its judgment-bearing scope.
 
 ### BLOCKED
 
-For a D12 implementer, assess the blocker:
-
-1. If it is a context problem, provide more context and re-dispatch with the
-   same model.
-2. If the task requires more reasoning, re-dispatch with a more capable model.
-3. If the task is too large, break it into smaller pieces.
-4. If the plan itself is wrong, escalate to the user.
+D12 remains the shipped `implementer`, balanced/high; no `BLOCKED` disposition
+changes its role, capability, or effort. If a context problem can be resolved
+within the task's existing scope, provide that context and redispatch the same
+D12 pair. Otherwise keep the task incomplete and route the blocker through the
+owning caller's separately defined recovery or escalation policy. If no such
+route is available, return `BLOCKED`; do not invent a dispatch-time model or
+effort override.
 
 Record blocker state as a stable family plus brief detail, for example
 `context-missing: needs target install path` or `task-too-large: generated

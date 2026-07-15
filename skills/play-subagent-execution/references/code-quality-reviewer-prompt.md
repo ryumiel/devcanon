@@ -4,11 +4,10 @@ Use this template when dispatching a code quality reviewer subagent.
 
 **Purpose:** Verify implementation is well-built (clean, tested, maintainable)
 
-**Surface selection:** D15 may dispatch concurrently with D14 against the same
-task head. Its result is provisional until same-head D14 passes and current-head
-validation succeeds. D16 is a later fresh whole-implementation session governed
-by `SKILL.md`'s final-review gate and may run after routes that skipped per-task
-spec review.
+**Surface selection:** The controller supplies `REVIEW_SURFACE`. This template
+owns the D15/D16 questions, reviewer action, and report schema.
+`lifecycle-status-policy.md` owns D15/D16 dispatch timing, same-head
+disposition, invalidation, and terminal transitions.
 
 **Promotion classification:** Workflow-local prompt template paired with the source agent at [`agents/deep-reviewer.yaml`](../../../agents/deep-reviewer.yaml) — referenced from `skills/play-subagent-execution/SKILL.md` for dispatch-time placeholder substitution. The role identity is already promoted; per [`docs/guidelines/agent-authoring-guide.md`](../../../docs/guidelines/agent-authoring-guide.md) §4, workflow-local prompt assembly stays as a template.
 
@@ -58,13 +57,11 @@ review input even when one task has no child implementer or executor report.
 **Trust boundary (load-bearing):** Read the implementation from disk. Do not consume any content snapshot the controller may hold — snapshots are for the controller's bookkeeping only; reviewers read from disk to stay independent of the implementer's framing.
 
 When `REVIEW_SURFACE` is D15, inspect only the captured task base/head and
-answer the D15 question. The D15 result remains provisional until a separate
-same-head D14 passes and the current task head is unchanged. Any fix invalidates
-both results and requires fresh D14 and D15 sessions.
+answer the D15 question.
 
 When `REVIEW_SURFACE` is D16, inspect the complete whole-implementation range
-and answer the D16 question. D16 starts only after all tasks complete, is
-distinct from D15, and must not reuse D15 scope, context, session, or verdict.
+and answer the D16 question. D16 is distinct from D15 and must not reuse D15
+scope, context, session, or verdict.
 The extracted whole-implementation context covers the whole implementation
 scope.
 If the extracted plan/task execution context contains present Contract Example

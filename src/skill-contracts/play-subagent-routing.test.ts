@@ -1538,6 +1538,12 @@ describe("play subagent routing source contracts", () => {
     expect(normalizedSkipDispatch).toContain(
       "Guardrail #4 failure blocks before source mutation; any other missing guardrail reclassifies to D12 and uses `implementer-prompt.md`",
     );
+    expect(normalizedSkipDispatch).toContain(
+      "`executor-prompt.md` owns the dispatched child's action and report schema; `lifecycle-status-policy.md` owns every returned D13 disposition",
+    );
+    expect(normalizedSkipDispatch).not.toContain(
+      "It stops with NEEDS_CONTEXT or BLOCKED",
+    );
     expect(normalizedLifecycle).toContain(
       "For a dispatched D13 executor, `NEEDS_CONTEXT` or `BLOCKED` caused by judgment, policy interpretation, a clarifying question, missing authorization, or widened scope stops D13 and reclassifies the task to D12",
     );
@@ -1546,6 +1552,21 @@ describe("play subagent routing source contracts", () => {
     );
     expect(normalizedLifecycle).toContain(
       "For a D12 implementer, `NEEDS_CONTEXT` means required information was not provided; provide the missing context and redispatch D12 when the task remains within its judgment-bearing scope",
+    );
+    expect(normalizedLifecycle).toContain(
+      "A non-boundary operational D13 `BLOCKED` also stops D13, keeps the task incomplete, and routes the blocker plus any available base/head SHA and snapshot state to D12 for judgment-bearing recovery",
+    );
+    expect(normalizedLifecycle).toContain(
+      "Never redispatch or model-escalate D13, and never mark a non-DONE D13 result complete",
+    );
+    expect(normalizedLifecycle).toContain(
+      "A D13 `DONE_WITH_CONCERNS` report with judgment-bearing concerns keeps the task incomplete and routes the report to D12; purely observational concerns may proceed through the selected route",
+    );
+    expect(normalizedLifecycle).toContain(
+      "D12 remains the shipped `implementer`, balanced/high; no `BLOCKED` disposition changes its role, capability, or effort",
+    );
+    expect(normalizedLifecycle).not.toContain(
+      "re-dispatch with a more capable model",
     );
     expect(normalizedLifecycle).toContain(
       "This file is the sole normative owner of returned D12/D13 dispositions, D14/D15 result freshness and invalidation, D14-D16 guard capture and cleanup failure, and incomplete or terminal outcomes",
@@ -1623,6 +1644,15 @@ describe("play subagent routing source contracts", () => {
     );
     expect(normalizedSkill).not.toContain(
       "Capture failure prevents spawn and takes the same task-incomplete `BLOCKED` transition",
+    );
+    expect(normalizedSkill).toContain(
+      "review routing - `references/review-routing-policy.md` | Computing initial effective per-task routes, validating reduced-route auto-handoff, or checking hard-risk triggers",
+    );
+    expect(normalizedSkill).toContain(
+      "lifecycle/status handling - `references/lifecycle-status-policy.md` | Updating lifecycle ledger state, interpreting returned worker statuses, resolving same-head reviewer disposition, handling fixups/blockers, guard failures, or cleanup timing",
+    );
+    expect(normalizedSkill).not.toContain(
+      "review-routing-policy.md` | Computing effective per-task routes, validating reduced-route auto-handoff, checking hard-risk triggers, or resolving same-head reviewer disposition",
     );
     expect(normalizedProcessDiagrams).not.toContain(
       "controller executes the file change inline instead of dispatching an implementer subagent",
@@ -2216,19 +2246,7 @@ describe("play subagent routing source contracts", () => {
       "rely on the final whole-implementation reviewer for direct/manual calls",
     );
     expect(normalizedSingleTaskPlans).toContain(
-      "direct/manual terminal handoff resolves whether the active workflow requires `branch-review` before `play-branch-finish`",
-    );
-    expect(normalizedSingleTaskPlans).toContain(
-      "report implementation status and final review status before any branch-review or finish handoff",
-    );
-    expect(normalizedSingleTaskPlans).toContain(
-      "hand off to `branch-review` before any `play-branch-finish` handoff when the active workflow requires branch-level review before PR creation",
-    );
-    expect(normalizedSingleTaskPlans).toContain(
-      "Use `branch-review --fix` as the branch-level gate before finish only when the owning workflow already grants auto-fix authority or the operator explicitly confirms that branch-review may auto-commit fixes",
-    );
-    expect(normalizedSingleTaskPlans).toContain(
-      "Do not invoke `play-branch-finish` until `branch-review` returns review approval evidence or the active workflow explicitly waives branch-level review",
+      "[Direct/manual terminal handoff](#directmanual-terminal-handoff); that section owns branch-level review status resolution and pre-finish reporting",
     );
     expect(normalizedSingleTaskPlans).not.toContain(
       "the user can still run `branch-review` manually",
@@ -2338,7 +2356,7 @@ describe("play subagent routing source contracts", () => {
     const normalizedRedFlags = normalizeWhitespace(redFlags);
 
     expect(normalizedSkill).toContain(
-      "terminal handoff to resolve branch-level review status before any `play-branch-finish` handoff",
+      "[Direct/manual terminal handoff](#directmanual-terminal-handoff); that section owns branch-level review status resolution and pre-finish reporting",
     );
     expect(normalizedSkill).toContain(
       "hand off to `branch-review` before any `play-branch-finish` handoff",
@@ -2649,7 +2667,7 @@ describe("play subagent routing source contracts", () => {
       "D15 and D16 are separate response-only `deep-reviewer`, frontier/xhigh, source-immutable sessions with zero handoffs",
     );
     expect(normalizedCodeQualityReviewerPrompt).toContain(
-      "Its result is provisional until same-head D14 passes and current-head validation succeeds",
+      "`lifecycle-status-policy.md` owns D15/D16 dispatch timing, same-head disposition, invalidation, and terminal transitions",
     );
 
     const playSubagentSurface = normalizeWhitespace(
@@ -2743,11 +2761,29 @@ describe("play subagent routing source contracts", () => {
       "paired with the source agent at [`agents/deep-reviewer.yaml`]",
     );
     expect(specPrompt).toContain("D14 question:");
+    expect(normalizeWhitespace(specPrompt)).toContain(
+      "**D14 question:** Does the implementation at the supplied task head satisfy Task N exactly, including its extracted contract, without missing or extra behavior?",
+    );
     expect(qualityPrompt).toContain(
       "paired with the source agent at [`agents/deep-reviewer.yaml`]",
     );
     expect(qualityPrompt).toContain("D15 question:");
     expect(qualityPrompt).toContain("D16 question:");
+    expect(normalizeWhitespace(qualityPrompt)).toContain(
+      "**D15 question:** Is Task N at the supplied task head well-built, clean, tested, and maintainable within its task-local scope?",
+    );
+    expect(normalizeWhitespace(qualityPrompt)).toContain(
+      "**D16 question:** Is the complete implementation over the supplied whole-range base/head well-built, clean, tested, maintainable, and ready for its owning terminal handoff?",
+    );
+    expect(normalizeWhitespace(qualityPrompt)).toContain(
+      "`lifecycle-status-policy.md` owns D15/D16 dispatch timing, same-head disposition, invalidation, and terminal transitions",
+    );
+    expect(normalizeWhitespace(qualityPrompt)).not.toContain(
+      "Its result is provisional until same-head D14 passes",
+    );
+    expect(normalizeWhitespace(qualityPrompt)).not.toContain(
+      "Any fix invalidates both results",
+    );
     expect(d15DispatchFields).toContain(
       "WHAT_WAS_IMPLEMENTED: [from implementer's report]",
     );
@@ -2793,7 +2829,7 @@ describe("play subagent routing source contracts", () => {
       "A passing retained D16 result continues to the owning-caller or direct/manual terminal path only after cleanup",
     );
     expect(normalizedSurface).toContain(
-      "D16 blocking findings route to a final fix, and any fix commit requires a fresh D16 capture, spawn, verify, validate, cleanup, and apply cycle",
+      "D16 blocking findings keep final review incomplete, route to the D12 implementer for a fix, and require a fresh D16 capture, spawn, verify, validate, cleanup, and apply cycle after the fix commit",
     );
     expect(normalizedSurface).toContain(
       "After safe cleanup, an unavailable, failed, malformed, or verification-rejected D16 keeps final review incomplete and returns `BLOCKED` to the owning caller or direct/manual terminal-status path; it never enters branch finish",

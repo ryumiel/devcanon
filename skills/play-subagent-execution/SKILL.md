@@ -26,9 +26,10 @@ review routing for multi-task plans = high-assurance serial execution with
 isolated implementer context and independent review. Hard-risk and unclear
 multi-task tasks use `spec-and-quality`: D14 and D15 may run concurrently when
 practical against the same committed task head, then join their results before
-final disposition. The semantic
-spec-first gate is preserved because code-quality results are provisional until
-same-head spec compliance passes and the task head is still current. Reduced
+final disposition. The
+[lifecycle/status policy](references/lifecycle-status-policy.md) owns their
+post-selection disposition, freshness, invalidation, and incomplete or
+terminal outcomes. Reduced
 per-task routes require a mandatory final whole-diff gate. Single-task plans
 skip per-task review and use the final whole-implementation reviewer plus
 direct/manual branch-level review status resolution, or downstream
@@ -233,18 +234,15 @@ For the full selection and process diagrams, load
    conflicting, or untrusted classifications fail closed to `spec-and-quality`.
 8. Dispatch reviewers according to the effective route. D14 and D15 are
    separate response-only `deep-reviewer` sessions with independent GUARD-001
-   lifecycles. `spec-and-quality` reviewers may run concurrently only against
-   the same committed task head, and the D15 quality result remains provisional
-   until same-head D14 spec compliance passes and the task head is still current.
-9. Revalidate the route after any fixup commit. Routes may preserve or escalate;
-   they never downgrade after work begins.
-10. Mark tasks complete only after the applicable route and lifecycle/status
-    rules permit completion. Then run a fresh, distinct D16 final
-    whole-implementation review over the whole implementation range unless the
-    exact ADR-0016 verified auto single-task skip applies. After D16 passes,
-    return to a verified owning caller when its downstream whole-diff gate owns
-    the next review stage. Otherwise use the direct/manual terminal handoff to
-    resolve branch-level review status before any `play-branch-finish` handoff.
+   lifecycles. Load the
+   [lifecycle/status policy](references/lifecycle-status-policy.md) for guard
+   ordering and every returned review disposition.
+9. After any fixup commit, use the lifecycle/status policy for invalidation and
+   completion state, then load the
+   [review-routing policy](references/review-routing-policy.md) only to
+   recompute the effective route.
+10. After the lifecycle/status policy permits task completion, follow its D16
+    and terminal disposition. This index does not restate those transitions.
 
 **Trust-boundary summaries:**
 
@@ -362,65 +360,28 @@ its command sequence.
 ### D16 guarded final whole-implementation review
 
 D16 is a fresh response-only `deep-reviewer`, frontier/xhigh and
-source-immutable, with zero handoffs, after all tasks complete. D16 reviews the
-whole implementation range and never reuses or collapses the D15 task-quality
-session. Supply the whole implementation base/head range and the D16-specific
-question from `references/code-quality-reviewer-prompt.md`.
-
-The only D16 skip is the exact ADR-0016 verified
-`issue-priming-workflow --auto` single-task carve-out. Do not infer another
-skip from reduced per-task routes, plan prose, task count alone, or an owning
-caller that lacks the verified controller-local state and audit artifact.
+source-immutable, with zero handoffs. Supply the whole implementation base/head
+range and the D16-specific question from
+`references/code-quality-reviewer-prompt.md`.
 
 The [lifecycle/status policy](references/lifecycle-status-policy.md) is the
-normative owner of D16 guard ordering, cleanup, fix-loop freshness, and final
-incomplete or terminal outcomes.
+normative owner of D16 dispatch timing, the exact skip, guard ordering, cleanup,
+fix-loop freshness, and final incomplete or terminal outcomes.
 
 ## Single-Task Plans
 
-When the plan extracted in the first step contains exactly **one** task,
-skip both per-task reviewers (spec-compliance and code-quality) for that
-task. The implementer's own self-review remains the immediate quality gate.
+Single-task per-task review selection is part of the initial route contract.
+Use the [review-routing policy](references/review-routing-policy.md) for route
+selection and verified auto-handoff eligibility, including proof that the run
+came from `issue-priming-workflow --auto` and identifies
+`branch-review --fix` as the mandatory next step. Use the
+[lifecycle/status policy](references/lifecycle-status-policy.md) for task
+completion, exact D16 skip eligibility, final-review timing, and returned
+terminal disposition. This index does not restate those transitions.
 
-If the controller validates both controller-local parent state and an
-`issue-priming/auto-handoff/v1` audit artifact showing that this invocation
-came from `issue-priming-workflow --auto` and guarantees downstream
-`branch-review --fix` as the mandatory next step, skip the final
-whole-implementation code-quality reviewer too and return directly to the
-caller after the single-task path completes.
-
-Otherwise, the final whole-implementation code-quality reviewer at the end
-of this skill still runs (its scope is the whole implementation, not the
-per-task carve-out).
-
-For plans with two or more tasks, each task follows the effective route
-computed by the controller. Hard-risk, unclear, or untrusted routes use
-`spec-and-quality`.
-
-If you invoke this skill **directly** (not via `--auto`) on a single-task
-plan, no whole-diff review runs after the final code-quality reviewer. When
-that reviewer passes, continue through the direct/manual terminal handoff:
-report implementation status and final review status before any branch-review
-or finish handoff, report that this skill did not run branch-level review, and
-hand off to `branch-review` before any `play-branch-finish` handoff when the
-active workflow requires branch-level review before PR creation. Use
-`branch-review --fix` as the branch-level gate before finish only when the
-owning workflow already grants auto-fix authority or the operator explicitly
-confirms that branch-review may auto-commit fixes; otherwise hand off to
-branch-review without auto-fix authority and wait for review approval evidence.
-Do not invoke `play-branch-finish` until `branch-review` returns review
-approval evidence or the active workflow explicitly waives branch-level review.
-Invoke `play-branch-finish` only when branch-level review is not required or
-has been resolved.
-
-The trade-off here: per-task review on a single task adds review overhead
-without catching regressions across tasks (there is only one), so the
-per-task review is skipped. On the `issue-priming-workflow --auto`
-single-task path, downstream `branch-review --fix` becomes the whole-diff
-gate; on direct/manual single-task invocations, the final
-whole-implementation reviewer remains the built-in gate, then the
-direct/manual terminal handoff resolves whether the active workflow requires
-`branch-review` before `play-branch-finish`.
+For direct/manual runs, continue to the
+[Direct/manual terminal handoff](#directmanual-terminal-handoff); that section
+owns branch-level review status resolution and pre-finish reporting.
 
 ### Terminal risk signals
 
@@ -652,15 +613,15 @@ Load these branch-policy references lazily. Keep this source file as the eager
 controller contract and trust-boundary summary; load the detailed references
 only when the trigger applies.
 
-| Reference                                                           | Load when                                                                                                                                                 |
-| ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| review routing - `references/review-routing-policy.md`              | Computing effective per-task routes, validating reduced-route auto-handoff, checking hard-risk triggers, or resolving same-head reviewer disposition.     |
-| skip-dispatch behavior - `references/skip-dispatch-policy.md`       | Evaluating single-task inline execution, mechanical-task taxonomy, fallback behavior, or skip-dispatch examples.                                          |
-| lifecycle/status handling - `references/lifecycle-status-policy.md` | Updating lifecycle ledger state, interpreting implementer statuses, handling fixups/blockers, or deciding cleanup timing.                                 |
-| snapshot consumption - `references/snapshot-consumption.md`         | Classifying snapshot request state, assembling snapshot prompt fields, validating or consuming snapshot manifests, or handling malformed/stale snapshots. |
-| diagrams - `references/process-diagrams.md`                         | Needing full DOT diagrams or diagram interpretation notes for the controller flow.                                                                        |
-| examples - `references/example-workflow.md`                         | Needing an end-to-end illustrative execution trace.                                                                                                       |
-| rationale - `references/advantages.md`                              | Needing rationale, quality gates, cost, or comparison context.                                                                                            |
+| Reference                                                           | Load when                                                                                                                                                                      |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| review routing - `references/review-routing-policy.md`              | Computing initial effective per-task routes, validating reduced-route auto-handoff, or checking hard-risk triggers.                                                            |
+| skip-dispatch behavior - `references/skip-dispatch-policy.md`       | Evaluating single-task inline execution, mechanical-task taxonomy, fallback behavior, or skip-dispatch examples.                                                               |
+| lifecycle/status handling - `references/lifecycle-status-policy.md` | Updating lifecycle ledger state, interpreting returned worker statuses, resolving same-head reviewer disposition, handling fixups/blockers, guard failures, or cleanup timing. |
+| snapshot consumption - `references/snapshot-consumption.md`         | Classifying snapshot request state, assembling snapshot prompt fields, validating or consuming snapshot manifests, or handling malformed/stale snapshots.                      |
+| diagrams - `references/process-diagrams.md`                         | Needing full DOT diagrams or diagram interpretation notes for the controller flow.                                                                                             |
+| examples - `references/example-workflow.md`                         | Needing an end-to-end illustrative execution trace.                                                                                                                            |
+| rationale - `references/advantages.md`                              | Needing rationale, quality gates, cost, or comparison context.                                                                                                                 |
 
 ## Prompt Support Assets
 

@@ -57,13 +57,11 @@ satisfy guardrail #4 by themselves. Apply the shared consumer rule in
 When all five guardrails hold, choose exactly one path:
 
 - **Guarded inline:** the controller performs the exact operation through the
-  sequence below. There is no child DONE report or snapshot.
+  sequence below. The branch has no child and no DONE-report snapshot request.
 - **Executor dispatch:** the controller supplies the validated exact operation
-  to `executor-prompt.md`. The source-mutable executor preserves the existing
-  status, `implementer/snapshot/v1`, commit, self-review, and verification
-  contracts. It stops with NEEDS_CONTEXT or BLOCKED for judgment, policy
-  interpretation, a clarifying question, missing authorization, or widened
-  scope so the controller can reclassify to D12.
+  to `executor-prompt.md`. `executor-prompt.md` owns the dispatched child's
+  action and report schema; `lifecycle-status-policy.md` owns every returned
+  D13 disposition.
 
 The guarded inline sequence is:
 
@@ -81,16 +79,10 @@ The guarded inline sequence is:
    Conventional Commits in imperative mood.
 4. Mark task complete in TodoWrite.
 
-After step 4, if the controller validates both controller-local parent state
-and an `issue-priming/auto-handoff/v1` audit artifact proving this single-task
-run came from `issue-priming-workflow --auto` and that downstream
-`branch-review --fix` is mandatory, return to the caller immediately.
-Otherwise, dispatch the existing final whole-implementation code-quality
-reviewer as on the dispatched path.
-
-There is no DONE-report step and no DONE-report snapshot request on the inline
-branch. A dispatched D13 executor uses the unchanged DONE-report and snapshot
-contracts.
+After step 4, return control to
+[`lifecycle-status-policy.md`](lifecycle-status-policy.md), which owns every
+post-selection D13, D16, and terminal disposition. This pre-dispatch policy
+makes no final-review or terminal-routing decision.
 
 ## Fallback
 

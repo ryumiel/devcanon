@@ -253,7 +253,7 @@ describe("play-subagent planning and routing render smoke coverage", () => {
         "D15 is a separate response-only `deep-reviewer`, frontier/xhigh and source-immutable, with zero handoffs",
       );
       expect(normalizedPlaySubagentExecution).toContain(
-        "D16 is a fresh response-only `deep-reviewer`, frontier/xhigh and source-immutable, with zero handoffs, after all tasks complete",
+        "D16 is a fresh response-only `deep-reviewer`, frontier/xhigh and source-immutable, with zero handoffs",
       );
       expect(normalizedPlaySubagentExecution).toContain(
         "scripts/source-immutability.sh",
@@ -263,6 +263,15 @@ describe("play-subagent planning and routing render smoke coverage", () => {
       );
       expect(normalizedPlaySubagentExecution).toContain(
         "Returned D12/D13 status interpretation and all post-selection D14-D16 state transitions are owned by the lifecycle/status policy; this index does not restate them",
+      );
+      expect(normalizedPlaySubagentExecution).toContain(
+        "review routing - `references/review-routing-policy.md` | Computing initial effective per-task routes, validating reduced-route auto-handoff, or checking hard-risk triggers",
+      );
+      expect(normalizedPlaySubagentExecution).toContain(
+        "lifecycle/status handling - `references/lifecycle-status-policy.md` | Updating lifecycle ledger state, interpreting returned worker statuses, resolving same-head reviewer disposition, handling fixups/blockers, guard failures, or cleanup timing",
+      );
+      expect(normalizedPlaySubagentExecution).not.toContain(
+        "review-routing-policy.md` | Computing effective per-task routes, validating reduced-route auto-handoff, checking hard-risk triggers, or resolving same-head reviewer disposition",
       );
       expect(normalizedPlaySubagentExecution).not.toContain(
         "references/mechanical-implementer-prompt.md",
