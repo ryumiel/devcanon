@@ -132,6 +132,14 @@ repository gate is blocked. It may become Accepted only after all of them pass.
 A human operator, not render, sync, or install behavior, blocks deployment to
 affected targets until then.
 
+The bounded run on 2026-07-15 leaves this ADR **Proposed**. All five Claude
+pair rows passed. Three of five Codex pair rows passed; the two `gpt-5.6-sol`
+rows were blocked by final-text literal mismatches. All six Codex named-role
+rows were blocked because the installed client exposed no supported native
+named-role selection interface, so no role was substituted or emulated.
+Deployment to the Codex target remains operator-blocked pending a later bounded
+rerun under separately authorized acceptance work.
+
 ## Consequences
 
 - Six stable semantic identities replace workflow-named shared roles while
