@@ -315,6 +315,13 @@ function renderedRouteEvidenceFailures(
   renderedBySkill: ReadonlyMap<string, string>,
   target: "claude" | "codex",
 ): string[] {
+  const knownQualifiers = new Set(
+    owner.directChildRoutes.flatMap((route) =>
+      route.clauses.flatMap((clause) =>
+        clause.qualifier ? [normalizedEvidence(clause.qualifier)] : [],
+      ),
+    ),
+  );
   return owner.directChildRoutes
     .filter((route) => {
       const clauses = routeClausesForTarget(route, roles, target);
@@ -355,6 +362,19 @@ function renderedRouteEvidenceFailures(
           clause.qualifier
             ? !localEvidence.includes(normalizedEvidence(clause.qualifier))
             : false,
+        )
+      )
+        return true;
+      const ownedQualifiers = new Set(
+        route.clauses.flatMap((clause) =>
+          clause.qualifier ? [normalizedEvidence(clause.qualifier)] : [],
+        ),
+      );
+      if (
+        [...knownQualifiers].some(
+          (qualifier) =>
+            !ownedQualifiers.has(qualifier) &&
+            localEvidence.includes(qualifier),
         )
       )
         return true;
@@ -661,6 +681,15 @@ describe("existing skills render cleanly", () => {
         ),
       ),
     ).toContain("D3");
+    expect(
+      failures(
+        mutate(
+          "issue-priming-workflow",
+          /Internal research receives external\s+authority `none` and no network access\./,
+          "Internal research receives external authority `none` and no network access but has named network access.",
+        ),
+      ),
+    ).toContain("D2");
     expect(
       failures(mutate("play-review", /^\| D8 .*$/m, "")).includes("D8"),
     ).toBe(true);
