@@ -182,7 +182,11 @@ function parseOwnedTable(
       `Agent routing policy owner ${dimension} headers must be: ${expectedHeaders.join(" | ")}`,
     );
   }
-  if (!splitTableRow(tableLines[1]).every((cell) => /^:?-{3,}:?$/.test(cell))) {
+  const divider = splitTableRow(tableLines[1]);
+  if (
+    divider.length !== expectedHeaders.length ||
+    !divider.every((cell) => /^:?-{3,}:?$/.test(cell))
+  ) {
     throw new Error(
       `Agent routing policy owner ${dimension} table divider is malformed`,
     );
@@ -249,14 +253,8 @@ function parseInventoryRow(
   };
 }
 
-const ROUTE_DEFAULTS = {
-  assessor: ["balanced", "medium", "source-immutable"],
-  investigator: ["balanced", "high", "source-immutable"],
-  executor: ["efficient", "medium", "source-mutable"],
-  implementer: ["balanced", "high", "source-mutable"],
-  reviewer: ["frontier", "high", "source-immutable"],
-  "deep-reviewer": ["frontier", "xhigh", "source-immutable"],
-} as const;
+const ROUTE_CAPABILITIES = ["efficient", "balanced", "frontier"] as const;
+const ROUTE_EFFORTS = ["medium", "high", "xhigh"] as const;
 
 function parseRouteRow(
   cells: readonly string[],
@@ -292,34 +290,29 @@ function parseRouteRow(
 }
 
 function validateRouteTuples(id: string, route: string): void {
+  const tuplePrefixes =
+    route.match(/`?[a-z][a-z0-9-]*`?,\s*[a-z][a-z-]*\/[a-z][a-z0-9-]*/g) ?? [];
   const tuplePattern =
-    /`?(assessor|investigator|executor|implementer|reviewer|deep-reviewer)`?,\s*(efficient|balanced|frontier)\/(medium|high|xhigh),\s*(source-immutable|source-mutable)/g;
+    /`?([a-z][a-z0-9-]*)`?,\s*([a-z][a-z-]*)\/([a-z][a-z0-9-]*),\s*(source-[a-z-]+)/g;
   const tuples = [...route.matchAll(tuplePattern)];
+  if (tuplePrefixes.length !== tuples.length) {
+    throw new Error(
+      `Agent routing policy owner direct-route ${id} is missing a source authority dimension`,
+    );
+  }
   if (tuples.length === 0) {
     throw new Error(
-      `Agent routing policy owner direct-route ${id} has an invalid role/capability/effort/source field`,
+      `Agent routing policy owner direct-route ${id} is missing a required role/capability/effort/source tuple`,
     );
   }
 
   for (const tuple of tuples) {
-    const role = tuple[1] as keyof typeof ROUTE_DEFAULTS;
-    const actual = tuple.slice(2, 5);
-    if (!sameValues(actual, ROUTE_DEFAULTS[role])) {
-      throw new Error(
-        `Agent routing policy owner direct-route ${id} has a non-canonical ${role} capability/effort/source tuple`,
-      );
-    }
-  }
-
-  const sourceTokens = route.match(/source-[a-z-]+/g) ?? [];
-  if (
-    sourceTokens.length !== tuples.length ||
-    sourceTokens.some(
-      (token) => !SOURCE_AUTHORITIES.includes(token as SourceAuthority),
-    )
-  ) {
-    throw new Error(
-      `Agent routing policy owner direct-route ${id} has an invalid source authority field`,
+    closedValue(tuple[2], ROUTE_CAPABILITIES, `direct-route ${id} capability`);
+    closedValue(tuple[3], ROUTE_EFFORTS, `direct-route ${id} effort`);
+    closedValue(
+      tuple[4],
+      SOURCE_AUTHORITIES,
+      `direct-route ${id} source authority`,
     );
   }
 }

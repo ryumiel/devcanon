@@ -122,11 +122,11 @@ describe("agent routing and mutation policy owner", () => {
     );
 
     expect(() => parseAgentRoutingPolicyOwner(mutated, sourceSkills)).toThrow(
-      /direct-route D1 .* invalid role\/capability\/effort\/source field/i,
+      /direct-route D1 source authority has invalid closed value: source-observable/i,
     );
   });
 
-  it("requires the exact owned headings and table headers", async () => {
+  it("requires the exact owned headings and inventory headers", async () => {
     const { markdown, sourceSkills } = await ownerInputs();
 
     expect(() =>
@@ -142,15 +142,105 @@ describe("agent routing and mutation policy owner", () => {
       ),
     ).toThrow(/inventory headers must be/i);
   });
+
+  it("rejects malformed direct-route headers, dividers, and rows", async () => {
+    const { markdown, sourceSkills } = await ownerInputs();
+    const malformedHeader = markdown.replace(
+      "| Surface and owner",
+      "| Surface",
+    );
+    const malformedDivider = markdown.replace(
+      /^\| --- \| -+ \| -+ \| -+ \|$/m,
+      "| --- |",
+    );
+    const malformedRow = mutateRouteRow(markdown, "D12", (cells) =>
+      cells.slice(0, 3),
+    );
+
+    expect(() =>
+      parseAgentRoutingPolicyOwner(malformedHeader, sourceSkills),
+    ).toThrow(/direct-route headers must be/i);
+    expect(() =>
+      parseAgentRoutingPolicyOwner(malformedDivider, sourceSkills),
+    ).toThrow(/direct-route table divider is malformed/i);
+    expect(() =>
+      parseAgentRoutingPolicyOwner(malformedRow, sourceSkills),
+    ).toThrow(/direct-route row .* malformed/i);
+  });
+
+  it("preserves D12 owner-field drift for the consumer assertion boundary", async () => {
+    const { markdown, sourceSkills } = await ownerInputs();
+    const canonical = parseAgentRoutingPolicyOwner(markdown, sourceSkills);
+    const mutatedMarkdown = mutateRouteRow(markdown, "D12", (cells) => {
+      cells[1] = cells[1].replace(
+        "Default implementation",
+        "Alternate implementation",
+      );
+      return cells;
+    });
+    const mutated = parseAgentRoutingPolicyOwner(mutatedMarkdown, sourceSkills);
+
+    const canonicalD12 = canonical.directChildRoutes.find(
+      (row) => row.id === "D12",
+    );
+    const mutatedD12 = mutated.directChildRoutes.find(
+      (row) => row.id === "D12",
+    );
+    expect(mutatedD12?.surfaceAndOwner).toContain("Alternate implementation");
+    expect(mutatedD12?.surfaceAndOwner).not.toBe(canonicalD12?.surfaceAndOwner);
+  });
+
+  it("rejects a D13 route missing its source-authority dimension", async () => {
+    const { markdown, sourceSkills } = await ownerInputs();
+    const mutated = mutateRouteRow(markdown, "D13", (cells) => {
+      cells[2] = cells[2].replace(", source-mutable", "");
+      return cells;
+    });
+
+    expect(() => parseAgentRoutingPolicyOwner(mutated, sourceSkills)).toThrow(
+      /direct-route D13 is missing a source authority dimension/i,
+    );
+  });
+
+  it("rejects a D17 route with an invalid closed effort", async () => {
+    const { markdown, sourceSkills } = await ownerInputs();
+    const mutated = mutateRouteRow(markdown, "D17", (cells) => {
+      cells[2] = cells[2].replace("balanced/high", "balanced/ultra");
+      return cells;
+    });
+
+    expect(() => parseAgentRoutingPolicyOwner(mutated, sourceSkills)).toThrow(
+      /direct-route D17 effort has invalid closed value: ultra/i,
+    );
+  });
 });
 
 async function ownerInputs(): Promise<{
   markdown: string;
   sourceSkills: readonly string[];
 }> {
-  const owner = await readAgentRoutingPolicyOwner(OWNER_PATH);
+  const markdown = await readRepoFile(OWNER_PATH);
+  const sourceSkills = (await readdir("skills", { withFileTypes: true }))
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name);
   return {
-    markdown: await readRepoFile(OWNER_PATH),
-    sourceSkills: owner.inventory.map((row) => row.skill),
+    markdown,
+    sourceSkills,
   };
+}
+
+function mutateRouteRow(
+  markdown: string,
+  id: `D${number}`,
+  mutate: (cells: string[]) => string[],
+): string {
+  const rowPattern = new RegExp(`^\\| ${id}\\s+\\|.*$`, "m");
+  const row = markdown.match(rowPattern)?.[0];
+  if (!row) throw new Error(`Missing owner route row ${id}`);
+
+  const cells = row
+    .slice(1, -1)
+    .split("|")
+    .map((cell) => cell.trim());
+  return markdown.replace(row, `| ${mutate(cells).join(" | ")} |`);
 }
