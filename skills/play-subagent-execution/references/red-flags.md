@@ -46,9 +46,10 @@ Behavioral signals that this skill is being violated.
 - Accept a code-quality result as final before same-head spec compliance passes
   and current task-head validation succeeds
 - Treat advisory, stale, or superseded quality as final task approval
-- Skip the quality rerun after a spec fixup unless irrelevance is proven;
-  unclear staleness or irrelevance classification fails closed to rerunning code
-  quality
+- Reuse either D14 or D15 result after any fix commit. Every fix commit
+  invalidates both D14 and D15 results, including a previously passing or
+  provisional result; both reviews must run fresh against the new same task
+  head. There is no quality-irrelevance exception after a fix.
 
 **If subagent asks questions:**
 

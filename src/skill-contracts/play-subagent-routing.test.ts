@@ -2519,8 +2519,12 @@ describe("play subagent routing source contracts", () => {
       "Treat advisory, stale, or superseded quality as final task approval",
     );
     expect(normalizedRedFlags).toContain(
-      "unclear staleness or irrelevance classification fails closed to rerunning code quality",
+      "Every fix commit invalidates both D14 and D15 results, including a previously passing or provisional result; both reviews must run fresh against the new same task head",
     );
+    expect(normalizedRedFlags).toContain(
+      "There is no quality-irrelevance exception after a fix",
+    );
+    expect(normalizedRedFlags).not.toContain("unless irrelevance is proven");
     expect(normalizedRedFlags).not.toContain(
       "unclear stale classification reruns quality",
     );
