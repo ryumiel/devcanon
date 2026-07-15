@@ -664,7 +664,12 @@ satisfied, and no tests need to be authored. Direct, hand-written, copied, or
 older plans without the upstream two-gate return fail the clarifying-question
 guardrail and fall back to dispatched implementation. A task-contract failure
 stops before implementation; other guardrail misses fall back to dispatched
-implementation. There is no DONE report and no snapshot request on this path.
+implementation. After all five guardrails pass, keep the chosen branch
+explicit. The guarded inline branch produces no child DONE report and no child
+snapshot request; the controller verifies and records its own inline commit.
+The dispatched-executor branch preserves the unchanged DONE-report and snapshot
+request/skip contract from `references/executor-prompt.md` and the status rules
+below.
 
 Load [`references/skip-dispatch-policy.md`](references/skip-dispatch-policy.md)
 when evaluating guardrails, choosing fallback behavior, or checking examples.

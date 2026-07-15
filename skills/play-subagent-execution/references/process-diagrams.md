@@ -36,7 +36,9 @@ digraph process {
     "Skip-dispatch guardrails all pass?" [shape=diamond];
     "Controller chooses guarded inline?" [shape=diamond];
     "Controller executes Write/Edit + verify + commit inline" [shape=box];
+    "Inline branch: no child DONE report or snapshot request" [shape=box];
     "Dispatch D13 executor for exact validated operation" [shape=box];
+    "Dispatched D13: capture DONE report and snapshot state" [shape=box];
     "Dispatch implementer prompt" [shape=box];
     "Implementer asks questions?" [shape=diamond];
     "Answer questions and provide context" [shape=box];
@@ -91,7 +93,8 @@ digraph process {
     "Implementer asks questions?" -> "Implementer implements, verifies, commits, self-reviews" [label="no"];
     "Implementer implements, verifies, commits, self-reviews" -> "Mark task complete" [label="single-task plan"];
     "Implementer implements, verifies, commits, self-reviews" -> "Compute effective review route" [label="multi-task plan"];
-    "Dispatch D13 executor for exact validated operation" -> "Mark task complete" [label="single-task plan"];
+    "Dispatch D13 executor for exact validated operation" -> "Dispatched D13: capture DONE report and snapshot state";
+    "Dispatched D13: capture DONE report and snapshot state" -> "Mark task complete" [label="single-task plan"];
     "Compute effective review route" -> "Capture separate D14 and D15 baselines" [label="spec-and-quality"];
     "Capture separate D14 and D15 baselines" -> "Dispatch spec and quality reviewers for same task head";
     "Dispatch spec and quality reviewers for same task head" -> "Independent D14 and D15 verify-validate-cleanup-apply";
@@ -117,7 +120,8 @@ digraph process {
     "Quality findings present?" -> "Mark task complete" [label="no"];
     "Implementer fixes findings" -> "Revalidate effective review route";
     "Revalidate effective review route" -> "Compute effective review route";
-    "Controller executes Write/Edit + verify + commit inline" -> "Mark task complete";
+    "Controller executes Write/Edit + verify + commit inline" -> "Inline branch: no child DONE report or snapshot request";
+    "Inline branch: no child DONE report or snapshot request" -> "Mark task complete";
     "Mark task complete" -> "More tasks remain?";
     "More tasks remain?" -> "Dispatch implementer prompt" [label="yes"];
     "More tasks remain?" -> "Single-task caller-scoped final-review skip applies?" [label="no"];
@@ -200,5 +204,7 @@ task requires a DONE-report snapshot. If requested, include readable paths for
 fields: status, summary, tests, files changed, base SHA, and head SHA.
 
 When the plan has exactly one task and all skip-dispatch guardrails pass, the
-controller executes the file change inline instead of dispatching an implementer
-subagent.
+controller explicitly chooses guarded inline execution or a D13 executor
+dispatch. Only the inline branch omits a child DONE report and snapshot request;
+the dispatched D13 branch captures the executor's unchanged DONE report and
+snapshot state before task completion.

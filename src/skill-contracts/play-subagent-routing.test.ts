@@ -1481,6 +1481,9 @@ describe("play subagent routing source contracts", () => {
 
   it("routes D12 judgment work and D13 exact work through distinct mutable roles", async () => {
     const skillSource = await readSkillSource("play-subagent-execution");
+    const processDiagrams = await readRepoFile(
+      "skills/play-subagent-execution/references/process-diagrams.md",
+    );
     const skipDispatch = await readRepoFile(
       "skills/play-subagent-execution/references/skip-dispatch-policy.md",
     );
@@ -1491,6 +1494,7 @@ describe("play subagent routing source contracts", () => {
       "skills/play-subagent-execution/references/executor-prompt.md",
     );
     const normalizedSkill = normalizeWhitespace(skillSource);
+    const normalizedProcessDiagrams = normalizeWhitespace(processDiagrams);
     const normalizedSkipDispatch = normalizeWhitespace(skipDispatch);
     const normalizedExecutorPrompt = normalizeWhitespace(executorPrompt);
 
@@ -1515,6 +1519,24 @@ describe("play subagent routing source contracts", () => {
     );
     expect(normalizedSkipDispatch).toContain(
       "Guardrail #4 failure blocks before source mutation; any other missing guardrail reclassifies to D12 and uses `implementer-prompt.md`",
+    );
+    expect(normalizedSkill).toContain(
+      "The guarded inline branch produces no child DONE report and no child snapshot request",
+    );
+    expect(normalizedSkill).toContain(
+      "The dispatched-executor branch preserves the unchanged DONE-report and snapshot request/skip contract",
+    );
+    expect(normalizedSkill).not.toContain(
+      "There is no DONE report and no snapshot request on this path",
+    );
+    expect(normalizedProcessDiagrams).toContain(
+      "Inline branch: no child DONE report or snapshot request",
+    );
+    expect(normalizedProcessDiagrams).toContain(
+      "Dispatched D13: capture DONE report and snapshot state",
+    );
+    expect(normalizedProcessDiagrams).not.toContain(
+      "controller executes the file change inline instead of dispatching an implementer subagent",
     );
     expect(skillSource).not.toContain("mechanical-implementer-prompt.md");
   });
@@ -2624,6 +2646,10 @@ describe("play subagent routing source contracts", () => {
     const qualityPrompt = await readRepoFile(
       "skills/play-subagent-execution/references/code-quality-reviewer-prompt.md",
     );
+    const d15DispatchFields = getMarkdownSection(
+      qualityPrompt,
+      "D15 dispatch fields",
+    );
     const normalizedSurface = normalizeWhitespace(
       [skillSource, routing, lifecycle].join("\n"),
     );
@@ -2657,6 +2683,14 @@ describe("play subagent routing source contracts", () => {
     );
     expect(qualityPrompt).toContain("D15 question:");
     expect(qualityPrompt).toContain("D16 question:");
+    expect(d15DispatchFields).toContain(
+      "WHAT_WAS_IMPLEMENTED: [from implementer's report]",
+    );
+    expect(d15DispatchFields).toContain(
+      "PLAN_OR_REQUIREMENTS: Task N from [plan-file]",
+    );
+    expect(d15DispatchFields).toContain("BASE_SHA: [commit before task]");
+    expect(d15DispatchFields).toContain("DESCRIPTION: [task summary]");
   });
 
   it("keeps D16 distinct with the narrow skip and fresh guarded review loop", async () => {
@@ -2669,6 +2703,13 @@ describe("play subagent routing source contracts", () => {
     );
     const exampleWorkflow = await readRepoFile(
       "skills/play-subagent-execution/references/example-workflow.md",
+    );
+    const qualityPrompt = await readRepoFile(
+      "skills/play-subagent-execution/references/code-quality-reviewer-prompt.md",
+    );
+    const d16DispatchFields = getMarkdownSection(
+      qualityPrompt,
+      "D16 dispatch fields",
     );
     const normalizedSurface = normalizeWhitespace(
       [skillSource, lifecycle, processDiagrams, exampleWorkflow].join("\n"),
@@ -2694,6 +2735,26 @@ describe("play subagent routing source contracts", () => {
     );
     expect(normalizedSurface).toContain(
       "D16 detected source mutation or cleanup failure is guard-integrity terminal",
+    );
+    expect(d16DispatchFields).toContain(
+      "WHOLE_IMPLEMENTATION_SUMMARY: [whole-range implementation summary]",
+    );
+    expect(d16DispatchFields).toContain(
+      "PLAN_OR_REQUIREMENTS: [whole-plan or authoritative requirements]",
+    );
+    expect(d16DispatchFields).toContain(
+      "ORIGINAL_BASE_SHA: [commit before the first task]",
+    );
+    expect(d16DispatchFields).toContain(
+      "CURRENT_HEAD_SHA: [current committed implementation head]",
+    );
+    expect(d16DispatchFields).toContain(
+      "WHOLE_IMPLEMENTATION_SCOPE: [complete changed-file and requirement scope]",
+    );
+    expect(d16DispatchFields).not.toContain("WHAT_WAS_IMPLEMENTED");
+    expect(d16DispatchFields).not.toContain("implementer's report");
+    expect(normalizeWhitespace(qualityPrompt)).toContain(
+      "D16 does not require or assume a task-local implementer report and therefore supports guarded inline D13",
     );
   });
 
