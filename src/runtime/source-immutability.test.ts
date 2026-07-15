@@ -1,5 +1,6 @@
 import { execFile, spawnSync } from "node:child_process";
 import {
+  appendFile,
   chmod,
   lstat,
   mkdir,
@@ -110,6 +111,39 @@ describe("source-immutability runtime", () => {
     await expect(
       runSourceImmutabilityCommand(["verify", "--baseline", baseline], cwd),
     ).resolves.toEqual({ exitCode: 0, stdout: "unchanged\n", stderr: "" });
+  });
+
+  it("ignores ambient GIT_CONFIG injection when fingerprinting untracked source", async () => {
+    const cwd = await fixture();
+    const excludesFile = path.join(cwd, "ambient-excludes");
+    await writeFile(excludesFile, "hidden.txt\n");
+    const previous = {
+      count: process.env.GIT_CONFIG_COUNT,
+      key: process.env.GIT_CONFIG_KEY_0,
+      value: process.env.GIT_CONFIG_VALUE_0,
+    };
+    process.env.GIT_CONFIG_COUNT = "1";
+    process.env.GIT_CONFIG_KEY_0 = "core.excludesFile";
+    process.env.GIT_CONFIG_VALUE_0 = excludesFile;
+    try {
+      const baseline = await capture(cwd);
+      await writeFile(path.join(cwd, "hidden.txt"), "mutation\n");
+      await expectChanged(cwd, baseline);
+    } finally {
+      restoreEnv("GIT_CONFIG_COUNT", previous.count);
+      restoreEnv("GIT_CONFIG_KEY_0", previous.key);
+      restoreEnv("GIT_CONFIG_VALUE_0", previous.value);
+    }
+  });
+
+  it("detects repository-local exclude changes that hide new source", async () => {
+    const cwd = await fixture();
+    const baseline = await capture(cwd);
+
+    await appendFile(path.join(cwd, ".git/info/exclude"), "hidden.txt\n");
+    await writeFile(path.join(cwd, "hidden.txt"), "mutation\n");
+
+    await expectChanged(cwd, baseline);
   });
 
   it.each([
@@ -667,3 +701,11 @@ describe("source-immutability runtime", () => {
     }
   });
 });
+
+function restoreEnv(name: string, value: string | undefined): void {
+  if (value === undefined) {
+    Reflect.deleteProperty(process.env, name);
+  } else {
+    process.env[name] = value;
+  }
+}

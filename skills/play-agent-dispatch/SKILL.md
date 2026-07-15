@@ -109,6 +109,15 @@ handoffs. Do not declare a named handoff, permit child persistence, or accept a
 filesystem path as its result. Resolve `SOURCE_IMMUTABILITY_HELPER` to the
 installed `play-agent-dispatch` bundle's
 `scripts/source-immutability.sh` shim and run it from the current worktree root.
+The root/controller establishes `.ephemeral` as a real nonsymlinked ignored
+directory before capture:
+
+```sh
+[ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
+mkdir -p .ephemeral
+[ -d .ephemeral ] || { echo ".ephemeral must be a directory" >&2; exit 1; }
+git check-ignore -q -- .ephemeral/.devcanon-ignore-probe || { echo ".ephemeral must be ignored by Git" >&2; exit 1; }
+```
 
 For each such specialist, keep this order exact:
 

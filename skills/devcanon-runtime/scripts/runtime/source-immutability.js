@@ -242,7 +242,7 @@ async function fingerprint(workspace) {
     const head = (await gitText(["rev-parse", "--verify", "HEAD^{commit}"], workspace.root)).trim();
     const symbolic = await gitResult(["symbolic-ref", "-q", "HEAD"], workspace.root, [0, 1]);
     const symbolicRef = symbolic.exitCode === 0 ? symbolic.stdout.toString("utf8").trim() : null;
-    const [rawIndex, gitStatus] = await Promise.all([
+    const [rawIndex, gitStatus, gitInfoExcludeSha256] = await Promise.all([
         completeIndexEntryState(workspace.root),
         gitRaw([
             "--no-optional-locks",
@@ -252,6 +252,7 @@ async function fingerprint(workspace) {
             "--untracked-files=all",
             "--ignore-submodules=none",
         ], workspace.root),
+        fingerprintGitInfoExclude(workspace.root),
     ]);
     const pathSets = await Promise.all([
         gitRaw(["ls-tree", "-r", "--name-only", "-z", "HEAD"], workspace.root),
@@ -265,6 +266,7 @@ async function fingerprint(workspace) {
         symbolicRef,
         indexSha256: sha256(rawIndex),
         gitStatusSha256: sha256(gitStatus),
+        gitInfoExcludeSha256,
         files: await fingerprintListedPaths(workspace.root, pathSets, true),
     };
 }
@@ -408,7 +410,7 @@ async function nestedGitStateSha256(absolutePath) {
     ]);
     if (topLevel !== physicalCwd)
         return null;
-    const [headResult, symbolic, rawIndex, gitStatus] = await Promise.all([
+    const [headResult, symbolic, rawIndex, gitStatus, gitInfoExcludeSha256] = await Promise.all([
         gitResult(["rev-parse", "--verify", "HEAD^{commit}"], cwd, [0, 128]),
         gitResult(["symbolic-ref", "-q", "HEAD"], cwd, [0, 1]),
         completeIndexEntryState(cwd),
@@ -420,6 +422,7 @@ async function nestedGitStateSha256(absolutePath) {
             "--untracked-files=all",
             "--ignore-submodules=none",
         ], cwd),
+        fingerprintGitInfoExclude(cwd),
     ]);
     const head = headResult.exitCode === 0
         ? headResult.stdout.toString("utf8").trim()
@@ -438,8 +441,23 @@ async function nestedGitStateSha256(absolutePath) {
             : null,
         indexSha256: sha256(rawIndex),
         gitStatusSha256: sha256(gitStatus),
+        gitInfoExcludeSha256,
         files: await fingerprintListedPaths(cwd, pathSets, false),
     })));
+}
+async function fingerprintGitInfoExclude(root) {
+    const gitPath = (await gitText(["rev-parse", "--git-path", "info/exclude"], root)).trim();
+    const excludePath = path.resolve(root, gitPath);
+    try {
+        const contents = await readFile(excludePath);
+        return sha256(Buffer.concat([Buffer.from("present\0"), contents]));
+    }
+    catch (err) {
+        if (isNodeError(err, "ENOENT")) {
+            return sha256(Buffer.from("missing\0"));
+        }
+        throw err;
+    }
 }
 function fileKind(stat) {
     if (stat.isDirectory())
@@ -506,6 +524,7 @@ function isWorkspaceFingerprint(value) {
         "symbolicRef",
         "indexSha256",
         "gitStatusSha256",
+        "gitInfoExcludeSha256",
         "files",
     ])) {
         return false;
@@ -529,6 +548,10 @@ function isWorkspaceFingerprint(value) {
     }
     if (typeof value.gitStatusSha256 !== "string" ||
         !HEX_SHA256.test(value.gitStatusSha256)) {
+        return false;
+    }
+    if (typeof value.gitInfoExcludeSha256 !== "string" ||
+        !HEX_SHA256.test(value.gitInfoExcludeSha256)) {
         return false;
     }
     if (!Array.isArray(value.files))
@@ -748,7 +771,7 @@ async function gitResult(args, cwd, allowedExitCodes = [0]) {
     }
 }
 function canonicalGitEnv() {
-    const env = Object.fromEntries(Object.entries(process.env).filter(([name]) => !GIT_ENVIRONMENT_OVERRIDES.has(name)));
+    const env = Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith("GIT_CONFIG") && !GIT_ENVIRONMENT_OVERRIDES.has(name)));
     env.GIT_NO_REPLACE_OBJECTS = "1";
     return env;
 }

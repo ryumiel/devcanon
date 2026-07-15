@@ -5599,6 +5599,16 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedImmutableSection).toContain(
       "`scripts/source-immutability.sh`",
     );
+    expect(normalizedImmutableSection).toContain(
+      "The root/controller establishes `.ephemeral` as a real nonsymlinked ignored directory before capture",
+    );
+    expectSubstringsInOrder(immutableSection, [
+      '[ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }',
+      "mkdir -p .ephemeral",
+      '[ -d .ephemeral ] || { echo ".ephemeral must be a directory" >&2; exit 1; }',
+      'git check-ignore -q -- .ephemeral/.devcanon-ignore-probe || { echo ".ephemeral must be ignored by Git" >&2; exit 1; }',
+      'SOURCE_IMMUTABILITY_BASELINE="$(bash "$SOURCE_IMMUTABILITY_HELPER" capture)"',
+    ]);
     expectSubstringsInOrder(normalizedImmutableSection, [
       "capture before spawn",
       "verify before semantic validation or consumption",
