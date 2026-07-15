@@ -145,6 +145,12 @@ function semanticRoleSpecContracts(
   const roleRows = markdownTableRows(
     getMarkdownSection(agentSpec, "Semantic role catalog"),
   );
+  const roleNames = roleRows.map((row) =>
+    exactBacktickedRole(row[0], "semantic role identity"),
+  );
+  if (new Set(roleNames).size !== roleNames.length) {
+    throw new Error("Agent spec semantic role identities must be unique");
+  }
   const rawToolRows = markdownTableRows(
     sliceBetween(
       agentSpec,
@@ -161,9 +167,17 @@ function semanticRoleSpecContracts(
   if (toolRows.size !== rawToolRows.length) {
     throw new Error("Agent spec tool-envelope role identities must be unique");
   }
+  if (
+    JSON.stringify([...toolRows.keys()].sort()) !==
+    JSON.stringify([...roleNames].sort())
+  ) {
+    throw new Error(
+      "Agent spec tool-envelope identities must exactly equal semantic role identities",
+    );
+  }
 
-  return roleRows.map((row) => {
-    const name = exactBacktickedRole(row[0], "semantic role identity");
+  return roleRows.map((row, index) => {
+    const name = roleNames[index];
     const toolRow = toolRows.get(name);
     if (!toolRow) {
       throw new Error(`Agent spec is missing the tool envelope for ${name}`);
@@ -222,6 +236,10 @@ function routeSpecAlignmentErrors(
 
   const errors: string[] = [];
   const clauses = row.route.split(";").map((clause) => clause.trim());
+  const requiredMultiplicity = row.id === "D17" ? 3 : 1;
+  if (clauses.length !== requiredMultiplicity) {
+    errors.push(`${row.id}:multiplicity`);
+  }
   const tuples = clauses.flatMap((clause) => {
     const match = ROUTE_TUPLE_PATTERN.exec(clause);
     return match ? [match] : [];
@@ -5188,6 +5206,41 @@ describe("existing skills source prose contracts", () => {
     expect(() => semanticRoleSpecContracts(malformedIdentity)).toThrow(
       /semantic role identity must be one exact backticked role token/i,
     );
+  });
+
+  it("rejects an extra tool-envelope identity outside the role catalog", async () => {
+    const agentSpec = await readRepoFile("docs/specs/agents.md");
+    const extraToolEnvelope = agentSpec.replace(
+      /(^\| `assessor`\s+\| Read, Grep, Bash, Write\s+\| workspace-write \| None\s+\|$)/m,
+      "$1\n| `observer`      | Read                                         | workspace-write | None            |",
+    );
+
+    expect(() => semanticRoleSpecContracts(extraToolEnvelope)).toThrow(
+      /tool-envelope identities must exactly equal semantic role identities/i,
+    );
+  });
+
+  it("rejects deletion of one complete D17 route clause", async () => {
+    const owner = await readAgentRoutingPolicyOwner(
+      "docs/guidelines/agent-routing-and-mutation-policy.md",
+    );
+    const roles = semanticRoleSpecContracts(
+      await readRepoFile("docs/specs/agents.md"),
+    );
+    const d17 = owner.directChildRoutes.find((row) => row.id === "D17");
+    expect(d17).toBeDefined();
+    if (!d17) return;
+
+    const missingOnePath = {
+      ...d17,
+      route: d17.route.split(";").slice(0, -1).join(";"),
+    };
+    expect(
+      routeSpecAlignmentErrors(
+        missingOnePath,
+        new Map(roles.map((role) => [role.name, role])),
+      ),
+    ).toEqual(["D17:multiplicity"]);
   });
 
   it("reconciles owner-valid route whitespace and both target efforts", async () => {
