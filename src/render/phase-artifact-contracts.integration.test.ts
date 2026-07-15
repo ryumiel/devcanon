@@ -65,6 +65,19 @@ const sliceRenderedSection = (
   return body.slice(startIndex, endIndex);
 };
 
+const markdownBlockContainingAll = (
+  body: string,
+  patterns: RegExp[],
+): string => {
+  const blocks = body.split(/\n{2,}/).filter((block) => {
+    const normalizedBlock = normalizeRenderedWhitespace(block);
+    return patterns.every((pattern) => pattern.test(normalizedBlock));
+  });
+
+  expect(blocks).toHaveLength(1);
+  return blocks[0];
+};
+
 function expectSubstringsInOrder(content: string, substrings: string[]): void {
   let previousIndex = -1;
 
@@ -224,10 +237,15 @@ describe("rendered phase artifact smoke coverage", () => {
       "### Normative ownership topology",
       "## Agent Routing and Mutation Changes",
     );
-    const sourcePlanningTopology = sliceRenderedSection(
+    const topologyFieldPatterns = [
+      /normative owner/,
+      /consumption mode/,
+      /conflict precedence/,
+      /verification owner/,
+    ];
+    const sourcePlanningTopology = markdownBlockContainingAll(
       sourcePlanning,
-      "For behavior- or contract-changing work",
-      "For generated artifacts",
+      topologyFieldPatterns,
     );
     const sourceCriteriaTopology = sliceRenderedSection(
       sourceCriteria,
@@ -253,10 +271,9 @@ describe("rendered phase artifact smoke coverage", () => {
           "### Normative ownership topology",
           "## Agent Routing and Mutation Changes",
         );
-        const renderedPlanningTopology = sliceRenderedSection(
+        const renderedPlanningTopology = markdownBlockContainingAll(
           bodies[`play-planning:${target}`],
-          "For behavior- or contract-changing work",
-          "For generated artifacts",
+          topologyFieldPatterns,
         );
         const renderedCriteria = await readFile(
           path.join(

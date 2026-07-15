@@ -85,6 +85,12 @@ function expectSubstringsInOrder(content: string, substrings: string[]): void {
   }
 }
 
+function expectSubstrings(content: string, substrings: string[]): void {
+  for (const substring of substrings) {
+    expect(content).toContain(substring);
+  }
+}
+
 const PUBLIC_EXPLICIT_PLAY_SKILLS = [
   "play-agent-dispatch",
   "play-brainstorm",
@@ -599,10 +605,7 @@ describe("existing skills source prose contracts", () => {
       designTopology,
       /^Representative invalid examples/,
     );
-    const invalidFamilies = invalidExample
-      .slice(invalidExample.indexOf(":") + 1, invalidExample.indexOf("."))
-      .split(";")
-      .map(normalizeWhitespace);
+    const normalizedInvalidExample = normalizeWhitespace(invalidExample);
     const planningMapping = normalizeWhitespace(
       markdownBlocksContaining(
         planningTopology,
@@ -669,19 +672,31 @@ describe("existing skills source prose contracts", () => {
       /verification surface[\s\S]*source owner[\s\S]*invariant[\s\S]*not restate[\s\S]*independent policy/,
     );
 
-    expect(invalidFamilies).toHaveLength(4);
-    expect(invalidFamilies[0]).toMatch(
-      /operator guide[\s\S]*second normative owner[\s\S]*duplicate/,
+    expect(normalizedInvalidExample).toMatch(
+      /Representative invalid examples[\s\S]*one dimension/,
     );
-    expect(invalidFamilies[1]).toMatch(
-      /supporting owner[\s\S]*same retry-eligibility partition[\s\S]*overlap/,
-    );
-    expect(invalidFamilies[2]).toMatch(
-      /generated table[\s\S]*owner source or mode[\s\S]*unclassified/,
-    );
-    expect(invalidFamilies[3]).toMatch(
-      /retry test[\s\S]*policy owner[\s\S]*verification[\s\S]*authority/,
-    );
+    expectSubstrings(normalizedInvalidExample, [
+      "operator guide",
+      "second normative owner",
+      "duplicate",
+    ]);
+    expectSubstrings(normalizedInvalidExample, [
+      "supporting owner",
+      "retry-eligibility partition",
+      "overlap",
+    ]);
+    expectSubstrings(normalizedInvalidExample, [
+      "generated table",
+      "owner source",
+      "mode",
+      "unclassified",
+    ]);
+    expectSubstrings(normalizedInvalidExample, [
+      "retry test",
+      "policy owner",
+      "verification",
+      "authority",
+    ]);
 
     expect(planningMapping).toMatch(
       /governing design decision[\s\S]*exactly one normative owner/,
@@ -702,12 +717,12 @@ describe("existing skills source prose contracts", () => {
       /Every changed behavior[\s\S]*affected surface[\s\S]*current task[\s\S]*normative owner/,
     );
 
-    expectSubstringsInOrder(planningRoutes, [
-      "`BLOCKER`",
-      "owning design",
-      "`CURRENT`",
-      "`play-planning`",
-    ]);
+    expect(planningRoutes).toMatch(
+      /Missing[\s\S]*duplicated[\s\S]*conflicting[\s\S]*project-specific topology[\s\S]*`BLOCKER`[\s\S]*owning design/,
+    );
+    expect(planningRoutes).toMatch(
+      /approved topology[\s\S]*incomplete[\s\S]*contradictory task coverage[\s\S]*`CURRENT`[\s\S]*`play-planning`/,
+    );
     expect(planningExamples).toMatch(
       /one canonical valid post-change example[\s\S]*one dimension at a time/,
     );
