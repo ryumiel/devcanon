@@ -345,6 +345,61 @@ decompose, sequence, and prove those decisions, but planning must not choose
 missing behavior semantics. Fix any ambiguity that would make implementation choose authority, identity tuple, producer or consumer, cwd/root, freshness proof, mutation/read-only effects, helper or script call shape, lifecycle state, cleanup, approval/posting, external effects, continuation/failure behavior, or forbidden behavior. If a decision cannot be made safely during brainstorming,
 record it as a blocker or as an intentional implementation choice with the owning authority, risk, and proof expectation. Private helper decomposition, internal names, fixtures, and non-contract formatting remain valid planning details after contract semantics are fixed.
 
+### Normative ownership topology
+
+This source skill owns the universal design-time ownership method. The approved
+design artifact owns the project-specific topology decisions made with that
+method; neither planning nor an explanatory copy of the design becomes a
+second owner.
+
+For every changed behavior or contract, record a compact topology with:
+
+| Field                | Required design decision                                                                                                                               |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Behavior or contract | A stable name for the changed requirement, state machine, routing rule, schema, lifecycle, failure behavior, or other semantics                        |
+| Normative owner      | Exactly one project artifact and the responsibility it defines                                                                                         |
+| Supporting owners    | Optional project artifacts, each limited to an explicitly non-overlapping normative responsibility                                                     |
+| Affected surfaces    | Every other affected artifact, its owner source, and exactly one mode: reference, derived representation, non-normative summary, or verification       |
+| Conflict precedence  | The normative owner governs shared semantics; each supporting owner governs only its named partition; overlap, omission, or contradiction fails closed |
+| Verification owner   | The test or validation surface responsible for each owner invariant, reference-validity boundary, or derived-parity boundary                           |
+
+The portable modes have distinct authority:
+
+- A **normative owner** defines the behavior for its stated responsibility.
+- A **reference** points to the owner and may repeat only enough detail for
+  navigation or invocation.
+- A **derived representation** is generated or transformed from its owner and
+  must preserve owner parity. Generated skill packages are derived consumers,
+  never design or implementation edit targets.
+- A **non-normative summary** explains the behavior for an audience and yields
+  to the owner on conflict.
+- **Verification** checks owner invariants, reference validity, or derived
+  parity and reports mismatch without defining policy. Exact wording or diagram
+  edges require verification only when that representation is itself an
+  intentional product contract.
+
+Repetition never grants normative authority. Supporting owners are valid only
+when their responsibilities do not overlap and the design states conflict
+precedence. Missing owners, overlapping or incomplete partitions, unclassified
+affected surfaces, missing source links or modes, and verification presented as
+policy authority are design blockers rather than planning choices.
+
+A valid portable example keeps the universal method here while a project design
+selects `src/policy/retry.ts` as the normative owner of retry eligibility,
+classifies an operator guide as a reference, a generated client table as a
+derived representation, an onboarding note as a non-normative summary, and a
+retry policy test as verification. The verification surface checks the source
+owner's invariant; it does not restate eligibility as independent policy.
+
+Representative invalid examples each change one dimension of that valid
+topology: declaring the operator guide a second normative owner duplicates
+authority; adding a supporting owner for the same retry-eligibility partition
+overlaps responsibility; omitting the generated table's owner source or mode
+leaves a consumer unclassified; and treating the retry test as the policy owner
+confuses verification with authority. Do not expand these examples into an
+exhaustive matrix or invent unsupported facts; unresolved example inputs return
+`NEEDS_CONTEXT` or `BLOCKED` to the owning workflow.
+
 ## Agent Routing and Mutation Changes
 
 When a design creates or changes shared skill classification, a direct child

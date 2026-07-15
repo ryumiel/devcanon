@@ -205,6 +205,18 @@ checklists, traceability, and examples only when their trigger is present and
 within the Scope Envelope. Unknown authority is a blocker, not permission to
 generalize.
 
+For behavior- or contract-changing work, consume the approved design's
+ownership topology and expose its mapping in the plan. Every changed behavior
+and affected surface must reach a current task with its normative owner,
+optional non-overlapping supporting partition, consumption mode, conflict
+precedence, and verification owner. The canonical planning criteria own the
+detailed mapping and readiness rules. Stop when authority is duplicated,
+contradictory, or incomplete: return missing project-specific decisions to the
+owning design and broken task mappings to planning instead of adding a
+synchronized restatement. Repeated detail does not make a reference or summary
+normative, verification does not define policy, and generated skill packages
+remain derived consumers rather than edit targets.
+
 For generated artifacts, derived artifacts, helper I/O files, `.ephemeral`
 handoffs, cross-skill handoffs, or side-channel data, plan against the
 Side-Channel Artifact Contract Checklist in
@@ -498,6 +510,11 @@ Review in this order:
 4. Confirm optional comment evidence remains non-authoritative.
 5. Classify every finding as `CURRENT`, `BLOCKER`, `FOLLOW-UP`, or
    `OPTIONAL` before changing the plan.
+
+For behavior- or contract-changing work, also confirm that every ownership
+topology row has complete task and proof coverage and that no task asks an
+implementer to choose an owner, supporting partition, consumption mode,
+precedence, or verification owner.
 
 Only verified CURRENT findings may be fixed inline. A BLOCKER stops and returns
 to its owning decision surface. FOLLOW-UP and OPTIONAL findings remain in
