@@ -47,9 +47,11 @@ either `Blocking` or `Nit`.
 ### Proportional Contract-Test Review
 
 The [Testing Requirements](../specs/testing.md#test-ownership-and-proportionality)
-own test-layer selection, owner-derived contract data, and proportional
-regression design. Apply that owner during review; do not recreate its policy
-in review comments or require a second registry.
+own test-layer selection and proportional regression design. Contract data
+comes from its respective normative owner; for agent routing, the agents spec
+owns roles and target configuration, while the routing policy owns the
+direct-child route inventory. Consume those owners during review without
+recreating their policy or requiring a second registry.
 
 Block a test or documentation change when it violates acceptance behavior,
 contradicts the normative owner, permits concrete unsafe behavior, breaks
