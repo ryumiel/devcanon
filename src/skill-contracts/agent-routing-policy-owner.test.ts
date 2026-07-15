@@ -276,6 +276,18 @@ describe("agent routing and mutation policy owner", () => {
       /direct-route D13 clause 1 has malformed clause structure/i,
     );
   });
+
+  it("rejects extra uppercase role-like text before a valid tuple", async () => {
+    const { markdown, sourceSkills } = await ownerInputs();
+    const mutated = mutateRouteRow(markdown, "D12", (cells) => {
+      cells[2] = `Executor ${cells[2]}`;
+      return cells;
+    });
+
+    expect(() => parseAgentRoutingPolicyOwner(mutated, sourceSkills)).toThrow(
+      /direct-route D12 clause 1 has malformed clause structure/i,
+    );
+  });
 });
 
 async function ownerInputs(): Promise<{
