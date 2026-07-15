@@ -552,6 +552,94 @@ describe("existing skills source prose contracts", () => {
     expect(playPlanning).toContain("references/planning-criteria.md");
   });
 
+  it("keeps normative ownership scenarios source-owned across design and planning", async () => {
+    const playBrainstorm = await readSkillSource("play-brainstorm");
+    const playPlanning = await readSkillSource("play-planning");
+    const planningCriteria = await readRepoFile(
+      "skills/play-planning/references/planning-criteria.md",
+    );
+    const designTopology = sliceBetween(
+      playBrainstorm,
+      "### Normative ownership topology",
+      "## Agent Routing and Mutation Changes",
+    );
+    const planningTopology = sliceBetween(
+      planningCriteria,
+      "### Ownership-topology mapping",
+      "### Boundary-contract traceability",
+    );
+    const normalizedDesignTopology = normalizeWhitespace(designTopology);
+    const normalizedPlanningTopology = normalizeWhitespace(planningTopology);
+    const normalizedPlanningWorkflow = normalizeWhitespace(playPlanning);
+
+    expect(normalizedDesignTopology).toContain(
+      "This source skill owns the universal design-time ownership method",
+    );
+    expect(normalizedDesignTopology).toContain(
+      "The approved design artifact owns the project-specific topology decisions",
+    );
+
+    // Canonical valid case: one project owner and classified consumers whose
+    // repetition or verification role never promotes them to policy owners.
+    expect(normalizedDesignTopology).toContain(
+      "selects `src/policy/retry.ts` as the normative owner of retry eligibility",
+    );
+    for (const mode of [
+      "reference",
+      "derived representation",
+      "non-normative summary",
+      "verification",
+    ]) {
+      expect(normalizedDesignTopology).toContain(mode);
+    }
+    expect(normalizedDesignTopology).toContain(
+      "Repetition never grants normative authority",
+    );
+    expect(normalizedDesignTopology).toContain(
+      "reports mismatch without defining policy",
+    );
+
+    // Invalid cases change one authority dimension: duplicate ownership or an
+    // overlapping partition. Both fail before planning can invent a repair.
+    expect(normalizedDesignTopology).toContain(
+      "declaring the operator guide a second normative owner duplicates authority",
+    );
+    expect(normalizedDesignTopology).toContain(
+      "adding a supporting owner for the same retry-eligibility partition overlaps responsibility",
+    );
+    expect(normalizedDesignTopology).toContain(
+      "omitting the generated table's owner source or mode leaves a consumer unclassified",
+    );
+    expect(normalizedDesignTopology).toContain(
+      "treating the retry test as the policy owner confuses verification with authority",
+    );
+    expect(normalizedDesignTopology).toContain(
+      "Supporting owners are valid only when their responsibilities do not overlap and the design states conflict precedence",
+    );
+
+    // Consumer-project plans retain project-specific owner sources while using
+    // the same portable modes and proportional verification boundaries.
+    expect(normalizedPlanningTopology).toContain(
+      "exactly one normative owner and the responsibility it defines",
+    );
+    expect(normalizedPlanningTopology).toContain(
+      "every other affected surface, its owner source, and exactly one consumption mode",
+    );
+    expect(normalizedPlanningTopology).toContain(
+      "owner invariant, reference-validity boundary, or derived-parity boundary",
+    );
+    expect(normalizedPlanningWorkflow).toContain(
+      "Every changed behavior and affected surface must reach a current task with its normative owner",
+    );
+
+    expect(normalizedPlanningTopology).toContain(
+      "Missing, duplicated, or conflicting project-specific topology is a `BLOCKER` returned to the owning design",
+    );
+    expect(normalizedPlanningTopology).toContain(
+      "incomplete or contradictory task coverage is a `CURRENT` planning gap returned to `play-planning`",
+    );
+  });
+
   it("keeps planning scope authority and proof proportionality in one canonical reference", async () => {
     const playPlanning = await readSkillSource("play-planning");
     const planningCriteria = await readRepoFile(
