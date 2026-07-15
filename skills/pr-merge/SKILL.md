@@ -211,6 +211,9 @@ Track retry count explicitly. **Max 2 failure cycles.** A "failure cycle" is: CI
 Use GitHub Actions evidence from the failing check: list recent runs for the PR
 branch, then read failed-step logs for the matching run/job. Record the current
 PR head SHA with the failing check and use it as the diagnosis/fix anchor.
+The root/controller collects the anchored PR diff together with failed-check
+evidence and passes that already-collected provider evidence to the response-only
+investigator.
 
 ### 4b. Dispatch investigation agent
 
@@ -255,10 +258,11 @@ head SHA changes, invalidate the retained diagnosis, keep the retry count
 unchanged, perform no fix/push/merge, and return to Step 2 for the replacement
 head.
 
-The investigator reads `.github/workflows/*.yml`, the failed logs, and the PR
-diff (`{{tool:github-cli}} pr diff <N>`); uses `play-debug`; and may run bounded
-reproduction commands. It must not edit, stage, commit, push, merge, or write a
-handoff. Its response contains evidence only:
+The investigator reads `.github/workflows/*.yml` and the already-collected
+failed-check and PR diff evidence; uses `play-debug`; and may run bounded
+reproduction commands. The investigator must not execute
+`{{tool:github-cli}} pr diff <N>`. It must not edit, stage, commit, push, merge,
+or write a handoff. Its response contains evidence only:
 
 - anchored PR head SHA and CI run/check identifiers;
 - failing workflow/job names and the relevant log excerpt;

@@ -4285,6 +4285,9 @@ describe("existing skills source prose contracts", () => {
     expect(normalized).toContain(
       "If the PR head SHA changes, invalidate the retained diagnosis",
     );
+    expect(normalized).toMatch(
+      /The root\/controller collects the anchored PR diff together with failed-check evidence and passes that already-collected provider evidence to the response-only investigator.*The investigator must not execute `\{\{tool:github-cli\}\} pr diff <N>`/i,
+    );
 
     expect(normalized).toContain(
       "exact mechanical fix to one source-mutable `executor`, efficient/medium",
