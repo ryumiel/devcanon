@@ -146,6 +146,27 @@ describe("source-immutability runtime", () => {
     await expectChanged(cwd, baseline);
   });
 
+  it("detects repository-local core.excludesFile state that hides new source", async () => {
+    const cwd = await fixture();
+    const selectionBaseline = await capture(cwd);
+
+    await git(cwd, "config", "core.excludesFile", ".ephemeral/excludes");
+    await expectChanged(cwd, selectionBaseline);
+
+    const missingFileBaseline = await capture(cwd);
+    await writeFile(path.join(cwd, ".ephemeral/excludes"), "hidden.txt\n");
+    await writeFile(path.join(cwd, "hidden.txt"), "mutation\n");
+    await expectChanged(cwd, missingFileBaseline);
+
+    const contentBaseline = await capture(cwd);
+    await appendFile(
+      path.join(cwd, ".ephemeral/excludes"),
+      "hidden-again.txt\n",
+    );
+    await writeFile(path.join(cwd, "hidden-again.txt"), "mutation\n");
+    await expectChanged(cwd, contentBaseline);
+  });
+
   it.each([
     {
       name: "staged index entries",

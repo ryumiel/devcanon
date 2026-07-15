@@ -242,7 +242,7 @@ async function fingerprint(workspace) {
     const head = (await gitText(["rev-parse", "--verify", "HEAD^{commit}"], workspace.root)).trim();
     const symbolic = await gitResult(["symbolic-ref", "-q", "HEAD"], workspace.root, [0, 1]);
     const symbolicRef = symbolic.exitCode === 0 ? symbolic.stdout.toString("utf8").trim() : null;
-    const [rawIndex, gitStatus, gitInfoExcludeSha256] = await Promise.all([
+    const [rawIndex, gitStatus, gitInfoExcludeSha256, gitCoreExcludesFileSha256] = await Promise.all([
         completeIndexEntryState(workspace.root),
         gitRaw([
             "--no-optional-locks",
@@ -253,6 +253,7 @@ async function fingerprint(workspace) {
             "--ignore-submodules=none",
         ], workspace.root),
         fingerprintGitInfoExclude(workspace.root),
+        fingerprintGitCoreExcludesFile(workspace),
     ]);
     const pathSets = await Promise.all([
         gitRaw(["ls-tree", "-r", "--name-only", "-z", "HEAD"], workspace.root),
@@ -267,6 +268,7 @@ async function fingerprint(workspace) {
         indexSha256: sha256(rawIndex),
         gitStatusSha256: sha256(gitStatus),
         gitInfoExcludeSha256,
+        gitCoreExcludesFileSha256,
         files: await fingerprintListedPaths(workspace.root, pathSets, true),
     };
 }
@@ -459,6 +461,55 @@ async function fingerprintGitInfoExclude(root) {
         throw err;
     }
 }
+async function fingerprintGitCoreExcludesFile(workspace) {
+    const selection = await gitResult(["config", "--local", "--path", "--get", "core.excludesFile"], workspace.root, [0, 1]);
+    if (selection.exitCode === 1) {
+        return sha256(Buffer.from("unset\0"));
+    }
+    const configuredValue = stripTrailingLineEnding(selection.stdout);
+    const selectedPath = path.resolve(workspace.root, configuredValue);
+    const selectionFrame = Buffer.concat([
+        Buffer.from("selected\0"),
+        selection.stdout,
+    ]);
+    if (!isRepositoryLocalPath(workspace, selectedPath)) {
+        return sha256(Buffer.concat([selectionFrame, Buffer.from("external\0")]));
+    }
+    let physicalPath;
+    try {
+        physicalPath = await realpath(selectedPath);
+    }
+    catch (err) {
+        if (isNodeError(err, "ENOENT")) {
+            return sha256(Buffer.concat([selectionFrame, Buffer.from("missing\0")]));
+        }
+        throw err;
+    }
+    if (!isRepositoryLocalPath(workspace, physicalPath)) {
+        return sha256(Buffer.concat([selectionFrame, Buffer.from("external-target\0")]));
+    }
+    const contents = await readFile(selectedPath);
+    return sha256(Buffer.concat([selectionFrame, Buffer.from("present\0"), contents]));
+}
+function stripTrailingLineEnding(value) {
+    let end = value.length;
+    if (end > 0 && value[end - 1] === 0x0a)
+        end -= 1;
+    if (end > 0 && value[end - 1] === 0x0d)
+        end -= 1;
+    return value.subarray(0, end).toString("utf8");
+}
+function isRepositoryLocalPath(workspace, candidate) {
+    return (isPathWithin(workspace.root, candidate) ||
+        isPathWithin(workspace.gitDir, candidate));
+}
+function isPathWithin(parent, candidate) {
+    const relative = path.relative(parent, candidate);
+    return (relative === "" ||
+        (relative !== ".." &&
+            !relative.startsWith(`..${path.sep}`) &&
+            !path.isAbsolute(relative)));
+}
 function fileKind(stat) {
     if (stat.isDirectory())
         return "directory";
@@ -525,6 +576,7 @@ function isWorkspaceFingerprint(value) {
         "indexSha256",
         "gitStatusSha256",
         "gitInfoExcludeSha256",
+        "gitCoreExcludesFileSha256",
         "files",
     ])) {
         return false;
@@ -552,6 +604,10 @@ function isWorkspaceFingerprint(value) {
     }
     if (typeof value.gitInfoExcludeSha256 !== "string" ||
         !HEX_SHA256.test(value.gitInfoExcludeSha256)) {
+        return false;
+    }
+    if (typeof value.gitCoreExcludesFileSha256 !== "string" ||
+        !HEX_SHA256.test(value.gitCoreExcludesFileSha256)) {
         return false;
     }
     if (!Array.isArray(value.files))

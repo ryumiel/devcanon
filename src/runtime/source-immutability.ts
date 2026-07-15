@@ -64,6 +64,7 @@ interface WorkspaceFingerprint {
   indexSha256: string;
   gitStatusSha256: string;
   gitInfoExcludeSha256: string;
+  gitCoreExcludesFileSha256: string;
   files: FileFingerprint[];
 }
 
@@ -351,21 +352,23 @@ async function fingerprint(
   );
   const symbolicRef =
     symbolic.exitCode === 0 ? symbolic.stdout.toString("utf8").trim() : null;
-  const [rawIndex, gitStatus, gitInfoExcludeSha256] = await Promise.all([
-    completeIndexEntryState(workspace.root),
-    gitRaw(
-      [
-        "--no-optional-locks",
-        "status",
-        "--porcelain=v1",
-        "-z",
-        "--untracked-files=all",
-        "--ignore-submodules=none",
-      ],
-      workspace.root,
-    ),
-    fingerprintGitInfoExclude(workspace.root),
-  ]);
+  const [rawIndex, gitStatus, gitInfoExcludeSha256, gitCoreExcludesFileSha256] =
+    await Promise.all([
+      completeIndexEntryState(workspace.root),
+      gitRaw(
+        [
+          "--no-optional-locks",
+          "status",
+          "--porcelain=v1",
+          "-z",
+          "--untracked-files=all",
+          "--ignore-submodules=none",
+        ],
+        workspace.root,
+      ),
+      fingerprintGitInfoExclude(workspace.root),
+      fingerprintGitCoreExcludesFile(workspace),
+    ]);
 
   const pathSets = await Promise.all([
     gitRaw(["ls-tree", "-r", "--name-only", "-z", "HEAD"], workspace.root),
@@ -383,6 +386,7 @@ async function fingerprint(
     indexSha256: sha256(rawIndex),
     gitStatusSha256: sha256(gitStatus),
     gitInfoExcludeSha256,
+    gitCoreExcludesFileSha256,
     files: await fingerprintListedPaths(workspace.root, pathSets, true),
   };
 }
@@ -616,6 +620,76 @@ async function fingerprintGitInfoExclude(root: string): Promise<string> {
   }
 }
 
+async function fingerprintGitCoreExcludesFile(
+  workspace: Workspace,
+): Promise<string> {
+  const selection = await gitResult(
+    ["config", "--local", "--path", "--get", "core.excludesFile"],
+    workspace.root,
+    [0, 1],
+  );
+  if (selection.exitCode === 1) {
+    return sha256(Buffer.from("unset\0"));
+  }
+
+  const configuredValue = stripTrailingLineEnding(selection.stdout);
+  const selectedPath = path.resolve(workspace.root, configuredValue);
+  const selectionFrame = Buffer.concat([
+    Buffer.from("selected\0"),
+    selection.stdout,
+  ]);
+  if (!isRepositoryLocalPath(workspace, selectedPath)) {
+    return sha256(Buffer.concat([selectionFrame, Buffer.from("external\0")]));
+  }
+
+  let physicalPath: string;
+  try {
+    physicalPath = await realpath(selectedPath);
+  } catch (err) {
+    if (isNodeError(err, "ENOENT")) {
+      return sha256(Buffer.concat([selectionFrame, Buffer.from("missing\0")]));
+    }
+    throw err;
+  }
+  if (!isRepositoryLocalPath(workspace, physicalPath)) {
+    return sha256(
+      Buffer.concat([selectionFrame, Buffer.from("external-target\0")]),
+    );
+  }
+
+  const contents = await readFile(selectedPath);
+  return sha256(
+    Buffer.concat([selectionFrame, Buffer.from("present\0"), contents]),
+  );
+}
+
+function stripTrailingLineEnding(value: Buffer): string {
+  let end = value.length;
+  if (end > 0 && value[end - 1] === 0x0a) end -= 1;
+  if (end > 0 && value[end - 1] === 0x0d) end -= 1;
+  return value.subarray(0, end).toString("utf8");
+}
+
+function isRepositoryLocalPath(
+  workspace: Workspace,
+  candidate: string,
+): boolean {
+  return (
+    isPathWithin(workspace.root, candidate) ||
+    isPathWithin(workspace.gitDir, candidate)
+  );
+}
+
+function isPathWithin(parent: string, candidate: string): boolean {
+  const relative = path.relative(parent, candidate);
+  return (
+    relative === "" ||
+    (relative !== ".." &&
+      !relative.startsWith(`..${path.sep}`) &&
+      !path.isAbsolute(relative))
+  );
+}
+
 function fileKind(stat: Awaited<ReturnType<typeof lstat>>): string {
   if (stat.isDirectory()) return "directory";
   if (stat.isBlockDevice()) return "block-device";
@@ -683,6 +757,7 @@ function isWorkspaceFingerprint(value: unknown): value is WorkspaceFingerprint {
       "indexSha256",
       "gitStatusSha256",
       "gitInfoExcludeSha256",
+      "gitCoreExcludesFileSha256",
       "files",
     ])
   ) {
@@ -716,6 +791,12 @@ function isWorkspaceFingerprint(value: unknown): value is WorkspaceFingerprint {
   if (
     typeof value.gitInfoExcludeSha256 !== "string" ||
     !HEX_SHA256.test(value.gitInfoExcludeSha256)
+  ) {
+    return false;
+  }
+  if (
+    typeof value.gitCoreExcludesFileSha256 !== "string" ||
+    !HEX_SHA256.test(value.gitCoreExcludesFileSha256)
   ) {
     return false;
   }
