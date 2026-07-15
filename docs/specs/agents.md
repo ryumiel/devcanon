@@ -29,10 +29,10 @@ template instead.
 
 ## ADR-0027 `assessor` source example
 
-This is the current `agents/assessor.yaml` source and the canonical ADR-0027
-`assessor` example. ADR-0027 remains Proposed because bounded runtime
-acceptance is incomplete, not because this source file or source/render
-convergence is absent.
+This is an abridged, non-authoritative `assessor` example. The authoritative
+current source is [`agents/assessor.yaml`](../../agents/assessor.yaml).
+ADR-0027 remains Proposed because bounded runtime acceptance is incomplete,
+not because this source file or source/render convergence is absent.
 
 ```yaml
 name: assessor

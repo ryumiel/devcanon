@@ -102,11 +102,11 @@ async function verify(cwd, baselinePath, handoff) {
     requireDistinctLeaves(baselinePath, handoff);
     const baseline = await readBaseline(workspace.root, baselinePath);
     requireSameHandoff(baseline, handoff);
-    await validateFreshHandoff(workspace.root, handoff);
     const current = await fingerprint(workspace);
     if (!fingerprintsEqual(baseline.fingerprint, current)) {
         throw new Error("source changed since the retained baseline was captured");
     }
+    await validateFreshHandoff(workspace.root, handoff);
 }
 async function cleanup(cwd, baselinePath, handoff) {
     const root = await requireCleanupRoot(cwd);
@@ -258,18 +258,6 @@ async function fingerprint(workspace) {
         gitRaw(["ls-files", "-z"], workspace.root),
         gitRaw(["ls-files", "--others", "--exclude-standard", "-z"], workspace.root),
     ]);
-    const uniquePaths = new Map();
-    for (const output of pathSets) {
-        for (const entry of splitNul(output)) {
-            const canonicalEntry = canonicalizeGitListedPath(entry);
-            uniquePaths.set(canonicalEntry.toString("hex"), canonicalEntry);
-        }
-    }
-    const sortedPaths = [...uniquePaths.values()].sort(Buffer.compare);
-    const files = [];
-    for (const relativePath of sortedPaths) {
-        files.push(await fingerprintPath(workspace.root, relativePath));
-    }
     return {
         worktree: workspace.root,
         gitDir: workspace.gitDir,
@@ -277,8 +265,22 @@ async function fingerprint(workspace) {
         symbolicRef,
         indexSha256: sha256(rawIndex),
         gitStatusSha256: sha256(gitStatus),
-        files,
+        files: await fingerprintListedPaths(workspace.root, pathSets, true),
     };
+}
+async function fingerprintListedPaths(root, pathSets, includeNestedGitState) {
+    const uniquePaths = new Map();
+    for (const output of pathSets) {
+        for (const entry of splitNul(output)) {
+            const canonicalEntry = canonicalizeGitListedPath(entry);
+            uniquePaths.set(canonicalEntry.toString("hex"), canonicalEntry);
+        }
+    }
+    const files = [];
+    for (const relativePath of [...uniquePaths.values()].sort(Buffer.compare)) {
+        files.push(await fingerprintPath(root, relativePath, includeNestedGitState));
+    }
+    return files;
 }
 function canonicalizeGitListedPath(value) {
     if (value.length > 1 && value[value.length - 1] === 0x2f) {
@@ -336,7 +338,7 @@ async function persistentIntentToAddState(root) {
     }
     return Buffer.concat(framed);
 }
-async function fingerprintPath(root, relativePath) {
+async function fingerprintPath(root, relativePath, includeNestedGitState) {
     const absolutePath = Buffer.concat([
         Buffer.from(root),
         Buffer.from(path.sep),
@@ -376,12 +378,68 @@ async function fingerprintPath(root, relativePath) {
             contentSha256: sha256(target),
         };
     }
+    if (stat.isDirectory()) {
+        return {
+            path: encodedPath,
+            kind: "directory",
+            mode,
+            contentSha256: includeNestedGitState
+                ? await nestedGitStateSha256(absolutePath)
+                : null,
+        };
+    }
     return {
         path: encodedPath,
         kind: fileKind(stat),
         mode,
         contentSha256: null,
     };
+}
+async function nestedGitStateSha256(absolutePath) {
+    const cwd = absolutePath.toString("utf8");
+    if (!Buffer.from(cwd).equals(absolutePath))
+        return null;
+    const topLevelResult = await gitResult(["rev-parse", "--show-toplevel"], cwd, [0, 128]);
+    if (topLevelResult.exitCode !== 0)
+        return null;
+    const [topLevel, physicalCwd] = await Promise.all([
+        realpath(topLevelResult.stdout.toString("utf8").trim()),
+        realpath(cwd),
+    ]);
+    if (topLevel !== physicalCwd)
+        return null;
+    const [headResult, symbolic, rawIndex, gitStatus] = await Promise.all([
+        gitResult(["rev-parse", "--verify", "HEAD^{commit}"], cwd, [0, 128]),
+        gitResult(["symbolic-ref", "-q", "HEAD"], cwd, [0, 1]),
+        completeIndexEntryState(cwd),
+        gitRaw([
+            "--no-optional-locks",
+            "status",
+            "--porcelain=v1",
+            "-z",
+            "--untracked-files=all",
+            "--ignore-submodules=none",
+        ], cwd),
+    ]);
+    const head = headResult.exitCode === 0
+        ? headResult.stdout.toString("utf8").trim()
+        : null;
+    const pathSets = await Promise.all([
+        head === null
+            ? Promise.resolve(Buffer.alloc(0))
+            : gitRaw(["ls-tree", "-r", "--name-only", "-z", "HEAD"], cwd),
+        gitRaw(["ls-files", "-z"], cwd),
+        gitRaw(["ls-files", "--others", "--exclude-standard", "-z"], cwd),
+    ]);
+    return sha256(Buffer.from(JSON.stringify({
+        head,
+        symbolicRef: symbolic.exitCode === 0
+            ? symbolic.stdout.toString("utf8").trim()
+            : null,
+        indexSha256: sha256(rawIndex),
+        gitStatusSha256: sha256(gitStatus),
+        files: await fingerprintListedPaths(cwd, pathSets, false),
+    })));
 }
 function fileKind(stat) {
     if (stat.isDirectory())
@@ -508,7 +566,9 @@ function isFileFingerprint(value) {
         value.mode > 0o7777) {
         return false;
     }
-    if (value.kind === "regular" || value.kind === "symlink") {
+    if (value.kind === "regular" ||
+        value.kind === "symlink" ||
+        (value.kind === "directory" && value.contentSha256 !== null)) {
         return (typeof value.contentSha256 === "string" &&
             HEX_SHA256.test(value.contentSha256));
     }

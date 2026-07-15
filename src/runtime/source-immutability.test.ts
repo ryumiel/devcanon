@@ -167,7 +167,7 @@ describe("source-immutability runtime", () => {
     await expectChanged(cwd, baseline);
   });
 
-  it("detects tracked submodule worktree mutations", async () => {
+  it("detects subsequent tracked submodule worktree mutations when capture is already dirty", async () => {
     const cwd = await fixture();
     const submoduleSource = await fixture();
     await git(
@@ -180,14 +180,15 @@ describe("source-immutability runtime", () => {
       "deps/sub",
     );
     await git(cwd, "commit", "-am", "test: add submodule");
+    await writeFile(path.join(cwd, "deps/sub/tracked.txt"), "changed\n");
     const baseline = await capture(cwd);
 
-    await writeFile(path.join(cwd, "deps/sub/tracked.txt"), "changed\n");
+    await writeFile(path.join(cwd, "deps/sub/tracked.txt"), "changed again\n");
 
     await expectChanged(cwd, baseline);
   });
 
-  it("round-trips an unchanged untracked nested Git checkout", async () => {
+  it("round-trips and detects mutations in an untracked nested Git checkout", async () => {
     const cwd = await fixture();
     const nested = path.join(cwd, "nested");
     await mkdir(nested);
@@ -203,6 +204,9 @@ describe("source-immutability runtime", () => {
     await expect(
       runSourceImmutabilityCommand(["verify", "--baseline", baseline], cwd),
     ).resolves.toEqual({ exitCode: 0, stdout: "unchanged\n", stderr: "" });
+
+    await writeFile(path.join(nested, "nested.txt"), "changed\n");
+    await expectChanged(cwd, baseline);
   });
 
   it.each([
@@ -357,6 +361,24 @@ describe("source-immutability runtime", () => {
         cwd,
       ),
     ).resolves.toEqual({ exitCode: 0, stdout: "unchanged\n", stderr: "" });
+  });
+
+  it("reports source mutation before a missing handoff", async () => {
+    const cwd = await fixture();
+    const handoff = ".ephemeral/result.json";
+    const baseline = await capture(cwd, handoff);
+    await writeFile(path.join(cwd, "tracked.txt"), "changed\n");
+
+    await expect(
+      runSourceImmutabilityCommand(
+        ["verify", "--baseline", baseline, "--handoff", handoff],
+        cwd,
+      ),
+    ).resolves.toEqual({
+      exitCode: 1,
+      stdout: "",
+      stderr: "source changed since the retained baseline was captured\n",
+    });
   });
 
   it("rejects invalid capture handoffs and workspace preconditions", async () => {
