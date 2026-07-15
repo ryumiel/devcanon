@@ -92,8 +92,9 @@ digraph process {
     "Implementer asks questions?" -> "Implementer implements, verifies, commits, self-reviews" [label="no"];
     "Implementer implements, verifies, commits, self-reviews" -> "Mark task complete" [label="single-task plan"];
     "Implementer implements, verifies, commits, self-reviews" -> "Compute effective review route" [label="multi-task plan"];
-    "Dispatch D13 executor for exact validated operation" -> "Dispatched D13: capture DONE report and snapshot state" [label="DONE or DONE_WITH_CONCERNS"];
-    "Dispatched D13: capture DONE report and snapshot state" -> "Mark task complete" [label="single-task plan"];
+    "Dispatch D13 executor for exact validated operation" -> "Dispatched D13: capture DONE report and snapshot state" [label="DONE or purely observational DONE_WITH_CONCERNS"];
+    "Dispatched D13: capture DONE report and snapshot state" -> "Mark task complete" [label="single-task plan; DONE or purely observational concerns"];
+    "Dispatched D13: capture DONE report and snapshot state" -> "Dispatch implementer prompt" [label="judgment-bearing concerns: route D12 via lifecycle/status policy"];
     "Compute effective review route" -> "Capture separate D14 and D15 baselines" [label="spec-and-quality"];
     "Capture separate D14 and D15 baselines" -> "Dispatch spec and quality reviewers for same task head" [label="capture succeeds"];
     "Dispatch spec and quality reviewers for same task head" -> "Independent D14 and D15 verify-validate-cleanup-apply";

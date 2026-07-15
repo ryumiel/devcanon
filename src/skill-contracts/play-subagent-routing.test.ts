@@ -1508,6 +1508,7 @@ describe("play subagent routing source contracts", () => {
     const normalizedLifecycle = normalizeWhitespace(lifecycle);
     const normalizedReviewRouting = normalizeWhitespace(reviewRouting);
     const normalizedRedFlags = normalizeWhitespace(redFlags);
+    const normalizedImplementerPrompt = normalizeWhitespace(implementerPrompt);
     const normalizedExecutorPrompt = normalizeWhitespace(executorPrompt);
 
     expect(normalizedSkill).toContain(
@@ -1525,6 +1526,12 @@ describe("play subagent routing source contracts", () => {
     expect(normalizedSkill).toContain("Implementer dispatch remains serial");
     expect(implementerPrompt).toContain(
       "paired with the source agent at [`agents/implementer.yaml`]",
+    );
+    expect(normalizedImplementerPrompt).toContain(
+      "Returned D12 status handling belongs to [`lifecycle-status-policy.md`](lifecycle-status-policy.md), which preserves the configured `implementer`, balanced/high pair",
+    );
+    expect(normalizedImplementerPrompt).not.toContain(
+      "re-dispatch with a more capable model",
     );
     expect(executorPrompt).toContain(
       "paired with the source agent at [`agents/executor.yaml`]",
@@ -1622,6 +1629,18 @@ describe("play subagent routing source contracts", () => {
     );
     expect(normalizedProcessDiagrams).toContain(
       "Dispatched D13: capture DONE report and snapshot state",
+    );
+    expect(processDiagrams).toContain(
+      '[label="DONE or purely observational DONE_WITH_CONCERNS"]',
+    );
+    expect(processDiagrams).toContain(
+      '[label="judgment-bearing concerns: route D12 via lifecycle/status policy"]',
+    );
+    expect(processDiagrams).not.toContain(
+      '[label="DONE or DONE_WITH_CONCERNS"]',
+    );
+    expect(processDiagrams).not.toContain(
+      '"Dispatched D13: capture DONE report and snapshot state" -> "Mark task complete" [label="single-task plan"]',
     );
     expect(normalizedProcessDiagrams).toContain(
       "These diagrams are non-normative summaries of the controller flow",

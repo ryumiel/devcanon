@@ -122,8 +122,9 @@ Task tool (general-purpose):
 
     **How to escalate:** Report back with status BLOCKED or NEEDS_CONTEXT. Describe
     specifically what you're stuck on, what you've tried, and what kind of help you need.
-    The controller can provide more context, re-dispatch with a more capable model,
-    or break the task into smaller pieces.
+    Returned D12 status handling belongs to
+    [`lifecycle-status-policy.md`](lifecycle-status-policy.md), which preserves the
+    configured `implementer`, balanced/high pair.
 
     ## Committing
 
