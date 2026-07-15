@@ -233,6 +233,16 @@ or ambient agent.
 
 Resolve `PR_MERGE_DIR` to the installed `pr-merge` bundle directory, then set
 `SOURCE_IMMUTABILITY_HELPER="$PR_MERGE_DIR/scripts/source-immutability.sh"`.
+The root/controller establishes `.ephemeral` as a real nonsymlinked ignored
+directory before capture:
+
+```sh
+[ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
+mkdir -p .ephemeral
+[ -d .ephemeral ] || { echo ".ephemeral must be a directory" >&2; exit 1; }
+git check-ignore -q -- .ephemeral/.devcanon-ignore-probe || { echo ".ephemeral must be ignored by Git" >&2; exit 1; }
+```
+
 Keep this lifecycle exact:
 
 1. capture before spawn and retain the returned baseline path in the
@@ -259,10 +269,12 @@ unchanged, perform no fix/push/merge, and return to Step 2 for the replacement
 head.
 
 The investigator reads `.github/workflows/*.yml` and the already-collected
-failed-check and PR diff evidence; uses `play-debug`; and may run bounded
-reproduction commands. The investigator must not execute
-`{{tool:github-cli}} pr diff <N>`. It must not edit, stage, commit, push, merge,
-or write a handoff. Its response contains evidence only:
+failed-check and PR diff evidence. Use `play-debug` only through its diagnostic
+Phases 1 through 3; Phase 4 implementation is forbidden for this
+source-immutable investigator. The investigator may run bounded reproduction
+commands. The investigator must not execute `{{tool:github-cli}} pr diff <N>`.
+It must not edit, stage, commit, push, merge, or write a handoff. Its response
+contains evidence only:
 
 - anchored PR head SHA and CI run/check identifiers;
 - failing workflow/job names and the relevant log excerpt;

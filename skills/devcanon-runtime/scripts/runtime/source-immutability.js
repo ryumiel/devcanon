@@ -242,7 +242,17 @@ async function fingerprint(workspace) {
     const head = (await gitText(["rev-parse", "--verify", "HEAD^{commit}"], workspace.root)).trim();
     const symbolic = await gitResult(["symbolic-ref", "-q", "HEAD"], workspace.root, [0, 1]);
     const symbolicRef = symbolic.exitCode === 0 ? symbolic.stdout.toString("utf8").trim() : null;
-    const rawIndex = await completeIndexEntryState(workspace.root);
+    const [rawIndex, gitStatus] = await Promise.all([
+        completeIndexEntryState(workspace.root),
+        gitRaw([
+            "--no-optional-locks",
+            "status",
+            "--porcelain=v1",
+            "-z",
+            "--untracked-files=all",
+            "--ignore-submodules=none",
+        ], workspace.root),
+    ]);
     const pathSets = await Promise.all([
         gitRaw(["ls-tree", "-r", "--name-only", "-z", "HEAD"], workspace.root),
         gitRaw(["ls-files", "-z"], workspace.root),
@@ -251,7 +261,8 @@ async function fingerprint(workspace) {
     const uniquePaths = new Map();
     for (const output of pathSets) {
         for (const entry of splitNul(output)) {
-            uniquePaths.set(entry.toString("hex"), entry);
+            const canonicalEntry = canonicalizeGitListedPath(entry);
+            uniquePaths.set(canonicalEntry.toString("hex"), canonicalEntry);
         }
     }
     const sortedPaths = [...uniquePaths.values()].sort(Buffer.compare);
@@ -265,8 +276,15 @@ async function fingerprint(workspace) {
         head,
         symbolicRef,
         indexSha256: sha256(rawIndex),
+        gitStatusSha256: sha256(gitStatus),
         files,
     };
+}
+function canonicalizeGitListedPath(value) {
+    if (value.length > 1 && value[value.length - 1] === 0x2f) {
+        return value.subarray(0, value.length - 1);
+    }
+    return value;
 }
 async function completeIndexEntryState(root) {
     // These stable, NUL-delimited plumbing views jointly cover entry identity,
@@ -429,6 +447,7 @@ function isWorkspaceFingerprint(value) {
         "head",
         "symbolicRef",
         "indexSha256",
+        "gitStatusSha256",
         "files",
     ])) {
         return false;
@@ -448,6 +467,10 @@ function isWorkspaceFingerprint(value) {
     }
     if (typeof value.indexSha256 !== "string" ||
         !HEX_SHA256.test(value.indexSha256)) {
+        return false;
+    }
+    if (typeof value.gitStatusSha256 !== "string" ||
+        !HEX_SHA256.test(value.gitStatusSha256)) {
         return false;
     }
     if (!Array.isArray(value.files))

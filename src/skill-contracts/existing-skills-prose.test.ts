@@ -4266,6 +4266,25 @@ describe("existing skills source prose contracts", () => {
     expect(failureSection).not.toContain(
       "skills/pr-merge/scripts/source-immutability.sh",
     );
+    expect(normalized).toContain(
+      "The root/controller establishes `.ephemeral` as a real nonsymlinked ignored directory before capture",
+    );
+    expect(failureSection).toContain(
+      '[ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }',
+    );
+    expect(failureSection).toContain("mkdir -p .ephemeral");
+    expect(failureSection).toContain(
+      '[ -d .ephemeral ] || { echo ".ephemeral must be a directory" >&2; exit 1; }',
+    );
+    expect(failureSection).toContain(
+      'git check-ignore -q -- .ephemeral/.devcanon-ignore-probe || { echo ".ephemeral must be ignored by Git" >&2; exit 1; }',
+    );
+    expect(normalized).toContain(
+      "Use `play-debug` only through its diagnostic Phases 1 through 3",
+    );
+    expect(normalized).toContain(
+      "Phase 4 implementation is forbidden for this source-immutable investigator",
+    );
     expectSubstringsInOrder(normalized, [
       "capture before spawn",
       "verify before semantic validation or consumption",

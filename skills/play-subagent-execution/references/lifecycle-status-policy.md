@@ -54,8 +54,9 @@ wait for snapshot, changed-file, or test artifacts that were not produced. Run
 the cleanup gate before dispatching the next reviewer, re-reviewer,
 implementer, or final reviewer.
 
-Only a D13 `DONE` or `DONE_WITH_CONCERNS` enters DONE-report and snapshot
-capture before task completion.
+Both a D12 implementer and a dispatched D13 executor with `DONE` or
+`DONE_WITH_CONCERNS` enter DONE-report and snapshot capture before task
+completion.
 
 ### DONE
 

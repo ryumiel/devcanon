@@ -1573,6 +1573,9 @@ describe("play subagent routing source contracts", () => {
       "A D13 `DONE_WITH_CONCERNS` report with judgment-bearing concerns keeps the task incomplete and routes the report to D12; purely observational concerns may proceed through the selected route",
     );
     expect(normalizedLifecycle).toContain(
+      "Both a D12 implementer and a dispatched D13 executor with `DONE` or `DONE_WITH_CONCERNS` enter DONE-report and snapshot capture before task completion",
+    );
+    expect(normalizedLifecycle).toContain(
       "D12 remains the shipped `implementer`, balanced/high; no `BLOCKED` disposition changes its role, capability, or effort",
     );
     expect(normalizedLifecycle).not.toContain(

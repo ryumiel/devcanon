@@ -62,6 +62,7 @@ interface WorkspaceFingerprint {
   head: string;
   symbolicRef: string | null;
   indexSha256: string;
+  gitStatusSha256: string;
   files: FileFingerprint[];
 }
 
@@ -349,7 +350,20 @@ async function fingerprint(
   );
   const symbolicRef =
     symbolic.exitCode === 0 ? symbolic.stdout.toString("utf8").trim() : null;
-  const rawIndex = await completeIndexEntryState(workspace.root);
+  const [rawIndex, gitStatus] = await Promise.all([
+    completeIndexEntryState(workspace.root),
+    gitRaw(
+      [
+        "--no-optional-locks",
+        "status",
+        "--porcelain=v1",
+        "-z",
+        "--untracked-files=all",
+        "--ignore-submodules=none",
+      ],
+      workspace.root,
+    ),
+  ]);
 
   const pathSets = await Promise.all([
     gitRaw(["ls-tree", "-r", "--name-only", "-z", "HEAD"], workspace.root),
@@ -362,7 +376,8 @@ async function fingerprint(
   const uniquePaths = new Map<string, Buffer>();
   for (const output of pathSets) {
     for (const entry of splitNul(output)) {
-      uniquePaths.set(entry.toString("hex"), entry);
+      const canonicalEntry = canonicalizeGitListedPath(entry);
+      uniquePaths.set(canonicalEntry.toString("hex"), canonicalEntry);
     }
   }
 
@@ -377,8 +392,16 @@ async function fingerprint(
     head,
     symbolicRef,
     indexSha256: sha256(rawIndex),
+    gitStatusSha256: sha256(gitStatus),
     files,
   };
+}
+
+function canonicalizeGitListedPath(value: Buffer): Buffer {
+  if (value.length > 1 && value[value.length - 1] === 0x2f) {
+    return value.subarray(0, value.length - 1);
+  }
+  return value;
 }
 
 async function completeIndexEntryState(root: string): Promise<Buffer> {
@@ -554,6 +577,7 @@ function isWorkspaceFingerprint(value: unknown): value is WorkspaceFingerprint {
       "head",
       "symbolicRef",
       "indexSha256",
+      "gitStatusSha256",
       "files",
     ])
   ) {
@@ -575,6 +599,12 @@ function isWorkspaceFingerprint(value: unknown): value is WorkspaceFingerprint {
   if (
     typeof value.indexSha256 !== "string" ||
     !HEX_SHA256.test(value.indexSha256)
+  ) {
+    return false;
+  }
+  if (
+    typeof value.gitStatusSha256 !== "string" ||
+    !HEX_SHA256.test(value.gitStatusSha256)
   ) {
     return false;
   }

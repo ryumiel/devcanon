@@ -167,6 +167,44 @@ describe("source-immutability runtime", () => {
     await expectChanged(cwd, baseline);
   });
 
+  it("detects tracked submodule worktree mutations", async () => {
+    const cwd = await fixture();
+    const submoduleSource = await fixture();
+    await git(
+      cwd,
+      "-c",
+      "protocol.file.allow=always",
+      "submodule",
+      "add",
+      submoduleSource,
+      "deps/sub",
+    );
+    await git(cwd, "commit", "-am", "test: add submodule");
+    const baseline = await capture(cwd);
+
+    await writeFile(path.join(cwd, "deps/sub/tracked.txt"), "changed\n");
+
+    await expectChanged(cwd, baseline);
+  });
+
+  it("round-trips an unchanged untracked nested Git checkout", async () => {
+    const cwd = await fixture();
+    const nested = path.join(cwd, "nested");
+    await mkdir(nested);
+    await git(nested, "init", "--initial-branch=main");
+    await git(nested, "config", "user.name", "Nested User");
+    await git(nested, "config", "user.email", "nested@example.com");
+    await writeFile(path.join(nested, "nested.txt"), "nested\n");
+    await git(nested, "add", "nested.txt");
+    await git(nested, "commit", "-m", "test: nested baseline");
+
+    const baseline = await capture(cwd);
+
+    await expect(
+      runSourceImmutabilityCommand(["verify", "--baseline", baseline], cwd),
+    ).resolves.toEqual({ exitCode: 0, stdout: "unchanged\n", stderr: "" });
+  });
+
   it.each([
     {
       name: "assume-unchanged",
