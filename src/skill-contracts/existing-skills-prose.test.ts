@@ -5094,7 +5094,7 @@ describe("existing skills source prose contracts", () => {
     const roles = await readAgentSemanticRoleOwner();
     const rolesByName = new Map(roles.map((role) => [role.name, role]));
     const route = owner.directChildRoutes.find((row) =>
-      row.route.includes("`implementer`"),
+      row.clauses.some((clause) => clause.role === "implementer"),
     );
     const implementer = rolesByName.get("implementer");
     expect(route).toBeDefined();
