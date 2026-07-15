@@ -27,13 +27,16 @@ Write the failing test` and `Step 3: Write minimal implementation` markers.
 ## Conditions
 
 For the single-task subset of plans that are also fully mechanical approved
-verbatim artifact work or unambiguous identifier replacement, the implementer
-dispatch itself is skipped. The controller executes Write/Edit, satisfies
-verification expectations, and commits inline.
+verbatim artifact work or unambiguous identifier replacement, D13 permits
+guarded inline execution or a dispatched `executor`, efficient/medium. All five
+guardrails pass before either guarded inline execution or executor dispatch.
+The controller chooses inline only when it can perform the exact operation
+directly; otherwise it dispatches `executor-prompt.md` with the same validated
+authorization.
 
-All five guardrails must hold for inline execution. If condition #4 fails, stop
-before implementation and report BLOCKED/NEEDS_CONTEXT for the task contract.
-Other misses fall back to the dispatched-implementer flow.
+All five guardrails must hold for D13. Guardrail #4 failure blocks before source
+mutation; any other missing guardrail reclassifies to D12 and uses
+`implementer-prompt.md`. Do not dispatch the executor on a partial guard set.
 
 | #   | Guardrail                                     | Detection signal                                                                                                                                                                                                                                                                                                               |
 | --- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -49,9 +52,18 @@ obligations are additive after checklist/no-trigger satisfaction and do not
 satisfy guardrail #4 by themselves. Apply the shared consumer rule in
 [`contract-example-discipline-consumer-rule.md`](contract-example-discipline-consumer-rule.md).
 
-## Inline Execution Sequence
+## D13 Execution Sequence
 
-When all five guardrails hold:
+When all five guardrails hold, choose exactly one path:
+
+- **Guarded inline:** the controller performs the exact operation through the
+  sequence below. The branch has no child and no DONE-report snapshot request.
+- **Executor dispatch:** the controller supplies the validated exact operation
+  to `executor-prompt.md`. `executor-prompt.md` owns the dispatched child's
+  action and report schema; `lifecycle-status-policy.md` owns every returned
+  D13 disposition.
+
+The guarded inline sequence is:
 
 1. Write/Edit. Apply the file change as the plan specifies. For approved
    verbatim file create, this is a single Write call. For unambiguous identifier
@@ -67,34 +79,28 @@ When all five guardrails hold:
    Conventional Commits in imperative mood.
 4. Mark task complete in TodoWrite.
 
-After step 4, if the controller validates both controller-local parent state
-and an `issue-priming/auto-handoff/v1` audit artifact proving this single-task
-run came from `issue-priming-workflow --auto` and that downstream
-`branch-review --fix` is mandatory, return to the caller immediately.
-Otherwise, dispatch the existing final whole-implementation code-quality
-reviewer as on the dispatched path.
-
-There is no DONE-report step and no DONE-report snapshot request. No
-DONE-report contract applies because there is no dispatched implementer.
+After step 4, return control to
+[`lifecycle-status-policy.md`](lifecycle-status-policy.md), which owns every
+post-selection D13, D16, and terminal disposition. This pre-dispatch policy
+makes no final-review or terminal-routing decision.
 
 ## Fallback
 
 If guardrail #4 fails, stop before implementation and report the contract gap;
-do not execute inline, dispatch a mechanical implementer, or dispatch a full
-implementer against a missing or invalid task contract. Other guardrail misses
-fall back to dispatched implementation. Template choice for those fallback cases
-is driven by `**Mode:** mechanical` in the task header, except when guardrail #5
-fails; TDD work uses `implementer-prompt.md` regardless of any mechanical hint.
+do not execute inline, dispatch an executor, or dispatch an implementer against
+a missing or invalid task contract. Other guardrail misses reclassify to D12
+and use `implementer-prompt.md`; the `**Mode:** mechanical` hint alone never
+selects the executor.
 
-- Guardrail #1 fails: standard multi-task flow with executor-computed per-task
-  review routing.
-- Guardrail #2 fails: single-task dispatched flow with
-  `implementer-prompt.md`.
+- Guardrail #1 fails: standard multi-task D12 flow with executor-computed
+  per-task review routing.
+- Guardrail #2 fails: single-task D12 flow with `implementer-prompt.md`.
+- Guardrail #3 fails: single-task D12 flow with `implementer-prompt.md`.
 - Guardrail #4 fails: stop before implementation and report
   BLOCKED/NEEDS_CONTEXT with the exact missing checklist, unexplained `N/A`, or
   unconfirmed owner, authority, source-of-truth, consumer, generated-output, or
   evidence surface.
-- Guardrail #5 fails: single-task dispatched flow with `implementer-prompt.md`,
+- Guardrail #5 fails: single-task D12 flow with `implementer-prompt.md`,
   overriding any `**Mode:** mechanical` hint.
 
 ## Skip-Dispatch Examples

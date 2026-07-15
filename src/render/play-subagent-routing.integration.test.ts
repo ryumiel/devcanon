@@ -129,6 +129,77 @@ describe("play-subagent planning and routing render smoke coverage", () => {
       expect(playPlanning).toContain("## Execution Handoff");
       expect(playPlanning).toContain("play-subagent-execution");
 
+      const planReviewStart = playPlanning.indexOf("## Plan Review");
+      const executabilityReviewStart = playPlanning.indexOf(
+        "## Implementer Executability Review",
+      );
+      const executionHandoffStart = playPlanning.indexOf(
+        "## Execution Handoff",
+      );
+      expect(planReviewStart).toBeGreaterThanOrEqual(0);
+      expect(executabilityReviewStart).toBeGreaterThan(planReviewStart);
+      expect(executionHandoffStart).toBeGreaterThan(executabilityReviewStart);
+      const planReview = normalizeWhitespace(
+        playPlanning.slice(planReviewStart, executabilityReviewStart),
+      );
+      const executabilityReview = normalizeWhitespace(
+        playPlanning.slice(executabilityReviewStart, executionHandoffStart),
+      );
+      for (const reviewSection of [planReview, executabilityReview]) {
+        expect(reviewSection).toContain(
+          "response-only `reviewer`, frontier/high and source-immutable, with zero handoffs",
+        );
+        expect(reviewSection).toContain("scripts/source-immutability.sh");
+        expect(reviewSection).toContain("capture before spawn");
+        expect(reviewSection).toContain(
+          "verify before semantic validation or consumption",
+        );
+        expect(reviewSection).toContain(
+          "apply the retained PASS/FAIL result only after cleanup",
+        );
+        expect(reviewSection).toContain(
+          "unavailable, failed, malformed, or verification-rejected review cannot pass",
+        );
+        expect(reviewSection).toContain("guard-integrity terminal");
+        expect(reviewSection).not.toContain("`deep-reviewer`");
+      }
+      expect(planReview).toContain("D5 FAIL never advances to D6");
+      expect(executabilityReview).toContain(
+        "D5 PASS followed by D6 FAIL never reaches execution handoff",
+      );
+      expect(executabilityReview).toContain(
+        "Only a retained D5 PASS followed by a separate retained D6 PASS",
+      );
+      for (const [reviewSection, spawnStep] of [
+        [planReview, "spawn the D5 reviewer and capture only"],
+        [executabilityReview, "spawn the fresh D6 reviewer and capture only"],
+      ]) {
+        const orderedSteps = [
+          "capture before spawn",
+          spawnStep,
+          "verify before semantic validation or consumption",
+          "validate and retain the PASS/FAIL response in controller memory",
+          "cleanup the exact retained baseline",
+          "apply the retained PASS/FAIL result only after cleanup",
+        ];
+        for (let index = 1; index < orderedSteps.length; index += 1) {
+          expect(reviewSection.indexOf(orderedSteps[index - 1])).toBeLessThan(
+            reviewSection.indexOf(orderedSteps[index]),
+          );
+        }
+        expect(reviewSection).toContain(
+          "every post-capture terminal path attempts exact cleanup",
+        );
+        expect(reviewSection).toContain(
+          "dispatch or spawn failure or unavailability before a reviewer session exists",
+        );
+        expect(reviewSection).toContain("After safe cleanup");
+        expect(reviewSection).toContain("a non-passing second round stops");
+      }
+      expect(executabilityReview).toContain(
+        "must not reuse or collapse the D5 session, review question, PASS/FAIL result, or lifecycle state",
+      );
+
       const playSubagentExecution = bodies[`play-subagent-execution:${target}`];
       const normalizedPlaySubagentExecution = normalizeWhitespace(
         playSubagentExecution,
@@ -152,9 +223,7 @@ describe("play-subagent planning and routing render smoke coverage", () => {
       expect(playSubagentExecution).toContain(
         "references/implementer-prompt.md",
       );
-      expect(playSubagentExecution).toContain(
-        "references/mechanical-implementer-prompt.md",
-      );
+      expect(playSubagentExecution).toContain("references/executor-prompt.md");
       expect(playSubagentExecution).toContain(
         "references/spec-reviewer-prompt.md",
       );
@@ -169,7 +238,43 @@ describe("play-subagent planning and routing render smoke coverage", () => {
       );
       expect(playSubagentExecution).toContain("issue-priming/auto-handoff/v1");
       expect(normalizedPlaySubagentExecution).toContain(
-        "spec-compliance and code-quality reviewers concurrently when practical",
+        "D14 and D15 may run concurrently when practical against the same committed task head",
+      );
+      expect(normalizedPlaySubagentExecution).toContain(
+        "D12 uses the source-mutable `implementer`, balanced/high, for judgment-bearing scoped implementation",
+      );
+      expect(normalizedPlaySubagentExecution).toContain(
+        "D13 uses guarded inline execution or the source-mutable `executor`, efficient/medium, only when all five exact guardrails pass",
+      );
+      expect(normalizedPlaySubagentExecution).toContain(
+        "D14 is a separate response-only `deep-reviewer`, frontier/xhigh and source-immutable, with zero handoffs",
+      );
+      expect(normalizedPlaySubagentExecution).toContain(
+        "D15 is a separate response-only `deep-reviewer`, frontier/xhigh and source-immutable, with zero handoffs",
+      );
+      expect(normalizedPlaySubagentExecution).toContain(
+        "D16 is a fresh response-only `deep-reviewer`, frontier/xhigh and source-immutable, with zero handoffs",
+      );
+      expect(normalizedPlaySubagentExecution).toContain(
+        "scripts/source-immutability.sh",
+      );
+      expect(normalizedPlaySubagentExecution).toContain(
+        "references/lifecycle-status-policy.md",
+      );
+      expect(normalizedPlaySubagentExecution).toContain(
+        "Returned D12/D13 status interpretation and all post-selection D14-D16 state transitions are owned by the lifecycle/status policy; this index does not restate them",
+      );
+      expect(normalizedPlaySubagentExecution).toContain(
+        "review routing - `references/review-routing-policy.md` | Computing initial effective per-task routes, validating reduced-route auto-handoff, or checking hard-risk triggers",
+      );
+      expect(normalizedPlaySubagentExecution).toContain(
+        "lifecycle/status handling - `references/lifecycle-status-policy.md` | Updating lifecycle ledger state, interpreting returned worker statuses, resolving same-head reviewer disposition, handling fixups/blockers, guard failures, or cleanup timing",
+      );
+      expect(normalizedPlaySubagentExecution).not.toContain(
+        "review-routing-policy.md` | Computing effective per-task routes, validating reduced-route auto-handoff, checking hard-risk triggers, or resolving same-head reviewer disposition",
+      );
+      expect(normalizedPlaySubagentExecution).not.toContain(
+        "references/mechanical-implementer-prompt.md",
       );
       expect(normalizedPlaySubagentExecution).toContain(
         "Single-task plans skip per-task review and use the final whole-implementation reviewer plus direct/manual branch-level review status resolution",
@@ -178,13 +283,7 @@ describe("play-subagent planning and routing render smoke coverage", () => {
         "rely on the final whole-implementation reviewer for direct/manual calls",
       );
       expect(normalizedPlaySubagentExecution).toContain(
-        "A quality result is final only after same-head spec compliance passes",
-      );
-      expect(normalizedPlaySubagentExecution).toContain(
         "load the detailed references only when the trigger applies",
-      );
-      expect(normalizedPlaySubagentExecution).toContain(
-        "same-head quality results remain pending or advisory",
       );
     }
 

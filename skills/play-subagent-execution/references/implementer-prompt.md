@@ -4,6 +4,11 @@ Use this template when dispatching an implementer subagent.
 
 **Promotion classification:** Workflow-local prompt template paired with the source agent at [`agents/implementer.yaml`](../../../agents/implementer.yaml) — referenced from `skills/play-subagent-execution/SKILL.md` for dispatch-time placeholder substitution. The role identity is already promoted; per [`docs/guidelines/agent-authoring-guide.md`](../../../docs/guidelines/agent-authoring-guide.md) §4, workflow-local prompt assembly stays as a template.
 
+**Route:** D12 uses the configured source-mutable `implementer`,
+balanced/high, for judgment-bearing scoped implementation. This prompt does
+not authorize external-system mutation, parallel task implementation, or work
+outside the controller-authorized paths.
+
 ````
 Task tool (general-purpose):
   description: "Implement Task N: [task name]"
@@ -117,8 +122,9 @@ Task tool (general-purpose):
 
     **How to escalate:** Report back with status BLOCKED or NEEDS_CONTEXT. Describe
     specifically what you're stuck on, what you've tried, and what kind of help you need.
-    The controller can provide more context, re-dispatch with a more capable model,
-    or break the task into smaller pieces.
+    Returned D12 status handling belongs to
+    [`lifecycle-status-policy.md`](lifecycle-status-policy.md), which preserves the
+    configured `implementer`, balanced/high pair.
 
     ## Committing
 

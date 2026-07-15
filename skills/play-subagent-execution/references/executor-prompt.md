@@ -1,8 +1,10 @@
-# Mechanical Implementer Subagent Prompt Template
+# Exact-Task Executor Subagent Prompt Template
 
-Use this template when dispatching an implementer subagent for a task whose task header includes `**Mode:** mechanical`. For all other tasks, use [`implementer-prompt.md`](implementer-prompt.md).
+Use this template only for D13 after all five exact guardrails pass and the
+controller chooses dispatch instead of guarded inline execution. For
+judgment-bearing work, use [`implementer-prompt.md`](implementer-prompt.md).
 
-**Promotion classification:** Workflow-local prompt template paired with the source agent at [`agents/implementer.yaml`](../../../agents/implementer.yaml) — referenced from `skills/play-subagent-execution/SKILL.md` for dispatch-time placeholder substitution. The role identity is already promoted; per [`docs/guidelines/agent-authoring-guide.md`](../../../docs/guidelines/agent-authoring-guide.md) §4, workflow-local prompt assembly stays as a template.
+**Promotion classification:** Workflow-local prompt template paired with the source agent at [`agents/executor.yaml`](../../../agents/executor.yaml) — referenced from `skills/play-subagent-execution/SKILL.md` for dispatch-time placeholder substitution. The role identity is already promoted; per [`docs/guidelines/agent-authoring-guide.md`](../../../docs/guidelines/agent-authoring-guide.md) §4, workflow-local prompt assembly stays as a template.
 
 ````
 Task tool (general-purpose):
@@ -18,8 +20,10 @@ Task tool (general-purpose):
     rationale`) are controller-only metadata. Ignore them as task requirements;
     the controller owns reviewer dispatch.
 
-    Mechanical mode is only for approved verbatim artifact work or
-    unambiguous identifier replacement. Concrete code-like examples, test
+    Executor mode is only for an exact validated authorized operation after
+    all five controller-owned D13 guardrails pass. The allowed operation is
+    approved verbatim artifact work or unambiguous identifier replacement.
+    Concrete code-like examples, test
     snippets, plan-authored test bodies, shell snippets, shell recipes, command
     sequences, helper-name prescriptions, line-number edits, or commit recipes
     are not authoritative unless the task explicitly labels them as approved
@@ -46,7 +50,7 @@ Task tool (general-purpose):
     generated-output, or evidence surface is not a mechanical replacement
     target; report BLOCKED or NEEDS_CONTEXT instead of guessing.
 
-    Mechanical mode does not bypass present Contract Example Discipline
+    Executor mode does not bypass present Contract Example Discipline
     obligations.
 
     ## Context
@@ -54,6 +58,12 @@ Task tool (general-purpose):
     [Scene-setting: where this fits, dependencies]
 
     Work from: [directory]
+
+    If any operation requires judgment, policy interpretation, a clarifying
+    question, or work outside the exact validated authorization, stop and
+    report NEEDS_CONTEXT or BLOCKED so the controller can reclassify the task
+    to D12. Do not guess, choose among alternatives, widen scope, or continue
+    without all five guardrails.
 
     ## Your Job
 
@@ -80,6 +90,9 @@ Task tool (general-purpose):
     ## Snapshot Manifest
 
     Snapshot request: <SNAPSHOT_REQUEST_STATE: requested|skipped>
+
+    The snapshot envelope remains schema `implementer/snapshot/v1`; the D13
+    role rename does not create or change a snapshot schema.
 
     After committing and self-reviewing, follow the controller's snapshot
     request state exactly. Only write a side-channel snapshot manifest when the
@@ -119,6 +132,8 @@ Task tool (general-purpose):
     ## Report Format
 
     - **Status:** DONE | DONE_WITH_CONCERNS | BLOCKED | NEEDS_CONTEXT
+    - For `DONE_WITH_CONCERNS`, include a concern description and classify it as
+      `judgment-bearing` or `purely observational`.
     - What you changed
     - What you verified
     - Files changed

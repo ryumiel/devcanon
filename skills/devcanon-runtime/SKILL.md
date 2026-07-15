@@ -35,3 +35,9 @@ atomic artifact writes, typed schema validation, and stable stdout/stderr
 command fragments. The packaged JavaScript entrypoint preserves those stable
 command contracts for installed skill bundles without requiring a separate
 `devcanon` binary on `PATH`.
+
+The private `source-immutability capture`, `verify`, and `cleanup` command
+group implements the minimum Git-visible guard used by workflow adapters. It
+retains baselines only under an already-ignored `.ephemeral` directory,
+compares before result consumption, and cleans only the exact declared leaves;
+it never repairs source changes.

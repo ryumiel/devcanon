@@ -1,8 +1,9 @@
 # Snapshot Manifest Recipe
 
-This is the canonical construction recipe for the dispatched implementer
-`implementer/snapshot/v1` side-channel manifest. Implementer prompts require
-this recipe only when the controller's concrete snapshot request state is
+This is the canonical construction recipe for the dispatched D12 implementer
+or D13 executor `implementer/snapshot/v1` side-channel manifest. The role
+migration does not change the schema. Mutable task-worker prompts require this
+recipe only when the controller's concrete snapshot request state is
 `requested`.
 
 ## Required Inputs
@@ -24,7 +25,7 @@ the implementer reports `BLOCKED`.
 ## Recipe
 
 Use the readable helper script supplied by the controller. Snapshot-requesting
-dispatches must report `BLOCKED` if the helper script is unavailable; do not
+D12 or D13 dispatches must report `BLOCKED` if the helper script is unavailable; do not
 hand-roll the snapshot procedure from this recipe. Snapshot-skipped dispatches
 do not read this recipe or run the helper.
 
@@ -162,7 +163,7 @@ backticks, or omit the trailing period.
 
 ## Consumer Fallback
 
-The producer reports `BLOCKED` if the snapshot cannot be written or verified
+The D12 implementer or D13 executor reports `BLOCKED` if the snapshot cannot be written or verified
 and never emits the notice line for an absent file. The controller still treats
 malformed, missing, unreadable, symlinked, non-regular, non-flat,
 path-traversing, or stale snapshots as non-fatal and falls back to committed HEAD

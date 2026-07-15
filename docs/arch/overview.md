@@ -82,6 +82,61 @@ catalog, within the existing prose, escape, and fence boundaries.
 [Capability Profiles v2 Migration](../guidelines/capability-profiles-v2-migration.md)
 owns the manual operator cutover and rollback procedure.
 
+### Semantic Agent Routing Boundary
+
+The current architecture has six semantic source roles under `agents/` and
+both-target render convergence for that catalog. The
+[agent spec](../specs/agents.md#semantic-role-catalog) is the sole exact catalog
+owner; source definitions are authoritative for implementation state, while
+generated outputs and fresh renders are convergence evidence, not authority.
+ADR-0027 remains Proposed because bounded runtime acceptance is incomplete, not
+because source or render convergence is incomplete.
+
+The architecture exposes six thin semantic source roles:
+`assessor`, `investigator`, `executor`, `implementer`, `reviewer`, and
+`deep-reviewer`. Agent definitions own stable identity plus target-native
+capability, effort, tools, and sandbox constraints. Skills own task-local
+prompts, phase logic, schemas, fallbacks, retries, and termination.
+
+Direct dispatch resolves cognitive demand and stance before selecting a
+semantic role and exact capability/effort pair. Capability, effort, source
+authority, external authority, tools, sandbox, network access, and escalation
+remain independent. The evolving complete inventories live in the
+[Agent Routing and Mutation Policy](../guidelines/agent-routing-and-mutation-policy.md);
+[ADR-0027](../adr/adr-0027-semantic-agent-routing-and-mutation-authority.md)
+owns the stable decision.
+
+Source authority and external authority are separate closed axes. A
+source-immutable role may run permitted commands and write one
+dispatch-named direct-child `.ephemeral` handoff, but it may not edit durable
+source. Every semantic child role has external authority `none`. Only the
+owning root/controller may hold separately authorized `external-mutable`
+authority for a named external mutation.
+
+### Source-Immutability Runtime Boundary
+
+The pre-migration runtime has no source-immutability command group or seven
+workflow shims. Under the ADR-0027 post-migration architecture, packaged
+`devcanon-runtime` owns the deterministic capture, verify, and cleanup mechanics
+for the minimum source-immutable guard. The existing runtime entrypoint and
+compatibility contract remain the only runtime-version boundary. Acceptance
+requires thin adapters under `issue-priming-workflow`, `play-agent-dispatch`,
+`play-planning`, `play-review`, `play-skill-authoring`,
+`play-subagent-execution`, and `pr-merge` to locate the runtime and forward only
+arguments, stdout, stderr, and exit status.
+
+The guard fingerprints canonical worktree identity, `HEAD`, symbolic ref, raw
+index entries, and tracked plus non-ignored untracked file kind, mode, and
+content. An owner captures before spawn, verifies before semantic validation or
+consumption, validates any exact named handoff into memory, cleans only the
+owned baseline and handoff leaves, then consumes. It never repairs a source
+mutation.
+
+This is a deliberately minimal Git-visible comparison, not a filesystem
+monitor, security sandbox, or durable evidence system. Ignored files other than
+the named handoff, outside-worktree paths, races, external systems, and
+provider-internal behavior remain outside coverage.
+
 ### Render Pipeline Boundary
 
 The render module exposes two orchestration levels:

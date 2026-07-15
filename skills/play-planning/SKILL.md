@@ -511,14 +511,59 @@ then continue to Plan Review.
 
 ## Plan Review
 
-After self-review, dispatch a dedicated `{{model:frontier}}` agent to validate
-plan alignment before offering execution options.
+After self-review, dispatch a dedicated response-only `reviewer`, frontier/high
+and source-immutable, with zero handoffs, to validate plan alignment before
+offering execution options. This is the D5 Plan Review session. Use the
+configured `reviewer` role and effort; do not substitute an ambient role,
+model, or effort. D5 remains independent from the later D6 session even though
+both use the same semantic role.
 
 Before dispatching the plan-review agent, use `subagent-lifecycle` for the controller-local lifecycle ledger, target
 lifecycle capability classification, cleanup gate, target-honest cleanup outcomes,
 and slot-limit recovery. Capture the plan path or inline scope, design
 scope, concise PASS/FAIL result, classified findings, and blockers before
 cleanup or supersession.
+
+Resolve `PLAY_PLANNING_DIR` to the loaded or installed `play-planning` skill
+bundle, resolve `SOURCE_IMMUTABILITY_HELPER` to
+`$PLAY_PLANNING_DIR/scripts/source-immutability.sh`, and run it from the current
+planning worktree root. Apply GUARD-001 independently to D5 with no
+`--handoff`:
+
+1. **capture before spawn** and retain `PLAN_REVIEW_BASELINE`; capture failure
+   prevents the spawn and makes the review round non-passing without inventing
+   a baseline path;
+2. spawn the D5 reviewer and capture only its raw terminal response and status;
+3. **verify before semantic validation or consumption** against the retained
+   baseline;
+4. **validate and retain the PASS/FAIL response in controller memory** only
+   after successful verification;
+5. **cleanup the exact retained baseline**; and
+6. **apply the retained PASS/FAIL result only after cleanup** under the D5
+   revision or advance policy below.
+
+The no-handoff command shape is:
+
+```bash
+PLAN_REVIEW_BASELINE="$(bash "$SOURCE_IMMUTABILITY_HELPER" capture)"
+# Spawn the D5 reviewer and capture its raw response/status.
+bash "$SOURCE_IMMUTABILITY_HELPER" verify --baseline "$PLAN_REVIEW_BASELINE"
+# Validate and retain the PASS/FAIL response in controller memory.
+bash "$SOURCE_IMMUTABILITY_HELPER" cleanup --baseline "$PLAN_REVIEW_BASELINE"
+# Only now apply the retained D5 result.
+```
+
+After capture succeeds, every post-capture terminal path attempts exact
+cleanup, including dispatch or spawn failure or unavailability before a
+reviewer session exists, child failure, malformed output, semantic rejection,
+and verification rejection. An ordinary unavailable, failed, malformed, or
+verification-rejected review cannot pass. After safe cleanup it follows the
+existing D5 failure path: verify any retained findings against authoritative
+scope, revise only verified CURRENT gaps, and rerun a fresh D5 session when the
+two-round budget remains; a non-passing second round stops. Detected source
+mutation or cleanup failure is guard-integrity terminal: leave the source state
+visible, stop planning, and never reset, check out, stage, repair, or otherwise
+hide source.
 
 Pass `Plan: <path>` and `Criteria: <validated-bundle-owned-path>`. For design
 input, pass the guarded `Design: <path>` when the invocation selected the path
@@ -563,7 +608,7 @@ present them to the user or owning workflow and stop.
 In `--auto` flows, Plan Review PASS advances to Implementer Executability
 Review; it is not sufficient for parent execution handoff. Only both planning
 gates returning PASS may hand off. A failing or blocked second round stops and
-reports to the user.
+reports to the user. D5 FAIL never advances to D6.
 
 ## Implementer Executability Review
 
@@ -573,15 +618,58 @@ whether each CURRENT task is executable by a competent non-senior developer
 from the task and named authoritative sources. It does not repeat plan
 alignment or own executor review routing.
 
-Use a fresh `{{model:frontier}}` session for the
-implementer-executability reviewer until an owning routing policy explicitly
-supersedes this dispatch contract.
+Use a fresh response-only `reviewer`, frontier/high and source-immutable, with
+zero handoffs, for this D6 Implementer Executability Review. The fresh D6
+session is sequentially after the retained D5 PASS and must not reuse or
+collapse the D5 session, review question, PASS/FAIL result, or lifecycle state.
+The role's `{{model:frontier}}` capability is supplied by the configured
+semantic role, not selected as an ambient or per-call substitute.
 
 Use `subagent-lifecycle` for the controller-local lifecycle ledger, target
 lifecycle capability classification, cleanup gate, target-honest cleanup outcomes,
 and slot-limit recovery before dispatch. Capture the plan and design
 scope, optional comment-evidence path, concise PASS/FAIL result, classified
 findings, and blockers before cleanup or supersession.
+
+Resolve the same installed-bundle
+`$PLAY_PLANNING_DIR/scripts/source-immutability.sh` shim and apply GUARD-001
+independently to D6 with no `--handoff`:
+
+1. **capture before spawn** and retain `EXECUTABILITY_REVIEW_BASELINE`;
+   capture failure prevents the spawn and makes the review round non-passing
+   without inventing a baseline path;
+2. spawn the fresh D6 reviewer and capture only its raw terminal response and
+   status;
+3. **verify before semantic validation or consumption** against the retained
+   baseline;
+4. **validate and retain the PASS/FAIL response in controller memory** only
+   after successful verification;
+5. **cleanup the exact retained baseline**; and
+6. **apply the retained PASS/FAIL result only after cleanup** under the D6
+   restart or advance policy below.
+
+The no-handoff command shape is:
+
+```bash
+EXECUTABILITY_REVIEW_BASELINE="$(bash "$SOURCE_IMMUTABILITY_HELPER" capture)"
+# Spawn the fresh D6 reviewer and capture its raw response/status.
+bash "$SOURCE_IMMUTABILITY_HELPER" verify --baseline "$EXECUTABILITY_REVIEW_BASELINE"
+# Validate and retain the PASS/FAIL response in controller memory.
+bash "$SOURCE_IMMUTABILITY_HELPER" cleanup --baseline "$EXECUTABILITY_REVIEW_BASELINE"
+# Only now apply the retained D6 result.
+```
+
+After capture succeeds, every post-capture terminal path attempts exact
+cleanup, including dispatch or spawn failure or unavailability before a
+reviewer session exists, child failure, malformed output, semantic rejection,
+and verification rejection. An ordinary unavailable, failed, malformed, or
+verification-rejected review cannot pass. After safe cleanup it follows the
+existing D6 failure path: block execution, verify any retained findings against
+authoritative scope, revise only verified CURRENT gaps, restart Plan Review,
+and rerun a fresh D6 session only when the two-round Executability Review budget
+remains; a non-passing second round stops. Detected source mutation or cleanup
+failure is guard-integrity terminal: leave the source state visible, stop
+planning, and never reset, check out, stage, repair, or otherwise hide source.
 
 Pass the guarded plan path and `Criteria: <validated-bundle-owned-path>`. For
 design input, pass the guarded `Design: <path>` when the invocation selected
@@ -626,6 +714,10 @@ presented to the user or owning workflow.
 In `--auto` flows, only PASS from both planning gates hands off to the parent.
 A failing or blocked second round stops and reports to the user.
 `play-planning` itself does not start execution.
+
+D5 PASS followed by D6 FAIL never reaches execution handoff. Only a retained
+D5 PASS followed by a separate retained D6 PASS on the same final plan contents
+permits the successful handoff below.
 
 ## Execution Handoff
 

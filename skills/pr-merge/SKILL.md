@@ -209,7 +209,11 @@ Track retry count explicitly. **Max 2 failure cycles.** A "failure cycle" is: CI
 ### 4a. Get failure details
 
 Use GitHub Actions evidence from the failing check: list recent runs for the PR
-branch, then read failed-step logs for the matching run/job.
+branch, then read failed-step logs for the matching run/job. Record the current
+PR head SHA with the failing check and use it as the diagnosis/fix anchor.
+The root/controller collects the anchored PR diff together with failed-check
+evidence and passes that already-collected provider evidence to the response-only
+investigator.
 
 ### 4b. Dispatch investigation agent
 
@@ -219,21 +223,70 @@ classification, cleanup gate before spawns, target-honest cleanup outcomes,
 and slot-limit recovery. Capture the investigation session's role-specific
 state before closing or superseding it: CI run/check identifiers, failing
 workflow/job names, reproduced command evidence, in-scope/out-of-scope
-classification, fix summary, and any blocker that requires manual resolution.
+classification, fix-route recommendation, and any blocker that requires manual
+resolution.
 
-Dispatch a **dedicated investigation agent**. The investigation agent:
+Dispatch one response-only `investigator`, balanced/high and source-immutable,
+with zero handoffs. This bounded B3 diagnosis route has external authority
+`none`; do not substitute another role, capability, effort, mutation default,
+or ambient agent.
 
-1. Reads `.github/workflows/*.yml` to understand what CI runs and what commands to reproduce locally
-2. Reads the failed log output
-3. Reads the PR diff (`{{tool:github-cli}} pr diff <N>`) to understand what changed
-4. Uses `play-debug` to diagnose root cause
-5. Determines if the failure is **in scope** (see below)
-6. If fixable: fixes the issue, reproduces CI steps locally, uses `play-verification` before pushing
-7. Reports back with status
+Resolve `PR_MERGE_DIR` to the installed `pr-merge` bundle directory, then set
+`SOURCE_IMMUTABILITY_HELPER="$PR_MERGE_DIR/scripts/source-immutability.sh"`.
+The root/controller establishes `.ephemeral` as a real nonsymlinked ignored
+directory before capture:
+
+```sh
+[ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
+mkdir -p .ephemeral
+[ -d .ephemeral ] || { echo ".ephemeral must be a directory" >&2; exit 1; }
+git check-ignore -q -- .ephemeral/.devcanon-ignore-probe || { echo ".ephemeral must be ignored by Git" >&2; exit 1; }
+```
+
+Keep this lifecycle exact:
+
+1. capture before spawn and retain the returned baseline path in the
+   controller;
+2. spawn the investigator and capture only its raw terminal response and
+   status;
+3. verify before semantic validation or consumption;
+4. after successful verification, validate and retain the evidence-only
+   response in controller memory;
+5. cleanup the exact retained baseline; and
+6. after successful cleanup, re-read the PR head SHA and classify the fix route
+   from the retained diagnosis only when the head still matches.
+
+Capture failure prevents the spawn. Every post-capture terminal path attempts
+exact cleanup, including unavailable dispatch, child failure, malformed
+response, semantic rejection, and verification rejection. An ordinary
+unavailable, failed, malformed, or verification-rejected diagnosis keeps the
+retry count unchanged; after safe cleanup, perform no fix, push, or merge and
+report the failed check with a manual-resolution recommendation. Detected
+source mutation or cleanup failure is guard-integrity terminal: preserve the
+visible source state, stop, and do not repair or hide the mutation. If the PR
+head SHA changes, invalidate the retained diagnosis, keep the retry count
+unchanged, perform no fix/push/merge, and return to Step 2 for the replacement
+head.
+
+The investigator reads `.github/workflows/*.yml` and the already-collected
+failed-check and PR diff evidence. Use `play-debug` only through its diagnostic
+Phases 1 through 3; Phase 4 implementation is forbidden for this
+source-immutable investigator. The investigator may run bounded reproduction
+commands. The investigator must not execute `{{tool:github-cli}} pr diff <N>`.
+It must not edit, stage, commit, push, merge, or write a handoff. Its response
+contains evidence only:
+
+- anchored PR head SHA and CI run/check identifiers;
+- failing workflow/job names and the relevant log excerpt;
+- reproduced command evidence and root-cause diagnosis;
+- in-scope or out-of-scope classification with reasons;
+- for an in-scope failure, `exact mechanical` or `judgment-bearing`, the
+  authorized fix paths, and workflow-derived verification commands; and
+- any blocker requiring manual resolution.
 
 **Pass to the investigation agent:**
 
-- PR number and branch name
+- PR number, branch name, and anchored head SHA
 - Failed check name and log output
 - Repository root path
 - Retry count (so it knows this is attempt N)
@@ -244,7 +297,8 @@ A failure is **in scope** if ALL of:
 
 - The failing code, test, or lint rule directly involves files the PR modified
 - The fix stays within the same files/modules the PR touches
-- The fix is mechanical (formatting, lint, test assertion) not architectural
+- The fix remains within the PR's existing intent and needs no architecture or
+  product decision beyond that scope
 
 A failure is **out of scope** if ANY of:
 
@@ -253,17 +307,48 @@ A failure is **out of scope** if ANY of:
 - Failure in code the PR never touched
 - Fix would require design decisions beyond the PR's scope
 
-### 4d. After the fix
+For an in-scope diagnosis, classify the proposed change as either an exact
+mechanical fix with no implementation judgment or a judgment-bearing fix that
+still remains within the PR's existing intent. This classification selects the
+mutable route; it does not broaden scope.
 
-The investigation agent must:
+### 4d. Dispatch the validated fix
+
+Only after the diagnosis response passes verification and validation, its
+baseline cleanup succeeds, and its anchored head remains current, dispatch
+exactly one mutable fix child:
+
+- Route an exact mechanical fix to one source-mutable `executor`,
+  efficient/medium.
+- Route a judgment-bearing fix to one source-mutable `implementer`,
+  balanced/high.
+
+These are the only two fix routes; do not add or infer a fourth D17 path. Every
+semantic child has external authority `none`. Name the exact authorized durable
+workspace paths and the validated diagnosis in the mutable child's prompt. The
+mutable child may edit only the authorized paths, run verification, and commit;
+it must not push, merge, edit the PR, or perform any other provider mutation.
+The controller/root alone owns push and merge.
+
+The mutable child must:
 
 1. Read `.github/workflows/*.yml` to extract the actual CI commands
 2. Run the relevant CI steps locally (not hardcoded — derived from workflow files)
 3. Use `play-verification` to confirm the fix
 4. Commit with a descriptive message referencing the CI failure
-5. Push to the PR branch
 
-After push, return to Step 2 (poll CI) with retry count incremented.
+Review the returned summary, authorized-path diff, verification evidence, and
+commit before any external mutation. Re-read the PR head SHA immediately before
+push. A changed head invalidates the diagnosis and fix: keep the retry count
+unchanged, do not push, merge, rebase, or hide the local state, and report the
+stale-head blocker. An unavailable, failed, malformed, out-of-scope, or
+unverified mutable-child result also keeps the retry count unchanged; do not
+push or merge, preserve visible source state, and report the failed check plus
+the manual-resolution recommendation.
+
+The controller/root runs the relevant validation again, then pushes the
+validated committed fix to the PR branch. After the controller/root pushes the
+validated commit, increment the retry count and return to Step 2.
 
 ### 4e. Second failure or out-of-scope
 

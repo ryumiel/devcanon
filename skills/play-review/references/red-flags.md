@@ -8,7 +8,15 @@ Rules in `SKILL.md` from a "what does the failure look like" angle.
 - You created or removed a worktree — the wrapper handles that
 - You skipped the always-on `Code-quality` reviewer or omitted its baseline data-safety, language, tests, or external-invocation coverage
 - You treated line count alone as enough to suppress risk-triggered `Architecture` or `Spec` review
-- You treated the skill-local `Code-quality` topical reviewer as the source `agents/code-quality-reviewer.yaml` role
+- You treated a skill-local topical label as its own source-agent identity
+  instead of routing D7-D9 through the configured semantic `reviewer`
+- You routed D7-D9 through anything other than `reviewer` frontier/high, or
+  routed D10 through anything other than `deep-reviewer` frontier/xhigh
+- You spawned any D7-D10 child without its own no-handoff source-immutability
+  capture, or consumed a response before verify, retain, and exact cleanup
+- You let a failed, invalid, malformed, or verification-rejected child contribute
+  findings or critic verdicts
+- You let the D10 critic spawn another critic or reviewer
 - You showed findings as a table with file:line but no code snippets
 - You used a generic agent prompt without diff-specific file references
 - You skipped the critic pass because "findings were straightforward"

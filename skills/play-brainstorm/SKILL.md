@@ -345,6 +345,30 @@ decompose, sequence, and prove those decisions, but planning must not choose
 missing behavior semantics. Fix any ambiguity that would make implementation choose authority, identity tuple, producer or consumer, cwd/root, freshness proof, mutation/read-only effects, helper or script call shape, lifecycle state, cleanup, approval/posting, external effects, continuation/failure behavior, or forbidden behavior. If a decision cannot be made safely during brainstorming,
 record it as a blocker or as an intentional implementation choice with the owning authority, risk, and proof expectation. Private helper decomposition, internal names, fixtures, and non-contract formatting remain valid planning details after contract semantics are fixed.
 
+## Agent Routing and Mutation Changes
+
+When a design creates or changes shared skill classification, a direct child
+route, semantic agent identity, or mutation authority, consume
+`docs/guidelines/agent-routing-and-mutation-policy.md` as the current inventory
+owner. Reference that policy instead of copying its matrices into the design.
+Before planning proceeds:
+
+1. reconcile the current source skill directories with the complete skill
+   inventory and its closed demand, stance, source-authority,
+   external-authority, and phase-override fields;
+2. reconcile D1-D17 with their current source anchors and full route fields,
+   including role, capability, effort, source authority, external authority,
+   scope, output, and termination. Every semantic child keeps external
+   authority `none`; only a separately authorized owning root/controller may
+   hold `external-mutable` authority; and
+3. reconcile exactly six semantic agent sources and both Claude and Codex
+   rendered outputs against the source-owned identity, capability, effort, and
+   mutation constraints. Source agent definitions remain authoritative;
+   rendered outputs are convergence evidence.
+
+Block on an unresolved or mismatched field rather than inventing a route.
+Tests are current migration checks, not runtime discovery or dispatch authority.
+
 ## Hard Requirements Ledger
 
 For non-trivial executable designs when normative requirements must be

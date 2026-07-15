@@ -9,10 +9,19 @@ status, PR review state, or agent-local execution logs. Use
 behavior, the external issue tracker for live work, pull requests for review
 state, and active agent sessions for temporary execution detail.
 
+The [agent spec](../specs/agents.md#semantic-role-catalog) owns the exact role
+envelope. The
+[AFDS workflow spec](../specs/afds-workflow-routing.md) owns observable routing
+and guard behavior. [ADR-0027](../adr/adr-0027-semantic-agent-routing-and-mutation-authority.md)
+owns the decision rationale, bounded runtime gate, and deferrals.
+
 ## Guideline Index
 
 - [Agent Authoring Guide](agent-authoring-guide.md) - when to create agent
   roles instead of skills, and how to promote prompt templates.
+- [Agent Routing and Mutation Policy](agent-routing-and-mutation-policy.md) -
+  closed mutation vocabulary plus the complete 33-skill and D1-D17
+  direct-child route inventories.
 - [AFDS Setup and Migration](afds-setup-and-migration.md) - how new and
   existing projects can adopt AFDS entry points, navigation, tracker
   boundaries, contract authority, and DevCanon sync incrementally.

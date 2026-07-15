@@ -413,6 +413,12 @@ describe("phase artifact source contracts", () => {
       "Treat a nonzero helper exit as a contract failure",
     );
     expect(normalizedHelperInvocationSection).toContain(
+      "This blanket early-stop rule does not apply to `scripts/source-immutability.sh`",
+    );
+    expect(normalizedHelperInvocationSection).toContain(
+      "Phase 2 and Phase 3 GUARD-001 procedures own every nonzero disposition for that helper",
+    );
+    expect(normalizedHelperInvocationSection).toContain(
       "Do not move workflow judgment, routing, lifecycle, model selection, review classification, or PR authority into shell",
     );
     expect(normalizedHelperInvocationSection).toContain(
@@ -538,7 +544,7 @@ describe("phase artifact source contracts", () => {
     expect(normalizedIssuePriming).toContain(
       "durable owner referral with cleanup",
     );
-    expect(issuePrimingWorkflow).toContain("Gate agent fails");
+    expect(issuePrimingWorkflow).toContain("Assessor fails");
     expect(issuePrimingWorkflow).toContain("Default to `RESEARCH_NEEDED`");
     expect(issuePrimingWorkflow).toContain("Internal research fails/times out");
     expect(issuePrimingWorkflow).toContain("Report partial results");
@@ -706,11 +712,11 @@ describe("phase artifact source contracts", () => {
     const gatePrompt = await readRepoFile(
       "skills/issue-priming-workflow/references/gate-agent-prompt.md",
     );
-    const researchPrompt = await readRepoFile(
-      "skills/issue-priming-workflow/references/research-agent-prompt.md",
+    const investigatorPrompt = await readRepoFile(
+      "skills/issue-priming-workflow/references/investigator-prompt.md",
     );
 
-    for (const prompt of [gatePrompt, researchPrompt]) {
+    for (const prompt of [gatePrompt, investigatorPrompt]) {
       const normalizedPrompt = normalizeWhitespace(prompt);
 
       expect(prompt).toContain("**Issue body path:** <ISSUE_BODY_PATH>");
@@ -729,8 +735,303 @@ describe("phase artifact source contracts", () => {
     }
 
     expect(gatePrompt).toContain("before design work begins");
-    expect(normalizeWhitespace(researchPrompt)).toContain(
+    expect(normalizeWhitespace(investigatorPrompt)).toContain(
       "before investigating the assigned scope",
+    );
+  });
+
+  it("consumes the GUARD-001 owner for issue-priming D1-D3 lifecycle examples", async () => {
+    const workflow = await readSkillSource("issue-priming-workflow");
+    const spec = await readRepoFile("docs/specs/afds-workflow-routing.md");
+    const guardStart = spec.indexOf(
+      "### GUARD-001: Source-Immutable Result Gate",
+    );
+    const guardEnd = spec.indexOf(
+      "### GUARD-002: Guarded Child Failure Routing",
+    );
+    expect(guardStart).toBeGreaterThanOrEqual(0);
+    expect(guardEnd).toBeGreaterThan(guardStart);
+    const guardOwner = spec.slice(guardStart, guardEnd);
+    const normalizedOwner = normalizeWhitespace(guardOwner);
+    const normalizedWorkflow = normalizeWhitespace(workflow);
+
+    for (const ownerContract of [
+      "capture",
+      "verify before semantic validation or consumption",
+      "response or handoff payload into controller memory",
+      "clean up the exact owned paths",
+      "consume or apply the retained result",
+    ]) {
+      expect(normalizedOwner).toContain(ownerContract);
+      expect(normalizedWorkflow).toContain(ownerContract);
+    }
+
+    expect(normalizedOwner).toContain(
+      "Spawn, child, verification, and payload failures reject the result and still run exact cleanup",
+    );
+    expect(normalizedOwner).toContain(
+      "A detected source mutation stays visible and must not be reset, checked out, staged, repaired, or recursively deleted",
+    );
+    expect(normalizedWorkflow).toContain(
+      "ordinary unavailable, failed, malformed, or verification-rejected",
+    );
+    expect(normalizedWorkflow).toContain(
+      "Only detected source mutation or cleanup failure is terminal",
+    );
+
+    const scenarioStart = spec.indexOf(
+      "### Scenario E: Valid Source-Immutable Handoff",
+    );
+    const scenarioEnd = spec.indexOf(
+      "### Scenario F: Final Whole-Implementation Review",
+    );
+    expect(scenarioStart).toBeGreaterThanOrEqual(0);
+    expect(scenarioEnd).toBeGreaterThan(scenarioStart);
+    const validScenario = spec.slice(scenarioStart, scenarioEnd);
+    const normalizedScenario = normalizeWhitespace(validScenario);
+    expect(normalizedScenario).toContain(
+      "The owner captures a new private baseline `B`",
+    );
+    for (const invalidFamily of [
+      "tracked or non-ignored untracked content changes",
+      "nested",
+      "pre-existing",
+      "symlinked",
+      "missing",
+      "empty",
+      "unreadable",
+      "outside `.ephemeral`",
+      "owned leaf is a directory",
+    ]) {
+      expect(normalizedScenario).toContain(invalidFamily);
+    }
+  });
+
+  it("consumes GUARD-001 independently for planning gates D5 and D6", async () => {
+    const workflow = await readSkillSource("play-planning");
+    const spec = await readRepoFile("docs/specs/afds-workflow-routing.md");
+    const guardStart = spec.indexOf(
+      "### GUARD-001: Source-Immutable Result Gate",
+    );
+    const guardEnd = spec.indexOf(
+      "### GUARD-002: Guarded Child Failure Routing",
+    );
+    const guardOwner = spec.slice(guardStart, guardEnd);
+    const planReview = getMarkdownSection(workflow, "Plan Review");
+    const executabilityReview = getMarkdownSection(
+      workflow,
+      "Implementer Executability Review",
+    );
+    const normalizedOwner = normalizeWhitespace(guardOwner);
+
+    expect(guardStart).toBeGreaterThanOrEqual(0);
+    expect(guardEnd).toBeGreaterThan(guardStart);
+    for (const reviewSection of [planReview, executabilityReview]) {
+      const normalizedReview = normalizeWhitespace(reviewSection);
+      for (const [ownerContract, workflowContract] of [
+        ["capture", "capture before spawn"],
+        [
+          "verify before semantic validation or consumption",
+          "verify before semantic validation or consumption",
+        ],
+        ["controller memory", "controller memory"],
+        [
+          "clean up the exact owned paths",
+          "cleanup the exact retained baseline",
+        ],
+        [
+          "consume or apply the retained result",
+          "apply the retained PASS/FAIL result only after cleanup",
+        ],
+      ]) {
+        expect(normalizedOwner).toContain(ownerContract);
+        expect(normalizedReview).toContain(workflowContract);
+      }
+      expect(normalizedReview).toContain("with no `--handoff`");
+      expect(normalizedReview).toContain(
+        "every post-capture terminal path attempts exact cleanup",
+      );
+      expect(normalizedReview).toContain(
+        "never reset, check out, stage, repair, or otherwise hide source",
+      );
+    }
+
+    expect(planReview).toContain("PLAN_REVIEW_BASELINE");
+    expect(executabilityReview).toContain("EXECUTABILITY_REVIEW_BASELINE");
+    expect(planReview).not.toContain("EXECUTABILITY_REVIEW_BASELINE");
+    expect(executabilityReview).not.toContain("PLAN_REVIEW_BASELINE");
+
+    for (const [reviewSection, spawnStep] of [
+      [
+        normalizeWhitespace(planReview),
+        "spawn the D5 reviewer and capture only",
+      ],
+      [
+        normalizeWhitespace(executabilityReview),
+        "spawn the fresh D6 reviewer and capture only",
+      ],
+    ]) {
+      const orderedSteps = [
+        "capture before spawn",
+        spawnStep,
+        "verify before semantic validation or consumption",
+        "validate and retain the PASS/FAIL response in controller memory",
+        "cleanup the exact retained baseline",
+        "apply the retained PASS/FAIL result only after cleanup",
+      ];
+      for (let index = 1; index < orderedSteps.length; index += 1) {
+        expect(reviewSection.indexOf(orderedSteps[index - 1])).toBeLessThan(
+          reviewSection.indexOf(orderedSteps[index]),
+        );
+      }
+      expect(reviewSection).toContain(
+        "every post-capture terminal path attempts exact cleanup",
+      );
+      expect(reviewSection).toContain(
+        "dispatch or spawn failure or unavailability before a reviewer session exists",
+      );
+      expect(reviewSection).toContain("After safe cleanup");
+      expect(reviewSection).toContain("a non-passing second round stops");
+      expect(reviewSection).toContain("guard-integrity terminal");
+    }
+  });
+
+  it("consumes GUARD-001 independently for play-review D7-D10", async () => {
+    const workflow = await readSkillSource("play-review");
+    const spec = await readRepoFile("docs/specs/afds-workflow-routing.md");
+    const guardStart = spec.indexOf(
+      "### GUARD-001: Source-Immutable Result Gate",
+    );
+    const guardEnd = spec.indexOf(
+      "### GUARD-002: Guarded Child Failure Routing",
+    );
+    const guardOwner = spec.slice(guardStart, guardEnd);
+    const phase3 = getMarkdownSection(workflow, "Phase 3: Spawn agents");
+    const phase5 = getMarkdownSection(workflow, "Phase 5: Critic verification");
+    const normalizedOwner = normalizeWhitespace(guardOwner);
+    const normalizedPhase3 = normalizeWhitespace(phase3);
+    const normalizedPhase5 = normalizeWhitespace(phase5);
+
+    expect(guardStart).toBeGreaterThanOrEqual(0);
+    expect(guardEnd).toBeGreaterThan(guardStart);
+    for (const phase of [normalizedPhase3, normalizedPhase5]) {
+      for (const [ownerContract, workflowContract] of [
+        ["capture", "capture before spawn"],
+        [
+          "verify before semantic validation or consumption",
+          "verify before semantic validation or consumption",
+        ],
+        ["controller memory", "controller memory"],
+        [
+          "clean up the exact owned paths",
+          "cleanup the exact retained baseline",
+        ],
+        ["consume or apply the retained result", "only after cleanup"],
+      ]) {
+        expect(normalizedOwner).toContain(ownerContract);
+        expect(phase).toContain(workflowContract);
+      }
+      expect(phase).toContain("with no `--handoff`");
+      expect(phase).toContain("scripts/source-immutability.sh");
+      expect(phase).toContain(
+        "every post-capture terminal path attempts exact cleanup",
+      );
+      expect(phase).toContain(
+        "dispatch or spawn failure or unavailability before a child session exists",
+      );
+      expect(phase).toContain("guard-integrity terminal");
+      expect(phase).toContain(
+        "never reset, check out, stage, repair, or otherwise hide source",
+      );
+    }
+
+    expect(phase3).toContain("TOPICAL_BASELINE");
+    expect(phase5).toContain("CRITIC_BASELINE");
+    expect(phase3).not.toContain("CRITIC_BASELINE");
+    expect(phase5).not.toContain("TOPICAL_BASELINE");
+    expect(normalizedPhase3).toContain(
+      "Give each selected topical reviewer its own retained baseline",
+    );
+    expect(normalizedPhase3).toContain(
+      "failed, invalid, malformed, or verification-rejected topical response contributes no findings",
+    );
+    expect(normalizedPhase3).toContain(
+      "After safe cleanup, only that missing topical reviewer follows the existing partial-findings path",
+    );
+    expect(normalizedPhase3).toContain(
+      "aggregate only the independently retained topical findings after every selected route has cleaned up safely",
+    );
+    expect(normalizedPhase5).toContain(
+      "failed, invalid, malformed, or verification-rejected critic response contributes no verdicts",
+    );
+    expect(normalizedPhase5).toContain(
+      "After safe cleanup, preserve the existing fallback: report the retained topical findings without critic verdicts and mark them unverified",
+    );
+    expect(normalizedPhase5).toContain(
+      "The D10 child is a leaf and cannot recurse",
+    );
+
+    for (const [route, topic] of [
+      ["D7", "Code-quality"],
+      ["D8", "Architecture"],
+      ["D9", "Spec"],
+    ] as const) {
+      const routeRow = phase3
+        .split("\n")
+        .find((line) => line.includes(`| ${route} \`${topic}\``));
+      expect(routeRow, `missing ${route} trace row`).toBeDefined();
+      const normalizedRouteRow = normalizeWhitespace(routeRow ?? "");
+      let previousIndex = -1;
+      for (const step of [
+        `capture ${route}`,
+        `spawn ${route}`,
+        `verify ${route}`,
+        `validate/retain ${route}`,
+        `cleanup ${route}`,
+        `apply ${route}`,
+      ]) {
+        const stepIndex = normalizedRouteRow.indexOf(step, previousIndex + 1);
+        expect(
+          stepIndex,
+          `${route} missing ordered step: ${step}`,
+        ).toBeGreaterThan(previousIndex);
+        previousIndex = stepIndex;
+      }
+      for (const cleanupBranch of [
+        "dispatch/spawn failure",
+        "child failure",
+        "invalid/malformed response",
+        "semantic rejection",
+        "verification rejection",
+      ]) {
+        expect(normalizedRouteRow).toContain(cleanupBranch);
+      }
+      expect(normalizedRouteRow).toContain(
+        `every ${route} post-capture terminal branch attempts exact cleanup`,
+      );
+    }
+
+    let previousCriticStep = -1;
+    for (const step of [
+      "capture before spawn",
+      "spawn the D10 critic",
+      "verify before semantic validation or consumption",
+      "validate and retain the critic verdict response in controller memory",
+      "cleanup the exact retained baseline",
+      "apply the retained critic verdicts only after cleanup",
+    ]) {
+      const stepIndex = normalizedPhase5.indexOf(step, previousCriticStep + 1);
+      expect(stepIndex, `D10 missing ordered step: ${step}`).toBeGreaterThan(
+        previousCriticStep,
+      );
+      previousCriticStep = stepIndex;
+    }
+
+    expect(phase3).toContain(
+      'TOPICAL_BASELINE="$(bash "$SOURCE_IMMUTABILITY_HELPER" capture)"',
+    );
+    expect(phase5).toContain(
+      'CRITIC_BASELINE="$(bash "$SOURCE_IMMUTABILITY_HELPER" capture)"',
     );
   });
 
@@ -738,8 +1039,8 @@ describe("phase artifact source contracts", () => {
     const issuePrimingWorkflow = await readSkillSource(
       "issue-priming-workflow",
     );
-    const researchPrompt = await readRepoFile(
-      "skills/issue-priming-workflow/references/research-agent-prompt.md",
+    const investigatorPrompt = await readRepoFile(
+      "skills/issue-priming-workflow/references/investigator-prompt.md",
     );
     const helperReference = await readRepoFile(
       "skills/issue-priming-workflow/references/helper-invocation-contracts.md",
@@ -749,7 +1050,7 @@ describe("phase artifact source contracts", () => {
       "Phase 3: Research (Conditional)",
     );
     const normalizedPhase3 = normalizeWhitespace(phase3);
-    const normalizedPrompt = normalizeWhitespace(researchPrompt);
+    const normalizedPrompt = normalizeWhitespace(investigatorPrompt);
 
     for (const placeholder of [
       "<SOURCE>",
@@ -763,7 +1064,7 @@ describe("phase artifact source contracts", () => {
       "<EXTERNAL_NECESSITY_OR_NONE>",
       "<EXTERNAL_QUESTION_OR_NONE>",
     ]) {
-      expect(researchPrompt).toContain(placeholder);
+      expect(investigatorPrompt).toContain(placeholder);
     }
     expect(normalizedPhase3).toContain(
       "Validate the worktree and guarded issue-body/comment-evidence inputs first",
@@ -796,7 +1097,7 @@ describe("phase artifact source contracts", () => {
       "### Trade-offs",
       "### Implications",
     ]) {
-      expect(researchPrompt).toContain(heading);
+      expect(investigatorPrompt).toContain(heading);
     }
     expect(normalizedPhase3).toContain(
       "Validate these report failure families independently",
@@ -1160,7 +1461,7 @@ None
   it("rejects invalid issue-research source values", async () => {
     const researchPrompt = normalizeWhitespace(
       await readRepoFile(
-        "skills/issue-priming-workflow/references/research-agent-prompt.md",
+        "skills/issue-priming-workflow/references/investigator-prompt.md",
       ),
     );
 
@@ -1172,7 +1473,7 @@ None
   it("rejects invalid issue-research scope values", async () => {
     const researchPrompt = normalizeWhitespace(
       await readRepoFile(
-        "skills/issue-priming-workflow/references/research-agent-prompt.md",
+        "skills/issue-priming-workflow/references/investigator-prompt.md",
       ),
     );
 
@@ -1184,7 +1485,7 @@ None
   it("rejects invalid issue-research necessity pairings", async () => {
     const researchPrompt = normalizeWhitespace(
       await readRepoFile(
-        "skills/issue-priming-workflow/references/research-agent-prompt.md",
+        "skills/issue-priming-workflow/references/investigator-prompt.md",
       ),
     );
 
@@ -1196,7 +1497,7 @@ None
   it("rejects invalid issue-research external-question pairings", async () => {
     const researchPrompt = normalizeWhitespace(
       await readRepoFile(
-        "skills/issue-priming-workflow/references/research-agent-prompt.md",
+        "skills/issue-priming-workflow/references/investigator-prompt.md",
       ),
     );
 
@@ -1267,7 +1568,7 @@ None
     expect(normalizeWhitespace(phase3)).toContain(
       "Do not dispatch a research child, invoke the research helper, create a research artifact, or emit the producer notice on that route",
     );
-    expect(phase4).toContain("Skipped — <reason from gate agent>");
+    expect(phase4).toContain("Skipped — <reason from assessor>");
   });
 
   it("keeps internal-failure routes inline and forbids research persistence", async () => {
@@ -1442,14 +1743,14 @@ None
     const gatePrompt = await readRepoFile(
       "skills/issue-priming-workflow/references/gate-agent-prompt.md",
     );
-    const researchPrompt = await readRepoFile(
-      "skills/issue-priming-workflow/references/research-agent-prompt.md",
+    const investigatorPrompt = await readRepoFile(
+      "skills/issue-priming-workflow/references/investigator-prompt.md",
     );
     expect(gatePrompt).toContain("Issue body or comment evidence contains");
     expect(gatePrompt).toContain(
       "No present comment evidence introduces ambiguity, risk, or a design choice",
     );
-    expect(researchPrompt).toContain(
+    expect(investigatorPrompt).toContain(
       "Gate response reason, or `forced by --research`",
     );
   });
@@ -3489,43 +3790,34 @@ None
     );
   });
 
-  it("keeps mechanical implementer snapshot handoff text in the mechanical prompt source", async () => {
-    const mechanicalImplementerPrompt = await readRepoFile(
-      "skills/play-subagent-execution/references/mechanical-implementer-prompt.md",
+  it("keeps executor snapshot handoff text in the exact-task prompt source", async () => {
+    const executorPrompt = await readRepoFile(
+      "skills/play-subagent-execution/references/executor-prompt.md",
     );
 
-    expect(mechanicalImplementerPrompt).toContain(
-      "references/snapshot-manifest-recipe.md",
-    );
-    expect(mechanicalImplementerPrompt).toContain(
-      "scripts/write-snapshot-manifest.sh",
-    );
-    expect(mechanicalImplementerPrompt).toContain(
+    expect(executorPrompt).toContain("references/snapshot-manifest-recipe.md");
+    expect(executorPrompt).toContain("scripts/write-snapshot-manifest.sh");
+    expect(executorPrompt).toContain(
       "Snapshot Manifest Recipe path: <SNAPSHOT_MANIFEST_RECIPE_PATH>",
     );
-    expect(mechanicalImplementerPrompt).toContain(
+    expect(executorPrompt).toContain(
       "Snapshot Manifest Helper Script path: <SNAPSHOT_HELPER_SCRIPT>",
     );
-    expect(mechanicalImplementerPrompt).toContain(
-      "script with the captured `BASE_SHA`",
-    );
-    expect(mechanicalImplementerPrompt).toContain(
+    expect(executorPrompt).toContain("script with the captured `BASE_SHA`");
+    expect(executorPrompt).toContain(
       "script with the captured `BASE_SHA` and the task header identifier",
     );
-    expect(mechanicalImplementerPrompt).toContain(
-      "compute the changed-file list",
-    );
-    expect(mechanicalImplementerPrompt).toContain(
+    expect(executorPrompt).toContain("compute the changed-file list");
+    expect(executorPrompt).toContain(
       "Snapshot written to <repo-relative-path>.",
     );
-    expect(mechanicalImplementerPrompt).toContain("exits nonzero");
-    expect(mechanicalImplementerPrompt).toContain(
+    expect(executorPrompt).toContain("exits nonzero");
+    expect(executorPrompt).toContain(
       "Review-routing hint fields (`Risk hint`, `Review hint`, and",
     );
-    expect(mechanicalImplementerPrompt).toContain(
-      "the controller owns reviewer dispatch",
-    );
-    expect(mechanicalImplementerPrompt).not.toContain(
+    expect(executorPrompt).toContain("the controller owns reviewer dispatch");
+    expect(executorPrompt).toContain("schema `implementer/snapshot/v1`");
+    expect(executorPrompt).not.toContain(
       "Build a JSON envelope conforming to schema",
     );
   });

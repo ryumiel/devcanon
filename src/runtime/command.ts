@@ -11,6 +11,7 @@ import { runPrMergeWorktreeCommand } from "./pr-merge-worktree.js";
 import { runPrReviewLeasesCommand } from "./pr-review-leases.js";
 import { runPrReviewManifestsCommand } from "./pr-review-manifests.js";
 import { runReviewArtifactsCommand } from "./review-artifacts.js";
+import { runSourceImmutabilityCommand } from "./source-immutability.js";
 
 export const RUNTIME_COMMAND_CONTRACT = {
   command_group: "devcanon-runtime",
@@ -52,6 +53,8 @@ export async function runRuntimeCommand(
         return await runPrReviewManifestsCommand(rest);
       case "pr-review-leases":
         return await runPrReviewLeasesCommand(rest);
+      case "source-immutability":
+        return await runSourceImmutabilityCommand(rest);
       default:
         return fail(
           "unknown-command",

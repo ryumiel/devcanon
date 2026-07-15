@@ -36,7 +36,8 @@ evidence behavior.
 This spec owns deterministic routing, minimum evidence pointers, ordinary
 execution fast paths, drift and conflict classification, follow-up routing, and
 agent-facing context for GitHub Issues-backed and Linear-backed AFDS projects
-using Claude Code or Codex outputs.
+using Claude Code or Codex outputs. It also owns observable semantic child
+routing and source-immutable guard behavior for DevCanon workflow skills.
 
 ## Non-Goals
 
@@ -52,6 +53,11 @@ using Claude Code or Codex outputs.
   validation implementation details.
 - Creating repository-local logbooks, work journals, validation summaries,
   execution ledgers, postmortem archives, or copied tracker and PR histories.
+- Defining a capability or effort escalation policy. The separately tracked
+  owner, issue #528, retains that work; this spec adds no escalation rule.
+- Defining benchmark corpora, resumable evidence stores, direct-dispatch marker
+  syntax, comprehensive workspace enforcement, or a cross-provider evaluation
+  framework.
 
 ## Requirements
 
@@ -107,6 +113,117 @@ evidence pointer, durable-update trigger, and follow-up route.
 
 Provider-specific API fields and automation behavior belong in provider
 entrypoints, provider integration specs, source code, or focused follow-up work.
+
+### ROUTE-006: Semantic Direct-Child Routing
+
+Every current direct child surface must resolve to one of the six semantic
+roles, a deterministic helper, or a guarded inline path before dispatch. The
+complete mandatory inventory is D1 through D17 in the
+[Agent Routing and Mutation Policy](../guidelines/agent-routing-and-mutation-policy.md#direct-child-route-inventory).
+Each row's semantic role, capability, effort, source authority, output, and
+termination are normative.
+
+An inherited or generic workflow must classify each child independently. It
+must not use ambient model or effort, infer a route from the owning skill's
+highest mutation authority, collapse distinct review sessions because they
+share a semantic agent, or dispatch when the route is unresolved.
+
+For D4, pre-spawn resolution must select exactly one of the six semantic roles,
+use that role's exact configured capability and effort plus its matching
+`source-immutable` or `source-mutable` default, and declare the child scope and
+termination. The dispatch receives external authority `none`; no external
+authority is inferred. Under the B3 routing boundary, a source-immutable D4
+selection is response-only. Any unresolved field blocks spawn.
+
+Task-specific prompts, schemas, network authorization, failure fallbacks, skip
+criteria, retry loops, and termination remain owned by the source skill. A
+shared role provides stable work identity and target-native constraints, not
+workflow method.
+
+### AUTH-001: Separate Mutation Axes
+
+Routes record source and external authority independently using the exact
+closed vocabulary and permissions owned by the
+[Agent Routing and Mutation Policy](../guidelines/agent-routing-and-mutation-policy.md#mutation-axes).
+This spec does not redefine that vocabulary.
+
+Observable route resolution must reject a semantic-child dispatch that carries
+external-system mutation authority. Only the owning root/controller may perform
+a separately authorized named external mutation. Model, effort, tools, sandbox,
+network access, approval policy, and source authority do not satisfy or imply a
+different authority field. Write-capable tools and workspace-write sandboxing
+do not by themselves authorize durable source mutation.
+
+### GUARD-001: Source-Immutable Result Gate
+
+The packaged runtime exposes these command forms through its existing
+compatibility boundary:
+
+```text
+source-immutability capture [--handoff .ephemeral/<direct-child>]
+source-immutability verify --baseline .ephemeral/<generated> [--handoff <same-path>]
+source-immutability cleanup --baseline .ephemeral/<generated> [--handoff <same-path>]
+```
+
+Before spawning a source-immutable child, the owner validates the route and
+optional handoff path, then runs capture. Capture requires a real Git worktree
+with `HEAD` and a real, ignored, nonsymlinked `.ephemeral` directory. The
+optional handoff is zero or one absent, ignored, untracked direct child of that
+directory. Capture retains a private collision-safe baseline and prints only
+its repository-relative path. Capture failure prevents spawn.
+
+The guard covers canonical worktree identity, `HEAD` and symbolic ref, raw
+index entries, and file kind, mode, and content for tracked and non-ignored
+untracked paths. It preserves pre-existing staged, unstaged, binary, and
+untracked dirt.
+
+Before semantically validating or consuming the response or handoff, the owner
+runs verify against the retained baseline and the same optional handoff path.
+When declared, the handoff must be the exact fresh, readable, nonempty,
+nonsymlinked regular direct-child file. Verification success prints only
+`unchanged`. The owner then validates the response or handoff payload into
+controller memory.
+
+Cleanup may act only on the retained baseline and declared handoff leaves. A
+missing leaf is already clean, a symlink is unlinked without following it, and
+a directory or other file kind fails cleanup. Cleanup never discovers paths
+from child output, recursively deletes, resets, checks out, stages, or repairs
+source. Success prints only `cleaned`.
+
+The lifecycle order is fixed:
+
+1. validate the route and optional handoff path;
+2. capture;
+3. spawn;
+4. verify before semantic validation or consumption;
+5. validate the response or read and validate the handoff into controller
+   memory;
+6. clean up the exact owned paths;
+7. consume or apply the retained result.
+
+Spawn, child, verification, and payload failures reject the result and still
+run exact cleanup. Cleanup failure is a manual blocker. A detected source
+mutation stays visible and must not be reset, checked out, staged, repaired, or
+recursively deleted.
+
+The guard does not cover ignored-file changes other than the declared handoff,
+paths outside the worktree, external systems, races, provider-internal
+behavior, or comprehensive role-aware filesystem enforcement. It is a minimum
+Git-visible comparison, not a sandbox, filesystem monitor, security guarantee,
+or durable evidence protocol.
+
+### GUARD-002: Guarded Child Failure Routing
+
+After successful exact cleanup, an ordinary unavailable, failed, malformed, or
+verification-rejected child follows its skill-owned existing transition. The
+minimum dispositions for D4 and D14 through D17 are normative in the
+[policy failure table](../guidelines/agent-routing-and-mutation-policy.md#ordinary-child-failure-disposition).
+
+In particular, D14 and D15 keep the task incomplete and return `BLOCKED`
+without a passing verdict; D16 keeps final review incomplete and never enters
+branch finish; and a failed D17 diagnosis performs no fix, push, or merge and
+does not increment the retry count. Only source mutation or cleanup failure is
+a guard-integrity terminal condition.
 
 ### EVID-001: Minimum Evidence Pointer
 
@@ -227,10 +344,11 @@ Candidate surfaces for AFDS workflow capability governance include:
 - updates to existing shaping, planning, verification, issue-priming, and
   review skills.
 
-No new agent wrapper is identified as approved by this spec. AFDS workflow
-capability governance should still evaluate whether existing agents such as
-`spec-compliance-reviewer` need updated instructions or whether any future
-wrapper meets the stable-role and target-constraint threshold.
+This spec does not independently approve an agent wrapper beyond the six-role
+semantic catalog. Task-specific spec-compliance method stays in the owning
+skill prompt and uses the `deep-reviewer` role only for the direct routes named
+by this contract. AFDS workflow capability governance must evaluate whether any
+future wrapper meets the stable-role and target-constraint threshold.
 
 ### TARGET-001: Source and Target Authority
 
@@ -274,6 +392,43 @@ derived evidence. If renderer behavior caused the drift, the route is to update
 the source renderer or its owning spec. Generated output itself remains
 disposable.
 
+### Scenario E: Valid Source-Immutable Handoff
+
+The owner captures a new private baseline `B` while optional named handoff `H`
+is absent. The child leaves Git-visible content unchanged and creates a valid
+`H`. The owner verifies unchanged state before reading the payload, validates
+and retains `H` in memory, removes exactly `B` and `H`, and only then applies
+the retained result.
+
+The scenario fails when tracked or non-ignored untracked content changes, or
+when `H` is nested, pre-existing, symlinked, missing, empty, unreadable, or
+outside `.ephemeral`, or when either owned leaf is a directory. Each variant
+changes one guard dimension and is rejected before consumption.
+
+### Scenario F: Final Whole-Implementation Review
+
+D16 consumes the exact route owned by the
+[policy inventory](../guidelines/agent-routing-and-mutation-policy.md#direct-child-route-inventory).
+It reviews the whole implementation range and may take only the narrow
+ADR-0016 skip. Otherwise, findings enter a final fix and fresh-review loop; an
+unavailable or invalid pass returns the owning blocked terminal transition and
+does not enter branch finish.
+
+D16 must not collapse into the D15 task-quality session, substitute ambient
+routing, or treat review unavailability as a passing verdict.
+
+### Scenario G: CI Diagnosis Before Fix Classification
+
+D17 consumes the exact diagnosis and fix-classification routes owned by the
+[policy inventory](../guidelines/agent-routing-and-mutation-policy.md#direct-child-route-inventory).
+The owner guards and consumes the diagnosis before classifying any fix. The
+selected fix child may commit only the scoped fix. The root alone separately
+owns push and merge authority.
+
+If diagnosis fails or is rejected, retry count remains unchanged, no fix,
+push, or merge occurs, and the workflow reports the failed check plus a manual
+resolution recommendation.
+
 ## Acceptance Criteria
 
 - A fresh human and a fresh agent can route each work origin in ROUTE-002 to the
@@ -292,6 +447,17 @@ disposable.
   TARGET-001 without making derived outputs authoritative.
 - The spec identifies follow-up workflow surfaces without approving them before
   AFDS workflow capability governance.
+- Every D1-D17 direct-child route matches the policy inventory exactly and
+  keeps task prompts and termination in its source skill.
+- Source and external authority use separate closed axes; no target capability
+  or source permission grants external mutation, every semantic child has
+  external authority `none`, and only the owning root/controller may hold
+  separately authorized `external-mutable` authority.
+- Source-immutable results are verified before semantic validation or
+  consumption, exact cleanup precedes application, detected source mutation is
+  never repaired, and the minimum guard's limitations remain explicit.
+- D14-D17 use the named fail-closed dispositions without inventing a passing
+  verdict, retry increment, fix, push, merge, or branch-finish transition.
 
 ## Verification Expectations
 
@@ -302,6 +468,15 @@ disposable.
 - `docs/specs/overview.md` lists this spec in the behavior spec index.
 - Existing PRD, roadmap, and guideline references no longer describe this spec
   as future-only once this file exists.
+- Focused contract checks prove the policy contains exactly 33 source skills
+  and D1-D17 exactly once, and that every normative route matches its source
+  anchor.
+- Guard tests exercise the valid baseline/handoff lifecycle and reject tracked
+  content change, nested/existing/symlinked/missing handoffs, and directory
+  leaves.
+- Both-target agent render tests prove exactly six roles, explicit capability
+  and effort, command/handoff envelopes, source-immutable instructions, and no
+  semantic-child external authority.
 
 ## Agent Context
 
@@ -324,3 +499,5 @@ or source-owned contracts.
 - [Documentation standard](../guidelines/documentation-standard.md)
 - [Project management model](../guidelines/project-management-model.md)
 - [AI-assisted product workflow guideline](../guidelines/ai-assisted-product-workflow-guideline.md)
+- [Agent routing and mutation policy](../guidelines/agent-routing-and-mutation-policy.md)
+- [Semantic agent routing decision](../adr/adr-0027-semantic-agent-routing-and-mutation-authority.md)

@@ -1,13 +1,13 @@
-# Research Agent Prompt Template
+# Investigator Prompt Template
 
 Use this template for each root-dispatched research leaf in Phase 3. The
 depth-0 `issue-priming-workflow` root fills and validates the complete tuple,
-then dispatches either an internal or external depth-1 `research-agent`. A
+then dispatches either an internal or external depth-1 `investigator`. A
 research child performs one assigned scope and never dispatches another agent.
 
 **Promotion classification:** Workflow-local prompt template paired with the
 source agent at
-[`agents/research-agent.yaml`](../../../agents/research-agent.yaml) — referenced
+[`agents/investigator.yaml`](../../../agents/investigator.yaml) — referenced
 from `skills/issue-priming-workflow/SKILL.md` Phase 3 for dispatch-time
 placeholder substitution. The role identity is already promoted; per
 [`docs/guidelines/agent-authoring-guide.md`](../../../docs/guidelines/agent-authoring-guide.md)
@@ -37,12 +37,14 @@ external necessity, or external question.
 ````
 Agent(
   description: "Research issue <ID> <RESEARCH_SCOPE> context",
-  subagent_type: "research-agent",
+  subagent_type: "investigator",
   prompt: |
-    You are a read-only research leaf preparing one bounded report for the
-    issue-priming root. Investigate exactly the assigned scope. Do not spawn or
-    delegate to another agent. Do not write files, invoke the research-brief
-    helper, create an artifact, or emit the producer notice.
+    You are a source-immutable research leaf preparing one bounded report for
+    the issue-priming root. Investigate exactly the assigned scope. This route
+    is response-only with zero handoffs. Do not spawn or delegate to another
+    agent. Do not modify durable source, tests, configuration, or documentation.
+    Do not write files, invoke the research-brief helper, create an artifact, or
+    emit the producer notice. Do not mutate any external system.
 
     ## Dispatch Inputs
 
@@ -82,7 +84,8 @@ Agent(
 
     When scope is `internal`, `<EXTERNAL_NECESSITY_OR_NONE>` and
     `<EXTERNAL_QUESTION_OR_NONE>` must both be `(none)`. Investigate repository
-    policy and implementation evidence together:
+    policy and implementation evidence together. This dispatch does not name
+    network access, so do not use WebSearch, WebFetch, or any network tool:
 
     - read `AGENTS.md`, applicable `docs/guidelines/`, `CONTRIBUTING.md`, and
       relevant `docs/adr/` entries;
@@ -122,7 +125,9 @@ Agent(
 
     When scope is `external`, `<EXTERNAL_NECESSITY_OR_NONE>` must be
     `required` or `useful`, and `<EXTERNAL_QUESTION_OR_NONE>` is the one bounded
-    question assigned by the root. Investigate only that supplied question.
+    question assigned by the root. This dispatch explicitly names network
+    access for that question; use WebSearch or WebFetch only as needed to answer
+    it. Investigate only that supplied question.
     Answer `<EXTERNAL_QUESTION_OR_NONE>` directly in sourced
     `External Precedent` findings and in `Implications`. Prefer current primary
     sources: official runtime, API, library, protocol, or service documentation;

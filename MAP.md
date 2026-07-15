@@ -49,6 +49,11 @@ Quick navigation index for the DevCanon repository.
   [`docs/guidelines/capability-profiles-v2-migration.md`](docs/guidelines/capability-profiles-v2-migration.md)
 - Where is the skill spec? -> [`docs/specs/skills.md`](docs/specs/skills.md)
 - Where is the agent schema spec? -> [`docs/specs/agents.md`](docs/specs/agents.md)
+- Where is the exact six-role semantic catalog and role envelope defined? ->
+  [`docs/specs/agents.md`](docs/specs/agents.md#semantic-role-catalog)
+- Where are the mutation vocabulary, 33-skill inventory, and D1-D17
+  direct-child routes defined? ->
+  [`docs/guidelines/agent-routing-and-mutation-policy.md`](docs/guidelines/agent-routing-and-mutation-policy.md)
 - Where is the target mapping spec? -> [`docs/specs/target-mapping.md`](docs/specs/target-mapping.md)
 - Where is the install/sync spec? -> [`docs/specs/install-and-sync.md`](docs/specs/install-and-sync.md)
 - Where is the CLI command spec? -> [`docs/specs/cli-commands.md`](docs/specs/cli-commands.md)
@@ -92,6 +97,8 @@ Quick navigation index for the DevCanon repository.
   [`docs/adr/adr-0025-codex-model-tier-selection.md`](docs/adr/adr-0025-codex-model-tier-selection.md)
 - Where is the current capability profile decision recorded? ->
   [`docs/adr/adr-0026-capability-profiles.md`](docs/adr/adr-0026-capability-profiles.md)
+- Where is the semantic routing and mutation-authority decision recorded? ->
+  [`docs/adr/adr-0027-semantic-agent-routing-and-mutation-authority.md`](docs/adr/adr-0027-semantic-agent-routing-and-mutation-authority.md)
 - Where is durable forward-looking product direction? -> [`docs/roadmap/`](docs/roadmap/)
 
 ---
@@ -109,6 +116,8 @@ Quick navigation index for the DevCanon repository.
   [`docs/guidelines/afds-workflow-capability-governance.md`](docs/guidelines/afds-workflow-capability-governance.md)
 - Where is the shared skill reporting workflow? -> [`docs/guidelines/shared-skill-reporting-workflow.md`](docs/guidelines/shared-skill-reporting-workflow.md)
 - Where is guidance on choosing an agent vs. a skill? -> [`docs/guidelines/agent-authoring-guide.md`](docs/guidelines/agent-authoring-guide.md)
+- Where is semantic agent routing and mutation policy? ->
+  [`docs/guidelines/agent-routing-and-mutation-policy.md`](docs/guidelines/agent-routing-and-mutation-policy.md)
 - Where is the capability profiles v2 migration and rollback procedure? ->
   [`docs/guidelines/capability-profiles-v2-migration.md`](docs/guidelines/capability-profiles-v2-migration.md)
 - Where is policy for promoting prompt templates into agents? -> [`docs/guidelines/agent-authoring-guide.md`](docs/guidelines/agent-authoring-guide.md)
@@ -265,10 +274,8 @@ Quick navigation index for the DevCanon repository.
 - Where is the executor risk-signals helper script? ->
   [`skills/play-subagent-execution/scripts/write-risk-signals.sh`](skills/play-subagent-execution/scripts/write-risk-signals.sh)
 - Where are agent role definitions? -> [`agents/`](agents/)
-- Where is the implementer agent role? -> [`agents/implementer.yaml`](agents/implementer.yaml)
-- Where is the spec-compliance-reviewer agent role? -> [`agents/spec-compliance-reviewer.yaml`](agents/spec-compliance-reviewer.yaml)
-- Where is the code-quality-reviewer agent role? -> [`agents/code-quality-reviewer.yaml`](agents/code-quality-reviewer.yaml)
-- Where is the research-agent role? -> [`agents/research-agent.yaml`](agents/research-agent.yaml)
+- Where is the exact semantic role catalog and each role's target envelope? ->
+  [`docs/specs/agents.md`](docs/specs/agents.md)
 - Where are generated preview output rules described? ->
   [`docs/specs/target-mapping.md`](docs/specs/target-mapping.md) (`generated/`
   is an ignored, untracked render preview directory)

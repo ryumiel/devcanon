@@ -1,6 +1,8 @@
 # Red Flags — `play-subagent-execution`
 
-Behavioral signals that this skill is being violated.
+Non-normative warning index for likely workflow violations. Follow the linked
+owner policies for decisions; this file does not define route selection or
+lifecycle transitions.
 
 **Never:**
 
@@ -14,8 +16,8 @@ Behavioral signals that this skill is being violated.
 - Dispatch multiple implementation subagents in parallel (the workflow is serial by design; isolation is not authorization for concurrent implementer dispatch)
 - Make per-task implementer subagent read the plan file (controller still curates and inlines the per-task text). The controller MAY accept the plan via a `Plan: <path>` reference from its caller (see [SKILL.md § Inputs](../SKILL.md#inputs)); the per-task boundary is what stays inlined. Skip-dispatch (see [skip-dispatch policy](skip-dispatch-policy.md)) is the explicitly-gated exception: with no dispatched subagent, this Red Flag does not apply on that path.
 - Skip scene-setting context (subagent needs to understand where task fits)
-- Ignore subagent questions (answer before letting them proceed)
-- Move to next task while an executor-required review has open issues
+- Bypass the returned-status and completion rules in the
+  [lifecycle/status policy](lifecycle-status-policy.md)
 - Stop after an implementation summary, verification summary, or review pass
   report instead of returning to the verified owning caller or resolving
   branch-level review status on the direct/manual path. Those summaries are
@@ -41,29 +43,12 @@ Behavioral signals that this skill is being violated.
 **Never (when the effective route includes per-task reviewers):**
 
 - Accept "close enough" on spec compliance (spec reviewer found issues = not done)
-- Skip review loops (reviewer found issues = implementer fixes = review again)
 - Let implementer self-review replace an executor-required review
-- Accept a code-quality result as final before same-head spec compliance passes
-  and current task-head validation succeeds
-- Treat advisory, stale, or superseded quality as final task approval
-- Skip the quality rerun after a spec fixup unless irrelevance is proven;
-  unclear staleness or irrelevance classification fails closed to rerunning code
-  quality
+- Apply a stale or incomplete reviewer result instead of using the
+  [lifecycle/status policy](lifecycle-status-policy.md)
 
-**If subagent asks questions:**
-
-- Answer clearly and completely
-- Provide additional context if needed
-- Don't rush them into implementation
-
-**If reviewer finds issues:**
-
-- Implementer (same subagent) fixes them
-- Reviewer reviews again
-- Repeat until approved
-- Don't skip the re-review
-
-**If subagent fails task:**
-
-- Dispatch fix subagent with specific instructions
-- Don't try to fix manually (context pollution)
+Returned D12/D13 questions, blockers, reviewer findings, fixups, re-reviews,
+and failures all route through the lifecycle/status policy. The
+[skip-dispatch policy](skip-dispatch-policy.md) remains the owner of
+pre-dispatch D13 selection and fallback; this warning index does not restate
+either owner's rules.

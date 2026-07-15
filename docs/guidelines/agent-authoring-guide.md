@@ -34,6 +34,30 @@ In this repository, create an agent only when one of these is true:
 That is the full justification surface. If the wrapper does not add one of
 those constraints, prefer the skill alone.
 
+### Use the semantic catalog before creating a role
+
+ADR-0027's post-migration catalog has exactly six semantic roles: `assessor`,
+`investigator`, `executor`, `implementer`, `reviewer`, and `deep-reviewer`.
+While ADR-0027 remains Proposed, this catalog is an authoring target: use the
+roles and procedures present in the current source implementation, and do not
+dispatch a target-only role or rely on the target-only runtime guard. After the
+ADR acceptance gate passes, use the six-role catalog as the existing catalog.
+Its exact capability, effort, tool, sandbox, and mutation defaults live in the
+[agent spec](../specs/agents.md#semantic-role-catalog). The
+[Agent Routing and Mutation Policy](agent-routing-and-mutation-policy.md) owns
+the evolving skill and direct-child matrices, not the role envelope.
+
+Use the existing role when its semantic identity fits, and keep the dispatch's
+task prompt, inputs, output contract, retry behavior, and termination in the
+owning skill. Do not create a workflow-named role, a provider/model-named role,
+an effort-named role, or a second role solely to carry a different task prompt.
+
+Source mutation and external-system mutation are independent dispatch
+authorities. Neither is granted by model capability, effort, tools, network,
+sandbox, or approval policy. Every semantic child role has external authority
+`none`; only the owning root/controller may hold separately authorized
+`external-mutable` authority.
+
 ## 3. Anti-Patterns
 
 Avoid these cases:
@@ -45,6 +69,11 @@ Avoid these cases:
 - Using agent creation as a response to prompt growth instead of moving shared
   method content into skills.
 - Giving broad permissions by default when least privilege would work.
+- Treating `workspace-write` or a `Write` tool as permission to modify durable
+  source. Source-immutable roles use those capabilities only for a single
+  dispatch-named direct-child `.ephemeral` handoff.
+- Inferring GitHub, Linear, Notion, or other external mutation authority from
+  source authority or target capabilities.
 - Treating delegation or orchestration as a YAML field or schema control knob.
   Those expectations belong only in prose instructions, not in
   first-class source-schema fields.
@@ -103,66 +132,25 @@ sibling agents.
 description: <Role — what the agent does>. Use when <delegation triggers>. Do not use when <contrastive cue>.
 ```
 
-The shipped examples in § 6 model this. For the full rule, red flags, and
-mechanical constraints, see
+The spec-owned example linked in § 6 models this. For the full rule, red flags,
+and mechanical constraints, see
 [`../specs/skills.md`](../specs/skills.md) § Description style. The agent spec
 mirrors the same rule:
 [`../specs/agents.md`](../specs/agents.md) § Description style.
 
-## 6. Example Agent Definitions
+## 6. Canonical Agent Example
 
-These examples stay inside the documented schema surface from
-`docs/specs/agents.md`. The instructions are intentionally short; reusable
-methods stay in skills.
+The [agent spec's target example](../specs/agents.md#adr-0027-assessor-source-example)
+is the single owner of the canonical `assessor` source definition and its exact
+observable target fields. Use that example when checking capability, effort,
+tools, sandbox, source-immutable instructions, and external default. Do not copy
+the YAML into this guide; keeping one exact example prevents the authoring
+procedure from becoming a competing role-envelope owner.
 
-If you do attach skills in a real agent, use existing skills whose workflow and
-operational scope genuinely match the role's permissions and intent.
-
-```yaml
-name: reviewer
-description: Focused code review role with limited tools and read-only access for correctness and regression checks. Use when a code review needs a fixed reviewer role with restricted access. Do not use for general coding work or broad orchestration.
-instructions: |
-  Review for correctness and regressions.
-  Report only concrete findings.
-capability: balanced
-claude:
-  effort: high
-  tools:
-    - Read
-    - Grep
-codex:
-  model_reasoning_effort: high
-  sandbox_mode: read-only
-```
-
-```yaml
-name: release-checker
-description: Release validation role for surfacing blockers in a release candidate. Use when validating a release candidate before cut. Do not use for feature planning or general repository maintenance.
-instructions: |
-  Verify the release candidate.
-  Surface blocking issues first.
-capability: balanced
-claude:
-  tools:
-    - Read
-    - Grep
-codex:
-  sandbox_mode: read-only
-```
-
-```yaml
-name: doc-curator
-description: Documentation review role with narrow read-only access for clarity and consistency checks. Use when documentation needs a dedicated reviewer role. Do not use when the work is better expressed as a reusable documentation skill.
-instructions: |
-  Check clarity and consistency.
-  Keep recommendations minimal.
-capability: efficient
-claude:
-  tools:
-    - Read
-codex:
-  sandbox_mode: read-only
-```
+Reusable methods still stay in skills. The owning workflow must guard a
+source-immutable dispatch before consuming the result; the spec-owned
+write-capable envelope permits the optional named handoff and does not grant
+durable-source authority.
 
 ## 7. Authoring Workflow in This Repo
 
@@ -182,14 +170,20 @@ codex:
 7. Choose model capability independently from target-native effort. Capability
    does not imply tools, sandbox, approval policy, context, authority,
    orchestration, retries, or escalation behavior.
-8. Validate with `devcanon validate`.
-9. Preview the generated output with `devcanon render`.
+8. Declare source authority using the closed policy vocabulary. Keep every
+   semantic child's external authority at `none`; reserve separately authorized
+   `external-mutable` authority for the owning root/controller. For
+   source-immutable dispatches, require owner-side capture,
+   verify-before-consume, and exact cleanup.
+9. Validate with `devcanon validate`.
+10. Preview the generated output with `devcanon render`.
 
 ## 8. See Also
 
 These docs remain authoritative for schema and command details:
 
 - [`../specs/agents.md`](../specs/agents.md)
+- [Agent Routing and Mutation Policy](agent-routing-and-mutation-policy.md)
 - [`../specs/skills.md`](../specs/skills.md)
 - [`../specs/cli-commands.md`](../specs/cli-commands.md)
 - [`../../AGENTS.md`](../../AGENTS.md) and [`../../MAP.md`](../../MAP.md) for

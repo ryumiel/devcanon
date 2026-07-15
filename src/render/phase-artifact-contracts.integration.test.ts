@@ -984,6 +984,164 @@ describe("rendered phase artifact smoke coverage", () => {
     }
   });
 
+  it("renders guarded semantic D1-D3 routes for both targets", () => {
+    for (const target of ["claude", "codex"] as const) {
+      const workflow = bodies[`issue-priming-workflow:${target}`];
+      const phase2 = sliceRenderedSection(
+        workflow,
+        "## Phase 2: Complexity Gate",
+        "## Phase 3: Research (Conditional)",
+      );
+      const phase3 = sliceRenderedSection(
+        workflow,
+        "## Phase 3: Research (Conditional)",
+        "## Phase 4: Invoke Brainstorming",
+      );
+      const normalizedPhase2 = normalizeRenderedWhitespace(phase2);
+      const normalizedPhase3 = normalizeRenderedWhitespace(phase3);
+
+      expect(normalizedPhase2).toContain("`assessor`, balanced/medium");
+      expect(normalizedPhase3).toContain("`investigator`, balanced/high");
+      expect(normalizedPhase3).toContain("named network access");
+      for (const phase of [normalizedPhase2, normalizedPhase3]) {
+        expect(phase).toContain("source-immutable");
+        expect(phase).toContain("response-only");
+        expect(phase).toContain("zero handoffs");
+        expect(phase).toContain("scripts/source-immutability.sh");
+        expect(phase).toContain('bash "$SOURCE_IMMUTABILITY_HELPER" capture');
+        expect(phase).toContain(
+          'bash "$SOURCE_IMMUTABILITY_HELPER" verify --baseline',
+        );
+        expect(phase).toContain(
+          'bash "$SOURCE_IMMUTABILITY_HELPER" cleanup --baseline',
+        );
+        expectSubstringsInOrder(phase, [
+          "capture before spawn",
+          "verify before semantic validation or consumption",
+          "validate and retain the response in controller memory",
+          "cleanup the exact retained baseline",
+          "apply the retained result",
+        ]);
+        expect(phase).toContain(
+          "Only detected source mutation or cleanup failure is terminal",
+        );
+      }
+
+      expect(normalizedPhase2).toContain("`RESEARCH_NEEDED`");
+      expect(normalizedPhase3).toContain("existing outcome precedence");
+    }
+  });
+
+  it("renders guarded semantic D7-D10 routes for both targets", () => {
+    for (const target of ["claude", "codex"] as const) {
+      const workflow = bodies[`play-review:${target}`];
+      const phase3 = sliceRenderedSection(
+        workflow,
+        "## Phase 3: Spawn agents",
+        "## Phase 4: Sub-checks",
+      );
+      const phase5 = sliceRenderedSection(
+        workflow,
+        "## Phase 5: Critic verification",
+        "## Phase 5.5: Finding Pattern Synthesis",
+      );
+      const normalizedPhase3 = normalizeRenderedWhitespace(phase3);
+      const normalizedPhase5 = normalizeRenderedWhitespace(phase5);
+
+      expect(normalizedPhase3).toContain(
+        "response-only `reviewer`, frontier/high and source-immutable, with zero handoffs",
+      );
+      for (const route of [
+        "D7 `Code-quality`",
+        "D8 `Architecture`",
+        "D9 `Spec`",
+      ]) {
+        expect(normalizedPhase3).toContain(route);
+      }
+      expect(normalizedPhase5).toContain(
+        "response-only `deep-reviewer`, frontier/xhigh and source-immutable, with zero handoffs",
+      );
+
+      for (const [route, topic] of [
+        ["D7", "Code-quality"],
+        ["D8", "Architecture"],
+        ["D9", "Spec"],
+      ] as const) {
+        const routeRow = phase3
+          .split("\n")
+          .find((line) => line.includes(`| ${route} \`${topic}\``));
+        expect(routeRow, `missing rendered ${route} trace row`).toBeDefined();
+        const normalizedRouteRow = normalizeRenderedWhitespace(routeRow ?? "");
+        expectSubstringsInOrder(normalizedRouteRow, [
+          `capture ${route}`,
+          `spawn ${route}`,
+          `verify ${route}`,
+          `validate/retain ${route}`,
+          `cleanup ${route}`,
+          `apply ${route}`,
+        ]);
+        for (const cleanupBranch of [
+          "dispatch/spawn failure",
+          "child failure",
+          "invalid/malformed response",
+          "semantic rejection",
+          "verification rejection",
+        ]) {
+          expect(normalizedRouteRow).toContain(cleanupBranch);
+        }
+        expect(normalizedRouteRow).toContain(
+          `every ${route} post-capture terminal branch attempts exact cleanup`,
+        );
+      }
+
+      for (const phase of [phase3, phase5]) {
+        expect(phase).toContain("scripts/source-immutability.sh");
+        expect(phase).toContain('bash "$SOURCE_IMMUTABILITY_HELPER" capture');
+        expect(phase).toContain(
+          'bash "$SOURCE_IMMUTABILITY_HELPER" verify --baseline',
+        );
+        expect(phase).toContain(
+          'bash "$SOURCE_IMMUTABILITY_HELPER" cleanup --baseline',
+        );
+      }
+      expectSubstringsInOrder(normalizedPhase3, [
+        "capture before spawn",
+        "spawn that already-selected topical reviewer",
+        "verify before semantic validation or consumption",
+        "controller memory",
+        "cleanup the exact retained baseline",
+        "only after cleanup",
+      ]);
+      expectSubstringsInOrder(normalizedPhase5, [
+        "capture before spawn",
+        "spawn the D10 critic",
+        "verify before semantic validation or consumption",
+        "controller memory",
+        "cleanup the exact retained baseline",
+        "only after cleanup",
+      ]);
+      for (const phase of [normalizedPhase3, normalizedPhase5]) {
+        expect(phase).toContain(
+          "every post-capture terminal path attempts exact cleanup",
+        );
+        expect(phase).toContain("guard-integrity terminal");
+      }
+
+      expect(normalizedPhase3).toContain(
+        "only that missing topical reviewer follows the existing partial-findings path",
+      );
+      expect(normalizedPhase3).toContain(
+        "aggregate only the independently retained topical findings after every selected route has cleaned up safely",
+      );
+      expect(normalizedPhase5).toContain(
+        "report the retained topical findings without critic verdicts and mark them unverified",
+      );
+      expect(normalizedPhase5).toContain(
+        "The D10 child is a leaf and cannot recurse",
+      );
+    }
+  });
+
   it("renders the play-brainstorm design review option menu for both targets", () => {
     for (const target of ["claude", "codex"] as const) {
       const playBrainstorm = bodies[`play-brainstorm:${target}`];

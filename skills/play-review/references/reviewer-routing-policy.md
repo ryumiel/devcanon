@@ -3,6 +3,22 @@
 This reference expands the Phase 2.75 and Phase 3 routing rules. `SKILL.md`
 keeps the hard rules and fail-closed defaults eager.
 
+## Semantic Routes Preserve Existing Selection
+
+These trigger rules select D7-D9 without changing their prompts, maximum-three
+cap, parallel aggregation, or missing-topical fallback. Every selected topical
+route uses `reviewer`, frontier/high, source-immutable, response-only, and zero
+handoffs. D7 remains the always-on `Code-quality` prompt; D8 remains the
+risk-triggered `Architecture` prompt; D9 remains the risk-triggered `Spec`
+prompt. Their review questions stay distinct even though the semantic role is
+shared.
+
+D10 remains a separate `deep-reviewer`, frontier/xhigh critic route after
+topical aggregation. It preserves the existing verdict and unverified-fallback
+contracts and never recursively dispatches another reviewer or critic. Every
+selected D7-D10 route independently uses the no-handoff GUARD-001 lifecycle in
+`SKILL.md`; the guard changes neither a topical trigger nor a critic verdict.
+
 ## Guarded Tiny-Diff Mode
 
 Tiny-diff mode activates only when all are true for `active_diff_range`:

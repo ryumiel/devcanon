@@ -37,8 +37,8 @@ Field semantics:
 | `source`                | Phase 8 PR description "Closes" line wording   |
 | `identifier`            | Agent prompts, brainstorm args, PR description |
 | `title`                 | Agent prompts, brainstorm args                 |
-| `issue-body-path`       | Gate agent, research agent, brainstorm args    |
-| `comment-evidence-path` | Gate/research agent and downstream context     |
+| `issue-body-path`       | Assessor, investigator, brainstorm args        |
+| `comment-evidence-path` | Assessor/investigator and downstream context   |
 | `worktree-path`         | Phase 1 worktree adoption and all later phases |
 | `mode`                  | Phase 4 stop-vs-continue, Phases 5–8 gating    |
 | `research`              | Phase 2 gate-skip                              |
@@ -104,11 +104,13 @@ See [`references/workflow-diagram.md`](references/workflow-diagram.md) for the D
 
 ## Helper Invocation Contracts
 
-Resolve `ISSUE_PRIMING_WORKFLOW_DIR` to the installed `issue-priming-workflow` skill bundle, not the issue worktree. Invoke helpers from the issue worktree root after Phase 1 has run `cd "$WORKTREE_PATH"`; helpers verify repository-root cwd. Treat a nonzero helper exit as a contract failure and stop the current phase rather than falling back to inline path handling. Do not move workflow judgment, routing, lifecycle, model selection, review classification, or PR authority into shell.
+Resolve `ISSUE_PRIMING_WORKFLOW_DIR` to the installed `issue-priming-workflow` skill bundle, not the issue worktree. Invoke helpers from the issue worktree root after Phase 1 has run `cd "$WORKTREE_PATH"`; helpers verify repository-root cwd. Treat a nonzero helper exit as a contract failure and stop the current phase rather than falling back to inline path handling. This blanket early-stop rule does not apply to `scripts/source-immutability.sh`; the Phase 2 and Phase 3 GUARD-001 procedures own every nonzero disposition for that helper. Do not move workflow judgment, routing, lifecycle, model selection, review classification, or PR authority into shell.
 
 The script-owned deterministic surfaces are:
 
 - `scripts/phase-artifacts.sh` for read guards on issue-priming-owned phase artifacts.
+- `scripts/source-immutability.sh` for the packaged source-immutable
+  `capture`, `verify`, and `cleanup` lifecycle around D1-D3 leaves.
 - `scripts/write-research-brief.sh` for preparing the Phase 3 research-brief write target.
 - `scripts/write-assumptions-comment.sh` for preparing the Phase 8 assumptions-comment write target.
 
@@ -153,12 +155,12 @@ missing or unreadable.
 
 ## Subagent Lifecycle
 
-Before dispatching the Phase 2 gate agent, either Phase 3 research leaf, or any
+Before dispatching the Phase 2 assessor, either Phase 3 investigator leaf, or any
 other direct subagent, use `subagent-lifecycle` for the controller-local
 lifecycle ledger, target lifecycle capability classification, cleanup gate
 before spawns, target-honest cleanup outcomes, and slot-limit recovery.
 Capture role-specific state before closing or superseding sessions: gate
-result and reason for the gate agent; assigned scope, report result, source
+result and reason for the assessor; assigned scope, report result, source
 references, and blocker state for each research leaf; and any blocker or
 context request needed to continue the workflow. The root, not a research
 child, owns the final research brief path and synthesized report.
@@ -168,9 +170,49 @@ child, owns the final research brief path and synthesized report.
 The gate is evaluated for `payload.research = gated`. Only the research phase
 (Phase 3) is conditional based on the gate's output.
 
-Dispatch a **dedicated exploration agent** using the prompt template in `references/gate-agent-prompt.md`. The agent reads the issue-body file from `ISSUE_BODY_PATH`, scans `docs/adr/` titles, and checks `AGENTS.md` for relevant rules. Use `{{model:balanced}}` as the floor — escalate to `{{model:frontier}}` for issues with ambiguous scope or multiple conflicting signals.
+Dispatch one response-only `assessor`, balanced/medium and source-immutable,
+using the prompt template in `references/gate-agent-prompt.md`. The assessor
+reads the issue-body file from `ISSUE_BODY_PATH`, scans `docs/adr/` titles, and
+checks `AGENTS.md` for relevant rules. The route has external authority `none`,
+no network access, and zero handoffs. Do not substitute an ambient role, model,
+or effort and do not escalate this bounded gate into a different route.
 
-**Pass to the gate agent:**
+Resolve `SOURCE_IMMUTABILITY_HELPER` to
+`$ISSUE_PRIMING_WORKFLOW_DIR/scripts/source-immutability.sh` and run it from
+the Phase 1 worktree root. Apply the GUARD-001 lifecycle to this leaf:
+
+1. **capture before spawn** with no `--handoff`; capture failure prevents the
+   spawn and treats the assessor as unavailable under the existing gate
+   fallback without inventing a baseline path;
+2. spawn the assessor and capture only its raw terminal response/status;
+3. **verify before semantic validation or consumption** against the retained
+   baseline;
+4. **validate and retain the response in controller memory** only after
+   successful verification — that is, validate the response or handoff payload
+   into controller memory, although this route declares no handoff;
+5. **cleanup the exact retained baseline** — clean up the exact owned paths;
+6. **apply the retained result** only after cleanup — consume or apply the
+   retained result by selecting the gate route.
+
+The no-handoff command shape is:
+
+```bash
+GATE_BASELINE="$(bash "$SOURCE_IMMUTABILITY_HELPER" capture)"
+# Spawn the assessor, then capture its raw terminal response/status.
+bash "$SOURCE_IMMUTABILITY_HELPER" verify --baseline "$GATE_BASELINE"
+# Validate and retain the response in controller memory.
+bash "$SOURCE_IMMUTABILITY_HELPER" cleanup --baseline "$GATE_BASELINE"
+# Only now apply the retained gate result.
+```
+
+Run exact cleanup after every spawned terminal branch, including child failure,
+malformed output, and verification rejection. An ordinary unavailable, failed,
+malformed, or verification-rejected gate result follows the existing fallback
+to `RESEARCH_NEEDED` after safe cleanup. Only detected source mutation or
+cleanup failure is terminal. Even then, attempt exact cleanup, leave the source
+mutation visible, and never reset, check out, stage, or repair source.
+
+**Pass to the assessor:**
 
 - Issue title
 - Issue-body path
@@ -180,7 +222,7 @@ Dispatch a **dedicated exploration agent** using the prompt template in `referen
 When comment evidence is absent, replace the gate prompt's comment-evidence
 placeholder with `(none)`.
 
-**Gate returns:** `RESEARCH_NEEDED` or `SKIP_RESEARCH` with a one-line reason.
+**Assessor returns:** `RESEARCH_NEEDED` or `SKIP_RESEARCH` with a one-line reason.
 
 **Override:** If the user passed `--research` in the skill args
 (`payload.research = forced`), skip the gate and go directly to research with
@@ -209,12 +251,59 @@ the synthetic gate reason `forced by --research`.
 ## Phase 3: Research (Conditional)
 
 The depth-0 root is the sole research dispatcher, report validator,
-synthesizer, and persistence owner. Every `research-agent` is a direct depth-1
-read-only leaf child and must not spawn children, write files, invoke helpers,
-persist reports, or emit controller-visible notice lines. Use the single prompt
-template in [`references/research-agent-prompt.md`](references/research-agent-prompt.md)
-for both scopes. Use `{{model:balanced}}` as the floor — escalate to
-`{{model:frontier}}` for cross-module or architecturally complex issues.
+synthesizer, and persistence owner. Every `investigator` is a direct depth-1
+source-immutable leaf child and must not spawn children, write files, invoke
+helpers, persist reports, or emit controller-visible notice lines. Use the
+single prompt template in
+[`references/investigator-prompt.md`](references/investigator-prompt.md) for
+both scopes. Each route is a response-only `investigator`, balanced/high and
+source-immutable, with zero handoffs. Internal research receives external
+authority `none` and no network access. External research also receives
+external authority `none`, but the dispatch explicitly grants
+named network access for its one root-curated external question. Network access does not
+grant external mutation.
+
+Resolve `SOURCE_IMMUTABILITY_HELPER` to
+`$ISSUE_PRIMING_WORKFLOW_DIR/scripts/source-immutability.sh`. Give every
+internal, immediate-external, and late-external leaf its own retained baseline
+and apply this GUARD-001 lifecycle independently:
+
+1. **capture before spawn** with no `--handoff`; capture failure prevents only
+   that spawn and treats that investigator as unavailable under the existing
+   outcome precedence without inventing a baseline path;
+2. spawn the investigator and capture only its raw terminal response/status;
+3. **verify before semantic validation or consumption** against that leaf's
+   retained baseline;
+4. **validate and retain the response in controller memory** only after
+   successful verification — validate the response or handoff payload into
+   controller memory, although these routes declare no handoff;
+5. **cleanup the exact retained baseline** — clean up the exact owned paths;
+6. **apply the retained result** only after cleanup — consume or apply the
+   retained result to lifecycle state, sibling joining, and outcome selection.
+
+Use a distinct `LEAF_BASELINE` for each investigator. The no-handoff command
+shape is:
+
+```bash
+LEAF_BASELINE="$(bash "$SOURCE_IMMUTABILITY_HELPER" capture)"
+# Spawn this investigator, then capture its raw terminal response/status.
+bash "$SOURCE_IMMUTABILITY_HELPER" verify --baseline "$LEAF_BASELINE"
+# Validate and retain this response in controller memory.
+bash "$SOURCE_IMMUTABILITY_HELPER" cleanup --baseline "$LEAF_BASELINE"
+# Only now apply this retained investigator result.
+```
+
+Run exact cleanup after every spawned terminal branch, including child failure,
+malformed output, semantic rejection, and verification rejection. An ordinary
+unavailable, failed, malformed, or verification-rejected investigator result
+is rejected after safe cleanup and follows the existing outcome precedence:
+qualifying internal failure may remain partial, useful external failure may
+produce bounded uncertainty when internal evidence is valid, and required
+external failure still stops before Phase 4. A verification-rejected response
+contributes no partial evidence. Only detected source mutation or cleanup
+failure is terminal. Even then, let every already-started sibling settle and
+attempt its exact cleanup, leave source mutation visible, and never reset,
+check out, stage, or repair source.
 
 When Phase 2 returns `SKIP_RESEARCH`, bypass this phase and preserve the
 existing inline skipped route in Phase 4. Do not dispatch a research child,
@@ -326,11 +415,15 @@ question with the complete prompt tuple before the same spawn.
 Before every internal or external spawn, add an `agent_id=pending` ledger row,
 classify target lifecycle capability, and run the cleanup gate from
 `subagent-lifecycle`. Keep the issue and comment artifacts readable throughout
-the spawn. After a child becomes terminal, capture scope, report result, source
-references, and blocker state before cleanup, supersession, a late dispatch,
-or route selection. Record `closed=yes` only when the current target actually
-closes the stable session; otherwise record the honest `close-unavailable`
-outcome.
+the spawn. After a child becomes terminal, capture only its raw response and
+terminal status until source-immutability verification succeeds. Then
+semantically validate the response and retain scope, report result, source
+references, and blocker state in controller memory before exact
+source-immutability cleanup. Only after exact cleanup succeeds, apply those
+retained fields to lifecycle state and routing before subagent-lifecycle
+cleanup, supersession, a late dispatch, or route selection. Record `closed=yes`
+only when the current target actually closes the stable session; otherwise
+record the honest `close-unavailable` outcome.
 
 If any internal, immediate external, or late external spawn fails because slots
 are exhausted, follow `subagent-lifecycle` § Slot-Limit Recovery. Preserve the
@@ -525,7 +618,7 @@ Issue body: <repo-relative-path from payload.issue-body-path>
 Comment evidence: <repo-relative-path from payload.comment-evidence-path>
 
 ## Research Brief
-Skipped — <reason from gate agent>. Proceed with codebase exploration in brainstorming.
+Skipped — <reason from assessor>. Proceed with codebase exploration in brainstorming.
 ```
 
 **Args format when internal research failed:**
@@ -878,7 +971,7 @@ See [`references/red-flags.md`](references/red-flags.md) for the full list and t
 | Scenario                          | Action                                                                    |
 | --------------------------------- | ------------------------------------------------------------------------- |
 | Missing/invalid `issue-body-path` | Stop before gate/research/brainstorm dispatch                             |
-| Gate agent fails                  | Default to `RESEARCH_NEEDED` (safer to over-research than under-research) |
+| Assessor fails                    | Default to `RESEARCH_NEEDED` (safer to over-research than under-research) |
 | Internal research fails/times out | Report partial results under Phase 3's qualifying-evidence rules          |
 | Useful external research fails    | Write the bounded-uncertainty final brief when internal evidence is valid |
 | Required external research fails  | Stop before helper, artifact, notice, Phase 4, or auto assumptions        |

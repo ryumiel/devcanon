@@ -29,7 +29,8 @@ Behavior specs under this directory own exact intended behavior for:
 - CLI commands and command output;
 - configuration format and schema behavior;
 - skill and agent source formats;
-- Portable AFDS Toolkit lifecycle routing and evidence behavior;
+- Portable AFDS Toolkit lifecycle routing, semantic child routing,
+  mutation-authority routing effects, guard behavior, and evidence behavior;
 - target rendering for Claude Code and Codex;
 - install, sync, uninstall, and diff behavior;
 - platform, security, error handling, and testing requirements.
@@ -70,7 +71,17 @@ These boundaries apply across DevCanon behavior specs:
 
 ## Source Layout Context
 
-Behavior specs use this layout as shared context for source and generated paths:
+The current source layout contains the six agent definitions shown below:
+`assessor.yaml`, `deep-reviewer.yaml`, `executor.yaml`, `implementer.yaml`,
+`investigator.yaml`, and `reviewer.yaml`. Source definitions under `agents/`
+are authoritative for current implementation state. Existing render-contract
+evidence confirms convergence for both Claude Code and Codex; generated outputs
+and fresh renders remain derived evidence, not authority. ADR-0027 remains
+Proposed because bounded runtime acceptance is incomplete, not because source
+or render convergence is incomplete.
+
+Behavior specs use this current layout as shared context for source and
+generated paths:
 
 ```text
 devcanon/
@@ -83,10 +94,12 @@ devcanon/
 │  └─ write-product-spec/
 │     └─ SKILL.md
 ├─ agents/
-│  ├─ code-quality-reviewer.yaml
+│  ├─ assessor.yaml
+│  ├─ deep-reviewer.yaml
+│  ├─ executor.yaml
 │  ├─ implementer.yaml
-│  ├─ research-agent.yaml
-│  └─ spec-compliance-reviewer.yaml
+│  ├─ investigator.yaml
+│  └─ reviewer.yaml
 ├─ generated/
 │  ├─ claude/
 │  │  └─ agents/
@@ -105,6 +118,9 @@ Notes:
 
 ## Installed Target Layout Context
 
+The agent filenames below are likewise the post-migration target. Installed
+managed outputs do not prove source convergence and remain derived.
+
 ### Claude Target
 
 ```text
@@ -114,10 +130,12 @@ Notes:
    └─ write-product-spec/
 
 ~/.claude/agents/
-├─ code-quality-reviewer.md
+├─ assessor.md
+├─ deep-reviewer.md
+├─ executor.md
 ├─ implementer.md
-├─ research-agent.md
-└─ spec-compliance-reviewer.md
+├─ investigator.md
+└─ reviewer.md
 ```
 
 ### Codex Target
@@ -129,10 +147,12 @@ Notes:
    └─ write-product-spec/
 
 ~/.codex/agents/
-├─ code-quality-reviewer.toml
+├─ assessor.toml
+├─ deep-reviewer.toml
+├─ executor.toml
 ├─ implementer.toml
-├─ research-agent.toml
-└─ spec-compliance-reviewer.toml
+├─ investigator.toml
+└─ reviewer.toml
 ```
 
 Notes:
@@ -140,3 +160,8 @@ Notes:
 - Codex shared skills are installed to `~/.agents/skills`.
 - Codex native custom agents are installed to `~/.codex/agents/`.
 - `devcanon` does not manage `~/.codex/config.toml` in v1.
+- The exact semantic catalog and role envelope are owned by the
+  [agent spec](agents.md#semantic-role-catalog).
+- The mutation vocabulary and complete 33-skill and D1-D17 inventories are
+  owned by the
+  [Agent Routing and Mutation Policy](../guidelines/agent-routing-and-mutation-policy.md).

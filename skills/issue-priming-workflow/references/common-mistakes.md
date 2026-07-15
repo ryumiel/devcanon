@@ -21,7 +21,22 @@ procedural step in `SKILL.md` from a "what goes wrong if you skip it" angle.
 ## Running research in the main session
 
 - **Problem:** CI logs, file reads, and web searches pollute the main context window
-- **Fix:** Always dispatch dedicated agents for gate and research phases
+- **Fix:** Dispatch the response-only `assessor` for the gate and a separate
+  response-only `investigator` for each research scope. External investigator
+  dispatches explicitly name network access; internal dispatches do not
+
+## Consuming an immutable child before exact cleanup
+
+- **Problem:** The root validates or applies an assessor/investigator response
+  before verifying Git-visible state, or leaves the retained baseline behind on
+  a rejected branch
+- **Fix:** For every D1-D3 leaf, use
+  `scripts/source-immutability.sh` in this order: capture before spawn, verify
+  before semantic validation or consumption, retain a valid response in
+  controller memory, cleanup the exact baseline, then apply the result. These
+  response-only routes use zero handoffs. Ordinary rejection follows the
+  existing owner fallback after safe cleanup; detected source mutation or
+  cleanup failure is terminal and source is never repaired
 
 ## Bypassing shared PR authoring
 
@@ -49,7 +64,9 @@ procedural step in `SKILL.md` from a "what goes wrong if you skip it" angle.
 ## Skipping the gate for "obvious" gated issues
 
 - **Problem:** Single-module issues sometimes have hidden cross-module dependencies
-- **Fix:** When `payload.research = gated`, always run the gate — it's cheap (exploration agent, `{{model:balanced}}`) and catches surprises. When `payload.research = forced`, skip the gate intentionally and carry `forced by --research` as the research reason
+- **Fix:** When `payload.research = gated`, always run the balanced/medium
+  `assessor` gate. When `payload.research = forced`, skip the gate intentionally
+  and carry `forced by --research` as the research reason
 
 ## Skipping brainstorming for "trivial" issues
 

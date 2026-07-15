@@ -20,8 +20,8 @@ final run reports zero blocking findings auto-fixed, no unresolved remaining
 fresh final approval-summary evidence after branch-review-owned fix commits. For a
 **single-task plan** the per-task reviewer dispatches are skipped (see
 "Single-Task Plans" in `SKILL.md`). On a direct/manual single-task run, the
-flow shrinks to: dispatch implementer -> implementer self-reviews and commits
--> mark task complete -> final whole-implementation code-quality reviewer ->
+flow shrinks to: dispatch D12 implementer -> implementer self-reviews and commits
+-> mark task complete -> fresh guarded D16 deep-reviewer over the whole range ->
 report implementation and final review status -> resolve branch-level review
 status -> hand off to `branch-review --fix` before `play-branch-finish` when
 the active workflow requires branch-level review before PR creation and
@@ -41,6 +41,14 @@ You: I'm using Subagent-Driven Development to execute this plan.
 [Create TodoWrite with all tasks]
 [Use subagent-lifecycle to detect target lifecycle capability]
 Target capability for this run: automatic-close-supported
+
+[Route classification reminder]
+D12 uses the source-mutable `implementer`, balanced/high, for judgment-bearing
+scoped work. D13 uses guarded inline execution or the source-mutable `executor`,
+efficient/medium, only when all five exact guardrails pass. A D13 executor
+performs the exact validated operation and stops for controller reclassification
+if judgment or a missing guardrail appears. Source-mutable task execution stays
+serial.
 
 Task 1: Hook lifecycle
 
@@ -87,7 +95,9 @@ read-only reviewers against the same captured task head.
 
 [Ledger pre-dispatch: Task 1 spec reviewer, agent_id=pending]
 [Ledger pre-dispatch: Task 1 code-quality reviewer, agent_id=pending]
-[Dispatch spec compliance reviewer and code-quality reviewer concurrently]
+[D14 and D15 use separate no-handoff GUARD-001 baselines]
+[For each route: capture -> spawn -> verify -> validate/retain -> cleanup -> apply]
+[Dispatch fresh D14 and D15 deep-reviewers concurrently]
 [Ledger post-dispatch: Task 1 spec reviewer, agent_id=spec-1]
 [Ledger post-dispatch: Task 1 code-quality reviewer, agent_id=quality-1]
 Spec reviewer: ✅ Spec compliant - all requirements met, nothing extra
@@ -136,7 +146,9 @@ captured task head before either result is final.
 
 [Ledger pre-dispatch: Task 2 spec reviewer, agent_id=pending]
 [Ledger pre-dispatch: Task 2 code-quality reviewer, agent_id=pending]
-[Dispatch spec compliance reviewer and code-quality reviewer concurrently]
+[D14 and D15 use separate no-handoff GUARD-001 baselines]
+[For each route: capture -> spawn -> verify -> validate/retain -> cleanup -> apply]
+[Dispatch fresh D14 and D15 deep-reviewers concurrently]
 [Ledger post-dispatch: Task 2 spec reviewer, agent_id=spec-2]
 [Ledger post-dispatch: Task 2 code-quality reviewer, agent_id=quality-2]
 Spec reviewer: ❌ Issues:
@@ -158,14 +170,13 @@ Task 2 implementer: fixup count=1, blocker state=none, report refreshed,
 changed files and head SHA refreshed, test state refreshed, snapshot
 state=emitted, closed=no because spec re-review and any required code-quality
 re-review or disposition are pending.
-Task 2 code-quality reviewer: quality result disposition=stale; rerun quality unless irrelevance is proven.
+Task 2 D14 and D15 results: dispositions=stale; the fix invalidates both results.
 
 [Revalidate effective review route]
 Controller compares the original Task 2 base SHA to the refreshed task head.
 The route may only preserve or escalate; the refreshed diff still requires
-`spec-and-quality`, so continue to spec re-review and code-quality re-review
-unless quality irrelevance is proven. Unclear stale-result classification fails
-closed to rerunning code quality.
+`spec-and-quality`, so continue to fresh D14 spec review and fresh D15 quality
+review against the same refreshed task head. A fix has no irrelevance exception.
 
 [Cleanup gate before Task 2 spec re-review spawn]
 Controller keeps Task 2 implementer open until spec and required quality
@@ -238,15 +249,36 @@ committed HEAD reads if it needs file content.
 ...
 
 [After all tasks]
-[Cleanup gate before final code-quality reviewer spawn]
-Controller verifies task implementers, reviewers, and re-reviewers are closed, then records the final reviewer pre-dispatch row: agent_id=pending, role=final-code-quality-reviewer, review scope=whole implementation diff, base/head SHA captured, closed=no.
+[Cleanup gate before fresh D16 deep-reviewer spawn]
+Controller verifies task implementers, reviewers, and re-reviewers are closed,
+then records the distinct D16 pre-dispatch row: agent_id=pending,
+role=deep-reviewer, review scope=whole implementation range, base/head SHA
+captured, closed=no. The D15 task-quality session is not reused.
 
-[Dispatch final code-quality reviewer]
-[Ledger post-dispatch: final-code-quality-reviewer, agent_id=final-quality]
-Final reviewer: All requirements met, ready to merge
+[D16 no-handoff GUARD-001]
+Capture a fresh baseline -> spawn D16 and retain raw response/status -> verify
+before semantic validation -> validate and retain the whole-range response in
+memory -> cleanup the exact baseline -> apply only after cleanup.
+[Ledger post-dispatch: D16 deep-reviewer, agent_id=final-quality]
+D16 reviewer: All requirements met, ready for terminal handoff
 
 [Lifecycle cleanup checkpoint]
-final-code-quality-reviewer: agent_id=final-quality, review scope captured, base/head SHA captured, report captured, reviewer result=PASS, observed close result=success, closed=yes after final verdict recorded.
+D16 deep-reviewer: agent_id=final-quality, review scope captured, base/head SHA
+captured, report captured, reviewer result=PASS, observed close result=success,
+closed=yes after final verdict recorded and guard cleanup succeeded.
+
+[D16 alternate finding loop]
+D16 blocking findings route to a final fix, and any fix commit requires a fresh
+D16 capture, spawn, verify, validate, cleanup, and apply cycle. The fresh D16
+reviews the refreshed whole implementation range; it never reuses D15 or the
+pre-fix D16 response.
+
+[D16 alternate ordinary failure]
+After safe cleanup, an unavailable, failed, malformed, or
+verification-rejected D16 keeps final review incomplete and returns `BLOCKED`
+to the owning caller or direct/manual terminal-status path; it never enters
+branch finish. D16 detected source mutation or cleanup failure is
+guard-integrity terminal and leaves source visible.
 
 [Return to owning caller]
 `play-subagent-execution` returns to `issue-priming-workflow --auto`.

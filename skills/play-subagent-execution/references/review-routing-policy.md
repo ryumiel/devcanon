@@ -1,8 +1,11 @@
 # Review Routing Policy - `play-subagent-execution`
 
-This file is the detailed policy for executor-owned per-task review routing.
-Load it when computing a route, validating reduced-route eligibility, handling
-same-head reviewer results, or checking hard-risk triggers.
+This file owns initial executor-computed per-task review route selection only.
+Load it when computing a route, validating reduced-route eligibility, or
+checking hard-risk triggers. After selection,
+[`lifecycle-status-policy.md`](lifecycle-status-policy.md) owns reviewer result
+disposition, freshness, fix invalidation, guard failures, and incomplete or
+terminal transitions.
 
 ## Route Computation
 
@@ -27,14 +30,10 @@ classifications to `spec-and-quality`.
 ## Effective Routes
 
 - `spec-and-quality`: after route computation and implementer commit, the
-  controller may dispatch the spec-compliance reviewer and code-quality
-  reviewer concurrently against the same captured task head. Both reviewers
-  remain read-only and independent. The code-quality result is provisional until
-  spec compliance passes for that same reviewed head and the task head is still
-  current.
-- `spec-only`: run the spec-compliance reviewer only.
-- `none-final-only`: run no per-task reviewer for that task; rely on the
-  required final whole-diff gate.
+  controller selects both D14 and D15 for the task.
+- `spec-only`: select D14 only.
+- `none-final-only`: select no per-task reviewer for that task; rely on the
+  required final whole-diff gate owned by the verified caller path.
 
 Reduced per-task routes (`spec-only` or `none-final-only`) are valid only on
 the shared `issue-priming-workflow --auto` Phase 6 path. The parent workflow
@@ -103,18 +102,6 @@ workflow; they only disable reduced routes.
   artifact, use `spec-and-quality`.
 - If post-implementation diff inspection cannot verify that no hard-risk
   trigger is present, use `spec-and-quality`.
-- After any implementer fixup commit requested by a spec-compliance or
-  code-quality reviewer, revalidate the effective route from the original task
-  base to the refreshed task head before skipping any remaining reviewer or
-  marking the task complete. Revalidation may only preserve or escalate the
-  route; it never downgrades a task after work has begun.
-
-If both reviewers report findings on the same reviewed head, the controller may
-route the combined spec and code-quality finding set to the same implementer for
-one fixup round. After any spec fixup commit, rerun spec compliance and rerun
-code quality unless the controller can prove the fixup is irrelevant to the
-previous quality result. Unclear stale-result classification fails closed to
-rerunning code quality.
 
 ## Risk Classes
 
@@ -161,16 +148,10 @@ Foundation-producing tasks receive at least `spec-only` before dependent tasks
 start, even when the plan hints `none-final-only`. If a foundation-producing
 task also matches any hard-risk trigger, use `spec-and-quality`.
 
-## Same-Head Quality Disposition
+## Post-Selection Lifecycle
 
-For `spec-and-quality`, quality disposition is separate from quality dispatch
-order. Dispatching code quality before the spec result is known is allowed when
-both reviewers inspect the same committed task head. Accepting that quality
-result as final is allowed only after the same-head spec result passes and the
-controller verifies the task head has not changed.
-
-If spec fails, a concurrent quality pass is advisory until a same-head spec pass
-exists. If a spec fixup or other commit changes the task head, the old quality
-result is stale or superseded for final disposition. Treat unclear freshness,
-uncertain irrelevance, or mismatched reviewed-head SHAs as a quality rerun
-requirement.
+Once a route is selected, use
+[`lifecycle-status-policy.md`](lifecycle-status-policy.md) for dispatch-result
+state, same-head disposition, fixup revalidation, reviewer freshness, guard
+failure, cleanup, and completion. This policy does not redefine those
+transitions.

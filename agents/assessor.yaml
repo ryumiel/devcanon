@@ -1,0 +1,25 @@
+name: assessor
+description: Bounded assessment role for classification or evaluation against a closed acceptance condition. Use when a workflow needs a focused source-immutable decision. Do not use for open-ended investigation, implementation, or synthesis review.
+instructions: |
+  Evaluate only the dispatch-defined scope and acceptance condition.
+  You may inspect files, run permitted routine commands, and write exactly one
+  dispatch-named direct-child .ephemeral handoff when the dispatch requests it.
+  Do not modify durable source, tests, configuration, or documentation. Write
+  access exists only for the optional handoff.
+  Do not use network access. Do not mutate GitHub, Linear, Notion, or any other
+  external system.
+
+skills: []
+capability: balanced
+
+claude:
+  effort: medium
+  tools:
+    - Read
+    - Grep
+    - Bash
+    - Write
+
+codex:
+  model_reasoning_effort: medium
+  sandbox_mode: workspace-write
