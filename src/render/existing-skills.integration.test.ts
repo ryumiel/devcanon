@@ -356,49 +356,51 @@ describe("existing skills render cleanly", () => {
     }
   });
 
-  it("preserves the pr-merge preflight and cleanup contract in rendered Codex output", async () => {
+  it("preserves the pr-merge D17, preflight, and cleanup contracts in both rendered outputs", async () => {
     const repoRoot = process.cwd();
     const config = await loadConfig(
       path.join(repoRoot, "devcanon.config.yaml"),
     );
 
     const { outputs } = await renderAll(config, false);
-    const renderedPrMerge = getSkillOutput(outputs, "pr-merge", "codex");
-    const normalized = normalizeWhitespace(renderedPrMerge.content);
+    for (const target of ["claude", "codex"] as const) {
+      const renderedPrMerge = getSkillOutput(outputs, "pr-merge", target);
+      const normalized = normalizeWhitespace(renderedPrMerge.content);
 
-    expect(renderedPrMerge.content).toContain(
-      "skills/pr-merge/scripts/preflight-worktree-context.sh",
-    );
-    expect(renderedPrMerge.content).toContain(
-      "skills/pr-merge/scripts/post-merge-cleanup.sh",
-    );
-    expect(normalized).toMatch(
-      /Before any merge command.*preflight-worktree-context\.sh/i,
-    );
-    expect(normalized).toContain(
-      "No mode may use `gh pr merge --delete-branch`",
-    );
-    expect(normalized).toMatch(
-      /WORKTREE_CLEANUP=removed\|retained\|skipped\|failed/i,
-    );
-    expect(normalized).toMatch(
-      /REMOTE_BRANCH_CLEANUP=deleted\|retained\|skipped\|failed/i,
-    );
-    expect(normalized).toContain(
-      "response-only `investigator`, balanced/high and source-immutable, with zero handoffs",
-    );
-    expect(normalized).toContain(
-      "exact mechanical fix to one source-mutable `executor`, balanced/medium",
-    );
-    expect(normalized).toContain(
-      "judgment-bearing fix to one source-mutable `implementer`, balanced/high",
-    );
-    expect(normalized).toContain(
-      "The mutable child may edit only the authorized paths, run verification, and commit",
-    );
-    expect(normalized).toContain(
-      "The controller/root alone owns push and merge",
-    );
+      expect(renderedPrMerge.content).toContain(
+        "skills/pr-merge/scripts/preflight-worktree-context.sh",
+      );
+      expect(renderedPrMerge.content).toContain(
+        "skills/pr-merge/scripts/post-merge-cleanup.sh",
+      );
+      expect(normalized).toMatch(
+        /Before any merge command.*preflight-worktree-context\.sh/i,
+      );
+      expect(normalized).toContain(
+        "No mode may use `gh pr merge --delete-branch`",
+      );
+      expect(normalized).toMatch(
+        /WORKTREE_CLEANUP=removed\|retained\|skipped\|failed/i,
+      );
+      expect(normalized).toMatch(
+        /REMOTE_BRANCH_CLEANUP=deleted\|retained\|skipped\|failed/i,
+      );
+      expect(normalized).toContain(
+        "response-only `investigator`, balanced/high and source-immutable, with zero handoffs",
+      );
+      expect(normalized).toContain(
+        "exact mechanical fix to one source-mutable `executor`, efficient/medium",
+      );
+      expect(normalized).toContain(
+        "judgment-bearing fix to one source-mutable `implementer`, balanced/high",
+      );
+      expect(normalized).toContain(
+        "The mutable child may edit only the authorized paths, run verification, and commit",
+      );
+      expect(normalized).toContain(
+        "The controller/root alone owns push and merge",
+      );
+    }
   });
 
   it("keeps explicit metadata expectations covered by touched-skill reasons", () => {

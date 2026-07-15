@@ -3770,6 +3770,9 @@ describe("existing skills source prose contracts", () => {
       "response-only `investigator`, balanced/high and source-immutable, with zero handoffs",
     );
     expect(failureSection).toContain(
+      'SOURCE_IMMUTABILITY_HELPER="$PR_MERGE_DIR/scripts/source-immutability.sh"',
+    );
+    expect(failureSection).not.toContain(
       "skills/pr-merge/scripts/source-immutability.sh",
     );
     expectSubstringsInOrder(normalized, [
@@ -3793,7 +3796,7 @@ describe("existing skills source prose contracts", () => {
     );
 
     expect(normalized).toContain(
-      "exact mechanical fix to one source-mutable `executor`, balanced/medium",
+      "exact mechanical fix to one source-mutable `executor`, efficient/medium",
     );
     expect(normalized).toContain(
       "judgment-bearing fix to one source-mutable `implementer`, balanced/high",

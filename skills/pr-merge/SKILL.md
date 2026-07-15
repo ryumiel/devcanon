@@ -228,9 +228,9 @@ with zero handoffs. This bounded B3 diagnosis route has external authority
 `none`; do not substitute another role, capability, effort, mutation default,
 or ambient agent.
 
-Resolve `SOURCE_IMMUTABILITY_HELPER` to the installed `pr-merge` bundle's
-`skills/pr-merge/scripts/source-immutability.sh` shim. Keep this lifecycle
-exact:
+Resolve `PR_MERGE_DIR` to the installed `pr-merge` bundle directory, then set
+`SOURCE_IMMUTABILITY_HELPER="$PR_MERGE_DIR/scripts/source-immutability.sh"`.
+Keep this lifecycle exact:
 
 1. capture before spawn and retain the returned baseline path in the
    controller;
@@ -303,7 +303,7 @@ baseline cleanup succeeds, and its anchored head remains current, dispatch
 exactly one mutable fix child:
 
 - Route an exact mechanical fix to one source-mutable `executor`,
-  balanced/medium.
+  efficient/medium.
 - Route a judgment-bearing fix to one source-mutable `implementer`,
   balanced/high.
 
