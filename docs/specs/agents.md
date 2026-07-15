@@ -27,11 +27,12 @@ template instead.
 
 ---
 
-## ADR-0027 target example
+## ADR-0027 `assessor` source example
 
-This is the canonical ADR-0027 post-migration `assessor` source example. While
-ADR-0027 is Proposed, it is an acceptance target rather than evidence that the
-current source file already exists.
+This is the current `agents/assessor.yaml` source and the canonical ADR-0027
+`assessor` example. ADR-0027 remains Proposed because bounded runtime
+acceptance is incomplete, not because this source file or source/render
+convergence is absent.
 
 ```yaml
 name: assessor
@@ -62,14 +63,13 @@ codex:
 
 ## Semantic role catalog
 
-ADR-0027 defines this section as the post-migration target. The migration begins
-from four legacy source roles and no accepted six-role render inventory. While
-the ADR remains Proposed, source definitions under `agents/` are authoritative
-for implementation state; fresh render output is convergence evidence against
-those definitions, not co-authority. This table does not claim source
-convergence. Acceptance requires the source library and both generated targets
-to converge on exactly these six semantic roles. Agent names describe reusable
-work identity, not provider models, effort levels, or workflow phases.
+This section is the sole exact catalog for the current six semantic roles.
+Source definitions under `agents/` are authoritative for implementation state.
+Existing render-contract evidence verifies that the six configured roles render
+and parse for both targets; generated outputs and fresh renders are convergence
+evidence, not co-authority. ADR-0027 remains Proposed because bounded runtime
+acceptance is incomplete. Agent names describe reusable work identity, not
+provider models, effort levels, or workflow phases.
 
 | Agent           | Capability | Claude effort | Codex effort | Source default     | External default | Primary use                                           |
 | --------------- | ---------- | ------------- | ------------ | ------------------ | ---------------- | ----------------------------------------------------- |
@@ -118,7 +118,7 @@ diagnostic artifact are outside the role contract.
 
 ### Render and runtime acceptance
 
-Under the post-migration contract, each source role renders to both targets with
+Under the current contract, each source role renders to both targets with
 the same semantic identity, capability-selected model, explicit target effort,
 and target-native tool or sandbox envelope above. Acceptance requires exactly
 six source roles to produce exactly six Claude agent files and six Codex agent
@@ -130,11 +130,11 @@ targets, retain its command and named-handoff envelope, prohibit durable and
 external mutation, and omit no Codex effort. A rendered role count other than
 six, omitted effort, or broader mutation instructions fails the contract.
 
-After local validation and both-target render parsing, runtime acceptance is
-bounded to one no-tool attempt for each selected capability/effort pair on each
-target plus one guarded Codex named-role handoff for each of the six roles. The
-exact pair matrix, output tokens, blocker rules, and human-only deployment gate
-are owned by
+Source and render convergence do not complete runtime acceptance. After local
+validation and both-target render parsing, runtime acceptance is bounded to one
+no-tool attempt for each selected capability/effort pair on each target plus one
+guarded Codex named-role handoff for each of the six roles. The exact pair
+matrix, output tokens, blocker rules, and human-only deployment gate are owned by
 [ADR-0027](../adr/adr-0027-semantic-agent-routing-and-mutation-authority.md).
 Local validation does not prove client, account, model, effort, or named-agent
 availability and must never substitute an alias or fallback.

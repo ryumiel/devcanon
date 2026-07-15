@@ -71,14 +71,16 @@ These boundaries apply across DevCanon behavior specs:
 
 ## Source Layout Context
 
-The pre-migration source layout has four legacy agent definitions. The agent
-portion of the diagram below is the ADR-0027 post-migration target, not a claim
-that those six files already exist while the ADR is Proposed. Acceptance
-requires `agents/` and both generated targets to converge on the diagram;
-source definitions under `agents/` are authoritative for current implementation
-state, and a fresh render supplies convergence evidence.
+The current source layout contains the six agent definitions shown below:
+`assessor.yaml`, `deep-reviewer.yaml`, `executor.yaml`, `implementer.yaml`,
+`investigator.yaml`, and `reviewer.yaml`. Source definitions under `agents/`
+are authoritative for current implementation state. Existing render-contract
+evidence confirms convergence for both Claude Code and Codex; generated outputs
+and fresh renders remain derived evidence, not authority. ADR-0027 remains
+Proposed because bounded runtime acceptance is incomplete, not because source
+or render convergence is incomplete.
 
-Behavior specs use this target layout as shared context for source and
+Behavior specs use this current layout as shared context for source and
 generated paths:
 
 ```text

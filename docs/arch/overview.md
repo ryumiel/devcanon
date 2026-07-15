@@ -84,15 +84,15 @@ owns the manual operator cutover and rollback procedure.
 
 ### Semantic Agent Routing Boundary
 
-ADR-0027 defines this section as the post-migration architecture. The
-pre-migration implementation has four legacy source roles and no converged
-six-role render inventory. While ADR-0027 remains Proposed, source definitions
-under `agents/` are authoritative for implementation state and fresh render
-output is convergence evidence; this section does not assert that migration has
-landed. Acceptance requires source, tests, and both target outputs to converge
-on the target below.
+The current architecture has six semantic source roles under `agents/` and
+both-target render convergence for that catalog. The
+[agent spec](../specs/agents.md#semantic-role-catalog) is the sole exact catalog
+owner; source definitions are authoritative for implementation state, while
+generated outputs and fresh renders are convergence evidence, not authority.
+ADR-0027 remains Proposed because bounded runtime acceptance is incomplete, not
+because source or render convergence is incomplete.
 
-The post-migration architecture exposes six thin semantic source roles:
+The architecture exposes six thin semantic source roles:
 `assessor`, `investigator`, `executor`, `implementer`, `reviewer`, and
 `deep-reviewer`. Agent definitions own stable identity plus target-native
 capability, effort, tools, and sandbox constraints. Skills own task-local
