@@ -2600,6 +2600,19 @@ describe("existing skills source prose contracts", () => {
     expect(skillSource).not.toContain("docs/guidelines/");
   });
 
+  it("routes post-implementation spec compliance to the owning D14 workflow", async () => {
+    const skillSource = await readSkillSource("spec-readiness-review");
+    const currentRoute =
+      "[`play-subagent-execution`'s task-specific D14 spec-compliance review](../play-subagent-execution/SKILL.md) using `deep-reviewer`";
+
+    expect(
+      skillSource.match(
+        new RegExp(currentRoute.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"),
+      ),
+    ).toHaveLength(2);
+    expect(skillSource).not.toContain("spec-compliance-reviewer");
+  });
+
   it("keeps the issue-slicing draft-only provider-neutral contract in source", async () => {
     const skillSource = await readSkillSource("issue-slicing");
     const procedure = getMarkdownSection(skillSource, "Procedure");
