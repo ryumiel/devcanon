@@ -2,7 +2,11 @@ import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { parse as parseYaml } from "yaml";
-import { readAgentRoutingPolicyOwner } from "../__test-helpers__/agent-routing-policy.js";
+import {
+  type AgentRoutingDirectChildRouteRow,
+  type AgentRoutingRouteClause,
+  readAgentRoutingPolicyOwner,
+} from "../__test-helpers__/agent-routing-policy.js";
 import {
   getSkillOutput,
   listRelativeFiles,
@@ -62,8 +66,8 @@ const PUBLIC_EXPLICIT_PLAY_SKILLS = [
 interface SemanticRoleContract {
   name: string;
   capability: "efficient" | "balanced" | "frontier";
-  claudeEffort: string;
-  codexEffort: string;
+  claudeEffort: AgentRoutingRouteClause["effort"];
+  codexEffort: AgentRoutingRouteClause["effort"];
   sourceAuthority: string;
   externalAuthority: string;
   claudeTools: string[];
@@ -76,14 +80,6 @@ interface AgentSourceContract {
   instructions: string;
 }
 
-interface RouteTuple {
-  role: string;
-  capability: string;
-  effort: string;
-  sourceAuthority: string;
-  qualifier?: string;
-}
-
 interface ParsedRenderedAgent {
   name: unknown;
   description: unknown;
@@ -92,11 +88,7 @@ interface ParsedRenderedAgent {
   instructions: string;
 }
 
-const ROUTE_TUPLE_PATTERN =
-  /^(?:(?:[A-Za-z][A-Za-z -]{0,38}:|Inline or)\s+)?`([a-z][a-z0-9-]*)`,\s*([a-z][a-z-]*)\/([a-z][a-z0-9-]*),\s*(source-[^,;\s]+)(?:,\s*(.+))?$/;
-
 type RoutingOwner = Awaited<ReturnType<typeof readAgentRoutingPolicyOwner>>;
-type RoutingOwnerRow = RoutingOwner["directChildRoutes"][number];
 
 const TOUCHED_SKILL_COVERAGE = {
   "github-issue-priming":
@@ -272,8 +264,8 @@ async function readSemanticRoleContracts(): Promise<SemanticRoleContract[]> {
     return {
       name,
       capability: row[1] as SemanticRoleContract["capability"],
-      claudeEffort: row[2],
-      codexEffort: row[3],
+      claudeEffort: row[2] as SemanticRoleContract["claudeEffort"],
+      codexEffort: row[3] as SemanticRoleContract["codexEffort"],
       sourceAuthority: exactCodeToken(row[4], `${name} source authority`),
       externalAuthority: exactCodeToken(row[5], `${name} external authority`),
       claudeTools: tools[1].split(",").map((tool) => tool.trim()),
@@ -294,131 +286,167 @@ async function readAgentSources(): Promise<AgentSourceContract[]> {
   ) as Promise<AgentSourceContract[]>;
 }
 
-function parseRouteTuples(route: string): RouteTuple[] {
-  return route.split(";").map((clause) => {
-    const match = ROUTE_TUPLE_PATTERN.exec(clause.trim());
-    if (!match) throw new Error(`Malformed owner route clause: ${clause}`);
-    return {
-      role: match[1],
-      capability: match[2],
-      effort: match[3],
-      sourceAuthority: match[4],
-      qualifier: match[5],
-    };
-  });
-}
-
-function routeOwnerSkill(
-  surface: string,
-  knownSkills: ReadonlySet<string>,
-): string {
-  const explicitOwners = [...surface.matchAll(/`([a-z][a-z0-9-]*)`/g)]
-    .map((match) => match[1])
-    .filter((name) => knownSkills.has(name));
-  if (explicitOwners.length === 1) return explicitOwners[0];
-  if (/issue priming/i.test(surface)) return "issue-priming-workflow";
-  if (/execution/i.test(surface)) return "play-subagent-execution";
-  throw new Error(`Cannot resolve route owner from: ${surface}`);
-}
-
-function tuplePattern(tuple: RouteTuple): RegExp {
-  const role = tuple.role.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const roleToken = `(?<![a-z0-9-])${role}(?![a-z0-9-])`;
-  return new RegExp(
-    `(?:${roleToken}[\\s\\S]{0,100}${tuple.capability}[\\s\\S]{0,40}${tuple.effort}[\\s\\S]{0,120}${tuple.sourceAuthority}|${tuple.sourceAuthority}[\\s\\S]{0,120}${roleToken}[\\s\\S]{0,100}${tuple.capability}[\\s\\S]{0,40}${tuple.effort})`,
-  );
-}
-
-function routeTuplesForTarget(
-  route: RoutingOwnerRow,
+function routeClausesForTarget(
+  route: AgentRoutingDirectChildRouteRow,
   roles: readonly SemanticRoleContract[],
   target: "claude" | "codex",
-): RouteTuple[] {
-  if (route.id !== "D4") return parseRouteTuples(route.route);
-  return roles.map((role) => ({
-    role: role.name,
-    capability: role.capability,
-    effort: target === "claude" ? role.claudeEffort : role.codexEffort,
-    sourceAuthority: role.sourceAuthority,
-  }));
+): readonly AgentRoutingRouteClause[] {
+  return route.id === "D4"
+    ? roles.map((role) => ({
+        role: role.name,
+        capability: role.capability,
+        effort: target === "claude" ? role.claudeEffort : role.codexEffort,
+        sourceAuthority:
+          role.sourceAuthority as AgentRoutingRouteClause["sourceAuthority"],
+      }))
+    : route.clauses;
 }
 
-const routeSignature = (tuples: readonly RouteTuple[]): string =>
-  tuples
-    .map(
-      ({ role, capability, effort, sourceAuthority }) =>
-        `${role}:${capability}:${effort}:${sourceAuthority}`,
-    )
-    .join(";");
+function normalizedEvidence(value: string): string {
+  return normalizeWhitespace(value).replaceAll("-", " ").toLowerCase();
+}
 
-function hasRenderedRouteEvidence(
-  route: RoutingOwnerRow,
-  routes: readonly RoutingOwnerRow[],
-  roles: readonly SemanticRoleContract[],
-  knownSkills: ReadonlySet<string>,
-  rendered: string,
-  target: "claude" | "codex",
+function routeAnchorMatches(
+  unit: string,
+  route: AgentRoutingDirectChildRouteRow,
 ): boolean {
-  const skill = routeOwnerSkill(route.surfaceAndOwner, knownSkills);
-  const tuples = routeTuplesForTarget(route, roles, target);
-  const normalized = normalizeWhitespace(rendered).replaceAll("`", "");
-  const tuplesPresent = tuples.every((tuple) =>
-    tuplePattern(tuple).test(normalized),
-  );
-  const duplicateCount = routes.filter(
-    (candidate) =>
-      routeOwnerSkill(candidate.surfaceAndOwner, knownSkills) === skill &&
-      routeSignature(routeTuplesForTarget(candidate, roles, target)) ===
-        routeSignature(tuples),
-  ).length;
-  if (duplicateCount === 1) {
+  const normalized = normalizedEvidence(unit);
+  const labels = [
+    route.evidenceLabel,
+    route.evidenceLabel.replace(/^(?:skill|issue)\s+/i, ""),
+    route.evidenceLabel.replace(/\s+(?:topical|review|implementation)$/i, ""),
+  ].map(normalizedEvidence);
+  if (/\stopical$/i.test(route.evidenceLabel)) {
     return (
-      tuplesPresent &&
-      tuples.every(
-        (tuple) =>
-          !tuple.qualifier ||
-          normalized.includes(normalizeWhitespace(tuple.qualifier)),
-      )
+      normalized.includes(labels[2]) &&
+      new RegExp(`\\b${route.id}\\b`, "i").test(unit)
     );
   }
-
-  const blocks = rendered
-    .split(/\n\s*\n/)
-    .map(normalizeWhitespace)
-    .filter(Boolean);
-  const idPattern = new RegExp(`\\b${route.id}\\b`, "i");
-  const surfaceLabel = normalizeWhitespace(
-    route.surfaceAndOwner.split("—", 1)[0].replaceAll("-", " "),
-  ).toLowerCase();
-  return blocks.some((block, index) => {
-    if (
-      !idPattern.test(block) &&
-      !block.replaceAll("-", " ").toLowerCase().includes(surfaceLabel)
-    ) {
-      return false;
-    }
-    const context = blocks
-      .slice(Math.max(0, index - 1), index + 2)
-      .join(" ")
-      .replaceAll("`", "");
-    return (
-      tuples.every((tuple) => tuplePattern(tuple).test(context)) &&
-      tuples.every(
-        (tuple) =>
-          !tuple.qualifier ||
-          blocks[index].includes(normalizeWhitespace(tuple.qualifier)),
-      )
-    );
-  });
+  return (
+    labels.some((label) => label.length > 6 && normalized.includes(label)) ||
+    new RegExp(`\\b${route.id}\\b`, "i").test(unit) ||
+    (route.evidenceLocator !== undefined &&
+      normalized.includes(normalizedEvidence(route.evidenceLocator)))
+  );
 }
 
-function renderedAgentAlignmentErrors(
+function markdownStructuralUnits(markdown: string): {
+  atomic: string[];
+  sections: string[];
+} {
+  const lines = markdown.split("\n");
+  const sections = lines.flatMap((line, start) => {
+    const heading = /^(#{1,6})\s/.exec(line);
+    if (!heading) return [];
+    const endOffset = lines.slice(start + 1).findIndex((candidate) => {
+      const next = /^(#{1,6})\s/.exec(candidate);
+      return next !== null && next[1].length <= heading[1].length;
+    });
+    const end = endOffset === -1 ? lines.length : start + endOffset + 1;
+    return [lines.slice(start, end).join("\n")];
+  });
+  const paragraphs = markdown.split(/\n\s*\n/).filter(Boolean);
+  const sentences = paragraphs.flatMap((paragraph) =>
+    paragraph.split(/(?<=[.!?])\s+(?=[A-Z`])/),
+  );
+  const sortUnits = (units: string[]): string[] =>
+    units
+      .map((unit) => unit.trim())
+      .filter(Boolean)
+      .sort((left, right) => left.length - right.length);
+  return {
+    atomic: sortUnits([
+      ...lines.filter((line) => line.startsWith("|")),
+      ...sentences,
+      ...paragraphs,
+    ]),
+    sections: sortUnits(sections),
+  };
+}
+
+function clausePattern(clause: AgentRoutingRouteClause): RegExp {
+  const token = (value: string): string =>
+    value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const role = `(?<![a-z0-9-])${token(clause.role)}(?![a-z0-9-])`;
+  const profile = `${token(clause.capability)}\\s*(?:/|\\|)\\s*${token(clause.effort)}`;
+  const separator = "(?:[\\s`|,]|and){1,50}";
+  return new RegExp(
+    `(?:${role}${separator}${profile}${separator}${token(clause.sourceAuthority)}|${token(clause.sourceAuthority)}${separator}${role}${separator}${profile})`,
+    "gi",
+  );
+}
+
+function renderedRouteEvidenceFailures(
+  owner: RoutingOwner,
+  roles: readonly SemanticRoleContract[],
+  renderedBySkill: ReadonlyMap<string, string>,
+  target: "claude" | "codex",
+): string[] {
+  return owner.directChildRoutes
+    .filter((route) => {
+      const clauses = routeClausesForTarget(route, roles, target);
+      const units = markdownStructuralUnits(
+        renderedBySkill.get(route.ownerSkill) ?? "",
+      );
+      const matches = (unit: string): boolean =>
+        routeAnchorMatches(unit, route) &&
+        clauses.every((clause) => clausePattern(clause).test(unit));
+      const atomicEvidence = units.atomic.find(matches);
+      const signaturePeers = owner.directChildRoutes.filter(
+        (peer) =>
+          peer.ownerSkill === route.ownerSkill &&
+          JSON.stringify(routeClausesForTarget(peer, roles, target)) ===
+            JSON.stringify(clauses),
+      );
+      const peerHasSeparateEvidence = signaturePeers.some(
+        (peer) =>
+          peer !== route &&
+          units.atomic.some(
+            (unit) =>
+              routeAnchorMatches(unit, peer) &&
+              clauses.every((clause) => clausePattern(clause).test(unit)),
+          ),
+      );
+      const evidence =
+        atomicEvidence ??
+        (peerHasSeparateEvidence ? undefined : units.sections.find(matches));
+      if (!evidence) return true;
+
+      const local = markdownStructuralUnits(evidence).atomic.find((unit) =>
+        routeAnchorMatches(unit, route),
+      );
+      if (!local) return true;
+      const localEvidence = normalizedEvidence(local);
+      if (
+        route.clauses.some((clause) =>
+          clause.qualifier
+            ? !localEvidence.includes(normalizedEvidence(clause.qualifier))
+            : false,
+        )
+      )
+        return true;
+
+      const members = signaturePeers.filter((peer) =>
+        routeAnchorMatches(evidence, peer),
+      );
+      const occurrences = clauses.map(
+        (clause) => [...evidence.matchAll(clausePattern(clause))].length,
+      );
+      return (
+        members.length === 0 ||
+        occurrences.some((count) => count !== 1 && count !== members.length)
+      );
+    })
+    .map((route) => route.id);
+}
+
+function renderedAgentAligned(
   role: SemanticRoleContract,
   source: AgentSourceContract,
   target: "claude" | "codex",
   parsed: ParsedRenderedAgent,
   expectedModel: string,
-): string[] {
+): boolean {
   const expectedEffort =
     target === "claude" ? role.claudeEffort : role.codexEffort;
   const expected: Record<string, unknown> = {
@@ -427,32 +455,21 @@ function renderedAgentAlignmentErrors(
     model: expectedModel,
     effort: expectedEffort,
   };
-  const errors = Object.entries(expected).flatMap(([field, value]) =>
-    parsed[field as keyof ParsedRenderedAgent] === value ? [] : [field],
-  );
   const normalizedInstructions = normalizeWhitespace(parsed.instructions);
-  if (
-    !normalizedInstructions.includes(normalizeWhitespace(source.instructions))
-  ) {
-    errors.push("instructions");
-  }
-  if (
-    role.externalAuthority !== "none" ||
-    !normalizedInstructions.includes(
+  return (
+    Object.entries(expected).every(
+      ([field, value]) => parsed[field as keyof ParsedRenderedAgent] === value,
+    ) &&
+    normalizedInstructions.includes(normalizeWhitespace(source.instructions)) &&
+    role.externalAuthority === "none" &&
+    normalizedInstructions.includes(
       "Do not mutate GitHub, Linear, Notion, or any other external system.",
-    )
-  ) {
-    errors.push("external-authority");
-  }
-  if (
-    role.sourceAuthority === "source-immutable" &&
-    !normalizedInstructions.includes(
-      "Do not modify durable source, tests, configuration, or documentation.",
-    )
-  ) {
-    errors.push("source-authority");
-  }
-  return errors;
+    ) &&
+    (role.sourceAuthority !== "source-immutable" ||
+      normalizedInstructions.includes(
+        "Do not modify durable source, tests, configuration, or documentation.",
+      ))
+  );
 }
 
 describe("existing skills render cleanly", () => {
@@ -572,8 +589,6 @@ describe("existing skills render cleanly", () => {
     const sourcesByName = new Map(
       sources.map((source) => [source.name, source]),
     );
-    const knownSkills = new Set(owner.inventory.map((row) => row.skill));
-
     expect(roles).toHaveLength(6);
 
     for (const target of ["claude", "codex"] as const) {
@@ -584,20 +599,25 @@ describe("existing skills render cleanly", () => {
           )
           .map((output) => [output.name, output.content]),
       );
-      for (const route of owner.directChildRoutes) {
-        const skill = routeOwnerSkill(route.surfaceAndOwner, knownSkills);
-        expect(
-          hasRenderedRouteEvidence(
-            route,
-            owner.directChildRoutes,
-            roles,
-            knownSkills,
-            renderedBySkill.get(skill) ?? "",
-            target,
-          ),
-          `${target} ${route.id} lacks route-local rendered evidence`,
-        ).toBe(true);
-      }
+      expect(
+        renderedRouteEvidenceFailures(owner, roles, renderedBySkill, target),
+      ).toEqual([]);
+      const prMerge = normalizeWhitespace(
+        renderedBySkill.get("pr-merge") ?? "",
+      );
+      for (const contract of [
+        "skills/pr-merge/scripts/preflight-worktree-context.sh",
+        "skills/pr-merge/scripts/post-merge-cleanup.sh",
+        "No mode may use `gh pr merge --delete-branch`",
+        "WORKTREE_CLEANUP=removed|retained|skipped|failed",
+        "REMOTE_BRANCH_CLEANUP=deleted|retained|skipped|failed",
+        "mutable child may edit only the authorized paths, run verification, and commit",
+        "The controller/root alone owns push and merge",
+      ])
+        expect(prMerge).toContain(contract);
+      expect(prMerge).toMatch(
+        /Before any merge command.*preflight-worktree-context\.sh/i,
+      );
 
       const agentOutputs = outputs
         .filter((output) => output.type === "agent" && output.target === target)
@@ -644,103 +664,82 @@ describe("existing skills render cleanly", () => {
         const expectedModel =
           config.capabilityProfiles[role.capability][target];
         expect(
-          renderedAgentAlignmentErrors(
-            role,
-            source,
-            target,
-            parsed,
-            expectedModel,
-          ),
-        ).toEqual([]);
+          renderedAgentAligned(role, source, target, parsed, expectedModel),
+        ).toBe(true);
+        if (target === "codex" && role === roles[0]) {
+          expect(
+            renderedAgentAligned(
+              role,
+              source,
+              target,
+              { ...parsed, effort: "mutated-effort" },
+              expectedModel,
+            ),
+          ).toBe(false);
+        }
       }
     }
   });
 
-  it("reports a bounded rendered target field drift", async () => {
+  it("rejects bounded route evidence and qualifier drift", async () => {
     const repoRoot = process.cwd();
-    const [config, roles, sources] = await Promise.all([
+    const [config, owner, roles] = await Promise.all([
       loadConfig(path.join(repoRoot, "devcanon.config.yaml")),
-      readSemanticRoleContracts(),
-      readAgentSources(),
-    ]);
-    const { outputs } = await renderAll(config, false, true);
-    const role = roles[0];
-    const source = sources.find((candidate) => candidate.name === role.name);
-    const output = outputs.find(
-      (candidate) =>
-        candidate.type === "agent" &&
-        candidate.target === "codex" &&
-        candidate.name === role.name,
-    );
-    expect(source).toBeDefined();
-    expect(output).toBeDefined();
-    if (!source || !output) return;
-
-    const toml = parseRenderedTomlArtifact(output.content);
-    const parsed: ParsedRenderedAgent = {
-      name: toml.name,
-      description: toml.description,
-      model: toml.model,
-      effort: "mutated-effort",
-      instructions: String(toml.developer_instructions ?? ""),
-    };
-    expect(
-      renderedAgentAlignmentErrors(
-        role,
-        source,
-        "codex",
-        parsed,
-        config.capabilityProfiles[role.capability].codex,
-      ),
-    ).toEqual(["effort"]);
-  });
-
-  it("rejects missing duplicate-route evidence and displaced qualifiers", async () => {
-    const [owner, roles] = await Promise.all([
       readAgentRoutingPolicyOwner(
         "docs/guidelines/agent-routing-and-mutation-policy.md",
       ),
       readSemanticRoleContracts(),
     ]);
-    const knownSkills = new Set(owner.inventory.map((row) => row.skill));
-    const qualified = owner.directChildRoutes.find((route) =>
-      route.id === "D4"
-        ? false
-        : parseRouteTuples(route.route).some((tuple) => tuple.qualifier),
+    const { outputs } = await renderAll(config, false, true);
+    const rendered = new Map(
+      outputs
+        .filter(
+          (output) => output.type === "skill" && output.target === "codex",
+        )
+        .map((output) => [output.name, output.content]),
     );
-    if (!qualified) throw new Error("Expected an owner route qualifier");
-    const signature = routeSignature(parseRouteTuples(qualified.route));
-    const peer = owner.directChildRoutes.find(
-      (route) =>
-        route !== qualified &&
-        routeOwnerSkill(route.surfaceAndOwner, knownSkills) ===
-          routeOwnerSkill(qualified.surfaceAndOwner, knownSkills) &&
-        route.id !== "D4" &&
-        routeSignature(parseRouteTuples(route.route)) === signature,
-    );
-    if (!peer) throw new Error("Expected a duplicate owner route tuple");
-
-    const routeFixture = `${peer.id} ${peer.route}\n\n${qualified.id} ${qualified.route}`;
-    const hasEvidence = (rendered: string): boolean =>
-      hasRenderedRouteEvidence(
-        qualified,
-        [peer, qualified],
-        roles,
-        knownSkills,
-        rendered,
-        "codex",
+    const mutate = (
+      skill: string,
+      from: string | RegExp,
+      to: string,
+    ): Map<string, string> =>
+      new Map(rendered).set(
+        skill,
+        (rendered.get(skill) ?? "").replace(from, to),
       );
-    expect(hasEvidence(routeFixture)).toBe(true);
-    expect(hasEvidence(`${peer.id} ${peer.route}`)).toBe(false);
-    const qualifier = parseRouteTuples(qualified.route).find(
-      (tuple) => tuple.qualifier,
-    )?.qualifier;
-    if (!qualifier) throw new Error("Expected a qualified owner route tuple");
+    const failures = (mutated: ReadonlyMap<string, string>): string[] =>
+      renderedRouteEvidenceFailures(owner, roles, mutated, "codex");
+
     expect(
-      hasEvidence(
-        `${routeFixture.replace(`, ${qualifier}`, "")}\n\n${qualifier}`,
+      failures(
+        mutate(
+          "issue-priming-workflow",
+          "`assessor`, balanced/medium and source-immutable",
+          "`assessor`",
+        ),
       ),
-    ).toBe(false);
+    ).toContain("D1");
+    expect(
+      failures(
+        mutate(
+          "issue-priming-workflow",
+          /no network access\.\s+External research also receives\s+external authority `none`, but the dispatch explicitly grants\s+named network access/,
+          "no network access and named network access. External research also receives external authority `none`, but the dispatch explicitly grants",
+        ),
+      ),
+    ).toContain("D3");
+    expect(
+      failures(mutate("play-review", /^\| D8 .*$/m, "")).includes("D8"),
+    ).toBe(true);
+    expect(
+      failures(
+        mutate(
+          "play-subagent-execution",
+          /D15 is a separate response-only[\s\S]*?with zero handoffs\./,
+          "",
+        ),
+      ),
+    ).toContain("D15");
   });
 
   it("renders the touched skills with Codex-valid frontmatter", async () => {
@@ -811,53 +810,6 @@ describe("existing skills render cleanly", () => {
       ] as const) {
         expect(normalized).not.toMatch(staleFinishOwnedNitPattern);
       }
-    }
-  });
-
-  it("preserves the pr-merge D17, preflight, and cleanup contracts in both rendered outputs", async () => {
-    const repoRoot = process.cwd();
-    const config = await loadConfig(
-      path.join(repoRoot, "devcanon.config.yaml"),
-    );
-
-    const { outputs } = await renderAll(config, false);
-    for (const target of ["claude", "codex"] as const) {
-      const renderedPrMerge = getSkillOutput(outputs, "pr-merge", target);
-      const normalized = normalizeWhitespace(renderedPrMerge.content);
-
-      expect(renderedPrMerge.content).toContain(
-        "skills/pr-merge/scripts/preflight-worktree-context.sh",
-      );
-      expect(renderedPrMerge.content).toContain(
-        "skills/pr-merge/scripts/post-merge-cleanup.sh",
-      );
-      expect(normalized).toMatch(
-        /Before any merge command.*preflight-worktree-context\.sh/i,
-      );
-      expect(normalized).toContain(
-        "No mode may use `gh pr merge --delete-branch`",
-      );
-      expect(normalized).toMatch(
-        /WORKTREE_CLEANUP=removed\|retained\|skipped\|failed/i,
-      );
-      expect(normalized).toMatch(
-        /REMOTE_BRANCH_CLEANUP=deleted\|retained\|skipped\|failed/i,
-      );
-      expect(normalized).toContain(
-        "response-only `investigator`, balanced/high and source-immutable, with zero handoffs",
-      );
-      expect(normalized).toContain(
-        "exact mechanical fix to one source-mutable `executor`, efficient/medium",
-      );
-      expect(normalized).toContain(
-        "judgment-bearing fix to one source-mutable `implementer`, balanced/high",
-      );
-      expect(normalized).toContain(
-        "The mutable child may edit only the authorized paths, run verification, and commit",
-      );
-      expect(normalized).toContain(
-        "The controller/root alone owns push and merge",
-      );
     }
   });
 

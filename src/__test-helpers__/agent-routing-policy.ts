@@ -41,6 +41,18 @@ export interface AgentRoutingDirectChildRouteRow {
   readonly surfaceAndOwner: string;
   readonly route: string;
   readonly existingOutputOrTermination: string;
+  readonly ownerSkill: string;
+  readonly evidenceLabel: string;
+  readonly evidenceLocator?: string;
+  readonly clauses: readonly AgentRoutingRouteClause[];
+}
+
+export interface AgentRoutingRouteClause {
+  readonly role: string;
+  readonly capability: (typeof ROUTE_CAPABILITIES)[number];
+  readonly effort: (typeof ROUTE_EFFORTS)[number];
+  readonly sourceAuthority: SourceAuthority;
+  readonly qualifier?: string;
 }
 
 export interface AgentRoutingPolicyOwner {
@@ -90,7 +102,10 @@ export function parseAgentRoutingPolicyOwner(
     "direct-route",
   );
   const inventory = inventoryTable.map(parseInventoryRow);
-  const directChildRoutes = routeTable.map(parseRouteRow);
+  const knownSkills = new Set(inventory.map((row) => row.skill));
+  const directChildRoutes = routeTable.map((cells, index) =>
+    parseRouteRow(cells, index, knownSkills),
+  );
 
   assertUnique(
     inventory.map((row) => row.skill),
@@ -256,13 +271,14 @@ function parseInventoryRow(
 const ROUTE_CAPABILITIES = ["efficient", "balanced", "frontier"] as const;
 const ROUTE_EFFORTS = ["medium", "high", "xhigh"] as const;
 const ROUTE_CLAUSE_PATTERN =
-  /^(?:(?:[A-Za-z][A-Za-z -]{0,38}:|Inline or)\s+)?`([a-z][a-z0-9-]*)`,\s*([a-z][a-z-]*)\/([a-z][a-z0-9-]*),\s*(source-[^,;\s]+)(?:,\s*[A-Za-z][A-Za-z -]{0,38})?$/;
+  /^(?:(?:[A-Za-z][A-Za-z -]{0,38}:|Inline or)\s+)?`([a-z][a-z0-9-]*)`,\s*([a-z][a-z-]*)\/([a-z][a-z0-9-]*),\s*(source-[^,;\s]+)(?:,\s*([A-Za-z][A-Za-z -]{0,38}))?$/;
 const ROUTE_CLAUSE_WITHOUT_SOURCE_PATTERN =
   /^(?:(?:[A-Za-z][A-Za-z -]{0,38}:|Inline or)\s+)?`[a-z][a-z0-9-]*`,\s*[a-z][a-z-]*\/[a-z][a-z0-9-]*\s*,?$/;
 
 function parseRouteRow(
   cells: readonly string[],
   index: number,
+  knownSkills: ReadonlySet<string>,
 ): AgentRoutingDirectChildRouteRow {
   const id = cells[0];
   if (!/^D\d+$/.test(id)) {
@@ -271,22 +287,45 @@ function parseRouteRow(
     );
   }
 
-  if (id !== "D4") {
-    validateRouteTuples(id, cells[2]);
+  const clauses = id === "D4" ? [] : parseRouteClauses(id, cells[2]);
+  const [evidenceLabel, ownerSurface = ""] = cells[1].split(/\s+—\s+/, 2);
+  const explicitOwners = [...ownerSurface.matchAll(/`([a-z][a-z0-9-]*)`/g)]
+    .map((match) => match[1])
+    .filter((name) => knownSkills.has(name));
+  const ownerSkill =
+    explicitOwners.length === 1
+      ? explicitOwners[0]
+      : /issue priming/i.test(ownerSurface)
+        ? "issue-priming-workflow"
+        : /execution/i.test(ownerSurface)
+          ? "play-subagent-execution"
+          : undefined;
+  if (!ownerSkill) {
+    throw new Error(
+      `Agent routing policy owner direct-route ${id} must resolve exactly one owner skill`,
+    );
   }
+  const evidenceLocator = ownerSurface.match(/\b(?:Phase|Step)\s+\d+\b/i)?.[0];
 
   return {
     id: id as `D${number}`,
     surfaceAndOwner: cells[1],
     route: cells[2],
     existingOutputOrTermination: cells[3],
+    ownerSkill,
+    evidenceLabel,
+    evidenceLocator,
+    clauses,
   };
 }
 
-function validateRouteTuples(id: string, route: string): void {
+function parseRouteClauses(
+  id: string,
+  route: string,
+): readonly AgentRoutingRouteClause[] {
   const clauses = route.split(";").map((clause) => clause.trim());
 
-  for (const [index, clause] of clauses.entries()) {
+  return clauses.map((clause, index) => {
     const tuple = ROUTE_CLAUSE_PATTERN.exec(clause);
     if (!tuple && ROUTE_CLAUSE_WITHOUT_SOURCE_PATTERN.test(clause)) {
       throw new Error(
@@ -299,14 +338,22 @@ function validateRouteTuples(id: string, route: string): void {
       );
     }
 
-    closedValue(tuple[2], ROUTE_CAPABILITIES, `direct-route ${id} capability`);
-    closedValue(tuple[3], ROUTE_EFFORTS, `direct-route ${id} effort`);
-    closedValue(
-      tuple[4],
-      SOURCE_AUTHORITIES,
-      `direct-route ${id} source authority`,
-    );
-  }
+    return {
+      role: tuple[1],
+      capability: closedValue(
+        tuple[2],
+        ROUTE_CAPABILITIES,
+        `direct-route ${id} capability`,
+      ),
+      effort: closedValue(tuple[3], ROUTE_EFFORTS, `direct-route ${id} effort`),
+      sourceAuthority: closedValue(
+        tuple[4],
+        SOURCE_AUTHORITIES,
+        `direct-route ${id} source authority`,
+      ),
+      qualifier: tuple[5],
+    };
+  });
 }
 
 function assertInventoryCoverage(

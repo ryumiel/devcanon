@@ -38,10 +38,19 @@ describe("agent routing and mutation policy owner", () => {
     expect(
       owner.directChildRoutes.find((row) => row.id === "D17"),
     ).toMatchObject({
+      ownerSkill: "pr-merge",
+      evidenceLabel: "CI diagnosis/fix",
       surfaceAndOwner: expect.stringContaining("CI diagnosis/fix"),
-      route: expect.stringContaining(
-        "`investigator`, balanced/high, source-immutable",
-      ),
+      clauses: [
+        {
+          role: "investigator",
+          capability: "balanced",
+          effort: "high",
+          sourceAuthority: "source-immutable",
+        },
+        { role: "executor", sourceAuthority: "source-mutable" },
+        { role: "implementer", sourceAuthority: "source-mutable" },
+      ],
       existingOutputOrTermination: expect.stringContaining(
         "mutable child commits only",
       ),
