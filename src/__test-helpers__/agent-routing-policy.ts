@@ -256,9 +256,9 @@ function parseInventoryRow(
 const ROUTE_CAPABILITIES = ["efficient", "balanced", "frontier"] as const;
 const ROUTE_EFFORTS = ["medium", "high", "xhigh"] as const;
 const ROUTE_CLAUSE_PATTERN =
-  /^(?:(?:[A-Za-z][A-Za-z -]{0,38}:|[A-Z][a-z]+ or)\s+)?`([a-z][a-z0-9-]*)`,\s*([a-z][a-z-]*)\/([a-z][a-z0-9-]*),\s*(source-[^,;\s]+)(?:,\s*[A-Za-z][A-Za-z -]{0,38})?$/;
+  /^(?:(?:[A-Za-z][A-Za-z -]{0,38}:|Inline or)\s+)?`([a-z][a-z0-9-]*)`,\s*([a-z][a-z-]*)\/([a-z][a-z0-9-]*),\s*(source-[^,;\s]+)(?:,\s*[A-Za-z][A-Za-z -]{0,38})?$/;
 const ROUTE_CLAUSE_WITHOUT_SOURCE_PATTERN =
-  /^(?:(?:[A-Za-z][A-Za-z -]{0,38}:|[A-Z][a-z]+ or)\s+)?`[a-z][a-z0-9-]*`,\s*[a-z][a-z-]*\/[a-z][a-z0-9-]*\s*,?$/;
+  /^(?:(?:[A-Za-z][A-Za-z -]{0,38}:|Inline or)\s+)?`[a-z][a-z0-9-]*`,\s*[a-z][a-z-]*\/[a-z][a-z0-9-]*\s*,?$/;
 
 function parseRouteRow(
   cells: readonly string[],

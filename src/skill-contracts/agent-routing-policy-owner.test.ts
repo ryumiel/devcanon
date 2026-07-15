@@ -288,6 +288,18 @@ describe("agent routing and mutation policy owner", () => {
       /direct-route D12 clause 1 has malformed clause structure/i,
     );
   });
+
+  it("rejects a non-owner inline-or prefix", async () => {
+    const { markdown, sourceSkills } = await ownerInputs();
+    const mutated = mutateRouteRow(markdown, "D13", (cells) => {
+      cells[2] = cells[2].replace("Inline or", "Executor or");
+      return cells;
+    });
+
+    expect(() => parseAgentRoutingPolicyOwner(mutated, sourceSkills)).toThrow(
+      /direct-route D13 clause 1 has malformed clause structure/i,
+    );
+  });
 });
 
 async function ownerInputs(): Promise<{
