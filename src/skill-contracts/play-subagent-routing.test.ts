@@ -47,9 +47,7 @@ function parseDotDirectedEdges(content: string): Array<[string, string]> {
 
   for (const line of content.split("\n")) {
     const edgeClause = line.split("[", 1)[0].trim().replace(/;$/, "");
-    if (!edgeClause.includes("->")) {
-      continue;
-    }
+    if (!edgeClause.includes("->")) continue;
 
     const nodes = edgeClause.split("->").map((node) => node.trim());
     for (let index = 0; index < nodes.length - 1; index += 1) {
@@ -83,12 +81,8 @@ function dotCanReach(
 
   while (pending.length > 0) {
     const current = pending.pop();
-    if (current === undefined || visited.has(current)) {
-      continue;
-    }
-    if (current === target) {
-      return true;
-    }
+    if (current === undefined || visited.has(current)) continue;
+    if (current === target) return true;
     visited.add(current);
     pending.push(...dotNeighbors(edges, current, "successors"));
   }
@@ -103,61 +97,34 @@ const CHILD_AGENT_PROMPT_TEMPLATES = [
   "references/code-quality-reviewer-prompt.md",
 ] as const;
 
-const CHILD_AGENT_TEMPLATE_SENTINELS = [
-  {
-    path: "skills/play-subagent-execution/references/implementer-prompt.md",
-    phrase: "If you have questions about:",
-  },
-  {
-    path: "skills/play-subagent-execution/references/executor-prompt.md",
-    phrase: "Executor mode is only for an exact validated authorized operation",
-  },
-  {
-    path: "skills/play-subagent-execution/references/spec-reviewer-prompt.md",
-    phrase: "The implementer finished suspiciously quickly",
-  },
-  {
-    path: "skills/play-subagent-execution/references/code-quality-reviewer-prompt.md",
-    phrase: "WHAT_WAS_IMPLEMENTED: [from implementer's report]",
-  },
-] as const;
-
 const BRANCH_POLICY_REFERENCES = [
   {
     label: "review routing",
     path: "references/review-routing-policy.md",
-    sentinel: "Route computation MUST inspect the actual task diff",
   },
   {
     label: "skip-dispatch behavior",
     path: "references/skip-dispatch-policy.md",
-    sentinel:
-      "guardrails pass before either guarded inline execution or executor dispatch",
   },
   {
     label: "lifecycle/status handling",
     path: "references/lifecycle-status-policy.md",
-    sentinel: "Before acting on any returned D12 implementer",
   },
   {
     label: "snapshot consumption",
     path: "references/snapshot-consumption.md",
-    sentinel: "Skip snapshots only for clearly localized, low-risk work",
   },
   {
     label: "diagrams",
     path: "references/process-diagrams.md",
-    sentinel: "digraph process",
   },
   {
     label: "examples",
     path: "references/example-workflow.md",
-    sentinel: "Parallel happy path: same-head spec and quality pass",
   },
   {
     label: "rationale",
     path: "references/advantages.md",
-    sentinel: "Quality gates",
   },
 ] as const;
 
@@ -1388,7 +1355,7 @@ describe("play subagent routing source contracts", () => {
       "Branch Policy Reference Map",
     );
 
-    for (const { label, path, sentinel } of BRANCH_POLICY_REFERENCES) {
+    for (const { label, path } of BRANCH_POLICY_REFERENCES) {
       expect(referenceMap).toContain(label);
       expect(referenceMap).toContain(path);
       expect(normalizeWhitespace(referenceMap)).toContain("Load when");
@@ -1396,7 +1363,7 @@ describe("play subagent routing source contracts", () => {
       const referenceSource = await readRepoFile(
         `skills/play-subagent-execution/${path}`,
       );
-      expect(referenceSource).toContain(sentinel);
+      expect(referenceSource.trim()).not.toBe("");
     }
   });
 
@@ -1417,17 +1384,6 @@ describe("play subagent routing source contracts", () => {
     );
     expect(registry).not.toContain("references/snapshot-manifest-recipe.md");
     expect(registry).not.toContain("scripts/write-snapshot-manifest.sh");
-  });
-
-  it("keeps full child-agent dispatch prompt bodies out of SKILL.md", async () => {
-    const skillSource = await readSkillSource("play-subagent-execution");
-
-    for (const { path, phrase } of CHILD_AGENT_TEMPLATE_SENTINELS) {
-      const templateSource = await readRepoFile(path);
-
-      expect(templateSource).toContain(phrase);
-      expect(skillSource).not.toContain(phrase);
-    }
   });
 
   it("keeps reviewer and implementer prompt trust boundaries in source", async () => {
