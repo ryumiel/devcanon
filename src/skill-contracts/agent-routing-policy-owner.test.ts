@@ -198,7 +198,7 @@ describe("agent routing and mutation policy owner", () => {
     });
 
     expect(() => parseAgentRoutingPolicyOwner(mutated, sourceSkills)).toThrow(
-      /direct-route D13 is missing a source authority dimension/i,
+      /direct-route D13 clause 1 is missing a source authority dimension/i,
     );
   });
 
@@ -211,6 +211,18 @@ describe("agent routing and mutation policy owner", () => {
 
     expect(() => parseAgentRoutingPolicyOwner(mutated, sourceSkills)).toThrow(
       /direct-route D17 effort has invalid closed value: ultra/i,
+    );
+  });
+
+  it("rejects a malformed role structure in one D17 clause", async () => {
+    const { markdown, sourceSkills } = await ownerInputs();
+    const mutated = mutateRouteRow(markdown, "D17", (cells) => {
+      cells[2] = cells[2].replace("`investigator`", "`investigator!`");
+      return cells;
+    });
+
+    expect(() => parseAgentRoutingPolicyOwner(mutated, sourceSkills)).toThrow(
+      /direct-route D17 clause 1 has a malformed role\/capability\/effort structure/i,
     );
   });
 });
