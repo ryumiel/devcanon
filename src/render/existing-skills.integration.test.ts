@@ -5,7 +5,9 @@ import { parse as parseYaml } from "yaml";
 import {
   type AgentRoutingDirectChildRouteRow,
   type AgentRoutingRouteClause,
+  type AgentSemanticRoleContract,
   readAgentRoutingPolicyOwner,
+  readAgentSemanticRoleOwner,
 } from "../__test-helpers__/agent-routing-policy.js";
 import {
   getSkillOutput,
@@ -62,17 +64,6 @@ const PUBLIC_EXPLICIT_PLAY_SKILLS = [
   "play-tdd",
   "play-verification",
 ] as const;
-
-interface SemanticRoleContract {
-  name: string;
-  capability: "efficient" | "balanced" | "frontier";
-  claudeEffort: AgentRoutingRouteClause["effort"];
-  codexEffort: AgentRoutingRouteClause["effort"];
-  sourceAuthority: string;
-  externalAuthority: string;
-  claudeTools: string[];
-  codexSandbox: string;
-}
 
 interface AgentSourceContract {
   name: string;
@@ -216,64 +207,6 @@ function expectPlaceholderLinesRendered(
   }
 }
 
-function markdownTableRows(markdown: string, heading: string): string[][] {
-  const sectionStart = markdown.indexOf(heading);
-  if (sectionStart === -1)
-    throw new Error(`Missing contract heading: ${heading}`);
-
-  const lines = markdown.slice(sectionStart + heading.length).split("\n");
-  const headerIndex = lines.findIndex((line) => line.startsWith("| Agent"));
-  if (headerIndex === -1) throw new Error(`Missing contract table: ${heading}`);
-
-  const rows: string[][] = [];
-  for (const line of lines.slice(headerIndex + 2)) {
-    if (!line.startsWith("|")) break;
-    rows.push(
-      line
-        .split("|")
-        .slice(1, -1)
-        .map((cell) => cell.trim()),
-    );
-  }
-  return rows;
-}
-
-function exactCodeToken(value: string, dimension: string): string {
-  const match = /^`([^`]+)`$/.exec(value);
-  if (!match) throw new Error(`${dimension} must be one exact code token`);
-  return match[1];
-}
-
-async function readSemanticRoleContracts(): Promise<SemanticRoleContract[]> {
-  const markdown = await readFile(
-    path.join(process.cwd(), "docs/specs/agents.md"),
-    "utf8",
-  );
-  const roleRows = markdownTableRows(markdown, "## Semantic role catalog");
-  const toolRows = new Map(
-    markdownTableRows(markdown, "### Tool and sandbox behavior").map((row) => [
-      exactCodeToken(row[0], "tool role"),
-      row,
-    ]),
-  );
-
-  return roleRows.map((row) => {
-    const name = exactCodeToken(row[0], "semantic role");
-    const tools = toolRows.get(name);
-    if (!tools) throw new Error(`Missing tool contract for ${name}`);
-    return {
-      name,
-      capability: row[1] as SemanticRoleContract["capability"],
-      claudeEffort: row[2] as SemanticRoleContract["claudeEffort"],
-      codexEffort: row[3] as SemanticRoleContract["codexEffort"],
-      sourceAuthority: exactCodeToken(row[4], `${name} source authority`),
-      externalAuthority: exactCodeToken(row[5], `${name} external authority`),
-      claudeTools: tools[1].split(",").map((tool) => tool.trim()),
-      codexSandbox: tools[2],
-    };
-  });
-}
-
 async function readAgentSources(): Promise<AgentSourceContract[]> {
   const agentsDir = path.join(process.cwd(), "agents");
   const files = (await readdir(agentsDir)).filter((entry) =>
@@ -288,7 +221,7 @@ async function readAgentSources(): Promise<AgentSourceContract[]> {
 
 function routeClausesForTarget(
   route: AgentRoutingDirectChildRouteRow,
-  roles: readonly SemanticRoleContract[],
+  roles: readonly AgentSemanticRoleContract[],
   target: "claude" | "codex",
 ): readonly AgentRoutingRouteClause[] {
   return route.id === "D4"
@@ -378,7 +311,7 @@ function clausePattern(clause: AgentRoutingRouteClause): RegExp {
 
 function renderedRouteEvidenceFailures(
   owner: RoutingOwner,
-  roles: readonly SemanticRoleContract[],
+  roles: readonly AgentSemanticRoleContract[],
   renderedBySkill: ReadonlyMap<string, string>,
   target: "claude" | "codex",
 ): string[] {
@@ -441,7 +374,7 @@ function renderedRouteEvidenceFailures(
 }
 
 function renderedAgentAligned(
-  role: SemanticRoleContract,
+  role: AgentSemanticRoleContract,
   source: AgentSourceContract,
   target: "claude" | "codex",
   parsed: ParsedRenderedAgent,
@@ -582,7 +515,7 @@ describe("existing skills render cleanly", () => {
       readAgentRoutingPolicyOwner(
         "docs/guidelines/agent-routing-and-mutation-policy.md",
       ),
-      readSemanticRoleContracts(),
+      readAgentSemanticRoleOwner(),
       readAgentSources(),
     ]);
     const { outputs } = await renderAll(config, false, true);
@@ -688,7 +621,7 @@ describe("existing skills render cleanly", () => {
       readAgentRoutingPolicyOwner(
         "docs/guidelines/agent-routing-and-mutation-policy.md",
       ),
-      readSemanticRoleContracts(),
+      readAgentSemanticRoleOwner(),
     ]);
     const { outputs } = await renderAll(config, false, true);
     const rendered = new Map(

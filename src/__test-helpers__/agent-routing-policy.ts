@@ -16,6 +16,34 @@ const ROUTE_HEADERS = [
   "Route",
   "Existing output / termination",
 ] as const;
+const SEMANTIC_ROLE_HEADING = "Semantic role catalog";
+const SEMANTIC_ROLE_HEADERS = [
+  "Agent",
+  "Capability",
+  "Claude effort",
+  "Codex effort",
+  "Source default",
+  "External default",
+  "Primary use",
+] as const;
+const TOOL_ENVELOPE_HEADING = "Tool and sandbox behavior";
+const TOOL_ENVELOPE_HEADERS = [
+  "Agent",
+  "Claude tools",
+  "Codex sandbox",
+  "Default network",
+] as const;
+const CLAUDE_TOOLS = [
+  "Read",
+  "Grep",
+  "Bash",
+  "Edit",
+  "Write",
+  "WebFetch",
+  "WebSearch",
+] as const;
+const CODEX_SANDBOXES = ["workspace-write"] as const;
+const DEFAULT_NETWORKS = ["None", "Dispatch-owned", "Task-owned"] as const;
 
 const DEMANDS = ["mechanical", "bounded", "inherited", "synthesis"] as const;
 const STANCES = ["normal", "adversarial"] as const;
@@ -58,6 +86,141 @@ export interface AgentRoutingRouteClause {
 export interface AgentRoutingPolicyOwner {
   readonly inventory: readonly AgentRoutingSkillInventoryRow[];
   readonly directChildRoutes: readonly AgentRoutingDirectChildRouteRow[];
+}
+
+export interface AgentSemanticRoleContract {
+  readonly name: string;
+  readonly capability: (typeof ROUTE_CAPABILITIES)[number];
+  readonly claudeEffort: (typeof ROUTE_EFFORTS)[number];
+  readonly codexEffort: (typeof ROUTE_EFFORTS)[number];
+  readonly sourceAuthority: SourceAuthority;
+  readonly externalAuthority: "none";
+  readonly primaryUse: string;
+  readonly claudeTools: readonly (typeof CLAUDE_TOOLS)[number][];
+  readonly codexSandbox: (typeof CODEX_SANDBOXES)[number];
+  readonly defaultNetwork: (typeof DEFAULT_NETWORKS)[number];
+}
+
+/** Reads the exact semantic-role and target-envelope owner in the agent spec. */
+export async function readAgentSemanticRoleOwner(
+  ownerRelativePath = "docs/specs/agents.md",
+): Promise<readonly AgentSemanticRoleContract[]> {
+  const ownerPath = resolveRepositoryRelativePath(ownerRelativePath);
+  let markdown: string;
+  try {
+    markdown = await readFile(ownerPath, "utf8");
+  } catch (error) {
+    throw new Error(
+      `Agent spec owner file is not readable: ${ownerRelativePath}`,
+      {
+        cause: error,
+      },
+    );
+  }
+  return parseAgentSemanticRoleOwner(markdown);
+}
+
+/** Pure parsing seam for focused agent-spec owner-integrity mutations. */
+export function parseAgentSemanticRoleOwner(
+  markdown: string,
+): readonly AgentSemanticRoleContract[] {
+  const roleRows = parseAgentSpecTable(
+    markdown,
+    "##",
+    SEMANTIC_ROLE_HEADING,
+    SEMANTIC_ROLE_HEADERS,
+    "semantic-role",
+  );
+  const toolRows = parseAgentSpecTable(
+    markdown,
+    "###",
+    TOOL_ENVELOPE_HEADING,
+    TOOL_ENVELOPE_HEADERS,
+    "tool-envelope",
+  );
+  const roles = roleRows.map((row, index) => ({
+    name: exactCodeRole(row[0], `semantic-role identity at row ${index + 1}`),
+    capability: closedValue(
+      row[1],
+      ROUTE_CAPABILITIES,
+      "semantic-role capability",
+    ),
+    claudeEffort: closedValue(
+      row[2],
+      ROUTE_EFFORTS,
+      "semantic-role Claude effort",
+    ),
+    codexEffort: closedValue(
+      row[3],
+      ROUTE_EFFORTS,
+      "semantic-role Codex effort",
+    ),
+    sourceAuthority: exactCodeClosedValue(
+      row[4],
+      SOURCE_AUTHORITIES,
+      "semantic-role source authority",
+    ),
+    externalAuthority: exactCodeClosedValue(
+      row[5],
+      ["none"] as const,
+      "semantic-role external authority",
+    ),
+    primaryUse: row[6],
+  }));
+  const envelopes = toolRows.map((row, index) => ({
+    name: exactCodeRole(row[0], `tool-envelope identity at row ${index + 1}`),
+    claudeTools: row[1]
+      .split(",")
+      .map((tool) =>
+        closedValue(tool.trim(), CLAUDE_TOOLS, "tool-envelope Claude tool"),
+      ),
+    codexSandbox: closedValue(
+      row[2],
+      CODEX_SANDBOXES,
+      "tool-envelope Codex sandbox",
+    ),
+    defaultNetwork: closedValue(
+      row[3],
+      DEFAULT_NETWORKS,
+      "tool-envelope default network",
+    ),
+  }));
+
+  for (const envelope of envelopes) {
+    assertUnique(
+      envelope.claudeTools,
+      `Claude tool in the ${envelope.name} tool envelope`,
+    );
+  }
+
+  assertUnique(
+    roles.map((role) => role.name),
+    "semantic-role identity",
+  );
+  assertUnique(
+    envelopes.map((role) => role.name),
+    "tool-envelope identity",
+  );
+  if (roles.length !== 6) {
+    throw new Error(
+      `Agent spec semantic-role catalog must contain exactly six rows: ${roles.length}`,
+    );
+  }
+  assertExactIdentitySet(
+    envelopes.map((role) => role.name),
+    roles.map((role) => role.name),
+    "tool-envelope and semantic-role",
+  );
+
+  const envelopesByName = new Map(envelopes.map((row) => [row.name, row]));
+  return roles.map((role) => {
+    const envelope = envelopesByName.get(role.name);
+    if (!envelope)
+      throw new Error(
+        `Agent spec is missing the tool envelope for ${role.name}`,
+      );
+    return { ...role, ...envelope };
+  });
 }
 
 /** Reads and validates the Markdown owner used by primary-layer contract tests. */
@@ -221,6 +384,64 @@ function parseOwnedTable(
   });
 }
 
+function parseAgentSpecTable(
+  markdown: string,
+  headingLevel: "##" | "###",
+  heading: string,
+  expectedHeaders: readonly string[],
+  dimension: string,
+): readonly (readonly string[])[] {
+  const escapedHeading = heading.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const matches = [
+    ...markdown.matchAll(
+      new RegExp(`^${headingLevel} ${escapedHeading}\\s*$`, "gm"),
+    ),
+  ];
+  if (matches.length !== 1) {
+    throw new Error(
+      `Agent spec ${dimension} heading must appear exactly once: ${heading}`,
+    );
+  }
+  const start = (matches[0].index ?? 0) + matches[0][0].length;
+  const rest = markdown.slice(start);
+  const nextHeading = rest.search(/^#{1,3} /m);
+  const section = nextHeading === -1 ? rest : rest.slice(0, nextHeading);
+  const lines = section.split(/\r?\n/).map((line) => line.trim());
+  const tableStart = lines.findIndex((line) => line.startsWith("|"));
+  const candidates = tableStart === -1 ? [] : lines.slice(tableStart);
+  const tableEnd = candidates.findIndex((line) => !line.startsWith("|"));
+  const tableLines = candidates.slice(
+    0,
+    tableEnd === -1 ? candidates.length : tableEnd,
+  );
+  if (tableLines.length < 3) {
+    throw new Error(`Agent spec ${dimension} table is empty`);
+  }
+  const headers = splitTableRow(tableLines[0]);
+  if (!sameValues(headers, expectedHeaders)) {
+    throw new Error(
+      `Agent spec ${dimension} headers must be: ${expectedHeaders.join(" | ")}`,
+    );
+  }
+  const divider = splitTableRow(tableLines[1]);
+  if (
+    divider.length !== expectedHeaders.length ||
+    !divider.every((cell) => /^:?-{3,}:?$/.test(cell))
+  ) {
+    throw new Error(`Agent spec ${dimension} table divider is malformed`);
+  }
+  return tableLines.slice(2).map((line, index) => {
+    const cells = splitTableRow(line);
+    if (
+      cells.length !== expectedHeaders.length ||
+      cells.some((cell) => !cell)
+    ) {
+      throw new Error(`Agent spec ${dimension} row ${index + 1} is malformed`);
+    }
+    return cells;
+  });
+}
+
 function splitTableRow(line: string): readonly string[] {
   return line
     .slice(1, line.endsWith("|") ? -1 : undefined)
@@ -325,6 +546,13 @@ function parseRouteClauses(
 ): readonly AgentRoutingRouteClause[] {
   const clauses = route.split(";").map((clause) => clause.trim());
 
+  const requiredMultiplicity = id === "D17" ? 3 : 1;
+  if (clauses.length !== requiredMultiplicity) {
+    throw new Error(
+      `Agent routing policy owner direct-route ${id} must contain exactly ${requiredMultiplicity} route clause${requiredMultiplicity === 1 ? "" : "s"}`,
+    );
+  }
+
   return clauses.map((clause, index) => {
     const tuple = ROUTE_CLAUSE_PATTERN.exec(clause);
     if (!tuple && ROUTE_CLAUSE_WITHOUT_SOURCE_PATTERN.test(clause)) {
@@ -401,6 +629,45 @@ function assertUnique(values: readonly string[], dimension: string): void {
       `Agent routing policy owner duplicate ${dimension}: ${[...new Set(duplicates)].join(", ")}`,
     );
   }
+}
+
+function assertExactIdentitySet(
+  actual: readonly string[],
+  expected: readonly string[],
+  dimension: string,
+): void {
+  const actualSet = new Set(actual);
+  const missing = expected.filter((value) => !actualSet.has(value));
+  const unexpected = actual.filter((value) => !expected.includes(value));
+  if (missing.length > 0 || unexpected.length > 0) {
+    throw new Error(
+      `Agent spec ${dimension} identities must match exactly; missing: ${missing.join(", ") || "none"}; unexpected: ${unexpected.join(", ") || "none"}`,
+    );
+  }
+}
+
+function exactCodeClosedValue<const Values extends readonly string[]>(
+  value: string,
+  allowed: Values,
+  dimension: string,
+): Values[number] {
+  const match = /^`([^`]+)`$/.exec(value);
+  if (!match) {
+    throw new Error(
+      `Agent spec ${dimension} must be one exact code token: ${value}`,
+    );
+  }
+  return closedValue(match[1], allowed, dimension);
+}
+
+function exactCodeRole(value: string, dimension: string): string {
+  const match = /^`([a-z][a-z0-9-]*)`$/.exec(value);
+  if (!match) {
+    throw new Error(
+      `Agent spec ${dimension} must be one exact backticked role token: ${value}`,
+    );
+  }
+  return match[1];
 }
 
 function closedValue<const Values extends readonly string[]>(

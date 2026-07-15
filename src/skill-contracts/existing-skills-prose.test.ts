@@ -5,7 +5,12 @@ import path from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
 import { parse as parseYaml } from "yaml";
-import { readAgentRoutingPolicyOwner } from "../__test-helpers__/agent-routing-policy.js";
+import {
+  type AgentRoutingDirectChildRouteRow,
+  type AgentSemanticRoleContract,
+  readAgentRoutingPolicyOwner,
+  readAgentSemanticRoleOwner,
+} from "../__test-helpers__/agent-routing-policy.js";
 import { cleanupTempDir } from "../__test-helpers__/fixtures.js";
 import { getSkillOutput } from "../__test-helpers__/render.js";
 import {
@@ -102,25 +107,6 @@ interface AgentSourceContract {
   codex: { model_reasoning_effort: string; sandbox_mode: string };
 }
 
-interface SemanticRoleSpecContract {
-  name: string;
-  capability: string;
-  claudeEffort: string;
-  codexEffort: string;
-  sourceAuthority: string;
-  externalAuthority: string;
-  claudeTools: string[];
-  codexSandbox: string;
-}
-
-interface RouteContract {
-  id: `D${number}`;
-  route: string;
-}
-
-const ROUTE_TUPLE_PATTERN =
-  /^(?:(?:[A-Za-z][A-Za-z -]{0,38}:|Inline or)\s+)?`([a-z][a-z0-9-]*)`,\s*([a-z][a-z-]*)\/([a-z][a-z0-9-]*),\s*(source-[^,;\s]+)(?:,\s*[A-Za-z][A-Za-z -]{0,38})?$/;
-
 function markdownTableRows(section: string): string[][] {
   const lines = section.split("\n");
   const headerIndex = lines.findIndex((line) => line.startsWith("|"));
@@ -139,71 +125,6 @@ function markdownTableRows(section: string): string[][] {
   return rows;
 }
 
-function semanticRoleSpecContracts(
-  agentSpec: string,
-): SemanticRoleSpecContract[] {
-  const roleRows = markdownTableRows(
-    getMarkdownSection(agentSpec, "Semantic role catalog"),
-  );
-  const roleNames = roleRows.map((row) =>
-    exactBacktickedRole(row[0], "semantic role identity"),
-  );
-  if (new Set(roleNames).size !== roleNames.length) {
-    throw new Error("Agent spec semantic role identities must be unique");
-  }
-  const rawToolRows = markdownTableRows(
-    sliceBetween(
-      agentSpec,
-      "### Tool and sandbox behavior",
-      "### Render and runtime acceptance",
-    ),
-  );
-  const toolRows = new Map(
-    rawToolRows.map((row) => [
-      exactBacktickedRole(row[0], "tool-envelope role identity"),
-      row,
-    ]),
-  );
-  if (toolRows.size !== rawToolRows.length) {
-    throw new Error("Agent spec tool-envelope role identities must be unique");
-  }
-  if (
-    JSON.stringify([...toolRows.keys()].sort()) !==
-    JSON.stringify([...roleNames].sort())
-  ) {
-    throw new Error(
-      "Agent spec tool-envelope identities must exactly equal semantic role identities",
-    );
-  }
-
-  return roleRows.map((row, index) => {
-    const name = roleNames[index];
-    const toolRow = toolRows.get(name);
-    if (!toolRow) {
-      throw new Error(`Agent spec is missing the tool envelope for ${name}`);
-    }
-
-    return {
-      name,
-      capability: row[1],
-      claudeEffort: row[2],
-      codexEffort: row[3],
-      sourceAuthority: exactBacktickedClosedValue(
-        row[4],
-        ["source-immutable", "source-mutable"],
-        `${name} source authority`,
-      ),
-      externalAuthority: exactBacktickedClosedValue(
-        row[5],
-        ["none"],
-        `${name} external authority`,
-      ),
-      claudeTools: toolRow[1].split(",").map((tool) => tool.trim()),
-      codexSandbox: toolRow[2],
-    };
-  });
-}
-
 function exactBacktickedRole(value: string, dimension: string): string {
   const match = /^`([a-z][a-z0-9-]*)`$/.exec(value);
   if (!match) {
@@ -214,57 +135,30 @@ function exactBacktickedRole(value: string, dimension: string): string {
   return match[1];
 }
 
-function exactBacktickedClosedValue(
-  value: string,
-  allowed: readonly string[],
-  dimension: string,
-): string {
-  const match = /^`([^`]+)`$/.exec(value);
-  if (!match || !allowed.includes(match[1])) {
-    throw new Error(
-      `Agent spec ${dimension} must be one exact backticked closed value: ${value}`,
-    );
-  }
-  return match[1];
-}
-
 function routeSpecAlignmentErrors(
-  row: RouteContract,
-  rolesByName: ReadonlyMap<string, SemanticRoleSpecContract>,
+  row: AgentRoutingDirectChildRouteRow,
+  rolesByName: ReadonlyMap<string, AgentSemanticRoleContract>,
 ): string[] {
   if (row.id === "D4") return [];
 
   const errors: string[] = [];
-  const clauses = row.route.split(";").map((clause) => clause.trim());
-  const requiredMultiplicity = row.id === "D17" ? 3 : 1;
-  if (clauses.length !== requiredMultiplicity) {
-    errors.push(`${row.id}:multiplicity`);
-  }
-  const tuples = clauses.flatMap((clause) => {
-    const match = ROUTE_TUPLE_PATTERN.exec(clause);
-    return match ? [match] : [];
-  });
-  if (tuples.length !== clauses.length) {
-    errors.push(`${row.id}:tuple-count`);
-  }
-
-  for (const [, roleName, capability, effort, sourceAuthority] of tuples) {
-    const role = rolesByName.get(roleName);
+  for (const clause of row.clauses) {
+    const role = rolesByName.get(clause.role);
     if (!role) {
-      errors.push(`${row.id}:${roleName}:identity`);
+      errors.push(`${row.id}:${clause.role}:identity`);
       continue;
     }
-    if (capability !== role.capability) {
-      errors.push(`${row.id}:${roleName}:capability`);
+    if (clause.capability !== role.capability) {
+      errors.push(`${row.id}:${clause.role}:capability`);
     }
-    if (effort !== role.claudeEffort) {
-      errors.push(`${row.id}:${roleName}:claude-effort`);
+    if (clause.effort !== role.claudeEffort) {
+      errors.push(`${row.id}:${clause.role}:claude-effort`);
     }
-    if (effort !== role.codexEffort) {
-      errors.push(`${row.id}:${roleName}:codex-effort`);
+    if (clause.effort !== role.codexEffort) {
+      errors.push(`${row.id}:${clause.role}:codex-effort`);
     }
-    if (sourceAuthority !== role.sourceAuthority) {
-      errors.push(`${row.id}:${roleName}:source-authority`);
+    if (clause.sourceAuthority !== role.sourceAuthority) {
+      errors.push(`${row.id}:${clause.role}:source-authority`);
     }
   }
 
@@ -272,7 +166,7 @@ function routeSpecAlignmentErrors(
 }
 
 function agentSourceAlignmentErrors(
-  role: SemanticRoleSpecContract,
+  role: AgentSemanticRoleContract,
   source: AgentSourceContract,
 ): string[] {
   const errors: string[] = [];
@@ -5091,8 +4985,7 @@ describe("existing skills source prose contracts", () => {
     const owner = await readAgentRoutingPolicyOwner(
       "docs/guidelines/agent-routing-and-mutation-policy.md",
     );
-    const agentSpec = await readRepoFile("docs/specs/agents.md");
-    const roles = semanticRoleSpecContracts(agentSpec);
+    const roles = await readAgentSemanticRoleOwner();
     const rolesByName = new Map(roles.map((role) => [role.name, role]));
 
     expect(owner.inventory.length).toBeGreaterThan(0);
@@ -5178,9 +5071,7 @@ describe("existing skills source prose contracts", () => {
   });
 
   it("detects a one-field semantic agent source drift", async () => {
-    const roles = semanticRoleSpecContracts(
-      await readRepoFile("docs/specs/agents.md"),
-    );
+    const roles = await readAgentSemanticRoleOwner();
     const role = roles.find(({ name }) => name === "implementer");
     expect(role).toBeDefined();
     if (!role) return;
@@ -5196,60 +5087,11 @@ describe("existing skills source prose contracts", () => {
     ]);
   });
 
-  it("rejects a malformed spec role identity without normalizing it", async () => {
-    const agentSpec = await readRepoFile("docs/specs/agents.md");
-    const malformedIdentity = agentSpec.replace(
-      "| `assessor`      | balanced",
-      "| `ass`essor`     | balanced",
-    );
-
-    expect(() => semanticRoleSpecContracts(malformedIdentity)).toThrow(
-      /semantic role identity must be one exact backticked role token/i,
-    );
-  });
-
-  it("rejects an extra tool-envelope identity outside the role catalog", async () => {
-    const agentSpec = await readRepoFile("docs/specs/agents.md");
-    const extraToolEnvelope = agentSpec.replace(
-      /(^\| `assessor`\s+\| Read, Grep, Bash, Write\s+\| workspace-write \| None\s+\|$)/m,
-      "$1\n| `observer`      | Read                                         | workspace-write | None            |",
-    );
-
-    expect(() => semanticRoleSpecContracts(extraToolEnvelope)).toThrow(
-      /tool-envelope identities must exactly equal semantic role identities/i,
-    );
-  });
-
-  it("rejects deletion of one complete D17 route clause", async () => {
+  it("reconciles typed owner clauses with both target efforts", async () => {
     const owner = await readAgentRoutingPolicyOwner(
       "docs/guidelines/agent-routing-and-mutation-policy.md",
     );
-    const roles = semanticRoleSpecContracts(
-      await readRepoFile("docs/specs/agents.md"),
-    );
-    const d17 = owner.directChildRoutes.find((row) => row.id === "D17");
-    expect(d17).toBeDefined();
-    if (!d17) return;
-
-    const missingOnePath = {
-      ...d17,
-      route: d17.route.split(";").slice(0, -1).join(";"),
-    };
-    expect(
-      routeSpecAlignmentErrors(
-        missingOnePath,
-        new Map(roles.map((role) => [role.name, role])),
-      ),
-    ).toEqual(["D17:multiplicity"]);
-  });
-
-  it("reconciles owner-valid route whitespace and both target efforts", async () => {
-    const owner = await readAgentRoutingPolicyOwner(
-      "docs/guidelines/agent-routing-and-mutation-policy.md",
-    );
-    const roles = semanticRoleSpecContracts(
-      await readRepoFile("docs/specs/agents.md"),
-    );
+    const roles = await readAgentSemanticRoleOwner();
     const rolesByName = new Map(roles.map((role) => [role.name, role]));
     const route = owner.directChildRoutes.find((row) =>
       row.route.includes("`implementer`"),
@@ -5259,13 +5101,7 @@ describe("existing skills source prose contracts", () => {
     expect(implementer).toBeDefined();
     if (!route || !implementer) return;
 
-    const ownerValidWhitespace = {
-      ...route,
-      route: route.route.replace(", balanced/", ",   balanced/"),
-    };
-    expect(routeSpecAlignmentErrors(ownerValidWhitespace, rolesByName)).toEqual(
-      [],
-    );
+    expect(routeSpecAlignmentErrors(route, rolesByName)).toEqual([]);
 
     const codexEffortDrift = new Map(rolesByName);
     codexEffortDrift.set("implementer", {
