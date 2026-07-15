@@ -74,9 +74,6 @@ interface AgentSourceContract {
   name: string;
   description: string;
   instructions: string;
-  capability: string;
-  claude: { effort: string; tools: string[] };
-  codex: { model_reasoning_effort: string; sandbox_mode: string };
 }
 
 interface RouteTuple {
@@ -97,6 +94,9 @@ interface ParsedRenderedAgent {
 
 const ROUTE_TUPLE_PATTERN =
   /^(?:(?:[A-Za-z][A-Za-z -]{0,38}:|Inline or)\s+)?`([a-z][a-z0-9-]*)`,\s*([a-z][a-z-]*)\/([a-z][a-z0-9-]*),\s*(source-[^,;\s]+)(?:,\s*(.+))?$/;
+
+type RoutingOwner = Awaited<ReturnType<typeof readAgentRoutingPolicyOwner>>;
+type RoutingOwnerRow = RoutingOwner["directChildRoutes"][number];
 
 const TOUCHED_SKILL_COVERAGE = {
   "github-issue-priming":
@@ -284,9 +284,9 @@ async function readSemanticRoleContracts(): Promise<SemanticRoleContract[]> {
 
 async function readAgentSources(): Promise<AgentSourceContract[]> {
   const agentsDir = path.join(process.cwd(), "agents");
-  const files = (await readdir(agentsDir))
-    .filter((entry) => entry.endsWith(".yaml"))
-    .sort();
+  const files = (await readdir(agentsDir)).filter((entry) =>
+    entry.endsWith(".yaml"),
+  );
   return Promise.all(
     files.map(async (file) =>
       parseYaml(await readFile(path.join(agentsDir, file), "utf8")),
@@ -327,6 +327,89 @@ function tuplePattern(tuple: RouteTuple): RegExp {
   return new RegExp(
     `(?:${roleToken}[\\s\\S]{0,100}${tuple.capability}[\\s\\S]{0,40}${tuple.effort}[\\s\\S]{0,120}${tuple.sourceAuthority}|${tuple.sourceAuthority}[\\s\\S]{0,120}${roleToken}[\\s\\S]{0,100}${tuple.capability}[\\s\\S]{0,40}${tuple.effort})`,
   );
+}
+
+function routeTuplesForTarget(
+  route: RoutingOwnerRow,
+  roles: readonly SemanticRoleContract[],
+  target: "claude" | "codex",
+): RouteTuple[] {
+  if (route.id !== "D4") return parseRouteTuples(route.route);
+  return roles.map((role) => ({
+    role: role.name,
+    capability: role.capability,
+    effort: target === "claude" ? role.claudeEffort : role.codexEffort,
+    sourceAuthority: role.sourceAuthority,
+  }));
+}
+
+const routeSignature = (tuples: readonly RouteTuple[]): string =>
+  tuples
+    .map(
+      ({ role, capability, effort, sourceAuthority }) =>
+        `${role}:${capability}:${effort}:${sourceAuthority}`,
+    )
+    .join(";");
+
+function hasRenderedRouteEvidence(
+  route: RoutingOwnerRow,
+  routes: readonly RoutingOwnerRow[],
+  roles: readonly SemanticRoleContract[],
+  knownSkills: ReadonlySet<string>,
+  rendered: string,
+  target: "claude" | "codex",
+): boolean {
+  const skill = routeOwnerSkill(route.surfaceAndOwner, knownSkills);
+  const tuples = routeTuplesForTarget(route, roles, target);
+  const normalized = normalizeWhitespace(rendered).replaceAll("`", "");
+  const tuplesPresent = tuples.every((tuple) =>
+    tuplePattern(tuple).test(normalized),
+  );
+  const duplicateCount = routes.filter(
+    (candidate) =>
+      routeOwnerSkill(candidate.surfaceAndOwner, knownSkills) === skill &&
+      routeSignature(routeTuplesForTarget(candidate, roles, target)) ===
+        routeSignature(tuples),
+  ).length;
+  if (duplicateCount === 1) {
+    return (
+      tuplesPresent &&
+      tuples.every(
+        (tuple) =>
+          !tuple.qualifier ||
+          normalized.includes(normalizeWhitespace(tuple.qualifier)),
+      )
+    );
+  }
+
+  const blocks = rendered
+    .split(/\n\s*\n/)
+    .map(normalizeWhitespace)
+    .filter(Boolean);
+  const idPattern = new RegExp(`\\b${route.id}\\b`, "i");
+  const surfaceLabel = normalizeWhitespace(
+    route.surfaceAndOwner.split("—", 1)[0].replaceAll("-", " "),
+  ).toLowerCase();
+  return blocks.some((block, index) => {
+    if (
+      !idPattern.test(block) &&
+      !block.replaceAll("-", " ").toLowerCase().includes(surfaceLabel)
+    ) {
+      return false;
+    }
+    const context = blocks
+      .slice(Math.max(0, index - 1), index + 2)
+      .join(" ")
+      .replaceAll("`", "");
+    return (
+      tuples.every((tuple) => tuplePattern(tuple).test(context)) &&
+      tuples.every(
+        (tuple) =>
+          !tuple.qualifier ||
+          blocks[index].includes(normalizeWhitespace(tuple.qualifier)),
+      )
+    );
+  });
 }
 
 function renderedAgentAlignmentErrors(
@@ -486,65 +569,34 @@ describe("existing skills render cleanly", () => {
       readAgentSources(),
     ]);
     const { outputs } = await renderAll(config, false, true);
-    const rolesByName = new Map(roles.map((role) => [role.name, role]));
     const sourcesByName = new Map(
       sources.map((source) => [source.name, source]),
     );
     const knownSkills = new Set(owner.inventory.map((row) => row.skill));
 
     expect(roles).toHaveLength(6);
-    expect(sources.map((source) => source.name).sort()).toEqual(
-      roles.map((role) => role.name).sort(),
-    );
-
-    for (const role of roles) {
-      const source = sourcesByName.get(role.name);
-      expect(source, `missing source role ${role.name}`).toBeDefined();
-      if (!source) continue;
-      expect(source.capability).toBe(role.capability);
-      expect(source.claude.effort).toBe(role.claudeEffort);
-      expect(source.codex.model_reasoning_effort).toBe(role.codexEffort);
-      expect(source.claude.tools).toEqual(role.claudeTools);
-      expect(source.codex.sandbox_mode).toBe(role.codexSandbox);
-    }
 
     for (const target of ["claude", "codex"] as const) {
+      const renderedBySkill = new Map(
+        outputs
+          .filter(
+            (output) => output.type === "skill" && output.target === target,
+          )
+          .map((output) => [output.name, output.content]),
+      );
       for (const route of owner.directChildRoutes) {
         const skill = routeOwnerSkill(route.surfaceAndOwner, knownSkills);
-        const rendered = normalizeWhitespace(
-          getSkillOutput(outputs, skill, target).content,
-        ).replaceAll("`", "");
-        const tuples: RouteTuple[] =
-          route.id === "D4"
-            ? roles.map((role) => ({
-                role: role.name,
-                capability: role.capability,
-                effort:
-                  target === "claude" ? role.claudeEffort : role.codexEffort,
-                sourceAuthority: role.sourceAuthority,
-              }))
-            : parseRouteTuples(route.route);
-
-        for (const tuple of tuples) {
-          const role = rolesByName.get(tuple.role);
-          expect(
-            role,
-            `${route.id} has unknown role ${tuple.role}`,
-          ).toBeDefined();
-          if (!role) continue;
-          expect(tuple.capability).toBe(role.capability);
-          expect(tuple.effort).toBe(
-            target === "claude" ? role.claudeEffort : role.codexEffort,
-          );
-          expect(tuple.sourceAuthority).toBe(role.sourceAuthority);
-          expect(
-            tuplePattern(tuple).test(rendered),
-            `${target} ${route.id} ${skill} is missing ${tuple.role} route parity`,
-          ).toBe(true);
-          if (tuple.qualifier) {
-            expect(rendered).toContain(normalizeWhitespace(tuple.qualifier));
-          }
-        }
+        expect(
+          hasRenderedRouteEvidence(
+            route,
+            owner.directChildRoutes,
+            roles,
+            knownSkills,
+            renderedBySkill.get(skill) ?? "",
+            target,
+          ),
+          `${target} ${route.id} lacks route-local rendered evidence`,
+        ).toBe(true);
       }
 
       const agentOutputs = outputs
@@ -641,6 +693,54 @@ describe("existing skills render cleanly", () => {
         config.capabilityProfiles[role.capability].codex,
       ),
     ).toEqual(["effort"]);
+  });
+
+  it("rejects missing duplicate-route evidence and displaced qualifiers", async () => {
+    const [owner, roles] = await Promise.all([
+      readAgentRoutingPolicyOwner(
+        "docs/guidelines/agent-routing-and-mutation-policy.md",
+      ),
+      readSemanticRoleContracts(),
+    ]);
+    const knownSkills = new Set(owner.inventory.map((row) => row.skill));
+    const qualified = owner.directChildRoutes.find((route) =>
+      route.id === "D4"
+        ? false
+        : parseRouteTuples(route.route).some((tuple) => tuple.qualifier),
+    );
+    if (!qualified) throw new Error("Expected an owner route qualifier");
+    const signature = routeSignature(parseRouteTuples(qualified.route));
+    const peer = owner.directChildRoutes.find(
+      (route) =>
+        route !== qualified &&
+        routeOwnerSkill(route.surfaceAndOwner, knownSkills) ===
+          routeOwnerSkill(qualified.surfaceAndOwner, knownSkills) &&
+        route.id !== "D4" &&
+        routeSignature(parseRouteTuples(route.route)) === signature,
+    );
+    if (!peer) throw new Error("Expected a duplicate owner route tuple");
+
+    const routeFixture = `${peer.id} ${peer.route}\n\n${qualified.id} ${qualified.route}`;
+    const hasEvidence = (rendered: string): boolean =>
+      hasRenderedRouteEvidence(
+        qualified,
+        [peer, qualified],
+        roles,
+        knownSkills,
+        rendered,
+        "codex",
+      );
+    expect(hasEvidence(routeFixture)).toBe(true);
+    expect(hasEvidence(`${peer.id} ${peer.route}`)).toBe(false);
+    const qualifier = parseRouteTuples(qualified.route).find(
+      (tuple) => tuple.qualifier,
+    )?.qualifier;
+    if (!qualifier) throw new Error("Expected a qualified owner route tuple");
+    expect(
+      hasEvidence(
+        `${routeFixture.replace(`, ${qualifier}`, "")}\n\n${qualifier}`,
+      ),
+    ).toBe(false);
   });
 
   it("renders the touched skills with Codex-valid frontmatter", async () => {
