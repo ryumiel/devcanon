@@ -3,6 +3,13 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { parse as parseYaml } from "yaml";
 import {
+  type AgentRoutingDirectChildRouteRow,
+  type AgentRoutingRouteClause,
+  type AgentSemanticRoleContract,
+  readAgentRoutingPolicyOwner,
+  readAgentSemanticRoleOwner,
+} from "../__test-helpers__/agent-routing-policy.js";
+import {
   getSkillOutput,
   listRelativeFiles,
   normalizeWhitespace,
@@ -58,277 +65,21 @@ const PUBLIC_EXPLICIT_PLAY_SKILLS = [
   "play-verification",
 ] as const;
 
-const SEMANTIC_ROLE_RENDER_CONTRACTS = {
-  assessor: {
-    capability: "balanced",
-    effort: "medium",
-    sourceAuthority: "source-immutable",
-  },
-  investigator: {
-    capability: "balanced",
-    effort: "high",
-    sourceAuthority: "source-immutable",
-  },
-  executor: {
-    capability: "efficient",
-    effort: "medium",
-    sourceAuthority: "source-mutable",
-  },
-  implementer: {
-    capability: "balanced",
-    effort: "high",
-    sourceAuthority: "source-mutable",
-  },
-  reviewer: {
-    capability: "frontier",
-    effort: "high",
-    sourceAuthority: "source-immutable",
-  },
-  "deep-reviewer": {
-    capability: "frontier",
-    effort: "xhigh",
-    sourceAuthority: "source-immutable",
-  },
-} as const;
-
-type SemanticRoleName = keyof typeof SEMANTIC_ROLE_RENDER_CONTRACTS;
-
-interface RenderedRouteCheck {
-  anchor: string;
-  tupleAnchor?: string;
-  localTokens?: readonly string[];
-  localEnd?: string;
-  roles: readonly SemanticRoleName[];
-  before?: number;
-  after?: number;
+interface AgentSourceContract {
+  name: string;
+  description: string;
+  instructions: string;
 }
 
-interface RenderedRouteContract {
-  skill: string;
-  checks: readonly RenderedRouteCheck[];
+interface ParsedRenderedAgent {
+  name: unknown;
+  description: unknown;
+  model: unknown;
+  effort: unknown;
+  instructions: string;
 }
 
-type RenderedRouteId =
-  | "D1"
-  | "D2"
-  | "D3"
-  | "D4"
-  | "D5"
-  | "D6"
-  | "D7"
-  | "D8"
-  | "D9"
-  | "D10"
-  | "D11"
-  | "D12"
-  | "D13"
-  | "D14"
-  | "D15"
-  | "D16"
-  | "D17";
-
-const RENDERED_ROUTE_CONTRACTS = {
-  D1: {
-    skill: "issue-priming-workflow",
-    checks: [
-      {
-        anchor: "## Phase 2: Complexity Gate",
-        roles: ["assessor"],
-        after: 900,
-      },
-    ],
-  },
-  D2: {
-    skill: "issue-priming-workflow",
-    checks: [
-      {
-        anchor: "Internal research receives external",
-        tupleAnchor: "Each route is a response-only `investigator`",
-        localTokens: ["external authority `none`", "no network access"],
-        localEnd: ".",
-        roles: ["investigator"],
-        after: 300,
-      },
-    ],
-  },
-  D3: {
-    skill: "issue-priming-workflow",
-    checks: [
-      {
-        anchor: "External research also receives",
-        tupleAnchor: "Each route is a response-only `investigator`",
-        localTokens: [
-          "named network access",
-          "one root-curated external question",
-        ],
-        localEnd: ".",
-        roles: ["investigator"],
-        after: 300,
-      },
-    ],
-  },
-  D4: {
-    skill: "play-agent-dispatch",
-    checks: [
-      {
-        anchor: "### Semantic Route Contract",
-        roles: Object.keys(
-          SEMANTIC_ROLE_RENDER_CONTRACTS,
-        ) as SemanticRoleName[],
-        after: 1900,
-      },
-    ],
-  },
-  D5: {
-    skill: "play-planning",
-    checks: [{ anchor: "## Plan Review", roles: ["reviewer"], after: 700 }],
-  },
-  D6: {
-    skill: "play-planning",
-    checks: [
-      {
-        anchor: "## Implementer Executability Review",
-        roles: ["reviewer"],
-        after: 850,
-      },
-    ],
-  },
-  D7: {
-    skill: "play-review",
-    checks: [
-      {
-        anchor: "| D7 `Code-quality`",
-        tupleAnchor:
-          "Each selected topical route is an independent response-only `reviewer`",
-        localTokens: ["capture D7", "spawn D7"],
-        localEnd: "\n",
-        roles: ["reviewer"],
-        after: 300,
-      },
-    ],
-  },
-  D8: {
-    skill: "play-review",
-    checks: [
-      {
-        anchor: "| D8 `Architecture`",
-        tupleAnchor:
-          "Each selected topical route is an independent response-only `reviewer`",
-        localTokens: ["capture D8", "spawn D8"],
-        localEnd: "\n",
-        roles: ["reviewer"],
-        after: 300,
-      },
-    ],
-  },
-  D9: {
-    skill: "play-review",
-    checks: [
-      {
-        anchor: "| D9 `Spec`",
-        tupleAnchor:
-          "Each selected topical route is an independent response-only `reviewer`",
-        localTokens: ["capture D9", "spawn D9"],
-        localEnd: "\n",
-        roles: ["reviewer"],
-        after: 300,
-      },
-    ],
-  },
-  D10: {
-    skill: "play-review",
-    checks: [
-      {
-        anchor: "## Phase 5: Critic verification",
-        roles: ["deep-reviewer"],
-        after: 900,
-      },
-    ],
-  },
-  D11: {
-    skill: "play-skill-authoring",
-    checks: [
-      {
-        anchor: "## Pressure-Scenario Evaluator Contract",
-        roles: ["assessor"],
-        after: 600,
-      },
-    ],
-  },
-  D12: {
-    skill: "play-subagent-execution",
-    checks: [
-      {
-        anchor: "D12 uses the source-mutable `implementer`",
-        roles: ["implementer"],
-        after: 350,
-      },
-    ],
-  },
-  D13: {
-    skill: "play-subagent-execution",
-    checks: [
-      {
-        anchor:
-          "D13 uses guarded inline execution or the source-mutable `executor`",
-        roles: ["executor"],
-        after: 400,
-      },
-    ],
-  },
-  D14: {
-    skill: "play-subagent-execution",
-    checks: [
-      {
-        anchor: "D14 is a separate response-only `deep-reviewer`",
-        roles: ["deep-reviewer"],
-        after: 260,
-      },
-    ],
-  },
-  D15: {
-    skill: "play-subagent-execution",
-    checks: [
-      {
-        anchor: "D15 is a separate response-only",
-        roles: ["deep-reviewer"],
-        after: 260,
-      },
-    ],
-  },
-  D16: {
-    skill: "play-subagent-execution",
-    checks: [
-      {
-        anchor: "### D16 guarded final whole-implementation review",
-        roles: ["deep-reviewer"],
-        after: 450,
-      },
-    ],
-  },
-  D17: {
-    skill: "pr-merge",
-    checks: [
-      {
-        anchor: "### 4b. Dispatch investigation agent",
-        roles: ["investigator"],
-        after: 1200,
-      },
-      {
-        anchor:
-          "Route an exact mechanical fix to one source-mutable `executor`",
-        roles: ["executor"],
-        after: 180,
-      },
-      {
-        anchor:
-          "Route a judgment-bearing fix to one source-mutable `implementer`",
-        roles: ["implementer"],
-        after: 180,
-      },
-    ],
-  },
-} satisfies Record<RenderedRouteId, RenderedRouteContract>;
+type RoutingOwner = Awaited<ReturnType<typeof readAgentRoutingPolicyOwner>>;
 
 const TOUCHED_SKILL_COVERAGE = {
   "github-issue-priming":
@@ -456,101 +207,225 @@ function expectPlaceholderLinesRendered(
   }
 }
 
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+async function readAgentSources(): Promise<AgentSourceContract[]> {
+  const agentsDir = path.join(process.cwd(), "agents");
+  const files = (await readdir(agentsDir)).filter((entry) =>
+    entry.endsWith(".yaml"),
+  );
+  return Promise.all(
+    files.map(async (file) =>
+      parseYaml(await readFile(path.join(agentsDir, file), "utf8")),
+    ),
+  ) as Promise<AgentSourceContract[]>;
 }
 
-function expectObservableRouteTuple(
-  content: string,
-  check: RenderedRouteCheck,
-  roleName: SemanticRoleName,
-): void {
-  const role = SEMANTIC_ROLE_RENDER_CONTRACTS[roleName];
-  const anchorIndex = content.indexOf(check.anchor);
-  expect(
-    anchorIndex,
-    `missing route anchor: ${check.anchor}`,
-  ).toBeGreaterThanOrEqual(0);
-  expect(content.split(check.anchor).length - 1).toBe(1);
-  if (check.localTokens) {
-    const localEnd = check.localEnd ?? "\n";
-    const localEndIndex = content.indexOf(localEnd, anchorIndex);
-    expect(
-      localEndIndex,
-      `missing route-local boundary after ${check.anchor}`,
-    ).toBeGreaterThanOrEqual(0);
-    const localBlock = content.slice(
-      anchorIndex,
-      localEndIndex + localEnd.length,
-    );
-    const normalizedLocalBlock = normalizeWhitespace(localBlock);
-    for (const token of check.localTokens) {
-      expect(
-        normalizedLocalBlock,
-        `missing route-local token for ${check.anchor}`,
-      ).toContain(normalizeWhitespace(token));
-    }
-  }
-  const tupleAnchor = check.tupleAnchor ?? check.anchor;
-  const tupleAnchorIndex = content.indexOf(tupleAnchor);
-  expect(
-    tupleAnchorIndex,
-    `missing route tuple anchor: ${tupleAnchor}`,
-  ).toBeGreaterThanOrEqual(0);
-  expect(content.split(tupleAnchor).length - 1).toBe(1);
-  const window = content.slice(
-    Math.max(0, tupleAnchorIndex - (check.before ?? 0)),
-    tupleAnchorIndex + tupleAnchor.length + (check.after ?? 600),
-  );
-  const normalized = normalizeWhitespace(window).replaceAll("`", "");
-  const roleToken = `(?<![a-z0-9-])${escapeRegExp(roleName)}(?![a-z0-9-])`;
-  const roleFirst = new RegExp(
-    `${roleToken}[\\s\\S]{0,120}${role.capability}[\\s\\S]{0,40}${role.effort}[\\s\\S]{0,120}${role.sourceAuthority}`,
-  );
-  const authorityFirst = new RegExp(
-    `${role.sourceAuthority}[\\s\\S]{0,120}${roleToken}[\\s\\S]{0,120}${role.capability}[\\s\\S]{0,40}${role.effort}`,
-  );
+function routeClausesForTarget(
+  route: AgentRoutingDirectChildRouteRow,
+  roles: readonly AgentSemanticRoleContract[],
+  target: "claude" | "codex",
+): readonly AgentRoutingRouteClause[] {
+  return route.id === "D4"
+    ? roles.map((role) => ({
+        role: role.name,
+        capability: role.capability,
+        effort: target === "claude" ? role.claudeEffort : role.codexEffort,
+        sourceAuthority:
+          role.sourceAuthority as AgentRoutingRouteClause["sourceAuthority"],
+      }))
+    : route.clauses;
+}
 
-  expect(roleFirst.test(normalized) || authorityFirst.test(normalized)).toBe(
-    true,
+function normalizedEvidence(value: string): string {
+  return normalizeWhitespace(value).replaceAll("-", " ").toLowerCase();
+}
+
+function routeAnchorMatches(
+  unit: string,
+  route: AgentRoutingDirectChildRouteRow,
+): boolean {
+  const normalized = normalizedEvidence(unit);
+  const labels = [
+    route.evidenceLabel,
+    route.evidenceLabel.replace(/^(?:skill|issue)\s+/i, ""),
+    route.evidenceLabel.replace(/\s+(?:topical|review|implementation)$/i, ""),
+  ].map(normalizedEvidence);
+  if (/\stopical$/i.test(route.evidenceLabel)) {
+    return (
+      normalized.includes(labels[2]) &&
+      new RegExp(`\\b${route.id}\\b`, "i").test(unit)
+    );
+  }
+  return (
+    labels.some((label) => label.length > 6 && normalized.includes(label)) ||
+    new RegExp(`\\b${route.id}\\b`, "i").test(unit) ||
+    (route.evidenceLocator !== undefined &&
+      normalized.includes(normalizedEvidence(route.evidenceLocator)))
+  );
+}
+
+function markdownStructuralUnits(markdown: string): {
+  atomic: string[];
+  sections: string[];
+} {
+  const lines = markdown.split("\n");
+  const sections = lines.flatMap((line, start) => {
+    const heading = /^(#{1,6})\s/.exec(line);
+    if (!heading) return [];
+    const endOffset = lines.slice(start + 1).findIndex((candidate) => {
+      const next = /^(#{1,6})\s/.exec(candidate);
+      return next !== null && next[1].length <= heading[1].length;
+    });
+    const end = endOffset === -1 ? lines.length : start + endOffset + 1;
+    return [lines.slice(start, end).join("\n")];
+  });
+  const paragraphs = markdown.split(/\n\s*\n/).filter(Boolean);
+  const sentences = paragraphs.flatMap((paragraph) =>
+    paragraph.split(/(?<=[.!?])\s+(?=[A-Z`])/),
+  );
+  const sortUnits = (units: string[]): string[] =>
+    units
+      .map((unit) => unit.trim())
+      .filter(Boolean)
+      .sort((left, right) => left.length - right.length);
+  return {
+    atomic: sortUnits([
+      ...lines.filter((line) => line.startsWith("|")),
+      ...sentences,
+      ...paragraphs,
+    ]),
+    sections: sortUnits(sections),
+  };
+}
+
+function clausePattern(clause: AgentRoutingRouteClause): RegExp {
+  const token = (value: string): string =>
+    value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const role = `(?<![a-z0-9-])${token(clause.role)}(?![a-z0-9-])`;
+  const profile = `${token(clause.capability)}\\s*(?:/|\\|)\\s*${token(clause.effort)}`;
+  const separator = "(?:[\\s`|,]|and){1,50}";
+  return new RegExp(
+    `(?:${role}${separator}${profile}${separator}${token(clause.sourceAuthority)}|${token(clause.sourceAuthority)}${separator}${role}${separator}${profile})`,
+    "gi",
+  );
+}
+
+function renderedRouteEvidenceFailures(
+  owner: RoutingOwner,
+  roles: readonly AgentSemanticRoleContract[],
+  renderedBySkill: ReadonlyMap<string, string>,
+  target: "claude" | "codex",
+): string[] {
+  const knownQualifiers = new Set(
+    owner.directChildRoutes.flatMap((route) =>
+      route.clauses.flatMap((clause) =>
+        clause.qualifier ? [normalizedEvidence(clause.qualifier)] : [],
+      ),
+    ),
+  );
+  return owner.directChildRoutes
+    .filter((route) => {
+      const clauses = routeClausesForTarget(route, roles, target);
+      const units = markdownStructuralUnits(
+        renderedBySkill.get(route.ownerSkill) ?? "",
+      );
+      const matches = (unit: string): boolean =>
+        routeAnchorMatches(unit, route) &&
+        clauses.every((clause) => clausePattern(clause).test(unit));
+      const atomicEvidence = units.atomic.find(matches);
+      const signaturePeers = owner.directChildRoutes.filter(
+        (peer) =>
+          peer.ownerSkill === route.ownerSkill &&
+          JSON.stringify(routeClausesForTarget(peer, roles, target)) ===
+            JSON.stringify(clauses),
+      );
+      const peerHasSeparateEvidence = signaturePeers.some(
+        (peer) =>
+          peer !== route &&
+          units.atomic.some(
+            (unit) =>
+              routeAnchorMatches(unit, peer) &&
+              clauses.every((clause) => clausePattern(clause).test(unit)),
+          ),
+      );
+      const evidence =
+        atomicEvidence ??
+        (peerHasSeparateEvidence ? undefined : units.sections.find(matches));
+      if (!evidence) return true;
+
+      const local = markdownStructuralUnits(evidence).atomic.find((unit) =>
+        routeAnchorMatches(unit, route),
+      );
+      if (!local) return true;
+      const localEvidence = normalizedEvidence(local);
+      if (
+        route.clauses.some((clause) =>
+          clause.qualifier
+            ? !localEvidence.includes(normalizedEvidence(clause.qualifier))
+            : false,
+        )
+      )
+        return true;
+      const ownedQualifiers = new Set(
+        route.clauses.flatMap((clause) =>
+          clause.qualifier ? [normalizedEvidence(clause.qualifier)] : [],
+        ),
+      );
+      if (
+        [...knownQualifiers].some(
+          (qualifier) =>
+            !ownedQualifiers.has(qualifier) &&
+            localEvidence.includes(qualifier),
+        )
+      )
+        return true;
+
+      const members = signaturePeers.filter((peer) =>
+        routeAnchorMatches(evidence, peer),
+      );
+      const occurrences = clauses.map(
+        (clause) => [...evidence.matchAll(clausePattern(clause))].length,
+      );
+      return (
+        members.length === 0 ||
+        occurrences.some((count) => count !== 1 && count !== members.length)
+      );
+    })
+    .map((route) => route.id);
+}
+
+function renderedAgentAligned(
+  role: AgentSemanticRoleContract,
+  source: AgentSourceContract,
+  target: "claude" | "codex",
+  parsed: ParsedRenderedAgent,
+  expectedModel: string,
+): boolean {
+  const expectedEffort =
+    target === "claude" ? role.claudeEffort : role.codexEffort;
+  const expected: Record<string, unknown> = {
+    name: role.name,
+    description: source.description,
+    model: expectedModel,
+    effort: expectedEffort,
+  };
+  const normalizedInstructions = normalizeWhitespace(parsed.instructions);
+  return (
+    Object.entries(expected).every(
+      ([field, value]) => parsed[field as keyof ParsedRenderedAgent] === value,
+    ) &&
+    normalizedInstructions.includes(normalizeWhitespace(source.instructions)) &&
+    role.externalAuthority === "none" &&
+    normalizedInstructions.includes(
+      "Do not mutate GitHub, Linear, Notion, or any other external system.",
+    ) &&
+    (role.sourceAuthority !== "source-immutable" ||
+      normalizedInstructions.includes(
+        "Do not modify durable source, tests, configuration, or documentation.",
+      ))
   );
 }
 
 describe("existing skills render cleanly", () => {
-  it("requires shared route tuples to retain route-local proof", () => {
-    const content = [
-      "Each selected topical route is an independent response-only `reviewer`, frontier/high and source-immutable.",
-      "| D8 `Architecture` | unrelated route text | unrelated trace |",
-      "",
-    ].join("\n");
-
-    expect(() =>
-      expectObservableRouteTuple(
-        content,
-        {
-          anchor: "| D8 `Architecture`",
-          tupleAnchor:
-            "Each selected topical route is an independent response-only `reviewer`",
-          localTokens: ["capture D8", "spawn D8"],
-          roles: ["reviewer"],
-        },
-        "reviewer",
-      ),
-    ).toThrow();
-  });
-
-  it("does not confuse reviewer with deep-reviewer route tuples", () => {
-    const content =
-      "anchor: `deep-reviewer`, frontier/high and source-immutable";
-    expect(() =>
-      expectObservableRouteTuple(
-        content,
-        { anchor: "anchor:", roles: ["reviewer"] },
-        "reviewer",
-      ),
-    ).toThrow();
-  });
-
   it("dogfoods tool and file glossary placeholders in selected skills", async () => {
     const repoRoot = process.cwd();
     const config = await loadConfig(
@@ -655,101 +530,178 @@ describe("existing skills render cleanly", () => {
 
   it("renders current routing contracts and semantic authority with target parity", async () => {
     const repoRoot = process.cwd();
-    const config = await loadConfig(
-      path.join(repoRoot, "devcanon.config.yaml"),
-    );
-    const { outputs } = await renderAll(config, false, true);
-    const roleNames = Object.keys(
-      SEMANTIC_ROLE_RENDER_CONTRACTS,
-    ) as SemanticRoleName[];
-    for (const target of ["claude", "codex"] as const) {
-      const brainstorm = getSkillOutput(outputs, "play-brainstorm", target);
-      const normalizedBrainstorm = normalizeWhitespace(brainstorm.content);
-      expect(brainstorm.content).toContain(
+    const [config, owner, roles, sources] = await Promise.all([
+      loadConfig(path.join(repoRoot, "devcanon.config.yaml")),
+      readAgentRoutingPolicyOwner(
         "docs/guidelines/agent-routing-and-mutation-policy.md",
-      );
-      expect(normalizedBrainstorm).toContain(
-        "reconcile the current source skill directories with the complete skill inventory",
-      );
-      expect(normalizedBrainstorm).toContain(
-        "reconcile D1-D17 with their current source anchors and full route fields",
-      );
-      expect(normalizedBrainstorm).toContain(
-        "exactly six semantic agent sources and both Claude and Codex rendered outputs",
-      );
-      expect(normalizedBrainstorm).toContain(
-        "Every semantic child keeps external authority `none`",
-      );
+      ),
+      readAgentSemanticRoleOwner(),
+      readAgentSources(),
+    ]);
+    const { outputs } = await renderAll(config, false, true);
+    const sourcesByName = new Map(
+      sources.map((source) => [source.name, source]),
+    );
+    expect(roles).toHaveLength(6);
 
-      for (const [routeId, contract] of Object.entries(
-        RENDERED_ROUTE_CONTRACTS,
-      )) {
-        const skillOutput = getSkillOutput(outputs, contract.skill, target);
-        for (const check of contract.checks) {
-          for (const roleName of check.roles) {
-            try {
-              expectObservableRouteTuple(skillOutput.content, check, roleName);
-            } catch (error) {
-              throw new Error(
-                `${target} ${routeId} ${contract.skill} route mismatch: ${String(error)}`,
-              );
-            }
-          }
-        }
-      }
+    for (const target of ["claude", "codex"] as const) {
+      const renderedBySkill = new Map(
+        outputs
+          .filter(
+            (output) => output.type === "skill" && output.target === target,
+          )
+          .map((output) => [output.name, output.content]),
+      );
+      expect(
+        renderedRouteEvidenceFailures(owner, roles, renderedBySkill, target),
+      ).toEqual([]);
+      const prMerge = normalizeWhitespace(
+        renderedBySkill.get("pr-merge") ?? "",
+      );
+      for (const contract of [
+        "skills/pr-merge/scripts/preflight-worktree-context.sh",
+        "skills/pr-merge/scripts/post-merge-cleanup.sh",
+        "No mode may use `gh pr merge --delete-branch`",
+        "WORKTREE_CLEANUP=removed|retained|skipped|failed",
+        "REMOTE_BRANCH_CLEANUP=deleted|retained|skipped|failed",
+        "mutable child may edit only the authorized paths, run verification, and commit",
+        "The controller/root alone owns push and merge",
+      ])
+        expect(prMerge).toContain(contract);
+      expect(prMerge).toMatch(
+        /Before any merge command.*preflight-worktree-context\.sh/i,
+      );
 
       const agentOutputs = outputs
         .filter((output) => output.type === "agent" && output.target === target)
         .sort((left, right) => left.name.localeCompare(right.name));
       expect(agentOutputs).toHaveLength(6);
       expect(agentOutputs.map((output) => output.name)).toEqual(
-        [...roleNames].sort(),
+        roles.map((role) => role.name).sort(),
       );
 
-      for (const roleName of roleNames) {
-        const role = SEMANTIC_ROLE_RENDER_CONTRACTS[roleName];
+      for (const role of roles) {
+        const source = sourcesByName.get(role.name);
         const output = agentOutputs.find(
-          (candidate) => candidate.name === roleName,
+          (candidate) => candidate.name === role.name,
         );
-        expect(output, `missing ${target} agent ${roleName}`).toBeDefined();
-        if (!output) continue;
+        expect(source, `missing source agent ${role.name}`).toBeDefined();
+        expect(output, `missing ${target} agent ${role.name}`).toBeDefined();
+        if (!source || !output) continue;
 
-        let instructions: string;
+        let parsed: ParsedRenderedAgent;
         if (target === "claude") {
           const { frontmatter, body } = parseRenderedMarkdownArtifact(
             output.content,
           );
-          expect(frontmatter.name).toBe(roleName);
-          expect(frontmatter.model).toBe(
-            config.capabilityProfiles[role.capability].claude,
-          );
-          expect(frontmatter.effort).toBe(role.effort);
-          instructions = body;
+          expect(frontmatter.tools).toBe(role.claudeTools.join(", "));
+          parsed = {
+            name: frontmatter.name,
+            description: frontmatter.description,
+            model: frontmatter.model,
+            effort: frontmatter.effort,
+            instructions: body,
+          };
         } else {
-          const parsed = parseRenderedTomlArtifact(output.content);
-          expect(parsed.name).toBe(roleName);
-          expect(parsed.model).toBe(
-            config.capabilityProfiles[role.capability].codex,
-          );
-          expect(parsed.model_reasoning_effort).toBe(role.effort);
-          instructions = String(parsed.developer_instructions ?? "");
+          const toml = parseRenderedTomlArtifact(output.content);
+          expect(toml.sandbox_mode).toBe(role.codexSandbox);
+          parsed = {
+            name: toml.name,
+            description: toml.description,
+            model: toml.model,
+            effort: toml.model_reasoning_effort,
+            instructions: String(toml.developer_instructions ?? ""),
+          };
         }
 
-        const normalizedInstructions = normalizeWhitespace(instructions);
-        expect(normalizedInstructions).toContain(
-          "Do not mutate GitHub, Linear, Notion, or any other external system.",
-        );
-        if (role.sourceAuthority === "source-immutable") {
-          expect(normalizedInstructions).toContain(
-            "Do not modify durable source, tests, configuration, or documentation.",
-          );
-        } else {
-          expect(normalizedInstructions).toMatch(
-            /(?:dispatch-authorized|dispatch-authorized task scope)/,
-          );
+        const expectedModel =
+          config.capabilityProfiles[role.capability][target];
+        expect(
+          renderedAgentAligned(role, source, target, parsed, expectedModel),
+        ).toBe(true);
+        if (target === "codex" && role === roles[0]) {
+          expect(
+            renderedAgentAligned(
+              role,
+              source,
+              target,
+              { ...parsed, effort: "mutated-effort" },
+              expectedModel,
+            ),
+          ).toBe(false);
         }
       }
     }
+  });
+
+  it("rejects bounded route evidence and qualifier drift", async () => {
+    const repoRoot = process.cwd();
+    const [config, owner, roles] = await Promise.all([
+      loadConfig(path.join(repoRoot, "devcanon.config.yaml")),
+      readAgentRoutingPolicyOwner(
+        "docs/guidelines/agent-routing-and-mutation-policy.md",
+      ),
+      readAgentSemanticRoleOwner(),
+    ]);
+    const { outputs } = await renderAll(config, false, true);
+    const rendered = new Map(
+      outputs
+        .filter(
+          (output) => output.type === "skill" && output.target === "codex",
+        )
+        .map((output) => [output.name, output.content]),
+    );
+    const mutate = (
+      skill: string,
+      from: string | RegExp,
+      to: string,
+    ): Map<string, string> =>
+      new Map(rendered).set(
+        skill,
+        (rendered.get(skill) ?? "").replace(from, to),
+      );
+    const failures = (mutated: ReadonlyMap<string, string>): string[] =>
+      renderedRouteEvidenceFailures(owner, roles, mutated, "codex");
+
+    expect(
+      failures(
+        mutate(
+          "issue-priming-workflow",
+          "`assessor`, balanced/medium and source-immutable",
+          "`assessor`",
+        ),
+      ),
+    ).toContain("D1");
+    expect(
+      failures(
+        mutate(
+          "issue-priming-workflow",
+          /no network access\.\s+External research also receives\s+external authority `none`, but the dispatch explicitly grants\s+named network access/,
+          "no network access and named network access. External research also receives external authority `none`, but the dispatch explicitly grants",
+        ),
+      ),
+    ).toContain("D3");
+    expect(
+      failures(
+        mutate(
+          "issue-priming-workflow",
+          /Internal research receives external\s+authority `none` and no network access\./,
+          "Internal research receives external authority `none` and no network access but has named network access.",
+        ),
+      ),
+    ).toContain("D2");
+    expect(
+      failures(mutate("play-review", /^\| D8 .*$/m, "")).includes("D8"),
+    ).toBe(true);
+    expect(
+      failures(
+        mutate(
+          "play-subagent-execution",
+          /D15 is a separate response-only[\s\S]*?with zero handoffs\./,
+          "",
+        ),
+      ),
+    ).toContain("D15");
   });
 
   it("renders the touched skills with Codex-valid frontmatter", async () => {
@@ -820,53 +772,6 @@ describe("existing skills render cleanly", () => {
       ] as const) {
         expect(normalized).not.toMatch(staleFinishOwnedNitPattern);
       }
-    }
-  });
-
-  it("preserves the pr-merge D17, preflight, and cleanup contracts in both rendered outputs", async () => {
-    const repoRoot = process.cwd();
-    const config = await loadConfig(
-      path.join(repoRoot, "devcanon.config.yaml"),
-    );
-
-    const { outputs } = await renderAll(config, false);
-    for (const target of ["claude", "codex"] as const) {
-      const renderedPrMerge = getSkillOutput(outputs, "pr-merge", target);
-      const normalized = normalizeWhitespace(renderedPrMerge.content);
-
-      expect(renderedPrMerge.content).toContain(
-        "skills/pr-merge/scripts/preflight-worktree-context.sh",
-      );
-      expect(renderedPrMerge.content).toContain(
-        "skills/pr-merge/scripts/post-merge-cleanup.sh",
-      );
-      expect(normalized).toMatch(
-        /Before any merge command.*preflight-worktree-context\.sh/i,
-      );
-      expect(normalized).toContain(
-        "No mode may use `gh pr merge --delete-branch`",
-      );
-      expect(normalized).toMatch(
-        /WORKTREE_CLEANUP=removed\|retained\|skipped\|failed/i,
-      );
-      expect(normalized).toMatch(
-        /REMOTE_BRANCH_CLEANUP=deleted\|retained\|skipped\|failed/i,
-      );
-      expect(normalized).toContain(
-        "response-only `investigator`, balanced/high and source-immutable, with zero handoffs",
-      );
-      expect(normalized).toContain(
-        "exact mechanical fix to one source-mutable `executor`, efficient/medium",
-      );
-      expect(normalized).toContain(
-        "judgment-bearing fix to one source-mutable `implementer`, balanced/high",
-      );
-      expect(normalized).toContain(
-        "The mutable child may edit only the authorized paths, run verification, and commit",
-      );
-      expect(normalized).toContain(
-        "The controller/root alone owns push and merge",
-      );
     }
   });
 

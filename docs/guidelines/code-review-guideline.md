@@ -44,6 +44,27 @@ all treat `Blocking` vs `Nit` as the primary decision boundary.
 Category does not determine whether a finding blocks. Any category can be
 either `Blocking` or `Nit`.
 
+### Proportional Contract-Test Review
+
+The [Testing Requirements](../specs/testing.md#test-ownership-and-proportionality)
+own test-layer selection and proportional regression design. Contract data
+comes from its respective normative owner; for agent routing, the agents spec
+owns roles and target configuration, while the routing policy owns the
+direct-child route inventory. Consume those owners during review without
+recreating their policy or requiring a second registry.
+
+Block a test or documentation change when it violates acceptance behavior,
+contradicts the normative owner, permits concrete unsafe behavior, breaks
+executable or rendered output, or accepts an invalid required route tuple. Do
+not block on wording or diagram preferences, hypothetical completeness, or a
+request to pin explanatory prose that has no consumer contract.
+
+A proposed regression must identify the concrete failure, normative owner,
+primary test layer, and why existing coverage is insufficient. Missing or
+unconvincing justification is blocking only when it leaves a real acceptance,
+safety, executable-output, rendered-output, or required-route gap; otherwise
+it is a non-blocking test-design improvement.
+
 ## 3. Procedure and Workflow Invariant Review
 
 Procedure and workflow invariant review is a cross-cutting review lens for

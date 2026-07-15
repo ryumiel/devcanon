@@ -42,60 +42,6 @@ function expectSubstringsInOrder(content: string, substrings: string[]): void {
   }
 }
 
-function parseDotDirectedEdges(content: string): Array<[string, string]> {
-  const edges: Array<[string, string]> = [];
-
-  for (const line of content.split("\n")) {
-    const edgeClause = line.split("[", 1)[0].trim().replace(/;$/, "");
-    if (!edgeClause.includes("->")) {
-      continue;
-    }
-
-    const nodes = edgeClause.split("->").map((node) => node.trim());
-    for (let index = 0; index < nodes.length - 1; index += 1) {
-      edges.push([nodes[index], nodes[index + 1]]);
-    }
-  }
-
-  return edges;
-}
-
-function dotNeighbors(
-  edges: Array<[string, string]>,
-  node: string,
-  direction: "predecessors" | "successors",
-): string[] {
-  return edges
-    .filter(([source, target]) =>
-      direction === "successors" ? source === node : target === node,
-    )
-    .map(([source, target]) => (direction === "successors" ? target : source))
-    .sort();
-}
-
-function dotCanReach(
-  edges: Array<[string, string]>,
-  source: string,
-  target: string,
-): boolean {
-  const pending = [source];
-  const visited = new Set<string>();
-
-  while (pending.length > 0) {
-    const current = pending.pop();
-    if (current === undefined || visited.has(current)) {
-      continue;
-    }
-    if (current === target) {
-      return true;
-    }
-    visited.add(current);
-    pending.push(...dotNeighbors(edges, current, "successors"));
-  }
-
-  return false;
-}
-
 const CHILD_AGENT_PROMPT_TEMPLATES = [
   "references/implementer-prompt.md",
   "references/executor-prompt.md",
@@ -103,61 +49,30 @@ const CHILD_AGENT_PROMPT_TEMPLATES = [
   "references/code-quality-reviewer-prompt.md",
 ] as const;
 
-const CHILD_AGENT_TEMPLATE_SENTINELS = [
-  {
-    path: "skills/play-subagent-execution/references/implementer-prompt.md",
-    phrase: "If you have questions about:",
-  },
-  {
-    path: "skills/play-subagent-execution/references/executor-prompt.md",
-    phrase: "Executor mode is only for an exact validated authorized operation",
-  },
-  {
-    path: "skills/play-subagent-execution/references/spec-reviewer-prompt.md",
-    phrase: "The implementer finished suspiciously quickly",
-  },
-  {
-    path: "skills/play-subagent-execution/references/code-quality-reviewer-prompt.md",
-    phrase: "WHAT_WAS_IMPLEMENTED: [from implementer's report]",
-  },
-] as const;
-
 const BRANCH_POLICY_REFERENCES = [
   {
     label: "review routing",
     path: "references/review-routing-policy.md",
-    sentinel: "Route computation MUST inspect the actual task diff",
   },
   {
     label: "skip-dispatch behavior",
     path: "references/skip-dispatch-policy.md",
-    sentinel:
-      "guardrails pass before either guarded inline execution or executor dispatch",
   },
   {
     label: "lifecycle/status handling",
     path: "references/lifecycle-status-policy.md",
-    sentinel: "Before acting on any returned D12 implementer",
   },
   {
     label: "snapshot consumption",
     path: "references/snapshot-consumption.md",
-    sentinel: "Skip snapshots only for clearly localized, low-risk work",
-  },
-  {
-    label: "diagrams",
-    path: "references/process-diagrams.md",
-    sentinel: "digraph process",
   },
   {
     label: "examples",
     path: "references/example-workflow.md",
-    sentinel: "Parallel happy path: same-head spec and quality pass",
   },
   {
     label: "rationale",
     path: "references/advantages.md",
-    sentinel: "Quality gates",
   },
 ] as const;
 
@@ -822,155 +737,6 @@ describe("play subagent routing source contracts", () => {
     expect(phase3).toContain("existing outcome precedence");
   });
 
-  it("keeps the Phase 3 diagram aligned with root-owned sibling dispatch and synthesis", async () => {
-    const diagram = await readRepoFile(
-      "skills/issue-priming-workflow/references/workflow-diagram.md",
-    );
-    const normalizedDiagram = normalizeWhitespace(diagram);
-    const edges = parseDotDirectedEdges(diagram);
-
-    for (const phrase of [
-      "Root dispatches exactly one required internal investigator",
-      "Root dispatches zero or one conditional external investigator total",
-      "Immediate external criterion met before internal report?",
-      "Late external criterion met after internal External Uncertainties?",
-      "Join all applicable direct children",
-      "Root synthesizes final research brief",
-      "Root persists final research brief",
-    ]) {
-      expect(normalizedDiagram).toContain(phrase);
-    }
-
-    expect(
-      dotNeighbors(edges, "immediate_external_decide", "successors"),
-    ).toEqual(["immediate_fork", "late_internal_research"]);
-    expect(dotNeighbors(edges, "immediate_fork", "successors")).toEqual([
-      "immediate_external_research",
-      "immediate_internal_research",
-    ]);
-    expect(
-      dotNeighbors(edges, "immediate_internal_research", "successors"),
-    ).toEqual(["immediate_join"]);
-    expect(
-      dotNeighbors(edges, "immediate_external_research", "successors"),
-    ).toEqual(["immediate_join"]);
-    expect(dotNeighbors(edges, "immediate_join", "predecessors")).toEqual([
-      "immediate_external_research",
-      "immediate_internal_research",
-    ]);
-    expect(dotNeighbors(edges, "immediate_join", "successors")).toEqual([
-      "research_join",
-    ]);
-
-    expect(
-      dotNeighbors(edges, "late_internal_research", "predecessors"),
-    ).toEqual(["immediate_external_decide"]);
-    expect(dotNeighbors(edges, "late_internal_research", "successors")).toEqual(
-      ["late_external_decide"],
-    );
-    expect(dotNeighbors(edges, "late_external_decide", "successors")).toEqual([
-      "late_external_research",
-      "research_join",
-    ]);
-    expect(
-      dotNeighbors(edges, "late_external_research", "predecessors"),
-    ).toEqual(["late_external_decide"]);
-    expect(dotNeighbors(edges, "late_external_research", "successors")).toEqual(
-      ["research_join"],
-    );
-
-    expect(dotCanReach(edges, "immediate_fork", "late_external_research")).toBe(
-      false,
-    );
-    expect(
-      dotCanReach(
-        edges,
-        "late_internal_research",
-        "immediate_external_research",
-      ),
-    ).toBe(false);
-    expect(dotNeighbors(edges, "internal_research", "successors")).toEqual([]);
-    expect(dotNeighbors(edges, "research_join", "predecessors")).toEqual([
-      "immediate_join",
-      "late_external_decide",
-      "late_external_research",
-    ]);
-    expect(dotNeighbors(edges, "research_join", "successors")).toEqual([
-      "research_outcome",
-    ]);
-    expect(dotNeighbors(edges, "research_outcome", "successors")).toEqual([
-      "research_internal_inline",
-      "research_required_stop",
-      "research_synthesize",
-    ]);
-    expect(dotNeighbors(edges, "research_synthesize", "successors")).toEqual([
-      "research_persist",
-    ]);
-    expect(dotNeighbors(edges, "research_persist", "successors")).toEqual([
-      "brainstorm",
-    ]);
-    expect(
-      dotNeighbors(edges, "research_internal_inline", "successors"),
-    ).toEqual(["brainstorm"]);
-    expect(dotNeighbors(edges, "research_required_stop", "successors")).toEqual(
-      [],
-    );
-    expect(
-      dotCanReach(edges, "research_required_stop", "research_persist"),
-    ).toBe(false);
-    expect(dotCanReach(edges, "research_required_stop", "brainstorm")).toBe(
-      false,
-    );
-    expect(
-      dotCanReach(edges, "research_internal_inline", "research_persist"),
-    ).toBe(false);
-    expect(
-      dotCanReach(
-        edges,
-        "immediate_internal_research",
-        "late_external_research",
-      ),
-    ).toBe(false);
-    expect(
-      dotCanReach(
-        edges,
-        "late_external_research",
-        "immediate_external_research",
-      ),
-    ).toBe(false);
-    expect(
-      dotNeighbors(edges, "immediate_internal_research", "predecessors"),
-    ).toEqual(["immediate_fork"]);
-    expect(
-      dotNeighbors(edges, "immediate_external_research", "predecessors"),
-    ).toEqual(["immediate_fork"]);
-    expect(dotNeighbors(edges, "immediate_fork", "predecessors")).toEqual([
-      "immediate_external_decide",
-    ]);
-    expect(
-      dotNeighbors(edges, "immediate_external_decide", "predecessors"),
-    ).toEqual(["external_policy"]);
-    expect(dotNeighbors(edges, "external_policy", "predecessors")).toEqual([
-      "decide",
-    ]);
-    expect(dotNeighbors(edges, "external_policy", "successors")).toEqual([
-      "immediate_external_decide",
-    ]);
-    expect(dotNeighbors(edges, "decide", "successors")).toEqual([
-      "brainstorm",
-      "external_policy",
-    ]);
-    expect(dotCanReach(edges, "immediate_join", "late_internal_research")).toBe(
-      false,
-    );
-    expect(dotCanReach(edges, "late_external_decide", "immediate_join")).toBe(
-      false,
-    );
-    expect(dotNeighbors(edges, "late_external_decide", "predecessors")).toEqual(
-      ["late_internal_research"],
-    );
-  });
-
   it("keeps brainstorming research-brief provenance caller-owned and untrusted", async () => {
     const playBrainstorm = await readSkillSource("play-brainstorm");
     const pathSection = sliceBetween(
@@ -1388,7 +1154,7 @@ describe("play subagent routing source contracts", () => {
       "Branch Policy Reference Map",
     );
 
-    for (const { label, path, sentinel } of BRANCH_POLICY_REFERENCES) {
+    for (const { label, path } of BRANCH_POLICY_REFERENCES) {
       expect(referenceMap).toContain(label);
       expect(referenceMap).toContain(path);
       expect(normalizeWhitespace(referenceMap)).toContain("Load when");
@@ -1396,7 +1162,7 @@ describe("play subagent routing source contracts", () => {
       const referenceSource = await readRepoFile(
         `skills/play-subagent-execution/${path}`,
       );
-      expect(referenceSource).toContain(sentinel);
+      expect(referenceSource.trim()).not.toBe("");
     }
   });
 
@@ -1417,17 +1183,6 @@ describe("play subagent routing source contracts", () => {
     );
     expect(registry).not.toContain("references/snapshot-manifest-recipe.md");
     expect(registry).not.toContain("scripts/write-snapshot-manifest.sh");
-  });
-
-  it("keeps full child-agent dispatch prompt bodies out of SKILL.md", async () => {
-    const skillSource = await readSkillSource("play-subagent-execution");
-
-    for (const { path, phrase } of CHILD_AGENT_TEMPLATE_SENTINELS) {
-      const templateSource = await readRepoFile(path);
-
-      expect(templateSource).toContain(phrase);
-      expect(skillSource).not.toContain(phrase);
-    }
   });
 
   it("keeps reviewer and implementer prompt trust boundaries in source", async () => {
@@ -1481,9 +1236,6 @@ describe("play subagent routing source contracts", () => {
 
   it("routes D12 judgment work and D13 exact work through distinct mutable roles", async () => {
     const skillSource = await readSkillSource("play-subagent-execution");
-    const processDiagrams = await readRepoFile(
-      "skills/play-subagent-execution/references/process-diagrams.md",
-    );
     const skipDispatch = await readRepoFile(
       "skills/play-subagent-execution/references/skip-dispatch-policy.md",
     );
@@ -1503,7 +1255,6 @@ describe("play subagent routing source contracts", () => {
       "skills/play-subagent-execution/references/executor-prompt.md",
     );
     const normalizedSkill = normalizeWhitespace(skillSource);
-    const normalizedProcessDiagrams = normalizeWhitespace(processDiagrams);
     const normalizedSkipDispatch = normalizeWhitespace(skipDispatch);
     const normalizedLifecycle = normalizeWhitespace(lifecycle);
     const normalizedReviewRouting = normalizeWhitespace(reviewRouting);
@@ -1630,40 +1381,6 @@ describe("play subagent routing source contracts", () => {
     expect(normalizedSkill).not.toContain(
       "There is no DONE report and no snapshot request on this path",
     );
-    expect(normalizedProcessDiagrams).toContain(
-      "Inline branch: no child DONE report or snapshot request",
-    );
-    expect(normalizedProcessDiagrams).toContain(
-      "Dispatched D13: capture DONE report and snapshot state",
-    );
-    expect(processDiagrams).toContain(
-      '[label="DONE or purely observational DONE_WITH_CONCERNS"]',
-    );
-    expect(processDiagrams).toContain(
-      '[label="judgment-bearing concerns: route D12 via lifecycle/status policy"]',
-    );
-    expect(processDiagrams).not.toContain(
-      '[label="DONE or DONE_WITH_CONCERNS"]',
-    );
-    expect(processDiagrams).not.toContain(
-      '"Dispatched D13: capture DONE report and snapshot state" -> "Mark task complete" [label="single-task plan"]',
-    );
-    expect(normalizedProcessDiagrams).toContain(
-      "These diagrams are non-normative summaries of the controller flow",
-    );
-    expect(normalizedProcessDiagrams).toContain(
-      "Capture-to-spawn arrows are labeled `capture succeeds`; omitted capture, cleanup, verification, returned-status, and terminal failure edges are deliberate and are governed by [`lifecycle-status-policy.md`](lifecycle-status-policy.md)",
-    );
-    for (const edge of [
-      '"Capture separate D14 and D15 baselines" -> "Dispatch spec and quality reviewers for same task head" [label="capture succeeds"]',
-      '"Capture D14 baseline" -> "Dispatch spec reviewer" [label="capture succeeds"]',
-      '"Fresh D16 capture" -> "Dispatch final whole-implementation code-quality reviewer" [label="capture succeeds"]',
-    ]) {
-      expect(processDiagrams).toContain(edge);
-    }
-    expect(processDiagrams).not.toContain("captures succeeded?");
-    expect(processDiagrams).not.toContain("capture succeeded?");
-    expect(processDiagrams).not.toContain("no: capture failure");
     expect(normalizedSkill).not.toContain(
       "Every fix commit invalidates both D14 and D15 results",
     );
@@ -1678,9 +1395,6 @@ describe("play subagent routing source contracts", () => {
     );
     expect(normalizedSkill).not.toContain(
       "review-routing-policy.md` | Computing effective per-task routes, validating reduced-route auto-handoff, checking hard-risk triggers, or resolving same-head reviewer disposition",
-    );
-    expect(normalizedProcessDiagrams).not.toContain(
-      "controller executes the file change inline instead of dispatching an implementer subagent",
     );
     expect(skillSource).not.toContain("mechanical-implementer-prompt.md");
   });
@@ -2368,16 +2082,12 @@ describe("play subagent routing source contracts", () => {
     const exampleWorkflow = await readRepoFile(
       "skills/play-subagent-execution/references/example-workflow.md",
     );
-    const processDiagrams = await readRepoFile(
-      "skills/play-subagent-execution/references/process-diagrams.md",
-    );
     const redFlags = await readRepoFile(
       "skills/play-subagent-execution/references/red-flags.md",
     );
     const normalizedSkill = normalizeWhitespace(playSubagentExecution);
     const normalizedAdvantages = normalizeWhitespace(advantages);
     const normalizedExampleWorkflow = normalizeWhitespace(exampleWorkflow);
-    const normalizedProcessDiagrams = normalizeWhitespace(processDiagrams);
     const normalizedRedFlags = normalizeWhitespace(redFlags);
 
     expect(normalizedSkill).toContain(
@@ -2408,27 +2118,6 @@ describe("play subagent routing source contracts", () => {
       "use `branch-review --fix` only with owning-workflow authority or explicit operator confirmation for auto-committed fixes",
     );
 
-    expect(normalizedProcessDiagrams).toContain(
-      "Report implementation and final review status; resolve branch-level review status",
-    );
-    expect(normalizedProcessDiagrams).toContain(
-      "Active workflow requires branch-level review before PR creation?",
-    );
-    expect(normalizedProcessDiagrams).toContain(
-      '"Active workflow requires branch-level review before PR creation?" -> "Hand off to branch-review before play-branch-finish" [label="yes"]',
-    );
-    expect(normalizedProcessDiagrams).toContain(
-      '"Branch-review approval evidence or explicit waiver present?" -> "Invoke play-branch-finish" [label="yes"]',
-    );
-    expect(normalizedProcessDiagrams).toContain(
-      '"Active workflow requires branch-level review before PR creation?" -> "Invoke play-branch-finish" [label="no"]',
-    );
-    expect(normalizedProcessDiagrams).not.toContain(
-      "Report implementation and final review passed; invoke play-branch-finish",
-    );
-    expect(normalizedProcessDiagrams).not.toContain(
-      "then invokes `play-branch-finish`",
-    );
     for (const staleUnconditionalHandoff of [
       "terminal handoff to `play-branch-finish`",
       "final whole-implementation code-quality reviewer -> `play-branch-finish`",
@@ -2554,9 +2243,6 @@ describe("play subagent routing source contracts", () => {
       "skills/play-subagent-execution/references/lifecycle-status-policy.md",
     );
     const lifecycle = handlingStatus;
-    const processDiagrams = await readRepoFile(
-      "skills/play-subagent-execution/references/process-diagrams.md",
-    );
     const redFlags = await readRepoFile(
       "skills/play-subagent-execution/references/red-flags.md",
     );
@@ -2579,7 +2265,6 @@ describe("play subagent routing source contracts", () => {
     const normalizedRouting = normalizeWhitespace(routing);
     const normalizedHandlingStatus = normalizeWhitespace(handlingStatus);
     const normalizedLifecycle = normalizeWhitespace(lifecycle);
-    const normalizedProcessDiagrams = normalizeWhitespace(processDiagrams);
     const normalizedRedFlags = normalizeWhitespace(redFlags);
     const normalizedExample = normalizeWhitespace(exampleWorkflow);
     const normalizedAdvantages = normalizeWhitespace(advantages);
@@ -2603,36 +2288,6 @@ describe("play subagent routing source contracts", () => {
     );
     expect(normalizedRouting).not.toContain(
       "Every fix commit invalidates both D14 and D15 results",
-    );
-    expect(normalizedProcessDiagrams).toContain(
-      "Dispatch spec and quality reviewers for same task head",
-    );
-    expect(normalizedProcessDiagrams).toContain(
-      '"Spec-only review passes?" -> "Mark task complete" [label="yes"]',
-    );
-    expect(normalizedProcessDiagrams).toContain(
-      "Join same-head review results",
-    );
-    expect(normalizedProcessDiagrams).toContain(
-      "Quality result final for same reviewed head?",
-    );
-    expect(normalizedProcessDiagrams).toContain(
-      '"Quality result final for same reviewed head?" -> "Resolve quality disposition or rerun quality" [label="no"]',
-    );
-    expect(normalizedProcessDiagrams).toContain(
-      '"Resolve quality disposition or rerun quality" -> "Join same-head review results"',
-    );
-    expect(normalizedProcessDiagrams).toContain(
-      '"Quality findings present?" -> "Implementer fixes findings" [label="yes"]',
-    );
-    expect(normalizedProcessDiagrams).toContain(
-      '"Quality findings present?" -> "Mark task complete" [label="no"]',
-    );
-    expect(normalizedProcessDiagrams).toContain(
-      "Spec passes for reviewed head?",
-    );
-    expect(normalizedProcessDiagrams).not.toContain(
-      '"Quality result final for same reviewed head?" -> "Implementer fixes findings" [label="no"]',
     );
     expect(normalizedSkill).not.toContain("quality-only rerun proven valid");
     expect(normalizedLifecycle).toContain(
@@ -2824,9 +2479,6 @@ describe("play subagent routing source contracts", () => {
     const lifecycle = await readRepoFile(
       "skills/play-subagent-execution/references/lifecycle-status-policy.md",
     );
-    const processDiagrams = await readRepoFile(
-      "skills/play-subagent-execution/references/process-diagrams.md",
-    );
     const exampleWorkflow = await readRepoFile(
       "skills/play-subagent-execution/references/example-workflow.md",
     );
@@ -2838,7 +2490,7 @@ describe("play subagent routing source contracts", () => {
       "D16 dispatch fields",
     );
     const normalizedSurface = normalizeWhitespace(
-      [skillSource, lifecycle, processDiagrams, exampleWorkflow].join("\n"),
+      [skillSource, lifecycle, exampleWorkflow].join("\n"),
     );
 
     expect(normalizedSurface).toContain(

@@ -27,7 +27,22 @@
 
 ---
 
-## Test ownership
+## Test Ownership and Proportionality
+
+Every durable contract has one normative owner and one primary test layer. The
+owner defines the accepted behavior; the primary layer proves it at the
+closest stable boundary. Other layers may prove their own integration with
+that contract, but must consume the same owner-derived data instead of
+recreating its inventory, topology, or prose.
+
+When a Markdown table owns a contract, one test-only adapter parses and
+validates that table once. Source-contract and render consumers reuse the
+adapter's parsed rows. They must not maintain separate skill, agent, route, or
+target registries. For agent routing, `docs/specs/agents.md` owns the six
+semantic roles and observable target configuration, while
+`docs/guidelines/agent-routing-and-mutation-policy.md` owns the D1-D17
+direct-child route inventory. The tests consume those owners without copying
+either table.
 
 Render tests prove generated artifact behavior:
 
@@ -43,6 +58,15 @@ Render tests prove generated artifact behavior:
 - canonical skill model placeholders, former-token diagnostics, escapes, and
   fenced-code boundaries
 - agent model-placeholder rejection in validation and direct render entrypoints
+
+Render consumers preserve runtime and structural behavior for both supported
+targets: parseability, packaging and sidecars, Claude frontmatter, Codex TOML,
+semantic agent identity, capability, effort, authority, and route evidence.
+Source-contract consumers prove source-owned policy, including route
+membership and qualifier locality. A representative drift test should mutate
+one owned dimension at a time at the actual layout boundary, such as moving a
+route qualifier to another row, omitting an owned route clause, changing one
+target's effort, or adding an unowned tool-envelope role.
 
 Render tests should not own broad skill prose, prompt wording, ADR wording,
 workflow policy, or helper runtime behavior. Keep those contracts in the
@@ -78,9 +102,24 @@ Do not use source-contract tests for:
 - duplicated checks whose only purpose is to keep old render-body phrase
   inventories alive in a different test suite
 
-Only assert exact text when that text is itself the contract surface, such as a
-schema name, emitted notice, CLI flag, environment variable, helper path, or
-documented error consumed by another workflow.
+Only assert exact text when that text is executable syntax or a required wire
+token consumed by another component, such as a schema name, emitted notice,
+CLI flag, environment variable, helper path, route tuple, or documented error.
+Do not use exact text to preserve incidental narration, diagrams, examples, or
+prompt wording.
+
+Each new regression test must name:
+
+- the concrete failure it prevents;
+- the normative owner of the affected contract;
+- the primary test layer for that contract; and
+- why existing coverage at that layer is insufficient.
+
+Prefer a focused owner-derived assertion and a bounded mutation that would
+reproduce the concrete failure. Do not introduce generalized topology
+registries, marker grammars, runtime discovery, or mutation frameworks to make
+a prose contract testable. If the owner cannot be consumed without such
+machinery, improve the owner or test a narrower observable boundary.
 
 For a breaking source-contract migration, compare deterministic v1 and v2
 renders in isolation: require identical relative artifact inventory, parse
