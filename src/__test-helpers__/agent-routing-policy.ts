@@ -294,8 +294,9 @@ function validateRouteTuples(id: string, route: string): void {
 
   for (const [index, clause] of clauses.entries()) {
     const tuplePrefixes =
-      clause.match(/`?[a-z][a-z0-9-]*`?,\s*[a-z][a-z-]*\/[a-z][a-z0-9-]*/g) ??
-      [];
+      clause.match(
+        /(?<![`a-z0-9-])(?:`[a-z][a-z0-9-]*`|[a-z][a-z0-9-]*),\s*[a-z][a-z-]*\/[a-z][a-z0-9-]*/g,
+      ) ?? [];
     if (tuplePrefixes.length !== 1) {
       throw new Error(
         `Agent routing policy owner direct-route ${id} clause ${index + 1} has a malformed role/capability/effort structure`,
@@ -303,7 +304,7 @@ function validateRouteTuples(id: string, route: string): void {
     }
 
     const tuplePattern =
-      /`?([a-z][a-z0-9-]*)`?,\s*([a-z][a-z-]*)\/([a-z][a-z0-9-]*),\s*(source-[a-z-]+)/g;
+      /(?<![`a-z0-9-])(?:`([a-z][a-z0-9-]*)`|([a-z][a-z0-9-]*)),\s*([a-z][a-z-]*)\/([a-z][a-z0-9-]*),\s*(source-[^,;\s]+)/g;
     const tuples = [...clause.matchAll(tuplePattern)];
     if (tuples.length !== 1) {
       throw new Error(
@@ -312,10 +313,10 @@ function validateRouteTuples(id: string, route: string): void {
     }
 
     const tuple = tuples[0];
-    closedValue(tuple[2], ROUTE_CAPABILITIES, `direct-route ${id} capability`);
-    closedValue(tuple[3], ROUTE_EFFORTS, `direct-route ${id} effort`);
+    closedValue(tuple[3], ROUTE_CAPABILITIES, `direct-route ${id} capability`);
+    closedValue(tuple[4], ROUTE_EFFORTS, `direct-route ${id} effort`);
     closedValue(
-      tuple[4],
+      tuple[5],
       SOURCE_AUTHORITIES,
       `direct-route ${id} source authority`,
     );

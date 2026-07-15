@@ -225,6 +225,30 @@ describe("agent routing and mutation policy owner", () => {
       /direct-route D17 clause 1 has a malformed role\/capability\/effort structure/i,
     );
   });
+
+  it("rejects a source-authority token with a malformed suffix", async () => {
+    const { markdown, sourceSkills } = await ownerInputs();
+    const mutated = mutateRouteRow(markdown, "D17", (cells) => {
+      cells[2] = cells[2].replace("source-mutable", "source-mutable!");
+      return cells;
+    });
+
+    expect(() => parseAgentRoutingPolicyOwner(mutated, sourceSkills)).toThrow(
+      /direct-route D17 source authority has invalid closed value: source-mutable!/i,
+    );
+  });
+
+  it("rejects mismatched role backticks", async () => {
+    const { markdown, sourceSkills } = await ownerInputs();
+    const mutated = mutateRouteRow(markdown, "D12", (cells) => {
+      cells[2] = cells[2].replace("`implementer`", "`implementer");
+      return cells;
+    });
+
+    expect(() => parseAgentRoutingPolicyOwner(mutated, sourceSkills)).toThrow(
+      /direct-route D12 clause 1 has a malformed role\/capability\/effort structure/i,
+    );
+  });
 });
 
 async function ownerInputs(): Promise<{
