@@ -46,6 +46,9 @@ wait for snapshot, changed-file, or test artifacts that were not produced. Run
 the cleanup gate before dispatching the next reviewer, re-reviewer,
 implementer, or final reviewer.
 
+Only a D13 `DONE` or `DONE_WITH_CONCERNS` enters DONE-report and snapshot
+capture before task completion.
+
 ### DONE
 
 For multi-task plans, apply the task's effective review route.
@@ -139,6 +142,13 @@ policy interpretation, a clarifying question, missing authorization, or widened
 scope stops D13 and reclassifies the task to D12. Do not redispatch D13 with
 more context or a more capable model. The controller applies this boundary
 check before the D12 status handling below.
+
+### D13 Non-Boundary Operational Blocker
+
+A non-boundary operational D13 `BLOCKED` also stops D13, keeps the task
+incomplete, and routes the blocker plus any available base/head SHA and
+snapshot state to D12 for judgment-bearing recovery. Never redispatch or
+model-escalate D13, and never mark a non-DONE D13 result complete.
 
 ### NEEDS_CONTEXT
 

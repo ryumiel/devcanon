@@ -1537,6 +1537,25 @@ describe("play subagent routing source contracts", () => {
     expect(normalizedLifecycle).toContain(
       "For a D12 implementer, `NEEDS_CONTEXT` means required information was not provided; provide the missing context and redispatch D12 when the task remains within its judgment-bearing scope",
     );
+    expectSubstringsInOrder(
+      [
+        normalizedExecutorPrompt,
+        normalizedLifecycle,
+        normalizedProcessDiagrams,
+      ].join("\n"),
+      [
+        "If `git rev-parse HEAD` fails for any reason, report BLOCKED",
+        "Only a D13 `DONE` or `DONE_WITH_CONCERNS` enters DONE-report and snapshot capture before task completion",
+        "For a dispatched D13 executor, `NEEDS_CONTEXT` or `BLOCKED` caused by judgment, policy interpretation, a clarifying question, missing authorization, or widened scope stops D13 and reclassifies the task to D12",
+        "A non-boundary operational D13 `BLOCKED` also stops D13, keeps the task incomplete, and routes the blocker plus any available base/head SHA and snapshot state to D12 for judgment-bearing recovery",
+        "Never redispatch or model-escalate D13, and never mark a non-DONE D13 result complete",
+        '"Dispatch D13 executor for exact validated operation" -> "D13 returned DONE or DONE_WITH_CONCERNS?";',
+        '"D13 returned DONE or DONE_WITH_CONCERNS?" -> "Dispatched D13: capture DONE report and snapshot state" [label="yes"];',
+        '"D13 returned DONE or DONE_WITH_CONCERNS?" -> "D13 blocker is an exact-task boundary?" [label="no: NEEDS_CONTEXT/BLOCKED"];',
+        '"D13 blocker is an exact-task boundary?" -> "Stop D13 and reclassify task to D12" [label="yes"];',
+        '"D13 blocker is an exact-task boundary?" -> "Task incomplete: route D13 operational blocker and available state to D12" [label="no"];',
+      ],
+    );
     expect(normalizedRedFlags).toContain(
       "For D12 implementer questions within judgment-bearing scope, answer clearly, provide needed context, and let D12 proceed",
     );

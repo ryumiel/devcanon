@@ -38,7 +38,11 @@ digraph process {
     "Controller executes Write/Edit + verify + commit inline" [shape=box];
     "Inline branch: no child DONE report or snapshot request" [shape=box];
     "Dispatch D13 executor for exact validated operation" [shape=box];
+    "D13 returned DONE or DONE_WITH_CONCERNS?" [shape=diamond];
     "Dispatched D13: capture DONE report and snapshot state" [shape=box];
+    "D13 blocker is an exact-task boundary?" [shape=diamond];
+    "Stop D13 and reclassify task to D12" [shape=box];
+    "Task incomplete: route D13 operational blocker and available state to D12" [shape=box];
     "Dispatch implementer prompt" [shape=box];
     "Implementer asks questions?" [shape=diamond];
     "Answer questions and provide context" [shape=box];
@@ -93,7 +97,13 @@ digraph process {
     "Implementer asks questions?" -> "Implementer implements, verifies, commits, self-reviews" [label="no"];
     "Implementer implements, verifies, commits, self-reviews" -> "Mark task complete" [label="single-task plan"];
     "Implementer implements, verifies, commits, self-reviews" -> "Compute effective review route" [label="multi-task plan"];
-    "Dispatch D13 executor for exact validated operation" -> "Dispatched D13: capture DONE report and snapshot state";
+    "Dispatch D13 executor for exact validated operation" -> "D13 returned DONE or DONE_WITH_CONCERNS?";
+    "D13 returned DONE or DONE_WITH_CONCERNS?" -> "Dispatched D13: capture DONE report and snapshot state" [label="yes"];
+    "D13 returned DONE or DONE_WITH_CONCERNS?" -> "D13 blocker is an exact-task boundary?" [label="no: NEEDS_CONTEXT/BLOCKED"];
+    "D13 blocker is an exact-task boundary?" -> "Stop D13 and reclassify task to D12" [label="yes"];
+    "D13 blocker is an exact-task boundary?" -> "Task incomplete: route D13 operational blocker and available state to D12" [label="no"];
+    "Stop D13 and reclassify task to D12" -> "Dispatch implementer prompt";
+    "Task incomplete: route D13 operational blocker and available state to D12" -> "Dispatch implementer prompt";
     "Dispatched D13: capture DONE report and snapshot state" -> "Mark task complete" [label="single-task plan"];
     "Compute effective review route" -> "Capture separate D14 and D15 baselines" [label="spec-and-quality"];
     "Capture separate D14 and D15 baselines" -> "Dispatch spec and quality reviewers for same task head";
@@ -207,4 +217,9 @@ When the plan has exactly one task and all skip-dispatch guardrails pass, the
 controller explicitly chooses guarded inline execution or a D13 executor
 dispatch. Only the inline branch omits a child DONE report and snapshot request;
 the dispatched D13 branch captures the executor's unchanged DONE report and
-snapshot state before task completion.
+snapshot state before task completion only for `DONE` or
+`DONE_WITH_CONCERNS`. A boundary `NEEDS_CONTEXT` or `BLOCKED` stops D13 and
+reclassifies the task to D12. Any other operational D13 `BLOCKED` also stops
+D13, keeps the task incomplete, and routes the blocker plus any available
+base/head SHA and snapshot state to D12. Neither path redispatches or
+model-escalates D13, and neither marks a non-DONE result complete.
