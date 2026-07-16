@@ -247,13 +247,23 @@ dispositions, follow-up commit continuity, GitHub thread replies/refetching,
 resolution eligibility, and final PR closeout. It also owns the verified
 review-response planning input.
 
-After `play-planning` emits `Plan written to <path>.`, capture that path,
-present the generated plan for user approval, and invoke
-`play-subagent-execution` only after approval with:
+After `play-planning` emits `Plan written to <path>.` and
+`Reviewed digest: <sha256>`, capture the path and exact reviewed digest in
+controller-local state, present the generated plan for user approval, and
+invoke `play-subagent-execution` only after approval with:
 
 ```text
 Plan: <path>
+Expected digest: <sha256>
 ```
+
+Immediately before that executor handoff, compute SHA-256 over the exact saved
+plan bytes with the portable `shasum -a 256` / `sha256sum` plus
+`awk '{print $1}'` pattern. Validate the extracted field as lowercase 64-hex
+and compare it with the preserved reviewed digest. Any missing tool, unreadable
+plan, hashing failure, malformed digest, or mismatch stops before execution and
+routes the changed plan through a fresh `play-planning` wave; do not update the
+expected digest to match changed bytes.
 
 The generated plan remains a valid direct/manual `play-subagent-execution`
 handoff under the executor's current structural task-contract gate. It must not
@@ -281,9 +291,9 @@ coverage.
 For planned review-response work, create and self-review the written
 `.ephemeral/*-design.md` planning input, invoke `play-planning` with
 `Route: review-response-parent-owned` and `Design: <path>`, and capture the
-emitted `Plan written to <path>.` notice before implementation, only after
-`play-planning` has completed both Plan Review and Implementer Executability
-Review. This gate borrows the approval-gate shape from `play-brainstorm`
+emitted `Plan written to <path>.` and `Reviewed digest: <sha256>` lines before
+implementation, only after `play-planning` has completed both Plan Review and
+Implementer Executability Review. This gate borrows the approval-gate shape from `play-brainstorm`
 without invoking `play-brainstorm` and without making it a dependency of
 `play-review-response`.
 
@@ -444,9 +454,11 @@ Mode: Planned execution.
 Action: Apply the canonical `.ephemeral` write guard, write
 `.ephemeral/<date>-review-response-design.md`, invoke `play-planning` with
 `Route: review-response-parent-owned` and `Design: <path>`, wait for both
-planning review gates to pass, capture `Plan written to <path>.`, ask for
-approval using `{captured-plan-path}` replaced with the captured path, wait for
-approval, then invoke `play-subagent-execution` with `Plan: <path>`.
+planning review gates to pass, capture `Plan written to <path>.` and
+`Reviewed digest: <sha256>`, ask for approval using `{captured-plan-path}`
+replaced with the captured path, wait for approval, rehash the exact saved plan
+bytes, then invoke `play-subagent-execution` with `Plan: <path>` and
+`Expected digest: <sha256>` only when the digest still matches.
 ```
 
 No-code feedback example:

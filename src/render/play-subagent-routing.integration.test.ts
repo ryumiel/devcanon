@@ -10,6 +10,7 @@ import { renderAll } from "./pipeline.js";
 
 const ROUTING_SKILLS = [
   "play-planning",
+  "play-review-response",
   "play-subagent-execution",
   "issue-priming-workflow",
 ] as const;
@@ -143,6 +144,9 @@ describe("play-subagent planning and routing render smoke coverage", () => {
       );
       expect(normalizedPlayPlanning).toContain(
         "both reviewers return PASS for the same current exact-byte digest",
+      );
+      expect(normalizedPlayPlanning).toContain(
+        "`Plan written to <repo-relative-path>.` followed by the literal line `Reviewed digest: <sha256>`",
       );
       expect(normalizedPlayPlanning).toContain(
         "Each reviewer must independently compute SHA-256 over the exact plan bytes it reads and compare that digest to the supplied expected digest before returning",
@@ -408,12 +412,35 @@ describe("play-subagent planning and routing render smoke coverage", () => {
       expect(normalizedPlaySubagentExecution).toContain(
         "load the detailed references only when the trigger applies",
       );
+      expect(playSubagentExecution).toContain(
+        "Plan: <repo-relative-path>\nExpected digest: <sha256>",
+      );
+      expect(normalizedPlaySubagentExecution).toContain(
+        "before reading, extracting, routing, or dispatching any task",
+      );
+      expect(normalizedPlaySubagentExecution).toContain(
+        "never replace the expected digest with the current file digest",
+      );
+
+      const playReviewResponse = bodies[`play-review-response:${target}`];
+      const normalizedPlayReviewResponse =
+        normalizeWhitespace(playReviewResponse);
+      expect(normalizedPlayReviewResponse).toContain(
+        "`Plan written to <path>.` and `Reviewed digest: <sha256>`",
+      );
+      expect(normalizedPlayReviewResponse).toContain(
+        "compute SHA-256 over the exact saved plan bytes",
+      );
+      expect(normalizedPlayReviewResponse).toContain(
+        "`Plan: <path>` and `Expected digest: <sha256>`",
+      );
     }
 
     const issuePrimingWorkflow = bodies["issue-priming-workflow:codex"];
     const normalizedIssuePrimingWorkflow =
       normalizeWhitespace(issuePrimingWorkflow);
     expect(issuePrimingWorkflow).toContain("Plan:");
+    expect(issuePrimingWorkflow).toContain("Expected digest:");
     expect(issuePrimingWorkflow).toContain("Auto handoff:");
     expect(issuePrimingWorkflow).toContain("play-subagent-execution");
     expect(issuePrimingWorkflow).toContain("scripts/phase-artifacts.sh");
@@ -429,6 +456,12 @@ describe("play-subagent planning and routing render smoke coverage", () => {
     );
     expect(normalizedIssuePrimingWorkflow).toContain(
       "Pass judgment-required Phase 7 feedback only through `nits_file`",
+    );
+    expect(normalizedIssuePrimingWorkflow).toContain(
+      "compute SHA-256 over the exact saved plan bytes",
+    );
+    expect(normalizedIssuePrimingWorkflow).toContain(
+      "do not update the expected digest to match changed bytes",
     );
   });
 

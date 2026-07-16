@@ -56,11 +56,14 @@ mkdir -p .ephemeral
 
 After writing the plan artifact, keep the saved path in controller-local state
 while self-review and the paired Plan Review and Implementer Executability
-Review run. Emit
-the literal line `Plan written to <repo-relative-path>.` to the conversation
-only after the applicable review gates have passed and the plan is ready for
-the next handoff. This is the contract surface `play-subagent-execution` reads
-— do not reword it.
+Review run. Emit the literal line
+`Plan written to <repo-relative-path>.` followed by the literal line
+`Reviewed digest: <sha256>` only after the applicable review gates have passed
+and the plan is ready for the next handoff. The reviewed digest is the exact
+lowercase 64-hex digest that passed D5, D6, the join, and the pre-handoff
+rehash. These two lines are the controller-local handoff contract that parent
+workflows preserve for `play-subagent-execution` — do not reword them or write
+the digest into a persistent artifact.
 
 After this notice, saved plan artifacts should not be re-inlined or restated in
 controller conversation by default. Carry the plan path, a short decision
@@ -877,10 +880,12 @@ an execution mode. Return after saving the plan so the parent skill can invoke
 Executability Review have returned PASS for the same current exact-byte digest.
 Failed, missing, or unreadable executability review blocks this return and must
 not be bypassed by parent-owned execution. Malformed, cross-digest, or stale
-review evidence also blocks. The parent skill receives the plan path from the
-`Plan written to <path>.` notice line emitted after the save and passes it to
-`play-subagent-execution` as `Plan: <path>` only after both independent review
-gates have passed that digest and both guard cleanups have succeeded.
+review evidence also blocks. The parent skill receives the plan path and exact
+reviewed digest from the `Plan written to <path>.` and
+`Reviewed digest: <sha256>` lines emitted after the save. It preserves both in
+controller-local state and passes them to `play-subagent-execution` as
+`Plan: <path>` and `Expected digest: <sha256>` only after both independent
+review gates have passed that digest and both guard cleanups have succeeded.
 
 **In review-response parent-owned handoffs**: This route is selected only when
 the invocation includes `Route: review-response-parent-owned`. When
@@ -888,15 +893,18 @@ the invocation includes `Route: review-response-parent-owned`. When
 `Route: review-response-parent-owned` and `Design: <path>` for structural
 planned review-response work, this route does not require `play-brainstorm` and
 is not an issue-priming `--auto` flow. Return after emitting
-`Plan written to <path>.` only after both Plan Review and Implementer
-Executability Review have returned PASS for the same current exact-byte digest.
+`Plan written to <path>.` and `Reviewed digest: <sha256>` only after both Plan
+Review and Implementer Executability Review have returned PASS for the same
+current exact-byte digest.
 Do not prompt for an execution mode.
 In this route, failed, missing, or unreadable executability review blocks the
 parent-owned return and cannot be bypassed by approval of the saved plan path.
 `play-review-response` owns presenting the generated plan for approval,
-capturing the approved plan path, and the implementation handoff; it must invoke
-`play-subagent-execution` only after approval and after both planning review
-gates have passed the same current digest with `Plan: <path>`.
+capturing the approved plan path and reviewed digest, rehashing the exact saved
+plan bytes immediately before the implementation handoff, and rejecting any
+mismatch. It must invoke `play-subagent-execution` only after approval and after
+both planning review gates have passed the same current digest, with
+`Plan: <path>` and `Expected digest: <sha256>`.
 
 Otherwise, offer execution choice:
 

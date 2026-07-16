@@ -1727,6 +1727,13 @@ describe("existing skills source prose contracts", () => {
 
   it("owns planning readiness and same-digest review contracts in bundled sources", async () => {
     const playPlanning = await readSkillSource("play-planning");
+    const issuePrimingWorkflow = await readSkillSource(
+      "issue-priming-workflow",
+    );
+    const playReviewResponse = await readSkillSource("play-review-response");
+    const playSubagentExecution = await readSkillSource(
+      "play-subagent-execution",
+    );
     const planningCriteria = await readRepoFile(
       "skills/play-planning/references/planning-criteria.md",
     );
@@ -1734,6 +1741,9 @@ describe("existing skills source prose contracts", () => {
       "skills/play-planning/references/planning-readiness-audit.md",
     );
     const normalizedPlanning = normalizeWhitespace(playPlanning);
+    const normalizedIssuePriming = normalizeWhitespace(issuePrimingWorkflow);
+    const normalizedReviewResponse = normalizeWhitespace(playReviewResponse);
+    const normalizedExecution = normalizeWhitespace(playSubagentExecution);
     const normalizedCriteria = normalizeWhitespace(planningCriteria);
     const normalizedReadiness = normalizeWhitespace(readinessAudit);
     const planningAuthority = getMarkdownSection(
@@ -1790,6 +1800,12 @@ describe("existing skills source prose contracts", () => {
       "The digest is controller-local state and creates no result artifact",
     );
     expect(normalizedPlanning).toContain(
+      "`Plan written to <repo-relative-path>.` followed by the literal line `Reviewed digest: <sha256>`",
+    );
+    expect(normalizedPlanning).toContain(
+      "the exact lowercase 64-hex digest that passed D5, D6, the join, and the pre-handoff rehash",
+    );
+    expect(normalizedPlanning).toContain(
       "Each reviewer must independently compute SHA-256 over the exact plan bytes it reads and compare that digest to the supplied expected digest before returning",
     );
     expect(normalizedPlanning).toContain(
@@ -1818,6 +1834,36 @@ describe("existing skills source prose contracts", () => {
     );
     expect(normalizedPlanning).toContain(
       "Keep this comparison in controller memory; do not create a baseline artifact or persistent ID mechanism",
+    );
+    for (const parent of [normalizedIssuePriming, normalizedReviewResponse]) {
+      expect(parent).toContain("`Reviewed digest: <sha256>`");
+      expect(parent).toContain("`shasum -a 256` / `sha256sum`");
+      expect(parent).toContain("`awk '{print $1}'`");
+      expect(parent).toContain(
+        "Any missing tool, unreadable plan, hashing failure, malformed digest, or mismatch stops before",
+      );
+      expect(parent).toContain("Expected digest: <sha256>");
+    }
+    expect(normalizedIssuePriming).toContain(
+      "do not update the expected digest to match changed bytes",
+    );
+    expect(normalizedReviewResponse).toContain(
+      "routes the changed plan through a fresh `play-planning` wave",
+    );
+    expect(normalizedExecution).toContain(
+      "requires the expected-digest line, validates it as lowercase 64-hex",
+    );
+    expect(normalizedExecution).toContain(
+      "before reading, extracting, routing, or dispatching any task",
+    );
+    expect(normalizedExecution).toContain(
+      "compare it with `Expected digest: <sha256>`",
+    );
+    expect(normalizedExecution).toContain(
+      "never replace the expected digest with the current file digest",
+    );
+    expect(normalizedExecution).toContain(
+      "do not create a digest artifact, helper, parser, or registry",
     );
 
     for (const triggerId of [
@@ -2052,7 +2098,7 @@ describe("existing skills source prose contracts", () => {
       "keep the saved path in controller-local state while self-review and the paired Plan Review and Implementer Executability Review run",
     );
     expect(normalizedOverview).toContain(
-      "Emit the literal line `Plan written to <repo-relative-path>.` to the conversation only after the applicable review gates have passed",
+      "Emit the literal line `Plan written to <repo-relative-path>.` followed by the literal line `Reviewed digest: <sha256>` only after the applicable review gates have passed",
     );
     expect(normalizedScopeAndCriteria).toContain(
       "from the loaded or installed `play-planning` skill bundle, not from the target repository or current working directory",
@@ -4102,7 +4148,7 @@ describe("existing skills source prose contracts", () => {
       /Run `branch-review`.*planned review-response work needs whole-diff coverage/i,
     );
     expect(normalizedExecutionMode).toMatch(
-      /Action: Apply the canonical `.ephemeral` write guard, write `.ephemeral\/<date>-review-response-design.md`, invoke `play-planning` with `Route: review-response-parent-owned` and `Design: <path>`, wait for both planning review gates to pass, capture `Plan written to <path>\.`, ask for approval using `{captured-plan-path}` replaced with the captured path, wait for approval, then invoke `play-subagent-execution` with `Plan: <path>`\./i,
+      /Action: Apply the canonical `.ephemeral` write guard, write `.ephemeral\/<date>-review-response-design.md`, invoke `play-planning` with `Route: review-response-parent-owned` and `Design: <path>`, wait for both planning review gates to pass, capture `Plan written to <path>\.` and `Reviewed digest: <sha256>`, ask for approval using `{captured-plan-path}` replaced with the captured path, wait for approval, rehash the exact saved plan bytes, then invoke `play-subagent-execution` with `Plan: <path>` and `Expected digest: <sha256>` only when the digest still matches\./i,
     );
 
     expect(normalizedExecutionMode).toContain("### Plan Approval Gate");
