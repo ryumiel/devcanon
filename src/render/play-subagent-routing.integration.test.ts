@@ -86,7 +86,7 @@ describe("play-subagent planning and routing render smoke coverage", () => {
         "Absence of the unselected path or inline form does not block",
       );
       expect(normalizedPlayPlanning).toContain(
-        "Never direct the reviewer to find criteria relative to the target repository",
+        "Never direct the reviewer to find criteria or readiness policy relative to the target repository",
       );
       expect(normalizedPlayPlanning).toContain(
         "an omitted known mapping is `CURRENT`, while missing authority for that mapping is `BLOCKER`",
@@ -144,6 +144,18 @@ describe("play-subagent planning and routing render smoke coverage", () => {
       expect(normalizedPlayPlanning).toContain(
         "both reviewers return PASS for the same current exact-byte digest",
       );
+      expect(normalizedPlayPlanning).toContain(
+        "Each reviewer must independently compute SHA-256 over the exact plan bytes it reads and compare that digest to the supplied expected digest before returning",
+      );
+      expect(normalizedPlayPlanning).toContain(
+        "recompute SHA-256 over the current exact plan bytes at the join",
+      );
+      expect(normalizedPlayPlanning).toContain(
+        "Immediately before execution or owning-workflow handoff, recompute SHA-256 over the current exact plan bytes again",
+      );
+      expect(normalizedPlayPlanning).toContain(
+        "reload and read both validated bundle-owned references",
+      );
 
       const pairedReviewStart = playPlanning.indexOf(
         "## Exact Digest and Paired Review Orchestration",
@@ -185,6 +197,12 @@ describe("play-subagent planning and routing render smoke coverage", () => {
         );
         expect(reviewSection).toContain("guard-integrity terminal");
         expect(reviewSection).not.toContain("`deep-reviewer`");
+        expect(reviewSection).toContain(
+          "read the concrete readiness reference and validate the recorded readiness result",
+        );
+        expect(reviewSection).toContain(
+          "Missing or unreadable readiness input blocks",
+        );
       }
       expect(pairedReview).toContain(
         "both independent GUARD-001 captures must succeed before either reviewer starts",
@@ -195,6 +213,19 @@ describe("play-subagent planning and routing render smoke coverage", () => {
       expect(pairedReview).toContain("every started sibling must settle");
       expect(pairedReview).toContain("Do not route early");
       expect(pairedReview).toContain("maximum of two paired review waves");
+      const pairedReviewOrder = [
+        "every started sibling must settle",
+        "After both reviewers settle and clean",
+        "recompute SHA-256 over the current exact plan bytes at the join",
+        "Immediately before execution or owning-workflow handoff",
+        "recompute SHA-256 over the current exact plan bytes again",
+        "before applying dual PASS",
+      ];
+      for (let index = 1; index < pairedReviewOrder.length; index += 1) {
+        expect(pairedReview.indexOf(pairedReviewOrder[index - 1])).toBeLessThan(
+          pairedReview.indexOf(pairedReviewOrder[index]),
+        );
+      }
       for (const [reviewSection, spawnStep] of [
         [planReview, "spawn the D5 reviewer and capture only"],
         [executabilityReview, "spawn the fresh D6 reviewer and capture only"],

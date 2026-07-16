@@ -321,6 +321,49 @@ describe("rendered phase artifact smoke coverage", () => {
         expect(renderedReadiness).toContain(
           "`READY_WITH_RECORDED_ASSUMPTIONS`",
         );
+        const renderedExamples = sliceRenderedSection(
+          renderedCriteria,
+          "### Contract examples",
+          "## Contract and traceability criteria",
+        );
+        const renderedValidExample = sliceRenderedSection(
+          renderedExamples,
+          "#### Valid paired PASS",
+          "#### Single-dimension invalid families",
+        );
+        const renderedValidDigests = [
+          ...renderedValidExample.matchAll(/PASS — digest=([0-9a-f]{64})/gu),
+        ].map((match) => match[1]);
+        expect(renderedValidDigests).toHaveLength(2);
+        expect(new Set(renderedValidDigests)).toEqual(
+          new Set([
+            "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+          ]),
+        );
+        expect(normalizeRenderedWhitespace(renderedValidExample)).toContain(
+          "this family passes",
+        );
+        expect(normalizeRenderedWhitespace(renderedExamples)).toContain(
+          "Each family below changes only its named dimension",
+        );
+        expect(renderedExamples).not.toContain("intentional multi-fault");
+        expect(renderedExamples).not.toContain("NEEDS_CONTEXT");
+        expect(renderedExamples).not.toContain("`BLOCKED`");
+        expect(normalizeRenderedWhitespace(renderedExamples)).toContain(
+          "Unsupported or source-inconsistent examples are `BLOCKER` findings returned to the owning design or decision surface",
+        );
+        for (const rejectionRule of [
+          "D6 digest mismatch — reject both verdicts",
+          "FAIL missing a required stable gap field — reject the malformed report",
+          "conflicting meanings for one stable gap ID — reject consolidation as malformed",
+          "reviewer stops after the first concrete in-remit gap — reject the incomplete report",
+          "plan bytes change after PASS — invalidate both verdicts",
+          "route begins while a sibling remains active — reject the early route",
+        ]) {
+          expect(normalizeRenderedWhitespace(renderedExamples)).toContain(
+            rejectionRule,
+          );
+        }
         expect(normalizeRenderedWhitespace(renderedCriteriaTopology)).toBe(
           normalizeRenderedWhitespace(sourceCriteriaTopology),
         );

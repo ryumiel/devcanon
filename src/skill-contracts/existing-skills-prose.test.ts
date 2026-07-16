@@ -749,7 +749,7 @@ describe("existing skills source prose contracts", () => {
       "Update only triggered surfaces and record a task-specific inapplicability reason for every unchanged surface",
     );
     expect(normalizeWhitespace(playPlanning)).toContain(
-      "The reference, not duplicated gate prose, owns the detailed scope, contract, traceability, task, proof, and finding criteria",
+      "The bundle-owned references, not duplicated gate prose, own their respective detailed contracts",
     );
   });
 
@@ -908,7 +908,10 @@ describe("existing skills source prose contracts", () => {
       "Positive examples match the target post-change contract, not the pre-change contract",
     );
     expect(normalizedContractExampleDiscipline).toContain(
-      "unless intentional multi-fault behavior is explicitly named",
+      "Invalid examples change exactly one named contract dimension from the canonical valid example",
+    );
+    expect(normalizedContractExampleDiscipline).not.toContain(
+      "intentional multi-fault",
     );
     expect(normalizedContractExampleDiscipline).toContain(
       "derived fields in examples or fixtures remain consistent with those facts or the plan explicitly justifies why they do not",
@@ -1712,6 +1715,20 @@ describe("existing skills source prose contracts", () => {
     const normalizedPlanning = normalizeWhitespace(playPlanning);
     const normalizedCriteria = normalizeWhitespace(planningCriteria);
     const normalizedReadiness = normalizeWhitespace(readinessAudit);
+    const planningAuthority = getMarkdownSection(
+      planningCriteria,
+      "Planning authority and readiness",
+    );
+    const contractExamples = sliceBetween(
+      planningCriteria,
+      "### Contract examples",
+      "## Contract and traceability criteria",
+    );
+    const validExample = sliceBetween(
+      contractExamples,
+      "#### Valid paired PASS",
+      "#### Single-dimension invalid families",
+    );
 
     expect(playPlanning).toContain("references/planning-readiness-audit.md");
     expect(normalizedPlanning).toContain(
@@ -1727,9 +1744,7 @@ describe("existing skills source prose contracts", () => {
       "both independent GUARD-001 captures must succeed before either reviewer starts",
     );
     expect(normalizedPlanning).toContain("maximum of two paired review waves");
-    expect(normalizedPlanning).toContain(
-      "Any byte edit invalidates both retained verdicts",
-    );
+    expect(normalizedPlanning).toContain("as does any plan-byte edit");
     expect(normalizedPlanning).toContain(
       "both reviewers return PASS for the same current exact-byte digest",
     );
@@ -1740,6 +1755,18 @@ describe("existing skills source prose contracts", () => {
     expect(playPlanning).toContain("`sha256sum`");
     expect(normalizedPlanning).toContain(
       "The digest is controller-local state and creates no result artifact",
+    );
+    expect(normalizedPlanning).toContain(
+      "Each reviewer must independently compute SHA-256 over the exact plan bytes it reads and compare that digest to the supplied expected digest before returning",
+    );
+    expect(normalizedPlanning).toContain(
+      "After both reviewers settle and clean, recompute SHA-256 over the current exact plan bytes at the join",
+    );
+    expect(normalizedPlanning).toContain(
+      "Immediately before execution or owning-workflow handoff, recompute SHA-256 over the current exact plan bytes again",
+    );
+    expect(normalizedPlanning).toContain(
+      "A reviewer-computed, join-time, or pre-handoff digest mismatch invalidates both verdicts",
     );
 
     for (const triggerId of [
@@ -1842,19 +1869,42 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedCriteria).toContain(
       "every concrete in-remit gap before returning FAIL",
     );
-    expect(normalizedCriteria).toContain(
-      "canonical valid family is an independent D5 PASS response and independent D6 PASS response",
+    const validDigests = [
+      ...validExample.matchAll(/PASS — digest=([0-9a-f]{64})/gu),
+    ].map((match) => match[1]);
+    expect(validDigests).toHaveLength(2);
+    expect(new Set(validDigests)).toEqual(
+      new Set([
+        "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      ]),
     );
-    for (const invalidFamily of [
-      "D6 echoes a different digest",
-      "FAIL omits one required stable gap field",
-      "one stable gap ID has conflicting meanings",
-      "a reviewer stops after its first concrete in-remit gap",
-      "the plan changes after PASS",
-      "routing begins while one sibling remains active",
+    expect(normalizeWhitespace(validExample)).toContain("this family passes");
+    expect(normalizeWhitespace(contractExamples)).toContain(
+      "Each family below changes only its named dimension",
+    );
+    for (const rejectionRule of [
+      "D6 digest mismatch — reject both verdicts and make the wave non-passing",
+      "FAIL missing a required stable gap field — reject the malformed report and make the wave non-passing",
+      "conflicting meanings for one stable gap ID — reject consolidation as malformed and make the wave non-passing",
+      "reviewer stops after the first concrete in-remit gap — reject the incomplete report and make the wave non-passing",
+      "plan bytes change after PASS — invalidate both verdicts and require a fresh paired wave within budget",
+      "route begins while a sibling remains active — reject the early route and wait for settlement and exact cleanup before any join",
     ]) {
-      expect(normalizedCriteria).toContain(invalidFamily);
+      expect(normalizeWhitespace(contractExamples)).toContain(rejectionRule);
     }
+    expect(contractExamples).not.toContain("intentional multi-fault");
+    expect(contractExamples).not.toContain("NEEDS_CONTEXT");
+    expect(contractExamples).not.toContain("`BLOCKED`");
+    expect(normalizeWhitespace(contractExamples)).toContain(
+      "Unsupported or source-inconsistent examples are `BLOCKER` findings returned to the owning design or decision surface",
+    );
+
+    expect(normalizeWhitespace(planningAuthority)).toContain(
+      "planning-readiness-audit.md` exclusively owns audit dimensions",
+    );
+    expect(planningAuthority).not.toContain(
+      "Before task planning, confirm that authoritative inputs decide:",
+    );
   });
 
   it("keeps play-planning implementer-executability review contracts in source", async () => {
@@ -1878,6 +1928,7 @@ describe("existing skills source prose contracts", () => {
       playPlanning,
       "Scope Envelope and Canonical Criteria",
     );
+    const selfReview = getMarkdownSection(playPlanning, "Self-Review");
     const normalizedScopeAndCriteria = normalizeWhitespace(scopeAndCriteria);
 
     expect(playPlanning.indexOf("## Plan Review")).toBeLessThan(
@@ -1897,6 +1948,12 @@ describe("existing skills source prose contracts", () => {
     );
     expect(normalizedScopeAndCriteria).toContain(
       "resolve both bundled references to concrete readable regular-file paths",
+    );
+    expect(normalizeWhitespace(selfReview)).toContain(
+      "reload and read both validated bundle-owned references",
+    );
+    expect(normalizeWhitespace(selfReview)).toContain(
+      "validate the recorded readiness outcome, assumptions, or skip record",
     );
 
     expectSharedLifecycleReference(implementerExecutabilityReview);
@@ -1934,7 +1991,13 @@ describe("existing skills source prose contracts", () => {
         "Absence of the unselected path or inline form does not block",
       );
       expect(normalizedReviewSection).toContain(
-        "Never direct the reviewer to find criteria relative to the target repository",
+        "Never direct the reviewer to find criteria or readiness policy relative to the target repository",
+      );
+      expect(normalizedReviewSection).toContain(
+        "read the concrete readiness reference and validate the recorded readiness result",
+      );
+      expect(normalizedReviewSection).toContain(
+        "Missing or unreadable readiness input blocks",
       );
       expect(normalizedReviewSection).not.toContain(
         "read `references/planning-criteria.md` from the repository",
@@ -2033,12 +2096,18 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedPairedReview).toContain(
       "maximum of two paired review waves",
     );
-    expect(normalizedPairedReview).toContain(
-      "Any byte edit invalidates both retained verdicts",
-    );
+    expect(normalizedPairedReview).toContain("as does any plan-byte edit");
     expect(normalizedPairedReview).toContain(
       "both reviewers return PASS for the same current exact-byte digest",
     );
+    expectSubstringsInOrder(normalizedPairedReview, [
+      "every started sibling must settle",
+      "After both reviewers settle and clean",
+      "recompute SHA-256 over the current exact plan bytes at the join",
+      "Immediately before execution or owning-workflow handoff",
+      "recompute SHA-256 over the current exact plan bytes again",
+      "before applying dual PASS",
+    ]);
 
     for (const [section, spawnStep] of [
       [normalizedPlanReview, "spawn the D5 reviewer and capture only"],

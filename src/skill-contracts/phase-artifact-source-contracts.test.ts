@@ -735,6 +735,21 @@ describe("phase artifact source contracts", () => {
     expect(normalizedWorkflow).toContain(
       "No execution or owning-workflow route may begin while either sibling is active",
     );
+    expect(normalizedWorkflow).toContain(
+      "Each reviewer must independently compute SHA-256 over the exact plan bytes it reads",
+    );
+    expect(normalizedWorkflow).toContain(
+      "recompute SHA-256 over the current exact plan bytes at the join",
+    );
+    expect(normalizedWorkflow).toContain(
+      "Immediately before execution or owning-workflow handoff, recompute SHA-256 over the current exact plan bytes again",
+    );
+    expect(normalizedWorkflow).toContain(
+      "reload and read both validated bundle-owned references",
+    );
+    expect(normalizedWorkflow).toContain(
+      "validate the recorded readiness outcome, assumptions, or skip record",
+    );
   });
 
   it("keeps issue-body prompt trust boundaries in source prompt templates", async () => {

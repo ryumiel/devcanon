@@ -509,11 +509,16 @@ Every task spec must contain the actual contract an engineer needs. These are
 
 ## Self-Review
 
-After writing the plan, reload the validated bundle-owned criteria path and
-review the saved artifact against that canonical source. Do not substitute a
-target-repository-relative `references/planning-criteria.md`. The reference,
-not duplicated gate prose, owns the detailed scope, contract, traceability,
-task, proof, and finding criteria.
+After writing the plan, reload and read both validated bundle-owned references:
+the criteria path and the readiness-audit path. Review the saved artifact
+against the criteria and validate the recorded readiness outcome, assumptions,
+or skip record against the readiness reference. Confirm `READY` has no invented
+assumptions, `READY_WITH_RECORDED_ASSUMPTIONS` includes every complete bounded
+record in the saved plan, and a skip includes all six explicit false results
+plus its bounded-operation and authority reason. Any invalid readiness record
+stops as `NOT_READY`. Do not substitute target-repository-relative reference
+paths. The bundle-owned references, not duplicated gate prose, own their
+respective detailed contracts.
 
 Review in this order:
 
@@ -561,6 +566,11 @@ the same optional comment evidence to both when present; omit it from both when
 absent. Pass the identical tuple to D5 and D6, while keeping their remits and
 responses separate.
 
+Each reviewer must independently compute SHA-256 over the exact plan bytes it
+reads and compare that digest to the supplied expected digest before returning.
+Its first-line digest is the reviewer-computed value, not an unverified echo.
+A reviewer mismatch makes the paired wave non-passing.
+
 Use `subagent-lifecycle` for two independent pending ledger rows and its
 target-honest cleanup, slot-limit, and recovery rules. Resolve
 `PLAY_PLANNING_DIR` to the loaded or installed skill bundle and
@@ -594,19 +604,25 @@ guard-integrity terminal: leave the source state visible, let every started
 sibling settle and attempt its owned cleanup, stop planning, and never reset,
 check out, stage, repair, or otherwise hide the mutation.
 
-Join only after both independent lifecycles finish. Validate each response
-against the shared result and gap contract in the criteria reference, then
-consolidate stable IDs. Do not route early on one PASS or one FAIL. Verified
-`CURRENT` gaps may revise the plan; a `BLOCKER` returns to its named owner;
-`FOLLOW-UP` and `OPTIONAL` remain deferred. Any byte edit invalidates both
-retained verdicts immediately, requires a new exact digest, and requires two
-fresh reviewers.
+Join only after both independent lifecycles finish. After both reviewers settle
+and clean, recompute SHA-256 over the current exact plan bytes at the join.
+Compare that join digest with the expected digest and both reviewer-computed
+digests before treating either retained, leaf-validated response as a join
+candidate or consolidating stable IDs under the shared result and gap contract.
+Do not route early on one PASS or one FAIL. Verified `CURRENT` gaps may revise
+the plan; a `BLOCKER` returns to its named owner; `FOLLOW-UP` and `OPTIONAL`
+remain deferred.
 
 Planning has a maximum of two paired review waves. A first ordinary non-pass
 may retry the fresh pair or revise verified CURRENT gaps and dispatch a fresh
 pair. A second non-pass stops. Handoff is allowed only after both reviewers
 return PASS for the same current exact-byte digest and both guard cleanups have
-succeeded.
+succeeded. Immediately before execution or owning-workflow handoff, recompute
+SHA-256 over the current exact plan bytes again and compare it with the
+expected, D5, D6, and join-time digests before applying dual PASS. A
+reviewer-computed, join-time, or pre-handoff digest mismatch invalidates both
+verdicts, as does any plan-byte edit; start a fresh pair within the remaining
+budget or stop when the budget is exhausted.
 
 ## Plan Review
 
@@ -672,11 +688,13 @@ artifact path references over inlined full documents; the path form wins when
 both forms exist. When inputs are path-backed, instruct the reviewer to read
 them from disk, and always instruct it to read the plan, the selected
 path-or-inline design input, and the concrete criteria path before evaluating.
-Missing or unreadable plan or criteria input blocks the review. A selected
-design path that is missing or unreadable also blocks, as does missing selected
-inline design content. Absence of the unselected path or inline form does not
-block. Never direct the reviewer to find criteria relative to the target
-repository.
+Instruct it to read the concrete readiness reference and validate the recorded
+readiness result before reviewing the plan. Missing or unreadable plan or
+criteria input blocks the review. A selected design path that is missing or
+unreadable also blocks, as does missing selected inline design content. Absence
+of the unselected path or inline form does not block. Missing or unreadable
+readiness input blocks the review. Never direct the reviewer to find criteria
+or readiness policy relative to the target repository.
 
 The reviewer independently validates the Scope Envelope, Scope Delta,
 authoritative requirement coverage, unjustified tasks, dependency order,
@@ -776,11 +794,14 @@ artifact path references over inlined full documents; the path form wins when
 both forms exist. Pass comment evidence only when the planning invocation
 received it. When inputs are path-backed, instruct the reviewer to read them
 from disk, and always instruct it to read the plan, the selected path-or-inline
-design input, and the concrete criteria path. Missing or unreadable plan or
-criteria input blocks execution handoff. A selected design path that is missing
-or unreadable also blocks; missing selected inline design content also blocks.
-Absence of the unselected path or inline form does not block. Never direct the
-reviewer to find criteria relative to the target repository.
+design input, and the concrete criteria path. Instruct it to read the concrete
+readiness reference and validate the recorded readiness result before
+evaluating executability. Missing or unreadable plan or criteria input blocks
+execution handoff. A selected design path that is missing or unreadable also
+blocks; missing selected inline design content also blocks. Absence of the
+unselected path or inline form does not block. Missing or unreadable readiness
+input blocks execution handoff. Never direct the reviewer to find criteria or
+readiness policy relative to the target repository.
 
 The reviewer checks for hidden product, policy, ownership, source mapping,
 side-effect, error, recovery, rollback, or guardrail decisions that a task

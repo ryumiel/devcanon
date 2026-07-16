@@ -83,15 +83,10 @@ the actual disposition.
 
 ## Planning authority and readiness
 
-Before task planning, confirm that authoritative inputs decide:
-
-- scope, outcomes, and non-goals;
-- source precedence and conflict resolution;
-- changed boundary participants;
-- mutation and side-effect ownership;
-- failure, recovery, retry, rollback, cleanup, and continuation semantics;
-- artifact custody, validation, freshness, and lifecycle; and
-- verification authority and acceptance evidence.
+The bundled `planning-readiness-audit.md` exclusively owns audit dimensions,
+triggers, outcomes, bounded-assumption rules, and stable missing-decision
+records. Planning consumes that recorded result; this criteria reference does
+not restate or redefine the audit checklist.
 
 Planning details that remain discoverable from named source files are not
 missing authority. Private helper decomposition, internal names, test
@@ -113,12 +108,8 @@ current task coverage, acceptance criteria, ownership, and proof obligations.
 Planning may decompose or sequence a decision, but it must not silently omit or
 replace it.
 
-The bundled `planning-readiness-audit.md` reference exclusively owns the
-pre-drafting audit triggers, dimensions, closed outcomes, bounded-assumption
-rules, and stable missing-decision records. This criteria reference consumes
-the recorded readiness result and owns the shared D5/D6 review-result and gap
-contract below. It must not redefine readiness outcomes or use review gaps to
-replace missing project authority.
+This criteria reference owns the shared D5/D6 review-result and gap contract
+below. It must not use review gaps to replace missing project authority.
 
 ## Exact digest and paired-review result contract
 
@@ -131,9 +122,14 @@ is lowercase 64-character hexadecimal text. A missing or unreadable plan,
 missing hash utility, read failure, or malformed digest blocks the wave.
 
 The expected digest and saved plan path remain controller-local inputs. D5 and
-D6 must echo the expected digest in the first line of their independent
-responses. Any plan-byte edit invalidates both responses immediately; verdicts
-from different digests never combine.
+D6 each independently hash the exact plan bytes they read and compare that
+computed digest with the expected digest before returning. They must echo their
+computed digest in the first line of their independent responses. After both
+guard lifecycles settle and clean, the controller independently rehashes the
+current exact plan bytes at the join and once more immediately before applying
+dual PASS to a handoff. A reviewer-computed, join-time, or pre-handoff mismatch,
+or any intervening plan-byte edit, invalidates both responses immediately;
+verdicts from different digests never combine.
 
 ### Review result shape and exhaustive reporting
 
@@ -199,22 +195,43 @@ the same current digest.
 
 ### Contract examples
 
-The canonical valid family is an independent D5 PASS response and independent
-D6 PASS response whose first lines echo the same current lowercase 64-hex
-exact-byte digest, followed by successful exact cleanup of both guard baselines
-before handoff. Each of these single-dimension-invalid families is non-passing:
+#### Valid paired PASS
 
-- D6 echoes a different digest;
-- FAIL omits one required stable gap field;
-- one stable gap ID has conflicting meanings;
-- a reviewer stops after its first concrete in-remit gap;
-- the plan changes after PASS; or
-- routing begins while one sibling remains active.
+For a saved plan whose current exact-byte digest is
+`0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef`, the
+canonical response pair is:
 
-Positive examples must match this contract. Invalid examples mutate exactly
-one named dimension unless an intentional multi-fault example is labeled.
-Derived facts must remain consistent with source authority. Unsupported or
-unverifiable examples are `NEEDS_CONTEXT` or `BLOCKED`; do not guess.
+```text
+D5: PASS — digest=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+D6: PASS — digest=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+```
+
+Both reviewers independently compute that digest from the exact plan bytes
+they read. After both exact guard cleanups, the controller's join-time and
+pre-handoff rehashes produce the same digest. With no `CURRENT` or `BLOCKER`
+gap, this family passes.
+
+#### Single-dimension invalid families
+
+Each family below changes only its named dimension; all other facts remain
+consistent with the valid family and source authority:
+
+- D6 digest mismatch — reject both verdicts and make the wave non-passing.
+- FAIL missing a required stable gap field — reject the malformed report and
+  make the wave non-passing.
+- conflicting meanings for one stable gap ID — reject consolidation as
+  malformed and make the wave non-passing.
+- reviewer stops after the first concrete in-remit gap — reject the incomplete
+  report and make the wave non-passing.
+- plan bytes change after PASS — invalidate both verdicts and require a fresh
+  paired wave within budget.
+- route begins while a sibling remains active — reject the early route and
+  wait for settlement and exact cleanup before any join.
+
+Positive examples must match the post-change contract. Derived facts must
+remain consistent with source authority. Unsupported or source-inconsistent
+examples are `BLOCKER` findings returned to the owning design or decision
+surface; do not guess.
 
 ## Contract and traceability criteria
 
@@ -347,9 +364,9 @@ equivalent section. Name:
 
 Positive examples match the target post-change contract, not the pre-change
 contract. Invalid examples change exactly one named contract dimension from the
-canonical valid example unless intentional multi-fault behavior is explicitly
-named. When source facts change, derived fields in examples or fixtures remain
-consistent with those facts or the plan explicitly justifies why they do not.
+canonical valid example. When source facts change, derived fields in examples
+or fixtures remain consistent with those facts or the plan explicitly
+justifies why they do not.
 
 Do not author implementation code, test bodies, fixture bodies, helper names,
 line edits, shell recipes, or command sequences. Do not expand a focused
