@@ -33,12 +33,44 @@ Task tool (general-purpose):
 
     [EXTRACTED PLAN/TASK EXECUTION CONTEXT]
 
-    This controller-curated context contains any present plan-level Contract
-    Example Discipline obligations, the task-local checklist/no-trigger status,
-    and task-local example or proof obligations. Enforce present Contract
-    Example Discipline obligations using the controller-supplied `Contract
-    Example Discipline Consumer Rule` subsection in this extracted context; do
-    not infer whether the discipline should have been required.
+    This controller-curated context contains the literal declared `Contract
+    tier` plus its tier-appropriate structure, any present plan-level Contract
+    Example Discipline obligations, and task-local example or proof
+    obligations. You consume the declared tier and never reclassify it. Do not
+    promote, demote, or infer a tier from implementer claims, task prose, diff
+    size, path spelling, or runtime risk routing.
+
+    You must independently verify the task and implementation against the
+    declared tier and named sources:
+    - `FULL` requires the complete checklist vocabulary with every field
+      populated or a task-specific `N/A`: trigger criteria, owner/authority,
+      affected consumers/generated outputs, must-preserve, required behavior,
+      spec/procedure work, risk surfaces, and proof obligations.
+    - A valid reviewed `LIGHTWEIGHT` context names its authority, owner,
+      purpose, inputs and outputs, material write or side-effect owner, failure
+      and cleanup behavior, focused proof, every actual known participant and
+      direct producer-consumer relationship, and why every FULL trigger is
+      absent. `LIGHTWEIGHT` does not require intentionally absent FULL-only
+      fields or `N/A` entries and does not add FULL-only matrices, spec or risk
+      rows, or `N/A` placeholders. Specifically authorized applicable extra
+      detail remains required without promoting unrelated contract families.
+    - `NO-TRIGGER` requires the literal tier, a task-specific reason, ordinary
+      task fields, acceptance, and minimum proof without a checklist.
+
+    Missing, malformed, or unsupported tier, missing required authority, an
+    omitted actual known participant or direct producer-consumer relationship,
+    or an independently triggered material obligation fails closed as a
+    spec-compliance issue. Do not guess or reclassify. A canonical valid example
+    is the valid reviewed `LIGHTWEIGHT` context above: it does not add FULL-only
+    matrices, spec or risk rows, or `N/A` placeholders. For invalid family 1,
+    changing only that example's tier to missing or unsupported must fail
+    closed; for invalid family 2, removing one known direct consumer must remain
+    blocking.
+
+    Enforce present Contract Example Discipline obligations using the
+    controller-supplied `Contract Example Discipline Consumer Rule` subsection
+    in this extracted context; do not infer whether the discipline should have
+    been required.
 
     ## CRITICAL: Do Not Trust the Report
 
@@ -76,28 +108,22 @@ Task tool (general-purpose):
     - Did they solve the wrong problem?
     - Did they implement the right feature but wrong way?
 
-    **Task contract checklist (when present in the requested task):**
-    - Verify owner/authority fields against the source files, docs, ADRs,
-      schemas, renderers, prompts, or policies that actually own the behavior.
-      If the task names an owner or authority that the repository does not
-      support, report it as a spec-compliance issue.
-    - Verify must-preserve boundaries and existing workflow/domain contracts
-      were preserved, including compatibility constraints and current/target
-      behavior labels when the task uses them.
-    - Verify affected consumers and generated outputs named by the task were
-      updated, intentionally left unchanged with a task-specific reason, or
-      proven by generated-output evidence when required.
-    - Verify required behavior, including preconditions, happy path, failure
-      classes, retry/recovery behavior, cleanup ownership, terminal states, and
-      re-entry or re-review behavior when the task includes those fields.
-    - Verify spec/procedure work requirements against the owning artifact
-      category, fact ownership, conflict precedence, normative expectations,
-      example or fixture validation expectations, cross-document drift risks,
-      and review-blocking semantic risks named in the task.
-    - Verify risk surfaces and proof obligations were addressed by source
-      changes, tests, generated-output evidence, documentation updates, or
-      stated blockers as required by the task. A blank field, unexplained
-      `N/A`, or unproven proof obligation is a missing requirement.
+    **Declared task contract tier:**
+    - Verify only the fields required by the literal declared tier, plus any
+      specifically authorized extra detail or independently triggered material
+      obligation already present in curated context.
+    - Verify owner and authority against the source files, docs, ADRs, schemas,
+      renderers, prompts, or policies that actually own the behavior. Verify
+      every known participant and direct producer-consumer relationship named
+      or discoverable in those task-scoped sources. Unsupported authority or a
+      known omission is a spec-compliance issue.
+    - For `FULL`, verify all must-preserve, behavior, spec/procedure, risk, and
+      proof fields are complete. For `LIGHTWEIGHT`, do not demand intentionally
+      absent FULL-only detail or `N/A` placeholders. For `NO-TRIGGER`, do not
+      invent a checklist.
+    - Verify the implementation addresses the declared tier's acceptance and
+      proof obligations using the actual source and diff, not the implementer
+      report.
     - In the case when extracted plan/task execution context includes Contract
       Example Discipline or an equivalent clearly labeled section/obligation,
       independently verify the controller-supplied `Contract Example Discipline

@@ -1129,6 +1129,50 @@ describe("existing skills render cleanly", () => {
       }
     }
 
+    const tierAwarePromptReferences = [
+      "implementer-prompt.md",
+      "executor-prompt.md",
+      "spec-reviewer-prompt.md",
+    ];
+    const tierSemantics = [
+      "literal declared `Contract tier` plus its tier-appropriate structure",
+      "consume the declared tier and never reclassify it",
+      "`FULL` requires the complete checklist vocabulary",
+      "`LIGHTWEIGHT` does not require intentionally absent FULL-only fields or `N/A` entries",
+      "`NO-TRIGGER` requires the literal tier, a task-specific reason, ordinary task fields, acceptance, and minimum proof without a checklist",
+      "Missing, malformed, or unsupported tier",
+      "omitted actual known participant or direct producer-consumer relationship",
+      "independently triggered material obligation",
+      "changing only that example's tier to missing or unsupported must fail closed",
+      "removing one known direct consumer must remain blocking",
+    ];
+
+    for (const reference of tierAwarePromptReferences) {
+      const sourcePath = path.join(playSubagentReferencesRoot, reference);
+      const sourceContent = await readFile(sourcePath, "utf-8");
+
+      for (const target of ["claude", "codex"] as const) {
+        const generatedPath = path.join(
+          config.library.generatedDir,
+          target,
+          "skills",
+          "play-subagent-execution",
+          "references",
+          reference,
+        );
+        const generatedContent = await readFile(generatedPath, "utf-8");
+        expect(generatedContent).toBe(sourceContent);
+
+        const normalizedGenerated = normalizeWhitespace(generatedContent);
+        for (const semantic of tierSemantics) {
+          expect(normalizedGenerated).toContain(semantic);
+        }
+        expect(normalizedGenerated).not.toContain(
+          "task-local checklist/no-trigger status",
+        );
+      }
+    }
+
     const playPlanningReferencesRoot = path.join(
       repoRoot,
       "skills/play-planning/references",

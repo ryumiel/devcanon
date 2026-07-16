@@ -6546,6 +6546,9 @@ describe("existing skills source prose contracts", () => {
   });
 
   it("keeps bundled prompt and runtime-reference prose contracts in source", async () => {
+    const playSubagentExecution = await readSkillSource(
+      "play-subagent-execution",
+    );
     const implementerPrompt = await readRepoFile(
       "skills/play-subagent-execution/references/implementer-prompt.md",
     );
@@ -6562,46 +6565,89 @@ describe("existing skills source prose contracts", () => {
       "skills/issue-priming-workflow/references/investigator-prompt.md",
     );
 
-    expect(implementerPrompt).toContain(
-      "If the task includes a contract checklist",
-    );
-    expect(normalizeWhitespace(implementerPrompt)).toContain(
-      "owner/authority, affected consumers/generated outputs, must-preserve, required behavior",
-    );
-    expect(normalizeWhitespace(implementerPrompt)).toContain(
-      "source-of-truth, consumer, generated-output, or evidence surface that source inspection cannot confirm",
-    );
+    for (const prompt of [
+      implementerPrompt,
+      executorPrompt,
+      specReviewerPrompt,
+    ]) {
+      const normalizedPrompt = normalizeWhitespace(prompt);
+
+      expect(normalizedPrompt).toContain(
+        "literal declared `Contract tier` plus its tier-appropriate structure",
+      );
+      expect(normalizedPrompt).toContain(
+        "consume the declared tier and never reclassify it",
+      );
+      expect(normalizedPrompt).toContain(
+        "Missing, malformed, or unsupported tier",
+      );
+      expect(normalizedPrompt).toContain(
+        "missing required authority, an omitted actual known participant or direct producer-consumer relationship, or an independently triggered material obligation",
+      );
+      expect(normalizedPrompt).toContain(
+        "valid reviewed `LIGHTWEIGHT` context names its authority, owner, purpose, inputs and outputs, material write or side-effect owner, failure and cleanup behavior, focused proof, every actual known participant and direct producer-consumer relationship, and why every FULL trigger is absent",
+      );
+      expect(normalizedPrompt).toContain(
+        "does not add FULL-only matrices, spec or risk rows, or `N/A` placeholders",
+      );
+      expect(normalizedPrompt).toContain(
+        "changing only that example's tier to missing or unsupported must fail closed",
+      );
+      expect(normalizedPrompt).toContain(
+        "removing one known direct consumer must remain blocking",
+      );
+      expect(normalizedPrompt).not.toContain(
+        "task-local checklist/no-trigger status",
+      );
+    }
+
+    for (const prompt of [
+      implementerPrompt,
+      executorPrompt,
+      specReviewerPrompt,
+    ]) {
+      const normalizedPrompt = normalizeWhitespace(prompt);
+      expect(normalizedPrompt).toContain(
+        "`FULL` requires the complete checklist vocabulary with every field populated or a task-specific `N/A`",
+      );
+      expect(normalizedPrompt).toContain(
+        "`LIGHTWEIGHT` does not require intentionally absent FULL-only fields or `N/A` entries",
+      );
+      expect(normalizedPrompt).toContain(
+        "`NO-TRIGGER` requires the literal tier, a task-specific reason, ordinary task fields, acceptance, and minimum proof without a checklist",
+      );
+    }
+
     expect(implementerPrompt).toContain(
       "helper-name prescriptions, line-number edits, or commit recipes",
     );
 
     expect(executorPrompt).toContain(
       "helper-name prescriptions, line-number edits, or commit recipes",
-    );
-    expect(executorPrompt).toContain(
-      "affected consumers/generated outputs, must-preserve, required behavior",
     );
     expect(executorPrompt).toContain(
       "Read the relevant source files, existing docs, ADRs, helpers, generated",
     );
     expect(normalizeWhitespace(executorPrompt)).toContain(
-      "A blank checklist field, unexplained `N/A`, or unconfirmed owner/authority",
+      "Executor mode remains available only after all five controller-owned D13 guardrails pass",
     );
-    expect(normalizeWhitespace(executorPrompt)).toContain(
-      "source-of-truth, consumer, generated-output, or evidence surface is not a mechanical replacement target",
+    expect(normalizeWhitespace(playSubagentExecution)).toContain(
+      "Both `LIGHTWEIGHT` and `NO-TRIGGER` are trusted only when this controller can identify the upstream two-gate `play-planning` return",
+    );
+    expect(normalizeWhitespace(playSubagentExecution)).toContain(
+      "Direct, hand-written, copied, older, or otherwise unreviewed plans without that upstream two-gate return must use a structurally complete `FULL` contract",
     );
 
-    expect(specReviewerPrompt).toContain(
-      "**Task contract checklist (when present in the requested task):**",
+    expect(specReviewerPrompt).toContain("**Declared task contract tier:**");
+    expect(normalizeWhitespace(specReviewerPrompt)).toContain(
+      "independently verify the task and implementation against the declared tier and named sources",
     );
-    expect(specReviewerPrompt).toContain(
-      "Verify owner/authority fields against the source files, docs, ADRs",
+    expect(normalizeWhitespace(specReviewerPrompt)).toContain(
+      "D14 is a response-only `deep-reviewer`, frontier/xhigh and source-immutable, with zero handoffs",
     );
-    expect(specReviewerPrompt).toContain(
-      "Verify affected consumers and generated outputs named by the task",
-    );
-    expect(specReviewerPrompt).toContain(
-      "Verify risk surfaces and proof obligations were addressed",
+    expect(specReviewerPrompt).toContain("Read the implementation from disk");
+    expect(normalizeWhitespace(specReviewerPrompt)).toContain(
+      "using the actual source and diff, not the implementer report",
     );
     expect(normalizeWhitespace(specReviewerPrompt)).toContain(
       "tiny-diff mode may suppress only the risk-triggered `Spec` and `Architecture` reviewers",
