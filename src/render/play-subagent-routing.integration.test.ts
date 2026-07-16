@@ -154,6 +154,24 @@ describe("play-subagent planning and routing render smoke coverage", () => {
         "Immediately before execution or owning-workflow handoff, recompute SHA-256 over the current exact plan bytes again",
       );
       expect(normalizedPlayPlanning).toContain(
+        "Before each authorized revision, retain a controller-local semantic-task-to-Task-ID baseline from the current plan",
+      );
+      expect(normalizedPlayPlanning).toContain(
+        "After saving the revised plan and before fresh reviewer dispatch, compare it with that baseline",
+      );
+      expect(normalizedPlayPlanning).toContain(
+        "Continuing semantic tasks must preserve their Task IDs",
+      );
+      expect(normalizedPlayPlanning).toContain(
+        "Reject changed or missing IDs for continuing tasks and any duplicate, reused, or reassigned ID across distinct semantic tasks",
+      );
+      expect(normalizedPlayPlanning).toContain(
+        "A genuinely new semantic task may receive a new unique Task ID that does not appear in the retained baseline",
+      );
+      expect(normalizedPlayPlanning).toContain(
+        "Keep this comparison in controller memory; do not create a baseline artifact or persistent ID mechanism",
+      );
+      expect(normalizedPlayPlanning).toContain(
         "reload and read both validated bundle-owned references",
       );
       expect(normalizedPlayPlanning).toContain(
@@ -237,7 +255,11 @@ describe("play-subagent planning and routing render smoke coverage", () => {
         expect(reviewSection).toContain(
           "Missing or unreadable readiness input blocks",
         );
+        expect(reviewSection).toContain(
+          "Pass `Comment evidence: <path>` only when the planning invocation received it",
+        );
       }
+      expect(planReview).toContain("optional comment-evidence path");
       expect(pairedReview).toContain(
         "both independent GUARD-001 captures must succeed before either reviewer starts",
       );

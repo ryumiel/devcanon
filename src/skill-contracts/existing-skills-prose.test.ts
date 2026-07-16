@@ -1801,6 +1801,24 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedPlanning).toContain(
       "A reviewer-computed, join-time, or pre-handoff digest mismatch invalidates both verdicts",
     );
+    expect(normalizedPlanning).toContain(
+      "Before each authorized revision, retain a controller-local semantic-task-to-Task-ID baseline from the current plan",
+    );
+    expect(normalizedPlanning).toContain(
+      "After saving the revised plan and before fresh reviewer dispatch, compare it with that baseline",
+    );
+    expect(normalizedPlanning).toContain(
+      "Continuing semantic tasks must preserve their Task IDs",
+    );
+    expect(normalizedPlanning).toContain(
+      "Reject changed or missing IDs for continuing tasks and any duplicate, reused, or reassigned ID across distinct semantic tasks",
+    );
+    expect(normalizedPlanning).toContain(
+      "A genuinely new semantic task may receive a new unique Task ID that does not appear in the retained baseline",
+    );
+    expect(normalizedPlanning).toContain(
+      "Keep this comparison in controller memory; do not create a baseline artifact or persistent ID mechanism",
+    );
 
     for (const triggerId of [
       "RA-CONTRACT",
@@ -2180,10 +2198,14 @@ describe("existing skills source prose contracts", () => {
       ]);
       expect(reviewSection).not.toContain("`deep-reviewer`");
       expect(reviewSection).not.toContain("escalat");
+      expect(reviewSection).toContain(
+        "Pass `Comment evidence: <path>` only when the planning invocation received it",
+      );
     }
 
     expect(normalizedPlanReview).toContain("D5");
     expect(normalizedPlanReview).toContain("PLAN_REVIEW_BASELINE");
+    expect(normalizedPlanReview).toContain("optional comment-evidence path");
     expect(normalizedExecutabilityReview).toContain("D6");
     expect(normalizedExecutabilityReview).toContain(
       "EXECUTABILITY_REVIEW_BASELINE",

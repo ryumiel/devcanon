@@ -588,6 +588,16 @@ the same optional comment evidence to both when present; omit it from both when
 absent. Pass the identical tuple to D5 and D6, while keeping their remits and
 responses separate.
 
+Before each authorized revision, retain a controller-local
+semantic-task-to-Task-ID baseline from the current plan. After saving the
+revised plan and before fresh reviewer dispatch, compare it with that baseline.
+Continuing semantic tasks must preserve their Task IDs. Reject changed or
+missing IDs for continuing tasks and any duplicate, reused, or reassigned ID
+across distinct semantic tasks. A genuinely new semantic task may receive a
+new unique Task ID that does not appear in the retained baseline. Keep this
+comparison in controller memory; do not create a baseline artifact or
+persistent ID mechanism.
+
 Each reviewer must independently compute SHA-256 over the exact plan bytes it
 reads and compare that digest to the supplied expected digest before returning.
 Its first-line digest is the reviewer-computed value, not an unverified echo.
@@ -657,8 +667,9 @@ same semantic role.
 Before dispatching the plan-review agent, use `subagent-lifecycle` for the controller-local lifecycle ledger, target
 lifecycle capability classification, cleanup gate, target-honest cleanup outcomes,
 and slot-limit recovery. Capture the plan path or inline scope, design
-scope, concise PASS/FAIL result, classified findings, and blockers before
-cleanup or supersession. Retain every specific gap with its response.
+scope, optional comment-evidence path, concise PASS/FAIL result, classified
+findings, and blockers before cleanup or supersession. Retain every specific
+gap with its response.
 
 Resolve `PLAY_PLANNING_DIR` to the loaded or installed `play-planning` skill
 bundle, resolve `SOURCE_IMMUTABILITY_HELPER` to
@@ -708,8 +719,9 @@ Pass `Plan: <path>`, `Criteria: <validated-bundle-owned-path>`,
 `Design: <path>` when the invocation selected the path form; otherwise pass the
 preserved inline `## Design` content for a direct invocation. Always prefer
 artifact path references over inlined full documents; the path form wins when
-both forms exist. When inputs are path-backed, instruct the reviewer to read
-them from disk, and always instruct it to read the plan, the selected
+both forms exist. Pass `Comment evidence: <path>` only when the planning
+invocation received it. When inputs are path-backed, instruct the reviewer to
+read them from disk, and always instruct it to read the plan, the selected
 path-or-inline design input, and the concrete criteria path before evaluating.
 Instruct it to read the concrete readiness reference and validate the recorded
 readiness result before reviewing the plan. Missing or unreadable plan or
@@ -815,10 +827,10 @@ Pass the guarded plan path, `Criteria: <validated-bundle-owned-path>`,
 `Design: <path>` when the invocation selected the path form; otherwise pass the
 preserved inline `## Design` content for a direct invocation. Always prefer
 artifact path references over inlined full documents; the path form wins when
-both forms exist. Pass comment evidence only when the planning invocation
-received it. When inputs are path-backed, instruct the reviewer to read them
-from disk, and always instruct it to read the plan, the selected path-or-inline
-design input, and the concrete criteria path. Instruct it to read the concrete
+both forms exist. Pass `Comment evidence: <path>` only when the planning
+invocation received it. When inputs are path-backed, instruct the reviewer to
+read them from disk, and always instruct it to read the plan, the selected
+path-or-inline design input, and the concrete criteria path. Instruct it to read the concrete
 readiness reference and validate the recorded readiness result before
 evaluating executability. Missing or unreadable plan or criteria input blocks
 execution handoff. A selected design path that is missing or unreadable also
