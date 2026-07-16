@@ -687,25 +687,30 @@ findings. A reviewer may report a shared-fact contradiction only by naming the
 concrete defect it causes in that reviewer's own remit.
 
 Planning has a maximum of two paired review waves. Wave one is exhaustive in
-each distinct remit. A first ordinary non-pass may retry the fresh pair or
-revise verified CURRENT gaps and dispatch a fresh pair. Wave two verifies every
-prior correction and its resolution state, then checks the revision for
-regressions. A newly blocking wave-two gap is valid only when it includes the
-canonical `New evidence basis` backed by approved bounded evidence that was
-not reasonably available from the wave-one plan and named sources. An
+each distinct remit. An unchanged fresh-pair retry after wave one is allowed
+only when wave one contains no verified `CURRENT` gap. An unchanged fresh-pair
+retry is prohibited when wave one contains any verified `CURRENT` gap. In that
+case, every such record must receive its authorized correction and transition
+from `OPEN` + `NOT_RUN` to `CORRECTED` + `PENDING` before wave-two dispatch. If
+any verified `CURRENT` gap remains uncorrected or its transition is invalid,
+stop without dispatching wave two or consuming the second-wave budget. Wave
+two verifies every prior correction and its resolution state, then checks the
+revision for regressions. A newly blocking wave-two gap is valid only when it
+includes the canonical `New evidence basis` backed by approved bounded evidence
+that was not reasonably available from the wave-one plan and named sources. An
 unsupported blocker, an ordinary defect inspectable in wave one, optional
 infrastructure, or proof expansion cannot authorize plan mutation or expansion
 and remains non-passing under the existing second-wave stop. A second non-pass
 stops. This convergence policy does not excuse genuine omissions: missing
 consumers, invalid paths or dependencies, ambiguous mutation ownership, and
-unsafe cleanup still block in their owning remits. Handoff is allowed only after both reviewers
-return PASS for the same current exact-byte digest and both guard cleanups have
-succeeded. Immediately before execution or owning-workflow handoff, recompute
-SHA-256 over the current exact plan bytes again and compare it with the
-expected, D5, D6, and join-time digests before applying dual PASS. A
-reviewer-computed, join-time, or pre-handoff digest mismatch invalidates both
-verdicts, as does any plan-byte edit; start a fresh pair within the remaining
-budget or stop when the budget is exhausted.
+unsafe cleanup still block in their owning remits. Handoff is allowed only
+after both reviewers return PASS for the same current exact-byte digest and
+both guard cleanups have succeeded. Immediately before execution or
+owning-workflow handoff, recompute SHA-256 over the current exact plan bytes
+again and compare it with the expected, D5, D6, and join-time digests before
+applying dual PASS. A reviewer-computed, join-time, or pre-handoff digest
+mismatch invalidates both verdicts, as does any plan-byte edit; start a fresh
+pair within the remaining budget or stop when the budget is exhausted.
 
 For wave one, `prior_verified_gaps` is explicitly none/inapplicable. For each
 verified wave-one `CURRENT` gap, the controller-local wave-two record contains

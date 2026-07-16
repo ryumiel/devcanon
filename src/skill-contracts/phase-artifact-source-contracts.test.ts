@@ -731,6 +731,14 @@ describe("phase artifact source contracts", () => {
     expect(normalizedWorkflow).toContain(
       "For wave one, `prior_verified_gaps` is explicitly none/inapplicable",
     );
+    for (const waveTwoAdmissionRule of [
+      "An unchanged fresh-pair retry after wave one is allowed only when wave one contains no verified `CURRENT` gap",
+      "An unchanged fresh-pair retry is prohibited when wave one contains any verified `CURRENT` gap",
+      "every such record must receive its authorized correction and transition from `OPEN` + `NOT_RUN` to `CORRECTED` + `PENDING` before wave-two dispatch",
+      "stop without dispatching wave two or consuming the second-wave budget",
+    ]) {
+      expect(normalizedWorkflow).toContain(waveTwoAdmissionRule);
+    }
     for (const priorGapField of [
       "stable gap ID",
       "task ID",

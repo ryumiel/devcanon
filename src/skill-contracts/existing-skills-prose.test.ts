@@ -1998,6 +1998,14 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedPairedReview).toContain(
       "Wave two verifies every prior correction and its resolution state, then checks the revision for regressions",
     );
+    for (const waveTwoAdmissionRule of [
+      "An unchanged fresh-pair retry after wave one is allowed only when wave one contains no verified `CURRENT` gap",
+      "An unchanged fresh-pair retry is prohibited when wave one contains any verified `CURRENT` gap",
+      "every such record must receive its authorized correction and transition from `OPEN` + `NOT_RUN` to `CORRECTED` + `PENDING` before wave-two dispatch",
+      "stop without dispatching wave two or consuming the second-wave budget",
+    ]) {
+      expect(normalizedPairedReview).toContain(waveTwoAdmissionRule);
+    }
     expect(normalizedPairedReview).toContain(
       "`resolution_state` uses only `OPEN`, `CORRECTED`, `RESOLVED`, or `UNRESOLVED`",
     );

@@ -208,6 +208,14 @@ describe("play-subagent planning and routing render smoke coverage", () => {
         "Wave one is exhaustive in each distinct remit",
       );
       expect(normalizedPlayPlanning).toContain("there is no third wave");
+      for (const waveTwoAdmissionRule of [
+        "An unchanged fresh-pair retry after wave one is allowed only when wave one contains no verified `CURRENT` gap",
+        "An unchanged fresh-pair retry is prohibited when wave one contains any verified `CURRENT` gap",
+        "every such record must receive its authorized correction and transition from `OPEN` + `NOT_RUN` to `CORRECTED` + `PENDING` before wave-two dispatch",
+        "stop without dispatching wave two or consuming the second-wave budget",
+      ]) {
+        expect(normalizedPlayPlanning).toContain(waveTwoAdmissionRule);
+      }
       for (const priorGapRule of [
         "stable gap ID, task ID, defect class, `classification=CURRENT`",
         "`Authority`, `Concrete blocker`, `Inspection insufficiency`, `Smallest correction`",
