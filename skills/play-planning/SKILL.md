@@ -229,17 +229,24 @@ within the Scope Envelope. Unknown authority is a blocker, not permission to
 generalize.
 
 For behavior- or contract-changing work, consume the approved design's
-ownership topology and expose its mapping in the plan. Every changed behavior
-and affected surface must reach a current task with its normative owner,
-optional non-overlapping supporting partition, consumption mode, conflict
-precedence, and verification owner. The canonical planning criteria own the
-detailed topology and task-mapping rules; the readiness reference exclusively
-owns audit and readiness rules. Stop when authority is duplicated,
-contradictory, or incomplete: return missing project-specific decisions to the
-owning design and broken task mappings to planning instead of adding a
-synchronized restatement. Repeated detail does not make a reference or summary
-normative, verification does not define policy, and generated skill packages
-remain derived consumers rather than edit targets.
+ownership topology and expose its tier-appropriate mapping in the plan. `FULL`
+tasks and separately named material authority require exhaustive topology,
+including the normative owner, optional non-overlapping supporting partitions,
+consumption modes, conflict precedence, task coverage, and verification owner.
+`LIGHTWEIGHT` compact topology still names every actual known participant and
+direct producer-consumer relationship alongside its compact owner, purpose,
+I/O, material side-effect ownership, failure, cleanup, proof, and all-trigger
+absence record. Known omissions and independently triggered obligations remain
+blocking at every tier. Every changed behavior and affected surface must reach
+a current task with its normative owner. The canonical planning criteria own
+the detailed topology and task-mapping rules, including tier-aware
+example-discipline triggers; the readiness reference exclusively owns audit and
+readiness rules. Stop when authority is duplicated, contradictory, or
+incomplete: return missing project-specific decisions to the owning design and
+broken task mappings to planning instead of adding a synchronized restatement.
+Repeated detail does not make a reference or summary normative, verification
+does not define policy, and generated skill packages remain derived consumers
+rather than edit targets.
 
 For generated artifacts, derived artifacts, helper I/O files, `.ephemeral`
 handoffs, cross-skill handoffs, or side-channel data, plan against the

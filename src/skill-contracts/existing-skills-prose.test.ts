@@ -607,7 +607,7 @@ describe("existing skills source prose contracts", () => {
     const planningReadiness = normalizeWhitespace(
       sliceBetween(
         planningTopology,
-        "Planning is not ready when:",
+        "Planning is not ready at every tier when:",
         "Missing, duplicated, or conflicting project-specific topology",
       ),
     );
@@ -665,7 +665,7 @@ describe("existing skills source prose contracts", () => {
       /multiple artifacts independently define the same[\s\S]*without an approved partition/,
     );
     expect(planningReadiness).toMatch(
-      /supporting responsibility overlaps another partition[\s\S]*lacks conflict precedence/,
+      /For `FULL` or a separately named material authority[\s\S]*supporting responsibility overlaps another partition[\s\S]*lacks conflict precedence/,
     );
     expect(planningReadiness).toMatch(
       /verification defines copied policy or expected prose[\s\S]*owner invariant[\s\S]*reference validity[\s\S]*derived parity/,
@@ -691,7 +691,42 @@ describe("existing skills source prose contracts", () => {
       /Missing[\s\S]*duplicated[\s\S]*conflicting[\s\S]*project-specific topology[\s\S]*`BLOCKER`[\s\S]*owning design/,
     );
     expect(planningRoutes).toMatch(
-      /approved topology[\s\S]*incomplete[\s\S]*contradictory task coverage[\s\S]*`CURRENT`[\s\S]*`play-planning`/,
+      /approved `FULL`[\s\S]*separately authorized exhaustive topology[\s\S]*incomplete[\s\S]*contradictory task coverage[\s\S]*`CURRENT`[\s\S]*`play-planning`/,
+    );
+    expect(planningRoutes).toMatch(
+      /approved `LIGHTWEIGHT` compact topology[\s\S]*omitted actual known participant[\s\S]*direct producer-consumer relationship[\s\S]*required compact field[\s\S]*`CURRENT`/,
+    );
+
+    const normalizedPlanningTopology = normalizeWhitespace(planningTopology);
+    expect(normalizedPlanningTopology).toMatch(
+      /exhaustive[\s\S]*`FULL`[\s\S]*separately named material authority/,
+    );
+    expect(normalizedPlanningTopology).toMatch(
+      /valid `LIGHTWEIGHT` compact record[\s\S]*every actual known participant[\s\S]*direct producer-consumer relationship/,
+    );
+    expect(normalizedPlanningTopology).toMatch(
+      /Known omissions[\s\S]*independently triggered[\s\S]*side-channel[\s\S]*generated[\s\S]*safety[\s\S]*untrusted[\s\S]*durable[\s\S]*public[\s\S]*cross-session[\s\S]*cross-owner[\s\S]*blocking/,
+    );
+    expect(normalizedPlanningTopology).toContain(
+      "A `LIGHTWEIGHT` mapping is not ready when it omits any actual known participant or direct producer-consumer relationship",
+    );
+    expect(normalizedPlanningTopology).toContain(
+      "owner, purpose, inputs and outputs, material write or side-effect owner, failure and cleanup behavior, focused proof, or explicit absence of every FULL trigger",
+    );
+    expect(normalizedPlanningTopology).toContain(
+      "An approved `FULL` or separately authorized exhaustive topology with incomplete or contradictory task coverage is a `CURRENT` planning gap",
+    );
+    expect(normalizedPlanningTopology).toContain(
+      "An approved `LIGHTWEIGHT` compact topology with an omitted actual known participant, direct producer-consumer relationship, or required compact field is likewise a `CURRENT` planning gap",
+    );
+    expect(normalizedPlanningTopology).toContain(
+      "Topology examples activate Contract Example Discipline only when that discipline is already triggered by `FULL` or a separately named material authority",
+    );
+    expect(normalizedPlanningTopology).toContain(
+      "Merely expressing a valid `LIGHTWEIGHT` compact topology as an example does not trigger canonical invalid families or positive and negative FULL proof",
+    );
+    expect(normalizeWhitespace(playPlanning)).toMatch(
+      /`FULL`[\s\S]*exhaustive topology[\s\S]*`LIGHTWEIGHT`[\s\S]*every actual known participant[\s\S]*direct producer-consumer relationship/,
     );
   });
 
@@ -936,6 +971,15 @@ describe("existing skills source prose contracts", () => {
     );
     expect(normalizedContractExampleDiscipline).toContain(
       "derived fields in examples or fixtures remain consistent with those facts or the plan explicitly justifies why they do not",
+    );
+    expect(normalizedContractExampleDiscipline).toContain(
+      "FULL or a separately named material authority",
+    );
+    expect(normalizedContractExampleDiscipline).toContain(
+      "A valid `LIGHTWEIGHT` compact record does not require canonical valid and invalid example families",
+    );
+    expect(normalizedContractExampleDiscipline).toContain(
+      "independently triggered side-channel, generated, safety, untrusted, durable, public, cross-session, or cross-owner obligation remains blocking",
     );
     expect(playPlanning).toContain("references/planning-criteria.md");
     expect(normalizedDocumentationChecklists).toContain(

@@ -442,8 +442,10 @@ when its existing trigger applies.
 
 ### Ownership-topology mapping
 
-For every changed behavior or contract in an approved design, write a table or
-equivalent structured mapping that names:
+For every changed behavior or contract in an approved design, select topology
+detail from its contract tier. An exhaustive mapping is required for `FULL` or
+when a separately named material authority requires it. That table or
+equivalent structured mapping names:
 
 - the stable behavior or contract name and governing design decision;
 - exactly one normative owner and the responsibility it defines;
@@ -456,46 +458,76 @@ equivalent structured mapping that names:
 - the verification owner and the owner invariant, reference-validity boundary,
   or derived-parity boundary it proves.
 
-The mapping is exhaustive over the changed behaviors and affected surfaces
-authorized by the design. Repetition never grants authority. References and
-non-normative summaries yield to the normative owner on conflict; derived
-representations preserve owner parity; verification reports mismatch without
-defining policy. Exact wording or diagram-edge proof is required only when the
-representation itself is an intentional product contract. Generated skill
-packages are derived consumers and never plan edit targets.
+For `FULL`, the mapping is exhaustive over the changed behaviors and affected
+surfaces authorized by the design, including supporting-owner partitions and
+precedence, every affected surface and consumption mode, current task coverage,
+and verification ownership. A valid `LIGHTWEIGHT` compact record satisfies
+topology by naming every actual known participant and direct producer-consumer
+relationship, plus its owner, purpose, inputs and outputs, material write or
+side-effect owner, failure and cleanup behavior, focused proof, and explicit
+reason every FULL trigger is absent. It need not manufacture supporting owners,
+partitions, consumers, or example families that do not exist.
 
-Planning is not ready when:
+Repetition never grants authority. References and non-normative summaries yield
+to the normative owner on conflict; derived representations preserve owner
+parity; verification reports mismatch without defining policy. Exact wording or
+diagram-edge proof is required only when the representation itself is an
+intentional product contract. Generated skill packages are derived consumers
+and never plan edit targets. Known omissions remain blocking at every tier.
+Every independently triggered side-channel, generated, safety, untrusted,
+durable, public, cross-session, or cross-owner obligation remains blocking and
+requires `FULL` or its separately named material authority; `LIGHTWEIGHT` never
+waives it.
+
+Planning is not ready at every tier when:
 
 - multiple artifacts independently define the same requirement, state
   transition, routing rule, schema, lifecycle, or failure behavior without an
   approved partition;
-- a supporting responsibility overlaps another partition, leaves an approved
-  responsibility uncovered, or lacks conflict precedence;
-- a changed behavior, affected surface, owner source, consumption mode, task,
-  or verification owner is missing;
 - a reference or summary is treated as authority because it repeats contract
   detail;
-- a derived representation lacks an owner or proportional parity proof;
 - verification defines copied policy or expected prose instead of proving an
   owner invariant, reference validity, or derived parity; or
 - a reviewer or implementer would have to choose ownership or precedence.
 
+For `FULL` or a separately named material authority, planning is not ready when
+a required exhaustive topology field is missing, including when:
+
+- a supporting responsibility overlaps another partition, leaves an approved
+  responsibility uncovered, or lacks conflict precedence;
+- a changed behavior, affected surface, owner source, consumption mode, task,
+  or verification owner is missing; or
+- a derived representation lacks an owner or proportional parity proof.
+
+A `LIGHTWEIGHT` mapping is not ready when it omits any actual known participant
+or direct producer-consumer relationship, or when it omits its owner, purpose,
+inputs and outputs, material write or side-effect owner, failure and cleanup
+behavior, focused proof, or explicit absence of every FULL trigger. Unclear
+tier eligibility defaults to `FULL`; the compact route never excuses a known
+consumer or an independently triggered obligation.
+
 Missing, duplicated, or conflicting project-specific topology is a `BLOCKER`
 returned to the owning design; planning must not repair it by inventing an
-owner or partition. An approved topology with incomplete or contradictory task
-coverage is a `CURRENT` planning gap returned to `play-planning` during
-implementation review. Neither route authorizes further synchronized
+owner or partition. An approved `FULL` or separately authorized exhaustive
+topology with incomplete or contradictory task coverage is a `CURRENT` planning
+gap returned to `play-planning` during implementation review. An approved
+`LIGHTWEIGHT` compact topology with an omitted actual known participant, direct
+producer-consumer relationship, or required compact field is likewise a
+`CURRENT` planning gap. Neither route authorizes further synchronized
 restatements.
 
-When the plan includes topology examples, apply Contract Example Discipline to
-one canonical valid post-change example. Representative invalid families
-change one dimension at a time: duplicate the normative owner, overlap a
-supporting partition, omit a consumer's owner source or mode, or treat
-verification as policy authority. Keep derived facts consistent, require only
-the positive and negative proof authorized by the design, and do not create an
-exhaustive matrix. Unsupported or inconsistent example facts are
-a `BLOCKER` returned to the owning design or decision surface, not invitations
-to guess.
+Topology examples activate Contract Example Discipline only when that
+discipline is already triggered by `FULL` or a separately named material
+authority. Under that existing trigger, apply it to one canonical valid
+post-change topology example. Representative invalid families change one
+dimension at a time: duplicate the normative owner, overlap a supporting
+partition, omit a consumer's owner source or mode, or treat verification as
+policy authority. Keep derived facts consistent, require only the positive and
+negative proof authorized by the design, and do not create an exhaustive
+matrix. Merely expressing a valid `LIGHTWEIGHT` compact topology as an example
+does not trigger canonical invalid families or positive and negative FULL
+proof. Unsupported or inconsistent example facts are a `BLOCKER` returned to
+the owning design or decision surface, not invitations to guess.
 
 ### Boundary-contract traceability
 
@@ -532,14 +564,23 @@ condition.
 
 ### Contract Example Discipline
 
-Plans that change schemas, APIs, function shapes, artifacts, CLI output, helper
-I/O, or cross-skill contracts include `Contract Example Discipline` or an
-equivalent section. Name:
+Contract Example Discipline is required for FULL or a separately named material
+authority. Under either trigger, plans that change schemas, APIs, function
+shapes, artifacts, CLI output, helper I/O, or cross-skill contracts include
+`Contract Example Discipline` or an equivalent section. Name:
 
 - one canonical valid post-change example and its authority;
 - representative invalid families derived by changing one contract dimension;
 - required positive and negative proof; and
 - intentionally out-of-scope invalid families.
+
+A valid `LIGHTWEIGHT` compact record does not require canonical valid and
+invalid example families merely because its private transient mechanism has
+helper I/O. Its focused proof covers its named compact contract. A known
+participant or direct producer-consumer relationship still cannot be omitted,
+and every independently triggered side-channel, generated, safety, untrusted,
+durable, public, cross-session, or cross-owner obligation remains blocking and
+requires `FULL` or its separately named material authority.
 
 Positive examples match the target post-change contract, not the pre-change
 contract. Invalid examples change exactly one named contract dimension from the

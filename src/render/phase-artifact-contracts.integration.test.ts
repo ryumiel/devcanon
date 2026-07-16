@@ -341,11 +341,35 @@ describe("rendered phase artifact smoke coverage", () => {
           "Any changed dimension that triggers `FULL` makes LIGHTWEIGHT invalid",
           "durable cross-owner boundary names its authority and precedence",
           "The omitted known consumer remains a blocking gap",
+          "exhaustive mapping is required for `FULL`",
+          "valid `LIGHTWEIGHT` compact record satisfies topology by naming every actual known participant and direct producer-consumer relationship",
+          "For `FULL` or a separately named material authority, planning is not ready when a required exhaustive topology field is missing",
+          "A `LIGHTWEIGHT` mapping is not ready when it omits any actual known participant or direct producer-consumer relationship",
+          "An approved `FULL` or separately authorized exhaustive topology with incomplete or contradictory task coverage is a `CURRENT` planning gap",
+          "An approved `LIGHTWEIGHT` compact topology with an omitted actual known participant, direct producer-consumer relationship, or required compact field is likewise a `CURRENT` planning gap",
+          "A valid `LIGHTWEIGHT` compact record does not require canonical valid and invalid example families",
+          "Topology examples activate Contract Example Discipline only when that discipline is already triggered by `FULL` or a separately named material authority",
+          "Merely expressing a valid `LIGHTWEIGHT` compact topology as an example does not trigger canonical invalid families or positive and negative FULL proof",
+          "independently triggered side-channel, generated, safety, untrusted, durable, public, cross-session, or cross-owner obligation remains blocking",
           "D5 owns ordinary defects in approved-scope coverage",
           "D6 owns ordinary defects in task-local startability",
         ]) {
           expect(normalizedRenderedCriteria).toContain(
             proportionalContractRule,
+          );
+        }
+        const normalizedRenderedPlanningTopology = normalizeRenderedWhitespace(
+          renderedPlanningTopology,
+        );
+        for (const planningTopologyRule of [
+          "`FULL` tasks and separately named material authority require exhaustive topology",
+          "`LIGHTWEIGHT` compact topology still names every actual known participant and direct producer-consumer relationship",
+        ]) {
+          expect(normalizeRenderedWhitespace(sourcePlanningTopology)).toContain(
+            planningTopologyRule,
+          );
+          expect(normalizedRenderedPlanningTopology).toContain(
+            planningTopologyRule,
           );
         }
         const renderedExamples = sliceRenderedSection(
