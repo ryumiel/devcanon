@@ -85,12 +85,6 @@ function expectSubstringsInOrder(content: string, substrings: string[]): void {
   }
 }
 
-function expectSubstrings(content: string, substrings: string[]): void {
-  for (const substring of substrings) {
-    expect(content).toContain(substring);
-  }
-}
-
 const PUBLIC_EXPLICIT_PLAY_SKILLS = [
   "play-agent-dispatch",
   "play-brainstorm",
