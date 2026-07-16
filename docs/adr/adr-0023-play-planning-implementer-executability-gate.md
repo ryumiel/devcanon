@@ -2,7 +2,8 @@
 
 ## Status
 
-Accepted
+Superseded by
+[ADR-0030](adr-0030-play-planning-readiness-and-parallel-digest-gates.md)
 
 ## Context
 

@@ -1438,7 +1438,7 @@ describe("play subagent routing source contracts", () => {
     );
 
     expect(normalizedOptionalModeField).toContain(
-      "detailed taxonomy (positive and negative examples) lives in [`skills/play-subagent-execution/references/skip-dispatch-policy.md` § Mechanical Task Taxonomy]",
+      "detailed taxonomy (positive and negative examples) lives in the [mechanical task taxonomy](../play-subagent-execution/references/skip-dispatch-policy.md#mechanical-task-taxonomy)",
     );
     expect(normalizedOptionalModeField).not.toContain(
       "SKILL.md` § Mechanical Task Taxonomy",
@@ -1481,7 +1481,7 @@ describe("play subagent routing source contracts", () => {
       "foundation-producing tasks are not below `spec-only`",
     );
     expect(normalizedContractChecklist).toContain(
-      "Field order is the task heading, optional `**Mode:** mechanical`, optional review-routing hints, then `**Files:**`",
+      "Field order is the task heading, required `**Task ID:**`, optional `**Mode:** mechanical`, optional review-routing hints, then `**Files:**`",
     );
     expect(playPlanning).toContain("references/planning-criteria.md");
     expect(playPlanning).toContain(
