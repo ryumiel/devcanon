@@ -1725,6 +1725,138 @@ describe("existing skills source prose contracts", () => {
     expect(playPlanning).not.toContain("`Contract\nDecisions`");
   });
 
+  it("keeps proportional planning and bounded review convergence canonical", async () => {
+    const planningCriteria = await readRepoFile(
+      "skills/play-planning/references/planning-criteria.md",
+    );
+    const adr = await readRepoFile(
+      "docs/adr/adr-0030-play-planning-readiness-and-parallel-digest-gates.md",
+    );
+    const documentationChecklists = await readRepoFile(
+      "docs/guidelines/documentation-checklists.md",
+    );
+    const proportionality = getMarkdownSection(
+      planningCriteria,
+      "Proportional contract planning",
+    );
+    const materiality = getMarkdownSection(
+      planningCriteria,
+      "Blocking materiality and review convergence",
+    );
+    const gateRemits = getMarkdownSection(planningCriteria, "Gate remits");
+    const normalizedProportionality = normalizeWhitespace(proportionality);
+    const normalizedMateriality = normalizeWhitespace(materiality);
+    const normalizedGateRemits = normalizeWhitespace(gateRemits);
+    const normalizedAdr = normalizeWhitespace(adr);
+    const normalizedChecklists = normalizeWhitespace(documentationChecklists);
+
+    expectSubstringsInOrder(proportionality, [
+      "`FULL`",
+      "`LIGHTWEIGHT`",
+      "`NO-TRIGGER`",
+    ]);
+    expect(normalizedProportionality).toContain(
+      "Ambiguous classification defaults to `FULL`",
+    );
+    for (const fullTrigger of [
+      "durable",
+      "public",
+      "cross-session",
+      "untrusted",
+      "security-sensitive",
+      "cross-owner",
+    ]) {
+      expect(normalizedProportionality).toContain(fullTrigger);
+    }
+    for (const lightweightCondition of [
+      "private",
+      "transient",
+      "same controller",
+      "no durable schema consumer",
+    ]) {
+      expect(normalizedProportionality).toContain(lightweightCondition);
+    }
+    for (const lightweightField of [
+      "owner",
+      "purpose",
+      "inputs and outputs",
+      "failure and cleanup behavior",
+      "focused proof",
+    ]) {
+      expect(normalizedProportionality).toContain(lightweightField);
+    }
+    expect(normalizedProportionality).toContain("Valid `LIGHTWEIGHT` example");
+    expect(normalizedProportionality).toContain("Invalid durability mutation");
+    expect(normalizedProportionality).toContain("Valid `FULL` example");
+    expect(normalizedProportionality).toContain(
+      "Invalid consumer-omission mutation",
+    );
+    expect(normalizedProportionality).toContain(
+      "The omitted known consumer remains a blocking gap",
+    );
+
+    for (const materialityField of [
+      "Authority",
+      "Concrete blocker",
+      "Inspection insufficiency",
+      "Smallest correction or decision owner",
+    ]) {
+      expect(normalizedMateriality).toContain(materialityField);
+    }
+    expect(normalizedMateriality).toContain("Wave one is exhaustive");
+    expect(normalizedMateriality).toContain(
+      "Wave two verifies every prior blocking gap",
+    );
+    expect(normalizedMateriality).toContain("`New evidence basis`");
+    for (const allowedBasis of [
+      "newly discovered concrete source fact",
+      "contradiction",
+      "invalid dependency or path",
+      "omitted current surface",
+      "material safety defect",
+    ]) {
+      expect(normalizedMateriality).toContain(allowedBasis);
+    }
+    expect(normalizedMateriality).toContain(
+      "Optional infrastructure, available preferences, speculative hardening",
+    );
+    expect(normalizedMateriality).toContain("maximum of two paired waves");
+    expect(normalizedMateriality).toContain("controller-local review state");
+
+    expect(normalizedGateRemits).toContain(
+      "D5 may PASS while D6 reports a material task-local execution gap",
+    );
+    expect(normalizedGateRemits).toContain(
+      "D6 must not block on optional whole-plan infrastructure",
+    );
+    for (const preservedFailure of [
+      "missing consumers",
+      "invalid paths or dependencies",
+      "ambiguous mutation ownership",
+      "unsafe cleanup",
+      "malformed review results",
+      "digest or guard failures",
+    ]) {
+      expect(normalizedMateriality).toContain(preservedFailure);
+    }
+
+    expect(normalizedAdr).toContain(
+      "first wave is exhaustive and the second wave is convergent",
+    );
+    expect(normalizedAdr).toContain(
+      "does not create a persistent review protocol or result artifact",
+    );
+    expect(normalizedChecklists).toContain(
+      "load-bearing side-channel contract",
+    );
+    expect(normalizedChecklists).toContain(
+      "private, transient, same-controller mechanics with no durable schema consumer",
+    );
+    expect(normalizedChecklists).toContain(
+      "retain every load-bearing question below",
+    );
+  });
+
   it("owns planning readiness and same-digest review contracts in bundled sources", async () => {
     const playPlanning = await readSkillSource("play-planning");
     const issuePrimingWorkflow = await readSkillSource(
@@ -2038,9 +2170,10 @@ describe("existing skills source prose contracts", () => {
       "Class:",
       "ID:",
       "Classification:",
-      "Finding:",
       "Authority:",
-      "Required correction:",
+      "Concrete blocker:",
+      "Inspection insufficiency:",
+      "Smallest correction or decision owner:",
     ]) {
       expect(
         validFailLines.filter((line) => line.startsWith(requiredFieldPrefix)),

@@ -9,7 +9,9 @@ workflow stays in `../SKILL.md`; do not copy these criteria back into each gate.
 - [Governing invariant](#governing-invariant)
 - [Scope Envelope](#scope-envelope)
 - [Planning authority and readiness](#planning-authority-and-readiness)
+- [Proportional contract planning](#proportional-contract-planning)
 - [Exact digest and paired-review result contract](#exact-digest-and-paired-review-result-contract)
+- [Blocking materiality and review convergence](#blocking-materiality-and-review-convergence)
 - [Contract and traceability criteria](#contract-and-traceability-criteria)
 - [Ownership-topology mapping](#ownership-topology-mapping)
 - [Task contract criteria](#task-contract-criteria)
@@ -111,6 +113,55 @@ replace it.
 This criteria reference owns the shared D5/D6 review-result and gap contract
 below. It must not use review gaps to replace missing project authority.
 
+## Proportional contract planning
+
+Classify each task against this closed tier set before selecting contract
+detail. The tier changes how compactly an approved contract may be expressed;
+it never weakens an applicable boundary, omits a known participant, or changes
+what counts as a blocking defect. Ambiguous classification defaults to `FULL`.
+
+- `FULL`: required when any changed contract is durable, public,
+  cross-session, consumes untrusted data, is security-sensitive, or crosses an
+  owner, actor, skill, process, repository, provider, or mutation-authority
+  boundary. FULL treatment includes every applicable participant, authority,
+  input/output, lifecycle, side effect, failure, cleanup, side-channel,
+  example, traceability, and proof criterion in this reference.
+- `LIGHTWEIGHT`: allowed only when all dimensions are true: the mechanism is
+  private, transient, used by the same controller, and has no durable schema
+  consumer. Record its owner, purpose, inputs and outputs, failure and cleanup
+  behavior, and focused proof. Any changed dimension that triggers `FULL`
+  makes LIGHTWEIGHT invalid.
+- `NO-TRIGGER`: allowed only when the task changes no contract, boundary,
+  lifecycle, side effect, generated or side-channel artifact, interface,
+  policy, or other non-trivial task-contract trigger. State a task-specific
+  reason. The ordinary task fields, acceptance criteria, and
+  minimum-sufficient proof still apply.
+
+Do not infer LIGHTWEIGHT from a small diff, private implementation naming, or
+an artifact being stored under `.ephemeral/`. Durability and consumers are
+properties of the behavior and data flow, not of file size or path spelling.
+Full treatment remains mandatory for load-bearing durable, public,
+cross-session, untrusted, security-sensitive, and cross-owner contracts.
+
+### Proportionality examples
+
+- **Valid `LIGHTWEIGHT` example:** a private transient helper used only by the
+  current controller transforms an already validated in-memory value and has
+  no durable schema consumer. Its compact contract names the controller as
+  owner, the transformation purpose, inputs and outputs, failure and cleanup
+  behavior, and focused proof.
+- **Invalid durability mutation:** relative to that valid example, change only
+  the output so it persists for a later session. The contract is cross-session
+  and requires `FULL`; retaining LIGHTWEIGHT is blocking.
+- **Valid `FULL` example:** a durable cross-owner boundary maps every known
+  producer, validator, adapter, consumer, lifecycle and side-channel
+  obligation, canonical example, failure behavior, cleanup owner, and
+  participant proof.
+- **Invalid consumer-omission mutation:** relative to that valid example,
+  remove exactly one known consumer and its proof while preserving all other
+  facts. The omitted known consumer remains a blocking gap; a final-consumer
+  test or smaller diff does not make the contract complete.
+
 ## Exact digest and paired-review result contract
 
 ### Exact saved-plan digest
@@ -155,10 +206,14 @@ names the contract, not its wording or position. Every gap record contains:
 - task ID or `PLAN`;
 - defect class;
 - classification, exactly `CURRENT` or `BLOCKER`;
-- concise finding;
-- authoritative source; and
-- required correction for `CURRENT`, or exactly one decision owner for
-  `BLOCKER`.
+- `Authority`: the authoritative requirement or owner that makes correction
+  necessary;
+- `Concrete blocker`: the specific acceptance, execution, or safety condition
+  that cannot be satisfied;
+- `Inspection insufficiency`: why named source inspection and normal
+  implementer discovery cannot resolve the defect; and
+- `Smallest correction or decision owner`: the minimum plan correction for
+  `CURRENT`, or exactly one decision owner for `BLOCKER`.
 
 The same semantic gap keeps the same ID across reviewers and reruns. Equivalent
 duplicate IDs merge and retain reviewer provenance. Conflicting duplicate IDs
@@ -236,16 +291,18 @@ Task: PLANNING-GATES
 Class: ARTIFACT
 ID: GAP-PLANNING-GATES-ARTIFACT-DIGEST-FRESHNESS
 Classification: CURRENT
-Finding: The current plan digest is not revalidated before handoff.
 Authority: Exact plan digest contract.
-Required correction: Recompute and compare the exact-byte digest before handoff.
+Concrete blocker: The current plan digest is not revalidated before handoff.
+Inspection insufficiency: The plan cannot prove a future controller rehash.
+Smallest correction or decision owner: Require the pre-handoff exact-byte rehash.
 Task: PLANNING-GATES
 Class: LIFECYCLE
 ID: GAP-PLANNING-GATES-LIFECYCLE-EARLY-JOIN
 Classification: CURRENT
-Finding: Routing begins before both reviewer lifecycles settle.
 Authority: Paired review lifecycle contract.
-Required correction: Join only after both lifecycles settle and clean.
+Concrete blocker: Routing begins before both reviewer lifecycles settle.
+Inspection insufficiency: The plan's early route is itself the lifecycle defect.
+Smallest correction or decision owner: Join only after both lifecycles settle and clean.
 ```
 
 #### Single-dimension invalid families
@@ -276,6 +333,49 @@ Positive examples must match the post-change contract. Derived facts must
 remain consistent with source authority. Unsupported or source-inconsistent
 examples are `BLOCKER` findings returned to the owning design or decision
 surface; do not guess.
+
+## Blocking materiality and review convergence
+
+A finding blocks only when all four materiality fields are concrete and
+supported: `Authority`, `Concrete blocker`, `Inspection insufficiency`, and
+`Smallest correction or decision owner`. A reviewer cannot use desired detail,
+personal preference, generic risk, or a possible improvement as a substitute
+for any field. If named source inspection or normal implementation discovery
+is sufficient, the finding is not a blocking execution gap.
+
+Wave one is exhaustive: D5 and D6 each report every concrete blocking gap in
+their distinct remit for the current digest. Wave two verifies every prior
+blocking gap against the revised plan. A newly blocking wave-two gap must add a
+`New evidence basis` field naming one of these bounded bases:
+
+- a newly discovered concrete source fact;
+- a contradiction exposed by the correction;
+- an invalid dependency or path;
+- an omitted current surface; or
+- a material safety defect.
+
+The basis must identify evidence that was not reasonably available from the
+first-wave plan and named sources, rather than rephrasing an earlier finding.
+Optional infrastructure, available preferences, speculative hardening, and
+unsupported proof expansion cannot become blocking acceptance in wave two.
+Newly noticed ordinary defects that were inspectable in wave one do not gain a
+new acceptance obligation; reviewers preserve exhaustive first-wave
+accountability instead of serializing review.
+
+Review convergence has a maximum of two paired waves. After a non-passing
+second wave, return unresolved `BLOCKER` findings to their named owners and
+surface unresolved authorized `CURRENT` gaps without inventing a third review
+wave or weakening them. The controller retains prior gap IDs, provenance,
+evidence bases, and verification status only as controller-local review state.
+This creates no persistent result artifact, helper, schema, registry, or
+standing review protocol.
+
+Material omissions and unsafe execution remain fail-closed at every tier and
+wave. In particular, missing consumers, invalid paths or dependencies,
+ambiguous mutation ownership, unsafe cleanup, malformed review results, and
+digest or guard failures prevent handoff. Stable gap IDs and classes,
+exact-digest freshness, paired independent reviews, and the two-wave stop remain
+mandatory.
 
 ## Contract and traceability criteria
 
@@ -549,7 +649,10 @@ contract and traceability coverage, documentation impact, and proof
 proportionality. Report all concrete in-remit findings. Classify each finding.
 CURRENT and BLOCKER findings prevent PASS. FOLLOW-UP and OPTIONAL findings do
 not. Explicitly fail missing design Contract Decision and Documentation impact
-item mappings. Do not repeat executability review or invent new requirements.
+item mappings. D5 owns ordinary defects in approved-scope coverage, normative
+authority, boundary and consumer completeness, requirement traceability,
+dependency intent, documentation impact, and proof proportionality. It does not
+repeat task-local executability review or invent new requirements.
 
 ### Implementer Executability Review
 
@@ -565,4 +668,15 @@ the in-scope consumers or boundary participants is not normal call-site
 discovery. Classify an omitted known mapping as CURRENT and missing mapping
 authority as BLOCKER. Do not broaden the Scope Envelope or proof obligations.
 Apply minimum-sufficient proof, and classify useful hardening as FOLLOW-UP or
-OPTIONAL.
+OPTIONAL. D6 owns ordinary defects in task-local startability: named source and
+path validity, executable dependency order, required I/O and failure behavior,
+mutation ownership, cleanup safety, and implementer-visible acceptance proof.
+It does not reopen D5's approved-scope or proportionality judgment.
+
+The remits are orthogonal rather than successive approval levels. D5 may PASS
+while D6 reports a material task-local execution gap, such as an invalid named
+path that prevents the implementer from starting. Conversely, D6 must not block
+on optional whole-plan infrastructure, a generalized harness, or other
+hardening that lacks approved authority; classify it FOLLOW-UP or OPTIONAL.
+Both reviewers still report genuine omissions in their own remits, and neither
+PASS cures the other's material gap.
