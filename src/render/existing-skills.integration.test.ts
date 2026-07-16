@@ -572,6 +572,31 @@ describe("existing skills render cleanly", () => {
         /Before any merge command.*preflight-worktree-context\.sh/i,
       );
 
+      const renderedPlanning = normalizeWhitespace(
+        renderedBySkill.get("play-planning") ?? "",
+      );
+      const renderedBrainstorm = normalizeWhitespace(
+        renderedBySkill.get("play-brainstorm") ?? "",
+      );
+      const renderedExecution = normalizeWhitespace(
+        renderedBySkill.get("play-subagent-execution") ?? "",
+      );
+      expect(renderedPlanning).toContain(
+        "Classify the task using the bundled canonical criteria before choosing its contract detail",
+      );
+      expect(renderedPlanning).toContain(
+        "Before any plan mutation, validate each proposed blocking gap against the canonical materiality contract",
+      );
+      expect(renderedBrainstorm).toContain(
+        "planning handoff, not a `FULL`, `LIGHTWEIGHT`, or `NO-TRIGGER` classification",
+      );
+      expect(renderedExecution).toContain(
+        "The executor must not promote, demote, infer, or otherwise reclassify the tier",
+      );
+      expect(renderedExecution).toContain(
+        "Both `LIGHTWEIGHT` and `NO-TRIGGER` are trusted only when this controller can identify the upstream two-gate `play-planning` return",
+      );
+
       const agentOutputs = outputs
         .filter((output) => output.type === "agent" && output.target === target)
         .sort((left, right) => left.name.localeCompare(right.name));

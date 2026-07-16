@@ -1,3 +1,5 @@
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
 import {
@@ -27,6 +29,8 @@ type RenderedBodies = Record<string, string>;
 
 describe("play-subagent planning and routing render smoke coverage", () => {
   let bodies: RenderedBodies;
+  let skipDispatchPolicies: RenderedBodies;
+  let sourceSkipDispatchPolicy: string;
 
   beforeAll(async () => {
     const repoRoot = process.cwd();
@@ -36,6 +40,7 @@ describe("play-subagent planning and routing render smoke coverage", () => {
 
     const { outputs } = await renderAll(config, false);
     bodies = {};
+    skipDispatchPolicies = {};
 
     for (const skillName of ROUTING_SKILLS) {
       for (const target of ["claude", "codex"] as const) {
@@ -45,6 +50,41 @@ describe("play-subagent planning and routing render smoke coverage", () => {
         expect(frontmatter.name).toBe(skillName);
         bodies[`${skillName}:${target}`] = body;
       }
+    }
+
+    sourceSkipDispatchPolicy = await readFile(
+      path.join(
+        repoRoot,
+        "skills/play-subagent-execution/references/skip-dispatch-policy.md",
+      ),
+      "utf8",
+    );
+    const generatedDir = await mkdtemp(
+      path.join(tmpdir(), "devcanon-routing-render-"),
+    );
+    try {
+      await renderAll(
+        {
+          ...config,
+          library: {
+            ...config.library,
+            generatedDir,
+          },
+        },
+        true,
+      );
+      for (const target of ["claude", "codex"] as const) {
+        skipDispatchPolicies[target] = await readFile(
+          path.join(
+            generatedDir,
+            target,
+            "skills/play-subagent-execution/references/skip-dispatch-policy.md",
+          ),
+          "utf8",
+        );
+      }
+    } finally {
+      await rm(generatedDir, { recursive: true, force: true });
     }
   });
 
@@ -142,6 +182,30 @@ describe("play-subagent planning and routing render smoke coverage", () => {
       expect(normalizedPlayPlanning).toContain(
         "maximum of two paired review waves",
       );
+      expect(normalizedPlayPlanning).toContain(
+        "Wave one is exhaustive in each distinct remit",
+      );
+      expect(normalizedPlayPlanning).toContain("there is no third wave");
+      for (const priorGapRule of [
+        "stable gap ID, task ID, defect class, `classification=CURRENT`",
+        "`Authority`, `Concrete blocker`, `Inspection insufficiency`, `Smallest correction`",
+        "originating reviewer provenance and originating D5 or D6 remit",
+        "correction owner, concrete correction evidence",
+        "`resolution_state` uses only `OPEN`, `CORRECTED`, `RESOLVED`, or `UNRESOLVED`",
+        "`verification_state` uses only `NOT_RUN`, `PENDING`, `PASSED`, or `FAILED`",
+        "`OPEN` + `NOT_RUN`",
+        "`CORRECTED` + `PENDING`",
+        "`RESOLVED` + `PASSED`",
+        "`UNRESOLVED` + `FAILED`",
+        "No backward transition, skipped state, unknown value, mixed terminal pair, or mutation after `PENDING`",
+        "For wave one, `prior_verified_gaps` is explicitly none/inapplicable",
+        "`BLOCKER` never enters `prior_verified_gaps`; it returns to its named owner",
+        "`FOLLOW-UP` and `OPTIONAL` remain deferred outside `prior_verified_gaps`",
+        "A new wave-two `CURRENT` or `BLOCKER` is accepted only under the existing new-evidence rule",
+        "After any wave-two non-pass, surface unresolved gaps and stop; there is no third wave",
+      ]) {
+        expect(normalizedPlayPlanning).toContain(priorGapRule);
+      }
       expect(normalizedPlayPlanning).toContain(
         "both reviewers return PASS for the same current exact-byte digest",
       );
@@ -444,6 +508,29 @@ describe("play-subagent planning and routing render smoke coverage", () => {
       expect(normalizedPlaySubagentExecution).toContain(
         "never replace the expected digest with the current file digest",
       );
+      expect(normalizedPlaySubagentExecution).toContain(
+        "Both `LIGHTWEIGHT` and `NO-TRIGGER` are trusted only when this controller can identify the upstream two-gate `play-planning` return",
+      );
+      expect(normalizedPlaySubagentExecution).toContain(
+        "otherwise unreviewed plans without that upstream two-gate return must use a structurally complete `FULL` contract",
+      );
+
+      const renderedSkipDispatchPolicy = skipDispatchPolicies[target];
+      expect(renderedSkipDispatchPolicy).toBe(sourceSkipDispatchPolicy);
+      const normalizedSkipDispatchPolicy = normalizeWhitespace(
+        renderedSkipDispatchPolicy,
+      );
+      for (const skipDispatchRule of [
+        "Guardrail #4 failure blocks before source mutation",
+        "The task declares `FULL`, `LIGHTWEIGHT`, or `NO-TRIGGER` and satisfies that tier's structure",
+        "Both `LIGHTWEIGHT` and `NO-TRIGGER` require the upstream two-gate `play-planning` return; without it, the task must use a structurally complete `FULL` contract",
+        "present obligations are additive after `FULL`, `LIGHTWEIGHT`, or `NO-TRIGGER` satisfaction and do not satisfy guardrail #4 by themselves",
+        "If guardrail #4 fails, stop before implementation and report the contract gap",
+        "absent reduced-tier provenance, unexplained `N/A`, or unconfirmed owner, authority, source-of-truth, consumer, generated-output, or evidence surface",
+        "Other guardrail misses reclassify to D12 and use `implementer-prompt.md`",
+      ]) {
+        expect(normalizedSkipDispatchPolicy).toContain(skipDispatchRule);
+      }
 
       const playReviewResponse = bodies[`play-review-response:${target}`];
       const normalizedPlayReviewResponse =

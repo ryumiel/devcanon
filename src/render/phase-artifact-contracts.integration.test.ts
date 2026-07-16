@@ -334,8 +334,20 @@ describe("rendered phase artifact smoke coverage", () => {
           expect(normalizedRenderedCriteria).toContain(taskIdentityRule);
         }
         expect(normalizedRenderedCriteria).toContain(
-          "Field order is the task heading, required `**Task ID:**`, optional `**Mode:** mechanical`, optional review-routing hints, then `**Files:**`",
+          "Field order is the task heading, required `**Task ID:**`, required `**Contract tier:**`, optional `**Mode:** mechanical`, optional review-routing hints, then `**Files:**`",
         );
+        for (const proportionalContractRule of [
+          "private, transient, used by the same controller, and has no durable schema consumer",
+          "Any changed dimension that triggers `FULL` makes LIGHTWEIGHT invalid",
+          "durable cross-owner boundary names its authority and precedence",
+          "The omitted known consumer remains a blocking gap",
+          "D5 owns ordinary defects in approved-scope coverage",
+          "D6 owns ordinary defects in task-local startability",
+        ]) {
+          expect(normalizedRenderedCriteria).toContain(
+            proportionalContractRule,
+          );
+        }
         const renderedExamples = sliceRenderedSection(
           renderedCriteria,
           "### Contract examples",
@@ -380,9 +392,10 @@ describe("rendered phase artifact smoke coverage", () => {
           "Class:",
           "ID:",
           "Classification:",
-          "Finding:",
           "Authority:",
-          "Required correction:",
+          "Concrete blocker:",
+          "Inspection insufficiency:",
+          "Smallest correction or decision owner:",
         ]) {
           expect(
             renderedValidFailLines.filter((line) =>
@@ -418,6 +431,14 @@ describe("rendered phase artifact smoke coverage", () => {
           expect(normalizeRenderedWhitespace(renderedExamples)).toContain(
             rejectionRule,
           );
+        }
+        for (const convergenceRule of [
+          "Wave one is exhaustive",
+          "A newly blocking wave-two gap must add a `New evidence basis` field",
+          "maximum of two paired waves",
+          "without inventing a third review wave or weakening them",
+        ]) {
+          expect(normalizedRenderedCriteria).toContain(convergenceRule);
         }
         for (const singleDimensionRule of [
           "relative to the valid paired PASS, change only D6's digest",
