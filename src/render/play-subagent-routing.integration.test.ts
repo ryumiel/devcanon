@@ -156,6 +156,18 @@ describe("play-subagent planning and routing render smoke coverage", () => {
       expect(normalizedPlayPlanning).toContain(
         "reload and read both validated bundle-owned references",
       );
+      expect(normalizedPlayPlanning).toContain(
+        "invalidates readiness and returns `NOT_READY`",
+      );
+      expect(normalizedPlayPlanning).toContain(
+        "emit or reuse stable missing-decision records with the named owner surface and stop before drafting",
+      );
+      expect(normalizedPlayPlanning).toContain(
+        "canonical planning criteria own the detailed topology and task-mapping rules",
+      );
+      expect(normalizedPlayPlanning).toContain(
+        "readiness reference exclusively owns audit and readiness rules",
+      );
 
       const pairedReviewStart = playPlanning.indexOf(
         "## Exact Digest and Paired Review Orchestration",
@@ -196,6 +208,22 @@ describe("play-subagent planning and routing render smoke coverage", () => {
           "unavailable, failed, malformed, or verification-rejected review cannot pass",
         );
         expect(reviewSection).toContain("guard-integrity terminal");
+        expect(reviewSection).toContain("retain the terminal condition");
+        expect(reviewSection).toContain("leave the source state visible");
+        expect(reviewSection).toContain(
+          "wait for every already-started sibling to settle and attempt its exact owned cleanup",
+        );
+        const terminalOrder = [
+          "retain the terminal condition",
+          "leave the source state visible",
+          "wait for every already-started sibling to settle and attempt its exact owned cleanup",
+          "then stop planning",
+        ];
+        for (let index = 1; index < terminalOrder.length; index += 1) {
+          expect(reviewSection.indexOf(terminalOrder[index - 1])).toBeLessThan(
+            reviewSection.indexOf(terminalOrder[index]),
+          );
+        }
         expect(reviewSection).not.toContain("`deep-reviewer`");
         expect(reviewSection).toContain(
           "read the concrete readiness reference and validate the recorded readiness result",
@@ -213,12 +241,17 @@ describe("play-subagent planning and routing render smoke coverage", () => {
       expect(pairedReview).toContain("every started sibling must settle");
       expect(pairedReview).toContain("Do not route early");
       expect(pairedReview).toContain("maximum of two paired review waves");
+      const pairedAndLeafReviewSurface = [
+        pairedReview,
+        planReview,
+        executabilityReview,
+      ].join(" ");
       for (const sequentialContradiction of [
         /complet(?:e|es|ed|ing) D5 before start(?:ing)? D6/iu,
         /D5 PASS.{0,40}(?:advance|start).{0,20}D6/iu,
         /D5 FAIL.{0,40}(?:prevent|cancel|block).{0,20}D6.{0,10}start/iu,
       ]) {
-        expect(pairedReview).not.toMatch(sequentialContradiction);
+        expect(pairedAndLeafReviewSurface).not.toMatch(sequentialContradiction);
       }
       const pairedReviewOrder = [
         "every started sibling must settle",

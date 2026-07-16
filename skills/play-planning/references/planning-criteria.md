@@ -478,8 +478,8 @@ Review-routing hints remain non-authoritative inputs to
 `skills/play-subagent-execution/references/review-routing-policy.md` are not
 under-classified; unclear cases default to `spec-and-quality`, and
 foundation-producing tasks are not below `spec-only`. Field order is the task
-heading, optional `**Mode:** mechanical`, optional review-routing hints, then
-`**Files:**`.
+heading, required `**Task ID:**`, optional `**Mode:** mechanical`, optional
+review-routing hints, then `**Files:**`.
 
 ## Minimum-sufficient proof
 

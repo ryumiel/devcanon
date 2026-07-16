@@ -210,9 +210,11 @@ Deferred Follow-ups.
 
 If the approved scope contains independent subsystems, return to design
 decomposition. If required product, policy, ownership, lifecycle, mutation, or
-verification authority is missing, record a `BLOCKER` and stop before task
-planning. Normal implementation choices discoverable from named sources remain
-implementer work.
+verification authority is missing, this invalidates readiness and returns
+`NOT_READY`: emit or reuse stable missing-decision records with the named owner
+surface and stop before drafting. Do not route missing pre-planning authority
+through a plan `BLOCKER`. Normal implementation choices discoverable from
+named sources remain implementer work.
 
 For contract-heavy work, boundary changes, generated or side-channel artifacts,
 hard requirements, and contract examples, apply the canonical reference and
@@ -226,7 +228,8 @@ ownership topology and expose its mapping in the plan. Every changed behavior
 and affected surface must reach a current task with its normative owner,
 optional non-overlapping supporting partition, consumption mode, conflict
 precedence, and verification owner. The canonical planning criteria own the
-detailed mapping and readiness rules. Stop when authority is duplicated,
+detailed topology and task-mapping rules; the readiness reference exclusively
+owns audit and readiness rules. Stop when authority is duplicated,
 contradictory, or incomplete: return missing project-specific decisions to the
 owning design and broken task mappings to planning instead of adding a
 synchronized restatement. Repeated detail does not make a reference or summary
@@ -692,9 +695,10 @@ verification-rejected review cannot pass. After safe cleanup, retain its result
 until the D6 sibling has also settled and cleaned; verify consolidated findings
 against authoritative scope, revise only verified CURRENT gaps, and rerun a
 fresh D5/D6 pair when the paired-wave budget remains. Detected source mutation
-or cleanup failure is guard-integrity terminal: leave the source state visible,
-stop planning, and never reset, check out, stage, repair, or otherwise hide
-source.
+or cleanup failure is guard-integrity terminal: retain the terminal condition,
+leave the source state visible, wait for every already-started sibling to settle
+and attempt its exact owned cleanup, then stop planning; never reset, check out,
+stage, repair, or otherwise hide source.
 
 Pass `Plan: <path>`, `Criteria: <validated-bundle-owned-path>`,
 `Readiness: <validated-bundle-owned-path>`, the recorded readiness result, and
@@ -798,9 +802,10 @@ verification-rejected review cannot pass. After safe cleanup, retain its result
 until the D5 sibling has also settled and cleaned; block execution, verify
 consolidated findings against authoritative scope, revise only verified CURRENT
 gaps, and rerun a fresh D5/D6 pair only when the paired-wave budget remains.
-Detected source mutation or cleanup failure is guard-integrity terminal: leave
-the source state visible, stop planning, and never reset, check out, stage,
-repair, or otherwise hide source.
+Detected source mutation or cleanup failure is guard-integrity terminal: retain
+the terminal condition, leave the source state visible, wait for every
+already-started sibling to settle and attempt its exact owned cleanup, then stop
+planning; never reset, check out, stage, repair, or otherwise hide source.
 
 Pass the guarded plan path, `Criteria: <validated-bundle-owned-path>`,
 `Readiness: <validated-bundle-owned-path>`, the recorded readiness result, and

@@ -701,6 +701,27 @@ describe("existing skills source prose contracts", () => {
       "skills/play-planning/references/planning-criteria.md",
     );
     const normalizedCriteria = normalizeWhitespace(planningCriteria);
+    const scopeCriteria = getMarkdownSection(
+      playPlanning,
+      "Scope Envelope and Canonical Criteria",
+    );
+    const normalizedScopeCriteria = normalizeWhitespace(scopeCriteria);
+
+    expect(normalizedScopeCriteria).toContain(
+      "invalidates readiness and returns `NOT_READY`",
+    );
+    expect(normalizedScopeCriteria).toContain(
+      "emit or reuse stable missing-decision records with the named owner surface and stop before drafting",
+    );
+    expect(normalizedScopeCriteria).not.toContain(
+      "record a `BLOCKER` and stop before task planning",
+    );
+    expect(normalizedScopeCriteria).toContain(
+      "canonical planning criteria own the detailed topology and task-mapping rules",
+    );
+    expect(normalizedScopeCriteria).toContain(
+      "readiness reference exclusively owns audit and readiness rules",
+    );
 
     expect(normalizedCriteria).toContain(
       "Planning may make approved scope executable, but it must not create new product, infrastructure, governance, or verification obligations",
@@ -733,6 +754,9 @@ describe("existing skills source prose contracts", () => {
     );
     expect(normalizedCriteria).toContain(
       "Use the narrowest existing repository mechanism that demonstrates each acceptance criterion",
+    );
+    expect(normalizedCriteria).toContain(
+      "Field order is the task heading, required `**Task ID:**`, optional `**Mode:** mechanical`, optional review-routing hints, then `**Files:**`",
     );
     expect(normalizedCriteria).toContain(
       "generalized benchmark corpora, evidence-retention protocols, marker languages, and broad integrity frameworks as FOLLOW-UP",
@@ -2137,6 +2161,17 @@ describe("existing skills source prose contracts", () => {
       expect(reviewSection).toContain(
         "Detected source mutation or cleanup failure is guard-integrity terminal",
       );
+      expect(reviewSection).toContain("retain the terminal condition");
+      expect(reviewSection).toContain("leave the source state visible");
+      expect(reviewSection).toContain(
+        "wait for every already-started sibling to settle and attempt its exact owned cleanup",
+      );
+      expectSubstringsInOrder(reviewSection, [
+        "retain the terminal condition",
+        "leave the source state visible",
+        "wait for every already-started sibling to settle and attempt its exact owned cleanup",
+        "then stop planning",
+      ]);
       expect(reviewSection).not.toContain("`deep-reviewer`");
       expect(reviewSection).not.toContain("escalat");
     }
@@ -2163,12 +2198,17 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedPairedReview).toContain(
       "both reviewers return PASS for the same current exact-byte digest",
     );
+    const pairedAndLeafReviewSurface = [
+      normalizedPairedReview,
+      normalizedPlanReview,
+      normalizedExecutabilityReview,
+    ].join(" ");
     for (const sequentialContradiction of [
       /complet(?:e|es|ed|ing) D5 before start(?:ing)? D6/iu,
       /D5 PASS.{0,40}(?:advance|start).{0,20}D6/iu,
       /D5 FAIL.{0,40}(?:prevent|cancel|block).{0,20}D6.{0,10}start/iu,
     ]) {
-      expect(normalizedPairedReview).not.toMatch(sequentialContradiction);
+      expect(pairedAndLeafReviewSurface).not.toMatch(sequentialContradiction);
     }
     expectSubstringsInOrder(normalizedPairedReview, [
       "every started sibling must settle",

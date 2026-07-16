@@ -333,6 +333,9 @@ describe("rendered phase artifact smoke coverage", () => {
         ]) {
           expect(normalizedRenderedCriteria).toContain(taskIdentityRule);
         }
+        expect(normalizedRenderedCriteria).toContain(
+          "Field order is the task heading, required `**Task ID:**`, optional `**Mode:** mechanical`, optional review-routing hints, then `**Files:**`",
+        );
         const renderedExamples = sliceRenderedSection(
           renderedCriteria,
           "### Contract examples",
