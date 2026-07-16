@@ -350,6 +350,15 @@ describe("rendered phase artifact smoke coverage", () => {
           "A valid `LIGHTWEIGHT` compact record does not require canonical valid and invalid example families",
           "Topology examples activate Contract Example Discipline only when that discipline is already triggered by `FULL` or a separately named material authority",
           "Merely expressing a valid `LIGHTWEIGHT` compact topology as an example does not trigger canonical invalid families or positive and negative FULL proof",
+          "complete contract-heavy or helper-I/O table",
+          "stable boundary row IDs and the complete participant-specific traceability shape",
+          "For `FULL` or a separately named material authority, downstream boundary-row consumers require task or no-code mapping, participant coverage and proof, applicable checklist row-ID and ownership references, and design-decision or non-applicability citations",
+          "For `LIGHTWEIGHT`, the compact boundary record is sufficient unless specifically authorized applicable extra detail is required",
+          "complete non-trivial-task checklist",
+          "complete task-local operation map",
+          "A valid `LIGHTWEIGHT` task does not acquire FULL-only checklist fields or `N/A` entries",
+          "A valid `LIGHTWEIGHT` boundary-touching task does not acquire FULL-only operation-map detail",
+          "approved task-local need or an independently applicable material authority",
           "independently triggered side-channel, generated, safety, untrusted, durable, public, cross-session, or cross-owner obligation remains blocking",
           "D5 owns ordinary defects in approved-scope coverage",
           "D6 owns ordinary defects in task-local startability",
@@ -372,6 +381,29 @@ describe("rendered phase artifact smoke coverage", () => {
             planningTopologyRule,
           );
         }
+        for (const planningProducerRule of [
+          "produce each contract-heavy table, boundary traceability record, task checklist, and operation map at the tier-appropriate detail",
+          "self-review each of those four families against the selected contract tier",
+          "For `FULL` or separately named material authority, require the complete exhaustive shape for all four families",
+          "For an otherwise valid `LIGHTWEIGHT` record, a concrete approved task-local need or independently applicable material trigger adds only the necessary detail to the affected family; it never silently promotes all four families",
+          "The canonical planning criteria remain the fail-closed owner of tier selection and detailed readiness",
+        ]) {
+          expect(normalizeRenderedWhitespace(sourcePlanning)).toContain(
+            planningProducerRule,
+          );
+          expect(
+            normalizeRenderedWhitespace(bodies[`play-planning:${target}`]),
+          ).toContain(planningProducerRule);
+        }
+        expect(normalizedRenderedCriteria).not.toContain(
+          "The map must not It must not prescribe",
+        );
+        expect(normalizedRenderedCriteria).not.toContain(
+          "Every row maps to a current task or an explicit no-code disposition",
+        );
+        expect(normalizedRenderedCriteria).not.toContain(
+          "Every applicable task contract checklist references its governing boundary row IDs",
+        );
         const renderedExamples = sliceRenderedSection(
           renderedCriteria,
           "### Contract examples",

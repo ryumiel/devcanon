@@ -416,9 +416,11 @@ mandatory.
 
 ### Contract-heavy work
 
-Use a concise contract table when work depends on cross-skill handoffs,
-generated or derived paths, helper scripts, source-owned policy, schemas,
-interfaces, execution roots, state transitions, or fail-closed behavior. Name:
+Select contract-heavy detail from the task's contract tier. For `FULL` or a
+separately named material authority, use the complete contract-heavy or
+helper-I/O table when work depends on cross-skill handoffs, generated or
+derived paths, helper scripts, source-owned policy, schemas, interfaces,
+execution roots, state transitions, or fail-closed behavior. Name:
 
 - inputs and optional inputs;
 - execution root or cwd;
@@ -428,6 +430,17 @@ interfaces, execution roots, state transitions, or fail-closed behavior. Name:
 - mutation or side-effect owner;
 - missing, invalid, failure, recovery, and cleanup behavior; and
 - observable proof.
+
+A valid `LIGHTWEIGHT` contract-heavy record uses the closed compact fields:
+every actual known participant and direct producer-consumer relationship,
+owner, purpose, inputs and outputs, material write or side-effect owner,
+failure and cleanup behavior, focused proof, and the explicit reason every
+FULL trigger is absent. It does not acquire the complete table merely because
+it has private transient helper I/O. Add family detail only for a concrete
+approved task-local need or an independently applicable material authority.
+Ambiguity defaults to `FULL`. Known omissions remain blocking, as do every
+independently triggered side-channel, generated, safety, untrusted, durable,
+public, cross-session, cross-owner, or governance obligation.
 
 For governance or workflow-policy changes, compare the Adjacent Governance
 Policy Set in `docs/guidelines/documentation-checklists.md`. Update only the
@@ -531,8 +544,10 @@ the owning design or decision surface, not invitations to guess.
 
 ### Boundary-contract traceability
 
-For producer, validator, adapter, or consumer boundaries, assign stable row IDs
-and name:
+For producer, validator, adapter, or consumer boundaries, select traceability
+detail from the contract tier. `FULL` or a separately named material authority
+requires stable boundary row IDs and the complete participant-specific
+traceability shape. Each row names:
 
 - boundary name and authoritative source;
 - required input tuple;
@@ -542,18 +557,33 @@ and name:
 - failure behavior for missing or mismatched authority; and
 - observable proof per participant.
 
-Every row maps to a current task or an explicit no-code disposition. Every
-participant has coverage and proof. A final consumer test does not cover a
-missing producer, validator, or adapter obligation.
+For `FULL` or a separately named material authority, downstream boundary-row
+consumers require task or no-code mapping, participant coverage and proof,
+applicable checklist row-ID and ownership references, and design-decision or
+non-applicability citations. Under either trigger, each row maps to a current
+task or an explicit no-code disposition, every participant has coverage and
+proof, and each applicable task contract checklist references the governing
+row IDs or explicitly names the rows that own its participant obligations. Plan
+Review fails a checklist that omits relevant row IDs or row ownership, even
+when it precisely restates the boundary details. Each governed row cites the
+relevant design contract decision or records why that decision is
+non-applicable. A no-code disposition still names the governing decision and
+explains why implementation work is unnecessary.
 
-Every applicable task contract checklist references its governing boundary row
-IDs or explicitly names the rows that own the task's participant coverage and
-proof obligations. Plan Review fails a checklist that omits relevant row IDs or
-row ownership, even when it precisely restates the boundary details.
-
-Every governed boundary row cites the relevant design contract decision or
-records why that decision is non-applicable. A no-code disposition still names
-the governing decision and explains why implementation work is unnecessary.
+A valid `LIGHTWEIGHT` boundary record instead uses the closed compact fields:
+every actual known participant and direct producer-consumer relationship,
+owner, purpose, inputs and outputs, material write or side-effect owner,
+failure and cleanup behavior, focused proof, and the explicit reason every
+FULL trigger is absent. For `LIGHTWEIGHT`, the compact boundary record is
+sufficient unless specifically authorized applicable extra detail is required
+by a concrete approved task-local need or an independently applicable material
+authority. Only that named detail applies; it does not activate the complete
+downstream row-consumer shape. A final consumer test does not cover a missing
+producer, validator, or adapter obligation, and it cannot excuse any other
+known consumer omission. Ambiguity defaults to `FULL`. Known omissions remain
+blocking, as do every independently triggered side-channel, generated, safety,
+untrusted, durable, public, cross-session, cross-owner, or governance
+obligation.
 
 Proof must be executable without prescribing implementation. Name diagnostic
 shape, validation ordering, source inspection target or discovery criteria,
@@ -623,28 +653,47 @@ Every current task includes:
 - acceptance criteria;
 - risks and dependencies;
 - verification expectations; and
-- a contract checklist when a non-trivial trigger applies.
+- tier-appropriate contract fields when a non-trivial trigger applies.
 
 Non-trivial triggers include multi-step implementation, durable docs or policy,
 cross-agent handoffs, schemas or interfaces, generated artifacts, state or
 lifecycle behavior, fail-closed behavior, safety-sensitive behavior, and
 compatibility or versioning. A trivial task may omit the checklist only with a
-task-specific reason.
+task-specific reason explaining why no contract fields are triggered.
 
-A required checklist covers trigger criteria, owner and authority, affected
-consumers or generated outputs, must-preserve behavior, required state and
-failure behavior, applicable spec or procedure work, relevant risks, and proof
-obligations. Each field is populated or marked `N/A` with a task-specific
+For `FULL` or a separately named material authority, use the complete
+non-trivial-task checklist. It covers trigger criteria, owner and authority,
+affected consumers or generated outputs, must-preserve behavior, required state
+and failure behavior, applicable spec or procedure work, relevant risks, and
+proof obligations. Each field is populated or marked `N/A` with a task-specific
 reason. Unknown authority becomes a BLOCKER, not an invented contract.
 
-For a boundary-touching task, include a task-local I/O or operation map only
-when needed to make approved behavior executable. When applicable, it names
-current source, target surface, required inputs, optional inputs, missing or
-empty behavior, outputs, errors, explicit write targets or side-effect owner,
-validation-before-write or other validation-order requirements, failure
-behavior, forbidden side effects, dirty or rollback behavior, and required
-verification. It must not prescribe private implementation choices discoverable
-from the named sources.
+A valid `LIGHTWEIGHT` task uses its closed compact fields: every actual known
+participant and direct producer-consumer relationship, owner, purpose, inputs
+and outputs, material write or side-effect owner, failure and cleanup behavior,
+focused proof, and the explicit reason every FULL trigger is absent. A valid
+`LIGHTWEIGHT` task does not acquire FULL-only checklist fields or `N/A` entries.
+Add checklist detail only for a concrete approved task-local need or an
+independently applicable material authority.
+
+For `FULL` or a separately named material authority, include the complete
+task-local operation map when needed to make approved boundary behavior
+executable. It names current source, target surface, required inputs, optional
+inputs, missing or empty behavior, outputs, errors, explicit write targets or
+side-effect owner, validation-before-write or other validation-order
+requirements, failure behavior, forbidden side effects, dirty or rollback
+behavior, and required verification. A valid `LIGHTWEIGHT` boundary-touching
+task satisfies operation mapping through its closed compact fields, including
+every actual known participant and direct producer-consumer relationship. A
+valid `LIGHTWEIGHT` boundary-touching task does not acquire FULL-only
+operation-map detail unless a concrete approved task-local need or an
+independently applicable material authority requires it. It must not prescribe
+private implementation choices discoverable from the named sources.
+
+Across checklist and operation-map selection, ambiguity defaults to `FULL`.
+Known omissions remain blocking, as do every independently triggered
+side-channel, generated, safety, untrusted, durable, public, cross-session,
+cross-owner, or governance obligation.
 
 Compose related work when it shares one subsystem, authority, verification
 route, and safe working context. Split work with different authorities,

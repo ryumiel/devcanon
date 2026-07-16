@@ -812,6 +812,113 @@ describe("existing skills source prose contracts", () => {
     );
   });
 
+  it("keeps legacy planning consumers aligned with proportional contract tiers", async () => {
+    const playPlanning = await readSkillSource("play-planning");
+    const planningCriteria = await readRepoFile(
+      "skills/play-planning/references/planning-criteria.md",
+    );
+    const contractHeavy = normalizeWhitespace(
+      sliceBetween(
+        planningCriteria,
+        "### Contract-heavy work",
+        "### Ownership-topology mapping",
+      ),
+    );
+    const boundaryTraceability = normalizeWhitespace(
+      sliceBetween(
+        planningCriteria,
+        "### Boundary-contract traceability",
+        "### Contract Example Discipline",
+      ),
+    );
+    const taskContracts = normalizeWhitespace(
+      sliceBetween(
+        planningCriteria,
+        "## Task contract criteria",
+        "## Minimum-sufficient proof",
+      ),
+    );
+    const normalizedPlanning = normalizeWhitespace(playPlanning);
+
+    for (const section of [
+      contractHeavy,
+      boundaryTraceability,
+      taskContracts,
+    ]) {
+      expect(section).toMatch(
+        /`FULL` or a separately named material authority[\s\S]*complete|complete[\s\S]*`FULL` or a separately named material authority/,
+      );
+      expect(section).toMatch(
+        /valid `LIGHTWEIGHT`[\s\S]*every actual known participant[\s\S]*direct producer-consumer relationship/,
+      );
+      expect(section).toMatch(
+        /approved task-local need[\s\S]*independently applicable material authority/,
+      );
+    }
+
+    expect(contractHeavy).toContain(
+      "complete contract-heavy or helper-I/O table",
+    );
+    expect(boundaryTraceability).toContain(
+      "stable boundary row IDs and the complete participant-specific traceability shape",
+    );
+    expect(boundaryTraceability).toContain(
+      "For `FULL` or a separately named material authority, downstream boundary-row consumers require task or no-code mapping, participant coverage and proof, applicable checklist row-ID and ownership references, and design-decision or non-applicability citations",
+    );
+    expect(boundaryTraceability).toContain(
+      "For `LIGHTWEIGHT`, the compact boundary record is sufficient unless specifically authorized applicable extra detail is required",
+    );
+    expect(boundaryTraceability).not.toContain(
+      "Every row maps to a current task or an explicit no-code disposition",
+    );
+    expect(boundaryTraceability).not.toContain(
+      "Every applicable task contract checklist references its governing boundary row IDs",
+    );
+    expect(taskContracts).toContain("complete non-trivial-task checklist");
+    expect(taskContracts).toContain("complete task-local operation map");
+    expect(taskContracts).toContain(
+      "A valid `LIGHTWEIGHT` task does not acquire FULL-only checklist fields or `N/A` entries",
+    );
+    expect(taskContracts).toContain(
+      "A valid `LIGHTWEIGHT` boundary-touching task does not acquire FULL-only operation-map detail",
+    );
+
+    for (const preservedRule of [
+      "Ambiguity defaults to `FULL`",
+      "Known omissions remain blocking",
+      "side-channel",
+      "generated",
+      "safety",
+      "untrusted",
+      "durable",
+      "public",
+      "cross-session",
+      "cross-owner",
+      "governance",
+    ]) {
+      expect(normalizeWhitespace(planningCriteria)).toContain(preservedRule);
+    }
+
+    expect(normalizedPlanning).toContain(
+      "produce each contract-heavy table, boundary traceability record, task checklist, and operation map at the tier-appropriate detail",
+    );
+    expect(normalizedPlanning).toContain(
+      "self-review each of those four families against the selected contract tier",
+    );
+    expect(normalizedPlanning).toContain(
+      "For `FULL` or separately named material authority, require the complete exhaustive shape for all four families",
+    );
+    expect(normalizedPlanning).toContain(
+      "For an otherwise valid `LIGHTWEIGHT` record, a concrete approved task-local need or independently applicable material trigger adds only the necessary detail to the affected family; it never silently promotes all four families",
+    );
+    expect(normalizedPlanning).toContain(
+      "The canonical planning criteria remain the fail-closed owner of tier selection and detailed readiness",
+    );
+    expect(normalizeWhitespace(planningCriteria)).not.toContain(
+      "The map must not It must not prescribe",
+    );
+  });
+
   it("keeps play-planning boundary-contract traceability contracts in source", async () => {
     const playPlanning = await readSkillSource("play-planning");
     const planningCriteria = await readRepoFile(
@@ -859,19 +966,19 @@ describe("existing skills source prose contracts", () => {
     }
 
     expect(normalizedBoundaryTraceability).toContain(
-      "Every row maps to a current task or an explicit no-code disposition",
+      "For `FULL` or a separately named material authority, downstream boundary-row consumers require task or no-code mapping",
     );
     expect(normalizedBoundaryTraceability).toContain(
       "A final consumer test does not cover a missing producer, validator, or adapter obligation",
     );
     expect(normalizedBoundaryTraceability).toContain(
-      "Every applicable task contract checklist references its governing boundary row IDs",
+      "applicable checklist row-ID and ownership references",
     );
     expect(normalizedBoundaryTraceability).toContain(
       "Plan Review fails a checklist that omits relevant row IDs or row ownership",
     );
     expect(normalizedBoundaryTraceability).toContain(
-      "Every governed boundary row cites the relevant design contract decision or records why that decision is non-applicable",
+      "design-decision or non-applicability citations",
     );
     expect(normalizedBoundaryTraceability).toContain(
       "A no-code disposition still names the governing decision",

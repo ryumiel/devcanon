@@ -223,10 +223,16 @@ named sources remain implementer work.
 
 For contract-heavy work, boundary changes, generated or side-channel artifacts,
 hard requirements, and contract examples, apply the canonical reference and
-the repository owners it names. Keep contract tables, boundary rows, task
-checklists, traceability, and examples only when their trigger is present and
+the repository owners it names. Plan authors produce each contract-heavy table,
+boundary traceability record, task checklist, and operation map at the
+tier-appropriate detail. `FULL` and separately named material authority retain
+their complete shapes; `LIGHTWEIGHT` uses its closed compact fields unless an
+approved task-local need or independently applicable material authority
+requires more.
+Keep these structures and examples only when their trigger is present and
 within the Scope Envelope. Unknown authority is a blocker, not permission to
-generalize.
+generalize. The canonical planning criteria remain the fail-closed owner of
+tier selection and detailed readiness.
 
 For behavior- or contract-changing work, consume the approved design's
 ownership topology and expose its tier-appropriate mapping in the plan. `FULL`
@@ -414,24 +420,26 @@ the implementer writes the concrete test after reading source. Use a clear
 task as one where tests need to be authored.
 
 For helper, script, API, adapter, validator, producer, or consumer tasks that
-touch boundaries, include a small I/O contract table or equivalent fields in
-the task spec. The task-local contract must name required inputs, optional
-inputs, missing or empty behavior, outputs, write targets,
-validation-before-write ordering, failure behavior, and forbidden side effects.
-These fields make the task executable without prescribing concrete code, test
-bodies, shell recipes, helper names, line edits, or exact command sequences.
+touch boundaries, include the tier-appropriate I/O contract table or equivalent
+fields in the task spec. Use the complete shape for `FULL` or separately named
+material authority. A valid `LIGHTWEIGHT` task uses its closed compact fields
+and every actual known participant and direct producer-consumer relationship;
+extra detail requires an approved task-local need or independently applicable
+material authority. These fields make the task executable without prescribing
+concrete code, test bodies, shell recipes, helper names, line edits, or exact
+command sequences. The complete shape retains validation-before-write ordering
+when that obligation applies.
 
 For boundary-touching tasks that change or depend on source, adapter, handler,
-side-effect, validation, rollback, or guardrail behavior, include task-local
-operation mappings when applicable. The operation map must name current source,
-target surface, required inputs, optional inputs where applicable, missing or
-empty behavior, outputs, errors, explicit write targets or side-effect owner,
-validation-before-write or validation-order requirements, failure behavior,
-forbidden side effects, dirty/rollback behavior, and required verification. Do
-not require operation maps for trivial non-boundary tasks. Operation maps are
-boundary contract specificity; they are not permission to prescribe
-implementation code, test bodies, shell recipes, helper names, line edits,
-exact command sequences, or commit recipes.
+side-effect, validation, rollback, or guardrail behavior, include
+tier-appropriate task-local operation mappings when applicable. `FULL` and
+separately named material authority use the complete operation-map detail. A
+valid `LIGHTWEIGHT` task uses its closed compact fields; extra operation detail
+requires an approved task-local need or independently applicable material
+authority. Do not require operation maps for trivial non-boundary tasks.
+Operation maps are boundary contract specificity; they are not permission to
+prescribe implementation code, test bodies, shell recipes, helper names, line
+edits, exact command sequences, or commit recipes.
 
 When optional comment evidence is present, do not convert it into requirements.
 Use it to clarify why a requirement matters, what supporting observations exist,
@@ -585,10 +593,24 @@ Review in this order:
 5. Classify every finding as `CURRENT`, `BLOCKER`, `FOLLOW-UP`, or
    `OPTIONAL` before changing the plan.
 
-For behavior- or contract-changing work, also confirm that every ownership
-topology row has complete task and proof coverage and that no task asks an
-implementer to choose an owner, supporting partition, consumption mode,
-precedence, or verification owner.
+For `FULL` or separately named material authority, also confirm that every
+ownership topology row has complete task and proof coverage and that no task
+asks an implementer to choose an owner, supporting partition, consumption mode,
+precedence, or verification owner. For `LIGHTWEIGHT`, confirm the compact record
+does not leave any actual known participant, direct relationship, compact field,
+or triggered obligation for the implementer to choose.
+
+Then self-review each of those four families against the selected contract tier:
+contract-heavy tables, boundary traceability records, task checklists, and
+operation maps. For `FULL` or separately named material authority, require the
+complete exhaustive shape for all four families. For an otherwise valid
+`LIGHTWEIGHT` record, a concrete approved task-local need or independently
+applicable material trigger adds only the necessary detail to the affected
+family; it never silently promotes all four families. Verify every actual known
+participant and direct producer-consumer relationship, every closed compact
+field, and explicit absence of every FULL trigger. Ambiguity defaults to
+`FULL`; known omissions and independently triggered obligations remain
+blocking.
 
 Only verified CURRENT findings may be fixed inline. A BLOCKER stops and returns
 to its owning decision surface. FOLLOW-UP and OPTIONAL findings remain in
