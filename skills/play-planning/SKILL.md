@@ -65,11 +65,13 @@ rehash. These two lines are the controller-local handoff contract that parent
 workflows preserve for `play-subagent-execution` — do not reword them or write
 the digest into a persistent artifact.
 
-After this notice, saved plan artifacts should not be re-inlined or restated in
-controller conversation by default. Carry the plan path, a short decision
-summary, unresolved blockers if any, and the next gate/action. Inline or display
-plan content only for a specific interactive user review gate or when the user
-asks to inspect or change the plan.
+After these notices, saved plan artifacts should not be re-inlined or restated
+in controller conversation by default. Carry the plan path and exact reviewed
+digest in controller-local state, plus a short decision summary, unresolved
+blockers if any, and the next gate/action. Preserve both values through any
+interactive execution choice. Inline or display plan content only for a
+specific interactive user review gate or when the user asks to inspect or
+change the plan.
 
 ## Inputs
 
@@ -920,6 +922,20 @@ Otherwise, offer execution choice:
 
 - **REQUIRED SUB-SKILL:** Use play-subagent-execution
 - Fresh subagent per task + executor-owned risk-based per-task review routing. Reduced routes require the verified shared `issue-priming-workflow --auto` Phase 6 path with controller-local parent state and a valid `issue-priming/auto-handoff/v1` artifact for the final whole-diff gate; otherwise execution fails closed to `spec-and-quality`.
+- Immediately before invoking `play-subagent-execution`, compute SHA-256 over
+  the exact saved plan bytes with the same portable `shasum -a 256` /
+  `sha256sum` plus `awk '{print $1}'` pattern used for the paired wave. Validate
+  the extracted field as lowercase 64-hex and compare it with the preserved
+  reviewed digest. A missing tool, unreadable plan, hashing failure, malformed
+  digest, or mismatch invalidates the handoff and routes the changed plan
+  through a fresh planning wave; do not update the expected digest to match
+  changed bytes.
+- Invoke `play-subagent-execution` with both literal lines:
+
+  ```text
+  Plan: <path>
+  Expected digest: <sha256>
+  ```
 
 **If Inline Execution chosen:**
 

@@ -149,6 +149,12 @@ describe("play-subagent planning and routing render smoke coverage", () => {
         "`Plan written to <repo-relative-path>.` followed by the literal line `Reviewed digest: <sha256>`",
       );
       expect(normalizedPlayPlanning).toContain(
+        "Carry the plan path and exact reviewed digest in controller-local state",
+      );
+      expect(normalizedPlayPlanning).toContain(
+        "Preserve both values through any interactive execution choice",
+      );
+      expect(normalizedPlayPlanning).toContain(
         "Each reviewer must independently compute SHA-256 over the exact plan bytes it reads and compare that digest to the supplied expected digest before returning",
       );
       expect(normalizedPlayPlanning).toContain(
@@ -174,6 +180,23 @@ describe("play-subagent planning and routing render smoke coverage", () => {
       );
       expect(normalizedPlayPlanning).toContain(
         "Keep this comparison in controller memory; do not create a baseline artifact or persistent ID mechanism",
+      );
+      const interactiveExecution = playPlanning.slice(
+        playPlanning.indexOf("Otherwise, offer execution choice:"),
+      );
+      const normalizedInteractiveExecution =
+        normalizeWhitespace(interactiveExecution);
+      expect(normalizedInteractiveExecution).toContain(
+        "Immediately before invoking `play-subagent-execution`, compute SHA-256 over the exact saved plan bytes",
+      );
+      expect(normalizedInteractiveExecution).toContain(
+        "compare it with the preserved reviewed digest",
+      );
+      expect(normalizedInteractiveExecution).toContain(
+        "mismatch invalidates the handoff and routes the changed plan through a fresh planning wave",
+      );
+      expect(interactiveExecution).toContain(
+        "Plan: <path>\n  Expected digest: <sha256>",
       );
       expect(normalizedPlayPlanning).toContain(
         "reload and read both validated bundle-owned references",

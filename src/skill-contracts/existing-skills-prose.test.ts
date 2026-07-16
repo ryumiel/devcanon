@@ -1806,6 +1806,12 @@ describe("existing skills source prose contracts", () => {
       "the exact lowercase 64-hex digest that passed D5, D6, the join, and the pre-handoff rehash",
     );
     expect(normalizedPlanning).toContain(
+      "Carry the plan path and exact reviewed digest in controller-local state",
+    );
+    expect(normalizedPlanning).toContain(
+      "Preserve both values through any interactive execution choice",
+    );
+    expect(normalizedPlanning).toContain(
       "Each reviewer must independently compute SHA-256 over the exact plan bytes it reads and compare that digest to the supplied expected digest before returning",
     );
     expect(normalizedPlanning).toContain(
@@ -1864,6 +1870,28 @@ describe("existing skills source prose contracts", () => {
     );
     expect(normalizedExecution).toContain(
       "do not create a digest artifact, helper, parser, or registry",
+    );
+    const interactiveExecution = sliceBetween(
+      playPlanning,
+      "Otherwise, offer execution choice:",
+      "**If Inline Execution chosen:**",
+    );
+    const normalizedInteractiveExecution =
+      normalizeWhitespace(interactiveExecution);
+    expect(normalizedInteractiveExecution).toContain(
+      "Immediately before invoking `play-subagent-execution`, compute SHA-256 over the exact saved plan bytes",
+    );
+    expect(normalizedInteractiveExecution).toContain(
+      "`shasum -a 256` / `sha256sum` plus `awk '{print $1}'`",
+    );
+    expect(normalizedInteractiveExecution).toContain(
+      "compare it with the preserved reviewed digest",
+    );
+    expect(normalizedInteractiveExecution).toContain(
+      "mismatch invalidates the handoff and routes the changed plan through a fresh planning wave",
+    );
+    expect(interactiveExecution).toContain(
+      "Plan: <path>\n  Expected digest: <sha256>",
     );
 
     for (const triggerId of [
