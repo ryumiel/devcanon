@@ -122,9 +122,11 @@ what counts as a blocking defect. Ambiguous classification defaults to `FULL`.
 
 - `FULL`: required when any changed contract is durable, public,
   cross-session, untrusted or security-sensitive, or cross-owner. FULL
-  treatment includes every applicable participant, authority, input/output,
-  lifecycle, side effect, failure, cleanup, side-channel, example,
-  traceability, and proof criterion in this reference.
+  treatment includes authority and precedence; required and optional inputs;
+  outputs; every participant and its traceability; material side-effect
+  ownership; lifecycle, failure, recovery, cleanup, and trust-boundary
+  behavior; every applicable side-channel obligation; canonical valid and
+  invalid examples; and participant-specific proof.
 - `LIGHTWEIGHT`: allowed only when all dimensions are true: the mechanism is
   private, transient, used by the same controller, and has no durable schema
   consumer. Record its owner, purpose, inputs and outputs, material write or
@@ -157,10 +159,12 @@ cross-session, untrusted, security-sensitive, and cross-owner contracts.
 - **Invalid durability mutation:** relative to that valid example, change only
   the output so it persists for a later session. The contract is cross-session
   and requires `FULL`; retaining LIGHTWEIGHT is blocking.
-- **Valid `FULL` example:** a durable cross-owner boundary maps every known
-  producer, validator, adapter, consumer, lifecycle and side-channel
-  obligation, canonical example, failure behavior, cleanup owner, and
-  participant proof.
+- **Valid `FULL` example:** a durable cross-owner boundary names its authority
+  and precedence; required and optional inputs; outputs; every producer,
+  validator, adapter, and consumer with participant traceability; the material
+  side-effect owner; lifecycle, failure, recovery, cleanup, and trust-boundary
+  behavior; every applicable side-channel obligation; canonical valid and
+  invalid examples; and participant-specific proof for every participant.
 - **Invalid consumer-omission mutation:** relative to that valid example,
   remove exactly one known consumer and its proof while preserving all other
   facts. The omitted known consumer remains a blocking gap; a final-consumer

@@ -37,15 +37,15 @@ materially changes a generated artifact, derived artifact, helper I/O file,
 `.ephemeral` handoff, cross-skill handoff, or other side-channel data that a
 later actor, skill, script, validator, or review workflow consumes.
 
-Apply the complete checklist to every load-bearing side-channel contract,
-including durable, public, cross-session, untrusted, security-sensitive, or
-cross-owner data and mechanics. For private, transient, same-controller
-mechanics with no durable schema consumer, use the LIGHTWEIGHT planning tier:
-record owner and authority, purpose, inputs and outputs, material write or
-side-effect owner, failure and cleanup, focused proof, and the explicit reason
-every FULL trigger is absent, and mark the remaining questions inapplicable
-with that reason. If classification is ambiguous, or any load-bearing dimension
-applies, use FULL treatment and retain every load-bearing question below. A
+The FULL applicability set is closed: use FULL treatment when the side-channel
+contract is durable, public, cross-session, untrusted, security-sensitive, or
+cross-owner. No other dimension triggers FULL. If it is unclear whether one of
+those six dimensions applies, default to FULL. When any applies, retain every
+question below. For private, transient, same-controller mechanics with no
+durable schema consumer, use the LIGHTWEIGHT planning tier: record owner and
+authority, purpose, inputs and outputs, material write or side-effect owner,
+failure and cleanup, focused proof, and the explicit reason every FULL trigger
+is absent, and mark the remaining questions inapplicable with that reason. A
 change with no side-channel or other contract trigger records its task-specific
 reason and does not apply this checklist.
 

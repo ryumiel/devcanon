@@ -1749,10 +1749,24 @@ describe("existing skills source prose contracts", () => {
       "- `FULL`:",
       "- `LIGHTWEIGHT`:",
     );
+    const validFullExample = sliceBetween(
+      proportionality,
+      "- **Valid `FULL` example:**",
+      "- **Invalid consumer-omission mutation:**",
+    );
+    const sideChannelApplicability = sliceBetween(
+      documentationChecklists,
+      "The FULL applicability set is closed:",
+      "This checklist owns reusable authoring and review questions.",
+    );
     const normalizedProportionality = normalizeWhitespace(proportionality);
     const normalizedMateriality = normalizeWhitespace(materiality);
     const normalizedGateRemits = normalizeWhitespace(gateRemits);
     const normalizedFullTier = normalizeWhitespace(fullTier);
+    const normalizedValidFullExample = normalizeWhitespace(validFullExample);
+    const normalizedSideChannelApplicability = normalizeWhitespace(
+      sideChannelApplicability,
+    );
     const normalizedAdr = normalizeWhitespace(adr);
     const normalizedChecklists = normalizeWhitespace(documentationChecklists);
 
@@ -1809,6 +1823,19 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedProportionality).toContain("Valid `LIGHTWEIGHT` example");
     expect(normalizedProportionality).toContain("Invalid durability mutation");
     expect(normalizedProportionality).toContain("Valid `FULL` example");
+    for (const fullMinimumField of [
+      "authority and precedence",
+      "required and optional inputs",
+      "outputs",
+      "participant traceability",
+      "material side-effect owner",
+      "lifecycle, failure, recovery, cleanup, and trust-boundary behavior",
+      "every applicable side-channel obligation",
+      "canonical valid and invalid examples",
+      "participant-specific proof for every participant",
+    ]) {
+      expect(normalizedValidFullExample).toContain(fullMinimumField);
+    }
     expect(normalizedProportionality).toContain(
       "Invalid consumer-omission mutation",
     );
@@ -1906,15 +1933,26 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedAdr).toContain(
       "does not create a persistent review protocol or result artifact",
     );
-    expect(normalizedChecklists).toContain(
-      "load-bearing side-channel contract",
+    expect(normalizedSideChannelApplicability).toContain(
+      "The FULL applicability set is closed",
+    );
+    expect(normalizedSideChannelApplicability).toContain(
+      "durable, public, cross-session, untrusted, security-sensitive, or cross-owner",
+    );
+    expect(normalizedSideChannelApplicability).toContain(
+      "No other dimension triggers FULL",
+    );
+    expect(normalizedSideChannelApplicability).toContain(
+      "If it is unclear whether one of those six dimensions applies, default to FULL",
     );
     expect(normalizedChecklists).toContain(
       "private, transient, same-controller mechanics with no durable schema consumer",
     );
     expect(normalizedChecklists).toContain(
-      "retain every load-bearing question below",
+      "When any applies, retain every question below",
     );
+    expect(normalizedSideChannelApplicability).not.toContain("including");
+    expect(normalizedSideChannelApplicability).not.toContain("load-bearing");
     expect(normalizedChecklists).toContain(
       "material write or side-effect owner",
     );
