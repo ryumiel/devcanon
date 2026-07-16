@@ -352,7 +352,7 @@ describe("rendered phase artifact smoke coverage", () => {
           "#### Single-dimension invalid families",
         );
         const renderedValidDigests = [
-          ...renderedValidExample.matchAll(/PASS — digest=([0-9a-f]{64})/gu),
+          ...renderedValidExample.matchAll(/^PASS — digest=([0-9a-f]{64})$/gmu),
         ].map((match) => match[1]);
         expect(renderedValidDigests).toHaveLength(2);
         expect(new Set(renderedValidDigests)).toEqual(

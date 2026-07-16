@@ -208,9 +208,16 @@ For a saved plan whose current exact-byte digest is
 `0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef`, the
 canonical response pair is:
 
+D5 response:
+
 ```text
-D5: PASS — digest=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
-D6: PASS — digest=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+PASS — digest=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+```
+
+D6 response:
+
+```text
+PASS — digest=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
 ```
 
 Both reviewers independently compute that digest from the exact plan bytes

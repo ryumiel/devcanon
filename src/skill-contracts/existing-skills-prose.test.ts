@@ -1916,7 +1916,7 @@ describe("existing skills source prose contracts", () => {
       "`TASK` is the plan's non-positional Task ID or `PLAN`",
     );
     const validDigests = [
-      ...validExample.matchAll(/PASS — digest=([0-9a-f]{64})/gu),
+      ...validExample.matchAll(/^PASS — digest=([0-9a-f]{64})$/gmu),
     ].map((match) => match[1]);
     expect(validDigests).toHaveLength(2);
     expect(new Set(validDigests)).toEqual(
