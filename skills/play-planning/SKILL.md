@@ -574,10 +574,12 @@ write or authorized revision, validate the retained plan path as the guarded
 readable regular file and compute SHA-256 over the exact saved plan bytes. Do
 not normalize, trim, convert newlines, serialize, or extract Markdown. Use the
 existing portability pattern directly, without a new helper: `shasum -a 256`
-when available, otherwise `sha256sum`. If neither tool exists, the path cannot
-be read, hashing fails, or the result is not lowercase 64-hex, stop before
-reviewer dispatch. The digest is controller-local state and creates no result
-artifact.
+when available, otherwise `sha256sum`, and pipe either result through
+`awk '{print $1}'` to extract the first whitespace-delimited field. Validate
+that extracted field -- not the raw command output -- as lowercase 64-hex. If
+neither tool exists, the path cannot be read, hashing fails, or the extracted
+field is not lowercase 64-hex, stop before reviewer dispatch. The digest is
+controller-local state and creates no result artifact.
 
 Prepare one immutable tuple containing the saved plan path, selected design
 input, optional comment evidence, validated criteria path, validated readiness

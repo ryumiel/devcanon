@@ -1781,6 +1781,12 @@ describe("existing skills source prose contracts", () => {
     expect(playPlanning).toContain("`shasum -a 256`");
     expect(playPlanning).toContain("`sha256sum`");
     expect(normalizedPlanning).toContain(
+      "pipe either result through `awk '{print $1}'` to extract the first whitespace-delimited field",
+    );
+    expect(normalizedPlanning).toContain(
+      "Validate that extracted field -- not the raw command output -- as lowercase 64-hex",
+    );
+    expect(normalizedPlanning).toContain(
       "The digest is controller-local state and creates no result artifact",
     );
     expect(normalizedPlanning).toContain(

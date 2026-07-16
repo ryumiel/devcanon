@@ -189,6 +189,12 @@ describe("play-subagent planning and routing render smoke coverage", () => {
       const pairedReview = normalizeWhitespace(
         playPlanning.slice(pairedReviewStart, planReviewStart),
       );
+      expect(pairedReview).toContain(
+        "pipe either result through `awk '{print $1}'` to extract the first whitespace-delimited field",
+      );
+      expect(pairedReview).toContain(
+        "Validate that extracted field -- not the raw command output -- as lowercase 64-hex",
+      );
       const executabilityReview = normalizeWhitespace(
         playPlanning.slice(executabilityReviewStart, executionHandoffStart),
       );
