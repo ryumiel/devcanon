@@ -75,18 +75,22 @@ plan-level section. When Contract Example Discipline or an equivalent clearly
 labeled section/obligation is present, inline the full shared
 `references/contract-example-discipline-consumer-rule.md` content in that
 context under the subsection heading `Contract Example Discipline Consumer
-Rule`. This named context is the only contract context prompt consumers
-receive; subagents receive curated inlined context and do not read the full plan
-file or resolve controller-relative rule paths.
+Rule`. The controller consumes this same named context directly for
+guarded-inline D13; prompt-mediated consumers receive it through their curated
+prompt. Subagents do not read the full plan file or resolve controller-relative
+rule paths.
 
 Do not infer trigger applicability inside `play-subagent-execution`;
 `play-planning` owns the trigger taxonomy and tier classification. Do not
 reclassify a declared tier. For every current task in a reviewed plan, the gate requires
 exactly one declared `**Contract tier:** FULL`, `LIGHTWEIGHT`, or
 `NO-TRIGGER` and validates only its declared tier structure. `FULL` requires a
-structurally complete checklist; `LIGHTWEIGHT` requires owner, purpose, inputs
-and outputs, material write or side-effect owner, failure and cleanup behavior,
-focused proof, and an explicit reason every FULL trigger is absent;
+structurally complete checklist; `LIGHTWEIGHT` requires named authority, owner,
+purpose, inputs and outputs, material write or side-effect owner, failure and
+cleanup behavior, focused proof, every actual known participant and direct
+producer-consumer relationship, including guarded-inline D13 when it is an
+actual participant or direct consumer, and an explicit reason every FULL
+trigger is absent;
 `NO-TRIGGER` requires a task-specific reason. The executor must not promote,
 demote, infer, or otherwise reclassify the tier from task prose, diff size,
 path spelling, or runtime risk routing. Present Contract Example
@@ -97,6 +101,12 @@ Discipline should have been required. In the case when extracted plan/task
 execution context includes Contract Example Discipline or an equivalent clearly
 labeled section/obligation, apply the shared consumer rule in
 [`references/contract-example-discipline-consumer-rule.md`](references/contract-example-discipline-consumer-rule.md).
+Validate the `LIGHTWEIGHT` fields from the assembled context and named authority
+sources without reclassifying the declared tier. Missing named authority or any
+known participant or direct producer-consumer relationship fails closed with
+the exact contract gap; the controller must not treat prompt-mediated consumers
+as the only consumers or omit guarded-inline D13 merely because no child prompt
+is dispatched.
 Both `LIGHTWEIGHT` and `NO-TRIGGER` are trusted only when this controller can
 identify the upstream two-gate `play-planning` return for the plan being
 executed, meaning both Plan Review and Implementer Executability Review passed

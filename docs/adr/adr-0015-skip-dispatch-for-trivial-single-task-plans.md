@@ -57,17 +57,24 @@ than a runtime check):
    implementation.
 4. **Runtime guardrail.** The task passes `play-subagent-execution`'s
    structural task-contract gate. The controller does not re-infer
-   `play-planning` trigger applicability at execution time. The task must have
-   either a structurally complete `**Contract checklist:**` naming trigger
-   criteria, owner/authority, affected consumers/generated outputs,
-   must-preserve, required behavior, spec/procedure work, risk surfaces, and
-   proof obligations with no blank fields or unexplained `N/A` fields, or a
-   task-specific no-trigger omission reason backed by an upstream two-gate
-   `play-planning` return for the plan being executed. Direct, hand-written,
-   copied, or older plans without that upstream two-gate return must include
-   the checklist. If source inspection cannot confirm the checklist's owner,
-   authority, source-of-truth, consumer, generated-output, or evidence surface,
-   the task contract is invalid.
+   `play-planning` trigger applicability at execution time and does not
+   reclassify the declared tier. Every task must carry the literal
+   `**Contract tier:** FULL`, `LIGHTWEIGHT`, or `NO-TRIGGER` field, and the
+   controller validates only the declared tier's required structure. `FULL`
+   requires a structurally complete checklist naming trigger criteria,
+   owner/authority, affected consumers/generated outputs, must-preserve,
+   required behavior, spec/procedure work, risk surfaces, and proof obligations
+   with no blank fields or unexplained `N/A` fields. `LIGHTWEIGHT` requires its
+   closed compact fields, including named authority, every actual known
+   participant and direct producer-consumer relationship, and an explicit
+   reason every FULL trigger is absent. `NO-TRIGGER` requires a task-specific
+   reason. Both reduced tiers require the reviewed two-gate provenance for the
+   plan being executed. Direct, hand-written, copied, older, or otherwise
+   unreviewed plans without that provenance must use a structurally complete
+   `FULL` contract. If source inspection cannot confirm the tier-appropriate
+   owner, authority, source-of-truth, participant, direct relationship,
+   consumer, generated-output, or evidence surface, the task contract is
+   invalid.
 5. **Runtime guardrail.** Task body contains no TDD expectations or legacy
    TDD step-pair markers (`Step 1: Write the failing test` / `Step 3: Write
 minimal implementation`).
@@ -102,11 +109,12 @@ here.
   Token cost drops by the round-trip overhead of spawning and receiving a
   DONE report from an implementer. The benefit concentrates on docs-heavy
   plans (skills, ADRs, guidelines).
-- No new coupling is added. Guardrail #3 leans on the upstream two-gate
-  `play-planning` return, and guardrail #4 reads the task contract emitted by
-  `play-planning`, but no new schema field is introduced.
-  Guardrails #1, #2, #4, and #5 read structural signals already present in
-  the plan format.
+- No new skip-dispatch coupling is added. Guardrail #3 leans on the upstream
+  two-gate `play-planning` return, and guardrail #4 consumes the upstream
+  literal Contract tier field and tier-appropriate task contract emitted by
+  `play-planning`. No skip-dispatch-specific eligibility field is added, while
+  the upstream literal Contract tier field is required. Guardrails #1, #2, #4,
+  and #5 read structural signals already present in the plan format.
 - The "Make per-task implementer subagent read the plan file" Red Flag in
   `play-subagent-execution` is amended: skip-dispatch is the
   explicitly-gated exception where the controller (not a subagent) does

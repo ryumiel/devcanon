@@ -549,6 +549,18 @@ describe("play-subagent planning and routing render smoke coverage", () => {
       expect(normalizedPlaySubagentExecution).toContain(
         "otherwise unreviewed plans without that upstream two-gate return must use a structurally complete `FULL` contract",
       );
+      expect(normalizedPlaySubagentExecution).toContain(
+        "`LIGHTWEIGHT` requires named authority, owner, purpose, inputs and outputs",
+      );
+      expect(normalizedPlaySubagentExecution).toContain(
+        "every actual known participant and direct producer-consumer relationship, including guarded-inline D13 when it is an actual participant or direct consumer",
+      );
+      expect(normalizedPlaySubagentExecution).toContain(
+        "The controller consumes this same named context directly for guarded-inline D13; prompt-mediated consumers receive it through their curated prompt",
+      );
+      expect(normalizedPlaySubagentExecution).toContain(
+        "Missing named authority or any known participant or direct producer-consumer relationship fails closed",
+      );
 
       const renderedSkipDispatchPolicy = skipDispatchPolicies[target];
       expect(renderedSkipDispatchPolicy).toBe(sourceSkipDispatchPolicy);

@@ -1507,14 +1507,21 @@ describe("play subagent routing source contracts", () => {
       "validates only its declared tier structure",
     );
     for (const lightweightField of [
-      "owner, purpose, inputs and outputs",
+      "named authority, owner, purpose, inputs and outputs",
       "material write or side-effect owner",
       "failure and cleanup behavior",
       "focused proof",
+      "every actual known participant and direct producer-consumer relationship",
       "explicit reason every FULL trigger is absent",
     ]) {
       expect(normalizedExecution).toContain(lightweightField);
     }
+    expect(normalizedExecution).toContain(
+      "including guarded-inline D13 when it is an actual participant or direct consumer",
+    );
+    expect(normalizedExecution).toContain(
+      "The controller consumes this same named context directly for guarded-inline D13; prompt-mediated consumers receive it through their curated prompt",
+    );
     expect(normalizedExecution).toContain(
       "`NO-TRIGGER` requires a task-specific reason",
     );
@@ -1529,6 +1536,9 @@ describe("play subagent routing source contracts", () => {
     );
     expect(normalizedExecution).toContain(
       "must use a structurally complete `FULL` contract",
+    );
+    expect(normalizedExecution).toContain(
+      "Missing named authority or any known participant or direct producer-consumer relationship fails closed",
     );
   });
 
@@ -1583,6 +1593,25 @@ describe("play subagent routing source contracts", () => {
     }
     expect(normalizedSkipDispatchPolicy).toContain(
       "declares `FULL`, `LIGHTWEIGHT`, or `NO-TRIGGER` and satisfies that tier's structure",
+    );
+
+    expect(normalizedAdr0015).toContain(
+      "literal `**Contract tier:** FULL`, `LIGHTWEIGHT`, or `NO-TRIGGER` field",
+    );
+    expect(normalizedAdr0015).toContain(
+      "validates only the declared tier's required structure",
+    );
+    expect(normalizedAdr0015).toContain(
+      "Both reduced tiers require the reviewed two-gate provenance",
+    );
+    expect(normalizedAdr0015).toContain(
+      "must use a structurally complete `FULL` contract",
+    );
+    expect(normalizedAdr0015).toContain(
+      "No skip-dispatch-specific eligibility field is added",
+    );
+    expect(normalizedAdr0015).toContain(
+      "the upstream literal Contract tier field is required",
     );
 
     for (const directInvocationFallbackSource of [
