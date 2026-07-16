@@ -269,6 +269,11 @@ describe("rendered phase artifact smoke coverage", () => {
       "### Ownership-topology mapping",
       "### Boundary-contract traceability",
     );
+    const sourcePlanningConvergence = sliceRenderedSection(
+      sourcePlanning,
+      "## Exact Digest and Paired Review Orchestration",
+      "## Plan Review",
+    );
 
     try {
       await renderAll(
@@ -321,6 +326,11 @@ describe("rendered phase artifact smoke coverage", () => {
           "### Ownership-topology mapping",
           "### Boundary-contract traceability",
         );
+        const renderedPlanningConvergence = sliceRenderedSection(
+          bodies[`play-planning:${target}`],
+          "## Exact Digest and Paired Review Orchestration",
+          "## Plan Review",
+        );
 
         expect(normalizeRenderedWhitespace(renderedDesignTopology)).toBe(
           normalizeRenderedWhitespace(sourceDesignTopology),
@@ -333,6 +343,7 @@ describe("rendered phase artifact smoke coverage", () => {
         );
         expect(renderedCriteria).toBe(sourceCriteria);
         expect(renderedReadiness).toBe(sourceReadiness);
+        expect(renderedPlanningConvergence).toBe(sourcePlanningConvergence);
         expect(renderedReadiness).toContain("`RA-CONTRACT`");
         expect(renderedReadiness).toContain(
           "`READY_WITH_RECORDED_ASSUMPTIONS`",
@@ -519,9 +530,37 @@ describe("rendered phase artifact smoke coverage", () => {
           "A newly blocking wave-two gap must add a `New evidence basis` field",
           "maximum of two paired waves",
           "without inventing a third review wave or weakening them",
+          "each still-pending prior record from `CORRECTED` + `PENDING` to `UNRESOLVED` + `FAILED`",
+          "records concrete verification-failure evidence without claiming that the correction recurred or regressed",
+          "surfaces the operational failure and every affected prior gap, prohibits execution handoff, and stops without a third wave",
         ]) {
           expect(normalizedRenderedCriteria).toContain(convergenceRule);
         }
+        const normalizedRenderedPlanningConvergence =
+          normalizeRenderedWhitespace(renderedPlanningConvergence);
+        for (const finalWaveInvalidation of [
+          "guard capture failure",
+          "spawn failure or reviewer unavailability",
+          "malformed or semantically rejected response",
+          "wrong digest",
+          "guard verification or cleanup failure",
+          "join-time or pre-handoff mismatch",
+          "plan or source drift",
+          "equivalent terminal invalidation",
+        ]) {
+          expect(normalizedRenderedPlanningConvergence).toContain(
+            finalWaveInvalidation,
+          );
+        }
+        expect(normalizedRenderedPlanningConvergence).toContain(
+          "transition every still-pending prior record from `CORRECTED` + `PENDING` to `UNRESOLVED` + `FAILED`",
+        );
+        expect(normalizedRenderedPlanningConvergence).toContain(
+          "record the concrete verification failure without claiming that the underlying correction recurred or regressed",
+        );
+        expect(normalizedRenderedPlanningConvergence).toContain(
+          "surface the operational failure and every affected prior gap, prohibit execution handoff, and stop without a third wave",
+        );
         for (const singleDimensionRule of [
           "relative to the valid paired PASS, change only D6's digest",
           "relative to the valid complete FAIL, remove only the first gap's `Authority` field",

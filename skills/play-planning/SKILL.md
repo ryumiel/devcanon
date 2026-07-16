@@ -791,12 +791,25 @@ for each prior gap record after both wave-two reviewers settle on the same
 digest. A corrected prior gap becomes `RESOLVED` + `PASSED` when its correction
 is verified and that same gap neither recurs nor regresses, even when a
 distinct valid new-evidence gap makes the overall wave non-passing. A prior gap
-becomes `UNRESOLVED` + `FAILED` only when that same gap recurs, its correction
-regresses, or its own record or transition is malformed or out of order. An
-orthogonal new-evidence `CURRENT` or `BLOCKER` never rewrites a separately
-verified prior record to unresolved. No backward transition, skipped state,
-unknown value, mixed terminal pair, or mutation after `PENDING` is valid. Any
-invalid transition makes the tuple or result malformed and non-passing.
+becomes `UNRESOLVED` + `FAILED` from a consumable valid same-digest pair only
+when that same gap recurs, its correction regresses, or its own record or
+transition is malformed or out of order. An orthogonal new-evidence `CURRENT`
+or `BLOCKER` never rewrites a separately verified prior record to unresolved.
+No backward transition, skipped state, unknown value, mixed terminal pair, or
+mutation after `PENDING` is valid. Any invalid transition makes the tuple or
+result malformed and non-passing.
+
+On the final wave, if guard capture failure, spawn failure or reviewer
+unavailability, a malformed or semantically rejected response, wrong digest,
+guard verification or cleanup failure, join-time or pre-handoff mismatch, plan
+or source drift, or equivalent terminal invalidation prevents a consumable
+valid same-digest D5/D6 pair, transition every still-pending prior record from
+`CORRECTED` + `PENDING` to `UNRESOLVED` + `FAILED`. For every affected record,
+record the concrete verification failure without claiming that the underlying
+correction recurred or regressed; surface the operational failure and every
+affected prior gap, prohibit execution handoff, and stop without a third wave.
+This operational settlement applies only to still-pending records and never
+overwrites a record already settled from a consumable valid same-digest pair.
 `BLOCKER` never enters `prior_verified_gaps`; it returns to its named owner.
 `FOLLOW-UP` and `OPTIONAL` remain deferred outside `prior_verified_gaps`. A new
 wave-two `CURRENT` or `BLOCKER` is accepted only under the existing new-evidence

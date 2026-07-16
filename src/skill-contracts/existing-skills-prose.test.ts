@@ -2045,6 +2045,31 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedMateriality).toContain(
       "An orthogonal new-evidence `CURRENT` or `BLOCKER` never rewrites that prior record to unresolved",
     );
+    for (const finalWaveInvalidation of [
+      "guard capture failure",
+      "spawn failure",
+      "reviewer unavailability",
+      "malformed or semantically rejected response",
+      "wrong digest",
+      "guard verification or cleanup failure",
+      "join-time or pre-handoff mismatch",
+      "plan or source drift",
+      "equivalent terminal invalidation",
+    ]) {
+      expect(normalizedMateriality).toContain(finalWaveInvalidation);
+    }
+    expect(normalizedMateriality).not.toContain(
+      "guard capture; spawn or reviewer unavailability",
+    );
+    expect(normalizedMateriality).toContain(
+      "each still-pending prior record from `CORRECTED` + `PENDING` to `UNRESOLVED` + `FAILED`",
+    );
+    expect(normalizedMateriality).toContain(
+      "records concrete verification-failure evidence without claiming that the correction recurred or regressed",
+    );
+    expect(normalizedMateriality).toContain(
+      "surfaces the operational failure and every affected prior gap, prohibits execution handoff, and stops without a third wave",
+    );
     for (const convergenceExample of [
       "Valid wave-two evidence example",
       "Invalid available-evidence mutation",
@@ -2211,10 +2236,31 @@ describe("existing skills source prose contracts", () => {
       "A corrected prior gap becomes `RESOLVED` + `PASSED` when its correction is verified and that same gap neither recurs nor regresses, even when a distinct valid new-evidence gap makes the overall wave non-passing",
     );
     expect(normalizedPairedReview).toContain(
-      "A prior gap becomes `UNRESOLVED` + `FAILED` only when that same gap recurs, its correction regresses, or its own record or transition is malformed or out of order",
+      "A prior gap becomes `UNRESOLVED` + `FAILED` from a consumable valid same-digest pair only when that same gap recurs, its correction regresses, or its own record or transition is malformed or out of order",
     );
     expect(normalizedPairedReview).toContain(
       "An orthogonal new-evidence `CURRENT` or `BLOCKER` never rewrites a separately verified prior record to unresolved",
+    );
+    for (const finalWaveInvalidation of [
+      "guard capture failure",
+      "spawn failure or reviewer unavailability",
+      "malformed or semantically rejected response",
+      "wrong digest",
+      "guard verification or cleanup failure",
+      "join-time or pre-handoff mismatch",
+      "plan or source drift",
+      "equivalent terminal invalidation",
+    ]) {
+      expect(normalizedPairedReview).toContain(finalWaveInvalidation);
+    }
+    expect(normalizedPairedReview).toContain(
+      "transition every still-pending prior record from `CORRECTED` + `PENDING` to `UNRESOLVED` + `FAILED`",
+    );
+    expect(normalizedPairedReview).toContain(
+      "record the concrete verification failure without claiming that the underlying correction recurred or regressed",
+    );
+    expect(normalizedPairedReview).toContain(
+      "surface the operational failure and every affected prior gap, prohibit execution handoff, and stop without a third wave",
     );
     expect(normalizedPairedReview).toContain(
       "the overall paired-wave verdict remains non-passing, surfaces every new or unresolved gap, and stops after wave two",

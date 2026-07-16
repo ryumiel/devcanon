@@ -383,12 +383,26 @@ Wave-two terminal state is computed independently for each prior gap record
 after both reviewers settle on the same digest. A prior gap whose correction is
 verified and that neither recurs nor regresses remains `RESOLVED` + `PASSED`
 even when a distinct valid new-evidence gap makes the overall wave non-passing.
-That prior gap becomes `UNRESOLVED` + `FAILED` only when the same gap recurs,
-its correction regresses, or its own record or transition is malformed or out
-of order. An orthogonal new-evidence `CURRENT` or `BLOCKER` never rewrites that
-prior record to unresolved. The overall wave still surfaces every valid new or
-unresolved gap and stops after wave two without weakening the no-third-wave
-rule.
+For a consumable valid same-digest pair, that prior gap becomes `UNRESOLVED` +
+`FAILED` only when the same gap recurs, its correction regresses, or its own
+record or transition is malformed or out of order. An orthogonal new-evidence
+`CURRENT` or `BLOCKER` never rewrites that prior record to unresolved. The
+overall wave still surfaces every valid new or unresolved gap and stops after
+wave two without weakening the no-third-wave rule.
+
+A final-wave operational or reviewer verification failure prevents a
+consumable valid same-digest pair when it includes guard capture failure; spawn
+failure; reviewer unavailability; a malformed or semantically rejected
+response; a wrong digest; guard verification or cleanup failure; a join-time
+or pre-handoff mismatch; plan or source drift; or an equivalent terminal
+invalidation. For any such failure, the controller transitions each
+still-pending prior record from `CORRECTED` + `PENDING` to `UNRESOLVED` +
+`FAILED`, records concrete verification-failure evidence without claiming that
+the correction recurred or regressed, surfaces the operational failure and
+every affected prior gap, prohibits execution handoff, and stops without a
+third wave. This operational settlement applies only to still-pending records;
+it never overwrites a record already settled from a consumable valid
+same-digest pair.
 
 ### Convergence examples
 
