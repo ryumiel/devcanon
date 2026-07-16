@@ -1701,6 +1701,162 @@ describe("existing skills source prose contracts", () => {
     expect(playPlanning).not.toContain("`Contract\nDecisions`");
   });
 
+  it("owns planning readiness and same-digest review contracts in bundled sources", async () => {
+    const playPlanning = await readSkillSource("play-planning");
+    const planningCriteria = await readRepoFile(
+      "skills/play-planning/references/planning-criteria.md",
+    );
+    const readinessAudit = await readRepoFile(
+      "skills/play-planning/references/planning-readiness-audit.md",
+    );
+    const normalizedPlanning = normalizeWhitespace(playPlanning);
+    const normalizedCriteria = normalizeWhitespace(planningCriteria);
+    const normalizedReadiness = normalizeWhitespace(readinessAudit);
+
+    expect(playPlanning).toContain("references/planning-readiness-audit.md");
+    expect(normalizedPlanning).toContain(
+      "before file mapping or task drafting",
+    );
+    expect(normalizedPlanning).toContain(
+      "`NOT_READY` stops before drafting or writing a plan",
+    );
+    expect(normalizedPlanning).toContain(
+      "start D5 and D6 independently without waiting for either result",
+    );
+    expect(normalizedPlanning).toContain(
+      "both independent GUARD-001 captures must succeed before either reviewer starts",
+    );
+    expect(normalizedPlanning).toContain("maximum of two paired review waves");
+    expect(normalizedPlanning).toContain(
+      "Any byte edit invalidates both retained verdicts",
+    );
+    expect(normalizedPlanning).toContain(
+      "both reviewers return PASS for the same current exact-byte digest",
+    );
+    expect(normalizedPlanning).toContain(
+      "Immediately before preparing each paired wave",
+    );
+    expect(playPlanning).toContain("`shasum -a 256`");
+    expect(playPlanning).toContain("`sha256sum`");
+    expect(normalizedPlanning).toContain(
+      "The digest is controller-local state and creates no result artifact",
+    );
+
+    for (const triggerId of [
+      "RA-CONTRACT",
+      "RA-STATE",
+      "RA-MULTI-BOUNDARY",
+      "RA-SIDE-EFFECT",
+      "RA-EVALUATION",
+      "RA-GOVERNANCE",
+    ]) {
+      expect(readinessAudit).toContain(`\`${triggerId}\``);
+    }
+    for (const triggerContract of [
+      "cross-skill handoff, generated or derived path, helper or script I/O, source-owned policy boundary, schema or interface, execution root, state transition, or fail-closed behavior",
+      "Lifecycle, retry, rollback, cleanup, continuation, failure, or recovery semantics",
+      "Two or more independently owned producer, validator, adapter, or consumer boundaries",
+      "Filesystem mutation beyond the planning artifact, user-home mutation, provider or network mutation, or another external side effect",
+      "An evaluation, approval gate, reviewer remit, verification authority, or acceptance-evidence contract",
+      "A reusable skill or agent procedure, ADR-governed decision, guideline, contribution or review policy, or durable documentation ownership rule",
+    ]) {
+      expect(normalizedReadiness).toContain(triggerContract);
+    }
+    expect(normalizedReadiness).toContain(
+      "all six trigger IDs are explicitly `false`",
+    );
+    for (const outcome of [
+      "READY",
+      "READY_WITH_RECORDED_ASSUMPTIONS",
+      "NOT_READY",
+    ]) {
+      expect(readinessAudit).toContain(`\`${outcome}\``);
+    }
+    expect(readinessAudit).toContain("`MD-<DIMENSION>-<SUBJECT>`");
+    expect(normalizedReadiness).toContain(
+      "exactly one owning source or design surface",
+    );
+    for (const assumptionField of [
+      "stable semantic ID",
+      "assumption statement",
+      "one owner or source surface",
+      "rationale and supporting evidence",
+      "bounded affected surface",
+      "risk",
+      "reversal trigger",
+      "proof expectation",
+    ]) {
+      expect(normalizedReadiness).toContain(assumptionField);
+    }
+
+    expect(normalizedCriteria).toContain(
+      "SHA-256 over the exact saved plan bytes",
+    );
+    expect(normalizedCriteria).toContain(
+      "`PASS — digest=<sha256>` or `FAIL — digest=<sha256>`",
+    );
+    expect(planningCriteria).toContain("`GAP-<TASK>-<CLASS>-<SUBJECT>`");
+    for (const gapClass of [
+      "SIDE-EFFECT",
+      "ARTIFACT",
+      "LIFECYCLE",
+      "BOUNDARY",
+      "AUTHORITY",
+      "SCOPE",
+      "REQUIREMENT",
+      "DEPENDENCY",
+      "TRACEABILITY",
+      "DOCUMENTATION",
+      "VERIFICATION",
+      "EXECUTION",
+    ]) {
+      expect(planningCriteria).toContain(`\`${gapClass}\``);
+    }
+    expectSubstringsInOrder(
+      sliceBetween(
+        planningCriteria,
+        "### Closed gap classes and precedence",
+        "### Consolidation, invalidation, and same-digest PASS",
+      ),
+      [
+        "`SIDE-EFFECT`",
+        "`ARTIFACT`",
+        "`LIFECYCLE`",
+        "`BOUNDARY`",
+        "`AUTHORITY`",
+        "`SCOPE`",
+        "`REQUIREMENT`",
+        "`DEPENDENCY`",
+        "`TRACEABILITY`",
+        "`DOCUMENTATION`",
+        "`VERIFICATION`",
+        "`EXECUTION`",
+      ],
+    );
+    expect(normalizedCriteria).toContain(
+      "Equivalent duplicate IDs merge and retain reviewer provenance",
+    );
+    expect(normalizedCriteria).toContain(
+      "Conflicting duplicate IDs make the paired wave malformed",
+    );
+    expect(normalizedCriteria).toContain(
+      "every concrete in-remit gap before returning FAIL",
+    );
+    expect(normalizedCriteria).toContain(
+      "canonical valid family is an independent D5 PASS response and independent D6 PASS response",
+    );
+    for (const invalidFamily of [
+      "D6 echoes a different digest",
+      "FAIL omits one required stable gap field",
+      "one stable gap ID has conflicting meanings",
+      "a reviewer stops after its first concrete in-remit gap",
+      "the plan changes after PASS",
+      "routing begins while one sibling remains active",
+    ]) {
+      expect(normalizedCriteria).toContain(invalidFamily);
+    }
+  });
+
   it("keeps play-planning implementer-executability review contracts in source", async () => {
     const playPlanning = await readSkillSource("play-planning");
     const planningCriteria = await readRepoFile(
@@ -1731,7 +1887,7 @@ describe("existing skills source prose contracts", () => {
       playPlanning.indexOf("## Implementer Executability Review"),
     ).toBeLessThan(playPlanning.indexOf("## Execution Handoff"));
     expect(normalizedOverview).toContain(
-      "keep the saved path in controller-local state while self-review, Plan Review, and Implementer Executability Review run",
+      "keep the saved path in controller-local state while self-review and the paired Plan Review and Implementer Executability Review run",
     );
     expect(normalizedOverview).toContain(
       "Emit the literal line `Plan written to <repo-relative-path>.` to the conversation only after the applicable review gates have passed",
@@ -1740,15 +1896,17 @@ describe("existing skills source prose contracts", () => {
       "from the loaded or installed `play-planning` skill bundle, not from the target repository or current working directory",
     );
     expect(normalizedScopeAndCriteria).toContain(
-      "concrete path, require it to be a readable regular file",
+      "resolve both bundled references to concrete readable regular-file paths",
     );
 
     expectSharedLifecycleReference(implementerExecutabilityReview);
     expect(normalizedExecutabilityReview).toContain("workflow-local");
     expect(implementerExecutabilityReview).toContain("{{model:frontier}}");
-    expect(normalizedExecutabilityReview).toContain("PASS or FAIL");
     expect(normalizedExecutabilityReview).toContain(
-      "restart Plan Review before rerunning Executability Review",
+      "`PASS — digest=<sha256>` or `FAIL — digest=<sha256>`",
+    );
+    expect(normalizedExecutabilityReview).toContain(
+      "Start the fresh D6 session independently alongside D5 after both baselines exist",
     );
     for (const reviewSection of [planReview, implementerExecutabilityReview]) {
       const normalizedReviewSection = normalizeWhitespace(reviewSection);
@@ -1756,6 +1914,10 @@ describe("existing skills source prose contracts", () => {
       expect(reviewSection).toContain(
         "Criteria: <validated-bundle-owned-path>",
       );
+      expect(reviewSection).toContain(
+        "Readiness: <validated-bundle-owned-path>",
+      );
+      expect(reviewSection).toContain("Expected digest: <sha256>");
       expect(normalizedReviewSection).toContain(
         "pass the guarded `Design: <path>` when the invocation selected the path form",
       );
@@ -1810,6 +1972,10 @@ describe("existing skills source prose contracts", () => {
 
   it("keeps the two planning review gates distinct and source-immutable", async () => {
     const playPlanning = await readSkillSource("play-planning");
+    const pairedReview = getMarkdownSection(
+      playPlanning,
+      "Exact Digest and Paired Review Orchestration",
+    );
     const planReview = getMarkdownSection(playPlanning, "Plan Review");
     const executabilityReview = getMarkdownSection(
       playPlanning,
@@ -1818,6 +1984,7 @@ describe("existing skills source prose contracts", () => {
     const normalizedPlanReview = normalizeWhitespace(planReview);
     const normalizedExecutabilityReview =
       normalizeWhitespace(executabilityReview);
+    const normalizedPairedReview = normalizeWhitespace(pairedReview);
 
     for (const reviewSection of [
       normalizedPlanReview,
@@ -1850,23 +2017,27 @@ describe("existing skills source prose contracts", () => {
 
     expect(normalizedPlanReview).toContain("D5");
     expect(normalizedPlanReview).toContain("PLAN_REVIEW_BASELINE");
-    expect(normalizedPlanReview).toContain("Maximum 2 Plan Review rounds");
     expect(normalizedExecutabilityReview).toContain("D6");
     expect(normalizedExecutabilityReview).toContain(
       "EXECUTABILITY_REVIEW_BASELINE",
     );
-    expect(normalizedExecutabilityReview).toContain(
-      "restart Plan Review before rerunning Executability Review",
+    expect(normalizedPairedReview).toContain(
+      "both independent GUARD-001 captures must succeed before either reviewer starts",
     );
-    expect(normalizedExecutabilityReview).toContain(
-      "Maximum 2 Executability Review rounds",
+    expect(normalizedPairedReview).toContain(
+      "start D5 and D6 independently without waiting for either result",
     );
-    expect(normalizedPlanReview).toContain("D5 FAIL never advances to D6");
-    expect(normalizedExecutabilityReview).toContain(
-      "D5 PASS followed by D6 FAIL never reaches execution handoff",
+    expect(normalizedPairedReview).toContain(
+      "every started sibling must settle",
     );
-    expect(normalizedExecutabilityReview).toContain(
-      "Only a retained D5 PASS followed by a separate retained D6 PASS",
+    expect(normalizedPairedReview).toContain(
+      "maximum of two paired review waves",
+    );
+    expect(normalizedPairedReview).toContain(
+      "Any byte edit invalidates both retained verdicts",
+    );
+    expect(normalizedPairedReview).toContain(
+      "both reviewers return PASS for the same current exact-byte digest",
     );
 
     for (const [section, spawnStep] of [
@@ -1897,15 +2068,10 @@ describe("existing skills source prose contracts", () => {
       );
     }
     expect(normalizedPlanReview).toContain(
-      "After safe cleanup it follows the existing D5 failure path",
+      "retain its result until the D6 sibling has also settled and cleaned",
     );
-    expect(normalizedPlanReview).toContain("a non-passing second round stops");
     expect(normalizedExecutabilityReview).toContain(
-      "After safe cleanup it follows the existing D6 failure path",
-    );
-    expect(normalizedExecutabilityReview).toContain("restart Plan Review");
-    expect(normalizedExecutabilityReview).toContain(
-      "a non-passing second round stops",
+      "retain its result until the D5 sibling has also settled and cleaned",
     );
     expect(normalizedExecutabilityReview).toContain(
       "must not reuse or collapse the D5 session, review question, PASS/FAIL result, or lifecycle state",
@@ -5519,7 +5685,9 @@ describe("existing skills source prose contracts", () => {
       "Before dispatching the plan-review agent",
     );
     expect(playPlanningReviewSection).toContain("PASS/FAIL result");
-    expect(playPlanningReviewSection).toContain("specific gaps");
+    expect(normalizeWhitespace(playPlanningReviewSection)).toContain(
+      "every specific in-remit gap",
+    );
 
     const playAgentDispatchSection = sliceBetween(
       playAgentDispatch,

@@ -228,9 +228,17 @@ describe("rendered phase artifact smoke coverage", () => {
       await readFile(path.join(skillDirs["play-planning"], "SKILL.md"), "utf8"),
     ).body;
     const referencePath = path.join("references", "planning-criteria.md");
+    const readinessReferencePath = path.join(
+      "references",
+      "planning-readiness-audit.md",
+    );
     const sourceCriteria = await readSkillReference(
       "play-planning",
       referencePath,
+    );
+    const sourceReadiness = await readSkillReference(
+      "play-planning",
+      readinessReferencePath,
     );
     const sourceDesignTopology = sliceRenderedSection(
       sourceBrainstorm,
@@ -285,6 +293,16 @@ describe("rendered phase artifact smoke coverage", () => {
           ),
           "utf8",
         );
+        const renderedReadiness = await readFile(
+          path.join(
+            generatedDir,
+            target,
+            "skills",
+            "play-planning",
+            readinessReferencePath,
+          ),
+          "utf8",
+        );
         const renderedCriteriaTopology = sliceRenderedSection(
           renderedCriteria,
           "### Ownership-topology mapping",
@@ -298,6 +316,11 @@ describe("rendered phase artifact smoke coverage", () => {
           normalizeRenderedWhitespace(sourcePlanningTopology),
         );
         expect(renderedCriteria).toBe(sourceCriteria);
+        expect(renderedReadiness).toBe(sourceReadiness);
+        expect(renderedReadiness).toContain("`RA-CONTRACT`");
+        expect(renderedReadiness).toContain(
+          "`READY_WITH_RECORDED_ASSUMPTIONS`",
+        );
         expect(normalizeRenderedWhitespace(renderedCriteriaTopology)).toBe(
           normalizeRenderedWhitespace(sourceCriteriaTopology),
         );

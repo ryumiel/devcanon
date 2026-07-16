@@ -66,6 +66,7 @@ describe("play-subagent planning and routing render smoke coverage", () => {
         "## Scope Envelope and Canonical Criteria",
       );
       expect(playPlanning).toContain("references/planning-criteria.md");
+      expect(playPlanning).toContain("references/planning-readiness-audit.md");
       expect(normalizedPlayPlanning).toContain(
         "from the loaded or installed `play-planning` skill bundle, not from the target repository or current working directory",
       );
@@ -128,7 +129,25 @@ describe("play-subagent planning and routing render smoke coverage", () => {
       expect(playPlanning).toContain("## Scope Delta");
       expect(playPlanning).toContain("## Execution Handoff");
       expect(playPlanning).toContain("play-subagent-execution");
+      expect(normalizedPlayPlanning).toContain(
+        "both independent GUARD-001 captures must succeed before either reviewer starts",
+      );
+      expect(normalizedPlayPlanning).toContain(
+        "start D5 and D6 independently without waiting for either result",
+      );
+      expect(normalizedPlayPlanning).toContain(
+        "every started sibling must settle",
+      );
+      expect(normalizedPlayPlanning).toContain(
+        "maximum of two paired review waves",
+      );
+      expect(normalizedPlayPlanning).toContain(
+        "both reviewers return PASS for the same current exact-byte digest",
+      );
 
+      const pairedReviewStart = playPlanning.indexOf(
+        "## Exact Digest and Paired Review Orchestration",
+      );
       const planReviewStart = playPlanning.indexOf("## Plan Review");
       const executabilityReviewStart = playPlanning.indexOf(
         "## Implementer Executability Review",
@@ -136,11 +155,15 @@ describe("play-subagent planning and routing render smoke coverage", () => {
       const executionHandoffStart = playPlanning.indexOf(
         "## Execution Handoff",
       );
-      expect(planReviewStart).toBeGreaterThanOrEqual(0);
+      expect(pairedReviewStart).toBeGreaterThanOrEqual(0);
+      expect(planReviewStart).toBeGreaterThan(pairedReviewStart);
       expect(executabilityReviewStart).toBeGreaterThan(planReviewStart);
       expect(executionHandoffStart).toBeGreaterThan(executabilityReviewStart);
       const planReview = normalizeWhitespace(
         playPlanning.slice(planReviewStart, executabilityReviewStart),
+      );
+      const pairedReview = normalizeWhitespace(
+        playPlanning.slice(pairedReviewStart, planReviewStart),
       );
       const executabilityReview = normalizeWhitespace(
         playPlanning.slice(executabilityReviewStart, executionHandoffStart),
@@ -163,13 +186,15 @@ describe("play-subagent planning and routing render smoke coverage", () => {
         expect(reviewSection).toContain("guard-integrity terminal");
         expect(reviewSection).not.toContain("`deep-reviewer`");
       }
-      expect(planReview).toContain("D5 FAIL never advances to D6");
-      expect(executabilityReview).toContain(
-        "D5 PASS followed by D6 FAIL never reaches execution handoff",
+      expect(pairedReview).toContain(
+        "both independent GUARD-001 captures must succeed before either reviewer starts",
       );
-      expect(executabilityReview).toContain(
-        "Only a retained D5 PASS followed by a separate retained D6 PASS",
+      expect(pairedReview).toContain(
+        "start D5 and D6 independently without waiting for either result",
       );
+      expect(pairedReview).toContain("every started sibling must settle");
+      expect(pairedReview).toContain("Do not route early");
+      expect(pairedReview).toContain("maximum of two paired review waves");
       for (const [reviewSection, spawnStep] of [
         [planReview, "spawn the D5 reviewer and capture only"],
         [executabilityReview, "spawn the fresh D6 reviewer and capture only"],
@@ -194,7 +219,6 @@ describe("play-subagent planning and routing render smoke coverage", () => {
           "dispatch or spawn failure or unavailability before a reviewer session exists",
         );
         expect(reviewSection).toContain("After safe cleanup");
-        expect(reviewSection).toContain("a non-passing second round stops");
       }
       expect(executabilityReview).toContain(
         "must not reuse or collapse the D5 session, review question, PASS/FAIL result, or lifecycle state",

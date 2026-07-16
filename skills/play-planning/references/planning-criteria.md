@@ -9,6 +9,7 @@ workflow stays in `../SKILL.md`; do not copy these criteria back into each gate.
 - [Governing invariant](#governing-invariant)
 - [Scope Envelope](#scope-envelope)
 - [Planning authority and readiness](#planning-authority-and-readiness)
+- [Exact digest and paired-review result contract](#exact-digest-and-paired-review-result-contract)
 - [Contract and traceability criteria](#contract-and-traceability-criteria)
 - [Ownership-topology mapping](#ownership-topology-mapping)
 - [Task contract criteria](#task-contract-criteria)
@@ -111,6 +112,109 @@ Before implementation tasks begin, map every design contract decision to
 current task coverage, acceptance criteria, ownership, and proof obligations.
 Planning may decompose or sequence a decision, but it must not silently omit or
 replace it.
+
+The bundled `planning-readiness-audit.md` reference exclusively owns the
+pre-drafting audit triggers, dimensions, closed outcomes, bounded-assumption
+rules, and stable missing-decision records. This criteria reference consumes
+the recorded readiness result and owns the shared D5/D6 review-result and gap
+contract below. It must not redefine readiness outcomes or use review gaps to
+replace missing project authority.
+
+## Exact digest and paired-review result contract
+
+### Exact saved-plan digest
+
+Bind every paired D5/D6 wave to SHA-256 over the exact saved plan bytes after a
+complete write or authorized revision. Do not normalize Markdown, convert line
+endings, trim whitespace, serialize content, or extract a section. The digest
+is lowercase 64-character hexadecimal text. A missing or unreadable plan,
+missing hash utility, read failure, or malformed digest blocks the wave.
+
+The expected digest and saved plan path remain controller-local inputs. D5 and
+D6 must echo the expected digest in the first line of their independent
+responses. Any plan-byte edit invalidates both responses immediately; verdicts
+from different digests never combine.
+
+### Review result shape and exhaustive reporting
+
+The first line is exactly `PASS — digest=<sha256>` or
+`FAIL — digest=<sha256>`. PASS contains no `CURRENT` or `BLOCKER` gap. FAIL
+reports every concrete in-remit gap before returning FAIL, grouped by task and
+defect class, without stopping after the first gap. Reviewers exclude
+speculative improvements and out-of-remit findings.
+
+Each non-passing gap uses `GAP-<TASK>-<CLASS>-<SUBJECT>`. `TASK` is the stable
+task ID or `PLAN`; `CLASS` is selected from the closed table below; and
+`SUBJECT` is an uppercase ASCII kebab semantic token that names the contract,
+not its wording or position. Every gap record contains:
+
+- stable gap ID;
+- task;
+- defect class;
+- classification, exactly `CURRENT` or `BLOCKER`;
+- concise finding;
+- authoritative source; and
+- required correction for `CURRENT`, or exactly one decision owner for
+  `BLOCKER`.
+
+The same semantic gap keeps the same ID across reviewers and reruns. Equivalent
+duplicate IDs merge and retain reviewer provenance. Conflicting duplicate IDs
+make the paired wave malformed and non-passing. A missing field, unknown class,
+misapplied class, invalid ID, malformed first line, or digest mismatch is also
+non-passing.
+
+### Closed gap classes and precedence
+
+Use the first matching row in this exact precedence order:
+
+| Precedence | Class           | Governing defect                                                                                                                          |
+| ---------- | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| 1          | `SIDE-EFFECT`   | Missing or incorrect ownership or permission for filesystem, provider, network, user-home, or another external mutation                   |
+| 2          | `ARTIFACT`      | Missing or incorrect artifact producer, validator, schema or shape, path, custody, freshness, persistence, cleanup, or consumer contract  |
+| 3          | `LIFECYCLE`     | Missing or incorrect state transition, failure, retry, recovery, rollback, cleanup, continuation, or terminal behavior                    |
+| 4          | `BOUNDARY`      | Missing or incorrect boundary participant, required or optional input, output, error, ordering, or interaction contract not covered above |
+| 5          | `AUTHORITY`     | Missing, duplicated, conflicting, or unprioritized normative owner not covered above                                                      |
+| 6          | `SCOPE`         | Unauthorized work, missing non-goal, or incorrect Scope Envelope or Scope Delta disposition                                               |
+| 7          | `REQUIREMENT`   | Approved outcome or hard requirement lacks task or acceptance coverage                                                                    |
+| 8          | `DEPENDENCY`    | Task prerequisite or dependency order is missing or incorrect                                                                             |
+| 9          | `TRACEABILITY`  | Required mapping among owner, consumer, task, acceptance criterion, or proof is incomplete                                                |
+| 10         | `DOCUMENTATION` | Required documentation-impact or adjacent-governance disposition is missing or incorrect                                                  |
+| 11         | `VERIFICATION`  | Verification authority, observable evidence, or minimum-sufficient proof is missing or disproportionate                                   |
+| 12         | `EXECUTION`     | A residual implementer-facing input, output, or required behavior decision is hidden after all more-specific classes are ruled out        |
+
+### Consolidation, invalidation, and same-digest PASS
+
+Join only after both independent reviewers have settled and completed their
+guard lifecycles. Reject digest mismatch, malformed reports, unknown or
+misapplied classes, missing stable fields, conflicting gap IDs, or incomplete
+in-remit reporting. Consolidate equivalent IDs, retain both reviewer
+provenances, and preserve distinct gaps.
+
+Verified `CURRENT` gaps may revise the plan. A `BLOCKER` returns to its named
+owner. `FOLLOW-UP` and `OPTIONAL` observations use the existing finding policy
+outside the blocking gap records and remain deferred. Any plan-byte edit
+invalidates both verdicts, requires a new exact digest, and requires a fresh
+paired D5/D6 wave. Handoff is valid only when both reviewers independently PASS
+the same current digest.
+
+### Contract examples
+
+The canonical valid family is an independent D5 PASS response and independent
+D6 PASS response whose first lines echo the same current lowercase 64-hex
+exact-byte digest, followed by successful exact cleanup of both guard baselines
+before handoff. Each of these single-dimension-invalid families is non-passing:
+
+- D6 echoes a different digest;
+- FAIL omits one required stable gap field;
+- one stable gap ID has conflicting meanings;
+- a reviewer stops after its first concrete in-remit gap;
+- the plan changes after PASS; or
+- routing begins while one sibling remains active.
+
+Positive examples must match this contract. Invalid examples mutate exactly
+one named dimension unless an intentional multi-fault example is labeled.
+Derived facts must remain consistent with source authority. Unsupported or
+unverifiable examples are `NEEDS_CONTEXT` or `BLOCKED`; do not guess.
 
 ## Contract and traceability criteria
 

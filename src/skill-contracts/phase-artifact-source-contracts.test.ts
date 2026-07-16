@@ -708,6 +708,35 @@ describe("phase artifact source contracts", () => {
     expect(normalizedPlanReview).not.toContain("PASS with confidence notes");
   });
 
+  it("keeps planning readiness and paired review inputs path-first", async () => {
+    const workflow = await readSkillSource("play-planning");
+    const normalizedWorkflow = normalizeWhitespace(workflow);
+
+    expect(workflow).toContain("references/planning-readiness-audit.md");
+    expect(normalizedWorkflow).toContain(
+      "resolve both bundled references to concrete readable regular-file paths",
+    );
+    for (const pairedInput of [
+      "saved plan path",
+      "selected design input",
+      "optional comment evidence",
+      "validated criteria path",
+      "validated readiness path and recorded readiness result",
+      "expected exact plan digest",
+    ]) {
+      expect(normalizedWorkflow).toContain(pairedInput);
+    }
+    expect(normalizedWorkflow).toContain(
+      "pass the same optional comment evidence to both when present",
+    );
+    expect(normalizedWorkflow).toContain(
+      "every started sibling must settle and complete its own verify, validation, and exact cleanup lifecycle before the join",
+    );
+    expect(normalizedWorkflow).toContain(
+      "No execution or owning-workflow route may begin while either sibling is active",
+    );
+  });
+
   it("keeps issue-body prompt trust boundaries in source prompt templates", async () => {
     const gatePrompt = await readRepoFile(
       "skills/issue-priming-workflow/references/gate-agent-prompt.md",
@@ -822,6 +851,10 @@ describe("phase artifact source contracts", () => {
       workflow,
       "Implementer Executability Review",
     );
+    const pairedReview = getMarkdownSection(
+      workflow,
+      "Exact Digest and Paired Review Orchestration",
+    );
     const normalizedOwner = normalizeWhitespace(guardOwner);
 
     expect(guardStart).toBeGreaterThanOrEqual(0);
@@ -891,9 +924,22 @@ describe("phase artifact source contracts", () => {
         "dispatch or spawn failure or unavailability before a reviewer session exists",
       );
       expect(reviewSection).toContain("After safe cleanup");
-      expect(reviewSection).toContain("a non-passing second round stops");
       expect(reviewSection).toContain("guard-integrity terminal");
     }
+
+    const normalizedPairedReview = normalizeWhitespace(pairedReview);
+    expect(normalizedPairedReview).toContain(
+      "both independent GUARD-001 captures must succeed before either reviewer starts",
+    );
+    expect(normalizedPairedReview).toContain(
+      "start D5 and D6 independently without waiting for either result",
+    );
+    expect(normalizedPairedReview).toContain(
+      "every started sibling must settle and complete its own verify, validation, and exact cleanup lifecycle before the join",
+    );
+    expect(normalizedPairedReview).toContain(
+      "No execution or owning-workflow route may begin while either sibling is active",
+    );
   });
 
   it("consumes GUARD-001 independently for play-review D7-D10", async () => {

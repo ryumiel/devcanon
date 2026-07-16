@@ -55,7 +55,8 @@ mkdir -p .ephemeral
 ```
 
 After writing the plan artifact, keep the saved path in controller-local state
-while self-review, Plan Review, and Implementer Executability Review run. Emit
+while self-review and the paired Plan Review and Implementer Executability
+Review run. Emit
 the literal line `Plan written to <repo-relative-path>.` to the conversation
 only after the applicable review gates have passed and the plan is ready for
 the next handoff. This is the contract surface `play-subagent-execution` reads
@@ -165,17 +166,32 @@ The path references are consumed by the controller; inline forms are preserved f
 
 ## Scope Envelope and Canonical Criteria
 
-Before file mapping or task planning, resolve
-[`references/planning-criteria.md`](references/planning-criteria.md) from the
-loaded or installed `play-planning` skill bundle, not from the target
-repository or current working directory. Resolve that bundle-owned reference
-to a concrete path, require it to be a readable regular file, and retain the
-validated path in controller-local state for self-review and both reviewer
-gates. A missing or unreadable criteria file blocks planning. It is the single
-detailed criteria source for scope, planning authority, contract and
-traceability coverage, task contracts, proof proportionality, finding
-classification, and all three planning review surfaces. Do not copy its full
-criteria into this file or into reviewer prompts.
+Before file mapping or task drafting, resolve both
+[`references/planning-criteria.md`](references/planning-criteria.md) and
+[`references/planning-readiness-audit.md`](references/planning-readiness-audit.md)
+from the loaded or installed `play-planning` skill bundle, not from the target
+repository or current working directory. The controller must resolve both
+bundled references to concrete readable regular-file paths and retain the
+validated paths in controller-local state for readiness, self-review, and both
+reviewer gates. A missing or unreadable reference blocks planning.
+
+The readiness reference owns the exhaustive pre-drafting audit triggers,
+dimensions, outcomes, assumption bounds, and missing-decision records. The
+criteria reference owns scope, planning authority, contract and traceability
+coverage, task contracts, proof proportionality, shared result and gap
+classification, and all three planning review surfaces. Do not copy either
+reference's detailed contract into reviewer prompts.
+
+Apply the readiness audit before file mapping or task drafting. Evaluate all
+six named triggers and either run the exhaustive audit when any trigger is true
+or record the valid all-false skip reason required by the reference. Record
+exactly one closed outcome. `NOT_READY` stops before drafting or writing a plan
+and returns stable missing decisions to their named owner surfaces. A
+`READY_WITH_RECORDED_ASSUMPTIONS` result is allowed only for complete bounded
+assumption records and those records must appear in the saved plan. `READY`
+records the outcome without an invented assumptions table. Invalid skips,
+incomplete assumptions, conflicting stable IDs, or missing authority are
+`NOT_READY`, never permission to draft.
 
 Planning may make approved scope executable, but it must not create new product,
 infrastructure, governance, or verification obligations. Write a
@@ -524,22 +540,87 @@ FOLLOW-UP and OPTIONAL findings.
 Do not treat normal implementation choices discoverable from named sources as
 missing planning contracts. Do not broaden proof obligations beyond the Scope
 Envelope. Recompute task and traceability coverage after any authorized edit,
-then continue to Plan Review.
+then continue to the paired review wave.
+
+## Exact Digest and Paired Review Orchestration
+
+Immediately before preparing each paired wave, and after every complete plan
+write or authorized revision, validate the retained plan path as the guarded
+readable regular file and compute SHA-256 over the exact saved plan bytes. Do
+not normalize, trim, convert newlines, serialize, or extract Markdown. Use the
+existing portability pattern directly, without a new helper: `shasum -a 256`
+when available, otherwise `sha256sum`. If neither tool exists, the path cannot
+be read, hashing fails, or the result is not lowercase 64-hex, stop before
+reviewer dispatch. The digest is controller-local state and creates no result
+artifact.
+
+Prepare one immutable tuple containing the saved plan path, selected design
+input, optional comment evidence, validated criteria path, validated readiness
+path and recorded readiness result, and expected exact plan digest. Always pass
+the same optional comment evidence to both when present; omit it from both when
+absent. Pass the identical tuple to D5 and D6, while keeping their remits and
+responses separate.
+
+Use `subagent-lifecycle` for two independent pending ledger rows and its
+target-honest cleanup, slot-limit, and recovery rules. Resolve
+`PLAY_PLANNING_DIR` to the loaded or installed skill bundle and
+`SOURCE_IMMUTABILITY_HELPER` to
+`$PLAY_PLANNING_DIR/scripts/source-immutability.sh`. D5 and D6 are distinct
+fresh response-only `reviewer`, frontier/high and source-immutable sessions,
+with zero handoffs and external authority `none`. Do not reuse or collapse
+their sessions, questions, responses, baselines, or lifecycle state.
+
+Apply GUARD-001 independently to each reviewer with no `--handoff`. The
+controller confirms that both independent GUARD-001 captures must succeed
+before either reviewer starts.
+Retain `PLAN_REVIEW_BASELINE` for D5 and `EXECUTABILITY_REVIEW_BASELINE` for
+D6. If either capture fails, clean any baseline already captured and do not
+start the paired wave.
+
+After both captures succeed, start D5 and D6 independently without waiting for
+either result. A spawn failure does not cancel an already-started sibling:
+every started sibling must settle and complete its own verify, validation, and
+exact cleanup lifecycle before the join. For each leaf, preserve the fixed
+order: capture before spawn; capture only raw response and status; verify before
+semantic validation or consumption; validate and retain the PASS/FAIL response
+in controller memory; cleanup the exact retained baseline; then apply the
+retained result only after cleanup. No execution or owning-workflow route may
+begin while either sibling is active.
+
+An unavailable, failed, malformed, digest-mismatched, semantically rejected,
+or verification-rejected result cannot pass. Every post-capture terminal path
+attempts exact cleanup. Detected source mutation or cleanup failure is
+guard-integrity terminal: leave the source state visible, let every started
+sibling settle and attempt its owned cleanup, stop planning, and never reset,
+check out, stage, repair, or otherwise hide the mutation.
+
+Join only after both independent lifecycles finish. Validate each response
+against the shared result and gap contract in the criteria reference, then
+consolidate stable IDs. Do not route early on one PASS or one FAIL. Verified
+`CURRENT` gaps may revise the plan; a `BLOCKER` returns to its named owner;
+`FOLLOW-UP` and `OPTIONAL` remain deferred. Any byte edit invalidates both
+retained verdicts immediately, requires a new exact digest, and requires two
+fresh reviewers.
+
+Planning has a maximum of two paired review waves. A first ordinary non-pass
+may retry the fresh pair or revise verified CURRENT gaps and dispatch a fresh
+pair. A second non-pass stops. Handoff is allowed only after both reviewers
+return PASS for the same current exact-byte digest and both guard cleanups have
+succeeded.
 
 ## Plan Review
 
-After self-review, dispatch a dedicated response-only `reviewer`, frontier/high
-and source-immutable, with zero handoffs, to validate plan alignment before
-offering execution options. This is the D5 Plan Review session. Use the
-configured `reviewer` role and effort; do not substitute an ambient role,
-model, or effort. D5 remains independent from the later D6 session even though
-both use the same semantic role.
+Within each paired wave, D5 is the dedicated Plan Review remit. Use the
+configured response-only `reviewer`, frontier/high and source-immutable, with
+zero handoffs; do not substitute an ambient role, model, or effort. D5 remains
+independent from the concurrently started D6 session even though both use the
+same semantic role.
 
 Before dispatching the plan-review agent, use `subagent-lifecycle` for the controller-local lifecycle ledger, target
 lifecycle capability classification, cleanup gate, target-honest cleanup outcomes,
 and slot-limit recovery. Capture the plan path or inline scope, design
 scope, concise PASS/FAIL result, classified findings, and blockers before
-cleanup or supersession.
+cleanup or supersession. Retain every specific gap with its response.
 
 Resolve `PLAY_PLANNING_DIR` to the loaded or installed `play-planning` skill
 bundle, resolve `SOURCE_IMMUTABILITY_HELPER` to
@@ -570,30 +651,32 @@ bash "$SOURCE_IMMUTABILITY_HELPER" cleanup --baseline "$PLAN_REVIEW_BASELINE"
 # Only now apply the retained D5 result.
 ```
 
-After capture succeeds, every post-capture terminal path attempts exact
-cleanup, including dispatch or spawn failure or unavailability before a
+After its paired capture succeeds, every post-capture terminal path attempts
+exact cleanup, including dispatch or spawn failure or unavailability before a
 reviewer session exists, child failure, malformed output, semantic rejection,
 and verification rejection. An ordinary unavailable, failed, malformed, or
-verification-rejected review cannot pass. After safe cleanup it follows the
-existing D5 failure path: verify any retained findings against authoritative
-scope, revise only verified CURRENT gaps, and rerun a fresh D5 session when the
-two-round budget remains; a non-passing second round stops. Detected source
-mutation or cleanup failure is guard-integrity terminal: leave the source state
-visible, stop planning, and never reset, check out, stage, repair, or otherwise
-hide source.
+verification-rejected review cannot pass. After safe cleanup, retain its result
+until the D6 sibling has also settled and cleaned; verify consolidated findings
+against authoritative scope, revise only verified CURRENT gaps, and rerun a
+fresh D5/D6 pair when the paired-wave budget remains. Detected source mutation
+or cleanup failure is guard-integrity terminal: leave the source state visible,
+stop planning, and never reset, check out, stage, repair, or otherwise hide
+source.
 
-Pass `Plan: <path>` and `Criteria: <validated-bundle-owned-path>`. For design
-input, pass the guarded `Design: <path>` when the invocation selected the path
-form; otherwise pass the preserved inline `## Design` content for a direct
-invocation. Always prefer artifact path references over inlined full documents;
-the path form wins when both forms exist. When inputs are path-backed, instruct
-the reviewer to read them from disk, and always instruct it to read the plan, the
-selected path-or-inline design input, and the concrete criteria path before
-evaluating. Missing or unreadable plan or criteria input blocks the review. A
-selected design path that is missing or unreadable also blocks, as does missing
-selected inline design content. Absence of the unselected path or inline form
-does not block. Never direct the reviewer to find criteria relative to the
-target repository.
+Pass `Plan: <path>`, `Criteria: <validated-bundle-owned-path>`,
+`Readiness: <validated-bundle-owned-path>`, the recorded readiness result, and
+`Expected digest: <sha256>`. For design input, pass the guarded
+`Design: <path>` when the invocation selected the path form; otherwise pass the
+preserved inline `## Design` content for a direct invocation. Always prefer
+artifact path references over inlined full documents; the path form wins when
+both forms exist. When inputs are path-backed, instruct the reviewer to read
+them from disk, and always instruct it to read the plan, the selected
+path-or-inline design input, and the concrete criteria path before evaluating.
+Missing or unreadable plan or criteria input blocks the review. A selected
+design path that is missing or unreadable also blocks, as does missing selected
+inline design content. Absence of the unselected path or inline form does not
+block. Never direct the reviewer to find criteria relative to the target
+repository.
 
 The reviewer independently validates the Scope Envelope, Scope Delta,
 authoritative requirement coverage, unjustified tasks, dependency order,
@@ -610,35 +693,31 @@ speculative improvements.
 
 **Output:** concise PASS or FAIL with gaps.
 
-Include classifications and specific gaps. A PASS may include
-FOLLOW-UP or OPTIONAL findings and one short confidence note. A FAIL identifies
-all CURRENT and BLOCKER gaps specifically enough to act without dumping raw
-artifacts or broad commentary.
+The first line is exactly `PASS — digest=<sha256>` or
+`FAIL — digest=<sha256>`. Include stable IDs, classifications, and every
+specific in-remit gap under the criteria contract. A PASS may include FOLLOW-UP
+or OPTIONAL findings and one short confidence note. A FAIL reports all CURRENT
+and BLOCKER gaps without dumping raw artifacts or broad commentary.
 
-**On FAIL:** verify each finding against the Scope Envelope and authoritative
-sources before editing. Fix only CURRENT findings inline, then rerun Plan
-Review. A BLOCKER stops and returns to the owning decision surface. Preserve
-FOLLOW-UP and OPTIONAL findings under Deferred Follow-ups. Maximum 2 Plan
-Review rounds. If CURRENT findings remain after round 2, or a BLOCKER remains,
-present them to the user or owning workflow and stop.
-
-In `--auto` flows, Plan Review PASS advances to Implementer Executability
-Review; it is not sufficient for parent execution handoff. Only both planning
-gates returning PASS may hand off. A failing or blocked second round stops and
-reports to the user. D5 FAIL never advances to D6.
+**On FAIL:** retain the verified response until D6 also settles and cleans, then
+apply the paired join policy. Fix only verified CURRENT findings inline. A
+BLOCKER stops and returns to the owning decision surface. Preserve FOLLOW-UP
+and OPTIONAL findings under Deferred Follow-ups. D5 FAIL does not cancel D6 and
+never permits an early execution or parent handoff.
 
 ## Implementer Executability Review
 
-After Plan Review passes, dispatch a separate workflow-local
-implementer-executability reviewer before execution handoff. This gate validates
-whether each CURRENT task is executable by a competent non-senior developer
-from the task and named authoritative sources. It does not repeat plan
-alignment or own executor review routing.
+Within each paired wave, D6 is the separate workflow-local
+Implementer Executability Review remit. It validates whether each CURRENT task
+is executable by a competent non-senior developer from the task and named
+authoritative sources. It does not repeat plan alignment or own executor review
+routing.
 
 Use a fresh response-only `reviewer`, frontier/high and source-immutable, with
-zero handoffs, for this D6 Implementer Executability Review. The fresh D6
-session is sequentially after the retained D5 PASS and must not reuse or
-collapse the D5 session, review question, PASS/FAIL result, or lifecycle state.
+zero handoffs, for this D6 Implementer Executability Review. Start the fresh D6
+session independently alongside D5 after both baselines exist; it must not
+reuse or collapse the D5 session, review question, PASS/FAIL result, or
+lifecycle state.
 The role's `{{model:frontier}}` capability is supplied by the configured
 semantic role, not selected as an ambient or per-call substitute.
 
@@ -676,31 +755,32 @@ bash "$SOURCE_IMMUTABILITY_HELPER" cleanup --baseline "$EXECUTABILITY_REVIEW_BAS
 # Only now apply the retained D6 result.
 ```
 
-After capture succeeds, every post-capture terminal path attempts exact
-cleanup, including dispatch or spawn failure or unavailability before a
+After its paired capture succeeds, every post-capture terminal path attempts
+exact cleanup, including dispatch or spawn failure or unavailability before a
 reviewer session exists, child failure, malformed output, semantic rejection,
 and verification rejection. An ordinary unavailable, failed, malformed, or
-verification-rejected review cannot pass. After safe cleanup it follows the
-existing D6 failure path: block execution, verify any retained findings against
-authoritative scope, revise only verified CURRENT gaps, restart Plan Review,
-and rerun a fresh D6 session only when the two-round Executability Review budget
-remains; a non-passing second round stops. Detected source mutation or cleanup
-failure is guard-integrity terminal: leave the source state visible, stop
-planning, and never reset, check out, stage, repair, or otherwise hide source.
+verification-rejected review cannot pass. After safe cleanup, retain its result
+until the D5 sibling has also settled and cleaned; block execution, verify
+consolidated findings against authoritative scope, revise only verified CURRENT
+gaps, and rerun a fresh D5/D6 pair only when the paired-wave budget remains.
+Detected source mutation or cleanup failure is guard-integrity terminal: leave
+the source state visible, stop planning, and never reset, check out, stage,
+repair, or otherwise hide source.
 
-Pass the guarded plan path and `Criteria: <validated-bundle-owned-path>`. For
-design input, pass the guarded `Design: <path>` when the invocation selected
-the path form; otherwise pass the preserved inline `## Design` content for a
-direct invocation. Always prefer artifact path references over inlined full
-documents; the path form wins when both forms exist. Pass comment evidence only
-when the planning invocation received it. When inputs are path-backed, instruct
-the reviewer to read them from disk, and always instruct it to read the plan, the
-selected path-or-inline design input, and the concrete criteria path. Missing
-or unreadable plan or criteria input blocks execution handoff. A selected
-design path that is missing or unreadable also blocks; missing selected inline
-design content also blocks. Absence of the unselected path or inline form does
-not block. Never direct the reviewer to find criteria relative to the target
-repository.
+Pass the guarded plan path, `Criteria: <validated-bundle-owned-path>`,
+`Readiness: <validated-bundle-owned-path>`, the recorded readiness result, and
+`Expected digest: <sha256>`. For design input, pass the guarded
+`Design: <path>` when the invocation selected the path form; otherwise pass the
+preserved inline `## Design` content for a direct invocation. Always prefer
+artifact path references over inlined full documents; the path form wins when
+both forms exist. Pass comment evidence only when the planning invocation
+received it. When inputs are path-backed, instruct the reviewer to read them
+from disk, and always instruct it to read the plan, the selected path-or-inline
+design input, and the concrete criteria path. Missing or unreadable plan or
+criteria input blocks execution handoff. A selected design path that is missing
+or unreadable also blocks; missing selected inline design content also blocks.
+Absence of the unselected path or inline form does not block. Never direct the
+reviewer to find criteria relative to the target repository.
 
 The reviewer checks for hidden product, policy, ownership, source mapping,
 side-effect, error, recovery, rollback, or guardrail decisions that a task
@@ -716,37 +796,34 @@ planning work: an omitted known mapping is `CURRENT`, while missing authority
 for that mapping is `BLOCKER`. The reviewer must not broaden the Scope Envelope
 or proof obligations. Apply minimum-sufficient proof.
 
-**Output:** concise PASS or FAIL with findings classified as `CURRENT`,
-`BLOCKER`, `FOLLOW-UP`, or `OPTIONAL`. CURRENT and BLOCKER prevent PASS.
-PASS may coexist with FOLLOW-UP and OPTIONAL findings. A FAIL names the task and
-missing execution contract without dumping raw artifacts or broad commentary.
+**Output:** the first line is exactly `PASS — digest=<sha256>` or
+`FAIL — digest=<sha256>`, followed by findings classified as `CURRENT`,
+`BLOCKER`, `FOLLOW-UP`, or `OPTIONAL`. CURRENT and BLOCKER prevent PASS. PASS
+may coexist with FOLLOW-UP and OPTIONAL findings. A FAIL exhaustively names
+each in-remit task and missing execution contract using the shared stable gap
+fields without dumping raw artifacts or broad commentary.
 
-**On FAIL:** block execution handoff. Verify authoritative scope first. Fix only
-CURRENT gaps inline, then restart Plan Review before rerunning Executability
-Review so both gates pass on the same final plan contents. A BLOCKER returns to
-the owning decision surface. FOLLOW-UP and OPTIONAL remain deferred. Maximum 2
-Executability Review rounds. Remaining CURRENT or BLOCKER findings stop and are
-presented to the user or owning workflow.
+**On FAIL:** retain the verified response until D5 also settles and cleans, then
+block execution handoff and apply the paired join policy. Fix only verified
+CURRENT gaps inline. A BLOCKER returns to the owning decision surface.
+FOLLOW-UP and OPTIONAL remain deferred.
 
-In `--auto` flows, only PASS from both planning gates hands off to the parent.
-A failing or blocked second round stops and reports to the user.
-`play-planning` itself does not start execution.
-
-D5 PASS followed by D6 FAIL never reaches execution handoff. Only a retained
-D5 PASS followed by a separate retained D6 PASS on the same final plan contents
-permits the successful handoff below.
+In `--auto` flows, only same-digest PASS from both independent planning gates
+hands off to the parent. A failing or blocked second paired wave stops and
+reports to the user. `play-planning` itself does not start execution.
 
 ## Execution Handoff
 
 **In `--auto` flows** (e.g., `github-issue-priming --auto`): do NOT prompt for
 an execution mode. Return after saving the plan so the parent skill can invoke
 `play-subagent-execution` only after both Plan Review and Implementer
-Executability Review have returned PASS. Failed, missing, or unreadable
-executability review blocks this return and must not be bypassed by
-parent-owned execution. The parent skill receives the plan path from the
+Executability Review have returned PASS for the same current exact-byte digest.
+Failed, missing, or unreadable executability review blocks this return and must
+not be bypassed by parent-owned execution. Malformed, cross-digest, or stale
+review evidence also blocks. The parent skill receives the plan path from the
 `Plan written to <path>.` notice line emitted after the save and passes it to
-`play-subagent-execution` as `Plan: <path>` only after both review gates have
-passed.
+`play-subagent-execution` as `Plan: <path>` only after both independent review
+gates have passed that digest and both guard cleanups have succeeded.
 
 **In review-response parent-owned handoffs**: This route is selected only when
 the invocation includes `Route: review-response-parent-owned`. When
@@ -755,13 +832,14 @@ the invocation includes `Route: review-response-parent-owned`. When
 planned review-response work, this route does not require `play-brainstorm` and
 is not an issue-priming `--auto` flow. Return after emitting
 `Plan written to <path>.` only after both Plan Review and Implementer
-Executability Review have returned PASS. Do not prompt for an execution mode.
+Executability Review have returned PASS for the same current exact-byte digest.
+Do not prompt for an execution mode.
 In this route, failed, missing, or unreadable executability review blocks the
 parent-owned return and cannot be bypassed by approval of the saved plan path.
 `play-review-response` owns presenting the generated plan for approval,
 capturing the approved plan path, and the implementation handoff; it must invoke
 `play-subagent-execution` only after approval and after both planning review
-gates have passed with `Plan: <path>`.
+gates have passed the same current digest with `Plan: <path>`.
 
 Otherwise, offer execution choice:
 
