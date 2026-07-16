@@ -365,7 +365,7 @@ describe("rendered phase artifact smoke coverage", () => {
         );
         const renderedValidFailDigests = [
           ...renderedValidFailExample.matchAll(
-            /FAIL — digest=([0-9a-f]{64})/gu,
+            /^FAIL — digest=([0-9a-f]{64})$/gmu,
           ),
         ].map((match) => match[1]);
         expect(renderedValidFailDigests).toEqual([renderedValidDigests[0]]);

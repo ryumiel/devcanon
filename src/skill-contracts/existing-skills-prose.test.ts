@@ -1926,7 +1926,7 @@ describe("existing skills source prose contracts", () => {
     );
     expect(normalizeWhitespace(validExample)).toContain("this family passes");
     const validFailDigests = [
-      ...validFailExample.matchAll(/FAIL — digest=([0-9a-f]{64})/gu),
+      ...validFailExample.matchAll(/^FAIL — digest=([0-9a-f]{64})$/gmu),
     ].map((match) => match[1]);
     expect(validFailDigests).toEqual([validDigests[0]]);
     const validFailIds = [
