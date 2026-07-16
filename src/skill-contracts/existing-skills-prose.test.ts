@@ -2125,6 +2125,24 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedChecklists).toContain(
       "explicit reason every FULL trigger is absent",
     );
+    expect(normalizedSideChannelApplicability).toContain(
+      "every actual known participant and direct producer-consumer relationship",
+    );
+    expect(normalizedSideChannelApplicability).toContain(
+      "That single explicit reason also collectively establishes that every remaining FULL-only question is inapplicable",
+    );
+    expect(normalizedSideChannelApplicability).toContain(
+      "No separate collective marking act, individual question marker, FULL-only field, or `N/A` entry is required",
+    );
+    expect(normalizedSideChannelApplicability).not.toContain(
+      "mark the remaining questions inapplicable with that reason",
+    );
+    expect(normalizedSideChannelApplicability).toContain(
+      "A change with no side-channel or other contract trigger records its task-specific reason and does not apply this checklist",
+    );
+    expect(normalizedSideChannelApplicability).toContain(
+      "independently applicable side-channel, generated, safety, untrusted, durable, public, cross-session, cross-owner, or governance obligation remains blocking",
+    );
   });
 
   it("applies canonical task tiers and paired-wave convergence in planning consumers", async () => {
