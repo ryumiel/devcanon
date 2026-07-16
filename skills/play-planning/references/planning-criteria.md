@@ -226,8 +226,8 @@ distinct in-remit gaps so exhaustive reporting has a positive baseline:
 ```text
 FAIL — digest=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
 Task: PLANNING-GATES
-Class: VERIFICATION
-ID: GAP-PLANNING-GATES-VERIFICATION-DIGEST-FRESHNESS
+Class: ARTIFACT
+ID: GAP-PLANNING-GATES-ARTIFACT-DIGEST-FRESHNESS
 Classification: CURRENT
 Finding: The current plan digest is not revalidated before handoff.
 Authority: Exact plan digest contract.

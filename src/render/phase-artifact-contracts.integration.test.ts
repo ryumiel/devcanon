@@ -390,7 +390,7 @@ describe("rendered phase artifact smoke coverage", () => {
             ),
           ).toHaveLength(2);
         }
-        expect(renderedValidFailExample).toContain("Class: VERIFICATION");
+        expect(renderedValidFailExample).toContain("Class: ARTIFACT");
         expect(renderedValidFailExample).toContain("Class: LIFECYCLE");
         expect(
           renderedValidFailExample.match(/Classification: CURRENT/gu),

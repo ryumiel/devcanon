@@ -1948,7 +1948,7 @@ describe("existing skills source prose contracts", () => {
         validFailLines.filter((line) => line.startsWith(requiredFieldPrefix)),
       ).toHaveLength(2);
     }
-    expect(validFailExample).toContain("Class: VERIFICATION");
+    expect(validFailExample).toContain("Class: ARTIFACT");
     expect(validFailExample).toContain("Class: LIFECYCLE");
     expect(validFailExample.match(/Classification: CURRENT/gu)).toHaveLength(2);
     expect(normalizeWhitespace(contractExamples)).toContain(
