@@ -255,6 +255,15 @@ describe("rendered phase artifact smoke coverage", () => {
       sourcePlanning,
       topologyFieldPatterns,
     );
+    const familyAuthorityPatterns = [
+      /self-review each of those four families/,
+      /family-local authority/,
+      /never promotes unrelated families/,
+    ];
+    const sourcePlanningFamilyAuthority = markdownBlockContainingAll(
+      sourcePlanning,
+      familyAuthorityPatterns,
+    );
     const sourceCriteriaTopology = sliceRenderedSection(
       sourceCriteria,
       "### Ownership-topology mapping",
@@ -282,6 +291,10 @@ describe("rendered phase artifact smoke coverage", () => {
         const renderedPlanningTopology = markdownBlockContainingAll(
           bodies[`play-planning:${target}`],
           topologyFieldPatterns,
+        );
+        const renderedPlanningFamilyAuthority = markdownBlockContainingAll(
+          bodies[`play-planning:${target}`],
+          familyAuthorityPatterns,
         );
         const renderedCriteria = await readFile(
           path.join(
@@ -314,6 +327,9 @@ describe("rendered phase artifact smoke coverage", () => {
         );
         expect(normalizeRenderedWhitespace(renderedPlanningTopology)).toBe(
           normalizeRenderedWhitespace(sourcePlanningTopology),
+        );
+        expect(renderedPlanningFamilyAuthority).toBe(
+          sourcePlanningFamilyAuthority,
         );
         expect(renderedCriteria).toBe(sourceCriteria);
         expect(renderedReadiness).toBe(sourceReadiness);
@@ -371,7 +387,8 @@ describe("rendered phase artifact smoke coverage", () => {
           renderedPlanningTopology,
         );
         for (const planningTopologyRule of [
-          "`FULL` tasks and separately named material authority require exhaustive topology",
+          "`FULL` tasks require exhaustive topology",
+          "A family-local authority requires additional complete or necessary topology only when it explicitly governs the ownership-topology mapping",
           "`LIGHTWEIGHT` compact topology still names every actual known participant and direct producer-consumer relationship",
         ]) {
           expect(normalizeRenderedWhitespace(sourcePlanningTopology)).toContain(
@@ -384,8 +401,9 @@ describe("rendered phase artifact smoke coverage", () => {
         for (const planningProducerRule of [
           "produce each contract-heavy table, boundary traceability record, task checklist, and operation map at the tier-appropriate detail",
           "self-review each of those four families against the selected contract tier",
-          "For `FULL` or separately named material authority, require the complete exhaustive shape for all four families",
-          "For an otherwise valid `LIGHTWEIGHT` record, a concrete approved task-local need or independently applicable material trigger adds only the necessary detail to the affected family; it never silently promotes all four families",
+          "For `FULL`, require the complete applicable shape for all four families",
+          "A family-local authority is a separately named material authority, concrete approved task-local need, or independently applicable material authority or trigger that explicitly governs one family",
+          "For an otherwise valid `LIGHTWEIGHT` record, a family-local authority selects additional complete or necessary detail only for the family it explicitly governs; it never promotes unrelated families",
           "The canonical planning criteria remain the fail-closed owner of tier selection and detailed readiness",
         ]) {
           expect(normalizeRenderedWhitespace(sourcePlanning)).toContain(
@@ -395,6 +413,14 @@ describe("rendered phase artifact smoke coverage", () => {
             normalizeRenderedWhitespace(bodies[`play-planning:${target}`]),
           ).toContain(planningProducerRule);
         }
+        expect(normalizeRenderedWhitespace(sourcePlanning)).not.toContain(
+          "For `FULL` or separately named material authority, require the complete exhaustive shape for all four families",
+        );
+        expect(
+          normalizeRenderedWhitespace(bodies[`play-planning:${target}`]),
+        ).not.toContain(
+          "For `FULL` or separately named material authority, require the complete exhaustive shape for all four families",
+        );
         expect(normalizedRenderedCriteria).not.toContain(
           "The map must not It must not prescribe",
         );

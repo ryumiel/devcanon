@@ -225,10 +225,13 @@ For contract-heavy work, boundary changes, generated or side-channel artifacts,
 hard requirements, and contract examples, apply the canonical reference and
 the repository owners it names. Plan authors produce each contract-heavy table,
 boundary traceability record, task checklist, and operation map at the
-tier-appropriate detail. `FULL` and separately named material authority retain
-their complete shapes; `LIGHTWEIGHT` uses its closed compact fields unless an
-approved task-local need or independently applicable material authority
-requires more.
+tier-appropriate detail. For `FULL`, produce the complete applicable shape for
+all four families. `LIGHTWEIGHT` uses its closed compact fields. A family-local
+authority is a separately named material authority, concrete approved
+task-local need, or independently applicable material authority or trigger
+that explicitly governs one family. A family-local authority selects additional
+complete or necessary detail only for the family it explicitly governs; it
+never promotes unrelated families.
 Keep these structures and examples only when their trigger is present and
 within the Scope Envelope. Unknown authority is a blocker, not permission to
 generalize. The canonical planning criteria remain the fail-closed owner of
@@ -236,23 +239,24 @@ tier selection and detailed readiness.
 
 For behavior- or contract-changing work, consume the approved design's
 ownership topology and expose its tier-appropriate mapping in the plan. `FULL`
-tasks and separately named material authority require exhaustive topology,
-including the normative owner, optional non-overlapping supporting partitions,
-consumption modes, conflict precedence, task coverage, and verification owner.
-`LIGHTWEIGHT` compact topology still names every actual known participant and
-direct producer-consumer relationship alongside its compact owner, purpose,
-I/O, material side-effect ownership, failure, cleanup, proof, and all-trigger
-absence record. Known omissions and independently triggered obligations remain
-blocking at every tier. Every changed behavior and affected surface must reach
-a current task with its normative owner. The canonical planning criteria own
-the detailed topology and task-mapping rules, including tier-aware
-example-discipline triggers; the readiness reference exclusively owns audit and
-readiness rules. Stop when authority is duplicated, contradictory, or
-incomplete: return missing project-specific decisions to the owning design and
-broken task mappings to planning instead of adding a synchronized restatement.
-Repeated detail does not make a reference or summary normative, verification
-does not define policy, and generated skill packages remain derived consumers
-rather than edit targets.
+tasks require exhaustive topology, including the normative owner, optional
+non-overlapping supporting partitions, consumption modes, conflict precedence,
+task coverage, and verification owner. A family-local authority requires
+additional complete or necessary topology only when it explicitly governs the
+ownership-topology mapping. `LIGHTWEIGHT` compact topology still names every
+actual known participant and direct producer-consumer relationship alongside
+its compact owner, purpose, I/O, material side-effect ownership, failure,
+cleanup, proof, and all-trigger absence record. Known omissions and
+independently triggered obligations remain blocking at every tier. Every
+changed behavior and affected surface must reach a current task with its
+normative owner. The canonical planning criteria own the detailed topology and
+task-mapping rules, including tier-aware example-discipline triggers; the
+readiness reference exclusively owns audit and readiness rules. Stop when
+authority is duplicated, contradictory, or incomplete: return missing
+project-specific decisions to the owning design and broken task mappings to
+planning instead of adding a synchronized restatement. Repeated detail does not
+make a reference or summary normative, verification does not define policy,
+and generated skill packages remain derived consumers rather than edit targets.
 
 For generated artifacts, derived artifacts, helper I/O files, `.ephemeral`
 handoffs, cross-skill handoffs, or side-channel data, plan against the
@@ -421,22 +425,22 @@ task as one where tests need to be authored.
 
 For helper, script, API, adapter, validator, producer, or consumer tasks that
 touch boundaries, include the tier-appropriate I/O contract table or equivalent
-fields in the task spec. Use the complete shape for `FULL` or separately named
-material authority. A valid `LIGHTWEIGHT` task uses its closed compact fields
-and every actual known participant and direct producer-consumer relationship;
-extra detail requires an approved task-local need or independently applicable
-material authority. These fields make the task executable without prescribing
-concrete code, test bodies, shell recipes, helper names, line edits, or exact
-command sequences. The complete shape retains validation-before-write ordering
-when that obligation applies.
+fields in the task spec. Use the complete shape for `FULL`. A family-local
+authority selects additional complete or necessary I/O-contract detail only
+when it explicitly governs the contract-heavy table family. A valid
+`LIGHTWEIGHT` task uses its closed compact fields and every actual known
+participant and direct producer-consumer relationship. These fields make the
+task executable without prescribing concrete code, test bodies, shell recipes,
+helper names, line edits, or exact command sequences. The complete shape
+retains validation-before-write ordering when that obligation applies.
 
 For boundary-touching tasks that change or depend on source, adapter, handler,
 side-effect, validation, rollback, or guardrail behavior, include
-tier-appropriate task-local operation mappings when applicable. `FULL` and
-separately named material authority use the complete operation-map detail. A
-valid `LIGHTWEIGHT` task uses its closed compact fields; extra operation detail
-requires an approved task-local need or independently applicable material
-authority. Do not require operation maps for trivial non-boundary tasks.
+tier-appropriate task-local operation mappings when applicable. `FULL` uses the
+complete operation-map detail. A family-local authority selects additional
+complete or necessary operation-map detail only when it explicitly governs the
+operation-map family. A valid `LIGHTWEIGHT` task uses its closed compact fields.
+Do not require operation maps for trivial non-boundary tasks.
 Operation maps are boundary contract specificity; they are not permission to
 prescribe implementation code, test bodies, shell recipes, helper names, line
 edits, exact command sequences, or commit recipes.
@@ -593,24 +597,26 @@ Review in this order:
 5. Classify every finding as `CURRENT`, `BLOCKER`, `FOLLOW-UP`, or
    `OPTIONAL` before changing the plan.
 
-For `FULL` or separately named material authority, also confirm that every
-ownership topology row has complete task and proof coverage and that no task
-asks an implementer to choose an owner, supporting partition, consumption mode,
-precedence, or verification owner. For `LIGHTWEIGHT`, confirm the compact record
-does not leave any actual known participant, direct relationship, compact field,
-or triggered obligation for the implementer to choose.
+For `FULL`, also confirm that every ownership topology row has complete task and
+proof coverage and that no task asks an implementer to choose an owner,
+supporting partition, consumption mode, precedence, or verification owner. When
+a family-local authority governs ownership topology, confirm its additional
+complete or necessary topology detail. For `LIGHTWEIGHT`, confirm the compact
+record does not leave any actual known participant, direct relationship,
+compact field, or triggered obligation for the implementer to choose.
 
 Then self-review each of those four families against the selected contract tier:
 contract-heavy tables, boundary traceability records, task checklists, and
-operation maps. For `FULL` or separately named material authority, require the
-complete exhaustive shape for all four families. For an otherwise valid
-`LIGHTWEIGHT` record, a concrete approved task-local need or independently
-applicable material trigger adds only the necessary detail to the affected
-family; it never silently promotes all four families. Verify every actual known
-participant and direct producer-consumer relationship, every closed compact
-field, and explicit absence of every FULL trigger. Ambiguity defaults to
-`FULL`; known omissions and independently triggered obligations remain
-blocking.
+operation maps. For `FULL`, require the complete applicable shape for all four
+families. A family-local authority is a separately named material authority,
+concrete approved task-local need, or independently applicable material
+authority or trigger that explicitly governs one family. For an otherwise
+valid `LIGHTWEIGHT` record, a family-local authority selects additional complete
+or necessary detail only for the family it explicitly governs; it never
+promotes unrelated families. Verify every actual known participant and direct
+producer-consumer relationship, every closed compact field, and explicit
+absence of every FULL trigger. Ambiguity defaults to `FULL`; known omissions and
+independently triggered obligations remain blocking.
 
 Only verified CURRENT findings may be fixed inline. A BLOCKER stops and returns
 to its owning decision surface. FOLLOW-UP and OPTIONAL findings remain in

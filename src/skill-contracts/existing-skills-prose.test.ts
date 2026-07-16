@@ -906,10 +906,16 @@ describe("existing skills source prose contracts", () => {
       "self-review each of those four families against the selected contract tier",
     );
     expect(normalizedPlanning).toContain(
-      "For `FULL` or separately named material authority, require the complete exhaustive shape for all four families",
+      "For `FULL`, require the complete applicable shape for all four families",
     );
     expect(normalizedPlanning).toContain(
-      "For an otherwise valid `LIGHTWEIGHT` record, a concrete approved task-local need or independently applicable material trigger adds only the necessary detail to the affected family; it never silently promotes all four families",
+      "A family-local authority is a separately named material authority, concrete approved task-local need, or independently applicable material authority or trigger that explicitly governs one family",
+    );
+    expect(normalizedPlanning).toContain(
+      "For an otherwise valid `LIGHTWEIGHT` record, a family-local authority selects additional complete or necessary detail only for the family it explicitly governs; it never promotes unrelated families",
+    );
+    expect(normalizedPlanning).not.toContain(
+      "For `FULL` or separately named material authority, require the complete exhaustive shape for all four families",
     );
     expect(normalizedPlanning).toContain(
       "The canonical planning criteria remain the fail-closed owner of tier selection and detailed readiness",
