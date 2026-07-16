@@ -213,6 +213,13 @@ describe("play-subagent planning and routing render smoke coverage", () => {
       expect(pairedReview).toContain("every started sibling must settle");
       expect(pairedReview).toContain("Do not route early");
       expect(pairedReview).toContain("maximum of two paired review waves");
+      for (const sequentialContradiction of [
+        /complet(?:e|es|ed|ing) D5 before start(?:ing)? D6/iu,
+        /D5 PASS.{0,40}(?:advance|start).{0,20}D6/iu,
+        /D5 FAIL.{0,40}(?:prevent|cancel|block).{0,20}D6.{0,10}start/iu,
+      ]) {
+        expect(pairedReview).not.toMatch(sequentialContradiction);
+      }
       const pairedReviewOrder = [
         "every started sibling must settle",
         "After both reviewers settle and clean",

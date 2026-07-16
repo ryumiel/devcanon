@@ -321,6 +321,18 @@ describe("rendered phase artifact smoke coverage", () => {
         expect(renderedReadiness).toContain(
           "`READY_WITH_RECORDED_ASSUMPTIONS`",
         );
+        const normalizedRenderedCriteria =
+          normalizeRenderedWhitespace(renderedCriteria);
+        for (const taskIdentityRule of [
+          "`**Task ID:** <UPPER-ASCII-KEBAB>` field immediately after its heading",
+          "semantic identity assigned once",
+          "unique within the plan",
+          "independent of task number, order, and display title",
+          "Missing, duplicate, positional, or changed task IDs block review",
+          "`TASK` is the plan's non-positional Task ID or `PLAN`",
+        ]) {
+          expect(normalizedRenderedCriteria).toContain(taskIdentityRule);
+        }
         const renderedExamples = sliceRenderedSection(
           renderedCriteria,
           "### Contract examples",
@@ -329,6 +341,11 @@ describe("rendered phase artifact smoke coverage", () => {
         const renderedValidExample = sliceRenderedSection(
           renderedExamples,
           "#### Valid paired PASS",
+          "#### Valid complete FAIL",
+        );
+        const renderedValidFailExample = sliceRenderedSection(
+          renderedExamples,
+          "#### Valid complete FAIL",
           "#### Single-dimension invalid families",
         );
         const renderedValidDigests = [
@@ -343,14 +360,49 @@ describe("rendered phase artifact smoke coverage", () => {
         expect(normalizeRenderedWhitespace(renderedValidExample)).toContain(
           "this family passes",
         );
+        const renderedValidFailDigests = [
+          ...renderedValidFailExample.matchAll(
+            /FAIL — digest=([0-9a-f]{64})/gu,
+          ),
+        ].map((match) => match[1]);
+        expect(renderedValidFailDigests).toEqual([renderedValidDigests[0]]);
+        const renderedValidFailIds = [
+          ...renderedValidFailExample.matchAll(/^ID: (GAP-[A-Z0-9-]+)$/gmu),
+        ].map((match) => match[1]);
+        expect(renderedValidFailIds).toHaveLength(2);
+        expect(new Set(renderedValidFailIds).size).toBe(2);
+        const renderedValidFailLines = renderedValidFailExample.split("\n");
+        for (const requiredFieldPrefix of [
+          "Task:",
+          "Class:",
+          "ID:",
+          "Classification:",
+          "Finding:",
+          "Authority:",
+          "Required correction:",
+        ]) {
+          expect(
+            renderedValidFailLines.filter((line) =>
+              line.startsWith(requiredFieldPrefix),
+            ),
+          ).toHaveLength(2);
+        }
+        expect(renderedValidFailExample).toContain("Class: VERIFICATION");
+        expect(renderedValidFailExample).toContain("Class: LIFECYCLE");
+        expect(
+          renderedValidFailExample.match(/Classification: CURRENT/gu),
+        ).toHaveLength(2);
         expect(normalizeRenderedWhitespace(renderedExamples)).toContain(
-          "Each family below changes only its named dimension",
+          "Each invalid family below changes exactly one named dimension from its applicable valid family",
         );
         expect(renderedExamples).not.toContain("intentional multi-fault");
         expect(renderedExamples).not.toContain("NEEDS_CONTEXT");
         expect(renderedExamples).not.toContain("`BLOCKED`");
         expect(normalizeRenderedWhitespace(renderedExamples)).toContain(
           "Unsupported or source-inconsistent examples are `BLOCKER` findings returned to the owning design or decision surface",
+        );
+        expect(normalizeRenderedWhitespace(renderedExamples)).toContain(
+          "Every invalid family is explicitly non-passing",
         );
         for (const rejectionRule of [
           "D6 digest mismatch — reject both verdicts",
@@ -362,6 +414,18 @@ describe("rendered phase artifact smoke coverage", () => {
         ]) {
           expect(normalizeRenderedWhitespace(renderedExamples)).toContain(
             rejectionRule,
+          );
+        }
+        for (const singleDimensionRule of [
+          "relative to the valid paired PASS, change only D6's digest",
+          "relative to the valid complete FAIL, remove only the first gap's `Authority` field",
+          "relative to the valid complete FAIL, change only the second gap's ID to reuse the first gap's ID",
+          "relative to the valid complete FAIL, omit only the second gap",
+          "relative to the valid paired PASS workflow, change only the plan bytes after PASS",
+          "relative to the valid paired PASS workflow, change only sibling settlement state by routing early",
+        ]) {
+          expect(normalizeRenderedWhitespace(renderedExamples)).toContain(
+            singleDimensionRule,
           );
         }
         expect(normalizeRenderedWhitespace(renderedCriteriaTopology)).toBe(

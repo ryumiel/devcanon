@@ -328,6 +328,8 @@ before starting.
 ```markdown
 ### Task N: [Component Name]
 
+**Task ID:** <UPPER-ASCII-KEBAB>
+
 <!-- Optional review-routing hints, when present, go here:
 **Risk hint:** low | medium | high
 **Review hint:** none-final-only | spec-only | spec-and-quality
@@ -368,6 +370,14 @@ criterion: <explicit inclusion rule>`
 **Proof sufficiency:** <why this is the narrowest existing repository mechanism that proves acceptance, or the explicit authority for broader proof>
 ```
 
+Every authored task must place the required `**Task ID:**
+<UPPER-ASCII-KEBAB>` field immediately after its heading. The Task ID is
+semantic, unique within the plan, and assigned once. It is independent of the
+task number, order, and display title and must remain unchanged across task
+insertions, reordering, title edits, and review revisions. Missing, duplicate,
+positional, or changed task IDs block review. `Task N` remains a display and
+ordering label only.
+
 Task specs should prefer references to existing behavior, source files,
 contracts, tests, ADRs, and guidelines over copied logic. If a task needs
 TDD, say which behavior must be covered and where similar tests already live;
@@ -404,12 +414,19 @@ comment evidence as an authority surface.
 
 ### Optional `**Mode:**` field
 
-Tasks that fit the mechanical taxonomy may include `**Mode:** mechanical` between the heading and any review-routing hint fields. This is a non-authoritative hint; `play-subagent-execution` owns route validation and may reject or override it. The detailed taxonomy (positive and negative examples) lives in [`skills/play-subagent-execution/references/skip-dispatch-policy.md` § Mechanical Task Taxonomy](../play-subagent-execution/references/skip-dispatch-policy.md#mechanical-task-taxonomy) — consult it before setting the hint.
+Tasks that fit the mechanical taxonomy may include `**Mode:** mechanical` after
+the required Task ID and before any review-routing hint fields. This is a
+non-authoritative hint; `play-subagent-execution` owns route validation and may
+reject or override it. The detailed taxonomy (positive and negative examples)
+lives in the [mechanical task taxonomy](../play-subagent-execution/references/skip-dispatch-policy.md#mechanical-task-taxonomy)
+reference — consult it before setting the hint.
 
 Example mechanical-task header:
 
 ```markdown
 ### Task N: Rename Example Token
+
+**Task ID:** RENAME-EXAMPLE-TOKEN
 
 **Mode:** mechanical
 

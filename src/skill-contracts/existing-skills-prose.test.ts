@@ -908,10 +908,7 @@ describe("existing skills source prose contracts", () => {
       "Positive examples match the target post-change contract, not the pre-change contract",
     );
     expect(normalizedContractExampleDiscipline).toContain(
-      "Invalid examples change exactly one named contract dimension from the canonical valid example",
-    );
-    expect(normalizedContractExampleDiscipline).not.toContain(
-      "intentional multi-fault",
+      "unless intentional multi-fault behavior is explicitly named",
     );
     expect(normalizedContractExampleDiscipline).toContain(
       "derived fields in examples or fixtures remain consistent with those facts or the plan explicitly justifies why they do not",
@@ -1727,8 +1724,14 @@ describe("existing skills source prose contracts", () => {
     const validExample = sliceBetween(
       contractExamples,
       "#### Valid paired PASS",
+      "#### Valid complete FAIL",
+    );
+    const validFailExample = sliceBetween(
+      contractExamples,
+      "#### Valid complete FAIL",
       "#### Single-dimension invalid families",
     );
+    const taskStructure = getMarkdownSection(playPlanning, "Task Structure");
 
     expect(playPlanning).toContain("references/planning-readiness-audit.md");
     expect(normalizedPlanning).toContain(
@@ -1869,6 +1872,25 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedCriteria).toContain(
       "every concrete in-remit gap before returning FAIL",
     );
+    expect(taskStructure).toMatch(
+      /### Task N: \[Component Name\]\n\n\*\*Task ID:\*\* <UPPER-ASCII-KEBAB>/u,
+    );
+    expect(taskStructure).toMatch(
+      /### Task N: Rename Example Token\n\n\*\*Task ID:\*\* RENAME-EXAMPLE-TOKEN/u,
+    );
+    for (const taskIdentityRule of [
+      "semantic identity assigned once",
+      "unique within the plan",
+      "independent of task number, order, and display title",
+      "preserved unchanged across task insertions, reordering, title edits, and review revisions",
+      "Missing, duplicate, positional, or changed task IDs block review",
+      "`Task N` remains a display and ordering label only",
+    ]) {
+      expect(normalizedCriteria).toContain(taskIdentityRule);
+    }
+    expect(normalizedCriteria).toContain(
+      "`TASK` is the plan's non-positional Task ID or `PLAN`",
+    );
     const validDigests = [
       ...validExample.matchAll(/PASS — digest=([0-9a-f]{64})/gu),
     ].map((match) => match[1]);
@@ -1879,8 +1901,34 @@ describe("existing skills source prose contracts", () => {
       ]),
     );
     expect(normalizeWhitespace(validExample)).toContain("this family passes");
+    const validFailDigests = [
+      ...validFailExample.matchAll(/FAIL — digest=([0-9a-f]{64})/gu),
+    ].map((match) => match[1]);
+    expect(validFailDigests).toEqual([validDigests[0]]);
+    const validFailIds = [
+      ...validFailExample.matchAll(/^ID: (GAP-[A-Z0-9-]+)$/gmu),
+    ].map((match) => match[1]);
+    expect(validFailIds).toHaveLength(2);
+    expect(new Set(validFailIds).size).toBe(2);
+    const validFailLines = validFailExample.split("\n");
+    for (const requiredFieldPrefix of [
+      "Task:",
+      "Class:",
+      "ID:",
+      "Classification:",
+      "Finding:",
+      "Authority:",
+      "Required correction:",
+    ]) {
+      expect(
+        validFailLines.filter((line) => line.startsWith(requiredFieldPrefix)),
+      ).toHaveLength(2);
+    }
+    expect(validFailExample).toContain("Class: VERIFICATION");
+    expect(validFailExample).toContain("Class: LIFECYCLE");
+    expect(validFailExample.match(/Classification: CURRENT/gu)).toHaveLength(2);
     expect(normalizeWhitespace(contractExamples)).toContain(
-      "Each family below changes only its named dimension",
+      "Each invalid family below changes exactly one named dimension from its applicable valid family",
     );
     for (const rejectionRule of [
       "D6 digest mismatch — reject both verdicts and make the wave non-passing",
@@ -1892,11 +1940,26 @@ describe("existing skills source prose contracts", () => {
     ]) {
       expect(normalizeWhitespace(contractExamples)).toContain(rejectionRule);
     }
+    for (const singleDimensionRule of [
+      "relative to the valid paired PASS, change only D6's digest",
+      "relative to the valid complete FAIL, remove only the first gap's `Authority` field",
+      "relative to the valid complete FAIL, change only the second gap's ID to reuse the first gap's ID",
+      "relative to the valid complete FAIL, omit only the second gap",
+      "relative to the valid paired PASS workflow, change only the plan bytes after PASS",
+      "relative to the valid paired PASS workflow, change only sibling settlement state by routing early",
+    ]) {
+      expect(normalizeWhitespace(contractExamples)).toContain(
+        singleDimensionRule,
+      );
+    }
     expect(contractExamples).not.toContain("intentional multi-fault");
     expect(contractExamples).not.toContain("NEEDS_CONTEXT");
     expect(contractExamples).not.toContain("`BLOCKED`");
     expect(normalizeWhitespace(contractExamples)).toContain(
       "Unsupported or source-inconsistent examples are `BLOCKER` findings returned to the owning design or decision surface",
+    );
+    expect(normalizeWhitespace(contractExamples)).toContain(
+      "Every invalid family is explicitly non-passing",
     );
 
     expect(normalizeWhitespace(planningAuthority)).toContain(
@@ -2100,6 +2163,13 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedPairedReview).toContain(
       "both reviewers return PASS for the same current exact-byte digest",
     );
+    for (const sequentialContradiction of [
+      /complet(?:e|es|ed|ing) D5 before start(?:ing)? D6/iu,
+      /D5 PASS.{0,40}(?:advance|start).{0,20}D6/iu,
+      /D5 FAIL.{0,40}(?:prevent|cancel|block).{0,20}D6.{0,10}start/iu,
+    ]) {
+      expect(normalizedPairedReview).not.toMatch(sequentialContradiction);
+    }
     expectSubstringsInOrder(normalizedPairedReview, [
       "every started sibling must settle",
       "After both reviewers settle and clean",

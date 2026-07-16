@@ -139,13 +139,20 @@ reports every concrete in-remit gap before returning FAIL, grouped by task and
 defect class, without stopping after the first gap. Reviewers exclude
 speculative improvements and out-of-remit findings.
 
-Each non-passing gap uses `GAP-<TASK>-<CLASS>-<SUBJECT>`. `TASK` is the stable
-task ID or `PLAN`; `CLASS` is selected from the closed table below; and
-`SUBJECT` is an uppercase ASCII kebab semantic token that names the contract,
-not its wording or position. Every gap record contains:
+Every authored task has a required `**Task ID:** <UPPER-ASCII-KEBAB>` field
+immediately after its heading. The Task ID is a semantic identity assigned
+once, unique within the plan, independent of task number, order, and display
+title, and preserved unchanged across task insertions, reordering, title edits,
+and review revisions. Missing, duplicate, positional, or changed task IDs block
+review. `Task N` remains a display and ordering label only.
+
+Each non-passing gap uses `GAP-<TASK>-<CLASS>-<SUBJECT>`. `TASK` is the plan's
+non-positional Task ID or `PLAN`; `CLASS` is selected from the closed
+table below; and `SUBJECT` is an uppercase ASCII kebab semantic token that
+names the contract, not its wording or position. Every gap record contains:
 
 - stable gap ID;
-- task;
+- task ID or `PLAN`;
 - defect class;
 - classification, exactly `CURRENT` or `BLOCKER`;
 - concise finding;
@@ -211,22 +218,52 @@ they read. After both exact guard cleanups, the controller's join-time and
 pre-handoff rehashes produce the same digest. With no `CURRENT` or `BLOCKER`
 gap, this family passes.
 
+#### Valid complete FAIL
+
+The canonical valid FAIL family uses the same digest and contains two complete,
+distinct in-remit gaps so exhaustive reporting has a positive baseline:
+
+```text
+FAIL — digest=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+Task: PLANNING-GATES
+Class: VERIFICATION
+ID: GAP-PLANNING-GATES-VERIFICATION-DIGEST-FRESHNESS
+Classification: CURRENT
+Finding: The current plan digest is not revalidated before handoff.
+Authority: Exact plan digest contract.
+Required correction: Recompute and compare the exact-byte digest before handoff.
+Task: PLANNING-GATES
+Class: LIFECYCLE
+ID: GAP-PLANNING-GATES-LIFECYCLE-EARLY-JOIN
+Classification: CURRENT
+Finding: Routing begins before both reviewer lifecycles settle.
+Authority: Paired review lifecycle contract.
+Required correction: Join only after both lifecycles settle and clean.
+```
+
 #### Single-dimension invalid families
 
-Each family below changes only its named dimension; all other facts remain
-consistent with the valid family and source authority:
+Each invalid family below changes exactly one named dimension from its
+applicable valid family; all other facts remain consistent with that family and
+source authority. Every invalid family is explicitly non-passing:
 
-- D6 digest mismatch — reject both verdicts and make the wave non-passing.
+- D6 digest mismatch — reject both verdicts and make the wave non-passing;
+  relative to the valid paired PASS, change only D6's digest.
 - FAIL missing a required stable gap field — reject the malformed report and
-  make the wave non-passing.
+  make the wave non-passing; relative to the valid complete FAIL, remove only
+  the first gap's `Authority` field.
 - conflicting meanings for one stable gap ID — reject consolidation as
-  malformed and make the wave non-passing.
+  malformed and make the wave non-passing; relative to the valid complete
+  FAIL, change only the second gap's ID to reuse the first gap's ID.
 - reviewer stops after the first concrete in-remit gap — reject the incomplete
-  report and make the wave non-passing.
+  report and make the wave non-passing; relative to the valid complete FAIL,
+  omit only the second gap.
 - plan bytes change after PASS — invalidate both verdicts and require a fresh
-  paired wave within budget.
+  paired wave within budget; relative to the valid paired PASS workflow, change
+  only the plan bytes after PASS.
 - route begins while a sibling remains active — reject the early route and
-  wait for settlement and exact cleanup before any join.
+  wait for settlement and exact cleanup before any join; relative to the valid
+  paired PASS workflow, change only sibling settlement state by routing early.
 
 Positive examples must match the post-change contract. Derived facts must
 remain consistent with source authority. Unsupported or source-inconsistent
@@ -364,9 +401,9 @@ equivalent section. Name:
 
 Positive examples match the target post-change contract, not the pre-change
 contract. Invalid examples change exactly one named contract dimension from the
-canonical valid example. When source facts change, derived fields in examples
-or fixtures remain consistent with those facts or the plan explicitly
-justifies why they do not.
+canonical valid example unless intentional multi-fault behavior is explicitly
+named. When source facts change, derived fields in examples or fixtures remain
+consistent with those facts or the plan explicitly justifies why they do not.
 
 Do not author implementation code, test bodies, fixture bodies, helper names,
 line edits, shell recipes, or command sequences. Do not expand a focused

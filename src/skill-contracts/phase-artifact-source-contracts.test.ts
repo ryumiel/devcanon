@@ -750,6 +750,10 @@ describe("phase artifact source contracts", () => {
     expect(normalizedWorkflow).toContain(
       "validate the recorded readiness outcome, assumptions, or skip record",
     );
+    expect(workflow).toContain("**Task ID:** <UPPER-ASCII-KEBAB>");
+    expect(normalizedWorkflow).toContain(
+      "Task ID is semantic, unique within the plan, and assigned once",
+    );
   });
 
   it("keeps issue-body prompt trust boundaries in source prompt templates", async () => {
