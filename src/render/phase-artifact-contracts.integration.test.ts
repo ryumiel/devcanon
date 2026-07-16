@@ -65,6 +65,19 @@ const sliceRenderedSection = (
   return body.slice(startIndex, endIndex);
 };
 
+const markdownBlockContainingAll = (
+  body: string,
+  patterns: RegExp[],
+): string => {
+  const blocks = body.split(/\n{2,}/).filter((block) => {
+    const normalizedBlock = normalizeRenderedWhitespace(block);
+    return patterns.every((pattern) => pattern.test(normalizedBlock));
+  });
+
+  expect(blocks).toHaveLength(1);
+  return blocks[0];
+};
+
 function expectSubstringsInOrder(content: string, substrings: string[]): void {
   let previousIndex = -1;
 
@@ -196,6 +209,101 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(normalizedPlayReviewResponse).toContain(
         "GitHub side effects are outside executor scope",
       );
+    }
+  });
+
+  it("derives ownership topology and bundled planning criteria for both targets", async () => {
+    const repoRoot = process.cwd();
+    const config = await loadConfig(
+      path.join(repoRoot, "devcanon.config.yaml"),
+    );
+    const generatedDir = await mkdtemp(path.join(tmpdir(), "devcanon-render-"));
+    const sourceBrainstorm = parseFrontmatter(
+      await readFile(
+        path.join(skillDirs["play-brainstorm"], "SKILL.md"),
+        "utf8",
+      ),
+    ).body;
+    const sourcePlanning = parseFrontmatter(
+      await readFile(path.join(skillDirs["play-planning"], "SKILL.md"), "utf8"),
+    ).body;
+    const referencePath = path.join("references", "planning-criteria.md");
+    const sourceCriteria = await readSkillReference(
+      "play-planning",
+      referencePath,
+    );
+    const sourceDesignTopology = sliceRenderedSection(
+      sourceBrainstorm,
+      "### Normative ownership topology",
+      "## Agent Routing and Mutation Changes",
+    );
+    const topologyFieldPatterns = [
+      /normative owner/,
+      /consumption mode/,
+      /conflict precedence/,
+      /verification owner/,
+    ];
+    const sourcePlanningTopology = markdownBlockContainingAll(
+      sourcePlanning,
+      topologyFieldPatterns,
+    );
+    const sourceCriteriaTopology = sliceRenderedSection(
+      sourceCriteria,
+      "### Ownership-topology mapping",
+      "### Boundary-contract traceability",
+    );
+
+    try {
+      await renderAll(
+        {
+          ...config,
+          library: {
+            ...config.library,
+            generatedDir,
+          },
+        },
+        true,
+      );
+
+      for (const target of ["claude", "codex"] as const) {
+        const renderedDesignTopology = sliceRenderedSection(
+          bodies[`play-brainstorm:${target}`],
+          "### Normative ownership topology",
+          "## Agent Routing and Mutation Changes",
+        );
+        const renderedPlanningTopology = markdownBlockContainingAll(
+          bodies[`play-planning:${target}`],
+          topologyFieldPatterns,
+        );
+        const renderedCriteria = await readFile(
+          path.join(
+            generatedDir,
+            target,
+            "skills",
+            "play-planning",
+            referencePath,
+          ),
+          "utf8",
+        );
+        const renderedCriteriaTopology = sliceRenderedSection(
+          renderedCriteria,
+          "### Ownership-topology mapping",
+          "### Boundary-contract traceability",
+        );
+
+        expect(normalizeRenderedWhitespace(renderedDesignTopology)).toBe(
+          normalizeRenderedWhitespace(sourceDesignTopology),
+        );
+        expect(normalizeRenderedWhitespace(renderedPlanningTopology)).toBe(
+          normalizeRenderedWhitespace(sourcePlanningTopology),
+        );
+        expect(renderedCriteria).toBe(sourceCriteria);
+        expect(normalizeRenderedWhitespace(renderedCriteriaTopology)).toBe(
+          normalizeRenderedWhitespace(sourceCriteriaTopology),
+        );
+      }
+    } finally {
+      await rm(generatedDir, { recursive: true, force: true });
     }
   });
 

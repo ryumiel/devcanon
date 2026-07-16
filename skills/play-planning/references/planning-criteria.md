@@ -10,6 +10,7 @@ workflow stays in `../SKILL.md`; do not copy these criteria back into each gate.
 - [Scope Envelope](#scope-envelope)
 - [Planning authority and readiness](#planning-authority-and-readiness)
 - [Contract and traceability criteria](#contract-and-traceability-criteria)
+- [Ownership-topology mapping](#ownership-topology-mapping)
 - [Task contract criteria](#task-contract-criteria)
 - [Minimum-sufficient proof](#minimum-sufficient-proof)
 - [Finding classifications](#finding-classifications)
@@ -138,6 +139,63 @@ data, apply the Side-Channel Artifact Contract Checklist from the same owner.
 Do not create a new artifact family merely to make planning more exhaustive.
 Include the relevant Side-Channel Artifact Contract Checklist obligations only
 when its existing trigger applies.
+
+### Ownership-topology mapping
+
+For every changed behavior or contract in an approved design, write a table or
+equivalent structured mapping that names:
+
+- the stable behavior or contract name and governing design decision;
+- exactly one normative owner and the responsibility it defines;
+- each optional supporting owner, its explicitly non-overlapping normative
+  partition, and conflict precedence;
+- every other affected surface, its owner source, and exactly one consumption
+  mode: reference, derived representation, non-normative summary, or
+  verification;
+- current task coverage for the owner and every consumer; and
+- the verification owner and the owner invariant, reference-validity boundary,
+  or derived-parity boundary it proves.
+
+The mapping is exhaustive over the changed behaviors and affected surfaces
+authorized by the design. Repetition never grants authority. References and
+non-normative summaries yield to the normative owner on conflict; derived
+representations preserve owner parity; verification reports mismatch without
+defining policy. Exact wording or diagram-edge proof is required only when the
+representation itself is an intentional product contract. Generated skill
+packages are derived consumers and never plan edit targets.
+
+Planning is not ready when:
+
+- multiple artifacts independently define the same requirement, state
+  transition, routing rule, schema, lifecycle, or failure behavior without an
+  approved partition;
+- a supporting responsibility overlaps another partition, leaves an approved
+  responsibility uncovered, or lacks conflict precedence;
+- a changed behavior, affected surface, owner source, consumption mode, task,
+  or verification owner is missing;
+- a reference or summary is treated as authority because it repeats contract
+  detail;
+- a derived representation lacks an owner or proportional parity proof;
+- verification defines copied policy or expected prose instead of proving an
+  owner invariant, reference validity, or derived parity; or
+- a reviewer or implementer would have to choose ownership or precedence.
+
+Missing, duplicated, or conflicting project-specific topology is a `BLOCKER`
+returned to the owning design; planning must not repair it by inventing an
+owner or partition. An approved topology with incomplete or contradictory task
+coverage is a `CURRENT` planning gap returned to `play-planning` during
+implementation review. Neither route authorizes further synchronized
+restatements.
+
+When the plan includes topology examples, apply Contract Example Discipline to
+one canonical valid post-change example. Representative invalid families
+change one dimension at a time: duplicate the normative owner, overlap a
+supporting partition, omit a consumer's owner source or mode, or treat
+verification as policy authority. Keep derived facts consistent, require only
+the positive and negative proof authorized by the design, and do not create an
+exhaustive matrix. Unsupported or inconsistent example facts are
+a `BLOCKER` returned to the owning design or decision surface, not invitations
+to guess.
 
 ### Boundary-contract traceability
 
