@@ -1879,6 +1879,15 @@ describe("existing skills source prose contracts", () => {
     );
     expect(normalizedMateriality).toContain("maximum of two paired waves");
     expect(normalizedMateriality).toContain("controller-local review state");
+    expect(normalizedMateriality).toContain(
+      "terminal state is computed independently for each prior gap record after both reviewers settle on the same digest",
+    );
+    expect(normalizedMateriality).toContain(
+      "remains `RESOLVED` + `PASSED` even when a distinct valid new-evidence gap makes the overall wave non-passing",
+    );
+    expect(normalizedMateriality).toContain(
+      "An orthogonal new-evidence `CURRENT` or `BLOCKER` never rewrites that prior record to unresolved",
+    );
     for (const convergenceExample of [
       "Valid wave-two evidence example",
       "Invalid available-evidence mutation",
@@ -2011,6 +2020,21 @@ describe("existing skills source prose contracts", () => {
     );
     expect(normalizedPairedReview).toContain(
       "`FOLLOW-UP` and `OPTIONAL` remain deferred outside `prior_verified_gaps`",
+    );
+    expect(normalizedPairedReview).toContain(
+      "Compute the terminal state independently for each prior gap record after both wave-two reviewers settle on the same digest",
+    );
+    expect(normalizedPairedReview).toContain(
+      "A corrected prior gap becomes `RESOLVED` + `PASSED` when its correction is verified and that same gap neither recurs nor regresses, even when a distinct valid new-evidence gap makes the overall wave non-passing",
+    );
+    expect(normalizedPairedReview).toContain(
+      "A prior gap becomes `UNRESOLVED` + `FAILED` only when that same gap recurs, its correction regresses, or its own record or transition is malformed or out of order",
+    );
+    expect(normalizedPairedReview).toContain(
+      "An orthogonal new-evidence `CURRENT` or `BLOCKER` never rewrites a separately verified prior record to unresolved",
+    );
+    expect(normalizedPairedReview).toContain(
+      "the overall paired-wave verdict remains non-passing, surfaces every new or unresolved gap, and stops after wave two",
     );
     expect(normalizedPairedReview).toContain("`New evidence basis`");
     expect(normalizedPairedReview).toContain(

@@ -760,6 +760,21 @@ describe("phase artifact source contracts", () => {
       "Any invalid transition makes the tuple or result malformed and non-passing",
     );
     expect(normalizedWorkflow).toContain(
+      "Compute the terminal state independently for each prior gap record after both wave-two reviewers settle on the same digest",
+    );
+    expect(normalizedWorkflow).toContain(
+      "A corrected prior gap becomes `RESOLVED` + `PASSED` when its correction is verified and that same gap neither recurs nor regresses, even when a distinct valid new-evidence gap makes the overall wave non-passing",
+    );
+    expect(normalizedWorkflow).toContain(
+      "A prior gap becomes `UNRESOLVED` + `FAILED` only when that same gap recurs, its correction regresses, or its own record or transition is malformed or out of order",
+    );
+    expect(normalizedWorkflow).toContain(
+      "An orthogonal new-evidence `CURRENT` or `BLOCKER` never rewrites a separately verified prior record to unresolved",
+    );
+    expect(normalizedWorkflow).toContain(
+      "the overall paired-wave verdict remains non-passing, surfaces every new or unresolved gap, and stops after wave two",
+    );
+    expect(normalizedWorkflow).toContain(
       "After any wave-two non-pass, surface unresolved gaps and stop; there is no third wave",
     );
     expect(normalizedWorkflow).toContain(

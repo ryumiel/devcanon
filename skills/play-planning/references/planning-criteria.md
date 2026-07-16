@@ -379,6 +379,17 @@ evidence bases, and verification status only as controller-local review state.
 This creates no persistent result artifact, helper, schema, registry, or
 standing review protocol.
 
+Wave-two terminal state is computed independently for each prior gap record
+after both reviewers settle on the same digest. A prior gap whose correction is
+verified and that neither recurs nor regresses remains `RESOLVED` + `PASSED`
+even when a distinct valid new-evidence gap makes the overall wave non-passing.
+That prior gap becomes `UNRESOLVED` + `FAILED` only when the same gap recurs,
+its correction regresses, or its own record or transition is malformed or out
+of order. An orthogonal new-evidence `CURRENT` or `BLOCKER` never rewrites that
+prior record to unresolved. The overall wave still surfaces every valid new or
+unresolved gap and stops after wave two without weakening the no-third-wave
+rule.
+
 ### Convergence examples
 
 - **Valid wave-two evidence example:** wave one reports a missing consumer

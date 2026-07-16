@@ -717,17 +717,25 @@ owner, concrete correction evidence, `resolution_state`, and
 `RESOLVED`, or `UNRESOLVED`; `verification_state` uses only `NOT_RUN`,
 `PENDING`, `PASSED`, or `FAILED`. The only valid transitions are verified
 wave-one capture as `OPEN` + `NOT_RUN`; authorized
-plan correction before fresh wave-two dispatch as `CORRECTED` + `PENDING`;
-both same-digest wave-two reviewers passing with no recurrence or regression
-as `RESOLVED` + `PASSED`; and the same gap, a regression, a malformed or
-out-of-order state, or any other non-pass as `UNRESOLVED` + `FAILED`. No
-backward transition, skipped state, unknown value, mixed terminal pair, or
-mutation after `PENDING` is valid. Any invalid transition makes the tuple or
-result malformed and non-passing. `BLOCKER` never enters `prior_verified_gaps`;
-it returns to its named owner. `FOLLOW-UP` and `OPTIONAL` remain deferred
-outside `prior_verified_gaps`. A new wave-two `CURRENT` or `BLOCKER` is accepted
-only under the existing new-evidence rule. After any wave-two non-pass, surface
-unresolved gaps and stop; there is no third wave.
+plan correction before fresh wave-two dispatch as `CORRECTED` + `PENDING`; and
+one of the two terminal pairs below. Compute the terminal state independently
+for each prior gap record after both wave-two reviewers settle on the same
+digest. A corrected prior gap becomes `RESOLVED` + `PASSED` when its correction
+is verified and that same gap neither recurs nor regresses, even when a
+distinct valid new-evidence gap makes the overall wave non-passing. A prior gap
+becomes `UNRESOLVED` + `FAILED` only when that same gap recurs, its correction
+regresses, or its own record or transition is malformed or out of order. An
+orthogonal new-evidence `CURRENT` or `BLOCKER` never rewrites a separately
+verified prior record to unresolved. No backward transition, skipped state,
+unknown value, mixed terminal pair, or mutation after `PENDING` is valid. Any
+invalid transition makes the tuple or result malformed and non-passing.
+`BLOCKER` never enters `prior_verified_gaps`; it returns to its named owner.
+`FOLLOW-UP` and `OPTIONAL` remain deferred outside `prior_verified_gaps`. A new
+wave-two `CURRENT` or `BLOCKER` is accepted only under the existing new-evidence
+rule. When any valid new-evidence `CURRENT` or `BLOCKER` remains, the overall
+paired-wave verdict remains non-passing, surfaces every new or unresolved gap,
+and stops after wave two. After any wave-two non-pass, surface unresolved gaps
+and stop; there is no third wave.
 
 ## Plan Review
 
