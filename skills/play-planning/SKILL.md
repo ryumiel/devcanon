@@ -384,7 +384,26 @@ criterion: <explicit inclusion rule>`
 
 **Authority surfaces:** <which source files, contracts, schemas, helpers, renderers, install/sync flows, or policies own the behavior; generated outputs are derived evidence, not authority>
 
-**Contract checklist:** <tier-appropriate contract structure from the canonical criteria: FULL includes every complete checklist field; LIGHTWEIGHT includes its compact owner, I/O, side-effect, failure, cleanup, proof, and all-FULL-triggers-absent record; NO-TRIGGER includes its task-specific reason>
+Include exactly one of the following tier-specific blocks and delete the other
+two.
+
+For `FULL` only:
+
+**Contract checklist:** <every complete FULL checklist field; populate each
+field or use task-specific N/A only where the canonical criteria permit it>
+
+For `LIGHTWEIGHT` only:
+
+**Compact contract:** <owner, purpose, inputs and outputs, material write or
+side-effect owner, failure and cleanup behavior, focused proof, every actual
+known participant and direct relationship, and the explicit task-specific
+reason every FULL trigger is absent>
+
+For `NO-TRIGGER` only:
+
+**NO-TRIGGER reason:** <task-specific reason this task changes no contract,
+boundary, lifecycle, side effect, generated or side-channel artifact,
+interface, policy, or other non-trivial task-contract trigger>
 
 **Acceptance criteria:** <observable requirements for completion>
 
@@ -415,6 +434,13 @@ all FULL triggers are absent, and `NO-TRIGGER` tasks carry a task-specific
 reason no contract trigger applies. Ambiguity defaults to `FULL`. A compact
 diff, private implementation name, or `.ephemeral/` path does not by itself
 authorize `LIGHTWEIGHT` or `NO-TRIGGER`.
+
+Select exactly one tier-specific block from the template and remove the other
+two. The ordinary task fields, acceptance criteria, verification expectations,
+and proof sufficiency remain required for every tier. A `NO-TRIGGER` task has
+only its task-specific reason in the tier-specific position: it does not carry
+a Contract checklist label, a second contract placeholder, a FULL-only field,
+or an `N/A` entry.
 
 Task specs should prefer references to existing behavior, source files,
 contracts, tests, ADRs, and guidelines over copied logic. If a task needs
@@ -492,7 +518,7 @@ Example mechanical-task header:
 
 **Authority surfaces:** `examples/demo-note.md`
 
-**Contract checklist:** N/A — this exact token replacement is a single-file
+**NO-TRIGGER reason:** This exact token replacement is a single-file
 mechanical example that changes no behavior, authority, generated output,
 failure route, review rule, documentation navigation, or compatibility surface.
 
@@ -546,8 +572,9 @@ Every task spec must contain the actual contract an engineer needs. These are
 - Tasks without an authoritative requirement, necessary in-scope outcome, and CURRENT Scope Delta mapping
 - Generalized harnesses, protocols, marker languages, evidence systems, or broad matrices introduced only to strengthen proof beyond approved scope
 - References to source-of-truth files, functions, methods, ADRs, specs, or helpers that do not exist unless the task is explicitly responsible for creating them
-- Required contract checklist fields left blank, marked only `N/A`, or filled
-  with generic text that does not explain the task-specific reason
+- Required tier-specific contract fields left blank or filled with generic
+  text that does not explain the task-specific facts; for FULL, checklist
+  fields marked `N/A` without a task-specific reason
 
 ## Remember
 
@@ -558,8 +585,9 @@ Every task spec must contain the actual contract an engineer needs. These are
   it never determines the in-scope consumers or boundary participants and is
   never a vague placeholder
 - Complete task contracts, not implementation sketches
-- Contract checklists for triggered work, or a task-specific reason the
-  checklist does not apply
+- The selected tier-specific shape: a complete FULL checklist, a closed
+  LIGHTWEIGHT compact contract, or a task-specific NO-TRIGGER reason without a
+  checklist label or `N/A` entry
 - Source-of-truth references over copied logic
 - Scope Envelope and Scope Delta before file or task planning
 - CURRENT task mappings to authoritative requirements and necessity

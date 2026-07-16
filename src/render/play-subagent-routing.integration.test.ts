@@ -29,6 +29,7 @@ type RenderedBodies = Record<string, string>;
 
 describe("play-subagent planning and routing render smoke coverage", () => {
   let bodies: RenderedBodies;
+  let sourcePlayPlanning: string;
   let planningCriteria: RenderedBodies;
   let skipDispatchPolicies: RenderedBodies;
   let sourceSkipDispatchPolicy: string;
@@ -43,6 +44,12 @@ describe("play-subagent planning and routing render smoke coverage", () => {
     bodies = {};
     planningCriteria = {};
     skipDispatchPolicies = {};
+
+    const sourcePlayPlanningContent = await readFile(
+      path.join(repoRoot, "skills/play-planning/SKILL.md"),
+      "utf8",
+    );
+    sourcePlayPlanning = parseFrontmatter(sourcePlayPlanningContent).body;
 
     for (const skillName of ROUTING_SKILLS) {
       for (const target of ["claude", "codex"] as const) {
@@ -106,6 +113,62 @@ describe("play-subagent planning and routing render smoke coverage", () => {
         expect(body.trim()).not.toHaveLength(0);
         expect(body).not.toContain("{{model:");
       }
+    }
+  });
+
+  it("renders the tier-conditional task contract shape exactly for both targets", () => {
+    const taskStructureStart = "## Task Structure";
+    const taskStructureEnd = "### Optional Review-Routing Hint Fields";
+    const sourceStart = sourcePlayPlanning.indexOf(taskStructureStart);
+    const sourceEnd = sourcePlayPlanning.indexOf(taskStructureEnd, sourceStart);
+    expect(sourceStart).toBeGreaterThanOrEqual(0);
+    expect(sourceEnd).toBeGreaterThan(sourceStart);
+    const sourceTaskContractSurface = sourcePlayPlanning.slice(
+      sourceStart,
+      sourceEnd,
+    );
+
+    for (const target of ["claude", "codex"] as const) {
+      const rendered = bodies[`play-planning:${target}`];
+      const renderedStart = rendered.indexOf(taskStructureStart);
+      const renderedEnd = rendered.indexOf(taskStructureEnd, renderedStart);
+      expect(renderedStart).toBeGreaterThanOrEqual(0);
+      expect(renderedEnd).toBeGreaterThan(renderedStart);
+      const renderedTaskContractSurface = rendered.slice(
+        renderedStart,
+        renderedEnd,
+      );
+
+      expect(renderedTaskContractSurface).toBe(sourceTaskContractSurface);
+      expect(renderedTaskContractSurface).toContain(
+        "For `FULL` only:\n\n**Contract checklist:**",
+      );
+      expect(renderedTaskContractSurface).toContain(
+        "For `LIGHTWEIGHT` only:\n\n**Compact contract:**",
+      );
+      expect(renderedTaskContractSurface).toContain(
+        "For `NO-TRIGGER` only:\n\n**NO-TRIGGER reason:**",
+      );
+
+      const exampleStart = renderedTaskContractSurface.indexOf(
+        "Example mechanical-task header:",
+      );
+      const exampleEnd = renderedTaskContractSurface.indexOf(
+        "Omit `**Mode:** mechanical`",
+        exampleStart,
+      );
+      expect(exampleStart).toBeGreaterThanOrEqual(0);
+      expect(exampleEnd).toBeGreaterThan(exampleStart);
+      const noTriggerExample = renderedTaskContractSurface.slice(
+        exampleStart,
+        exampleEnd,
+      );
+      expect(noTriggerExample).toContain("**NO-TRIGGER reason:**");
+      expect(noTriggerExample).toContain("**Acceptance criteria:**");
+      expect(noTriggerExample).toContain("**Verification expectations:**");
+      expect(noTriggerExample).toContain("**Proof sufficiency:**");
+      expect(noTriggerExample).not.toContain("**Contract checklist:**");
+      expect(noTriggerExample).not.toContain("N/A");
     }
   });
 

@@ -42,6 +42,22 @@ function expectSubstringsInOrder(content: string, substrings: string[]): void {
   }
 }
 
+function validateNoTriggerExample(content: string): string[] {
+  const errors: string[] = [];
+
+  if (content.includes("**Contract checklist:**")) {
+    errors.push("contract-checklist-label");
+  }
+  if (!content.includes("**NO-TRIGGER reason:**")) {
+    errors.push("missing-task-specific-reason");
+  }
+  if (!content.includes("**Proof sufficiency:**")) {
+    errors.push("missing-minimum-proof");
+  }
+
+  return errors;
+}
+
 const CHILD_AGENT_PROMPT_TEMPLATES = [
   "references/implementer-prompt.md",
   "references/executor-prompt.md",
@@ -1399,8 +1415,9 @@ describe("play subagent routing source contracts", () => {
     expect(skillSource).not.toContain("mechanical-implementer-prompt.md");
   });
 
-  it("keeps planning contract-checklist and review-routing rules in source", async () => {
+  it("keeps tier-conditional planning contracts and review-routing rules in source", async () => {
     const playPlanning = await readSkillSource("play-planning");
+    const taskStructure = getMarkdownSection(playPlanning, "Task Structure");
     const planningCriteria = await readRepoFile(
       "skills/play-planning/references/planning-criteria.md",
     );
@@ -1418,6 +1435,7 @@ describe("play subagent routing source contracts", () => {
       "Example mechanical-task header:",
       "Omit `**Mode:** mechanical`",
     );
+    const normalizedTaskStructure = normalizeWhitespace(taskStructure);
     const normalizedContractChecklist = normalizeWhitespace(contractChecklist);
     const normalizedOptionalModeField = normalizeWhitespace(optionalModeField);
 
@@ -1456,7 +1474,7 @@ describe("play subagent routing source contracts", () => {
       "**Scope mapping:**",
       "**Source-of-truth references:**",
       "**Authority surfaces:**",
-      "**Contract checklist:**",
+      "**NO-TRIGGER reason:**",
       "**Acceptance criteria:**",
       "**Risks:**",
       "**Dependencies:**",
@@ -1465,6 +1483,58 @@ describe("play subagent routing source contracts", () => {
     ]) {
       expect(mechanicalTaskExample).toContain(requiredField);
     }
+    expect(normalizeWhitespace(mechanicalTaskExample)).toContain(
+      "This exact token replacement is a single-file mechanical example that changes no behavior, authority, generated output, failure route, review rule, documentation navigation, or compatibility surface",
+    );
+    expect(mechanicalTaskExample).not.toContain("**Contract checklist:**");
+    expect(mechanicalTaskExample).not.toContain("N/A");
+    expect(validateNoTriggerExample(mechanicalTaskExample)).toEqual([]);
+
+    const invalidChecklistLabel = mechanicalTaskExample.replace(
+      "**Acceptance criteria:**",
+      "**Contract checklist:** This label is invalid for NO-TRIGGER.\n\n**Acceptance criteria:**",
+    );
+    expect(validateNoTriggerExample(invalidChecklistLabel)).toEqual([
+      "contract-checklist-label",
+    ]);
+
+    const invalidMissingReason = mechanicalTaskExample.replace(
+      /\*\*NO-TRIGGER reason:\*\*[\s\S]*?(?=\n\*\*Acceptance criteria:\*\*)/u,
+      "",
+    );
+    expect(validateNoTriggerExample(invalidMissingReason)).toEqual([
+      "missing-task-specific-reason",
+    ]);
+
+    const invalidMissingMinimumProof = mechanicalTaskExample.replace(
+      /\*\*Proof sufficiency:\*\*[\s\S]*?(?=\n\*\*Replace:\*\*)/u,
+      "",
+    );
+    expect(validateNoTriggerExample(invalidMissingMinimumProof)).toEqual([
+      "missing-minimum-proof",
+    ]);
+
+    expect(normalizedTaskStructure).toContain(
+      "For `FULL` only: **Contract checklist:**",
+    );
+    expect(normalizedTaskStructure).toContain(
+      "For `LIGHTWEIGHT` only: **Compact contract:**",
+    );
+    expect(normalizedTaskStructure).toContain(
+      "For `NO-TRIGGER` only: **NO-TRIGGER reason:**",
+    );
+    expect(normalizedTaskStructure).toContain(
+      "ordinary task fields, acceptance criteria, verification expectations, and proof sufficiency remain required for every tier",
+    );
+    expect(normalizedTaskStructure).toContain(
+      "`FULL` tasks carry the complete contract checklist",
+    );
+    expect(normalizedTaskStructure).toContain(
+      "`LIGHTWEIGHT` tasks carry every compact-contract field and the explicit reason all FULL triggers are absent",
+    );
+    expect(normalizedTaskStructure).toContain(
+      "`NO-TRIGGER` tasks carry a task-specific reason no contract trigger applies",
+    );
 
     expect(contractChecklist).toContain(
       "Review-routing hints remain non-authoritative inputs",
@@ -1490,6 +1560,15 @@ describe("play subagent routing source contracts", () => {
     );
     expect(normalizeWhitespace(playPlanning)).toContain(
       "conditional one-level reference from this workflow",
+    );
+
+    const execution = await readSkillSource("play-subagent-execution");
+    const normalizedExecution = normalizeWhitespace(execution);
+    expect(normalizedExecution).toContain(
+      "Both `LIGHTWEIGHT` and `NO-TRIGGER` are trusted only when this controller can identify the upstream two-gate `play-planning` return",
+    );
+    expect(normalizedExecution).toContain(
+      "otherwise unreviewed plans without that upstream two-gate return must use a structurally complete `FULL` contract",
     );
   });
 
