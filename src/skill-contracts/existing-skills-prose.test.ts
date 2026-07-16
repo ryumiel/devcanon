@@ -756,7 +756,7 @@ describe("existing skills source prose contracts", () => {
       "Use the narrowest existing repository mechanism that demonstrates each acceptance criterion",
     );
     expect(normalizedCriteria).toContain(
-      "Field order is the task heading, required `**Task ID:**`, optional `**Mode:** mechanical`, optional review-routing hints, then `**Files:**`",
+      "Field order is the task heading, required `**Task ID:**`, required `**Contract tier:**`, optional `**Mode:** mechanical`, optional review-routing hints, then `**Files:**`",
     );
     expect(normalizedCriteria).toContain(
       "generalized benchmark corpora, evidence-retention protocols, marker languages, and broad integrity frameworks as FOLLOW-UP",
@@ -1958,6 +1958,98 @@ describe("existing skills source prose contracts", () => {
     );
     expect(normalizedChecklists).toContain(
       "explicit reason every FULL trigger is absent",
+    );
+  });
+
+  it("applies canonical task tiers and paired-wave convergence in planning consumers", async () => {
+    const planning = await readSkillSource("play-planning");
+    const brainstorm = await readSkillSource("play-brainstorm");
+    const normalizedPlanning = normalizeWhitespace(planning);
+    const normalizedBrainstorm = normalizeWhitespace(brainstorm);
+    const taskStructure = getMarkdownSection(planning, "Task Structure");
+    const selfReview = getMarkdownSection(planning, "Self-Review");
+    const pairedReview = getMarkdownSection(
+      planning,
+      "Exact Digest and Paired Review Orchestration",
+    );
+    const normalizedPairedReview = normalizeWhitespace(pairedReview);
+
+    expect(taskStructure).toContain(
+      "**Contract tier:** FULL | LIGHTWEIGHT | NO-TRIGGER",
+    );
+    expect(normalizedPlanning).toContain(
+      "Every authored current task must then declare exactly one canonical",
+    );
+    expect(normalizeWhitespace(selfReview)).toContain(
+      "complete FULL fields, complete LIGHTWEIGHT compact fields plus the all-FULL-triggers-absent reason, or a task-specific NO-TRIGGER reason",
+    );
+    expect(normalizedPairedReview).toContain(
+      "Wave one is exhaustive in each distinct remit",
+    );
+    expect(normalizedPairedReview).toContain(
+      "Wave two verifies every prior correction and its resolution state, then checks the revision for regressions",
+    );
+    expect(normalizedPairedReview).toContain(
+      "`resolution_state` uses only `OPEN`, `CORRECTED`, `RESOLVED`, or `UNRESOLVED`",
+    );
+    expect(normalizedPairedReview).toContain(
+      "`verification_state` uses only `NOT_RUN`, `PENDING`, `PASSED`, or `FAILED`",
+    );
+    for (const lifecyclePair of [
+      "`OPEN` + `NOT_RUN`",
+      "`CORRECTED` + `PENDING`",
+      "`RESOLVED` + `PASSED`",
+      "`UNRESOLVED` + `FAILED`",
+    ]) {
+      expect(normalizedPairedReview).toContain(lifecyclePair);
+    }
+    expect(normalizedPairedReview).toContain(
+      "No backward transition, skipped state, unknown value, mixed terminal pair, or mutation after `PENDING` is valid",
+    );
+    expect(normalizedPairedReview).toContain(
+      "`BLOCKER` never enters `prior_verified_gaps`",
+    );
+    expect(normalizedPairedReview).toContain(
+      "`FOLLOW-UP` and `OPTIONAL` remain deferred outside `prior_verified_gaps`",
+    );
+    expect(normalizedPairedReview).toContain("`New evidence basis`");
+    expect(normalizedPairedReview).toContain(
+      "cannot authorize plan mutation or expansion and remains non-passing under the existing second-wave stop",
+    );
+    for (const materialityField of [
+      "`Authority`",
+      "`Concrete blocker`",
+      "`Inspection insufficiency`",
+      "`Smallest correction or decision owner`",
+    ]) {
+      expect(normalizedPairedReview).toContain(materialityField);
+    }
+    expect(normalizedPairedReview).toContain(
+      "only D5 originates ordinary alignment, scope, proportionality, and coverage findings",
+    );
+    expect(normalizedPairedReview).toContain(
+      "only D6 originates ordinary task-local startability findings",
+    );
+    for (const genuineOmission of [
+      "missing consumers",
+      "invalid paths or dependencies",
+      "ambiguous mutation ownership",
+      "unsafe cleanup",
+    ]) {
+      expect(normalizedPlanning).toContain(genuineOmission);
+    }
+
+    expect(normalizedBrainstorm).toContain(
+      "record whether the approved facts make it load-bearing",
+    );
+    expect(normalizedBrainstorm).toContain(
+      "This is a design-time boundary decision for the planning handoff",
+    );
+    expect(normalizedBrainstorm).toContain(
+      "not a `FULL`, `LIGHTWEIGHT`, or `NO-TRIGGER` classification",
+    );
+    expect(normalizedBrainstorm).toContain(
+      "do not copy the planning checklist or become tier authority",
     );
   });
 

@@ -1444,6 +1444,7 @@ describe("play subagent routing source contracts", () => {
       "SKILL.md` § Mechanical Task Taxonomy",
     );
     for (const requiredField of [
+      "**Contract tier:** NO-TRIGGER",
       "**Mode:** mechanical",
       "**Risk hint:**",
       "**Review hint:**",
@@ -1481,7 +1482,7 @@ describe("play subagent routing source contracts", () => {
       "foundation-producing tasks are not below `spec-only`",
     );
     expect(normalizedContractChecklist).toContain(
-      "Field order is the task heading, required `**Task ID:**`, optional `**Mode:** mechanical`, optional review-routing hints, then `**Files:**`",
+      "Field order is the task heading, required `**Task ID:**`, required `**Contract tier:**`, optional `**Mode:** mechanical`, optional review-routing hints, then `**Files:**`",
     );
     expect(playPlanning).toContain("references/planning-criteria.md");
     expect(playPlanning).toContain(
@@ -1489,6 +1490,45 @@ describe("play subagent routing source contracts", () => {
     );
     expect(normalizeWhitespace(playPlanning)).toContain(
       "conditional one-level reference from this workflow",
+    );
+  });
+
+  it("keeps executor handling structural and planning-owned across contract tiers", async () => {
+    const execution = await readSkillSource("play-subagent-execution");
+    const normalizedExecution = normalizeWhitespace(execution);
+
+    expect(normalizedExecution).toContain(
+      "`play-planning` owns the trigger taxonomy and tier classification",
+    );
+    expect(normalizedExecution).toContain(
+      "exactly one declared `**Contract tier:** FULL`, `LIGHTWEIGHT`, or `NO-TRIGGER`",
+    );
+    expect(normalizedExecution).toContain(
+      "validates only its declared tier structure",
+    );
+    for (const lightweightField of [
+      "owner, purpose, inputs and outputs",
+      "material write or side-effect owner",
+      "failure and cleanup behavior",
+      "focused proof",
+      "explicit reason every FULL trigger is absent",
+    ]) {
+      expect(normalizedExecution).toContain(lightweightField);
+    }
+    expect(normalizedExecution).toContain(
+      "`NO-TRIGGER` requires a task-specific reason",
+    );
+    expect(normalizedExecution).toContain(
+      "must not promote, demote, infer, or otherwise reclassify the tier",
+    );
+    expect(normalizedExecution).toContain(
+      "path spelling, or runtime risk routing",
+    );
+    expect(normalizedExecution).toContain(
+      "Both `LIGHTWEIGHT` and `NO-TRIGGER` are trusted only when this controller can identify the upstream two-gate `play-planning` return",
+    );
+    expect(normalizedExecution).toContain(
+      "must use a structurally complete `FULL` contract",
     );
   });
 
@@ -1533,6 +1573,17 @@ describe("play subagent routing source contracts", () => {
         "both Plan Review and Implementer Executability Review passed before `Plan written to <path>.` was emitted",
       );
     }
+
+    for (const tierAwareSource of [
+      normalizedPlaySubagentExecution,
+      normalizedSkipDispatchPolicy,
+    ]) {
+      expect(tierAwareSource).toContain("Both `LIGHTWEIGHT` and `NO-TRIGGER`");
+      expect(tierAwareSource).toContain("structurally complete `FULL`");
+    }
+    expect(normalizedSkipDispatchPolicy).toContain(
+      "declares `FULL`, `LIGHTWEIGHT`, or `NO-TRIGGER` and satisfies that tier's structure",
+    );
 
     for (const directInvocationFallbackSource of [
       normalizedPlaySubagentExecution,

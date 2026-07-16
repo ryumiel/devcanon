@@ -338,6 +338,8 @@ before starting.
 
 **Task ID:** <UPPER-ASCII-KEBAB>
 
+**Contract tier:** FULL | LIGHTWEIGHT | NO-TRIGGER
+
 <!-- Optional review-routing hints, when present, go here:
 **Risk hint:** low | medium | high
 **Review hint:** none-final-only | spec-only | spec-and-quality
@@ -365,7 +367,7 @@ criterion: <explicit inclusion rule>`
 
 **Authority surfaces:** <which source files, contracts, schemas, helpers, renderers, install/sync flows, or policies own the behavior; generated outputs are derived evidence, not authority>
 
-**Contract checklist:** <required for non-trivial work; otherwise state why no trigger applies. Include trigger criteria, owner/authority, affected consumers/generated outputs, must-preserve, required behavior, spec/procedure work, risk surfaces, and proof obligations, with task-specific `N/A` reasons for irrelevant fields>
+**Contract checklist:** <tier-appropriate contract structure from the canonical criteria: FULL includes every complete checklist field; LIGHTWEIGHT includes its compact owner, I/O, side-effect, failure, cleanup, proof, and all-FULL-triggers-absent record; NO-TRIGGER includes its task-specific reason>
 
 **Acceptance criteria:** <observable requirements for completion>
 
@@ -385,6 +387,17 @@ task number, order, and display title and must remain unchanged across task
 insertions, reordering, title edits, and review revisions. Missing, duplicate,
 positional, or changed task IDs block review. `Task N` remains a display and
 ordering label only.
+
+Every authored current task must then declare exactly one canonical
+`**Contract tier:** FULL`, `**Contract tier:** LIGHTWEIGHT`, or
+`**Contract tier:** NO-TRIGGER` value. Classify the task using the bundled
+canonical criteria before choosing its contract detail; planning owns this
+classification. `FULL` tasks carry the complete contract checklist,
+`LIGHTWEIGHT` tasks carry every compact-contract field and the explicit reason
+all FULL triggers are absent, and `NO-TRIGGER` tasks carry a task-specific
+reason no contract trigger applies. Ambiguity defaults to `FULL`. A compact
+diff, private implementation name, or `.ephemeral/` path does not by itself
+authorize `LIGHTWEIGHT` or `NO-TRIGGER`.
 
 Task specs should prefer references to existing behavior, source files,
 contracts, tests, ADRs, and guidelines over copied logic. If a task needs
@@ -435,6 +448,8 @@ Example mechanical-task header:
 ### Task N: Rename Example Token
 
 **Task ID:** RENAME-EXAMPLE-TOKEN
+
+**Contract tier:** NO-TRIGGER
 
 **Mode:** mechanical
 
@@ -552,7 +567,13 @@ Review in this order:
 2. Check requirements, contract decisions, boundary participants, hard
    requirements, and documentation impact for current task and proof coverage.
 3. Check task completeness, placeholders, citations, dependencies, mechanical
-   and review-routing hints, and minimum-sufficient proof.
+   and review-routing hints, and minimum-sufficient proof. Confirm every
+   current task declares exactly one canonical contract tier and carries the
+   tier-appropriate structure owned by the criteria: complete FULL fields,
+   complete LIGHTWEIGHT compact fields plus the all-FULL-triggers-absent
+   reason, or a task-specific NO-TRIGGER reason. Reject missing, ambiguous, or
+   under-specified tier declarations; do not infer proportionality from diff
+   size or path spelling.
 4. Confirm optional comment evidence remains non-authoritative.
 5. Classify every finding as `CURRENT`, `BLOCKER`, `FOLLOW-UP`, or
    `OPTIONAL` before changing the plan.
@@ -588,10 +609,15 @@ controller-local state and creates no result artifact.
 
 Prepare one immutable tuple containing the saved plan path, selected design
 input, optional comment evidence, validated criteria path, validated readiness
-path and recorded readiness result, and expected exact plan digest. Always pass
-the same optional comment evidence to both when present; omit it from both when
-absent. Pass the identical tuple to D5 and D6, while keeping their remits and
-responses separate.
+path and recorded readiness result, expected exact plan digest, `review_wave`
+(`1` or `2`), and `prior_verified_gaps`. For wave one,
+`prior_verified_gaps` is explicitly none/inapplicable. For wave two, it is the
+complete controller-local record set defined by the closed lifecycle below for
+every verified wave-one `CURRENT` gap. Always pass the same optional comment
+evidence to both when present; omit it from both when absent. Freeze the tuple
+before either capture and pass the identical tuple to
+D5 and D6 without per-reviewer additions, while keeping their questions,
+remits, responses, and lifecycle state separate.
 
 Before each authorized revision, retain a controller-local
 semantic-task-to-Task-ID baseline from the current plan. After saving the
@@ -650,9 +676,29 @@ Do not route early on one PASS or one FAIL. Verified `CURRENT` gaps may revise
 the plan; a `BLOCKER` returns to its named owner; `FOLLOW-UP` and `OPTIONAL`
 remain deferred.
 
-Planning has a maximum of two paired review waves. A first ordinary non-pass
-may retry the fresh pair or revise verified CURRENT gaps and dispatch a fresh
-pair. A second non-pass stops. Handoff is allowed only after both reviewers
+Before any plan mutation, validate each proposed blocking gap against the
+canonical materiality contract: supported `Authority`, a `Concrete blocker`,
+an `Inspection insufficiency` explanation, and the `Smallest correction or
+decision owner`. Reject an incomplete or preference-based blocker as
+non-authorizing; it cannot expand the plan. Enforce cross-remit ownership at
+consolidation: only D5 originates ordinary alignment, scope, proportionality,
+and coverage findings; only D6 originates ordinary task-local startability
+findings. A reviewer may report a shared-fact contradiction only by naming the
+concrete defect it causes in that reviewer's own remit.
+
+Planning has a maximum of two paired review waves. Wave one is exhaustive in
+each distinct remit. A first ordinary non-pass may retry the fresh pair or
+revise verified CURRENT gaps and dispatch a fresh pair. Wave two verifies every
+prior correction and its resolution state, then checks the revision for
+regressions. A newly blocking wave-two gap is valid only when it includes the
+canonical `New evidence basis` backed by approved bounded evidence that was
+not reasonably available from the wave-one plan and named sources. An
+unsupported blocker, an ordinary defect inspectable in wave one, optional
+infrastructure, or proof expansion cannot authorize plan mutation or expansion
+and remains non-passing under the existing second-wave stop. A second non-pass
+stops. This convergence policy does not excuse genuine omissions: missing
+consumers, invalid paths or dependencies, ambiguous mutation ownership, and
+unsafe cleanup still block in their owning remits. Handoff is allowed only after both reviewers
 return PASS for the same current exact-byte digest and both guard cleanups have
 succeeded. Immediately before execution or owning-workflow handoff, recompute
 SHA-256 over the current exact plan bytes again and compare it with the
@@ -660,6 +706,28 @@ expected, D5, D6, and join-time digests before applying dual PASS. A
 reviewer-computed, join-time, or pre-handoff digest mismatch invalidates both
 verdicts, as does any plan-byte edit; start a fresh pair within the remaining
 budget or stop when the budget is exhausted.
+
+For wave one, `prior_verified_gaps` is explicitly none/inapplicable. For each
+verified wave-one `CURRENT` gap, the controller-local wave-two record contains
+the stable gap ID, task ID, defect class, `classification=CURRENT`, `Authority`,
+`Concrete blocker`, `Inspection insufficiency`, `Smallest correction`,
+originating reviewer provenance and originating D5 or D6 remit, correction
+owner, concrete correction evidence, `resolution_state`, and
+`verification_state`. `resolution_state` uses only `OPEN`, `CORRECTED`,
+`RESOLVED`, or `UNRESOLVED`; `verification_state` uses only `NOT_RUN`,
+`PENDING`, `PASSED`, or `FAILED`. The only valid transitions are verified
+wave-one capture as `OPEN` + `NOT_RUN`; authorized
+plan correction before fresh wave-two dispatch as `CORRECTED` + `PENDING`;
+both same-digest wave-two reviewers passing with no recurrence or regression
+as `RESOLVED` + `PASSED`; and the same gap, a regression, a malformed or
+out-of-order state, or any other non-pass as `UNRESOLVED` + `FAILED`. No
+backward transition, skipped state, unknown value, mixed terminal pair, or
+mutation after `PENDING` is valid. Any invalid transition makes the tuple or
+result malformed and non-passing. `BLOCKER` never enters `prior_verified_gaps`;
+it returns to its named owner. `FOLLOW-UP` and `OPTIONAL` remain deferred
+outside `prior_verified_gaps`. A new wave-two `CURRENT` or `BLOCKER` is accepted
+only under the existing new-evidence rule. After any wave-two non-pass, surface
+unresolved gaps and stop; there is no third wave.
 
 ## Plan Review
 
@@ -720,7 +788,8 @@ stage, repair, or otherwise hide source.
 
 Pass `Plan: <path>`, `Criteria: <validated-bundle-owned-path>`,
 `Readiness: <validated-bundle-owned-path>`, the recorded readiness result, and
-`Expected digest: <sha256>`. For design input, pass the guarded
+`Expected digest: <sha256>`, plus the immutable `review_wave` and
+`prior_verified_gaps` values. For design input, pass the guarded
 `Design: <path>` when the invocation selected the path form; otherwise pass the
 preserved inline `## Design` content for a direct invocation. Always prefer
 artifact path references over inlined full documents; the path form wins when
@@ -739,7 +808,8 @@ or readiness policy relative to the target repository.
 The reviewer independently validates the Scope Envelope, Scope Delta,
 authoritative requirement coverage, unjustified tasks, dependency order,
 contract and boundary traceability, task contracts, documentation impact, and
-minimum-sufficient proof. It also checks citations and applicable
+minimum-sufficient proof. It validates every current task's declared canonical
+tier and tier-appropriate structure against the criteria. It also checks citations and applicable
 review-routing hints. The canonical reference owns the detailed criteria.
 
 The reviewer reports every concrete in-remit finding and classifies it as
@@ -828,7 +898,8 @@ planning; never reset, check out, stage, repair, or otherwise hide source.
 
 Pass the guarded plan path, `Criteria: <validated-bundle-owned-path>`,
 `Readiness: <validated-bundle-owned-path>`, the recorded readiness result, and
-`Expected digest: <sha256>`. For design input, pass the guarded
+`Expected digest: <sha256>`, plus the immutable `review_wave` and
+`prior_verified_gaps` values. For design input, pass the guarded
 `Design: <path>` when the invocation selected the path form; otherwise pass the
 preserved inline `## Design` content for a direct invocation. Always prefer
 artifact path references over inlined full documents; the path form wins when
@@ -848,6 +919,12 @@ The reviewer checks for hidden product, policy, ownership, source mapping,
 side-effect, error, recovery, rollback, or guardrail decisions that a task
 requires but its named sources do not resolve. The canonical reference owns the
 detailed criteria.
+
+The reviewer also validates that every current task declares a canonical tier
+and carries the corresponding FULL, LIGHTWEIGHT, or NO-TRIGGER structure. It
+uses the plan's declared tier and the canonical criteria to test structural
+completeness; it does not replace D5's tier classification or reopen D5's
+proportionality judgment.
 
 The reviewer must not turn normal implementation choices, private helper
 structure, concrete tests, fixtures, commands, or discovery of individual

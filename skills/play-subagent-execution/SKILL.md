@@ -52,7 +52,8 @@ labels that content as approved verbatim artifact content and names the
 authority source. Implementers choose concrete code, tests, docs, and
 verification commands only after reading the relevant source files directly.
 
-When a task includes a contract checklist, treat its owner/authority,
+When a task includes a contract tier and its tier-appropriate contract
+structure, treat its owner/authority,
 affected consumers/generated outputs, must-preserve, required behavior,
 spec/procedure work, risk surfaces, and proof obligations as task constraints.
 These fields constrain what the implementation must satisfy; they do not make
@@ -79,9 +80,16 @@ receive; subagents receive curated inlined context and do not read the full plan
 file or resolve controller-relative rule paths.
 
 Do not infer trigger applicability inside `play-subagent-execution`;
-`play-planning` owns the trigger taxonomy. The gate verifies either a
-structurally complete `**Contract checklist:**` field or an explicit
-task-specific reason no checklist trigger applies. Present Contract Example
+`play-planning` owns the trigger taxonomy and tier classification. Do not
+reclassify a declared tier. For every current task in a reviewed plan, the gate requires
+exactly one declared `**Contract tier:** FULL`, `LIGHTWEIGHT`, or
+`NO-TRIGGER` and validates only its declared tier structure. `FULL` requires a
+structurally complete checklist; `LIGHTWEIGHT` requires owner, purpose, inputs
+and outputs, material write or side-effect owner, failure and cleanup behavior,
+focused proof, and an explicit reason every FULL trigger is absent;
+`NO-TRIGGER` requires a task-specific reason. The executor must not promote,
+demote, infer, or otherwise reclassify the tier from task prose, diff size,
+path spelling, or runtime risk routing. Present Contract Example
 Discipline obligations are part of the task contract; the executor only
 verifies obligations already included in extracted plan/task execution context;
 do not infer trigger applicability and do not decide whether Contract Example
@@ -89,15 +97,16 @@ Discipline should have been required. In the case when extracted plan/task
 execution context includes Contract Example Discipline or an equivalent clearly
 labeled section/obligation, apply the shared consumer rule in
 [`references/contract-example-discipline-consumer-rule.md`](references/contract-example-discipline-consumer-rule.md).
-A no-trigger omission reason is trusted only when this controller can identify
-the upstream two-gate `play-planning` return for the plan being executed,
-meaning both Plan Review and Implementer Executability Review passed before
-`Plan written to <path>.` was emitted. Direct, hand-written, copied, or older
-plans without that upstream two-gate return must include a structurally complete
-checklist instead of an omission reason. When a checklist is present, it must
-explicitly name trigger criteria, owner/authority, affected consumers/generated
-outputs, must-preserve, required behavior, spec/procedure work, risk surfaces,
-and proof obligations, with no blank field or unexplained `N/A`. If this
+Both `LIGHTWEIGHT` and `NO-TRIGGER` are trusted only when this controller can
+identify the upstream two-gate `play-planning` return for the plan being
+executed, meaning both Plan Review and Implementer Executability Review passed
+before `Plan written to <path>.` was emitted. Direct, hand-written, copied,
+older, or otherwise unreviewed plans without that upstream two-gate return must
+use a structurally complete `FULL` contract. When a FULL checklist is present,
+it must explicitly name trigger criteria, owner/authority, affected
+consumers/generated outputs, must-preserve, required behavior, spec/procedure
+work, risk surfaces, and proof obligations, with no blank field or unexplained
+`N/A`. If this
 structural gate or the extracted plan/task execution context is missing,
 malformed, unsupported, internally inconsistent, or unverifiable, stop before
 implementation and report BLOCKED/NEEDS_CONTEXT for plan repair; do not dispatch
@@ -214,13 +223,13 @@ For the full selection and process diagrams, load
    invocation content. Keep plan-path handling controller-owned; per-task
    implementers receive curated inlined task text, not the plan path.
 2. Extract all authored tasks with their full text, surrounding context,
-   contract checklist fields, verification expectations, and any mode or route
+   declared contract tier, tier-appropriate contract fields, verification expectations, and any mode or route
    hints.
 3. Assemble the extracted plan/task execution context before implementer
    dispatch, reviewer dispatch, final whole-implementation review, or
    skip-dispatch evaluation. Include plan-level Contract Example Discipline
    obligations or equivalent clearly labeled sections/obligations when present,
-   task-local checklist/no-trigger status, and any task-local example or proof
+   task-local declared tier and tier-appropriate structure, and any task-local example or proof
    obligations that refine the plan-level section. When Contract Example
    Discipline or an equivalent clearly labeled section/obligation is present,
    also inline the full shared consumer rule under

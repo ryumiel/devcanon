@@ -723,9 +723,48 @@ describe("phase artifact source contracts", () => {
       "validated criteria path",
       "validated readiness path and recorded readiness result",
       "expected exact plan digest",
+      "`review_wave` (`1` or `2`)",
+      "`prior_verified_gaps`",
     ]) {
       expect(normalizedWorkflow).toContain(pairedInput);
     }
+    expect(normalizedWorkflow).toContain(
+      "For wave one, `prior_verified_gaps` is explicitly none/inapplicable",
+    );
+    for (const priorGapField of [
+      "stable gap ID",
+      "task ID",
+      "defect class",
+      "classification",
+      "authority",
+      "`Concrete blocker`",
+      "`Inspection insufficiency`",
+      "`Smallest correction`",
+      "originating D5 or D6 remit",
+      "correction owner",
+      "concrete correction evidence",
+      "`resolution_state`",
+      "`verification_state`",
+    ]) {
+      expect(normalizedWorkflow).toContain(priorGapField);
+    }
+    for (const lifecycleTransition of [
+      "`OPEN` + `NOT_RUN`",
+      "`CORRECTED` + `PENDING`",
+      "`RESOLVED` + `PASSED`",
+      "`UNRESOLVED` + `FAILED`",
+    ]) {
+      expect(normalizedWorkflow).toContain(lifecycleTransition);
+    }
+    expect(normalizedWorkflow).toContain(
+      "Any invalid transition makes the tuple or result malformed and non-passing",
+    );
+    expect(normalizedWorkflow).toContain(
+      "After any wave-two non-pass, surface unresolved gaps and stop; there is no third wave",
+    );
+    expect(normalizedWorkflow).toContain(
+      "Freeze the tuple before either capture and pass the identical tuple to D5 and D6 without per-reviewer additions",
+    );
     expect(normalizedWorkflow).toContain(
       "pass the same optional comment evidence to both when present",
     );
