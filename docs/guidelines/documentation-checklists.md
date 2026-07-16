@@ -41,12 +41,13 @@ Apply the complete checklist to every load-bearing side-channel contract,
 including durable, public, cross-session, untrusted, security-sensitive, or
 cross-owner data and mechanics. For private, transient, same-controller
 mechanics with no durable schema consumer, use the LIGHTWEIGHT planning tier:
-record owner and authority, purpose, inputs and outputs, failure and cleanup,
-and focused proof, and mark the remaining questions inapplicable with that
-reason. If classification is ambiguous, or any load-bearing dimension applies,
-use FULL treatment and retain every load-bearing question below. A change with
-no side-channel or other contract trigger records its task-specific reason and
-does not apply this checklist.
+record owner and authority, purpose, inputs and outputs, material write or
+side-effect owner, failure and cleanup, focused proof, and the explicit reason
+every FULL trigger is absent, and mark the remaining questions inapplicable
+with that reason. If classification is ambiguous, or any load-bearing dimension
+applies, use FULL treatment and retain every load-bearing question below. A
+change with no side-channel or other contract trigger records its task-specific
+reason and does not apply this checklist.
 
 This checklist owns reusable authoring and review questions. Concrete artifact
 schemas, helper mechanics, emitted diagnostics, and runtime validation remain

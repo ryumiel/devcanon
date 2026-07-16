@@ -40,12 +40,15 @@ may cross the execution-handoff boundary only when both distinct reviewers pass
 the same current digest.
 
 The paired gate is bounded: the first wave is exhaustive and the second wave is
-convergent. The second pair verifies prior material gaps and may add a new
-blocking gap only when newly exposed concrete evidence makes it material. This
-preserves genuine omission and safety detection without turning optional
-hardening or reviewer preference into serial acceptance growth. Two waves are
-the architectural stop; unresolved material gaps remain non-passing rather
-than being weakened or routed through an unbounded review loop.
+convergent. The second pair verifies prior material gaps, checks that the
+revision introduced no regression, and may add a new blocking gap only when
+newly exposed concrete evidence makes it material. Regression checking is
+necessary because a correction can preserve the original gap while breaking a
+different load-bearing boundary. Bounded new-evidence rules preserve genuine
+omission and safety detection without turning optional hardening or reviewer
+preference into serial acceptance growth. Two waves are the architectural stop;
+unresolved material gaps remain non-passing rather than being weakened or
+routed through an unbounded review loop.
 
 The `play-planning` source skill owns dispatch, lifecycle, revision, and handoff
 mechanics. Its bundled planning references own readiness and shared review

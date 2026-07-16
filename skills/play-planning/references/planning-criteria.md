@@ -121,16 +121,16 @@ it never weakens an applicable boundary, omits a known participant, or changes
 what counts as a blocking defect. Ambiguous classification defaults to `FULL`.
 
 - `FULL`: required when any changed contract is durable, public,
-  cross-session, consumes untrusted data, is security-sensitive, or crosses an
-  owner, actor, skill, process, repository, provider, or mutation-authority
-  boundary. FULL treatment includes every applicable participant, authority,
-  input/output, lifecycle, side effect, failure, cleanup, side-channel,
-  example, traceability, and proof criterion in this reference.
+  cross-session, untrusted or security-sensitive, or cross-owner. FULL
+  treatment includes every applicable participant, authority, input/output,
+  lifecycle, side effect, failure, cleanup, side-channel, example,
+  traceability, and proof criterion in this reference.
 - `LIGHTWEIGHT`: allowed only when all dimensions are true: the mechanism is
   private, transient, used by the same controller, and has no durable schema
-  consumer. Record its owner, purpose, inputs and outputs, failure and cleanup
-  behavior, and focused proof. Any changed dimension that triggers `FULL`
-  makes LIGHTWEIGHT invalid.
+  consumer. Record its owner, purpose, inputs and outputs, material write or
+  side-effect owner, failure and cleanup behavior, focused proof, and the
+  explicit reason every FULL trigger is absent. Any changed dimension that
+  triggers `FULL` makes LIGHTWEIGHT invalid.
 - `NO-TRIGGER`: allowed only when the task changes no contract, boundary,
   lifecycle, side effect, generated or side-channel artifact, interface,
   policy, or other non-trivial task-contract trigger. State a task-specific
@@ -148,8 +148,12 @@ cross-session, untrusted, security-sensitive, and cross-owner contracts.
 - **Valid `LIGHTWEIGHT` example:** a private transient helper used only by the
   current controller transforms an already validated in-memory value and has
   no durable schema consumer. Its compact contract names the controller as
-  owner, the transformation purpose, inputs and outputs, failure and cleanup
-  behavior, and focused proof.
+  owner, the transformation purpose, inputs and outputs, confirms the
+  controller owns its only material in-memory write or side effect, names
+  failure and cleanup behavior and focused proof, and states that FULL is
+  absent because the helper is private, transient, same-controller, trusted,
+  non-security-sensitive, and neither durable, public, cross-session, nor
+  cross-owner.
 - **Invalid durability mutation:** relative to that valid example, change only
   the output so it persists for a later session. The contract is cross-session
   and requires `FULL`; retaining LIGHTWEIGHT is blocking.
@@ -345,8 +349,9 @@ is sufficient, the finding is not a blocking execution gap.
 
 Wave one is exhaustive: D5 and D6 each report every concrete blocking gap in
 their distinct remit for the current digest. Wave two verifies every prior
-blocking gap against the revised plan. A newly blocking wave-two gap must add a
-`New evidence basis` field naming one of these bounded bases:
+blocking gap against the revised plan and checks for regressions introduced by
+the revision. A newly blocking wave-two gap must add a `New evidence basis`
+field naming one of these bounded bases:
 
 - a newly discovered concrete source fact;
 - a contradiction exposed by the correction;
@@ -369,6 +374,21 @@ wave or weakening them. The controller retains prior gap IDs, provenance,
 evidence bases, and verification status only as controller-local review state.
 This creates no persistent result artifact, helper, schema, registry, or
 standing review protocol.
+
+### Convergence examples
+
+- **Valid wave-two evidence example:** wave one reports a missing consumer
+  proof. The revision adds that proof but exposes a newly discovered concrete
+  source fact showing that the consumer also rejects stale input. Wave two
+  verifies the prior correction, checks that the revision introduced no
+  regression, and reports the newly material stale-input gap with `New evidence
+basis` pointing to that source fact.
+- **Invalid available-evidence mutation:** relative to the valid wave-two
+  example, change only the evidence basis to a source fact already available in
+  the named first-wave sources. It cannot originate a new wave-two blocker.
+- **Invalid optional-infrastructure mutation:** relative to the valid wave-two
+  example, change only the new gap to a request for an optional generalized
+  validation service. Optional infrastructure is not blocking acceptance.
 
 Material omissions and unsafe execution remain fail-closed at every tier and
 wave. In particular, missing consumers, invalid paths or dependencies,
@@ -680,3 +700,27 @@ on optional whole-plan infrastructure, a generalized harness, or other
 hardening that lacks approved authority; classify it FOLLOW-UP or OPTIONAL.
 Both reviewers still report genuine omissions in their own remits, and neither
 PASS cures the other's material gap.
+
+Both reviewers may inspect shared plan and source facts, but only the remit
+owner originates an ordinary finding. A reviewer that discovers an ordinary
+defect owned by the other remit leaves origination to that owner rather than
+duplicating or reclassifying it. When shared facts create a cross-remit
+contradiction, a reviewer may report only after explaining the concrete defect
+the contradiction causes in that reporting reviewer's own remit; shared facts
+alone do not transfer ordinary defect ownership.
+
+### Orthogonal-review examples
+
+- **Valid orthogonal result:** D5 returns PASS because approved scope,
+  consumers, requirements, documentation impact, and proportional proof are
+  complete. D6 returns a material `EXECUTION` gap because one task names an
+  invalid source path and a competent implementer cannot start from the named
+  inputs. The D6 gap states its own task-local blocker; D5 PASS does not cure it.
+- **Invalid optional-hardening mutation:** relative to the valid orthogonal
+  result, change only D6's gap from the invalid source path to a request for an
+  optional whole-plan validation service. D6 must not block because that
+  hardening has no approved authority.
+- **Valid cross-remit contradiction:** D6 may inspect a shared requirement and
+  report that its contradiction with a task-local write owner leaves mutation
+  authority ambiguous for the implementer. The report explains that concrete
+  D6 defect; it does not originate an ordinary D5 coverage finding.

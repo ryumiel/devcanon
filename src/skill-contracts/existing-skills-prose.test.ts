@@ -1744,9 +1744,15 @@ describe("existing skills source prose contracts", () => {
       "Blocking materiality and review convergence",
     );
     const gateRemits = getMarkdownSection(planningCriteria, "Gate remits");
+    const fullTier = sliceBetween(
+      proportionality,
+      "- `FULL`:",
+      "- `LIGHTWEIGHT`:",
+    );
     const normalizedProportionality = normalizeWhitespace(proportionality);
     const normalizedMateriality = normalizeWhitespace(materiality);
     const normalizedGateRemits = normalizeWhitespace(gateRemits);
+    const normalizedFullTier = normalizeWhitespace(fullTier);
     const normalizedAdr = normalizeWhitespace(adr);
     const normalizedChecklists = normalizeWhitespace(documentationChecklists);
 
@@ -1768,6 +1774,19 @@ describe("existing skills source prose contracts", () => {
     ]) {
       expect(normalizedProportionality).toContain(fullTrigger);
     }
+    expect(normalizedFullTier).toContain(
+      "required when any changed contract is durable, public, cross-session, untrusted or security-sensitive, or cross-owner",
+    );
+    for (const unapprovedFullTrigger of [
+      "actor",
+      "skill",
+      "process",
+      "repository",
+      "provider",
+      "mutation-authority",
+    ]) {
+      expect(normalizedFullTier).not.toContain(unapprovedFullTrigger);
+    }
     for (const lightweightCondition of [
       "private",
       "transient",
@@ -1780,8 +1799,10 @@ describe("existing skills source prose contracts", () => {
       "owner",
       "purpose",
       "inputs and outputs",
+      "material write or side-effect owner",
       "failure and cleanup behavior",
       "focused proof",
+      "explicit reason every FULL trigger is absent",
     ]) {
       expect(normalizedProportionality).toContain(lightweightField);
     }
@@ -1793,6 +1814,12 @@ describe("existing skills source prose contracts", () => {
     );
     expect(normalizedProportionality).toContain(
       "The omitted known consumer remains a blocking gap",
+    );
+    expect(normalizedProportionality).toContain(
+      "controller owns its only material in-memory write or side effect",
+    );
+    expect(normalizedProportionality).toContain(
+      "states that FULL is absent because the helper is private, transient, same-controller, trusted, non-security-sensitive, and neither durable, public, cross-session, nor cross-owner",
     );
 
     for (const materialityField of [
@@ -1806,6 +1833,9 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedMateriality).toContain("Wave one is exhaustive");
     expect(normalizedMateriality).toContain(
       "Wave two verifies every prior blocking gap",
+    );
+    expect(normalizedMateriality).toContain(
+      "checks for regressions introduced by the revision",
     );
     expect(normalizedMateriality).toContain("`New evidence basis`");
     for (const allowedBasis of [
@@ -1822,6 +1852,16 @@ describe("existing skills source prose contracts", () => {
     );
     expect(normalizedMateriality).toContain("maximum of two paired waves");
     expect(normalizedMateriality).toContain("controller-local review state");
+    for (const convergenceExample of [
+      "Valid wave-two evidence example",
+      "Invalid available-evidence mutation",
+      "Invalid optional-infrastructure mutation",
+      "newly discovered concrete source fact showing that the consumer also rejects stale input",
+      "change only the evidence basis to a source fact already available in the named first-wave sources",
+      "change only the new gap to a request for an optional generalized validation service",
+    ]) {
+      expect(normalizedMateriality).toContain(convergenceExample);
+    }
 
     expect(normalizedGateRemits).toContain(
       "D5 may PASS while D6 reports a material task-local execution gap",
@@ -1829,6 +1869,23 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedGateRemits).toContain(
       "D6 must not block on optional whole-plan infrastructure",
     );
+    expect(normalizedGateRemits).toContain(
+      "Both reviewers may inspect shared plan and source facts, but only the remit owner originates an ordinary finding",
+    );
+    expect(normalizedGateRemits).toContain("a cross-remit contradiction");
+    expect(normalizedGateRemits).toContain(
+      "the concrete defect the contradiction causes in that reporting reviewer's own remit",
+    );
+    for (const orthogonalExample of [
+      "Valid orthogonal result",
+      "D5 returns PASS",
+      "D6 returns a material `EXECUTION` gap",
+      "Invalid optional-hardening mutation",
+      "change only D6's gap from the invalid source path to a request for an optional whole-plan validation service",
+      "Valid cross-remit contradiction",
+    ]) {
+      expect(normalizedGateRemits).toContain(orthogonalExample);
+    }
     for (const preservedFailure of [
       "missing consumers",
       "invalid paths or dependencies",
@@ -1844,6 +1901,9 @@ describe("existing skills source prose contracts", () => {
       "first wave is exhaustive and the second wave is convergent",
     );
     expect(normalizedAdr).toContain(
+      "checks that the revision introduced no regression",
+    );
+    expect(normalizedAdr).toContain(
       "does not create a persistent review protocol or result artifact",
     );
     expect(normalizedChecklists).toContain(
@@ -1854,6 +1914,12 @@ describe("existing skills source prose contracts", () => {
     );
     expect(normalizedChecklists).toContain(
       "retain every load-bearing question below",
+    );
+    expect(normalizedChecklists).toContain(
+      "material write or side-effect owner",
+    );
+    expect(normalizedChecklists).toContain(
+      "explicit reason every FULL trigger is absent",
     );
   });
 
