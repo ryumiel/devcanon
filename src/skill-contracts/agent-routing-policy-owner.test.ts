@@ -60,6 +60,31 @@ describe("agent routing and mutation policy owner", () => {
     });
   });
 
+  it("preserves distinct same-digest D5/D6 review routes", async () => {
+    const owner = await readAgentRoutingPolicyOwner(OWNER_PATH);
+    const roles = await readAgentSemanticRoleOwner(AGENT_SPEC_PATH);
+    const reviewer = roles.find((role) => role.name === "reviewer");
+    const d5 = owner.directChildRoutes.find((row) => row.id === "D5");
+    const d6 = owner.directChildRoutes.find((row) => row.id === "D6");
+
+    expect(reviewer).toMatchObject({ externalAuthority: "none" });
+    expect(d5?.clauses).toEqual([
+      {
+        role: "reviewer",
+        capability: "frontier",
+        effort: "high",
+        sourceAuthority: "source-immutable",
+      },
+    ]);
+    expect(d6?.clauses).toEqual(d5?.clauses);
+    expect(d5?.existingOutputOrTermination).toBe(
+      "Distinct digest-bound PASS/FAIL; join paired results for one digest",
+    );
+    expect(d6?.existingOutputOrTermination).toBe(
+      "Distinct digest-bound PASS/FAIL; join paired results for one digest",
+    );
+  });
+
   it("rejects a malformed inventory row in the inventory dimension", async () => {
     const { markdown, sourceSkills } = await ownerInputs();
     const mutated = markdown.replace(

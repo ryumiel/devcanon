@@ -228,9 +228,17 @@ describe("rendered phase artifact smoke coverage", () => {
       await readFile(path.join(skillDirs["play-planning"], "SKILL.md"), "utf8"),
     ).body;
     const referencePath = path.join("references", "planning-criteria.md");
+    const readinessReferencePath = path.join(
+      "references",
+      "planning-readiness-audit.md",
+    );
     const sourceCriteria = await readSkillReference(
       "play-planning",
       referencePath,
+    );
+    const sourceReadiness = await readSkillReference(
+      "play-planning",
+      readinessReferencePath,
     );
     const sourceDesignTopology = sliceRenderedSection(
       sourceBrainstorm,
@@ -285,6 +293,16 @@ describe("rendered phase artifact smoke coverage", () => {
           ),
           "utf8",
         );
+        const renderedReadiness = await readFile(
+          path.join(
+            generatedDir,
+            target,
+            "skills",
+            "play-planning",
+            readinessReferencePath,
+          ),
+          "utf8",
+        );
         const renderedCriteriaTopology = sliceRenderedSection(
           renderedCriteria,
           "### Ownership-topology mapping",
@@ -298,6 +316,121 @@ describe("rendered phase artifact smoke coverage", () => {
           normalizeRenderedWhitespace(sourcePlanningTopology),
         );
         expect(renderedCriteria).toBe(sourceCriteria);
+        expect(renderedReadiness).toBe(sourceReadiness);
+        expect(renderedReadiness).toContain("`RA-CONTRACT`");
+        expect(renderedReadiness).toContain(
+          "`READY_WITH_RECORDED_ASSUMPTIONS`",
+        );
+        const normalizedRenderedCriteria =
+          normalizeRenderedWhitespace(renderedCriteria);
+        for (const taskIdentityRule of [
+          "`**Task ID:** <UPPER-ASCII-KEBAB>` field immediately after its heading",
+          "semantic identity assigned once",
+          "unique within the plan",
+          "independent of task number, order, and display title",
+          "Missing, duplicate, positional, or changed task IDs block review",
+          "`TASK` is the plan's non-positional Task ID or `PLAN`",
+        ]) {
+          expect(normalizedRenderedCriteria).toContain(taskIdentityRule);
+        }
+        expect(normalizedRenderedCriteria).toContain(
+          "Field order is the task heading, required `**Task ID:**`, optional `**Mode:** mechanical`, optional review-routing hints, then `**Files:**`",
+        );
+        const renderedExamples = sliceRenderedSection(
+          renderedCriteria,
+          "### Contract examples",
+          "## Contract and traceability criteria",
+        );
+        const renderedValidExample = sliceRenderedSection(
+          renderedExamples,
+          "#### Valid paired PASS",
+          "#### Valid complete FAIL",
+        );
+        const renderedValidFailExample = sliceRenderedSection(
+          renderedExamples,
+          "#### Valid complete FAIL",
+          "#### Single-dimension invalid families",
+        );
+        const renderedValidDigests = [
+          ...renderedValidExample.matchAll(/^PASS — digest=([0-9a-f]{64})$/gmu),
+        ].map((match) => match[1]);
+        expect(renderedValidDigests).toHaveLength(2);
+        expect(new Set(renderedValidDigests)).toEqual(
+          new Set([
+            "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+          ]),
+        );
+        expect(normalizeRenderedWhitespace(renderedValidExample)).toContain(
+          "this family passes",
+        );
+        const renderedValidFailDigests = [
+          ...renderedValidFailExample.matchAll(
+            /^FAIL — digest=([0-9a-f]{64})$/gmu,
+          ),
+        ].map((match) => match[1]);
+        expect(renderedValidFailDigests).toEqual([renderedValidDigests[0]]);
+        const renderedValidFailIds = [
+          ...renderedValidFailExample.matchAll(/^ID: (GAP-[A-Z0-9-]+)$/gmu),
+        ].map((match) => match[1]);
+        expect(renderedValidFailIds).toHaveLength(2);
+        expect(new Set(renderedValidFailIds).size).toBe(2);
+        const renderedValidFailLines = renderedValidFailExample.split("\n");
+        for (const requiredFieldPrefix of [
+          "Task:",
+          "Class:",
+          "ID:",
+          "Classification:",
+          "Finding:",
+          "Authority:",
+          "Required correction:",
+        ]) {
+          expect(
+            renderedValidFailLines.filter((line) =>
+              line.startsWith(requiredFieldPrefix),
+            ),
+          ).toHaveLength(2);
+        }
+        expect(renderedValidFailExample).toContain("Class: ARTIFACT");
+        expect(renderedValidFailExample).toContain("Class: LIFECYCLE");
+        expect(
+          renderedValidFailExample.match(/Classification: CURRENT/gu),
+        ).toHaveLength(2);
+        expect(normalizeRenderedWhitespace(renderedExamples)).toContain(
+          "Each invalid family below changes exactly one named dimension from its applicable valid family",
+        );
+        expect(renderedExamples).not.toContain("intentional multi-fault");
+        expect(renderedExamples).not.toContain("NEEDS_CONTEXT");
+        expect(renderedExamples).not.toContain("`BLOCKED`");
+        expect(normalizeRenderedWhitespace(renderedExamples)).toContain(
+          "Unsupported or source-inconsistent examples are `BLOCKER` findings returned to the owning design or decision surface",
+        );
+        expect(normalizeRenderedWhitespace(renderedExamples)).toContain(
+          "Every invalid family is explicitly non-passing",
+        );
+        for (const rejectionRule of [
+          "D6 digest mismatch — reject both verdicts",
+          "FAIL missing a required stable gap field — reject the malformed report",
+          "conflicting meanings for one stable gap ID — reject consolidation as malformed",
+          "reviewer stops after the first concrete in-remit gap — reject the incomplete report",
+          "plan bytes change after PASS — invalidate both verdicts",
+          "route begins while a sibling remains active — reject the early route",
+        ]) {
+          expect(normalizeRenderedWhitespace(renderedExamples)).toContain(
+            rejectionRule,
+          );
+        }
+        for (const singleDimensionRule of [
+          "relative to the valid paired PASS, change only D6's digest",
+          "relative to the valid complete FAIL, remove only the first gap's `Authority` field",
+          "relative to the valid complete FAIL, change only the second gap's ID to reuse the first gap's ID",
+          "relative to the valid complete FAIL, omit only the second gap",
+          "relative to the valid paired PASS workflow, change only the plan bytes after PASS",
+          "relative to the valid paired PASS workflow, change only sibling settlement state by routing early",
+        ]) {
+          expect(normalizeRenderedWhitespace(renderedExamples)).toContain(
+            singleDimensionRule,
+          );
+        }
         expect(normalizeRenderedWhitespace(renderedCriteriaTopology)).toBe(
           normalizeRenderedWhitespace(sourceCriteriaTopology),
         );

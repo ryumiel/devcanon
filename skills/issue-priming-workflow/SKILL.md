@@ -715,9 +715,11 @@ Do not wait for user review of the plan — proceed directly to implementation a
 
 ### Phase 6: Implement
 
-After `play-planning` returns, capture the literal
-`Plan written to <path>.` notice line it emitted. That return means both
-planning review gates passed; failed, missing, or unreadable executability
+After `play-planning` returns, capture its literal
+`Plan written to <path>.` and `Reviewed digest: <sha256>` lines. That return
+means both planning review gates passed. Preserve the reviewed digest in
+controller-local state, validate it as lowercase 64-hex, and stop if either
+line is missing or malformed. Failed, missing, or unreadable executability
 review must stop inside `play-planning` and must not reach this phase. Validate
 the captured path:
 
@@ -752,9 +754,18 @@ role-specific state first, then close them when the target is
 `automatic-close-supported`, or record the target-honest
 `close-unavailable` outcome before invoking `play-subagent-execution`.
 
+Immediately before invoking `play-subagent-execution`, compute SHA-256 over the
+exact saved plan bytes with the same portable `shasum -a 256` / `sha256sum`
+plus `awk '{print $1}'` pattern owned by `play-planning`. Validate the extracted
+field as lowercase 64-hex and compare it with the preserved reviewed digest.
+Any missing tool, unreadable plan, hashing failure, malformed digest, or
+mismatch stops before executor handoff and requires a fresh planning wave; do
+not update the expected digest to match changed bytes.
+
 Invoke `play-subagent-execution` and pass the plan as a `Plan: <path>`
-reference plus `Auto handoff: <repo-relative-path>` in the invocation prose, NOT
-as inline content. Use the `$AUTO_HANDOFF_FILE` path captured above. Carry
+reference, the preserved `Expected digest: <sha256>`, and
+`Auto handoff: <repo-relative-path>` in the invocation prose, NOT as inline
+content. Use the `$AUTO_HANDOFF_FILE` path captured above. Carry
 `ISSUE_PRIMING_AUTO_PARENT_ACTIVE=true` and `ISSUE_PRIMING_AUTO_HEAD` in
 controller-local state for the executor's handoff validation. Reduced routes
 are allowed only through the verified `issue-priming-workflow --auto` handoff
@@ -772,6 +783,7 @@ Execute the implementation plan for <source-noun> issue <ID>: <TITLE>.
 Parent-owned review contract: this invocation comes from `issue-priming-workflow --auto`, and the Phase 7 `branch-review --fix` loop is mandatory. If `branch-review --fix` creates any branch-review-owned fix commit, Phase 7 reruns on the new `HEAD` until a run reports zero blocking findings auto-fixed, no unresolved remaining `Blocking` findings except findings whose `critic` verdict is `INVALID` or `DOWNGRADE`, a captured final approval-summary notice path, and fresh final approval-summary evidence after branch-review-owned fix commits. That final whole-diff review satisfies the final-review guarantee required by any reduced per-task review route. If the extracted plan has exactly one task, skip the final whole-implementation code-quality reviewer and return to this workflow after implementation completes.
 
 Plan: <PLAN_PATH captured above>
+Expected digest: <reviewed lowercase 64-hex digest captured above>
 Auto handoff: <repo-relative-path>
 ```
 

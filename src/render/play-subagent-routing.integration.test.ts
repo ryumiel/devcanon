@@ -10,6 +10,7 @@ import { renderAll } from "./pipeline.js";
 
 const ROUTING_SKILLS = [
   "play-planning",
+  "play-review-response",
   "play-subagent-execution",
   "issue-priming-workflow",
 ] as const;
@@ -66,6 +67,7 @@ describe("play-subagent planning and routing render smoke coverage", () => {
         "## Scope Envelope and Canonical Criteria",
       );
       expect(playPlanning).toContain("references/planning-criteria.md");
+      expect(playPlanning).toContain("references/planning-readiness-audit.md");
       expect(normalizedPlayPlanning).toContain(
         "from the loaded or installed `play-planning` skill bundle, not from the target repository or current working directory",
       );
@@ -85,7 +87,7 @@ describe("play-subagent planning and routing render smoke coverage", () => {
         "Absence of the unselected path or inline form does not block",
       );
       expect(normalizedPlayPlanning).toContain(
-        "Never direct the reviewer to find criteria relative to the target repository",
+        "Never direct the reviewer to find criteria or readiness policy relative to the target repository",
       );
       expect(normalizedPlayPlanning).toContain(
         "an omitted known mapping is `CURRENT`, while missing authority for that mapping is `BLOCKER`",
@@ -128,7 +130,93 @@ describe("play-subagent planning and routing render smoke coverage", () => {
       expect(playPlanning).toContain("## Scope Delta");
       expect(playPlanning).toContain("## Execution Handoff");
       expect(playPlanning).toContain("play-subagent-execution");
+      expect(normalizedPlayPlanning).toContain(
+        "both independent GUARD-001 captures must succeed before either reviewer starts",
+      );
+      expect(normalizedPlayPlanning).toContain(
+        "start D5 and D6 independently without waiting for either result",
+      );
+      expect(normalizedPlayPlanning).toContain(
+        "every started sibling must settle",
+      );
+      expect(normalizedPlayPlanning).toContain(
+        "maximum of two paired review waves",
+      );
+      expect(normalizedPlayPlanning).toContain(
+        "both reviewers return PASS for the same current exact-byte digest",
+      );
+      expect(normalizedPlayPlanning).toContain(
+        "`Plan written to <repo-relative-path>.` followed by the literal line `Reviewed digest: <sha256>`",
+      );
+      expect(normalizedPlayPlanning).toContain(
+        "Carry the plan path and exact reviewed digest in controller-local state",
+      );
+      expect(normalizedPlayPlanning).toContain(
+        "Preserve both values through any interactive execution choice",
+      );
+      expect(normalizedPlayPlanning).toContain(
+        "Each reviewer must independently compute SHA-256 over the exact plan bytes it reads and compare that digest to the supplied expected digest before returning",
+      );
+      expect(normalizedPlayPlanning).toContain(
+        "recompute SHA-256 over the current exact plan bytes at the join",
+      );
+      expect(normalizedPlayPlanning).toContain(
+        "Immediately before execution or owning-workflow handoff, recompute SHA-256 over the current exact plan bytes again",
+      );
+      expect(normalizedPlayPlanning).toContain(
+        "Before each authorized revision, retain a controller-local semantic-task-to-Task-ID baseline from the current plan",
+      );
+      expect(normalizedPlayPlanning).toContain(
+        "After saving the revised plan and before fresh reviewer dispatch, compare it with that baseline",
+      );
+      expect(normalizedPlayPlanning).toContain(
+        "Continuing semantic tasks must preserve their Task IDs",
+      );
+      expect(normalizedPlayPlanning).toContain(
+        "Reject changed or missing IDs for continuing tasks and any duplicate, reused, or reassigned ID across distinct semantic tasks",
+      );
+      expect(normalizedPlayPlanning).toContain(
+        "A genuinely new semantic task may receive a new unique Task ID that does not appear in the retained baseline",
+      );
+      expect(normalizedPlayPlanning).toContain(
+        "Keep this comparison in controller memory; do not create a baseline artifact or persistent ID mechanism",
+      );
+      const interactiveExecution = playPlanning.slice(
+        playPlanning.indexOf("Otherwise, offer execution choice:"),
+      );
+      const normalizedInteractiveExecution =
+        normalizeWhitespace(interactiveExecution);
+      expect(normalizedInteractiveExecution).toContain(
+        "Immediately before invoking `play-subagent-execution`, compute SHA-256 over the exact saved plan bytes",
+      );
+      expect(normalizedInteractiveExecution).toContain(
+        "compare it with the preserved reviewed digest",
+      );
+      expect(normalizedInteractiveExecution).toContain(
+        "mismatch invalidates the handoff and routes the changed plan through a fresh planning wave",
+      );
+      expect(interactiveExecution).toContain(
+        "Plan: <path>\n  Expected digest: <sha256>",
+      );
+      expect(normalizedPlayPlanning).toContain(
+        "reload and read both validated bundle-owned references",
+      );
+      expect(normalizedPlayPlanning).toContain(
+        "invalidates readiness and returns `NOT_READY`",
+      );
+      expect(normalizedPlayPlanning).toContain(
+        "emit or reuse stable missing-decision records with the named owner surface and stop before drafting",
+      );
+      expect(normalizedPlayPlanning).toContain(
+        "canonical planning criteria own the detailed topology and task-mapping rules",
+      );
+      expect(normalizedPlayPlanning).toContain(
+        "readiness reference exclusively owns audit and readiness rules",
+      );
 
+      const pairedReviewStart = playPlanning.indexOf(
+        "## Exact Digest and Paired Review Orchestration",
+      );
       const planReviewStart = playPlanning.indexOf("## Plan Review");
       const executabilityReviewStart = playPlanning.indexOf(
         "## Implementer Executability Review",
@@ -136,11 +224,21 @@ describe("play-subagent planning and routing render smoke coverage", () => {
       const executionHandoffStart = playPlanning.indexOf(
         "## Execution Handoff",
       );
-      expect(planReviewStart).toBeGreaterThanOrEqual(0);
+      expect(pairedReviewStart).toBeGreaterThanOrEqual(0);
+      expect(planReviewStart).toBeGreaterThan(pairedReviewStart);
       expect(executabilityReviewStart).toBeGreaterThan(planReviewStart);
       expect(executionHandoffStart).toBeGreaterThan(executabilityReviewStart);
       const planReview = normalizeWhitespace(
         playPlanning.slice(planReviewStart, executabilityReviewStart),
+      );
+      const pairedReview = normalizeWhitespace(
+        playPlanning.slice(pairedReviewStart, planReviewStart),
+      );
+      expect(pairedReview).toContain(
+        "pipe either result through `awk '{print $1}'` to extract the first whitespace-delimited field",
+      );
+      expect(pairedReview).toContain(
+        "Validate that extracted field -- not the raw command output -- as lowercase 64-hex",
       );
       const executabilityReview = normalizeWhitespace(
         playPlanning.slice(executabilityReviewStart, executionHandoffStart),
@@ -161,15 +259,68 @@ describe("play-subagent planning and routing render smoke coverage", () => {
           "unavailable, failed, malformed, or verification-rejected review cannot pass",
         );
         expect(reviewSection).toContain("guard-integrity terminal");
+        expect(reviewSection).toContain("retain the terminal condition");
+        expect(reviewSection).toContain("leave the source state visible");
+        expect(reviewSection).toContain(
+          "wait for every already-started sibling to settle and attempt its exact owned cleanup",
+        );
+        const terminalOrder = [
+          "retain the terminal condition",
+          "leave the source state visible",
+          "wait for every already-started sibling to settle and attempt its exact owned cleanup",
+          "then stop planning",
+        ];
+        for (let index = 1; index < terminalOrder.length; index += 1) {
+          expect(reviewSection.indexOf(terminalOrder[index - 1])).toBeLessThan(
+            reviewSection.indexOf(terminalOrder[index]),
+          );
+        }
         expect(reviewSection).not.toContain("`deep-reviewer`");
+        expect(reviewSection).toContain(
+          "read the concrete readiness reference and validate the recorded readiness result",
+        );
+        expect(reviewSection).toContain(
+          "Missing or unreadable readiness input blocks",
+        );
+        expect(reviewSection).toContain(
+          "Pass `Comment evidence: <path>` only when the planning invocation received it",
+        );
       }
-      expect(planReview).toContain("D5 FAIL never advances to D6");
-      expect(executabilityReview).toContain(
-        "D5 PASS followed by D6 FAIL never reaches execution handoff",
+      expect(planReview).toContain("optional comment-evidence path");
+      expect(pairedReview).toContain(
+        "both independent GUARD-001 captures must succeed before either reviewer starts",
       );
-      expect(executabilityReview).toContain(
-        "Only a retained D5 PASS followed by a separate retained D6 PASS",
+      expect(pairedReview).toContain(
+        "start D5 and D6 independently without waiting for either result",
       );
+      expect(pairedReview).toContain("every started sibling must settle");
+      expect(pairedReview).toContain("Do not route early");
+      expect(pairedReview).toContain("maximum of two paired review waves");
+      const pairedAndLeafReviewSurface = [
+        pairedReview,
+        planReview,
+        executabilityReview,
+      ].join(" ");
+      for (const sequentialContradiction of [
+        /complet(?:e|es|ed|ing) D5 before start(?:ing)? D6/iu,
+        /D5 PASS.{0,40}(?:advance|start).{0,20}D6/iu,
+        /D5 FAIL.{0,40}(?:prevent|cancel|block).{0,20}D6.{0,10}start/iu,
+      ]) {
+        expect(pairedAndLeafReviewSurface).not.toMatch(sequentialContradiction);
+      }
+      const pairedReviewOrder = [
+        "every started sibling must settle",
+        "After both reviewers settle and clean",
+        "recompute SHA-256 over the current exact plan bytes at the join",
+        "Immediately before execution or owning-workflow handoff",
+        "recompute SHA-256 over the current exact plan bytes again",
+        "before applying dual PASS",
+      ];
+      for (let index = 1; index < pairedReviewOrder.length; index += 1) {
+        expect(pairedReview.indexOf(pairedReviewOrder[index - 1])).toBeLessThan(
+          pairedReview.indexOf(pairedReviewOrder[index]),
+        );
+      }
       for (const [reviewSection, spawnStep] of [
         [planReview, "spawn the D5 reviewer and capture only"],
         [executabilityReview, "spawn the fresh D6 reviewer and capture only"],
@@ -194,7 +345,6 @@ describe("play-subagent planning and routing render smoke coverage", () => {
           "dispatch or spawn failure or unavailability before a reviewer session exists",
         );
         expect(reviewSection).toContain("After safe cleanup");
-        expect(reviewSection).toContain("a non-passing second round stops");
       }
       expect(executabilityReview).toContain(
         "must not reuse or collapse the D5 session, review question, PASS/FAIL result, or lifecycle state",
@@ -285,12 +435,35 @@ describe("play-subagent planning and routing render smoke coverage", () => {
       expect(normalizedPlaySubagentExecution).toContain(
         "load the detailed references only when the trigger applies",
       );
+      expect(playSubagentExecution).toContain(
+        "Plan: <repo-relative-path>\nExpected digest: <sha256>",
+      );
+      expect(normalizedPlaySubagentExecution).toContain(
+        "before reading, extracting, routing, or dispatching any task",
+      );
+      expect(normalizedPlaySubagentExecution).toContain(
+        "never replace the expected digest with the current file digest",
+      );
+
+      const playReviewResponse = bodies[`play-review-response:${target}`];
+      const normalizedPlayReviewResponse =
+        normalizeWhitespace(playReviewResponse);
+      expect(normalizedPlayReviewResponse).toContain(
+        "`Plan written to <path>.` and `Reviewed digest: <sha256>`",
+      );
+      expect(normalizedPlayReviewResponse).toContain(
+        "compute SHA-256 over the exact saved plan bytes",
+      );
+      expect(normalizedPlayReviewResponse).toContain(
+        "`Plan: <path>` and `Expected digest: <sha256>`",
+      );
     }
 
     const issuePrimingWorkflow = bodies["issue-priming-workflow:codex"];
     const normalizedIssuePrimingWorkflow =
       normalizeWhitespace(issuePrimingWorkflow);
     expect(issuePrimingWorkflow).toContain("Plan:");
+    expect(issuePrimingWorkflow).toContain("Expected digest:");
     expect(issuePrimingWorkflow).toContain("Auto handoff:");
     expect(issuePrimingWorkflow).toContain("play-subagent-execution");
     expect(issuePrimingWorkflow).toContain("scripts/phase-artifacts.sh");
@@ -306,6 +479,12 @@ describe("play-subagent planning and routing render smoke coverage", () => {
     );
     expect(normalizedIssuePrimingWorkflow).toContain(
       "Pass judgment-required Phase 7 feedback only through `nits_file`",
+    );
+    expect(normalizedIssuePrimingWorkflow).toContain(
+      "compute SHA-256 over the exact saved plan bytes",
+    );
+    expect(normalizedIssuePrimingWorkflow).toContain(
+      "do not update the expected digest to match changed bytes",
     );
   });
 

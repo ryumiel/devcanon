@@ -118,15 +118,17 @@ reference wins.
 
 ### Path reference (preferred for controllers)
 
-A single literal line of the form:
+A pair of literal lines of the form:
 
 ```
 Plan: <repo-relative-path>
+Expected digest: <sha256>
 ```
 
 For example: `Plan: .ephemeral/2026-05-06-167-plan.md`.
 
-When this line is present, the controller (the agent running this skill)
+When the path line is present, the controller (the agent running this skill)
+requires the expected-digest line, validates it as lowercase 64-hex, and
 validates the path before reading:
 
 ```bash
@@ -142,6 +144,16 @@ esac
 [ -r "$PLAN_PATH" ] || { echo "plan missing or unreadable: $PLAN_PATH" >&2; exit 1; }
 ```
 
+Immediately after those guards and before reading, extracting, routing, or
+dispatching any task, compute SHA-256 over the exact saved plan bytes with
+`shasum -a 256` when available, otherwise `sha256sum`, and pipe either result
+through `awk '{print $1}'`. Validate the extracted field as lowercase 64-hex
+and compare it with `Expected digest: <sha256>`. A missing or malformed expected
+digest, unavailable hasher, hashing failure, or mismatch stops before plan
+extraction and must return to the owning planning workflow; never replace the
+expected digest with the current file digest. Keep both values controller-local
+and do not create a digest artifact, helper, parser, or registry.
+
 This bash uses the generic phase-artifact read guard shape: narrow the suffix to
 the expected artifact, reject traversal, reject symlinked `.ephemeral` and
 symlinked leaf files, require a regular file, and verify readability before
@@ -149,7 +161,7 @@ opening the file. `play-review` findings/nits envelopes use a stricter
 direct-child `.ephemeral/` guard because those paths are echoed through review
 output and reused by wrappers before read or overwrite.
 
-The controller then reads the plan from the path and proceeds with task
+Only after the digest comparison passes does the controller read the plan from the path and proceed with task
 extraction. Per-task implementer subagents continue to receive curated,
 inlined task text — they do NOT receive the path. See § Red Flags below.
 

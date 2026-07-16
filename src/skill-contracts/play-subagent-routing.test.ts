@@ -1438,7 +1438,7 @@ describe("play subagent routing source contracts", () => {
     );
 
     expect(normalizedOptionalModeField).toContain(
-      "detailed taxonomy (positive and negative examples) lives in [`skills/play-subagent-execution/references/skip-dispatch-policy.md` § Mechanical Task Taxonomy]",
+      "detailed taxonomy (positive and negative examples) lives in the [mechanical task taxonomy](../play-subagent-execution/references/skip-dispatch-policy.md#mechanical-task-taxonomy)",
     );
     expect(normalizedOptionalModeField).not.toContain(
       "SKILL.md` § Mechanical Task Taxonomy",
@@ -1481,7 +1481,7 @@ describe("play subagent routing source contracts", () => {
       "foundation-producing tasks are not below `spec-only`",
     );
     expect(normalizedContractChecklist).toContain(
-      "Field order is the task heading, optional `**Mode:** mechanical`, optional review-routing hints, then `**Files:**`",
+      "Field order is the task heading, required `**Task ID:**`, optional `**Mode:** mechanical`, optional review-routing hints, then `**Files:**`",
     );
     expect(playPlanning).toContain("references/planning-criteria.md");
     expect(playPlanning).toContain(
@@ -1631,7 +1631,7 @@ describe("play subagent routing source contracts", () => {
     const normalizedRedFlags = normalizeWhitespace(redFlags);
 
     expect(normalizedExecution).toContain(
-      "The controller then reads the plan from the path and proceeds with task extraction",
+      "Only after the digest comparison passes does the controller read the plan from the path and proceed with task extraction",
     );
     expect(normalizedExecution).toContain(
       "Per-task implementer subagents continue to receive curated, inlined task text",
@@ -3055,6 +3055,50 @@ describe("play subagent routing source contracts", () => {
     );
     expect(issuePhase6Section.indexOf("`subagent-lifecycle`")).toBeLessThan(
       issuePhase6Section.indexOf("Invoke `play-subagent-execution`"),
+    );
+  });
+
+  it("binds parent and executor plan handoffs to the reviewed digest", async () => {
+    const issuePrimingWorkflow = await readSkillSource(
+      "issue-priming-workflow",
+    );
+    const playReviewResponse = await readSkillSource("play-review-response");
+    const playSubagentExecution = await readSkillSource(
+      "play-subagent-execution",
+    );
+    const issuePhase6Section = sliceBetween(
+      issuePrimingWorkflow,
+      "### Phase 6: Implement",
+      "### Phase 7: Branch Review",
+    );
+    const reviewExecutionMode = getMarkdownSection(
+      playReviewResponse,
+      "Execution Mode Selection",
+    );
+    const executorInputs = getMarkdownSection(playSubagentExecution, "Inputs");
+
+    for (const parent of [issuePhase6Section, reviewExecutionMode]) {
+      const normalizedParent = normalizeWhitespace(parent);
+
+      expect(normalizedParent).toContain("Reviewed digest: <sha256>");
+      expect(normalizedParent).toContain("Expected digest: <sha256>");
+      expect(normalizedParent).toContain("`awk '{print $1}'`");
+      expect(normalizedParent).toContain("lowercase 64-hex");
+      expect(normalizedParent).toContain("mismatch stops before");
+    }
+
+    const normalizedExecutorInputs = normalizeWhitespace(executorInputs);
+    expect(executorInputs).toContain(
+      "Plan: <repo-relative-path>\nExpected digest: <sha256>",
+    );
+    expect(normalizedExecutorInputs).toContain(
+      "before reading, extracting, routing, or dispatching any task",
+    );
+    expect(normalizedExecutorInputs).toContain(
+      "never replace the expected digest with the current file digest",
+    );
+    expect(normalizedExecutorInputs).toContain(
+      "do not create a digest artifact, helper, parser, or registry",
     );
   });
 

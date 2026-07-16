@@ -89,7 +89,11 @@ Quick navigation index for the DevCanon repository.
   [`docs/adr/adr-0021-render-loaded-boundary.md`](docs/adr/adr-0021-render-loaded-boundary.md)
 - Where is the three-topical play-review fanout decision recorded? ->
   [`docs/adr/adr-0022-three-topical-play-review-fanout.md`](docs/adr/adr-0022-three-topical-play-review-fanout.md)
-- Where is the play-planning implementer executability gate decision recorded? ->
+- Where is the current play-planning readiness and parallel digest-gate
+  decision recorded? ->
+  [`docs/adr/adr-0030-play-planning-readiness-and-parallel-digest-gates.md`](docs/adr/adr-0030-play-planning-readiness-and-parallel-digest-gates.md)
+- Where is the historical play-planning implementer executability gate
+  rationale recorded? ->
   [`docs/adr/adr-0023-play-planning-implementer-executability-gate.md`](docs/adr/adr-0023-play-planning-implementer-executability-gate.md)
 - Where is the shared support skill runtime decision recorded? ->
   [`docs/adr/adr-0024-shared-support-skill-runtime.md`](docs/adr/adr-0024-shared-support-skill-runtime.md)
