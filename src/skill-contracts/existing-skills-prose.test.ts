@@ -2521,7 +2521,10 @@ describe("existing skills source prose contracts", () => {
       "discovery of individual references inside already named in-scope consumers or boundaries",
     );
     expect(normalizedExecutabilityReview).toContain(
-      "an omitted known mapping is `CURRENT`, while missing authority for that mapping is `BLOCKER`",
+      "Ordinary omitted or missing consumer or boundary mapping coverage and mapping-authority findings are D5-owned",
+    );
+    expect(normalizedExecutabilityReview).toContain(
+      "D6 may report the shared fact only by naming a concrete task-local startability defect caused in D6's own remit",
     );
     expect(normalizedExecutabilityReview).toContain(
       "must not broaden the Scope Envelope or proof obligations",
@@ -2539,7 +2542,10 @@ describe("existing skills source prose contracts", () => {
       "Determining which consumers or boundary participants are in scope is planning work, not normal call-site discovery",
     );
     expect(normalizedCriteria).toContain(
-      "An omitted known consumer or boundary mapping is a `CURRENT` task-contract gap; missing authority for the required mapping is a `BLOCKER`",
+      "Ordinary omitted or missing consumer or boundary mapping coverage and mapping-authority findings are D5-owned",
+    );
+    expect(normalizedCriteria).toContain(
+      "D6 may report the shared fact only by naming a concrete task-local startability defect caused in D6's own remit",
     );
     expect(normalizedCriteria).toContain(
       "Do not broaden the Scope Envelope or proof obligations",

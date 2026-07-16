@@ -29,6 +29,7 @@ type RenderedBodies = Record<string, string>;
 
 describe("play-subagent planning and routing render smoke coverage", () => {
   let bodies: RenderedBodies;
+  let planningCriteria: RenderedBodies;
   let skipDispatchPolicies: RenderedBodies;
   let sourceSkipDispatchPolicy: string;
 
@@ -40,6 +41,7 @@ describe("play-subagent planning and routing render smoke coverage", () => {
 
     const { outputs } = await renderAll(config, false);
     bodies = {};
+    planningCriteria = {};
     skipDispatchPolicies = {};
 
     for (const skillName of ROUTING_SKILLS) {
@@ -74,6 +76,14 @@ describe("play-subagent planning and routing render smoke coverage", () => {
         true,
       );
       for (const target of ["claude", "codex"] as const) {
+        planningCriteria[target] = await readFile(
+          path.join(
+            generatedDir,
+            target,
+            "skills/play-planning/references/planning-criteria.md",
+          ),
+          "utf8",
+        );
         skipDispatchPolicies[target] = await readFile(
           path.join(
             generatedDir,
@@ -103,6 +113,9 @@ describe("play-subagent planning and routing render smoke coverage", () => {
     for (const target of ["claude", "codex"] as const) {
       const playPlanning = bodies[`play-planning:${target}`];
       const normalizedPlayPlanning = normalizeWhitespace(playPlanning);
+      const normalizedPlanningCriteria = normalizeWhitespace(
+        planningCriteria[target],
+      );
       expect(playPlanning).toContain(
         "## Scope Envelope and Canonical Criteria",
       );
@@ -130,7 +143,16 @@ describe("play-subagent planning and routing render smoke coverage", () => {
         "Never direct the reviewer to find criteria or readiness policy relative to the target repository",
       );
       expect(normalizedPlayPlanning).toContain(
-        "an omitted known mapping is `CURRENT`, while missing authority for that mapping is `BLOCKER`",
+        "Ordinary omitted or missing consumer or boundary mapping coverage and mapping-authority findings are D5-owned",
+      );
+      expect(normalizedPlayPlanning).toContain(
+        "D6 may report the shared fact only by naming a concrete task-local startability defect caused in D6's own remit",
+      );
+      expect(normalizedPlanningCriteria).toContain(
+        "Ordinary omitted or missing consumer or boundary mapping coverage and mapping-authority findings are D5-owned",
+      );
+      expect(normalizedPlanningCriteria).toContain(
+        "D6 may report the shared fact only by naming a concrete task-local startability defect caused in D6's own remit",
       );
       expect(normalizedPlayPlanning).toContain(
         "provide bounded authoritative discovery criteria inside already named in-scope consumers or boundaries",

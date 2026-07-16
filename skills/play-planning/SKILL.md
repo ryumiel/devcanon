@@ -930,10 +930,12 @@ The reviewer must not turn normal implementation choices, private helper
 structure, concrete tests, fixtures, commands, or discovery of individual
 references inside already named in-scope consumers or boundaries into missing
 contracts when the plan also names the mapping authority or an explicit
-discovery criterion. Determining which consumers or boundaries are in scope is
-planning work: an omitted known mapping is `CURRENT`, while missing authority
-for that mapping is `BLOCKER`. The reviewer must not broaden the Scope Envelope
-or proof obligations. Apply minimum-sufficient proof.
+discovery criterion. Ordinary omitted or missing consumer or boundary mapping
+coverage and mapping-authority findings are D5-owned. D6 may report the shared
+fact only by naming a concrete task-local startability defect caused in D6's
+own remit; the shared fact alone does not transfer ordinary finding ownership.
+The reviewer must not broaden the Scope Envelope or proof obligations. Apply
+minimum-sufficient proof.
 
 **Output:** the first line is exactly `PASS — digest=<sha256>` or
 `FAIL — digest=<sha256>`, followed by findings classified as `CURRENT`,

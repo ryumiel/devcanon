@@ -689,13 +689,16 @@ helper structure, concrete tests, fixtures, commands, or individual-reference
 discovery inside already named in-scope consumers or boundaries when a named
 authority or explicit discovery criterion governs that discovery. Determining
 the in-scope consumers or boundary participants is not normal call-site
-discovery. Classify an omitted known mapping as CURRENT and missing mapping
-authority as BLOCKER. Do not broaden the Scope Envelope or proof obligations.
-Apply minimum-sufficient proof, and classify useful hardening as FOLLOW-UP or
-OPTIONAL. D6 owns ordinary defects in task-local startability: named source and
-path validity, executable dependency order, required I/O and failure behavior,
-mutation ownership, cleanup safety, and implementer-visible acceptance proof.
-It does not reopen D5's approved-scope or proportionality judgment.
+discovery. Ordinary omitted or missing consumer or boundary mapping coverage
+and mapping-authority findings are D5-owned. D6 may report the shared fact only
+by naming a concrete task-local startability defect caused in D6's own remit;
+the shared fact alone does not transfer ordinary finding ownership. Do not
+broaden the Scope Envelope or proof obligations. Apply minimum-sufficient
+proof, and classify useful hardening as FOLLOW-UP or OPTIONAL. D6 owns ordinary
+defects in task-local startability: named source and path validity, executable
+dependency order, required I/O and failure behavior, mutation ownership,
+cleanup safety, and implementer-visible acceptance proof. It does not reopen
+D5's approved-scope or proportionality judgment.
 
 The remits are orthogonal rather than successive approval levels. D5 may PASS
 while D6 reports a material task-local execution gap, such as an invalid named
