@@ -774,7 +774,7 @@ describe("phase artifact source contracts", () => {
       "A corrected prior gap becomes `RESOLVED` + `PASSED` when its correction is verified and that same gap neither recurs nor regresses, even when a distinct valid new-evidence gap makes the overall wave non-passing",
     );
     expect(normalizedWorkflow).toContain(
-      "A prior gap becomes `UNRESOLVED` + `FAILED` only when that same gap recurs, its correction regresses, or its own record or transition is malformed or out of order",
+      "A prior gap becomes `UNRESOLVED` + `FAILED` from a consumable valid same-digest pair only when that same gap recurs, its correction regresses, or its own record or transition is malformed or out of order",
     );
     expect(normalizedWorkflow).toContain(
       "An orthogonal new-evidence `CURRENT` or `BLOCKER` never rewrites a separately verified prior record to unresolved",
