@@ -292,8 +292,11 @@ authorize mutation.
 
 ## Not supported in v2
 
-- inheritance
-- extends/merge behavior
+These exclusions concern agent-source composition only; they do not prohibit
+live parent or runtime configuration inheritance.
+
+- agent-source inheritance
+- agent-source extends/merge behavior
 - overlays as a first-class feature
 - automatic prompt composition from multiple files
 - first-class delegation or orchestration policy fields
