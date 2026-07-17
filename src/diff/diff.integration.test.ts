@@ -420,8 +420,51 @@ describe("diffAll integration", () => {
       "utf-8",
     );
 
-    await expect(diffAll(config)).rejects.toThrow(
-      "Bound manifest contains foreign records",
+    await expect(diffAll(config)).rejects.toMatchObject({
+      message:
+        "Bound manifest contains foreign records; automatic reconciliation is forbidden.",
+      hint: "Restore matching configured homes or repair the manifest from a verified backup.",
+    });
+  });
+
+  it("directs unbound mixed legacy foreign records to reconciliation before rendering", async () => {
+    const ownedPath = path.join(config.targets.claude.agentsHome, "owned.md");
+    const foreignPath = path.join(tempDir, "foreign", "sentinel.md");
+    await mkdir(path.dirname(config.manifest.path), { recursive: true });
+    await writeFile(
+      config.manifest.path,
+      makeManifestJson(
+        [
+          {
+            target: "claude",
+            type: "agent",
+            sourcePath: "/source/owned.yaml",
+            generatedPath: null,
+            installedPath: ownedPath,
+            installMode: "copy",
+            contentHash: "owned",
+            timestamp: new Date().toISOString(),
+          },
+          {
+            target: "claude",
+            type: "agent",
+            sourcePath: "/source/sentinel.yaml",
+            generatedPath: null,
+            installedPath: foreignPath,
+            installMode: "copy",
+            contentHash: "foreign",
+            timestamp: new Date().toISOString(),
+          },
+        ],
+        { legacy: true },
+      ),
+      "utf-8",
     );
+
+    await expect(diffAll(config)).rejects.toMatchObject({
+      message:
+        "Legacy manifest contains foreign records; rerun sync with --reconcile-manifest.",
+      hint: "Run sync --reconcile-manifest to safely reconcile the legacy manifest.",
+    });
   });
 });

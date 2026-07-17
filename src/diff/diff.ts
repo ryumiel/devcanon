@@ -36,6 +36,13 @@ export async function diffAll(
     );
   }
   if (normalized.records.some((record) => record.ownership === "foreign")) {
+    if (!loaded.manifest.boundary) {
+      throw new UserError(
+        "Legacy manifest contains foreign records; rerun sync with --reconcile-manifest.",
+        config.manifest.path,
+        "Run sync --reconcile-manifest to safely reconcile the legacy manifest.",
+      );
+    }
     throw new UserError(
       "Bound manifest contains foreign records; automatic reconciliation is forbidden.",
       config.manifest.path,

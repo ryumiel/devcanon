@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
 import {
+  cp,
   lstat,
   mkdir,
   readdir,
@@ -25,6 +26,7 @@ import {
   type TestLoggerResult,
   installTestLogger,
 } from "../__test-helpers__/logger.js";
+import { diffAll } from "../diff/diff.js";
 import { buildSkillContentHash } from "../render/skill.js";
 import { pathExists, readTextFile } from "../utils/fs.js";
 import { sync } from "./sync.js";
@@ -241,10 +243,16 @@ describe("sync", () => {
     ).toHaveLength(0);
   });
 
-  it("reconciles mixed legacy records once while preserving foreign bytes and reusing one backup", async () => {
-    const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
+  it("reconciles mixed legacy records while preserving production tuples and foreign bytes", async () => {
+    const config = makeResolvedConfig(tempDir);
     await mkdir(config.library.skillsDir, { recursive: true });
     await mkdir(config.library.agentsDir, { recursive: true });
+    await cp(
+      path.resolve("skills/devcanon-runtime"),
+      path.join(config.library.skillsDir, "devcanon-runtime"),
+      { recursive: true },
+    );
+    await createSkillFixture(config.library.skillsDir, "ordinary-skill");
     const keepSource = await createAgentFixture(
       config.library.agentsDir,
       "keep",
@@ -258,9 +266,12 @@ describe("sync", () => {
     await sync(config, { dryRun: false, force: false, strict: false });
 
     const current = JSON.parse(await readTextFile(config.manifest.path));
-    const foreignPath = path.join(tempDir, "foreign", "sentinel.md");
-    await mkdir(path.dirname(foreignPath), { recursive: true });
-    await writeFile(foreignPath, "foreign sentinel bytes", "utf-8");
+    const foreignPathOne = path.join(tempDir, "foreign-one", "sentinel.md");
+    const foreignPathTwo = path.join(tempDir, "foreign-two", "sentinel");
+    await mkdir(path.dirname(foreignPathOne), { recursive: true });
+    await mkdir(path.dirname(foreignPathTwo), { recursive: true });
+    await writeFile(foreignPathOne, "foreign sentinel one bytes", "utf-8");
+    await writeFile(foreignPathTwo, "foreign sentinel two bytes", "utf-8");
     const legacy = {
       ...current,
       boundary: undefined,
@@ -273,7 +284,17 @@ describe("sync", () => {
           type: "agent",
           sourcePath: path.join(config.library.agentsDir, "foreign.yaml"),
           generatedPath: null,
-          installedPath: foreignPath,
+          installedPath: foreignPathOne,
+          installMode: "copy",
+          contentHash: "foreign",
+          timestamp: new Date().toISOString(),
+        },
+        {
+          target: "codex",
+          type: "skill",
+          sourcePath: path.join(config.library.skillsDir, "foreign"),
+          generatedPath: null,
+          installedPath: foreignPathTwo,
           installMode: "copy",
           contentHash: "foreign",
           timestamp: new Date().toISOString(),
@@ -301,17 +322,28 @@ describe("sync", () => {
     });
 
     expect(result.errors).toEqual([]);
-    expect(result.updated).toBe(1);
-    expect(result.removed).toBe(1);
+    expect(result.updated).toBe(2);
+    expect(result.removed).toBe(2);
     expect(result.reconciliation?.removed).toEqual([
       {
         target: "claude",
         type: "agent",
         name: "sentinel",
-        installedPath: foreignPath,
+        installedPath: foreignPathOne,
+      },
+      {
+        target: "codex",
+        type: "skill",
+        name: "sentinel",
+        installedPath: foreignPathTwo,
       },
     ]);
-    expect(await readTextFile(foreignPath)).toBe("foreign sentinel bytes");
+    expect(await readTextFile(foreignPathOne)).toBe(
+      "foreign sentinel one bytes",
+    );
+    expect(await readTextFile(foreignPathTwo)).toBe(
+      "foreign sentinel two bytes",
+    );
     const backups = (await readdir(path.dirname(config.manifest.path))).filter(
       (entry) => entry.includes(".backup-"),
     );
@@ -323,9 +355,80 @@ describe("sync", () => {
     expect(migrated.boundary).toBeDefined();
     expect(migrated.records).toEqual(
       expect.not.arrayContaining([
-        expect.objectContaining({ installedPath: foreignPath }),
+        expect.objectContaining({ installedPath: foreignPathOne }),
+        expect.objectContaining({ installedPath: foreignPathTwo }),
       ]),
     );
+    expect(migrated.records).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          target: "claude",
+          type: "agent",
+          name: "keep",
+        }),
+        expect.objectContaining({
+          target: "codex",
+          type: "agent",
+          name: "keep",
+        }),
+        expect.objectContaining({
+          target: "claude",
+          type: "skill",
+          name: "ordinary-skill",
+        }),
+        expect.objectContaining({
+          target: "codex",
+          type: "skill",
+          name: "ordinary-skill",
+        }),
+        expect.objectContaining({
+          target: "claude",
+          type: "skill",
+          name: "devcanon-runtime",
+        }),
+        expect.objectContaining({
+          target: "codex",
+          type: "skill",
+          name: "devcanon-runtime",
+        }),
+      ]),
+    );
+    expect(
+      await pathExists(path.join(config.targets.claude.agentsHome, "keep.md")),
+    ).toBe(true);
+    expect(
+      await pathExists(path.join(config.targets.codex.agentsHome, "keep.toml")),
+    ).toBe(true);
+    expect(
+      await pathExists(
+        path.join(config.targets.claude.skillsHome, "ordinary-skill"),
+      ),
+    ).toBe(true);
+    expect(
+      await pathExists(
+        path.join(config.targets.codex.skillsHome, "ordinary-skill"),
+      ),
+    ).toBe(true);
+    expect(
+      await pathExists(
+        path.join(
+          config.targets.claude.skillsHome,
+          "devcanon-runtime",
+          "scripts",
+          "devcanon-runtime.sh",
+        ),
+      ),
+    ).toBe(true);
+    expect(
+      await pathExists(
+        path.join(
+          config.targets.codex.skillsHome,
+          "devcanon-runtime",
+          "scripts",
+          "devcanon-runtime.sh",
+        ),
+      ),
+    ).toBe(true);
 
     const second = await sync(config, {
       dryRun: false,
@@ -340,6 +443,55 @@ describe("sync", () => {
         entry.includes(".backup-"),
       ),
     ).toHaveLength(1);
+    const diffs = await diffAll(config);
+    expect(diffs).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          target: "claude",
+          type: "agent",
+          name: "keep",
+          status: "up-to-date",
+        }),
+        expect.objectContaining({
+          target: "codex",
+          type: "agent",
+          name: "keep",
+          status: "up-to-date",
+        }),
+        expect.objectContaining({
+          target: "claude",
+          type: "skill",
+          name: "ordinary-skill",
+          status: "up-to-date",
+        }),
+        expect.objectContaining({
+          target: "claude",
+          type: "skill",
+          name: "devcanon-runtime",
+          status: "up-to-date",
+        }),
+        expect.objectContaining({
+          target: "codex",
+          type: "skill",
+          name: "ordinary-skill",
+          status: "up-to-date",
+        }),
+        expect.objectContaining({
+          target: "codex",
+          type: "skill",
+          name: "devcanon-runtime",
+          status: "up-to-date",
+        }),
+      ]),
+    );
+    expect(diffs).not.toHaveLength(0);
+    expect(diffs.every((entry) => entry.status === "up-to-date")).toBe(true);
+    expect(diffs).toEqual(
+      expect.not.arrayContaining([
+        expect.objectContaining({ installedPath: foreignPathOne }),
+        expect.objectContaining({ installedPath: foreignPathTwo }),
+      ]),
+    );
   });
 
   it("dry-runs a mixed legacy reconciliation without ordinary foreign removal logs", async () => {

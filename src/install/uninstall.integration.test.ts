@@ -2,6 +2,7 @@ import {
   chmod,
   mkdir,
   readFile,
+  readdir,
   readlink,
   rm,
   symlink,
@@ -340,9 +341,64 @@ describe("uninstall", () => {
       "utf-8",
     );
 
-    await expect(uninstall(config, { dryRun: false })).rejects.toThrow(
-      "Bound manifest contains foreign records",
+    await expect(uninstall(config, { dryRun: false })).rejects.toMatchObject({
+      message:
+        "Bound manifest contains foreign records; automatic reconciliation is forbidden.",
+      hint: "Restore matching configured homes or repair the manifest from a verified backup.",
+    });
+  });
+
+  it("directs unbound mixed legacy foreign records to reconciliation without mutation", async () => {
+    const config = makeResolvedConfig(tempDir);
+    const ownedPath = path.join(config.targets.claude.agentsHome, "owned.md");
+    const foreignPath = path.join(tempDir, "foreign", "sentinel.md");
+    await mkdir(path.dirname(foreignPath), { recursive: true });
+    await writeFile(foreignPath, "foreign sentinel bytes", "utf-8");
+    await mkdir(path.dirname(config.manifest.path), { recursive: true });
+    await writeFile(
+      config.manifest.path,
+      makeManifestJson(
+        [
+          {
+            target: "claude",
+            type: "agent",
+            sourcePath: "/source/owned.yaml",
+            generatedPath: null,
+            installedPath: ownedPath,
+            installMode: "copy",
+            contentHash: "owned",
+            timestamp: new Date().toISOString(),
+          },
+          {
+            target: "claude",
+            type: "agent",
+            sourcePath: "/source/sentinel.yaml",
+            generatedPath: null,
+            installedPath: foreignPath,
+            installMode: "copy",
+            contentHash: "foreign",
+            timestamp: new Date().toISOString(),
+          },
+        ],
+        { legacy: true },
+      ),
+      "utf-8",
     );
+    const manifestBefore = await readFile(config.manifest.path, "utf-8");
+
+    await expect(uninstall(config, { dryRun: false })).rejects.toMatchObject({
+      message:
+        "Legacy manifest contains foreign records; rerun sync with --reconcile-manifest.",
+      hint: "Run sync --reconcile-manifest to safely reconcile the legacy manifest.",
+    });
+
+    expect(await readFile(config.manifest.path, "utf-8")).toBe(manifestBefore);
+    expect(await readFile(foreignPath, "utf-8")).toBe("foreign sentinel bytes");
+    expect(
+      (await readdir(path.dirname(config.manifest.path))).filter((entry) =>
+        entry.includes(".backup-"),
+      ),
+    ).toHaveLength(0);
   });
 
   it("skips uninstall removal when copied agent content no longer matches the manifest", async () => {
