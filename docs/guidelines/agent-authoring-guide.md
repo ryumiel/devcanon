@@ -78,8 +78,10 @@ Avoid these cases:
 - Treating `workspace-write` or a `Write` tool as permission to modify durable
   source. Source-immutable roles use those capabilities only for a single
   dispatch-named direct-child `.ephemeral` handoff.
-- Treating sandbox or approval values as immutable enforcement. A hard
-  non-mutation claim requires an actually enforced read-only policy.
+- Treating sandbox or approval values as immutable enforcement. A hard claim
+  that workspace or file non-mutation is enforced requires an actually enforced
+  read-only workspace policy; broader claims require enforced denial for every
+  claimed mutation surface, including external-action capabilities.
 - Inferring GitHub, Linear, Notion, or other external mutation authority from
   source authority or target capabilities.
 - Treating delegation or orchestration as a YAML field or schema control knob.
@@ -116,9 +118,12 @@ are true:
 
 **Operational threshold for reviewer-style delegates.** A reviewer-style
 prompt template should accumulate at least two independent call sites before
-promotion, unless there is already a hard target-native constraint win that
-justifies promotion on its own (for example, a read-only sandbox plus a fixed
-tool surface). Single-skill reviewer scaffolds stay as templates.
+promotion unless a documented target-configuration benefit establishes a stable
+role boundary beyond the originating skill. A requested sandbox default plus a
+fixed tool surface can support that case, but it does not replace the stable-role
+requirement or provide hard enforcement. Reserve enforcement claims for live
+runtime policy that actually enforces every claimed surface. Single-skill
+reviewer scaffolds otherwise stay as templates.
 
 Keep a delegate as a prompt template when it is mostly:
 
@@ -161,12 +166,14 @@ write-capable envelope permits the optional named handoff and does not grant
 durable-source authority.
 
 Each source-immutable role must state the complete three-part boundary in its
-own instructions: no durable file edits, no mutating commands outside the one
-dispatch-named direct-child `.ephemeral` handoff lifecycle, and no GitHub,
-Linear, Notion, or other external writes. The same instruction text must render
-to both targets. Render checks are behavioral evidence only; broader-permission
-trials must inspect relevant repository and modeled external-action state,
-state residual unobserved risk, and never be presented as a security proof.
+own instructions: no durable file edits; mutating commands only when required
+to create, write, validate, or clean up the exact dispatch-named direct-child
+`.ephemeral` handoff, with every other mutating command prohibited; and no
+GitHub, Linear, Notion, or other external writes. The same instruction text must
+render to both targets. Render checks are behavioral evidence only;
+broader-permission trials must inspect relevant repository and modeled
+external-action state, state residual unobserved risk, and never be presented as
+a security proof.
 
 ## 7. Authoring Workflow in This Repo
 

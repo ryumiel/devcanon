@@ -298,12 +298,14 @@ behavior only. They are not durable owners. If generated or installed output
 drifts, classify the source owner, renderer, installer, manifest, or validation
 surface that must prevent the drift.
 
-Classify runtime claims by the evidence they can support. Only an actually
-enforced read-only policy supports a hard non-mutation claim. A
-broader-permission trial or observation is behavioral evidence, not a security
-proof: it must inspect relevant repository and modeled external-action state
-and state residual unobserved risk. Do not create a runtime harness when no
-owner exists; defer with the missing owner instead.
+Classify runtime claims by the evidence they can support. An actually enforced
+read-only workspace policy supports a hard workspace or file non-mutation claim.
+Any broader hard claim requires enforced denial for every claimed mutation
+surface, including external-action capabilities. A broader-permission trial or
+observation is behavioral evidence, not a security proof: it must inspect
+relevant repository and modeled external-action state and state residual
+unobserved risk. Do not create a runtime harness when no owner exists; defer
+with the missing owner instead.
 
 Before classifying provider-specific source/runtime support, map the request to
 a provider-neutral concept. Defer when the only available framing is live

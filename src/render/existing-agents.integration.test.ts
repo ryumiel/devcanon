@@ -37,11 +37,20 @@ interface AgentSourceFixture {
 
 type RenderOutput = Awaited<ReturnType<typeof renderAll>>["outputs"][number];
 
-const SOURCE_IMMUTABLE_BOUNDARIES = [
-  "Do not make durable file edits.",
-  "Do not run mutating commands outside the one dispatch-named direct-child .ephemeral handoff lifecycle.",
-  "Do not mutate GitHub, Linear, Notion, or any other external system.",
+const AGENT_SPEC_PATH = "docs/specs/agents.md";
+const SOURCE_IMMUTABLE_DIMENSIONS = [
+  "durable-file-edit",
+  "exact-handoff-command",
+  "external-write",
 ] as const;
+
+type SourceImmutableDimension = (typeof SOURCE_IMMUTABLE_DIMENSIONS)[number];
+
+interface AgentInstructionBoundaryContract {
+  dimension: SourceImmutableDimension;
+  appliesTo: "source-immutable" | "all roles";
+  instruction: string;
+}
 
 async function readAgentSources(): Promise<AgentSourceFixture[]> {
   const agentsDir = path.join(process.cwd(), "agents");
@@ -54,6 +63,56 @@ async function readAgentSources(): Promise<AgentSourceFixture[]> {
       parseYaml(await readFile(path.join(agentsDir, entry), "utf8")),
     ),
   ) as Promise<AgentSourceFixture[]>;
+}
+
+async function readAgentInstructionBoundaryOwner(): Promise<
+  AgentInstructionBoundaryContract[]
+> {
+  const markdown = await readFile(
+    path.join(process.cwd(), AGENT_SPEC_PATH),
+    "utf8",
+  );
+  const section = markdown.match(
+    /### Instruction mutation boundaries\n(?<body>[\s\S]*?)(?=\n### |\n## )/,
+  )?.groups?.body;
+  if (!section) {
+    throw new Error(
+      "Agent spec instruction mutation boundary owner is missing",
+    );
+  }
+
+  const rows = [
+    ...section.matchAll(/^\| `([^`]+)`\s+\| `([^`]+)`\s+\| `([^`]+)`\s+\|$/gm),
+  ].map(([, dimension, appliesTo, instruction]) => ({
+    dimension,
+    appliesTo,
+    instruction,
+  }));
+  if (
+    rows.length !== SOURCE_IMMUTABLE_DIMENSIONS.length ||
+    !SOURCE_IMMUTABLE_DIMENSIONS.every(
+      (dimension) =>
+        rows.filter((row) => row.dimension === dimension).length === 1,
+    )
+  ) {
+    throw new Error(
+      "Agent spec instruction mutation boundary owner must define each source-immutable dimension exactly once",
+    );
+  }
+  for (const row of rows) {
+    if (
+      !SOURCE_IMMUTABLE_DIMENSIONS.includes(
+        row.dimension as SourceImmutableDimension,
+      ) ||
+      (row.appliesTo !== "source-immutable" && row.appliesTo !== "all roles") ||
+      !row.instruction
+    ) {
+      throw new Error(
+        "Agent spec instruction mutation boundary row is invalid",
+      );
+    }
+  }
+  return rows as AgentInstructionBoundaryContract[];
 }
 
 async function loadConfigWithFixedSkillsHome(): Promise<ResolvedConfig> {
@@ -87,31 +146,41 @@ function normalizeWhitespace(value: string): string {
   return value.replace(/\s+/g, " ").trim();
 }
 
-function expectSharedBoundaries(instructions: string): void {
+function expectSharedBoundaries(
+  instructions: string,
+  externalWriteInstruction: string,
+): void {
   const normalized = normalizeWhitespace(instructions);
   expect(normalized).toContain("permitted routine commands");
   expect(normalized).toMatch(
     /write exactly one[\s\S]*dispatch-named direct-child \.ephemeral[\s\S]*handoff/,
   );
-  expect(normalized).toContain(
-    "Do not mutate GitHub, Linear, Notion, or any other external system.",
-  );
+  expect(normalized).toContain(externalWriteInstruction);
 }
 
-function expectSourceImmutableBoundaries(instructions: string): void {
+function followsInstructionBoundaries(
+  instructions: string,
+  boundaries: readonly AgentInstructionBoundaryContract[],
+): boolean {
   const normalized = normalizeWhitespace(instructions);
-  for (const boundary of SOURCE_IMMUTABLE_BOUNDARIES) {
-    expect(normalized).toContain(boundary);
-  }
+  return boundaries.every((boundary) =>
+    normalized.includes(boundary.instruction),
+  );
 }
 
 describe("shipped semantic agents", () => {
   it("matches the documented six-role source catalog and target envelopes", async () => {
-    const [roles, sources, sourceFiles] = await Promise.all([
+    const [roles, boundaries, sources, sourceFiles] = await Promise.all([
       readAgentSemanticRoleOwner(),
+      readAgentInstructionBoundaryOwner(),
       readAgentSources(),
       readdir(path.join(process.cwd(), "agents")),
     ]);
+    const externalWriteInstruction = boundaries.find(
+      (boundary) => boundary.dimension === "external-write",
+    )?.instruction;
+    expect(externalWriteInstruction).toBeDefined();
+    if (!externalWriteInstruction) return;
 
     expect(roles).toHaveLength(6);
     expect(sourceFiles.sort()).toEqual(
@@ -134,14 +203,13 @@ describe("shipped semantic agents", () => {
       expect(source.codex.model_reasoning_effort).toBe(role.codexEffort);
       expect(source.codex.sandbox_mode).toBe(role.codexSandbox);
       expect(role.externalAuthority).toBe("none");
-      expectSharedBoundaries(source.instructions);
+      expectSharedBoundaries(source.instructions, externalWriteInstruction);
 
       if (role.sourceAuthority === "source-immutable") {
         const normalized = normalizeWhitespace(source.instructions);
-        expect(normalized).toContain(
-          "Do not modify durable source, tests, configuration, or documentation.",
-        );
-        expectSourceImmutableBoundaries(source.instructions);
+        expect(
+          followsInstructionBoundaries(source.instructions, boundaries),
+        ).toBe(true);
         expect(normalized).toMatch(
           /Write access exists only for (?:the|that) optional handoff\./,
         );
@@ -160,6 +228,57 @@ describe("shipped semantic agents", () => {
           "Use network access only when the task explicitly authorizes and owns it.",
         );
       }
+    }
+  });
+
+  it("rejects each single-dimension source-immutable instruction contradiction", async () => {
+    const [roles, boundaries, sources] = await Promise.all([
+      readAgentSemanticRoleOwner(),
+      readAgentInstructionBoundaryOwner(),
+      readAgentSources(),
+    ]);
+    const sourceImmutableRole = roles.find(
+      (role) => role.sourceAuthority === "source-immutable",
+    );
+    const canonicalInstructions = sources.find(
+      (source) => source.name === sourceImmutableRole?.name,
+    )?.instructions;
+    expect(canonicalInstructions).toBeDefined();
+    if (!canonicalInstructions) return;
+    const normalizedInstructions = normalizeWhitespace(canonicalInstructions);
+    const invalidFamilies = [
+      {
+        dimension: "durable-file-edit",
+        contradiction: "You may make durable file edits.",
+      },
+      {
+        dimension: "exact-handoff-command",
+        contradiction:
+          "You may run unrelated mutating commands while preparing the handoff.",
+      },
+      {
+        dimension: "external-write",
+        contradiction: "You may mutate GitHub, Linear, and Notion.",
+      },
+    ] as const;
+
+    expect(
+      followsInstructionBoundaries(normalizedInstructions, boundaries),
+    ).toBe(true);
+    for (const invalid of invalidFamilies) {
+      const ownedInstruction = boundaries.find(
+        (boundary) => boundary.dimension === invalid.dimension,
+      )?.instruction;
+      expect(ownedInstruction).toBeDefined();
+      if (!ownedInstruction) continue;
+      const mutated = normalizedInstructions.replace(
+        ownedInstruction,
+        invalid.contradiction,
+      );
+      expect(
+        followsInstructionBoundaries(mutated, boundaries),
+        invalid.dimension,
+      ).toBe(false);
     }
   });
 
@@ -214,8 +333,9 @@ describe("shipped semantic agents", () => {
   });
 
   it("renders and parses exactly six configured roles for both targets", async () => {
-    const [roles, config] = await Promise.all([
+    const [roles, boundaries, config] = await Promise.all([
       readAgentSemanticRoleOwner(),
+      readAgentInstructionBoundaryOwner(),
       loadConfigWithFixedSkillsHome(),
     ]);
     const { outputs, agents } = await renderAll(config, false, true);
@@ -278,10 +398,10 @@ describe("shipped semantic agents", () => {
             `Missing Codex developer instructions for ${role.name}`,
           );
         }
-        for (const boundary of SOURCE_IMMUTABLE_BOUNDARIES) {
-          expect(normalizeWhitespace(body)).toContain(boundary);
+        for (const boundary of boundaries) {
+          expect(normalizeWhitespace(body)).toContain(boundary.instruction);
           expect(normalizeWhitespace(developerInstructions)).toContain(
-            boundary,
+            boundary.instruction,
           );
         }
       }

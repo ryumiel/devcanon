@@ -42,8 +42,9 @@ instructions: |
   You may inspect files, run permitted commands, and write only one
   dispatch-named direct-child .ephemeral handoff when requested.
   Do not make durable file edits.
-  Do not run mutating commands outside the one dispatch-named direct-child
-  .ephemeral handoff lifecycle.
+  Mutating commands are permitted only when required to create, write,
+  validate, or clean up the exact dispatch-named direct-child .ephemeral
+  handoff. Do not run any other mutating commands.
   Do not modify durable source, tests, configuration, or documentation.
   Do not mutate GitHub, Linear, Notion, or any other external system.
 
@@ -101,9 +102,11 @@ or escalation behavior.
 Every role may run permitted routine commands and may write one
 dispatch-named direct-child `.ephemeral` handoff. The four source-immutable
 roles must carry self-contained instructions that prohibit durable file edits,
-mutating commands outside that one handoff lifecycle, and GitHub, Linear,
-Notion, or other external writes. Their write-capable envelope exists for the
-optional handoff; it is not durable mutation authority.
+permit mutating commands only when required to create, write, validate, or
+clean up the exact dispatch-named direct-child handoff, prohibit every other
+mutating command, and prohibit GitHub, Linear, Notion, or other external writes.
+Their write-capable envelope exists for the optional handoff; it is not durable
+mutation authority.
 
 Codex `sandbox_mode` and `approval_policy` values are reusable inherited
 configuration defaults or layers, not immutable enforcement. An active parent
@@ -124,6 +127,18 @@ access, or source authority.
 `investigator` receives network access or a diagnostic handoff path only when
 the dispatch explicitly names it. Ambient network availability and an unnamed
 diagnostic artifact are outside the role contract.
+
+### Instruction mutation boundaries
+
+This table is the normative owner of exact shared instruction text for mutation
+boundaries. Tests and rendered targets consume these clauses; they do not define
+parallel positive wording.
+
+| Dimension               | Applies to         | Required instruction                                                                                                                                                                           |
+| ----------------------- | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `durable-file-edit`     | `source-immutable` | `Do not make durable file edits.`                                                                                                                                                              |
+| `exact-handoff-command` | `source-immutable` | `Mutating commands are permitted only when required to create, write, validate, or clean up the exact dispatch-named direct-child .ephemeral handoff. Do not run any other mutating commands.` |
+| `external-write`        | `all roles`        | `Do not mutate GitHub, Linear, Notion, or any other external system.`                                                                                                                          |
 
 ### Render and runtime acceptance
 
@@ -149,12 +164,14 @@ Local validation does not prove client, account, model, effort, or named-agent
 availability and must never substitute an alias or fallback.
 
 Static source and render checks are derived behavioral evidence, not runtime
-enforcement. A hard non-mutation claim requires an actually enforced read-only
-policy. Broader-permission trials or observations must inspect relevant
-repository state and modeled external-action state, state their residual
-unobserved risk, and be labeled behavioral evidence rather than a security
-proof. This contract creates no new runtime harness; ADR-0027 owns the bounded
-runtime acceptance procedure.
+enforcement. A hard claim that workspace or file non-mutation is enforced
+requires an actually enforced read-only workspace policy. Any broader hard
+non-mutation claim requires enforced denial for every claimed mutation surface,
+including external-action capabilities. Broader-permission trials or
+observations must inspect relevant repository state and modeled external-action
+state, state their residual unobserved risk, and be labeled behavioral evidence
+rather than a security proof. This contract creates no new runtime harness;
+ADR-0027 owns the bounded runtime acceptance procedure.
 
 ---
 
