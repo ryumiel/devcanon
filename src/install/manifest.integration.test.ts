@@ -1,4 +1,4 @@
-import { mkdir, readFile, symlink, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
@@ -17,7 +17,7 @@ import {
   loadManifestWithSnapshot,
   releaseManifestBackupAuthority,
   saveManifest,
-  setManifestPersistenceFaultInjectorForTest,
+  withManifestPersistenceFaultsForTesting,
 } from "./manifest.js";
 
 describe("manifest integration", () => {
@@ -44,7 +44,6 @@ describe("manifest integration", () => {
   });
 
   afterEach(async () => {
-    setManifestPersistenceFaultInjectorForTest(undefined);
     restoreLogger();
     await cleanupTempDir(tempDir);
   });
@@ -143,6 +142,38 @@ describe("manifest integration", () => {
       expect(await readFile(`${manifestPath}.bak-1`, "utf-8")).toBe("{corrupt");
     });
 
+    it("removes its recovery candidate when the source changes during creation", async () => {
+      const manifestPath = path.join(tempDir, "manifest.json");
+      await writeFile(manifestPath, "{corrupt", "utf-8");
+      let entered!: () => void;
+      let resume!: () => void;
+      const enteredRecovery = new Promise<void>((resolve) => {
+        entered = resolve;
+      });
+      const gate = new Promise<void>((resolve) => {
+        resume = resolve;
+      });
+
+      await withManifestPersistenceFaultsForTesting(
+        async (stage) => {
+          if (stage === "recovery-before-candidate") {
+            entered();
+            await gate;
+          }
+        },
+        async () => {
+          const loading = loadManifest(manifestPath);
+          await enteredRecovery;
+          await writeFile(manifestPath, "{replacement", "utf-8");
+          resume();
+          await loading;
+        },
+      );
+
+      expect(await readFile(manifestPath, "utf-8")).toBe("{replacement");
+      expect(await pathExists(`${manifestPath}.bak`)).toBe(false);
+    });
+
     it("returns empty manifest and backs up schema-invalid JSON", async () => {
       const manifestPath = path.join(tempDir, "manifest.json");
       const invalidSchema = {
@@ -205,15 +236,18 @@ describe("manifest integration", () => {
         await captureManifestSnapshot(manifestPath),
         "migration-1",
       );
-      setManifestPersistenceFaultInjectorForTest((stage) => {
-        if (stage === "replacement-write") throw new Error("injected write");
-      });
-
       await expect(
-        saveManifest(manifestPath, emptyManifest(), {
-          authority,
-          operationId: "migration-1",
-        }),
+        withManifestPersistenceFaultsForTesting(
+          (stage) => {
+            if (stage === "replacement-write")
+              throw new Error("injected write");
+          },
+          () =>
+            saveManifest(manifestPath, emptyManifest(), {
+              authority,
+              operationId: "migration-1",
+            }),
+        ),
       ).rejects.toThrow("injected write");
       expect(await readFile(manifestPath, "utf-8")).toBe(original);
       expect(await readFile(authority.backupPath, "utf-8")).toBe(original);
@@ -253,6 +287,266 @@ describe("manifest integration", () => {
       );
       expect((await loadManifest(manifestPath)).records).toHaveLength(1);
     });
+
+    it("requires an authority for every boundary or identity-tuple transition", async () => {
+      const manifestPath = path.join(tempDir, "manifest.json");
+      const boundary = {
+        claudeSkillsHome: "/homes/claude/skills",
+        claudeAgentsHome: "/homes/claude/agents",
+        codexSkillsHome: "/homes/codex/skills",
+        codexAgentsHome: "/homes/codex/agents",
+      };
+      const current = {
+        ...emptyManifest(),
+        boundary,
+        records: [
+          {
+            target: "claude" as const,
+            type: "agent" as const,
+            name: "helper",
+            sourcePath: "/source/helper.yaml",
+            generatedPath: "/generated/helper.md",
+            installedPath: "/homes/claude/agents/helper.md",
+            installMode: "copy" as const,
+            contentHash: "old",
+            timestamp: "2026-07-17T00:00:00.000Z",
+          },
+        ],
+      };
+      await saveManifest(manifestPath, current);
+
+      for (const proposed of [
+        {
+          ...current,
+          boundary: undefined,
+          records: current.records.map(({ name: _name, ...record }) => record),
+        },
+        {
+          ...current,
+          boundary: { ...boundary, codexAgentsHome: "/other/codex/agents" },
+        },
+        {
+          ...current,
+          records: [{ ...current.records[0], target: "codex" as const }],
+        },
+        {
+          ...current,
+          records: [{ ...current.records[0], type: "skill" as const }],
+        },
+        {
+          ...current,
+          records: [{ ...current.records[0], name: "renamed" }],
+        },
+      ]) {
+        await expect(saveManifest(manifestPath, proposed)).rejects.toThrow(
+          "removal or migration save requires an authority",
+        );
+      }
+    });
+
+    it("checks a concurrent unguarded save against the fresh locked manifest", async () => {
+      const manifestPath = path.join(tempDir, "manifest.json");
+      const original = {
+        ...emptyManifest(),
+        records: [
+          {
+            target: "claude" as const,
+            type: "skill" as const,
+            sourcePath: "/source/a",
+            generatedPath: null,
+            installedPath: "/installed/a",
+            installMode: "copy" as const,
+            contentHash: "old",
+            timestamp: "2026-07-17T00:00:00.000Z",
+          },
+        ],
+      };
+      const newerRecord = {
+        ...original.records[0],
+        installedPath: "/installed/b",
+        sourcePath: "/source/b",
+      };
+      await saveManifest(manifestPath, original);
+      let pauseFirst = true;
+      let markPaused!: () => void;
+      let resume!: () => void;
+      const paused = new Promise<void>((resolve) => {
+        markPaused = resolve;
+      });
+      const gate = new Promise<void>((resolve) => {
+        resume = resolve;
+      });
+
+      await withManifestPersistenceFaultsForTesting(
+        async (stage) => {
+          if (stage === "save-before-lock" && pauseFirst) {
+            pauseFirst = false;
+            markPaused();
+            await gate;
+          }
+        },
+        async () => {
+          const staleSave = saveManifest(manifestPath, {
+            ...original,
+            records: [{ ...original.records[0], contentHash: "stale-update" }],
+          });
+          await paused;
+          await saveManifest(manifestPath, {
+            ...original,
+            records: [...original.records, newerRecord],
+          });
+          resume();
+          await expect(staleSave).rejects.toThrow(
+            "removal or migration save requires an authority",
+          );
+        },
+      );
+      expect((await loadManifest(manifestPath)).records).toHaveLength(2);
+    });
+
+    it("closes an authority to new work before awaiting its in-flight save", async () => {
+      const manifestPath = path.join(tempDir, "manifest.json");
+      await writeFile(manifestPath, validManifestJson(), "utf-8");
+      const authority = await createManifestBackupAuthority(
+        manifestPath,
+        await captureManifestSnapshot(manifestPath),
+        "migration-1",
+      );
+      let markWriting!: () => void;
+      let resume!: () => void;
+      const writing = new Promise<void>((resolve) => {
+        markWriting = resolve;
+      });
+      const gate = new Promise<void>((resolve) => {
+        resume = resolve;
+      });
+
+      await withManifestPersistenceFaultsForTesting(
+        async (stage) => {
+          if (stage === "replacement-write") {
+            markWriting();
+            await gate;
+          }
+        },
+        async () => {
+          const inFlight = saveManifest(manifestPath, emptyManifest(), {
+            authority,
+            operationId: "migration-1",
+          });
+          await writing;
+          const releasing = releaseManifestBackupAuthority(authority);
+          await expect(
+            saveManifest(manifestPath, emptyManifest(), {
+              authority,
+              operationId: "migration-1",
+            }),
+          ).rejects.toThrow("closing");
+          await expect(
+            createManifestBackupAuthority(
+              manifestPath,
+              await captureManifestSnapshot(manifestPath),
+              "migration-2",
+            ),
+          ).rejects.toThrow("already has an active");
+          resume();
+          await inFlight;
+          await releasing;
+        },
+      );
+      const next = await createManifestBackupAuthority(
+        manifestPath,
+        await captureManifestSnapshot(manifestPath),
+        "migration-2",
+      );
+      await releaseManifestBackupAuthority(next);
+    });
+
+    it.each([
+      "backup-open",
+      "backup-write",
+      "backup-sync",
+      "backup-close",
+      "backup-readback",
+    ] as const)(
+      "cleans every failed %s backup stage and releases the operation lock",
+      async (faultStage) => {
+        const manifestPath = path.join(tempDir, `backup-${faultStage}.json`);
+        const original = validManifestJson();
+        await writeFile(manifestPath, original, "utf-8");
+        const snapshot = await captureManifestSnapshot(manifestPath);
+
+        await expect(
+          withManifestPersistenceFaultsForTesting(
+            (stage) => {
+              if (stage === faultStage) throw new Error(`fault ${stage}`);
+            },
+            () =>
+              createManifestBackupAuthority(
+                manifestPath,
+                snapshot,
+                "failed-backup",
+              ),
+          ),
+        ).rejects.toThrow(`fault ${faultStage}`);
+
+        expect(await readFile(manifestPath, "utf-8")).toBe(original);
+        expect(
+          (await readdir(tempDir)).filter((name) => name.includes(".backup-")),
+        ).toEqual([]);
+        expect(await pathExists(`${manifestPath}.lock`)).toBe(false);
+        const next = await createManifestBackupAuthority(
+          manifestPath,
+          await captureManifestSnapshot(manifestPath),
+          "after-fault",
+        );
+        await releaseManifestBackupAuthority(next);
+      },
+    );
+
+    it.each([
+      "replacement-write",
+      "replacement-sync",
+      "replacement-close",
+      "replacement-freshness",
+      "replacement-rename",
+    ] as const)(
+      "cleans every failed %s replacement stage while preserving its verified backup",
+      async (faultStage) => {
+        const manifestPath = path.join(
+          tempDir,
+          `replacement-${faultStage}.json`,
+        );
+        const original = validManifestJson();
+        await writeFile(manifestPath, original, "utf-8");
+        const authority = await createManifestBackupAuthority(
+          manifestPath,
+          await captureManifestSnapshot(manifestPath),
+          "replacement-fault",
+        );
+
+        await expect(
+          withManifestPersistenceFaultsForTesting(
+            (stage) => {
+              if (stage === faultStage) throw new Error(`fault ${stage}`);
+            },
+            () =>
+              saveManifest(manifestPath, emptyManifest(), {
+                authority,
+                operationId: "replacement-fault",
+              }),
+          ),
+        ).rejects.toThrow(`fault ${faultStage}`);
+
+        expect(await readFile(manifestPath, "utf-8")).toBe(original);
+        expect(await readFile(authority.backupPath, "utf-8")).toBe(original);
+        expect(
+          (await readdir(tempDir)).filter((name) => name.includes(".tmp.")),
+        ).toEqual([]);
+        await releaseManifestBackupAuthority(authority);
+        expect(await pathExists(`${manifestPath}.lock`)).toBe(false);
+        await saveManifest(manifestPath, emptyManifest());
+      },
+    );
 
     it("rejects duplicate authority creation and permits a new operation after expiry", async () => {
       const manifestPath = path.join(tempDir, "manifest.json");
@@ -495,7 +789,7 @@ describe("manifest integration", () => {
       expect(loaded.records[1].name).toBe("helper");
     });
 
-    it("overwrites existing file with new content", async () => {
+    it("permits an authorized overwrite that changes a record identity tuple", async () => {
       const manifestPath = path.join(tempDir, "manifest.json");
       const first = {
         version: 1 as const,
@@ -533,7 +827,16 @@ describe("manifest integration", () => {
       };
 
       await saveManifest(manifestPath, first);
-      await saveManifest(manifestPath, second);
+      const authority = await createManifestBackupAuthority(
+        manifestPath,
+        await captureManifestSnapshot(manifestPath),
+        "identity-migration",
+      );
+      await saveManifest(manifestPath, second, {
+        authority,
+        operationId: "identity-migration",
+      });
+      await releaseManifestBackupAuthority(authority);
       const loaded = await loadManifest(manifestPath);
 
       expect(loaded.records).toHaveLength(1);

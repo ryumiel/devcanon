@@ -238,6 +238,25 @@ describe("manifest identity", () => {
     ).toBe("owned");
   });
 
+  it("permits a Codex logical agent name that ends in .toml", () => {
+    expect(
+      classifyManagedRecord(
+        makeRecord({
+          target: "codex",
+          type: "agent",
+          name: "helper.toml",
+          installedPath: "/homes/codex/agents/helper.toml.toml",
+        }),
+        {
+          claudeSkillsHome: "/homes/claude/skills",
+          claudeAgentsHome: "/homes/claude/agents",
+          codexSkillsHome: "/homes/codex/skills",
+          codexAgentsHome: "/homes/codex/agents",
+        },
+      ).ownership,
+    ).toBe("owned");
+  });
+
   it("derives a legacy agent name only from its target-native suffix", () => {
     const boundary = {
       claudeSkillsHome: "/homes/claude/skills",
@@ -361,4 +380,66 @@ describe("manifest identity", () => {
       expect(result.ownership).toBe("foreign");
     },
   );
+
+  it("marks a schema-valid record in the wrong owning home as foreign", () => {
+    const boundary = {
+      claudeSkillsHome: "/homes/claude/skills",
+      claudeAgentsHome: "/homes/claude/agents",
+      codexSkillsHome: "/homes/codex/skills",
+      codexAgentsHome: "/homes/codex/agents",
+    };
+    const record = makeRecord({
+      installedPath: "/homes/codex/agents/helper.md",
+    });
+
+    expect(
+      ManifestSchema.safeParse({
+        version: 1,
+        managedBy: "devcanon",
+        lastSync: "2026-07-17T00:00:00.000Z",
+        boundary,
+        records: [record],
+      }).success,
+    ).toBe(true);
+    expect(classifyManagedRecord(record, boundary).ownership).toBe("foreign");
+  });
+
+  it("marks a schema-valid record with only the wrong target suffix as foreign", () => {
+    const boundary = {
+      claudeSkillsHome: "/homes/claude/skills",
+      claudeAgentsHome: "/homes/claude/agents",
+      codexSkillsHome: "/homes/codex/skills",
+      codexAgentsHome: "/homes/codex/agents",
+    };
+    const record = makeRecord({
+      installedPath: "/homes/claude/agents/helper.toml",
+    });
+
+    expect(
+      ManifestSchema.safeParse({
+        version: 1,
+        managedBy: "devcanon",
+        lastSync: "2026-07-17T00:00:00.000Z",
+        boundary,
+        records: [record],
+      }).success,
+    ).toBe(true);
+    expect(classifyManagedRecord(record, boundary).ownership).toBe("foreign");
+  });
+
+  it("does not inspect filesystem existence when classifying an exact destination", () => {
+    const boundary = {
+      claudeSkillsHome: "/missing/claude/skills",
+      claudeAgentsHome: "/missing/claude/agents",
+      codexSkillsHome: "/missing/codex/skills",
+      codexAgentsHome: "/missing/codex/agents",
+    };
+
+    expect(
+      classifyManagedRecord(
+        makeRecord({ installedPath: "/missing/claude/agents/helper.md" }),
+        boundary,
+      ).ownership,
+    ).toBe("owned");
+  });
 });

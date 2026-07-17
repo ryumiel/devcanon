@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { constants } from "node:fs";
-import { link, lstat, open, rename, unlink } from "node:fs/promises";
+import { lstat, open, rename, unlink } from "node:fs/promises";
 import path from "node:path";
 import { MANIFEST_MANAGED_BY } from "../config/identity.js";
 import {
@@ -24,18 +24,37 @@ type ManifestFaultStage =
   | "replacement-sync"
   | "replacement-close"
   | "replacement-freshness"
-  | "replacement-rename";
-let manifestFaultInjector: ((stage: ManifestFaultStage) => void) | undefined;
+  | "replacement-rename"
+  | "save-before-lock"
+  | "recovery-before-candidate";
+type ManifestFaultInjector = (
+  stage: ManifestFaultStage,
+) => void | Promise<void>;
+let manifestFaultInjector: ManifestFaultInjector | undefined;
 
-/** @internal Test-only deterministic persistence fault seam. */
-export function setManifestPersistenceFaultInjectorForTest(
-  injector: ((stage: ManifestFaultStage) => void) | undefined,
-): void {
+/** @internal Scoped, test-only deterministic persistence fault seam. */
+export async function withManifestPersistenceFaultsForTesting<T>(
+  injector: ManifestFaultInjector,
+  callback: () => Promise<T>,
+): Promise<T> {
+  if (process.env.NODE_ENV !== "test") {
+    throw new Error("Manifest persistence fault injection is test-only");
+  }
+  if (manifestFaultInjector) {
+    throw new Error(
+      "Manifest persistence fault injection does not support nesting",
+    );
+  }
   manifestFaultInjector = injector;
+  try {
+    return await callback();
+  } finally {
+    manifestFaultInjector = undefined;
+  }
 }
 
-function injectManifestFault(stage: ManifestFaultStage): void {
-  manifestFaultInjector?.(stage);
+async function injectManifestFault(stage: ManifestFaultStage): Promise<void> {
+  await manifestFaultInjector?.(stage);
 }
 
 interface ManifestLock {
@@ -47,6 +66,8 @@ interface AuthorityState {
   lastAcceptedBytes: Buffer;
   lock: ManifestLock;
   tail: Promise<void>;
+  closing: boolean;
+  release?: Promise<void>;
 }
 
 export interface ManifestSnapshot {
@@ -162,20 +183,25 @@ export async function saveManifest(
   options: ManifestSaveOptions = {},
 ): Promise<void> {
   const normalizedManifestPath = path.resolve(manifestPath);
-  const authority = validateSaveAuthority(normalizedManifestPath, options);
-  const requiresAuthority = await transitionRequiresAuthority(
-    normalizedManifestPath,
-    manifest,
-  );
-  if (requiresAuthority && !authority) {
-    throw new Error("Manifest removal or migration save requires an authority");
+  const proposedResult = ManifestSchema.safeParse(manifest);
+  if (!proposedResult.success) {
+    throw new Error("Refusing to save a schema-invalid manifest");
   }
+  const authority = validateSaveAuthority(normalizedManifestPath, options);
   if (authority) {
     return serializeAuthoritySave(authority, () =>
-      saveManifestUnderLock(normalizedManifestPath, manifest, authority),
+      saveManifestUnderLock(
+        normalizedManifestPath,
+        proposedResult.data,
+        authority,
+      ),
     );
   }
-  return saveManifestUnderLock(normalizedManifestPath, manifest, undefined);
+  return saveManifestUnderLock(
+    normalizedManifestPath,
+    proposedResult.data,
+    undefined,
+  );
 }
 
 async function saveManifestUnderLock(
@@ -187,15 +213,22 @@ async function saveManifestUnderLock(
   if (!authority) {
     await ensureDir(path.dirname(normalizedManifestPath));
     await assertNormalParent(normalizedManifestPath);
+    await injectManifestFault("save-before-lock");
     temporaryLock = await acquireManifestLock(normalizedManifestPath);
   }
   try {
+    if (!authority && activeBackupAuthorities.has(normalizedManifestPath)) {
+      throw new Error("Manifest save requires its active backup authority");
+    }
+    const current = await loadCurrentManifestForSave(normalizedManifestPath);
+    if (transitionRequiresAuthority(current, manifest) && !authority) {
+      throw new Error(
+        "Manifest removal or migration save requires an authority",
+      );
+    }
     const state = authority ? getAuthorityState(authority) : undefined;
     if (state) {
-      const currentBytes = await readRegularManifestBytes(
-        normalizedManifestPath,
-      );
-      if (!currentBytes.equals(state.lastAcceptedBytes)) {
+      if (!current.bytes || !current.bytes.equals(state.lastAcceptedBytes)) {
         throw new Error(
           "Manifest changed since its last accepted save; refusing guarded rewrite",
         );
@@ -205,11 +238,7 @@ async function saveManifestUnderLock(
       `${JSON.stringify(manifest, null, 2)}\n`,
       "utf-8",
     );
-    await atomicReplaceManifest(
-      normalizedManifestPath,
-      content,
-      state?.lastAcceptedBytes,
-    );
+    await atomicReplaceManifest(normalizedManifestPath, content, current.bytes);
     if (state) {
       state.lastAcceptedBytes = Buffer.from(content);
     }
@@ -280,6 +309,7 @@ export async function createManifestBackupAuthority(
       lastAcceptedBytes: Buffer.from(currentBytes),
       lock,
       tail: Promise.resolve(),
+      closing: false,
     });
     activeBackupAuthorities.set(normalizedManifestPath, authority);
     return authority;
@@ -294,11 +324,19 @@ export async function releaseManifestBackupAuthority(
   authority: ManifestBackupAuthority,
 ): Promise<void> {
   const state = authorityState.get(authority);
-  if (activeBackupAuthorities.get(authority.manifestPath) === authority) {
-    activeBackupAuthorities.delete(authority.manifestPath);
+  if (!state) return;
+  if (!state.release) {
+    state.closing = true;
+    state.release = (async () => {
+      await state.tail;
+      if (activeBackupAuthorities.get(authority.manifestPath) === authority) {
+        activeBackupAuthorities.delete(authority.manifestPath);
+      }
+      authorityState.delete(authority);
+      await releaseManifestLock(state.lock);
+    })();
   }
-  authorityState.delete(authority);
-  if (state) await releaseManifestLock(state.lock);
+  await state.release;
 }
 
 /**
@@ -334,8 +372,12 @@ function validateSaveAuthority(
         "Manifest backup authority belongs to a different manifest path",
       );
     }
-    if (!authorityState.has(authority)) {
+    const state = authorityState.get(authority);
+    if (!state) {
       throw new Error("Manifest backup authority is no longer active");
+    }
+    if (state.closing) {
+      throw new Error("Manifest backup authority is closing");
     }
     if (activeBackupAuthorities.get(normalizedManifestPath) !== authority) {
       throw new Error(
@@ -407,41 +449,86 @@ function assertSchemaValidManifestBytes(bytes: Buffer): void {
   }
 }
 
-async function transitionRequiresAuthority(
+interface CurrentManifestForSave {
+  bytes: Buffer | undefined;
+  manifest: Manifest | undefined;
+}
+
+async function loadCurrentManifestForSave(
   manifestPath: string,
-  proposed: Manifest,
-): Promise<boolean> {
-  const proposedResult = ManifestSchema.safeParse(proposed);
-  if (!proposedResult.success) {
-    throw new Error("Refusing to save a schema-invalid manifest");
-  }
+): Promise<CurrentManifestForSave> {
   try {
     const currentBytes = await readRegularManifestBytes(manifestPath);
     let current: unknown;
     try {
       current = JSON.parse(currentBytes.toString("utf-8"));
     } catch {
-      return true;
+      return { bytes: currentBytes, manifest: undefined };
     }
     const currentResult = ManifestSchema.safeParse(current);
-    if (!currentResult.success) return true;
-    const proposedPaths = new Set(
-      proposed.records.map((record) => record.installedPath),
-    );
-    const removesRecord = currentResult.data.records.some(
-      (record) => !proposedPaths.has(record.installedPath),
-    );
-    const migratesLegacy = !currentResult.data.boundary && !!proposed.boundary;
-    return removesRecord || migratesLegacy;
+    return {
+      bytes: currentBytes,
+      manifest: currentResult.success ? currentResult.data : undefined,
+    };
   } catch (error) {
-    if (
-      (error as NodeJS.ErrnoException).code === "ENOENT" ||
-      (error as Error).message.includes("ENOENT")
-    ) {
-      return false;
-    }
+    if (isNoEntryError(error)) return { bytes: undefined, manifest: undefined };
     throw error;
   }
+}
+
+function transitionRequiresAuthority(
+  current: CurrentManifestForSave,
+  proposed: Manifest,
+): boolean {
+  // A missing file is an ordinary first save. An existing invalid file is not
+  // an authorized baseline for a destructive replacement.
+  if (!current.bytes) return false;
+  if (!current.manifest) return true;
+  if (!sameBoundary(current.manifest.boundary, proposed.boundary)) return true;
+
+  const proposedIdentityCounts = new Map<string, number>();
+  for (const record of proposed.records) {
+    const identity = recordIdentity(record);
+    proposedIdentityCounts.set(
+      identity,
+      (proposedIdentityCounts.get(identity) ?? 0) + 1,
+    );
+  }
+  for (const record of current.manifest.records) {
+    const identity = recordIdentity(record);
+    const count = proposedIdentityCounts.get(identity) ?? 0;
+    if (count === 0) return true;
+    proposedIdentityCounts.set(identity, count - 1);
+  }
+  return false;
+}
+
+function sameBoundary(
+  first: Manifest["boundary"],
+  second: Manifest["boundary"],
+): boolean {
+  return (
+    first?.claudeSkillsHome === second?.claudeSkillsHome &&
+    first?.claudeAgentsHome === second?.claudeAgentsHome &&
+    first?.codexSkillsHome === second?.codexSkillsHome &&
+    first?.codexAgentsHome === second?.codexAgentsHome
+  );
+}
+
+function recordIdentity(record: ManagedRecord): string {
+  return JSON.stringify([
+    record.target,
+    record.type,
+    record.name,
+    record.installedPath,
+  ]);
+}
+
+function isNoEntryError(error: unknown): boolean {
+  return (
+    (error as NodeJS.ErrnoException).code === "ENOENT" ||
+    (error as Error).message.includes("ENOENT")
+  );
 }
 
 async function assertNormalParent(manifestPath: string): Promise<void> {
@@ -503,7 +590,7 @@ async function writeVerifiedBackup(
     const backupPath = suffix === 0 ? basePath : `${basePath}-${suffix}`;
     let handle: Awaited<ReturnType<typeof open>>;
     try {
-      injectManifestFault("backup-open");
+      await injectManifestFault("backup-open");
       handle = await open(backupPath, "wx", 0o600);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "EEXIST") continue;
@@ -513,16 +600,24 @@ async function writeVerifiedBackup(
     }
 
     try {
+      let writeError: unknown;
       try {
-        injectManifestFault("backup-write");
+        await injectManifestFault("backup-write");
         await handle.writeFile(sourceBytes);
-        injectManifestFault("backup-sync");
+        await injectManifestFault("backup-sync");
         await handle.sync();
-      } finally {
-        injectManifestFault("backup-close");
-        await handle.close();
+      } catch (error) {
+        writeError = error;
       }
-      injectManifestFault("backup-readback");
+      let closeError: unknown;
+      try {
+        await closeHandleWithFault(handle, "backup-close");
+      } catch (error) {
+        closeError = error;
+      }
+      if (writeError) throw writeError;
+      if (closeError) throw closeError;
+      await injectManifestFault("backup-readback");
       const readback = await readRegularManifestBytes(backupPath);
       if (!readback.equals(sourceBytes)) {
         throw new Error(
@@ -539,6 +634,27 @@ async function writeVerifiedBackup(
       throw error;
     }
   }
+}
+
+/** Always close the real descriptor even when the test seam faults at close. */
+async function closeHandleWithFault(
+  handle: Awaited<ReturnType<typeof open>>,
+  stage: Extract<ManifestFaultStage, "backup-close" | "replacement-close">,
+): Promise<void> {
+  let injectedError: unknown;
+  try {
+    await injectManifestFault(stage);
+  } catch (error) {
+    injectedError = error;
+  }
+  let closeError: unknown;
+  try {
+    await handle.close();
+  } catch (error) {
+    closeError = error;
+  }
+  if (injectedError) throw injectedError;
+  if (closeError) throw closeError;
 }
 
 async function acquireManifestLock(
@@ -582,16 +698,50 @@ async function recoverInvalidManifest(
           suffix === 0
             ? `${normalizedPath}.bak`
             : `${normalizedPath}.bak-${suffix}`;
+        let created = false;
         try {
-          await link(normalizedPath, backupPath);
+          // Revalidate immediately before and after candidate creation. The
+          // candidate contains captured bytes, never a later path lookup.
+          await injectManifestFault("recovery-before-candidate");
+          const beforeCreate = await readRegularManifestBytes(normalizedPath);
+          if (!beforeCreate.equals(expectedBytes)) return;
+          await writeExactExclusiveFile(backupPath, expectedBytes, () => {
+            created = true;
+          });
         } catch (error) {
           if ((error as NodeJS.ErrnoException).code === "EEXIST") continue;
+          if (created) {
+            try {
+              await unlink(backupPath);
+            } catch {
+              // The candidate was exclusively allocated by this recovery.
+            }
+          }
           return;
         }
-        const beforeRemoval = await readRegularManifestBytes(normalizedPath);
-        if (!beforeRemoval.equals(expectedBytes)) return;
-        await unlink(normalizedPath);
-        return;
+        try {
+          const afterCreate = await readRegularManifestBytes(normalizedPath);
+          const candidateBytes = await readRegularManifestBytes(backupPath);
+          if (
+            !afterCreate.equals(expectedBytes) ||
+            !candidateBytes.equals(expectedBytes)
+          ) {
+            return;
+          }
+          await unlink(normalizedPath);
+          return;
+        } finally {
+          // Any unsuccessful recovery attempt must not leave an unverified
+          // candidate behind, while occupied collision siblings remain intact.
+          if (created) {
+            try {
+              const sourceStillExists = await pathExists(normalizedPath);
+              if (sourceStillExists) await unlink(backupPath);
+            } catch {
+              // Recovery is intentionally best effort on filesystem errors.
+            }
+          }
+        }
       }
     } finally {
       await releaseManifestLock(lock);
@@ -599,6 +749,30 @@ async function recoverInvalidManifest(
   } catch {
     // Preserve established invalid-manifest recovery behavior on filesystem errors.
   }
+}
+
+async function writeExactExclusiveFile(
+  filePath: string,
+  bytes: Buffer,
+  onCreated: () => void,
+): Promise<void> {
+  const handle = await open(filePath, "wx", 0o600);
+  onCreated();
+  let writeError: unknown;
+  try {
+    await handle.writeFile(bytes);
+    await handle.sync();
+  } catch (error) {
+    writeError = error;
+  }
+  let closeError: unknown;
+  try {
+    await handle.close();
+  } catch (error) {
+    closeError = error;
+  }
+  if (writeError) throw writeError;
+  if (closeError) throw closeError;
 }
 
 async function atomicReplaceManifest(
@@ -617,17 +791,25 @@ async function atomicReplaceManifest(
   }
 
   try {
+    let writeError: unknown;
     try {
-      injectManifestFault("replacement-write");
+      await injectManifestFault("replacement-write");
       await handle.writeFile(content);
-      injectManifestFault("replacement-sync");
+      await injectManifestFault("replacement-sync");
       await handle.sync();
-    } finally {
-      injectManifestFault("replacement-close");
-      await handle.close();
+    } catch (error) {
+      writeError = error;
     }
+    let closeError: unknown;
+    try {
+      await closeHandleWithFault(handle, "replacement-close");
+    } catch (error) {
+      closeError = error;
+    }
+    if (writeError) throw writeError;
+    if (closeError) throw closeError;
     if (expectedCurrentBytes) {
-      injectManifestFault("replacement-freshness");
+      await injectManifestFault("replacement-freshness");
       const currentBytes = await readRegularManifestBytes(manifestPath);
       if (!currentBytes.equals(expectedCurrentBytes)) {
         throw new Error(
@@ -635,7 +817,7 @@ async function atomicReplaceManifest(
         );
       }
     }
-    injectManifestFault("replacement-rename");
+    await injectManifestFault("replacement-rename");
     await rename(tempPath, manifestPath);
   } catch (error) {
     try {
