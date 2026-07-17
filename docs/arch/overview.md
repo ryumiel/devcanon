@@ -162,13 +162,25 @@ skills or agents are not treated as stale.
 
 ## Data Flow
 
-The primary flow is the **sync pipeline**:
+The following non-normative overview shows the primary **sync pipeline**;
+runtime source and the install specification own its behavior:
 
 ```
-Source files          Config
-(skills/, agents/)   (devcanon.config.yaml)
+Config                     Manifest
+(devcanon.config.yaml)     (manifest.json)
        │                    │
-       ▼                    ▼
+       └─────────┐          │
+                 ▼          ▼
+   ┌────────────────────────────┐
+   │  load / accept manifest    │
+   │ identity, reconciliation,  │
+   │        and binding         │
+   └────────────┬───────────────┘
+                ▼
+Source files    │
+(skills/, agents/)
+       │        │
+       ▼        ▼
    ┌────────────────────────────┐
    │         validate           │
    └────────────┬───────────────┘
@@ -191,8 +203,9 @@ Source files          Config
    └────────────────────────────┘
 ```
 
-Steps: load config -> validate source -> render outputs -> compute install
-plan -> apply install plan -> update manifest -> print summary.
+Steps: load config -> accept manifest, identity, reconciliation, and binding
+-> validate source -> render outputs -> compute install plan -> apply install
+plan -> update manifest -> print summary.
 
 ---
 
@@ -256,6 +269,11 @@ backup and save authority required for migration or removal. `sync` owns the
 legacy reconciliation transition, while `diff` and `uninstall` consume the
 resulting classification. The install and CLI specifications own public
 behavior and command syntax respectively.
+
+At a high level, `sync` accepts the manifest, checks identity, and performs
+selected record-only legacy reconciliation and binding before validating or
+rendering source. This ordering is descriptive only; the install specification
+and runtime source own behavior.
 
 Bound records include `name`; unbound legacy records omit it until identity
 normalization derives it from their target-native destination during binding.

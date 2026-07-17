@@ -82,11 +82,14 @@ reconciliation and reject bound foreign records.
 
 For the current reconciliation invocation only, the physical paths of removed
 foreign records are lexically normalized and protected from a later planned
-`force-overwrite`. This collision protection does not alter ownership
-classification and is discarded when sync returns or throws. Explicit force and
-configured `overwrite-all` therefore report a `skip-conflict` instead of
-overwriting a protected file or tree; dry run previews that conflict before any
-write, and real sync neither replaces the output nor adds a replacement record.
+`install`, `update`, `force-overwrite`, or `remove`. This collision protection
+does not alter ownership classification and is discarded when sync returns or
+throws. Each protected physical mutation reports a reconciliation-specific
+`skip-conflict`; `skip-up-to-date`, existing `skip-conflict`, and
+`remove-missing` remain unchanged. Explicit force and configured
+`overwrite-all` therefore cannot overwrite a protected file or tree; dry run
+previews the conflict before any write, and real sync neither changes the
+output nor adds a replacement record.
 
 ### Migration, removal, and backup safety
 
@@ -115,12 +118,14 @@ backups or manifest churn.
 ## Sync Steps
 
 1. load config
-2. validate source
-3. render outputs
-4. compute install plan
-5. apply install plan
-6. update manifest
-7. print summary
+2. accept the manifest and validate its boundary and record identity
+3. perform selected legacy reconciliation and binding as record-only state
+4. validate source
+5. render outputs
+6. compute and adapt the install plan for current-invocation reconciliation protection
+7. apply install plan
+8. update manifest
+9. print summary
 
 ---
 

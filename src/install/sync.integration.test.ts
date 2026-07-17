@@ -875,6 +875,451 @@ describe("sync", () => {
     );
   });
 
+  it.skipIf(!symlinkAvailable)(
+    "protects reconciled dangling file and tree symlinks from same-sync installs in requested modes",
+    async () => {
+      const scenarios = [
+        { type: "agent" as const, mode: "copy" as const },
+        { type: "agent" as const, mode: "symlink" as const },
+        { type: "skill" as const, mode: "copy" as const },
+        { type: "skill" as const, mode: "symlink" as const },
+      ];
+
+      for (const scenario of scenarios) {
+        testLogger.infos.length = 0;
+        const scenarioDir = path.join(
+          tempDir,
+          `${scenario.type}-${scenario.mode}`,
+        );
+        const config = makeResolvedConfig(scenarioDir, {
+          codex: { enabled: false },
+          defaults: { cleanManagedOutputs: false },
+        });
+        const name = "protected";
+        const home =
+          scenario.type === "agent"
+            ? config.targets.claude.agentsHome
+            : config.targets.claude.skillsHome;
+        const installedPath = path.join(
+          home,
+          scenario.type === "agent" ? `${name}.md` : name,
+        );
+        const foreignPath = `${home}${path.sep}.${path.sep}${path.basename(installedPath)}`;
+        const missingTarget = path.join(scenarioDir, "missing-target");
+
+        await mkdir(config.library.agentsDir, { recursive: true });
+        await mkdir(config.library.skillsDir, { recursive: true });
+        await mkdir(path.dirname(config.manifest.path), { recursive: true });
+        await mkdir(path.dirname(installedPath), { recursive: true });
+        if (scenario.type === "agent") {
+          await createAgentFixture(
+            config.library.agentsDir,
+            name,
+            makeAgentYaml(name),
+          );
+        } else {
+          await createSkillFixture(config.library.skillsDir, name);
+        }
+        await symlink(
+          missingTarget,
+          installedPath,
+          scenario.type === "agent" ? "file" : "dir",
+        );
+        await writeFile(
+          config.manifest.path,
+          makeManifestJson(
+            [
+              {
+                target: "claude",
+                type: scenario.type,
+                sourcePath: path.join(scenarioDir, "foreign"),
+                generatedPath: null,
+                installedPath: foreignPath,
+                installMode: scenario.mode,
+                contentHash: "foreign",
+                timestamp: new Date().toISOString(),
+              },
+            ],
+            { legacy: true },
+          ),
+          "utf-8",
+        );
+        const before = await readTextFile(config.manifest.path);
+        const originalLink = await readlink(installedPath);
+
+        const dryRun = await sync(config, {
+          dryRun: true,
+          force: false,
+          strict: false,
+          mode: scenario.mode,
+          reconcileManifest: true,
+        });
+
+        expect(dryRun).toMatchObject({
+          installed: 0,
+          updated: 0,
+          removed: 0,
+          skipped: 0,
+          conflicts: 0,
+          errors: [],
+        });
+        expect(testLogger.infos.join("\n")).toContain(
+          `[skip-conflict] claude/${scenario.type}/${name}`,
+        );
+        expect(await readTextFile(config.manifest.path)).toBe(before);
+        expect((await lstat(installedPath)).isSymbolicLink()).toBe(true);
+        expect(await readlink(installedPath)).toBe(originalLink);
+        expect(await pathExists(missingTarget)).toBe(false);
+
+        const result = await sync(config, {
+          dryRun: false,
+          force: false,
+          strict: false,
+          mode: scenario.mode,
+          reconcileManifest: true,
+        });
+
+        expect(result).toMatchObject({
+          installed: 0,
+          updated: 0,
+          removed: 0,
+          conflicts: 1,
+          errors: [],
+        });
+        expect((await lstat(installedPath)).isSymbolicLink()).toBe(true);
+        expect(await readlink(installedPath)).toBe(originalLink);
+        expect(await pathExists(missingTarget)).toBe(false);
+        const reconciled = JSON.parse(await readTextFile(config.manifest.path));
+        expect(reconciled.records).toEqual([]);
+      }
+    },
+  );
+
+  it("protects a reachable canonical update at a reconciled foreign lexical alias", async () => {
+    const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
+    await mkdir(config.library.agentsDir, { recursive: true });
+    const sourcePath = await createAgentFixture(
+      config.library.agentsDir,
+      "protected",
+      makeAgentYaml("protected"),
+    );
+    const options = { dryRun: false, force: false, strict: false } as const;
+    await sync(config, options);
+    testLogger.infos.length = 0;
+
+    const installedPath = path.join(
+      config.targets.claude.agentsHome,
+      "protected.md",
+    );
+    const originalInstalled = await readTextFile(installedPath);
+    const firstManifest = JSON.parse(await readTextFile(config.manifest.path));
+    const [boundCanonicalRecord] = firstManifest.records;
+    expect(boundCanonicalRecord).toMatchObject({
+      installedPath,
+      name: "protected",
+    });
+    const { name: _canonicalName, ...canonicalRecord } = boundCanonicalRecord;
+    const foreignPath = `${config.targets.claude.agentsHome}${path.sep}.${path.sep}protected.md`;
+    await writeFile(
+      config.manifest.path,
+      makeManifestJson(
+        [canonicalRecord, { ...canonicalRecord, installedPath: foreignPath }],
+        { legacy: true },
+      ),
+      "utf-8",
+    );
+    await writeFile(
+      sourcePath,
+      makeAgentYaml("protected", { description: "Updated protected agent" }),
+      "utf-8",
+    );
+    const before = await readTextFile(config.manifest.path);
+    const dryRun = await sync(config, {
+      dryRun: true,
+      force: false,
+      strict: false,
+      reconcileManifest: true,
+    });
+
+    expect(dryRun).toMatchObject({
+      installed: 0,
+      updated: 0,
+      removed: 0,
+      skipped: 0,
+      conflicts: 0,
+      errors: [],
+    });
+    expect(dryRun.reconciliation?.retained).toEqual([
+      expect.objectContaining({ installedPath, name: "protected" }),
+    ]);
+    expect(testLogger.infos.join("\n")).toContain(
+      "[skip-conflict] claude/agent/protected",
+    );
+    expect(await readTextFile(config.manifest.path)).toBe(before);
+
+    const result = await sync(config, {
+      dryRun: false,
+      force: false,
+      strict: false,
+      reconcileManifest: true,
+    });
+
+    expect(result).toMatchObject({
+      installed: 0,
+      updated: 0,
+      removed: 0,
+      conflicts: 1,
+      errors: [],
+    });
+    expect(await readTextFile(installedPath)).toBe(originalInstalled);
+    const reconciled = JSON.parse(await readTextFile(config.manifest.path));
+    expect(reconciled.records).toEqual([
+      expect.objectContaining({ installedPath, name: "protected" }),
+    ]);
+  });
+
+  it("protects a reachable canonical removal at a reconciled foreign lexical alias", async () => {
+    const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
+    await mkdir(config.library.agentsDir, { recursive: true });
+    const sourcePath = await createAgentFixture(
+      config.library.agentsDir,
+      "protected",
+      makeAgentYaml("protected"),
+    );
+    const options = { dryRun: false, force: false, strict: false } as const;
+    await sync(config, options);
+    testLogger.infos.length = 0;
+
+    const installedPath = path.join(
+      config.targets.claude.agentsHome,
+      "protected.md",
+    );
+    const originalInstalled = await readTextFile(installedPath);
+    const firstManifest = JSON.parse(await readTextFile(config.manifest.path));
+    const [boundCanonicalRecord] = firstManifest.records;
+    expect(boundCanonicalRecord).toMatchObject({
+      installedPath,
+      name: "protected",
+    });
+    const { name: _canonicalName, ...canonicalRecord } = boundCanonicalRecord;
+    const foreignPath = `${config.targets.claude.agentsHome}${path.sep}.${path.sep}protected.md`;
+    await writeFile(
+      config.manifest.path,
+      makeManifestJson(
+        [canonicalRecord, { ...canonicalRecord, installedPath: foreignPath }],
+        { legacy: true },
+      ),
+      "utf-8",
+    );
+    await rm(sourcePath);
+    const before = await readTextFile(config.manifest.path);
+    const dryRun = await sync(config, {
+      dryRun: true,
+      force: false,
+      strict: false,
+      reconcileManifest: true,
+    });
+
+    expect(dryRun).toMatchObject({
+      installed: 0,
+      updated: 0,
+      removed: 0,
+      skipped: 0,
+      conflicts: 0,
+      errors: [],
+    });
+    expect(dryRun.reconciliation?.retained).toEqual([
+      expect.objectContaining({ installedPath, name: "protected" }),
+    ]);
+    expect(testLogger.infos.join("\n")).toContain(
+      "[skip-conflict] claude/agent/protected",
+    );
+    expect(await readTextFile(config.manifest.path)).toBe(before);
+
+    const result = await sync(config, {
+      dryRun: false,
+      force: false,
+      strict: false,
+      reconcileManifest: true,
+    });
+
+    expect(result).toMatchObject({
+      installed: 0,
+      updated: 0,
+      removed: 0,
+      conflicts: 1,
+      errors: [],
+    });
+    expect(await readTextFile(installedPath)).toBe(originalInstalled);
+    const reconciled = JSON.parse(await readTextFile(config.manifest.path));
+    expect(reconciled.records).toEqual([
+      expect.objectContaining({ installedPath, name: "protected" }),
+    ]);
+  });
+
+  it("keeps skip-up-to-date when a reconciled foreign lexical alias protects its key", async () => {
+    const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
+    await mkdir(config.library.agentsDir, { recursive: true });
+    await createAgentFixture(
+      config.library.agentsDir,
+      "protected",
+      makeAgentYaml("protected"),
+    );
+    const options = { dryRun: false, force: false, strict: false } as const;
+    await sync(config, options);
+    testLogger.infos.length = 0;
+
+    const installedPath = path.join(
+      config.targets.claude.agentsHome,
+      "protected.md",
+    );
+    const firstManifest = JSON.parse(await readTextFile(config.manifest.path));
+    const [boundCanonicalRecord] = firstManifest.records;
+    const { name: _canonicalName, ...canonicalRecord } = boundCanonicalRecord;
+    const foreignPath = `${config.targets.claude.agentsHome}${path.sep}.${path.sep}protected.md`;
+    await writeFile(
+      config.manifest.path,
+      makeManifestJson(
+        [canonicalRecord, { ...canonicalRecord, installedPath: foreignPath }],
+        { legacy: true },
+      ),
+      "utf-8",
+    );
+
+    const result = await sync(config, {
+      dryRun: false,
+      force: false,
+      strict: false,
+      reconcileManifest: true,
+    });
+
+    expect(result).toMatchObject({
+      installed: 0,
+      updated: 0,
+      removed: 0,
+      skipped: 1,
+      conflicts: 0,
+      errors: [],
+    });
+    expect(testLogger.infos.join("\n")).not.toContain(
+      "[skip-conflict] claude/agent/protected",
+    );
+    const reconciled = JSON.parse(await readTextFile(config.manifest.path));
+    expect(reconciled.records).toEqual([
+      expect.objectContaining({ installedPath, name: "protected" }),
+    ]);
+  });
+
+  it("keeps an existing skip-conflict when a reconciled foreign record protects its key", async () => {
+    const config = makeResolvedConfig(tempDir, {
+      codex: { enabled: false },
+      defaults: { cleanManagedOutputs: false },
+    });
+    await mkdir(config.library.agentsDir, { recursive: true });
+    await createAgentFixture(
+      config.library.agentsDir,
+      "protected",
+      makeAgentYaml("protected"),
+    );
+    await mkdir(path.dirname(config.manifest.path), { recursive: true });
+    const installedPath = path.join(
+      config.targets.claude.agentsHome,
+      "protected.md",
+    );
+    const foreignPath = `${config.targets.claude.agentsHome}${path.sep}.${path.sep}protected.md`;
+    await mkdir(path.dirname(installedPath), { recursive: true });
+    await writeFile(installedPath, "unmanaged protected bytes", "utf-8");
+    await writeFile(
+      config.manifest.path,
+      makeManifestJson(
+        [
+          {
+            target: "claude",
+            type: "agent",
+            sourcePath: path.join(config.library.agentsDir, "foreign.yaml"),
+            generatedPath: null,
+            installedPath: foreignPath,
+            installMode: "copy",
+            contentHash: "foreign",
+            timestamp: new Date().toISOString(),
+          },
+        ],
+        { legacy: true },
+      ),
+      "utf-8",
+    );
+
+    const result = await sync(config, {
+      dryRun: false,
+      force: false,
+      strict: false,
+      reconcileManifest: true,
+    });
+
+    expect(result).toMatchObject({
+      installed: 0,
+      updated: 0,
+      removed: 0,
+      skipped: 0,
+      conflicts: 1,
+      errors: [],
+    });
+    expect(await readTextFile(installedPath)).toBe("unmanaged protected bytes");
+    expect(testLogger.warnings).toContain(
+      "  ! claude/agent/protected: Unmanaged file exists (overwrite-managed policy).",
+    );
+  });
+
+  it("keeps remove-missing when a reconciled foreign lexical alias protects its key", async () => {
+    const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
+    await mkdir(config.library.agentsDir, { recursive: true });
+    const sourcePath = await createAgentFixture(
+      config.library.agentsDir,
+      "protected",
+      makeAgentYaml("protected"),
+    );
+    const options = { dryRun: false, force: false, strict: false } as const;
+    await sync(config, options);
+
+    const installedPath = path.join(
+      config.targets.claude.agentsHome,
+      "protected.md",
+    );
+    const firstManifest = JSON.parse(await readTextFile(config.manifest.path));
+    const [boundCanonicalRecord] = firstManifest.records;
+    const { name: _canonicalName, ...canonicalRecord } = boundCanonicalRecord;
+    const foreignPath = `${config.targets.claude.agentsHome}${path.sep}.${path.sep}protected.md`;
+    await writeFile(
+      config.manifest.path,
+      makeManifestJson(
+        [canonicalRecord, { ...canonicalRecord, installedPath: foreignPath }],
+        { legacy: true },
+      ),
+      "utf-8",
+    );
+    await rm(sourcePath);
+    await rm(installedPath);
+
+    const result = await sync(config, {
+      dryRun: false,
+      force: false,
+      strict: false,
+      reconcileManifest: true,
+    });
+
+    expect(result).toMatchObject({
+      installed: 0,
+      updated: 0,
+      removed: 1,
+      skipped: 0,
+      conflicts: 0,
+      errors: [],
+    });
+    expect(await pathExists(installedPath)).toBe(false);
+    const reconciled = JSON.parse(await readTextFile(config.manifest.path));
+    expect(reconciled.records).toEqual([]);
+  });
+
   it("uses the next collision-safe backup sibling through the sync consumer", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-07-17T01:02:03.456Z"));

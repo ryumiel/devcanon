@@ -298,7 +298,9 @@ function protectReconciledForeignPaths(
 ): PlanAction[] {
   return plan.map((action) => {
     if (
-      action.kind !== "force-overwrite" ||
+      !["install", "update", "force-overwrite", "remove"].includes(
+        action.kind,
+      ) ||
       !protectedInstalledPathKeys.has(path.resolve(action.installedPath))
     ) {
       return action;
@@ -307,7 +309,7 @@ function protectReconciledForeignPaths(
       ...action,
       kind: "skip-conflict",
       reason:
-        "A foreign legacy manifest record was reconciled at this path; same-sync overwrite is blocked.",
+        "A foreign legacy manifest record was reconciled at this path; same-sync mutation is blocked.",
     };
   });
 }
