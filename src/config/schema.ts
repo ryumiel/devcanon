@@ -430,13 +430,19 @@ export const ManifestSchema = z
     records: z.array(ManagedRecordSchema),
   })
   .superRefine((manifest, ctx) => {
-    if (!manifest.boundary) return;
     for (const [index, record] of manifest.records.entries()) {
-      if (record.name === undefined) {
+      if (manifest.boundary && record.name === undefined) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: ["records", index, "name"],
           message: "bound manifests require every record to have a name",
+        });
+      }
+      if (!manifest.boundary && record.name !== undefined) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["records", index, "name"],
+          message: "legacy manifests must not include record names",
         });
       }
     }

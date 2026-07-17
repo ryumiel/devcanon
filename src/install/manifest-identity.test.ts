@@ -120,6 +120,29 @@ describe("manifest identity schema", () => {
 
     expect(result.success).toBe(false);
   });
+
+  it("rejects an unbound manifest with a named record", () => {
+    const result = ManifestSchema.safeParse({
+      version: 1,
+      managedBy: "devcanon",
+      lastSync: "2026-07-17T00:00:00.000Z",
+      records: [
+        {
+          target: "claude",
+          type: "skill",
+          name: "helper",
+          sourcePath: "/source/helper",
+          generatedPath: null,
+          installedPath: "/homes/claude/skills/helper",
+          installMode: "copy",
+          contentHash: "abc",
+          timestamp: "2026-07-17T00:00:00.000Z",
+        },
+      ],
+    });
+
+    expect(result.success).toBe(false);
+  });
 });
 
 describe("manifest identity", () => {

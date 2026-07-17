@@ -13,6 +13,7 @@ import { getLogger } from "../utils/output.js";
 
 const activeBackupAuthorities = new Map<string, ManifestBackupAuthority>();
 const authorityState = new WeakMap<ManifestBackupAuthority, AuthorityState>();
+const validSnapshots = new WeakSet<ManifestSnapshot>();
 
 interface ManifestLock {
   path: string;
@@ -20,10 +21,9 @@ interface ManifestLock {
 }
 
 interface AuthorityState {
-  originalDigest: string;
   lastAcceptedBytes: Buffer;
-  lastAcceptedDigest: string;
   lock: ManifestLock;
+  tail: Promise<void>;
 }
 
 export interface ManifestSnapshot {
@@ -113,11 +113,7 @@ export async function loadManifestWithSnapshot(
 
   return {
     manifest: result.data,
-    snapshot: {
-      manifestPath: path.resolve(manifestPath),
-      bytes: rawBytes,
-      digest: digestBytes(rawBytes),
-    },
+    snapshot: createValidSnapshot(manifestPath, rawBytes),
   };
 }
 
@@ -152,6 +148,26 @@ export async function saveManifest(
 ): Promise<void> {
   const normalizedManifestPath = path.resolve(manifestPath);
   const authority = validateSaveAuthority(normalizedManifestPath, options);
+  const requiresAuthority = await transitionRequiresAuthority(
+    normalizedManifestPath,
+    manifest,
+  );
+  if (requiresAuthority && !authority) {
+    throw new Error("Manifest removal or migration save requires an authority");
+  }
+  if (authority) {
+    return serializeAuthoritySave(authority, () =>
+      saveManifestUnderLock(normalizedManifestPath, manifest, authority),
+    );
+  }
+  return saveManifestUnderLock(normalizedManifestPath, manifest, undefined);
+}
+
+async function saveManifestUnderLock(
+  normalizedManifestPath: string,
+  manifest: Manifest,
+  authority: ManifestBackupAuthority | undefined,
+): Promise<void> {
   let temporaryLock: ManifestLock | undefined;
   if (!authority) {
     await ensureDir(path.dirname(normalizedManifestPath));
@@ -181,7 +197,6 @@ export async function saveManifest(
     );
     if (state) {
       state.lastAcceptedBytes = Buffer.from(content);
-      state.lastAcceptedDigest = digestBytes(content);
     }
   } finally {
     if (temporaryLock) await releaseManifestLock(temporaryLock);
@@ -194,11 +209,8 @@ export async function captureManifestSnapshot(
 ): Promise<ManifestSnapshot> {
   const normalizedManifestPath = path.resolve(manifestPath);
   const bytes = await readRegularManifestBytes(normalizedManifestPath);
-  return {
-    manifestPath: normalizedManifestPath,
-    bytes,
-    digest: digestBytes(bytes),
-  };
+  assertSchemaValidManifestBytes(bytes);
+  return createValidSnapshot(normalizedManifestPath, bytes);
 }
 
 /**
@@ -212,6 +224,9 @@ export async function createManifestBackupAuthority(
   timestamp = new Date(),
 ): Promise<ManifestBackupAuthority> {
   const normalizedManifestPath = path.resolve(manifestPath);
+  if (!validSnapshots.has(snapshot)) {
+    throw new Error("Manifest backup requires a schema-valid load snapshot");
+  }
   if (snapshot.manifestPath !== normalizedManifestPath) {
     throw new Error("Manifest snapshot belongs to a different manifest path");
   }
@@ -247,10 +262,9 @@ export async function createManifestBackupAuthority(
       },
     });
     authorityState.set(authority, {
-      originalDigest: snapshot.digest,
       lastAcceptedBytes: Buffer.from(currentBytes),
-      lastAcceptedDigest: digestBytes(currentBytes),
       lock,
+      tail: Promise.resolve(),
     });
     activeBackupAuthorities.set(normalizedManifestPath, authority);
     return authority;
@@ -333,6 +347,86 @@ function getAuthorityState(authority: ManifestBackupAuthority): AuthorityState {
   const state = authorityState.get(authority);
   if (!state) throw new Error("Manifest backup authority is no longer active");
   return state;
+}
+
+async function serializeAuthoritySave<T>(
+  authority: ManifestBackupAuthority,
+  operation: () => Promise<T>,
+): Promise<T> {
+  const state = getAuthorityState(authority);
+  const predecessor = state.tail;
+  let release!: () => void;
+  state.tail = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await predecessor;
+  try {
+    return await operation();
+  } finally {
+    release();
+  }
+}
+
+function createValidSnapshot(
+  manifestPath: string,
+  bytes: Buffer,
+): ManifestSnapshot {
+  const snapshot: ManifestSnapshot = Object.freeze({
+    manifestPath: path.resolve(manifestPath),
+    bytes: Buffer.from(bytes),
+    digest: digestBytes(bytes),
+  });
+  validSnapshots.add(snapshot);
+  return snapshot;
+}
+
+function assertSchemaValidManifestBytes(bytes: Buffer): void {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(bytes.toString("utf-8"));
+  } catch {
+    throw new Error("Manifest backup requires schema-valid JSON");
+  }
+  if (!ManifestSchema.safeParse(parsed).success) {
+    throw new Error("Manifest backup requires a schema-valid manifest");
+  }
+}
+
+async function transitionRequiresAuthority(
+  manifestPath: string,
+  proposed: Manifest,
+): Promise<boolean> {
+  const proposedResult = ManifestSchema.safeParse(proposed);
+  if (!proposedResult.success) {
+    throw new Error("Refusing to save a schema-invalid manifest");
+  }
+  try {
+    const currentBytes = await readRegularManifestBytes(manifestPath);
+    let current: unknown;
+    try {
+      current = JSON.parse(currentBytes.toString("utf-8"));
+    } catch {
+      return true;
+    }
+    const currentResult = ManifestSchema.safeParse(current);
+    if (!currentResult.success) return true;
+    const proposedPaths = new Set(
+      proposed.records.map((record) => record.installedPath),
+    );
+    const removesRecord = currentResult.data.records.some(
+      (record) => !proposedPaths.has(record.installedPath),
+    );
+    const migratesLegacy = !currentResult.data.boundary && !!proposed.boundary;
+    return removesRecord || migratesLegacy;
+  } catch (error) {
+    if (
+      (error as NodeJS.ErrnoException).code === "ENOENT" ||
+      (error as Error).message.includes("ENOENT")
+    ) {
+      return false;
+    }
+    throw error;
+  }
 }
 
 async function assertNormalParent(manifestPath: string): Promise<void> {
