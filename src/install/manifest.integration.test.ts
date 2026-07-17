@@ -286,6 +286,45 @@ describe("manifest integration", () => {
       await releaseManifestBackupAuthority(authority);
     });
 
+    it("rechecks freshness after the replacement-rename hook", async () => {
+      const manifestPath = path.join(tempDir, "manifest.json");
+      const original = validManifestJson();
+      const drifted = `${original}drifted`;
+      await writeFile(manifestPath, original, "utf-8");
+      const authority = await createManifestBackupAuthority(
+        manifestPath,
+        await captureManifestSnapshot(manifestPath),
+        "migration-1",
+      );
+
+      await expect(
+        withManifestPersistenceFaultsForTesting(
+          async (stage) => {
+            if (stage === "replacement-rename") {
+              await writeFile(manifestPath, drifted, "utf-8");
+            }
+          },
+          () =>
+            saveManifest(manifestPath, emptyManifest(), {
+              authority,
+              operationId: "migration-1",
+            }),
+        ),
+      ).rejects.toThrow("changed before guarded replacement");
+
+      expect(await readFile(manifestPath, "utf-8")).toBe(drifted);
+      expect(
+        (await readdir(tempDir)).filter((name) => name.includes(".tmp.")),
+      ).toEqual([]);
+      await expect(
+        saveManifest(manifestPath, emptyManifest(), {
+          authority,
+          operationId: "migration-1",
+        }),
+      ).rejects.toThrow("changed since its last accepted save");
+      await releaseManifestBackupAuthority(authority);
+    });
+
     it("rejects an operation identity without authority", async () => {
       const manifestPath = path.join(tempDir, "manifest.json");
 
@@ -684,6 +723,36 @@ describe("manifest integration", () => {
       ).rejects.toThrow("changed while its backup was verified");
 
       expect(await readFile(manifestPath, "utf-8")).toBe(`${original}drifted`);
+      expect(await pathExists(backupPath)).toBe(false);
+      expect(await pathExists(`${manifestPath}.lock`)).toBe(false);
+    });
+
+    it("removes a backup whose readback bytes were altered", async () => {
+      const manifestPath = path.join(tempDir, "manifest.json");
+      const original = validManifestJson();
+      const timestamp = new Date("2026-07-17T01:02:03.456Z");
+      const backupPath = `${manifestPath}.backup-2026-07-17T01-02-03.456Z`;
+      await writeFile(manifestPath, original, "utf-8");
+      const snapshot = await captureManifestSnapshot(manifestPath);
+
+      await expect(
+        withManifestPersistenceFaultsForTesting(
+          async (stage) => {
+            if (stage === "backup-readback") {
+              await writeFile(backupPath, "altered readback", "utf-8");
+            }
+          },
+          () =>
+            createManifestBackupAuthority(
+              manifestPath,
+              snapshot,
+              "migration-1",
+              timestamp,
+            ),
+        ),
+      ).rejects.toThrow("backup verification failed");
+
+      expect(await readFile(manifestPath, "utf-8")).toBe(original);
       expect(await pathExists(backupPath)).toBe(false);
       expect(await pathExists(`${manifestPath}.lock`)).toBe(false);
     });

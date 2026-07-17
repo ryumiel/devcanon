@@ -13,14 +13,22 @@ import {
   normalizeManifestIdentity,
 } from "./manifest-identity.js";
 
+const TEST_ROOT = path.resolve("manifest-identity-fixture");
+const TEST_BOUNDARY = {
+  claudeSkillsHome: path.join(TEST_ROOT, "homes", "claude", "skills"),
+  claudeAgentsHome: path.join(TEST_ROOT, "homes", "claude", "agents"),
+  codexSkillsHome: path.join(TEST_ROOT, "homes", "codex", "skills"),
+  codexAgentsHome: path.join(TEST_ROOT, "homes", "codex", "agents"),
+};
+
 function makeRecord(overrides: Partial<ManagedRecord> = {}): ManagedRecord {
   return {
     target: "claude",
     type: "agent",
     name: "helper",
-    sourcePath: "/source/helper.yaml",
-    generatedPath: "/generated/claude/agents/helper.md",
-    installedPath: "/homes/claude/agents/helper.md",
+    sourcePath: path.join(TEST_ROOT, "source", "helper.yaml"),
+    generatedPath: path.join(TEST_ROOT, "generated", "claude", "helper.md"),
+    installedPath: path.join(TEST_BOUNDARY.claudeAgentsHome, "helper.md"),
     installMode: "copy",
     contentHash: "abc",
     timestamp: "2026-07-17T00:00:00.000Z",
@@ -30,14 +38,17 @@ function makeRecord(overrides: Partial<ManagedRecord> = {}): ManagedRecord {
 
 describe("manifest identity schema", () => {
   it("makes current fixture manifests bound to their supplied resolved config", () => {
-    const config = makeResolvedConfig("/fixture-root");
+    const config = makeResolvedConfig(path.join(TEST_ROOT, "fixture-root"));
     const fixture = JSON.parse(
       makeManifestJson(
         [
           {
             target: "codex",
             type: "agent",
-            installedPath: "/fixture-root/home/codex/agents/helper.toml",
+            installedPath: path.join(
+              config.targets.codex.agentsHome,
+              "helper.toml",
+            ),
           },
         ],
         { config },
@@ -58,20 +69,20 @@ describe("manifest identity schema", () => {
       version: 1,
       managedBy: "devcanon",
       lastSync: "2026-07-17T00:00:00.000Z",
-      boundary: {
-        claudeSkillsHome: "/homes/claude/skills",
-        claudeAgentsHome: "/homes/claude/agents",
-        codexSkillsHome: "/homes/codex/skills",
-        codexAgentsHome: "/homes/codex/agents",
-      },
+      boundary: TEST_BOUNDARY,
       records: [
         {
           target: "claude",
           type: "agent",
           name: "helper",
-          sourcePath: "/source/helper.yaml",
-          generatedPath: "/generated/claude/agents/helper.md",
-          installedPath: "/homes/claude/agents/helper.md",
+          sourcePath: path.join(TEST_ROOT, "source", "helper.yaml"),
+          generatedPath: path.join(
+            TEST_ROOT,
+            "generated",
+            "claude",
+            "helper.md",
+          ),
+          installedPath: path.join(TEST_BOUNDARY.claudeAgentsHome, "helper.md"),
           installMode: "copy",
           contentHash: "abc",
           timestamp: "2026-07-17T00:00:00.000Z",
@@ -98,19 +109,19 @@ describe("manifest identity schema", () => {
       version: 1,
       managedBy: "devcanon",
       lastSync: "2026-07-17T00:00:00.000Z",
-      boundary: {
-        claudeSkillsHome: "/homes/claude/skills",
-        claudeAgentsHome: "/homes/claude/agents",
-        codexSkillsHome: "/homes/codex/skills",
-        codexAgentsHome: "/homes/codex/agents",
-      },
+      boundary: TEST_BOUNDARY,
       records: [
         {
           target: "claude",
           type: "agent",
-          sourcePath: "/source/helper.yaml",
-          generatedPath: "/generated/claude/agents/helper.md",
-          installedPath: "/homes/claude/agents/helper.md",
+          sourcePath: path.join(TEST_ROOT, "source", "helper.yaml"),
+          generatedPath: path.join(
+            TEST_ROOT,
+            "generated",
+            "claude",
+            "helper.md",
+          ),
+          installedPath: path.join(TEST_BOUNDARY.claudeAgentsHome, "helper.md"),
           installMode: "copy",
           contentHash: "abc",
           timestamp: "2026-07-17T00:00:00.000Z",
@@ -131,9 +142,9 @@ describe("manifest identity schema", () => {
           target: "claude",
           type: "skill",
           name: "helper",
-          sourcePath: "/source/helper",
+          sourcePath: path.join(TEST_ROOT, "source", "helper"),
           generatedPath: null,
-          installedPath: "/homes/claude/skills/helper",
+          installedPath: path.join(TEST_BOUNDARY.claudeSkillsHome, "helper"),
           installMode: "copy",
           contentHash: "abc",
           timestamp: "2026-07-17T00:00:00.000Z",
@@ -147,32 +158,30 @@ describe("manifest identity schema", () => {
 
 describe("manifest identity", () => {
   it("normalizes all four configured homes without requiring them to exist", () => {
-    const config = makeResolvedConfig("/workspace", {
-      claude: { skillsHome: "/homes/claude/skills/../skills" },
-      codex: { agentsHome: "/homes/codex/agents/./" },
+    const workspace = path.join(TEST_ROOT, "workspace");
+    const config = makeResolvedConfig(workspace, {
+      claude: {
+        skillsHome: `${TEST_BOUNDARY.claudeSkillsHome}${path.sep}..${path.sep}skills`,
+      },
+      codex: { agentsHome: `${TEST_BOUNDARY.codexAgentsHome}${path.sep}.` },
     });
 
     expect(normalizeManifestBoundary(config)).toEqual({
-      claudeSkillsHome: "/homes/claude/skills",
-      claudeAgentsHome: "/workspace/home/claude/agents",
-      codexSkillsHome: "/workspace/home/codex/skills",
-      codexAgentsHome: "/homes/codex/agents",
+      claudeSkillsHome: TEST_BOUNDARY.claudeSkillsHome,
+      claudeAgentsHome: path.join(workspace, "home", "claude", "agents"),
+      codexSkillsHome: path.join(workspace, "home", "codex", "skills"),
+      codexAgentsHome: TEST_BOUNDARY.codexAgentsHome,
     });
   });
 
   it("classifies only the exact target-native direct-child destination as owned", () => {
-    const boundary = {
-      claudeSkillsHome: "/homes/claude/skills",
-      claudeAgentsHome: "/homes/claude/agents",
-      codexSkillsHome: "/homes/codex/skills",
-      codexAgentsHome: "/homes/codex/agents",
-    };
-
-    const result = classifyManagedRecord(makeRecord(), boundary);
+    const result = classifyManagedRecord(makeRecord(), TEST_BOUNDARY);
 
     expect(result.ownership).toBe("owned");
     expect(result.name).toBe("helper");
-    expect(result.expectedDestination).toBe("/homes/claude/agents/helper.md");
+    expect(result.expectedDestination).toBe(
+      path.join(TEST_BOUNDARY.claudeAgentsHome, "helper.md"),
+    );
   });
 
   it.each([
@@ -181,28 +190,28 @@ describe("manifest identity", () => {
       "claude",
       "skill",
       "skill-name",
-      "/homes/claude/skills/skill-name",
+      path.join(TEST_BOUNDARY.claudeSkillsHome, "skill-name"),
     ],
     [
       "claude agent",
       "claude",
       "agent",
       "helper",
-      "/homes/claude/agents/helper.md",
+      path.join(TEST_BOUNDARY.claudeAgentsHome, "helper.md"),
     ],
     [
       "codex skill",
       "codex",
       "skill",
       "skill-name",
-      "/homes/codex/skills/skill-name",
+      path.join(TEST_BOUNDARY.codexSkillsHome, "skill-name"),
     ],
     [
       "codex agent",
       "codex",
       "agent",
       "helper",
-      "/homes/codex/agents/helper.toml",
+      path.join(TEST_BOUNDARY.codexAgentsHome, "helper.toml"),
     ],
   ] as const)(
     "owns the exact %s destination",
@@ -210,12 +219,7 @@ describe("manifest identity", () => {
       expect(
         classifyManagedRecord(
           makeRecord({ target, type, name, installedPath }),
-          {
-            claudeSkillsHome: "/homes/claude/skills",
-            claudeAgentsHome: "/homes/claude/agents",
-            codexSkillsHome: "/homes/codex/skills",
-            codexAgentsHome: "/homes/codex/agents",
-          },
+          TEST_BOUNDARY,
         ).ownership,
       ).toBe("owned");
     },
@@ -226,14 +230,12 @@ describe("manifest identity", () => {
       classifyManagedRecord(
         makeRecord({
           name: "helper.md",
-          installedPath: "/homes/claude/agents/helper.md.md",
+          installedPath: path.join(
+            TEST_BOUNDARY.claudeAgentsHome,
+            "helper.md.md",
+          ),
         }),
-        {
-          claudeSkillsHome: "/homes/claude/skills",
-          claudeAgentsHome: "/homes/claude/agents",
-          codexSkillsHome: "/homes/codex/skills",
-          codexAgentsHome: "/homes/codex/agents",
-        },
+        TEST_BOUNDARY,
       ).ownership,
     ).toBe("owned");
   });
@@ -245,25 +247,18 @@ describe("manifest identity", () => {
           target: "codex",
           type: "agent",
           name: "helper.toml",
-          installedPath: "/homes/codex/agents/helper.toml.toml",
+          installedPath: path.join(
+            TEST_BOUNDARY.codexAgentsHome,
+            "helper.toml.toml",
+          ),
         }),
-        {
-          claudeSkillsHome: "/homes/claude/skills",
-          claudeAgentsHome: "/homes/claude/agents",
-          codexSkillsHome: "/homes/codex/skills",
-          codexAgentsHome: "/homes/codex/agents",
-        },
+        TEST_BOUNDARY,
       ).ownership,
     ).toBe("owned");
   });
 
   it("derives a legacy agent name only from its target-native suffix", () => {
-    const boundary = {
-      claudeSkillsHome: "/homes/claude/skills",
-      claudeAgentsHome: "/homes/claude/agents",
-      codexSkillsHome: "/homes/codex/skills",
-      codexAgentsHome: "/homes/codex/agents",
-    };
+    const boundary = TEST_BOUNDARY;
     const legacy = makeRecord({ name: undefined });
 
     expect(classifyManagedRecord(legacy, boundary)).toMatchObject({
@@ -272,7 +267,10 @@ describe("manifest identity", () => {
     });
     expect(() =>
       classifyManagedRecord(
-        makeRecord({ name: undefined, installedPath: "/other/helper.toml" }),
+        makeRecord({
+          name: undefined,
+          installedPath: path.join(TEST_ROOT, "other", "helper.toml"),
+        }),
         boundary,
       ),
     ).toThrow(ManifestIdentityError);
@@ -280,33 +278,35 @@ describe("manifest identity", () => {
       classifyManagedRecord(
         makeRecord({
           name: undefined,
-          installedPath: "/homes/claude/agents/nested/helper.md",
+          installedPath: path.join(
+            TEST_BOUNDARY.claudeAgentsHome,
+            "nested",
+            "helper.md",
+          ),
         }),
         boundary,
       ),
     ).toThrow("nested installed path");
   });
 
-  it("rejects a stored boundary that differs in one configured home", () => {
-    const config = makeResolvedConfig("/workspace");
-    const expected = normalizeManifestBoundary(config);
-
+  it("rejects only an empty logical name", () => {
     expect(() =>
-      normalizeManifestIdentity(
-        {
-          version: 1,
-          managedBy: "devcanon",
-          lastSync: "2026-07-17T00:00:00.000Z",
-          boundary: { ...expected, codexAgentsHome: "/other/codex/agents" },
-          records: [],
-        },
-        config,
-      ),
-    ).toThrow(ManifestIdentityError);
+      classifyManagedRecord(makeRecord({ name: "" }), TEST_BOUNDARY),
+    ).toThrow("one direct-child name");
   });
 
-  it("rejects a non-canonical stored boundary even when it resolves to the home", () => {
-    const config = makeResolvedConfig("/workspace");
+  it("rejects only a traversal segment in the installed path", () => {
+    const traversingPath = `${TEST_BOUNDARY.claudeAgentsHome}${path.sep}..${path.sep}escaped${path.sep}helper.md`;
+    expect(() =>
+      classifyManagedRecord(
+        makeRecord({ installedPath: traversingPath }),
+        TEST_BOUNDARY,
+      ),
+    ).toThrow("traversal segments");
+  });
+
+  it("rejects a stored boundary that differs in one configured home", () => {
+    const config = makeResolvedConfig(path.join(TEST_ROOT, "workspace"));
     const expected = normalizeManifestBoundary(config);
 
     expect(() =>
@@ -317,7 +317,28 @@ describe("manifest identity", () => {
           lastSync: "2026-07-17T00:00:00.000Z",
           boundary: {
             ...expected,
-            claudeSkillsHome: `${expected.claudeSkillsHome}/.`,
+            codexAgentsHome: path.join(TEST_ROOT, "other", "codex", "agents"),
+          },
+          records: [],
+        },
+        config,
+      ),
+    ).toThrow(ManifestIdentityError);
+  });
+
+  it("rejects a non-canonical stored boundary even when it resolves to the home", () => {
+    const config = makeResolvedConfig(path.join(TEST_ROOT, "workspace"));
+    const expected = normalizeManifestBoundary(config);
+
+    expect(() =>
+      normalizeManifestIdentity(
+        {
+          version: 1,
+          managedBy: "devcanon",
+          lastSync: "2026-07-17T00:00:00.000Z",
+          boundary: {
+            ...expected,
+            claudeSkillsHome: `${expected.claudeSkillsHome}${path.sep}.`,
           },
           records: [],
         },
@@ -327,7 +348,7 @@ describe("manifest identity", () => {
   });
 
   it("binds legacy records while retaining foreign records for a later consumer decision", () => {
-    const config = makeResolvedConfig("/workspace");
+    const config = makeResolvedConfig(path.join(TEST_ROOT, "workspace"));
     const boundary = normalizeManifestBoundary(config);
     const owned = makeRecord({
       name: undefined,
@@ -335,7 +356,7 @@ describe("manifest identity", () => {
     });
     const foreign = makeRecord({
       name: undefined,
-      installedPath: "/isolated/foreign.md",
+      installedPath: path.join(TEST_ROOT, "isolated", "foreign.md"),
     });
 
     const result = normalizeManifestIdentity(
@@ -365,31 +386,27 @@ describe("manifest identity", () => {
     ["name", makeRecord({ name: "other" })],
     [
       "destination",
-      makeRecord({ installedPath: "/homes/claude/agents/nested/helper.md" }),
+      makeRecord({
+        installedPath: path.join(
+          TEST_BOUNDARY.claudeAgentsHome,
+          "nested",
+          "helper.md",
+        ),
+      }),
     ],
   ])(
     "classifies a one-dimension %s mismatch as foreign",
     (_dimension, record) => {
-      const result = classifyManagedRecord(record, {
-        claudeSkillsHome: "/homes/claude/skills",
-        claudeAgentsHome: "/homes/claude/agents",
-        codexSkillsHome: "/homes/codex/skills",
-        codexAgentsHome: "/homes/codex/agents",
-      });
+      const result = classifyManagedRecord(record, TEST_BOUNDARY);
 
       expect(result.ownership).toBe("foreign");
     },
   );
 
   it("marks a schema-valid record in the wrong owning home as foreign", () => {
-    const boundary = {
-      claudeSkillsHome: "/homes/claude/skills",
-      claudeAgentsHome: "/homes/claude/agents",
-      codexSkillsHome: "/homes/codex/skills",
-      codexAgentsHome: "/homes/codex/agents",
-    };
+    const boundary = TEST_BOUNDARY;
     const record = makeRecord({
-      installedPath: "/homes/codex/agents/helper.md",
+      installedPath: path.join(TEST_BOUNDARY.codexAgentsHome, "helper.md"),
     });
 
     expect(
@@ -405,14 +422,9 @@ describe("manifest identity", () => {
   });
 
   it("marks a schema-valid record with only the wrong target suffix as foreign", () => {
-    const boundary = {
-      claudeSkillsHome: "/homes/claude/skills",
-      claudeAgentsHome: "/homes/claude/agents",
-      codexSkillsHome: "/homes/codex/skills",
-      codexAgentsHome: "/homes/codex/agents",
-    };
+    const boundary = TEST_BOUNDARY;
     const record = makeRecord({
-      installedPath: "/homes/claude/agents/helper.toml",
+      installedPath: path.join(TEST_BOUNDARY.claudeAgentsHome, "helper.toml"),
     });
 
     expect(
@@ -428,16 +440,19 @@ describe("manifest identity", () => {
   });
 
   it("does not inspect filesystem existence when classifying an exact destination", () => {
+    const missingRoot = path.join(TEST_ROOT, "missing");
     const boundary = {
-      claudeSkillsHome: "/missing/claude/skills",
-      claudeAgentsHome: "/missing/claude/agents",
-      codexSkillsHome: "/missing/codex/skills",
-      codexAgentsHome: "/missing/codex/agents",
+      claudeSkillsHome: path.join(missingRoot, "claude", "skills"),
+      claudeAgentsHome: path.join(missingRoot, "claude", "agents"),
+      codexSkillsHome: path.join(missingRoot, "codex", "skills"),
+      codexAgentsHome: path.join(missingRoot, "codex", "agents"),
     };
 
     expect(
       classifyManagedRecord(
-        makeRecord({ installedPath: "/missing/claude/agents/helper.md" }),
+        makeRecord({
+          installedPath: path.join(boundary.claudeAgentsHome, "helper.md"),
+        }),
         boundary,
       ).ownership,
     ).toBe("owned");

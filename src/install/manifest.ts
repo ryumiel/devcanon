@@ -840,6 +840,14 @@ async function atomicReplaceManifest(
       }
     }
     await injectManifestFault("replacement-rename");
+    if (expectedCurrentBytes) {
+      const currentBytes = await readRegularManifestBytes(manifestPath);
+      if (!currentBytes.equals(expectedCurrentBytes)) {
+        throw new Error(
+          "Manifest changed before guarded replacement; refusing rewrite",
+        );
+      }
+    }
     await rename(tempPath, manifestPath);
   } catch (error) {
     try {
