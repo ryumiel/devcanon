@@ -17,6 +17,7 @@ import {
   loadManifestWithSnapshot,
   releaseManifestBackupAuthority,
   saveManifest,
+  setManifestPersistenceFaultInjectorForTest,
 } from "./manifest.js";
 
 describe("manifest integration", () => {
@@ -43,6 +44,7 @@ describe("manifest integration", () => {
   });
 
   afterEach(async () => {
+    setManifestPersistenceFaultInjectorForTest(undefined);
     restoreLogger();
     await cleanupTempDir(tempDir);
   });
@@ -191,6 +193,30 @@ describe("manifest integration", () => {
           operationId: "migration-1",
         }),
       ).rejects.toThrow("changed since its last accepted save");
+      await releaseManifestBackupAuthority(authority);
+    });
+
+    it("cleans a failed replacement temp while preserving its verified backup", async () => {
+      const manifestPath = path.join(tempDir, "manifest.json");
+      const original = validManifestJson();
+      await writeFile(manifestPath, original, "utf-8");
+      const authority = await createManifestBackupAuthority(
+        manifestPath,
+        await captureManifestSnapshot(manifestPath),
+        "migration-1",
+      );
+      setManifestPersistenceFaultInjectorForTest((stage) => {
+        if (stage === "replacement-write") throw new Error("injected write");
+      });
+
+      await expect(
+        saveManifest(manifestPath, emptyManifest(), {
+          authority,
+          operationId: "migration-1",
+        }),
+      ).rejects.toThrow("injected write");
+      expect(await readFile(manifestPath, "utf-8")).toBe(original);
+      expect(await readFile(authority.backupPath, "utf-8")).toBe(original);
       await releaseManifestBackupAuthority(authority);
     });
 

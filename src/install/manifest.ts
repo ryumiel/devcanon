@@ -14,6 +14,29 @@ import { getLogger } from "../utils/output.js";
 const activeBackupAuthorities = new Map<string, ManifestBackupAuthority>();
 const authorityState = new WeakMap<ManifestBackupAuthority, AuthorityState>();
 const validSnapshots = new WeakSet<ManifestSnapshot>();
+type ManifestFaultStage =
+  | "backup-open"
+  | "backup-write"
+  | "backup-sync"
+  | "backup-close"
+  | "backup-readback"
+  | "replacement-write"
+  | "replacement-sync"
+  | "replacement-close"
+  | "replacement-freshness"
+  | "replacement-rename";
+let manifestFaultInjector: ((stage: ManifestFaultStage) => void) | undefined;
+
+/** @internal Test-only deterministic persistence fault seam. */
+export function setManifestPersistenceFaultInjectorForTest(
+  injector: ((stage: ManifestFaultStage) => void) | undefined,
+): void {
+  manifestFaultInjector = injector;
+}
+
+function injectManifestFault(stage: ManifestFaultStage): void {
+  manifestFaultInjector?.(stage);
+}
 
 interface ManifestLock {
   path: string;
@@ -480,6 +503,7 @@ async function writeVerifiedBackup(
     const backupPath = suffix === 0 ? basePath : `${basePath}-${suffix}`;
     let handle: Awaited<ReturnType<typeof open>>;
     try {
+      injectManifestFault("backup-open");
       handle = await open(backupPath, "wx", 0o600);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "EEXIST") continue;
@@ -490,11 +514,15 @@ async function writeVerifiedBackup(
 
     try {
       try {
+        injectManifestFault("backup-write");
         await handle.writeFile(sourceBytes);
+        injectManifestFault("backup-sync");
         await handle.sync();
       } finally {
+        injectManifestFault("backup-close");
         await handle.close();
       }
+      injectManifestFault("backup-readback");
       const readback = await readRegularManifestBytes(backupPath);
       if (!readback.equals(sourceBytes)) {
         throw new Error(
@@ -590,12 +618,16 @@ async function atomicReplaceManifest(
 
   try {
     try {
+      injectManifestFault("replacement-write");
       await handle.writeFile(content);
+      injectManifestFault("replacement-sync");
       await handle.sync();
     } finally {
+      injectManifestFault("replacement-close");
       await handle.close();
     }
     if (expectedCurrentBytes) {
+      injectManifestFault("replacement-freshness");
       const currentBytes = await readRegularManifestBytes(manifestPath);
       if (!currentBytes.equals(expectedCurrentBytes)) {
         throw new Error(
@@ -603,6 +635,7 @@ async function atomicReplaceManifest(
         );
       }
     }
+    injectManifestFault("replacement-rename");
     await rename(tempPath, manifestPath);
   } catch (error) {
     try {
