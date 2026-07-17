@@ -128,6 +128,19 @@ describe("manifest integration", () => {
       expect(bakContent).toBe(corruptContent);
     });
 
+    it("preserves an occupied recovery backup and selects the next sibling", async () => {
+      const manifestPath = path.join(tempDir, "manifest.json");
+      await writeFile(manifestPath, "{corrupt", "utf-8");
+      await writeFile(`${manifestPath}.bak`, "existing backup", "utf-8");
+
+      await loadManifest(manifestPath);
+
+      expect(await readFile(`${manifestPath}.bak`, "utf-8")).toBe(
+        "existing backup",
+      );
+      expect(await readFile(`${manifestPath}.bak-1`, "utf-8")).toBe("{corrupt");
+    });
+
     it("returns empty manifest and backs up schema-invalid JSON", async () => {
       const manifestPath = path.join(tempDir, "manifest.json");
       const invalidSchema = {

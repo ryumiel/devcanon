@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { constants } from "node:fs";
-import { lstat, open, rename, unlink } from "node:fs/promises";
+import { link, lstat, open, rename, unlink } from "node:fs/promises";
 import path from "node:path";
 import { MANIFEST_MANAGED_BY } from "../config/identity.js";
 import {
@@ -90,11 +90,7 @@ export async function loadManifestWithSnapshot(
     getLogger().warn(
       `Warning: manifest is corrupt JSON. Backing up to ${manifestPath}.bak`,
     );
-    try {
-      await rename(manifestPath, `${manifestPath}.bak`);
-    } catch {
-      // ignore backup failure
-    }
+    await recoverInvalidManifest(manifestPath, rawBytes);
     return { manifest: emptyManifest(), snapshot: null };
   }
 
@@ -103,11 +99,7 @@ export async function loadManifestWithSnapshot(
     getLogger().warn(
       `Warning: manifest schema invalid. Backing up to ${manifestPath}.bak`,
     );
-    try {
-      await rename(manifestPath, `${manifestPath}.bak`);
-    } catch {
-      // ignore backup failure
-    }
+    await recoverInvalidManifest(manifestPath, rawBytes);
     return { manifest: emptyManifest(), snapshot: null };
   }
 
@@ -497,17 +489,27 @@ async function writeVerifiedBackup(
     }
 
     try {
-      await handle.writeFile(sourceBytes);
-      await handle.sync();
-    } finally {
-      await handle.close();
+      try {
+        await handle.writeFile(sourceBytes);
+        await handle.sync();
+      } finally {
+        await handle.close();
+      }
+      const readback = await readRegularManifestBytes(backupPath);
+      if (!readback.equals(sourceBytes)) {
+        throw new Error(
+          `Manifest backup verification failed for ${backupPath}`,
+        );
+      }
+      return backupPath;
+    } catch (error) {
+      try {
+        await unlink(backupPath);
+      } catch {
+        // A failed cleanup must not mask the original backup verification error.
+      }
+      throw error;
     }
-
-    const readback = await readRegularManifestBytes(backupPath);
-    if (!readback.equals(sourceBytes)) {
-      throw new Error(`Manifest backup verification failed for ${backupPath}`);
-    }
-    return backupPath;
   }
 }
 
@@ -536,6 +538,41 @@ async function releaseManifestLock(lock: ManifestLock): Promise<void> {
   }
 }
 
+async function recoverInvalidManifest(
+  manifestPath: string,
+  expectedBytes: Buffer,
+): Promise<void> {
+  const normalizedPath = path.resolve(manifestPath);
+  try {
+    await assertNormalParent(normalizedPath);
+    const lock = await acquireManifestLock(normalizedPath);
+    try {
+      const currentBytes = await readRegularManifestBytes(normalizedPath);
+      if (!currentBytes.equals(expectedBytes)) return;
+      for (let suffix = 0; suffix < 10000; suffix++) {
+        const backupPath =
+          suffix === 0
+            ? `${normalizedPath}.bak`
+            : `${normalizedPath}.bak-${suffix}`;
+        try {
+          await link(normalizedPath, backupPath);
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code === "EEXIST") continue;
+          return;
+        }
+        const beforeRemoval = await readRegularManifestBytes(normalizedPath);
+        if (!beforeRemoval.equals(expectedBytes)) return;
+        await unlink(normalizedPath);
+        return;
+      }
+    } finally {
+      await releaseManifestLock(lock);
+    }
+  } catch {
+    // Preserve established invalid-manifest recovery behavior on filesystem errors.
+  }
+}
+
 async function atomicReplaceManifest(
   manifestPath: string,
   content: Buffer,
@@ -552,13 +589,12 @@ async function atomicReplaceManifest(
   }
 
   try {
-    await handle.writeFile(content);
-    await handle.sync();
-  } finally {
-    await handle.close();
-  }
-
-  try {
+    try {
+      await handle.writeFile(content);
+      await handle.sync();
+    } finally {
+      await handle.close();
+    }
     if (expectedCurrentBytes) {
       const currentBytes = await readRegularManifestBytes(manifestPath);
       if (!currentBytes.equals(expectedCurrentBytes)) {
