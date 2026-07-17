@@ -3547,6 +3547,8 @@ describe("play subagent routing source contracts", () => {
       agentSpec,
       writingSkills,
       agentAuthoring,
+      lifecycleOwner,
+      adoptionInventory,
     ] = await Promise.all([
       readSkillSource("issue-priming-workflow"),
       readRepoFile(
@@ -3560,6 +3562,8 @@ describe("play subagent routing source contracts", () => {
       readRepoFile("docs/specs/agents.md"),
       readRepoFile("docs/guidelines/writing-skills.md"),
       readRepoFile("docs/guidelines/agent-authoring-guide.md"),
+      readSkillSource("subagent-lifecycle"),
+      readRepoFile("docs/guidelines/agent-routing-and-mutation-policy.md"),
     ]);
     const normalizedIssuePriming = normalizeWhitespace(issuePriming);
     const normalizedLifecyclePolicy = normalizeWhitespace(lifecyclePolicy);
@@ -3567,8 +3571,28 @@ describe("play subagent routing source contracts", () => {
     const normalizedAdr = normalizeWhitespace(adr);
     const normalizedRoutingSpec = normalizeWhitespace(routingSpec);
     const normalizedAgentSpec = normalizeWhitespace(agentSpec);
+    const normalizedLifecycleOwner = normalizeWhitespace(lifecycleOwner);
+    const normalizedAdoptionInventory = normalizeWhitespace(adoptionInventory);
+    const adoptionSection = sliceBetween(
+      adoptionInventory,
+      "## Capability Escalation Adoption Inventory",
+      "### Ordinary child failure disposition",
+    );
+    const selectedRouteIds = ["D1", "D2", "D3", "D12", "D13", "D17"];
 
-    for (const route of ["D1", "D2", "D3"]) {
+    expect(normalizedLifecycleOwner).toContain(
+      "names the route and target; the same semantic role; exact current and requested next capability/effort tuples",
+    );
+    expect(normalizedLifecycleOwner).toContain(
+      "unsupported or undeclared exact transition",
+    );
+    for (const route of selectedRouteIds) {
+      expect(markdownTableRow(adoptionSection, route)).toMatch(
+        /\|\s*opt-out\s*\|\s*none\s*\|/u,
+      );
+    }
+
+    for (const route of selectedRouteIds.slice(0, 3)) {
       expect(normalizedIssuePriming).toContain(
         `${route} current exact target transition: none`,
       );
@@ -3580,7 +3604,7 @@ describe("play subagent routing source contracts", () => {
       "Ordinary gate and research outcomes are capability retries.",
     );
 
-    for (const route of ["D12", "D13"]) {
+    for (const route of selectedRouteIds.slice(3, 5)) {
       expect(normalizedLifecyclePolicy).toContain(
         `${route} current exact target transition: none`,
       );
@@ -3614,12 +3638,19 @@ describe("play subagent routing source contracts", () => {
       "Capability and effort, tools, sandbox, authority, orchestration, retries, and escalation remain separate choices.",
     );
     expect(normalizedRoutingSpec).toContain("transition: none");
+    expect(normalizedRoutingSpec).toContain(
+      "Capability-escalation adoption is not owned by this spec.",
+    );
+    expect(normalizedRoutingSpec).not.toMatch(
+      /\bmust\b[^.]{0,160}\b(?:capability[- ]escalation|transition:\s*none)\b/iu,
+    );
     expect(normalizedAgentSpec).toContain(
       "static agent-schema field for escalation",
     );
 
     for (const source of [writingSkills, agentAuthoring]) {
       const normalizedSource = normalizeWhitespace(source);
+      expect(normalizedSource).toContain("exact target and semantic role");
       expect(normalizedSource).toContain(
         "explicit opt-out with `transition: none`",
       );
@@ -3633,5 +3664,28 @@ describe("play subagent routing source contracts", () => {
         "No static agent schema change is required",
       );
     }
+
+    for (const source of [
+      issuePriming,
+      lifecyclePolicy,
+      prMerge,
+      routingSpec,
+      writingSkills,
+      agentAuthoring,
+    ]) {
+      const normalizedSource = normalizeWhitespace(source);
+      expect(normalizedSource).not.toMatch(
+        /\b(?:reclassif\w*|retry\w*|CI repair cycles?)\b(?:(?!\bnot\b).){0,120}\b(?:capability escalation|escalation budget)\b/iu,
+      );
+      expect(normalizedSource).not.toMatch(
+        /\b(?:this spec|workflow routing|authoring guide|writing skills)\b[^.]{0,120}\bowns?\b[^.]{0,120}\bcapability[- ]escalation\b/iu,
+      );
+    }
+    expect(normalizedLifecycleOwner).toContain(
+      "This is the one shared controller procedure for a fresh capability/effort attempt.",
+    );
+    expect(normalizedAdoptionInventory).toContain(
+      "This table is the authoritative current adoption record",
+    );
   });
 });

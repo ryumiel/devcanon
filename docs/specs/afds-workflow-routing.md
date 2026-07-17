@@ -141,15 +141,16 @@ criteria, retry loops, and termination remain owned by the source skill. A
 shared role provides stable work identity and target-native constraints, not
 workflow method.
 
-Capability escalation is separately owned by the shared
-[`subagent-lifecycle`](../../skills/subagent-lifecycle/SKILL.md) procedure and
-the [Agent Routing and Mutation Policy](../guidelines/agent-routing-and-mutation-policy.md)
-adoption inventory. A controller must either consume a complete exact
-target-supported declaration from that owner or record its task-local explicit
-opt-out with `transition: none`; it must not imply current target support from
-a role, capability, effort, tool, sandbox, authority, orchestration, retry, or
-nearby route. Existing fallbacks, reclassifications, and workflow retries are
-not escalation unless the shared owner declares them so.
+Capability-escalation adoption is not owned by this spec. For routing context,
+the shared [`subagent-lifecycle`](../../skills/subagent-lifecycle/SKILL.md)
+procedure is the canonical common owner of declaration, support, invariants,
+evidence, budget, and terminal semantics; the
+[Agent Routing and Mutation Policy](../guidelines/agent-routing-and-mutation-policy.md)
+adoption inventory is the canonical current adoption record. This spec records
+no declaration grammar or escalation requirement. It only preserves the routing
+distinction: an inventory opt-out records `transition: none`, while existing
+fallbacks, reclassifications, and workflow retries remain task-local behavior
+unless the canonical owner declares a supported transition.
 
 ### AUTH-001: Separate Mutation Axes
 
