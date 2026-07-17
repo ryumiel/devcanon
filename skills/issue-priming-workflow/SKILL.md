@@ -165,6 +165,14 @@ references, and blocker state for each research leaf; and any blocker or
 context request needed to continue the workflow. The root, not a research
 child, owns the final research brief path and synthesized report.
 
+The shared `subagent-lifecycle` owner and the Agent Routing and Mutation Policy
+adoption inventory own capability-escalation declarations. No current exact
+target transition is declared here: `D1 current exact target transition: none`;
+`D2 current exact target transition: none`; and `D3 current exact target transition: none`.
+The fixed assessor and investigator pairs remain exact.
+Ordinary gate and research outcomes remain their existing fallback and
+outcome-precedence routes; they are not capability retries.
+
 ## Phase 2: Complexity Gate
 
 The gate is evaluated for `payload.research = gated`. Only the research phase

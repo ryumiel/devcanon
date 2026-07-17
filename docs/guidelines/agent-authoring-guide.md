@@ -202,6 +202,15 @@ a security proof.
 9. Validate with `devcanon validate`.
 10. Preview the generated output with `devcanon render`.
 
+For a future controller capability transition, use `subagent-lifecycle` and the
+Agent Routing and Mutation Policy adoption inventory rather than changing an
+agent role. Declare the shared owner's exact target-supported current and next
+capability plus effort, mechanism, budget, invariants, and terminal behavior,
+or an explicit opt-out with `transition: none`. Never infer an escalation from
+ambient, nearby, alias, or role substitution. No static agent schema change is
+required; capability/effort, tools, sandbox, authority, orchestration, retries,
+and escalation remain separate concerns.
+
 ## 8. See Also
 
 These docs remain authoritative for schema and command details:

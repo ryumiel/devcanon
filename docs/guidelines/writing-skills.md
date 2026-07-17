@@ -286,6 +286,18 @@ Prefer moving coherent supporting sections over deleting nuance. A smaller
 to use the skill, what contract it must preserve, and which supporting file or
 script to open when more detail is needed.
 
+### Future controller capability transitions
+
+When authoring a controller that could change a direct child's capability or
+effort after a failure, reference `subagent-lifecycle` and the Agent Routing and
+Mutation Policy adoption inventory. Declare either the shared owner's complete
+exact target-supported current and next capability plus effort, mechanism,
+budget, invariants, and terminal behavior, or an explicit opt-out with
+`transition: none`. Do not infer a transition from ambient, nearby, alias, or
+role substitution. No static agent schema change is required: controller
+orchestration remains skill prose and the shared owner remains the sole common
+policy source.
+
 ## 7. Testing
 
 The general discipline lives in

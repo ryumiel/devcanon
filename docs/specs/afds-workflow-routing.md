@@ -53,8 +53,9 @@ routing and source-immutable guard behavior for DevCanon workflow skills.
   validation implementation details.
 - Creating repository-local logbooks, work journals, validation summaries,
   execution ledgers, postmortem archives, or copied tracker and PR histories.
-- Defining a capability or effort escalation policy. The separately tracked
-  owner, issue #528, retains that work; this spec adds no escalation rule.
+- Defining a capability or effort escalation policy. The shared
+  `subagent-lifecycle` procedure and Agent Routing and Mutation Policy adoption
+  inventory retain that work; this spec adds no escalation rule.
 - Defining benchmark corpora, resumable evidence stores, direct-dispatch marker
   syntax, comprehensive workspace enforcement, or a cross-provider evaluation
   framework.
@@ -139,6 +140,16 @@ Task-specific prompts, schemas, network authorization, failure fallbacks, skip
 criteria, retry loops, and termination remain owned by the source skill. A
 shared role provides stable work identity and target-native constraints, not
 workflow method.
+
+Capability escalation is separately owned by the shared
+[`subagent-lifecycle`](../../skills/subagent-lifecycle/SKILL.md) procedure and
+the [Agent Routing and Mutation Policy](../guidelines/agent-routing-and-mutation-policy.md)
+adoption inventory. A controller must either consume a complete exact
+target-supported declaration from that owner or record its task-local explicit
+opt-out with `transition: none`; it must not imply current target support from
+a role, capability, effort, tool, sandbox, authority, orchestration, retry, or
+nearby route. Existing fallbacks, reclassifications, and workflow retries are
+not escalation unless the shared owner declares them so.
 
 ### AUTH-001: Separate Mutation Axes
 

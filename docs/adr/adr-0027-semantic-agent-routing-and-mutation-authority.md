@@ -32,9 +32,9 @@ examples and runtime checks consume the spec-owned catalog.
 
 The architectural decision is that shared roles describe stable reusable work
 identity rather than provider models, effort levels, or workflow phases.
-Capability, target-native effort, tools, sandbox, network access, mutation
-authority, and escalation remain separate choices. Tool or sandbox availability
-never grants durable source or external mutation.
+Capability and effort, tools, sandbox, authority, orchestration, retries, and
+escalation remain separate choices. Tool or sandbox availability never grants
+durable source or external mutation.
 
 Skills remain the reusable method owner. They assemble task-local prompts,
 inputs, output contracts, retry and fallback behavior, skip criteria, and
@@ -69,7 +69,11 @@ effort selection.
 Adversarial stance is independent of cognitive demand. `deep-reviewer` is
 reserved for the existing critic, per-task high-assurance reviews, and final
 whole-implementation review. This decision establishes no capability or effort
-escalation rule; issue #528 remains the separate escalation-policy owner.
+escalation rule. The shared `subagent-lifecycle` procedure owns declaration,
+support, invariants, evidence, budget, and terminal semantics; the
+[Agent Routing and Mutation Policy](../guidelines/agent-routing-and-mutation-policy.md)
+owns the current adoption inventory. Controllers consume those sources without
+claiming current target support or duplicating their policy.
 
 ### Minimum source-immutable guard
 
@@ -202,5 +206,7 @@ decision's implementation:
 - [ADR-0024: Shared Support Skill Runtime](adr-0024-shared-support-skill-runtime.md)
 - [ADR-0025: Select Named GPT-5.6 Codex Tiers](adr-0025-codex-model-tier-selection.md)
 - [ADR-0026: Replace Model Tiers with Capability Profiles](adr-0026-capability-profiles.md)
+- [Shared subagent lifecycle procedure](../../skills/subagent-lifecycle/SKILL.md)
+- [Agent Routing and Mutation Policy](../guidelines/agent-routing-and-mutation-policy.md)
 - [Agent source schema and semantic role catalog](../specs/agents.md#semantic-role-catalog)
 - [AFDS workflow routing and evidence behavior](../specs/afds-workflow-routing.md)

@@ -3536,4 +3536,102 @@ describe("play subagent routing source contracts", () => {
       "risk signals authorize narrow review",
     );
   });
+
+  it("keeps selected controller routes explicitly opted out of escalation", async () => {
+    const [
+      issuePriming,
+      lifecyclePolicy,
+      prMerge,
+      adr,
+      routingSpec,
+      agentSpec,
+      writingSkills,
+      agentAuthoring,
+    ] = await Promise.all([
+      readSkillSource("issue-priming-workflow"),
+      readRepoFile(
+        "skills/play-subagent-execution/references/lifecycle-status-policy.md",
+      ),
+      readSkillSource("pr-merge"),
+      readRepoFile(
+        "docs/adr/adr-0027-semantic-agent-routing-and-mutation-authority.md",
+      ),
+      readRepoFile("docs/specs/afds-workflow-routing.md"),
+      readRepoFile("docs/specs/agents.md"),
+      readRepoFile("docs/guidelines/writing-skills.md"),
+      readRepoFile("docs/guidelines/agent-authoring-guide.md"),
+    ]);
+    const normalizedIssuePriming = normalizeWhitespace(issuePriming);
+    const normalizedLifecyclePolicy = normalizeWhitespace(lifecyclePolicy);
+    const normalizedPrMerge = normalizeWhitespace(prMerge);
+    const normalizedAdr = normalizeWhitespace(adr);
+    const normalizedRoutingSpec = normalizeWhitespace(routingSpec);
+    const normalizedAgentSpec = normalizeWhitespace(agentSpec);
+
+    for (const route of ["D1", "D2", "D3"]) {
+      expect(normalizedIssuePriming).toContain(
+        `${route} current exact target transition: none`,
+      );
+    }
+    expect(normalizedIssuePriming).toContain(
+      "Ordinary gate and research outcomes remain their existing fallback and outcome-precedence routes; they are not capability retries.",
+    );
+    expect(normalizedIssuePriming).not.toContain(
+      "Ordinary gate and research outcomes are capability retries.",
+    );
+
+    for (const route of ["D12", "D13"]) {
+      expect(normalizedLifecyclePolicy).toContain(
+        `${route} current exact target transition: none`,
+      );
+    }
+    expect(normalizedLifecyclePolicy).toContain(
+      "D13-to-D12 reclassification is not capability escalation.",
+    );
+    expect(normalizedLifecyclePolicy).toContain(
+      "existing blocker/manual-owner path without a model or effort override",
+    );
+    expect(normalizedLifecyclePolicy).not.toContain(
+      "D13-to-D12 reclassification is capability escalation.",
+    );
+
+    expect(normalizedPrMerge).toContain(
+      "D17 current exact target transition: none",
+    );
+    expect(normalizedPrMerge).toContain(
+      "The two CI repair cycles are workflow retries, not a capability escalation budget.",
+    );
+    expect(normalizedPrMerge).not.toContain(
+      "The two CI repair cycles are a capability escalation budget.",
+    );
+
+    for (const source of [adr, routingSpec, agentSpec]) {
+      expect(source).toContain("subagent-lifecycle");
+      expect(source).toContain("Agent Routing and Mutation Policy");
+      expect(source).not.toContain("issue #528");
+    }
+    expect(normalizedAdr).toContain(
+      "Capability and effort, tools, sandbox, authority, orchestration, retries, and escalation remain separate choices.",
+    );
+    expect(normalizedRoutingSpec).toContain("transition: none");
+    expect(normalizedAgentSpec).toContain(
+      "static agent-schema field for escalation",
+    );
+
+    for (const source of [writingSkills, agentAuthoring]) {
+      const normalizedSource = normalizeWhitespace(source);
+      expect(normalizedSource).toContain(
+        "explicit opt-out with `transition: none`",
+      );
+      expect(normalizedSource).toContain(
+        "current and next capability plus effort",
+      );
+      expect(normalizedSource).toContain(
+        "ambient, nearby, alias, or role substitution",
+      );
+      expect(normalizedSource).toContain(
+        "No static agent schema change is required",
+      );
+    }
+  });
 });
