@@ -167,11 +167,14 @@ Escalate through the owning workflow's blocked or manual-resolution path.
 ## Eligible Quality-Failure Capability Escalation
 
 This is the one shared controller procedure for a fresh capability/effort
-attempt. It applies only after an attempt settles, guard and lifecycle cleanup
-succeeds, and the controller positively supports an eligible quality failure.
-It performs no mutation itself: only the owning controller's already-authorized
-effects may occur. Workflow-local dispatch, retry, fix-loop, and termination
-rules remain with their existing owners.
+attempt. It begins after a delegated attempt and its guard/lifecycle cleanup
+outcome settle. Classify regardless of whether cleanup succeeded or eligibility
+is positive: missing context, tools, permission, authority, or a blank, failed,
+timed-out, unavailable, or malformed result still enters classification. Successful
+cleanup and positive eligible-quality evidence are conditions only for validating
+and starting a fresh attempt. It performs no mutation itself: only the owning
+controller's already-authorized effects may occur. Workflow-local dispatch,
+retry, fix-loop, and termination rules remain with their existing owners.
 
 ### Deterministic Five-Family Classifier
 
@@ -205,6 +208,7 @@ predicate is satisfied may the result be `eligible-quality-failure`.
 
 Blank, malformed, unavailable, failed, or timed-out results deterministically
 fall into `ineligible-integrity-or-route` unless an earlier predicate applies.
+A cleanup failure enters `ineligible-integrity-or-route`.
 A generic result is not automatically eligible.
 
 ### Declaration, Support, and Exactness

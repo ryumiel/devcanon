@@ -2723,8 +2723,18 @@ describe("play subagent routing source contracts", () => {
       "### Deterministic Five-Family Classifier",
       "### Declaration, Support, and Exactness",
     );
+    const escalationEntry = sliceBetween(
+      skillSource,
+      "## Eligible Quality-Failure Capability Escalation",
+      "### Deterministic Five-Family Classifier",
+    );
 
     const normalizedEscalation = normalizeWhitespace(capabilityEscalation);
+    expectSubstringsInOrder(normalizeWhitespace(escalationEntry), [
+      "after a delegated attempt and its guard/lifecycle cleanup outcome settle",
+      "Classify regardless of whether cleanup succeeded or eligibility is positive",
+      "Successful cleanup and positive eligible-quality evidence are conditions only for validating and starting a fresh attempt",
+    ]);
     for (const boundary of [
       "`eligible-quality-failure` (`eligible quality failure`)",
       "complete and current context",
@@ -2779,6 +2789,7 @@ describe("play subagent routing source contracts", () => {
       "absent, inconsistent, or unconsumable verified evidence",
       "remaining gap that is not capability-sensitive",
       "Blank, malformed, unavailable, failed, or timed-out results deterministically fall into `ineligible-integrity-or-route` unless an earlier predicate applies",
+      "A cleanup failure enters `ineligible-integrity-or-route`",
       "Only when none of the four ineligible predicates applies and every positive predicate is satisfied",
     ]) {
       expect(normalizeWhitespace(deterministicClassifier)).toContain(
