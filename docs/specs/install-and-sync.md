@@ -37,10 +37,11 @@ Default path:
 ~/.devcanon/manifest.json
 ```
 
-### Suggested manifest fields
+### Required bound manifest record fields
 
-Each managed record should include:
+Each bound managed record must include:
 
+- name
 - target
 - type (`skill` or `agent`)
 - source path
@@ -53,10 +54,17 @@ Each managed record should include:
 ### Manifest identity and boundary
 
 The canonical manifest boundary is the normalized tuple of all four configured
-homes: Claude skills, Claude agents, Codex skills, and Codex agents. A managed
-record is classified by its complete target, type, name, owning home, and exact
-target-native destination. Path appearance, filesystem presence, and a missing
-output are never ownership evidence; records are not shared across home tuples.
+homes: Claude skills, Claude agents, Codex skills, and Codex agents. `name` is
+schema-optional only so legacy manifests remain readable: every bound record
+must include it, while an unbound legacy record must omit it. Identity
+normalization derives the legacy name from its target-native installed
+destination before a manifest is bound.
+
+A managed record is classified by its complete target, type, name, owning home,
+and exact target-native destination. Exact installed-path equality is only the
+destination dimension of that full identity; path equality, path appearance,
+filesystem presence, filesystem absence, and a missing output alone never prove
+ownership. Records are not shared across home tuples.
 
 A manifest bound to a different home tuple fails closed before rendering,
 generated-output writes, installed-output changes, or manifest mutation. It
@@ -71,6 +79,14 @@ outputs. Its dry run previews reconciliation and installation work without
 writing, deleting, or creating a backup. `diff` and `uninstall` consume the
 same classification: they direct an unbound mixed legacy manifest to
 reconciliation and reject bound foreign records.
+
+For the current reconciliation invocation only, the physical paths of removed
+foreign records are lexically normalized and protected from a later planned
+`force-overwrite`. This collision protection does not alter ownership
+classification and is discarded when sync returns or throws. Explicit force and
+configured `overwrite-all` therefore report a `skip-conflict` instead of
+overwriting a protected file or tree; dry run previews that conflict before any
+write, and real sync neither replaces the output nor adds a replacement record.
 
 ### Migration, removal, and backup safety
 
@@ -134,6 +150,8 @@ Default:
 - unmanaged files are never overwritten by default
 - managed files may be replaced during sync
 - unmanaged conflicts require explicit force behavior to overwrite
+- a same-sync path protected by legacy reconciliation remains a conflict even
+  with explicit force or `overwrite-all`
 - deleted managed outputs may be cleaned up if manifest tracking confirms
   ownership
 

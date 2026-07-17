@@ -242,8 +242,9 @@ warning.
 (`~/.devcanon/manifest.json`) is authoritative for tracking what was
 installed.
 
-Each manifest record includes: target, type (skill or agent), source path,
-generated path, installed path, install mode, content hash, and timestamp.
+Each manifest record includes: name, target, type (skill or agent), source
+path, generated path, installed path, install mode, content hash, and
+timestamp.
 
 ### Manifest ownership summary (non-normative)
 
@@ -255,6 +256,9 @@ backup and save authority required for migration or removal. `sync` owns the
 legacy reconciliation transition, while `diff` and `uninstall` consume the
 resulting classification. The install and CLI specifications own public
 behavior and command syntax respectively.
+
+Bound records include `name`; unbound legacy records omit it until identity
+normalization derives it from their target-native destination during binding.
 
 ---
 
@@ -269,9 +273,12 @@ behavior and command syntax respectively.
 
 - `skip-existing` -- never overwrite
 - `overwrite-managed` -- replace only files tracked in manifest (default)
-- `overwrite-all` -- replace anything at the install path
+- `overwrite-all` -- replace ordinary unmanaged paths allowed by install safety
+  checks
 
-Unmanaged files are never overwritten unless explicitly forced.
+Unmanaged files are never overwritten by default; explicit force and
+`overwrite-all` apply only to ordinary unmanaged paths allowed by install safety
+checks.
 
 ---
 

@@ -553,6 +553,226 @@ describe("sync", () => {
     expect(await readTextFile(config.manifest.path)).toBe(before);
   });
 
+  it("protects a reconciled foreign file path from same-sync explicit force overwrite", async () => {
+    const config = makeResolvedConfig(tempDir, {
+      codex: { enabled: false },
+      defaults: { cleanManagedOutputs: false },
+    });
+    await mkdir(config.library.agentsDir, { recursive: true });
+    await createAgentFixture(
+      config.library.agentsDir,
+      "protected",
+      makeAgentYaml("protected"),
+    );
+    await createAgentFixture(
+      config.library.agentsDir,
+      "unrelated",
+      makeAgentYaml("unrelated"),
+    );
+    await mkdir(path.dirname(config.manifest.path), { recursive: true });
+    const installedPath = path.join(
+      config.targets.claude.agentsHome,
+      "protected.md",
+    );
+    const foreignPath = `${config.targets.claude.agentsHome}${path.sep}.${path.sep}protected.md`;
+    const unrelatedInstalledPath = path.join(
+      config.targets.claude.agentsHome,
+      "unrelated.md",
+    );
+    await mkdir(path.dirname(installedPath), { recursive: true });
+    await writeFile(installedPath, "foreign sentinel bytes", "utf-8");
+    await writeFile(
+      unrelatedInstalledPath,
+      "unrelated sentinel bytes",
+      "utf-8",
+    );
+    await writeFile(
+      config.manifest.path,
+      makeManifestJson(
+        [
+          {
+            target: "claude",
+            type: "agent",
+            sourcePath: path.join(config.library.agentsDir, "foreign.yaml"),
+            generatedPath: null,
+            installedPath: foreignPath,
+            installMode: "copy",
+            contentHash: "foreign",
+            timestamp: new Date().toISOString(),
+          },
+        ],
+        { legacy: true },
+      ),
+      "utf-8",
+    );
+    const originalManifest = await readTextFile(config.manifest.path);
+
+    const dryRun = await sync(config, {
+      dryRun: true,
+      force: true,
+      strict: false,
+      reconcileManifest: true,
+    });
+
+    expect(dryRun.reconciliation?.removed).toEqual([
+      {
+        target: "claude",
+        type: "agent",
+        name: "protected",
+        installedPath: foreignPath,
+      },
+    ]);
+    expect(testLogger.infos.join("\n")).toContain(
+      "[skip-conflict] claude/agent/protected",
+    );
+    expect(testLogger.infos.join("\n")).toContain(
+      "[force-overwrite] claude/agent/unrelated",
+    );
+    expect(await readTextFile(installedPath)).toBe("foreign sentinel bytes");
+    expect(await readTextFile(unrelatedInstalledPath)).toBe(
+      "unrelated sentinel bytes",
+    );
+    expect(await readTextFile(config.manifest.path)).toBe(originalManifest);
+
+    const result = await sync(config, {
+      dryRun: false,
+      force: true,
+      strict: false,
+      reconcileManifest: true,
+    });
+
+    expect(result.errors).toEqual([]);
+    expect(result.installed).toBe(1);
+    expect(result.conflicts).toBe(1);
+    expect(await readTextFile(installedPath)).toBe("foreign sentinel bytes");
+    expect(await readTextFile(unrelatedInstalledPath)).not.toBe(
+      "unrelated sentinel bytes",
+    );
+    const migrated = JSON.parse(await readTextFile(config.manifest.path));
+    expect(migrated.records).toEqual(
+      expect.not.arrayContaining([
+        expect.objectContaining({ installedPath }),
+        expect.objectContaining({ installedPath: foreignPath }),
+      ]),
+    );
+    expect(migrated.records).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: "unrelated",
+          installedPath: unrelatedInstalledPath,
+        }),
+      ]),
+    );
+
+    const afterProtectionExpires = await sync(config, {
+      dryRun: false,
+      force: true,
+      strict: false,
+      reconcileManifest: true,
+    });
+
+    expect(afterProtectionExpires.errors).toEqual([]);
+    expect(afterProtectionExpires.installed).toBe(1);
+    expect(afterProtectionExpires.conflicts).toBe(0);
+    expect(await readTextFile(installedPath)).not.toBe(
+      "foreign sentinel bytes",
+    );
+    const afterExpiration = JSON.parse(
+      await readTextFile(config.manifest.path),
+    );
+    expect(afterExpiration.records).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: "protected", installedPath }),
+      ]),
+    );
+  });
+
+  it("protects a reconciled foreign tree path from configured overwrite-all", async () => {
+    const config = makeResolvedConfig(tempDir, {
+      codex: { enabled: false },
+      defaults: {
+        cleanManagedOutputs: false,
+        overwritePolicy: "overwrite-all",
+      },
+    });
+    await mkdir(config.library.skillsDir, { recursive: true });
+    await createSkillFixture(config.library.skillsDir, "protected");
+    await createSkillFixture(config.library.skillsDir, "unrelated");
+    await mkdir(path.dirname(config.manifest.path), { recursive: true });
+    const installedPath = path.join(
+      config.targets.claude.skillsHome,
+      "protected",
+    );
+    const foreignPath = `${config.targets.claude.skillsHome}${path.sep}.${path.sep}protected`;
+    const sentinelPath = path.join(installedPath, "sentinel.txt");
+    const unrelatedInstalledPath = path.join(
+      config.targets.claude.skillsHome,
+      "unrelated",
+    );
+    const unrelatedSentinelPath = path.join(
+      unrelatedInstalledPath,
+      "sentinel.txt",
+    );
+    await mkdir(installedPath, { recursive: true });
+    await mkdir(unrelatedInstalledPath, { recursive: true });
+    await writeFile(sentinelPath, "foreign tree sentinel bytes", "utf-8");
+    await writeFile(
+      unrelatedSentinelPath,
+      "unrelated tree sentinel bytes",
+      "utf-8",
+    );
+    await writeFile(
+      config.manifest.path,
+      makeManifestJson(
+        [
+          {
+            target: "claude",
+            type: "skill",
+            sourcePath: path.join(config.library.skillsDir, "foreign"),
+            generatedPath: null,
+            installedPath: foreignPath,
+            installMode: "copy",
+            contentHash: "foreign",
+            timestamp: new Date().toISOString(),
+          },
+        ],
+        { legacy: true },
+      ),
+      "utf-8",
+    );
+
+    const result = await sync(config, {
+      dryRun: false,
+      force: false,
+      strict: false,
+      reconcileManifest: true,
+    });
+
+    expect(result.errors).toEqual([]);
+    expect(result.installed).toBe(1);
+    expect(result.conflicts).toBe(1);
+    expect(await readTextFile(sentinelPath)).toBe(
+      "foreign tree sentinel bytes",
+    );
+    expect(await readdir(installedPath)).toEqual(["sentinel.txt"]);
+    expect(await pathExists(unrelatedSentinelPath)).toBe(false);
+    const migrated = JSON.parse(await readTextFile(config.manifest.path));
+    expect(migrated.records).toEqual(
+      expect.not.arrayContaining([
+        expect.objectContaining({ installedPath }),
+        expect.objectContaining({ installedPath: foreignPath }),
+      ]),
+    );
+    expect(migrated.records).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: "unrelated",
+          installedPath: unrelatedInstalledPath,
+        }),
+      ]),
+    );
+  });
+
   it("uses the next collision-safe backup sibling through the sync consumer", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-07-17T01:02:03.456Z"));

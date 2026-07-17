@@ -112,6 +112,11 @@ export async function sync(
       ),
     };
   }
+  const protectedInstalledPathKeys = new Set(
+    foreignIndexes.map((index) =>
+      path.resolve(normalized.manifest.records[index].installedPath),
+    ),
+  );
 
   const operationId = `sync-${randomUUID()}`;
   let authority: ManifestBackupAuthority | undefined;
@@ -169,13 +174,17 @@ export async function sync(
     const filteredOutputs = outputs;
 
     // Compute plan
-    const plan = await computePlan(
+    const plannedActions = await computePlan(
       filteredOutputs,
       manifest,
       config.defaults.overwritePolicy,
       options.force,
       config.defaults.cleanManagedOutputs,
       options.target,
+    );
+    const plan = protectReconciledForeignPaths(
+      plannedActions,
+      protectedInstalledPathKeys,
     );
 
     // Dry run
@@ -281,6 +290,26 @@ export async function sync(
   } finally {
     if (authority) await releaseManifestBackupAuthority(authority);
   }
+}
+
+function protectReconciledForeignPaths(
+  plan: PlanAction[],
+  protectedInstalledPathKeys: ReadonlySet<string>,
+): PlanAction[] {
+  return plan.map((action) => {
+    if (
+      action.kind !== "force-overwrite" ||
+      !protectedInstalledPathKeys.has(path.resolve(action.installedPath))
+    ) {
+      return action;
+    }
+    return {
+      ...action,
+      kind: "skip-conflict",
+      reason:
+        "A foreign legacy manifest record was reconciled at this path; same-sync overwrite is blocked.",
+    };
+  });
 }
 
 function assertNoPhysicalPathConflicts(
