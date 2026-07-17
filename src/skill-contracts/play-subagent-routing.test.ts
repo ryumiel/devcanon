@@ -104,9 +104,6 @@ function validateEscalationConsumerContracts(
 function validateRouteLevelOptOutGuideContracts(
   sources: EscalationConsumerSources,
 ): string[] {
-  const projectionErrors = validateEscalationConsumerContracts(sources);
-  if (projectionErrors.length > 0) return projectionErrors;
-
   try {
     const contract = parseCapabilityEscalationAdoptionContractFromSources({
       "docs/adr/adr-0027-semantic-agent-routing-and-mutation-authority.md":
@@ -123,151 +120,246 @@ function validateRouteLevelOptOutGuideContracts(
       "docs/guidelines/agent-routing-and-mutation-policy.md":
         sources.adoptionInventory,
     });
-    const directRoutes = parseAgentRoutingPolicyOwner(
-      sources.adoptionInventory,
-    ).directChildRoutes;
-    const guide = normalizeWhitespace(
-      sliceBetween(
-        sources.writingSkills,
-        "### Future controller capability transitions",
-        "## 7. Testing",
-      ),
+    const writingProjection = parseGuideProjection(
+      sources.writingSkills,
+      "guide-capability-transition-projection",
+      "writing-skills projection",
     );
-    const agentAuthoring = normalizeWhitespace(
-      getMarkdownSection(
-        sources.agentAuthoring,
-        "7. Authoring Workflow in This Repo",
-      ),
+    const agentProjection = parseGuideProjection(
+      sources.agentAuthoring,
+      "guide-capability-transition-delegation",
+      "agent-authoring delegation",
     );
-    const nonD4Adoptions = contract.adoptions.filter(
-      (adoption) => adoption.routeId !== "D4",
+    assertExactObject(
+      writingProjection,
+      [
+        "declaration_id",
+        "source_path",
+        "surface_mode",
+        "authority_ref",
+        "opt_out",
+        "d4",
+        "d17",
+      ],
+      "writing-skills projection",
+    );
+    assertGuideValues(
+      writingProjection,
+      {
+        declaration_id: "GUIDE-WRITING-SKILLS-CAPABILITY-TRANSITIONS",
+        source_path: "docs/guidelines/writing-skills.md",
+        surface_mode: "non-owning-semantic-projection",
+        authority_ref: contract.inventoryOwnerPath,
+      },
+      "writing-skills projection",
+    );
+    const optOut = exactGuideObject(
+      writingProjection.opt_out,
+      [
+        "route_identity",
+        "target_ids",
+        "target_permission",
+        "role_permission",
+        "transition",
+        "non_d4_direct_route_role_ids",
+        "owner_clauses",
+      ],
+      "writing-skills opt-out",
+    );
+    assertGuideValues(
+      optOut,
+      {
+        route_identity: "route-level",
+        target_ids: "plural",
+        target_permission: "exact-only",
+        role_permission: "canonical-direct-route",
+        transition: contract.adoptions.every(
+          (adoption) => adoption.transition === "none",
+        )
+          ? "none"
+          : "invalid",
+        non_d4_direct_route_role_ids: contract.adoptions
+          .filter((adoption) => adoption.routeId !== "D4")
+          .every((adoption) => adoption.directRouteRoleIds !== undefined)
+          ? "required"
+          : "invalid",
+        owner_clauses: "route-specific",
+      },
+      "writing-skills opt-out",
+    );
+    const d4 = exactGuideObject(
+      writingProjection.d4,
+      [
+        "route_id",
+        "declaration_count",
+        "role_set",
+        "selection_mode",
+        "direct_route_role_ids",
+      ],
+      "writing-skills D4",
+    );
+    assertGuideValues(
+      d4,
+      {
+        route_id: contract.d4RouteSet.routeId,
+        declaration_count: 1,
+        role_set:
+          contract.d4RouteSet.allowedRoleIds.length === 6
+            ? "canonical-complete"
+            : "invalid",
+        selection_mode: contract.d4RouteSet.selectionMode,
+        direct_route_role_ids: "forbidden",
+      },
+      "writing-skills D4",
     );
     const d17 = contract.adoptions.find(
       (adoption) => adoption.routeId === "D17",
     );
-    const d17Route = directRoutes.find((route) => route.id === "D17");
-    const expectedD17RoleIds = d17Route?.clauses.map((clause) => clause.role);
-    const expectedTransition = new Set(
-      contract.adoptions.map((adoption) => adoption.transition),
+    if (!d17 || d17.directRouteRoleIds?.length !== 3) {
+      throw new Error("canonical D17 route binding is unavailable");
+    }
+    const d17Projection = exactGuideObject(
+      writingProjection.d17,
+      ["route_id", "declaration_count", "direct_route_role_ids", "binding"],
+      "writing-skills D17",
     );
-    const expectedTargetIds = new Set(
-      nonD4Adoptions.flatMap((adoption) => adoption.targetIds),
+    assertGuideValues(
+      d17Projection,
+      {
+        route_id: d17.routeId,
+        declaration_count: 1,
+        direct_route_role_ids: "canonical-ordered",
+        binding: "route-level",
+      },
+      "writing-skills D17",
     );
-    const routeLevelDeclaration =
-      /An opt-out is a route-level declaration\. It names [^.]+\./u.exec(
-        guide,
-      )?.[0] ?? "";
-
-    if (!routeLevelDeclaration.includes("route identity")) {
-      return ["Guide opt-out declaration is missing route identity"];
-    }
-    if (
-      expectedTargetIds.size > 1 &&
-      !routeLevelDeclaration.includes("plural `target_ids`")
-    ) {
-      return ["Guide opt-out declaration must use plural target_ids"];
-    }
-    if (!routeLevelDeclaration.includes("target permission")) {
-      return ["Guide opt-out declaration is missing target permission"];
-    }
-    if (!routeLevelDeclaration.includes("role permission")) {
-      return ["Guide opt-out declaration is missing role permission"];
-    }
-    if (
-      nonD4Adoptions.some(
-        (adoption) => adoption.directRouteRoleIds !== undefined,
-      ) &&
-      !routeLevelDeclaration.includes("direct-route role binding")
-    ) {
-      return [
-        "Guide opt-out declaration is missing conditional direct-route role binding",
-      ];
-    }
-    if (
-      expectedTransition.size !== 1 ||
-      !routeLevelDeclaration.includes(
-        `literal \`transition: ${[...expectedTransition][0]}\``,
-      )
-    ) {
-      return ["Guide opt-out declaration transition must be exactly: none"];
-    }
-    if (!routeLevelDeclaration.includes("route-specific owner clauses")) {
-      return [
-        "Guide opt-out declaration is missing route-specific owner clauses",
-      ];
-    }
-    if (
-      !guide.includes(
-        "Do not require one exact target or semantic role for a route-level opt-out.",
-      )
-    ) {
-      return [
-        "Guide opt-out declaration must not require one exact target or semantic role",
-      ];
-    }
-
-    const d4RoleCount = contract.d4RouteSet.allowedRoleIds.length;
-    if (
-      d4RoleCount !== 6 ||
-      !guide.includes("D4 is one six-role-set special case")
-    ) {
-      return ["Guide D4 exception must remain one six-role route set"];
-    }
-    if (
-      !guide.includes(
-        "it has no `direct_route_role_ids` field, which applies only to non-D4 routes.",
-      )
-    ) {
-      return ["Guide D4 exception must omit direct_route_role_ids"];
-    }
-    if (!guide.includes("Do not expand D4 into per-role opt-outs.")) {
-      return [
-        "Guide D4 exception must remain one six-role route set, not per-role opt-outs",
-      ];
-    }
-
-    if (!d17 || !expectedD17RoleIds || d17.directRouteRoleIds === undefined) {
-      return ["Guide contract is missing owner-derived D17 route binding"];
-    }
-    const expectedD17Binding = expectedD17RoleIds
-      .map((role, index) =>
-        index === expectedD17RoleIds.length - 1 && index > 0
-          ? `then \`${role}\``
-          : `\`${role}\``,
-      )
-      .join(", ");
-    const d17Declaration = `D17 is one route-level opt-out with its exact ordered three-clause direct-route role binding: ${expectedD17Binding};`;
-    if (
-      d17.directRouteRoleIds.length !== 3 ||
-      !guide.includes(d17Declaration)
-    ) {
-      return [
-        `Guide D17 direct-route role binding must be exactly: ${expectedD17RoleIds.join(", ")}`,
-      ];
-    }
-    if (
-      !guide.includes(
-        `${d17Declaration} do not create three per-role opt-out records.`,
-      )
-    ) {
-      return [
-        "Guide D17 must remain one route-level opt-out, not three per-role records",
-      ];
-    }
-
-    if (
-      !agentAuthoring.includes(
-        "[Future controller capability transitions](writing-skills.md#future-controller-capability-transitions)",
-      ) ||
-      !agentAuthoring.includes("sole adoption-inventory and grammar owner")
-    ) {
-      return [
-        "Agent authoring guide must delegate route-level opt-out grammar to writing-skills and the routing-policy owner",
-      ];
-    }
+    assertExactObject(
+      agentProjection,
+      [
+        "declaration_id",
+        "source_path",
+        "surface_mode",
+        "writing_skills_projection_ref",
+        "canonical_owner_ref",
+        "authority_ref",
+      ],
+      "agent-authoring delegation",
+    );
+    assertGuideValues(
+      agentProjection,
+      {
+        declaration_id: "GUIDE-AGENT-AUTHORING-CAPABILITY-TRANSITIONS",
+        source_path: "docs/guidelines/agent-authoring-guide.md",
+        surface_mode: "delegation-only",
+        writing_skills_projection_ref:
+          "GUIDE-WRITING-SKILLS-CAPABILITY-TRANSITIONS",
+        canonical_owner_ref: contract.inventoryOwnerPath,
+        authority_ref: "non-owner",
+      },
+      "agent-authoring delegation",
+    );
     return [];
   } catch (error) {
     return [(error as Error).message];
+  }
+}
+
+function parseGuideProjection(
+  markdown: string,
+  label: string,
+  description: string,
+): Record<string, unknown> {
+  const matches = [
+    ...markdown.matchAll(new RegExp(`<!-- ${label}\\n([\\s\\S]*?)\\n-->`, "g")),
+  ];
+  if (matches.length !== 1) {
+    throw new Error(`${description} must contain exactly one declaration`);
+  }
+  assertNoDuplicateGuideKeys(matches[0][1], description);
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(matches[0][1]);
+  } catch {
+    throw new Error(`${description} declaration is malformed JSON`);
+  }
+  return exactGuideObject(parsed, [], description, false);
+}
+
+function assertNoDuplicateGuideKeys(json: string, description: string): void {
+  const objectKeySets: Set<string>[] = [];
+  for (let index = 0; index < json.length; index += 1) {
+    if (json[index] === "{") {
+      objectKeySets.push(new Set<string>());
+      continue;
+    }
+    if (json[index] === "}") {
+      objectKeySets.pop();
+      continue;
+    }
+    if (json[index] !== '"') continue;
+    let end = index + 1;
+    while (end < json.length) {
+      if (json[end] === "\\") {
+        end += 2;
+        continue;
+      }
+      if (json[end] === '"') break;
+      end += 1;
+    }
+    if (end >= json.length) break;
+    const literal = json.slice(index, end + 1);
+    let next = end + 1;
+    while (/\s/u.test(json[next] ?? "")) next += 1;
+    if (objectKeySets.length > 0 && json[next] === ":") {
+      const key = JSON.parse(literal);
+      const keys = objectKeySets.at(-1);
+      if (keys?.has(key)) {
+        throw new Error(`${description} declaration has duplicate key`);
+      }
+      keys?.add(key);
+    }
+    index = end;
+  }
+}
+
+function exactGuideObject(
+  value: unknown,
+  expectedKeys: readonly string[],
+  description: string,
+  enforceKeys = true,
+): Record<string, unknown> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error(`${description} declaration must be an object`);
+  }
+  const object = value as Record<string, unknown>;
+  if (enforceKeys) assertExactObject(object, expectedKeys, description);
+  return object;
+}
+
+function assertExactObject(
+  object: Record<string, unknown>,
+  expectedKeys: readonly string[],
+  description: string,
+): void {
+  const actualKeys = Object.keys(object).sort();
+  const expected = [...expectedKeys].sort();
+  if (
+    actualKeys.length !== expected.length ||
+    actualKeys.some((key, index) => key !== expected[index])
+  ) {
+    throw new Error(`${description} declaration has missing or extra field`);
+  }
+}
+
+function assertGuideValues(
+  object: Record<string, unknown>,
+  expected: Record<string, unknown>,
+  description: string,
+): void {
+  for (const [key, value] of Object.entries(expected)) {
+    if (object[key] !== value) {
+      throw new Error(`${description} ${key} is contradictory or unknown`);
+    }
   }
 }
 
@@ -4431,7 +4523,7 @@ describe("play subagent routing source contracts", () => {
     }
   });
 
-  it("rejects one-dimension-invalid route-level opt-out guide declarations", async () => {
+  it("enforces bounded non-owning guide projections from the canonical contract", async () => {
     const sources: EscalationConsumerSources = {
       adr: await readRepoFile(
         "docs/adr/adr-0027-semantic-agent-routing-and-mutation-authority.md",
@@ -4455,111 +4547,482 @@ describe("play subagent routing source contracts", () => {
 
     expect(validateRouteLevelOptOutGuideContracts(sources)).toEqual([]);
 
+    const projection = (source: string, label: string): string => {
+      const match = new RegExp(`<!-- ${label}\\n([\\s\\S]*?)\\n-->`, "u").exec(
+        source,
+      );
+      expect(match, `missing ${label}`).not.toBeNull();
+      return match?.[1] ?? "";
+    };
+    const replaceProjection = (
+      source: string,
+      label: string,
+      declaration: string,
+    ): string =>
+      source.replace(
+        new RegExp(`<!-- ${label}\\n[\\s\\S]*?\\n-->`, "u"),
+        `<!-- ${label}\n${declaration}\n-->`,
+      );
+    const writingDeclaration = projection(
+      sources.writingSkills,
+      "guide-capability-transition-projection",
+    );
+    const agentDeclaration = projection(
+      sources.agentAuthoring,
+      "guide-capability-transition-delegation",
+    );
     const mutationCases: Array<{
       name: string;
-      mutate: (writingSkills: string) => string;
+      mutate: (value: EscalationConsumerSources) => EscalationConsumerSources;
       expectedError: string;
     }> = [
       {
-        name: "route identity removal",
-        mutate: (writingSkills) =>
-          writingSkills.replace(
-            "It names route identity, plural",
-            "It names plural",
+        name: "harmless explanatory prose rewrite",
+        mutate: (value) => ({
+          ...value,
+          writingSkills: value.writingSkills.replace(
+            "When authoring a controller",
+            "When preparing a controller",
           ),
-        expectedError: "Guide opt-out declaration is missing route identity",
+        }),
+        expectedError: "",
       },
       {
-        name: "plural target_ids contradiction",
-        mutate: (writingSkills) =>
-          writingSkills.replace("plural\n`target_ids`", "single\n`target_id`"),
-        expectedError: "Guide opt-out declaration must use plural target_ids",
+        name: "unordered writing projection fields",
+        mutate: (value) => ({
+          ...value,
+          writingSkills: replaceProjection(
+            value.writingSkills,
+            "guide-capability-transition-projection",
+            JSON.stringify(
+              (() => {
+                const declaration = JSON.parse(writingDeclaration) as Record<
+                  string,
+                  unknown
+                >;
+                return {
+                  d17: declaration.d17,
+                  opt_out: declaration.opt_out,
+                  declaration_id: declaration.declaration_id,
+                  authority_ref: declaration.authority_ref,
+                  d4: declaration.d4,
+                  surface_mode: declaration.surface_mode,
+                  source_path: declaration.source_path,
+                };
+              })(),
+            ),
+          ),
+        }),
+        expectedError: "",
       },
       {
-        name: "direct-route binding removal",
-        mutate: (writingSkills) =>
-          writingSkills.replace(
-            "the applicable direct-route\nrole binding, ",
-            "the applicable ",
-          ),
+        name: "coexisting contradictory writing declaration",
+        mutate: (value) => ({
+          ...value,
+          writingSkills: `${value.writingSkills}\n<!-- guide-capability-transition-projection\n${writingDeclaration.replace('"target_permission":"exact-only"', '"target_permission":"ambient"')}\n-->`,
+        }),
         expectedError:
-          "Guide opt-out declaration is missing conditional direct-route role binding",
+          "writing-skills projection must contain exactly one declaration",
       },
       {
-        name: "role permission removal",
-        mutate: (writingSkills) =>
-          writingSkills.replace("role permission, ", ""),
-        expectedError: "Guide opt-out declaration is missing role permission",
-      },
-      {
-        name: "transition none contradiction",
-        mutate: (writingSkills) =>
-          writingSkills.replace(
-            "literal `transition: none`",
-            "literal `transition: active`",
+        name: "missing writing declaration",
+        mutate: (value) => ({
+          ...value,
+          writingSkills: value.writingSkills.replace(
+            /<!-- guide-capability-transition-projection\n[\s\S]*?\n-->/u,
+            "",
           ),
+        }),
         expectedError:
-          "Guide opt-out declaration transition must be exactly: none",
+          "writing-skills projection must contain exactly one declaration",
       },
       {
-        name: "single target and role contradiction",
-        mutate: (writingSkills) =>
-          writingSkills.replace(
-            "Do not require one exact target or semantic role for a route-level opt-out.",
-            "Require one exact target and semantic role for a route-level opt-out.",
+        name: "malformed writing declaration",
+        mutate: (value) => ({
+          ...value,
+          writingSkills: replaceProjection(
+            value.writingSkills,
+            "guide-capability-transition-projection",
+            "{ malformed",
           ),
+        }),
         expectedError:
-          "Guide opt-out declaration must not require one exact target or semantic role",
+          "writing-skills projection declaration is malformed JSON",
       },
       {
-        name: "D4 direct-route binding contradiction",
-        mutate: (writingSkills) =>
-          writingSkills.replace(
-            "it has no\n`direct_route_role_ids` field",
-            "it has one\n`direct_route_role_ids` field",
+        name: "raw duplicate writing key",
+        mutate: (value) => ({
+          ...value,
+          writingSkills: replaceProjection(
+            value.writingSkills,
+            "guide-capability-transition-projection",
+            writingDeclaration.replace(
+              '"declaration_id":',
+              '"declaration_id":"duplicate","declaration_id":',
+            ),
           ),
-        expectedError: "Guide D4 exception must omit direct_route_role_ids",
-      },
-      {
-        name: "D4 per-role opt-out contradiction",
-        mutate: (writingSkills) =>
-          writingSkills.replace(
-            "Do not\nexpand D4 into per-role opt-outs.",
-            "Expand D4 into per-role opt-outs.",
-          ),
+        }),
         expectedError:
-          "Guide D4 exception must remain one six-role route set, not per-role opt-outs",
+          "writing-skills projection declaration has duplicate key",
       },
       {
-        name: "D17 ordered binding contradiction",
-        mutate: (writingSkills) =>
-          writingSkills.replace(
-            "`investigator`, `executor`,\nthen `implementer`",
-            "`executor`, `investigator`,\nthen `implementer`",
+        name: "missing writing field",
+        mutate: (value) => ({
+          ...value,
+          writingSkills: replaceProjection(
+            value.writingSkills,
+            "guide-capability-transition-projection",
+            writingDeclaration.replace(',"d17":', ',"removed_d17":'),
           ),
+        }),
         expectedError:
-          "Guide D17 direct-route role binding must be exactly: investigator, executor, implementer",
+          "writing-skills projection declaration has missing or extra field",
       },
       {
-        name: "D17 per-role opt-out contradiction",
-        mutate: (writingSkills) =>
-          writingSkills.replace(
-            "do not create three per-role opt-out records.",
-            "create three per-role opt-out records.",
+        name: "extra writing field",
+        mutate: (value) => ({
+          ...value,
+          writingSkills: replaceProjection(
+            value.writingSkills,
+            "guide-capability-transition-projection",
+            writingDeclaration.replace("{", '{"extra":true,'),
           ),
+        }),
         expectedError:
-          "Guide D17 must remain one route-level opt-out, not three per-role records",
+          "writing-skills projection declaration has missing or extra field",
+      },
+      {
+        name: "unknown writing identity",
+        mutate: (value) => ({
+          ...value,
+          writingSkills: replaceProjection(
+            value.writingSkills,
+            "guide-capability-transition-projection",
+            writingDeclaration.replace(
+              "GUIDE-WRITING-SKILLS-CAPABILITY-TRANSITIONS",
+              "GUIDE-UNKNOWN",
+            ),
+          ),
+        }),
+        expectedError:
+          "writing-skills projection declaration_id is contradictory or unknown",
+      },
+      {
+        name: "target permission contradiction",
+        mutate: (value) => ({
+          ...value,
+          writingSkills: replaceProjection(
+            value.writingSkills,
+            "guide-capability-transition-projection",
+            writingDeclaration.replace("exact-only", "ambient"),
+          ),
+        }),
+        expectedError:
+          "writing-skills opt-out target_permission is contradictory or unknown",
+      },
+      {
+        name: "single target decomposition",
+        mutate: (value) => ({
+          ...value,
+          writingSkills: replaceProjection(
+            value.writingSkills,
+            "guide-capability-transition-projection",
+            writingDeclaration.replace("plural", "single"),
+          ),
+        }),
+        expectedError:
+          "writing-skills opt-out target_ids is contradictory or unknown",
+      },
+      {
+        name: "opt-out per-role route identity",
+        mutate: (value) => ({
+          ...value,
+          writingSkills: replaceProjection(
+            value.writingSkills,
+            "guide-capability-transition-projection",
+            writingDeclaration.replace(
+              '"route_identity":"route-level"',
+              '"route_identity":"per-role"',
+            ),
+          ),
+        }),
+        expectedError:
+          "writing-skills opt-out route_identity is contradictory or unknown",
+      },
+      {
+        name: "ambient role permission regression",
+        mutate: (value) => ({
+          ...value,
+          writingSkills: replaceProjection(
+            value.writingSkills,
+            "guide-capability-transition-projection",
+            writingDeclaration.replace("canonical-direct-route", "ambient"),
+          ),
+        }),
+        expectedError:
+          "writing-skills opt-out role_permission is contradictory or unknown",
+      },
+      {
+        name: "active opt-out transition",
+        mutate: (value) => ({
+          ...value,
+          writingSkills: replaceProjection(
+            value.writingSkills,
+            "guide-capability-transition-projection",
+            writingDeclaration.replace(
+              '"transition":"none"',
+              '"transition":"active"',
+            ),
+          ),
+        }),
+        expectedError:
+          "writing-skills opt-out transition is contradictory or unknown",
+      },
+      {
+        name: "non-D4 direct-route role omission",
+        mutate: (value) => ({
+          ...value,
+          writingSkills: replaceProjection(
+            value.writingSkills,
+            "guide-capability-transition-projection",
+            writingDeclaration.replace("required", "forbidden"),
+          ),
+        }),
+        expectedError:
+          "writing-skills opt-out non_d4_direct_route_role_ids is contradictory or unknown",
+      },
+      {
+        name: "route-specific owner contradiction",
+        mutate: (value) => ({
+          ...value,
+          writingSkills: replaceProjection(
+            value.writingSkills,
+            "guide-capability-transition-projection",
+            writingDeclaration.replace("route-specific", "ambient"),
+          ),
+        }),
+        expectedError:
+          "writing-skills opt-out owner_clauses is contradictory or unknown",
+      },
+      {
+        name: "D4 cardinality contradiction",
+        mutate: (value) => ({
+          ...value,
+          writingSkills: replaceProjection(
+            value.writingSkills,
+            "guide-capability-transition-projection",
+            writingDeclaration.replace(
+              '"declaration_count":1',
+              '"declaration_count":2',
+            ),
+          ),
+        }),
+        expectedError:
+          "writing-skills D4 declaration_count is contradictory or unknown",
+      },
+      {
+        name: "D4 per-role decomposition",
+        mutate: (value) => ({
+          ...value,
+          writingSkills: replaceProjection(
+            value.writingSkills,
+            "guide-capability-transition-projection",
+            writingDeclaration.replace("canonical-complete", "per-role"),
+          ),
+        }),
+        expectedError: "writing-skills D4 role_set is contradictory or unknown",
+      },
+      {
+        name: "D4 direct-route role field regression",
+        mutate: (value) => ({
+          ...value,
+          writingSkills: replaceProjection(
+            value.writingSkills,
+            "guide-capability-transition-projection",
+            writingDeclaration.replace(
+              '"direct_route_role_ids":"forbidden"',
+              '"direct_route_role_ids":"required"',
+            ),
+          ),
+        }),
+        expectedError:
+          "writing-skills D4 direct_route_role_ids is contradictory or unknown",
+      },
+      {
+        name: "D17 reordered role binding",
+        mutate: (value) => ({
+          ...value,
+          writingSkills: replaceProjection(
+            value.writingSkills,
+            "guide-capability-transition-projection",
+            writingDeclaration.replace("canonical-ordered", "independent"),
+          ),
+        }),
+        expectedError:
+          "writing-skills D17 direct_route_role_ids is contradictory or unknown",
+      },
+      {
+        name: "D17 per-role binding decomposition",
+        mutate: (value) => ({
+          ...value,
+          writingSkills: replaceProjection(
+            value.writingSkills,
+            "guide-capability-transition-projection",
+            writingDeclaration.replace(
+              '"binding":"route-level"',
+              '"binding":"per-role"',
+            ),
+          ),
+        }),
+        expectedError: "writing-skills D17 binding is contradictory or unknown",
+      },
+      {
+        name: "D17 duplicate route-level declaration",
+        mutate: (value) => ({
+          ...value,
+          writingSkills: replaceProjection(
+            value.writingSkills,
+            "guide-capability-transition-projection",
+            writingDeclaration.replace(
+              '"d17":{"route_id":"D17","declaration_count":1',
+              '"d17":{"route_id":"D17","declaration_count":2',
+            ),
+          ),
+        }),
+        expectedError:
+          "writing-skills D17 declaration_count is contradictory or unknown",
+      },
+      {
+        name: "canonical owner mismatch",
+        mutate: (value) => ({
+          ...value,
+          writingSkills: replaceProjection(
+            value.writingSkills,
+            "guide-capability-transition-projection",
+            writingDeclaration.replace(
+              "docs/guidelines/agent-routing-and-mutation-policy.md",
+              "docs/guidelines/not-the-owner.md",
+            ),
+          ),
+        }),
+        expectedError:
+          "writing-skills projection authority_ref is contradictory or unknown",
+      },
+      {
+        name: "agent delegation re-ownership",
+        mutate: (value) => ({
+          ...value,
+          agentAuthoring: replaceProjection(
+            value.agentAuthoring,
+            "guide-capability-transition-delegation",
+            agentDeclaration.replace(
+              '"authority_ref":"non-owner"',
+              '"authority_ref":"owner"',
+            ),
+          ),
+        }),
+        expectedError:
+          "agent-authoring delegation authority_ref is contradictory or unknown",
+      },
+      {
+        name: "missing agent delegation",
+        mutate: (value) => ({
+          ...value,
+          agentAuthoring: value.agentAuthoring.replace(
+            /<!-- guide-capability-transition-delegation\n[\s\S]*?\n-->/u,
+            "",
+          ),
+        }),
+        expectedError:
+          "agent-authoring delegation must contain exactly one declaration",
+      },
+      {
+        name: "duplicate agent delegation",
+        mutate: (value) => ({
+          ...value,
+          agentAuthoring: `${value.agentAuthoring}\n<!-- guide-capability-transition-delegation\n${agentDeclaration}\n-->`,
+        }),
+        expectedError:
+          "agent-authoring delegation must contain exactly one declaration",
+      },
+      {
+        name: "malformed agent delegation",
+        mutate: (value) => ({
+          ...value,
+          agentAuthoring: replaceProjection(
+            value.agentAuthoring,
+            "guide-capability-transition-delegation",
+            "{ malformed",
+          ),
+        }),
+        expectedError:
+          "agent-authoring delegation declaration is malformed JSON",
+      },
+      {
+        name: "raw duplicate agent delegation key",
+        mutate: (value) => ({
+          ...value,
+          agentAuthoring: replaceProjection(
+            value.agentAuthoring,
+            "guide-capability-transition-delegation",
+            agentDeclaration.replace(
+              '"declaration_id":',
+              '"declaration_id":"duplicate","declaration_id":',
+            ),
+          ),
+        }),
+        expectedError:
+          "agent-authoring delegation declaration has duplicate key",
+      },
+      {
+        name: "missing agent delegation field",
+        mutate: (value) => ({
+          ...value,
+          agentAuthoring: replaceProjection(
+            value.agentAuthoring,
+            "guide-capability-transition-delegation",
+            agentDeclaration.replace(',"authority_ref":"non-owner"', ""),
+          ),
+        }),
+        expectedError:
+          "agent-authoring delegation declaration has missing or extra field",
+      },
+      {
+        name: "agent delegation route detail",
+        mutate: (value) => ({
+          ...value,
+          agentAuthoring: replaceProjection(
+            value.agentAuthoring,
+            "guide-capability-transition-delegation",
+            agentDeclaration.replace("{", '{"route_id":"D4",'),
+          ),
+        }),
+        expectedError:
+          "agent-authoring delegation declaration has missing or extra field",
+      },
+      {
+        name: "agent unknown delegation mode",
+        mutate: (value) => ({
+          ...value,
+          agentAuthoring: replaceProjection(
+            value.agentAuthoring,
+            "guide-capability-transition-delegation",
+            agentDeclaration.replace("delegation-only", "route-owner"),
+          ),
+        }),
+        expectedError:
+          "agent-authoring delegation surface_mode is contradictory or unknown",
       },
     ];
 
-    expect(
-      mutationCases.map(({ mutate }) =>
-        validateRouteLevelOptOutGuideContracts({
-          ...sources,
-          writingSkills: mutate(sources.writingSkills),
-        }),
-      ),
-      "structural guide oracle must reject every semantic guide mutation",
-    ).toEqual(mutationCases.map(({ expectedError }) => [expectedError]));
+    for (const mutation of mutationCases) {
+      const actual = validateRouteLevelOptOutGuideContracts(
+        mutation.mutate(sources),
+      );
+      expect(
+        actual,
+        `bounded projection oracle must reject ${mutation.name}`,
+      ).toEqual(mutation.expectedError === "" ? [] : [mutation.expectedError]);
+    }
   });
 });

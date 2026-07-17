@@ -210,9 +210,14 @@ For a future controller capability transition, an agent author must consult the
 [Future controller capability transitions](writing-skills.md#future-controller-capability-transitions)
 subsection before drafting or changing role configuration, then consult the
 [Agent Routing and Mutation Policy](agent-routing-and-mutation-policy.md)
-adoption owner for the current route's governing declaration. The writing-skills
-subsection is the canonical non-owner projection; the routing policy remains the
-sole adoption-inventory and grammar owner.
+adoption owner for the current route's governing declaration.
+
+<!-- guide-capability-transition-delegation
+{"declaration_id":"GUIDE-AGENT-AUTHORING-CAPABILITY-TRANSITIONS","source_path":"docs/guidelines/agent-authoring-guide.md","surface_mode":"delegation-only","writing_skills_projection_ref":"GUIDE-WRITING-SKILLS-CAPABILITY-TRANSITIONS","canonical_owner_ref":"docs/guidelines/agent-routing-and-mutation-policy.md","authority_ref":"non-owner"}
+-->
+
+This bounded delegation is the only machine-checkable transition contract in
+this guide. The surrounding explanatory prose is non-authoritative.
 
 Active transitions belong to controller-orchestration skill prose and are
 neither encoded nor implied by static agent-role configuration.

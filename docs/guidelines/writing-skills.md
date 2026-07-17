@@ -298,16 +298,13 @@ effort after a failure, reference `subagent-lifecycle` and the
 adoption inventory. That policy is the sole authoritative D1-D17 adoption inventory and grammar owner; this guide is a non-owning consumer projection, so
 authors must consult the owner rather than reproduce a registry or grammar here.
 
-An opt-out is a route-level declaration. It names route identity, plural
-`target_ids`, target permission, role permission, the applicable direct-route
-role binding, literal `transition: none`, and the route-specific owner clauses.
-Do not require one exact target or semantic role for a route-level opt-out.
-Only transition declaration shapes that actually select those concrete fields
-require exact single target/role fields. D4 is one six-role-set special case using its existing route-set contract; it has no
-`direct_route_role_ids` field, which applies only to non-D4 routes. Do not
-expand D4 into per-role opt-outs. D17 is one route-level opt-out with its exact
-ordered three-clause direct-route role binding: `investigator`, `executor`,
-then `implementer`; do not create three per-role opt-out records.
+<!-- guide-capability-transition-projection
+{"declaration_id":"GUIDE-WRITING-SKILLS-CAPABILITY-TRANSITIONS","source_path":"docs/guidelines/writing-skills.md","surface_mode":"non-owning-semantic-projection","authority_ref":"docs/guidelines/agent-routing-and-mutation-policy.md","opt_out":{"route_identity":"route-level","target_ids":"plural","target_permission":"exact-only","role_permission":"canonical-direct-route","transition":"none","non_d4_direct_route_role_ids":"required","owner_clauses":"route-specific"},"d4":{"route_id":"D4","declaration_count":1,"role_set":"canonical-complete","selection_mode":"planner-selected","direct_route_role_ids":"forbidden"},"d17":{"route_id":"D17","declaration_count":1,"direct_route_role_ids":"canonical-ordered","binding":"route-level"}}
+-->
+
+The bounded projection above is this guide's only machine-checkable transition
+contract. All explanatory prose in this subsection is non-authoritative; use
+the routing-policy owner for operational details and current route bindings.
 
 For active transition declaration shapes, declare the shared owner's complete
 exact target-supported current and next capability plus effort, mechanism,
