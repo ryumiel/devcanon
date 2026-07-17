@@ -26,7 +26,8 @@ type ManifestFaultStage =
   | "replacement-freshness"
   | "replacement-rename"
   | "save-before-lock"
-  | "recovery-before-candidate";
+  | "recovery-before-candidate"
+  | "recovery-after-candidate";
 type ManifestFaultInjector = (
   stage: ManifestFaultStage,
 ) => void | Promise<void>;
@@ -286,17 +287,33 @@ export async function createManifestBackupAuthority(
 
   await assertNormalParent(normalizedManifestPath);
   const lock = await acquireManifestLock(normalizedManifestPath);
+  let backupPath: string | undefined;
   try {
     const currentBytes = await readRegularManifestBytes(normalizedManifestPath);
     if (!currentBytes.equals(snapshot.bytes)) {
       throw new Error("Manifest changed since it was loaded; refusing backup");
     }
 
-    const backupPath = await writeVerifiedBackup(
+    backupPath = await writeVerifiedBackup(
       normalizedManifestPath,
       currentBytes,
       timestamp,
     );
+    let verifiedSourceBytes: Buffer;
+    try {
+      verifiedSourceBytes = await readRegularManifestBytes(
+        normalizedManifestPath,
+      );
+      assertSchemaValidManifestBytes(verifiedSourceBytes);
+    } catch {
+      throw new Error("Manifest changed while its backup was verified");
+    }
+    if (
+      !verifiedSourceBytes.equals(snapshot.bytes) ||
+      digestBytes(verifiedSourceBytes) !== snapshot.digest
+    ) {
+      throw new Error("Manifest changed while its backup was verified");
+    }
     const authority = Object.freeze({
       manifestPath: normalizedManifestPath,
       backupPath,
@@ -314,6 +331,13 @@ export async function createManifestBackupAuthority(
     activeBackupAuthorities.set(normalizedManifestPath, authority);
     return authority;
   } catch (error) {
+    if (backupPath) {
+      try {
+        await unlink(backupPath);
+      } catch {
+        // A failed cleanup must not mask the fresh-source verification error.
+      }
+    }
     await releaseManifestLock(lock);
     throw error;
   }
@@ -699,6 +723,7 @@ async function recoverInvalidManifest(
             ? `${normalizedPath}.bak`
             : `${normalizedPath}.bak-${suffix}`;
         let created = false;
+        let completed = false;
         try {
           // Revalidate immediately before and after candidate creation. The
           // candidate contains captured bytes, never a later path lookup.
@@ -708,18 +733,7 @@ async function recoverInvalidManifest(
           await writeExactExclusiveFile(backupPath, expectedBytes, () => {
             created = true;
           });
-        } catch (error) {
-          if ((error as NodeJS.ErrnoException).code === "EEXIST") continue;
-          if (created) {
-            try {
-              await unlink(backupPath);
-            } catch {
-              // The candidate was exclusively allocated by this recovery.
-            }
-          }
-          return;
-        }
-        try {
+          await injectManifestFault("recovery-after-candidate");
           const afterCreate = await readRegularManifestBytes(normalizedPath);
           const candidateBytes = await readRegularManifestBytes(backupPath);
           if (
@@ -729,18 +743,17 @@ async function recoverInvalidManifest(
             return;
           }
           await unlink(normalizedPath);
+          completed = true;
+          return;
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code === "EEXIST" && !created) {
+            continue;
+          }
           return;
         } finally {
           // Any unsuccessful recovery attempt must not leave an unverified
           // candidate behind, while occupied collision siblings remain intact.
-          if (created) {
-            try {
-              const sourceStillExists = await pathExists(normalizedPath);
-              if (sourceStillExists) await unlink(backupPath);
-            } catch {
-              // Recovery is intentionally best effort on filesystem errors.
-            }
-          }
+          if (created && !completed) await removeRecoveryCandidate(backupPath);
         }
       }
     } finally {
@@ -748,6 +761,15 @@ async function recoverInvalidManifest(
     }
   } catch {
     // Preserve established invalid-manifest recovery behavior on filesystem errors.
+  }
+}
+
+async function removeRecoveryCandidate(backupPath: string): Promise<void> {
+  try {
+    const candidate = await lstat(backupPath);
+    if (!candidate.isDirectory()) await unlink(backupPath);
+  } catch {
+    // Recovery is intentionally best effort on filesystem errors.
   }
 }
 

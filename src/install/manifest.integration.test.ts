@@ -1,4 +1,12 @@
-import { mkdir, readFile, readdir, symlink, writeFile } from "node:fs/promises";
+import {
+  lstat,
+  mkdir,
+  readFile,
+  readdir,
+  symlink,
+  unlink,
+  writeFile,
+} from "node:fs/promises";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
@@ -172,6 +180,30 @@ describe("manifest integration", () => {
 
       expect(await readFile(manifestPath, "utf-8")).toBe("{replacement");
       expect(await pathExists(`${manifestPath}.bak`)).toBe(false);
+    });
+
+    it("removes an allocated recovery candidate when the source becomes a dangling symlink", async () => {
+      const manifestPath = path.join(tempDir, "manifest.json");
+      await writeFile(manifestPath, "{corrupt", "utf-8");
+      let entered = false;
+
+      await withManifestPersistenceFaultsForTesting(
+        async (stage) => {
+          if (stage === "recovery-after-candidate") {
+            entered = true;
+            await unlink(manifestPath);
+            await symlink("missing-manifest", manifestPath, "file");
+          }
+        },
+        async () => {
+          await loadManifest(manifestPath);
+        },
+      );
+
+      expect(entered).toBe(true);
+      expect((await lstat(manifestPath)).isSymbolicLink()).toBe(true);
+      expect(await pathExists(`${manifestPath}.bak`)).toBe(false);
+      expect(await pathExists(`${manifestPath}.lock`)).toBe(false);
     });
 
     it("returns empty manifest and backs up schema-invalid JSON", async () => {
@@ -624,6 +656,36 @@ describe("manifest integration", () => {
 
       expect(await readFile(authority.backupPath, "utf-8")).toBe(original);
       await releaseManifestBackupAuthority(authority);
+    });
+
+    it("rejects authority creation when the source drifts after backup readback", async () => {
+      const manifestPath = path.join(tempDir, "manifest.json");
+      const original = validManifestJson();
+      await writeFile(manifestPath, original, "utf-8");
+      const snapshot = await captureManifestSnapshot(manifestPath);
+      const timestamp = new Date("2026-07-17T01:02:03.456Z");
+      const backupPath = `${manifestPath}.backup-2026-07-17T01-02-03.456Z`;
+
+      await expect(
+        withManifestPersistenceFaultsForTesting(
+          async (stage) => {
+            if (stage === "backup-readback") {
+              await writeFile(manifestPath, `${original}drifted`, "utf-8");
+            }
+          },
+          () =>
+            createManifestBackupAuthority(
+              manifestPath,
+              snapshot,
+              "migration-1",
+              timestamp,
+            ),
+        ),
+      ).rejects.toThrow("changed while its backup was verified");
+
+      expect(await readFile(manifestPath, "utf-8")).toBe(`${original}drifted`);
+      expect(await pathExists(backupPath)).toBe(false);
+      expect(await pathExists(`${manifestPath}.lock`)).toBe(false);
     });
 
     it("fails closed when the source changes before backup creation", async () => {
