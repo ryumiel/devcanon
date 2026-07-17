@@ -1524,6 +1524,300 @@ describe("sync", () => {
     );
   });
 
+  it.skipIf(!symlinkAvailable)(
+    "rejects a selected target output that collides with a retained other-target record before writes",
+    async () => {
+      const scenarios = ["absent", "existing", "dangling"] as const;
+
+      for (const state of scenarios) {
+        const scenarioDir = path.join(tempDir, state);
+        const sharedSkillsHome = path.join(
+          scenarioDir,
+          "home",
+          "shared-skills",
+        );
+        const config = makeResolvedConfig(scenarioDir, {
+          claude: { skillsHome: sharedSkillsHome },
+          codex: { skillsHome: sharedSkillsHome },
+        });
+        const name = "shared-skill";
+        const installedPath = path.join(sharedSkillsHome, name);
+        const generatedSentinel = path.join(
+          config.library.generatedDir,
+          "claude",
+          "skills",
+          name,
+          "sentinel.txt",
+        );
+
+        await mkdir(config.library.skillsDir, { recursive: true });
+        await mkdir(config.library.agentsDir, { recursive: true });
+        await createSkillFixture(config.library.skillsDir, name);
+        await mkdir(path.dirname(config.manifest.path), { recursive: true });
+        await mkdir(path.dirname(generatedSentinel), { recursive: true });
+        await writeFile(generatedSentinel, "generated sentinel", "utf-8");
+        await writeFile(
+          config.manifest.path,
+          makeManifestJson(
+            [
+              {
+                target: "codex",
+                type: "skill",
+                name,
+                sourcePath: path.join(config.library.skillsDir, name),
+                generatedPath: null,
+                installedPath,
+                installMode: "copy",
+                contentHash: "retained",
+                timestamp: new Date().toISOString(),
+              },
+            ],
+            { config },
+          ),
+          "utf-8",
+        );
+        const manifestBefore = await readTextFile(config.manifest.path);
+
+        if (state === "existing") {
+          await mkdir(installedPath, { recursive: true });
+          await writeFile(
+            path.join(installedPath, "sentinel.txt"),
+            "installed sentinel",
+            "utf-8",
+          );
+        }
+        if (state === "dangling") {
+          await mkdir(path.dirname(installedPath), { recursive: true });
+          await symlink(
+            path.join(scenarioDir, "missing-target"),
+            installedPath,
+            "dir",
+          );
+        }
+
+        await expect(
+          sync(config, {
+            dryRun: false,
+            force: false,
+            strict: false,
+            target: "claude",
+          }),
+        ).rejects.toThrow("Managed output physical path conflict");
+
+        expect(await readTextFile(config.manifest.path)).toBe(manifestBefore);
+        expect(await readTextFile(generatedSentinel)).toBe(
+          "generated sentinel",
+        );
+        if (state === "absent") {
+          expect(await pathExists(installedPath)).toBe(false);
+        }
+        if (state === "existing") {
+          expect(
+            await readTextFile(path.join(installedPath, "sentinel.txt")),
+          ).toBe("installed sentinel");
+        }
+        if (state === "dangling") {
+          expect((await lstat(installedPath)).isSymbolicLink()).toBe(true);
+          expect(await readlink(installedPath)).toBe(
+            path.join(scenarioDir, "missing-target"),
+          );
+          expect(
+            await pathExists(path.join(scenarioDir, "missing-target")),
+          ).toBe(false);
+        }
+      }
+    },
+  );
+
+  it("rejects retained output collisions regardless of overwrite or dry-run options", async () => {
+    const scenarios = [
+      {
+        name: "default",
+        defaults: {},
+        options: { dryRun: false, force: false },
+      },
+      {
+        name: "force",
+        defaults: {},
+        options: { dryRun: false, force: true },
+      },
+      {
+        name: "configured-overwrite-all",
+        defaults: { overwritePolicy: "overwrite-all" as const },
+        options: { dryRun: false, force: false },
+      },
+      {
+        name: "dry-run",
+        defaults: {},
+        options: { dryRun: true, force: false },
+      },
+    ];
+
+    for (const scenario of scenarios) {
+      const scenarioDir = path.join(tempDir, scenario.name);
+      const sharedSkillsHome = path.join(scenarioDir, "home", "shared-skills");
+      const config = makeResolvedConfig(scenarioDir, {
+        claude: { skillsHome: sharedSkillsHome },
+        codex: { skillsHome: sharedSkillsHome },
+        defaults: scenario.defaults,
+      });
+      const name = "shared-skill";
+      const installedPath = path.join(sharedSkillsHome, name);
+      const generatedSentinel = path.join(
+        config.library.generatedDir,
+        "claude",
+        "skills",
+        name,
+        "sentinel.txt",
+      );
+
+      await mkdir(config.library.skillsDir, { recursive: true });
+      await mkdir(config.library.agentsDir, { recursive: true });
+      await createSkillFixture(config.library.skillsDir, name);
+      await mkdir(installedPath, { recursive: true });
+      await writeFile(
+        path.join(installedPath, "sentinel.txt"),
+        "installed sentinel",
+        "utf-8",
+      );
+      await mkdir(path.dirname(generatedSentinel), { recursive: true });
+      await writeFile(generatedSentinel, "generated sentinel", "utf-8");
+      await mkdir(path.dirname(config.manifest.path), { recursive: true });
+      await writeFile(
+        config.manifest.path,
+        makeManifestJson(
+          [
+            {
+              target: "codex",
+              type: "skill",
+              name,
+              sourcePath: path.join(config.library.skillsDir, name),
+              generatedPath: null,
+              installedPath,
+              installMode: "copy",
+              contentHash: "retained",
+              timestamp: new Date().toISOString(),
+            },
+          ],
+          { config },
+        ),
+        "utf-8",
+      );
+      const manifestBefore = await readTextFile(config.manifest.path);
+
+      await expect(
+        sync(config, {
+          ...scenario.options,
+          strict: false,
+          target: "claude",
+        }),
+      ).rejects.toThrow("Managed output physical path conflict");
+
+      expect(await readTextFile(config.manifest.path)).toBe(manifestBefore);
+      expect(await readTextFile(generatedSentinel)).toBe("generated sentinel");
+      expect(await readTextFile(path.join(installedPath, "sentinel.txt"))).toBe(
+        "installed sentinel",
+      );
+    }
+  });
+
+  it("rejects a legacy retained output collision before binding or generated writes", async () => {
+    const sharedSkillsHome = path.join(tempDir, "home", "shared-skills");
+    const config = makeResolvedConfig(tempDir, {
+      claude: { skillsHome: sharedSkillsHome },
+      codex: { skillsHome: sharedSkillsHome },
+    });
+    const name = "shared-skill";
+    const installedPath = path.join(sharedSkillsHome, name);
+    const generatedSentinel = path.join(
+      config.library.generatedDir,
+      "claude",
+      "skills",
+      name,
+      "sentinel.txt",
+    );
+    await mkdir(config.library.skillsDir, { recursive: true });
+    await mkdir(config.library.agentsDir, { recursive: true });
+    await createSkillFixture(config.library.skillsDir, name);
+    await mkdir(path.dirname(generatedSentinel), { recursive: true });
+    await writeFile(generatedSentinel, "generated sentinel", "utf-8");
+    await mkdir(path.dirname(config.manifest.path), { recursive: true });
+    await writeFile(
+      config.manifest.path,
+      makeManifestJson(
+        [
+          {
+            target: "codex",
+            type: "skill",
+            sourcePath: path.join(config.library.skillsDir, name),
+            generatedPath: null,
+            installedPath,
+            installMode: "copy",
+            contentHash: "retained",
+            timestamp: new Date().toISOString(),
+          },
+        ],
+        { legacy: true },
+      ),
+      "utf-8",
+    );
+    const manifestBefore = await readTextFile(config.manifest.path);
+
+    await expect(
+      sync(config, {
+        dryRun: false,
+        force: false,
+        strict: false,
+        target: "claude",
+      }),
+    ).rejects.toThrow("Managed output physical path conflict");
+
+    expect(await readTextFile(config.manifest.path)).toBe(manifestBefore);
+    expect(await readTextFile(generatedSentinel)).toBe("generated sentinel");
+    expect(await pathExists(installedPath)).toBe(false);
+  });
+
+  it("allows an exact retained identity to match its selected target output", async () => {
+    const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
+    const name = "shared-skill";
+    const installedPath = path.join(config.targets.claude.skillsHome, name);
+    await mkdir(config.library.skillsDir, { recursive: true });
+    await mkdir(config.library.agentsDir, { recursive: true });
+    await createSkillFixture(config.library.skillsDir, name);
+    await mkdir(path.dirname(config.manifest.path), { recursive: true });
+    await writeFile(
+      config.manifest.path,
+      makeManifestJson(
+        [
+          {
+            target: "claude",
+            type: "skill",
+            name,
+            sourcePath: path.join(config.library.skillsDir, name),
+            generatedPath: null,
+            installedPath,
+            installMode: "copy",
+            contentHash: "previous",
+            timestamp: new Date().toISOString(),
+          },
+        ],
+        { config },
+      ),
+      "utf-8",
+    );
+
+    const result = await sync(config, {
+      dryRun: false,
+      force: false,
+      strict: false,
+      target: "claude",
+    });
+
+    expect(result.errors).toEqual([]);
+    expect(result.installed).toBe(1);
+    expect(await pathExists(installedPath)).toBe(true);
+  });
+
   it("idempotent re-sync skips when nothing changed", async () => {
     const config = makeResolvedConfig(tempDir);
     await mkdir(config.library.skillsDir, { recursive: true });

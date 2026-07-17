@@ -151,6 +151,21 @@ export async function sync(
       ),
     };
   }
+
+  // Render the selected target without materializing generated output, then
+  // reject a retained manifest identity that would share a physical path with
+  // a different desired identity before any migration or generated-tree write.
+  const { outputs: filteredOutputs } = await renderAll(
+    config,
+    false,
+    options.strict,
+    options.target,
+  );
+  assertNoPhysicalPathConflicts(
+    [...manifest.records, ...filteredOutputs],
+    config,
+  );
+
   try {
     // An existing legacy manifest is a migration, while a missing manifest is
     // bound before the first generated or installed output is persisted.
