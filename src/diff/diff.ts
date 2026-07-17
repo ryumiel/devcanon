@@ -1,11 +1,11 @@
 import { realpath } from "node:fs/promises";
-import path from "node:path";
 import { createTwoFilesPatch } from "diff";
 import type { ResolvedConfig } from "../config/schema.js";
 import { normalizeManifestIdentity } from "../install/manifest-identity.js";
 import { loadManifestWithSnapshot } from "../install/manifest.js";
 import type { DiffResult } from "../models/types.js";
 import { renderAll } from "../render/pipeline.js";
+import { UserError } from "../utils/errors.js";
 import { pathExists, readTextFile } from "../utils/fs.js";
 
 export async function diffAll(
@@ -14,9 +14,21 @@ export async function diffAll(
   strict = false,
 ): Promise<DiffResult[]> {
   const loaded = await loadManifestWithSnapshot(config.manifest.path);
-  const normalized = normalizeManifestIdentity(loaded.manifest, config);
+  let normalized: ReturnType<typeof normalizeManifestIdentity>;
+  try {
+    normalized = normalizeManifestIdentity(loaded.manifest, config);
+  } catch (error) {
+    throw new UserError(
+      `Manifest boundary does not match the configured homes: ${(error as Error).message}`,
+      config.manifest.path,
+      "Use the manifest with its original configured homes; boundary mismatches cannot be reconciled.",
+    );
+  }
   if (normalized.records.some((record) => record.ownership === "foreign")) {
-    throw new Error("Manifest contains foreign records; refusing to diff.");
+    throw new UserError(
+      "Manifest contains foreign legacy records; run sync --reconcile-manifest before diffing.",
+      config.manifest.path,
+    );
   }
   const manifest = normalized.manifest;
   const { outputs } = await renderAll(config, false, strict, targetFilter);
@@ -38,8 +50,8 @@ export async function diffAll(
           diff: null,
         });
       } else {
-        const record = manifest.records.find(
-          (r) => r.installedPath === output.installedPath,
+        const record = manifest.records.find((candidate) =>
+          recordMatchesOutput(candidate, output),
         );
         if (record && record.contentHash === output.contentHash) {
           results.push({
@@ -74,16 +86,16 @@ export async function diffAll(
   }
 
   // Check for removed outputs
-  const currentPaths = new Set(outputs.map((o) => o.installedPath));
+  const currentPaths = new Set(outputs.map(outputKey));
   for (const record of manifest.records) {
-    if (!currentPaths.has(record.installedPath)) {
+    if (!currentPaths.has(recordKey(record))) {
       const filterMatch = !targetFilter || record.target === targetFilter;
       if (filterMatch) {
         results.push({
           status: "removed",
           target: record.target,
           type: record.type,
-          name: path.basename(record.installedPath),
+          name: recordName(record),
           installedPath: record.installedPath,
           diff: null,
         });
@@ -92,6 +104,58 @@ export async function diffAll(
   }
 
   return results;
+}
+
+function recordMatchesOutput(
+  record: {
+    target: string;
+    type: string;
+    name?: string;
+    installedPath: string;
+  },
+  output: { target: string; type: string; name: string; installedPath: string },
+): boolean {
+  return (
+    record.target === output.target &&
+    record.type === output.type &&
+    record.name === output.name &&
+    record.installedPath === output.installedPath
+  );
+}
+
+function outputKey(output: {
+  target: string;
+  type: string;
+  name: string;
+  installedPath: string;
+}): string {
+  return JSON.stringify([
+    output.target,
+    output.type,
+    output.name,
+    output.installedPath,
+  ]);
+}
+
+function recordKey(record: {
+  target: string;
+  type: string;
+  name?: string;
+  installedPath: string;
+}): string {
+  return JSON.stringify([
+    record.target,
+    record.type,
+    record.name,
+    record.installedPath,
+  ]);
+}
+
+function recordName(record: { name?: string }): string {
+  if (record.name === undefined) {
+    throw new Error("Managed manifest record is missing its normalized name");
+  }
+  return record.name;
 }
 
 async function diffAgentFile(

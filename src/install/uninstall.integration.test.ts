@@ -606,7 +606,7 @@ describe("uninstall", () => {
     const manifestBefore = await readFile(config.manifest.path, "utf-8");
 
     await expect(uninstall(config, { dryRun: false })).rejects.toThrow(
-      "foreign records",
+      "foreign legacy records",
     );
     expect(await readFile(config.manifest.path, "utf-8")).toBe(manifestBefore);
   });
@@ -649,7 +649,7 @@ describe("uninstall", () => {
       const manifestBefore = await readFile(config.manifest.path, "utf-8");
 
       await expect(uninstall(config, { dryRun: false })).rejects.toThrow(
-        "foreign records",
+        "foreign legacy records",
       );
       expect(await readFile(config.manifest.path, "utf-8")).toBe(
         manifestBefore,
@@ -734,7 +734,7 @@ describe("uninstall", () => {
     const manifestBefore = await readFile(config.manifest.path, "utf-8");
 
     await expect(uninstall(config, { dryRun: false })).rejects.toThrow(
-      "foreign records",
+      "foreign legacy records",
     );
     expect(await readFile(outsidePath, "utf-8")).toBe("sentinel");
     expect(await readFile(config.manifest.path, "utf-8")).toBe(manifestBefore);

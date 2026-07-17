@@ -49,6 +49,11 @@ export async function syncAction(
     logger.info(
       `\nSync complete: ${result.installed} installed, ${result.updated} updated, ${result.removed} removed, ${result.skipped} skipped, ${result.conflicts} conflicts`,
     );
+    if (result.reconciliation) {
+      logger.info(
+        `Manifest reconciliation: ${result.reconciliation.retained.length} retained, ${result.reconciliation.removed.length} removed.`,
+      );
+    }
 
     if (result.errors.length > 0) {
       for (const err of result.errors) {

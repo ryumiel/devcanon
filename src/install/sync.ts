@@ -7,6 +7,7 @@ import type {
 } from "../config/schema.js";
 import type { PlanAction, SyncOptions } from "../models/types.js";
 import { renderAll } from "../render/pipeline.js";
+import { UserError } from "../utils/errors.js";
 import { ensureDir } from "../utils/fs.js";
 import { getLogger } from "../utils/output.js";
 import { copyDirectory, copyFile } from "./copy.js";
@@ -31,6 +32,19 @@ export interface SyncResult {
   skipped: number;
   conflicts: number;
   errors: string[];
+  reconciliation?: ReconciliationResult;
+}
+
+export interface ReconciliationIdentity {
+  target: "claude" | "codex";
+  type: "skill" | "agent";
+  name: string;
+  installedPath: string;
+}
+
+export interface ReconciliationResult {
+  retained: ReconciliationIdentity[];
+  removed: ReconciliationIdentity[];
 }
 
 export async function sync(
@@ -49,29 +63,41 @@ export async function sync(
   // A manifest must be accepted before rendering can create generated output
   // or an install action can touch a configured home.
   const loaded = await loadManifestWithSnapshot(config.manifest.path);
-  const normalized = normalizeManifestIdentity(loaded.manifest, config);
+  let normalized: ReturnType<typeof normalizeManifestIdentity>;
+  try {
+    normalized = normalizeManifestIdentity(loaded.manifest, config);
+  } catch (error) {
+    throw new UserError(
+      `Manifest boundary does not match the configured homes: ${(error as Error).message}`,
+      config.manifest.path,
+      "Use the manifest with its original configured homes; boundary mismatches cannot be reconciled.",
+    );
+  }
   const legacy = !loaded.manifest.boundary;
   const foreignIndexes = normalized.records.flatMap((record, index) =>
     record.ownership === "foreign" ? [index] : [],
   );
   if (loaded.manifest.boundary && foreignIndexes.length > 0) {
-    throw new Error("Manifest contains foreign records; refusing to continue.");
+    throw new UserError(
+      "Bound manifest contains foreign records; refusing to continue.",
+      config.manifest.path,
+    );
   }
   if (legacy && foreignIndexes.length > 0 && !options.reconcileManifest) {
-    throw new Error(
+    throw new UserError(
       "Legacy manifest contains foreign records; rerun sync with --reconcile-manifest.",
+      config.manifest.path,
     );
   }
-  if (
-    legacy &&
-    foreignIndexes.length > 0 &&
-    options.reconcileManifest &&
-    options.dryRun
-  ) {
-    getLogger().info(
-      `Dry run — would retain ${normalized.manifest.records.length - foreignIndexes.length} owned manifest records and remove ${foreignIndexes.length} foreign records.`,
-    );
-    return totalResult;
+  if (legacy && foreignIndexes.length > 0 && options.reconcileManifest) {
+    totalResult.reconciliation = {
+      retained: normalized.manifest.records
+        .filter((_record, index) => !foreignIndexes.includes(index))
+        .map(reconciliationIdentity),
+      removed: foreignIndexes.map((index) =>
+        reconciliationIdentity(normalized.manifest.records[index]),
+      ),
+    };
   }
 
   const operationId = `sync-${randomUUID()}`;
@@ -100,23 +126,21 @@ export async function sync(
 
   let manifest = normalized.manifest;
   try {
-    // A non-empty legacy manifest is a migration, while an empty manifest is
+    // An existing legacy manifest is a migration, while a missing manifest is
     // bound before the first generated or installed output is persisted.
     if (!options.dryRun && legacy) {
-      if (foreignIndexes.length > 0 || loaded.manifest.records.length > 0) {
+      if (loaded.snapshot) {
         await ensureAuthority();
-        if (foreignIndexes.length > 0) {
-          manifest = {
-            ...manifest,
-            records: manifest.records.filter(
-              (_record, index) => !foreignIndexes.includes(index),
-            ),
-          };
-        }
-        await save(manifest);
-      } else {
-        await save(manifest);
       }
+      if (foreignIndexes.length > 0) {
+        manifest = {
+          ...manifest,
+          records: manifest.records.filter(
+            (_record, index) => !foreignIndexes.includes(index),
+          ),
+        };
+      }
+      await save(manifest);
     }
 
     // Render outputs (filter by target, propagate strict mode)
@@ -142,6 +166,7 @@ export async function sync(
 
     // Dry run
     if (options.dryRun) {
+      printReconciliationPreview(totalResult.reconciliation);
       printPlan(plan);
       return totalResult;
     }
@@ -158,13 +183,11 @@ export async function sync(
     // Execute plan
     const newRecords: ManagedRecord[] = [];
     const removedPaths: string[] = [];
-    const manifestRecords = new Map(
-      manifest.records.map((record) => [record.installedPath, record]),
-    );
-
     for (const action of plan) {
       try {
-        const record = manifestRecords.get(action.installedPath);
+        const record = manifest.records.find((candidate) =>
+          recordMatchesAction(candidate, action),
+        );
         if (
           action.kind === "update" ||
           action.kind === "remove" ||
@@ -244,6 +267,34 @@ export async function sync(
   } finally {
     if (authority) await releaseManifestBackupAuthority(authority);
   }
+}
+
+function reconciliationIdentity(record: ManagedRecord): ReconciliationIdentity {
+  return {
+    target: record.target,
+    type: record.type,
+    name: recordName(record),
+    installedPath: record.installedPath,
+  };
+}
+
+function recordMatchesAction(
+  record: ManagedRecord,
+  action: PlanAction,
+): boolean {
+  return (
+    record.target === action.target &&
+    record.type === action.type &&
+    record.name === action.name &&
+    record.installedPath === action.installedPath
+  );
+}
+
+function recordName(record: ManagedRecord): string {
+  if (record.name === undefined) {
+    throw new Error("Managed manifest record is missing its normalized name");
+  }
+  return record.name;
 }
 
 async function executeAction(
@@ -350,5 +401,25 @@ function printPlan(plan: PlanAction[]): void {
       );
     }
     logger.verbose(`    ${action.reason}`);
+  }
+}
+
+function printReconciliationPreview(
+  reconciliation: ReconciliationResult | undefined,
+): void {
+  if (!reconciliation) return;
+  const logger = getLogger();
+  logger.info(
+    `Manifest reconciliation: ${reconciliation.retained.length} retained, ${reconciliation.removed.length} removed.`,
+  );
+  for (const record of reconciliation.retained) {
+    logger.info(
+      `  = [retain] ${record.target}/${record.type}/${record.name} ${record.installedPath}`,
+    );
+  }
+  for (const record of reconciliation.removed) {
+    logger.info(
+      `  - [remove-record] ${record.target}/${record.type}/${record.name} ${record.installedPath}`,
+    );
   }
 }

@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
-import path from "node:path";
 import type { ResolvedConfig } from "../config/schema.js";
 import type { PlanAction, UninstallOptions } from "../models/types.js";
+import { UserError } from "../utils/errors.js";
 import { getLogger } from "../utils/output.js";
 import { verifyManagedOutputIdentity } from "./identity.js";
 import { normalizeManifestIdentity } from "./manifest-identity.js";
@@ -28,10 +28,20 @@ export async function uninstall(
   const result: UninstallResult = { removed: 0, errors: [] };
 
   const loaded = await loadManifestWithSnapshot(config.manifest.path);
-  const normalized = normalizeManifestIdentity(loaded.manifest, config);
+  let normalized: ReturnType<typeof normalizeManifestIdentity>;
+  try {
+    normalized = normalizeManifestIdentity(loaded.manifest, config);
+  } catch (error) {
+    throw new UserError(
+      `Manifest boundary does not match the configured homes: ${(error as Error).message}`,
+      config.manifest.path,
+      "Use the manifest with its original configured homes; boundary mismatches cannot be reconciled.",
+    );
+  }
   if (normalized.records.some((record) => record.ownership === "foreign")) {
-    throw new Error(
-      "Manifest contains foreign records; refusing to uninstall.",
+    throw new UserError(
+      "Manifest contains foreign legacy records; run sync --reconcile-manifest before uninstalling.",
+      config.manifest.path,
     );
   }
   const manifest = normalized.manifest;
@@ -52,7 +62,7 @@ export async function uninstall(
     kind: "remove",
     target: record.target,
     type: record.type,
-    name: path.basename(record.installedPath),
+    name: recordName(record),
     sourcePath: record.sourcePath,
     generatedPath: record.generatedPath,
     installedPath: record.installedPath,
@@ -128,4 +138,11 @@ export async function uninstall(
   } finally {
     if (authority) await releaseManifestBackupAuthority(authority);
   }
+}
+
+function recordName(record: { name?: string }): string {
+  if (record.name === undefined) {
+    throw new Error("Managed manifest record is missing its normalized name");
+  }
+  return record.name;
 }

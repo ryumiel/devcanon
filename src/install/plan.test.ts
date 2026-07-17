@@ -32,7 +32,17 @@ function makeManifest(records: Manifest["records"] = []): Manifest {
     version: 1,
     managedBy: "devcanon",
     lastSync: new Date().toISOString(),
-    records,
+    records: records.map((record) => {
+      const basename = record.installedPath.split("/").at(-1) ?? "";
+      return {
+        ...record,
+        name:
+          record.name ??
+          (record.type === "agent"
+            ? basename.replace(record.target === "claude" ? ".md" : ".toml", "")
+            : basename),
+      };
+    }),
   };
 }
 
@@ -193,6 +203,7 @@ describe("computePlan", () => {
 
     const currentOutput = makeOutput({
       installedPath: "/installed/current.md",
+      name: "current",
     });
     const manifest = makeManifest([
       {
@@ -266,6 +277,7 @@ describe("computePlan", () => {
       target: "claude",
       installedPath: "/installed/claude-agent.md",
       contentHash: "claude-hash",
+      name: "claude-agent",
     });
     const manifest = makeManifest([
       {
@@ -309,6 +321,7 @@ describe("computePlan", () => {
 
     const currentOutput = makeOutput({
       installedPath: "/installed/current.md",
+      name: "current",
     });
     const manifest = makeManifest([
       {
@@ -356,6 +369,7 @@ describe("computePlan", () => {
 
     const currentOutput = makeOutput({
       installedPath: "/installed/current.md",
+      name: "current",
     });
     const manifest = makeManifest([
       {

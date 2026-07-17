@@ -326,7 +326,7 @@ describe("diffAll integration", () => {
 
     const results = await diffAll(config, "claude");
 
-    const result = results.find((r) => r.name === "deleted.md");
+    const result = results.find((r) => r.name === "deleted");
     expect(result).toBeDefined();
     expect(result?.status).toBe("removed");
     expect(result?.diff).toBeNull();

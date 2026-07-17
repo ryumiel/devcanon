@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import {
   lstat,
   mkdir,
+  readdir,
   readlink,
   rm,
   symlink,
@@ -129,6 +130,110 @@ describe("sync", () => {
       "greet",
     );
     expect(await pathExists(claudeSkillPath)).toBe(true);
+  });
+
+  it("backs up an existing empty legacy manifest but not a missing manifest", async () => {
+    const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
+    await mkdir(config.library.skillsDir, { recursive: true });
+    await mkdir(config.library.agentsDir, { recursive: true });
+    await mkdir(path.dirname(config.manifest.path), { recursive: true });
+    await writeFile(
+      config.manifest.path,
+      makeManifestJson([], { legacy: true }),
+      "utf-8",
+    );
+
+    await sync(config, { dryRun: false, force: false, strict: false });
+
+    const migrated = JSON.parse(await readTextFile(config.manifest.path));
+    expect(migrated.boundary).toBeDefined();
+    expect(
+      (await readdir(path.dirname(config.manifest.path))).filter((entry) =>
+        entry.includes(".backup-"),
+      ),
+    ).toHaveLength(1);
+
+    const missingConfig = {
+      ...config,
+      manifest: { path: path.join(tempDir, "missing", "manifest.json") },
+    };
+    await sync(missingConfig, { dryRun: false, force: false, strict: false });
+    expect(
+      (await readdir(path.dirname(missingConfig.manifest.path))).filter(
+        (entry) => entry.includes(".backup-"),
+      ),
+    ).toHaveLength(0);
+  });
+
+  it("previews mixed legacy reconciliation without mutating the manifest", async () => {
+    const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
+    await mkdir(config.library.skillsDir, { recursive: true });
+    await mkdir(config.library.agentsDir, { recursive: true });
+    await mkdir(path.dirname(config.manifest.path), { recursive: true });
+    const ownedPath = path.join(config.targets.claude.agentsHome, "helper.md");
+    const foreignPath = path.join(tempDir, "foreign", "helper.md");
+    await writeFile(
+      config.manifest.path,
+      makeManifestJson(
+        [
+          {
+            target: "claude",
+            type: "agent",
+            sourcePath: path.join(config.library.agentsDir, "helper.yaml"),
+            generatedPath: null,
+            installedPath: ownedPath,
+            installMode: "copy",
+            contentHash: "owned",
+            timestamp: new Date().toISOString(),
+          },
+          {
+            target: "claude",
+            type: "agent",
+            sourcePath: path.join(config.library.agentsDir, "foreign.yaml"),
+            generatedPath: null,
+            installedPath: foreignPath,
+            installMode: "copy",
+            contentHash: "foreign",
+            timestamp: new Date().toISOString(),
+          },
+        ],
+        { legacy: true },
+      ),
+      "utf-8",
+    );
+    const before = await readTextFile(config.manifest.path);
+
+    const result = await sync(config, {
+      dryRun: true,
+      force: false,
+      strict: false,
+      reconcileManifest: true,
+    });
+
+    expect(result.reconciliation).toEqual({
+      retained: [
+        {
+          target: "claude",
+          type: "agent",
+          name: "helper",
+          installedPath: ownedPath,
+        },
+      ],
+      removed: [
+        {
+          target: "claude",
+          type: "agent",
+          name: "helper",
+          installedPath: foreignPath,
+        },
+      ],
+    });
+    expect(await readTextFile(config.manifest.path)).toBe(before);
+    expect(
+      (await readdir(path.dirname(config.manifest.path))).filter((entry) =>
+        entry.includes(".backup-"),
+      ),
+    ).toHaveLength(0);
   });
 
   it("idempotent re-sync skips when nothing changed", async () => {

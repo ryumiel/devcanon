@@ -15,17 +15,16 @@ export async function computePlan(
   targetFilter?: "claude" | "codex",
 ): Promise<PlanAction[]> {
   const actions: PlanAction[] = [];
-  const manifestMap = new Map(
-    manifest.records.map((r) => [r.installedPath, r]),
-  );
-  const currentInstalledPaths = new Set(outputs.map((o) => o.installedPath));
+  const currentOutputKeys = new Set(outputs.map(outputKey));
 
   const effectivePolicy: OverwritePolicy = force
     ? "overwrite-all"
     : overwritePolicy;
 
   for (const output of outputs) {
-    const record = manifestMap.get(output.installedPath);
+    const record = manifest.records.find((candidate) =>
+      recordMatchesOutput(candidate, output),
+    );
     const exists = record
       ? await pathOrSymlinkExists(output.installedPath)
       : await pathExists(output.installedPath);
@@ -134,14 +133,14 @@ export async function computePlan(
   if (cleanManagedOutputs) {
     for (const record of manifest.records) {
       if (targetFilter && record.target !== targetFilter) continue;
-      if (!currentInstalledPaths.has(record.installedPath)) {
+      if (!currentOutputKeys.has(recordKey(record))) {
         const exists = await pathOrSymlinkExists(record.installedPath);
         if (exists) {
           actions.push({
             kind: "remove",
             target: record.target,
             type: record.type,
-            name: path.basename(record.installedPath),
+            name: recordName(record),
             sourcePath: record.sourcePath,
             generatedPath: record.generatedPath,
             installedPath: record.installedPath,
@@ -153,7 +152,7 @@ export async function computePlan(
             kind: "remove-missing",
             target: record.target,
             type: record.type,
-            name: path.basename(record.installedPath),
+            name: recordName(record),
             sourcePath: record.sourcePath,
             generatedPath: record.generatedPath,
             installedPath: record.installedPath,
@@ -167,6 +166,43 @@ export async function computePlan(
   }
 
   return actions;
+}
+
+function recordMatchesOutput(
+  record: Manifest["records"][number],
+  output: RenderedOutput,
+): boolean {
+  return (
+    record.target === output.target &&
+    record.type === output.type &&
+    record.name === output.name &&
+    record.installedPath === output.installedPath
+  );
+}
+
+function outputKey(output: RenderedOutput): string {
+  return JSON.stringify([
+    output.target,
+    output.type,
+    output.name,
+    output.installedPath,
+  ]);
+}
+
+function recordKey(record: Manifest["records"][number]): string {
+  return JSON.stringify([
+    record.target,
+    record.type,
+    record.name,
+    record.installedPath,
+  ]);
+}
+
+function recordName(record: Manifest["records"][number]): string {
+  if (record.name === undefined) {
+    throw new Error("Managed manifest record is missing its normalized name");
+  }
+  return record.name;
 }
 
 async function hasCopyModeExecutableDrift(
