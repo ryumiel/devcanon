@@ -2714,6 +2714,48 @@ describe("play subagent routing source contracts", () => {
       skillSource,
       "Slot-Limit Recovery",
     );
+    const capabilityEscalation = getMarkdownSection(
+      skillSource,
+      "Eligible Quality-Failure Capability Escalation",
+    );
+
+    for (const resultFamily of [
+      "eligible-quality-failure",
+      "ineligible-context",
+      "ineligible-tool-or-permission",
+      "ineligible-authority",
+      "ineligible-integrity-or-route",
+    ]) {
+      expect(capabilityEscalation).toContain(`\`${resultFamily}\``);
+    }
+    expect(normalizeWhitespace(capabilityEscalation)).toContain(
+      "Eligibility requires positive retained verified evidence",
+    );
+    expect(normalizeWhitespace(capabilityEscalation)).toContain(
+      "Ambient or omitted current effort",
+    );
+    expect(normalizeWhitespace(capabilityEscalation)).toContain(
+      "same semantic role",
+    );
+    expect(normalizeWhitespace(capabilityEscalation)).toContain(
+      "at most one fresh attempt",
+    );
+    expect(normalizeWhitespace(capabilityEscalation)).toContain(
+      "attempted actions",
+    );
+    expect(normalizeWhitespace(capabilityEscalation)).toContain(
+      "repository anchors",
+    );
+    expect(normalizeWhitespace(capabilityEscalation)).toContain(
+      "no hidden reasoning, raw prompts/transcripts/log dumps/stack traces/credentials/environment values",
+    );
+    expectSubstringsInOrder(normalizeWhitespace(capabilityEscalation), [
+      "Retain verified evidence",
+      "Complete guard/lifecycle cleanup",
+      "Classify the settled result",
+      "Validate declaration/support/invariants/budget",
+      "Spawn exactly one fresh attempt",
+    ]);
 
     expect(controllerLifecycleLedger).toContain(
       "agent-local/controller-local state",

@@ -25,6 +25,49 @@ describe("agent routing and mutation policy owner", () => {
     expect(owner.directChildRoutes.map((row) => row.id)).toEqual(
       Array.from({ length: 17 }, (_, index) => `D${index + 1}`),
     );
+    expect(owner.escalationAdoptionInventory).toEqual(
+      Array.from({ length: 17 }, (_, index) => ({
+        id: `D${index + 1}`,
+        state: "opt-out",
+        transition: "none until exact support exists",
+      })),
+    );
+  });
+
+  it("rejects malformed, duplicate, incomplete, and contradictory adoption inventory", async () => {
+    const { markdown, sourceSkills } = await ownerInputs();
+    const row = markdown.match(/^\| D1\s+\| opt-out\s+\|.*$/m)?.[0];
+    expect(row).toBeDefined();
+
+    const malformedHeader = markdown.replace(
+      "| Adoption state | Transition",
+      "| State | Transition",
+    );
+    const duplicate = markdown.replace(row ?? "", `${row}\n${row}`);
+    const incomplete = markdown.replace(`${row}\n`, "");
+    const unknownState = markdown.replace("| D1  | opt-out", "| D1  | defer");
+    const contradictoryTransition = markdown.replace(
+      /\| D1\s+\| opt-out\s+\| none until exact support exists/,
+      "| D1 | opt-out | retry with an adjacent pair",
+    );
+
+    expect(() =>
+      parseAgentRoutingPolicyOwner(malformedHeader, sourceSkills),
+    ).toThrow(/adoption headers must be/i);
+    expect(() => parseAgentRoutingPolicyOwner(duplicate, sourceSkills)).toThrow(
+      /duplicate escalation-adoption ID: D1/i,
+    );
+    expect(() =>
+      parseAgentRoutingPolicyOwner(incomplete, sourceSkills),
+    ).toThrow(
+      /escalation-adoption ID coverage must be exactly D1-D17; missing: D1/i,
+    );
+    expect(() =>
+      parseAgentRoutingPolicyOwner(unknownState, sourceSkills),
+    ).toThrow(/adoption state has invalid closed value: defer/i);
+    expect(() =>
+      parseAgentRoutingPolicyOwner(contradictoryTransition, sourceSkills),
+    ).toThrow(/adoption opt-out transition must be exactly/i);
   });
 
   it("preserves representative closed inventory and route fields", async () => {

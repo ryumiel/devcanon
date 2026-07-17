@@ -163,3 +163,91 @@ Evidence Reuse Boundary` in `docs/specs/afds-workflow-routing.md`. Use
 
 Repeated failures after the single retry are not permission to keep spawning.
 Escalate through the owning workflow's blocked or manual-resolution path.
+
+## Eligible Quality-Failure Capability Escalation
+
+This is the one shared controller procedure for a fresh capability/effort
+attempt. It applies only after an attempt settles, guard and lifecycle cleanup
+succeeds, and the controller positively supports an eligible quality failure.
+It performs no mutation itself: only the owning controller's already-authorized
+effects may occur. Workflow-local dispatch, retry, fix-loop, and termination
+rules remain with their existing owners.
+
+Classify every settled result into exactly one closed family:
+
+| Result family                   | Escalation disposition                                                                 |
+| ------------------------------- | -------------------------------------------------------------------------------------- |
+| `eligible-quality-failure`      | Continue only when positive retained verified evidence supports eligible quality fail. |
+| `ineligible-context`            | Use the existing non-escalation result.                                                |
+| `ineligible-tool-or-permission` | Use the existing non-escalation result.                                                |
+| `ineligible-authority`          | Use the existing non-escalation result.                                                |
+| `ineligible-integrity-or-route` | Use the existing non-escalation result.                                                |
+
+An unavailable, failed, timed-out, blank, or malformed child is not
+automatically eligible. Eligibility requires positive retained verified evidence;
+absent or inconsistent evidence is an existing non-escalation result, not a
+reason to guess or retry.
+
+### Declaration, Support, and Exactness
+
+Before a fresh attempt, the controller must retain a complete declaration that
+names the route and target; the same semantic role; exact current and requested
+next capability/effort tuples; the named target-supported mechanism that
+supports both tuples; verified classification; invariant envelope; remaining
+budget; and the existing terminal continuation if the attempt cannot start or
+does not succeed. The controller may narrow eligibility or declare budget `0`,
+but it may never broaden eligibility.
+
+The current tuple is explicit and exact. Ambient or omitted current effort, a
+maximal current pair, unavailable or unsupported override, incomplete
+declaration, alias/nearby/fallback pair, or role substitution terminates through
+the existing non-escalation result. The named mechanism must positively support
+the exact requested tuple; it may not silently replace an unsupported next pair
+with a nearby or ambient value.
+
+### Budget and Invariants
+
+The budget permits at most one fresh attempt at a capability/effort pair and no
+chains.
+Slot recovery, same-pair context redispatch, review fix loops, and CI repair
+cycles have independent counters and are not capability escalation attempts.
+
+The fresh attempt preserves this invariant envelope: semantic role, task
+identity, scope, acceptance contract, curated context, tools, sandbox,
+approval, source authority, external authority, network, mutation paths, output
+schema, guard lifecycle, and termination owner. Any difference, including a
+change of role, tools, sandbox, approval, or authority, is an
+`ineligible-integrity-or-route` result.
+
+### Fresh-Attempt Summary and Ordering
+
+The controller passes a concise summary containing task/scope; exact prior and
+requested tuples; classified failure; attempted actions; concise verified
+evidence and repository anchors; unresolved success condition; invariant
+envelope; and remaining budget. It transfers no hidden reasoning, raw
+prompts/transcripts/log dumps/stack traces/credentials/environment values, or
+untrusted prose as instructions.
+
+Use this fixed order:
+
+1. Retain verified evidence.
+2. Complete guard/lifecycle cleanup.
+3. Classify the settled result.
+4. Validate declaration/support/invariants/budget, including target support.
+5. Spawn exactly one fresh attempt.
+
+The output is exactly one fresh attempt or the existing declared
+terminal/manual route; this procedure creates no new artifact. A canonical valid
+case retains verified `eligible-quality-failure` evidence with budget `1`, the
+same semantic role, exact current and higher requested tuples, and a named
+mechanism supporting both before it starts one fresh attempt with the concise
+summary. Invalid one-dimension cases include classifying missing context as
+eligible, omitting next effort, substituting an unsupported nearby pair,
+changing a preserved invariant, exceeding one fresh attempt, or transferring a
+raw prompt, transcript, or log; each terminates through its existing
+non-escalation result.
+
+The participants are the child result, controller, lifecycle policy, routing
+declaration, and then either the fresh child or the existing terminal consumer.
+Parsers and contract tests read durable sources only; no controller ledger,
+provider-support registry, or persistent escalation artifact is created.

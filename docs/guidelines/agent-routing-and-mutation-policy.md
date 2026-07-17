@@ -127,6 +127,33 @@ existing response contract.
 | D16 | Final whole-implementation quality review — execution Process step 10/final-review gate | `deep-reviewer`, frontier/xhigh, source-immutable                                                                                                                                        | Whole-range prompt; narrow ADR-0016 skip; final fix/fresh-review or terminal-owner route                                      |
 | D17 | CI diagnosis/fix — `pr-merge` Step 4                                                    | Diagnosis: `investigator`, balanced/high, source-immutable; exact fix: `executor`, efficient/medium, source-mutable; judgment fix: `implementer`, balanced/high, source-mutable          | Guard diagnosis before fix classification; mutable child commits only; root alone separately owns external-mutable push/merge |
 
+## Capability Escalation Adoption Inventory
+
+The shared [`subagent-lifecycle`](../../skills/subagent-lifecycle/SKILL.md)
+procedure owns eligibility, declaration, support, invariants, evidence, budget,
+and terminal semantics. This table is the authoritative current adoption record;
+it does not replace any route's workflow-local dispatch or termination owner.
+
+| ID  | Adoption state | Transition                      |
+| --- | -------------- | ------------------------------- |
+| D1  | opt-out        | none until exact support exists |
+| D2  | opt-out        | none until exact support exists |
+| D3  | opt-out        | none until exact support exists |
+| D4  | opt-out        | none until exact support exists |
+| D5  | opt-out        | none until exact support exists |
+| D6  | opt-out        | none until exact support exists |
+| D7  | opt-out        | none until exact support exists |
+| D8  | opt-out        | none until exact support exists |
+| D9  | opt-out        | none until exact support exists |
+| D10 | opt-out        | none until exact support exists |
+| D11 | opt-out        | none until exact support exists |
+| D12 | opt-out        | none until exact support exists |
+| D13 | opt-out        | none until exact support exists |
+| D14 | opt-out        | none until exact support exists |
+| D15 | opt-out        | none until exact support exists |
+| D16 | opt-out        | none until exact support exists |
+| D17 | opt-out        | none until exact support exists |
+
 Task-specific prompts, schemas, skip criteria, retries, fallbacks, and
 termination remain owned by the source skill. A route may not collapse two
 distinct sessions just because they share a semantic agent.
