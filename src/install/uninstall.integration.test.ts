@@ -88,7 +88,6 @@ describe("uninstall", () => {
     );
     expect(await pathExists(claudeAgentPath)).toBe(true);
     expect(await pathExists(codexAgentPath)).toBe(true);
-
     // Uninstall
     const result = await uninstall(config, { dryRun: false });
 
@@ -188,6 +187,9 @@ describe("uninstall", () => {
 
     expect(await pathExists(claudeAgentPath)).toBe(true);
     expect(await pathExists(codexAgentPath)).toBe(true);
+    const manifestBefore = JSON.parse(
+      await readFile(config.manifest.path, "utf-8"),
+    );
 
     const result = await uninstall(config, {
       target: "claude",
@@ -210,10 +212,11 @@ describe("uninstall", () => {
 
     // Manifest contains only codex records
     const manifest = JSON.parse(await readFile(config.manifest.path, "utf-8"));
-    expect(manifest.records.length).toBeGreaterThan(0);
-    for (const record of manifest.records) {
-      expect(record.target).toBe("codex");
-    }
+    expect(manifest.records).toEqual(
+      manifestBefore.records.filter(
+        (record: { target: string }) => record.target === "codex",
+      ),
+    );
   });
 
   it("emits 'Nothing to remove.' when the manifest is empty", async () => {
@@ -259,6 +262,87 @@ describe("uninstall", () => {
     expect(result.removed).toBe(0);
     expect(result.errors).toEqual([]);
     expect(testLogger.infos).toContain("Nothing to remove.");
+  });
+
+  it("retains the exact non-target tuple when a target-filtered uninstall prunes a missing record", async () => {
+    const config = makeResolvedConfig(tempDir);
+    const claudePath = path.join(config.targets.claude.agentsHome, "gone.md");
+    const codexPath = path.join(config.targets.codex.agentsHome, "gone.toml");
+    await mkdir(path.dirname(config.manifest.path), { recursive: true });
+    await writeFile(
+      config.manifest.path,
+      makeManifestJson(
+        [
+          {
+            target: "claude",
+            type: "agent",
+            name: "gone",
+            sourcePath: "/source/gone.yaml",
+            generatedPath: null,
+            installedPath: claudePath,
+            installMode: "copy",
+            contentHash: "claude",
+            timestamp: new Date().toISOString(),
+          },
+          {
+            target: "codex",
+            type: "agent",
+            name: "gone",
+            sourcePath: "/source/gone.yaml",
+            generatedPath: null,
+            installedPath: codexPath,
+            installMode: "copy",
+            contentHash: "codex",
+            timestamp: new Date().toISOString(),
+          },
+        ],
+        { config },
+      ),
+      "utf-8",
+    );
+
+    const result = await uninstall(config, { target: "claude", dryRun: false });
+
+    expect(result).toEqual({ removed: 1, errors: [] });
+    const manifest = JSON.parse(await readFile(config.manifest.path, "utf-8"));
+    expect(manifest.records).toEqual([
+      expect.objectContaining({
+        target: "codex",
+        type: "agent",
+        name: "gone",
+        installedPath: codexPath,
+      }),
+    ]);
+  });
+
+  it("rejects a bound foreign record before uninstalling", async () => {
+    const config = makeResolvedConfig(tempDir);
+    const foreignPath = path.join(tempDir, "foreign", "sentinel.md");
+    await mkdir(path.dirname(config.manifest.path), { recursive: true });
+    await writeFile(
+      config.manifest.path,
+      makeManifestJson(
+        [
+          {
+            target: "claude",
+            type: "agent",
+            name: "sentinel",
+            sourcePath: "/source/sentinel.yaml",
+            generatedPath: null,
+            installedPath: foreignPath,
+            installMode: "copy",
+            contentHash: "foreign",
+            timestamp: new Date().toISOString(),
+          },
+        ],
+        { config },
+      ),
+      "utf-8",
+    );
+
+    await expect(uninstall(config, { dryRun: false })).rejects.toThrow(
+      "Bound manifest contains foreign records",
+    );
   });
 
   it("skips uninstall removal when copied agent content no longer matches the manifest", async () => {
@@ -606,7 +690,7 @@ describe("uninstall", () => {
     const manifestBefore = await readFile(config.manifest.path, "utf-8");
 
     await expect(uninstall(config, { dryRun: false })).rejects.toThrow(
-      "foreign legacy records",
+      "Bound manifest contains foreign records",
     );
     expect(await readFile(config.manifest.path, "utf-8")).toBe(manifestBefore);
   });
@@ -649,7 +733,7 @@ describe("uninstall", () => {
       const manifestBefore = await readFile(config.manifest.path, "utf-8");
 
       await expect(uninstall(config, { dryRun: false })).rejects.toThrow(
-        "foreign legacy records",
+        "Bound manifest contains foreign records",
       );
       expect(await readFile(config.manifest.path, "utf-8")).toBe(
         manifestBefore,
@@ -734,7 +818,7 @@ describe("uninstall", () => {
     const manifestBefore = await readFile(config.manifest.path, "utf-8");
 
     await expect(uninstall(config, { dryRun: false })).rejects.toThrow(
-      "foreign legacy records",
+      "Bound manifest contains foreign records",
     );
     expect(await readFile(outsidePath, "utf-8")).toBe("sentinel");
     expect(await readFile(config.manifest.path, "utf-8")).toBe(manifestBefore);

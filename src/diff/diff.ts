@@ -22,16 +22,24 @@ export async function diffAll(
     normalized = normalizeManifestIdentity(loaded.manifest, config);
   } catch (error) {
     if (!(error instanceof ManifestIdentityError)) throw error;
+    const message = (error as Error).message;
+    if (!message.startsWith("Manifest boundary mismatch")) {
+      throw new UserError(
+        `Manifest identity is invalid: ${message}`,
+        config.manifest.path,
+      );
+    }
     throw new UserError(
-      `Manifest boundary does not match the configured homes: ${(error as Error).message}`,
+      `Manifest boundary does not match the configured homes: ${message}`,
       config.manifest.path,
       "Use the manifest with its original configured homes; boundary mismatches cannot be reconciled.",
     );
   }
   if (normalized.records.some((record) => record.ownership === "foreign")) {
     throw new UserError(
-      "Manifest contains foreign legacy records; run sync --reconcile-manifest before diffing.",
+      "Bound manifest contains foreign records; automatic reconciliation is forbidden.",
       config.manifest.path,
+      "Restore matching configured homes or repair the manifest from a verified backup.",
     );
   }
   const manifest = normalized.manifest;

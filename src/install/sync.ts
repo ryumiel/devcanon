@@ -71,12 +71,20 @@ export async function sync(
     normalized = normalizeManifestIdentity(loaded.manifest, config);
   } catch (error) {
     if (!(error instanceof ManifestIdentityError)) throw error;
+    const message = (error as Error).message;
+    if (!message.startsWith("Manifest boundary mismatch")) {
+      throw new UserError(
+        `Manifest identity is invalid: ${message}`,
+        config.manifest.path,
+      );
+    }
     throw new UserError(
-      `Manifest boundary does not match the configured homes: ${(error as Error).message}`,
+      `Manifest boundary does not match the configured homes: ${message}`,
       config.manifest.path,
       "Use the manifest with its original configured homes; boundary mismatches cannot be reconciled.",
     );
   }
+  assertNoPhysicalPathConflicts(normalized.manifest.records, config);
   const legacy = !loaded.manifest.boundary;
   const foreignIndexes = normalized.records.flatMap((record, index) =>
     record.ownership === "foreign" ? [index] : [],
@@ -155,6 +163,7 @@ export async function sync(
       options.strict,
       options.target,
     );
+    assertNoPhysicalPathConflicts(outputs, config);
 
     // Filter for install planning (renderAll already filtered, but keep for clarity)
     const filteredOutputs = outputs;
@@ -271,6 +280,31 @@ export async function sync(
     return totalResult;
   } finally {
     if (authority) await releaseManifestBackupAuthority(authority);
+  }
+}
+
+function assertNoPhysicalPathConflicts(
+  entries: Array<
+    Pick<ManagedRecord, "target" | "type" | "name" | "installedPath">
+  >,
+  config: ResolvedConfig,
+): void {
+  const byPath = new Map<string, (typeof entries)[number]>();
+  for (const entry of entries) {
+    const existing = byPath.get(entry.installedPath);
+    if (
+      existing &&
+      (existing.target !== entry.target ||
+        existing.type !== entry.type ||
+        existing.name !== entry.name)
+    ) {
+      throw new UserError(
+        `Managed output physical path conflict at ${entry.installedPath}: ${existing.target}/${existing.type}/${existing.name} and ${entry.target}/${entry.type}/${entry.name}`,
+        config.manifest.path,
+        "Configure distinct target homes or remove the conflicting manifest record before retrying.",
+      );
+    }
+    byPath.set(entry.installedPath, entry);
   }
 }
 

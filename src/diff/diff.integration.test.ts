@@ -395,4 +395,33 @@ describe("diffAll integration", () => {
       expect(result?.status).toBe("added");
     },
   );
+
+  it("reports bound foreign records before rendering a diff", async () => {
+    const foreignPath = path.join(tempDir, "foreign", "sentinel.md");
+    await mkdir(path.dirname(config.manifest.path), { recursive: true });
+    await writeFile(
+      config.manifest.path,
+      makeManifestJson(
+        [
+          {
+            target: "claude",
+            type: "agent",
+            name: "sentinel",
+            sourcePath: "/source/sentinel.yaml",
+            generatedPath: null,
+            installedPath: foreignPath,
+            installMode: "copy",
+            contentHash: "foreign",
+            timestamp: new Date().toISOString(),
+          },
+        ],
+        { config },
+      ),
+      "utf-8",
+    );
+
+    await expect(diffAll(config)).rejects.toThrow(
+      "Bound manifest contains foreign records",
+    );
+  });
 });

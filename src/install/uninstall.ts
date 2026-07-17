@@ -35,16 +35,25 @@ export async function uninstall(
     normalized = normalizeManifestIdentity(loaded.manifest, config);
   } catch (error) {
     if (!(error instanceof ManifestIdentityError)) throw error;
+    const message = (error as Error).message;
+    if (!message.startsWith("Manifest boundary mismatch")) {
+      throw new UserError(
+        `Manifest identity is invalid: ${message}`,
+        config.manifest.path,
+      );
+    }
     throw new UserError(
-      `Manifest boundary does not match the configured homes: ${(error as Error).message}`,
+      `Manifest boundary does not match the configured homes: ${message}`,
       config.manifest.path,
       "Use the manifest with its original configured homes; boundary mismatches cannot be reconciled.",
     );
   }
+  assertNoPhysicalPathConflicts(normalized.manifest.records, config);
   if (normalized.records.some((record) => record.ownership === "foreign")) {
     throw new UserError(
-      "Manifest contains foreign legacy records; run sync --reconcile-manifest before uninstalling.",
+      "Bound manifest contains foreign records; automatic reconciliation is forbidden.",
       config.manifest.path,
+      "Restore matching configured homes or repair the manifest from a verified backup.",
     );
   }
   const manifest = normalized.manifest;
@@ -140,6 +149,29 @@ export async function uninstall(
     return result;
   } finally {
     if (authority) await releaseManifestBackupAuthority(authority);
+  }
+}
+
+function assertNoPhysicalPathConflicts(
+  records: Manifest["records"],
+  config: ResolvedConfig,
+): void {
+  const byPath = new Map<string, Manifest["records"][number]>();
+  for (const record of records) {
+    const existing = byPath.get(record.installedPath);
+    if (
+      existing &&
+      (existing.target !== record.target ||
+        existing.type !== record.type ||
+        existing.name !== record.name)
+    ) {
+      throw new UserError(
+        `Managed output physical path conflict at ${record.installedPath}: ${existing.target}/${existing.type}/${existing.name} and ${record.target}/${record.type}/${record.name}`,
+        config.manifest.path,
+        "Configure distinct target homes or repair the conflicting manifest records before uninstalling.",
+      );
+    }
+    byPath.set(record.installedPath, record);
   }
 }
 

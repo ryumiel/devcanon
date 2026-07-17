@@ -406,4 +406,44 @@ describe("computePlan", () => {
     expect(removeActions).toHaveLength(1);
     expect(removeActions[0].installedPath).toBe("/installed/stale-skill");
   });
+
+  it("matches a shared installed path by the full target identity", async () => {
+    mockedPathOrSymlinkExists.mockResolvedValue(true);
+    const output = makeOutput({ contentHash: "claude-hash" });
+    const manifest = makeManifest([
+      {
+        target: "codex",
+        type: "agent",
+        name: "test-agent",
+        sourcePath: "/src/agents/test-agent.yaml",
+        generatedPath: "/gen/codex/agents/test-agent.toml",
+        installedPath: output.installedPath,
+        installMode: "copy",
+        contentHash: "codex-hash",
+        timestamp: new Date().toISOString(),
+      },
+      {
+        target: "claude",
+        type: "agent",
+        name: "test-agent",
+        sourcePath: output.sourcePath,
+        generatedPath: output.generatedPath,
+        installedPath: output.installedPath,
+        installMode: "copy",
+        contentHash: "claude-hash",
+        timestamp: new Date().toISOString(),
+      },
+    ]);
+
+    const actions = await computePlan(
+      [output],
+      manifest,
+      "overwrite-managed",
+      false,
+      false,
+    );
+
+    expect(actions).toHaveLength(1);
+    expect(actions[0].kind).toBe("skip-up-to-date");
+  });
 });

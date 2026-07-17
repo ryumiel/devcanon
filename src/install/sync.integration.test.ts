@@ -21,7 +21,10 @@ import {
   makeManifestJson,
   makeResolvedConfig,
 } from "../__test-helpers__/fixtures.js";
-import { installTestLogger } from "../__test-helpers__/logger.js";
+import {
+  type TestLoggerResult,
+  installTestLogger,
+} from "../__test-helpers__/logger.js";
 import { buildSkillContentHash } from "../render/skill.js";
 import { pathExists, readTextFile } from "../utils/fs.js";
 import { sync } from "./sync.js";
@@ -77,11 +80,13 @@ async function expectRelativeSymlinkTarget(
 describe("sync", () => {
   let tempDir: string;
   let restoreLogger: () => void;
+  let testLogger: TestLoggerResult;
 
   beforeEach(async () => {
     tempDir = await createTempDir();
-    const { restore } = installTestLogger();
-    restoreLogger = restore;
+    const installed = installTestLogger();
+    restoreLogger = installed.restore;
+    testLogger = installed.testLogger;
   });
 
   afterEach(async () => {
@@ -234,6 +239,370 @@ describe("sync", () => {
         entry.includes(".backup-"),
       ),
     ).toHaveLength(0);
+  });
+
+  it("reconciles mixed legacy records once while preserving foreign bytes and reusing one backup", async () => {
+    const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
+    await mkdir(config.library.skillsDir, { recursive: true });
+    await mkdir(config.library.agentsDir, { recursive: true });
+    const keepSource = await createAgentFixture(
+      config.library.agentsDir,
+      "keep",
+      makeAgentYaml("keep"),
+    );
+    const staleSource = await createAgentFixture(
+      config.library.agentsDir,
+      "stale",
+      makeAgentYaml("stale"),
+    );
+    await sync(config, { dryRun: false, force: false, strict: false });
+
+    const current = JSON.parse(await readTextFile(config.manifest.path));
+    const foreignPath = path.join(tempDir, "foreign", "sentinel.md");
+    await mkdir(path.dirname(foreignPath), { recursive: true });
+    await writeFile(foreignPath, "foreign sentinel bytes", "utf-8");
+    const legacy = {
+      ...current,
+      boundary: undefined,
+      records: [
+        ...current.records.map(
+          ({ name: _name, ...record }: { name: string }) => record,
+        ),
+        {
+          target: "claude",
+          type: "agent",
+          sourcePath: path.join(config.library.agentsDir, "foreign.yaml"),
+          generatedPath: null,
+          installedPath: foreignPath,
+          installMode: "copy",
+          contentHash: "foreign",
+          timestamp: new Date().toISOString(),
+        },
+      ],
+    };
+    await writeFile(
+      config.manifest.path,
+      `${JSON.stringify(legacy, null, 2)}\n`,
+      "utf-8",
+    );
+    const originalManifest = await readTextFile(config.manifest.path);
+    await rm(staleSource);
+    await writeFile(
+      keepSource,
+      makeAgentYaml("keep", { instructions: "updated after migration" }),
+      "utf-8",
+    );
+
+    const result = await sync(config, {
+      dryRun: false,
+      force: false,
+      strict: false,
+      reconcileManifest: true,
+    });
+
+    expect(result.errors).toEqual([]);
+    expect(result.updated).toBe(1);
+    expect(result.removed).toBe(1);
+    expect(result.reconciliation?.removed).toEqual([
+      {
+        target: "claude",
+        type: "agent",
+        name: "sentinel",
+        installedPath: foreignPath,
+      },
+    ]);
+    expect(await readTextFile(foreignPath)).toBe("foreign sentinel bytes");
+    const backups = (await readdir(path.dirname(config.manifest.path))).filter(
+      (entry) => entry.includes(".backup-"),
+    );
+    expect(backups).toHaveLength(1);
+    expect(await readTextFile(path.join(tempDir, backups[0]))).toBe(
+      originalManifest,
+    );
+    const migrated = JSON.parse(await readTextFile(config.manifest.path));
+    expect(migrated.boundary).toBeDefined();
+    expect(migrated.records).toEqual(
+      expect.not.arrayContaining([
+        expect.objectContaining({ installedPath: foreignPath }),
+      ]),
+    );
+
+    const second = await sync(config, {
+      dryRun: false,
+      force: false,
+      strict: false,
+      reconcileManifest: true,
+    });
+    expect(second.reconciliation).toBeUndefined();
+    expect(second.removed).toBe(0);
+    expect(
+      (await readdir(path.dirname(config.manifest.path))).filter((entry) =>
+        entry.includes(".backup-"),
+      ),
+    ).toHaveLength(1);
+  });
+
+  it("dry-runs a mixed legacy reconciliation without ordinary foreign removal logs", async () => {
+    const config = makeResolvedConfig(tempDir, {
+      codex: { enabled: false },
+      defaults: { cleanManagedOutputs: false },
+    });
+    const ownedPath = path.join(config.targets.claude.agentsHome, "owned.md");
+    const foreignPath = path.join(tempDir, "foreign", "sentinel.md");
+    await mkdir(path.dirname(config.manifest.path), { recursive: true });
+    await mkdir(path.dirname(foreignPath), { recursive: true });
+    await writeFile(foreignPath, "foreign sentinel bytes", "utf-8");
+    await writeFile(
+      config.manifest.path,
+      makeManifestJson(
+        [
+          {
+            target: "claude",
+            type: "agent",
+            sourcePath: path.join(config.library.agentsDir, "owned.yaml"),
+            generatedPath: null,
+            installedPath: ownedPath,
+            installMode: "copy",
+            contentHash: "owned",
+            timestamp: new Date().toISOString(),
+          },
+          {
+            target: "claude",
+            type: "agent",
+            sourcePath: path.join(config.library.agentsDir, "foreign.yaml"),
+            generatedPath: null,
+            installedPath: foreignPath,
+            installMode: "copy",
+            contentHash: "foreign",
+            timestamp: new Date().toISOString(),
+          },
+        ],
+        { legacy: true },
+      ),
+      "utf-8",
+    );
+    const before = await readTextFile(config.manifest.path);
+
+    await sync(config, {
+      dryRun: true,
+      force: false,
+      strict: false,
+      reconcileManifest: true,
+    });
+
+    const foreignLines = testLogger.infos.filter((line) =>
+      line.includes(foreignPath),
+    );
+    expect(foreignLines).toEqual([expect.stringContaining("[remove-record]")]);
+    expect(testLogger.infos.join("\n")).not.toContain(
+      "[remove] claude/agent/foreign",
+    );
+    expect(await readTextFile(foreignPath)).toBe("foreign sentinel bytes");
+    expect(await readTextFile(config.manifest.path)).toBe(before);
+  });
+
+  it("uses the next collision-safe backup sibling through the sync consumer", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-17T01:02:03.456Z"));
+    try {
+      const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
+      await mkdir(path.dirname(config.manifest.path), { recursive: true });
+      await writeFile(
+        config.manifest.path,
+        makeManifestJson([], { legacy: true }),
+        "utf-8",
+      );
+      const base = `${config.manifest.path}.backup-2026-07-17T01-02-03.456Z`;
+      await writeFile(base, "base collision", "utf-8");
+      await writeFile(`${base}-1`, "first collision", "utf-8");
+
+      await sync(config, { dryRun: false, force: false, strict: false });
+
+      expect(await readTextFile(base)).toBe("base collision");
+      expect(await readTextFile(`${base}-1`)).toBe("first collision");
+      expect(await readTextFile(`${base}-2`)).toContain('"version": 1');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("releases backup authority after a successful consumer operation", async () => {
+    const config = makeResolvedConfig(tempDir, {
+      codex: { enabled: false },
+      defaults: { cleanManagedOutputs: false },
+    });
+    const installedPath = path.join(
+      config.targets.claude.agentsHome,
+      "gone.md",
+    );
+    await mkdir(path.dirname(config.manifest.path), { recursive: true });
+    await writeFile(
+      config.manifest.path,
+      makeManifestJson(
+        [
+          {
+            target: "claude",
+            type: "agent",
+            sourcePath: path.join(config.library.agentsDir, "gone.yaml"),
+            generatedPath: null,
+            installedPath,
+            installMode: "copy",
+            contentHash: "gone",
+            timestamp: new Date().toISOString(),
+          },
+        ],
+        { legacy: true },
+      ),
+      "utf-8",
+    );
+
+    await sync(config, { dryRun: false, force: false, strict: false });
+    const later = await uninstall(config, { dryRun: false });
+
+    expect(later.errors).toEqual([]);
+    expect(later.removed).toBe(1);
+  });
+
+  it("releases backup authority after a thrown consumer operation", async () => {
+    const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
+    const installedPath = path.join(
+      config.targets.claude.agentsHome,
+      "broken.md",
+    );
+    await mkdir(config.library.agentsDir, { recursive: true });
+    await writeFile(
+      path.join(config.library.agentsDir, "broken.yaml"),
+      "not: [valid",
+      "utf-8",
+    );
+    await mkdir(path.dirname(config.manifest.path), { recursive: true });
+    await writeFile(
+      config.manifest.path,
+      makeManifestJson(
+        [
+          {
+            target: "claude",
+            type: "agent",
+            sourcePath: path.join(config.library.agentsDir, "broken.yaml"),
+            generatedPath: null,
+            installedPath,
+            installMode: "copy",
+            contentHash: "broken",
+            timestamp: new Date().toISOString(),
+          },
+        ],
+        { legacy: true },
+      ),
+      "utf-8",
+    );
+
+    await expect(
+      sync(config, { dryRun: false, force: false, strict: false }),
+    ).rejects.toThrow();
+    const later = await uninstall(config, { dryRun: false });
+
+    expect(later.errors).toEqual([]);
+    expect(later.removed).toBe(1);
+  });
+
+  it("reports malformed legacy identity validation without calling it a boundary mismatch", async () => {
+    const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
+    await mkdir(path.dirname(config.manifest.path), { recursive: true });
+    await writeFile(
+      config.manifest.path,
+      makeManifestJson(
+        [
+          {
+            target: "claude",
+            type: "agent",
+            sourcePath: "/source.yaml",
+            generatedPath: null,
+            installedPath: path.join(
+              config.targets.claude.agentsHome,
+              "nested",
+              "bad.md",
+            ),
+            installMode: "copy",
+            contentHash: "bad",
+            timestamp: new Date().toISOString(),
+          },
+        ],
+        { legacy: true },
+      ),
+      "utf-8",
+    );
+
+    await expect(
+      sync(config, { dryRun: false, force: false, strict: false }),
+    ).rejects.toThrow("Manifest identity is invalid");
+  });
+
+  it.skipIf(!symlinkAvailable)(
+    "reaches configured-home symlink verification from a bound matching manifest",
+    async () => {
+      const realHome = path.join(tempDir, "real-home");
+      const linkedHome = path.join(tempDir, "linked-home");
+      const config = makeResolvedConfig(tempDir, {
+        claude: { agentsHome: linkedHome },
+        codex: { enabled: false },
+      });
+      const installedPath = path.join(linkedHome, "sentinel.md");
+      await mkdir(realHome, { recursive: true });
+      await symlink(realHome, linkedHome, "dir");
+      await writeFile(path.join(realHome, "sentinel.md"), "sentinel", "utf-8");
+      await mkdir(path.dirname(config.manifest.path), { recursive: true });
+      await writeFile(
+        config.manifest.path,
+        makeManifestJson(
+          [
+            {
+              target: "claude",
+              type: "agent",
+              name: "sentinel",
+              sourcePath: "/source/sentinel.yaml",
+              generatedPath: null,
+              installedPath,
+              installMode: "copy",
+              contentHash: "sentinel",
+              timestamp: new Date().toISOString(),
+            },
+          ],
+          { config },
+        ),
+        "utf-8",
+      );
+
+      const result = await sync(config, {
+        dryRun: false,
+        force: false,
+        strict: false,
+      });
+
+      expect(result.errors).toEqual([
+        expect.stringContaining("configured claude agent home is a symlink"),
+      ]);
+      expect(await readTextFile(path.join(realHome, "sentinel.md"))).toBe(
+        "sentinel",
+      );
+    },
+  );
+
+  it("fails closed before installing cross-target outputs at one physical path", async () => {
+    const sharedSkillsHome = path.join(tempDir, "home", "shared-skills");
+    const config = makeResolvedConfig(tempDir, {
+      claude: { skillsHome: sharedSkillsHome },
+      codex: { skillsHome: sharedSkillsHome },
+    });
+    await mkdir(config.library.skillsDir, { recursive: true });
+    await mkdir(config.library.agentsDir, { recursive: true });
+    await createSkillFixture(config.library.skillsDir, "shared-skill");
+
+    await expect(
+      sync(config, { dryRun: false, force: false, strict: false }),
+    ).rejects.toThrow("physical path conflict");
+    expect(await pathExists(path.join(sharedSkillsHome, "shared-skill"))).toBe(
+      false,
+    );
   });
 
   it("idempotent re-sync skips when nothing changed", async () => {
