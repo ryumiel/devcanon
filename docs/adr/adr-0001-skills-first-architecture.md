@@ -20,7 +20,8 @@ should exist only when they add narrow role-specific value on top of skills.
 In this repository, an agent role earns its keep when it provides at least one
 of these:
 
-- tool or sandbox restrictions a skill cannot enforce,
+- tool or sandbox configuration defaults or layers a skill cannot declare or
+  carry,
 - documented target-specific controls such as model selection or tool access,
 - a reusable specialist shell whose operational method still lives in skills.
 

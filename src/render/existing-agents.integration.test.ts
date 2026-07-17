@@ -37,6 +37,22 @@ interface AgentSourceFixture {
 
 type RenderOutput = Awaited<ReturnType<typeof renderAll>>["outputs"][number];
 
+const AGENT_SPEC_PATH = "docs/specs/agents.md";
+const SOURCE_IMMUTABLE_DIMENSIONS = [
+  "durable-file-edit",
+  "exact-handoff-command",
+  "external-write",
+] as const;
+
+type SourceImmutableDimension = (typeof SOURCE_IMMUTABLE_DIMENSIONS)[number];
+
+interface AgentInstructionBoundaryContract {
+  dimension: SourceImmutableDimension;
+  appliesTo: "source-immutable" | "all roles";
+  instruction: string;
+  forbiddenOpposite: string;
+}
+
 async function readAgentSources(): Promise<AgentSourceFixture[]> {
   const agentsDir = path.join(process.cwd(), "agents");
   const entries = (await readdir(agentsDir))
@@ -48,6 +64,60 @@ async function readAgentSources(): Promise<AgentSourceFixture[]> {
       parseYaml(await readFile(path.join(agentsDir, entry), "utf8")),
     ),
   ) as Promise<AgentSourceFixture[]>;
+}
+
+async function readAgentInstructionBoundaryOwner(): Promise<
+  AgentInstructionBoundaryContract[]
+> {
+  const markdown = await readFile(
+    path.join(process.cwd(), AGENT_SPEC_PATH),
+    "utf8",
+  );
+  const section = markdown.match(
+    /### Instruction mutation boundaries\n(?<body>[\s\S]*?)(?=\n### |\n## )/,
+  )?.groups?.body;
+  if (!section) {
+    throw new Error(
+      "Agent spec instruction mutation boundary owner is missing",
+    );
+  }
+
+  const rows = [
+    ...section.matchAll(
+      /^\| `([^`]+)`\s+\| `([^`]+)`\s+\| `([^`]+)`\s+\| `([^`]+)`\s+\|$/gm,
+    ),
+  ].map(([, dimension, appliesTo, instruction, forbiddenOpposite]) => ({
+    dimension,
+    appliesTo,
+    instruction,
+    forbiddenOpposite,
+  }));
+  if (
+    rows.length !== SOURCE_IMMUTABLE_DIMENSIONS.length ||
+    !SOURCE_IMMUTABLE_DIMENSIONS.every(
+      (dimension) =>
+        rows.filter((row) => row.dimension === dimension).length === 1,
+    )
+  ) {
+    throw new Error(
+      "Agent spec instruction mutation boundary owner must define each source-immutable dimension exactly once",
+    );
+  }
+  for (const row of rows) {
+    if (
+      !SOURCE_IMMUTABLE_DIMENSIONS.includes(
+        row.dimension as SourceImmutableDimension,
+      ) ||
+      (row.appliesTo !== "source-immutable" && row.appliesTo !== "all roles") ||
+      !row.instruction ||
+      !row.forbiddenOpposite
+    ) {
+      throw new Error(
+        "Agent spec instruction mutation boundary row is invalid",
+      );
+    }
+  }
+  return rows as AgentInstructionBoundaryContract[];
 }
 
 async function loadConfigWithFixedSkillsHome(): Promise<ResolvedConfig> {
@@ -87,19 +157,44 @@ function expectSharedBoundaries(instructions: string): void {
   expect(normalized).toMatch(
     /write exactly one[\s\S]*dispatch-named direct-child \.ephemeral[\s\S]*handoff/,
   );
-  expect(normalized).toContain(
-    "Do not mutate GitHub, Linear, Notion, or any other external system.",
+}
+
+function instructionBoundaryViolations(
+  instructions: string,
+  boundaries: readonly AgentInstructionBoundaryContract[],
+): string[] {
+  const normalized = normalizeWhitespace(instructions);
+  return boundaries.flatMap((boundary) => {
+    const violations: string[] = [];
+    if (!normalized.includes(boundary.instruction)) {
+      violations.push(`missing:${boundary.dimension}`);
+    }
+    if (normalized.includes(boundary.forbiddenOpposite)) {
+      violations.push(`forbidden:${boundary.dimension}`);
+    }
+    return violations;
+  });
+}
+
+function applicableInstructionBoundaries(
+  boundaries: readonly AgentInstructionBoundaryContract[],
+  sourceAuthority: "source-immutable" | "source-mutable",
+): AgentInstructionBoundaryContract[] {
+  return boundaries.filter(
+    (boundary) =>
+      boundary.appliesTo === "all roles" ||
+      boundary.appliesTo === sourceAuthority,
   );
 }
 
 describe("shipped semantic agents", () => {
   it("matches the documented six-role source catalog and target envelopes", async () => {
-    const [roles, sources, sourceFiles] = await Promise.all([
+    const [roles, boundaries, sources, sourceFiles] = await Promise.all([
       readAgentSemanticRoleOwner(),
+      readAgentInstructionBoundaryOwner(),
       readAgentSources(),
       readdir(path.join(process.cwd(), "agents")),
     ]);
-
     expect(roles).toHaveLength(6);
     expect(sourceFiles.sort()).toEqual(
       roles.map((role) => `${role.name}.yaml`).sort(),
@@ -122,12 +217,19 @@ describe("shipped semantic agents", () => {
       expect(source.codex.sandbox_mode).toBe(role.codexSandbox);
       expect(role.externalAuthority).toBe("none");
       expectSharedBoundaries(source.instructions);
+      const applicableBoundaries = applicableInstructionBoundaries(
+        boundaries,
+        role.sourceAuthority,
+      );
+      expect(
+        instructionBoundaryViolations(
+          source.instructions,
+          applicableBoundaries,
+        ),
+      ).toEqual([]);
 
       if (role.sourceAuthority === "source-immutable") {
         const normalized = normalizeWhitespace(source.instructions);
-        expect(normalized).toContain(
-          "Do not modify durable source, tests, configuration, or documentation.",
-        );
         expect(normalized).toMatch(
           /Write access exists only for (?:the|that) optional handoff\./,
         );
@@ -146,6 +248,33 @@ describe("shipped semantic agents", () => {
           "Use network access only when the task explicitly authorizes and owns it.",
         );
       }
+    }
+  });
+
+  it("rejects each single-dimension source-immutable instruction contradiction", async () => {
+    const [roles, boundaries, sources] = await Promise.all([
+      readAgentSemanticRoleOwner(),
+      readAgentInstructionBoundaryOwner(),
+      readAgentSources(),
+    ]);
+    const sourceImmutableRole = roles.find(
+      (role) => role.sourceAuthority === "source-immutable",
+    );
+    const canonicalInstructions = sources.find(
+      (source) => source.name === sourceImmutableRole?.name,
+    )?.instructions;
+    expect(canonicalInstructions).toBeDefined();
+    if (!canonicalInstructions) return;
+    const normalizedInstructions = normalizeWhitespace(canonicalInstructions);
+    expect(
+      instructionBoundaryViolations(normalizedInstructions, boundaries),
+    ).toEqual([]);
+    for (const boundary of boundaries) {
+      const mutated = `${normalizedInstructions} ${boundary.forbiddenOpposite}`;
+      expect(
+        instructionBoundaryViolations(mutated, boundaries),
+        boundary.dimension,
+      ).toEqual([`forbidden:${boundary.dimension}`]);
     }
   });
 
@@ -200,8 +329,9 @@ describe("shipped semantic agents", () => {
   });
 
   it("renders and parses exactly six configured roles for both targets", async () => {
-    const [roles, config] = await Promise.all([
+    const [roles, boundaries, config] = await Promise.all([
       readAgentSemanticRoleOwner(),
+      readAgentInstructionBoundaryOwner(),
       loadConfigWithFixedSkillsHome(),
     ]);
     const { outputs, agents } = await renderAll(config, false, true);
@@ -256,6 +386,26 @@ describe("shipped semantic agents", () => {
         ),
       });
       expect(codexOutput.content).not.toContain("{{model:");
+
+      const developerInstructions = codexToml.developer_instructions;
+      if (typeof developerInstructions !== "string") {
+        throw new Error(
+          `Missing Codex developer instructions for ${role.name}`,
+        );
+      }
+      const applicableBoundaries = applicableInstructionBoundaries(
+        boundaries,
+        role.sourceAuthority,
+      );
+      expect(instructionBoundaryViolations(body, applicableBoundaries)).toEqual(
+        [],
+      );
+      expect(
+        instructionBoundaryViolations(
+          developerInstructions,
+          applicableBoundaries,
+        ),
+      ).toEqual([]);
     }
   });
 });

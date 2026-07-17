@@ -9,8 +9,8 @@ an agent only when a thin role wrapper still adds value.
 
 ## 1. Default to Skills
 
-Start with a skill unless you need a role wrapper for a specific target or
-execution constraint.
+Start with a skill unless you need a role wrapper for specific target
+configuration.
 
 Skills are the shared layer for reusable knowledge across Claude Code and
 Codex. They keep workflows, checklists, and procedures portable and prevent
@@ -24,15 +24,16 @@ agent.
 
 In this repository, create an agent only when one of these is true:
 
-- You need tool or sandbox restrictions that a skill cannot enforce.
-- You need a stable role identity with documented target-supported constraints,
-  such as model capability, effort level, tool access, sandbox mode, or Codex
-  approval policy (`codex.approval_policy`).
+- You need tool or sandbox configuration defaults or layers that a skill cannot
+  declare or carry.
+- You need a stable role identity with documented target configuration defaults
+  or layers, such as model capability, effort level, tool access, sandbox mode,
+  or Codex approval policy (`codex.approval_policy`).
 - You need a reusable specialist delegate, but the reusable operational
   knowledge still lives in skills.
 
 That is the full justification surface. If the wrapper does not add one of
-those constraints, prefer the skill alone.
+those target-configuration benefits, prefer the skill alone.
 
 ### Use the semantic catalog before creating a role
 
@@ -58,12 +59,18 @@ sandbox, or approval policy. Every semantic child role has external authority
 `none`; only the owning root/controller may hold separately authorized
 `external-mutable` authority.
 
+Codex `sandbox_mode` and `approval_policy` are reusable inherited
+configuration defaults or layers, not immutable enforcement. A live parent or
+runtime policy can apply a different setting. Treat them as target configuration
+to classify alongside authority, never as proof that source or external writes
+are prevented.
+
 ## 3. Anti-Patterns
 
 Avoid these cases:
 
-- Wrapping a skill in an agent without adding any real constraint or role
-  boundary.
+- Wrapping a skill in an agent without adding any real target-configuration
+  benefit or role boundary.
 - Creating generic orchestration agents that mostly route work instead of
   owning a specific reusable role.
 - Using agent creation as a response to prompt growth instead of moving shared
@@ -72,6 +79,10 @@ Avoid these cases:
 - Treating `workspace-write` or a `Write` tool as permission to modify durable
   source. Source-immutable roles use those capabilities only for a single
   dispatch-named direct-child `.ephemeral` handoff.
+- Treating sandbox or approval values as immutable enforcement. A hard claim
+  that workspace or file non-mutation is enforced requires an actually enforced
+  read-only workspace policy; broader claims require enforced denial for every
+  claimed mutation surface, including external-action capabilities.
 - Inferring GitHub, Linear, Notion, or other external mutation authority from
   source authority or target capabilities.
 - Treating delegation or orchestration as a YAML field or schema control knob.
@@ -98,19 +109,22 @@ are true:
 - The delegate represents a stable reusable role identity across sessions,
   evidenced by **cross-skill reuse OR a role boundary that would still make
   sense outside the originating skill**.
-- The delegate benefits from documented target-supported constraints such as
-  dedicated model capability, effort level, tool access, sandbox mode, or Codex
-  approval policy (`codex.approval_policy`). Constraint potential is necessary
-  but not sufficient — it sharpens an already-justified promotion, it does not
-  justify one.
+- The delegate benefits from documented target configuration defaults or layers
+  such as dedicated model capability, effort level, tool access, sandbox mode,
+  or Codex approval policy (`codex.approval_policy`). A configuration benefit is
+  necessary but not sufficient — it sharpens an already-justified promotion, it
+  does not justify one.
 - The reusable operational method can remain in skills, with the resulting
   agent staying a thin role wrapper.
 
 **Operational threshold for reviewer-style delegates.** A reviewer-style
 prompt template should accumulate at least two independent call sites before
-promotion, unless there is already a hard target-native constraint win that
-justifies promotion on its own (for example, a read-only sandbox plus a fixed
-tool surface). Single-skill reviewer scaffolds stay as templates.
+promotion unless a documented target-configuration benefit establishes a stable
+role boundary beyond the originating skill. A requested sandbox default plus a
+fixed tool surface can support that case, but it does not replace the stable-role
+requirement or provide hard enforcement. Reserve enforcement claims for live
+runtime policy that actually enforces every claimed surface. Single-skill
+reviewer scaffolds otherwise stay as templates.
 
 Keep a delegate as a prompt template when it is mostly:
 
@@ -152,6 +166,16 @@ source-immutable dispatch before consuming the result; the spec-owned
 write-capable envelope permits the optional named handoff and does not grant
 durable-source authority.
 
+Each source-immutable role must state the complete three-part boundary in its
+own instructions: no durable file edits; mutating commands only when required
+to create, write, validate, or clean up the exact dispatch-named direct-child
+`.ephemeral` handoff, with every other mutating command prohibited; and no
+GitHub, Linear, Notion, or other external writes. The same instruction text must
+render to both targets. Render checks are behavioral evidence only;
+broader-permission trials must inspect relevant repository and modeled
+external-action state, state residual unobserved risk, and never be presented as
+a security proof.
+
 ## 7. Authoring Workflow in This Repo
 
 1. Identify reusable knowledge first, and put workflow, checklist, and
@@ -159,8 +183,8 @@ durable-source authority.
 2. Create the agent only if a thin role wrapper is still needed after that
    split.
 3. For delegates currently expressed as prompt templates, decide explicitly
-   whether they add stable role identity plus real target-supported
-   constraints, or whether they are still workflow-local scaffolding.
+   whether they add stable role identity plus real target configuration
+   defaults or layers, or whether they are still workflow-local scaffolding.
 4. Keep `instructions` short and role-shaped, not checklist-shaped.
 5. Make the role contract explicit: what it owns, when it is used, what
    context it receives, what it returns, and whether any coordination
@@ -173,8 +197,8 @@ durable-source authority.
 8. Declare source authority using the closed policy vocabulary. Keep every
    semantic child's external authority at `none`; reserve separately authorized
    `external-mutable` authority for the owning root/controller. For
-   source-immutable dispatches, require owner-side capture,
-   verify-before-consume, and exact cleanup.
+   source-immutable dispatches, require the three-part self-contained boundary,
+   owner-side capture, verify-before-consume, and exact cleanup.
 9. Validate with `devcanon validate`.
 10. Preview the generated output with `devcanon render`.
 

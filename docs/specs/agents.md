@@ -11,7 +11,7 @@ YAML
 ## When to use an agent source file
 
 Use an agent source file for a thin role wrapper that adds stable reusable role
-identity plus documented target-supported constraints.
+identity plus documented target configuration defaults or layers.
 
 Valid reasons include dedicated:
 
@@ -41,8 +41,12 @@ instructions: |
   Evaluate only the dispatch-defined scope and acceptance condition.
   You may inspect files, run permitted commands, and write only one
   dispatch-named direct-child .ephemeral handoff when requested.
+  Do not make durable file edits.
+  Mutating commands are permitted only when required to create, write,
+  validate, or clean up the exact dispatch-named direct-child .ephemeral
+  handoff. Do not run any other mutating commands.
   Do not modify durable source, tests, configuration, or documentation.
-  Do not mutate external systems.
+  Do not mutate GitHub, Linear, Notion, or any other external system.
 
 capability: balanced
 
@@ -97,9 +101,17 @@ or escalation behavior.
 
 Every role may run permitted routine commands and may write one
 dispatch-named direct-child `.ephemeral` handoff. The four source-immutable
-roles must carry self-contained instructions prohibiting changes to durable
-source, tests, configuration, and documentation. Their write-capable envelope
-exists for the optional handoff; it is not durable mutation authority.
+roles must carry self-contained instructions that prohibit durable file edits,
+permit mutating commands only when required to create, write, validate, or
+clean up the exact dispatch-named direct-child handoff, prohibit every other
+mutating command, and prohibit GitHub, Linear, Notion, or other external writes.
+Their write-capable envelope exists for the optional handoff; it is not durable
+mutation authority.
+
+Codex `sandbox_mode` and `approval_policy` values are reusable inherited
+configuration defaults or layers, not immutable enforcement. An active parent
+or runtime policy may apply a different live setting. Those target fields
+describe available execution configuration and never grant mutation authority.
 
 `executor` instructions must limit it to exact validated operations on
 dispatch-authorized paths and require it to stop or hand off when a guardrail is
@@ -115,6 +127,18 @@ access, or source authority.
 `investigator` receives network access or a diagnostic handoff path only when
 the dispatch explicitly names it. Ambient network availability and an unnamed
 diagnostic artifact are outside the role contract.
+
+### Instruction mutation boundaries
+
+This table is the normative owner of exact shared instruction text for mutation
+boundaries. Tests and rendered targets consume these clauses; they do not define
+parallel positive wording.
+
+| Dimension               | Applies to         | Required instruction                                                                                                                                                                           | Forbidden opposite                                                     |
+| ----------------------- | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `durable-file-edit`     | `source-immutable` | `Do not make durable file edits.`                                                                                                                                                              | `You may make durable file edits.`                                     |
+| `exact-handoff-command` | `source-immutable` | `Mutating commands are permitted only when required to create, write, validate, or clean up the exact dispatch-named direct-child .ephemeral handoff. Do not run any other mutating commands.` | `You may run unrelated mutating commands while preparing the handoff.` |
+| `external-write`        | `all roles`        | `Do not mutate GitHub, Linear, Notion, or any other external system.`                                                                                                                          | `You may mutate GitHub, Linear, and Notion.`                           |
 
 ### Render and runtime acceptance
 
@@ -138,6 +162,16 @@ matrix, output tokens, blocker rules, and human-only deployment gate are owned b
 [ADR-0027](../adr/adr-0027-semantic-agent-routing-and-mutation-authority.md).
 Local validation does not prove client, account, model, effort, or named-agent
 availability and must never substitute an alias or fallback.
+
+Static source and render checks are derived behavioral evidence, not runtime
+enforcement. A hard claim that workspace or file non-mutation is enforced
+requires an actually enforced read-only workspace policy. Any broader hard
+non-mutation claim requires enforced denial for every claimed mutation surface,
+including external-action capabilities. Broader-permission trials or
+observations must inspect relevant repository state and modeled external-action
+state, state their residual unobserved risk, and be labeled behavioral evidence
+rather than a security proof. This contract creates no new runtime harness;
+ADR-0027 owns the bounded runtime acceptance procedure.
 
 ---
 
@@ -249,14 +283,20 @@ Mutation authority is a workflow contract rather than a first-class schema
 field. The closed source and external axes, complete skill inventory, and
 direct-child routes are owned by the
 [Agent Routing and Mutation Policy](../guidelines/agent-routing-and-mutation-policy.md).
-Target fields document executable capability; they do not authorize mutation.
+Codex sandbox and approval values are reusable inherited configuration defaults
+or layers that a live parent policy may override; they are not immutable
+enforcement. Target fields document executable capability; they do not
+authorize mutation.
 
 ---
 
 ## Not supported in v2
 
-- inheritance
-- extends/merge behavior
+These exclusions concern agent-source composition only; they do not prohibit
+live parent or runtime configuration inheritance.
+
+- agent-source inheritance
+- agent-source extends/merge behavior
 - overlays as a first-class feature
 - automatic prompt composition from multiple files
 - first-class delegation or orchestration policy fields

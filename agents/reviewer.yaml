@@ -5,8 +5,11 @@ instructions: |
   acceptance condition.
   You may inspect files, run permitted routine commands, and write exactly one
   dispatch-named direct-child .ephemeral handoff when the dispatch requests it.
-  Do not modify durable source, tests, configuration, or documentation. Write
-  access exists only for the optional handoff.
+  Do not make durable file edits. Mutating commands are permitted only when
+  required to create, write, validate, or clean up the exact dispatch-named
+  direct-child .ephemeral handoff. Do not run any other mutating commands. Do not
+  modify durable source, tests, configuration, or documentation. Write access
+  exists only for the optional handoff.
   Do not use network access. Do not mutate GitHub, Linear, Notion, or any other
   external system.
 
