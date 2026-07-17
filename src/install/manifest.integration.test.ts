@@ -5,7 +5,15 @@ import { cleanupTempDir, createTempDir } from "../__test-helpers__/fixtures.js";
 import { installTestLogger } from "../__test-helpers__/logger.js";
 import type { TestLoggerResult } from "../__test-helpers__/logger.js";
 import { pathExists } from "../utils/fs.js";
-import { emptyManifest, loadManifest, saveManifest } from "./manifest.js";
+import {
+  captureManifestSnapshot,
+  createManifestBackupAuthority,
+  emptyManifest,
+  loadManifest,
+  loadManifestWithSnapshot,
+  releaseManifestBackupAuthority,
+  saveManifest,
+} from "./manifest.js";
 
 describe("manifest integration", () => {
   let tempDir: string;
@@ -25,6 +33,19 @@ describe("manifest integration", () => {
   });
 
   describe("loadManifest", () => {
+    it("returns the exact valid source bytes with a load snapshot", async () => {
+      const manifestPath = path.join(tempDir, "manifest.json");
+      const original =
+        '{ "version": 1, "managedBy": "devcanon", "lastSync": "now", "records": [] }\n';
+      await writeFile(manifestPath, original, "utf-8");
+
+      const loaded = await loadManifestWithSnapshot(manifestPath);
+
+      expect(loaded.manifest.records).toEqual([]);
+      expect(loaded.snapshot?.bytes.toString("utf-8")).toBe(original);
+      expect(loaded.snapshot?.manifestPath).toBe(manifestPath);
+    });
+
     it("returns empty manifest when file does not exist", async () => {
       const manifestPath = path.join(tempDir, "nonexistent.json");
 
@@ -124,6 +145,133 @@ describe("manifest integration", () => {
   });
 
   describe("saveManifest", () => {
+    it("creates one byte-verified collision-safe backup before guarded rewrites", async () => {
+      const manifestPath = path.join(tempDir, "manifest.json");
+      const original = '{\n  "preserve": true\n}\n';
+      await writeFile(manifestPath, original, "utf-8");
+      const snapshot = await captureManifestSnapshot(manifestPath);
+      const timestamp = new Date("2026-07-17T01:02:03.456Z");
+      const baseBackup = `${manifestPath}.backup-2026-07-17T01-02-03.456Z`;
+      await writeFile(baseBackup, "occupied", "utf-8");
+      await writeFile(`${baseBackup}-1`, "occupied", "utf-8");
+
+      const authority = await createManifestBackupAuthority(
+        manifestPath,
+        snapshot,
+        "migration-1",
+        timestamp,
+      );
+
+      expect(authority.backupPath).toBe(`${baseBackup}-2`);
+      expect(await readFile(authority.backupPath, "utf-8")).toBe(original);
+      expect(() => JSON.stringify(authority)).toThrow("must not be serialized");
+
+      await saveManifest(manifestPath, emptyManifest(), {
+        authority,
+        operationId: "migration-1",
+      });
+      await saveManifest(
+        manifestPath,
+        {
+          ...emptyManifest(),
+          lastSync: "2026-07-17T02:00:00.000Z",
+        },
+        { authority, operationId: "migration-1" },
+      );
+
+      expect(await readFile(authority.backupPath, "utf-8")).toBe(original);
+      releaseManifestBackupAuthority(authority);
+    });
+
+    it("fails closed when the source changes before backup creation", async () => {
+      const manifestPath = path.join(tempDir, "manifest.json");
+      await writeFile(manifestPath, "original", "utf-8");
+      const snapshot = await captureManifestSnapshot(manifestPath);
+      await writeFile(manifestPath, "drifted", "utf-8");
+
+      await expect(
+        createManifestBackupAuthority(manifestPath, snapshot, "migration-1"),
+      ).rejects.toThrow("changed since it was loaded");
+      expect(await readFile(manifestPath, "utf-8")).toBe("drifted");
+    });
+
+    it("rejects a snapshot whose bytes and digest do not agree", async () => {
+      const manifestPath = path.join(tempDir, "manifest.json");
+      await writeFile(manifestPath, "original", "utf-8");
+      const snapshot = await captureManifestSnapshot(manifestPath);
+
+      await expect(
+        createManifestBackupAuthority(
+          manifestPath,
+          { ...snapshot, digest: "forged" },
+          "migration-1",
+        ),
+      ).rejects.toThrow("digest does not match its bytes");
+      expect(await readFile(manifestPath, "utf-8")).toBe("original");
+    });
+
+    it("requires the same live authority and a fresh descendant for every guarded save", async () => {
+      const manifestPath = path.join(tempDir, "manifest.json");
+      await writeFile(manifestPath, "original", "utf-8");
+      const authority = await createManifestBackupAuthority(
+        manifestPath,
+        await captureManifestSnapshot(manifestPath),
+        "migration-1",
+      );
+
+      await expect(saveManifest(manifestPath, emptyManifest())).rejects.toThrow(
+        "requires its active backup authority",
+      );
+      await expect(
+        saveManifest(manifestPath, emptyManifest(), {
+          authority,
+          operationId: "wrong-operation",
+        }),
+      ).rejects.toThrow("operation mismatch");
+
+      await saveManifest(manifestPath, emptyManifest(), {
+        authority,
+        operationId: "migration-1",
+      });
+      const saved = await readFile(manifestPath, "utf-8");
+      await writeFile(manifestPath, `${saved}drift`, "utf-8");
+
+      await expect(
+        saveManifest(manifestPath, emptyManifest(), {
+          authority,
+          operationId: "migration-1",
+        }),
+      ).rejects.toThrow("changed since its last accepted save");
+      releaseManifestBackupAuthority(authority);
+    });
+
+    it("rejects released and wrong-path authorities without mutating a manifest", async () => {
+      const manifestPath = path.join(tempDir, "manifest.json");
+      const otherManifestPath = path.join(tempDir, "other.json");
+      await writeFile(manifestPath, "original", "utf-8");
+      await writeFile(otherManifestPath, "other", "utf-8");
+      const authority = await createManifestBackupAuthority(
+        manifestPath,
+        await captureManifestSnapshot(manifestPath),
+        "migration-1",
+      );
+
+      await expect(
+        saveManifest(otherManifestPath, emptyManifest(), {
+          authority,
+          operationId: "migration-1",
+        }),
+      ).rejects.toThrow("different manifest path");
+      releaseManifestBackupAuthority(authority);
+      await expect(
+        saveManifest(manifestPath, emptyManifest(), {
+          authority,
+          operationId: "migration-1",
+        }),
+      ).rejects.toThrow("no longer active");
+      expect(await readFile(manifestPath, "utf-8")).toBe("original");
+    });
+
     it("creates parent directories if they do not exist", async () => {
       const manifestPath = path.join(
         tempDir,
@@ -144,10 +292,17 @@ describe("manifest integration", () => {
         version: 1 as const,
         managedBy: "devcanon" as const,
         lastSync: "2026-03-15T10:30:00.000Z",
+        boundary: {
+          claudeSkillsHome: "/home/claude/skills",
+          claudeAgentsHome: "/home/claude/agents",
+          codexSkillsHome: "/home/codex/skills",
+          codexAgentsHome: "/home/codex/agents",
+        },
         records: [
           {
             target: "claude" as const,
             type: "skill" as const,
+            name: "my-skill",
             sourcePath: "/src/skills/my-skill",
             generatedPath: null,
             installedPath: "/home/claude/skills/my-skill",
@@ -158,6 +313,7 @@ describe("manifest integration", () => {
           {
             target: "codex" as const,
             type: "agent" as const,
+            name: "helper",
             sourcePath: "/src/agents/helper.yaml",
             generatedPath: "/gen/codex/agents/helper.toml",
             installedPath: "/home/codex/agents/helper.toml",
@@ -174,15 +330,18 @@ describe("manifest integration", () => {
       expect(loaded.version).toBe(1);
       expect(loaded.managedBy).toBe("devcanon");
       expect(loaded.lastSync).toBe("2026-03-15T10:30:00.000Z");
+      expect(loaded.boundary).toEqual(manifest.boundary);
       expect(loaded.records).toHaveLength(2);
       expect(loaded.records[0].target).toBe("claude");
       expect(loaded.records[0].type).toBe("skill");
       expect(loaded.records[0].generatedPath).toBeNull();
       expect(loaded.records[0].installMode).toBe("symlink");
       expect(loaded.records[0].contentHash).toBe("def456");
+      expect(loaded.records[0].name).toBe("my-skill");
       expect(loaded.records[1].target).toBe("codex");
       expect(loaded.records[1].type).toBe("agent");
       expect(loaded.records[1].contentHash).toBe("ghi789");
+      expect(loaded.records[1].name).toBe("helper");
     });
 
     it("overwrites existing file with new content", async () => {

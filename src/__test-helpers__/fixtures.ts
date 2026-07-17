@@ -10,7 +10,7 @@ import {
 import os from "node:os";
 import path from "node:path";
 import { stringify as yamlStringify } from "yaml";
-import type { ResolvedConfig } from "../config/schema.js";
+import type { ManifestBoundary, ResolvedConfig } from "../config/schema.js";
 import type { LoadedAgent } from "../models/types.js";
 
 type CodexSource = NonNullable<LoadedAgent["source"]["codex"]>;
@@ -193,14 +193,31 @@ export function makeResolvedConfig(
   };
 }
 
+const DEFAULT_MANIFEST_BOUNDARY: ManifestBoundary = {
+  claudeSkillsHome: "/home/claude/skills",
+  claudeAgentsHome: "/home/claude/agents",
+  codexSkillsHome: "/home/codex/skills",
+  codexAgentsHome: "/home/codex/agents",
+};
+
+export interface ManifestFixtureOptions {
+  /** Omit identity fields only when a test specifically exercises v1 input. */
+  legacy?: boolean;
+  boundary?: ManifestBoundary;
+}
+
 export function makeManifestJson(
   records: Array<Record<string, unknown>> = [],
+  options: ManifestFixtureOptions = {},
 ): string {
   return JSON.stringify(
     {
       version: 1,
       managedBy: "devcanon",
       lastSync: new Date().toISOString(),
+      ...(options.legacy
+        ? {}
+        : { boundary: options.boundary ?? DEFAULT_MANIFEST_BOUNDARY }),
       records,
     },
     null,

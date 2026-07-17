@@ -76,4 +76,20 @@ describe("updateManifest", () => {
     expect(result.version).toBe(1);
     expect(result.managedBy).toBe("devcanon");
   });
+
+  it("preserves a bound identity when updating records", () => {
+    const existing = {
+      ...makeManifest(),
+      boundary: {
+        claudeSkillsHome: "/homes/claude/skills",
+        claudeAgentsHome: "/homes/claude/agents",
+        codexSkillsHome: "/homes/codex/skills",
+        codexAgentsHome: "/homes/codex/agents",
+      },
+    };
+
+    const result = updateManifest(existing, [makeRecord()], []);
+
+    expect(result.boundary).toEqual(existing.boundary);
+  });
 });
