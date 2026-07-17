@@ -8,6 +8,7 @@ import {
   mkdtemp,
   readFile,
   realpath,
+  rename,
   rm,
   symlink,
   writeFile,
@@ -578,6 +579,235 @@ async function copyExternalSupportValidator(root: string) {
   return script;
 }
 
+type Phase5AuditWorkspace = {
+  installedRoot: string;
+  manifestScript: string;
+  leaseScript: string;
+  primary: string;
+  worktree: string;
+  physicalPrimary: string;
+  physicalWorktree: string;
+  baseSha: string;
+  headSha: string;
+  resultFile: string;
+  leaseFile: string;
+};
+
+async function copyInstalledPhase5AuditLayout(root: string) {
+  await cp(runtimeSkillDir, path.join(root, "devcanon-runtime"), {
+    recursive: true,
+  });
+  const manifestScript = path.join(
+    root,
+    "pr-review/scripts/review-manifests.sh",
+  );
+  const leaseScript = path.join(root, "pr-review/scripts/review-leases.sh");
+  const priorScript = path.join(
+    root,
+    "pr-review/scripts/prior-thread-artifacts.sh",
+  );
+  const playScript = path.join(root, "play-review/scripts/review-artifacts.sh");
+  const validatorScript = path.join(
+    root,
+    "play-validate-review-artifacts/scripts/review-artifacts.sh",
+  );
+  await mkdir(path.dirname(manifestScript), { recursive: true });
+  await mkdir(path.dirname(playScript), { recursive: true });
+  await mkdir(path.dirname(validatorScript), { recursive: true });
+  await Promise.all([
+    copyFile(helperScript, manifestScript),
+    copyFile(leaseHelperScript, leaseScript),
+    copyFile(priorHelperScript, priorScript),
+    copyFile(playReviewHelperScript, playScript),
+    copyFile(supportValidatorScript, validatorScript),
+  ]);
+  await Promise.all(
+    [manifestScript, leaseScript, priorScript, playScript, validatorScript].map(
+      (script) => chmod(script, 0o755),
+    ),
+  );
+  return { manifestScript, leaseScript };
+}
+
+function phase5AuditEnv(workspace: Phase5AuditWorkspace) {
+  return {
+    REPOSITORY: "owner/repo",
+    PR_NUMBER: prNumber,
+    HEAD_SHA: workspace.headSha,
+    RESULT_FILE: workspace.resultFile,
+    PRIMARY_REPOSITORY_ROOT: workspace.physicalPrimary,
+    WORKTREE_PATH: workspace.physicalWorktree,
+    LEASE_FILE: workspace.leaseFile,
+  };
+}
+
+async function runPhase5Audit(workspace: Phase5AuditWorkspace) {
+  const env: NodeJS.ProcessEnv = {
+    ...process.env,
+    ...phase5AuditEnv(workspace),
+  };
+  for (const key of [
+    "PR_REVIEW_DIR",
+    "PR_REVIEW_MANIFEST_HELPER_SCRIPT",
+    "PR_REVIEW_LEASE_HELPER_SCRIPT",
+    "PLAY_REVIEW_HELPER",
+    "DEVCANON_RUNTIME_DIR",
+  ]) {
+    delete env[key];
+  }
+  return execFileAsync(
+    "bash",
+    [workspace.manifestScript, "render-phase5-audit-summary"],
+    { cwd: workspace.primary, env, maxBuffer: 1024 * 1024 },
+  );
+}
+
+async function writePhase5Lease(
+  workspace: Omit<Phase5AuditWorkspace, "leaseFile">,
+  leaseScript: string,
+) {
+  const leaseIdentity = {
+    PRIMARY_REPOSITORY_ROOT: workspace.physicalPrimary,
+    WORKTREE_PATH: workspace.physicalWorktree,
+  };
+  const { stdout } = await runHelper(
+    workspace.primary,
+    "derive-path",
+    leaseIdentity,
+    leaseScript,
+  );
+  const leaseFile = stdout.trim();
+  const writeLease = (state: "created" | "reviewed" | "gated", env = {}) =>
+    runHelper(
+      workspace.primary,
+      "write",
+      {
+        ...leaseIdentity,
+        LEASE_FILE: leaseFile,
+        STATE: state,
+        BASE_REF: "main",
+        HEAD_REF: "topic",
+        CREATED_AT: "2026-07-17T00:00:00Z",
+        UPDATED_AT:
+          state === "created"
+            ? "2026-07-17T00:00:00Z"
+            : state === "reviewed"
+              ? "2026-07-17T00:01:00Z"
+              : "2026-07-17T00:02:00Z",
+        ...env,
+      },
+      leaseScript,
+    );
+  await writeLease("created");
+  await writeLease("reviewed", {
+    RESULT_FILE: workspace.resultFile,
+    HEAD_SHA: workspace.headSha,
+  });
+  await writeLease("gated", {
+    RESULT_FILE: workspace.resultFile,
+    HEAD_SHA: workspace.headSha,
+    PRESENTED_AT: "2026-07-17T00:02:00Z",
+    PRESENTATION_STATUS: "preview-current",
+  });
+  return leaseFile;
+}
+
+async function makePhase5AuditWorkspace(): Promise<Phase5AuditWorkspace> {
+  const { cwd: primary, baseSha, headSha } = await makeGitWorkspace();
+  const installedRoot = await mkdtemp(
+    path.join(os.tmpdir(), "devcanon-pr-phase5-installed-"),
+  );
+  const worktree = `${primary}-phase5-worktree`;
+  try {
+    await execFileAsync("git", ["switch", "main"], { cwd: primary });
+    await execFileAsync("git", ["worktree", "add", worktree, "topic"], {
+      cwd: primary,
+    });
+    await mkdir(path.join(worktree, ".ephemeral"), { recursive: true });
+    const physicalPrimary = await realpath(primary);
+    const physicalWorktree = await realpath(worktree);
+    const { manifestScript, leaseScript } =
+      await copyInstalledPhase5AuditLayout(installedRoot);
+    await writeValidInputs(worktree, baseSha, headSha);
+    await runHelper(
+      worktree,
+      "write-handoff",
+      handoffEnv(physicalWorktree, baseSha, headSha),
+      manifestScript,
+    );
+    await writeFile(
+      path.join(worktree, reviewBodyPath(headSha)),
+      "Review body\n",
+    );
+    await writeFile(path.join(worktree, previewPath(headSha)), "Preview\n");
+    const resultFile = resultPath(headSha);
+    await runHelper(
+      worktree,
+      "write-result",
+      {
+        ...resultEnv(headSha),
+        REVIEW_BODY_FILE: reviewBodyPath(headSha),
+        RENDERED_PREVIEW_FILE: previewPath(headSha),
+        PRESENTATION_STATUS: "preview-current",
+      },
+      manifestScript,
+    );
+    const leaseFile = await writePhase5Lease(
+      {
+        installedRoot,
+        manifestScript,
+        leaseScript,
+        primary,
+        worktree,
+        physicalPrimary,
+        physicalWorktree,
+        baseSha,
+        headSha,
+        resultFile,
+      },
+      leaseScript,
+    );
+    return {
+      installedRoot,
+      manifestScript,
+      leaseScript,
+      primary,
+      worktree,
+      physicalPrimary,
+      physicalWorktree,
+      baseSha,
+      headSha,
+      resultFile,
+      leaseFile,
+    };
+  } catch (error) {
+    await cleanupTempDir(installedRoot);
+    try {
+      await execFileAsync("git", ["worktree", "remove", "--force", worktree], {
+        cwd: primary,
+      });
+    } catch {
+      await cleanupTempDir(worktree);
+    }
+    await cleanupTempDir(primary);
+    throw error;
+  }
+}
+
+async function cleanupPhase5AuditWorkspace(workspace: Phase5AuditWorkspace) {
+  await cleanupTempDir(workspace.installedRoot);
+  try {
+    await execFileAsync(
+      "git",
+      ["worktree", "remove", "--force", workspace.worktree],
+      { cwd: workspace.primary },
+    );
+  } catch {
+    await cleanupTempDir(workspace.worktree);
+  }
+  await cleanupTempDir(workspace.primary);
+}
+
 describe("pr-review manifest helper", () => {
   it("lists the Phase 5 audit summary and lease status commands in wrapper usage diagnostics", async () => {
     await expect(
@@ -659,6 +889,108 @@ describe("pr-review manifest helper", () => {
       await cleanupTempDir(installed);
     }
   });
+
+  // skills/pr-review/SKILL.md owns this public invocation; runtime unit tests
+  // cannot prove the copied wrapper's sibling discovery composes end to end.
+  it("renders the Phase 5 audit through a copied installed sibling layout using only public inputs", async () => {
+    const workspace = await makePhase5AuditWorkspace();
+    try {
+      expect(Object.keys(phase5AuditEnv(workspace))).toEqual([
+        "REPOSITORY",
+        "PR_NUMBER",
+        "HEAD_SHA",
+        "RESULT_FILE",
+        "PRIMARY_REPOSITORY_ROOT",
+        "WORKTREE_PATH",
+        "LEASE_FILE",
+      ]);
+      const beforeLease = await readFile(
+        path.join(workspace.primary, workspace.leaseFile),
+        "utf8",
+      );
+      const { stdout } = await runPhase5Audit(workspace);
+
+      expect(stdout).toContain("## Phase 5 Artifact Audit Summary");
+      expect(stdout).toContain(`Reviewed head SHA: \`${workspace.headSha}\``);
+      expect(stdout).toContain("Active diff range:");
+      expect(stdout).toContain("Result manifest:");
+      expect(stdout).toContain("Findings:");
+      expect(stdout).toContain("Validation status:");
+      expect(stdout).toContain("Presentation status:");
+      expect(stdout).toContain("Lease/worktree status:");
+      expect(stdout).toContain("Cleanup note: lease-gated cleanup pending");
+      await expect(
+        readFile(path.join(workspace.primary, workspace.leaseFile), "utf8"),
+      ).resolves.toBe(beforeLease);
+    } finally {
+      await cleanupPhase5AuditWorkspace(workspace);
+    }
+  }, 30_000);
+
+  it("fails closed when the copied Phase 5 audit layout is missing its prior-thread sibling", async () => {
+    const workspace = await makePhase5AuditWorkspace();
+    try {
+      await rm(
+        path.join(
+          workspace.installedRoot,
+          "pr-review/scripts/prior-thread-artifacts.sh",
+        ),
+      );
+
+      await expect(runPhase5Audit(workspace)).rejects.toMatchObject({
+        stdout: "",
+        stderr: expect.stringContaining(
+          "pr-review prior-thread artifact helper missing or not executable",
+        ),
+      });
+    } finally {
+      await cleanupPhase5AuditWorkspace(workspace);
+    }
+  }, 30_000);
+
+  it("fails closed when the copied play-review helper is outside the installed sibling layout", async () => {
+    const workspace = await makePhase5AuditWorkspace();
+    try {
+      await rename(
+        path.join(workspace.installedRoot, "play-review"),
+        path.join(workspace.installedRoot, "misplaced-play-review"),
+      );
+
+      await expect(runPhase5Audit(workspace)).rejects.toMatchObject({
+        stdout: "",
+        stderr: expect.stringContaining(
+          "play-review findings helper missing or not executable",
+        ),
+      });
+    } finally {
+      await cleanupPhase5AuditWorkspace(workspace);
+    }
+  }, 30_000);
+
+  it("fails before summary when the gated lease result digest is stale", async () => {
+    const workspace = await makePhase5AuditWorkspace();
+    try {
+      const lease = await readJson(workspace.primary, workspace.leaseFile);
+      await writeJson(workspace.primary, workspace.leaseFile, {
+        ...lease,
+        validation: {
+          ...(lease.validation as Record<string, unknown>),
+          result_manifest: {
+            ...((lease.validation as Record<string, unknown>)
+              .result_manifest as Record<string, unknown>),
+            sha256: "f".repeat(64),
+          },
+        },
+      });
+
+      await expect(runPhase5Audit(workspace)).rejects.toMatchObject({
+        stdout: "",
+        stderr: expect.stringContaining("read-status failed:"),
+      });
+    } finally {
+      await cleanupPhase5AuditWorkspace(workspace);
+    }
+  }, 30_000);
 
   it("derives deterministic handoff/result paths and separates different heads", async () => {
     const { cwd, headSha } = await makeGitWorkspace();
