@@ -1,7 +1,11 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { cleanupTempDir, createTempDir } from "../__test-helpers__/fixtures.js";
+import {
+  canCreateSymlinks,
+  cleanupTempDir,
+  createTempDir,
+} from "../__test-helpers__/fixtures.js";
 import { installTestLogger } from "../__test-helpers__/logger.js";
 import type { TestLoggerResult } from "../__test-helpers__/logger.js";
 import { pathExists } from "../utils/fs.js";
@@ -145,6 +149,76 @@ describe("manifest integration", () => {
   });
 
   describe("saveManifest", () => {
+    it("keeps authority freshness state opaque to its holder", async () => {
+      const manifestPath = path.join(tempDir, "manifest.json");
+      await writeFile(manifestPath, "original", "utf-8");
+      const authority = await createManifestBackupAuthority(
+        manifestPath,
+        await captureManifestSnapshot(manifestPath),
+        "migration-1",
+      );
+
+      expect("acceptDescendant" in authority).toBe(false);
+      expect("getLastAcceptedBytes" in authority).toBe(false);
+      await writeFile(manifestPath, "drifted", "utf-8");
+      await expect(
+        saveManifest(manifestPath, emptyManifest(), {
+          authority,
+          operationId: "migration-1",
+        }),
+      ).rejects.toThrow("changed since its last accepted save");
+      await releaseManifestBackupAuthority(authority);
+    });
+
+    it("rejects an operation identity without authority", async () => {
+      const manifestPath = path.join(tempDir, "manifest.json");
+
+      await expect(
+        saveManifest(manifestPath, emptyManifest(), { operationId: "orphan" }),
+      ).rejects.toThrow("requires an authority");
+      expect(await pathExists(manifestPath)).toBe(false);
+    });
+
+    it("rejects duplicate authority creation and permits a new operation after expiry", async () => {
+      const manifestPath = path.join(tempDir, "manifest.json");
+      await writeFile(manifestPath, "original", "utf-8");
+      const snapshot = await captureManifestSnapshot(manifestPath);
+      const first = await createManifestBackupAuthority(
+        manifestPath,
+        snapshot,
+        "migration-1",
+      );
+
+      await expect(
+        createManifestBackupAuthority(manifestPath, snapshot, "migration-2"),
+      ).rejects.toThrow("already has an active");
+      await releaseManifestBackupAuthority(first);
+
+      const second = await createManifestBackupAuthority(
+        manifestPath,
+        snapshot,
+        "migration-2",
+      );
+      await releaseManifestBackupAuthority(second);
+    });
+
+    it("rejects directory and symlink sources before backup creation", async () => {
+      const directoryPath = path.join(tempDir, "directory-manifest");
+      await mkdir(directoryPath);
+      await expect(captureManifestSnapshot(directoryPath)).rejects.toThrow(
+        "regular file",
+      );
+
+      if (!(await canCreateSymlinks())) return;
+      const sourcePath = path.join(tempDir, "source.json");
+      const symlinkPath = path.join(tempDir, "manifest.json");
+      await writeFile(sourcePath, "original", "utf-8");
+      await symlink(sourcePath, symlinkPath, "file");
+      await expect(captureManifestSnapshot(symlinkPath)).rejects.toThrow(
+        "regular file",
+      );
+    });
+
     it("creates one byte-verified collision-safe backup before guarded rewrites", async () => {
       const manifestPath = path.join(tempDir, "manifest.json");
       const original = '{\n  "preserve": true\n}\n';
@@ -180,7 +254,7 @@ describe("manifest integration", () => {
       );
 
       expect(await readFile(authority.backupPath, "utf-8")).toBe(original);
-      releaseManifestBackupAuthority(authority);
+      await releaseManifestBackupAuthority(authority);
     });
 
     it("fails closed when the source changes before backup creation", async () => {
@@ -242,7 +316,7 @@ describe("manifest integration", () => {
           operationId: "migration-1",
         }),
       ).rejects.toThrow("changed since its last accepted save");
-      releaseManifestBackupAuthority(authority);
+      await releaseManifestBackupAuthority(authority);
     });
 
     it("rejects released and wrong-path authorities without mutating a manifest", async () => {
@@ -262,7 +336,7 @@ describe("manifest integration", () => {
           operationId: "migration-1",
         }),
       ).rejects.toThrow("different manifest path");
-      releaseManifestBackupAuthority(authority);
+      await releaseManifestBackupAuthority(authority);
       await expect(
         saveManifest(manifestPath, emptyManifest(), {
           authority,

@@ -420,14 +420,27 @@ export const ManifestBoundarySchema = z
 
 export type ManifestBoundary = z.infer<typeof ManifestBoundarySchema>;
 
-export const ManifestSchema = z.object({
-  version: z.literal(1),
-  managedBy: z.literal(MANIFEST_MANAGED_BY),
-  lastSync: z.string(),
-  // Optional keeps valid v1 manifests backward-readable.
-  boundary: ManifestBoundarySchema.optional(),
-  records: z.array(ManagedRecordSchema),
-});
+export const ManifestSchema = z
+  .object({
+    version: z.literal(1),
+    managedBy: z.literal(MANIFEST_MANAGED_BY),
+    lastSync: z.string(),
+    // Optional keeps valid v1 manifests backward-readable.
+    boundary: ManifestBoundarySchema.optional(),
+    records: z.array(ManagedRecordSchema),
+  })
+  .superRefine((manifest, ctx) => {
+    if (!manifest.boundary) return;
+    for (const [index, record] of manifest.records.entries()) {
+      if (record.name === undefined) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["records", index, "name"],
+          message: "bound manifests require every record to have a name",
+        });
+      }
+    }
+  });
 
 export type Manifest = z.infer<typeof ManifestSchema>;
 

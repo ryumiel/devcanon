@@ -1,5 +1,6 @@
-import { createHash } from "node:crypto";
-import { lstat, open, readFile, rename } from "node:fs/promises";
+import { createHash, randomUUID } from "node:crypto";
+import { constants } from "node:fs";
+import { lstat, open, rename, unlink } from "node:fs/promises";
 import path from "node:path";
 import { MANIFEST_MANAGED_BY } from "../config/identity.js";
 import {
@@ -7,11 +8,23 @@ import {
   type Manifest,
   ManifestSchema,
 } from "../config/schema.js";
-import { atomicWriteFile, ensureDir, pathExists } from "../utils/fs.js";
+import { ensureDir, pathExists } from "../utils/fs.js";
 import { getLogger } from "../utils/output.js";
 
-const backupAuthorityBrand = Symbol("manifest-backup-authority");
 const activeBackupAuthorities = new Map<string, ManifestBackupAuthority>();
+const authorityState = new WeakMap<ManifestBackupAuthority, AuthorityState>();
+
+interface ManifestLock {
+  path: string;
+  handle: Awaited<ReturnType<typeof open>>;
+}
+
+interface AuthorityState {
+  originalDigest: string;
+  lastAcceptedBytes: Buffer;
+  lastAcceptedDigest: string;
+  lock: ManifestLock;
+}
 
 export interface ManifestSnapshot {
   readonly manifestPath: string;
@@ -29,41 +42,12 @@ export interface ManifestSaveOptions {
   operationId?: string;
 }
 
-/**
- * An operation-scoped capability. Its private brand and active registry keep
- * it out of the serialized manifest and prevent a backup from authorizing a
- * later, unrelated operation.
- */
-export class ManifestBackupAuthority {
-  readonly [backupAuthorityBrand] = true;
-  active = true;
-
-  constructor(
-    readonly manifestPath: string,
-    readonly originalBytes: Buffer,
-    readonly originalDigest: string,
-    readonly backupPath: string,
-    readonly operationId: string,
-    private lastAcceptedBytes: Buffer,
-    private lastAcceptedDigest: string,
-  ) {}
-
-  getLastAcceptedBytes(): Buffer {
-    return this.lastAcceptedBytes;
-  }
-
-  getLastAcceptedDigest(): string {
-    return this.lastAcceptedDigest;
-  }
-
-  acceptDescendant(bytes: Buffer): void {
-    this.lastAcceptedBytes = bytes;
-    this.lastAcceptedDigest = digestBytes(bytes);
-  }
-
-  toJSON(): never {
-    throw new Error("Manifest backup authority must not be serialized");
-  }
+/** An opaque, operation-scoped capability; mutable state stays module-private. */
+export interface ManifestBackupAuthority {
+  readonly manifestPath: string;
+  readonly backupPath: string;
+  readonly operationId: string;
+  toJSON(): never;
 }
 
 export function emptyManifest(): Manifest {
@@ -93,7 +77,7 @@ export async function loadManifestWithSnapshot(
 
   let rawBytes: Buffer;
   try {
-    rawBytes = await readFile(manifestPath);
+    rawBytes = await readRegularManifestBytes(manifestPath);
   } catch {
     getLogger().warn(`Warning: could not read manifest at ${manifestPath}`);
     return { manifest: emptyManifest(), snapshot: null };
@@ -168,18 +152,40 @@ export async function saveManifest(
 ): Promise<void> {
   const normalizedManifestPath = path.resolve(manifestPath);
   const authority = validateSaveAuthority(normalizedManifestPath, options);
-  if (authority) {
-    const currentBytes = await readRegularManifestBytes(normalizedManifestPath);
-    if (!currentBytes.equals(authority.getLastAcceptedBytes())) {
-      throw new Error(
-        "Manifest changed since its last accepted save; refusing guarded rewrite",
-      );
-    }
+  let temporaryLock: ManifestLock | undefined;
+  if (!authority) {
+    await ensureDir(path.dirname(normalizedManifestPath));
+    await assertNormalParent(normalizedManifestPath);
+    temporaryLock = await acquireManifestLock(normalizedManifestPath);
   }
-  await ensureDir(path.dirname(manifestPath));
-  const content = `${JSON.stringify(manifest, null, 2)}\n`;
-  await atomicWriteFile(manifestPath, content);
-  authority?.acceptDescendant(Buffer.from(content, "utf-8"));
+  try {
+    const state = authority ? getAuthorityState(authority) : undefined;
+    if (state) {
+      const currentBytes = await readRegularManifestBytes(
+        normalizedManifestPath,
+      );
+      if (!currentBytes.equals(state.lastAcceptedBytes)) {
+        throw new Error(
+          "Manifest changed since its last accepted save; refusing guarded rewrite",
+        );
+      }
+    }
+    const content = Buffer.from(
+      `${JSON.stringify(manifest, null, 2)}\n`,
+      "utf-8",
+    );
+    await atomicReplaceManifest(
+      normalizedManifestPath,
+      content,
+      state?.lastAcceptedBytes,
+    );
+    if (state) {
+      state.lastAcceptedBytes = Buffer.from(content);
+      state.lastAcceptedDigest = digestBytes(content);
+    }
+  } finally {
+    if (temporaryLock) await releaseManifestLock(temporaryLock);
+  }
 }
 
 /** Capture exact bytes from a readable regular manifest file. */
@@ -220,37 +226,50 @@ export async function createManifestBackupAuthority(
   }
 
   await assertNormalParent(normalizedManifestPath);
-  const currentBytes = await readRegularManifestBytes(normalizedManifestPath);
-  if (!currentBytes.equals(snapshot.bytes)) {
-    throw new Error("Manifest changed since it was loaded; refusing backup");
-  }
+  const lock = await acquireManifestLock(normalizedManifestPath);
+  try {
+    const currentBytes = await readRegularManifestBytes(normalizedManifestPath);
+    if (!currentBytes.equals(snapshot.bytes)) {
+      throw new Error("Manifest changed since it was loaded; refusing backup");
+    }
 
-  const backupPath = await writeVerifiedBackup(
-    normalizedManifestPath,
-    currentBytes,
-    timestamp,
-  );
-  const authority = new ManifestBackupAuthority(
-    normalizedManifestPath,
-    Buffer.from(snapshot.bytes),
-    snapshot.digest,
-    backupPath,
-    operationId,
-    Buffer.from(currentBytes),
-    digestBytes(currentBytes),
-  );
-  activeBackupAuthorities.set(normalizedManifestPath, authority);
-  return authority;
+    const backupPath = await writeVerifiedBackup(
+      normalizedManifestPath,
+      currentBytes,
+      timestamp,
+    );
+    const authority = Object.freeze({
+      manifestPath: normalizedManifestPath,
+      backupPath,
+      operationId,
+      toJSON(): never {
+        throw new Error("Manifest backup authority must not be serialized");
+      },
+    });
+    authorityState.set(authority, {
+      originalDigest: snapshot.digest,
+      lastAcceptedBytes: Buffer.from(currentBytes),
+      lastAcceptedDigest: digestBytes(currentBytes),
+      lock,
+    });
+    activeBackupAuthorities.set(normalizedManifestPath, authority);
+    return authority;
+  } catch (error) {
+    await releaseManifestLock(lock);
+    throw error;
+  }
 }
 
 /** Explicitly end an operation and revoke its non-serializable capability. */
-export function releaseManifestBackupAuthority(
+export async function releaseManifestBackupAuthority(
   authority: ManifestBackupAuthority,
-): void {
-  authority.active = false;
+): Promise<void> {
+  const state = authorityState.get(authority);
   if (activeBackupAuthorities.get(authority.manifestPath) === authority) {
     activeBackupAuthorities.delete(authority.manifestPath);
   }
+  authorityState.delete(authority);
+  if (state) await releaseManifestLock(state.lock);
 }
 
 /**
@@ -271,7 +290,7 @@ export async function withManifestBackupAuthority<T>(
   try {
     return await operation(authority);
   } finally {
-    releaseManifestBackupAuthority(authority);
+    await releaseManifestBackupAuthority(authority);
   }
 }
 
@@ -286,7 +305,7 @@ function validateSaveAuthority(
         "Manifest backup authority belongs to a different manifest path",
       );
     }
-    if (!authority.active || authority[backupAuthorityBrand] !== true) {
+    if (!authorityState.has(authority)) {
       throw new Error("Manifest backup authority is no longer active");
     }
     if (activeBackupAuthorities.get(normalizedManifestPath) !== authority) {
@@ -300,10 +319,20 @@ function validateSaveAuthority(
     return authority;
   }
 
+  if (options.operationId !== undefined) {
+    throw new Error("Manifest save operation identity requires an authority");
+  }
+
   if (activeBackupAuthorities.has(normalizedManifestPath)) {
     throw new Error("Manifest save requires its active backup authority");
   }
   return undefined;
+}
+
+function getAuthorityState(authority: ManifestBackupAuthority): AuthorityState {
+  const state = authorityState.get(authority);
+  if (!state) throw new Error("Manifest backup authority is no longer active");
+  return state;
 }
 
 async function assertNormalParent(manifestPath: string): Promise<void> {
@@ -322,21 +351,31 @@ async function assertNormalParent(manifestPath: string): Promise<void> {
 }
 
 async function readRegularManifestBytes(manifestPath: string): Promise<Buffer> {
-  const before = await lstat(manifestPath);
-  if (!before.isFile() || before.isSymbolicLink()) {
-    throw new Error("Manifest backup source must be a readable regular file");
+  let handle: Awaited<ReturnType<typeof open>>;
+  try {
+    handle = await open(
+      manifestPath,
+      constants.O_RDONLY | constants.O_NOFOLLOW,
+    );
+  } catch (error) {
+    throw new Error(
+      `Manifest backup source must be a readable regular file: ${(error as Error).message}`,
+    );
   }
-  const bytes = await readFile(manifestPath);
-  const after = await lstat(manifestPath);
-  if (
-    !after.isFile() ||
-    after.isSymbolicLink() ||
-    after.dev !== before.dev ||
-    after.ino !== before.ino
-  ) {
-    throw new Error("Manifest backup source changed while it was read");
+  try {
+    const before = await handle.stat();
+    if (!before.isFile()) {
+      throw new Error("Manifest backup source must be a readable regular file");
+    }
+    const bytes = await handle.readFile();
+    const after = await handle.stat();
+    if (after.dev !== before.dev || after.ino !== before.ino) {
+      throw new Error("Manifest backup source changed while it was read");
+    }
+    return bytes;
+  } finally {
+    await handle.close();
   }
-  return bytes;
 }
 
 function digestBytes(bytes: Buffer): string {
@@ -375,5 +414,72 @@ async function writeVerifiedBackup(
       throw new Error(`Manifest backup verification failed for ${backupPath}`);
     }
     return backupPath;
+  }
+}
+
+async function acquireManifestLock(
+  manifestPath: string,
+): Promise<ManifestLock> {
+  const lockPath = `${manifestPath}.lock`;
+  try {
+    return { path: lockPath, handle: await open(lockPath, "wx", 0o600) };
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "EEXIST") {
+      throw new Error("Manifest operation is already active");
+    }
+    throw new Error(
+      `Could not acquire manifest operation lock: ${(error as Error).message}`,
+    );
+  }
+}
+
+async function releaseManifestLock(lock: ManifestLock): Promise<void> {
+  await lock.handle.close();
+  try {
+    await unlink(lock.path);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
+}
+
+async function atomicReplaceManifest(
+  manifestPath: string,
+  content: Buffer,
+  expectedCurrentBytes: Buffer | undefined,
+): Promise<void> {
+  const tempPath = `${manifestPath}.tmp.${randomUUID()}`;
+  let handle: Awaited<ReturnType<typeof open>>;
+  try {
+    handle = await open(tempPath, "wx", 0o600);
+  } catch (error) {
+    throw new Error(
+      `Could not allocate manifest replacement file: ${(error as Error).message}`,
+    );
+  }
+
+  try {
+    await handle.writeFile(content);
+    await handle.sync();
+  } finally {
+    await handle.close();
+  }
+
+  try {
+    if (expectedCurrentBytes) {
+      const currentBytes = await readRegularManifestBytes(manifestPath);
+      if (!currentBytes.equals(expectedCurrentBytes)) {
+        throw new Error(
+          "Manifest changed before guarded replacement; refusing rewrite",
+        );
+      }
+    }
+    await rename(tempPath, manifestPath);
+  } catch (error) {
+    try {
+      await unlink(tempPath);
+    } catch {
+      // The replacement was never installed; best-effort temporary cleanup.
+    }
+    throw error;
   }
 }

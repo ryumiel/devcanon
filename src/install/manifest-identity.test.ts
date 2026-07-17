@@ -1,6 +1,9 @@
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { makeResolvedConfig } from "../__test-helpers__/fixtures.js";
+import {
+  makeManifestJson,
+  makeResolvedConfig,
+} from "../__test-helpers__/fixtures.js";
 import type { ManagedRecord } from "../config/schema.js";
 import { ManifestSchema } from "../config/schema.js";
 import {
@@ -26,6 +29,30 @@ function makeRecord(overrides: Partial<ManagedRecord> = {}): ManagedRecord {
 }
 
 describe("manifest identity schema", () => {
+  it("makes current fixture manifests bound to their supplied resolved config", () => {
+    const config = makeResolvedConfig("/fixture-root");
+    const fixture = JSON.parse(
+      makeManifestJson(
+        [
+          {
+            target: "codex",
+            type: "agent",
+            installedPath: "/fixture-root/home/codex/agents/helper.toml",
+          },
+        ],
+        { config },
+      ),
+    );
+
+    expect(fixture.boundary.codexAgentsHome).toBe(
+      config.targets.codex.agentsHome,
+    );
+    expect(fixture.records[0].name).toBe("helper");
+    expect(
+      JSON.parse(makeManifestJson([], { legacy: true })).boundary,
+    ).toBeUndefined();
+  });
+
   it("accepts a bound manifest and named managed record", () => {
     const result = ManifestSchema.safeParse({
       version: 1,
@@ -65,6 +92,34 @@ describe("manifest identity schema", () => {
 
     expect(result.success).toBe(true);
   });
+
+  it("rejects a bound manifest with one unnamed record", () => {
+    const result = ManifestSchema.safeParse({
+      version: 1,
+      managedBy: "devcanon",
+      lastSync: "2026-07-17T00:00:00.000Z",
+      boundary: {
+        claudeSkillsHome: "/homes/claude/skills",
+        claudeAgentsHome: "/homes/claude/agents",
+        codexSkillsHome: "/homes/codex/skills",
+        codexAgentsHome: "/homes/codex/agents",
+      },
+      records: [
+        {
+          target: "claude",
+          type: "agent",
+          sourcePath: "/source/helper.yaml",
+          generatedPath: "/generated/claude/agents/helper.md",
+          installedPath: "/homes/claude/agents/helper.md",
+          installMode: "copy",
+          contentHash: "abc",
+          timestamp: "2026-07-17T00:00:00.000Z",
+        },
+      ],
+    });
+
+    expect(result.success).toBe(false);
+  });
 });
 
 describe("manifest identity", () => {
@@ -95,6 +150,69 @@ describe("manifest identity", () => {
     expect(result.ownership).toBe("owned");
     expect(result.name).toBe("helper");
     expect(result.expectedDestination).toBe("/homes/claude/agents/helper.md");
+  });
+
+  it.each([
+    [
+      "claude skill",
+      "claude",
+      "skill",
+      "skill-name",
+      "/homes/claude/skills/skill-name",
+    ],
+    [
+      "claude agent",
+      "claude",
+      "agent",
+      "helper",
+      "/homes/claude/agents/helper.md",
+    ],
+    [
+      "codex skill",
+      "codex",
+      "skill",
+      "skill-name",
+      "/homes/codex/skills/skill-name",
+    ],
+    [
+      "codex agent",
+      "codex",
+      "agent",
+      "helper",
+      "/homes/codex/agents/helper.toml",
+    ],
+  ] as const)(
+    "owns the exact %s destination",
+    (_label, target, type, name, installedPath) => {
+      expect(
+        classifyManagedRecord(
+          makeRecord({ target, type, name, installedPath }),
+          {
+            claudeSkillsHome: "/homes/claude/skills",
+            claudeAgentsHome: "/homes/claude/agents",
+            codexSkillsHome: "/homes/codex/skills",
+            codexAgentsHome: "/homes/codex/agents",
+          },
+        ).ownership,
+      ).toBe("owned");
+    },
+  );
+
+  it("permits a logical agent name that ends in its rendered suffix", () => {
+    expect(
+      classifyManagedRecord(
+        makeRecord({
+          name: "helper.md",
+          installedPath: "/homes/claude/agents/helper.md.md",
+        }),
+        {
+          claudeSkillsHome: "/homes/claude/skills",
+          claudeAgentsHome: "/homes/claude/agents",
+          codexSkillsHome: "/homes/codex/skills",
+          codexAgentsHome: "/homes/codex/agents",
+        },
+      ).ownership,
+    ).toBe("owned");
   });
 
   it("derives a legacy agent name only from its target-native suffix", () => {

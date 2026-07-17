@@ -93,6 +93,11 @@ export function normalizeManifestIdentity(
   const boundary = normalizeManifestBoundary(config);
   if (manifest.boundary) {
     assertManifestBoundaryMatches(manifest.boundary, boundary);
+    if (manifest.records.some((record) => record.name === undefined)) {
+      throw new ManifestIdentityError(
+        "Bound manifests require every record to have a name",
+      );
+    }
   }
 
   const classifications = manifest.records.map((record) =>
@@ -179,12 +184,6 @@ function assertRecordName(name: string, record: ManagedRecord): void {
   ) {
     throw new ManifestIdentityError(
       `Manifest record name must be one direct-child name: ${JSON.stringify(name)}`,
-    );
-  }
-
-  if (record.type === "agent" && name.endsWith(agentSuffix(record.target))) {
-    throw new ManifestIdentityError(
-      `Manifest ${record.target} agent name must not include ${agentSuffix(record.target)}`,
     );
   }
 }
