@@ -129,6 +129,37 @@ existing response contract.
 
 ## Capability Escalation Adoption Inventory
 
+<!-- escalation-adoption-anchor
+{
+  "declaration_id": "ESC-INVENTORY-OWNER",
+  "source_path": "docs/guidelines/agent-routing-and-mutation-policy.md",
+  "surface_mode": "inventory-owner",
+  "contract_id": "capability-escalation-adoption",
+  "common_owner_path": "skills/subagent-lifecycle/SKILL.md",
+  "authority_ref": "inventory-owner",
+  "adoptions": [
+    {"route_id":"D1","adoption_ref":"ESC-ADOPT-D1","target_ids":["claude","codex"],"target_permission":"exact-only","role_permission":"same-role-must-match","current_state":"opt-out","transition":"none","next_tuple":"none","mechanism":"none","escalation_budget":"none","relation":"none","counter":"none","producer_source_path":"none"},
+    {"route_id":"D2","adoption_ref":"ESC-ADOPT-D2","target_ids":["claude","codex"],"target_permission":"exact-only","role_permission":"same-role-must-match","current_state":"opt-out","transition":"none","next_tuple":"none","mechanism":"none","escalation_budget":"none","relation":"none","counter":"none","producer_source_path":"none"},
+    {"route_id":"D3","adoption_ref":"ESC-ADOPT-D3","target_ids":["claude","codex"],"target_permission":"exact-only","role_permission":"same-role-must-match","current_state":"opt-out","transition":"none","next_tuple":"none","mechanism":"none","escalation_budget":"none","relation":"none","counter":"none","producer_source_path":"none"},
+    {"route_id":"D4","adoption_ref":"ESC-ADOPT-D4","target_ids":["claude","codex"],"target_permission":"exact-only","role_permission":"selected-role-must-match","current_state":"opt-out","transition":"none","next_tuple":"none","mechanism":"none","escalation_budget":"none","relation":"none","counter":"none","producer_source_path":"skills/play-agent-dispatch/SKILL.md"},
+    {"route_id":"D5","adoption_ref":"ESC-ADOPT-D5","target_ids":["claude","codex"],"target_permission":"exact-only","role_permission":"same-role-must-match","current_state":"opt-out","transition":"none","next_tuple":"none","mechanism":"none","escalation_budget":"none","relation":"none","counter":"none","producer_source_path":"none"},
+    {"route_id":"D6","adoption_ref":"ESC-ADOPT-D6","target_ids":["claude","codex"],"target_permission":"exact-only","role_permission":"same-role-must-match","current_state":"opt-out","transition":"none","next_tuple":"none","mechanism":"none","escalation_budget":"none","relation":"none","counter":"none","producer_source_path":"none"},
+    {"route_id":"D7","adoption_ref":"ESC-ADOPT-D7","target_ids":["claude","codex"],"target_permission":"exact-only","role_permission":"same-role-must-match","current_state":"opt-out","transition":"none","next_tuple":"none","mechanism":"none","escalation_budget":"none","relation":"none","counter":"none","producer_source_path":"none"},
+    {"route_id":"D8","adoption_ref":"ESC-ADOPT-D8","target_ids":["claude","codex"],"target_permission":"exact-only","role_permission":"same-role-must-match","current_state":"opt-out","transition":"none","next_tuple":"none","mechanism":"none","escalation_budget":"none","relation":"none","counter":"none","producer_source_path":"none"},
+    {"route_id":"D9","adoption_ref":"ESC-ADOPT-D9","target_ids":["claude","codex"],"target_permission":"exact-only","role_permission":"same-role-must-match","current_state":"opt-out","transition":"none","next_tuple":"none","mechanism":"none","escalation_budget":"none","relation":"none","counter":"none","producer_source_path":"none"},
+    {"route_id":"D10","adoption_ref":"ESC-ADOPT-D10","target_ids":["claude","codex"],"target_permission":"exact-only","role_permission":"same-role-must-match","current_state":"opt-out","transition":"none","next_tuple":"none","mechanism":"none","escalation_budget":"none","relation":"none","counter":"none","producer_source_path":"none"},
+    {"route_id":"D11","adoption_ref":"ESC-ADOPT-D11","target_ids":["claude","codex"],"target_permission":"exact-only","role_permission":"same-role-must-match","current_state":"opt-out","transition":"none","next_tuple":"none","mechanism":"none","escalation_budget":"none","relation":"none","counter":"none","producer_source_path":"none"},
+    {"route_id":"D12","adoption_ref":"ESC-ADOPT-D12","target_ids":["claude","codex"],"target_permission":"exact-only","role_permission":"same-role-must-match","current_state":"opt-out","transition":"none","next_tuple":"none","mechanism":"none","escalation_budget":"none","relation":"none","counter":"none","producer_source_path":"none"},
+    {"route_id":"D13","adoption_ref":"ESC-ADOPT-D13","target_ids":["claude","codex"],"target_permission":"exact-only","role_permission":"same-role-must-match","current_state":"opt-out","transition":"none","next_tuple":"none","mechanism":"none","escalation_budget":"none","relation":"D13-to-D12-reclassification","counter":"none","producer_source_path":"none"},
+    {"route_id":"D14","adoption_ref":"ESC-ADOPT-D14","target_ids":["claude","codex"],"target_permission":"exact-only","role_permission":"same-role-must-match","current_state":"opt-out","transition":"none","next_tuple":"none","mechanism":"none","escalation_budget":"none","relation":"none","counter":"none","producer_source_path":"none"},
+    {"route_id":"D15","adoption_ref":"ESC-ADOPT-D15","target_ids":["claude","codex"],"target_permission":"exact-only","role_permission":"same-role-must-match","current_state":"opt-out","transition":"none","next_tuple":"none","mechanism":"none","escalation_budget":"none","relation":"none","counter":"none","producer_source_path":"none"},
+    {"route_id":"D16","adoption_ref":"ESC-ADOPT-D16","target_ids":["claude","codex"],"target_permission":"exact-only","role_permission":"same-role-must-match","current_state":"opt-out","transition":"none","next_tuple":"none","mechanism":"none","escalation_budget":"none","relation":"none","counter":"none","producer_source_path":"none"},
+    {"route_id":"D17","adoption_ref":"ESC-ADOPT-D17","target_ids":["claude","codex"],"target_permission":"exact-only","role_permission":"same-role-must-match","current_state":"opt-out","transition":"none","next_tuple":"none","mechanism":"none","escalation_budget":"none","relation":"none","counter":"independent-from-escalation","producer_source_path":"none"}
+  ],
+  "d4_route_set": {"route_id":"D4","allowed_role_ids":["assessor","investigator","executor","implementer","reviewer","deep-reviewer"],"selection_mode":"planner-selected","adoption_ref":"ESC-ADOPT-D4"}
+}
+-->
+
 The shared [`subagent-lifecycle`](../../skills/subagent-lifecycle/SKILL.md)
 procedure owns eligibility, declaration, support, invariants, evidence, budget,
 and terminal semantics. This table is the authoritative current adoption record;

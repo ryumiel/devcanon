@@ -1,5 +1,7 @@
 import { access, readFile, readdir } from "node:fs/promises";
 import path from "node:path";
+import { loadConfig } from "../config/load.js";
+import { resolveCapabilityModel } from "../render/capability-profiles.js";
 
 const INVENTORY_HEADING = "Complete Skill Inventory";
 const ROUTES_HEADING = "Direct-Child Route Inventory";
@@ -57,6 +59,76 @@ const SOURCE_AUTHORITIES = ["source-immutable", "source-mutable"] as const;
 const EXTERNAL_AUTHORITIES = ["none", "external-mutable"] as const;
 const ESCALATION_ADOPTION_STATES = ["adopt", "specialize", "opt-out"] as const;
 const NO_ADOPTION_TRANSITION = "none";
+const ESCALATION_ANCHOR = "escalation-adoption-anchor";
+const COMMON_OWNER_PATH = "skills/subagent-lifecycle/SKILL.md";
+const INVENTORY_OWNER_PATH =
+  "docs/guidelines/agent-routing-and-mutation-policy.md";
+const ESCALATION_PROJECTIONS = [
+  [
+    "ESC-ADR-0027",
+    "docs/adr/adr-0027-semantic-agent-routing-and-mutation-authority.md",
+    "reference-consumer",
+    [],
+    [],
+    "non-owner",
+  ],
+  [
+    "ESC-AGENT-AUTHORING",
+    "docs/guidelines/agent-authoring-guide.md",
+    "authoring-consumer",
+    [],
+    [],
+    "non-owner",
+  ],
+  [
+    "ESC-WRITING-SKILLS",
+    "docs/guidelines/writing-skills.md",
+    "authoring-consumer",
+    [],
+    [],
+    "non-owner",
+  ],
+  [
+    "ESC-AFDS-ROUTING",
+    "docs/specs/afds-workflow-routing.md",
+    "reference-consumer",
+    [],
+    [],
+    "non-owner",
+  ],
+  [
+    "ESC-AGENT-ROLES",
+    "docs/specs/agents.md",
+    "semantic-role-owner",
+    ["D4"],
+    [],
+    "role-tuples-only",
+  ],
+  [
+    "ESC-ISSUE-PRIMING",
+    "skills/issue-priming-workflow/SKILL.md",
+    "workflow-consumer",
+    ["D1", "D2", "D3"],
+    ["ESC-ADOPT-D1", "ESC-ADOPT-D2", "ESC-ADOPT-D3"],
+    "non-owner",
+  ],
+  [
+    "ESC-EXECUTION-LIFECYCLE",
+    "skills/play-subagent-execution/references/lifecycle-status-policy.md",
+    "workflow-consumer",
+    ["D12", "D13"],
+    ["ESC-ADOPT-D12", "ESC-ADOPT-D13"],
+    "non-owner",
+  ],
+  [
+    "ESC-PR-MERGE",
+    "skills/pr-merge/SKILL.md",
+    "workflow-consumer",
+    ["D17"],
+    ["ESC-ADOPT-D17"],
+    "non-owner",
+  ],
+] as const;
 
 type Demand = (typeof DEMANDS)[number];
 type Stance = (typeof STANCES)[number];
@@ -124,6 +196,343 @@ export interface AgentSemanticRoleContract {
   readonly claudeTools: readonly (typeof CLAUDE_TOOLS)[number][];
   readonly codexSandbox: (typeof CODEX_SANDBOXES)[number];
   readonly defaultNetwork: (typeof DEFAULT_NETWORKS)[number];
+}
+
+export interface CapabilityEscalationAdoptionContract {
+  readonly contractId: "capability-escalation-adoption";
+  readonly commonOwnerPath: typeof COMMON_OWNER_PATH;
+  readonly inventoryOwnerPath: typeof INVENTORY_OWNER_PATH;
+  readonly adoptions: readonly CapabilityEscalationAdoptionRecord[];
+  readonly d4RouteSet: CapabilityEscalationD4RouteSet;
+  readonly projections: readonly CapabilityEscalationProjection[];
+}
+
+export interface CapabilityEscalationAdoptionRecord {
+  readonly routeId: `D${number}`;
+  readonly adoptionRef: `ESC-ADOPT-D${number}`;
+  readonly targetIds: readonly ("claude" | "codex")[];
+  readonly targetPermission: "exact-only";
+  readonly rolePermission: "same-role-must-match" | "selected-role-must-match";
+  readonly currentState: "opt-out";
+  readonly transition: "none";
+  readonly nextTuple: "none";
+  readonly mechanism: "none";
+  readonly escalationBudget: "none";
+  readonly relation: "none" | "D13-to-D12-reclassification";
+  readonly counter: "none" | "independent-from-escalation";
+  readonly producerSourcePath: string;
+}
+
+export interface CapabilityEscalationD4RouteSet {
+  readonly routeId: "D4";
+  readonly allowedRoleIds: readonly string[];
+  readonly selectionMode: "planner-selected";
+  readonly adoptionRef: "ESC-ADOPT-D4";
+}
+
+export interface CapabilityEscalationProjection {
+  readonly declarationId: string;
+  readonly sourcePath: string;
+  readonly surfaceMode:
+    | "reference-consumer"
+    | "authoring-consumer"
+    | "semantic-role-owner"
+    | "workflow-consumer";
+  readonly routeIds: readonly string[];
+  readonly adoptionRefs: readonly string[];
+  readonly authorityRef: "non-owner" | "role-tuples-only";
+}
+
+export interface D4ProducedDeclaration {
+  readonly route_id: string;
+  readonly target_id: string;
+  readonly selected_role_id: string;
+  readonly capability: string;
+  readonly effort: string;
+  readonly model: string;
+  readonly source_authority: string;
+  readonly external_authority: string;
+  readonly claude_tools: readonly string[];
+  readonly codex_sandbox: string;
+  readonly default_network: string;
+  readonly scope: string;
+  readonly termination: string;
+  readonly context_ref: string;
+  readonly approval_ref: string;
+}
+
+export interface D4DispatchExpectation {
+  readonly plannerSelectedRoleId: string;
+  readonly targetId: string;
+  readonly scope: string;
+  readonly termination: string;
+  readonly contextRef: string;
+  readonly approvalRef: string;
+}
+
+/** Reads the two owners and all closed consumer projections before normalization. */
+export async function parseCapabilityEscalationAdoptionContract(): Promise<CapabilityEscalationAdoptionContract> {
+  const paths = [
+    COMMON_OWNER_PATH,
+    INVENTORY_OWNER_PATH,
+    ...ESCALATION_PROJECTIONS.map((projection) => projection[1]),
+  ];
+  const entries = await Promise.all(
+    paths.map(
+      async (sourcePath) =>
+        [
+          sourcePath,
+          await readFile(resolveRepositoryRelativePath(sourcePath), "utf8"),
+        ] as const,
+    ),
+  );
+  return parseCapabilityEscalationAdoptionContractFromSources(
+    Object.fromEntries(entries),
+  );
+}
+
+/** Pure parsing seam for owner and consumer mutation tests. */
+export function parseCapabilityEscalationAdoptionContractFromSources(
+  sources: Readonly<Record<string, string>>,
+): CapabilityEscalationAdoptionContract {
+  const expectedPaths = [
+    COMMON_OWNER_PATH,
+    INVENTORY_OWNER_PATH,
+    ...ESCALATION_PROJECTIONS.map((projection) => projection[1]),
+  ];
+  assertExactIdentitySet(
+    Object.keys(sources),
+    expectedPaths,
+    "escalation source",
+  );
+
+  const anchors = expectedPaths.map((sourcePath) =>
+    parseEscalationAnchor(sources[sourcePath], sourcePath),
+  );
+  assertUnique(
+    anchors.map((anchor) =>
+      exactString(anchor.declaration_id, "escalation declaration ID"),
+    ),
+    "escalation declaration ID",
+  );
+
+  const common = anchors.find(
+    (anchor) => anchor.source_path === COMMON_OWNER_PATH,
+  );
+  const inventory = anchors.find(
+    (anchor) => anchor.source_path === INVENTORY_OWNER_PATH,
+  );
+  if (!common || !inventory) {
+    throw new Error(
+      "Capability-escalation contract must contain both exact owners",
+    );
+  }
+  assertExactAnchorKeys(
+    common,
+    [
+      "declaration_id",
+      "source_path",
+      "surface_mode",
+      "contract_id",
+      "inventory_owner_path",
+      "authority_ref",
+    ],
+    "common owner",
+  );
+  assertExactAnchorKeys(
+    inventory,
+    [
+      "declaration_id",
+      "source_path",
+      "surface_mode",
+      "contract_id",
+      "common_owner_path",
+      "authority_ref",
+      "adoptions",
+      "d4_route_set",
+    ],
+    "inventory owner",
+  );
+  assertExactValues(
+    common,
+    {
+      declaration_id: "ESC-COMMON-OWNER",
+      source_path: COMMON_OWNER_PATH,
+      surface_mode: "common-owner",
+      contract_id: "capability-escalation-adoption",
+      inventory_owner_path: INVENTORY_OWNER_PATH,
+      authority_ref: "common-normative-owner",
+    },
+    "common owner",
+  );
+  assertExactValues(
+    inventory,
+    {
+      declaration_id: "ESC-INVENTORY-OWNER",
+      source_path: INVENTORY_OWNER_PATH,
+      surface_mode: "inventory-owner",
+      contract_id: "capability-escalation-adoption",
+      common_owner_path: COMMON_OWNER_PATH,
+      authority_ref: "inventory-owner",
+    },
+    "inventory owner",
+  );
+
+  const adoptions = parseEscalationAdoptionRecords(inventory.adoptions);
+  const d4RouteSet = parseD4RouteSet(
+    inventory.d4_route_set,
+    parseAgentSemanticRoleOwner(sources["docs/specs/agents.md"]).map(
+      (role) => role.name,
+    ),
+  );
+  const projections = ESCALATION_PROJECTIONS.map((expected) => {
+    const anchor = anchors.find(
+      (candidate) => candidate.source_path === expected[1],
+    );
+    if (!anchor)
+      throw new Error(`Missing escalation projection: ${expected[0]}`);
+    return parseProjection(anchor, expected);
+  });
+
+  return {
+    contractId: "capability-escalation-adoption",
+    commonOwnerPath: COMMON_OWNER_PATH,
+    inventoryOwnerPath: INVENTORY_OWNER_PATH,
+    adoptions,
+    d4RouteSet,
+    projections,
+  };
+}
+
+/** Validates a D4 runtime declaration against the parsed catalog and model precedence. */
+export async function validateD4ProducedDeclaration(
+  declaration: D4ProducedDeclaration,
+  expectations: D4DispatchExpectation,
+): Promise<void> {
+  assertExactObjectKeys(
+    declaration as unknown as Record<string, unknown>,
+    [
+      "route_id",
+      "target_id",
+      "selected_role_id",
+      "capability",
+      "effort",
+      "model",
+      "source_authority",
+      "external_authority",
+      "claude_tools",
+      "codex_sandbox",
+      "default_network",
+      "scope",
+      "termination",
+      "context_ref",
+      "approval_ref",
+    ],
+    "D4 produced declaration",
+  );
+  if (declaration.route_id !== "D4")
+    throw new Error("D4 declaration route_id must be exactly D4");
+  assertExactObjectKeys(
+    expectations as unknown as Record<string, unknown>,
+    [
+      "plannerSelectedRoleId",
+      "targetId",
+      "scope",
+      "termination",
+      "contextRef",
+      "approvalRef",
+    ],
+    "D4 dispatch expectations",
+  );
+  assertNonEmptyExactBinding(
+    declaration.selected_role_id,
+    expectations.plannerSelectedRoleId,
+    "selected_role_id",
+  );
+  if (expectations.targetId.trim() === "") {
+    throw new Error("D4 dispatch expectation target_id must be non-empty");
+  }
+  assertClosedD4Target(
+    expectations.targetId,
+    "D4 dispatch expectation targetId",
+  );
+  assertNonEmptyExactBinding(
+    declaration.target_id,
+    expectations.targetId,
+    "target_id",
+  );
+  assertClosedD4Target(declaration.target_id, "D4 declaration target_id");
+  assertNonEmptyExactBinding(declaration.scope, expectations.scope, "scope");
+  assertNonEmptyExactBinding(
+    declaration.termination,
+    expectations.termination,
+    "termination",
+  );
+  assertNonEmptyExactBinding(
+    declaration.context_ref,
+    expectations.contextRef,
+    "context_ref",
+  );
+  assertNonEmptyExactBinding(
+    declaration.approval_ref,
+    expectations.approvalRef,
+    "approval_ref",
+  );
+  const target = declaration.target_id as "claude" | "codex";
+  const parsedContract = await parseCapabilityEscalationAdoptionContract();
+  if (
+    !parsedContract.d4RouteSet.allowedRoleIds.includes(
+      declaration.selected_role_id,
+    )
+  ) {
+    throw new Error(
+      `D4 declaration selected_role_id is not allowed: ${declaration.selected_role_id}`,
+    );
+  }
+  const roles = await readAgentSemanticRoleOwner();
+  const role = roles.find(
+    (candidate) => candidate.name === declaration.selected_role_id,
+  );
+  if (!role)
+    throw new Error(
+      `D4 declaration selected_role_id is unknown: ${declaration.selected_role_id}`,
+    );
+  const config = await loadConfig(
+    resolveRepositoryRelativePath("devcanon.config.yaml"),
+    true,
+  );
+  const expectedModel = resolveCapabilityModel(
+    undefined,
+    role.capability,
+    target,
+    config.capabilityProfiles,
+  );
+  const expectedEffort =
+    target === "claude" ? role.claudeEffort : role.codexEffort;
+  if (declaration.capability !== role.capability)
+    throw new Error("D4 declaration capability must match selected role");
+  if (declaration.effort !== expectedEffort)
+    throw new Error(
+      "D4 declaration effort must match selected role and target",
+    );
+  if (declaration.model !== expectedModel)
+    throw new Error("D4 declaration model must match target model resolution");
+  if (declaration.source_authority !== role.sourceAuthority)
+    throw new Error("D4 declaration source authority must match selected role");
+  if (declaration.external_authority !== role.externalAuthority)
+    throw new Error(
+      "D4 declaration external authority must match selected role",
+    );
+  assertUnique(declaration.claude_tools, "D4 declaration Claude tool");
+  if (!sameValues(declaration.claude_tools, role.claudeTools)) {
+    throw new Error(
+      "D4 declaration Claude tools must match selected role in order",
+    );
+  }
+  if (declaration.codex_sandbox !== role.codexSandbox)
+    throw new Error("D4 declaration Codex sandbox must match selected role");
+  if (declaration.default_network !== role.defaultNetwork)
+    throw new Error("D4 declaration default network must match selected role");
 }
 
 /** Reads the exact semantic-role and target-envelope owner in the agent spec. */
@@ -846,4 +1255,455 @@ function sameValues(
     actual.length === expected.length &&
     actual.every((value, i) => value === expected[i])
   );
+}
+
+function parseEscalationAnchor(
+  markdown: string | undefined,
+  expectedPath: string,
+): Record<string, unknown> {
+  if (markdown === undefined)
+    throw new Error(`Missing escalation source: ${expectedPath}`);
+  const matches = [
+    ...markdown.matchAll(
+      new RegExp(`<!-- ${ESCALATION_ANCHOR}\\n([\\s\\S]*?)\\n-->`, "g"),
+    ),
+  ];
+  if (matches.length !== 1) {
+    throw new Error(
+      `Escalation source must contain exactly one machine-readable anchor: ${expectedPath}`,
+    );
+  }
+  assertNoDuplicateEscalationAnchorKeys(matches[0][1], expectedPath);
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(matches[0][1]);
+  } catch {
+    throw new Error(`Escalation anchor is malformed JSON: ${expectedPath}`);
+  }
+  if (!isRecord(parsed))
+    throw new Error(`Escalation anchor must be an object: ${expectedPath}`);
+  if (parsed.source_path !== expectedPath) {
+    throw new Error(
+      `Escalation anchor source_path must match its source: ${expectedPath}`,
+    );
+  }
+  return parsed;
+}
+
+function assertNoDuplicateEscalationAnchorKeys(
+  json: string,
+  expectedPath: string,
+): void {
+  const objectKeySets: Set<string>[] = [];
+
+  for (let index = 0; index < json.length; index += 1) {
+    const character = json[index];
+    if (character === "{") {
+      objectKeySets.push(new Set<string>());
+      continue;
+    }
+    if (character === "}") {
+      objectKeySets.pop();
+      continue;
+    }
+    if (character !== '"') continue;
+
+    let end = index + 1;
+    while (end < json.length) {
+      if (json[end] === "\\") {
+        end += 2;
+        continue;
+      }
+      if (json[end] === '"') break;
+      end += 1;
+    }
+    if (end >= json.length) {
+      throw new Error(
+        `Escalation anchor has unterminated JSON string: ${expectedPath}`,
+      );
+    }
+    const literal = json.slice(index, end + 1);
+    let next = end + 1;
+    while (/\s/u.test(json[next] ?? "")) next += 1;
+    if (objectKeySets.length > 0 && json[next] === ":") {
+      let key: unknown;
+      try {
+        key = JSON.parse(literal);
+      } catch {
+        throw new Error(
+          `Escalation anchor has malformed JSON key: ${expectedPath}`,
+        );
+      }
+      if (typeof key === "string") {
+        const keys = objectKeySets.at(-1);
+        if (!keys) {
+          throw new Error(
+            `Escalation anchor has malformed object scope: ${expectedPath}`,
+          );
+        }
+        if (keys.has(key)) {
+          throw new Error(
+            `Escalation anchor has duplicate key ${key}: ${expectedPath}`,
+          );
+        }
+        keys.add(key);
+      }
+    }
+    index = end;
+  }
+}
+
+function parseEscalationAdoptionRecords(
+  value: unknown,
+): readonly CapabilityEscalationAdoptionRecord[] {
+  if (!Array.isArray(value))
+    throw new Error("Escalation adoption records must be an array");
+  const records = value.map((raw) => {
+    if (!isRecord(raw))
+      throw new Error("Escalation adoption record must be an object");
+    assertExactAnchorKeys(
+      raw,
+      [
+        "route_id",
+        "adoption_ref",
+        "target_ids",
+        "target_permission",
+        "role_permission",
+        "current_state",
+        "transition",
+        "next_tuple",
+        "mechanism",
+        "escalation_budget",
+        "relation",
+        "counter",
+        "producer_source_path",
+      ],
+      "escalation adoption record",
+    );
+    const routeId = exactRouteId(raw.route_id, "escalation adoption route_id");
+    const targetIds = exactStringArray(
+      raw.target_ids,
+      "escalation adoption target_ids",
+    );
+    assertUnique(targetIds, "escalation adoption target_id");
+    assertExactIdentitySet(
+      targetIds,
+      ["claude", "codex"],
+      "escalation adoption target_ids",
+    );
+    const record: CapabilityEscalationAdoptionRecord = {
+      routeId,
+      adoptionRef: exactAdoptionRef(raw.adoption_ref, routeId),
+      targetIds: targetIds as readonly ("claude" | "codex")[],
+      targetPermission: exactLiteral(
+        raw.target_permission,
+        "exact-only",
+        "escalation adoption target_permission",
+      ),
+      rolePermission: exactOneOf(
+        raw.role_permission,
+        ["same-role-must-match", "selected-role-must-match"] as const,
+        "escalation adoption role_permission",
+      ),
+      currentState: exactLiteral(
+        raw.current_state,
+        "opt-out",
+        "escalation adoption current_state",
+      ),
+      transition: exactLiteral(
+        raw.transition,
+        "none",
+        "escalation adoption transition",
+      ),
+      nextTuple: exactLiteral(
+        raw.next_tuple,
+        "none",
+        "escalation adoption next_tuple",
+      ),
+      mechanism: exactLiteral(
+        raw.mechanism,
+        "none",
+        "escalation adoption mechanism",
+      ),
+      escalationBudget: exactLiteral(
+        raw.escalation_budget,
+        "none",
+        "escalation adoption escalation_budget",
+      ),
+      relation: exactOneOf(
+        raw.relation,
+        ["none", "D13-to-D12-reclassification"] as const,
+        "escalation adoption relation",
+      ),
+      counter: exactOneOf(
+        raw.counter,
+        ["none", "independent-from-escalation"] as const,
+        "escalation adoption counter",
+      ),
+      producerSourcePath: exactString(
+        raw.producer_source_path,
+        "escalation adoption producer_source_path",
+      ),
+    };
+    const isD4 = routeId === "D4";
+    if (
+      record.rolePermission !==
+      (isD4 ? "selected-role-must-match" : "same-role-must-match")
+    ) {
+      throw new Error(
+        `Escalation adoption ${routeId} role permission is contradictory`,
+      );
+    }
+    if (
+      record.relation !==
+      (routeId === "D13" ? "D13-to-D12-reclassification" : "none")
+    ) {
+      throw new Error(
+        `Escalation adoption ${routeId} relation is contradictory`,
+      );
+    }
+    if (
+      record.counter !==
+      (routeId === "D17" ? "independent-from-escalation" : "none")
+    ) {
+      throw new Error(
+        `Escalation adoption ${routeId} counter is contradictory`,
+      );
+    }
+    if (
+      record.producerSourcePath !==
+      (isD4 ? "skills/play-agent-dispatch/SKILL.md" : "none")
+    ) {
+      throw new Error(
+        `Escalation adoption ${routeId} producer source is contradictory`,
+      );
+    }
+    return record;
+  });
+  assertUnique(
+    records.map((record) => record.routeId),
+    "escalation adoption route_id",
+  );
+  assertExactIdentitySet(
+    records.map((record) => record.routeId),
+    Array.from({ length: 17 }, (_, index) => `D${index + 1}`),
+    "escalation adoption route_id",
+  );
+  return records;
+}
+
+function parseD4RouteSet(
+  value: unknown,
+  expectedRoleIds: readonly string[],
+): CapabilityEscalationD4RouteSet {
+  if (!isRecord(value)) throw new Error("D4 route set must be an object");
+  assertExactAnchorKeys(
+    value,
+    ["route_id", "allowed_role_ids", "selection_mode", "adoption_ref"],
+    "D4 route set",
+  );
+  const allowedRoleIds = exactStringArray(
+    value.allowed_role_ids,
+    "D4 allowed_role_ids",
+  );
+  assertUnique(allowedRoleIds, "D4 allowed_role_id");
+  assertExactIdentitySet(
+    allowedRoleIds,
+    expectedRoleIds,
+    "D4 allowed_role_ids",
+  );
+  return {
+    routeId: exactLiteral(value.route_id, "D4", "D4 route_id"),
+    allowedRoleIds,
+    selectionMode: exactLiteral(
+      value.selection_mode,
+      "planner-selected",
+      "D4 selection_mode",
+    ),
+    adoptionRef: exactLiteral(
+      value.adoption_ref,
+      "ESC-ADOPT-D4",
+      "D4 adoption_ref",
+    ),
+  };
+}
+
+function parseProjection(
+  anchor: Record<string, unknown>,
+  expected: (typeof ESCALATION_PROJECTIONS)[number],
+): CapabilityEscalationProjection {
+  assertExactAnchorKeys(
+    anchor,
+    [
+      "declaration_id",
+      "source_path",
+      "surface_mode",
+      "route_ids",
+      "adoption_refs",
+      "authority_ref",
+    ],
+    "escalation projection",
+  );
+  const [
+    declarationId,
+    sourcePath,
+    surfaceMode,
+    routeIds,
+    adoptionRefs,
+    authorityRef,
+  ] = expected;
+  assertExactValues(
+    anchor,
+    {
+      declaration_id: declarationId,
+      source_path: sourcePath,
+      surface_mode: surfaceMode,
+      authority_ref: authorityRef,
+    },
+    `escalation projection ${declarationId}`,
+  );
+  const actualRouteIds = exactStringArray(
+    anchor.route_ids,
+    `escalation projection ${declarationId} route_ids`,
+  );
+  const actualAdoptionRefs = exactStringArray(
+    anchor.adoption_refs,
+    `escalation projection ${declarationId} adoption_refs`,
+  );
+  assertUnique(
+    actualRouteIds,
+    `escalation projection ${declarationId} route_id`,
+  );
+  assertUnique(
+    actualAdoptionRefs,
+    `escalation projection ${declarationId} adoption_ref`,
+  );
+  assertExactIdentitySet(
+    actualRouteIds,
+    routeIds,
+    `escalation projection ${declarationId} route_ids`,
+  );
+  assertExactIdentitySet(
+    actualAdoptionRefs,
+    adoptionRefs,
+    `escalation projection ${declarationId} adoption_refs`,
+  );
+  return {
+    declarationId,
+    sourcePath,
+    surfaceMode: surfaceMode as CapabilityEscalationProjection["surfaceMode"],
+    routeIds: actualRouteIds,
+    adoptionRefs: actualAdoptionRefs,
+    authorityRef:
+      authorityRef as CapabilityEscalationProjection["authorityRef"],
+  };
+}
+
+function assertExactAnchorKeys(
+  value: Record<string, unknown>,
+  expected: readonly string[],
+  dimension: string,
+): void {
+  assertExactIdentitySet(Object.keys(value), expected, `${dimension} fields`);
+}
+
+function assertExactObjectKeys(
+  value: Record<string, unknown>,
+  expected: readonly string[],
+  dimension: string,
+): void {
+  assertExactIdentitySet(Object.keys(value), expected, `${dimension} fields`);
+}
+
+function assertExactValues(
+  value: Record<string, unknown>,
+  expected: Readonly<Record<string, string>>,
+  dimension: string,
+): void {
+  for (const [key, expectedValue] of Object.entries(expected)) {
+    if (value[key] !== expectedValue)
+      throw new Error(`${dimension} ${key} must be exactly: ${expectedValue}`);
+  }
+}
+
+function exactString(value: unknown, dimension: string): string {
+  if (typeof value !== "string" || value === "")
+    throw new Error(`${dimension} must be one non-empty string`);
+  return value;
+}
+
+function assertNonEmptyExactBinding(
+  actual: string,
+  expected: string,
+  dimension: string,
+): void {
+  if (expected.trim() === "") {
+    throw new Error(`D4 dispatch expectation ${dimension} must be non-empty`);
+  }
+  if (actual !== expected) {
+    throw new Error(
+      `D4 declaration ${dimension} must match dispatch expectation`,
+    );
+  }
+}
+
+function assertClosedD4Target(value: string, dimension: string): void {
+  if (!(["claude", "codex"] as readonly string[]).includes(value)) {
+    throw new Error(`${dimension} must be exact: ${value}`);
+  }
+}
+
+function exactStringArray(
+  value: unknown,
+  dimension: string,
+): readonly string[] {
+  if (
+    !Array.isArray(value) ||
+    value.some((item) => typeof item !== "string" || item === "")
+  ) {
+    throw new Error(`${dimension} must be an array of exact strings`);
+  }
+  return value;
+}
+
+function exactRouteId(value: unknown, dimension: string): `D${number}` {
+  const routeId = exactString(value, dimension);
+  if (!/^D(?:[1-9]|1[0-7])$/.test(routeId))
+    throw new Error(`${dimension} is invalid: ${routeId}`);
+  return routeId as `D${number}`;
+}
+
+function exactAdoptionRef(
+  value: unknown,
+  routeId: string,
+): `ESC-ADOPT-D${number}` {
+  return exactLiteral(
+    value,
+    `ESC-ADOPT-${routeId}` as `ESC-ADOPT-D${number}`,
+    "escalation adoption adoption_ref",
+  );
+}
+
+function exactLiteral<const Value extends string>(
+  value: unknown,
+  expected: Value,
+  dimension: string,
+): Value {
+  if (value !== expected)
+    throw new Error(`${dimension} must be exactly: ${expected}`);
+  return expected;
+}
+
+function exactOneOf<const Values extends readonly string[]>(
+  value: unknown,
+  allowed: Values,
+  dimension: string,
+): Values[number] {
+  if (typeof value !== "string" || !allowed.includes(value))
+    throw new Error(`${dimension} has invalid closed value: ${String(value)}`);
+  return value as Values[number];
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

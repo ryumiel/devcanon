@@ -11,6 +11,10 @@ codex_sidecar:
 
 # Issue Priming Workflow
 
+<!-- escalation-adoption-anchor
+{"declaration_id":"ESC-ISSUE-PRIMING","source_path":"skills/issue-priming-workflow/SKILL.md","surface_mode":"workflow-consumer","route_ids":["D1","D2","D3"],"adoption_refs":["ESC-ADOPT-D1","ESC-ADOPT-D2","ESC-ADOPT-D3"],"authority_ref":"non-owner"}
+-->
+
 Continue an issue-priming workflow handed off by `linear-issue-priming` or `github-issue-priming`. The source entrypoint has already fetched the issue, provisioned or reused the issue worktree, and written the issue body to `.ephemeral/`. This workflow gates complexity, optionally researches, brainstorms, and (in `--auto` mode) plans, implements, reviews, and creates a PR.
 
 ## Inputs

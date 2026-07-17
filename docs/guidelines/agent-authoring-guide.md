@@ -1,5 +1,9 @@
 # Agent Authoring Guide
 
+<!-- escalation-adoption-anchor
+{"declaration_id":"ESC-AGENT-AUTHORING","source_path":"docs/guidelines/agent-authoring-guide.md","surface_mode":"authoring-consumer","route_ids":[],"adoption_refs":[],"authority_ref":"non-owner"}
+-->
+
 This guide answers a narrow question: when should contributors create an
 agent instead of a skill?
 

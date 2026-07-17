@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  parseAgentSemanticRoleOwner,
+  parseCapabilityEscalationAdoptionContractFromSources,
+} from "../__test-helpers__/agent-routing-policy.js";
+import {
   SNAPSHOT_REQUEST_TRIGGER_CONTRACTS,
   getMarkdownSection,
   normalizeWhitespace,
@@ -59,6 +63,8 @@ function validateNoTriggerExample(content: string): string[] {
 }
 
 type EscalationConsumerSources = {
+  adr: string;
+  agentSpec: string;
   issuePriming: string;
   lifecyclePolicy: string;
   prMerge: string;
@@ -72,187 +78,42 @@ type EscalationConsumerSources = {
 function validateEscalationConsumerContracts(
   sources: EscalationConsumerSources,
 ): string[] {
-  const errors: string[] = [];
-  const ownerDeclaration = sliceBetween(
-    sources.lifecycleOwner,
-    "### Declaration, Support, and Exactness",
-    "### Budget and Invariants",
-  );
-  const adoptionSection = sliceBetween(
-    sources.adoptionInventory,
-    "## Capability Escalation Adoption Inventory",
-    "### Ordinary child failure disposition",
-  );
-  const inventory = new Map<string, { state: string; transition: string }>();
-
-  for (const row of adoptionSection.matchAll(
-    /^\|\s*(D\d+)\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|$/gmu,
-  )) {
-    const [, route, state, transition] = row;
-    if (inventory.has(route)) {
-      errors.push(`adoption-inventory: duplicate-${route}`);
-      continue;
-    }
-    inventory.set(route, {
-      state: state.trim(),
-      transition: transition.trim(),
+  try {
+    parseCapabilityEscalationAdoptionContractFromSources({
+      "docs/adr/adr-0027-semantic-agent-routing-and-mutation-authority.md":
+        sources.adr,
+      "docs/guidelines/agent-authoring-guide.md": sources.agentAuthoring,
+      "docs/guidelines/writing-skills.md": sources.writingSkills,
+      "docs/specs/afds-workflow-routing.md": sources.routingSpec,
+      "docs/specs/agents.md": sources.agentSpec,
+      "skills/issue-priming-workflow/SKILL.md": sources.issuePriming,
+      "skills/play-subagent-execution/references/lifecycle-status-policy.md":
+        sources.lifecyclePolicy,
+      "skills/pr-merge/SKILL.md": sources.prMerge,
+      "skills/subagent-lifecycle/SKILL.md": sources.lifecycleOwner,
+      "docs/guidelines/agent-routing-and-mutation-policy.md":
+        sources.adoptionInventory,
     });
+    return [];
+  } catch (error) {
+    return [(error as Error).message];
   }
+}
 
-  const canonicalDeclarationDimensions = [
-    "names the route and target",
-    "the same semantic role",
-    "exact current and requested next capability/effort tuples",
-    "named target-supported mechanism",
-    "invariant envelope",
-    "remaining budget",
-    "existing terminal continuation",
-  ];
-  if (
-    canonicalDeclarationDimensions.some(
-      (dimension) => !normalizeWhitespace(ownerDeclaration).includes(dimension),
-    )
-  ) {
-    errors.push("lifecycle-owner: incomplete-declaration-grammar");
-  }
-  if (
-    !normalizeWhitespace(sources.lifecycleOwner).includes(
-      "This is the one shared controller procedure for a fresh capability/effort attempt.",
-    )
-  ) {
-    errors.push("lifecycle-owner: missing-shared-owner");
-  }
-
-  const authoringSources = [
-    ["writing-skills", sources.writingSkills],
-    ["agent-authoring", sources.agentAuthoring],
-  ] as const;
-  for (const [name, source] of authoringSources) {
-    const normalized = normalizeWhitespace(source);
-    const declarationRule = normalized
-      .split(/(?<=[.!?])\s+/u)
-      .find((sentence) => sentence.includes("future workflow declaration"));
-    if (
-      !declarationRule ||
-      !/\bmust name\b[^.]*\bexact target\b/iu.test(declarationRule) ||
-      /\bneed not name\b[^.]*\btarget\b/iu.test(declarationRule)
-    ) {
-      errors.push(`${name}: exact-target-required`);
-      continue;
-    }
-    if (
-      !/\bmust name\b[^.]*\bsemantic role\b/iu.test(declarationRule) ||
-      /\bsemantic role\b[^.]*\bneed not\b/iu.test(declarationRule)
-    ) {
-      errors.push(`${name}: semantic-role-required`);
-      continue;
-    }
-    const declarationGrammar = normalized
-      .split(/(?<=[.!?])\s+/u)
-      .find(
-        (sentence) =>
-          sentence.includes("Declare either") ||
-          sentence.includes("Declare the shared owner's"),
-      );
-    if (
-      !declarationGrammar ||
-      ![
-        "target-supported",
-        "current and next capability plus effort",
-        "mechanism",
-        "budget",
-        "invariants",
-        "terminal behavior",
-        "explicit opt-out with `transition: none`",
-      ].every((dimension) => declarationGrammar.includes(dimension))
-    ) {
-      errors.push(`${name}: incomplete-declaration-grammar`);
-      continue;
-    }
-    const transitionPermission = normalized
-      .split(/(?<=[.!?])\s+/u)
-      .find((sentence) =>
-        /ambient.*nearby.*alias.*role substitution/iu.test(sentence),
-      );
-    if (
-      !transitionPermission ||
-      !/^(?:Do not|Never) infer/iu.test(transitionPermission) ||
-      /\b(?:supported|permitted|allowed)\b/iu.test(transitionPermission)
-    ) {
-      errors.push(`${name}: exact-transition-required`);
-    }
-  }
-
-  const declaredOptOuts = [
-    ["issue-priming", sources.issuePriming, ["D1", "D2", "D3"]],
-    ["lifecycle-policy", sources.lifecyclePolicy, ["D12", "D13"]],
-    ["pr-merge", sources.prMerge, ["D17"]],
-  ] as const;
-  for (const [name, source, expectedRoutes] of declaredOptOuts) {
-    const declarations = new Map(
-      [
-        ...source.matchAll(
-          /`(D\d+) current exact target transition:\s*([^`]+)`/gu,
-        ),
-      ].map(([, route, transition]) => [route, transition.trim()]),
-    );
-    for (const route of expectedRoutes) {
-      const inventoryRow = inventory.get(route);
-      if (
-        declarations.get(route) !== "none" ||
-        inventoryRow?.state !== "opt-out" ||
-        inventoryRow.transition !== "none"
-      ) {
-        errors.push(`${name}: ${route}-explicit-opt-out-required`);
-      }
-    }
-  }
-
-  if (
-    !/D13-to-D12 reclassification is not capability escalation\./u.test(
-      normalizeWhitespace(sources.lifecyclePolicy),
-    )
-  ) {
-    errors.push("lifecycle-policy: d13-reclassification-required");
-  }
-  if (
-    !/The two CI repair cycles are workflow retries, not a capability escalation budget\./u.test(
-      normalizeWhitespace(sources.prMerge),
-    )
-  ) {
-    errors.push("pr-merge: ci-retry-budget-required");
-  }
-
-  const authoritySources = [
-    ["routing-spec", sources.routingSpec],
-    ["writing-skills", sources.writingSkills],
-    ["agent-authoring", sources.agentAuthoring],
-    ["issue-priming", sources.issuePriming],
-    ["lifecycle-policy", sources.lifecyclePolicy],
-    ["pr-merge", sources.prMerge],
-  ] as const;
-  for (const [name, source] of authoritySources) {
-    const normalized = normalizeWhitespace(source);
-    if (
-      /\b(?:this spec|workflow routing|writing skills|agent authoring guide|issue priming workflow|lifecycle policy|pr merge)\b[^.]{0,120}\b(?:owns?|canonical owner)\b[^.]{0,120}\bcapability[- ]escalation\b/iu.test(
-        normalized,
-      )
-    ) {
-      errors.push(`${name}: competing-authority`);
-    }
-  }
-  const normalizedRoutingSpec = normalizeWhitespace(sources.routingSpec);
-  if (
-    !normalizedRoutingSpec.includes(
-      "Capability-escalation adoption is not owned by this spec.",
-    ) ||
-    !normalizedRoutingSpec.includes("canonical common owner") ||
-    !normalizedRoutingSpec.includes("canonical current adoption record")
-  ) {
-    errors.push("routing-spec: non-owning-reference-required");
-  }
-
-  return errors;
+function mutateEscalationAnchor(
+  source: string,
+  mutate: (anchor: Record<string, unknown>) => void,
+): string {
+  const match = /<!-- escalation-adoption-anchor\n([\s\S]*?)\n-->/u.exec(
+    source,
+  );
+  expect(match, "missing escalation-adoption anchor").not.toBeNull();
+  const anchor = JSON.parse(match?.[1] ?? "") as Record<string, unknown>;
+  mutate(anchor);
+  return source.replace(
+    match?.[0] ?? "",
+    `<!-- escalation-adoption-anchor\n${JSON.stringify(anchor)}\n-->`,
+  );
 }
 
 const CHILD_AGENT_PROMPT_TEMPLATES = [
@@ -3736,6 +3597,10 @@ describe("play subagent routing source contracts", () => {
 
   it("rejects one-dimension-invalid consumer escalation declarations", async () => {
     const sources: EscalationConsumerSources = {
+      adr: await readRepoFile(
+        "docs/adr/adr-0027-semantic-agent-routing-and-mutation-authority.md",
+      ),
+      agentSpec: await readRepoFile("docs/specs/agents.md"),
       issuePriming: await readSkillSource("issue-priming-workflow"),
       lifecyclePolicy: await readRepoFile(
         "skills/play-subagent-execution/references/lifecycle-status-policy.md",
@@ -3754,92 +3619,252 @@ describe("play subagent routing source contracts", () => {
 
     expect(validateEscalationConsumerContracts(sources)).toEqual([]);
 
+    const d4RoleIds = parseAgentSemanticRoleOwner(sources.agentSpec).map(
+      (role) => role.name,
+    );
+    const d4RoleSet = JSON.stringify(d4RoleIds);
+
     const mutationCases: Array<{
       name: string;
       mutate: (value: EscalationConsumerSources) => EscalationConsumerSources;
       expectedError: string;
     }> = [
       {
-        name: "need not name target",
+        name: "exact target permission",
         mutate: (value) => ({
           ...value,
-          writingSkills: value.writingSkills.replace(
-            /must name\s+its exact target and semantic role\./u,
-            "need not name its target but must name its semantic role.",
+          adoptionInventory: value.adoptionInventory.replace(
+            '"target_permission":"exact-only"',
+            '"target_permission":"ambient"',
           ),
         }),
-        expectedError: "writing-skills: exact-target-required",
+        expectedError:
+          "escalation adoption target_permission must be exactly: exact-only",
       },
       {
-        name: "negated semantic-role permission",
+        name: "D4 selected role permission",
         mutate: (value) => ({
           ...value,
-          agentAuthoring: value.agentAuthoring.replace(
-            /must name\s+its exact target and semantic role\./u,
-            "must name its exact target; its semantic role need not be named.",
+          adoptionInventory: value.adoptionInventory.replace(
+            '"role_permission":"selected-role-must-match"',
+            '"role_permission":"same-role-must-match"',
           ),
         }),
-        expectedError: "agent-authoring: semantic-role-required",
+        expectedError:
+          "Escalation adoption D4 role permission is contradictory",
       },
       {
-        name: "supported nearby transition substitution",
+        name: "current opt-out state",
         mutate: (value) => ({
           ...value,
-          writingSkills: value.writingSkills.replace(
-            /Do not infer a transition from ambient,\s+nearby,\s+alias,\s+or role\s+substitution\./u,
-            "An ambient or nearby transition substitution is supported.",
+          adoptionInventory: value.adoptionInventory.replace(
+            '"current_state":"opt-out"',
+            '"current_state":"adopt"',
           ),
         }),
-        expectedError: "writing-skills: exact-transition-required",
+        expectedError:
+          "escalation adoption current_state must be exactly: opt-out",
       },
       {
-        name: "unsupported opt-out transition",
+        name: "current opt-out transition",
         mutate: (value) => ({
           ...value,
-          prMerge: value.prMerge.replace(
-            /D17 current exact target transition:\s*none/u,
-            "D17 current exact target transition: frontier/high",
+          adoptionInventory: value.adoptionInventory.replace(
+            '"transition":"none"',
+            '"transition":"next"',
           ),
         }),
-        expectedError: "pr-merge: D17-explicit-opt-out-required",
+        expectedError: "escalation adoption transition must be exactly: none",
+      },
+      {
+        name: "next tuple on opt-out",
+        mutate: (value) => ({
+          ...value,
+          adoptionInventory: value.adoptionInventory.replace(
+            '"next_tuple":"none"',
+            '"next_tuple":"frontier/high"',
+          ),
+        }),
+        expectedError: "escalation adoption next_tuple must be exactly: none",
+      },
+      {
+        name: "mechanism on opt-out",
+        mutate: (value) => ({
+          ...value,
+          adoptionInventory: value.adoptionInventory.replace(
+            '"mechanism":"none"',
+            '"mechanism":"retry"',
+          ),
+        }),
+        expectedError: "escalation adoption mechanism must be exactly: none",
+      },
+      {
+        name: "escalation budget on opt-out",
+        mutate: (value) => ({
+          ...value,
+          adoptionInventory: value.adoptionInventory.replace(
+            '"escalation_budget":"none"',
+            '"escalation_budget":"one"',
+          ),
+        }),
+        expectedError:
+          "escalation adoption escalation_budget must be exactly: none",
       },
       {
         name: "reversed D13 reclassification",
         mutate: (value) => ({
           ...value,
-          lifecyclePolicy: value.lifecyclePolicy.replace(
-            /D13-to-D12 reclassification is\s+not\s+capability escalation\./u,
-            "D12 reclassification into D13 is a capability upgrade.",
+          adoptionInventory: value.adoptionInventory.replace(
+            '"relation":"D13-to-D12-reclassification"',
+            '"relation":"D12-to-D13-reclassification"',
           ),
         }),
-        expectedError: "lifecycle-policy: d13-reclassification-required",
+        expectedError:
+          "escalation adoption relation has invalid closed value: D12-to-D13-reclassification",
       },
       {
         name: "CI retry budget contradiction",
         mutate: (value) => ({
           ...value,
-          prMerge: value.prMerge.replace(
-            /The two\s+CI repair cycles are workflow retries,\s+not a capability escalation budget\./u,
-            "The two CI repair cycles consume the capability escalation budget.",
+          adoptionInventory: value.adoptionInventory.replace(
+            '"counter":"independent-from-escalation"',
+            '"counter":"consumes-escalation-budget"',
           ),
         }),
-        expectedError: "pr-merge: ci-retry-budget-required",
+        expectedError:
+          "escalation adoption counter has invalid closed value: consumes-escalation-budget",
+      },
+      {
+        name: "non-D4 producer drift",
+        mutate: (value) => ({
+          ...value,
+          adoptionInventory: value.adoptionInventory.replace(
+            '"producer_source_path":"none"',
+            '"producer_source_path":"skills/play-agent-dispatch/SKILL.md"',
+          ),
+        }),
+        expectedError:
+          "Escalation adoption D1 producer source is contradictory",
       },
       {
         name: "duplicate escalation owner",
         mutate: (value) => ({
           ...value,
-          routingSpec: `${value.routingSpec}\nThis spec is a canonical owner of capability-escalation adoption.`,
+          lifecycleOwner: `${value.lifecycleOwner}\n<!-- escalation-adoption-anchor\n{"declaration_id":"ESC-COMMON-OWNER","source_path":"skills/subagent-lifecycle/SKILL.md","surface_mode":"common-owner","contract_id":"capability-escalation-adoption","inventory_owner_path":"docs/guidelines/agent-routing-and-mutation-policy.md","authority_ref":"common-normative-owner"}\n-->`,
         }),
-        expectedError: "routing-spec: competing-authority",
+        expectedError:
+          "Escalation source must contain exactly one machine-readable anchor: skills/subagent-lifecycle/SKILL.md",
+      },
+      {
+        name: "duplicate root anchor key",
+        mutate: (value) => ({
+          ...value,
+          prMerge: value.prMerge.replace(
+            '"declaration_id":"ESC-PR-MERGE",',
+            '"declaration_id":"ESC-PR-MERGE","declaration_id":"ESC-PR-MERGE",',
+          ),
+        }),
+        expectedError:
+          "Escalation anchor has duplicate key declaration_id: skills/pr-merge/SKILL.md",
       },
       {
         name: "consumer competing-authority claim",
         mutate: (value) => ({
           ...value,
-          writingSkills: `${value.writingSkills}\nWriting Skills owns capability escalation.`,
+          writingSkills: value.writingSkills.replace(
+            '"surface_mode":"authoring-consumer"',
+            '"surface_mode":"common-owner"',
+          ),
         }),
-        expectedError: "writing-skills: competing-authority",
+        expectedError:
+          "escalation projection ESC-WRITING-SKILLS surface_mode must be exactly: authoring-consumer",
+      },
+      {
+        name: "duplicate D4 allowed role",
+        mutate: (value) => ({
+          ...value,
+          adoptionInventory: value.adoptionInventory.replace(
+            `"allowed_role_ids":${d4RoleSet}`,
+            `"allowed_role_ids":${JSON.stringify([...d4RoleIds, d4RoleIds[0]])}`,
+          ),
+        }),
+        expectedError: `Agent routing policy owner duplicate D4 allowed_role_id: ${d4RoleIds[0]}`,
+      },
+      {
+        name: "extra D4 allowed role",
+        mutate: (value) => ({
+          ...value,
+          adoptionInventory: value.adoptionInventory.replace(
+            `"allowed_role_ids":${d4RoleSet}`,
+            `"allowed_role_ids":${JSON.stringify([...d4RoleIds, "ambient"])}`,
+          ),
+        }),
+        expectedError:
+          "Agent spec D4 allowed_role_ids identities must match exactly; missing: none; unexpected: ambient",
+      },
+      {
+        name: "missing D4 allowed role",
+        mutate: (value) => ({
+          ...value,
+          adoptionInventory: value.adoptionInventory.replace(
+            `"allowed_role_ids":${d4RoleSet}`,
+            `"allowed_role_ids":${JSON.stringify(d4RoleIds.filter((role) => role !== d4RoleIds[1]))}`,
+          ),
+        }),
+        expectedError: `Agent spec D4 allowed_role_ids identities must match exactly; missing: ${d4RoleIds[1]}; unexpected: none`,
+      },
+      {
+        name: "nearby D4 allowed role",
+        mutate: (value) => ({
+          ...value,
+          adoptionInventory: value.adoptionInventory.replace(
+            `"allowed_role_ids":${d4RoleSet}`,
+            `"allowed_role_ids":${JSON.stringify(d4RoleIds.map((role, index) => (index === 1 ? `${role}-nearby` : role)))}`,
+          ),
+        }),
+        expectedError: `Agent spec D4 allowed_role_ids identities must match exactly; missing: ${d4RoleIds[1]}; unexpected: ${d4RoleIds[1]}-nearby`,
+      },
+      {
+        name: "wrong D4 selection mode",
+        mutate: (value) => ({
+          ...value,
+          adoptionInventory: value.adoptionInventory.replace(
+            '"selection_mode":"planner-selected"',
+            '"selection_mode":"ambient-selected"',
+          ),
+        }),
+        expectedError: "D4 selection_mode must be exactly: planner-selected",
+      },
+      {
+        name: "wrong D4 route-set route",
+        mutate: (value) => ({
+          ...value,
+          adoptionInventory: value.adoptionInventory.replace(
+            /("d4_route_set"\s*:\s*\{"route_id":)"D4"/u,
+            '$1"D5"',
+          ),
+        }),
+        expectedError: "D4 route_id must be exactly: D4",
+      },
+      {
+        name: "wrong D4 route-set adoption reference",
+        mutate: (value) => ({
+          ...value,
+          adoptionInventory: value.adoptionInventory.replace(
+            /("d4_route_set"[\s\S]*?"adoption_ref":)"ESC-ADOPT-D4"/u,
+            '$1"ESC-ADOPT-D5"',
+          ),
+        }),
+        expectedError: "D4 adoption_ref must be exactly: ESC-ADOPT-D4",
+      },
+      {
+        name: "duplicate producer projection",
+        mutate: (value) => ({
+          ...value,
+          prMerge: `${value.prMerge}\n<!-- escalation-adoption-anchor\n{"declaration_id":"ESC-PR-MERGE","source_path":"skills/pr-merge/SKILL.md","surface_mode":"workflow-consumer","route_ids":["D17"],"adoption_refs":["ESC-ADOPT-D17"],"authority_ref":"non-owner"}\n-->`,
+        }),
+        expectedError:
+          "Escalation source must contain exactly one machine-readable anchor: skills/pr-merge/SKILL.md",
       },
     ];
 
@@ -3848,6 +3873,238 @@ describe("play subagent routing source contracts", () => {
         validateEscalationConsumerContracts(mutation.mutate(sources)),
         mutation.name,
       ).toEqual([mutation.expectedError]);
+    }
+
+    for (const sourceKey of [
+      "adr",
+      "agentSpec",
+      "issuePriming",
+      "lifecyclePolicy",
+      "prMerge",
+      "routingSpec",
+      "writingSkills",
+      "agentAuthoring",
+      "lifecycleOwner",
+      "adoptionInventory",
+    ] as const) {
+      const mutated = {
+        ...sources,
+        [sourceKey]: sources[sourceKey].replace(
+          /"declaration_id"\s*:\s*"([^"]+)",/u,
+          '"declaration_id":"$1","declaration_id":"$1",',
+        ),
+      };
+      const errors = validateEscalationConsumerContracts(mutated);
+      expect(errors, `${sourceKey} duplicate root key`).toHaveLength(1);
+      expect(errors[0]).toMatch(/duplicate key declaration_id/i);
+    }
+
+    for (const [name, from, to, error] of [
+      [
+        "adoption record",
+        '"target_permission":"exact-only","role_permission"',
+        '"target_permission":"exact-only","target_permission":"exact-only","role_permission"',
+        /duplicate key target_permission/i,
+      ],
+      [
+        "D4 route set",
+        '"route_id":"D4","allowed_role_ids"',
+        '"route_id":"D4","route_id":"D4","allowed_role_ids"',
+        /duplicate key route_id/i,
+      ],
+      [
+        "escaped adoption record key",
+        '"target_permission":"exact-only","role_permission"',
+        '"target_\\u0070ermission":"exact-only","target_permission":"exact-only","role_permission"',
+        /duplicate key target_permission/i,
+      ],
+    ] as const) {
+      const errors = validateEscalationConsumerContracts({
+        ...sources,
+        adoptionInventory: sources.adoptionInventory.replace(from, to),
+      });
+      expect(errors, `same-value nested duplicate ${name}`).toHaveLength(1);
+      expect(errors[0]).toMatch(error);
+    }
+
+    for (const field of [
+      "declaration_id",
+      "source_path",
+      "surface_mode",
+      "contract_id",
+      "inventory_owner_path",
+      "authority_ref",
+    ]) {
+      const mutated = {
+        ...sources,
+        lifecycleOwner: mutateEscalationAnchor(
+          sources.lifecycleOwner,
+          (anchor) => {
+            delete anchor[field];
+          },
+        ),
+      };
+      expect(
+        validateEscalationConsumerContracts(mutated),
+        `missing common-owner ${field}`,
+      ).toEqual([
+        expect.stringMatching(
+          field === "declaration_id"
+            ? /escalation declaration ID must be one non-empty string/i
+            : field === "source_path"
+              ? /source_path must match its source/i
+              : /common owner fields identities must match/i,
+        ),
+      ]);
+    }
+
+    for (const field of [
+      "declaration_id",
+      "source_path",
+      "surface_mode",
+      "contract_id",
+      "common_owner_path",
+      "authority_ref",
+      "adoptions",
+      "d4_route_set",
+    ]) {
+      const mutated = {
+        ...sources,
+        adoptionInventory: mutateEscalationAnchor(
+          sources.adoptionInventory,
+          (anchor) => {
+            delete anchor[field];
+          },
+        ),
+      };
+      expect(
+        validateEscalationConsumerContracts(mutated),
+        `missing inventory-owner ${field}`,
+      ).toEqual([
+        expect.stringMatching(
+          field === "declaration_id"
+            ? /escalation declaration ID must be one non-empty string/i
+            : field === "source_path"
+              ? /source_path must match its source/i
+              : /inventory owner fields identities must match/i,
+        ),
+      ]);
+    }
+
+    for (const field of [
+      "route_id",
+      "adoption_ref",
+      "target_ids",
+      "target_permission",
+      "role_permission",
+      "current_state",
+      "transition",
+      "next_tuple",
+      "mechanism",
+      "escalation_budget",
+      "relation",
+      "counter",
+      "producer_source_path",
+    ]) {
+      const mutated = {
+        ...sources,
+        adoptionInventory: mutateEscalationAnchor(
+          sources.adoptionInventory,
+          (anchor) => {
+            const records = anchor.adoptions as Record<string, unknown>[];
+            delete records[0][field];
+          },
+        ),
+      };
+      expect(
+        validateEscalationConsumerContracts(mutated),
+        `missing adoption-record ${field}`,
+      ).toEqual([
+        expect.stringMatching(
+          /escalation adoption record fields identities must match/i,
+        ),
+      ]);
+    }
+
+    for (const field of [
+      "route_id",
+      "allowed_role_ids",
+      "selection_mode",
+      "adoption_ref",
+    ]) {
+      const mutated = {
+        ...sources,
+        adoptionInventory: mutateEscalationAnchor(
+          sources.adoptionInventory,
+          (anchor) => {
+            delete (anchor.d4_route_set as Record<string, unknown>)[field];
+          },
+        ),
+      };
+      expect(
+        validateEscalationConsumerContracts(mutated),
+        `missing D4-route-set ${field}`,
+      ).toEqual([
+        expect.stringMatching(/D4 route set fields identities must match/i),
+      ]);
+    }
+
+    for (const field of [
+      "declaration_id",
+      "source_path",
+      "surface_mode",
+      "route_ids",
+      "adoption_refs",
+      "authority_ref",
+    ]) {
+      const mutated = {
+        ...sources,
+        prMerge: mutateEscalationAnchor(sources.prMerge, (anchor) => {
+          delete anchor[field];
+        }),
+      };
+      expect(
+        validateEscalationConsumerContracts(mutated),
+        `missing projection ${field}`,
+      ).toEqual([
+        expect.stringMatching(
+          field === "declaration_id"
+            ? /escalation declaration ID must be one non-empty string/i
+            : field === "source_path"
+              ? /source_path must match its source/i
+              : /escalation projection fields identities must match/i,
+        ),
+      ]);
+    }
+
+    for (const sourceKey of [
+      "adr",
+      "agentAuthoring",
+      "writingSkills",
+      "routingSpec",
+      "agentSpec",
+      "issuePriming",
+      "lifecyclePolicy",
+      "prMerge",
+    ] as const) {
+      for (const [field, replacement] of [
+        ["declaration_id", "ESC-UNKNOWN"],
+        ["surface_mode", "common-owner"],
+        ["authority_ref", "competing-owner"],
+      ] as const) {
+        const mutated = {
+          ...sources,
+          [sourceKey]: sources[sourceKey].replace(
+            new RegExp(`"${field}"\\s*:\\s*"[^"]+"`, "u"),
+            `"${field}":"${replacement}"`,
+          ),
+        };
+        const errors = validateEscalationConsumerContracts(mutated);
+        expect(errors, `${sourceKey} ${field}`).toHaveLength(1);
+        expect(errors[0]).toMatch(
+          new RegExp(`escalation projection .* ${field} must be exactly`, "i"),
+        );
+      }
     }
   });
 });

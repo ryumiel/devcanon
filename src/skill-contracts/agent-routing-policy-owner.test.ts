@@ -1,17 +1,429 @@
 import { readdir } from "node:fs/promises";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   parseAgentRoutingPolicyOwner,
   parseAgentSemanticRoleOwner,
+  parseCapabilityEscalationAdoptionContract,
   readAgentRoutingPolicyOwner,
   readAgentSemanticRoleOwner,
+  validateD4ProducedDeclaration,
 } from "../__test-helpers__/agent-routing-policy.js";
 import { readRepoFile } from "../__test-helpers__/skill-contracts.js";
+import { loadConfig } from "../config/load.js";
+import { resolveCapabilityModel } from "../render/capability-profiles.js";
 
 const OWNER_PATH = "docs/guidelines/agent-routing-and-mutation-policy.md";
 const AGENT_SPEC_PATH = "docs/specs/agents.md";
+const REPOSITORY_CONFIG_PATH = path.resolve("devcanon.config.yaml");
 
 describe("agent routing and mutation policy owner", () => {
+  it("parses the closed capability-escalation adoption contract from its owners", async () => {
+    const contract = await parseCapabilityEscalationAdoptionContract();
+
+    expect(contract.contractId).toBe("capability-escalation-adoption");
+    expect(contract.commonOwnerPath).toBe("skills/subagent-lifecycle/SKILL.md");
+    expect(contract.inventoryOwnerPath).toBe(
+      "docs/guidelines/agent-routing-and-mutation-policy.md",
+    );
+  });
+
+  it("validates a D4 selected role against its complete target tuple", async () => {
+    const roles = await readAgentSemanticRoleOwner(AGENT_SPEC_PATH);
+    const config = await loadConfig(REPOSITORY_CONFIG_PATH, true);
+    const investigator = roles.find((role) => role.name === "investigator");
+    const assessor = roles.find((role) => role.name === "assessor");
+    expect(investigator).toBeDefined();
+    expect(assessor).toBeDefined();
+    if (!investigator || !assessor)
+      throw new Error("Missing canonical D4 role");
+    const target = "codex" as const;
+    const declaration = {
+      route_id: "D4",
+      target_id: target,
+      selected_role_id: "investigator",
+      capability: investigator.capability,
+      effort: investigator.codexEffort,
+      model:
+        resolveCapabilityModel(
+          undefined,
+          investigator.capability,
+          target,
+          config.capabilityProfiles,
+        ) ?? "",
+      source_authority: investigator.sourceAuthority,
+      external_authority: investigator.externalAuthority,
+      claude_tools: investigator.claudeTools,
+      codex_sandbox: investigator.codexSandbox,
+      default_network: investigator.defaultNetwork,
+      scope: "scope:owner-contract-test",
+      termination: "termination:response-only",
+      context_ref: "context-ref:owner-contract-test",
+      approval_ref: "approval-ref:owner-contract-test",
+    };
+    const expectations = {
+      plannerSelectedRoleId: "investigator",
+      targetId: "codex",
+      scope: "scope:owner-contract-test",
+      termination: "termination:response-only",
+      contextRef: "context-ref:owner-contract-test",
+      approvalRef: "approval-ref:owner-contract-test",
+    };
+
+    await expect(
+      validateD4ProducedDeclaration(declaration, expectations),
+    ).resolves.toBeUndefined();
+
+    const alternateTarget = "claude" as const;
+    const alternateTargetDeclaration = {
+      ...declaration,
+      target_id: alternateTarget,
+      effort: investigator.claudeEffort,
+      model:
+        resolveCapabilityModel(
+          undefined,
+          investigator.capability,
+          alternateTarget,
+          config.capabilityProfiles,
+        ) ?? "",
+    };
+    await expect(
+      validateD4ProducedDeclaration(alternateTargetDeclaration, expectations),
+    ).rejects.toThrow(/target_id must match dispatch expectation/i);
+    await expect(
+      validateD4ProducedDeclaration(alternateTargetDeclaration, {
+        ...expectations,
+        targetId: alternateTarget,
+      }),
+    ).resolves.toBeUndefined();
+
+    const mutations = [
+      ["wrong route", { route_id: "D5" }, /route_id must be exactly D4/i],
+      [
+        "wrong capability",
+        { capability: "frontier" },
+        /capability must match/i,
+      ],
+      ["altered target effort", { effort: "medium" }, /effort must match/i],
+      ["wrong model", { model: "ambient" }, /model must match/i],
+      [
+        "wrong source authority",
+        { source_authority: "source-mutable" },
+        /source authority must match/i,
+      ],
+      [
+        "wrong external authority",
+        { external_authority: "external-mutable" },
+        /external authority must match/i,
+      ],
+      [
+        "ambient target",
+        { target_id: "ambient" },
+        /target_id must match dispatch expectation/i,
+      ],
+      ["altered scope", { scope: "ambient scope" }, /scope must match/i],
+      [
+        "altered termination",
+        { termination: "ambient termination" },
+        /termination must match/i,
+      ],
+      [
+        "altered context reference",
+        { context_ref: "ambient-context" },
+        /context_ref must match/i,
+      ],
+      [
+        "altered approval reference",
+        { approval_ref: "ambient-approval" },
+        /approval_ref must match/i,
+      ],
+      [
+        "reordered Claude tools",
+        {
+          claude_tools: [
+            "Grep",
+            "Read",
+            "Bash",
+            "Write",
+            "WebFetch",
+            "WebSearch",
+          ],
+        },
+        /Claude tools must match selected role in order/i,
+      ],
+      [
+        "replaced Claude tools",
+        {
+          claude_tools: declaration.claude_tools.map((tool, index) =>
+            index === 0 ? "Edit" : tool,
+          ),
+        },
+        /Claude tools must match selected role in order/i,
+      ],
+      [
+        "duplicate Claude tools",
+        {
+          claude_tools: [
+            "Read",
+            "Grep",
+            "Bash",
+            "Write",
+            "WebFetch",
+            "WebSearch",
+            "Read",
+          ],
+        },
+        /duplicate D4 declaration Claude tool/i,
+      ],
+      [
+        "omitted Claude tool",
+        { claude_tools: ["Read", "Grep", "Bash", "Write", "WebFetch"] },
+        /Claude tools must match selected role in order/i,
+      ],
+      [
+        "added Claude tool",
+        {
+          claude_tools: [
+            "Read",
+            "Grep",
+            "Bash",
+            "Write",
+            "WebFetch",
+            "WebSearch",
+            "Edit",
+          ],
+        },
+        /Claude tools must match selected role in order/i,
+      ],
+      [
+        "wrong Codex sandbox",
+        { codex_sandbox: "workspace-read" },
+        /Codex sandbox must match/i,
+      ],
+      [
+        "wrong default network",
+        { default_network: "None" },
+        /default network must match/i,
+      ],
+    ] as const;
+    for (const [, mutation, error] of mutations) {
+      await expect(
+        validateD4ProducedDeclaration(
+          { ...declaration, ...mutation },
+          expectations,
+        ),
+      ).rejects.toThrow(error);
+    }
+
+    await expect(
+      validateD4ProducedDeclaration(
+        {
+          ...declaration,
+          selected_role_id: assessor.name,
+          capability: assessor.capability,
+          effort: assessor.codexEffort,
+          model:
+            resolveCapabilityModel(
+              undefined,
+              assessor.capability,
+              target,
+              config.capabilityProfiles,
+            ) ?? "",
+          source_authority: assessor.sourceAuthority,
+          external_authority: assessor.externalAuthority,
+          claude_tools: assessor.claudeTools,
+          codex_sandbox: assessor.codexSandbox,
+          default_network: assessor.defaultNetwork,
+        },
+        expectations,
+      ),
+    ).rejects.toThrow(/selected_role_id must match dispatch expectation/i);
+
+    for (const [name, selectedRoleId, error] of [
+      ["ambient", "ambient", /selected_role_id is not allowed/i],
+      ["arbitrary unknown", "unknown-role", /selected_role_id is not allowed/i],
+      ["nearby", "investigator-nearby", /selected_role_id is not allowed/i],
+    ] as const) {
+      await expect(
+        validateD4ProducedDeclaration(
+          { ...declaration, selected_role_id: selectedRoleId },
+          { ...expectations, plannerSelectedRoleId: selectedRoleId },
+        ),
+        `${name} selected role`,
+      ).rejects.toThrow(error);
+    }
+
+    const { selected_role_id: _selectedRoleId, ...omittedSelectedRole } =
+      declaration;
+    await expect(
+      validateD4ProducedDeclaration(
+        omittedSelectedRole as unknown as typeof declaration,
+        expectations,
+      ),
+    ).rejects.toThrow(/D4 produced declaration fields identities must match/i);
+
+    for (const field of Object.keys(declaration)) {
+      const omitted = Object.fromEntries(
+        Object.entries(declaration).filter(([key]) => key !== field),
+      );
+      await expect(
+        validateD4ProducedDeclaration(
+          omitted as unknown as typeof declaration,
+          expectations,
+        ),
+        `missing declaration ${field}`,
+      ).rejects.toThrow(
+        /D4 produced declaration fields identities must match/i,
+      );
+    }
+    for (const field of Object.keys(expectations)) {
+      const omitted = Object.fromEntries(
+        Object.entries(expectations).filter(([key]) => key !== field),
+      );
+      await expect(
+        validateD4ProducedDeclaration(
+          declaration,
+          omitted as unknown as typeof expectations,
+        ),
+        `missing expectation ${field}`,
+      ).rejects.toThrow(
+        /D4 dispatch expectations fields identities must match/i,
+      );
+    }
+    for (const field of Object.keys(expectations)) {
+      const declarationField =
+        field === "plannerSelectedRoleId"
+          ? "selected_role_id"
+          : field === "targetId"
+            ? "target_id"
+            : field === "contextRef"
+              ? "context_ref"
+              : field === "approvalRef"
+                ? "approval_ref"
+                : field;
+      await expect(
+        validateD4ProducedDeclaration(declaration, {
+          ...expectations,
+          [field]: "",
+        }),
+        `empty expectation ${field}`,
+      ).rejects.toThrow(
+        new RegExp(
+          `dispatch expectation ${declarationField} must be non-empty`,
+          "i",
+        ),
+      );
+    }
+    for (const targetId of ["ambient", "unknown-target"] as const) {
+      await expect(
+        validateD4ProducedDeclaration(declaration, {
+          ...expectations,
+          targetId,
+        }),
+      ).rejects.toThrow(/dispatch expectation targetId must be exact/i);
+    }
+  });
+
+  it("validates all twelve D4 role and target declarations", async () => {
+    const roles = await readAgentSemanticRoleOwner(AGENT_SPEC_PATH);
+    const config = await loadConfig(REPOSITORY_CONFIG_PATH, true);
+
+    for (const role of roles) {
+      for (const target of ["claude", "codex"] as const) {
+        const scope = `${role.name} ${target} scope`;
+        const termination = `${role.name} ${target} termination`;
+        await expect(
+          validateD4ProducedDeclaration(
+            {
+              route_id: "D4",
+              target_id: target,
+              selected_role_id: role.name,
+              capability: role.capability,
+              effort:
+                target === "claude" ? role.claudeEffort : role.codexEffort,
+              model:
+                resolveCapabilityModel(
+                  undefined,
+                  role.capability,
+                  target,
+                  config.capabilityProfiles,
+                ) ?? "",
+              source_authority: role.sourceAuthority,
+              external_authority: role.externalAuthority,
+              claude_tools: role.claudeTools,
+              codex_sandbox: role.codexSandbox,
+              default_network: role.defaultNetwork,
+              scope,
+              termination,
+              context_ref: `${role.name}-${target}-context`,
+              approval_ref: `${role.name}-${target}-approval`,
+            },
+            {
+              plannerSelectedRoleId: role.name,
+              targetId: target,
+              scope,
+              termination,
+              contextRef: `${role.name}-${target}-context`,
+              approvalRef: `${role.name}-${target}-approval`,
+            },
+          ),
+        ).resolves.toBeUndefined();
+      }
+    }
+  });
+
+  it("uses the repository config despite an isolated ambient override", async () => {
+    const role = (await readAgentSemanticRoleOwner(AGENT_SPEC_PATH)).find(
+      (candidate) => candidate.name === "investigator",
+    );
+    expect(role).toBeDefined();
+    if (!role) throw new Error("Missing canonical investigator role");
+    const config = await loadConfig(REPOSITORY_CONFIG_PATH, true);
+    const priorConfig = process.env.DEVCANON_CONFIG;
+    process.env.DEVCANON_CONFIG = path.resolve("docs/specs/agents.md");
+    try {
+      await expect(
+        validateD4ProducedDeclaration(
+          {
+            route_id: "D4",
+            target_id: "codex",
+            selected_role_id: role.name,
+            capability: role.capability,
+            effort: role.codexEffort,
+            model:
+              resolveCapabilityModel(
+                undefined,
+                role.capability,
+                "codex",
+                config.capabilityProfiles,
+              ) ?? "",
+            source_authority: role.sourceAuthority,
+            external_authority: role.externalAuthority,
+            claude_tools: role.claudeTools,
+            codex_sandbox: role.codexSandbox,
+            default_network: role.defaultNetwork,
+            scope: "scope:ambient-config-proof",
+            termination: "termination:ambient-config-proof",
+            context_ref: "context-ref:ambient-config-proof",
+            approval_ref: "approval-ref:ambient-config-proof",
+          },
+          {
+            plannerSelectedRoleId: role.name,
+            targetId: "codex",
+            scope: "scope:ambient-config-proof",
+            termination: "termination:ambient-config-proof",
+            contextRef: "context-ref:ambient-config-proof",
+            approvalRef: "approval-ref:ambient-config-proof",
+          },
+        ),
+      ).resolves.toBeUndefined();
+    } finally {
+      if (priorConfig === undefined)
+        Reflect.deleteProperty(process.env, "DEVCANON_CONFIG");
+      else process.env.DEVCANON_CONFIG = priorConfig;
+    }
+  });
+
   it("covers every source skill exactly once and exactly D1-D17", async () => {
     const owner = await readAgentRoutingPolicyOwner(OWNER_PATH);
     const sourceSkills = (await readdir("skills", { withFileTypes: true }))

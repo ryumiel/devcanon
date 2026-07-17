@@ -10,6 +10,17 @@ codex_sidecar:
 
 # Subagent Lifecycle
 
+<!-- escalation-adoption-anchor
+{
+  "declaration_id": "ESC-COMMON-OWNER",
+  "source_path": "skills/subagent-lifecycle/SKILL.md",
+  "surface_mode": "common-owner",
+  "contract_id": "capability-escalation-adoption",
+  "inventory_owner_path": "docs/guidelines/agent-routing-and-mutation-policy.md",
+  "authority_ref": "common-normative-owner"
+}
+-->
+
 Shared workflows that spawn subagents directly use this procedure to keep
 controller state recoverable and target lifecycle claims honest. The procedure
 is controller-local orchestration hygiene: it does not change task status,

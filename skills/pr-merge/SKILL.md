@@ -5,6 +5,10 @@ description: PR merge automation with CI polling and in-scope failure investigat
 
 # PR Merge
 
+<!-- escalation-adoption-anchor
+{"declaration_id":"ESC-PR-MERGE","source_path":"skills/pr-merge/SKILL.md","surface_mode":"workflow-consumer","route_ids":["D17"],"adoption_refs":["ESC-ADOPT-D17"],"authority_ref":"non-owner"}
+-->
+
 Poll CI status on a pull request, merge when green, investigate and fix failures automatically.
 
 Keep deterministic mechanics out of this always-loaded skill when they become

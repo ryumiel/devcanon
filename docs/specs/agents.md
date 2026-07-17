@@ -1,5 +1,9 @@
 # Agent Source Schema
 
+<!-- escalation-adoption-anchor
+{"declaration_id":"ESC-AGENT-ROLES","source_path":"docs/specs/agents.md","surface_mode":"semantic-role-owner","route_ids":["D4"],"adoption_refs":[],"authority_ref":"role-tuples-only"}
+-->
+
 ---
 
 ## File format
