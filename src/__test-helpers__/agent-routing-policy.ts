@@ -213,6 +213,7 @@ export interface CapabilityEscalationAdoptionRecord {
   readonly targetIds: readonly ("claude" | "codex")[];
   readonly targetPermission: "exact-only";
   readonly rolePermission: "same-role-must-match" | "selected-role-must-match";
+  readonly directRouteRoleIds?: readonly string[];
   readonly currentState: "opt-out";
   readonly transition: "none";
   readonly nextTuple: "none";
@@ -378,12 +379,19 @@ export function parseCapabilityEscalationAdoptionContractFromSources(
     "inventory owner",
   );
 
+  const routingPolicyOwner = parseAgentRoutingPolicyOwner(
+    sources[INVENTORY_OWNER_PATH],
+  );
+  const roles = parseAgentSemanticRoleOwner(sources["docs/specs/agents.md"]);
   const adoptions = parseEscalationAdoptionRecords(inventory.adoptions);
+  validateAdoptionDirectRouteBindings(
+    adoptions,
+    routingPolicyOwner.directChildRoutes,
+    roles,
+  );
   const d4RouteSet = parseD4RouteSet(
     inventory.d4_route_set,
-    parseAgentSemanticRoleOwner(sources["docs/specs/agents.md"]).map(
-      (role) => role.name,
-    ),
+    roles.map((role) => role.name),
   );
   const projections = ESCALATION_PROJECTIONS.map((expected) => {
     const anchor = anchors.find(
@@ -680,7 +688,7 @@ export async function readAgentRoutingPolicyOwner(
 /** Pure parsing seam for focused single-dimension mutation tests. */
 export function parseAgentRoutingPolicyOwner(
   markdown: string,
-  sourceSkills: readonly string[],
+  sourceSkills?: readonly string[],
 ): AgentRoutingPolicyOwner {
   if (markdown.trim() === "") {
     throw new Error("Agent routing policy owner file is empty");
@@ -717,7 +725,8 @@ export function parseAgentRoutingPolicyOwner(
     inventory.map((row) => row.skill),
     "inventory skill",
   );
-  assertInventoryCoverage(inventory, sourceSkills);
+  if (sourceSkills !== undefined)
+    assertInventoryCoverage(inventory, sourceSkills);
   assertUnique(
     directChildRoutes.map((row) => row.id),
     "direct-route ID",
@@ -1363,21 +1372,38 @@ function parseEscalationAdoptionRecords(
       throw new Error("Escalation adoption record must be an object");
     assertExactAnchorKeys(
       raw,
-      [
-        "route_id",
-        "adoption_ref",
-        "target_ids",
-        "target_permission",
-        "role_permission",
-        "current_state",
-        "transition",
-        "next_tuple",
-        "mechanism",
-        "escalation_budget",
-        "relation",
-        "counter",
-        "producer_source_path",
-      ],
+      raw.route_id === "D4"
+        ? [
+            "route_id",
+            "adoption_ref",
+            "target_ids",
+            "target_permission",
+            "role_permission",
+            "current_state",
+            "transition",
+            "next_tuple",
+            "mechanism",
+            "escalation_budget",
+            "relation",
+            "counter",
+            "producer_source_path",
+          ]
+        : [
+            "route_id",
+            "adoption_ref",
+            "target_ids",
+            "target_permission",
+            "role_permission",
+            "direct_route_role_ids",
+            "current_state",
+            "transition",
+            "next_tuple",
+            "mechanism",
+            "escalation_budget",
+            "relation",
+            "counter",
+            "producer_source_path",
+          ],
       "escalation adoption record",
     );
     const routeId = exactRouteId(raw.route_id, "escalation adoption route_id");
@@ -1405,6 +1431,13 @@ function parseEscalationAdoptionRecords(
         ["same-role-must-match", "selected-role-must-match"] as const,
         "escalation adoption role_permission",
       ),
+      directRouteRoleIds:
+        routeId === "D4"
+          ? undefined
+          : exactStringArray(
+              raw.direct_route_role_ids,
+              `Escalation adoption ${routeId} direct_route_role_ids`,
+            ),
       currentState: exactLiteral(
         raw.current_state,
         "opt-out",
@@ -1490,6 +1523,77 @@ function parseEscalationAdoptionRecords(
     "escalation adoption route_id",
   );
   return records;
+}
+
+function validateAdoptionDirectRouteBindings(
+  adoptions: readonly CapabilityEscalationAdoptionRecord[],
+  directRoutes: readonly AgentRoutingDirectChildRouteRow[],
+  roles: readonly AgentSemanticRoleContract[],
+): void {
+  const directRoutesById = new Map(
+    directRoutes.map((route) => [route.id, route]),
+  );
+  const rolesById = new Map(roles.map((role) => [role.name, role]));
+
+  for (const route of directRoutes) {
+    for (const [index, clause] of route.clauses.entries()) {
+      const role = rolesById.get(clause.role);
+      if (!role) {
+        throw new Error(
+          `Direct-route ${route.id} clause ${index + 1} role is absent from the canonical role owner: ${clause.role}`,
+        );
+      }
+      if (clause.capability !== role.capability) {
+        throw new Error(
+          `Direct-route ${route.id} clause ${index + 1} capability must match canonical role ${clause.role}`,
+        );
+      }
+      if (
+        clause.effort !== role.claudeEffort ||
+        clause.effort !== role.codexEffort
+      ) {
+        throw new Error(
+          `Direct-route ${route.id} clause ${index + 1} effort must match canonical role ${clause.role} for both targets`,
+        );
+      }
+      if (clause.sourceAuthority !== role.sourceAuthority) {
+        throw new Error(
+          `Direct-route ${route.id} clause ${index + 1} source authority must match canonical role ${clause.role}`,
+        );
+      }
+    }
+  }
+
+  for (const adoption of adoptions) {
+    if (adoption.routeId === "D4") continue;
+    const route = directRoutesById.get(adoption.routeId);
+    if (!route) {
+      throw new Error(
+        `Escalation adoption ${adoption.routeId} has no exact direct-route owner`,
+      );
+    }
+    const actualRoleIds = adoption.directRouteRoleIds;
+    if (!actualRoleIds) {
+      throw new Error(
+        `Escalation adoption ${adoption.routeId} direct_route_role_ids is required`,
+      );
+    }
+    assertUnique(
+      actualRoleIds,
+      `escalation adoption ${adoption.routeId} direct_route_role_id`,
+    );
+    const expectedRoleIds = route.clauses.map((clause) => clause.role);
+    if (actualRoleIds.length !== expectedRoleIds.length) {
+      throw new Error(
+        `Escalation adoption ${adoption.routeId} direct_route_role_ids cardinality must match direct-route clauses: expected ${expectedRoleIds.length}; received ${actualRoleIds.length}`,
+      );
+    }
+    if (!sameValues(actualRoleIds, expectedRoleIds)) {
+      throw new Error(
+        `Escalation adoption ${adoption.routeId} direct_route_role_ids must match direct-route roles in order; expected: ${expectedRoleIds.join(", ")}; actual: ${actualRoleIds.join(", ")}`,
+      );
+    }
+  }
 }
 
 function parseD4RouteSet(

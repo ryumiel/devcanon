@@ -28,6 +28,35 @@ describe("agent routing and mutation policy owner", () => {
     );
   });
 
+  it("binds every non-D4 adoption to its canonical direct-route role sequence", async () => {
+    const contract = await parseCapabilityEscalationAdoptionContract();
+
+    expect(
+      contract.adoptions.map((adoption) => [
+        adoption.routeId,
+        adoption.directRouteRoleIds,
+      ]),
+    ).toEqual([
+      ["D1", ["assessor"]],
+      ["D2", ["investigator"]],
+      ["D3", ["investigator"]],
+      ["D4", undefined],
+      ["D5", ["reviewer"]],
+      ["D6", ["reviewer"]],
+      ["D7", ["reviewer"]],
+      ["D8", ["reviewer"]],
+      ["D9", ["reviewer"]],
+      ["D10", ["deep-reviewer"]],
+      ["D11", ["assessor"]],
+      ["D12", ["implementer"]],
+      ["D13", ["executor"]],
+      ["D14", ["deep-reviewer"]],
+      ["D15", ["deep-reviewer"]],
+      ["D16", ["deep-reviewer"]],
+      ["D17", ["investigator", "executor", "implementer"]],
+    ]);
+  });
+
   it("validates a D4 selected role against its complete target tuple", async () => {
     const roles = await readAgentSemanticRoleOwner(AGENT_SPEC_PATH);
     const config = await loadConfig(REPOSITORY_CONFIG_PATH, true);

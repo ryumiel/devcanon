@@ -3619,6 +3619,22 @@ describe("play subagent routing source contracts", () => {
 
     expect(validateEscalationConsumerContracts(sources)).toEqual([]);
 
+    const coherentD1OwnerChange = {
+      ...sources,
+      adoptionInventory: sources.adoptionInventory
+        .replace(
+          "`assessor`, balanced/medium, source-immutable",
+          "`investigator`, balanced/high, source-immutable",
+        )
+        .replace(
+          '"route_id":"D1","adoption_ref":"ESC-ADOPT-D1","target_ids":["claude","codex"],"target_permission":"exact-only","role_permission":"same-role-must-match","direct_route_role_ids":["assessor"]',
+          '"route_id":"D1","adoption_ref":"ESC-ADOPT-D1","target_ids":["claude","codex"],"target_permission":"exact-only","role_permission":"same-role-must-match","direct_route_role_ids":["investigator"]',
+        ),
+    };
+    expect(validateEscalationConsumerContracts(coherentD1OwnerChange)).toEqual(
+      [],
+    );
+
     const d4RoleIds = parseAgentSemanticRoleOwner(sources.agentSpec).map(
       (role) => role.name,
     );
@@ -3745,6 +3761,135 @@ describe("play subagent routing source contracts", () => {
         }),
         expectedError:
           "Escalation adoption D1 producer source is contradictory",
+      },
+      {
+        name: "D12 adoption-only valid-token role substitution",
+        mutate: (value) => ({
+          ...value,
+          adoptionInventory: value.adoptionInventory.replace(
+            '"route_id":"D12","adoption_ref":"ESC-ADOPT-D12","target_ids":["claude","codex"],"target_permission":"exact-only","role_permission":"same-role-must-match","direct_route_role_ids":["implementer"]',
+            '"route_id":"D12","adoption_ref":"ESC-ADOPT-D12","target_ids":["claude","codex"],"target_permission":"exact-only","role_permission":"same-role-must-match","direct_route_role_ids":["executor"]',
+          ),
+        }),
+        expectedError:
+          "Escalation adoption D12 direct_route_role_ids must match direct-route roles in order; expected: implementer; actual: executor",
+      },
+      {
+        name: "D1 adoption-only valid-token role substitution",
+        mutate: (value) => ({
+          ...value,
+          adoptionInventory: value.adoptionInventory.replace(
+            '"route_id":"D1","adoption_ref":"ESC-ADOPT-D1","target_ids":["claude","codex"],"target_permission":"exact-only","role_permission":"same-role-must-match","direct_route_role_ids":["assessor"]',
+            '"route_id":"D1","adoption_ref":"ESC-ADOPT-D1","target_ids":["claude","codex"],"target_permission":"exact-only","role_permission":"same-role-must-match","direct_route_role_ids":["investigator"]',
+          ),
+        }),
+        expectedError:
+          "Escalation adoption D1 direct_route_role_ids must match direct-route roles in order; expected: assessor; actual: investigator",
+      },
+      {
+        name: "D13 adoption-only valid-token role substitution",
+        mutate: (value) => ({
+          ...value,
+          adoptionInventory: value.adoptionInventory.replace(
+            '"route_id":"D13","adoption_ref":"ESC-ADOPT-D13","target_ids":["claude","codex"],"target_permission":"exact-only","role_permission":"same-role-must-match","direct_route_role_ids":["executor"]',
+            '"route_id":"D13","adoption_ref":"ESC-ADOPT-D13","target_ids":["claude","codex"],"target_permission":"exact-only","role_permission":"same-role-must-match","direct_route_role_ids":["implementer"]',
+          ),
+        }),
+        expectedError:
+          "Escalation adoption D13 direct_route_role_ids must match direct-route roles in order; expected: executor; actual: implementer",
+      },
+      {
+        name: "missing non-D4 direct-route binding",
+        mutate: (value) => ({
+          ...value,
+          adoptionInventory: mutateEscalationAnchor(
+            value.adoptionInventory,
+            (anchor) => {
+              Reflect.deleteProperty(
+                (anchor.adoptions as Record<string, unknown>[])[0],
+                "direct_route_role_ids",
+              );
+            },
+          ),
+        }),
+        expectedError:
+          "Agent spec escalation adoption record fields identities must match exactly; missing: direct_route_role_ids; unexpected: none",
+      },
+      {
+        name: "forbidden D4 direct-route binding",
+        mutate: (value) => ({
+          ...value,
+          adoptionInventory: mutateEscalationAnchor(
+            value.adoptionInventory,
+            (anchor) => {
+              (
+                anchor.adoptions as Record<string, unknown>[]
+              )[3].direct_route_role_ids = ["investigator"];
+            },
+          ),
+        }),
+        expectedError:
+          "Agent spec escalation adoption record fields identities must match exactly; missing: none; unexpected: direct_route_role_ids",
+      },
+      {
+        name: "D17 direct-route role order",
+        mutate: (value) => ({
+          ...value,
+          adoptionInventory: value.adoptionInventory.replace(
+            '"direct_route_role_ids":["investigator","executor","implementer"]',
+            '"direct_route_role_ids":["executor","investigator","implementer"]',
+          ),
+        }),
+        expectedError:
+          "Escalation adoption D17 direct_route_role_ids must match direct-route roles in order; expected: investigator, executor, implementer; actual: executor, investigator, implementer",
+      },
+      {
+        name: "D17 duplicate direct-route role",
+        mutate: (value) => ({
+          ...value,
+          adoptionInventory: value.adoptionInventory.replace(
+            '"direct_route_role_ids":["investigator","executor","implementer"]',
+            '"direct_route_role_ids":["investigator","investigator","implementer"]',
+          ),
+        }),
+        expectedError:
+          "Agent routing policy owner duplicate escalation adoption D17 direct_route_role_id: investigator",
+      },
+      {
+        name: "D17 missing direct-route role",
+        mutate: (value) => ({
+          ...value,
+          adoptionInventory: value.adoptionInventory.replace(
+            '"direct_route_role_ids":["investigator","executor","implementer"]',
+            '"direct_route_role_ids":["investigator","executor"]',
+          ),
+        }),
+        expectedError:
+          "Escalation adoption D17 direct_route_role_ids cardinality must match direct-route clauses: expected 3; received 2",
+      },
+      {
+        name: "D17 extra direct-route role",
+        mutate: (value) => ({
+          ...value,
+          adoptionInventory: value.adoptionInventory.replace(
+            '"direct_route_role_ids":["investigator","executor","implementer"]',
+            '"direct_route_role_ids":["investigator","executor","implementer","deep-reviewer"]',
+          ),
+        }),
+        expectedError:
+          "Escalation adoption D17 direct_route_role_ids cardinality must match direct-route clauses: expected 3; received 4",
+      },
+      {
+        name: "D17 valid-token direct-route mismatch",
+        mutate: (value) => ({
+          ...value,
+          adoptionInventory: value.adoptionInventory.replace(
+            '"direct_route_role_ids":["investigator","executor","implementer"]',
+            '"direct_route_role_ids":["investigator","executor","deep-reviewer"]',
+          ),
+        }),
+        expectedError:
+          "Escalation adoption D17 direct_route_role_ids must match direct-route roles in order; expected: investigator, executor, implementer; actual: investigator, executor, deep-reviewer",
       },
       {
         name: "duplicate escalation owner",
@@ -3918,6 +4063,12 @@ describe("play subagent routing source contracts", () => {
         '"target_\\u0070ermission":"exact-only","target_permission":"exact-only","role_permission"',
         /duplicate key target_permission/i,
       ],
+      [
+        "direct-route role binding",
+        '"direct_route_role_ids":["assessor"],"current_state"',
+        '"direct_route_role_ids":["assessor"],"direct_route_role_ids":["assessor"],"current_state"',
+        /duplicate key direct_route_role_ids/i,
+      ],
     ] as const) {
       const errors = validateEscalationConsumerContracts({
         ...sources,
@@ -3997,6 +4148,7 @@ describe("play subagent routing source contracts", () => {
       "target_ids",
       "target_permission",
       "role_permission",
+      "direct_route_role_ids",
       "current_state",
       "transition",
       "next_tuple",
