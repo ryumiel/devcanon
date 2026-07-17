@@ -148,6 +148,19 @@ export async function computePlan(
             contentHash: "",
             reason: "Source removed; cleaning up managed output.",
           });
+        } else {
+          actions.push({
+            kind: "remove-missing",
+            target: record.target,
+            type: record.type,
+            name: path.basename(record.installedPath),
+            sourcePath: record.sourcePath,
+            generatedPath: record.generatedPath,
+            installedPath: record.installedPath,
+            contentHash: "",
+            reason:
+              "Source removed; pruning an already-missing managed output.",
+          });
         }
       }
     }

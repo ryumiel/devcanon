@@ -231,6 +231,33 @@ describe("computePlan", () => {
     expect(removeActions[0].reason).toContain("cleaning up");
   });
 
+  it("outputs remove-missing for a stale record whose output is already absent", async () => {
+    mockedPathOrSymlinkExists.mockResolvedValue(false);
+    const manifest = makeManifest([
+      {
+        target: "claude",
+        type: "agent",
+        sourcePath: "/src/agents/stale.yaml",
+        generatedPath: null,
+        installedPath: "/installed/stale.md",
+        installMode: "symlink",
+        contentHash: "stale-hash",
+        timestamp: new Date().toISOString(),
+      },
+    ]);
+
+    const actions = await computePlan(
+      [],
+      manifest,
+      "overwrite-managed",
+      false,
+      true,
+    );
+
+    expect(actions).toHaveLength(1);
+    expect(actions[0].kind).toBe("remove-missing");
+  });
+
   it("does not remove other target's records when targetFilter is set", async () => {
     mockedPathExists.mockResolvedValue(true);
     mockedPathOrSymlinkExists.mockResolvedValue(true);

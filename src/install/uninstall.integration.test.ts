@@ -233,18 +233,21 @@ describe("uninstall", () => {
     await mkdir(path.dirname(config.manifest.path), { recursive: true });
     await writeFile(
       config.manifest.path,
-      makeManifestJson([
-        {
-          target: "codex",
-          type: "skill",
-          sourcePath: "/x/skills/foo",
-          generatedPath: null,
-          installedPath: path.join(config.targets.codex.skillsHome, "foo"),
-          installMode: "copy",
-          contentHash: "abc",
-          timestamp: new Date().toISOString(),
-        },
-      ]),
+      makeManifestJson(
+        [
+          {
+            target: "codex",
+            type: "skill",
+            sourcePath: "/x/skills/foo",
+            generatedPath: null,
+            installedPath: path.join(config.targets.codex.skillsHome, "foo"),
+            installMode: "copy",
+            contentHash: "abc",
+            timestamp: new Date().toISOString(),
+          },
+        ],
+        { config },
+      ),
       "utf-8",
     );
 
@@ -578,33 +581,33 @@ describe("uninstall", () => {
     const outsidePath = path.join(tempDir, "outside", "missing.md");
     await writeFile(
       config.manifest.path,
-      makeManifestJson([
-        {
-          target: "claude",
-          type: "agent",
-          sourcePath: path.join(config.library.agentsDir, "missing.yaml"),
-          generatedPath: path.join(
-            config.library.generatedDir,
-            "claude",
-            "agents",
-            "missing.md",
-          ),
-          installedPath: outsidePath,
-          installMode: "copy",
-          contentHash: "wrong-hash",
-          timestamp: new Date().toISOString(),
-        },
-      ]),
+      makeManifestJson(
+        [
+          {
+            target: "claude",
+            type: "agent",
+            sourcePath: path.join(config.library.agentsDir, "missing.yaml"),
+            generatedPath: path.join(
+              config.library.generatedDir,
+              "claude",
+              "agents",
+              "missing.md",
+            ),
+            installedPath: outsidePath,
+            installMode: "copy",
+            contentHash: "wrong-hash",
+            timestamp: new Date().toISOString(),
+          },
+        ],
+        { config },
+      ),
       "utf-8",
     );
     const manifestBefore = await readFile(config.manifest.path, "utf-8");
 
-    const result = await uninstall(config, { dryRun: false });
-
-    expect(result.removed).toBe(0);
-    expect(result.errors).toEqual([
-      expect.stringContaining("outside configured claude agent home"),
-    ]);
+    await expect(uninstall(config, { dryRun: false })).rejects.toThrow(
+      "foreign records",
+    );
     expect(await readFile(config.manifest.path, "utf-8")).toBe(manifestBefore);
   });
 
@@ -621,33 +624,33 @@ describe("uninstall", () => {
       await symlink(outsideDir, linkParent, "dir");
       await writeFile(
         config.manifest.path,
-        makeManifestJson([
-          {
-            target: "claude",
-            type: "agent",
-            sourcePath: path.join(config.library.agentsDir, "missing.yaml"),
-            generatedPath: path.join(
-              config.library.generatedDir,
-              "claude",
-              "agents",
-              "missing.md",
-            ),
-            installedPath,
-            installMode: "copy",
-            contentHash: "wrong-hash",
-            timestamp: new Date().toISOString(),
-          },
-        ]),
+        makeManifestJson(
+          [
+            {
+              target: "claude",
+              type: "agent",
+              sourcePath: path.join(config.library.agentsDir, "missing.yaml"),
+              generatedPath: path.join(
+                config.library.generatedDir,
+                "claude",
+                "agents",
+                "missing.md",
+              ),
+              installedPath,
+              installMode: "copy",
+              contentHash: "wrong-hash",
+              timestamp: new Date().toISOString(),
+            },
+          ],
+          { config },
+        ),
         "utf-8",
       );
       const manifestBefore = await readFile(config.manifest.path, "utf-8");
 
-      const result = await uninstall(config, { dryRun: false });
-
-      expect(result.removed).toBe(0);
-      expect(result.errors).toEqual([
-        expect.stringContaining("crosses symlinked parent component"),
-      ]);
+      await expect(uninstall(config, { dryRun: false })).rejects.toThrow(
+        "foreign records",
+      );
       expect(await readFile(config.manifest.path, "utf-8")).toBe(
         manifestBefore,
       );
@@ -706,33 +709,33 @@ describe("uninstall", () => {
     await writeFile(outsidePath, "sentinel", "utf-8");
     await writeFile(
       config.manifest.path,
-      makeManifestJson([
-        {
-          target: "claude",
-          type: "agent",
-          sourcePath: path.join(config.library.agentsDir, "sentinel.yaml"),
-          generatedPath: path.join(
-            config.library.generatedDir,
-            "claude",
-            "agents",
-            "sentinel.md",
-          ),
-          installedPath: outsidePath,
-          installMode: "copy",
-          contentHash: "wrong-hash",
-          timestamp: new Date().toISOString(),
-        },
-      ]),
+      makeManifestJson(
+        [
+          {
+            target: "claude",
+            type: "agent",
+            sourcePath: path.join(config.library.agentsDir, "sentinel.yaml"),
+            generatedPath: path.join(
+              config.library.generatedDir,
+              "claude",
+              "agents",
+              "sentinel.md",
+            ),
+            installedPath: outsidePath,
+            installMode: "copy",
+            contentHash: "wrong-hash",
+            timestamp: new Date().toISOString(),
+          },
+        ],
+        { config },
+      ),
       "utf-8",
     );
     const manifestBefore = await readFile(config.manifest.path, "utf-8");
 
-    const result = await uninstall(config, { dryRun: false });
-
-    expect(result.removed).toBe(0);
-    expect(result.errors).toEqual([
-      expect.stringContaining("outside configured claude agent home"),
-    ]);
+    await expect(uninstall(config, { dryRun: false })).rejects.toThrow(
+      "foreign records",
+    );
     expect(await readFile(outsidePath, "utf-8")).toBe("sentinel");
     expect(await readFile(config.manifest.path, "utf-8")).toBe(manifestBefore);
   });
@@ -754,23 +757,26 @@ describe("uninstall", () => {
       await writeFile(realInstalledPath, "sentinel", "utf-8");
       await writeFile(
         config.manifest.path,
-        makeManifestJson([
-          {
-            target: "claude",
-            type: "agent",
-            sourcePath: path.join(config.library.agentsDir, "sentinel.yaml"),
-            generatedPath: path.join(
-              config.library.generatedDir,
-              "claude",
-              "agents",
-              "sentinel.md",
-            ),
-            installedPath,
-            installMode: "copy",
-            contentHash: "wrong-hash",
-            timestamp: new Date().toISOString(),
-          },
-        ]),
+        makeManifestJson(
+          [
+            {
+              target: "claude",
+              type: "agent",
+              sourcePath: path.join(config.library.agentsDir, "sentinel.yaml"),
+              generatedPath: path.join(
+                config.library.generatedDir,
+                "claude",
+                "agents",
+                "sentinel.md",
+              ),
+              installedPath,
+              installMode: "copy",
+              contentHash: "wrong-hash",
+              timestamp: new Date().toISOString(),
+            },
+          ],
+          { config },
+        ),
         "utf-8",
       );
       const manifestBefore = await readFile(config.manifest.path, "utf-8");
@@ -801,10 +807,10 @@ describe("uninstall", () => {
       // throws EACCES and our error path is exercised. skill-b lives at
       // the writable top of skillsHome and is removable normally.
       // Skipped under root because chmod does not block root unlinks.
-      const lockedParent = path.join(skillsHome, "_locked");
+      const lockedParent = skillsHome;
       await mkdir(lockedParent, { recursive: true });
       const skillAPath = path.join(lockedParent, "skill-a");
-      const skillBPath = path.join(skillsHome, "skill-b");
+      const skillBPath = path.join(config.targets.codex.skillsHome, "skill-b");
       await mkdir(skillAPath, { recursive: true });
       await mkdir(skillBPath, { recursive: true });
       await writeFile(path.join(skillAPath, "SKILL.md"), "a", "utf-8");
@@ -814,28 +820,31 @@ describe("uninstall", () => {
       const timestamp = new Date().toISOString();
       await writeFile(
         config.manifest.path,
-        makeManifestJson([
-          {
-            target: "claude",
-            type: "skill",
-            sourcePath: "/x/skills/skill-a",
-            generatedPath: null,
-            installedPath: skillAPath,
-            installMode: "copy",
-            contentHash: buildSkillContentHash("a", new Map(), skillAPath),
-            timestamp,
-          },
-          {
-            target: "claude",
-            type: "skill",
-            sourcePath: "/x/skills/skill-b",
-            generatedPath: null,
-            installedPath: skillBPath,
-            installMode: "copy",
-            contentHash: buildSkillContentHash("b", new Map(), skillBPath),
-            timestamp,
-          },
-        ]),
+        makeManifestJson(
+          [
+            {
+              target: "claude",
+              type: "skill",
+              sourcePath: "/x/skills/skill-a",
+              generatedPath: null,
+              installedPath: skillAPath,
+              installMode: "copy",
+              contentHash: buildSkillContentHash("a", new Map(), skillAPath),
+              timestamp,
+            },
+            {
+              target: "codex",
+              type: "skill",
+              sourcePath: "/x/skills/skill-b",
+              generatedPath: null,
+              installedPath: skillBPath,
+              installMode: "copy",
+              contentHash: buildSkillContentHash("b", new Map(), skillBPath),
+              timestamp,
+            },
+          ],
+          { config },
+        ),
         "utf-8",
       );
 

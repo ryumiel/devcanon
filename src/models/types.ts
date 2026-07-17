@@ -41,7 +41,8 @@ export type PlanActionKind =
   | "skip-up-to-date"
   | "skip-conflict"
   | "force-overwrite"
-  | "remove";
+  | "remove"
+  | "remove-missing";
 
 export interface PlanAction {
   kind: PlanActionKind;
@@ -61,6 +62,7 @@ export interface SyncOptions {
   dryRun: boolean;
   force: boolean;
   strict: boolean;
+  reconcileManifest?: boolean;
 }
 
 export interface UninstallOptions {

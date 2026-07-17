@@ -175,18 +175,21 @@ describe("diffAll integration", () => {
     await mkdir(manifestDir, { recursive: true });
     await writeFile(
       config.manifest.path,
-      makeManifestJson([
-        {
-          target: "claude",
-          type: "skill",
-          sourcePath: skillOutput?.sourcePath as string,
-          generatedPath: null,
-          installedPath: installedSkillDir,
-          installMode: "copy",
-          contentHash: skillOutput?.contentHash as string,
-          timestamp: new Date().toISOString(),
-        },
-      ]),
+      makeManifestJson(
+        [
+          {
+            target: "claude",
+            type: "skill",
+            sourcePath: skillOutput?.sourcePath as string,
+            generatedPath: null,
+            installedPath: installedSkillDir,
+            installMode: "copy",
+            contentHash: skillOutput?.contentHash as string,
+            timestamp: new Date().toISOString(),
+          },
+        ],
+        { config },
+      ),
       "utf-8",
     );
 
@@ -226,18 +229,21 @@ describe("diffAll integration", () => {
     await mkdir(manifestDir, { recursive: true });
     await writeFile(
       config.manifest.path,
-      makeManifestJson([
-        {
-          target: "claude",
-          type: "skill",
-          sourcePath: skillOutput?.sourcePath as string,
-          generatedPath: null,
-          installedPath: installedSkillDir,
-          installMode: "copy",
-          contentHash: "stale-hash-does-not-match",
-          timestamp: new Date().toISOString(),
-        },
-      ]),
+      makeManifestJson(
+        [
+          {
+            target: "claude",
+            type: "skill",
+            sourcePath: skillOutput?.sourcePath as string,
+            generatedPath: null,
+            installedPath: installedSkillDir,
+            installMode: "copy",
+            contentHash: "stale-hash-does-not-match",
+            timestamp: new Date().toISOString(),
+          },
+        ],
+        { config },
+      ),
       "utf-8",
     );
 
@@ -275,7 +281,11 @@ describe("diffAll integration", () => {
     // Write empty manifest (no records)
     const manifestDir = path.dirname(config.manifest.path);
     await mkdir(manifestDir, { recursive: true });
-    await writeFile(config.manifest.path, makeManifestJson([]), "utf-8");
+    await writeFile(
+      config.manifest.path,
+      makeManifestJson([], { config }),
+      "utf-8",
+    );
 
     const results = await diffAll(config, "claude");
 
@@ -293,21 +303,24 @@ describe("diffAll integration", () => {
     await mkdir(manifestDir, { recursive: true });
     await writeFile(
       config.manifest.path,
-      makeManifestJson([
-        {
-          target: "claude",
-          type: "agent",
-          sourcePath: "/src/agents/deleted.yaml",
-          generatedPath: "/gen/claude/agents/deleted.md",
-          installedPath: path.join(
-            config.targets.claude.agentsHome,
-            "deleted.md",
-          ),
-          installMode: "copy",
-          contentHash: "old-hash",
-          timestamp: new Date().toISOString(),
-        },
-      ]),
+      makeManifestJson(
+        [
+          {
+            target: "claude",
+            type: "agent",
+            sourcePath: "/src/agents/deleted.yaml",
+            generatedPath: "/gen/claude/agents/deleted.md",
+            installedPath: path.join(
+              config.targets.claude.agentsHome,
+              "deleted.md",
+            ),
+            installMode: "copy",
+            contentHash: "old-hash",
+            timestamp: new Date().toISOString(),
+          },
+        ],
+        { config },
+      ),
       "utf-8",
     );
 

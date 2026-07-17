@@ -1,9 +1,18 @@
+import { randomUUID } from "node:crypto";
 import path from "node:path";
 import type { ResolvedConfig } from "../config/schema.js";
 import type { PlanAction, UninstallOptions } from "../models/types.js";
 import { getLogger } from "../utils/output.js";
 import { verifyManagedOutputIdentity } from "./identity.js";
-import { loadManifest, saveManifest, updateManifest } from "./manifest.js";
+import { normalizeManifestIdentity } from "./manifest-identity.js";
+import {
+  type ManifestBackupAuthority,
+  createManifestBackupAuthority,
+  loadManifestWithSnapshot,
+  releaseManifestBackupAuthority,
+  saveManifest,
+  updateManifest,
+} from "./manifest.js";
 import { executeRemove, formatRemoveDryRunLine } from "./remove.js";
 
 export interface UninstallResult {
@@ -18,7 +27,14 @@ export async function uninstall(
   const logger = getLogger();
   const result: UninstallResult = { removed: 0, errors: [] };
 
-  const manifest = await loadManifest(config.manifest.path);
+  const loaded = await loadManifestWithSnapshot(config.manifest.path);
+  const normalized = normalizeManifestIdentity(loaded.manifest, config);
+  if (normalized.records.some((record) => record.ownership === "foreign")) {
+    throw new Error(
+      "Manifest contains foreign records; refusing to uninstall.",
+    );
+  }
+  const manifest = normalized.manifest;
 
   // Filter records by target
   const records = options.target
@@ -54,36 +70,62 @@ export async function uninstall(
     return result;
   }
 
-  // Execute: remove each path, accumulate errors, continue on failure
-  const removedPaths: string[] = [];
-  for (const action of plan) {
-    try {
-      const record = records.find(
-        (item) => item.installedPath === action.installedPath,
+  const operationId = `uninstall-${randomUUID()}`;
+  let authority: ManifestBackupAuthority | undefined;
+  try {
+    if (!loaded.snapshot) {
+      throw new Error(
+        "Manifest cleanup requires a schema-valid loaded snapshot.",
       );
-      if (!record) {
-        throw new Error("manifest record missing for uninstall action");
+    }
+    authority = await createManifestBackupAuthority(
+      config.manifest.path,
+      loaded.snapshot,
+      operationId,
+    );
+
+    // Execute: remove each path, accumulate errors, continue on failure
+    const removedPaths: string[] = [];
+    for (const action of plan) {
+      try {
+        const record = records.find(
+          (item) => item.installedPath === action.installedPath,
+        );
+        if (!record) {
+          throw new Error("manifest record missing for uninstall action");
+        }
+        await verifyManagedOutputIdentity({
+          config,
+          record,
+          allowMissing: true,
+        });
+        await executeRemove(action);
+        removedPaths.push(action.installedPath);
+        result.removed += 1;
+      } catch (err) {
+        result.errors.push(
+          `Failed to remove ${action.installedPath}: ${(err as Error).message}`,
+        );
       }
-      await verifyManagedOutputIdentity({ config, record, allowMissing: true });
-      await executeRemove(action);
-      removedPaths.push(action.installedPath);
-      result.removed += 1;
-    } catch (err) {
-      result.errors.push(
-        `Failed to remove ${action.installedPath}: ${(err as Error).message}`,
-      );
     }
-  }
 
-  // Update manifest with whatever we successfully removed
-  if (removedPaths.length > 0) {
-    try {
-      const updated = updateManifest(manifest, [], removedPaths);
-      await saveManifest(config.manifest.path, updated);
-    } catch (err) {
-      result.errors.push(`Failed to save manifest: ${(err as Error).message}`);
+    // Update manifest with whatever we successfully removed
+    if (removedPaths.length > 0) {
+      try {
+        const updated = updateManifest(manifest, [], removedPaths);
+        await saveManifest(config.manifest.path, updated, {
+          authority,
+          operationId,
+        });
+      } catch (err) {
+        result.errors.push(
+          `Failed to save manifest: ${(err as Error).message}`,
+        );
+      }
     }
-  }
 
-  return result;
+    return result;
+  } finally {
+    if (authority) await releaseManifestBackupAuthority(authority);
+  }
 }

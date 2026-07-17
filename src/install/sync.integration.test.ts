@@ -1606,16 +1606,9 @@ describe("sync", () => {
     );
     const manifestBefore = JSON.parse(await readTextFile(config.manifest.path));
 
-    const result = await sync(config, {
-      dryRun: false,
-      force: false,
-      strict: false,
-    });
-
-    expect(result.removed).toBe(0);
-    expect(result.errors).toEqual([
-      expect.stringContaining("outside configured claude agent home"),
-    ]);
+    await expect(
+      sync(config, { dryRun: false, force: false, strict: false }),
+    ).rejects.toThrow("Manifest boundary mismatch");
     expect(await readTextFile(outsidePath)).toBe("sentinel");
     const manifestAfter = JSON.parse(await readTextFile(config.manifest.path));
     expect(manifestAfter.records).toEqual(manifestBefore.records);
@@ -1662,16 +1655,9 @@ describe("sync", () => {
         await readTextFile(config.manifest.path),
       );
 
-      const result = await sync(config, {
-        dryRun: false,
-        force: false,
-        strict: false,
-      });
-
-      expect(result.removed).toBe(0);
-      expect(result.errors).toEqual([
-        expect.stringContaining("crosses symlinked parent component"),
-      ]);
+      await expect(
+        sync(config, { dryRun: false, force: false, strict: false }),
+      ).rejects.toThrow("Manifest boundary mismatch");
       expect(await readTextFile(path.join(outsideDir, "sentinel.md"))).toBe(
         "sentinel",
       );
@@ -1721,16 +1707,9 @@ describe("sync", () => {
         await readTextFile(config.manifest.path),
       );
 
-      const result = await sync(config, {
-        dryRun: false,
-        force: false,
-        strict: false,
-      });
-
-      expect(result.removed).toBe(0);
-      expect(result.errors).toEqual([
-        expect.stringContaining("configured claude agent home is a symlink"),
-      ]);
+      await expect(
+        sync(config, { dryRun: false, force: false, strict: false }),
+      ).rejects.toThrow("Manifest boundary mismatch");
       expect(await readTextFile(realInstalledPath)).toBe("sentinel");
       const manifestAfter = JSON.parse(
         await readTextFile(config.manifest.path),
@@ -1779,16 +1758,9 @@ describe("sync", () => {
         await readTextFile(config.manifest.path),
       );
 
-      const result = await sync(config, {
-        dryRun: false,
-        force: false,
-        strict: false,
-      });
-
-      expect(result.removed).toBe(0);
-      expect(result.errors).toEqual([
-        expect.stringContaining("crosses symlinked ancestor"),
-      ]);
+      await expect(
+        sync(config, { dryRun: false, force: false, strict: false }),
+      ).rejects.toThrow("Manifest boundary mismatch");
       expect(await readTextFile(realInstalledPath)).toBe("sentinel");
       const manifestAfter = JSON.parse(
         await readTextFile(config.manifest.path),

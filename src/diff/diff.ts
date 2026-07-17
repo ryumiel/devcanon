@@ -2,7 +2,8 @@ import { realpath } from "node:fs/promises";
 import path from "node:path";
 import { createTwoFilesPatch } from "diff";
 import type { ResolvedConfig } from "../config/schema.js";
-import { loadManifest } from "../install/manifest.js";
+import { normalizeManifestIdentity } from "../install/manifest-identity.js";
+import { loadManifestWithSnapshot } from "../install/manifest.js";
 import type { DiffResult } from "../models/types.js";
 import { renderAll } from "../render/pipeline.js";
 import { pathExists, readTextFile } from "../utils/fs.js";
@@ -12,8 +13,13 @@ export async function diffAll(
   targetFilter?: "claude" | "codex",
   strict = false,
 ): Promise<DiffResult[]> {
+  const loaded = await loadManifestWithSnapshot(config.manifest.path);
+  const normalized = normalizeManifestIdentity(loaded.manifest, config);
+  if (normalized.records.some((record) => record.ownership === "foreign")) {
+    throw new Error("Manifest contains foreign records; refusing to diff.");
+  }
+  const manifest = normalized.manifest;
   const { outputs } = await renderAll(config, false, strict, targetFilter);
-  const manifest = await loadManifest(config.manifest.path);
   const results: DiffResult[] = [];
 
   for (const output of outputs) {

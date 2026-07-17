@@ -82,6 +82,7 @@ program
   .option("--mode <mode>", "symlink or copy")
   .option("--dry-run", "show plan without executing")
   .option("--force", "overwrite unmanaged files")
+  .option("--reconcile-manifest", "remove foreign legacy manifest records")
   .action(syncAction);
 
 // uninstall

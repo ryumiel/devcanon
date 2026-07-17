@@ -9,6 +9,7 @@ interface SyncCommandOptions {
   mode?: string;
   dryRun?: boolean;
   force?: boolean;
+  reconcileManifest?: boolean;
 }
 
 export async function syncAction(
@@ -39,6 +40,7 @@ export async function syncAction(
     dryRun: options.dryRun ?? false,
     force: options.force ?? false,
     strict,
+    reconcileManifest: options.reconcileManifest ?? false,
   };
 
   const result = await sync(config, syncOptions);
