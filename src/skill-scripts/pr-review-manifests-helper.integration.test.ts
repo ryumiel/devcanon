@@ -641,24 +641,47 @@ function phase5AuditEnv(workspace: Phase5AuditWorkspace) {
   };
 }
 
-async function runPhase5Audit(workspace: Phase5AuditWorkspace) {
-  const env: NodeJS.ProcessEnv = {
-    ...process.env,
-    ...phase5AuditEnv(workspace),
-  };
+function phase5ProcessEnv(env: NodeJS.ProcessEnv = {}) {
+  const childEnv: NodeJS.ProcessEnv = { ...process.env, ...env };
   for (const key of [
     "PR_REVIEW_DIR",
     "PR_REVIEW_MANIFEST_HELPER_SCRIPT",
     "PR_REVIEW_LEASE_HELPER_SCRIPT",
     "PLAY_REVIEW_HELPER",
+    "PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT",
     "DEVCANON_RUNTIME_DIR",
   ]) {
-    delete env[key];
+    delete childEnv[key];
   }
+  return childEnv;
+}
+
+async function runPhase5Helper(
+  cwd: string,
+  command: string,
+  env: NodeJS.ProcessEnv,
+  script: string,
+) {
+  return execFileAsync("bash", [script, command], {
+    cwd,
+    env: phase5ProcessEnv({
+      PR_NUMBER: prNumber,
+      REPOSITORY: "owner/repo",
+      ...env,
+    }),
+    maxBuffer: 1024 * 1024,
+  });
+}
+
+async function runPhase5Audit(workspace: Phase5AuditWorkspace) {
   return execFileAsync(
     "bash",
     [workspace.manifestScript, "render-phase5-audit-summary"],
-    { cwd: workspace.primary, env, maxBuffer: 1024 * 1024 },
+    {
+      cwd: workspace.primary,
+      env: phase5ProcessEnv(phase5AuditEnv(workspace)),
+      maxBuffer: 1024 * 1024,
+    },
   );
 }
 
@@ -670,7 +693,7 @@ async function writePhase5Lease(
     PRIMARY_REPOSITORY_ROOT: workspace.physicalPrimary,
     WORKTREE_PATH: workspace.physicalWorktree,
   };
-  const { stdout } = await runHelper(
+  const { stdout } = await runPhase5Helper(
     workspace.primary,
     "derive-path",
     leaseIdentity,
@@ -678,7 +701,7 @@ async function writePhase5Lease(
   );
   const leaseFile = stdout.trim();
   const writeLease = (state: "created" | "reviewed" | "gated", env = {}) =>
-    runHelper(
+    runPhase5Helper(
       workspace.primary,
       "write",
       {
@@ -729,7 +752,7 @@ async function makePhase5AuditWorkspace(): Promise<Phase5AuditWorkspace> {
     const { manifestScript, leaseScript } =
       await copyInstalledPhase5AuditLayout(installedRoot);
     await writeValidInputs(worktree, baseSha, headSha);
-    await runHelper(
+    await runPhase5Helper(
       worktree,
       "write-handoff",
       handoffEnv(physicalWorktree, baseSha, headSha),
@@ -741,7 +764,7 @@ async function makePhase5AuditWorkspace(): Promise<Phase5AuditWorkspace> {
     );
     await writeFile(path.join(worktree, previewPath(headSha)), "Preview\n");
     const resultFile = resultPath(headSha);
-    await runHelper(
+    await runPhase5Helper(
       worktree,
       "write-result",
       {
@@ -893,8 +916,12 @@ describe("pr-review manifest helper", () => {
   // skills/pr-review/SKILL.md owns this public invocation; runtime unit tests
   // cannot prove the copied wrapper's sibling discovery composes end to end.
   it("renders the Phase 5 audit through a copied installed sibling layout using only public inputs", async () => {
-    const workspace = await makePhase5AuditWorkspace();
+    const previousValidatorOverride =
+      process.env.PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT;
+    process.env.PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT = helperScript;
+    let workspace: Phase5AuditWorkspace | undefined;
     try {
+      workspace = await makePhase5AuditWorkspace();
       expect(Object.keys(phase5AuditEnv(workspace))).toEqual([
         "REPOSITORY",
         "PR_NUMBER",
@@ -908,24 +935,61 @@ describe("pr-review manifest helper", () => {
         path.join(workspace.primary, workspace.leaseFile),
         "utf8",
       );
+      const lease = JSON.parse(beforeLease) as {
+        worktree_digest: string;
+        validation: {
+          result_manifest: { sha256: string; validated_at: string };
+        };
+      };
       const { stdout } = await runPhase5Audit(workspace);
 
       expect(stdout).toContain("## Phase 5 Artifact Audit Summary");
       expect(stdout).toContain(`Reviewed head SHA: \`${workspace.headSha}\``);
-      expect(stdout).toContain("Active diff range:");
-      expect(stdout).toContain("Result manifest:");
-      expect(stdout).toContain("Findings:");
-      expect(stdout).toContain("Validation status:");
-      expect(stdout).toContain("Presentation status:");
-      expect(stdout).toContain("Lease/worktree status:");
-      expect(stdout).toContain("Cleanup note: lease-gated cleanup pending");
+      expect(stdout).toContain("Repository and PR: `owner/repo#390`");
+      expect(stdout).toContain("Base/head refs: `main` -> `topic`");
+      expect(stdout).toContain(
+        `Active diff range: \`${workspace.baseSha}..${workspace.headSha}\``,
+      );
+      expect(stdout).toContain(
+        `Full PR diff range: \`${workspace.baseSha}..${workspace.headSha}\``,
+      );
+      expect(stdout).toContain(`Result manifest: \`${workspace.resultFile}\``);
+      expect(stdout).toContain(
+        `Findings: \`${findingsPath(workspace.headSha)}\` (0 active, 0 carry-forward)`,
+      );
+      expect(stdout).toContain(
+        `Result artifacts: handoff \`${handoffPath(workspace.headSha)}\`, scope \`${scopePath(workspace.headSha)}\`, prior threads \`none\`, review body \`${reviewBodyPath(workspace.headSha)}\`, context \`none\`, rendered preview \`${previewPath(workspace.headSha)}\``,
+      );
+      expect(stdout).toContain(
+        `Validation status: result \`valid\`; findings validated \`true\`; scope validated \`true\`; lease result digest \`${lease.validation.result_manifest.sha256}\`; lease validated at \`${lease.validation.result_manifest.validated_at}\``,
+      );
+      expect(stdout).toContain(
+        "Presentation status: result `preview-current`; lease `preview-current`; presented at `2026-07-17T00:02:00Z`",
+      );
+      expect(stdout).toContain(
+        `Lease/worktree status: lease \`gated\`; worktree \`${workspace.physicalWorktree}\`; digest \`${lease.worktree_digest}\`; exists \`true\`; registered \`true\`; dirty \`true\`; identity match \`true\``,
+      );
+      expect(stdout).toContain(
+        "Cleanup note: lease-gated cleanup pending; cleanup not attempted in Phase 5.",
+      );
       await expect(
         readFile(path.join(workspace.primary, workspace.leaseFile), "utf8"),
       ).resolves.toBe(beforeLease);
     } finally {
-      await cleanupPhase5AuditWorkspace(workspace);
+      if (previousValidatorOverride === undefined) {
+        Reflect.deleteProperty(
+          process.env,
+          "PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT",
+        );
+      } else {
+        process.env.PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT =
+          previousValidatorOverride;
+      }
+      if (workspace !== undefined) {
+        await cleanupPhase5AuditWorkspace(workspace);
+      }
     }
-  }, 30_000);
+  }, 60_000);
 
   it("fails closed when the copied Phase 5 audit layout is missing its prior-thread sibling", async () => {
     const workspace = await makePhase5AuditWorkspace();
@@ -985,7 +1049,9 @@ describe("pr-review manifest helper", () => {
 
       await expect(runPhase5Audit(workspace)).rejects.toMatchObject({
         stdout: "",
-        stderr: expect.stringContaining("read-status failed:"),
+        stderr: expect.stringContaining(
+          "read-status failed: result manifest digest mismatch",
+        ),
       });
     } finally {
       await cleanupPhase5AuditWorkspace(workspace);
