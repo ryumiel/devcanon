@@ -293,15 +293,29 @@ script to open when more detail is needed.
 ### Future controller capability transitions
 
 When authoring a controller that could change a direct child's capability or
-effort after a failure, reference `subagent-lifecycle` and the Agent Routing and
-Mutation Policy adoption inventory. Every future workflow declaration, including
-an opt-out, must name its exact target and semantic role. Declare either the
-shared owner's complete exact target-supported current and next capability plus
-effort, mechanism, budget, invariants, and terminal behavior, or an explicit
-opt-out with `transition: none`. Do not infer a transition from ambient, nearby,
-alias, or role substitution. No static agent schema change is required:
-controller orchestration remains skill prose and the shared owner remains the
-sole common policy source.
+effort after a failure, reference `subagent-lifecycle` and the
+[Agent Routing and Mutation Policy](agent-routing-and-mutation-policy.md)
+adoption inventory. That policy is the sole authoritative D1-D17 adoption inventory and grammar owner; this guide is a non-owning consumer projection, so
+authors must consult the owner rather than reproduce a registry or grammar here.
+
+An opt-out is a route-level declaration. It names route identity, plural
+`target_ids`, target permission, role permission, the applicable direct-route
+role binding, literal `transition: none`, and the route-specific owner clauses.
+Do not require one exact target or semantic role for a route-level opt-out.
+Only transition declaration shapes that actually select those concrete fields
+require exact single target/role fields. D4 is one six-role-set special case using its existing route-set contract; it has no
+`direct_route_role_ids` field, which applies only to non-D4 routes. Do not
+expand D4 into per-role opt-outs. D17 is one route-level opt-out with its exact
+ordered three-clause direct-route role binding: `investigator`, `executor`,
+then `implementer`; do not create three per-role opt-out records.
+
+For active transition declaration shapes, declare the shared owner's complete
+exact target-supported current and next capability plus effort, mechanism,
+budget, invariants, and terminal behavior. Do not infer a transition from
+ambient, nearby, alias, or role substitution. No static agent schema or runtime
+change is required; capability/effort, tools, sandbox, approvals, context,
+scope, termination, authority, orchestration, retries, and escalation remain
+separate concerns; controller orchestration remains skill prose.
 
 ## 7. Testing
 

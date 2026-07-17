@@ -206,16 +206,16 @@ a security proof.
 9. Validate with `devcanon validate`.
 10. Preview the generated output with `devcanon render`.
 
-For a future controller capability transition, use `subagent-lifecycle` and the
-Agent Routing and Mutation Policy adoption inventory rather than changing an
-agent role. Every future workflow declaration, including an opt-out, must name
-its exact target and semantic role. Declare the shared owner's exact
-target-supported current and next capability plus effort, mechanism, budget,
-invariants, and terminal behavior, or an explicit opt-out with `transition:
-none`. Never infer an escalation from ambient, nearby, alias, or role
-substitution. No static agent schema change is required; capability/effort,
-tools, sandbox, authority, orchestration, retries, and escalation remain
-separate concerns.
+For a future controller capability transition, an agent author must consult the
+[Future controller capability transitions](writing-skills.md#future-controller-capability-transitions)
+subsection before drafting or changing role configuration, then consult the
+[Agent Routing and Mutation Policy](agent-routing-and-mutation-policy.md)
+adoption owner for the current route's governing declaration. The writing-skills
+subsection is the canonical non-owner projection; the routing policy remains the
+sole adoption-inventory and grammar owner.
+
+Active transitions belong to controller-orchestration skill prose and are
+neither encoded nor implied by static agent-role configuration.
 
 ## 8. See Also
 
