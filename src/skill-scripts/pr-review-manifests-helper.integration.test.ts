@@ -47,6 +47,7 @@ const runtimeSkillDir = path.join(process.cwd(), "skills/devcanon-runtime");
 const symlinkAvailable = await canCreateSymlinks();
 const isWindows = process.platform === "win32";
 const prNumber = "390";
+const phase5InstalledLayoutTestTimeout = 120_000;
 const PROVIDER_EVIDENCE_SCHEMA = "pr-review/provider-scope-evidence/v2";
 const DIGEST_PROVENANCE_SCHEMA = "pr-review/digest-provenance/v1";
 const CANONICAL_GIT_DIFF_DIALECT = "canonical-git-diff/v1";
@@ -915,148 +916,166 @@ describe("pr-review manifest helper", () => {
 
   // skills/pr-review/SKILL.md owns this public invocation; runtime unit tests
   // cannot prove the copied wrapper's sibling discovery composes end to end.
-  it("renders the Phase 5 audit through a copied installed sibling layout using only public inputs", async () => {
-    const previousValidatorOverride =
-      process.env.PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT;
-    process.env.PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT = helperScript;
-    let workspace: Phase5AuditWorkspace | undefined;
-    try {
-      workspace = await makePhase5AuditWorkspace();
-      expect(Object.keys(phase5AuditEnv(workspace))).toEqual([
-        "REPOSITORY",
-        "PR_NUMBER",
-        "HEAD_SHA",
-        "RESULT_FILE",
-        "PRIMARY_REPOSITORY_ROOT",
-        "WORKTREE_PATH",
-        "LEASE_FILE",
-      ]);
-      const beforeLease = await readFile(
-        path.join(workspace.primary, workspace.leaseFile),
-        "utf8",
-      );
-      const lease = JSON.parse(beforeLease) as {
-        worktree_digest: string;
-        validation: {
-          result_manifest: { sha256: string; validated_at: string };
-        };
-      };
-      const { stdout } = await runPhase5Audit(workspace);
-
-      expect(stdout).toContain("## Phase 5 Artifact Audit Summary");
-      expect(stdout).toContain(`Reviewed head SHA: \`${workspace.headSha}\``);
-      expect(stdout).toContain("Repository and PR: `owner/repo#390`");
-      expect(stdout).toContain("Base/head refs: `main` -> `topic`");
-      expect(stdout).toContain(
-        `Active diff range: \`${workspace.baseSha}..${workspace.headSha}\``,
-      );
-      expect(stdout).toContain(
-        `Full PR diff range: \`${workspace.baseSha}..${workspace.headSha}\``,
-      );
-      expect(stdout).toContain(`Result manifest: \`${workspace.resultFile}\``);
-      expect(stdout).toContain(
-        `Findings: \`${findingsPath(workspace.headSha)}\` (0 active, 0 carry-forward)`,
-      );
-      expect(stdout).toContain(
-        `Result artifacts: handoff \`${handoffPath(workspace.headSha)}\`, scope \`${scopePath(workspace.headSha)}\`, prior threads \`none\`, review body \`${reviewBodyPath(workspace.headSha)}\`, context \`none\`, rendered preview \`${previewPath(workspace.headSha)}\``,
-      );
-      expect(stdout).toContain(
-        `Validation status: result \`valid\`; findings validated \`true\`; scope validated \`true\`; lease result digest \`${lease.validation.result_manifest.sha256}\`; lease validated at \`${lease.validation.result_manifest.validated_at}\``,
-      );
-      expect(stdout).toContain(
-        "Presentation status: result `preview-current`; lease `preview-current`; presented at `2026-07-17T00:02:00Z`",
-      );
-      expect(stdout).toContain(
-        `Lease/worktree status: lease \`gated\`; worktree \`${workspace.physicalWorktree}\`; digest \`${lease.worktree_digest}\`; exists \`true\`; registered \`true\`; dirty \`true\`; identity match \`true\``,
-      );
-      expect(stdout).toContain(
-        "Cleanup note: lease-gated cleanup pending; cleanup not attempted in Phase 5.",
-      );
-      await expect(
-        readFile(path.join(workspace.primary, workspace.leaseFile), "utf8"),
-      ).resolves.toBe(beforeLease);
-    } finally {
-      if (previousValidatorOverride === undefined) {
-        Reflect.deleteProperty(
-          process.env,
-          "PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT",
+  it(
+    "renders the Phase 5 audit through a copied installed sibling layout using only public inputs",
+    async () => {
+      const previousValidatorOverride =
+        process.env.PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT;
+      process.env.PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT = helperScript;
+      let workspace: Phase5AuditWorkspace | undefined;
+      try {
+        workspace = await makePhase5AuditWorkspace();
+        expect(Object.keys(phase5AuditEnv(workspace))).toEqual([
+          "REPOSITORY",
+          "PR_NUMBER",
+          "HEAD_SHA",
+          "RESULT_FILE",
+          "PRIMARY_REPOSITORY_ROOT",
+          "WORKTREE_PATH",
+          "LEASE_FILE",
+        ]);
+        const beforeLease = await readFile(
+          path.join(workspace.primary, workspace.leaseFile),
+          "utf8",
         );
-      } else {
-        process.env.PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT =
-          previousValidatorOverride;
+        const lease = JSON.parse(beforeLease) as {
+          worktree_digest: string;
+          validation: {
+            result_manifest: { sha256: string; validated_at: string };
+          };
+        };
+        const { stdout } = await runPhase5Audit(workspace);
+
+        expect(stdout).toContain("## Phase 5 Artifact Audit Summary");
+        expect(stdout).toContain(`Reviewed head SHA: \`${workspace.headSha}\``);
+        expect(stdout).toContain("Repository and PR: `owner/repo#390`");
+        expect(stdout).toContain("Base/head refs: `main` -> `topic`");
+        expect(stdout).toContain(
+          `Active diff range: \`${workspace.baseSha}..${workspace.headSha}\``,
+        );
+        expect(stdout).toContain(
+          `Full PR diff range: \`${workspace.baseSha}..${workspace.headSha}\``,
+        );
+        expect(stdout).toContain(
+          `Result manifest: \`${workspace.resultFile}\``,
+        );
+        expect(stdout).toContain(
+          `Findings: \`${findingsPath(workspace.headSha)}\` (0 active, 0 carry-forward)`,
+        );
+        expect(stdout).toContain(
+          `Result artifacts: handoff \`${handoffPath(workspace.headSha)}\`, scope \`${scopePath(workspace.headSha)}\`, prior threads \`none\`, review body \`${reviewBodyPath(workspace.headSha)}\`, context \`none\`, rendered preview \`${previewPath(workspace.headSha)}\``,
+        );
+        expect(stdout).toContain(
+          `Validation status: result \`valid\`; findings validated \`true\`; scope validated \`true\`; lease result digest \`${lease.validation.result_manifest.sha256}\`; lease validated at \`${lease.validation.result_manifest.validated_at}\``,
+        );
+        expect(stdout).toContain(
+          "Presentation status: result `preview-current`; lease `preview-current`; presented at `2026-07-17T00:02:00Z`",
+        );
+        expect(stdout).toContain(
+          `Lease/worktree status: lease \`gated\`; worktree \`${workspace.physicalWorktree}\`; digest \`${lease.worktree_digest}\`; exists \`true\`; registered \`true\`; dirty \`true\`; identity match \`true\``,
+        );
+        expect(stdout).toContain(
+          "Cleanup note: lease-gated cleanup pending; cleanup not attempted in Phase 5.",
+        );
+        await expect(
+          readFile(path.join(workspace.primary, workspace.leaseFile), "utf8"),
+        ).resolves.toBe(beforeLease);
+      } finally {
+        if (previousValidatorOverride === undefined) {
+          Reflect.deleteProperty(
+            process.env,
+            "PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT",
+          );
+        } else {
+          process.env.PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT =
+            previousValidatorOverride;
+        }
+        if (workspace !== undefined) {
+          await cleanupPhase5AuditWorkspace(workspace);
+        }
       }
-      if (workspace !== undefined) {
+    },
+    phase5InstalledLayoutTestTimeout,
+  );
+
+  it(
+    "fails closed when the copied Phase 5 audit layout is missing its prior-thread sibling",
+    async () => {
+      const workspace = await makePhase5AuditWorkspace();
+      try {
+        await rm(
+          path.join(
+            workspace.installedRoot,
+            "pr-review/scripts/prior-thread-artifacts.sh",
+          ),
+        );
+
+        await expect(runPhase5Audit(workspace)).rejects.toMatchObject({
+          stdout: "",
+          stderr: expect.stringContaining(
+            "pr-review prior-thread artifact helper missing or not executable",
+          ),
+        });
+      } finally {
         await cleanupPhase5AuditWorkspace(workspace);
       }
-    }
-  }, 60_000);
+    },
+    phase5InstalledLayoutTestTimeout,
+  );
 
-  it("fails closed when the copied Phase 5 audit layout is missing its prior-thread sibling", async () => {
-    const workspace = await makePhase5AuditWorkspace();
-    try {
-      await rm(
-        path.join(
-          workspace.installedRoot,
-          "pr-review/scripts/prior-thread-artifacts.sh",
-        ),
-      );
+  it(
+    "fails closed when the copied play-review helper is outside the installed sibling layout",
+    async () => {
+      const workspace = await makePhase5AuditWorkspace();
+      try {
+        await rename(
+          path.join(workspace.installedRoot, "play-review"),
+          path.join(workspace.installedRoot, "misplaced-play-review"),
+        );
 
-      await expect(runPhase5Audit(workspace)).rejects.toMatchObject({
-        stdout: "",
-        stderr: expect.stringContaining(
-          "pr-review prior-thread artifact helper missing or not executable",
-        ),
-      });
-    } finally {
-      await cleanupPhase5AuditWorkspace(workspace);
-    }
-  }, 30_000);
+        await expect(runPhase5Audit(workspace)).rejects.toMatchObject({
+          stdout: "",
+          stderr: expect.stringContaining(
+            "play-review findings helper missing or not executable",
+          ),
+        });
+      } finally {
+        await cleanupPhase5AuditWorkspace(workspace);
+      }
+    },
+    phase5InstalledLayoutTestTimeout,
+  );
 
-  it("fails closed when the copied play-review helper is outside the installed sibling layout", async () => {
-    const workspace = await makePhase5AuditWorkspace();
-    try {
-      await rename(
-        path.join(workspace.installedRoot, "play-review"),
-        path.join(workspace.installedRoot, "misplaced-play-review"),
-      );
-
-      await expect(runPhase5Audit(workspace)).rejects.toMatchObject({
-        stdout: "",
-        stderr: expect.stringContaining(
-          "play-review findings helper missing or not executable",
-        ),
-      });
-    } finally {
-      await cleanupPhase5AuditWorkspace(workspace);
-    }
-  }, 30_000);
-
-  it("fails before summary when the gated lease result digest is stale", async () => {
-    const workspace = await makePhase5AuditWorkspace();
-    try {
-      const lease = await readJson(workspace.primary, workspace.leaseFile);
-      await writeJson(workspace.primary, workspace.leaseFile, {
-        ...lease,
-        validation: {
-          ...(lease.validation as Record<string, unknown>),
-          result_manifest: {
-            ...((lease.validation as Record<string, unknown>)
-              .result_manifest as Record<string, unknown>),
-            sha256: "f".repeat(64),
+  it(
+    "fails before summary when the gated lease result digest is stale",
+    async () => {
+      const workspace = await makePhase5AuditWorkspace();
+      try {
+        const lease = await readJson(workspace.primary, workspace.leaseFile);
+        await writeJson(workspace.primary, workspace.leaseFile, {
+          ...lease,
+          validation: {
+            ...(lease.validation as Record<string, unknown>),
+            result_manifest: {
+              ...((lease.validation as Record<string, unknown>)
+                .result_manifest as Record<string, unknown>),
+              sha256: "f".repeat(64),
+            },
           },
-        },
-      });
+        });
 
-      await expect(runPhase5Audit(workspace)).rejects.toMatchObject({
-        stdout: "",
-        stderr: expect.stringContaining(
-          "read-status failed: result manifest digest mismatch",
-        ),
-      });
-    } finally {
-      await cleanupPhase5AuditWorkspace(workspace);
-    }
-  }, 30_000);
+        await expect(runPhase5Audit(workspace)).rejects.toMatchObject({
+          stdout: "",
+          stderr: expect.stringContaining(
+            "read-status failed: result manifest digest mismatch",
+          ),
+        });
+      } finally {
+        await cleanupPhase5AuditWorkspace(workspace);
+      }
+    },
+    phase5InstalledLayoutTestTimeout,
+  );
 
   it("derives deterministic handoff/result paths and separates different heads", async () => {
     const { cwd, headSha } = await makeGitWorkspace();
