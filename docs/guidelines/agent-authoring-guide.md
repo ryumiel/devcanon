@@ -58,6 +58,12 @@ sandbox, or approval policy. Every semantic child role has external authority
 `none`; only the owning root/controller may hold separately authorized
 `external-mutable` authority.
 
+Codex `sandbox_mode` and `approval_policy` are reusable inherited
+configuration defaults or layers, not immutable enforcement. A live parent or
+runtime policy can apply a different setting. Treat them as target configuration
+to classify alongside authority, never as proof that source or external writes
+are prevented.
+
 ## 3. Anti-Patterns
 
 Avoid these cases:
@@ -72,6 +78,8 @@ Avoid these cases:
 - Treating `workspace-write` or a `Write` tool as permission to modify durable
   source. Source-immutable roles use those capabilities only for a single
   dispatch-named direct-child `.ephemeral` handoff.
+- Treating sandbox or approval values as immutable enforcement. A hard
+  non-mutation claim requires an actually enforced read-only policy.
 - Inferring GitHub, Linear, Notion, or other external mutation authority from
   source authority or target capabilities.
 - Treating delegation or orchestration as a YAML field or schema control knob.
@@ -152,6 +160,14 @@ source-immutable dispatch before consuming the result; the spec-owned
 write-capable envelope permits the optional named handoff and does not grant
 durable-source authority.
 
+Each source-immutable role must state the complete three-part boundary in its
+own instructions: no durable file edits, no mutating commands outside the one
+dispatch-named direct-child `.ephemeral` handoff lifecycle, and no GitHub,
+Linear, Notion, or other external writes. The same instruction text must render
+to both targets. Render checks are behavioral evidence only; broader-permission
+trials must inspect relevant repository and modeled external-action state,
+state residual unobserved risk, and never be presented as a security proof.
+
 ## 7. Authoring Workflow in This Repo
 
 1. Identify reusable knowledge first, and put workflow, checklist, and
@@ -173,8 +189,8 @@ durable-source authority.
 8. Declare source authority using the closed policy vocabulary. Keep every
    semantic child's external authority at `none`; reserve separately authorized
    `external-mutable` authority for the owning root/controller. For
-   source-immutable dispatches, require owner-side capture,
-   verify-before-consume, and exact cleanup.
+   source-immutable dispatches, require the three-part self-contained boundary,
+   owner-side capture, verify-before-consume, and exact cleanup.
 9. Validate with `devcanon validate`.
 10. Preview the generated output with `devcanon render`.
 

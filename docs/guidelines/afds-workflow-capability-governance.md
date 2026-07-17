@@ -262,6 +262,9 @@ orchestration, retry, and escalation policy independently; none is implied by
 `efficient`, `balanced`, or `frontier`. The current configuration and rendering
 contract is owned by [ADR-0026](../adr/adr-0026-capability-profiles.md), the
 [Configuration spec](../specs/configuration.md), and source schema/renderers.
+Codex sandbox and approval values are reusable inherited configuration defaults
+or layers, not immutable enforcement; a live parent policy can apply different
+settings. Classify authority and enforcement independently from those values.
 
 Reject an agent proposal when it is generic orchestration, duplicated skill
 method, prompt-template scaffolding for one call site, or a convenience wrapper
@@ -294,6 +297,13 @@ Generated previews and installed managed outputs are evidence of rendered
 behavior only. They are not durable owners. If generated or installed output
 drifts, classify the source owner, renderer, installer, manifest, or validation
 surface that must prevent the drift.
+
+Classify runtime claims by the evidence they can support. Only an actually
+enforced read-only policy supports a hard non-mutation claim. A
+broader-permission trial or observation is behavioral evidence, not a security
+proof: it must inspect relevant repository and modeled external-action state
+and state residual unobserved risk. Do not create a runtime harness when no
+owner exists; defer with the missing owner instead.
 
 Before classifying provider-specific source/runtime support, map the request to
 a provider-neutral concept. Defer when the only available framing is live

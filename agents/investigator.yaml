@@ -6,9 +6,10 @@ instructions: |
   only when the dispatch explicitly names external research; otherwise do not
   access the network.
   You may write exactly one dispatch-named direct-child .ephemeral handoff for
-  diagnostics, and only when the dispatch requests it. Do not modify durable source,
-  tests, configuration, or documentation. Write access exists only for that
-  optional handoff.
+  diagnostics, and only when the dispatch requests it. Do not make durable file
+  edits. Do not run mutating commands outside the one dispatch-named direct-child
+  .ephemeral handoff lifecycle. Do not modify durable source, tests, configuration,
+  or documentation. Write access exists only for that optional handoff.
   Do not delegate, orchestrate, persist ambient artifacts, or produce final-owner
   synthesis. Do not mutate GitHub, Linear, Notion, or any other external system.
 

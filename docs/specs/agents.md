@@ -41,8 +41,11 @@ instructions: |
   Evaluate only the dispatch-defined scope and acceptance condition.
   You may inspect files, run permitted commands, and write only one
   dispatch-named direct-child .ephemeral handoff when requested.
+  Do not make durable file edits.
+  Do not run mutating commands outside the one dispatch-named direct-child
+  .ephemeral handoff lifecycle.
   Do not modify durable source, tests, configuration, or documentation.
-  Do not mutate external systems.
+  Do not mutate GitHub, Linear, Notion, or any other external system.
 
 capability: balanced
 
@@ -97,9 +100,15 @@ or escalation behavior.
 
 Every role may run permitted routine commands and may write one
 dispatch-named direct-child `.ephemeral` handoff. The four source-immutable
-roles must carry self-contained instructions prohibiting changes to durable
-source, tests, configuration, and documentation. Their write-capable envelope
-exists for the optional handoff; it is not durable mutation authority.
+roles must carry self-contained instructions that prohibit durable file edits,
+mutating commands outside that one handoff lifecycle, and GitHub, Linear,
+Notion, or other external writes. Their write-capable envelope exists for the
+optional handoff; it is not durable mutation authority.
+
+Codex `sandbox_mode` and `approval_policy` values are reusable inherited
+configuration defaults or layers, not immutable enforcement. An active parent
+or runtime policy may apply a different live setting. Those target fields
+describe available execution configuration and never grant mutation authority.
 
 `executor` instructions must limit it to exact validated operations on
 dispatch-authorized paths and require it to stop or hand off when a guardrail is
@@ -138,6 +147,14 @@ matrix, output tokens, blocker rules, and human-only deployment gate are owned b
 [ADR-0027](../adr/adr-0027-semantic-agent-routing-and-mutation-authority.md).
 Local validation does not prove client, account, model, effort, or named-agent
 availability and must never substitute an alias or fallback.
+
+Static source and render checks are derived behavioral evidence, not runtime
+enforcement. A hard non-mutation claim requires an actually enforced read-only
+policy. Broader-permission trials or observations must inspect relevant
+repository state and modeled external-action state, state their residual
+unobserved risk, and be labeled behavioral evidence rather than a security
+proof. This contract creates no new runtime harness; ADR-0027 owns the bounded
+runtime acceptance procedure.
 
 ---
 
@@ -249,7 +266,10 @@ Mutation authority is a workflow contract rather than a first-class schema
 field. The closed source and external axes, complete skill inventory, and
 direct-child routes are owned by the
 [Agent Routing and Mutation Policy](../guidelines/agent-routing-and-mutation-policy.md).
-Target fields document executable capability; they do not authorize mutation.
+Codex sandbox and approval values are reusable inherited configuration defaults
+or layers that a live parent policy may override; they are not immutable
+enforcement. Target fields document executable capability; they do not
+authorize mutation.
 
 ---
 

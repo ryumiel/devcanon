@@ -37,6 +37,12 @@ interface AgentSourceFixture {
 
 type RenderOutput = Awaited<ReturnType<typeof renderAll>>["outputs"][number];
 
+const SOURCE_IMMUTABLE_BOUNDARIES = [
+  "Do not make durable file edits.",
+  "Do not run mutating commands outside the one dispatch-named direct-child .ephemeral handoff lifecycle.",
+  "Do not mutate GitHub, Linear, Notion, or any other external system.",
+] as const;
+
 async function readAgentSources(): Promise<AgentSourceFixture[]> {
   const agentsDir = path.join(process.cwd(), "agents");
   const entries = (await readdir(agentsDir))
@@ -92,6 +98,13 @@ function expectSharedBoundaries(instructions: string): void {
   );
 }
 
+function expectSourceImmutableBoundaries(instructions: string): void {
+  const normalized = normalizeWhitespace(instructions);
+  for (const boundary of SOURCE_IMMUTABLE_BOUNDARIES) {
+    expect(normalized).toContain(boundary);
+  }
+}
+
 describe("shipped semantic agents", () => {
   it("matches the documented six-role source catalog and target envelopes", async () => {
     const [roles, sources, sourceFiles] = await Promise.all([
@@ -128,6 +141,7 @@ describe("shipped semantic agents", () => {
         expect(normalized).toContain(
           "Do not modify durable source, tests, configuration, or documentation.",
         );
+        expectSourceImmutableBoundaries(source.instructions);
         expect(normalized).toMatch(
           /Write access exists only for (?:the|that) optional handoff\./,
         );
@@ -256,6 +270,21 @@ describe("shipped semantic agents", () => {
         ),
       });
       expect(codexOutput.content).not.toContain("{{model:");
+
+      if (role.sourceAuthority === "source-immutable") {
+        const developerInstructions = codexToml.developer_instructions;
+        if (typeof developerInstructions !== "string") {
+          throw new Error(
+            `Missing Codex developer instructions for ${role.name}`,
+          );
+        }
+        for (const boundary of SOURCE_IMMUTABLE_BOUNDARIES) {
+          expect(normalizeWhitespace(body)).toContain(boundary);
+          expect(normalizeWhitespace(developerInstructions)).toContain(
+            boundary,
+          );
+        }
+      }
     }
   });
 });
