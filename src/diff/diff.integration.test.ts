@@ -13,7 +13,9 @@ import {
 } from "../__test-helpers__/fixtures.js";
 import { installTestLogger } from "../__test-helpers__/logger.js";
 import type { ResolvedConfig } from "../config/schema.js";
+import type { RenderedAgent } from "../models/types.js";
 import { renderAll } from "../render/pipeline.js";
+import { sha256 } from "../utils/hash.js";
 import { diffAll } from "./diff.js";
 
 const symlinkAvailable = await canCreateSymlinks();
@@ -43,6 +45,68 @@ describe("diffAll integration", () => {
     restoreLogger();
     await cleanupTempDir(tempDir);
   });
+
+  async function writeAgentManifest(
+    agent: RenderedAgent,
+    overrides: Record<string, unknown> = {},
+  ) {
+    await mkdir(path.dirname(config.manifest.path), { recursive: true });
+    await writeFile(
+      config.manifest.path,
+      makeManifestJson(
+        [
+          {
+            target: agent.target,
+            type: agent.type,
+            name: agent.name,
+            sourcePath: agent.sourcePath,
+            generatedPath: agent.generatedPath,
+            installedPath: agent.installedPath,
+            installMode: "copy",
+            contentHash: agent.contentHash,
+            timestamp: new Date().toISOString(),
+            ...overrides,
+          },
+        ],
+        { config },
+      ),
+      "utf-8",
+    );
+  }
+
+  async function writeNonmatchingAgentManifest() {
+    const name = "other-agent";
+    const content = "<!-- stale other-agent render -->\n";
+    await mkdir(path.dirname(config.manifest.path), { recursive: true });
+    await writeFile(
+      config.manifest.path,
+      makeManifestJson(
+        [
+          {
+            target: "claude",
+            type: "agent",
+            name,
+            sourcePath: path.join(config.library.agentsDir, `${name}.yaml`),
+            generatedPath: path.join(
+              config.library.generatedDir,
+              "claude",
+              "agents",
+              `${name}.md`,
+            ),
+            installedPath: path.join(
+              config.targets.claude.agentsHome,
+              `${name}.md`,
+            ),
+            installMode: "copy",
+            contentHash: sha256(content),
+            timestamp: new Date().toISOString(),
+          },
+        ],
+        { config },
+      ),
+      "utf-8",
+    );
+  }
 
   it("reports agent as added when not yet installed", async () => {
     await createAgentFixture(
@@ -88,6 +152,7 @@ describe("diffAll integration", () => {
     const content = claudeAgent.content;
     await mkdir(path.dirname(installedPath), { recursive: true });
     await writeFile(installedPath, content, "utf-8");
+    await writeAgentManifest(claudeAgent);
 
     const results = await diffAll(config, "claude");
 
@@ -114,15 +179,21 @@ describe("diffAll integration", () => {
         o.target === "claude" && o.type === "agent" && o.name === "test-agent",
     );
     expect(claudeAgent).toBeDefined();
+    if (!claudeAgent || claudeAgent.type !== "agent") {
+      throw new Error(
+        "internal: expected rendered claude agent for 'test-agent'",
+      );
+    }
 
     // Write different content to installed path
-    const installedPath = claudeAgent?.installedPath as string;
+    const installedPath = claudeAgent.installedPath;
     await mkdir(path.dirname(installedPath), { recursive: true });
     await writeFile(
       installedPath,
       "<!-- old content -->\nThis is outdated.\n",
       "utf-8",
     );
+    await writeAgentManifest(claudeAgent);
 
     const results = await diffAll(config, "claude");
 
@@ -134,6 +205,229 @@ describe("diffAll integration", () => {
     expect(result?.status).toBe("changed");
     expect(result?.diff).toContain("---");
     expect(result?.diff).toContain("+++");
+  });
+
+  it("keeps an exact agent record managed when source and generated paths drift", async () => {
+    await createAgentFixture(
+      config.library.agentsDir,
+      "test-agent",
+      makeAgentYaml("test-agent", { description: "A test agent" }),
+    );
+
+    const { outputs } = await renderAll(config, false, false, "claude");
+    const claudeAgent = outputs.find(
+      (output) =>
+        output.target === "claude" &&
+        output.type === "agent" &&
+        output.name === "test-agent",
+    );
+    expect(claudeAgent).toBeDefined();
+    if (!claudeAgent || claudeAgent.type !== "agent") {
+      throw new Error(
+        "internal: expected rendered claude agent for 'test-agent'",
+      );
+    }
+
+    await writeFile(claudeAgent.installedPath, claudeAgent.content, "utf-8");
+    await writeAgentManifest(claudeAgent, {
+      sourcePath: path.join(tempDir, "stale", "test-agent.yaml"),
+      generatedPath: path.join(tempDir, "stale", "test-agent.md"),
+    });
+
+    const results = await diffAll(config, "claude");
+
+    const result = results.find(
+      (entry) =>
+        entry.target === "claude" &&
+        entry.type === "agent" &&
+        entry.name === "test-agent",
+    );
+    expect(result).toBeDefined();
+    expect(result?.status).toBe("up-to-date");
+    expect(result?.diff).toBeNull();
+  });
+
+  it("reports an agent with an exact record as added when the installed file is missing", async () => {
+    await createAgentFixture(
+      config.library.agentsDir,
+      "test-agent",
+      makeAgentYaml("test-agent", { description: "A test agent" }),
+    );
+
+    const { outputs } = await renderAll(config, false, false, "claude");
+    const claudeAgent = outputs.find(
+      (output) =>
+        output.target === "claude" &&
+        output.type === "agent" &&
+        output.name === "test-agent",
+    );
+    expect(claudeAgent).toBeDefined();
+    if (!claudeAgent || claudeAgent.type !== "agent") {
+      throw new Error(
+        "internal: expected rendered claude agent for 'test-agent'",
+      );
+    }
+    await writeAgentManifest(claudeAgent);
+
+    const results = await diffAll(config, "claude");
+
+    const result = results.find(
+      (entry) =>
+        entry.target === "claude" &&
+        entry.type === "agent" &&
+        entry.name === "test-agent",
+    );
+    expect(result).toBeDefined();
+    expect(result?.status).toBe("added");
+    expect(result?.diff).toBeNull();
+  });
+
+  it("reports matching agent content without an exact record as unmanaged-conflict", async () => {
+    await createAgentFixture(
+      config.library.agentsDir,
+      "test-agent",
+      makeAgentYaml("test-agent", { description: "A test agent" }),
+    );
+
+    const { outputs } = await renderAll(config, false, false, "claude");
+    const claudeAgent = outputs.find(
+      (output) =>
+        output.target === "claude" &&
+        output.type === "agent" &&
+        output.name === "test-agent",
+    );
+    expect(claudeAgent).toBeDefined();
+    if (!claudeAgent || claudeAgent.type !== "agent") {
+      throw new Error(
+        "internal: expected rendered claude agent for 'test-agent'",
+      );
+    }
+
+    await writeFile(claudeAgent.installedPath, claudeAgent.content, "utf-8");
+    await writeNonmatchingAgentManifest();
+
+    const results = await diffAll(config, "claude");
+
+    const result = results.find(
+      (entry) =>
+        entry.target === "claude" &&
+        entry.type === "agent" &&
+        entry.name === "test-agent",
+    );
+    expect(result).toBeDefined();
+    expect(result?.status).toBe("unmanaged-conflict");
+    expect(result?.diff).toBeNull();
+    expect(results).toContainEqual({
+      status: "removed",
+      target: "claude",
+      type: "agent",
+      name: "other-agent",
+      installedPath: path.join(
+        config.targets.claude.agentsHome,
+        "other-agent.md",
+      ),
+      diff: null,
+    });
+  });
+
+  it("reports differing agent content without an exact record as unmanaged-conflict", async () => {
+    await createAgentFixture(
+      config.library.agentsDir,
+      "test-agent",
+      makeAgentYaml("test-agent", { description: "A test agent" }),
+    );
+
+    const { outputs } = await renderAll(config, false, false, "claude");
+    const claudeAgent = outputs.find(
+      (output) =>
+        output.target === "claude" &&
+        output.type === "agent" &&
+        output.name === "test-agent",
+    );
+    expect(claudeAgent).toBeDefined();
+    if (!claudeAgent || claudeAgent.type !== "agent") {
+      throw new Error(
+        "internal: expected rendered claude agent for 'test-agent'",
+      );
+    }
+
+    await writeFile(
+      claudeAgent.installedPath,
+      "<!-- old content -->\nThis is unmanaged.\n",
+      "utf-8",
+    );
+    await writeNonmatchingAgentManifest();
+
+    const results = await diffAll(config, "claude");
+
+    const result = results.find(
+      (entry) =>
+        entry.target === "claude" &&
+        entry.type === "agent" &&
+        entry.name === "test-agent",
+    );
+    expect(result).toBeDefined();
+    expect(result?.status).toBe("unmanaged-conflict");
+    expect(result?.diff).toBeNull();
+    expect(results).toContainEqual({
+      status: "removed",
+      target: "claude",
+      type: "agent",
+      name: "other-agent",
+      installedPath: path.join(
+        config.targets.claude.agentsHome,
+        "other-agent.md",
+      ),
+      diff: null,
+    });
+  });
+
+  it("reports an unmanaged installed directory as a conflict without reading it", async () => {
+    await createAgentFixture(
+      config.library.agentsDir,
+      "test-agent",
+      makeAgentYaml("test-agent", { description: "A test agent" }),
+    );
+
+    const { outputs } = await renderAll(config, false, false, "claude");
+    const claudeAgent = outputs.find(
+      (output) =>
+        output.target === "claude" &&
+        output.type === "agent" &&
+        output.name === "test-agent",
+    );
+    expect(claudeAgent).toBeDefined();
+    if (!claudeAgent || claudeAgent.type !== "agent") {
+      throw new Error(
+        "internal: expected rendered claude agent for 'test-agent'",
+      );
+    }
+
+    await mkdir(claudeAgent.installedPath);
+    await writeNonmatchingAgentManifest();
+
+    const results = await diffAll(config, "claude");
+
+    const result = results.find(
+      (entry) =>
+        entry.target === "claude" &&
+        entry.type === "agent" &&
+        entry.name === "test-agent",
+    );
+    expect(result).toBeDefined();
+    expect(result?.status).toBe("unmanaged-conflict");
+    expect(result?.diff).toBeNull();
+    expect(results).toContainEqual({
+      status: "removed",
+      target: "claude",
+      type: "agent",
+      name: "other-agent",
+      installedPath: path.join(
+        config.targets.claude.agentsHome,
+        "other-agent.md",
+      ),
+      diff: null,
+    });
   });
 
   it("reports skill as added when not yet installed", async () => {
@@ -381,6 +675,12 @@ describe("diffAll integration", () => {
       const brokenTarget = path.join(tempDir, "nonexistent-target.md");
       await mkdir(path.dirname(installedPath), { recursive: true });
       await symlink(brokenTarget, installedPath);
+      if (!claudeAgent || claudeAgent.type !== "agent") {
+        throw new Error(
+          "internal: expected rendered claude agent for 'test-agent'",
+        );
+      }
+      await writeAgentManifest(claudeAgent);
 
       // A dangling installed-path symlink should be treated as a missing
       // file and reported as "added" consistently across platforms.

@@ -55,7 +55,9 @@ export async function diffAll(
 
   for (const output of outputs) {
     if (output.type === "agent") {
-      results.push(await diffAgentFile(output.content, output));
+      results.push(
+        await diffAgentFile(output.content, output, manifest.records),
+      );
     } else if (output.type === "skill") {
       // For skills, just check if installed and hash matches
       const exists = await pathExists(output.installedPath);
@@ -180,11 +182,31 @@ function recordName(record: { name?: string }): string {
 async function diffAgentFile(
   generatedContent: string,
   output: { target: string; type: string; name: string; installedPath: string },
+  records: Array<{
+    target: string;
+    type: string;
+    name?: string;
+    installedPath: string;
+  }>,
 ): Promise<DiffResult> {
   const exists = await pathExists(output.installedPath);
   if (!exists) {
     return {
       status: "added",
+      target: output.target as "claude" | "codex",
+      type: output.type as "skill" | "agent",
+      name: output.name,
+      installedPath: output.installedPath,
+      diff: null,
+    };
+  }
+
+  const record = records.find((candidate) =>
+    recordMatchesOutput(candidate, output),
+  );
+  if (!record) {
+    return {
+      status: "unmanaged-conflict",
       target: output.target as "claude" | "codex",
       type: output.type as "skill" | "agent",
       name: output.name,
