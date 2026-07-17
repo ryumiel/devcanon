@@ -549,10 +549,9 @@ function recordIdentity(record: ManagedRecord): string {
 }
 
 function isNoEntryError(error: unknown): boolean {
-  return (
-    (error as NodeJS.ErrnoException).code === "ENOENT" ||
-    (error as Error).message.includes("ENOENT")
-  );
+  if ((error as NodeJS.ErrnoException).code === "ENOENT") return true;
+  if (!(error instanceof Error)) return false;
+  return (error.cause as NodeJS.ErrnoException | undefined)?.code === "ENOENT";
 }
 
 async function assertNormalParent(manifestPath: string): Promise<void> {
@@ -580,6 +579,7 @@ async function readRegularManifestBytes(manifestPath: string): Promise<Buffer> {
   } catch (error) {
     throw new Error(
       `Manifest backup source must be a readable regular file: ${(error as Error).message}`,
+      { cause: error },
     );
   }
   try {

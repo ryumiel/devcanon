@@ -1,4 +1,5 @@
 import {
+  chmod,
   lstat,
   mkdir,
   readFile,
@@ -79,6 +80,28 @@ describe("manifest integration", () => {
       expect(result.managedBy).toBe("devcanon");
       expect(result.records).toEqual([]);
       expect(result.lastSync).toBeDefined();
+    });
+
+    it("does not treat an unreadable existing ENOENT-named manifest as missing", async () => {
+      const manifestPath = path.join(tempDir, "ENOENT-manifest.json");
+      const original = validManifestJson();
+      await writeFile(manifestPath, original, "utf-8");
+      await chmod(manifestPath, 0o000);
+
+      try {
+        try {
+          await readFile(manifestPath);
+          return;
+        } catch {
+          await expect(
+            saveManifest(manifestPath, emptyManifest()),
+          ).rejects.toThrow("readable regular file");
+        }
+      } finally {
+        await chmod(manifestPath, 0o600);
+      }
+
+      expect(await readFile(manifestPath, "utf-8")).toBe(original);
     });
 
     it("returns parsed manifest with correct records for valid JSON", async () => {
