@@ -1,5 +1,5 @@
 import { type Stats, lstatSync } from "node:fs";
-import { cp, lstat, rm, unlink } from "node:fs/promises";
+import { lstat, rm, unlink } from "node:fs/promises";
 import path from "node:path";
 import type { ResolvedConfig } from "../config/schema.js";
 import { AgentSourceSchema, SkillSourceSchema } from "../config/schema.js";
@@ -20,6 +20,7 @@ import {
 } from "../validate/skills.js";
 import { renderClaudeAgent } from "./claude.js";
 import { renderCodexAgent } from "./codex.js";
+import { writePackagedMirroredSubdirs } from "./mirrored-files.js";
 import { renderSkillForTarget } from "./skill.js";
 
 export interface RenderResult<
@@ -159,14 +160,11 @@ async function renderLoadedInternal<
           await ensureDir(path.dirname(filePath));
           await writeTextFile(filePath, fileContent);
         }
-        // Mirror known subdirs
-        for (const sub of skill.subdirs) {
-          await cp(
-            path.join(skill.dirPath, sub),
-            path.join(rendered.generatedPath, sub),
-            { recursive: true, verbatimSymlinks: true },
-          );
-        }
+        await writePackagedMirroredSubdirs(
+          skill.dirPath,
+          skill.subdirs,
+          rendered.generatedPath,
+        );
       }
     }
   }

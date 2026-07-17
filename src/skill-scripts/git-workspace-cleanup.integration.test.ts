@@ -1,9 +1,15 @@
 import { execFile } from "node:child_process";
-import { access, mkdir, realpath, rm, writeFile } from "node:fs/promises";
+import { access, cp, mkdir, realpath, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
-import { cleanupTempDir, createTempDir } from "../__test-helpers__/fixtures.js";
+import {
+  cleanupTempDir,
+  createTempDir,
+  makeResolvedConfig,
+} from "../__test-helpers__/fixtures.js";
+import { toBashPath } from "../__test-helpers__/runtime-conformance.js";
+import { renderAll } from "../render/pipeline.js";
 
 const execFileAsync = promisify(execFile);
 const TEST_TIMEOUT = process.platform === "win32" ? 30_000 : 10_000;
@@ -52,9 +58,10 @@ async function runScript(
   );
 
   try {
+    const bashArgs = await toBashScriptArgs(args);
     const { stdout, stderr } = await runCommand(
       "bash",
-      [scriptPath, ...args],
+      [await toBashPath(scriptPath), ...bashArgs],
       cwd,
       env,
     );
@@ -71,6 +78,22 @@ async function runScript(
       stderr: execError.stderr ?? "",
     };
   }
+}
+
+async function toBashScriptArgs(args: string[]): Promise<string[]> {
+  const bashArgs: string[] = [];
+
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    bashArgs.push(arg);
+
+    if (arg === "--repo" && index + 1 < args.length) {
+      index += 1;
+      bashArgs.push(await toBashPath(args[index]));
+    }
+  }
+
+  return bashArgs;
 }
 
 function parseKeyValueOutput(stdout: string): Record<string, string> {
@@ -156,6 +179,84 @@ describe("git-workspace-cleanup skill helper", TEST_OPTIONS, () => {
     expect(result.code).toBe(0);
     expect(result.stdout).toBe("");
     expect(result.stderr).toContain("usage: git-workspace-cleanup.sh");
+  });
+
+  it("prints help from the generated Codex skill layout with sibling runtime", async () => {
+    const rootDir = await createTempDir();
+    tempDirs.push(rootDir);
+    const config = makeResolvedConfig(rootDir);
+    await mkdir(config.library.skillsDir, { recursive: true });
+    await mkdir(config.library.agentsDir, { recursive: true });
+    await cp(
+      path.resolve("skills/devcanon-runtime"),
+      path.join(config.library.skillsDir, "devcanon-runtime"),
+      { recursive: true },
+    );
+    await cp(
+      path.resolve("skills/git-workspace-cleanup"),
+      path.join(config.library.skillsDir, "git-workspace-cleanup"),
+      { recursive: true },
+    );
+
+    await renderAll(config, true, false, "codex");
+
+    const generatedScript = path.join(
+      config.library.generatedDir,
+      "codex",
+      "skills",
+      "git-workspace-cleanup",
+      "scripts",
+      "git-workspace-cleanup.sh",
+    );
+    const { stdout, stderr } = await runCommand(
+      "bash",
+      [await toBashPath(generatedScript), "--help"],
+      rootDir,
+      { DEVCANON_RUNTIME_DIR: "" },
+    );
+
+    expect(stdout).toBe("");
+    expect(stderr).toContain("usage: git-workspace-cleanup.sh");
+  });
+
+  it("reports actionable setup guidance when the support runtime is missing", async () => {
+    const rootDir = await createTempDir();
+    tempDirs.push(rootDir);
+    const skillsRoot = path.join(rootDir, "skills");
+    await cp(
+      path.resolve("skills/git-workspace-cleanup"),
+      path.join(skillsRoot, "git-workspace-cleanup"),
+      { recursive: true },
+    );
+
+    const scriptPath = path.join(
+      skillsRoot,
+      "git-workspace-cleanup",
+      "scripts",
+      "git-workspace-cleanup.sh",
+    );
+    const result = await runCommand(
+      "bash",
+      [await toBashPath(scriptPath), "--help"],
+      rootDir,
+      { DEVCANON_RUNTIME_DIR: "" },
+    )
+      .then(({ stdout, stderr }) => ({ code: 0, stdout, stderr }))
+      .catch(
+        (
+          error: NodeJS.ErrnoException & { stdout?: string; stderr?: string },
+        ) => ({
+          code: typeof error.code === "number" ? error.code : 1,
+          stdout: error.stdout ?? "",
+          stderr: error.stderr ?? "",
+        }),
+      );
+
+    expect(result.code).not.toBe(0);
+    expect(result.stderr).toContain("devcanon-runtime support skill missing");
+    expect(result.stderr).toContain("sibling devcanon-runtime");
+    expect(result.stderr).toContain("devcanon render/sync");
+    expect(result.stderr).toContain("DEVCANON_RUNTIME_DIR");
   });
 
   it("reports dirty linked worktrees and local-only branch commits during dry-run", async () => {

@@ -4,6 +4,7 @@ import { constants } from "node:fs";
 import { access, lstat, readFile, realpath, stat } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
+import { BASH_HELPER_PATH_ENV_KEYS, normalizeBashScriptEnvPaths, toBashPath, } from "./bash-paths.js";
 import { requireDirectEphemeralChild } from "./paths.js";
 const execFileAsync = promisify(execFile);
 const FORBIDDEN_KEYS = new Set([
@@ -515,9 +516,10 @@ async function validateFindingsAuthority(findingsFile, input) {
 }
 async function runBashHelper(helper, command, env) {
     try {
-        await execFileAsync("bash", [helper, command], {
+        const helperEnv = await normalizeBashScriptEnvPaths(env, BASH_HELPER_PATH_ENV_KEYS);
+        await execFileAsync("bash", [await toBashPath(helper, helperEnv), command], {
             cwd: process.cwd(),
-            env,
+            env: helperEnv,
             maxBuffer: 1024 * 1024,
         });
     }

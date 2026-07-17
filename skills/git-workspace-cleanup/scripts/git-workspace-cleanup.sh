@@ -15,7 +15,7 @@ if [ -n "${DEVCANON_RUNTIME_DIR:-}" ]; then
 fi
 
 [ -x "$runtime_resolver" ] ||
-  fail "devcanon-runtime support skill missing for git-workspace-cleanup"
+  fail "devcanon-runtime support skill missing for git-workspace-cleanup: expected executable resolver at $runtime_resolver. Generated previews or installed skill homes must include sibling devcanon-runtime/scripts/devcanon-runtime.sh; rerun devcanon render/sync or set DEVCANON_RUNTIME_DIR to a packaged devcanon-runtime skill directory."
 
 runtime_entrypoint="$("$runtime_resolver" resolve-entrypoint --from "$script_path" --entrypoint "scripts/devcanon-runtime.sh")"
 exec "$runtime_entrypoint" runtime git-workspace-cleanup "$@"

@@ -394,6 +394,274 @@ describe("sync", () => {
   );
 
   it.skipIf(!symlinkAvailable)(
+    "updates legacy target-only copied skills when a mirrored symlink is retargeted",
+    async () => {
+      const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
+      await mkdir(config.library.skillsDir, { recursive: true });
+      await mkdir(config.library.agentsDir, { recursive: true });
+      const skillDir = await createSkillFixture(
+        config.library.skillsDir,
+        "skill-a",
+        "---\nname: skill-a\ndescription: A skill.\n---\n\n# Skill A\n",
+        ["scripts"],
+      );
+      const sourceLink = path.join(skillDir, "scripts", "link.txt");
+      await symlink("../target-a/payload.txt", sourceLink);
+
+      const opts = { dryRun: false, force: false, strict: false } as const;
+      await sync(config, opts);
+
+      const installedSkillDir = path.join(
+        config.targets.claude.skillsHome,
+        "skill-a",
+      );
+      const generatedSkillDir = path.join(
+        config.library.generatedDir,
+        "claude",
+        "skills",
+        "skill-a",
+      );
+      const manifest = JSON.parse(await readTextFile(config.manifest.path));
+      const claudeRecord = manifest.records.find(
+        (record: { installedPath: string }) =>
+          record.installedPath === installedSkillDir,
+      );
+      claudeRecord.contentHash = buildSkillContentHash(
+        await readTextFile(path.join(installedSkillDir, "SKILL.md")),
+        new Map([
+          [
+            path.join(generatedSkillDir, "scripts", "link.txt"),
+            "symlink:../target-a/payload.txt",
+          ],
+        ]),
+        generatedSkillDir,
+      );
+      await writeFile(
+        config.manifest.path,
+        `${JSON.stringify(manifest, null, 2)}\n`,
+        "utf-8",
+      );
+
+      await rm(sourceLink);
+      await symlink("../target-b/payload.txt", sourceLink);
+
+      const result = await sync(config, opts);
+
+      expect(result.errors).toEqual([]);
+      expect(result.updated).toBe(1);
+      await expectRelativeSymlinkTarget(
+        path.join(installedSkillDir, "scripts", "link.txt"),
+        "../target-b/payload.txt",
+      );
+    },
+  );
+
+  it.skipIf(!symlinkAvailable)(
+    "updates copy-installed skills when a mirrored symlink kind changes with the same target spelling",
+    async () => {
+      const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
+      await mkdir(config.library.skillsDir, { recursive: true });
+      await mkdir(config.library.agentsDir, { recursive: true });
+      const skillDir = await createSkillFixture(
+        config.library.skillsDir,
+        "skill-a",
+        "---\nname: skill-a\ndescription: A skill.\n---\n\n# Skill A\n",
+        ["scripts"],
+      );
+      const externalTarget = path.join(tempDir, "external", "target");
+      await mkdir(path.dirname(externalTarget), { recursive: true });
+      await writeFile(externalTarget, "payload", "utf-8");
+      const sourceLink = path.join(skillDir, "scripts", "link");
+      await symlink(externalTarget, sourceLink, "file");
+
+      const opts = { dryRun: false, force: false, strict: false } as const;
+      await sync(config, opts);
+
+      await rm(externalTarget);
+      await mkdir(externalTarget, { recursive: true });
+      await writeFile(path.join(externalTarget, "payload.txt"), "dir payload");
+      await rm(sourceLink);
+      await symlink(externalTarget, sourceLink, "dir");
+
+      const result = await sync(config, opts);
+
+      const installedLink = path.join(
+        config.targets.claude.skillsHome,
+        "skill-a",
+        "scripts",
+        "link",
+      );
+      expect(result.errors).toEqual([]);
+      expect(result.updated).toBe(1);
+      expect(await readlink(installedLink)).toBe(externalTarget);
+      await expect(
+        readTextFile(path.join(installedLink, "payload.txt")),
+      ).resolves.toBe("dir payload");
+    },
+  );
+
+  it.skipIf(!symlinkAvailable)(
+    "skips up-to-date copied skills when relative external symlink kind is unobservable",
+    async () => {
+      const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
+      await mkdir(config.library.skillsDir, { recursive: true });
+      await mkdir(config.library.agentsDir, { recursive: true });
+      const skillDir = await createSkillFixture(
+        config.library.skillsDir,
+        "skill-a",
+        "---\nname: skill-a\ndescription: A skill.\n---\n\n# Skill A\n",
+        ["scripts"],
+      );
+      const externalTarget = path.join(tempDir, "external", "target");
+      await mkdir(externalTarget, { recursive: true });
+      await writeFile(path.join(externalTarget, "payload.txt"), "dir payload");
+      const sourceLink = path.join(skillDir, "scripts", "link");
+      const targetSpelling = path.relative(
+        path.dirname(sourceLink),
+        externalTarget,
+      );
+      await symlink(targetSpelling, sourceLink, "dir");
+
+      const opts = { dryRun: false, force: false, strict: false } as const;
+      await sync(config, opts);
+
+      const installedLink = path.join(
+        config.targets.claude.skillsHome,
+        "skill-a",
+        "scripts",
+        "link",
+      );
+
+      const result = await sync(config, opts);
+
+      expect(result.errors).toEqual([]);
+      expect(result.updated).toBe(0);
+      expect(result.skipped).toBeGreaterThan(0);
+      await expectRelativeSymlinkTarget(installedLink, targetSpelling);
+    },
+  );
+
+  it.skipIf(!symlinkAvailable)(
+    "skips up-to-date copied skills when source symlink kind is unobservable",
+    async () => {
+      const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
+      await mkdir(config.library.skillsDir, { recursive: true });
+      await mkdir(config.library.agentsDir, { recursive: true });
+      const skillDir = await createSkillFixture(
+        config.library.skillsDir,
+        "skill-a",
+        "---\nname: skill-a\ndescription: A skill.\n---\n\n# Skill A\n",
+        ["scripts"],
+      );
+      const sourceLink = path.join(skillDir, "scripts", "link");
+      const targetSpelling = "../../optional-dir";
+      await symlink(targetSpelling, sourceLink, "dir");
+
+      const opts = { dryRun: false, force: false, strict: false } as const;
+      await sync(config, opts);
+
+      const installedSkillDir = path.join(
+        config.targets.claude.skillsHome,
+        "skill-a",
+      );
+      const installedLink = path.join(installedSkillDir, "scripts", "link");
+      await mkdir(path.join(config.targets.claude.skillsHome, "optional-dir"));
+
+      const result = await sync(config, opts);
+
+      expect(result.errors).toEqual([]);
+      expect(result.updated).toBe(0);
+      expect(result.skipped).toBeGreaterThan(0);
+      await expectRelativeSymlinkTarget(installedLink, targetSpelling);
+    },
+  );
+
+  it.skipIf(!symlinkAvailable)(
+    "skips up-to-date copied skills when source symlink kind is cyclic",
+    async () => {
+      const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
+      await mkdir(config.library.skillsDir, { recursive: true });
+      await mkdir(config.library.agentsDir, { recursive: true });
+      const skillDir = await createSkillFixture(
+        config.library.skillsDir,
+        "skill-a",
+        "---\nname: skill-a\ndescription: A skill.\n---\n\n# Skill A\n",
+        ["scripts"],
+      );
+      const sourceLink = path.join(skillDir, "scripts", "link");
+      const targetSpelling = "../../optional-dir";
+      await symlink(
+        "optional-dir",
+        path.join(config.library.skillsDir, "optional-dir"),
+        "dir",
+      );
+      await symlink(targetSpelling, sourceLink, "dir");
+
+      const opts = { dryRun: false, force: false, strict: false } as const;
+      await sync(config, opts);
+
+      const installedSkillDir = path.join(
+        config.targets.claude.skillsHome,
+        "skill-a",
+      );
+      const installedLink = path.join(installedSkillDir, "scripts", "link");
+      await mkdir(path.join(config.targets.claude.skillsHome, "optional-dir"));
+
+      const result = await sync(config, opts);
+
+      expect(result.errors).toEqual([]);
+      expect(result.updated).toBe(0);
+      expect(result.skipped).toBeGreaterThan(0);
+      await expectRelativeSymlinkTarget(installedLink, targetSpelling);
+    },
+  );
+
+  it.skipIf(!symlinkAvailable)(
+    "rejects retargeted copied skills when source symlink kind is unobservable",
+    async () => {
+      const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
+      await mkdir(config.library.skillsDir, { recursive: true });
+      await mkdir(config.library.agentsDir, { recursive: true });
+      const skillDir = await createSkillFixture(
+        config.library.skillsDir,
+        "skill-a",
+        "---\nname: skill-a\ndescription: A skill.\n---\n\n# Skill A\n",
+        ["scripts"],
+      );
+      const sourceLink = path.join(skillDir, "scripts", "link");
+      await symlink("../../optional-dir", sourceLink, "dir");
+
+      const opts = { dryRun: false, force: false, strict: false } as const;
+      await sync(config, opts);
+
+      const installedSkillDir = path.join(
+        config.targets.claude.skillsHome,
+        "skill-a",
+      );
+      const installedLink = path.join(installedSkillDir, "scripts", "link");
+      const tamperedTarget = "../../other-dir";
+      await mkdir(path.join(config.targets.claude.skillsHome, "other-dir"));
+      await rm(installedLink);
+      await symlink(tamperedTarget, installedLink, "dir");
+      const manifestBefore = JSON.parse(
+        await readTextFile(config.manifest.path),
+      );
+
+      const result = await sync(config, opts);
+
+      expect(result.updated).toBe(0);
+      expect(result.errors).toEqual([
+        expect.stringContaining("installed copy content hash mismatch"),
+      ]);
+      await expectRelativeSymlinkTarget(installedLink, tamperedTarget);
+      const manifestAfter = JSON.parse(
+        await readTextFile(config.manifest.path),
+      );
+      expect(manifestAfter.records).toEqual(manifestBefore.records);
+    },
+  );
+
+  it.skipIf(!symlinkAvailable)(
     "updates copy-installed skills with absolute mirrored symlinks",
     async () => {
       const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
@@ -850,6 +1118,46 @@ describe("sync", () => {
       // Manifest should not contain the removed skill
       const manifestContent = await readTextFile(config.manifest.path);
       expect(manifestContent).not.toContain("ephemeral-skill");
+    },
+  );
+
+  it.skipIf(!symlinkAvailable)(
+    "removes clean copied skills when a mirrored symlink target changes historical kind",
+    async () => {
+      const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
+      await mkdir(config.library.skillsDir, { recursive: true });
+      await mkdir(config.library.agentsDir, { recursive: true });
+      const skillDir = await createSkillFixture(
+        config.library.skillsDir,
+        "skill-a",
+        "---\nname: skill-a\ndescription: A skill.\n---\n\n# Skill A\n",
+        ["scripts"],
+      );
+      const externalTarget = path.join(tempDir, "external", "target");
+      await mkdir(path.dirname(externalTarget), { recursive: true });
+      await writeFile(externalTarget, "payload", "utf-8");
+      await symlink(
+        externalTarget,
+        path.join(skillDir, "scripts", "link"),
+        "file",
+      );
+
+      const opts = { dryRun: false, force: false, strict: false } as const;
+      await sync(config, opts);
+
+      await rm(externalTarget);
+      await mkdir(externalTarget, { recursive: true });
+      await rm(skillDir, { recursive: true });
+
+      const result = await sync(config, opts);
+
+      expect(result.removed).toBe(1);
+      expect(result.errors).toEqual([]);
+      expect(
+        await pathExists(
+          path.join(config.targets.claude.skillsHome, "skill-a"),
+        ),
+      ).toBe(false);
     },
   );
 

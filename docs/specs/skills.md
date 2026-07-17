@@ -237,8 +237,19 @@ A skill may also contain:
 - `references/`
 - `scripts/`
 
-These subdirectories are mirrored per target into
-`generated/<target>/skills/<name>/` as-is.
+These subdirectories are packaged per target into
+`generated/<target>/skills/<name>/`. Packaging preserves non-shell file bytes,
+symlink target spelling, generated symlink kind, and executable permission
+bits. The rendered skill content hash treats symlink target spelling plus
+generated kind as symlink identity; it does not hash file or directory contents
+behind the symlink. Shell scripts under a skill's top-level `scripts/**/*.sh`
+tree are normalized from CRLF to LF before hashing and writing generated output
+so generated skill adapters remain executable from Windows-hosted agent
+sessions that invoke Bash.
+When a symlink target kind cannot be resolved during packaging, such as a
+dangling or cyclic link, generated output still preserves the symlink target
+spelling instead of resolving the target, and hashes the unresolved symlink
+using the file symlink kind.
 
 Keep `SKILL.md` focused on the always-loaded instructions needed to
 route and execute the skill. Move non-eager material into the optional

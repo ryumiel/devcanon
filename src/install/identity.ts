@@ -1,12 +1,17 @@
-import { lstat, readFile, readdir, readlink } from "node:fs/promises";
+import { lstat, readFile, readdir, readlink, stat } from "node:fs/promises";
 import path from "node:path";
 import type {
   InstallMode,
   ManagedRecord,
   ResolvedConfig,
 } from "../config/schema.js";
+import {
+  type PackagedSymlinkType,
+  formatPackagedSymlinkHashEntry,
+} from "../render/mirrored-files.js";
 import { buildSkillContentHash } from "../render/skill.js";
 import { UserError } from "../utils/errors.js";
+import { isUnobservableSymlinkTargetError } from "../utils/fs.js";
 import { sha256 } from "../utils/hash.js";
 import { KNOWN_SUBDIRS } from "../validate/skills.js";
 
@@ -15,6 +20,7 @@ export interface ManagedOutputIdentityOptions {
   record: ManagedRecord;
   output?: ManagedIdentityOutput;
   allowMissing?: boolean;
+  allowHistoricalSymlinkKinds?: boolean;
 }
 
 interface ManagedIdentityOutput {
@@ -27,6 +33,10 @@ interface ManagedIdentityOutput {
 }
 
 type InstalledSkillFiles = Map<string, readonly string[]>;
+type NormalizedInstalledSymlinkTarget = {
+  target: string;
+  allowLegacyTargetOnlyHash: boolean;
+};
 
 const MAX_EXHAUSTIVE_SKILL_HASH_CANDIDATES = 1024;
 
@@ -35,6 +45,7 @@ export async function verifyManagedOutputIdentity({
   record,
   output,
   allowMissing = false,
+  allowHistoricalSymlinkKinds = false,
 }: ManagedOutputIdentityOptions): Promise<void> {
   assertRecordMatchesOutput(record, output);
   await assertInstalledPathContained(config, record);
@@ -46,7 +57,7 @@ export async function verifyManagedOutputIdentity({
   if (record.installMode === "symlink") {
     await assertSymlinkIdentity(record);
   } else {
-    await assertCopyIdentity(record);
+    await assertCopyIdentity(record, { allowHistoricalSymlinkKinds });
   }
 }
 
@@ -218,13 +229,16 @@ async function assertSymlinkIdentity(record: ManagedRecord): Promise<void> {
   }
 }
 
-async function assertCopyIdentity(record: ManagedRecord): Promise<void> {
+async function assertCopyIdentity(
+  record: ManagedRecord,
+  options: { allowHistoricalSymlinkKinds: boolean },
+): Promise<void> {
   let actualHashes: string[];
   try {
     actualHashes =
       record.type === "agent"
         ? [await hashInstalledAgent(record.installedPath)]
-        : await hashInstalledSkill(record);
+        : await hashInstalledSkill(record, options);
   } catch (err) {
     throw identityError(
       record,
@@ -245,7 +259,10 @@ async function hashInstalledAgent(installedPath: string): Promise<string> {
   return sha256(await readFile(installedPath, "utf-8"));
 }
 
-async function hashInstalledSkill(record: ManagedRecord): Promise<string[]> {
+async function hashInstalledSkill(
+  record: ManagedRecord,
+  options: { allowHistoricalSymlinkKinds: boolean },
+): Promise<string[]> {
   const installedPath = record.installedPath;
   const stat = await lstat(installedPath);
   if (!stat.isDirectory() || stat.isSymbolicLink()) {
@@ -269,6 +286,7 @@ async function hashInstalledSkill(record: ManagedRecord): Promise<string[]> {
       extraFiles,
       "mirrored",
       expectedRoot,
+      options,
     );
   }
   return buildSkillContentHashCandidates(content, extraFiles, installedPath);
@@ -299,6 +317,9 @@ async function collectInstalledSkillFiles(
   files: InstalledSkillFiles,
   mode: "raw" | "mirrored",
   expectedRoot?: string,
+  options: { allowHistoricalSymlinkKinds: boolean } = {
+    allowHistoricalSymlinkKinds: false,
+  },
 ): Promise<void> {
   const currentDir = path.join(root, ...base.split("/").filter(Boolean));
   const entries = await readdir(currentDir, { withFileTypes: true }).catch(
@@ -321,6 +342,7 @@ async function collectInstalledSkillFiles(
         files,
         mode,
         expectedRoot,
+        options,
       );
       continue;
     }
@@ -337,19 +359,147 @@ async function collectInstalledSkillFiles(
     if (entry.isSymbolicLink()) {
       files.set(
         absolutePath,
-        (
-          await normalizedInstalledSymlinkTargets(
-            absolutePath,
-            relPath,
-            mode,
-            expectedRoot,
-          )
-        ).map((target) => `symlink:${target}`),
+        await installedSymlinkHashEntryCandidates(
+          absolutePath,
+          relPath,
+          mode,
+          expectedRoot,
+          options,
+        ),
       );
       continue;
     }
 
     throw new Error(`installed skill contains unsupported entry: ${relPath}`);
+  }
+}
+
+async function installedSymlinkHashEntryCandidates(
+  installedPath: string,
+  relPath: string,
+  mode: "raw" | "mirrored",
+  expectedRoot: string | undefined,
+  options: { allowHistoricalSymlinkKinds: boolean },
+): Promise<string[]> {
+  const targets = await normalizedInstalledSymlinkTargets(
+    installedPath,
+    relPath,
+    mode,
+    expectedRoot,
+  );
+  if (mode !== "mirrored") {
+    return targets.map(({ target }) => `symlink:${target}`);
+  }
+
+  const symlinkTypes =
+    (await getExpectedUnobservableSymlinkTypes(expectedRoot, relPath)) ??
+    (await getInstalledSymlinkTypes(
+      installedPath,
+      options.allowHistoricalSymlinkKinds,
+    ));
+  const allowLegacyKindedHash =
+    options.allowHistoricalSymlinkKinds &&
+    (await expectedSymlinkExists(expectedRoot, relPath));
+  return uniqueStrings(
+    targets.flatMap(({ target, allowLegacyTargetOnlyHash }) => {
+      const candidates =
+        allowLegacyTargetOnlyHash && !isAmbiguousLegacySymlinkTarget(target)
+          ? [`symlink:${target}`]
+          : [];
+      candidates.unshift(
+        ...symlinkTypes.flatMap((symlinkType) => {
+          const kindedCandidates = [
+            formatPackagedSymlinkHashEntry(target, symlinkType),
+          ];
+          if (allowLegacyKindedHash) {
+            kindedCandidates.push(
+              formatLegacyPackagedSymlinkHashEntry(target, symlinkType),
+            );
+          }
+          return kindedCandidates;
+        }),
+      );
+      return candidates;
+    }),
+  );
+}
+
+function formatLegacyPackagedSymlinkHashEntry(
+  target: string,
+  symlinkType: PackagedSymlinkType,
+): string {
+  return `symlink:${symlinkType}:${target}`;
+}
+
+function isAmbiguousLegacySymlinkTarget(target: string): boolean {
+  return target.startsWith("file:") || target.startsWith("dir:");
+}
+
+async function getExpectedUnobservableSymlinkTypes(
+  expectedRoot: string | undefined,
+  relPath: string,
+): Promise<readonly PackagedSymlinkType[] | null> {
+  if (!expectedRoot) return null;
+
+  const expectedPath = path.join(expectedRoot, ...relPath.split("/"));
+  let expectedStat: Awaited<ReturnType<typeof lstat>>;
+  try {
+    expectedStat = await lstat(expectedPath);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw err;
+  }
+
+  if (!expectedStat.isSymbolicLink()) return null;
+
+  try {
+    await stat(expectedPath);
+    return null;
+  } catch (err) {
+    if (isUnobservableSymlinkTargetError(err)) {
+      return ["file", "dir"];
+    }
+    throw err;
+  }
+}
+
+async function expectedSymlinkExists(
+  expectedRoot: string | undefined,
+  relPath: string,
+): Promise<boolean> {
+  if (!expectedRoot) return false;
+
+  const expectedPath = path.join(expectedRoot, ...relPath.split("/"));
+  try {
+    return (await lstat(expectedPath)).isSymbolicLink();
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return false;
+    throw err;
+  }
+}
+
+async function getInstalledSymlinkTypes(
+  installedPath: string,
+  allowHistoricalSymlinkKinds: boolean,
+): Promise<readonly PackagedSymlinkType[]> {
+  try {
+    const targetStat = await stat(installedPath);
+    const currentKind = targetStat.isDirectory() ? "dir" : "file";
+    if (allowHistoricalSymlinkKinds) {
+      return currentKind === "dir" ? ["dir", "file"] : ["file", "dir"];
+    }
+    return [currentKind];
+  } catch (err) {
+    if (isUnobservableSymlinkTargetError(err)) {
+      if (allowHistoricalSymlinkKinds) {
+        // Some copied symlinks cannot be followed once the external target kind
+        // changes, especially on Windows. Updating or removing may accept the
+        // previous kind so sync can rewrite or clean up the stale output.
+        return ["file", "dir"];
+      }
+      return ["file", "dir"];
+    }
+    throw err;
   }
 }
 
@@ -473,23 +623,35 @@ async function normalizedInstalledSymlinkTargets(
   relPath: string,
   mode: "raw" | "mirrored",
   expectedRoot: string | undefined,
-): Promise<string[]> {
+): Promise<NormalizedInstalledSymlinkTarget[]> {
   const actualTarget = await readlink(installedPath);
-  if (mode !== "mirrored" || !expectedRoot || !path.isAbsolute(actualTarget)) {
-    return [actualTarget];
+  if (mode !== "mirrored" || !expectedRoot) {
+    return [allowLegacySymlinkTarget(actualTarget)];
   }
 
   const expectedPath = path.join(expectedRoot, ...relPath.split("/"));
   const expectedTarget = await readExpectedSymlinkTarget(expectedPath);
+
+  if (!path.isAbsolute(actualTarget)) {
+    return separatorSpellingCandidates(actualTarget).map(
+      allowLegacySymlinkTarget,
+    );
+  }
+
   if (expectedTarget === null) {
     return normalizeAbsoluteTargetsInsideRoot(
       actualTarget,
       expectedRoot,
       expectedPath,
-    );
+    ).map(allowLegacySymlinkTarget);
   }
   if (path.isAbsolute(expectedTarget)) {
-    return [actualTarget];
+    return [
+      {
+        target: actualTarget,
+        allowLegacyTargetOnlyHash: true,
+      },
+    ];
   }
 
   const expectedResolved = path.resolve(
@@ -501,10 +663,23 @@ async function normalizedInstalledSymlinkTargets(
       actualTarget,
       expectedRoot,
       expectedPath,
-    );
+    ).map(allowLegacySymlinkTarget);
   }
 
-  return [toPosixPath(path.relative(path.dirname(expectedPath), actualTarget))];
+  return [
+    {
+      target: toPosixPath(
+        path.relative(path.dirname(expectedPath), actualTarget),
+      ),
+      allowLegacyTargetOnlyHash: true,
+    },
+  ];
+}
+
+function allowLegacySymlinkTarget(
+  target: string,
+): NormalizedInstalledSymlinkTarget {
+  return { target, allowLegacyTargetOnlyHash: true };
 }
 
 function normalizeAbsoluteTargetsInsideRoot(
