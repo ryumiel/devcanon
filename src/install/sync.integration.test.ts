@@ -16,9 +16,11 @@ import {
   canCreateSymlinks,
   cleanupTempDir,
   createAgentFixture,
+  createConfigFile,
   createSkillFixture,
   createTempDir,
   makeAgentYaml,
+  makeConfigYaml,
   makeManifestJson,
   makeResolvedConfig,
 } from "../__test-helpers__/fixtures.js";
@@ -26,6 +28,7 @@ import {
   type TestLoggerResult,
   installTestLogger,
 } from "../__test-helpers__/logger.js";
+import { loadConfig } from "../config/load.js";
 import { diffAll } from "../diff/diff.js";
 import { buildSkillContentHash } from "../render/skill.js";
 import { pathExists, readTextFile } from "../utils/fs.js";
@@ -137,6 +140,105 @@ describe("sync", () => {
       "greet",
     );
     expect(await pathExists(claudeSkillPath)).toBe(true);
+  });
+
+  it("reuses a config-relative manifest boundary and records from a second cwd", async () => {
+    const configDir = path.join(tempDir, "project", "config");
+    const firstCwd = path.join(tempDir, "first-cwd");
+    const secondCwd = path.join(tempDir, "second-cwd");
+    await mkdir(configDir, { recursive: true });
+    await mkdir(firstCwd, { recursive: true });
+    await mkdir(secondCwd, { recursive: true });
+    const configPath = await createConfigFile(
+      configDir,
+      makeConfigYaml({
+        library: {
+          skillsDir: "./library/skills",
+          agentsDir: "./library/agents",
+          generatedDir: "./generated",
+        },
+        targets: {
+          claude: {
+            enabled: true,
+            skillsHome: "./homes/claude/skills",
+            agentsHome: "./homes/claude/agents",
+          },
+          codex: {
+            enabled: true,
+            skillsHome: "./homes/codex/skills",
+            agentsHome: "./homes/codex/agents",
+          },
+        },
+        defaults: {
+          installMode: "copy",
+          overwritePolicy: "overwrite-managed",
+          cleanManagedOutputs: true,
+        },
+        manifest: { path: "./state/manifest.json" },
+      }),
+    );
+    const previousCwd = process.cwd();
+    const opts = { dryRun: false, force: false, strict: false } as const;
+
+    try {
+      process.chdir(firstCwd);
+      const firstConfig = await loadConfig(configPath);
+      await createSkillFixture(firstConfig.library.skillsDir, "shared");
+      await createAgentFixture(
+        firstConfig.library.agentsDir,
+        "helper",
+        makeAgentYaml("helper"),
+      );
+
+      const first = await sync(firstConfig, opts);
+      const firstManifest = JSON.parse(
+        await readTextFile(firstConfig.manifest.path),
+      );
+
+      expect(first.errors).toEqual([]);
+      expect(first.installed).toBeGreaterThan(0);
+      expect(firstConfig.manifest.path).toBe(
+        path.join(configDir, "state", "manifest.json"),
+      );
+      expect(firstManifest.boundary).toEqual({
+        claudeSkillsHome: path.join(configDir, "homes", "claude", "skills"),
+        claudeAgentsHome: path.join(configDir, "homes", "claude", "agents"),
+        codexSkillsHome: path.join(configDir, "homes", "codex", "skills"),
+        codexAgentsHome: path.join(configDir, "homes", "codex", "agents"),
+      });
+      expect(
+        new Set(
+          firstManifest.records.map(
+            (record: { installedPath: string }) => record.installedPath,
+          ),
+        ),
+      ).toEqual(
+        new Set([
+          path.join(configDir, "homes", "claude", "skills", "shared"),
+          path.join(configDir, "homes", "claude", "agents", "helper.md"),
+          path.join(configDir, "homes", "codex", "skills", "shared"),
+          path.join(configDir, "homes", "codex", "agents", "helper.toml"),
+        ]),
+      );
+
+      process.chdir(secondCwd);
+      const secondConfig = await loadConfig(configPath);
+      const second = await sync(secondConfig, opts);
+      const secondManifest = JSON.parse(
+        await readTextFile(secondConfig.manifest.path),
+      );
+
+      expect(secondConfig.manifest.path).toBe(firstConfig.manifest.path);
+      expect(second.errors).toEqual([]);
+      expect(second.reconciliation).toBeUndefined();
+      expect(second.installed).toBe(0);
+      expect(second.updated).toBe(0);
+      expect(second.skipped).toBeGreaterThan(0);
+      expect(secondManifest.boundary).toEqual(firstManifest.boundary);
+      expect(secondManifest.records).toEqual(firstManifest.records);
+    } finally {
+      process.chdir(previousCwd);
+    }
   });
 
   it("backs up an existing empty legacy manifest but not a missing manifest", async () => {

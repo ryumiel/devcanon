@@ -3,7 +3,7 @@ import { parse as parseYaml } from "yaml";
 import { UserError } from "../utils/errors.js";
 import { pathExists, readTextFile } from "../utils/fs.js";
 import { getLogger } from "../utils/output.js";
-import { expandHome, resolveFromBase } from "../utils/paths.js";
+import { resolveFromBase } from "../utils/paths.js";
 import { CLI_COMMAND, CONFIG_ENV_VAR, CONFIG_FILE_NAME } from "./identity.js";
 import {
   CODEX_CONFIG_TARGET_FIELDS,
@@ -198,16 +198,22 @@ function resolveConfig(config: Config, configPath: string): ResolvedConfig {
     targets: {
       claude: {
         enabled: config.targets.claude.enabled,
-        skillsHome: expandHome(config.targets.claude.skillsHome),
-        agentsHome: expandHome(config.targets.claude.agentsHome),
+        skillsHome: resolveFromBase(
+          config.targets.claude.skillsHome,
+          configDir,
+        ),
+        agentsHome: resolveFromBase(
+          config.targets.claude.agentsHome,
+          configDir,
+        ),
         installMode: resolveTargetInstallMode(
           config.targets.claude.installMode,
         ),
       },
       codex: {
         enabled: config.targets.codex.enabled,
-        skillsHome: expandHome(config.targets.codex.skillsHome),
-        agentsHome: expandHome(config.targets.codex.agentsHome),
+        skillsHome: resolveFromBase(config.targets.codex.skillsHome, configDir),
+        agentsHome: resolveFromBase(config.targets.codex.agentsHome, configDir),
         installMode: resolveTargetInstallMode(config.targets.codex.installMode),
         ...(config.targets.codex.skillDisplayNameSuffix
           ? {
@@ -226,7 +232,7 @@ function resolveConfig(config: Config, configPath: string): ResolvedConfig {
       windowsSymlinkFallback: config.platform.windowsSymlinkFallback,
     },
     manifest: {
-      path: expandHome(config.manifest.path),
+      path: resolveFromBase(config.manifest.path, configDir),
     },
     capabilityProfiles: config.capabilityProfiles,
     toolNames: config.toolNames,
