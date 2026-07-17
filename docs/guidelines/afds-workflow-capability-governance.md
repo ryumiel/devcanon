@@ -76,8 +76,8 @@ Before choosing an outcome, identify:
 5. The allowed output the existing owner cannot currently produce.
 6. Whether the need repeats beyond one issue or repository.
 7. Whether the proposal would change durable workflow policy, reusable method,
-   role identity, target-supported constraints, source/runtime behavior, or a
-   non-goal.
+   role identity, target configuration defaults or layers, source/runtime
+   behavior, or a non-goal.
 
 If the evidence is inaccessible or incomplete, classify the result as a
 blocker or deferral instead of inventing a local summary.
@@ -156,7 +156,8 @@ Normalize these fields before choosing an outcome:
 - Capability kind: `method/procedure` | `role wrapper` |
   `source/runtime enforcement` | `provider-live automation` |
   `consumer-local convention`.
-- Agent gate: `not applicable` | `tool/sandbox` | `target constraint` |
+- Agent gate: `not applicable` | `tool/sandbox configuration` |
+  `target configuration` |
   `reusable specialist` | `fails gate`.
 - Source/runtime proof: `not applicable` |
   `accepted owner plus missing executable proof` | `source owner unclear`.
@@ -201,15 +202,15 @@ cannot enforce, and does not turn the owner into a catch-all reference.
 
 ## Decision Table
 
-| Outcome                    | Use when                                                                                                                                                                                                                                          | Allowed output                                                                                                             | Do not use when                                                                                                                            | Evidence to record                                                                                                        |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
-| Update existing asset      | An owning guideline, source skill, source agent, spec, ADR, source module, runtime helper, or validation surface already owns the behavior and can express the needed change without becoming misleading.                                         | Same-owner update, with adjacent docs updated only when their ownership is directly affected.                              | The current owner would become an omnibus document, duplicate another owner, or need behavior it cannot enforce.                           | Link the issue, PR, review finding, pilot note, source finding, or design artifact that proves the owner and change.      |
-| Create guideline           | The reusable need governs DevCanon contributors, repository-local policy, capability classification, documentation ownership, or architecture guidance and does not need to render into user-wide skill installations.                            | Guideline under `docs/guidelines/`, with adjacent links updated when their ownership is directly affected.                 | The method must travel to supported agent targets, belongs in an existing owner, or is mechanically enforceable.                           | Show the durable governance gap, why existing guidelines cannot cover it, and why a source skill is not required.         |
-| Create skill               | The reusable need is primarily operational method, checklist, workflow procedure, reference material, or repeatable how-to guidance that should travel across supported agent targets.                                                            | Source skill under `skills/`, with tests/render updates when required by the skill authoring guidance.                     | The need is one-off execution, project-specific policy, exact product behavior, source/runtime behavior, or only a role wrapper.           | Show the repeated workflow gap, why existing skills/guidelines cannot cover it, and which target users need the method.   |
-| Create agent               | The [Agent Authoring Guide](agent-authoring-guide.md) justifies a thin role wrapper through tool or sandbox restrictions, stable role identity with target constraints, or a reusable specialist delegate, and reusable method remains in skills. | Source agent under `agents/`, plus any required source skill references.                                                   | The proposal mostly contains workflow method, prompt growth, generic orchestration, or a wrapper without an agent-authoring justification. | Cite the role boundary, target constraints or specialist reuse evidence, and why a skill alone is insufficient.           |
-| Add source/runtime support | The accepted workflow needs executable validation, rendering, installation, runtime helper behavior, CLI behavior, schema support, or tests that prose cannot enforce.                                                                            | Source code, tests, runtime helper, renderer, installer, schema, or validation update owned by the relevant source module. | Prose guidance can express the rule, the behavior is provider-specific automation without approval, or the source owner is unclear.        | Link the accepted policy/spec/ADR/source-owner evidence and the failing or missing executable proof.                      |
-| Defer                      | The need may be real, but evidence is too thin, repetition is unproven, owner approval is missing, target support is unavailable, or the change would be premature before another owner lands.                                                    | Named revisit condition, blocker, or follow-up candidate with evidence pointer.                                            | The current issue has enough authority and evidence to update an existing owner safely.                                                    | State the missing evidence, owner, target support, or repetition threshold and the condition that reopens classification. |
-| Reject                     | The proposal duplicates an existing owner, violates a non-goal, belongs to a consumer repo, is provider-specific live automation without an owning path, would add process overhead to ordinary execution, or lacks a durable AFDS need.          | Rejection note with the existing owner or non-goal link.                                                                   | The proposal identifies a genuine owner gap that should be deferred instead.                                                               | Link the existing owner, non-goal, fast-path rule, or consumer boundary that explains the rejection.                      |
+| Outcome                    | Use when                                                                                                                                                                                                                                                                                                                   | Allowed output                                                                                                             | Do not use when                                                                                                                            | Evidence to record                                                                                                        |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
+| Update existing asset      | An owning guideline, source skill, source agent, spec, ADR, source module, runtime helper, or validation surface already owns the behavior and can express the needed change without becoming misleading.                                                                                                                  | Same-owner update, with adjacent docs updated only when their ownership is directly affected.                              | The current owner would become an omnibus document, duplicate another owner, or need behavior it cannot enforce.                           | Link the issue, PR, review finding, pilot note, source finding, or design artifact that proves the owner and change.      |
+| Create guideline           | The reusable need governs DevCanon contributors, repository-local policy, capability classification, documentation ownership, or architecture guidance and does not need to render into user-wide skill installations.                                                                                                     | Guideline under `docs/guidelines/`, with adjacent links updated when their ownership is directly affected.                 | The method must travel to supported agent targets, belongs in an existing owner, or is mechanically enforceable.                           | Show the durable governance gap, why existing guidelines cannot cover it, and why a source skill is not required.         |
+| Create skill               | The reusable need is primarily operational method, checklist, workflow procedure, reference material, or repeatable how-to guidance that should travel across supported agent targets.                                                                                                                                     | Source skill under `skills/`, with tests/render updates when required by the skill authoring guidance.                     | The need is one-off execution, project-specific policy, exact product behavior, source/runtime behavior, or only a role wrapper.           | Show the repeated workflow gap, why existing skills/guidelines cannot cover it, and which target users need the method.   |
+| Create agent               | The [Agent Authoring Guide](agent-authoring-guide.md) justifies a thin role wrapper through tool or sandbox configuration defaults or layers a skill cannot declare or carry, stable role identity with target configuration defaults or layers, or a reusable specialist delegate, and reusable method remains in skills. | Source agent under `agents/`, plus any required source skill references.                                                   | The proposal mostly contains workflow method, prompt growth, generic orchestration, or a wrapper without an agent-authoring justification. | Cite the role boundary, target-configuration benefit or specialist reuse evidence, and why a skill alone is insufficient. |
+| Add source/runtime support | The accepted workflow needs executable validation, rendering, installation, runtime helper behavior, CLI behavior, schema support, or tests that prose cannot enforce.                                                                                                                                                     | Source code, tests, runtime helper, renderer, installer, schema, or validation update owned by the relevant source module. | Prose guidance can express the rule, the behavior is provider-specific automation without approval, or the source owner is unclear.        | Link the accepted policy/spec/ADR/source-owner evidence and the failing or missing executable proof.                      |
+| Defer                      | The need may be real, but evidence is too thin, repetition is unproven, owner approval is missing, target support is unavailable, or the change would be premature before another owner lands.                                                                                                                             | Named revisit condition, blocker, or follow-up candidate with evidence pointer.                                            | The current issue has enough authority and evidence to update an existing owner safely.                                                    | State the missing evidence, owner, target support, or repetition threshold and the condition that reopens classification. |
+| Reject                     | The proposal duplicates an existing owner, violates a non-goal, belongs to a consumer repo, is provider-specific live automation without an owning path, would add process overhead to ordinary execution, or lacks a durable AFDS need.                                                                                   | Rejection note with the existing owner or non-goal link.                                                                   | The proposal identifies a genuine owner gap that should be deferred instead.                                                               | Link the existing owner, non-goal, fast-path rule, or consumer boundary that explains the rejection.                      |
 
 ## Skill-First Rule
 
@@ -246,17 +247,18 @@ Create or update an agent only when the
 [Agent Authoring Guide](agent-authoring-guide.md) justifies a thin role wrapper.
 Valid justifications include at least one of:
 
-- tool or sandbox restrictions that a skill cannot enforce;
-- stable role identity with documented target-supported constraints such as
-  model capability, explicit target-native effort, tool access, sandbox mode,
-  or Codex approval policy;
+- tool or sandbox configuration defaults or layers that a skill cannot declare
+  or carry;
+- stable role identity with documented target configuration defaults or layers
+  such as model capability, explicit target-native effort, tool access, sandbox
+  mode, or Codex approval policy;
 - a reusable specialist delegate where the operational method remains in source
   skills.
 
 Capability classification should record which agent-authoring justification
 applies and why a skill or guideline alone is insufficient.
 
-Model capability is only one target-supported constraint. Classify and justify
+Model capability is only one target-configuration field. Classify and justify
 target-native effort, tools, sandbox, approval policy, context, authority,
 orchestration, retry, and escalation policy independently; none is implied by
 `efficient`, `balanced`, or `frontier`. The current configuration and rendering
@@ -274,8 +276,9 @@ Do not promote workflow-local prompt templates into agents mechanically.
 Reviewer-style or delegate prompt templates should remain templates unless they
 meet the
 [Agent Authoring Guide](agent-authoring-guide.md#4-promoting-prompt-templates-into-agents)
-promotion threshold: stable reusable role identity, documented target-supported
-constraints, and reusable operational method that remains in skills.
+promotion threshold: stable reusable role identity, documented target
+configuration defaults or layers, and reusable operational method that remains
+in skills.
 
 ## Source And Runtime Support Gate
 
@@ -339,7 +342,8 @@ Revisit deferred capability candidates only when at least one condition is met:
   workflow without becoming misleading;
 - generated-output or installed-output drift exposes a missing source or
   manifest-owned procedure;
-- a target adds support for a constraint that previously blocked the proposal.
+- a target adds a configuration option or default that previously blocked the
+  proposal.
 
 ## Provider-Neutral Examples
 
@@ -470,7 +474,7 @@ Repetition: <multiple issues/repos | single authoritative accepted owner | singl
 Owner fit: <fits | would become misleading | no owner | unknown>
 Provider context: <provider-neutral statement first; GitHub/Linear details only if relevant>
 Existing coverage: <why existing assets do or do not cover the need>
-Agent gate: <not applicable | tool/sandbox | target constraint | reusable specialist | fails gate>
+Agent gate: <not applicable | tool/sandbox configuration | target configuration | reusable specialist | fails gate>
 Source/runtime proof: <not applicable | accepted owner plus missing executable proof | source owner unclear>
 Non-goals: <what this classification does not approve>
 Revisit condition: <required only for deferrals>

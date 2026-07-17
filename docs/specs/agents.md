@@ -11,7 +11,7 @@ YAML
 ## When to use an agent source file
 
 Use an agent source file for a thin role wrapper that adds stable reusable role
-identity plus documented target-supported constraints.
+identity plus documented target configuration defaults or layers.
 
 Valid reasons include dedicated:
 
@@ -134,11 +134,11 @@ This table is the normative owner of exact shared instruction text for mutation
 boundaries. Tests and rendered targets consume these clauses; they do not define
 parallel positive wording.
 
-| Dimension               | Applies to         | Required instruction                                                                                                                                                                           |
-| ----------------------- | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `durable-file-edit`     | `source-immutable` | `Do not make durable file edits.`                                                                                                                                                              |
-| `exact-handoff-command` | `source-immutable` | `Mutating commands are permitted only when required to create, write, validate, or clean up the exact dispatch-named direct-child .ephemeral handoff. Do not run any other mutating commands.` |
-| `external-write`        | `all roles`        | `Do not mutate GitHub, Linear, Notion, or any other external system.`                                                                                                                          |
+| Dimension               | Applies to         | Required instruction                                                                                                                                                                           | Forbidden opposite                                                     |
+| ----------------------- | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `durable-file-edit`     | `source-immutable` | `Do not make durable file edits.`                                                                                                                                                              | `You may make durable file edits.`                                     |
+| `exact-handoff-command` | `source-immutable` | `Mutating commands are permitted only when required to create, write, validate, or clean up the exact dispatch-named direct-child .ephemeral handoff. Do not run any other mutating commands.` | `You may run unrelated mutating commands while preparing the handoff.` |
+| `external-write`        | `all roles`        | `Do not mutate GitHub, Linear, Notion, or any other external system.`                                                                                                                          | `You may mutate GitHub, Linear, and Notion.`                           |
 
 ### Render and runtime acceptance
 
