@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  parseAgentRoutingPolicyOwner,
   parseAgentSemanticRoleOwner,
   parseCapabilityEscalationAdoptionContractFromSources,
 } from "../__test-helpers__/agent-routing-policy.js";
@@ -94,6 +95,176 @@ function validateEscalationConsumerContracts(
       "docs/guidelines/agent-routing-and-mutation-policy.md":
         sources.adoptionInventory,
     });
+    return [];
+  } catch (error) {
+    return [(error as Error).message];
+  }
+}
+
+function validateRouteLevelOptOutGuideContracts(
+  sources: EscalationConsumerSources,
+): string[] {
+  const projectionErrors = validateEscalationConsumerContracts(sources);
+  if (projectionErrors.length > 0) return projectionErrors;
+
+  try {
+    const contract = parseCapabilityEscalationAdoptionContractFromSources({
+      "docs/adr/adr-0027-semantic-agent-routing-and-mutation-authority.md":
+        sources.adr,
+      "docs/guidelines/agent-authoring-guide.md": sources.agentAuthoring,
+      "docs/guidelines/writing-skills.md": sources.writingSkills,
+      "docs/specs/afds-workflow-routing.md": sources.routingSpec,
+      "docs/specs/agents.md": sources.agentSpec,
+      "skills/issue-priming-workflow/SKILL.md": sources.issuePriming,
+      "skills/play-subagent-execution/references/lifecycle-status-policy.md":
+        sources.lifecyclePolicy,
+      "skills/pr-merge/SKILL.md": sources.prMerge,
+      "skills/subagent-lifecycle/SKILL.md": sources.lifecycleOwner,
+      "docs/guidelines/agent-routing-and-mutation-policy.md":
+        sources.adoptionInventory,
+    });
+    const directRoutes = parseAgentRoutingPolicyOwner(
+      sources.adoptionInventory,
+    ).directChildRoutes;
+    const guide = normalizeWhitespace(
+      sliceBetween(
+        sources.writingSkills,
+        "### Future controller capability transitions",
+        "## 7. Testing",
+      ),
+    );
+    const agentAuthoring = normalizeWhitespace(
+      getMarkdownSection(
+        sources.agentAuthoring,
+        "7. Authoring Workflow in This Repo",
+      ),
+    );
+    const nonD4Adoptions = contract.adoptions.filter(
+      (adoption) => adoption.routeId !== "D4",
+    );
+    const d17 = contract.adoptions.find(
+      (adoption) => adoption.routeId === "D17",
+    );
+    const d17Route = directRoutes.find((route) => route.id === "D17");
+    const expectedD17RoleIds = d17Route?.clauses.map((clause) => clause.role);
+    const expectedTransition = new Set(
+      contract.adoptions.map((adoption) => adoption.transition),
+    );
+    const expectedTargetIds = new Set(
+      nonD4Adoptions.flatMap((adoption) => adoption.targetIds),
+    );
+    const routeLevelDeclaration =
+      /An opt-out is a route-level declaration\. It names [^.]+\./u.exec(
+        guide,
+      )?.[0] ?? "";
+
+    if (!routeLevelDeclaration.includes("route identity")) {
+      return ["Guide opt-out declaration is missing route identity"];
+    }
+    if (
+      expectedTargetIds.size > 1 &&
+      !routeLevelDeclaration.includes("plural `target_ids`")
+    ) {
+      return ["Guide opt-out declaration must use plural target_ids"];
+    }
+    if (!routeLevelDeclaration.includes("target permission")) {
+      return ["Guide opt-out declaration is missing target permission"];
+    }
+    if (!routeLevelDeclaration.includes("role permission")) {
+      return ["Guide opt-out declaration is missing role permission"];
+    }
+    if (
+      nonD4Adoptions.some(
+        (adoption) => adoption.directRouteRoleIds !== undefined,
+      ) &&
+      !routeLevelDeclaration.includes("direct-route role binding")
+    ) {
+      return [
+        "Guide opt-out declaration is missing conditional direct-route role binding",
+      ];
+    }
+    if (
+      expectedTransition.size !== 1 ||
+      !routeLevelDeclaration.includes(
+        `literal \`transition: ${[...expectedTransition][0]}\``,
+      )
+    ) {
+      return ["Guide opt-out declaration transition must be exactly: none"];
+    }
+    if (!routeLevelDeclaration.includes("route-specific owner clauses")) {
+      return [
+        "Guide opt-out declaration is missing route-specific owner clauses",
+      ];
+    }
+    if (
+      !guide.includes(
+        "Do not require one exact target or semantic role for a route-level opt-out.",
+      )
+    ) {
+      return [
+        "Guide opt-out declaration must not require one exact target or semantic role",
+      ];
+    }
+
+    const d4RoleCount = contract.d4RouteSet.allowedRoleIds.length;
+    if (
+      d4RoleCount !== 6 ||
+      !guide.includes("D4 is one six-role-set special case")
+    ) {
+      return ["Guide D4 exception must remain one six-role route set"];
+    }
+    if (
+      !guide.includes(
+        "it has no `direct_route_role_ids` field, which applies only to non-D4 routes.",
+      )
+    ) {
+      return ["Guide D4 exception must omit direct_route_role_ids"];
+    }
+    if (!guide.includes("Do not expand D4 into per-role opt-outs.")) {
+      return [
+        "Guide D4 exception must remain one six-role route set, not per-role opt-outs",
+      ];
+    }
+
+    if (!d17 || !expectedD17RoleIds || d17.directRouteRoleIds === undefined) {
+      return ["Guide contract is missing owner-derived D17 route binding"];
+    }
+    const expectedD17Binding = expectedD17RoleIds
+      .map((role, index) =>
+        index === expectedD17RoleIds.length - 1 && index > 0
+          ? `then \`${role}\``
+          : `\`${role}\``,
+      )
+      .join(", ");
+    const d17Declaration = `D17 is one route-level opt-out with its exact ordered three-clause direct-route role binding: ${expectedD17Binding};`;
+    if (
+      d17.directRouteRoleIds.length !== 3 ||
+      !guide.includes(d17Declaration)
+    ) {
+      return [
+        `Guide D17 direct-route role binding must be exactly: ${expectedD17RoleIds.join(", ")}`,
+      ];
+    }
+    if (
+      !guide.includes(
+        `${d17Declaration} do not create three per-role opt-out records.`,
+      )
+    ) {
+      return [
+        "Guide D17 must remain one route-level opt-out, not three per-role records",
+      ];
+    }
+
+    if (
+      !agentAuthoring.includes(
+        "[Future controller capability transitions](writing-skills.md#future-controller-capability-transitions)",
+      ) ||
+      !agentAuthoring.includes("sole adoption-inventory and grammar owner")
+    ) {
+      return [
+        "Agent authoring guide must delegate route-level opt-out grammar to writing-skills and the routing-policy owner",
+      ];
+    }
     return [];
   } catch (error) {
     return [(error as Error).message];
@@ -4258,5 +4429,137 @@ describe("play subagent routing source contracts", () => {
         );
       }
     }
+  });
+
+  it("rejects one-dimension-invalid route-level opt-out guide declarations", async () => {
+    const sources: EscalationConsumerSources = {
+      adr: await readRepoFile(
+        "docs/adr/adr-0027-semantic-agent-routing-and-mutation-authority.md",
+      ),
+      agentSpec: await readRepoFile("docs/specs/agents.md"),
+      issuePriming: await readSkillSource("issue-priming-workflow"),
+      lifecyclePolicy: await readRepoFile(
+        "skills/play-subagent-execution/references/lifecycle-status-policy.md",
+      ),
+      prMerge: await readSkillSource("pr-merge"),
+      routingSpec: await readRepoFile("docs/specs/afds-workflow-routing.md"),
+      writingSkills: await readRepoFile("docs/guidelines/writing-skills.md"),
+      agentAuthoring: await readRepoFile(
+        "docs/guidelines/agent-authoring-guide.md",
+      ),
+      lifecycleOwner: await readSkillSource("subagent-lifecycle"),
+      adoptionInventory: await readRepoFile(
+        "docs/guidelines/agent-routing-and-mutation-policy.md",
+      ),
+    };
+
+    expect(validateRouteLevelOptOutGuideContracts(sources)).toEqual([]);
+
+    const mutationCases: Array<{
+      name: string;
+      mutate: (writingSkills: string) => string;
+      expectedError: string;
+    }> = [
+      {
+        name: "route identity removal",
+        mutate: (writingSkills) =>
+          writingSkills.replace(
+            "It names route identity, plural",
+            "It names plural",
+          ),
+        expectedError: "Guide opt-out declaration is missing route identity",
+      },
+      {
+        name: "plural target_ids contradiction",
+        mutate: (writingSkills) =>
+          writingSkills.replace("plural\n`target_ids`", "single\n`target_id`"),
+        expectedError: "Guide opt-out declaration must use plural target_ids",
+      },
+      {
+        name: "direct-route binding removal",
+        mutate: (writingSkills) =>
+          writingSkills.replace(
+            "the applicable direct-route\nrole binding, ",
+            "the applicable ",
+          ),
+        expectedError:
+          "Guide opt-out declaration is missing conditional direct-route role binding",
+      },
+      {
+        name: "role permission removal",
+        mutate: (writingSkills) =>
+          writingSkills.replace("role permission, ", ""),
+        expectedError: "Guide opt-out declaration is missing role permission",
+      },
+      {
+        name: "transition none contradiction",
+        mutate: (writingSkills) =>
+          writingSkills.replace(
+            "literal `transition: none`",
+            "literal `transition: active`",
+          ),
+        expectedError:
+          "Guide opt-out declaration transition must be exactly: none",
+      },
+      {
+        name: "single target and role contradiction",
+        mutate: (writingSkills) =>
+          writingSkills.replace(
+            "Do not require one exact target or semantic role for a route-level opt-out.",
+            "Require one exact target and semantic role for a route-level opt-out.",
+          ),
+        expectedError:
+          "Guide opt-out declaration must not require one exact target or semantic role",
+      },
+      {
+        name: "D4 direct-route binding contradiction",
+        mutate: (writingSkills) =>
+          writingSkills.replace(
+            "it has no\n`direct_route_role_ids` field",
+            "it has one\n`direct_route_role_ids` field",
+          ),
+        expectedError: "Guide D4 exception must omit direct_route_role_ids",
+      },
+      {
+        name: "D4 per-role opt-out contradiction",
+        mutate: (writingSkills) =>
+          writingSkills.replace(
+            "Do not\nexpand D4 into per-role opt-outs.",
+            "Expand D4 into per-role opt-outs.",
+          ),
+        expectedError:
+          "Guide D4 exception must remain one six-role route set, not per-role opt-outs",
+      },
+      {
+        name: "D17 ordered binding contradiction",
+        mutate: (writingSkills) =>
+          writingSkills.replace(
+            "`investigator`, `executor`,\nthen `implementer`",
+            "`executor`, `investigator`,\nthen `implementer`",
+          ),
+        expectedError:
+          "Guide D17 direct-route role binding must be exactly: investigator, executor, implementer",
+      },
+      {
+        name: "D17 per-role opt-out contradiction",
+        mutate: (writingSkills) =>
+          writingSkills.replace(
+            "do not create three per-role opt-out records.",
+            "create three per-role opt-out records.",
+          ),
+        expectedError:
+          "Guide D17 must remain one route-level opt-out, not three per-role records",
+      },
+    ];
+
+    expect(
+      mutationCases.map(({ mutate }) =>
+        validateRouteLevelOptOutGuideContracts({
+          ...sources,
+          writingSkills: mutate(sources.writingSkills),
+        }),
+      ),
+      "structural guide oracle must reject every semantic guide mutation",
+    ).toEqual(mutationCases.map(({ expectedError }) => [expectedError]));
   });
 });
