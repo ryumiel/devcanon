@@ -84,7 +84,6 @@ export async function sync(
       "Use the manifest with its original configured homes; boundary mismatches cannot be reconciled.",
     );
   }
-  assertNoPhysicalPathConflicts(normalized.manifest.records, config);
   const legacy = !loaded.manifest.boundary;
   const foreignIndexes = normalized.records.flatMap((record, index) =>
     record.ownership === "foreign" ? [index] : [],
@@ -151,6 +150,7 @@ export async function sync(
       ),
     };
   }
+  assertNoPhysicalPathConflicts(manifest.records, config);
 
   // Render the selected target without materializing generated output, then
   // reject a retained manifest identity that would share a physical path with
@@ -316,7 +316,9 @@ function protectReconciledForeignPaths(
       !["install", "update", "force-overwrite", "remove"].includes(
         action.kind,
       ) ||
-      !protectedInstalledPathKeys.has(path.resolve(action.installedPath))
+      ![...protectedInstalledPathKeys].some((protectedPath) =>
+        pathsOverlapByComponent(action.installedPath, protectedPath),
+      )
     ) {
       return action;
     }
@@ -327,6 +329,25 @@ function protectReconciledForeignPaths(
         "A foreign legacy manifest record was reconciled at this path; same-sync mutation is blocked.",
     };
   });
+}
+
+function pathsOverlapByComponent(
+  firstPath: string,
+  secondPath: string,
+): boolean {
+  const first = path.resolve(firstPath);
+  const second = path.resolve(secondPath);
+  return (
+    isComponentAncestor(first, second) || isComponentAncestor(second, first)
+  );
+}
+
+function isComponentAncestor(ancestor: string, descendant: string): boolean {
+  const relative = path.relative(ancestor, descendant);
+  return (
+    relative === "" ||
+    (!path.isAbsolute(relative) && !relative.split(path.sep).includes(".."))
+  );
 }
 
 function assertNoPhysicalPathConflicts(

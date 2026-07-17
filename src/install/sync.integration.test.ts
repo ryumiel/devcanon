@@ -1320,6 +1320,906 @@ describe("sync", () => {
     expect(reconciled.records).toEqual([]);
   });
 
+  it("reconciles colliding foreign legacy records after excluding them from retained collision validation", async () => {
+    const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
+    const foreignPath = path.join(tempDir, "foreign", "shared.md");
+    await mkdir(config.library.skillsDir, { recursive: true });
+    await mkdir(config.library.agentsDir, { recursive: true });
+    await mkdir(path.dirname(config.manifest.path), { recursive: true });
+    await mkdir(path.dirname(foreignPath), { recursive: true });
+    await writeFile(foreignPath, "foreign shared bytes", "utf-8");
+    await writeFile(
+      config.manifest.path,
+      makeManifestJson(
+        [
+          {
+            target: "claude",
+            type: "agent",
+            sourcePath: path.join(config.library.agentsDir, "first.yaml"),
+            generatedPath: null,
+            installedPath: foreignPath,
+            installMode: "copy",
+            contentHash: "first",
+            timestamp: new Date().toISOString(),
+          },
+          {
+            target: "claude",
+            type: "skill",
+            sourcePath: path.join(config.library.skillsDir, "second"),
+            generatedPath: null,
+            installedPath: foreignPath,
+            installMode: "copy",
+            contentHash: "second",
+            timestamp: new Date().toISOString(),
+          },
+        ],
+        { legacy: true },
+      ),
+      "utf-8",
+    );
+    const manifestBefore = await readTextFile(config.manifest.path);
+
+    const dryRun = await sync(config, {
+      dryRun: true,
+      force: false,
+      strict: false,
+      reconcileManifest: true,
+    });
+
+    expect(dryRun.errors).toEqual([]);
+    expect(dryRun.reconciliation?.retained).toEqual([]);
+    expect(dryRun.reconciliation?.removed).toHaveLength(2);
+    expect(await readTextFile(config.manifest.path)).toBe(manifestBefore);
+    expect(await readTextFile(foreignPath)).toBe("foreign shared bytes");
+    expect(
+      (await readdir(path.dirname(config.manifest.path))).filter((entry) =>
+        entry.includes(".backup-"),
+      ),
+    ).toHaveLength(0);
+
+    const result = await sync(config, {
+      dryRun: false,
+      force: false,
+      strict: false,
+      reconcileManifest: true,
+    });
+
+    expect(result.errors).toEqual([]);
+    expect(result.reconciliation?.removed).toHaveLength(2);
+    expect(await readTextFile(foreignPath)).toBe("foreign shared bytes");
+    expect(
+      (await readdir(path.dirname(config.manifest.path))).filter((entry) =>
+        entry.includes(".backup-"),
+      ),
+    ).toHaveLength(1);
+    expect(
+      JSON.parse(await readTextFile(config.manifest.path)).records,
+    ).toEqual([]);
+
+    const second = await sync(config, {
+      dryRun: false,
+      force: false,
+      strict: false,
+    });
+    expect(second.errors).toEqual([]);
+    expect(second.reconciliation).toBeUndefined();
+  });
+
+  it("rejects differently identified retained records at one literal path before side effects", async () => {
+    for (const dryRun of [true, false]) {
+      const scenarioDir = path.join(tempDir, dryRun ? "dry" : "real");
+      const sharedSkillsHome = path.join(scenarioDir, "home", "skills");
+      const config = makeResolvedConfig(scenarioDir, {
+        claude: { skillsHome: sharedSkillsHome },
+        codex: { skillsHome: sharedSkillsHome },
+      });
+      const installedPath = path.join(sharedSkillsHome, "shared");
+      const generatedSentinel = path.join(
+        config.library.generatedDir,
+        "sentinel.txt",
+      );
+      await mkdir(path.dirname(config.manifest.path), { recursive: true });
+      await mkdir(path.dirname(generatedSentinel), { recursive: true });
+      await writeFile(generatedSentinel, "generated sentinel", "utf-8");
+      await writeFile(
+        config.manifest.path,
+        makeManifestJson(
+          [
+            {
+              target: "claude",
+              type: "skill",
+              name: "shared",
+              sourcePath: path.join(config.library.skillsDir, "shared"),
+              generatedPath: null,
+              installedPath,
+              installMode: "copy",
+              contentHash: "claude-retained",
+              timestamp: new Date().toISOString(),
+            },
+            {
+              target: "codex",
+              type: "skill",
+              name: "shared",
+              sourcePath: path.join(config.library.skillsDir, "shared"),
+              generatedPath: null,
+              installedPath,
+              installMode: "copy",
+              contentHash: "codex-retained",
+              timestamp: new Date().toISOString(),
+            },
+          ],
+          { config },
+        ),
+        "utf-8",
+      );
+      const manifestBefore = await readTextFile(config.manifest.path);
+
+      await expect(
+        sync(config, { dryRun, force: false, strict: false }),
+      ).rejects.toThrow("Managed output physical path conflict");
+
+      expect(await readTextFile(config.manifest.path)).toBe(manifestBefore);
+      expect(await readTextFile(generatedSentinel)).toBe("generated sentinel");
+      expect(await pathExists(installedPath)).toBe(false);
+      expect(
+        (await readdir(path.dirname(config.manifest.path))).filter((entry) =>
+          entry.includes(".backup-"),
+        ),
+      ).toHaveLength(0);
+      expect(testLogger.infos).toEqual([]);
+    }
+  });
+
+  it("reconciles an owned and foreign exact-path legacy pair without replacing the owned output", async () => {
+    const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
+    const name = "shared";
+    const installedPath = path.join(
+      config.targets.claude.agentsHome,
+      `${name}.md`,
+    );
+    await mkdir(config.library.agentsDir, { recursive: true });
+    await createAgentFixture(
+      config.library.agentsDir,
+      name,
+      makeAgentYaml(name),
+    );
+    await mkdir(path.dirname(config.manifest.path), { recursive: true });
+    await writeFile(
+      config.manifest.path,
+      makeManifestJson(
+        [
+          {
+            target: "claude",
+            type: "agent",
+            sourcePath: path.join(config.library.agentsDir, `${name}.yaml`),
+            generatedPath: null,
+            installedPath,
+            installMode: "copy",
+            contentHash: "owned",
+            timestamp: new Date().toISOString(),
+          },
+          {
+            target: "claude",
+            type: "skill",
+            sourcePath: path.join(config.library.skillsDir, "foreign"),
+            generatedPath: null,
+            installedPath,
+            installMode: "copy",
+            contentHash: "foreign",
+            timestamp: new Date().toISOString(),
+          },
+        ],
+        { legacy: true },
+      ),
+      "utf-8",
+    );
+    const manifestBefore = await readTextFile(config.manifest.path);
+
+    const dryRun = await sync(config, {
+      dryRun: true,
+      force: false,
+      strict: false,
+      reconcileManifest: true,
+    });
+    expect(dryRun.reconciliation).toMatchObject({
+      retained: [expect.objectContaining({ name, installedPath })],
+      removed: [expect.objectContaining({ installedPath })],
+    });
+    expect(await readTextFile(config.manifest.path)).toBe(manifestBefore);
+    expect(await pathExists(installedPath)).toBe(false);
+
+    const result = await sync(config, {
+      dryRun: false,
+      force: false,
+      strict: false,
+      reconcileManifest: true,
+    });
+    expect(result).toMatchObject({
+      installed: 0,
+      updated: 0,
+      removed: 0,
+      conflicts: 1,
+      errors: [],
+    });
+    const backups = (await readdir(path.dirname(config.manifest.path))).filter(
+      (entry) => entry.includes(".backup-"),
+    );
+    expect(backups).toHaveLength(1);
+    expect(await readTextFile(path.join(tempDir, backups[0]))).toBe(
+      manifestBefore,
+    );
+    expect(await pathExists(installedPath)).toBe(false);
+    expect(
+      JSON.parse(await readTextFile(config.manifest.path)).records,
+    ).toEqual([expect.objectContaining({ name, installedPath })]);
+
+    const second = await sync(config, {
+      dryRun: false,
+      force: false,
+      strict: false,
+    });
+    expect(second.errors).toEqual([]);
+    expect(second.installed).toBe(1);
+    expect(await pathExists(installedPath)).toBe(true);
+  });
+
+  it("refuses bound foreign and unreconciled legacy exact-path pairs before writes", async () => {
+    for (const scenario of [
+      {
+        name: "bound",
+        fixture: "bound" as const,
+        error: "Bound manifest contains foreign records",
+      },
+      {
+        name: "legacy",
+        fixture: "legacy" as const,
+        error: "Legacy manifest contains foreign records",
+      },
+    ]) {
+      const scenarioDir = path.join(tempDir, `exact-refusal-${scenario.name}`);
+      const config = makeResolvedConfig(scenarioDir, {
+        codex: { enabled: false },
+      });
+      const installedPath = path.join(
+        config.targets.claude.agentsHome,
+        "shared.md",
+      );
+      await mkdir(path.dirname(config.manifest.path), { recursive: true });
+      const records = [
+        {
+          target: "claude",
+          type: "agent",
+          ...(scenario.fixture === "bound" ? { name: "shared" } : {}),
+          sourcePath: path.join(config.library.agentsDir, "shared.yaml"),
+          generatedPath: null,
+          installedPath,
+          installMode: "copy",
+          contentHash: "owned",
+          timestamp: new Date().toISOString(),
+        },
+        {
+          target: "claude",
+          type: "skill",
+          ...(scenario.fixture === "bound" ? { name: "foreign" } : {}),
+          sourcePath: path.join(config.library.skillsDir, "foreign"),
+          generatedPath: null,
+          installedPath,
+          installMode: "copy",
+          contentHash: "foreign",
+          timestamp: new Date().toISOString(),
+        },
+      ];
+      await writeFile(
+        config.manifest.path,
+        makeManifestJson(records, {
+          ...(scenario.fixture === "bound" ? { config } : { legacy: true }),
+        }),
+        "utf-8",
+      );
+      const manifestBefore = await readTextFile(config.manifest.path);
+
+      await expect(
+        sync(config, { dryRun: false, force: false, strict: false }),
+      ).rejects.toThrow(scenario.error);
+      expect(await readTextFile(config.manifest.path)).toBe(manifestBefore);
+      expect(await pathExists(installedPath)).toBe(false);
+      expect(await pathExists(config.library.generatedDir)).toBe(false);
+      expect(
+        (await readdir(path.dirname(config.manifest.path))).filter((entry) =>
+          entry.includes(".backup-"),
+        ),
+      ).toHaveLength(0);
+    }
+  });
+
+  it("blocks component-overlapping managed updates and removals in both directions", async () => {
+    const scenarios = [
+      { action: "update" as const, direction: "descendant" as const },
+      { action: "update" as const, direction: "ancestor" as const },
+      { action: "remove" as const, direction: "descendant" as const },
+      { action: "remove" as const, direction: "ancestor" as const },
+    ];
+    for (const scenario of scenarios) {
+      const scenarioDir = path.join(
+        tempDir,
+        `${scenario.action}-${scenario.direction}`,
+      );
+      const config = makeResolvedConfig(scenarioDir, {
+        codex: { enabled: false },
+      });
+      const type = scenario.direction === "ancestor" ? "skill" : "agent";
+      const name = "protected";
+      const sourcePath =
+        type === "skill"
+          ? await createSkillFixture(config.library.skillsDir, name)
+          : await createAgentFixture(
+              config.library.agentsDir,
+              name,
+              makeAgentYaml(name),
+            );
+      await sync(config, { dryRun: false, force: false, strict: false });
+      const initial = JSON.parse(await readTextFile(config.manifest.path));
+      const record = initial.records.find(
+        (candidate: { target: string; type: string; name: string }) =>
+          candidate.target === "claude" &&
+          candidate.type === type &&
+          candidate.name === name,
+      );
+      const { name: _name, ...legacyRecord } = record;
+      const foreignPath =
+        scenario.direction === "ancestor"
+          ? path.join(record.installedPath, "foreign.md")
+          : type === "agent"
+            ? config.targets.claude.agentsHome
+            : config.targets.claude.skillsHome;
+      if (scenario.direction === "ancestor") {
+        await writeFile(foreignPath, "foreign child bytes", "utf-8");
+      }
+      await writeFile(
+        config.manifest.path,
+        makeManifestJson(
+          [
+            legacyRecord,
+            {
+              target: "claude",
+              type: scenario.direction === "ancestor" ? "agent" : "skill",
+              sourcePath: path.join(scenarioDir, "foreign"),
+              generatedPath: null,
+              installedPath: foreignPath,
+              installMode: "copy",
+              contentHash: "foreign",
+              timestamp: new Date().toISOString(),
+            },
+          ],
+          { legacy: true },
+        ),
+        "utf-8",
+      );
+      const installedBefore =
+        type === "agent"
+          ? await readTextFile(record.installedPath)
+          : await readTextFile(path.join(record.installedPath, "SKILL.md"));
+      if (scenario.action === "update") {
+        if (type === "agent") {
+          await writeFile(
+            sourcePath,
+            makeAgentYaml(name, { description: "updated" }),
+            "utf-8",
+          );
+        } else {
+          await writeFile(
+            path.join(sourcePath, "SKILL.md"),
+            "---\nname: protected\ndescription: updated\n---\n\n# protected\n",
+            "utf-8",
+          );
+        }
+      } else {
+        await rm(sourcePath, { recursive: true });
+      }
+
+      const dryRun = await sync(config, {
+        dryRun: true,
+        force: false,
+        strict: false,
+        reconcileManifest: true,
+      });
+      expect(dryRun).toMatchObject({
+        installed: 0,
+        updated: 0,
+        removed: 0,
+        skipped: 0,
+        conflicts: 0,
+        errors: [],
+      });
+      const result = await sync(config, {
+        dryRun: false,
+        force: false,
+        strict: false,
+        reconcileManifest: true,
+      });
+      expect(result).toMatchObject({
+        installed: 0,
+        updated: 0,
+        removed: 0,
+        conflicts: 1,
+        errors: [],
+      });
+      expect(
+        type === "agent"
+          ? await readTextFile(record.installedPath)
+          : await readTextFile(path.join(record.installedPath, "SKILL.md")),
+      ).toBe(installedBefore);
+      expect(
+        JSON.parse(await readTextFile(config.manifest.path)).records,
+      ).toEqual([
+        expect.objectContaining({ name, installedPath: record.installedPath }),
+      ]);
+    }
+  });
+
+  it("allows an unrelated component-prefix sibling overwrite while a foreign path is protected", async () => {
+    const config = makeResolvedConfig(tempDir, {
+      codex: { enabled: false },
+      defaults: { cleanManagedOutputs: false },
+    });
+    const installedPath = path.join(
+      config.targets.claude.agentsHome,
+      "foobar.md",
+    );
+    const foreignPath = path.join(config.targets.claude.agentsHome, "foo");
+    await createAgentFixture(
+      config.library.agentsDir,
+      "foobar",
+      makeAgentYaml("foobar"),
+    );
+    await mkdir(path.dirname(config.manifest.path), { recursive: true });
+    await mkdir(path.dirname(installedPath), { recursive: true });
+    await writeFile(installedPath, "unmanaged foobar bytes", "utf-8");
+    await writeFile(
+      config.manifest.path,
+      makeManifestJson(
+        [
+          {
+            target: "claude",
+            type: "skill",
+            sourcePath: path.join(config.library.skillsDir, "foo"),
+            generatedPath: null,
+            installedPath: foreignPath,
+            installMode: "copy",
+            contentHash: "foreign",
+            timestamp: new Date().toISOString(),
+          },
+        ],
+        { legacy: true },
+      ),
+      "utf-8",
+    );
+
+    const result = await sync(config, {
+      dryRun: false,
+      force: true,
+      strict: false,
+      reconcileManifest: true,
+    });
+    expect(result).toMatchObject({
+      installed: 1,
+      conflicts: 0,
+      errors: [],
+    });
+    expect(await readTextFile(installedPath)).not.toBe(
+      "unmanaged foobar bytes",
+    );
+    expect(
+      JSON.parse(await readTextFile(config.manifest.path)).records,
+    ).toEqual([expect.objectContaining({ name: "foobar", installedPath })]);
+  });
+
+  it.skipIf(!symlinkAvailable)(
+    "preserves component-overlapping foreign files trees and dangling links across install modes",
+    async () => {
+      const scenarios = (["file", "tree", "link"] as const).flatMap((kind) =>
+        (["copy", "symlink"] as const).flatMap((mode) => [
+          { kind, mode, force: true },
+          { kind, mode, force: false },
+        ]),
+      );
+
+      for (const scenario of scenarios) {
+        testLogger.infos.length = 0;
+        const scenarioDir = path.join(
+          tempDir,
+          `component-${scenario.kind}-${scenario.mode}-${scenario.force ? "force" : "overwrite-all"}`,
+        );
+        const config = makeResolvedConfig(scenarioDir, {
+          codex: { enabled: false },
+          defaults: {
+            cleanManagedOutputs: false,
+            ...(scenario.force ? {} : { overwritePolicy: "overwrite-all" }),
+          },
+        });
+        const type = scenario.kind === "tree" ? "skill" : "agent";
+        const name = "protected";
+        const home =
+          type === "skill"
+            ? config.targets.claude.skillsHome
+            : config.targets.claude.agentsHome;
+        const installedPath = path.join(
+          home,
+          type === "skill" ? name : `${name}.md`,
+        );
+        const foreignPath =
+          scenario.kind === "tree"
+            ? path.join(installedPath, "foreign.md")
+            : home;
+        const missingTarget = path.join(scenarioDir, "missing-target");
+        const sentinelPath = path.join(installedPath, "sentinel.txt");
+
+        await mkdir(config.library.skillsDir, { recursive: true });
+        await mkdir(config.library.agentsDir, { recursive: true });
+        await mkdir(path.dirname(config.manifest.path), { recursive: true });
+        if (type === "skill") {
+          await createSkillFixture(config.library.skillsDir, name);
+        } else {
+          await createAgentFixture(
+            config.library.agentsDir,
+            name,
+            makeAgentYaml(name),
+          );
+        }
+        await mkdir(path.dirname(installedPath), { recursive: true });
+        if (scenario.kind === "file") {
+          await writeFile(installedPath, "foreign file bytes", "utf-8");
+        } else if (scenario.kind === "tree") {
+          await mkdir(installedPath, { recursive: true });
+          await writeFile(sentinelPath, "foreign tree bytes", "utf-8");
+        } else {
+          await symlink(missingTarget, installedPath, "file");
+        }
+        await writeFile(
+          config.manifest.path,
+          makeManifestJson(
+            [
+              {
+                target: "claude",
+                type: scenario.kind === "tree" ? "agent" : "skill",
+                sourcePath: path.join(scenarioDir, "foreign"),
+                generatedPath: null,
+                installedPath: foreignPath,
+                installMode: scenario.mode,
+                contentHash: "foreign",
+                timestamp: new Date().toISOString(),
+              },
+            ],
+            { legacy: true },
+          ),
+          "utf-8",
+        );
+        const manifestBefore = await readTextFile(config.manifest.path);
+        const originalLink =
+          scenario.kind === "link" ? await readlink(installedPath) : undefined;
+
+        const dryRun = await sync(config, {
+          dryRun: true,
+          force: scenario.force,
+          strict: false,
+          mode: scenario.mode,
+          reconcileManifest: true,
+        });
+        expect(dryRun).toMatchObject({
+          installed: 0,
+          updated: 0,
+          removed: 0,
+          skipped: 0,
+          conflicts: 0,
+          errors: [],
+        });
+        expect(testLogger.infos.join("\n")).toContain(
+          `[skip-conflict] claude/${type}/protected`,
+        );
+        expect(await readTextFile(config.manifest.path)).toBe(manifestBefore);
+        expect(
+          (await readdir(path.dirname(config.manifest.path))).filter((entry) =>
+            entry.includes(".backup-"),
+          ),
+        ).toHaveLength(0);
+
+        const result = await sync(config, {
+          dryRun: false,
+          force: scenario.force,
+          strict: false,
+          mode: scenario.mode,
+          reconcileManifest: true,
+        });
+        expect(result).toMatchObject({
+          installed: 0,
+          updated: 0,
+          removed: 0,
+          conflicts: 1,
+          errors: [],
+        });
+        if (scenario.kind === "file") {
+          expect((await lstat(installedPath)).isFile()).toBe(true);
+          expect(await readTextFile(installedPath)).toBe("foreign file bytes");
+        } else if (scenario.kind === "tree") {
+          expect((await lstat(installedPath)).isDirectory()).toBe(true);
+          expect(await readTextFile(sentinelPath)).toBe("foreign tree bytes");
+        } else {
+          expect((await lstat(installedPath)).isSymbolicLink()).toBe(true);
+          expect(await readlink(installedPath)).toBe(originalLink);
+          expect(await pathExists(missingTarget)).toBe(false);
+        }
+        expect(
+          JSON.parse(await readTextFile(config.manifest.path)).records,
+        ).toEqual([]);
+      }
+    },
+  );
+
+  it("blocks a planned install nested beneath a reconciled foreign directory", async () => {
+    const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
+    const name = "nested";
+    const installedPath = path.join(
+      config.targets.claude.agentsHome,
+      `${name}.md`,
+    );
+    const protectedPath = config.targets.claude.agentsHome;
+    const sentinelPath = path.join(protectedPath, "foreign-sentinel.txt");
+    await mkdir(config.library.agentsDir, { recursive: true });
+    await createAgentFixture(
+      config.library.agentsDir,
+      name,
+      makeAgentYaml(name),
+    );
+    await mkdir(path.dirname(config.manifest.path), { recursive: true });
+    await mkdir(protectedPath, { recursive: true });
+    await writeFile(sentinelPath, "foreign tree bytes", "utf-8");
+    await writeFile(
+      config.manifest.path,
+      makeManifestJson(
+        [
+          {
+            target: "claude",
+            type: "skill",
+            sourcePath: path.join(config.library.skillsDir, "foreign"),
+            generatedPath: null,
+            installedPath: protectedPath,
+            installMode: "copy",
+            contentHash: "foreign",
+            timestamp: new Date().toISOString(),
+          },
+        ],
+        { legacy: true },
+      ),
+      "utf-8",
+    );
+    const manifestBefore = await readTextFile(config.manifest.path);
+
+    const dryRun = await sync(config, {
+      dryRun: true,
+      force: false,
+      strict: false,
+      reconcileManifest: true,
+    });
+
+    expect(dryRun).toMatchObject({
+      installed: 0,
+      updated: 0,
+      removed: 0,
+      skipped: 0,
+      conflicts: 0,
+      errors: [],
+    });
+    expect(testLogger.infos.join("\n")).toContain(
+      "[skip-conflict] claude/agent/nested",
+    );
+    expect(await readTextFile(config.manifest.path)).toBe(manifestBefore);
+    expect(await pathExists(installedPath)).toBe(false);
+    expect(await readTextFile(sentinelPath)).toBe("foreign tree bytes");
+
+    const result = await sync(config, {
+      dryRun: false,
+      force: false,
+      strict: false,
+      reconcileManifest: true,
+    });
+
+    expect(result).toMatchObject({
+      installed: 0,
+      updated: 0,
+      removed: 0,
+      conflicts: 1,
+      errors: [],
+    });
+    expect(await pathExists(installedPath)).toBe(false);
+    expect(await readTextFile(sentinelPath)).toBe("foreign tree bytes");
+    expect(
+      JSON.parse(await readTextFile(config.manifest.path)).records,
+    ).toEqual([]);
+
+    const afterProtectionExpires = await sync(config, {
+      dryRun: false,
+      force: false,
+      strict: false,
+    });
+    expect(afterProtectionExpires).toMatchObject({
+      installed: 1,
+      conflicts: 0,
+      errors: [],
+    });
+    expect(await pathExists(installedPath)).toBe(true);
+  });
+
+  it("blocks a planned ancestor install that contains an absent protected descendant", async () => {
+    const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
+    const name = "ancestor-install";
+    const installedPath = path.join(config.targets.claude.skillsHome, name);
+    const protectedPath = path.join(installedPath, "foreign.md");
+    await createSkillFixture(config.library.skillsDir, name);
+    await mkdir(path.dirname(config.manifest.path), { recursive: true });
+    await writeFile(
+      config.manifest.path,
+      makeManifestJson(
+        [
+          {
+            target: "claude",
+            type: "agent",
+            sourcePath: path.join(config.library.agentsDir, "foreign.yaml"),
+            generatedPath: null,
+            installedPath: protectedPath,
+            installMode: "copy",
+            contentHash: "foreign",
+            timestamp: new Date().toISOString(),
+          },
+        ],
+        { legacy: true },
+      ),
+      "utf-8",
+    );
+    const manifestBefore = await readTextFile(config.manifest.path);
+
+    const dryRun = await sync(config, {
+      dryRun: true,
+      force: false,
+      strict: false,
+      reconcileManifest: true,
+    });
+
+    expect(dryRun).toMatchObject({
+      installed: 0,
+      updated: 0,
+      removed: 0,
+      skipped: 0,
+      conflicts: 0,
+      errors: [],
+    });
+    expect(testLogger.infos.join("\n")).toContain(
+      "[skip-conflict] claude/skill/ancestor-install",
+    );
+    expect(await readTextFile(config.manifest.path)).toBe(manifestBefore);
+    expect(await pathExists(installedPath)).toBe(false);
+    expect(await pathExists(protectedPath)).toBe(false);
+    expect(
+      (await readdir(path.dirname(config.manifest.path))).filter((entry) =>
+        entry.includes(".backup-"),
+      ),
+    ).toHaveLength(0);
+
+    testLogger.infos.length = 0;
+    const result = await sync(config, {
+      dryRun: false,
+      force: false,
+      strict: false,
+      reconcileManifest: true,
+    });
+
+    expect(result).toMatchObject({
+      installed: 0,
+      updated: 0,
+      removed: 0,
+      conflicts: 1,
+      errors: [],
+    });
+    expect(await pathExists(installedPath)).toBe(false);
+    expect(await pathExists(protectedPath)).toBe(false);
+    expect(
+      JSON.parse(await readTextFile(config.manifest.path)).records,
+    ).toEqual([]);
+
+    const afterProtectionExpires = await sync(config, {
+      dryRun: false,
+      force: false,
+      strict: false,
+    });
+    expect(afterProtectionExpires).toMatchObject({
+      installed: 1,
+      conflicts: 0,
+      errors: [],
+    });
+    expect(await pathExists(installedPath)).toBe(true);
+  });
+
+  it("blocks an explicit force overwrite that contains a reconciled foreign child", async () => {
+    const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
+    const name = "protected";
+    const installedPath = path.join(config.targets.claude.skillsHome, name);
+    const foreignPath = path.join(installedPath, "foreign.md");
+    await mkdir(config.library.skillsDir, { recursive: true });
+    await createSkillFixture(config.library.skillsDir, name);
+    await mkdir(path.dirname(config.manifest.path), { recursive: true });
+    await mkdir(installedPath, { recursive: true });
+    await writeFile(foreignPath, "foreign child bytes", "utf-8");
+    await writeFile(
+      config.manifest.path,
+      makeManifestJson(
+        [
+          {
+            target: "claude",
+            type: "agent",
+            sourcePath: path.join(config.library.agentsDir, "foreign.yaml"),
+            generatedPath: null,
+            installedPath: foreignPath,
+            installMode: "copy",
+            contentHash: "foreign",
+            timestamp: new Date().toISOString(),
+          },
+        ],
+        { legacy: true },
+      ),
+      "utf-8",
+    );
+    const manifestBefore = await readTextFile(config.manifest.path);
+
+    const dryRun = await sync(config, {
+      dryRun: true,
+      force: true,
+      strict: false,
+      reconcileManifest: true,
+    });
+
+    expect(dryRun).toMatchObject({
+      installed: 0,
+      updated: 0,
+      removed: 0,
+      skipped: 0,
+      conflicts: 0,
+      errors: [],
+    });
+    expect(testLogger.infos.join("\n")).toContain(
+      "[skip-conflict] claude/skill/protected",
+    );
+    expect(await readTextFile(config.manifest.path)).toBe(manifestBefore);
+    expect(await readTextFile(foreignPath)).toBe("foreign child bytes");
+    expect(
+      (await readdir(path.dirname(config.manifest.path))).filter((entry) =>
+        entry.includes(".backup-"),
+      ),
+    ).toHaveLength(0);
+
+    const result = await sync(config, {
+      dryRun: false,
+      force: true,
+      strict: false,
+      reconcileManifest: true,
+    });
+
+    expect(result).toMatchObject({
+      installed: 0,
+      updated: 0,
+      removed: 0,
+      conflicts: 1,
+      errors: [],
+    });
+    expect(await readTextFile(foreignPath)).toBe("foreign child bytes");
+    expect(
+      JSON.parse(await readTextFile(config.manifest.path)).records,
+    ).toEqual([]);
+    expect(
+      (await readdir(path.dirname(config.manifest.path))).filter((entry) =>
+        entry.includes(".backup-"),
+      ),
+    ).toHaveLength(1);
+  });
+
   it("uses the next collision-safe backup sibling through the sync consumer", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-07-17T01:02:03.456Z"));
