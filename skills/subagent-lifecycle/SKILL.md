@@ -173,22 +173,39 @@ It performs no mutation itself: only the owning controller's already-authorized
 effects may occur. Workflow-local dispatch, retry, fix-loop, and termination
 rules remain with their existing owners.
 
-Classify every settled result into exactly one closed family. The boundaries are
-mutually exclusive: test ineligible conditions first, and the first matching
-ineligible condition prevents eligibility.
+### Deterministic Five-Family Classifier
 
-| Result family                                           | Positive boundary and disposition                                                                                                                                                                                                                                                                                                                  |
-| ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `eligible-quality-failure` (`eligible quality failure`) | All of these are true: complete and current context; usable authorized tools, sandbox, approval, and target operation; sufficient unchanged authority; successful guard/lifecycle cleanup; consumable verified evidence; and a material capability-sensitive quality gap plausibly improved by the declared higher exact pair. Only then continue. |
-| `ineligible-context`                                    | Missing, ambiguous, stale, unreadable, or new-owner-decision context. Use the existing non-escalation result.                                                                                                                                                                                                                                      |
-| `ineligible-tool-or-permission`                         | Absent, denied, or unusable tools, sandbox, approval, or target operation. Use the existing non-escalation result.                                                                                                                                                                                                                                 |
-| `ineligible-authority`                                  | Widened scope or insufficient source, external, or mutation authority. Use the existing non-escalation result.                                                                                                                                                                                                                                     |
-| `ineligible-integrity-or-route`                         | Guard or cleanup mutation, stale head or evidence, unresolved route, or unsupported or undeclared exact transition. Use the existing non-escalation result.                                                                                                                                                                                        |
+Classify every settled result into exactly one closed family by this total,
+deterministic precedence. The first matching condition wins; each matching
+ineligible condition stops capability escalation and uses the existing
+non-escalation result. The first matching ineligible condition prevents
+eligibility.
 
-An unavailable, failed, timed-out, blank, or malformed child is not
-automatically eligible. Eligibility requires positive retained verified evidence;
-absent or inconsistent evidence is an existing non-escalation result, not a
-reason to guess or retry.
+1. `ineligible-context`: Missing, ambiguous, stale, unreadable, or
+   new-owner-decision context.
+2. `ineligible-tool-or-permission`: Absent, denied, or unusable tools, sandbox,
+   approval, or target operation.
+3. `ineligible-authority`: Widened scope or insufficient source, external, or
+   mutation authority.
+4. `ineligible-integrity-or-route`: Guard or cleanup mutation, stale head or
+   evidence, unresolved route, or unsupported or undeclared exact transition, and
+   every remaining failure of the positive eligibility predicates, including
+   absent, inconsistent, or unconsumable verified evidence and a remaining gap
+   that is not capability-sensitive.
+5. `eligible-quality-failure` (`eligible quality failure`): only when none of
+   the four ineligible predicates applies and every positive predicate is
+   satisfied: complete and current context; usable authorized tools, sandbox,
+   approval, and target operation; sufficient unchanged authority; successful
+   guard/lifecycle cleanup; consumable verified evidence; and a material
+   capability-sensitive quality gap plausibly improved by the declared higher
+   exact pair.
+
+Only when none of the four ineligible predicates applies and every positive
+predicate is satisfied may the result be `eligible-quality-failure`.
+
+Blank, malformed, unavailable, failed, or timed-out results deterministically
+fall into `ineligible-integrity-or-route` unless an earlier predicate applies.
+A generic result is not automatically eligible.
 
 ### Declaration, Support, and Exactness
 
@@ -248,15 +265,16 @@ named target `example-target-v1` and hypothetical route
 `example-quality-route`, a controller retains an eligible quality failure with
 same semantic role=`implementer`, exact current tuple=`balanced/high`, exact
 next tuple=`frontier/high`, already-verified support mechanism
-`example-target-v1 exact-tuple registry`, and budget=`1`. Its invariant envelope
-preserves task identity, scope, acceptance contract, curated context, tools,
-sandbox, approval, source and external authority, network, mutation paths,
-output schema, guard lifecycle, and termination owner. Its concise summary names
-classification=`eligible quality failure`; attempted actions=`ran the declared
-quality checks and inspected the retained evidence`; the exact prior/requested
-tuples; verified repository anchors; unresolved success condition; the invariant
-envelope; and remaining budget. Only after the ordered validation does it start
-one fresh attempt.
+`example-target-v1 exact-tuple registry` supports both exact current and next
+tuples, budget=`1`, and terminal continuation=`existing terminal/manual route`.
+Its invariant envelope preserves task identity, scope, acceptance contract,
+curated context, tools, sandbox, approval, source and external authority,
+network, mutation paths, output schema, guard lifecycle, and termination owner.
+Its concise summary names classification=`eligible quality failure`; attempted
+actions=`ran the declared quality checks and inspected the retained evidence`;
+the exact prior/requested tuples; verified repository anchors; unresolved success
+condition; the invariant envelope; remaining budget; and the terminal
+continuation. Only after the ordered validation does it start one fresh attempt.
 
 The named target, route, mechanism, and tuples are shape-only example values.
 They assert neither support for an actual provider nor permission to substitute
@@ -267,15 +285,15 @@ an ambient, alias, or nearby pair.
 Each of these changes exactly one required dimension and terminates through the
 existing non-escalation result:
 
-| Invalid family                 | Single invalid dimension and disposition                                                                                                     |
-| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| Missing context                | Context is missing or ambiguous; classify `ineligible-context`.                                                                              |
-| Omitted next effort            | The requested next tuple omits effort; classify `ineligible-integrity-or-route`.                                                             |
-| Ambient or nearby substitution | The declared exact next pair is replaced by an ambient, alias, fallback, or nearby pair; classify `ineligible-integrity-or-route`.           |
-| Invariant change               | Role, tools, sandbox, approval, authority, or another preserved invariant changes; classify `ineligible-integrity-or-route`.                 |
-| Budget greater than `1`        | Remaining escalation budget is greater than one fresh attempt; classify `ineligible-integrity-or-route`.                                     |
-| Raw evidence transfer          | The summary includes a raw prompt, transcript, log, stack trace, credential, or environment value; classify `ineligible-integrity-or-route`. |
-| Duplicate or missing route     | The adoption inventory has a duplicate or omits a D-route; reject the inventory and use the existing terminal/manual route.                  |
+| Invalid family                 | Single invalid dimension and stop/no-spawn disposition                                                                                                           |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Missing context                | Context is missing or ambiguous; classify `ineligible-context`; stop; do not spawn.                                                                              |
+| Omitted next effort            | The requested next tuple omits effort; classify `ineligible-integrity-or-route`; stop; do not spawn.                                                             |
+| Ambient or nearby substitution | The declared exact next pair is replaced by an ambient, alias, fallback, or nearby pair; classify `ineligible-integrity-or-route`; stop; do not spawn.           |
+| Invariant change               | Role, tools, sandbox, approval, authority, or another preserved invariant changes; classify `ineligible-integrity-or-route`; stop; do not spawn.                 |
+| Budget greater than `1`        | Remaining escalation budget is greater than one fresh attempt; classify `ineligible-integrity-or-route`; stop; do not spawn.                                     |
+| Raw evidence transfer          | The summary includes a raw prompt, transcript, log, stack trace, credential, or environment value; classify `ineligible-integrity-or-route`; stop; do not spawn. |
+| Duplicate or missing route     | The adoption inventory has a duplicate or omits a D-route; reject the inventory and use the existing terminal/manual route; stop; do not spawn.                  |
 
 The participants are the child result, controller, lifecycle policy, routing
 declaration, and then either the fresh child or the existing terminal consumer.

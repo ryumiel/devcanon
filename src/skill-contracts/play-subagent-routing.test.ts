@@ -2718,6 +2718,11 @@ describe("play subagent routing source contracts", () => {
       skillSource,
       "Eligible Quality-Failure Capability Escalation",
     );
+    const deterministicClassifier = sliceBetween(
+      skillSource,
+      "### Deterministic Five-Family Classifier",
+      "### Declaration, Support, and Exactness",
+    );
 
     const normalizedEscalation = normalizeWhitespace(capabilityEscalation);
     for (const boundary of [
@@ -2749,6 +2754,7 @@ describe("play subagent routing source contracts", () => {
       "exact current tuple=`balanced/high`",
       "exact next tuple=`frontier/high`",
       "already-verified support mechanism `example-target-v1 exact-tuple registry`",
+      "supports both exact current and next tuples",
       "budget=`1`",
       "classification=`eligible quality failure`",
       "attempted actions",
@@ -2756,20 +2762,70 @@ describe("play subagent routing source contracts", () => {
       "verified repository anchors",
       "unresolved success condition",
       "remaining budget",
+      "terminal continuation=`existing terminal/manual route`",
       "This hypothetical example grants no ambient runtime support",
     ]) {
       expect(normalizedEscalation).toContain(validShapeField);
     }
-    for (const invalidFamily of [
-      "Missing context",
-      "Omitted next effort",
-      "Ambient or nearby substitution",
-      "Invariant change",
-      "Budget greater than `1`",
-      "Raw evidence transfer",
-      "Duplicate or missing route",
+    expectSubstringsInOrder(normalizeWhitespace(deterministicClassifier), [
+      "`ineligible-context`",
+      "`ineligible-tool-or-permission`",
+      "`ineligible-authority`",
+      "`ineligible-integrity-or-route`",
+      "`eligible-quality-failure`",
+    ]);
+    for (const classifierRule of [
+      "every remaining failure of the positive eligibility predicates",
+      "absent, inconsistent, or unconsumable verified evidence",
+      "remaining gap that is not capability-sensitive",
+      "Blank, malformed, unavailable, failed, or timed-out results deterministically fall into `ineligible-integrity-or-route` unless an earlier predicate applies",
+      "Only when none of the four ineligible predicates applies and every positive predicate is satisfied",
     ]) {
-      expect(normalizedEscalation).toContain(invalidFamily);
+      expect(normalizeWhitespace(deterministicClassifier)).toContain(
+        classifierRule,
+      );
+    }
+    for (const [family, mutation, classification] of [
+      [
+        "Missing context",
+        "Context is missing or ambiguous",
+        "`ineligible-context`",
+      ],
+      [
+        "Omitted next effort",
+        "The requested next tuple omits effort",
+        "`ineligible-integrity-or-route`",
+      ],
+      [
+        "Ambient or nearby substitution",
+        "ambient, alias, fallback, or nearby pair",
+        "`ineligible-integrity-or-route`",
+      ],
+      [
+        "Invariant change",
+        "another preserved invariant changes",
+        "`ineligible-integrity-or-route`",
+      ],
+      [
+        "Budget greater than `1`",
+        "budget is greater than one fresh attempt",
+        "`ineligible-integrity-or-route`",
+      ],
+      [
+        "Raw evidence transfer",
+        "raw prompt, transcript, log, stack trace, credential, or environment value",
+        "`ineligible-integrity-or-route`",
+      ],
+      [
+        "Duplicate or missing route",
+        "duplicate or omits a D-route",
+        "existing terminal/manual route",
+      ],
+    ] as const) {
+      const row = markdownTableRow(capabilityEscalation, family);
+      expect(row).toContain(mutation);
+      expect(row).toContain(classification);
+      expect(row).toContain("stop; do not spawn");
     }
     expectSubstringsInOrder(normalizeWhitespace(capabilityEscalation), [
       "Retain verified evidence",

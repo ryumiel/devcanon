@@ -58,6 +58,10 @@ describe("agent routing and mutation policy owner", () => {
       /\| D1\s+\| opt-out\s+\| none/,
       "| D1 | specialize | none",
     );
+    const adoptedDeclaredTransition = markdown.replace(
+      /\| D1\s+\| opt-out\s+\| none/,
+      "| D1 | adopt | exact declaration",
+    );
 
     expect(() =>
       parseAgentRoutingPolicyOwner(malformedHeader, sourceSkills),
@@ -78,10 +82,19 @@ describe("agent routing and mutation policy owner", () => {
     ).toThrow(/adoption opt-out transition must be exactly: none/i);
     expect(() =>
       parseAgentRoutingPolicyOwner(adoptedNoneMismatch, sourceSkills),
-    ).toThrow(/adoption adopt transition cannot be none/i);
+    ).toThrow(
+      /adoption state is unsupported until exact declaration validation exists: adopt/i,
+    );
     expect(() =>
       parseAgentRoutingPolicyOwner(specializedNoneMismatch, sourceSkills),
-    ).toThrow(/adoption specialize transition cannot be none/i);
+    ).toThrow(
+      /adoption state is unsupported until exact declaration validation exists: specialize/i,
+    );
+    expect(() =>
+      parseAgentRoutingPolicyOwner(adoptedDeclaredTransition, sourceSkills),
+    ).toThrow(
+      /adoption state is unsupported until exact declaration validation exists: adopt/i,
+    );
   });
 
   it("preserves representative closed inventory and route fields", async () => {

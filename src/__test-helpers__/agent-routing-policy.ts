@@ -543,14 +543,14 @@ function parseEscalationAdoptionRow(
     ESCALATION_ADOPTION_STATES,
     "adoption state",
   );
+  if (state !== "opt-out") {
+    throw new Error(
+      `Agent routing policy owner adoption state is unsupported until exact declaration validation exists: ${state}`,
+    );
+  }
   if (state === "opt-out" && cells[2] !== NO_ADOPTION_TRANSITION) {
     throw new Error(
       `Agent routing policy owner adoption opt-out transition must be exactly: ${NO_ADOPTION_TRANSITION}`,
-    );
-  }
-  if (state !== "opt-out" && cells[2] === NO_ADOPTION_TRANSITION) {
-    throw new Error(
-      `Agent routing policy owner adoption ${state} transition cannot be none`,
     );
   }
   return { id: id as `D${number}`, state, transition: cells[2] };

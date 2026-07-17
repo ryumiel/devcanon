@@ -154,6 +154,13 @@ it does not replace any route's workflow-local dispatch or termination owner.
 | D16 | opt-out        | none       |
 | D17 | opt-out        | none       |
 
+`adopt`, `specialize`, and `opt-out` remain the conceptual closed adoption
+states. Current parser validation is deliberately fail-closed: it accepts only
+an `opt-out` row with literal transition `none`. Until an authorized
+implementation defines and validates the complete exact declaration grammar,
+`adopt` and `specialize` rows are unsupported and rejected rather than treated
+as a marker language or partial declaration.
+
 Task-specific prompts, schemas, skip criteria, retries, fallbacks, and
 termination remain owned by the source skill. A route may not collapse two
 distinct sessions just because they share a semantic agent.
