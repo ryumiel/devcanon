@@ -197,11 +197,9 @@ describe("manifest integration", () => {
       expect(result.managedBy).toBe("devcanon");
       expect(result.records).toEqual([]);
 
-      // Warning was logged
-      expect(testLogger.warnings.length).toBeGreaterThanOrEqual(1);
-      expect(testLogger.warnings.some((w) => w.includes("corrupt JSON"))).toBe(
-        true,
-      );
+      expect(testLogger.warnings).toEqual([
+        `Warning: manifest is corrupt JSON. Backing up to ${manifestPath}.bak`,
+      ]);
 
       // .bak file exists with original content
       const bakPath = `${manifestPath}.bak`;
@@ -221,6 +219,9 @@ describe("manifest integration", () => {
         "existing backup",
       );
       expect(await readFile(`${manifestPath}.bak-1`, "utf-8")).toBe("{corrupt");
+      expect(testLogger.warnings).toEqual([
+        `Warning: manifest is corrupt JSON. Backing up to ${manifestPath}.bak-1`,
+      ]);
     });
 
     it("removes its recovery candidate when the source changes during creation", async () => {
@@ -253,6 +254,9 @@ describe("manifest integration", () => {
 
       expect(await readFile(manifestPath, "utf-8")).toBe("{replacement");
       expect(await pathExists(`${manifestPath}.bak`)).toBe(false);
+      expect(testLogger.warnings).not.toContainEqual(
+        expect.stringContaining("Backing up to"),
+      );
     });
 
     it("removes an allocated recovery candidate when the source becomes a dangling symlink", async () => {
@@ -277,6 +281,32 @@ describe("manifest integration", () => {
       expect((await lstat(manifestPath)).isSymbolicLink()).toBe(true);
       expect(await pathExists(`${manifestPath}.bak`)).toBe(false);
       expect(await pathExists(`${manifestPath}.lock`)).toBe(false);
+      expect(testLogger.warnings).not.toContainEqual(
+        expect.stringContaining("Backing up to"),
+      );
+    });
+
+    it("does not report a backup when candidate work fails", async () => {
+      const manifestPath = path.join(tempDir, "manifest.json");
+      await writeFile(manifestPath, "{corrupt", "utf-8");
+
+      await withManifestPersistenceFaultsForTesting(
+        async (stage) => {
+          if (stage === "recovery-after-candidate") {
+            throw new Error("candidate failure");
+          }
+        },
+        async () => {
+          await loadManifest(manifestPath);
+        },
+      );
+
+      expect(await readFile(manifestPath, "utf-8")).toBe("{corrupt");
+      expect(await pathExists(`${manifestPath}.bak`)).toBe(false);
+      expect(await pathExists(`${manifestPath}.lock`)).toBe(false);
+      expect(testLogger.warnings).not.toContainEqual(
+        expect.stringContaining("Backing up to"),
+      );
     });
 
     it("returns empty manifest and backs up schema-invalid JSON", async () => {
@@ -289,6 +319,7 @@ describe("manifest integration", () => {
       };
       const invalidContent = JSON.stringify(invalidSchema, null, 2);
       await writeFile(manifestPath, invalidContent, "utf-8");
+      await writeFile(`${manifestPath}.bak`, "existing backup", "utf-8");
 
       const result = await loadManifest(manifestPath);
 
@@ -296,14 +327,14 @@ describe("manifest integration", () => {
       expect(result.managedBy).toBe("devcanon");
       expect(result.records).toEqual([]);
 
-      // Warning was logged
-      expect(testLogger.warnings.length).toBeGreaterThanOrEqual(1);
-      expect(
-        testLogger.warnings.some((w) => w.includes("schema invalid")),
-      ).toBe(true);
+      expect(testLogger.warnings).toEqual([
+        `Warning: manifest schema invalid. Backing up to ${manifestPath}.bak-1`,
+      ]);
 
-      // .bak file exists with original content
-      const bakPath = `${manifestPath}.bak`;
+      expect(await readFile(`${manifestPath}.bak`, "utf-8")).toBe(
+        "existing backup",
+      );
+      const bakPath = `${manifestPath}.bak-1`;
       expect(await pathExists(bakPath)).toBe(true);
       const bakContent = await readFile(bakPath, "utf-8");
       expect(bakContent).toBe(invalidContent);

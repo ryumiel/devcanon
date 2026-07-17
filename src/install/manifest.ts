@@ -87,6 +87,10 @@ export interface ManifestSaveOptions {
   operationId?: string;
 }
 
+type InvalidManifestRecoveryResult =
+  | { completed: true; backupPath: string }
+  | { completed: false };
+
 /** An opaque, operation-scoped capability; mutable state stays module-private. */
 export interface ManifestBackupAuthority {
   readonly manifestPath: string;
@@ -130,19 +134,23 @@ export async function loadManifestWithSnapshot(
   try {
     parsed = JSON.parse(rawBytes.toString("utf-8"));
   } catch {
-    getLogger().warn(
-      `Warning: manifest is corrupt JSON. Backing up to ${manifestPath}.bak`,
-    );
-    await recoverInvalidManifest(manifestPath, rawBytes);
+    const recovery = await recoverInvalidManifest(manifestPath, rawBytes);
+    if (recovery.completed) {
+      getLogger().warn(
+        `Warning: manifest is corrupt JSON. Backing up to ${recovery.backupPath}`,
+      );
+    }
     return { manifest: emptyManifest(), snapshot: null };
   }
 
   const result = ManifestSchema.safeParse(parsed);
   if (!result.success) {
-    getLogger().warn(
-      `Warning: manifest schema invalid. Backing up to ${manifestPath}.bak`,
-    );
-    await recoverInvalidManifest(manifestPath, rawBytes);
+    const recovery = await recoverInvalidManifest(manifestPath, rawBytes);
+    if (recovery.completed) {
+      getLogger().warn(
+        `Warning: manifest schema invalid. Backing up to ${recovery.backupPath}`,
+      );
+    }
     return { manifest: emptyManifest(), snapshot: null };
   }
 
@@ -707,14 +715,14 @@ async function releaseManifestLock(lock: ManifestLock): Promise<void> {
 async function recoverInvalidManifest(
   manifestPath: string,
   expectedBytes: Buffer,
-): Promise<void> {
+): Promise<InvalidManifestRecoveryResult> {
   const normalizedPath = path.resolve(manifestPath);
   try {
     await assertNormalParent(normalizedPath);
     const lock = await acquireManifestLock(normalizedPath);
     try {
       const currentBytes = await readRegularManifestBytes(normalizedPath);
-      if (!currentBytes.equals(expectedBytes)) return;
+      if (!currentBytes.equals(expectedBytes)) return { completed: false };
       for (let suffix = 0; suffix < 10000; suffix++) {
         const backupPath =
           suffix === 0
@@ -727,38 +735,40 @@ async function recoverInvalidManifest(
           // candidate contains captured bytes, never a later path lookup.
           await injectManifestFault("recovery-before-candidate");
           const beforeCreate = await readRegularManifestBytes(normalizedPath);
-          if (!beforeCreate.equals(expectedBytes)) return;
+          if (!beforeCreate.equals(expectedBytes)) return { completed: false };
           await writeExactExclusiveFile(backupPath, expectedBytes, () => {
             created = true;
           });
           await injectManifestFault("recovery-after-candidate");
-          const afterCreate = await readRegularManifestBytes(normalizedPath);
           const candidateBytes = await readRegularManifestBytes(backupPath);
+          const afterCreate = await readRegularManifestBytes(normalizedPath);
           if (
             !afterCreate.equals(expectedBytes) ||
             !candidateBytes.equals(expectedBytes)
           ) {
-            return;
+            return { completed: false };
           }
           await unlink(normalizedPath);
           completed = true;
-          return;
+          return { completed: true, backupPath };
         } catch (error) {
           if ((error as NodeJS.ErrnoException).code === "EEXIST" && !created) {
             continue;
           }
-          return;
+          return { completed: false };
         } finally {
           // Any unsuccessful recovery attempt must not leave an unverified
           // candidate behind, while occupied collision siblings remain intact.
           if (created && !completed) await removeRecoveryCandidate(backupPath);
         }
       }
+      return { completed: false };
     } finally {
       await releaseManifestLock(lock);
     }
   } catch {
     // Preserve established invalid-manifest recovery behavior on filesystem errors.
+    return { completed: false };
   }
 }
 
