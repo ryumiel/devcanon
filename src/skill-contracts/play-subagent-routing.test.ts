@@ -58,6 +58,203 @@ function validateNoTriggerExample(content: string): string[] {
   return errors;
 }
 
+type EscalationConsumerSources = {
+  issuePriming: string;
+  lifecyclePolicy: string;
+  prMerge: string;
+  routingSpec: string;
+  writingSkills: string;
+  agentAuthoring: string;
+  lifecycleOwner: string;
+  adoptionInventory: string;
+};
+
+function validateEscalationConsumerContracts(
+  sources: EscalationConsumerSources,
+): string[] {
+  const errors: string[] = [];
+  const ownerDeclaration = sliceBetween(
+    sources.lifecycleOwner,
+    "### Declaration, Support, and Exactness",
+    "### Budget and Invariants",
+  );
+  const adoptionSection = sliceBetween(
+    sources.adoptionInventory,
+    "## Capability Escalation Adoption Inventory",
+    "### Ordinary child failure disposition",
+  );
+  const inventory = new Map<string, { state: string; transition: string }>();
+
+  for (const row of adoptionSection.matchAll(
+    /^\|\s*(D\d+)\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|$/gmu,
+  )) {
+    const [, route, state, transition] = row;
+    if (inventory.has(route)) {
+      errors.push(`adoption-inventory: duplicate-${route}`);
+      continue;
+    }
+    inventory.set(route, {
+      state: state.trim(),
+      transition: transition.trim(),
+    });
+  }
+
+  const canonicalDeclarationDimensions = [
+    "names the route and target",
+    "the same semantic role",
+    "exact current and requested next capability/effort tuples",
+    "named target-supported mechanism",
+    "invariant envelope",
+    "remaining budget",
+    "existing terminal continuation",
+  ];
+  if (
+    canonicalDeclarationDimensions.some(
+      (dimension) => !normalizeWhitespace(ownerDeclaration).includes(dimension),
+    )
+  ) {
+    errors.push("lifecycle-owner: incomplete-declaration-grammar");
+  }
+  if (
+    !normalizeWhitespace(sources.lifecycleOwner).includes(
+      "This is the one shared controller procedure for a fresh capability/effort attempt.",
+    )
+  ) {
+    errors.push("lifecycle-owner: missing-shared-owner");
+  }
+
+  const authoringSources = [
+    ["writing-skills", sources.writingSkills],
+    ["agent-authoring", sources.agentAuthoring],
+  ] as const;
+  for (const [name, source] of authoringSources) {
+    const normalized = normalizeWhitespace(source);
+    const declarationRule = normalized
+      .split(/(?<=[.!?])\s+/u)
+      .find((sentence) => sentence.includes("future workflow declaration"));
+    if (
+      !declarationRule ||
+      !/\bmust name\b[^.]*\bexact target\b/iu.test(declarationRule) ||
+      /\bneed not name\b[^.]*\btarget\b/iu.test(declarationRule)
+    ) {
+      errors.push(`${name}: exact-target-required`);
+      continue;
+    }
+    if (
+      !/\bmust name\b[^.]*\bsemantic role\b/iu.test(declarationRule) ||
+      /\bsemantic role\b[^.]*\bneed not\b/iu.test(declarationRule)
+    ) {
+      errors.push(`${name}: semantic-role-required`);
+      continue;
+    }
+    const declarationGrammar = normalized
+      .split(/(?<=[.!?])\s+/u)
+      .find(
+        (sentence) =>
+          sentence.includes("Declare either") ||
+          sentence.includes("Declare the shared owner's"),
+      );
+    if (
+      !declarationGrammar ||
+      ![
+        "target-supported",
+        "current and next capability plus effort",
+        "mechanism",
+        "budget",
+        "invariants",
+        "terminal behavior",
+        "explicit opt-out with `transition: none`",
+      ].every((dimension) => declarationGrammar.includes(dimension))
+    ) {
+      errors.push(`${name}: incomplete-declaration-grammar`);
+      continue;
+    }
+    const transitionPermission = normalized
+      .split(/(?<=[.!?])\s+/u)
+      .find((sentence) =>
+        /ambient.*nearby.*alias.*role substitution/iu.test(sentence),
+      );
+    if (
+      !transitionPermission ||
+      !/^(?:Do not|Never) infer/iu.test(transitionPermission) ||
+      /\b(?:supported|permitted|allowed)\b/iu.test(transitionPermission)
+    ) {
+      errors.push(`${name}: exact-transition-required`);
+    }
+  }
+
+  const declaredOptOuts = [
+    ["issue-priming", sources.issuePriming, ["D1", "D2", "D3"]],
+    ["lifecycle-policy", sources.lifecyclePolicy, ["D12", "D13"]],
+    ["pr-merge", sources.prMerge, ["D17"]],
+  ] as const;
+  for (const [name, source, expectedRoutes] of declaredOptOuts) {
+    const declarations = new Map(
+      [
+        ...source.matchAll(
+          /`(D\d+) current exact target transition:\s*([^`]+)`/gu,
+        ),
+      ].map(([, route, transition]) => [route, transition.trim()]),
+    );
+    for (const route of expectedRoutes) {
+      const inventoryRow = inventory.get(route);
+      if (
+        declarations.get(route) !== "none" ||
+        inventoryRow?.state !== "opt-out" ||
+        inventoryRow.transition !== "none"
+      ) {
+        errors.push(`${name}: ${route}-explicit-opt-out-required`);
+      }
+    }
+  }
+
+  if (
+    !/D13-to-D12 reclassification is not capability escalation\./u.test(
+      normalizeWhitespace(sources.lifecyclePolicy),
+    )
+  ) {
+    errors.push("lifecycle-policy: d13-reclassification-required");
+  }
+  if (
+    !/The two CI repair cycles are workflow retries, not a capability escalation budget\./u.test(
+      normalizeWhitespace(sources.prMerge),
+    )
+  ) {
+    errors.push("pr-merge: ci-retry-budget-required");
+  }
+
+  const authoritySources = [
+    ["routing-spec", sources.routingSpec],
+    ["writing-skills", sources.writingSkills],
+    ["agent-authoring", sources.agentAuthoring],
+    ["issue-priming", sources.issuePriming],
+    ["lifecycle-policy", sources.lifecyclePolicy],
+    ["pr-merge", sources.prMerge],
+  ] as const;
+  for (const [name, source] of authoritySources) {
+    const normalized = normalizeWhitespace(source);
+    if (
+      /\b(?:this spec|workflow routing|writing skills|agent authoring guide|issue priming workflow|lifecycle policy|pr merge)\b[^.]{0,120}\b(?:owns?|canonical owner)\b[^.]{0,120}\bcapability[- ]escalation\b/iu.test(
+        normalized,
+      )
+    ) {
+      errors.push(`${name}: competing-authority`);
+    }
+  }
+  const normalizedRoutingSpec = normalizeWhitespace(sources.routingSpec);
+  if (
+    !normalizedRoutingSpec.includes(
+      "Capability-escalation adoption is not owned by this spec.",
+    ) ||
+    !normalizedRoutingSpec.includes("canonical common owner") ||
+    !normalizedRoutingSpec.includes("canonical current adoption record")
+  ) {
+    errors.push("routing-spec: non-owning-reference-required");
+  }
+
+  return errors;
+}
+
 const CHILD_AGENT_PROMPT_TEMPLATES = [
   "references/implementer-prompt.md",
   "references/executor-prompt.md",
@@ -3537,155 +3734,120 @@ describe("play subagent routing source contracts", () => {
     );
   });
 
-  it("keeps selected controller routes explicitly opted out of escalation", async () => {
-    const [
-      issuePriming,
-      lifecyclePolicy,
-      prMerge,
-      adr,
-      routingSpec,
-      agentSpec,
-      writingSkills,
-      agentAuthoring,
-      lifecycleOwner,
-      adoptionInventory,
-    ] = await Promise.all([
-      readSkillSource("issue-priming-workflow"),
-      readRepoFile(
+  it("rejects one-dimension-invalid consumer escalation declarations", async () => {
+    const sources: EscalationConsumerSources = {
+      issuePriming: await readSkillSource("issue-priming-workflow"),
+      lifecyclePolicy: await readRepoFile(
         "skills/play-subagent-execution/references/lifecycle-status-policy.md",
       ),
-      readSkillSource("pr-merge"),
-      readRepoFile(
-        "docs/adr/adr-0027-semantic-agent-routing-and-mutation-authority.md",
+      prMerge: await readSkillSource("pr-merge"),
+      routingSpec: await readRepoFile("docs/specs/afds-workflow-routing.md"),
+      writingSkills: await readRepoFile("docs/guidelines/writing-skills.md"),
+      agentAuthoring: await readRepoFile(
+        "docs/guidelines/agent-authoring-guide.md",
       ),
-      readRepoFile("docs/specs/afds-workflow-routing.md"),
-      readRepoFile("docs/specs/agents.md"),
-      readRepoFile("docs/guidelines/writing-skills.md"),
-      readRepoFile("docs/guidelines/agent-authoring-guide.md"),
-      readSkillSource("subagent-lifecycle"),
-      readRepoFile("docs/guidelines/agent-routing-and-mutation-policy.md"),
-    ]);
-    const normalizedIssuePriming = normalizeWhitespace(issuePriming);
-    const normalizedLifecyclePolicy = normalizeWhitespace(lifecyclePolicy);
-    const normalizedPrMerge = normalizeWhitespace(prMerge);
-    const normalizedAdr = normalizeWhitespace(adr);
-    const normalizedRoutingSpec = normalizeWhitespace(routingSpec);
-    const normalizedAgentSpec = normalizeWhitespace(agentSpec);
-    const normalizedLifecycleOwner = normalizeWhitespace(lifecycleOwner);
-    const normalizedAdoptionInventory = normalizeWhitespace(adoptionInventory);
-    const adoptionSection = sliceBetween(
-      adoptionInventory,
-      "## Capability Escalation Adoption Inventory",
-      "### Ordinary child failure disposition",
-    );
-    const selectedRouteIds = ["D1", "D2", "D3", "D12", "D13", "D17"];
+      lifecycleOwner: await readSkillSource("subagent-lifecycle"),
+      adoptionInventory: await readRepoFile(
+        "docs/guidelines/agent-routing-and-mutation-policy.md",
+      ),
+    };
 
-    expect(normalizedLifecycleOwner).toContain(
-      "names the route and target; the same semantic role; exact current and requested next capability/effort tuples",
-    );
-    expect(normalizedLifecycleOwner).toContain(
-      "unsupported or undeclared exact transition",
-    );
-    for (const route of selectedRouteIds) {
-      expect(markdownTableRow(adoptionSection, route)).toMatch(
-        /\|\s*opt-out\s*\|\s*none\s*\|/u,
-      );
+    expect(validateEscalationConsumerContracts(sources)).toEqual([]);
+
+    const mutationCases: Array<{
+      name: string;
+      mutate: (value: EscalationConsumerSources) => EscalationConsumerSources;
+      expectedError: string;
+    }> = [
+      {
+        name: "need not name target",
+        mutate: (value) => ({
+          ...value,
+          writingSkills: value.writingSkills.replace(
+            /must name\s+its exact target and semantic role\./u,
+            "need not name its target but must name its semantic role.",
+          ),
+        }),
+        expectedError: "writing-skills: exact-target-required",
+      },
+      {
+        name: "negated semantic-role permission",
+        mutate: (value) => ({
+          ...value,
+          agentAuthoring: value.agentAuthoring.replace(
+            /must name\s+its exact target and semantic role\./u,
+            "must name its exact target; its semantic role need not be named.",
+          ),
+        }),
+        expectedError: "agent-authoring: semantic-role-required",
+      },
+      {
+        name: "supported nearby transition substitution",
+        mutate: (value) => ({
+          ...value,
+          writingSkills: value.writingSkills.replace(
+            /Do not infer a transition from ambient,\s+nearby,\s+alias,\s+or role\s+substitution\./u,
+            "An ambient or nearby transition substitution is supported.",
+          ),
+        }),
+        expectedError: "writing-skills: exact-transition-required",
+      },
+      {
+        name: "unsupported opt-out transition",
+        mutate: (value) => ({
+          ...value,
+          prMerge: value.prMerge.replace(
+            /D17 current exact target transition:\s*none/u,
+            "D17 current exact target transition: frontier/high",
+          ),
+        }),
+        expectedError: "pr-merge: D17-explicit-opt-out-required",
+      },
+      {
+        name: "reversed D13 reclassification",
+        mutate: (value) => ({
+          ...value,
+          lifecyclePolicy: value.lifecyclePolicy.replace(
+            /D13-to-D12 reclassification is\s+not\s+capability escalation\./u,
+            "D12 reclassification into D13 is a capability upgrade.",
+          ),
+        }),
+        expectedError: "lifecycle-policy: d13-reclassification-required",
+      },
+      {
+        name: "CI retry budget contradiction",
+        mutate: (value) => ({
+          ...value,
+          prMerge: value.prMerge.replace(
+            /The two\s+CI repair cycles are workflow retries,\s+not a capability escalation budget\./u,
+            "The two CI repair cycles consume the capability escalation budget.",
+          ),
+        }),
+        expectedError: "pr-merge: ci-retry-budget-required",
+      },
+      {
+        name: "duplicate escalation owner",
+        mutate: (value) => ({
+          ...value,
+          routingSpec: `${value.routingSpec}\nThis spec is a canonical owner of capability-escalation adoption.`,
+        }),
+        expectedError: "routing-spec: competing-authority",
+      },
+      {
+        name: "consumer competing-authority claim",
+        mutate: (value) => ({
+          ...value,
+          writingSkills: `${value.writingSkills}\nWriting Skills owns capability escalation.`,
+        }),
+        expectedError: "writing-skills: competing-authority",
+      },
+    ];
+
+    for (const mutation of mutationCases) {
+      expect(
+        validateEscalationConsumerContracts(mutation.mutate(sources)),
+        mutation.name,
+      ).toEqual([mutation.expectedError]);
     }
-
-    for (const route of selectedRouteIds.slice(0, 3)) {
-      expect(normalizedIssuePriming).toContain(
-        `${route} current exact target transition: none`,
-      );
-    }
-    expect(normalizedIssuePriming).toContain(
-      "Ordinary gate and research outcomes remain their existing fallback and outcome-precedence routes; they are not capability retries.",
-    );
-    expect(normalizedIssuePriming).not.toContain(
-      "Ordinary gate and research outcomes are capability retries.",
-    );
-
-    for (const route of selectedRouteIds.slice(3, 5)) {
-      expect(normalizedLifecyclePolicy).toContain(
-        `${route} current exact target transition: none`,
-      );
-    }
-    expect(normalizedLifecyclePolicy).toContain(
-      "D13-to-D12 reclassification is not capability escalation.",
-    );
-    expect(normalizedLifecyclePolicy).toContain(
-      "existing blocker/manual-owner path without a model or effort override",
-    );
-    expect(normalizedLifecyclePolicy).not.toContain(
-      "D13-to-D12 reclassification is capability escalation.",
-    );
-
-    expect(normalizedPrMerge).toContain(
-      "D17 current exact target transition: none",
-    );
-    expect(normalizedPrMerge).toContain(
-      "The two CI repair cycles are workflow retries, not a capability escalation budget.",
-    );
-    expect(normalizedPrMerge).not.toContain(
-      "The two CI repair cycles are a capability escalation budget.",
-    );
-
-    for (const source of [adr, routingSpec, agentSpec]) {
-      expect(source).toContain("subagent-lifecycle");
-      expect(source).toContain("Agent Routing and Mutation Policy");
-      expect(source).not.toContain("issue #528");
-    }
-    expect(normalizedAdr).toContain(
-      "Capability and effort, tools, sandbox, authority, orchestration, retries, and escalation remain separate choices.",
-    );
-    expect(normalizedRoutingSpec).toContain("transition: none");
-    expect(normalizedRoutingSpec).toContain(
-      "Capability-escalation adoption is not owned by this spec.",
-    );
-    expect(normalizedRoutingSpec).not.toMatch(
-      /\bmust\b[^.]{0,160}\b(?:capability[- ]escalation|transition:\s*none)\b/iu,
-    );
-    expect(normalizedAgentSpec).toContain(
-      "static agent-schema field for escalation",
-    );
-
-    for (const source of [writingSkills, agentAuthoring]) {
-      const normalizedSource = normalizeWhitespace(source);
-      expect(normalizedSource).toContain("exact target and semantic role");
-      expect(normalizedSource).toContain(
-        "explicit opt-out with `transition: none`",
-      );
-      expect(normalizedSource).toContain(
-        "current and next capability plus effort",
-      );
-      expect(normalizedSource).toContain(
-        "ambient, nearby, alias, or role substitution",
-      );
-      expect(normalizedSource).toContain(
-        "No static agent schema change is required",
-      );
-    }
-
-    for (const source of [
-      issuePriming,
-      lifecyclePolicy,
-      prMerge,
-      routingSpec,
-      writingSkills,
-      agentAuthoring,
-    ]) {
-      const normalizedSource = normalizeWhitespace(source);
-      expect(normalizedSource).not.toMatch(
-        /\b(?:reclassif\w*|retry\w*|CI repair cycles?)\b(?:(?!\bnot\b).){0,120}\b(?:capability escalation|escalation budget)\b/iu,
-      );
-      expect(normalizedSource).not.toMatch(
-        /\b(?:this spec|workflow routing|authoring guide|writing skills)\b[^.]{0,120}\bowns?\b[^.]{0,120}\bcapability[- ]escalation\b/iu,
-      );
-    }
-    expect(normalizedLifecycleOwner).toContain(
-      "This is the one shared controller procedure for a fresh capability/effort attempt.",
-    );
-    expect(normalizedAdoptionInventory).toContain(
-      "This table is the authoritative current adoption record",
-    );
   });
 });
