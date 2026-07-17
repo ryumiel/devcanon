@@ -723,9 +723,71 @@ describe("phase artifact source contracts", () => {
       "validated criteria path",
       "validated readiness path and recorded readiness result",
       "expected exact plan digest",
+      "`review_wave` (`1` or `2`)",
+      "`prior_verified_gaps`",
     ]) {
       expect(normalizedWorkflow).toContain(pairedInput);
     }
+    expect(normalizedWorkflow).toContain(
+      "For wave one, `prior_verified_gaps` is explicitly none/inapplicable",
+    );
+    for (const waveTwoAdmissionRule of [
+      "An unchanged fresh-pair retry after wave one is allowed only when wave one contains no verified `CURRENT` gap",
+      "An unchanged fresh-pair retry is prohibited when wave one contains any verified `CURRENT` gap",
+      "every such record must receive its authorized correction and transition from `OPEN` + `NOT_RUN` to `CORRECTED` + `PENDING` before wave-two dispatch",
+      "stop without dispatching wave two or consuming the second-wave budget",
+    ]) {
+      expect(normalizedWorkflow).toContain(waveTwoAdmissionRule);
+    }
+    for (const priorGapField of [
+      "stable gap ID",
+      "task ID",
+      "defect class",
+      "classification",
+      "authority",
+      "`Concrete blocker`",
+      "`Inspection insufficiency`",
+      "`Smallest correction`",
+      "originating D5 or D6 remit",
+      "correction owner",
+      "concrete correction evidence",
+      "`resolution_state`",
+      "`verification_state`",
+    ]) {
+      expect(normalizedWorkflow).toContain(priorGapField);
+    }
+    for (const lifecycleTransition of [
+      "`OPEN` + `NOT_RUN`",
+      "`CORRECTED` + `PENDING`",
+      "`RESOLVED` + `PASSED`",
+      "`UNRESOLVED` + `FAILED`",
+    ]) {
+      expect(normalizedWorkflow).toContain(lifecycleTransition);
+    }
+    expect(normalizedWorkflow).toContain(
+      "Any invalid transition makes the tuple or result malformed and non-passing",
+    );
+    expect(normalizedWorkflow).toContain(
+      "Compute the terminal state independently for each prior gap record after both wave-two reviewers settle on the same digest",
+    );
+    expect(normalizedWorkflow).toContain(
+      "A corrected prior gap becomes `RESOLVED` + `PASSED` when its correction is verified and that same gap neither recurs nor regresses, even when a distinct valid new-evidence gap makes the overall wave non-passing",
+    );
+    expect(normalizedWorkflow).toContain(
+      "A prior gap becomes `UNRESOLVED` + `FAILED` from a consumable valid same-digest pair only when that same gap recurs, its correction regresses, or its own record or transition is malformed or out of order",
+    );
+    expect(normalizedWorkflow).toContain(
+      "An orthogonal new-evidence `CURRENT` or `BLOCKER` never rewrites a separately verified prior record to unresolved",
+    );
+    expect(normalizedWorkflow).toContain(
+      "the overall paired-wave verdict remains non-passing, surfaces every new or unresolved gap, and stops after wave two",
+    );
+    expect(normalizedWorkflow).toContain(
+      "After any wave-two non-pass, surface unresolved gaps and stop; there is no third wave",
+    );
+    expect(normalizedWorkflow).toContain(
+      "Freeze the tuple before either capture and pass the identical tuple to D5 and D6 without per-reviewer additions",
+    );
     expect(normalizedWorkflow).toContain(
       "pass the same optional comment evidence to both when present",
     );

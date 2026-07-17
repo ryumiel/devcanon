@@ -39,11 +39,27 @@ revised plan therefore needs a fresh pair of results for its new digest. A plan
 may cross the execution-handoff boundary only when both distinct reviewers pass
 the same current digest.
 
+The paired gate is bounded: the first wave is exhaustive and the second wave is
+convergent. The second pair verifies prior material gaps, checks that the
+revision introduced no regression, and may add a new blocking gap only when
+newly exposed concrete evidence makes it material. Regression checking is
+necessary because a correction can preserve the original gap while breaking a
+different load-bearing boundary. Bounded new-evidence rules preserve genuine
+omission and safety detection without turning optional hardening or reviewer
+preference into serial acceptance growth. Two waves are the architectural stop;
+unresolved material gaps remain non-passing rather than being weakened or
+routed through an unbounded review loop.
+
 The `play-planning` source skill owns dispatch, lifecycle, revision, and handoff
 mechanics. Its bundled planning references own readiness and shared review
 criteria. The routing policy owns only the stable reviewer route inventory.
 This decision introduces no persistent review-result artifact, runtime helper,
 schema registry, or new reviewer identity.
+
+The bounded convergence decision does not create a persistent review protocol
+or result artifact; detailed materiality, reviewer-remit, and convergence
+judgment remains owned by the bundled planning criteria and controller-local
+state.
 
 ## Consequences
 
@@ -55,6 +71,8 @@ schema registry, or new reviewer identity.
   must wait for the complete pair before routing.
 - Every plan edit requires both reviews again, including edits requested by
   only one reviewer.
+- Review feedback converges within two paired waves while newly evidenced
+  material omissions remain fail-closed.
 - Exact file-byte identity avoids ambiguity from Markdown normalization or
   reconstructed content, at the cost of invalidating verdicts for any byte
   change.

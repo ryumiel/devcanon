@@ -9,7 +9,9 @@ workflow stays in `../SKILL.md`; do not copy these criteria back into each gate.
 - [Governing invariant](#governing-invariant)
 - [Scope Envelope](#scope-envelope)
 - [Planning authority and readiness](#planning-authority-and-readiness)
+- [Proportional contract planning](#proportional-contract-planning)
 - [Exact digest and paired-review result contract](#exact-digest-and-paired-review-result-contract)
+- [Blocking materiality and review convergence](#blocking-materiality-and-review-convergence)
 - [Contract and traceability criteria](#contract-and-traceability-criteria)
 - [Ownership-topology mapping](#ownership-topology-mapping)
 - [Task contract criteria](#task-contract-criteria)
@@ -111,6 +113,63 @@ replace it.
 This criteria reference owns the shared D5/D6 review-result and gap contract
 below. It must not use review gaps to replace missing project authority.
 
+## Proportional contract planning
+
+Classify each task against this closed tier set before selecting contract
+detail. The tier changes how compactly an approved contract may be expressed;
+it never weakens an applicable boundary, omits a known participant, or changes
+what counts as a blocking defect. Ambiguous classification defaults to `FULL`.
+
+- `FULL`: required when any changed contract is durable, public,
+  cross-session, untrusted or security-sensitive, or cross-owner. FULL
+  treatment includes authority and precedence; required and optional inputs;
+  outputs; every participant and its traceability; material side-effect
+  ownership; lifecycle, failure, recovery, cleanup, and trust-boundary
+  behavior; every applicable side-channel obligation; canonical valid and
+  invalid examples; and participant-specific proof.
+- `LIGHTWEIGHT`: allowed only when all dimensions are true: the mechanism is
+  private, transient, used by the same controller, and has no durable schema
+  consumer. Record its owner, purpose, inputs and outputs, material write or
+  side-effect owner, failure and cleanup behavior, focused proof, and the
+  explicit reason every FULL trigger is absent. Any changed dimension that
+  triggers `FULL` makes LIGHTWEIGHT invalid.
+- `NO-TRIGGER`: allowed only when the task changes no contract, boundary,
+  lifecycle, side effect, generated or side-channel artifact, interface,
+  policy, or other non-trivial task-contract trigger. State a task-specific
+  reason. The ordinary task fields, acceptance criteria, and
+  minimum-sufficient proof still apply.
+
+Do not infer LIGHTWEIGHT from a small diff, private implementation naming, or
+an artifact being stored under `.ephemeral/`. Durability and consumers are
+properties of the behavior and data flow, not of file size or path spelling.
+Full treatment remains mandatory for load-bearing durable, public,
+cross-session, untrusted, security-sensitive, and cross-owner contracts.
+
+### Proportionality examples
+
+- **Valid `LIGHTWEIGHT` example:** a private transient helper used only by the
+  current controller transforms an already validated in-memory value and has
+  no durable schema consumer. Its compact contract names the controller as
+  owner, the transformation purpose, inputs and outputs, confirms the
+  controller owns its only material in-memory write or side effect, names
+  failure and cleanup behavior and focused proof, and states that FULL is
+  absent because the helper is private, transient, same-controller, trusted,
+  non-security-sensitive, and neither durable, public, cross-session, nor
+  cross-owner.
+- **Invalid durability mutation:** relative to that valid example, change only
+  the output so it persists for a later session. The contract is cross-session
+  and requires `FULL`; retaining LIGHTWEIGHT is blocking.
+- **Valid `FULL` example:** a durable cross-owner boundary names its authority
+  and precedence; required and optional inputs; outputs; every producer,
+  validator, adapter, and consumer with participant traceability; the material
+  side-effect owner; lifecycle, failure, recovery, cleanup, and trust-boundary
+  behavior; every applicable side-channel obligation; canonical valid and
+  invalid examples; and participant-specific proof for every participant.
+- **Invalid consumer-omission mutation:** relative to that valid example,
+  remove exactly one known consumer and its proof while preserving all other
+  facts. The omitted known consumer remains a blocking gap; a final-consumer
+  test or smaller diff does not make the contract complete.
+
 ## Exact digest and paired-review result contract
 
 ### Exact saved-plan digest
@@ -155,10 +214,14 @@ names the contract, not its wording or position. Every gap record contains:
 - task ID or `PLAN`;
 - defect class;
 - classification, exactly `CURRENT` or `BLOCKER`;
-- concise finding;
-- authoritative source; and
-- required correction for `CURRENT`, or exactly one decision owner for
-  `BLOCKER`.
+- `Authority`: the authoritative requirement or owner that makes correction
+  necessary;
+- `Concrete blocker`: the specific acceptance, execution, or safety condition
+  that cannot be satisfied;
+- `Inspection insufficiency`: why named source inspection and normal
+  implementer discovery cannot resolve the defect; and
+- `Smallest correction or decision owner`: the minimum plan correction for
+  `CURRENT`, or exactly one decision owner for `BLOCKER`.
 
 The same semantic gap keeps the same ID across reviewers and reruns. Equivalent
 duplicate IDs merge and retain reviewer provenance. Conflicting duplicate IDs
@@ -236,16 +299,18 @@ Task: PLANNING-GATES
 Class: ARTIFACT
 ID: GAP-PLANNING-GATES-ARTIFACT-DIGEST-FRESHNESS
 Classification: CURRENT
-Finding: The current plan digest is not revalidated before handoff.
 Authority: Exact plan digest contract.
-Required correction: Recompute and compare the exact-byte digest before handoff.
+Concrete blocker: The current plan digest is not revalidated before handoff.
+Inspection insufficiency: The plan cannot prove a future controller rehash.
+Smallest correction or decision owner: Require the pre-handoff exact-byte rehash.
 Task: PLANNING-GATES
 Class: LIFECYCLE
 ID: GAP-PLANNING-GATES-LIFECYCLE-EARLY-JOIN
 Classification: CURRENT
-Finding: Routing begins before both reviewer lifecycles settle.
 Authority: Paired review lifecycle contract.
-Required correction: Join only after both lifecycles settle and clean.
+Concrete blocker: Routing begins before both reviewer lifecycles settle.
+Inspection insufficiency: The plan's early route is itself the lifecycle defect.
+Smallest correction or decision owner: Join only after both lifecycles settle and clean.
 ```
 
 #### Single-dimension invalid families
@@ -277,13 +342,99 @@ remain consistent with source authority. Unsupported or source-inconsistent
 examples are `BLOCKER` findings returned to the owning design or decision
 surface; do not guess.
 
+## Blocking materiality and review convergence
+
+A finding blocks only when all four materiality fields are concrete and
+supported: `Authority`, `Concrete blocker`, `Inspection insufficiency`, and
+`Smallest correction or decision owner`. A reviewer cannot use desired detail,
+personal preference, generic risk, or a possible improvement as a substitute
+for any field. If named source inspection or normal implementation discovery
+is sufficient, the finding is not a blocking execution gap.
+
+Wave one is exhaustive: D5 and D6 each report every concrete blocking gap in
+their distinct remit for the current digest. Wave two verifies every prior
+blocking gap against the revised plan and checks for regressions introduced by
+the revision. A newly blocking wave-two gap must add a `New evidence basis`
+field naming one of these bounded bases:
+
+- a newly discovered concrete source fact;
+- a contradiction exposed by the correction;
+- an invalid dependency or path;
+- an omitted current surface; or
+- a material safety defect.
+
+The basis must identify evidence that was not reasonably available from the
+first-wave plan and named sources, rather than rephrasing an earlier finding.
+Optional infrastructure, available preferences, speculative hardening, and
+unsupported proof expansion cannot become blocking acceptance in wave two.
+Newly noticed ordinary defects that were inspectable in wave one do not gain a
+new acceptance obligation; reviewers preserve exhaustive first-wave
+accountability instead of serializing review.
+
+Review convergence has a maximum of two paired waves. After a non-passing
+second wave, return unresolved `BLOCKER` findings to their named owners and
+surface unresolved authorized `CURRENT` gaps without inventing a third review
+wave or weakening them. The controller retains prior gap IDs, provenance,
+evidence bases, and verification status only as controller-local review state.
+This creates no persistent result artifact, helper, schema, registry, or
+standing review protocol.
+
+Wave-two terminal state is computed independently for each prior gap record
+after both reviewers settle on the same digest. A prior gap whose correction is
+verified and that neither recurs nor regresses remains `RESOLVED` + `PASSED`
+even when a distinct valid new-evidence gap makes the overall wave non-passing.
+For a consumable valid same-digest pair, that prior gap becomes `UNRESOLVED` +
+`FAILED` only when the same gap recurs, its correction regresses, or its own
+record or transition is malformed or out of order. An orthogonal new-evidence
+`CURRENT` or `BLOCKER` never rewrites that prior record to unresolved. The
+overall wave still surfaces every valid new or unresolved gap and stops after
+wave two without weakening the no-third-wave rule.
+
+A final-wave operational or reviewer verification failure prevents a
+consumable valid same-digest pair when it includes guard capture failure; spawn
+failure; reviewer unavailability; a malformed or semantically rejected
+response; a wrong digest; guard verification or cleanup failure; a join-time
+or pre-handoff mismatch; plan or source drift; or an equivalent terminal
+invalidation. For any such failure, the controller transitions each
+still-pending prior record from `CORRECTED` + `PENDING` to `UNRESOLVED` +
+`FAILED`, records concrete verification-failure evidence without claiming that
+the correction recurred or regressed, surfaces the operational failure and
+every affected prior gap, prohibits execution handoff, and stops without a
+third wave. This operational settlement applies only to still-pending records;
+it never overwrites a record already settled from a consumable valid
+same-digest pair.
+
+### Convergence examples
+
+- **Valid wave-two evidence example:** wave one reports a missing consumer
+  proof. The revision adds that proof but exposes a newly discovered concrete
+  source fact showing that the consumer also rejects stale input. Wave two
+  verifies the prior correction, checks that the revision introduced no
+  regression, and reports the newly material stale-input gap with `New evidence
+basis` pointing to that source fact.
+- **Invalid available-evidence mutation:** relative to the valid wave-two
+  example, change only the evidence basis to a source fact already available in
+  the named first-wave sources. It cannot originate a new wave-two blocker.
+- **Invalid optional-infrastructure mutation:** relative to the valid wave-two
+  example, change only the new gap to a request for an optional generalized
+  validation service. Optional infrastructure is not blocking acceptance.
+
+Material omissions and unsafe execution remain fail-closed at every tier and
+wave. In particular, missing consumers, invalid paths or dependencies,
+ambiguous mutation ownership, unsafe cleanup, malformed review results, and
+digest or guard failures prevent handoff. Stable gap IDs and classes,
+exact-digest freshness, paired independent reviews, and the two-wave stop remain
+mandatory.
+
 ## Contract and traceability criteria
 
 ### Contract-heavy work
 
-Use a concise contract table when work depends on cross-skill handoffs,
-generated or derived paths, helper scripts, source-owned policy, schemas,
-interfaces, execution roots, state transitions, or fail-closed behavior. Name:
+Select contract-heavy detail from the task's contract tier. For `FULL` or a
+separately named material authority, use the complete contract-heavy or
+helper-I/O table when work depends on cross-skill handoffs, generated or
+derived paths, helper scripts, source-owned policy, schemas, interfaces,
+execution roots, state transitions, or fail-closed behavior. Name:
 
 - inputs and optional inputs;
 - execution root or cwd;
@@ -293,6 +444,17 @@ interfaces, execution roots, state transitions, or fail-closed behavior. Name:
 - mutation or side-effect owner;
 - missing, invalid, failure, recovery, and cleanup behavior; and
 - observable proof.
+
+A valid `LIGHTWEIGHT` contract-heavy record uses the closed compact fields:
+every actual known participant and direct producer-consumer relationship,
+owner, purpose, inputs and outputs, material write or side-effect owner,
+failure and cleanup behavior, focused proof, and the explicit reason every
+FULL trigger is absent. It does not acquire the complete table merely because
+it has private transient helper I/O. Add family detail only for a concrete
+approved task-local need or an independently applicable material authority.
+Ambiguity defaults to `FULL`. Known omissions remain blocking, as do every
+independently triggered side-channel, generated, safety, untrusted, durable,
+public, cross-session, cross-owner, or governance obligation.
 
 For governance or workflow-policy changes, compare the Adjacent Governance
 Policy Set in `docs/guidelines/documentation-checklists.md`. Update only the
@@ -307,8 +469,10 @@ when its existing trigger applies.
 
 ### Ownership-topology mapping
 
-For every changed behavior or contract in an approved design, write a table or
-equivalent structured mapping that names:
+For every changed behavior or contract in an approved design, select topology
+detail from its contract tier. An exhaustive mapping is required for `FULL` or
+when a separately named material authority requires it. That table or
+equivalent structured mapping names:
 
 - the stable behavior or contract name and governing design decision;
 - exactly one normative owner and the responsibility it defines;
@@ -321,51 +485,83 @@ equivalent structured mapping that names:
 - the verification owner and the owner invariant, reference-validity boundary,
   or derived-parity boundary it proves.
 
-The mapping is exhaustive over the changed behaviors and affected surfaces
-authorized by the design. Repetition never grants authority. References and
-non-normative summaries yield to the normative owner on conflict; derived
-representations preserve owner parity; verification reports mismatch without
-defining policy. Exact wording or diagram-edge proof is required only when the
-representation itself is an intentional product contract. Generated skill
-packages are derived consumers and never plan edit targets.
+For `FULL`, the mapping is exhaustive over the changed behaviors and affected
+surfaces authorized by the design, including supporting-owner partitions and
+precedence, every affected surface and consumption mode, current task coverage,
+and verification ownership. A valid `LIGHTWEIGHT` compact record satisfies
+topology by naming every actual known participant and direct producer-consumer
+relationship, plus its owner, purpose, inputs and outputs, material write or
+side-effect owner, failure and cleanup behavior, focused proof, and explicit
+reason every FULL trigger is absent. It need not manufacture supporting owners,
+partitions, consumers, or example families that do not exist.
 
-Planning is not ready when:
+Repetition never grants authority. References and non-normative summaries yield
+to the normative owner on conflict; derived representations preserve owner
+parity; verification reports mismatch without defining policy. Exact wording or
+diagram-edge proof is required only when the representation itself is an
+intentional product contract. Generated skill packages are derived consumers
+and never plan edit targets. Known omissions remain blocking at every tier.
+Every independently triggered side-channel, generated, safety, untrusted,
+durable, public, cross-session, or cross-owner obligation remains blocking and
+requires `FULL` or its separately named material authority; `LIGHTWEIGHT` never
+waives it.
+
+Planning is not ready at every tier when:
 
 - multiple artifacts independently define the same requirement, state
   transition, routing rule, schema, lifecycle, or failure behavior without an
   approved partition;
-- a supporting responsibility overlaps another partition, leaves an approved
-  responsibility uncovered, or lacks conflict precedence;
-- a changed behavior, affected surface, owner source, consumption mode, task,
-  or verification owner is missing;
 - a reference or summary is treated as authority because it repeats contract
   detail;
-- a derived representation lacks an owner or proportional parity proof;
 - verification defines copied policy or expected prose instead of proving an
   owner invariant, reference validity, or derived parity; or
 - a reviewer or implementer would have to choose ownership or precedence.
 
+For `FULL` or a separately named material authority, planning is not ready when
+a required exhaustive topology field is missing, including when:
+
+- a supporting responsibility overlaps another partition, leaves an approved
+  responsibility uncovered, or lacks conflict precedence;
+- a changed behavior, affected surface, owner source, consumption mode, task,
+  or verification owner is missing; or
+- a derived representation lacks an owner or proportional parity proof.
+
+A `LIGHTWEIGHT` mapping is not ready when it omits any actual known participant
+or direct producer-consumer relationship, or when it omits its owner, purpose,
+inputs and outputs, material write or side-effect owner, failure and cleanup
+behavior, focused proof, or explicit absence of every FULL trigger. Unclear
+tier eligibility defaults to `FULL`; the compact route never excuses a known
+consumer or an independently triggered obligation.
+
 Missing, duplicated, or conflicting project-specific topology is a `BLOCKER`
 returned to the owning design; planning must not repair it by inventing an
-owner or partition. An approved topology with incomplete or contradictory task
-coverage is a `CURRENT` planning gap returned to `play-planning` during
-implementation review. Neither route authorizes further synchronized
+owner or partition. An approved `FULL` or separately authorized exhaustive
+topology with incomplete or contradictory task coverage is a `CURRENT` planning
+gap returned to `play-planning` during implementation review. An approved
+`LIGHTWEIGHT` compact topology with an omitted actual known participant, direct
+producer-consumer relationship, or required compact field is likewise a
+`CURRENT` planning gap. Neither route authorizes further synchronized
 restatements.
 
-When the plan includes topology examples, apply Contract Example Discipline to
-one canonical valid post-change example. Representative invalid families
-change one dimension at a time: duplicate the normative owner, overlap a
-supporting partition, omit a consumer's owner source or mode, or treat
-verification as policy authority. Keep derived facts consistent, require only
-the positive and negative proof authorized by the design, and do not create an
-exhaustive matrix. Unsupported or inconsistent example facts are
-a `BLOCKER` returned to the owning design or decision surface, not invitations
-to guess.
+Topology examples activate Contract Example Discipline only when that
+discipline is already triggered by `FULL` or a separately named material
+authority. Under that existing trigger, apply it to one canonical valid
+post-change topology example. Representative invalid families change one
+dimension at a time: duplicate the normative owner, overlap a supporting
+partition, omit a consumer's owner source or mode, or treat verification as
+policy authority. Keep derived facts consistent, require only the positive and
+negative proof authorized by the design, and do not create an exhaustive
+matrix. Merely expressing a valid `LIGHTWEIGHT` compact topology as an example
+does not trigger canonical invalid families or positive and negative FULL
+proof. Unsupported or inconsistent example facts are a `BLOCKER` returned to
+the owning design or decision surface, not invitations to guess.
 
 ### Boundary-contract traceability
 
-For producer, validator, adapter, or consumer boundaries, assign stable row IDs
-and name:
+For producer, validator, adapter, or consumer boundaries, select traceability
+detail from the contract tier. `FULL` or a separately named material authority
+requires stable boundary row IDs and the complete participant-specific
+traceability shape. Each row names:
 
 - boundary name and authoritative source;
 - required input tuple;
@@ -375,18 +571,33 @@ and name:
 - failure behavior for missing or mismatched authority; and
 - observable proof per participant.
 
-Every row maps to a current task or an explicit no-code disposition. Every
-participant has coverage and proof. A final consumer test does not cover a
-missing producer, validator, or adapter obligation.
+For `FULL` or a separately named material authority, downstream boundary-row
+consumers require task or no-code mapping, participant coverage and proof,
+applicable checklist row-ID and ownership references, and design-decision or
+non-applicability citations. Under either trigger, each row maps to a current
+task or an explicit no-code disposition, every participant has coverage and
+proof, and each applicable task contract checklist references the governing
+row IDs or explicitly names the rows that own its participant obligations. Plan
+Review fails a checklist that omits relevant row IDs or row ownership, even
+when it precisely restates the boundary details. Each governed row cites the
+relevant design contract decision or records why that decision is
+non-applicable. A no-code disposition still names the governing decision and
+explains why implementation work is unnecessary.
 
-Every applicable task contract checklist references its governing boundary row
-IDs or explicitly names the rows that own the task's participant coverage and
-proof obligations. Plan Review fails a checklist that omits relevant row IDs or
-row ownership, even when it precisely restates the boundary details.
-
-Every governed boundary row cites the relevant design contract decision or
-records why that decision is non-applicable. A no-code disposition still names
-the governing decision and explains why implementation work is unnecessary.
+A valid `LIGHTWEIGHT` boundary record instead uses the closed compact fields:
+every actual known participant and direct producer-consumer relationship,
+owner, purpose, inputs and outputs, material write or side-effect owner,
+failure and cleanup behavior, focused proof, and the explicit reason every
+FULL trigger is absent. For `LIGHTWEIGHT`, the compact boundary record is
+sufficient unless specifically authorized applicable extra detail is required
+by a concrete approved task-local need or an independently applicable material
+authority. Only that named detail applies; it does not activate the complete
+downstream row-consumer shape. A final consumer test does not cover a missing
+producer, validator, or adapter obligation, and it cannot excuse any other
+known consumer omission. Ambiguity defaults to `FULL`. Known omissions remain
+blocking, as do every independently triggered side-channel, generated, safety,
+untrusted, durable, public, cross-session, cross-owner, or governance
+obligation.
 
 Proof must be executable without prescribing implementation. Name diagnostic
 shape, validation ordering, source inspection target or discovery criteria,
@@ -397,14 +608,23 @@ condition.
 
 ### Contract Example Discipline
 
-Plans that change schemas, APIs, function shapes, artifacts, CLI output, helper
-I/O, or cross-skill contracts include `Contract Example Discipline` or an
-equivalent section. Name:
+Contract Example Discipline is required for FULL or a separately named material
+authority. Under either trigger, plans that change schemas, APIs, function
+shapes, artifacts, CLI output, helper I/O, or cross-skill contracts include
+`Contract Example Discipline` or an equivalent section. Name:
 
 - one canonical valid post-change example and its authority;
 - representative invalid families derived by changing one contract dimension;
 - required positive and negative proof; and
 - intentionally out-of-scope invalid families.
+
+A valid `LIGHTWEIGHT` compact record does not require canonical valid and
+invalid example families merely because its private transient mechanism has
+helper I/O. Its focused proof covers its named compact contract. A known
+participant or direct producer-consumer relationship still cannot be omitted,
+and every independently triggered side-channel, generated, safety, untrusted,
+durable, public, cross-session, or cross-owner obligation remains blocking and
+requires `FULL` or its separately named material authority.
 
 Positive examples match the target post-change contract, not the pre-change
 contract. Invalid examples change exactly one named contract dimension from the
@@ -447,28 +667,47 @@ Every current task includes:
 - acceptance criteria;
 - risks and dependencies;
 - verification expectations; and
-- a contract checklist when a non-trivial trigger applies.
+- tier-appropriate contract fields when a non-trivial trigger applies.
 
 Non-trivial triggers include multi-step implementation, durable docs or policy,
 cross-agent handoffs, schemas or interfaces, generated artifacts, state or
 lifecycle behavior, fail-closed behavior, safety-sensitive behavior, and
 compatibility or versioning. A trivial task may omit the checklist only with a
-task-specific reason.
+task-specific reason explaining why no contract fields are triggered.
 
-A required checklist covers trigger criteria, owner and authority, affected
-consumers or generated outputs, must-preserve behavior, required state and
-failure behavior, applicable spec or procedure work, relevant risks, and proof
-obligations. Each field is populated or marked `N/A` with a task-specific
+For `FULL` or a separately named material authority, use the complete
+non-trivial-task checklist. It covers trigger criteria, owner and authority,
+affected consumers or generated outputs, must-preserve behavior, required state
+and failure behavior, applicable spec or procedure work, relevant risks, and
+proof obligations. Each field is populated or marked `N/A` with a task-specific
 reason. Unknown authority becomes a BLOCKER, not an invented contract.
 
-For a boundary-touching task, include a task-local I/O or operation map only
-when needed to make approved behavior executable. When applicable, it names
-current source, target surface, required inputs, optional inputs, missing or
-empty behavior, outputs, errors, explicit write targets or side-effect owner,
-validation-before-write or other validation-order requirements, failure
-behavior, forbidden side effects, dirty or rollback behavior, and required
-verification. It must not prescribe private implementation choices discoverable
-from the named sources.
+A valid `LIGHTWEIGHT` task uses its closed compact fields: every actual known
+participant and direct producer-consumer relationship, owner, purpose, inputs
+and outputs, material write or side-effect owner, failure and cleanup behavior,
+focused proof, and the explicit reason every FULL trigger is absent. A valid
+`LIGHTWEIGHT` task does not acquire FULL-only checklist fields or `N/A` entries.
+Add checklist detail only for a concrete approved task-local need or an
+independently applicable material authority.
+
+For `FULL` or a separately named material authority, include the complete
+task-local operation map when needed to make approved boundary behavior
+executable. It names current source, target surface, required inputs, optional
+inputs, missing or empty behavior, outputs, errors, explicit write targets or
+side-effect owner, validation-before-write or other validation-order
+requirements, failure behavior, forbidden side effects, dirty or rollback
+behavior, and required verification. A valid `LIGHTWEIGHT` boundary-touching
+task satisfies operation mapping through its closed compact fields, including
+every actual known participant and direct producer-consumer relationship. A
+valid `LIGHTWEIGHT` boundary-touching task does not acquire FULL-only
+operation-map detail unless a concrete approved task-local need or an
+independently applicable material authority requires it. It must not prescribe
+private implementation choices discoverable from the named sources.
+
+Across checklist and operation-map selection, ambiguity defaults to `FULL`.
+Known omissions remain blocking, as do every independently triggered
+side-channel, generated, safety, untrusted, durable, public, cross-session,
+cross-owner, or governance obligation.
 
 Compose related work when it shares one subsystem, authority, verification
 route, and safe working context. Split work with different authorities,
@@ -485,8 +724,8 @@ Review-routing hints remain non-authoritative inputs to
 `skills/play-subagent-execution/references/review-routing-policy.md` are not
 under-classified; unclear cases default to `spec-and-quality`, and
 foundation-producing tasks are not below `spec-only`. Field order is the task
-heading, required `**Task ID:**`, optional `**Mode:** mechanical`, optional
-review-routing hints, then `**Files:**`.
+heading, required `**Task ID:**`, required `**Contract tier:**`, optional
+`**Mode:** mechanical`, optional review-routing hints, then `**Files:**`.
 
 ## Minimum-sufficient proof
 
@@ -549,7 +788,10 @@ contract and traceability coverage, documentation impact, and proof
 proportionality. Report all concrete in-remit findings. Classify each finding.
 CURRENT and BLOCKER findings prevent PASS. FOLLOW-UP and OPTIONAL findings do
 not. Explicitly fail missing design Contract Decision and Documentation impact
-item mappings. Do not repeat executability review or invent new requirements.
+item mappings. D5 owns ordinary defects in approved-scope coverage, normative
+authority, boundary and consumer completeness, requirement traceability,
+dependency intent, documentation impact, and proof proportionality. It does not
+repeat task-local executability review or invent new requirements.
 
 ### Implementer Executability Review
 
@@ -562,7 +804,45 @@ helper structure, concrete tests, fixtures, commands, or individual-reference
 discovery inside already named in-scope consumers or boundaries when a named
 authority or explicit discovery criterion governs that discovery. Determining
 the in-scope consumers or boundary participants is not normal call-site
-discovery. Classify an omitted known mapping as CURRENT and missing mapping
-authority as BLOCKER. Do not broaden the Scope Envelope or proof obligations.
-Apply minimum-sufficient proof, and classify useful hardening as FOLLOW-UP or
-OPTIONAL.
+discovery. Ordinary omitted or missing consumer or boundary mapping coverage
+and mapping-authority findings are D5-owned. D6 may report the shared fact only
+by naming a concrete task-local startability defect caused in D6's own remit;
+the shared fact alone does not transfer ordinary finding ownership. Do not
+broaden the Scope Envelope or proof obligations. Apply minimum-sufficient
+proof, and classify useful hardening as FOLLOW-UP or OPTIONAL. D6 owns ordinary
+defects in task-local startability: named source and path validity, executable
+dependency order, required I/O and failure behavior, mutation ownership,
+cleanup safety, and implementer-visible acceptance proof. It does not reopen
+D5's approved-scope or proportionality judgment.
+
+The remits are orthogonal rather than successive approval levels. D5 may PASS
+while D6 reports a material task-local execution gap, such as an invalid named
+path that prevents the implementer from starting. Conversely, D6 must not block
+on optional whole-plan infrastructure, a generalized harness, or other
+hardening that lacks approved authority; classify it FOLLOW-UP or OPTIONAL.
+Both reviewers still report genuine omissions in their own remits, and neither
+PASS cures the other's material gap.
+
+Both reviewers may inspect shared plan and source facts, but only the remit
+owner originates an ordinary finding. A reviewer that discovers an ordinary
+defect owned by the other remit leaves origination to that owner rather than
+duplicating or reclassifying it. When shared facts create a cross-remit
+contradiction, a reviewer may report only after explaining the concrete defect
+the contradiction causes in that reporting reviewer's own remit; shared facts
+alone do not transfer ordinary defect ownership.
+
+### Orthogonal-review examples
+
+- **Valid orthogonal result:** D5 returns PASS because approved scope,
+  consumers, requirements, documentation impact, and proportional proof are
+  complete. D6 returns a material `EXECUTION` gap because one task names an
+  invalid source path and a competent implementer cannot start from the named
+  inputs. The D6 gap states its own task-local blocker; D5 PASS does not cure it.
+- **Invalid optional-hardening mutation:** relative to the valid orthogonal
+  result, change only D6's gap from the invalid source path to a request for an
+  optional whole-plan validation service. D6 must not block because that
+  hardening has no approved authority.
+- **Valid cross-remit contradiction:** D6 may inspect a shared requirement and
+  report that its contradiction with a task-local write owner leaves mutation
+  authority ambiguous for the implementer. The report explains that concrete
+  D6 defect; it does not originate an ordinary D5 coverage finding.

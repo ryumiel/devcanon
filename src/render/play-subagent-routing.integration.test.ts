@@ -1,3 +1,5 @@
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
 import {
@@ -27,6 +29,10 @@ type RenderedBodies = Record<string, string>;
 
 describe("play-subagent planning and routing render smoke coverage", () => {
   let bodies: RenderedBodies;
+  let sourcePlayPlanning: string;
+  let planningCriteria: RenderedBodies;
+  let skipDispatchPolicies: RenderedBodies;
+  let sourceSkipDispatchPolicy: string;
 
   beforeAll(async () => {
     const repoRoot = process.cwd();
@@ -36,6 +42,14 @@ describe("play-subagent planning and routing render smoke coverage", () => {
 
     const { outputs } = await renderAll(config, false);
     bodies = {};
+    planningCriteria = {};
+    skipDispatchPolicies = {};
+
+    const sourcePlayPlanningContent = await readFile(
+      path.join(repoRoot, "skills/play-planning/SKILL.md"),
+      "utf8",
+    );
+    sourcePlayPlanning = parseFrontmatter(sourcePlayPlanningContent).body;
 
     for (const skillName of ROUTING_SKILLS) {
       for (const target of ["claude", "codex"] as const) {
@@ -45,6 +59,49 @@ describe("play-subagent planning and routing render smoke coverage", () => {
         expect(frontmatter.name).toBe(skillName);
         bodies[`${skillName}:${target}`] = body;
       }
+    }
+
+    sourceSkipDispatchPolicy = await readFile(
+      path.join(
+        repoRoot,
+        "skills/play-subagent-execution/references/skip-dispatch-policy.md",
+      ),
+      "utf8",
+    );
+    const generatedDir = await mkdtemp(
+      path.join(tmpdir(), "devcanon-routing-render-"),
+    );
+    try {
+      await renderAll(
+        {
+          ...config,
+          library: {
+            ...config.library,
+            generatedDir,
+          },
+        },
+        true,
+      );
+      for (const target of ["claude", "codex"] as const) {
+        planningCriteria[target] = await readFile(
+          path.join(
+            generatedDir,
+            target,
+            "skills/play-planning/references/planning-criteria.md",
+          ),
+          "utf8",
+        );
+        skipDispatchPolicies[target] = await readFile(
+          path.join(
+            generatedDir,
+            target,
+            "skills/play-subagent-execution/references/skip-dispatch-policy.md",
+          ),
+          "utf8",
+        );
+      }
+    } finally {
+      await rm(generatedDir, { recursive: true, force: true });
     }
   });
 
@@ -59,10 +116,69 @@ describe("play-subagent planning and routing render smoke coverage", () => {
     }
   });
 
+  it("renders the tier-conditional task contract shape exactly for both targets", () => {
+    const taskStructureStart = "## Task Structure";
+    const taskStructureEnd = "### Optional Review-Routing Hint Fields";
+    const sourceStart = sourcePlayPlanning.indexOf(taskStructureStart);
+    const sourceEnd = sourcePlayPlanning.indexOf(taskStructureEnd, sourceStart);
+    expect(sourceStart).toBeGreaterThanOrEqual(0);
+    expect(sourceEnd).toBeGreaterThan(sourceStart);
+    const sourceTaskContractSurface = sourcePlayPlanning.slice(
+      sourceStart,
+      sourceEnd,
+    );
+
+    for (const target of ["claude", "codex"] as const) {
+      const rendered = bodies[`play-planning:${target}`];
+      const renderedStart = rendered.indexOf(taskStructureStart);
+      const renderedEnd = rendered.indexOf(taskStructureEnd, renderedStart);
+      expect(renderedStart).toBeGreaterThanOrEqual(0);
+      expect(renderedEnd).toBeGreaterThan(renderedStart);
+      const renderedTaskContractSurface = rendered.slice(
+        renderedStart,
+        renderedEnd,
+      );
+
+      expect(renderedTaskContractSurface).toBe(sourceTaskContractSurface);
+      expect(renderedTaskContractSurface).toContain(
+        "For `FULL` only:\n\n**Contract checklist:**",
+      );
+      expect(renderedTaskContractSurface).toContain(
+        "For `LIGHTWEIGHT` only:\n\n**Compact contract:**",
+      );
+      expect(renderedTaskContractSurface).toContain(
+        "For `NO-TRIGGER` only:\n\n**NO-TRIGGER reason:**",
+      );
+
+      const exampleStart = renderedTaskContractSurface.indexOf(
+        "Example mechanical-task header:",
+      );
+      const exampleEnd = renderedTaskContractSurface.indexOf(
+        "Omit `**Mode:** mechanical`",
+        exampleStart,
+      );
+      expect(exampleStart).toBeGreaterThanOrEqual(0);
+      expect(exampleEnd).toBeGreaterThan(exampleStart);
+      const noTriggerExample = renderedTaskContractSurface.slice(
+        exampleStart,
+        exampleEnd,
+      );
+      expect(noTriggerExample).toContain("**NO-TRIGGER reason:**");
+      expect(noTriggerExample).toContain("**Acceptance criteria:**");
+      expect(noTriggerExample).toContain("**Verification expectations:**");
+      expect(noTriggerExample).toContain("**Proof sufficiency:**");
+      expect(noTriggerExample).not.toContain("**Contract checklist:**");
+      expect(noTriggerExample).not.toContain("N/A");
+    }
+  });
+
   it("keeps rendered planning and execution handoff surfaces available", () => {
     for (const target of ["claude", "codex"] as const) {
       const playPlanning = bodies[`play-planning:${target}`];
       const normalizedPlayPlanning = normalizeWhitespace(playPlanning);
+      const normalizedPlanningCriteria = normalizeWhitespace(
+        planningCriteria[target],
+      );
       expect(playPlanning).toContain(
         "## Scope Envelope and Canonical Criteria",
       );
@@ -90,7 +206,16 @@ describe("play-subagent planning and routing render smoke coverage", () => {
         "Never direct the reviewer to find criteria or readiness policy relative to the target repository",
       );
       expect(normalizedPlayPlanning).toContain(
-        "an omitted known mapping is `CURRENT`, while missing authority for that mapping is `BLOCKER`",
+        "Ordinary omitted or missing consumer or boundary mapping coverage and mapping-authority findings are D5-owned",
+      );
+      expect(normalizedPlayPlanning).toContain(
+        "D6 may report the shared fact only by naming a concrete task-local startability defect caused in D6's own remit",
+      );
+      expect(normalizedPlanningCriteria).toContain(
+        "Ordinary omitted or missing consumer or boundary mapping coverage and mapping-authority findings are D5-owned",
+      );
+      expect(normalizedPlanningCriteria).toContain(
+        "D6 may report the shared fact only by naming a concrete task-local startability defect caused in D6's own remit",
       );
       expect(normalizedPlayPlanning).toContain(
         "provide bounded authoritative discovery criteria inside already named in-scope consumers or boundaries",
@@ -142,6 +267,43 @@ describe("play-subagent planning and routing render smoke coverage", () => {
       expect(normalizedPlayPlanning).toContain(
         "maximum of two paired review waves",
       );
+      expect(normalizedPlayPlanning).toContain(
+        "Wave one is exhaustive in each distinct remit",
+      );
+      expect(normalizedPlayPlanning).toContain("there is no third wave");
+      for (const waveTwoAdmissionRule of [
+        "An unchanged fresh-pair retry after wave one is allowed only when wave one contains no verified `CURRENT` gap",
+        "An unchanged fresh-pair retry is prohibited when wave one contains any verified `CURRENT` gap",
+        "every such record must receive its authorized correction and transition from `OPEN` + `NOT_RUN` to `CORRECTED` + `PENDING` before wave-two dispatch",
+        "stop without dispatching wave two or consuming the second-wave budget",
+      ]) {
+        expect(normalizedPlayPlanning).toContain(waveTwoAdmissionRule);
+      }
+      for (const priorGapRule of [
+        "stable gap ID, task ID, defect class, `classification=CURRENT`",
+        "`Authority`, `Concrete blocker`, `Inspection insufficiency`, `Smallest correction`",
+        "originating reviewer provenance and originating D5 or D6 remit",
+        "correction owner, concrete correction evidence",
+        "`resolution_state` uses only `OPEN`, `CORRECTED`, `RESOLVED`, or `UNRESOLVED`",
+        "`verification_state` uses only `NOT_RUN`, `PENDING`, `PASSED`, or `FAILED`",
+        "`OPEN` + `NOT_RUN`",
+        "`CORRECTED` + `PENDING`",
+        "`RESOLVED` + `PASSED`",
+        "`UNRESOLVED` + `FAILED`",
+        "No backward transition, skipped state, unknown value, mixed terminal pair, or mutation after `PENDING`",
+        "For wave one, `prior_verified_gaps` is explicitly none/inapplicable",
+        "`BLOCKER` never enters `prior_verified_gaps`; it returns to its named owner",
+        "`FOLLOW-UP` and `OPTIONAL` remain deferred outside `prior_verified_gaps`",
+        "A new wave-two `CURRENT` or `BLOCKER` is accepted only under the existing new-evidence rule",
+        "Compute the terminal state independently for each prior gap record after both wave-two reviewers settle on the same digest",
+        "A corrected prior gap becomes `RESOLVED` + `PASSED` when its correction is verified and that same gap neither recurs nor regresses, even when a distinct valid new-evidence gap makes the overall wave non-passing",
+        "A prior gap becomes `UNRESOLVED` + `FAILED` from a consumable valid same-digest pair only when that same gap recurs, its correction regresses, or its own record or transition is malformed or out of order",
+        "An orthogonal new-evidence `CURRENT` or `BLOCKER` never rewrites a separately verified prior record to unresolved",
+        "the overall paired-wave verdict remains non-passing, surfaces every new or unresolved gap, and stops after wave two",
+        "After any wave-two non-pass, surface unresolved gaps and stop; there is no third wave",
+      ]) {
+        expect(normalizedPlayPlanning).toContain(priorGapRule);
+      }
       expect(normalizedPlayPlanning).toContain(
         "both reviewers return PASS for the same current exact-byte digest",
       );
@@ -444,6 +606,41 @@ describe("play-subagent planning and routing render smoke coverage", () => {
       expect(normalizedPlaySubagentExecution).toContain(
         "never replace the expected digest with the current file digest",
       );
+      expect(normalizedPlaySubagentExecution).toContain(
+        "Both `LIGHTWEIGHT` and `NO-TRIGGER` are trusted only when this controller can identify the upstream two-gate `play-planning` return",
+      );
+      expect(normalizedPlaySubagentExecution).toContain(
+        "otherwise unreviewed plans without that upstream two-gate return must use a structurally complete `FULL` contract",
+      );
+      expect(normalizedPlaySubagentExecution).toContain(
+        "`LIGHTWEIGHT` requires named authority, owner, purpose, inputs and outputs",
+      );
+      expect(normalizedPlaySubagentExecution).toContain(
+        "every actual known participant and direct producer-consumer relationship, including guarded-inline D13 when it is an actual participant or direct consumer",
+      );
+      expect(normalizedPlaySubagentExecution).toContain(
+        "The controller consumes this same named context directly for guarded-inline D13; prompt-mediated consumers receive it through their curated prompt",
+      );
+      expect(normalizedPlaySubagentExecution).toContain(
+        "Missing named authority or any known participant or direct producer-consumer relationship fails closed",
+      );
+
+      const renderedSkipDispatchPolicy = skipDispatchPolicies[target];
+      expect(renderedSkipDispatchPolicy).toBe(sourceSkipDispatchPolicy);
+      const normalizedSkipDispatchPolicy = normalizeWhitespace(
+        renderedSkipDispatchPolicy,
+      );
+      for (const skipDispatchRule of [
+        "Guardrail #4 failure blocks before source mutation",
+        "The task declares `FULL`, `LIGHTWEIGHT`, or `NO-TRIGGER` and satisfies that tier's structure",
+        "Both `LIGHTWEIGHT` and `NO-TRIGGER` require the upstream two-gate `play-planning` return; without it, the task must use a structurally complete `FULL` contract",
+        "present obligations are additive after `FULL`, `LIGHTWEIGHT`, or `NO-TRIGGER` satisfaction and do not satisfy guardrail #4 by themselves",
+        "If guardrail #4 fails, stop before implementation and report the contract gap",
+        "absent reduced-tier provenance, unexplained `N/A`, or unconfirmed owner, authority, source-of-truth, consumer, generated-output, or evidence surface",
+        "Other guardrail misses reclassify to D12 and use `implementer-prompt.md`",
+      ]) {
+        expect(normalizedSkipDispatchPolicy).toContain(skipDispatchRule);
+      }
 
       const playReviewResponse = bodies[`play-review-response:${target}`];
       const normalizedPlayReviewResponse =

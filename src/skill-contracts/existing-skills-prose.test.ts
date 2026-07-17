@@ -607,7 +607,7 @@ describe("existing skills source prose contracts", () => {
     const planningReadiness = normalizeWhitespace(
       sliceBetween(
         planningTopology,
-        "Planning is not ready when:",
+        "Planning is not ready at every tier when:",
         "Missing, duplicated, or conflicting project-specific topology",
       ),
     );
@@ -665,7 +665,7 @@ describe("existing skills source prose contracts", () => {
       /multiple artifacts independently define the same[\s\S]*without an approved partition/,
     );
     expect(planningReadiness).toMatch(
-      /supporting responsibility overlaps another partition[\s\S]*lacks conflict precedence/,
+      /For `FULL` or a separately named material authority[\s\S]*supporting responsibility overlaps another partition[\s\S]*lacks conflict precedence/,
     );
     expect(planningReadiness).toMatch(
       /verification defines copied policy or expected prose[\s\S]*owner invariant[\s\S]*reference validity[\s\S]*derived parity/,
@@ -691,7 +691,42 @@ describe("existing skills source prose contracts", () => {
       /Missing[\s\S]*duplicated[\s\S]*conflicting[\s\S]*project-specific topology[\s\S]*`BLOCKER`[\s\S]*owning design/,
     );
     expect(planningRoutes).toMatch(
-      /approved topology[\s\S]*incomplete[\s\S]*contradictory task coverage[\s\S]*`CURRENT`[\s\S]*`play-planning`/,
+      /approved `FULL`[\s\S]*separately authorized exhaustive topology[\s\S]*incomplete[\s\S]*contradictory task coverage[\s\S]*`CURRENT`[\s\S]*`play-planning`/,
+    );
+    expect(planningRoutes).toMatch(
+      /approved `LIGHTWEIGHT` compact topology[\s\S]*omitted actual known participant[\s\S]*direct producer-consumer relationship[\s\S]*required compact field[\s\S]*`CURRENT`/,
+    );
+
+    const normalizedPlanningTopology = normalizeWhitespace(planningTopology);
+    expect(normalizedPlanningTopology).toMatch(
+      /exhaustive[\s\S]*`FULL`[\s\S]*separately named material authority/,
+    );
+    expect(normalizedPlanningTopology).toMatch(
+      /valid `LIGHTWEIGHT` compact record[\s\S]*every actual known participant[\s\S]*direct producer-consumer relationship/,
+    );
+    expect(normalizedPlanningTopology).toMatch(
+      /Known omissions[\s\S]*independently triggered[\s\S]*side-channel[\s\S]*generated[\s\S]*safety[\s\S]*untrusted[\s\S]*durable[\s\S]*public[\s\S]*cross-session[\s\S]*cross-owner[\s\S]*blocking/,
+    );
+    expect(normalizedPlanningTopology).toContain(
+      "A `LIGHTWEIGHT` mapping is not ready when it omits any actual known participant or direct producer-consumer relationship",
+    );
+    expect(normalizedPlanningTopology).toContain(
+      "owner, purpose, inputs and outputs, material write or side-effect owner, failure and cleanup behavior, focused proof, or explicit absence of every FULL trigger",
+    );
+    expect(normalizedPlanningTopology).toContain(
+      "An approved `FULL` or separately authorized exhaustive topology with incomplete or contradictory task coverage is a `CURRENT` planning gap",
+    );
+    expect(normalizedPlanningTopology).toContain(
+      "An approved `LIGHTWEIGHT` compact topology with an omitted actual known participant, direct producer-consumer relationship, or required compact field is likewise a `CURRENT` planning gap",
+    );
+    expect(normalizedPlanningTopology).toContain(
+      "Topology examples activate Contract Example Discipline only when that discipline is already triggered by `FULL` or a separately named material authority",
+    );
+    expect(normalizedPlanningTopology).toContain(
+      "Merely expressing a valid `LIGHTWEIGHT` compact topology as an example does not trigger canonical invalid families or positive and negative FULL proof",
+    );
+    expect(normalizeWhitespace(playPlanning)).toMatch(
+      /`FULL`[\s\S]*exhaustive topology[\s\S]*`LIGHTWEIGHT`[\s\S]*every actual known participant[\s\S]*direct producer-consumer relationship/,
     );
   });
 
@@ -756,7 +791,7 @@ describe("existing skills source prose contracts", () => {
       "Use the narrowest existing repository mechanism that demonstrates each acceptance criterion",
     );
     expect(normalizedCriteria).toContain(
-      "Field order is the task heading, required `**Task ID:**`, optional `**Mode:** mechanical`, optional review-routing hints, then `**Files:**`",
+      "Field order is the task heading, required `**Task ID:**`, required `**Contract tier:**`, optional `**Mode:** mechanical`, optional review-routing hints, then `**Files:**`",
     );
     expect(normalizedCriteria).toContain(
       "generalized benchmark corpora, evidence-retention protocols, marker languages, and broad integrity frameworks as FOLLOW-UP",
@@ -774,6 +809,119 @@ describe("existing skills source prose contracts", () => {
     );
     expect(normalizeWhitespace(playPlanning)).toContain(
       "The bundle-owned references, not duplicated gate prose, own their respective detailed contracts",
+    );
+  });
+
+  it("keeps legacy planning consumers aligned with proportional contract tiers", async () => {
+    const playPlanning = await readSkillSource("play-planning");
+    const planningCriteria = await readRepoFile(
+      "skills/play-planning/references/planning-criteria.md",
+    );
+    const contractHeavy = normalizeWhitespace(
+      sliceBetween(
+        planningCriteria,
+        "### Contract-heavy work",
+        "### Ownership-topology mapping",
+      ),
+    );
+    const boundaryTraceability = normalizeWhitespace(
+      sliceBetween(
+        planningCriteria,
+        "### Boundary-contract traceability",
+        "### Contract Example Discipline",
+      ),
+    );
+    const taskContracts = normalizeWhitespace(
+      sliceBetween(
+        planningCriteria,
+        "## Task contract criteria",
+        "## Minimum-sufficient proof",
+      ),
+    );
+    const normalizedPlanning = normalizeWhitespace(playPlanning);
+
+    for (const section of [
+      contractHeavy,
+      boundaryTraceability,
+      taskContracts,
+    ]) {
+      expect(section).toMatch(
+        /`FULL` or a separately named material authority[\s\S]*complete|complete[\s\S]*`FULL` or a separately named material authority/,
+      );
+      expect(section).toMatch(
+        /valid `LIGHTWEIGHT`[\s\S]*every actual known participant[\s\S]*direct producer-consumer relationship/,
+      );
+      expect(section).toMatch(
+        /approved task-local need[\s\S]*independently applicable material authority/,
+      );
+    }
+
+    expect(contractHeavy).toContain(
+      "complete contract-heavy or helper-I/O table",
+    );
+    expect(boundaryTraceability).toContain(
+      "stable boundary row IDs and the complete participant-specific traceability shape",
+    );
+    expect(boundaryTraceability).toContain(
+      "For `FULL` or a separately named material authority, downstream boundary-row consumers require task or no-code mapping, participant coverage and proof, applicable checklist row-ID and ownership references, and design-decision or non-applicability citations",
+    );
+    expect(boundaryTraceability).toContain(
+      "For `LIGHTWEIGHT`, the compact boundary record is sufficient unless specifically authorized applicable extra detail is required",
+    );
+    expect(boundaryTraceability).not.toContain(
+      "Every row maps to a current task or an explicit no-code disposition",
+    );
+    expect(boundaryTraceability).not.toContain(
+      "Every applicable task contract checklist references its governing boundary row IDs",
+    );
+    expect(taskContracts).toContain("complete non-trivial-task checklist");
+    expect(taskContracts).toContain("complete task-local operation map");
+    expect(taskContracts).toContain(
+      "A valid `LIGHTWEIGHT` task does not acquire FULL-only checklist fields or `N/A` entries",
+    );
+    expect(taskContracts).toContain(
+      "A valid `LIGHTWEIGHT` boundary-touching task does not acquire FULL-only operation-map detail",
+    );
+
+    for (const preservedRule of [
+      "Ambiguity defaults to `FULL`",
+      "Known omissions remain blocking",
+      "side-channel",
+      "generated",
+      "safety",
+      "untrusted",
+      "durable",
+      "public",
+      "cross-session",
+      "cross-owner",
+      "governance",
+    ]) {
+      expect(normalizeWhitespace(planningCriteria)).toContain(preservedRule);
+    }
+
+    expect(normalizedPlanning).toContain(
+      "produce each contract-heavy table, boundary traceability record, task checklist, and operation map at the tier-appropriate detail",
+    );
+    expect(normalizedPlanning).toContain(
+      "self-review each of those four families against the selected contract tier",
+    );
+    expect(normalizedPlanning).toContain(
+      "For `FULL`, require the complete applicable shape for all four families",
+    );
+    expect(normalizedPlanning).toContain(
+      "A family-local authority is a separately named material authority, concrete approved task-local need, or independently applicable material authority or trigger that explicitly governs one family",
+    );
+    expect(normalizedPlanning).toContain(
+      "For an otherwise valid `LIGHTWEIGHT` record, a family-local authority selects additional complete or necessary detail only for the family it explicitly governs; it never promotes unrelated families",
+    );
+    expect(normalizedPlanning).not.toContain(
+      "For `FULL` or separately named material authority, require the complete exhaustive shape for all four families",
+    );
+    expect(normalizedPlanning).toContain(
+      "The canonical planning criteria remain the fail-closed owner of tier selection and detailed readiness",
+    );
+    expect(normalizeWhitespace(planningCriteria)).not.toContain(
+      "The map must not It must not prescribe",
     );
   });
 
@@ -824,19 +972,19 @@ describe("existing skills source prose contracts", () => {
     }
 
     expect(normalizedBoundaryTraceability).toContain(
-      "Every row maps to a current task or an explicit no-code disposition",
+      "For `FULL` or a separately named material authority, downstream boundary-row consumers require task or no-code mapping",
     );
     expect(normalizedBoundaryTraceability).toContain(
       "A final consumer test does not cover a missing producer, validator, or adapter obligation",
     );
     expect(normalizedBoundaryTraceability).toContain(
-      "Every applicable task contract checklist references its governing boundary row IDs",
+      "applicable checklist row-ID and ownership references",
     );
     expect(normalizedBoundaryTraceability).toContain(
       "Plan Review fails a checklist that omits relevant row IDs or row ownership",
     );
     expect(normalizedBoundaryTraceability).toContain(
-      "Every governed boundary row cites the relevant design contract decision or records why that decision is non-applicable",
+      "design-decision or non-applicability citations",
     );
     expect(normalizedBoundaryTraceability).toContain(
       "A no-code disposition still names the governing decision",
@@ -936,6 +1084,15 @@ describe("existing skills source prose contracts", () => {
     );
     expect(normalizedContractExampleDiscipline).toContain(
       "derived fields in examples or fixtures remain consistent with those facts or the plan explicitly justifies why they do not",
+    );
+    expect(normalizedContractExampleDiscipline).toContain(
+      "FULL or a separately named material authority",
+    );
+    expect(normalizedContractExampleDiscipline).toContain(
+      "A valid `LIGHTWEIGHT` compact record does not require canonical valid and invalid example families",
+    );
+    expect(normalizedContractExampleDiscipline).toContain(
+      "independently triggered side-channel, generated, safety, untrusted, durable, public, cross-session, or cross-owner obligation remains blocking",
     );
     expect(playPlanning).toContain("references/planning-criteria.md");
     expect(normalizedDocumentationChecklists).toContain(
@@ -1725,6 +1882,430 @@ describe("existing skills source prose contracts", () => {
     expect(playPlanning).not.toContain("`Contract\nDecisions`");
   });
 
+  it("keeps proportional planning and bounded review convergence canonical", async () => {
+    const planningCriteria = await readRepoFile(
+      "skills/play-planning/references/planning-criteria.md",
+    );
+    const adr = await readRepoFile(
+      "docs/adr/adr-0030-play-planning-readiness-and-parallel-digest-gates.md",
+    );
+    const documentationChecklists = await readRepoFile(
+      "docs/guidelines/documentation-checklists.md",
+    );
+    const proportionality = getMarkdownSection(
+      planningCriteria,
+      "Proportional contract planning",
+    );
+    const materiality = getMarkdownSection(
+      planningCriteria,
+      "Blocking materiality and review convergence",
+    );
+    const gateRemits = getMarkdownSection(planningCriteria, "Gate remits");
+    const fullTier = sliceBetween(
+      proportionality,
+      "- `FULL`:",
+      "- `LIGHTWEIGHT`:",
+    );
+    const validFullExample = sliceBetween(
+      proportionality,
+      "- **Valid `FULL` example:**",
+      "- **Invalid consumer-omission mutation:**",
+    );
+    const sideChannelApplicability = sliceBetween(
+      documentationChecklists,
+      "The FULL applicability set is closed:",
+      "This checklist owns reusable authoring and review questions.",
+    );
+    const normalizedProportionality = normalizeWhitespace(proportionality);
+    const normalizedMateriality = normalizeWhitespace(materiality);
+    const normalizedGateRemits = normalizeWhitespace(gateRemits);
+    const normalizedFullTier = normalizeWhitespace(fullTier);
+    const normalizedValidFullExample = normalizeWhitespace(validFullExample);
+    const normalizedSideChannelApplicability = normalizeWhitespace(
+      sideChannelApplicability,
+    );
+    const normalizedAdr = normalizeWhitespace(adr);
+    const normalizedChecklists = normalizeWhitespace(documentationChecklists);
+
+    expectSubstringsInOrder(proportionality, [
+      "`FULL`",
+      "`LIGHTWEIGHT`",
+      "`NO-TRIGGER`",
+    ]);
+    expect(normalizedProportionality).toContain(
+      "Ambiguous classification defaults to `FULL`",
+    );
+    for (const fullTrigger of [
+      "durable",
+      "public",
+      "cross-session",
+      "untrusted",
+      "security-sensitive",
+      "cross-owner",
+    ]) {
+      expect(normalizedProportionality).toContain(fullTrigger);
+    }
+    expect(normalizedFullTier).toContain(
+      "required when any changed contract is durable, public, cross-session, untrusted or security-sensitive, or cross-owner",
+    );
+    for (const unapprovedFullTrigger of [
+      "actor",
+      "skill",
+      "process",
+      "repository",
+      "provider",
+      "mutation-authority",
+    ]) {
+      expect(normalizedFullTier).not.toContain(unapprovedFullTrigger);
+    }
+    for (const lightweightCondition of [
+      "private",
+      "transient",
+      "same controller",
+      "no durable schema consumer",
+    ]) {
+      expect(normalizedProportionality).toContain(lightweightCondition);
+    }
+    for (const lightweightField of [
+      "owner",
+      "purpose",
+      "inputs and outputs",
+      "material write or side-effect owner",
+      "failure and cleanup behavior",
+      "focused proof",
+      "explicit reason every FULL trigger is absent",
+    ]) {
+      expect(normalizedProportionality).toContain(lightweightField);
+    }
+    expect(normalizedProportionality).toContain("Valid `LIGHTWEIGHT` example");
+    expect(normalizedProportionality).toContain("Invalid durability mutation");
+    expect(normalizedProportionality).toContain("Valid `FULL` example");
+    for (const fullMinimumField of [
+      "authority and precedence",
+      "required and optional inputs",
+      "outputs",
+      "participant traceability",
+      "material side-effect owner",
+      "lifecycle, failure, recovery, cleanup, and trust-boundary behavior",
+      "every applicable side-channel obligation",
+      "canonical valid and invalid examples",
+      "participant-specific proof for every participant",
+    ]) {
+      expect(normalizedValidFullExample).toContain(fullMinimumField);
+    }
+    expect(normalizedProportionality).toContain(
+      "Invalid consumer-omission mutation",
+    );
+    expect(normalizedProportionality).toContain(
+      "The omitted known consumer remains a blocking gap",
+    );
+    expect(normalizedProportionality).toContain(
+      "controller owns its only material in-memory write or side effect",
+    );
+    expect(normalizedProportionality).toContain(
+      "states that FULL is absent because the helper is private, transient, same-controller, trusted, non-security-sensitive, and neither durable, public, cross-session, nor cross-owner",
+    );
+
+    for (const materialityField of [
+      "Authority",
+      "Concrete blocker",
+      "Inspection insufficiency",
+      "Smallest correction or decision owner",
+    ]) {
+      expect(normalizedMateriality).toContain(materialityField);
+    }
+    expect(normalizedMateriality).toContain("Wave one is exhaustive");
+    expect(normalizedMateriality).toContain(
+      "Wave two verifies every prior blocking gap",
+    );
+    expect(normalizedMateriality).toContain(
+      "checks for regressions introduced by the revision",
+    );
+    expect(normalizedMateriality).toContain("`New evidence basis`");
+    for (const allowedBasis of [
+      "newly discovered concrete source fact",
+      "contradiction",
+      "invalid dependency or path",
+      "omitted current surface",
+      "material safety defect",
+    ]) {
+      expect(normalizedMateriality).toContain(allowedBasis);
+    }
+    expect(normalizedMateriality).toContain(
+      "Optional infrastructure, available preferences, speculative hardening",
+    );
+    expect(normalizedMateriality).toContain("maximum of two paired waves");
+    expect(normalizedMateriality).toContain("controller-local review state");
+    expect(normalizedMateriality).toContain(
+      "terminal state is computed independently for each prior gap record after both reviewers settle on the same digest",
+    );
+    expect(normalizedMateriality).toContain(
+      "remains `RESOLVED` + `PASSED` even when a distinct valid new-evidence gap makes the overall wave non-passing",
+    );
+    expect(normalizedMateriality).toContain(
+      "An orthogonal new-evidence `CURRENT` or `BLOCKER` never rewrites that prior record to unresolved",
+    );
+    for (const finalWaveInvalidation of [
+      "guard capture failure",
+      "spawn failure",
+      "reviewer unavailability",
+      "malformed or semantically rejected response",
+      "wrong digest",
+      "guard verification or cleanup failure",
+      "join-time or pre-handoff mismatch",
+      "plan or source drift",
+      "equivalent terminal invalidation",
+    ]) {
+      expect(normalizedMateriality).toContain(finalWaveInvalidation);
+    }
+    expect(normalizedMateriality).not.toContain(
+      "guard capture; spawn or reviewer unavailability",
+    );
+    expect(normalizedMateriality).toContain(
+      "each still-pending prior record from `CORRECTED` + `PENDING` to `UNRESOLVED` + `FAILED`",
+    );
+    expect(normalizedMateriality).toContain(
+      "records concrete verification-failure evidence without claiming that the correction recurred or regressed",
+    );
+    expect(normalizedMateriality).toContain(
+      "surfaces the operational failure and every affected prior gap, prohibits execution handoff, and stops without a third wave",
+    );
+    for (const convergenceExample of [
+      "Valid wave-two evidence example",
+      "Invalid available-evidence mutation",
+      "Invalid optional-infrastructure mutation",
+      "newly discovered concrete source fact showing that the consumer also rejects stale input",
+      "change only the evidence basis to a source fact already available in the named first-wave sources",
+      "change only the new gap to a request for an optional generalized validation service",
+    ]) {
+      expect(normalizedMateriality).toContain(convergenceExample);
+    }
+
+    expect(normalizedGateRemits).toContain(
+      "D5 may PASS while D6 reports a material task-local execution gap",
+    );
+    expect(normalizedGateRemits).toContain(
+      "D6 must not block on optional whole-plan infrastructure",
+    );
+    expect(normalizedGateRemits).toContain(
+      "Both reviewers may inspect shared plan and source facts, but only the remit owner originates an ordinary finding",
+    );
+    expect(normalizedGateRemits).toContain("a cross-remit contradiction");
+    expect(normalizedGateRemits).toContain(
+      "the concrete defect the contradiction causes in that reporting reviewer's own remit",
+    );
+    for (const orthogonalExample of [
+      "Valid orthogonal result",
+      "D5 returns PASS",
+      "D6 returns a material `EXECUTION` gap",
+      "Invalid optional-hardening mutation",
+      "change only D6's gap from the invalid source path to a request for an optional whole-plan validation service",
+      "Valid cross-remit contradiction",
+    ]) {
+      expect(normalizedGateRemits).toContain(orthogonalExample);
+    }
+    for (const preservedFailure of [
+      "missing consumers",
+      "invalid paths or dependencies",
+      "ambiguous mutation ownership",
+      "unsafe cleanup",
+      "malformed review results",
+      "digest or guard failures",
+    ]) {
+      expect(normalizedMateriality).toContain(preservedFailure);
+    }
+
+    expect(normalizedAdr).toContain(
+      "first wave is exhaustive and the second wave is convergent",
+    );
+    expect(normalizedAdr).toContain(
+      "checks that the revision introduced no regression",
+    );
+    expect(normalizedAdr).toContain(
+      "does not create a persistent review protocol or result artifact",
+    );
+    expect(normalizedSideChannelApplicability).toContain(
+      "The FULL applicability set is closed",
+    );
+    expect(normalizedSideChannelApplicability).toContain(
+      "durable, public, cross-session, untrusted, security-sensitive, or cross-owner",
+    );
+    expect(normalizedSideChannelApplicability).toContain(
+      "No other dimension triggers FULL",
+    );
+    expect(normalizedSideChannelApplicability).toContain(
+      "If it is unclear whether one of those six dimensions applies, default to FULL",
+    );
+    expect(normalizedChecklists).toContain(
+      "private, transient, same-controller mechanics with no durable schema consumer",
+    );
+    expect(normalizedChecklists).toContain(
+      "When any applies, retain every question below",
+    );
+    expect(normalizedSideChannelApplicability).not.toContain("including");
+    expect(normalizedSideChannelApplicability).not.toContain("load-bearing");
+    expect(normalizedChecklists).toContain(
+      "material write or side-effect owner",
+    );
+    expect(normalizedChecklists).toContain(
+      "explicit reason every FULL trigger is absent",
+    );
+    expect(normalizedSideChannelApplicability).toContain(
+      "every actual known participant and direct producer-consumer relationship",
+    );
+    expect(normalizedSideChannelApplicability).toContain(
+      "That single explicit reason also collectively establishes that every remaining FULL-only question is inapplicable",
+    );
+    expect(normalizedSideChannelApplicability).toContain(
+      "No separate collective marking act, individual question marker, FULL-only field, or `N/A` entry is required",
+    );
+    expect(normalizedSideChannelApplicability).not.toContain(
+      "mark the remaining questions inapplicable with that reason",
+    );
+    expect(normalizedSideChannelApplicability).toContain(
+      "A change with no side-channel or other contract trigger records its task-specific reason and does not apply this checklist",
+    );
+    expect(normalizedSideChannelApplicability).toContain(
+      "independently applicable side-channel, generated, safety, untrusted, durable, public, cross-session, cross-owner, or governance obligation remains blocking",
+    );
+  });
+
+  it("applies canonical task tiers and paired-wave convergence in planning consumers", async () => {
+    const planning = await readSkillSource("play-planning");
+    const brainstorm = await readSkillSource("play-brainstorm");
+    const normalizedPlanning = normalizeWhitespace(planning);
+    const normalizedBrainstorm = normalizeWhitespace(brainstorm);
+    const taskStructure = getMarkdownSection(planning, "Task Structure");
+    const selfReview = getMarkdownSection(planning, "Self-Review");
+    const pairedReview = getMarkdownSection(
+      planning,
+      "Exact Digest and Paired Review Orchestration",
+    );
+    const normalizedPairedReview = normalizeWhitespace(pairedReview);
+
+    expect(taskStructure).toContain(
+      "**Contract tier:** FULL | LIGHTWEIGHT | NO-TRIGGER",
+    );
+    expect(normalizedPlanning).toContain(
+      "Every authored current task must then declare exactly one canonical",
+    );
+    expect(normalizeWhitespace(selfReview)).toContain(
+      "complete FULL fields, complete LIGHTWEIGHT compact fields plus the all-FULL-triggers-absent reason, or a task-specific NO-TRIGGER reason",
+    );
+    expect(normalizedPairedReview).toContain(
+      "Wave one is exhaustive in each distinct remit",
+    );
+    expect(normalizedPairedReview).toContain(
+      "Wave two verifies every prior correction and its resolution state, then checks the revision for regressions",
+    );
+    for (const waveTwoAdmissionRule of [
+      "An unchanged fresh-pair retry after wave one is allowed only when wave one contains no verified `CURRENT` gap",
+      "An unchanged fresh-pair retry is prohibited when wave one contains any verified `CURRENT` gap",
+      "every such record must receive its authorized correction and transition from `OPEN` + `NOT_RUN` to `CORRECTED` + `PENDING` before wave-two dispatch",
+      "stop without dispatching wave two or consuming the second-wave budget",
+    ]) {
+      expect(normalizedPairedReview).toContain(waveTwoAdmissionRule);
+    }
+    expect(normalizedPairedReview).toContain(
+      "`resolution_state` uses only `OPEN`, `CORRECTED`, `RESOLVED`, or `UNRESOLVED`",
+    );
+    expect(normalizedPairedReview).toContain(
+      "`verification_state` uses only `NOT_RUN`, `PENDING`, `PASSED`, or `FAILED`",
+    );
+    for (const lifecyclePair of [
+      "`OPEN` + `NOT_RUN`",
+      "`CORRECTED` + `PENDING`",
+      "`RESOLVED` + `PASSED`",
+      "`UNRESOLVED` + `FAILED`",
+    ]) {
+      expect(normalizedPairedReview).toContain(lifecyclePair);
+    }
+    expect(normalizedPairedReview).toContain(
+      "No backward transition, skipped state, unknown value, mixed terminal pair, or mutation after `PENDING` is valid",
+    );
+    expect(normalizedPairedReview).toContain(
+      "`BLOCKER` never enters `prior_verified_gaps`",
+    );
+    expect(normalizedPairedReview).toContain(
+      "`FOLLOW-UP` and `OPTIONAL` remain deferred outside `prior_verified_gaps`",
+    );
+    expect(normalizedPairedReview).toContain(
+      "Compute the terminal state independently for each prior gap record after both wave-two reviewers settle on the same digest",
+    );
+    expect(normalizedPairedReview).toContain(
+      "A corrected prior gap becomes `RESOLVED` + `PASSED` when its correction is verified and that same gap neither recurs nor regresses, even when a distinct valid new-evidence gap makes the overall wave non-passing",
+    );
+    expect(normalizedPairedReview).toContain(
+      "A prior gap becomes `UNRESOLVED` + `FAILED` from a consumable valid same-digest pair only when that same gap recurs, its correction regresses, or its own record or transition is malformed or out of order",
+    );
+    expect(normalizedPairedReview).toContain(
+      "An orthogonal new-evidence `CURRENT` or `BLOCKER` never rewrites a separately verified prior record to unresolved",
+    );
+    for (const finalWaveInvalidation of [
+      "guard capture failure",
+      "spawn failure or reviewer unavailability",
+      "malformed or semantically rejected response",
+      "wrong digest",
+      "guard verification or cleanup failure",
+      "join-time or pre-handoff mismatch",
+      "plan or source drift",
+      "equivalent terminal invalidation",
+    ]) {
+      expect(normalizedPairedReview).toContain(finalWaveInvalidation);
+    }
+    expect(normalizedPairedReview).toContain(
+      "transition every still-pending prior record from `CORRECTED` + `PENDING` to `UNRESOLVED` + `FAILED`",
+    );
+    expect(normalizedPairedReview).toContain(
+      "record the concrete verification failure without claiming that the underlying correction recurred or regressed",
+    );
+    expect(normalizedPairedReview).toContain(
+      "surface the operational failure and every affected prior gap, prohibit execution handoff, and stop without a third wave",
+    );
+    expect(normalizedPairedReview).toContain(
+      "the overall paired-wave verdict remains non-passing, surfaces every new or unresolved gap, and stops after wave two",
+    );
+    expect(normalizedPairedReview).toContain("`New evidence basis`");
+    expect(normalizedPairedReview).toContain(
+      "cannot authorize plan mutation or expansion and remains non-passing under the existing second-wave stop",
+    );
+    for (const materialityField of [
+      "`Authority`",
+      "`Concrete blocker`",
+      "`Inspection insufficiency`",
+      "`Smallest correction or decision owner`",
+    ]) {
+      expect(normalizedPairedReview).toContain(materialityField);
+    }
+    expect(normalizedPairedReview).toContain(
+      "only D5 originates ordinary alignment, scope, proportionality, and coverage findings",
+    );
+    expect(normalizedPairedReview).toContain(
+      "only D6 originates ordinary task-local startability findings",
+    );
+    for (const genuineOmission of [
+      "missing consumers",
+      "invalid paths or dependencies",
+      "ambiguous mutation ownership",
+      "unsafe cleanup",
+    ]) {
+      expect(normalizedPlanning).toContain(genuineOmission);
+    }
+
+    expect(normalizedBrainstorm).toContain(
+      "record whether the approved facts make it load-bearing",
+    );
+    expect(normalizedBrainstorm).toContain(
+      "This is a design-time boundary decision for the planning handoff",
+    );
+    expect(normalizedBrainstorm).toContain(
+      "not a `FULL`, `LIGHTWEIGHT`, or `NO-TRIGGER` classification",
+    );
+    expect(normalizedBrainstorm).toContain(
+      "do not copy the planning checklist or become tier authority",
+    );
+  });
+
   it("owns planning readiness and same-digest review contracts in bundled sources", async () => {
     const playPlanning = await readSkillSource("play-planning");
     const issuePrimingWorkflow = await readSkillSource(
@@ -2038,9 +2619,10 @@ describe("existing skills source prose contracts", () => {
       "Class:",
       "ID:",
       "Classification:",
-      "Finding:",
       "Authority:",
-      "Required correction:",
+      "Concrete blocker:",
+      "Inspection insufficiency:",
+      "Smallest correction or decision owner:",
     ]) {
       expect(
         validFailLines.filter((line) => line.startsWith(requiredFieldPrefix)),
@@ -2192,7 +2774,10 @@ describe("existing skills source prose contracts", () => {
       "discovery of individual references inside already named in-scope consumers or boundaries",
     );
     expect(normalizedExecutabilityReview).toContain(
-      "an omitted known mapping is `CURRENT`, while missing authority for that mapping is `BLOCKER`",
+      "Ordinary omitted or missing consumer or boundary mapping coverage and mapping-authority findings are D5-owned",
+    );
+    expect(normalizedExecutabilityReview).toContain(
+      "D6 may report the shared fact only by naming a concrete task-local startability defect caused in D6's own remit",
     );
     expect(normalizedExecutabilityReview).toContain(
       "must not broaden the Scope Envelope or proof obligations",
@@ -2210,7 +2795,10 @@ describe("existing skills source prose contracts", () => {
       "Determining which consumers or boundary participants are in scope is planning work, not normal call-site discovery",
     );
     expect(normalizedCriteria).toContain(
-      "An omitted known consumer or boundary mapping is a `CURRENT` task-contract gap; missing authority for the required mapping is a `BLOCKER`",
+      "Ordinary omitted or missing consumer or boundary mapping coverage and mapping-authority findings are D5-owned",
+    );
+    expect(normalizedCriteria).toContain(
+      "D6 may report the shared fact only by naming a concrete task-local startability defect caused in D6's own remit",
     );
     expect(normalizedCriteria).toContain(
       "Do not broaden the Scope Envelope or proof obligations",
@@ -6022,6 +6610,9 @@ describe("existing skills source prose contracts", () => {
   });
 
   it("keeps bundled prompt and runtime-reference prose contracts in source", async () => {
+    const playSubagentExecution = await readSkillSource(
+      "play-subagent-execution",
+    );
     const implementerPrompt = await readRepoFile(
       "skills/play-subagent-execution/references/implementer-prompt.md",
     );
@@ -6038,46 +6629,89 @@ describe("existing skills source prose contracts", () => {
       "skills/issue-priming-workflow/references/investigator-prompt.md",
     );
 
-    expect(implementerPrompt).toContain(
-      "If the task includes a contract checklist",
-    );
-    expect(normalizeWhitespace(implementerPrompt)).toContain(
-      "owner/authority, affected consumers/generated outputs, must-preserve, required behavior",
-    );
-    expect(normalizeWhitespace(implementerPrompt)).toContain(
-      "source-of-truth, consumer, generated-output, or evidence surface that source inspection cannot confirm",
-    );
+    for (const prompt of [
+      implementerPrompt,
+      executorPrompt,
+      specReviewerPrompt,
+    ]) {
+      const normalizedPrompt = normalizeWhitespace(prompt);
+
+      expect(normalizedPrompt).toContain(
+        "literal declared `Contract tier` plus its tier-appropriate structure",
+      );
+      expect(normalizedPrompt).toContain(
+        "consume the declared tier and never reclassify it",
+      );
+      expect(normalizedPrompt).toContain(
+        "Missing, malformed, or unsupported tier",
+      );
+      expect(normalizedPrompt).toContain(
+        "missing required authority, an omitted actual known participant or direct producer-consumer relationship, or an independently triggered material obligation",
+      );
+      expect(normalizedPrompt).toContain(
+        "valid reviewed `LIGHTWEIGHT` context names its authority, owner, purpose, inputs and outputs, material write or side-effect owner, failure and cleanup behavior, focused proof, every actual known participant and direct producer-consumer relationship, and why every FULL trigger is absent",
+      );
+      expect(normalizedPrompt).toContain(
+        "does not add FULL-only matrices, spec or risk rows, or `N/A` placeholders",
+      );
+      expect(normalizedPrompt).toContain(
+        "changing only that example's tier to missing or unsupported must fail closed",
+      );
+      expect(normalizedPrompt).toContain(
+        "removing one known direct consumer must remain blocking",
+      );
+      expect(normalizedPrompt).not.toContain(
+        "task-local checklist/no-trigger status",
+      );
+    }
+
+    for (const prompt of [
+      implementerPrompt,
+      executorPrompt,
+      specReviewerPrompt,
+    ]) {
+      const normalizedPrompt = normalizeWhitespace(prompt);
+      expect(normalizedPrompt).toContain(
+        "`FULL` requires the complete checklist vocabulary with every field populated or a task-specific `N/A`",
+      );
+      expect(normalizedPrompt).toContain(
+        "`LIGHTWEIGHT` does not require intentionally absent FULL-only fields or `N/A` entries",
+      );
+      expect(normalizedPrompt).toContain(
+        "`NO-TRIGGER` requires the literal tier, a task-specific reason, ordinary task fields, acceptance, and minimum proof without a checklist",
+      );
+    }
+
     expect(implementerPrompt).toContain(
       "helper-name prescriptions, line-number edits, or commit recipes",
     );
 
     expect(executorPrompt).toContain(
       "helper-name prescriptions, line-number edits, or commit recipes",
-    );
-    expect(executorPrompt).toContain(
-      "affected consumers/generated outputs, must-preserve, required behavior",
     );
     expect(executorPrompt).toContain(
       "Read the relevant source files, existing docs, ADRs, helpers, generated",
     );
     expect(normalizeWhitespace(executorPrompt)).toContain(
-      "A blank checklist field, unexplained `N/A`, or unconfirmed owner/authority",
+      "Executor mode remains available only after all five controller-owned D13 guardrails pass",
     );
-    expect(normalizeWhitespace(executorPrompt)).toContain(
-      "source-of-truth, consumer, generated-output, or evidence surface is not a mechanical replacement target",
+    expect(normalizeWhitespace(playSubagentExecution)).toContain(
+      "Both `LIGHTWEIGHT` and `NO-TRIGGER` are trusted only when this controller can identify the upstream two-gate `play-planning` return",
+    );
+    expect(normalizeWhitespace(playSubagentExecution)).toContain(
+      "Direct, hand-written, copied, older, or otherwise unreviewed plans without that upstream two-gate return must use a structurally complete `FULL` contract",
     );
 
-    expect(specReviewerPrompt).toContain(
-      "**Task contract checklist (when present in the requested task):**",
+    expect(specReviewerPrompt).toContain("**Declared task contract tier:**");
+    expect(normalizeWhitespace(specReviewerPrompt)).toContain(
+      "independently verify the task and implementation against the declared tier and named sources",
     );
-    expect(specReviewerPrompt).toContain(
-      "Verify owner/authority fields against the source files, docs, ADRs",
+    expect(normalizeWhitespace(specReviewerPrompt)).toContain(
+      "D14 is a response-only `deep-reviewer`, frontier/xhigh and source-immutable, with zero handoffs",
     );
-    expect(specReviewerPrompt).toContain(
-      "Verify affected consumers and generated outputs named by the task",
-    );
-    expect(specReviewerPrompt).toContain(
-      "Verify risk surfaces and proof obligations were addressed",
+    expect(specReviewerPrompt).toContain("Read the implementation from disk");
+    expect(normalizeWhitespace(specReviewerPrompt)).toContain(
+      "using the actual source and diff, not the implementer report",
     );
     expect(normalizeWhitespace(specReviewerPrompt)).toContain(
       "tiny-diff mode may suppress only the risk-triggered `Spec` and `Architecture` reviewers",

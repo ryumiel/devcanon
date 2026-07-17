@@ -223,23 +223,40 @@ named sources remain implementer work.
 
 For contract-heavy work, boundary changes, generated or side-channel artifacts,
 hard requirements, and contract examples, apply the canonical reference and
-the repository owners it names. Keep contract tables, boundary rows, task
-checklists, traceability, and examples only when their trigger is present and
+the repository owners it names. Plan authors produce each contract-heavy table,
+boundary traceability record, task checklist, and operation map at the
+tier-appropriate detail. For `FULL`, produce the complete applicable shape for
+all four families. `LIGHTWEIGHT` uses its closed compact fields. A family-local
+authority is a separately named material authority, concrete approved
+task-local need, or independently applicable material authority or trigger
+that explicitly governs one family. A family-local authority selects additional
+complete or necessary detail only for the family it explicitly governs; it
+never promotes unrelated families.
+Keep these structures and examples only when their trigger is present and
 within the Scope Envelope. Unknown authority is a blocker, not permission to
-generalize.
+generalize. The canonical planning criteria remain the fail-closed owner of
+tier selection and detailed readiness.
 
 For behavior- or contract-changing work, consume the approved design's
-ownership topology and expose its mapping in the plan. Every changed behavior
-and affected surface must reach a current task with its normative owner,
-optional non-overlapping supporting partition, consumption mode, conflict
-precedence, and verification owner. The canonical planning criteria own the
-detailed topology and task-mapping rules; the readiness reference exclusively
-owns audit and readiness rules. Stop when authority is duplicated,
-contradictory, or incomplete: return missing project-specific decisions to the
-owning design and broken task mappings to planning instead of adding a
-synchronized restatement. Repeated detail does not make a reference or summary
-normative, verification does not define policy, and generated skill packages
-remain derived consumers rather than edit targets.
+ownership topology and expose its tier-appropriate mapping in the plan. `FULL`
+tasks require exhaustive topology, including the normative owner, optional
+non-overlapping supporting partitions, consumption modes, conflict precedence,
+task coverage, and verification owner. A family-local authority requires
+additional complete or necessary topology only when it explicitly governs the
+ownership-topology mapping. `LIGHTWEIGHT` compact topology still names every
+actual known participant and direct producer-consumer relationship alongside
+its compact owner, purpose, I/O, material side-effect ownership, failure,
+cleanup, proof, and all-trigger absence record. Known omissions and
+independently triggered obligations remain blocking at every tier. Every
+changed behavior and affected surface must reach a current task with its
+normative owner. The canonical planning criteria own the detailed topology and
+task-mapping rules, including tier-aware example-discipline triggers; the
+readiness reference exclusively owns audit and readiness rules. Stop when
+authority is duplicated, contradictory, or incomplete: return missing
+project-specific decisions to the owning design and broken task mappings to
+planning instead of adding a synchronized restatement. Repeated detail does not
+make a reference or summary normative, verification does not define policy,
+and generated skill packages remain derived consumers rather than edit targets.
 
 For generated artifacts, derived artifacts, helper I/O files, `.ephemeral`
 handoffs, cross-skill handoffs, or side-channel data, plan against the
@@ -338,6 +355,8 @@ before starting.
 
 **Task ID:** <UPPER-ASCII-KEBAB>
 
+**Contract tier:** FULL | LIGHTWEIGHT | NO-TRIGGER
+
 <!-- Optional review-routing hints, when present, go here:
 **Risk hint:** low | medium | high
 **Review hint:** none-final-only | spec-only | spec-and-quality
@@ -365,7 +384,26 @@ criterion: <explicit inclusion rule>`
 
 **Authority surfaces:** <which source files, contracts, schemas, helpers, renderers, install/sync flows, or policies own the behavior; generated outputs are derived evidence, not authority>
 
-**Contract checklist:** <required for non-trivial work; otherwise state why no trigger applies. Include trigger criteria, owner/authority, affected consumers/generated outputs, must-preserve, required behavior, spec/procedure work, risk surfaces, and proof obligations, with task-specific `N/A` reasons for irrelevant fields>
+Include exactly one of the following tier-specific blocks and delete the other
+two.
+
+For `FULL` only:
+
+**Contract checklist:** <every complete FULL checklist field; populate each
+field or use task-specific N/A only where the canonical criteria permit it>
+
+For `LIGHTWEIGHT` only:
+
+**Compact contract:** <owner, purpose, inputs and outputs, material write or
+side-effect owner, failure and cleanup behavior, focused proof, every actual
+known participant and direct relationship, and the explicit task-specific
+reason every FULL trigger is absent>
+
+For `NO-TRIGGER` only:
+
+**NO-TRIGGER reason:** <task-specific reason this task changes no contract,
+boundary, lifecycle, side effect, generated or side-channel artifact,
+interface, policy, or other non-trivial task-contract trigger>
 
 **Acceptance criteria:** <observable requirements for completion>
 
@@ -386,6 +424,24 @@ insertions, reordering, title edits, and review revisions. Missing, duplicate,
 positional, or changed task IDs block review. `Task N` remains a display and
 ordering label only.
 
+Every authored current task must then declare exactly one canonical
+`**Contract tier:** FULL`, `**Contract tier:** LIGHTWEIGHT`, or
+`**Contract tier:** NO-TRIGGER` value. Classify the task using the bundled
+canonical criteria before choosing its contract detail; planning owns this
+classification. `FULL` tasks carry the complete contract checklist,
+`LIGHTWEIGHT` tasks carry every compact-contract field and the explicit reason
+all FULL triggers are absent, and `NO-TRIGGER` tasks carry a task-specific
+reason no contract trigger applies. Ambiguity defaults to `FULL`. A compact
+diff, private implementation name, or `.ephemeral/` path does not by itself
+authorize `LIGHTWEIGHT` or `NO-TRIGGER`.
+
+Select exactly one tier-specific block from the template and remove the other
+two. The ordinary task fields, acceptance criteria, verification expectations,
+and proof sufficiency remain required for every tier. A `NO-TRIGGER` task has
+only its task-specific reason in the tier-specific position: it does not carry
+a Contract checklist label, a second contract placeholder, a FULL-only field,
+or an `N/A` entry.
+
 Task specs should prefer references to existing behavior, source files,
 contracts, tests, ADRs, and guidelines over copied logic. If a task needs
 TDD, say which behavior must be covered and where similar tests already live;
@@ -394,24 +450,26 @@ the implementer writes the concrete test after reading source. Use a clear
 task as one where tests need to be authored.
 
 For helper, script, API, adapter, validator, producer, or consumer tasks that
-touch boundaries, include a small I/O contract table or equivalent fields in
-the task spec. The task-local contract must name required inputs, optional
-inputs, missing or empty behavior, outputs, write targets,
-validation-before-write ordering, failure behavior, and forbidden side effects.
-These fields make the task executable without prescribing concrete code, test
-bodies, shell recipes, helper names, line edits, or exact command sequences.
+touch boundaries, include the tier-appropriate I/O contract table or equivalent
+fields in the task spec. Use the complete shape for `FULL`. A family-local
+authority selects additional complete or necessary I/O-contract detail only
+when it explicitly governs the contract-heavy table family. A valid
+`LIGHTWEIGHT` task uses its closed compact fields and every actual known
+participant and direct producer-consumer relationship. These fields make the
+task executable without prescribing concrete code, test bodies, shell recipes,
+helper names, line edits, or exact command sequences. The complete shape
+retains validation-before-write ordering when that obligation applies.
 
 For boundary-touching tasks that change or depend on source, adapter, handler,
-side-effect, validation, rollback, or guardrail behavior, include task-local
-operation mappings when applicable. The operation map must name current source,
-target surface, required inputs, optional inputs where applicable, missing or
-empty behavior, outputs, errors, explicit write targets or side-effect owner,
-validation-before-write or validation-order requirements, failure behavior,
-forbidden side effects, dirty/rollback behavior, and required verification. Do
-not require operation maps for trivial non-boundary tasks. Operation maps are
-boundary contract specificity; they are not permission to prescribe
-implementation code, test bodies, shell recipes, helper names, line edits,
-exact command sequences, or commit recipes.
+side-effect, validation, rollback, or guardrail behavior, include
+tier-appropriate task-local operation mappings when applicable. `FULL` uses the
+complete operation-map detail. A family-local authority selects additional
+complete or necessary operation-map detail only when it explicitly governs the
+operation-map family. A valid `LIGHTWEIGHT` task uses its closed compact fields.
+Do not require operation maps for trivial non-boundary tasks.
+Operation maps are boundary contract specificity; they are not permission to
+prescribe implementation code, test bodies, shell recipes, helper names, line
+edits, exact command sequences, or commit recipes.
 
 When optional comment evidence is present, do not convert it into requirements.
 Use it to clarify why a requirement matters, what supporting observations exist,
@@ -436,6 +494,8 @@ Example mechanical-task header:
 
 **Task ID:** RENAME-EXAMPLE-TOKEN
 
+**Contract tier:** NO-TRIGGER
+
 **Mode:** mechanical
 
 **Risk hint:** low
@@ -458,7 +518,7 @@ Example mechanical-task header:
 
 **Authority surfaces:** `examples/demo-note.md`
 
-**Contract checklist:** N/A — this exact token replacement is a single-file
+**NO-TRIGGER reason:** This exact token replacement is a single-file
 mechanical example that changes no behavior, authority, generated output,
 failure route, review rule, documentation navigation, or compatibility surface.
 
@@ -512,8 +572,9 @@ Every task spec must contain the actual contract an engineer needs. These are
 - Tasks without an authoritative requirement, necessary in-scope outcome, and CURRENT Scope Delta mapping
 - Generalized harnesses, protocols, marker languages, evidence systems, or broad matrices introduced only to strengthen proof beyond approved scope
 - References to source-of-truth files, functions, methods, ADRs, specs, or helpers that do not exist unless the task is explicitly responsible for creating them
-- Required contract checklist fields left blank, marked only `N/A`, or filled
-  with generic text that does not explain the task-specific reason
+- Required tier-specific contract fields left blank or filled with generic
+  text that does not explain the task-specific facts; for FULL, checklist
+  fields marked `N/A` without a task-specific reason
 
 ## Remember
 
@@ -524,8 +585,9 @@ Every task spec must contain the actual contract an engineer needs. These are
   it never determines the in-scope consumers or boundary participants and is
   never a vague placeholder
 - Complete task contracts, not implementation sketches
-- Contract checklists for triggered work, or a task-specific reason the
-  checklist does not apply
+- The selected tier-specific shape: a complete FULL checklist, a closed
+  LIGHTWEIGHT compact contract, or a task-specific NO-TRIGGER reason without a
+  checklist label or `N/A` entry
 - Source-of-truth references over copied logic
 - Scope Envelope and Scope Delta before file or task planning
 - CURRENT task mappings to authoritative requirements and necessity
@@ -552,15 +614,37 @@ Review in this order:
 2. Check requirements, contract decisions, boundary participants, hard
    requirements, and documentation impact for current task and proof coverage.
 3. Check task completeness, placeholders, citations, dependencies, mechanical
-   and review-routing hints, and minimum-sufficient proof.
+   and review-routing hints, and minimum-sufficient proof. Confirm every
+   current task declares exactly one canonical contract tier and carries the
+   tier-appropriate structure owned by the criteria: complete FULL fields,
+   complete LIGHTWEIGHT compact fields plus the all-FULL-triggers-absent
+   reason, or a task-specific NO-TRIGGER reason. Reject missing, ambiguous, or
+   under-specified tier declarations; do not infer proportionality from diff
+   size or path spelling.
 4. Confirm optional comment evidence remains non-authoritative.
 5. Classify every finding as `CURRENT`, `BLOCKER`, `FOLLOW-UP`, or
    `OPTIONAL` before changing the plan.
 
-For behavior- or contract-changing work, also confirm that every ownership
-topology row has complete task and proof coverage and that no task asks an
-implementer to choose an owner, supporting partition, consumption mode,
-precedence, or verification owner.
+For `FULL`, also confirm that every ownership topology row has complete task and
+proof coverage and that no task asks an implementer to choose an owner,
+supporting partition, consumption mode, precedence, or verification owner. When
+a family-local authority governs ownership topology, confirm its additional
+complete or necessary topology detail. For `LIGHTWEIGHT`, confirm the compact
+record does not leave any actual known participant, direct relationship,
+compact field, or triggered obligation for the implementer to choose.
+
+Then self-review each of those four families against the selected contract tier:
+contract-heavy tables, boundary traceability records, task checklists, and
+operation maps. For `FULL`, require the complete applicable shape for all four
+families. A family-local authority is a separately named material authority,
+concrete approved task-local need, or independently applicable material
+authority or trigger that explicitly governs one family. For an otherwise
+valid `LIGHTWEIGHT` record, a family-local authority selects additional complete
+or necessary detail only for the family it explicitly governs; it never
+promotes unrelated families. Verify every actual known participant and direct
+producer-consumer relationship, every closed compact field, and explicit
+absence of every FULL trigger. Ambiguity defaults to `FULL`; known omissions and
+independently triggered obligations remain blocking.
 
 Only verified CURRENT findings may be fixed inline. A BLOCKER stops and returns
 to its owning decision surface. FOLLOW-UP and OPTIONAL findings remain in
@@ -588,10 +672,15 @@ controller-local state and creates no result artifact.
 
 Prepare one immutable tuple containing the saved plan path, selected design
 input, optional comment evidence, validated criteria path, validated readiness
-path and recorded readiness result, and expected exact plan digest. Always pass
-the same optional comment evidence to both when present; omit it from both when
-absent. Pass the identical tuple to D5 and D6, while keeping their remits and
-responses separate.
+path and recorded readiness result, expected exact plan digest, `review_wave`
+(`1` or `2`), and `prior_verified_gaps`. For wave one,
+`prior_verified_gaps` is explicitly none/inapplicable. For wave two, it is the
+complete controller-local record set defined by the closed lifecycle below for
+every verified wave-one `CURRENT` gap. Always pass the same optional comment
+evidence to both when present; omit it from both when absent. Freeze the tuple
+before either capture and pass the identical tuple to
+D5 and D6 without per-reviewer additions, while keeping their questions,
+remits, responses, and lifecycle state separate.
 
 Before each authorized revision, retain a controller-local
 semantic-task-to-Task-ID baseline from the current plan. After saving the
@@ -650,16 +739,84 @@ Do not route early on one PASS or one FAIL. Verified `CURRENT` gaps may revise
 the plan; a `BLOCKER` returns to its named owner; `FOLLOW-UP` and `OPTIONAL`
 remain deferred.
 
-Planning has a maximum of two paired review waves. A first ordinary non-pass
-may retry the fresh pair or revise verified CURRENT gaps and dispatch a fresh
-pair. A second non-pass stops. Handoff is allowed only after both reviewers
-return PASS for the same current exact-byte digest and both guard cleanups have
-succeeded. Immediately before execution or owning-workflow handoff, recompute
-SHA-256 over the current exact plan bytes again and compare it with the
-expected, D5, D6, and join-time digests before applying dual PASS. A
-reviewer-computed, join-time, or pre-handoff digest mismatch invalidates both
-verdicts, as does any plan-byte edit; start a fresh pair within the remaining
-budget or stop when the budget is exhausted.
+Before any plan mutation, validate each proposed blocking gap against the
+canonical materiality contract: supported `Authority`, a `Concrete blocker`,
+an `Inspection insufficiency` explanation, and the `Smallest correction or
+decision owner`. Reject an incomplete or preference-based blocker as
+non-authorizing; it cannot expand the plan. Enforce cross-remit ownership at
+consolidation: only D5 originates ordinary alignment, scope, proportionality,
+and coverage findings; only D6 originates ordinary task-local startability
+findings. A reviewer may report a shared-fact contradiction only by naming the
+concrete defect it causes in that reviewer's own remit.
+
+Planning has a maximum of two paired review waves. Wave one is exhaustive in
+each distinct remit. An unchanged fresh-pair retry after wave one is allowed
+only when wave one contains no verified `CURRENT` gap. An unchanged fresh-pair
+retry is prohibited when wave one contains any verified `CURRENT` gap. In that
+case, every such record must receive its authorized correction and transition
+from `OPEN` + `NOT_RUN` to `CORRECTED` + `PENDING` before wave-two dispatch. If
+any verified `CURRENT` gap remains uncorrected or its transition is invalid,
+stop without dispatching wave two or consuming the second-wave budget. Wave
+two verifies every prior correction and its resolution state, then checks the
+revision for regressions. A newly blocking wave-two gap is valid only when it
+includes the canonical `New evidence basis` backed by approved bounded evidence
+that was not reasonably available from the wave-one plan and named sources. An
+unsupported blocker, an ordinary defect inspectable in wave one, optional
+infrastructure, or proof expansion cannot authorize plan mutation or expansion
+and remains non-passing under the existing second-wave stop. A second non-pass
+stops. This convergence policy does not excuse genuine omissions: missing
+consumers, invalid paths or dependencies, ambiguous mutation ownership, and
+unsafe cleanup still block in their owning remits. Handoff is allowed only
+after both reviewers return PASS for the same current exact-byte digest and
+both guard cleanups have succeeded. Immediately before execution or
+owning-workflow handoff, recompute SHA-256 over the current exact plan bytes
+again and compare it with the expected, D5, D6, and join-time digests before
+applying dual PASS. A reviewer-computed, join-time, or pre-handoff digest
+mismatch invalidates both verdicts, as does any plan-byte edit; start a fresh
+pair within the remaining budget or stop when the budget is exhausted.
+
+For wave one, `prior_verified_gaps` is explicitly none/inapplicable. For each
+verified wave-one `CURRENT` gap, the controller-local wave-two record contains
+the stable gap ID, task ID, defect class, `classification=CURRENT`, `Authority`,
+`Concrete blocker`, `Inspection insufficiency`, `Smallest correction`,
+originating reviewer provenance and originating D5 or D6 remit, correction
+owner, concrete correction evidence, `resolution_state`, and
+`verification_state`. `resolution_state` uses only `OPEN`, `CORRECTED`,
+`RESOLVED`, or `UNRESOLVED`; `verification_state` uses only `NOT_RUN`,
+`PENDING`, `PASSED`, or `FAILED`. The only valid transitions are verified
+wave-one capture as `OPEN` + `NOT_RUN`; authorized
+plan correction before fresh wave-two dispatch as `CORRECTED` + `PENDING`; and
+one of the two terminal pairs below. Compute the terminal state independently
+for each prior gap record after both wave-two reviewers settle on the same
+digest. A corrected prior gap becomes `RESOLVED` + `PASSED` when its correction
+is verified and that same gap neither recurs nor regresses, even when a
+distinct valid new-evidence gap makes the overall wave non-passing. A prior gap
+becomes `UNRESOLVED` + `FAILED` from a consumable valid same-digest pair only
+when that same gap recurs, its correction regresses, or its own record or
+transition is malformed or out of order. An orthogonal new-evidence `CURRENT`
+or `BLOCKER` never rewrites a separately verified prior record to unresolved.
+No backward transition, skipped state, unknown value, mixed terminal pair, or
+mutation after `PENDING` is valid. Any invalid transition makes the tuple or
+result malformed and non-passing.
+
+On the final wave, if guard capture failure, spawn failure or reviewer
+unavailability, a malformed or semantically rejected response, wrong digest,
+guard verification or cleanup failure, join-time or pre-handoff mismatch, plan
+or source drift, or equivalent terminal invalidation prevents a consumable
+valid same-digest D5/D6 pair, transition every still-pending prior record from
+`CORRECTED` + `PENDING` to `UNRESOLVED` + `FAILED`. For every affected record,
+record the concrete verification failure without claiming that the underlying
+correction recurred or regressed; surface the operational failure and every
+affected prior gap, prohibit execution handoff, and stop without a third wave.
+This operational settlement applies only to still-pending records and never
+overwrites a record already settled from a consumable valid same-digest pair.
+`BLOCKER` never enters `prior_verified_gaps`; it returns to its named owner.
+`FOLLOW-UP` and `OPTIONAL` remain deferred outside `prior_verified_gaps`. A new
+wave-two `CURRENT` or `BLOCKER` is accepted only under the existing new-evidence
+rule. When any valid new-evidence `CURRENT` or `BLOCKER` remains, the overall
+paired-wave verdict remains non-passing, surfaces every new or unresolved gap,
+and stops after wave two. After any wave-two non-pass, surface unresolved gaps
+and stop; there is no third wave.
 
 ## Plan Review
 
@@ -720,7 +877,8 @@ stage, repair, or otherwise hide source.
 
 Pass `Plan: <path>`, `Criteria: <validated-bundle-owned-path>`,
 `Readiness: <validated-bundle-owned-path>`, the recorded readiness result, and
-`Expected digest: <sha256>`. For design input, pass the guarded
+`Expected digest: <sha256>`, plus the immutable `review_wave` and
+`prior_verified_gaps` values. For design input, pass the guarded
 `Design: <path>` when the invocation selected the path form; otherwise pass the
 preserved inline `## Design` content for a direct invocation. Always prefer
 artifact path references over inlined full documents; the path form wins when
@@ -739,7 +897,8 @@ or readiness policy relative to the target repository.
 The reviewer independently validates the Scope Envelope, Scope Delta,
 authoritative requirement coverage, unjustified tasks, dependency order,
 contract and boundary traceability, task contracts, documentation impact, and
-minimum-sufficient proof. It also checks citations and applicable
+minimum-sufficient proof. It validates every current task's declared canonical
+tier and tier-appropriate structure against the criteria. It also checks citations and applicable
 review-routing hints. The canonical reference owns the detailed criteria.
 
 The reviewer reports every concrete in-remit finding and classifies it as
@@ -828,7 +987,8 @@ planning; never reset, check out, stage, repair, or otherwise hide source.
 
 Pass the guarded plan path, `Criteria: <validated-bundle-owned-path>`,
 `Readiness: <validated-bundle-owned-path>`, the recorded readiness result, and
-`Expected digest: <sha256>`. For design input, pass the guarded
+`Expected digest: <sha256>`, plus the immutable `review_wave` and
+`prior_verified_gaps` values. For design input, pass the guarded
 `Design: <path>` when the invocation selected the path form; otherwise pass the
 preserved inline `## Design` content for a direct invocation. Always prefer
 artifact path references over inlined full documents; the path form wins when
@@ -849,14 +1009,22 @@ side-effect, error, recovery, rollback, or guardrail decisions that a task
 requires but its named sources do not resolve. The canonical reference owns the
 detailed criteria.
 
+The reviewer also validates that every current task declares a canonical tier
+and carries the corresponding FULL, LIGHTWEIGHT, or NO-TRIGGER structure. It
+uses the plan's declared tier and the canonical criteria to test structural
+completeness; it does not replace D5's tier classification or reopen D5's
+proportionality judgment.
+
 The reviewer must not turn normal implementation choices, private helper
 structure, concrete tests, fixtures, commands, or discovery of individual
 references inside already named in-scope consumers or boundaries into missing
 contracts when the plan also names the mapping authority or an explicit
-discovery criterion. Determining which consumers or boundaries are in scope is
-planning work: an omitted known mapping is `CURRENT`, while missing authority
-for that mapping is `BLOCKER`. The reviewer must not broaden the Scope Envelope
-or proof obligations. Apply minimum-sufficient proof.
+discovery criterion. Ordinary omitted or missing consumer or boundary mapping
+coverage and mapping-authority findings are D5-owned. D6 may report the shared
+fact only by naming a concrete task-local startability defect caused in D6's
+own remit; the shared fact alone does not transfer ordinary finding ownership.
+The reviewer must not broaden the Scope Envelope or proof obligations. Apply
+minimum-sufficient proof.
 
 **Output:** the first line is exactly `PASS — digest=<sha256>` or
 `FAIL — digest=<sha256>`, followed by findings classified as `CURRENT`,

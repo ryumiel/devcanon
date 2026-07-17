@@ -38,18 +38,19 @@ All five guardrails must hold for D13. Guardrail #4 failure blocks before source
 mutation; any other missing guardrail reclassifies to D12 and uses
 `implementer-prompt.md`. Do not dispatch the executor on a partial guard set.
 
-| #   | Guardrail                                     | Detection signal                                                                                                                                                                                                                                                                                                               |
-| --- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 1   | Plan is single-task                           | Task count from plan extraction = 1.                                                                                                                                                                                                                                                                                           |
-| 2   | Task is fully mechanical                      | Task header carries `**Mode:** mechanical`.                                                                                                                                                                                                                                                                                    |
-| 3   | No clarifying questions could plausibly arise | Implicit: the upstream two-gate `play-planning` return completed, meaning both Plan Review and Implementer Executability Review passed before `Plan written to <path>.` was emitted. Direct invocations without that upstream return fail this guardrail and fall back to dispatched implementation.                           |
-| 4   | Task contract gate is satisfied               | The task first has either a structurally complete `**Contract checklist:**` naming every required checklist surface, or a task-specific no-trigger omission reason backed by the upstream two-gate `play-planning` return. Contract Example Discipline obligations are additive and do not satisfy guardrail #4 by themselves. |
-| 5   | No tests need to be authored                  | Task body contains no `**TDD expectation:**` field and no legacy TDD step-pair markers.                                                                                                                                                                                                                                        |
+| #   | Guardrail                                     | Detection signal                                                                                                                                                                                                                                                                                                                                                   |
+| --- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | Plan is single-task                           | Task count from plan extraction = 1.                                                                                                                                                                                                                                                                                                                               |
+| 2   | Task is fully mechanical                      | Task header carries `**Mode:** mechanical`.                                                                                                                                                                                                                                                                                                                        |
+| 3   | No clarifying questions could plausibly arise | Implicit: the upstream two-gate `play-planning` return completed, meaning both Plan Review and Implementer Executability Review passed before `Plan written to <path>.` was emitted. Direct invocations without that upstream return fail this guardrail and fall back to dispatched implementation.                                                               |
+| 4   | Task contract gate is satisfied               | The task declares `FULL`, `LIGHTWEIGHT`, or `NO-TRIGGER` and satisfies that tier's structure. Both `LIGHTWEIGHT` and `NO-TRIGGER` require the upstream two-gate `play-planning` return; without it, the task must use a structurally complete `FULL` contract. Contract Example Discipline obligations are additive and do not satisfy guardrail #4 by themselves. |
+| 5   | No tests need to be authored                  | Task body contains no `**TDD expectation:**` field and no legacy TDD step-pair markers.                                                                                                                                                                                                                                                                            |
 
 In the case when extracted plan/task execution context includes Contract
 Example Discipline or an equivalent clearly labeled section/obligation, present
-obligations are additive after checklist/no-trigger satisfaction and do not
-satisfy guardrail #4 by themselves. Apply the shared consumer rule in
+obligations are additive after `FULL`, `LIGHTWEIGHT`, or `NO-TRIGGER`
+satisfaction and do not satisfy guardrail #4 by themselves. Apply the shared
+consumer rule in
 [`contract-example-discipline-consumer-rule.md`](contract-example-discipline-consumer-rule.md).
 
 ## D13 Execution Sequence
@@ -97,9 +98,9 @@ selects the executor.
 - Guardrail #2 fails: single-task D12 flow with `implementer-prompt.md`.
 - Guardrail #3 fails: single-task D12 flow with `implementer-prompt.md`.
 - Guardrail #4 fails: stop before implementation and report
-  BLOCKED/NEEDS_CONTEXT with the exact missing checklist, unexplained `N/A`, or
-  unconfirmed owner, authority, source-of-truth, consumer, generated-output, or
-  evidence surface.
+  BLOCKED/NEEDS_CONTEXT with the exact missing or invalid tier structure,
+  absent reduced-tier provenance, unexplained `N/A`, or unconfirmed owner,
+  authority, source-of-truth, consumer, generated-output, or evidence surface.
 - Guardrail #5 fails: single-task D12 flow with `implementer-prompt.md`,
   overriding any `**Mode:** mechanical` hint.
 

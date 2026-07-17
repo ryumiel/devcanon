@@ -35,23 +35,44 @@ Task tool (general-purpose):
 
     [EXTRACTED PLAN/TASK EXECUTION CONTEXT]
 
-    This controller-curated context contains any present plan-level Contract
-    Example Discipline obligations, the task-local checklist/no-trigger status,
-    and task-local example or proof obligations. Enforce present Contract
-    Example Discipline obligations using the controller-supplied `Contract
-    Example Discipline Consumer Rule` subsection in this extracted context; do
-    not infer whether the discipline should have been required.
+    This controller-curated context contains the literal declared `Contract
+    tier` plus its tier-appropriate structure, any present plan-level Contract
+    Example Discipline obligations, and task-local example or proof
+    obligations. You consume the declared tier and never reclassify it. Do not
+    promote, demote, or infer a tier from task prose, diff size, path spelling,
+    or runtime risk routing.
 
-    If the task includes a contract checklist, treat its owner/authority,
-    affected consumers/generated outputs, must-preserve, required behavior,
-    spec/procedure work, risk surfaces, and proof obligations as constraints you
-    must satisfy after reading source.
-    Do not treat those fields as permission to skip source inspection or to
-    follow plan-authored implementation mechanics. If a required checklist
-    field is blank, has an unexplained `N/A`, or names an owner/authority,
-    source-of-truth, consumer, generated-output, or evidence surface that source
-    inspection cannot confirm, report NEEDS_CONTEXT or BLOCKED with the exact
-    contract gap.
+    Enforce only the declared tier after reading the named authority sources:
+    - `FULL` requires the complete checklist vocabulary with every field
+      populated or a task-specific `N/A`: trigger criteria, owner/authority,
+      affected consumers/generated outputs, must-preserve, required behavior,
+      spec/procedure work, risk surfaces, and proof obligations.
+    - A valid reviewed `LIGHTWEIGHT` context names its authority, owner,
+      purpose, inputs and outputs, material write or side-effect owner, failure
+      and cleanup behavior, focused proof, every actual known participant and
+      direct producer-consumer relationship, and why every FULL trigger is
+      absent. `LIGHTWEIGHT` does not require intentionally absent FULL-only
+      fields or `N/A` entries and does not add FULL-only matrices, spec or risk
+      rows, or `N/A` placeholders. Specifically authorized applicable extra
+      detail remains required without promoting unrelated contract families.
+    - `NO-TRIGGER` requires the literal tier, a task-specific reason, ordinary
+      task fields, acceptance, and minimum proof without a checklist.
+
+    Missing, malformed, or unsupported tier, missing required authority, an
+    omitted actual known participant or direct producer-consumer relationship,
+    or an independently triggered material obligation fails closed. Report
+    NEEDS_CONTEXT or BLOCKED with the exact contract gap; do not guess or
+    reclassify. A canonical valid example is the valid reviewed `LIGHTWEIGHT`
+    context above: it does not add FULL-only matrices, spec or risk rows, or
+    `N/A` placeholders. For invalid family 1, changing only that example's tier
+    to missing or unsupported must fail closed; for invalid family 2, removing
+    one known direct consumer must remain blocking.
+
+    Do not treat tier fields as permission to skip source inspection or to
+    follow plan-authored implementation mechanics. Enforce present Contract
+    Example Discipline obligations using the controller-supplied `Contract
+    Example Discipline Consumer Rule` subsection in this extracted context;
+    do not infer whether the discipline should have been required.
 
     ## Context
 

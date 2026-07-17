@@ -255,10 +255,24 @@ describe("rendered phase artifact smoke coverage", () => {
       sourcePlanning,
       topologyFieldPatterns,
     );
+    const familyAuthorityPatterns = [
+      /self-review each of those four families/,
+      /family-local authority/,
+      /never promotes unrelated families/,
+    ];
+    const sourcePlanningFamilyAuthority = markdownBlockContainingAll(
+      sourcePlanning,
+      familyAuthorityPatterns,
+    );
     const sourceCriteriaTopology = sliceRenderedSection(
       sourceCriteria,
       "### Ownership-topology mapping",
       "### Boundary-contract traceability",
+    );
+    const sourcePlanningConvergence = sliceRenderedSection(
+      sourcePlanning,
+      "## Exact Digest and Paired Review Orchestration",
+      "## Plan Review",
     );
 
     try {
@@ -282,6 +296,10 @@ describe("rendered phase artifact smoke coverage", () => {
         const renderedPlanningTopology = markdownBlockContainingAll(
           bodies[`play-planning:${target}`],
           topologyFieldPatterns,
+        );
+        const renderedPlanningFamilyAuthority = markdownBlockContainingAll(
+          bodies[`play-planning:${target}`],
+          familyAuthorityPatterns,
         );
         const renderedCriteria = await readFile(
           path.join(
@@ -308,6 +326,11 @@ describe("rendered phase artifact smoke coverage", () => {
           "### Ownership-topology mapping",
           "### Boundary-contract traceability",
         );
+        const renderedPlanningConvergence = sliceRenderedSection(
+          bodies[`play-planning:${target}`],
+          "## Exact Digest and Paired Review Orchestration",
+          "## Plan Review",
+        );
 
         expect(normalizeRenderedWhitespace(renderedDesignTopology)).toBe(
           normalizeRenderedWhitespace(sourceDesignTopology),
@@ -315,8 +338,12 @@ describe("rendered phase artifact smoke coverage", () => {
         expect(normalizeRenderedWhitespace(renderedPlanningTopology)).toBe(
           normalizeRenderedWhitespace(sourcePlanningTopology),
         );
+        expect(renderedPlanningFamilyAuthority).toBe(
+          sourcePlanningFamilyAuthority,
+        );
         expect(renderedCriteria).toBe(sourceCriteria);
         expect(renderedReadiness).toBe(sourceReadiness);
+        expect(renderedPlanningConvergence).toBe(sourcePlanningConvergence);
         expect(renderedReadiness).toContain("`RA-CONTRACT`");
         expect(renderedReadiness).toContain(
           "`READY_WITH_RECORDED_ASSUMPTIONS`",
@@ -334,7 +361,85 @@ describe("rendered phase artifact smoke coverage", () => {
           expect(normalizedRenderedCriteria).toContain(taskIdentityRule);
         }
         expect(normalizedRenderedCriteria).toContain(
-          "Field order is the task heading, required `**Task ID:**`, optional `**Mode:** mechanical`, optional review-routing hints, then `**Files:**`",
+          "Field order is the task heading, required `**Task ID:**`, required `**Contract tier:**`, optional `**Mode:** mechanical`, optional review-routing hints, then `**Files:**`",
+        );
+        for (const proportionalContractRule of [
+          "private, transient, used by the same controller, and has no durable schema consumer",
+          "Any changed dimension that triggers `FULL` makes LIGHTWEIGHT invalid",
+          "durable cross-owner boundary names its authority and precedence",
+          "The omitted known consumer remains a blocking gap",
+          "exhaustive mapping is required for `FULL`",
+          "valid `LIGHTWEIGHT` compact record satisfies topology by naming every actual known participant and direct producer-consumer relationship",
+          "For `FULL` or a separately named material authority, planning is not ready when a required exhaustive topology field is missing",
+          "A `LIGHTWEIGHT` mapping is not ready when it omits any actual known participant or direct producer-consumer relationship",
+          "An approved `FULL` or separately authorized exhaustive topology with incomplete or contradictory task coverage is a `CURRENT` planning gap",
+          "An approved `LIGHTWEIGHT` compact topology with an omitted actual known participant, direct producer-consumer relationship, or required compact field is likewise a `CURRENT` planning gap",
+          "A valid `LIGHTWEIGHT` compact record does not require canonical valid and invalid example families",
+          "Topology examples activate Contract Example Discipline only when that discipline is already triggered by `FULL` or a separately named material authority",
+          "Merely expressing a valid `LIGHTWEIGHT` compact topology as an example does not trigger canonical invalid families or positive and negative FULL proof",
+          "complete contract-heavy or helper-I/O table",
+          "stable boundary row IDs and the complete participant-specific traceability shape",
+          "For `FULL` or a separately named material authority, downstream boundary-row consumers require task or no-code mapping, participant coverage and proof, applicable checklist row-ID and ownership references, and design-decision or non-applicability citations",
+          "For `LIGHTWEIGHT`, the compact boundary record is sufficient unless specifically authorized applicable extra detail is required",
+          "complete non-trivial-task checklist",
+          "complete task-local operation map",
+          "A valid `LIGHTWEIGHT` task does not acquire FULL-only checklist fields or `N/A` entries",
+          "A valid `LIGHTWEIGHT` boundary-touching task does not acquire FULL-only operation-map detail",
+          "approved task-local need or an independently applicable material authority",
+          "independently triggered side-channel, generated, safety, untrusted, durable, public, cross-session, or cross-owner obligation remains blocking",
+          "D5 owns ordinary defects in approved-scope coverage",
+          "D6 owns ordinary defects in task-local startability",
+        ]) {
+          expect(normalizedRenderedCriteria).toContain(
+            proportionalContractRule,
+          );
+        }
+        const normalizedRenderedPlanningTopology = normalizeRenderedWhitespace(
+          renderedPlanningTopology,
+        );
+        for (const planningTopologyRule of [
+          "`FULL` tasks require exhaustive topology",
+          "A family-local authority requires additional complete or necessary topology only when it explicitly governs the ownership-topology mapping",
+          "`LIGHTWEIGHT` compact topology still names every actual known participant and direct producer-consumer relationship",
+        ]) {
+          expect(normalizeRenderedWhitespace(sourcePlanningTopology)).toContain(
+            planningTopologyRule,
+          );
+          expect(normalizedRenderedPlanningTopology).toContain(
+            planningTopologyRule,
+          );
+        }
+        for (const planningProducerRule of [
+          "produce each contract-heavy table, boundary traceability record, task checklist, and operation map at the tier-appropriate detail",
+          "self-review each of those four families against the selected contract tier",
+          "For `FULL`, require the complete applicable shape for all four families",
+          "A family-local authority is a separately named material authority, concrete approved task-local need, or independently applicable material authority or trigger that explicitly governs one family",
+          "For an otherwise valid `LIGHTWEIGHT` record, a family-local authority selects additional complete or necessary detail only for the family it explicitly governs; it never promotes unrelated families",
+          "The canonical planning criteria remain the fail-closed owner of tier selection and detailed readiness",
+        ]) {
+          expect(normalizeRenderedWhitespace(sourcePlanning)).toContain(
+            planningProducerRule,
+          );
+          expect(
+            normalizeRenderedWhitespace(bodies[`play-planning:${target}`]),
+          ).toContain(planningProducerRule);
+        }
+        expect(normalizeRenderedWhitespace(sourcePlanning)).not.toContain(
+          "For `FULL` or separately named material authority, require the complete exhaustive shape for all four families",
+        );
+        expect(
+          normalizeRenderedWhitespace(bodies[`play-planning:${target}`]),
+        ).not.toContain(
+          "For `FULL` or separately named material authority, require the complete exhaustive shape for all four families",
+        );
+        expect(normalizedRenderedCriteria).not.toContain(
+          "The map must not It must not prescribe",
+        );
+        expect(normalizedRenderedCriteria).not.toContain(
+          "Every row maps to a current task or an explicit no-code disposition",
+        );
+        expect(normalizedRenderedCriteria).not.toContain(
+          "Every applicable task contract checklist references its governing boundary row IDs",
         );
         const renderedExamples = sliceRenderedSection(
           renderedCriteria,
@@ -380,9 +485,10 @@ describe("rendered phase artifact smoke coverage", () => {
           "Class:",
           "ID:",
           "Classification:",
-          "Finding:",
           "Authority:",
-          "Required correction:",
+          "Concrete blocker:",
+          "Inspection insufficiency:",
+          "Smallest correction or decision owner:",
         ]) {
           expect(
             renderedValidFailLines.filter((line) =>
@@ -419,6 +525,42 @@ describe("rendered phase artifact smoke coverage", () => {
             rejectionRule,
           );
         }
+        for (const convergenceRule of [
+          "Wave one is exhaustive",
+          "A newly blocking wave-two gap must add a `New evidence basis` field",
+          "maximum of two paired waves",
+          "without inventing a third review wave or weakening them",
+          "each still-pending prior record from `CORRECTED` + `PENDING` to `UNRESOLVED` + `FAILED`",
+          "records concrete verification-failure evidence without claiming that the correction recurred or regressed",
+          "surfaces the operational failure and every affected prior gap, prohibits execution handoff, and stops without a third wave",
+        ]) {
+          expect(normalizedRenderedCriteria).toContain(convergenceRule);
+        }
+        const normalizedRenderedPlanningConvergence =
+          normalizeRenderedWhitespace(renderedPlanningConvergence);
+        for (const finalWaveInvalidation of [
+          "guard capture failure",
+          "spawn failure or reviewer unavailability",
+          "malformed or semantically rejected response",
+          "wrong digest",
+          "guard verification or cleanup failure",
+          "join-time or pre-handoff mismatch",
+          "plan or source drift",
+          "equivalent terminal invalidation",
+        ]) {
+          expect(normalizedRenderedPlanningConvergence).toContain(
+            finalWaveInvalidation,
+          );
+        }
+        expect(normalizedRenderedPlanningConvergence).toContain(
+          "transition every still-pending prior record from `CORRECTED` + `PENDING` to `UNRESOLVED` + `FAILED`",
+        );
+        expect(normalizedRenderedPlanningConvergence).toContain(
+          "record the concrete verification failure without claiming that the underlying correction recurred or regressed",
+        );
+        expect(normalizedRenderedPlanningConvergence).toContain(
+          "surface the operational failure and every affected prior gap, prohibit execution handoff, and stop without a third wave",
+        );
         for (const singleDimensionRule of [
           "relative to the valid paired PASS, change only D6's digest",
           "relative to the valid complete FAIL, remove only the first gap's `Authority` field",

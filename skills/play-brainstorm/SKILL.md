@@ -345,6 +345,16 @@ decompose, sequence, and prove those decisions, but planning must not choose
 missing behavior semantics. Fix any ambiguity that would make implementation choose authority, identity tuple, producer or consumer, cwd/root, freshness proof, mutation/read-only effects, helper or script call shape, lifecycle state, cleanup, approval/posting, external effects, continuation/failure behavior, or forbidden behavior. If a decision cannot be made safely during brainstorming,
 record it as a blocker or as an intentional implementation choice with the owning authority, risk, and proof expectation. Private helper decomposition, internal names, fixtures, and non-contract formatting remain valid planning details after contract semantics are fixed.
 
+For each changed design boundary, record whether the approved facts make it
+load-bearing (durable, public, cross-session, untrusted or security-sensitive,
+or cross-owner) or instead appear eligible for compact treatment because they
+are private, transient, same-controller, and have no durable schema consumer.
+If no contract, boundary, lifecycle, side effect, generated or side-channel
+artifact, interface, policy, or other non-trivial trigger changes, record that
+task-specific design fact. This is a design-time boundary decision for the
+planning handoff, not a `FULL`, `LIGHTWEIGHT`, or `NO-TRIGGER` classification:
+do not copy the planning checklist or become tier authority.
+
 ### Normative ownership topology
 
 This source skill owns the universal design-time ownership method. The approved
@@ -506,6 +516,11 @@ After writing the design document, look at it with fresh eyes:
    authority, risk, and proof expectations. Run a smell scan for "existing helper", "current/latest state", "read-only inspection", "validated artifact", "identity inputs", "same operation", "active session", "the cache", and "the manifest"; block only when they hide behavior semantics.
    Private helper decomposition, internal names, fixtures, and non-contract formatting remain valid planning details after contract semantics are fixed.
    Run a scoped boundary-heavy adversarial pass only when the design creates or changes boundary semantics for workflow gates, artifact handoffs, helper/script contracts, generated artifacts, lifecycle state, cleanup, or read/write authority.
+9. **Boundary materiality handoff:** For every changed boundary, confirm the
+   design records whether its facts are load-bearing or appear eligible for
+   compact treatment, or records the task-specific fact that no non-trivial
+   trigger changes. Keep this as design evidence for `play-planning`; do not
+   assign a canonical planning tier or reproduce its checklist.
 
 Fix any issues inline. No need to re-review — just fix and move on.
 

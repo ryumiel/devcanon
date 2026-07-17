@@ -37,6 +37,23 @@ materially changes a generated artifact, derived artifact, helper I/O file,
 `.ephemeral` handoff, cross-skill handoff, or other side-channel data that a
 later actor, skill, script, validator, or review workflow consumes.
 
+The FULL applicability set is closed: use FULL treatment when the side-channel
+contract is durable, public, cross-session, untrusted, security-sensitive, or
+cross-owner. No other dimension triggers FULL. If it is unclear whether one of
+those six dimensions applies, default to FULL. When any applies, retain every
+question below. For private, transient, same-controller mechanics with no
+durable schema consumer, use the LIGHTWEIGHT planning tier: record owner and
+authority, purpose, inputs and outputs, every actual known participant and
+direct producer-consumer relationship, material write or side-effect owner,
+failure and cleanup, focused proof, and the explicit reason every FULL trigger
+is absent. That single explicit reason also collectively establishes that every
+remaining FULL-only question is inapplicable. No separate collective marking
+act, individual question marker, FULL-only field, or `N/A` entry is required. A
+change with no side-channel or other contract trigger records its task-specific
+reason and does not apply this checklist. Any independently applicable
+side-channel, generated, safety, untrusted, durable, public, cross-session,
+cross-owner, or governance obligation remains blocking.
+
 This checklist owns reusable authoring and review questions. Concrete artifact
 schemas, helper mechanics, emitted diagnostics, and runtime validation remain
 owned by the source skill, source script, runtime helper, ADR, or test for that
