@@ -71,36 +71,86 @@ describe("manifest integration", () => {
       expect(loaded.snapshot?.manifestPath).toBe(manifestPath);
     });
 
-    it("returns empty manifest when file does not exist", async () => {
+    it("returns empty manifest with no recovery artifacts when file does not exist", async () => {
       const manifestPath = path.join(tempDir, "nonexistent.json");
 
-      const result = await loadManifest(manifestPath);
+      const { manifest, snapshot } =
+        await loadManifestWithSnapshot(manifestPath);
 
-      expect(result.version).toBe(1);
-      expect(result.managedBy).toBe("devcanon");
-      expect(result.records).toEqual([]);
-      expect(result.lastSync).toBeDefined();
+      expect(manifest.version).toBe(1);
+      expect(manifest.managedBy).toBe("devcanon");
+      expect(manifest.records).toEqual([]);
+      expect(manifest.lastSync).toBeDefined();
+      expect(snapshot).toBeNull();
+      expect(await pathExists(`${manifestPath}.bak`)).toBe(false);
+      expect(await pathExists(`${manifestPath}.lock`)).toBe(false);
     });
 
-    it("does not treat an unreadable existing ENOENT-named manifest as missing", async () => {
+    it("rejects a directory manifest without recovery artifacts", async () => {
+      const manifestPath = path.join(tempDir, "manifest.json");
+      await mkdir(manifestPath);
+
+      await expect(loadManifestWithSnapshot(manifestPath)).rejects.toThrow();
+
+      expect((await lstat(manifestPath)).isDirectory()).toBe(true);
+      expect(await pathExists(`${manifestPath}.bak`)).toBe(false);
+      expect(await pathExists(`${manifestPath}.lock`)).toBe(false);
+    });
+
+    it("rejects a direct symlink manifest without recovery artifacts", async () => {
+      if (!(await canCreateSymlinks())) return;
+      const sourcePath = path.join(tempDir, "source.json");
+      const manifestPath = path.join(tempDir, "manifest.json");
+      await writeFile(sourcePath, validManifestJson(), "utf-8");
+      await symlink(sourcePath, manifestPath, "file");
+
+      await expect(loadManifestWithSnapshot(manifestPath)).rejects.toThrow();
+
+      expect((await lstat(manifestPath)).isSymbolicLink()).toBe(true);
+      expect(await readFile(sourcePath, "utf-8")).toBe(validManifestJson());
+      expect(await pathExists(`${manifestPath}.bak`)).toBe(false);
+      expect(await pathExists(`${manifestPath}.lock`)).toBe(false);
+    });
+
+    it("rejects a dangling symlink manifest without recovery artifacts", async () => {
+      if (!(await canCreateSymlinks())) return;
+      const manifestPath = path.join(tempDir, "manifest.json");
+      await symlink("missing-manifest.json", manifestPath, "file");
+
+      await expect(loadManifestWithSnapshot(manifestPath)).rejects.toThrow();
+
+      expect((await lstat(manifestPath)).isSymbolicLink()).toBe(true);
+      expect(await pathExists(`${manifestPath}.bak`)).toBe(false);
+      expect(await pathExists(`${manifestPath}.lock`)).toBe(false);
+    });
+
+    it("rejects an unreadable existing ENOENT-named manifest when permissions are enforced", async () => {
       const manifestPath = path.join(tempDir, "ENOENT-manifest.json");
       const original = validManifestJson();
       await writeFile(manifestPath, original, "utf-8");
       await chmod(manifestPath, 0o000);
 
+      let permissionsEnforced = false;
       try {
         try {
           await readFile(manifestPath);
-          return;
         } catch {
+          permissionsEnforced = true;
+          await expect(
+            loadManifestWithSnapshot(manifestPath),
+          ).rejects.toThrow();
           await expect(
             saveManifest(manifestPath, emptyManifest()),
           ).rejects.toThrow("readable regular file");
+          expect((await lstat(manifestPath)).isFile()).toBe(true);
+          expect(await pathExists(`${manifestPath}.bak`)).toBe(false);
+          expect(await pathExists(`${manifestPath}.lock`)).toBe(false);
         }
       } finally {
         await chmod(manifestPath, 0o600);
       }
 
+      if (!permissionsEnforced) return;
       expect(await readFile(manifestPath, "utf-8")).toBe(original);
     });
 

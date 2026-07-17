@@ -8,7 +8,7 @@ import {
   type Manifest,
   ManifestSchema,
 } from "../config/schema.js";
-import { ensureDir, pathExists } from "../utils/fs.js";
+import { ensureDir } from "../utils/fs.js";
 import { getLogger } from "../utils/output.js";
 
 const activeBackupAuthorities = new Map<string, ManifestBackupAuthority>();
@@ -110,22 +110,20 @@ export async function loadManifest(manifestPath: string): Promise<Manifest> {
 
 /**
  * Load a manifest together with the exact bytes later guarded rewrites must
- * compare. Invalid and unreadable inputs retain the established recovery path
+ * compare. Invalid JSON or schema inputs retain the established recovery path
  * and deliberately provide no migration snapshot.
  */
 export async function loadManifestWithSnapshot(
   manifestPath: string,
 ): Promise<LoadedManifest> {
-  if (!(await pathExists(manifestPath))) {
-    return { manifest: emptyManifest(), snapshot: null };
-  }
-
   let rawBytes: Buffer;
   try {
     rawBytes = await readRegularManifestBytes(manifestPath);
-  } catch {
-    getLogger().warn(`Warning: could not read manifest at ${manifestPath}`);
-    return { manifest: emptyManifest(), snapshot: null };
+  } catch (error) {
+    if (isNoEntryError(error)) {
+      return { manifest: emptyManifest(), snapshot: null };
+    }
+    throw error;
   }
 
   let parsed: unknown;
