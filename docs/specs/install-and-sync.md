@@ -50,6 +50,50 @@ Each managed record should include:
 - content hash
 - timestamp
 
+### Manifest identity and boundary
+
+The canonical manifest boundary is the normalized tuple of all four configured
+homes: Claude skills, Claude agents, Codex skills, and Codex agents. A managed
+record is classified by its complete target, type, name, owning home, and exact
+target-native destination. Path appearance, filesystem presence, and a missing
+output are never ownership evidence; records are not shared across home tuples.
+
+A manifest bound to a different home tuple fails closed before rendering,
+generated-output writes, installed-output changes, or manifest mutation. It
+cannot be repurposed with reconciliation. A bound manifest with foreign records
+also fails closed; restore its matching homes or repair it from a verified
+backup.
+
+Only an unbound legacy manifest may be reconciled. `sync --reconcile-manifest`
+removes foreign records from that legacy manifest and binds the retained
+records; it never deletes, rewrites, or otherwise changes the foreign installed
+outputs. Its dry run previews reconciliation and installation work without
+writing, deleting, or creating a backup. `diff` and `uninstall` consume the
+same classification: they direct an unbound mixed legacy manifest to
+reconciliation and reject bound foreign records.
+
+### Migration, removal, and backup safety
+
+Before an existing legacy manifest is migrated (including a non-empty legacy
+manifest) or records are removed, DevCanon creates exactly one byte-verified
+original-state backup for that top-level operation. The backup name appends
+`.backup-YYYY-MM-DDTHH-mm-ss.SSSZ` to the manifest filename; if occupied, it
+uses the first deterministic numeric suffix (`-1`, `-2`, and so on). That one
+original-state backup authorizes every record removal and later manifest save in
+the same operation, without duplicate backups.
+
+This authority is scoped to one manifest path and one sync or uninstall
+operation. It advances only after accepted descendant saves and expires on both
+return and throw. Manifest drift, freshness or verification mismatch, a wrong
+path or operation, and persistence failures fail closed rather than permitting
+a rewrite.
+
+Missing stale records can be pruned only after target-home containment and
+symlink-parent identity validation, with the output itself allowed to be
+missing. A missing or temporary-looking path alone never proves ownership.
+Matching and repeated runs are idempotent: they do not create unnecessary
+backups or manifest churn.
+
 ---
 
 ## Sync Steps

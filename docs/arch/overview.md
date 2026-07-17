@@ -245,6 +245,17 @@ installed.
 Each manifest record includes: target, type (skill or agent), source path,
 generated path, installed path, install mode, content hash, and timestamp.
 
+### Manifest ownership summary (non-normative)
+
+This is a concise architecture summary, not executable or behavioral
+authority; runtime source remains the executable authority. Manifest identity
+owns classification from the normalized four-home boundary and each record's
+full target/type/name/home/destination identity. Manifest persistence owns the
+backup and save authority required for migration or removal. `sync` owns the
+legacy reconciliation transition, while `diff` and `uninstall` consume the
+resulting classification. The install and CLI specifications own public
+behavior and command syntax respectively.
+
 ---
 
 ## Install Modes

@@ -141,6 +141,18 @@ Supported options:
 - `--mode symlink`
 - `--dry-run`
 - `--force`
+- `--reconcile-manifest`
+
+`--reconcile-manifest` is available only to reconcile an unbound legacy
+manifest that contains foreign records. It removes those foreign records from
+the manifest only; it never deletes or rewrites their installed outputs. With
+`--dry-run`, DevCanon previews the reconciliation and install plan without
+writing or deleting anything.
+
+A bound manifest whose configured-home boundary does not match fails before
+rendering or mutation, and reconciliation cannot repurpose it. Bound manifests
+with foreign records are rejected as well; use the original configured homes or
+repair the manifest from a verified backup.
 
 ---
 
