@@ -84,16 +84,18 @@ reviewer state separately from critic verdict state.
 
 The lifecycle owner is the common escalation-policy owner, not a dispatcher or
 provider-support registry. The routing guideline owns the D1-D17 adoption
-inventory; each current route is opt-out until exact support exists. A controller
-may escalate only a positively supported `eligible-quality-failure` after the
-attempt settles and guard/lifecycle cleanup succeeds. Unavailable, failed,
-timed-out, blank, or malformed children require positive retained verified
-evidence and are never automatically eligible. The declaration names the route,
-target, same semantic role, exact current and next tuples, named target-supported
-mechanism, classification, invariant envelope, remaining budget, and terminal
-continuation. Ambient/omitted effort, a maximal current pair, unsupported
-override, incomplete declaration, alias/fallback pair, or role substitution
-uses the existing non-escalation result.
+inventory; each current route is opt-out with literal transition `none`. The
+shared policy defines mutually exclusive result boundaries. A controller may
+escalate only a positively supported `eligible-quality-failure` (an eligible
+quality failure) after the attempt settles and guard/lifecycle cleanup succeeds;
+the first matching ineligible boundary prevents eligibility. Unavailable,
+failed, timed-out, blank, or malformed children require positive retained
+verified evidence and are never automatically eligible. The declaration names
+the route, target, same semantic role, exact current and next tuples, named
+target-supported mechanism, classification, invariant envelope, remaining
+budget, and terminal continuation. Ambient/omitted effort, a maximal current
+pair, unsupported override, incomplete declaration, alias/fallback pair, or
+role substitution uses the existing non-escalation result.
 
 At most one fresh capability/effort attempt is permitted; there are no chains.
 Slot recovery, same-pair context redispatch, review fix loops, and CI repair

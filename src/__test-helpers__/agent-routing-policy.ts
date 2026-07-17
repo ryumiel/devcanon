@@ -56,7 +56,7 @@ const STANCES = ["normal", "adversarial"] as const;
 const SOURCE_AUTHORITIES = ["source-immutable", "source-mutable"] as const;
 const EXTERNAL_AUTHORITIES = ["none", "external-mutable"] as const;
 const ESCALATION_ADOPTION_STATES = ["adopt", "specialize", "opt-out"] as const;
-const OPT_OUT_TRANSITION = "none until exact support exists";
+const NO_ADOPTION_TRANSITION = "none";
 
 type Demand = (typeof DEMANDS)[number];
 type Stance = (typeof STANCES)[number];
@@ -543,9 +543,14 @@ function parseEscalationAdoptionRow(
     ESCALATION_ADOPTION_STATES,
     "adoption state",
   );
-  if (state === "opt-out" && cells[2] !== OPT_OUT_TRANSITION) {
+  if (state === "opt-out" && cells[2] !== NO_ADOPTION_TRANSITION) {
     throw new Error(
-      `Agent routing policy owner adoption opt-out transition must be exactly: ${OPT_OUT_TRANSITION}`,
+      `Agent routing policy owner adoption opt-out transition must be exactly: ${NO_ADOPTION_TRANSITION}`,
+    );
+  }
+  if (state !== "opt-out" && cells[2] === NO_ADOPTION_TRANSITION) {
+    throw new Error(
+      `Agent routing policy owner adoption ${state} transition cannot be none`,
     );
   }
   return { id: id as `D${number}`, state, transition: cells[2] };

@@ -2719,36 +2719,58 @@ describe("play subagent routing source contracts", () => {
       "Eligible Quality-Failure Capability Escalation",
     );
 
-    for (const resultFamily of [
-      "eligible-quality-failure",
-      "ineligible-context",
-      "ineligible-tool-or-permission",
-      "ineligible-authority",
-      "ineligible-integrity-or-route",
+    const normalizedEscalation = normalizeWhitespace(capabilityEscalation);
+    for (const boundary of [
+      "`eligible-quality-failure` (`eligible quality failure`)",
+      "complete and current context",
+      "usable authorized tools, sandbox, approval, and target operation",
+      "sufficient unchanged authority",
+      "successful guard/lifecycle cleanup",
+      "consumable verified evidence",
+      "material capability-sensitive quality gap",
+      "`ineligible-context`",
+      "Missing, ambiguous, stale, unreadable, or new-owner-decision context",
+      "`ineligible-tool-or-permission`",
+      "Absent, denied, or unusable tools, sandbox, approval, or target operation",
+      "`ineligible-authority`",
+      "Widened scope or insufficient source, external, or mutation authority",
+      "`ineligible-integrity-or-route`",
+      "Guard or cleanup mutation, stale head or evidence, unresolved route, or unsupported or undeclared exact transition",
+      "first matching ineligible condition prevents eligibility",
+      "not automatically eligible",
     ]) {
-      expect(capabilityEscalation).toContain(`\`${resultFamily}\``);
+      expect(normalizedEscalation).toContain(boundary);
     }
-    expect(normalizeWhitespace(capabilityEscalation)).toContain(
-      "Eligibility requires positive retained verified evidence",
-    );
-    expect(normalizeWhitespace(capabilityEscalation)).toContain(
-      "Ambient or omitted current effort",
-    );
-    expect(normalizeWhitespace(capabilityEscalation)).toContain(
-      "same semantic role",
-    );
-    expect(normalizeWhitespace(capabilityEscalation)).toContain(
-      "at most one fresh attempt",
-    );
-    expect(normalizeWhitespace(capabilityEscalation)).toContain(
+    for (const validShapeField of [
+      "Shape-only canonical valid example",
+      "hypothetical named target `example-target-v1`",
+      "hypothetical route `example-quality-route`",
+      "same semantic role=`implementer`",
+      "exact current tuple=`balanced/high`",
+      "exact next tuple=`frontier/high`",
+      "already-verified support mechanism `example-target-v1 exact-tuple registry`",
+      "budget=`1`",
+      "classification=`eligible quality failure`",
       "attempted actions",
-    );
-    expect(normalizeWhitespace(capabilityEscalation)).toContain(
-      "repository anchors",
-    );
-    expect(normalizeWhitespace(capabilityEscalation)).toContain(
-      "no hidden reasoning, raw prompts/transcripts/log dumps/stack traces/credentials/environment values",
-    );
+      "task identity, scope, acceptance contract, curated context, tools, sandbox, approval, source and external authority, network, mutation paths, output schema, guard lifecycle, and termination owner",
+      "verified repository anchors",
+      "unresolved success condition",
+      "remaining budget",
+      "This hypothetical example grants no ambient runtime support",
+    ]) {
+      expect(normalizedEscalation).toContain(validShapeField);
+    }
+    for (const invalidFamily of [
+      "Missing context",
+      "Omitted next effort",
+      "Ambient or nearby substitution",
+      "Invariant change",
+      "Budget greater than `1`",
+      "Raw evidence transfer",
+      "Duplicate or missing route",
+    ]) {
+      expect(normalizedEscalation).toContain(invalidFamily);
+    }
     expectSubstringsInOrder(normalizeWhitespace(capabilityEscalation), [
       "Retain verified evidence",
       "Complete guard/lifecycle cleanup",

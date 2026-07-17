@@ -29,7 +29,7 @@ describe("agent routing and mutation policy owner", () => {
       Array.from({ length: 17 }, (_, index) => ({
         id: `D${index + 1}`,
         state: "opt-out",
-        transition: "none until exact support exists",
+        transition: "none",
       })),
     );
   });
@@ -46,9 +46,17 @@ describe("agent routing and mutation policy owner", () => {
     const duplicate = markdown.replace(row ?? "", `${row}\n${row}`);
     const incomplete = markdown.replace(`${row}\n`, "");
     const unknownState = markdown.replace("| D1  | opt-out", "| D1  | defer");
-    const contradictoryTransition = markdown.replace(
-      /\| D1\s+\| opt-out\s+\| none until exact support exists/,
+    const optOutTransitionMismatch = markdown.replace(
+      /\| D1\s+\| opt-out\s+\| none/,
       "| D1 | opt-out | retry with an adjacent pair",
+    );
+    const adoptedNoneMismatch = markdown.replace(
+      /\| D1\s+\| opt-out\s+\| none/,
+      "| D1 | adopt | none",
+    );
+    const specializedNoneMismatch = markdown.replace(
+      /\| D1\s+\| opt-out\s+\| none/,
+      "| D1 | specialize | none",
     );
 
     expect(() =>
@@ -66,8 +74,14 @@ describe("agent routing and mutation policy owner", () => {
       parseAgentRoutingPolicyOwner(unknownState, sourceSkills),
     ).toThrow(/adoption state has invalid closed value: defer/i);
     expect(() =>
-      parseAgentRoutingPolicyOwner(contradictoryTransition, sourceSkills),
-    ).toThrow(/adoption opt-out transition must be exactly/i);
+      parseAgentRoutingPolicyOwner(optOutTransitionMismatch, sourceSkills),
+    ).toThrow(/adoption opt-out transition must be exactly: none/i);
+    expect(() =>
+      parseAgentRoutingPolicyOwner(adoptedNoneMismatch, sourceSkills),
+    ).toThrow(/adoption adopt transition cannot be none/i);
+    expect(() =>
+      parseAgentRoutingPolicyOwner(specializedNoneMismatch, sourceSkills),
+    ).toThrow(/adoption specialize transition cannot be none/i);
   });
 
   it("preserves representative closed inventory and route fields", async () => {

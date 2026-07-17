@@ -134,25 +134,25 @@ procedure owns eligibility, declaration, support, invariants, evidence, budget,
 and terminal semantics. This table is the authoritative current adoption record;
 it does not replace any route's workflow-local dispatch or termination owner.
 
-| ID  | Adoption state | Transition                      |
-| --- | -------------- | ------------------------------- |
-| D1  | opt-out        | none until exact support exists |
-| D2  | opt-out        | none until exact support exists |
-| D3  | opt-out        | none until exact support exists |
-| D4  | opt-out        | none until exact support exists |
-| D5  | opt-out        | none until exact support exists |
-| D6  | opt-out        | none until exact support exists |
-| D7  | opt-out        | none until exact support exists |
-| D8  | opt-out        | none until exact support exists |
-| D9  | opt-out        | none until exact support exists |
-| D10 | opt-out        | none until exact support exists |
-| D11 | opt-out        | none until exact support exists |
-| D12 | opt-out        | none until exact support exists |
-| D13 | opt-out        | none until exact support exists |
-| D14 | opt-out        | none until exact support exists |
-| D15 | opt-out        | none until exact support exists |
-| D16 | opt-out        | none until exact support exists |
-| D17 | opt-out        | none until exact support exists |
+| ID  | Adoption state | Transition |
+| --- | -------------- | ---------- |
+| D1  | opt-out        | none       |
+| D2  | opt-out        | none       |
+| D3  | opt-out        | none       |
+| D4  | opt-out        | none       |
+| D5  | opt-out        | none       |
+| D6  | opt-out        | none       |
+| D7  | opt-out        | none       |
+| D8  | opt-out        | none       |
+| D9  | opt-out        | none       |
+| D10 | opt-out        | none       |
+| D11 | opt-out        | none       |
+| D12 | opt-out        | none       |
+| D13 | opt-out        | none       |
+| D14 | opt-out        | none       |
+| D15 | opt-out        | none       |
+| D16 | opt-out        | none       |
+| D17 | opt-out        | none       |
 
 Task-specific prompts, schemas, skip criteria, retries, fallbacks, and
 termination remain owned by the source skill. A route may not collapse two
