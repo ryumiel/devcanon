@@ -1,7 +1,10 @@
 import { realpath } from "node:fs/promises";
 import { createTwoFilesPatch } from "diff";
 import type { ResolvedConfig } from "../config/schema.js";
-import { normalizeManifestIdentity } from "../install/manifest-identity.js";
+import {
+  ManifestIdentityError,
+  normalizeManifestIdentity,
+} from "../install/manifest-identity.js";
 import { loadManifestWithSnapshot } from "../install/manifest.js";
 import type { DiffResult } from "../models/types.js";
 import { renderAll } from "../render/pipeline.js";
@@ -18,6 +21,7 @@ export async function diffAll(
   try {
     normalized = normalizeManifestIdentity(loaded.manifest, config);
   } catch (error) {
+    if (!(error instanceof ManifestIdentityError)) throw error;
     throw new UserError(
       `Manifest boundary does not match the configured homes: ${(error as Error).message}`,
       config.manifest.path,

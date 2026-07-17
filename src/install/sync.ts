@@ -3,6 +3,7 @@ import path from "node:path";
 import type {
   InstallMode,
   ManagedRecord,
+  Manifest,
   ResolvedConfig,
 } from "../config/schema.js";
 import type { PlanAction, SyncOptions } from "../models/types.js";
@@ -12,14 +13,16 @@ import { ensureDir } from "../utils/fs.js";
 import { getLogger } from "../utils/output.js";
 import { copyDirectory, copyFile } from "./copy.js";
 import { verifyManagedOutputIdentity } from "./identity.js";
-import { normalizeManifestIdentity } from "./manifest-identity.js";
+import {
+  ManifestIdentityError,
+  normalizeManifestIdentity,
+} from "./manifest-identity.js";
 import {
   type ManifestBackupAuthority,
   createManifestBackupAuthority,
   loadManifestWithSnapshot,
   releaseManifestBackupAuthority,
   saveManifest,
-  updateManifest,
 } from "./manifest.js";
 import { computePlan } from "./plan.js";
 import { executeRemove, formatRemoveDryRunLine } from "./remove.js";
@@ -67,6 +70,7 @@ export async function sync(
   try {
     normalized = normalizeManifestIdentity(loaded.manifest, config);
   } catch (error) {
+    if (!(error instanceof ManifestIdentityError)) throw error;
     throw new UserError(
       `Manifest boundary does not match the configured homes: ${(error as Error).message}`,
       config.manifest.path,
@@ -79,8 +83,9 @@ export async function sync(
   );
   if (loaded.manifest.boundary && foreignIndexes.length > 0) {
     throw new UserError(
-      "Bound manifest contains foreign records; refusing to continue.",
+      "Bound manifest contains foreign records; automatic reconciliation is forbidden.",
       config.manifest.path,
+      "Restore matching configured homes or repair the manifest from a verified backup.",
     );
   }
   if (legacy && foreignIndexes.length > 0 && !options.reconcileManifest) {
@@ -125,20 +130,20 @@ export async function sync(
   };
 
   let manifest = normalized.manifest;
+  if (foreignIndexes.length > 0) {
+    manifest = {
+      ...manifest,
+      records: manifest.records.filter(
+        (_record, index) => !foreignIndexes.includes(index),
+      ),
+    };
+  }
   try {
     // An existing legacy manifest is a migration, while a missing manifest is
     // bound before the first generated or installed output is persisted.
     if (!options.dryRun && legacy) {
       if (loaded.snapshot) {
         await ensureAuthority();
-      }
-      if (foreignIndexes.length > 0) {
-        manifest = {
-          ...manifest,
-          records: manifest.records.filter(
-            (_record, index) => !foreignIndexes.includes(index),
-          ),
-        };
       }
       await save(manifest);
     }
@@ -182,7 +187,7 @@ export async function sync(
 
     // Execute plan
     const newRecords: ManagedRecord[] = [];
-    const removedPaths: string[] = [];
+    const removedActions: PlanAction[] = [];
     for (const action of plan) {
       try {
         const record = manifest.records.find((candidate) =>
@@ -230,7 +235,7 @@ export async function sync(
             break;
           case "remove":
           case "remove-missing":
-            removedPaths.push(action.installedPath);
+            removedActions.push(action);
             totalResult.removed++;
             break;
           case "skip-up-to-date":
@@ -248,12 +253,12 @@ export async function sync(
     }
 
     // Update manifest
-    if (newRecords.length > 0 || removedPaths.length > 0) {
+    if (newRecords.length > 0 || removedActions.length > 0) {
       try {
-        const updatedManifest = updateManifest(
+        const updatedManifest = updateManifestByIdentity(
           manifest,
           newRecords,
-          removedPaths,
+          removedActions,
         );
         await save(updatedManifest);
       } catch (err) {
@@ -267,6 +272,38 @@ export async function sync(
   } finally {
     if (authority) await releaseManifestBackupAuthority(authority);
   }
+}
+
+function updateManifestByIdentity(
+  manifest: Manifest,
+  newRecords: ManagedRecord[],
+  removedActions: PlanAction[],
+): Manifest {
+  const withoutRemoved = manifest.records.filter(
+    (record) =>
+      !removedActions.some((action) => recordMatchesAction(record, action)),
+  );
+  const records = [...withoutRemoved];
+  for (const newRecord of newRecords) {
+    const index = records.findIndex((record) =>
+      sameIdentity(record, newRecord),
+    );
+    if (index >= 0) records[index] = newRecord;
+    else records.push(newRecord);
+  }
+  return { ...manifest, lastSync: new Date().toISOString(), records };
+}
+
+function sameIdentity(
+  first: Pick<ManagedRecord, "target" | "type" | "name" | "installedPath">,
+  second: Pick<ManagedRecord, "target" | "type" | "name" | "installedPath">,
+): boolean {
+  return (
+    first.target === second.target &&
+    first.type === second.type &&
+    first.name === second.name &&
+    first.installedPath === second.installedPath
+  );
 }
 
 function reconciliationIdentity(record: ManagedRecord): ReconciliationIdentity {

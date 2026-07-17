@@ -1,17 +1,19 @@
 import { randomUUID } from "node:crypto";
-import type { ResolvedConfig } from "../config/schema.js";
+import type { Manifest, ResolvedConfig } from "../config/schema.js";
 import type { PlanAction, UninstallOptions } from "../models/types.js";
 import { UserError } from "../utils/errors.js";
 import { getLogger } from "../utils/output.js";
 import { verifyManagedOutputIdentity } from "./identity.js";
-import { normalizeManifestIdentity } from "./manifest-identity.js";
+import {
+  ManifestIdentityError,
+  normalizeManifestIdentity,
+} from "./manifest-identity.js";
 import {
   type ManifestBackupAuthority,
   createManifestBackupAuthority,
   loadManifestWithSnapshot,
   releaseManifestBackupAuthority,
   saveManifest,
-  updateManifest,
 } from "./manifest.js";
 import { executeRemove, formatRemoveDryRunLine } from "./remove.js";
 
@@ -32,6 +34,7 @@ export async function uninstall(
   try {
     normalized = normalizeManifestIdentity(loaded.manifest, config);
   } catch (error) {
+    if (!(error instanceof ManifestIdentityError)) throw error;
     throw new UserError(
       `Manifest boundary does not match the configured homes: ${(error as Error).message}`,
       config.manifest.path,
@@ -95,11 +98,11 @@ export async function uninstall(
     );
 
     // Execute: remove each path, accumulate errors, continue on failure
-    const removedPaths: string[] = [];
+    const removedActions: PlanAction[] = [];
     for (const action of plan) {
       try {
-        const record = records.find(
-          (item) => item.installedPath === action.installedPath,
+        const record = records.find((item) =>
+          recordMatchesAction(item, action),
         );
         if (!record) {
           throw new Error("manifest record missing for uninstall action");
@@ -110,7 +113,7 @@ export async function uninstall(
           allowMissing: true,
         });
         await executeRemove(action);
-        removedPaths.push(action.installedPath);
+        removedActions.push(action);
         result.removed += 1;
       } catch (err) {
         result.errors.push(
@@ -120,9 +123,9 @@ export async function uninstall(
     }
 
     // Update manifest with whatever we successfully removed
-    if (removedPaths.length > 0) {
+    if (removedActions.length > 0) {
       try {
-        const updated = updateManifest(manifest, [], removedPaths);
+        const updated = removeManifestRecords(manifest, removedActions);
         await saveManifest(config.manifest.path, updated, {
           authority,
           operationId,
@@ -138,6 +141,32 @@ export async function uninstall(
   } finally {
     if (authority) await releaseManifestBackupAuthority(authority);
   }
+}
+
+function removeManifestRecords(
+  manifest: Manifest,
+  actions: PlanAction[],
+): Manifest {
+  return {
+    ...manifest,
+    lastSync: new Date().toISOString(),
+    records: manifest.records.filter(
+      (record) =>
+        !actions.some((action) => recordMatchesAction(record, action)),
+    ),
+  };
+}
+
+function recordMatchesAction(
+  record: Manifest["records"][number],
+  action: PlanAction,
+): boolean {
+  return (
+    record.target === action.target &&
+    record.type === action.type &&
+    record.name === action.name &&
+    record.installedPath === action.installedPath
+  );
 }
 
 function recordName(record: { name?: string }): string {
