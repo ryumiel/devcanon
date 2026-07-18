@@ -3337,6 +3337,225 @@ describe("sync", () => {
     }
   });
 
+  it.each([
+    ["absent dry-run", false, true, false],
+    ["existing explicit force", true, false, true],
+  ] as const)(
+    "reserves an agent destination that is the exact manifest path: %s",
+    async (_label, existingManifest, dryRun, force) => {
+      const scenarioDir = path.join(tempDir, `manifest-agent-${_label}`);
+      const agentsHome = path.join(scenarioDir, "state");
+      const manifestPath = path.join(agentsHome, "helper.md");
+      const config = makeResolvedConfig(scenarioDir, {
+        claude: { agentsHome },
+        codex: { enabled: false },
+        manifest: { path: manifestPath },
+      });
+      await mkdir(config.library.skillsDir, { recursive: true });
+      await createAgentFixture(
+        config.library.agentsDir,
+        "helper",
+        makeAgentYaml("helper"),
+      );
+      const manifestBytes = makeManifestJson([], { config });
+      if (existingManifest) {
+        await mkdir(path.dirname(manifestPath), { recursive: true });
+        await writeFile(manifestPath, manifestBytes, "utf-8");
+      }
+      const generatedPath = path.join(
+        config.library.generatedDir,
+        "claude",
+        "agents",
+        "helper.md",
+      );
+
+      await expect(
+        sync(config, { dryRun, force, strict: false, target: "claude" }),
+      ).rejects.toThrow("Managed output physical path conflict");
+
+      expect(await pathExists(generatedPath)).toBe(false);
+      expect(await pathExists(`${manifestPath}.bak`)).toBe(false);
+      expect(await pathExists(`${manifestPath}.lock`)).toBe(false);
+      expect(testLogger.infos).toEqual([]);
+      if (existingManifest) {
+        expect(await readTextFile(manifestPath)).toBe(manifestBytes);
+        expect(await readdir(agentsHome)).toEqual(["helper.md"]);
+      } else {
+        expect(await pathExists(manifestPath)).toBe(false);
+        expect(await pathExists(agentsHome)).toBe(false);
+      }
+    },
+  );
+
+  it.each(["copy", "symlink"] as const)(
+    "reserves a manifest nested below a selected skill ancestor in %s mode",
+    async (mode) => {
+      const scenarioDir = path.join(tempDir, `manifest-skill-ancestor-${mode}`);
+      const skillsHome = path.join(scenarioDir, "home", "skills");
+      const name = "control-skill";
+      const installedPath = path.join(skillsHome, name);
+      const manifestPath = path.join(installedPath, "state", "manifest.json");
+      const config = makeResolvedConfig(scenarioDir, {
+        claude: { skillsHome, installMode: mode },
+        codex: { enabled: false },
+        defaults: { overwritePolicy: "overwrite-all" },
+        manifest: { path: manifestPath },
+      });
+      await mkdir(config.library.agentsDir, { recursive: true });
+      await createSkillFixture(config.library.skillsDir, name);
+      await mkdir(path.dirname(manifestPath), { recursive: true });
+      const manifestBytes = makeManifestJson([], { config });
+      await writeFile(manifestPath, manifestBytes, "utf-8");
+      const sentinelPath = path.join(installedPath, "installed-sentinel.txt");
+      await writeFile(sentinelPath, "installed sentinel", "utf-8");
+      const generatedPath = path.join(
+        config.library.generatedDir,
+        "claude",
+        "skills",
+        name,
+      );
+
+      await expect(
+        sync(config, {
+          dryRun: false,
+          force: false,
+          strict: false,
+          target: "claude",
+          mode,
+        }),
+      ).rejects.toThrow("Managed output physical path conflict");
+
+      expect(await readTextFile(manifestPath)).toBe(manifestBytes);
+      expect(await readTextFile(sentinelPath)).toBe("installed sentinel");
+      expect((await lstat(installedPath)).isDirectory()).toBe(true);
+      expect(await pathExists(generatedPath)).toBe(false);
+      expect(await pathExists(`${manifestPath}.bak`)).toBe(false);
+      expect(await pathExists(`${manifestPath}.lock`)).toBe(false);
+    },
+  );
+
+  it("rejects a dry selected skill below the manifest control path before preview", async () => {
+    const scenarioDir = path.join(tempDir, "control-dry-descendant");
+    const manifestPath = path.join(scenarioDir, "state", "manifest.json");
+    const skillName = "nested-skill";
+    const skillsHome = path.join(manifestPath, "managed");
+    const config = makeResolvedConfig(scenarioDir, {
+      claude: { skillsHome },
+      codex: { enabled: false },
+      manifest: { path: manifestPath },
+    });
+    await mkdir(config.library.agentsDir, { recursive: true });
+    await createSkillFixture(config.library.skillsDir, skillName);
+    const installedPath = path.join(skillsHome, skillName);
+    expect(path.relative(manifestPath, installedPath)).toBe(
+      path.join("managed", skillName),
+    );
+
+    await expect(
+      sync(config, {
+        dryRun: true,
+        force: true,
+        strict: false,
+        target: "claude",
+      }),
+    ).rejects.toThrow("Managed output physical path conflict");
+
+    expect(testLogger.infos).toEqual([]);
+    expect(await pathExists(manifestPath)).toBe(false);
+    expect(await pathExists(`${manifestPath}.lock`)).toBe(false);
+    expect(await pathExists(installedPath)).toBe(false);
+    expect(await pathExists(config.library.generatedDir)).toBe(false);
+  });
+
+  it("reserves an active retained control collision but permits the same passive record", async () => {
+    for (const control of ["manifest", "manifest-lock"] as const) {
+      for (const target of ["claude", "codex"] as const) {
+        testLogger.infos.length = 0;
+        testLogger.warnings.length = 0;
+        const scenarioDir = path.join(
+          tempDir,
+          `retained-control-${control}-${target}`,
+        );
+        const controlHome = path.join(scenarioDir, "state");
+        const manifestPath =
+          control === "manifest"
+            ? path.join(controlHome, "helper.md")
+            : path.join(controlHome, "manifest.json");
+        const installedPath =
+          control === "manifest" ? manifestPath : `${manifestPath}.lock`;
+        const type = control === "manifest" ? "agent" : "skill";
+        const name =
+          control === "manifest" ? "helper" : path.basename(installedPath);
+        const config = makeResolvedConfig(scenarioDir, {
+          claude:
+            control === "manifest"
+              ? { agentsHome: controlHome }
+              : { skillsHome: controlHome },
+          manifest: { path: manifestPath },
+        });
+        await mkdir(config.library.skillsDir, { recursive: true });
+        await mkdir(config.library.agentsDir, { recursive: true });
+        await mkdir(path.dirname(manifestPath), { recursive: true });
+        const manifestBytes = makeManifestJson(
+          [
+            {
+              target: "claude",
+              type,
+              name,
+              sourcePath:
+                type === "agent"
+                  ? path.join(config.library.agentsDir, "helper.yaml")
+                  : path.join(config.library.skillsDir, name),
+              generatedPath:
+                type === "agent"
+                  ? path.join(
+                      config.library.generatedDir,
+                      "claude",
+                      "agents",
+                      "helper.md",
+                    )
+                  : null,
+              installedPath,
+              installMode: "copy",
+              contentHash: "retained",
+              timestamp: new Date().toISOString(),
+            },
+          ],
+          { config },
+        );
+        await writeFile(manifestPath, manifestBytes, "utf-8");
+
+        if (target === "claude") {
+          await expect(
+            sync(config, {
+              dryRun: true,
+              force: false,
+              strict: false,
+              target,
+            }),
+          ).rejects.toThrow("Managed output physical path conflict");
+          expect(testLogger.infos).toEqual([]);
+        } else {
+          const result = await sync(config, {
+            dryRun: true,
+            force: false,
+            strict: false,
+            target,
+          });
+          expect(result).toMatchObject({
+            installed: 0,
+            updated: 0,
+            removed: 0,
+            errors: [],
+          });
+        }
+        expect(await readTextFile(manifestPath)).toBe(manifestBytes);
+        expect(await pathExists(`${manifestPath}.bak`)).toBe(false);
+        expect(await pathExists(`${manifestPath}.lock`)).toBe(false);
+      }
+    }
+  });
+
   it("rejects a legacy retained output collision before binding or generated writes", async () => {
     const sharedSkillsHome = path.join(tempDir, "home", "shared-skills");
     const config = makeResolvedConfig(tempDir, {

@@ -501,6 +501,101 @@ describe("managed component collision validation", () => {
     }
   }
 
+  function expectManagedControlConflict(
+    managed: ReturnType<typeof entry>,
+    control: { kind: "manifest" | "manifest-lock"; path: string },
+  ): void {
+    let thrown: unknown;
+    try {
+      assertNoManagedPathConflicts([managed], [control]);
+    } catch (error) {
+      thrown = error;
+    }
+    expect(thrown).toBeInstanceOf(ManifestIdentityError);
+    const message = (thrown as Error).message;
+    expect(message).toContain("Managed output physical path conflict");
+    expect(message).toContain(path.resolve(managed.installedPath));
+    expect(message).toContain(
+      `${managed.target}/${managed.type}/${managed.name}`,
+    );
+    expect(message).toContain(`${control.kind} control path`);
+    expect(message).toContain(path.resolve(control.path));
+  }
+
+  it.each([
+    ["exact manifest", "manifest", ancestorPath, ancestorPath],
+    ["managed ancestor of manifest", "manifest", ancestorPath, descendantPath],
+    [
+      "managed descendant of manifest",
+      "manifest",
+      descendantPath,
+      ancestorPath,
+    ],
+    ["exact lock", "manifest-lock", ancestorPath, ancestorPath],
+    ["managed ancestor of lock", "manifest-lock", ancestorPath, descendantPath],
+    [
+      "managed descendant of lock",
+      "manifest-lock",
+      descendantPath,
+      ancestorPath,
+    ],
+  ] as const)(
+    "rejects an active managed destination against the %s control relation",
+    (_label, kind, managedPath, controlPath) => {
+      expectManagedControlConflict(entry("active", managedPath, "active"), {
+        kind,
+        path: controlPath,
+      });
+    },
+  );
+
+  it("checks every active managed producer against controls regardless of input order", () => {
+    const passive = entry(
+      "passive-retained",
+      path.join(collisionRoot, "passive"),
+      "passive",
+    );
+    const activeRetained = entry("active-retained", descendantPath, "active");
+    const activeSelected = entry("active-selected", ancestorPath, "active");
+    const control = { kind: "manifest" as const, path: descendantPath };
+
+    expectManagedControlConflict(activeRetained, control);
+    expectManagedControlConflict(activeSelected, control);
+    expect(() =>
+      assertNoManagedPathConflicts(
+        [passive, activeRetained],
+        [{ kind: "manifest-lock", path: path.join(collisionRoot, "other") }],
+      ),
+    ).not.toThrow();
+    expect(() =>
+      assertNoManagedPathConflicts(
+        [activeRetained, passive],
+        [{ kind: "manifest-lock", path: path.join(collisionRoot, "other") }],
+      ),
+    ).not.toThrow();
+  });
+
+  it("allows passive-only, disjoint, and component-prefix sibling control relations", () => {
+    expect(() =>
+      assertNoManagedPathConflicts(
+        [entry("passive", ancestorPath, "passive")],
+        [{ kind: "manifest", path: descendantPath }],
+      ),
+    ).not.toThrow();
+    expect(() =>
+      assertNoManagedPathConflicts(
+        [entry("disjoint", path.join(collisionRoot, "left"), "active")],
+        [{ kind: "manifest", path: path.join(collisionRoot, "right") }],
+      ),
+    ).not.toThrow();
+    expect(() =>
+      assertNoManagedPathConflicts(
+        [entry("prefix", path.join(collisionRoot, "foo"), "active")],
+        [{ kind: "manifest-lock", path: path.join(collisionRoot, "foobar") }],
+      ),
+    ).not.toThrow();
+  });
+
   it.each([
     [
       "ancestor first / first active",
@@ -638,6 +733,18 @@ describe("managed component collision validation", () => {
           entry("first", "C:\\managed\\shared", "active"),
           entry("second", "D:\\managed\\shared", "active"),
         ]),
+      ).not.toThrow();
+    },
+  );
+
+  it.skipIf(process.platform !== "win32")(
+    "allows an active managed path and control on native cross roots",
+    () => {
+      expect(() =>
+        assertNoManagedPathConflicts(
+          [entry("active", "C:\\managed\\shared", "active")],
+          [{ kind: "manifest", path: "D:\\managed\\shared" }],
+        ),
       ).not.toThrow();
     },
   );

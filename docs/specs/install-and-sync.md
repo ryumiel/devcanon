@@ -91,6 +91,17 @@ throws. Each protected physical mutation reports a reconciliation-specific
 previews the conflict before any write, and real sync neither changes the
 output nor adds a replacement record.
 
+During sync, the resolved manifest path and its exact resolved sibling lock
+are reserved persistence control paths. After foreign-record disposition and
+record-only reconciliation, every active retained or selected managed
+destination is rejected when it equals, contains, or is contained by either
+control path. Passive records outside a targeted invocation do not reserve
+controls by themselves. Control paths are not managed tuples and receive no
+target, type, name, record, or same-tuple allowance. This component-aware
+lexical gate completes after read-only output projection and before legacy
+binding or save, writable rendering, plan construction or preview, force or
+overwrite execution, result success, or final manifest save.
+
 ### Inspection and invalid-state recovery
 
 Manifest inspection is pure: it classifies the manifest as `valid`, `absent`,
@@ -216,7 +227,7 @@ backups or manifest churn.
 4. normalize and classify accepted state, apply foreign-record policy,
    reconcile authorized foreign records record-only, then partition accepted
    records and selected outputs into active/passive invocation scope and reject
-   component-aware managed collisions
+   component-aware managed and manifest-control collisions
 5. perform any required legacy binding or save
 6. validate source and perform writable render
 7. construct, print, and execute the install plan with reconciliation

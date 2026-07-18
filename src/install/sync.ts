@@ -376,8 +376,12 @@ function assertManagedPathConflicts(
   entries: readonly ManagedPathIdentity[],
   config: ResolvedConfig,
 ): void {
+  const manifestPath = path.resolve(config.manifest.path);
   try {
-    assertNoManagedPathConflicts(entries);
+    assertNoManagedPathConflicts(entries, [
+      { kind: "manifest", path: manifestPath },
+      { kind: "manifest-lock", path: `${manifestPath}.lock` },
+    ]);
   } catch (error) {
     if (!(error instanceof ManifestIdentityError)) throw error;
     throw new UserError(

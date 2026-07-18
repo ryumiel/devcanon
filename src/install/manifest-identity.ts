@@ -38,6 +38,11 @@ export interface ManagedPathIdentity {
   activity: ManagedPathActivity;
 }
 
+export interface ManagedControlPath {
+  kind: "manifest" | "manifest-lock";
+  path: string;
+}
+
 /**
  * Reject component-overlapping managed destinations for distinct canonical
  * tuples when either entry participates in the current invocation. This is a
@@ -46,10 +51,15 @@ export interface ManagedPathIdentity {
  */
 export function assertNoManagedPathConflicts(
   entries: readonly ManagedPathIdentity[],
+  controls: readonly ManagedControlPath[] = [],
 ): void {
   const canonicalEntries = entries.map((entry) => ({
     ...entry,
     installedPath: path.resolve(entry.installedPath),
+  }));
+  const canonicalControls = controls.map((control) => ({
+    ...control,
+    path: path.resolve(control.path),
   }));
 
   for (let firstIndex = 0; firstIndex < canonicalEntries.length; firstIndex++) {
@@ -69,6 +79,16 @@ export function assertNoManagedPathConflicts(
       }
       throw new ManifestIdentityError(
         `Managed output physical path conflict between ${first.installedPath} (${formatManagedPathTuple(first)}) and ${second.installedPath} (${formatManagedPathTuple(second)})`,
+      );
+    }
+  }
+
+  for (const entry of canonicalEntries) {
+    if (entry.activity === "passive") continue;
+    for (const control of canonicalControls) {
+      if (!managedPathsOverlap(entry.installedPath, control.path)) continue;
+      throw new ManifestIdentityError(
+        `Managed output physical path conflict between ${entry.installedPath} (${formatManagedPathTuple(entry)}) and ${control.kind} control path ${control.path}`,
       );
     }
   }
