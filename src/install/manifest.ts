@@ -891,6 +891,26 @@ export type ManifestRecoveryFailureCategory =
   | "backup-create-or-verify-failed"
   | "source-retirement-failed";
 
+export type ManifestRecoveryCandidateDisposition =
+  | { status: "none-created" }
+  | {
+      status:
+        | "owned-removed"
+        | "retained-unverifiable"
+        | "retained-owned"
+        | "retained-replacement";
+      path: string;
+    };
+
+export type ManifestRecoveryLockDisposition = {
+  status:
+    | "not-inspected-or-not-owned"
+    | "pre-existing-blocker"
+    | "owned-removed"
+    | "retained-owned";
+  path: string;
+};
+
 export type ManifestRecoveryResult =
   | {
       completed: true;
@@ -902,7 +922,18 @@ export type ManifestRecoveryResult =
       category: ManifestRecoveryFailureCategory;
       cause: unknown;
       cleanup: ManifestRecoveryCleanup;
+      candidate: ManifestRecoveryCandidateDisposition;
+      lock: ManifestRecoveryLockDisposition;
     };
+
+type UnrecoveredManifestRecoveryResult = Omit<
+  Extract<ManifestRecoveryResult, { completed: false }>,
+  "candidate" | "lock"
+>;
+
+type ManifestRecoveryTransitionResult =
+  | Extract<ManifestRecoveryResult, { completed: true }>
+  | UnrecoveredManifestRecoveryResult;
 
 type InvalidManifestEvidence =
   | {
@@ -1678,43 +1709,75 @@ export async function recoverInvalidManifest(
   invalidManifestEvidence.delete(inspection);
 
   if (evidence.kind === "lock") {
-    return unrecovered("lock-unavailable", evidence.cause, "clean");
+    return withRecoveryDispositions(
+      unrecovered("lock-unavailable", evidence.cause, "clean"),
+      { status: "none-created" },
+      { status: "pre-existing-blocker", path: evidence.lockPath },
+    );
   }
   if (evidence.kind === "source") {
-    return unrecovered("source-unavailable-or-unsafe", evidence.cause, "clean");
+    return withRecoveryDispositions(
+      unrecovered("source-unavailable-or-unsafe", evidence.cause, "clean"),
+      { status: "none-created" },
+      {
+        status: "not-inspected-or-not-owned",
+        path: `${evidence.manifestPath}.lock`,
+      },
+    );
   }
 
   try {
     await assertNormalParent(evidence.manifestPath);
   } catch (error) {
-    return unrecovered("source-unavailable-or-unsafe", error, "clean");
+    return withRecoveryDispositions(
+      unrecovered("source-unavailable-or-unsafe", error, "clean"),
+      { status: "none-created" },
+      {
+        status: "not-inspected-or-not-owned",
+        path: `${evidence.manifestPath}.lock`,
+      },
+    );
   }
 
   let lock: ManifestLock;
   try {
     lock = await acquireManifestLock(evidence.manifestPath);
   } catch (error) {
-    return unrecovered("lock-unavailable", error, "clean");
+    return withRecoveryDispositions(
+      unrecovered("lock-unavailable", error, "clean"),
+      { status: "none-created" },
+      {
+        status: "pre-existing-blocker",
+        path: `${evidence.manifestPath}.lock`,
+      },
+    );
   }
 
   const transition = await performInvalidRecovery(evidence);
-  if (!transition.committed && transition.candidate) {
-    await removeOwnedRecoveryCandidate(transition.candidate);
+  const candidate = transition.committed
+    ? undefined
+    : await disposeRecoveryCandidate(transition.candidate);
+  const released = await releaseRecoveryLock(lock);
+  if (transition.result.completed) {
+    return { ...transition.result, cleanup: released.cleanup };
   }
-  const cleanup = await releaseRecoveryLock(lock);
-  return { ...transition.result, cleanup };
+  return withRecoveryDispositions(
+    { ...transition.result, cleanup: released.cleanup },
+    candidate ?? { status: "none-created" },
+    released.lock,
+  );
 }
 
 interface RecoveryTransition {
-  result: ManifestRecoveryResult;
-  candidate?: RecoveryCandidate;
+  result: ManifestRecoveryTransitionResult;
+  candidate?: RecoveryCandidateCustody;
   committed: boolean;
 }
 
 async function performInvalidRecovery(
   evidence: ByteInvalidManifestEvidence,
 ): Promise<RecoveryTransition> {
-  let candidate: RecoveryCandidate | undefined;
+  let candidate: RecoveryCandidateCustody | undefined;
   try {
     const initial = await readRecoverySource(evidence);
     if (!initial.ok) return { result: initial.result, committed: false };
@@ -1809,13 +1872,23 @@ function unrecovered(
   category: ManifestRecoveryFailureCategory,
   cause: unknown,
   cleanup: ManifestRecoveryCleanup,
-): ManifestRecoveryResult {
+): UnrecoveredManifestRecoveryResult {
   return { completed: false, category, cause, cleanup };
+}
+
+function withRecoveryDispositions(
+  result: UnrecoveredManifestRecoveryResult,
+  candidate: ManifestRecoveryCandidateDisposition,
+  lock: ManifestRecoveryLockDisposition,
+): ManifestRecoveryResult {
+  return { ...result, candidate, lock };
 }
 
 async function readRecoverySource(
   evidence: ByteInvalidManifestEvidence,
-): Promise<{ ok: true } | { ok: false; result: ManifestRecoveryResult }> {
+): Promise<
+  { ok: true } | { ok: false; result: UnrecoveredManifestRecoveryResult }
+> {
   try {
     const currentBytes = await readRegularManifestBytes(evidence.manifestPath);
     if (
@@ -1841,10 +1914,20 @@ async function readRecoverySource(
 }
 
 interface RecoveryCandidate {
+  kind: "owned";
   path: string;
   dev: number;
   ino: number;
 }
+
+interface ProvisionalRecoveryCandidateCustody {
+  kind: "provisional";
+  path: string;
+}
+
+type RecoveryCandidateCustody =
+  | RecoveryCandidate
+  | ProvisionalRecoveryCandidateCustody;
 
 interface ProvisionalRecoveryCandidate {
   path: string;
@@ -1855,7 +1938,7 @@ interface ProvisionalRecoveryCandidate {
 async function writeRecoveryCandidate(
   filePath: string,
   bytes: Buffer,
-  onCreated: (candidate: RecoveryCandidate) => void,
+  onCreated: (candidate: RecoveryCandidateCustody) => void,
 ): Promise<RecoveryCandidate> {
   await injectManifestFault("recovery-candidate-open");
   const handle = await open(filePath, "wx", 0o600);
@@ -1864,12 +1947,13 @@ async function writeRecoveryCandidate(
     handle,
     closed: false,
   };
+  onCreated({ kind: "provisional", path: filePath });
   let primaryError: unknown;
   let candidate: RecoveryCandidate | undefined;
   try {
     await injectManifestFault("recovery-candidate-stat");
     const stat = await handle.stat();
-    candidate = { path: filePath, dev: stat.dev, ino: stat.ino };
+    candidate = { kind: "owned", path: filePath, dev: stat.dev, ino: stat.ino };
     onCreated(candidate);
     await injectManifestFault("recovery-candidate-write");
     await handle.writeFile(bytes);
@@ -1911,9 +1995,13 @@ async function closeCandidateHandle(
   if (failure) throw materializeAttemptFailure(failure);
 }
 
-async function removeOwnedRecoveryCandidate(
-  candidate: RecoveryCandidate,
-): Promise<void> {
+async function disposeRecoveryCandidate(
+  candidate: RecoveryCandidateCustody | undefined,
+): Promise<ManifestRecoveryCandidateDisposition> {
+  if (!candidate) return { status: "none-created" };
+  if (candidate.kind === "provisional") {
+    return { status: "retained-unverifiable", path: candidate.path };
+  }
   try {
     const stat = await lstat(candidate.path);
     if (
@@ -1922,16 +2010,25 @@ async function removeOwnedRecoveryCandidate(
       stat.dev === candidate.dev &&
       stat.ino === candidate.ino
     ) {
-      await unlink(candidate.path);
+      try {
+        await unlink(candidate.path);
+        return { status: "owned-removed", path: candidate.path };
+      } catch {
+        return { status: "retained-owned", path: candidate.path };
+      }
     }
-  } catch {
-    // Cleanup must not mask the primary pre-commit outcome.
+    return { status: "retained-replacement", path: candidate.path };
+  } catch (error) {
+    return isNoEntryError(error)
+      ? { status: "owned-removed", path: candidate.path }
+      : { status: "retained-owned", path: candidate.path };
   }
 }
 
-async function releaseRecoveryLock(
-  lock: ManifestLock,
-): Promise<ManifestRecoveryCleanup> {
+async function releaseRecoveryLock(lock: ManifestLock): Promise<{
+  cleanup: ManifestRecoveryCleanup;
+  lock: ManifestRecoveryLockDisposition;
+}> {
   let closeDegraded = false;
   try {
     await closeRecoveryHandle(lock.path, lock.handle);
@@ -1945,10 +2042,31 @@ async function releaseRecoveryLock(
   } catch {
     unlinkDegraded = true;
   }
-  if (closeDegraded && unlinkDegraded) return "both-degraded";
-  if (closeDegraded) return "close-degraded";
-  if (unlinkDegraded) return "unlink-degraded";
-  return "clean";
+  const cleanup = closeDegraded
+    ? unlinkDegraded
+      ? "both-degraded"
+      : "close-degraded"
+    : unlinkDegraded
+      ? "unlink-degraded"
+      : "clean";
+  return {
+    cleanup,
+    lock: {
+      status: (await recoveryLockPathIsAbsent(lock.path))
+        ? "owned-removed"
+        : "retained-owned",
+      path: lock.path,
+    },
+  };
+}
+
+async function recoveryLockPathIsAbsent(lockPath: string): Promise<boolean> {
+  try {
+    await lstat(lockPath);
+    return false;
+  } catch (error) {
+    return isNoEntryError(error);
+  }
 }
 
 /** Always attempt the real close once even when the test seam faults. */

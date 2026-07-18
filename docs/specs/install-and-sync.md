@@ -113,6 +113,20 @@ and source-retirement failure are unrecovered. They fail actionably and never
 authorize successful-backup wording, empty authority, rendering, installation,
 removal, no-op success, or a manifest save.
 
+Every unrecovered result preserves that primary category and cause alongside
+closed, structured artifact custody. Candidate custody is `none-created`,
+`owned-removed`, `retained-unverifiable`, `retained-owned`, or
+`retained-replacement`; every state other than `none-created` includes the
+exact candidate path. Sibling-lock custody is
+`not-inspected-or-not-owned`, `pre-existing-blocker`, `owned-removed`, or
+`retained-owned`, with the exact sibling-lock path. A pre-stat candidate is
+retained as unverifiable and is never unlinked by pathname alone. An
+identity-bound candidate may be reported removed only after exact owned
+cleanup; cleanup failure retains it as owned, while a changed pathname
+identity is retained as an unmanaged replacement. A pre-existing lock is
+never reported as owned, and an acquired lock is reported removed only when
+its exact path is absent after the unlink attempt.
+
 On each post-I1, pre-I5 exit, recovery attempts real owned lock-handle close
 and exact owned lock-path unlink as the reached phase permits. The attempts are
 independent, including unlink after close failure. Any secondary cleanup

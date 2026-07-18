@@ -159,6 +159,11 @@ describe("manifest integration", () => {
       expect(recovery).toMatchObject({
         completed: false,
         category: "lock-unavailable",
+        candidate: { status: "none-created" },
+        lock: {
+          status: "pre-existing-blocker",
+          path: `${manifestPath}.lock`,
+        },
       });
       await expect(recoverInvalidManifest(inspection)).rejects.toThrow(
         "requires an invalid inspection",
@@ -174,6 +179,11 @@ describe("manifest integration", () => {
       await expect(recoverInvalidManifest(inspection)).resolves.toMatchObject({
         completed: false,
         category: "lock-unavailable",
+        candidate: { status: "none-created" },
+        lock: {
+          status: "pre-existing-blocker",
+          path: `${manifestPath}.lock`,
+        },
       });
       await expect(recoverInvalidManifest(inspection)).rejects.toThrow(
         "requires an invalid inspection",
@@ -231,6 +241,11 @@ describe("manifest integration", () => {
       expect(recovery).toMatchObject({
         completed: false,
         category: "source-unavailable-or-unsafe",
+        candidate: { status: "none-created" },
+        lock: {
+          status: "not-inspected-or-not-owned",
+          path: `${manifestPath}.lock`,
+        },
       });
       await expect(recoverInvalidManifest(inspection)).rejects.toThrow(
         "requires an invalid inspection",
@@ -247,6 +262,11 @@ describe("manifest integration", () => {
       await expect(recoverInvalidManifest(inspection)).resolves.toMatchObject({
         completed: false,
         category: "source-unavailable-or-unsafe",
+        candidate: { status: "none-created" },
+        lock: {
+          status: "not-inspected-or-not-owned",
+          path: `${manifestPath}.lock`,
+        },
       });
       await expect(recoverInvalidManifest(inspection)).rejects.toThrow(
         "requires an invalid inspection",
@@ -450,6 +470,8 @@ describe("manifest integration", () => {
       await expect(recoverInvalidManifest(inspection)).resolves.toMatchObject({
         completed: false,
         category: "lock-unavailable",
+        candidate: { status: "none-created" },
+        lock: { status: "pre-existing-blocker", path: lockPath },
       });
 
       expect((await lstat(lockPath)).isSymbolicLink()).toBe(true);
@@ -557,6 +579,50 @@ describe("manifest integration", () => {
       expect(await pathExists(manifestPath)).toBe(false);
     });
 
+    it("preserves schema-invalid bytes and exact dispositions on pre-I5 retirement failure", async () => {
+      const manifestPath = path.join(tempDir, "schema-retirement-failure.json");
+      const invalidBytes = Buffer.from(
+        JSON.stringify({
+          version: 2,
+          managedBy: "devcanon",
+          lastSync: "2026-07-17T00:00:00.000Z",
+          records: [],
+        }),
+        "utf-8",
+      );
+      await writeFile(manifestPath, invalidBytes);
+      const inspection = await inspectManifest(manifestPath);
+      const primary = new Error("schema retirement fault");
+
+      const recovery = await withManifestPersistenceFaultsForTesting(
+        (stage) => {
+          if (stage === "recovery-retirement") throw primary;
+        },
+        () => recoverInvalidManifest(inspection),
+      );
+
+      expect(recovery).toEqual({
+        completed: false,
+        category: "source-retirement-failed",
+        cause: primary,
+        cleanup: "clean",
+        candidate: {
+          status: "owned-removed",
+          path: `${manifestPath}.bak`,
+        },
+        lock: {
+          status: "owned-removed",
+          path: `${manifestPath}.lock`,
+        },
+      });
+      expect(await readFile(manifestPath)).toEqual(invalidBytes);
+      expect(await pathExists(`${manifestPath}.bak`)).toBe(false);
+      expect(await pathExists(`${manifestPath}.lock`)).toBe(false);
+      expect(await readdir(tempDir)).toEqual([
+        "schema-retirement-failure.json",
+      ]);
+    });
+
     it("rejects forged and copied invalid inspection objects without authority", async () => {
       const manifestPath = path.join(tempDir, "forged-invalid.json");
       await writeFile(manifestPath, "{corrupt", "utf-8");
@@ -584,7 +650,14 @@ describe("manifest integration", () => {
       const recovery = await recoverInvalidManifest(inspection);
 
       expect(recovery.completed).toBe(false);
-      if (!recovery.completed) expect(recovery.category).toBe("source-changed");
+      if (!recovery.completed) {
+        expect(recovery.category).toBe("source-changed");
+        expect(recovery.candidate).toEqual({ status: "none-created" });
+        expect(recovery.lock).toEqual({
+          status: "owned-removed",
+          path: `${manifestPath}.lock`,
+        });
+      }
       expect(await readFile(manifestPath, "utf-8")).toBe("{replacement");
       expect(await pathExists(`${manifestPath}.bak`)).toBe(false);
       expect(await pathExists(`${manifestPath}.lock`)).toBe(false);
@@ -605,7 +678,18 @@ describe("manifest integration", () => {
       );
 
       expect(recovery.completed).toBe(false);
-      if (!recovery.completed) expect(recovery.category).toBe("source-changed");
+      if (!recovery.completed) {
+        expect(recovery.category).toBe("source-changed");
+        expect(recovery.candidate).toEqual({
+          status: "owned-removed",
+          path: `${manifestPath}.bak`,
+        });
+        expect(recovery.lock).toEqual({
+          status: "owned-removed",
+          path: `${manifestPath}.lock`,
+        });
+        expect("backupPath" in recovery).toBe(false);
+      }
       expect(await readFile(manifestPath, "utf-8")).toBe("{replacement");
       expect(await pathExists(`${manifestPath}.bak`)).toBe(false);
       expect(await pathExists(`${manifestPath}.lock`)).toBe(false);
@@ -638,6 +722,14 @@ describe("manifest integration", () => {
       expect(recovery.completed).toBe(false);
       if (!recovery.completed) {
         expect(recovery.category).toBe("source-unavailable-or-unsafe");
+        expect(recovery.candidate).toEqual({
+          status: "owned-removed",
+          path: `${manifestPath}.bak`,
+        });
+        expect(recovery.lock).toEqual({
+          status: "owned-removed",
+          path: `${manifestPath}.lock`,
+        });
       }
       expect((await lstat(manifestPath)).isSymbolicLink()).toBe(true);
       expect(observations.map(({ operation }) => operation)).toEqual([
@@ -680,6 +772,19 @@ describe("manifest integration", () => {
         if (!recovery.completed) {
           expect(recovery.category).toBe("backup-create-or-verify-failed");
           expect(recovery.cause).toEqual(new Error(`fault ${faultStage}`));
+          expect(recovery.candidate).toEqual(
+            faultStage === "recovery-candidate-open"
+              ? { status: "none-created" }
+              : {
+                  status: "owned-removed",
+                  path: `${manifestPath}.bak`,
+                },
+          );
+          expect(recovery.lock).toEqual({
+            status: "owned-removed",
+            path: `${manifestPath}.lock`,
+          });
+          expect("backupPath" in recovery).toBe(false);
         }
         expect(await readFile(manifestPath, "utf-8")).toBe("{corrupt");
         expect(await pathExists(`${manifestPath}.bak`)).toBe(false);
@@ -711,6 +816,14 @@ describe("manifest integration", () => {
         completed: false,
         category: "backup-create-or-verify-failed",
         cause: new Error("candidate stat fault"),
+        candidate: {
+          status: "retained-unverifiable",
+          path: `${manifestPath}.bak`,
+        },
+        lock: {
+          status: "owned-removed",
+          path: `${manifestPath}.lock`,
+        },
       });
       expect(observations).toMatchObject([
         {
@@ -768,6 +881,14 @@ describe("manifest integration", () => {
       if (!recovery.completed) {
         expect(recovery.category).toBe("source-retirement-failed");
         expect(recovery.cause).toEqual(new Error("retirement fault"));
+        expect(recovery.candidate).toEqual({
+          status: "owned-removed",
+          path: `${manifestPath}.bak`,
+        });
+        expect(recovery.lock).toEqual({
+          status: "owned-removed",
+          path: `${manifestPath}.lock`,
+        });
       }
       expect(await readFile(manifestPath, "utf-8")).toBe("{corrupt");
       expect(await pathExists(`${manifestPath}.bak`)).toBe(false);
@@ -800,6 +921,14 @@ describe("manifest integration", () => {
         completed: false,
         category: "source-retirement-failed",
         cleanup: "close-degraded",
+        candidate: {
+          status: "owned-removed",
+          path: `${manifestPath}.bak`,
+        },
+        lock: {
+          status: "owned-removed",
+          path: `${manifestPath}.lock`,
+        },
       });
       if (!recovery.completed) expect(recovery.cause).toBe(primary);
       expect(
@@ -841,12 +970,88 @@ describe("manifest integration", () => {
       expect(recovery).toMatchObject({
         completed: false,
         category: "backup-create-or-verify-failed",
+        candidate: {
+          status: "retained-replacement",
+          path: `${manifestPath}.bak`,
+        },
+        lock: {
+          status: "owned-removed",
+          path: `${manifestPath}.lock`,
+        },
       });
       expect(await readFile(manifestPath, "utf-8")).toBe("{corrupt");
       expect(await readFile(`${manifestPath}.bak`, "utf-8")).toBe(
         "unmanaged replacement",
       );
       expect(await pathExists(`${manifestPath}.lock`)).toBe(false);
+    });
+
+    it("reports identity-bound candidate and owned lock retention when exact cleanup is denied", async ({
+      skip,
+    }) => {
+      const probePath = path.join(tempDir, "permission-probe");
+      await writeFile(probePath, "probe", "utf-8");
+      await chmod(tempDir, 0o500);
+      let permissionsEnforced = false;
+      try {
+        try {
+          await unlink(probePath);
+        } catch {
+          permissionsEnforced = true;
+        }
+      } finally {
+        await chmod(tempDir, 0o700);
+      }
+      if (!permissionsEnforced) {
+        skip();
+        return;
+      }
+      await unlink(probePath);
+
+      const manifestPath = path.join(tempDir, "retained-owned.json");
+      await writeFile(manifestPath, "{corrupt", "utf-8");
+      const inspection = await inspectManifest(manifestPath);
+      const primary = new Error("candidate verification fault");
+
+      let recovery: Awaited<ReturnType<typeof recoverInvalidManifest>>;
+      try {
+        recovery = await withManifestPersistenceFaultsForTesting(
+          async (stage) => {
+            if (stage === "recovery-after-candidate") {
+              await chmod(tempDir, 0o500);
+              throw primary;
+            }
+          },
+          () => recoverInvalidManifest(inspection),
+        );
+      } finally {
+        await chmod(tempDir, 0o700);
+      }
+
+      expect(recovery).toMatchObject({
+        completed: false,
+        category: "backup-create-or-verify-failed",
+        cause: primary,
+        cleanup: "unlink-degraded",
+        candidate: {
+          status: "retained-owned",
+          path: `${manifestPath}.bak`,
+        },
+        lock: {
+          status: "retained-owned",
+          path: `${manifestPath}.lock`,
+        },
+      });
+      expect(await readFile(manifestPath, "utf-8")).toBe("{corrupt");
+      expect(await readFile(`${manifestPath}.bak`, "utf-8")).toBe("{corrupt");
+      expect(await readFile(`${manifestPath}.lock`, "utf-8")).toBe("");
+      expect((await readdir(tempDir)).sort()).toEqual(
+        [
+          "retained-owned.json",
+          "retained-owned.json.bak",
+          "retained-owned.json.lock",
+        ].sort(),
+      );
     });
 
     it("reports lock contention without treating invalid input as absent", async () => {
@@ -858,8 +1063,14 @@ describe("manifest integration", () => {
       const recovery = await recoverInvalidManifest(inspection);
 
       expect(recovery.completed).toBe(false);
-      if (!recovery.completed)
+      if (!recovery.completed) {
         expect(recovery.category).toBe("lock-unavailable");
+        expect(recovery.candidate).toEqual({ status: "none-created" });
+        expect(recovery.lock).toEqual({
+          status: "pre-existing-blocker",
+          path: `${manifestPath}.lock`,
+        });
+      }
       expect(await readFile(manifestPath, "utf-8")).toBe("{corrupt");
       expect(await pathExists(`${manifestPath}.bak`)).toBe(false);
       expect(await pathExists(`${manifestPath}.lock`)).toBe(true);
@@ -884,6 +1095,12 @@ describe("manifest integration", () => {
       expect(recovery.completed).toBe(false);
       if (!recovery.completed) {
         expect(recovery.category).toBe("backup-create-or-verify-failed");
+        expect(recovery.candidate).toEqual({ status: "none-created" });
+        expect(recovery.lock).toEqual({
+          status: "owned-removed",
+          path: `${manifestPath}.lock`,
+        });
+        expect("backupPath" in recovery).toBe(false);
       }
       expect(await readFile(manifestPath, "utf-8")).toBe("{corrupt");
       expect(await pathExists(`${manifestPath}.bak`)).toBe(false);
