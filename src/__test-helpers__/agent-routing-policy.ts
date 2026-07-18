@@ -177,6 +177,10 @@ export interface AgentRoutingRouteClause {
   readonly effort: (typeof ROUTE_EFFORTS)[number];
   readonly sourceAuthority: SourceAuthority;
   readonly qualifier?: string;
+  readonly branchId?: string;
+  readonly selectionMode?: string;
+  readonly networkBinding?: string;
+  readonly evidenceQualifier?: string;
 }
 
 export interface AgentRoutingPolicyOwner {
@@ -213,6 +217,7 @@ export interface CapabilityEscalationAdoptionRecord {
   readonly targetIds: readonly ("claude" | "codex")[];
   readonly targetPermission: "exact-only";
   readonly rolePermission: "same-role-must-match" | "selected-role-must-match";
+  readonly directRouteClauses?: readonly CapabilityEscalationDirectRouteClause[];
   readonly directRouteRoleIds?: readonly string[];
   readonly currentState: "opt-out";
   readonly transition: "none";
@@ -222,6 +227,14 @@ export interface CapabilityEscalationAdoptionRecord {
   readonly relation: "none" | "D13-to-D12-reclassification";
   readonly counter: "none" | "independent-from-escalation";
   readonly producerSourcePath: string;
+}
+
+export interface CapabilityEscalationDirectRouteClause {
+  readonly roleId: string;
+  readonly branchId?: string;
+  readonly selectionMode?: string;
+  readonly networkBinding?: string;
+  readonly evidenceQualifier?: string;
 }
 
 export interface CapabilityEscalationD4RouteSet {
@@ -977,9 +990,9 @@ function parseEscalationAdoptionRow(
 const ROUTE_CAPABILITIES = ["efficient", "balanced", "frontier"] as const;
 const ROUTE_EFFORTS = ["medium", "high", "xhigh"] as const;
 const ROUTE_CLAUSE_PATTERN =
-  /^(?:(?:[A-Za-z][A-Za-z -]{0,38}:|Inline or)\s+)?`([a-z][a-z0-9-]*)`,\s*([a-z][a-z-]*)\/([a-z][a-z0-9-]*),\s*(source-[^,;\s]+)(?:,\s*([A-Za-z][A-Za-z -]{0,38}))?$/;
+  /^(?:branch `([a-z][a-z0-9-]*)`:\s+)?`([a-z][a-z0-9-]*)`,\s*([a-z][a-z-]*)\/([a-z][a-z0-9-]*),\s*(source-[^,;\s]+)(.*)$/;
 const ROUTE_CLAUSE_WITHOUT_SOURCE_PATTERN =
-  /^(?:(?:[A-Za-z][A-Za-z -]{0,38}:|Inline or)\s+)?`[a-z][a-z0-9-]*`,\s*[a-z][a-z-]*\/[a-z][a-z0-9-]*\s*,?$/;
+  /^(?:branch `[a-z][a-z0-9-]*`:\s+)?`[a-z][a-z0-9-]*`,\s*[a-z][a-z-]*\/[a-z][a-z0-9-]*(?:,\s*[a-z][a-z-]* `[a-z][a-z0-9-]*`)*\s*,?$/;
 
 function parseRouteRow(
   cells: readonly string[],
@@ -1094,13 +1107,6 @@ function parseRouteClauses(
 ): readonly AgentRoutingRouteClause[] {
   const clauses = route.split(";").map((clause) => clause.trim());
 
-  const requiredMultiplicity = id === "D17" ? 3 : 1;
-  if (clauses.length !== requiredMultiplicity) {
-    throw new Error(
-      `Agent routing policy owner direct-route ${id} must contain exactly ${requiredMultiplicity} route clause${requiredMultiplicity === 1 ? "" : "s"}`,
-    );
-  }
-
   return clauses.map((clause, index) => {
     const tuple = ROUTE_CLAUSE_PATTERN.exec(clause);
     if (!tuple && ROUTE_CLAUSE_WITHOUT_SOURCE_PATTERN.test(clause)) {
@@ -1114,22 +1120,71 @@ function parseRouteClauses(
       );
     }
 
+    const operands = parseRouteClauseOperands(id, index, tuple[6]);
+
     return {
-      role: tuple[1],
+      role: tuple[2],
       capability: closedValue(
-        tuple[2],
+        tuple[3],
         ROUTE_CAPABILITIES,
         `direct-route ${id} capability`,
       ),
-      effort: closedValue(tuple[3], ROUTE_EFFORTS, `direct-route ${id} effort`),
+      effort: closedValue(tuple[4], ROUTE_EFFORTS, `direct-route ${id} effort`),
       sourceAuthority: closedValue(
-        tuple[4],
+        tuple[5],
         SOURCE_AUTHORITIES,
         `direct-route ${id} source authority`,
       ),
-      qualifier: tuple[5],
+      branchId: tuple[1],
+      ...operands,
+      qualifier: operands.evidenceQualifier,
     };
   });
+}
+
+function parseRouteClauseOperands(
+  routeId: string,
+  index: number,
+  suffix: string,
+): Pick<
+  AgentRoutingRouteClause,
+  "selectionMode" | "networkBinding" | "evidenceQualifier"
+> {
+  let rest = suffix;
+  const operands: Record<string, string> = {};
+  while (rest !== "") {
+    const match = /^,\s*([a-z][a-z-]*) `([^`]*)`([\s\S]*)$/u.exec(rest);
+    if (!match) {
+      throw new Error(
+        `Agent routing policy owner direct-route ${routeId} clause ${index + 1} has malformed clause structure`,
+      );
+    }
+    const key = match[1].replaceAll("-", "_");
+    if (
+      key !== "selection_mode" &&
+      key !== "network_binding" &&
+      key !== "evidence_qualifier"
+    ) {
+      throw new Error(
+        `Agent routing policy owner direct-route ${routeId} operand key is unknown: ${match[1]}`,
+      );
+    }
+    if (operands[key] !== undefined) {
+      throw new Error(
+        `Agent routing policy owner direct-route ${routeId} operand is duplicated: ${key}`,
+      );
+    }
+    operands[key] = exactSlug(
+      match[2],
+      `Agent routing policy owner direct-route ${routeId} ${key}`,
+    );
+    rest = match[3];
+  }
+  return {
+    selectionMode: operands.selection_mode,
+    networkBinding: operands.network_binding,
+    evidenceQualifier: operands.evidence_qualifier,
+  };
 }
 
 function assertInventoryCoverage(
@@ -1394,7 +1449,7 @@ function parseEscalationAdoptionRecords(
             "target_ids",
             "target_permission",
             "role_permission",
-            "direct_route_role_ids",
+            "direct_route_clauses",
             "current_state",
             "transition",
             "next_tuple",
@@ -1417,6 +1472,10 @@ function parseEscalationAdoptionRecords(
       ["claude", "codex"],
       "escalation adoption target_ids",
     );
+    const directRouteClauses =
+      routeId === "D4"
+        ? undefined
+        : parseDirectRouteClauses(routeId, raw.direct_route_clauses);
     const record: CapabilityEscalationAdoptionRecord = {
       routeId,
       adoptionRef: exactAdoptionRef(raw.adoption_ref, routeId),
@@ -1431,13 +1490,11 @@ function parseEscalationAdoptionRecords(
         ["same-role-must-match", "selected-role-must-match"] as const,
         "escalation adoption role_permission",
       ),
+      directRouteClauses,
       directRouteRoleIds:
         routeId === "D4"
           ? undefined
-          : exactStringArray(
-              raw.direct_route_role_ids,
-              `Escalation adoption ${routeId} direct_route_role_ids`,
-            ),
+          : directRouteClauses?.map((clause) => clause.roleId),
       currentState: exactLiteral(
         raw.current_state,
         "opt-out",
@@ -1525,6 +1582,88 @@ function parseEscalationAdoptionRecords(
   return records;
 }
 
+function parseDirectRouteClauses(
+  routeId: `D${number}`,
+  value: unknown,
+): readonly CapabilityEscalationDirectRouteClause[] {
+  if (!Array.isArray(value)) {
+    throw new Error(
+      `Escalation adoption ${routeId} direct_route_clauses must be an array`,
+    );
+  }
+  return value.map((raw, index) => {
+    if (!isRecord(raw)) {
+      throw new Error(
+        `Escalation adoption ${routeId} direct_route_clauses ${index + 1} must be an object`,
+      );
+    }
+    const dimension = `Escalation adoption ${routeId} direct_route_clause`;
+    assertDescriptorKeys(raw, dimension);
+    const clause: CapabilityEscalationDirectRouteClause = {
+      roleId: exactSlug(raw.role_id, `${dimension} role_id`),
+    };
+    return {
+      ...clause,
+      ...(raw.branch_id === undefined
+        ? {}
+        : { branchId: exactSlug(raw.branch_id, `${dimension} branch_id`) }),
+      ...(raw.selection_mode === undefined
+        ? {}
+        : {
+            selectionMode: exactSlug(
+              raw.selection_mode,
+              `${dimension} selection_mode`,
+            ),
+          }),
+      ...(raw.network_binding === undefined
+        ? {}
+        : {
+            networkBinding: exactSlug(
+              raw.network_binding,
+              `${dimension} network_binding`,
+            ),
+          }),
+      ...(raw.evidence_qualifier === undefined
+        ? {}
+        : {
+            evidenceQualifier: exactSlug(
+              raw.evidence_qualifier,
+              `${dimension} evidence_qualifier`,
+            ),
+          }),
+    };
+  });
+}
+
+function assertDescriptorKeys(
+  value: Record<string, unknown>,
+  dimension: string,
+): void {
+  const keys = Object.keys(value);
+  const allowed = new Set([
+    "role_id",
+    "branch_id",
+    "selection_mode",
+    "network_binding",
+    "evidence_qualifier",
+  ]);
+  const missing = keys.includes("role_id") ? [] : ["role_id"];
+  const unexpected = keys.filter((key) => !allowed.has(key));
+  if (missing.length > 0 || unexpected.length > 0) {
+    throw new Error(
+      `${dimension} fields identities must match exactly; missing: ${missing.join(", ") || "none"}; unexpected: ${unexpected.join(", ") || "none"}`,
+    );
+  }
+}
+
+function exactSlug(value: unknown, dimension: string): string {
+  const slug = exactString(value, dimension);
+  if (!/^[a-z][a-z0-9-]*$/u.test(slug)) {
+    throw new Error(`${dimension} must be one non-empty slug: ${slug}`);
+  }
+  return slug;
+}
+
 function validateAdoptionDirectRouteBindings(
   adoptions: readonly CapabilityEscalationAdoptionRecord[],
   directRoutes: readonly AgentRoutingDirectChildRouteRow[],
@@ -1534,6 +1673,8 @@ function validateAdoptionDirectRouteBindings(
     directRoutes.map((route) => [route.id, route]),
   );
   const rolesById = new Map(roles.map((role) => [role.name, role]));
+
+  validateAdoptionClauseSemantics(adoptions, directRoutesById);
 
   for (const route of directRoutes) {
     for (const [index, clause] of route.clauses.entries()) {
@@ -1563,7 +1704,12 @@ function validateAdoptionDirectRouteBindings(
       }
     }
   }
+}
 
+function validateAdoptionClauseSemantics(
+  adoptions: readonly CapabilityEscalationAdoptionRecord[],
+  directRoutesById: ReadonlyMap<`D${number}`, AgentRoutingDirectChildRouteRow>,
+): void {
   for (const adoption of adoptions) {
     if (adoption.routeId === "D4") continue;
     const route = directRoutesById.get(adoption.routeId);
@@ -1572,26 +1718,47 @@ function validateAdoptionDirectRouteBindings(
         `Escalation adoption ${adoption.routeId} has no exact direct-route owner`,
       );
     }
+    const descriptors = adoption.directRouteClauses;
     const actualRoleIds = adoption.directRouteRoleIds;
-    if (!actualRoleIds) {
+    if (!descriptors || !actualRoleIds) {
       throw new Error(
-        `Escalation adoption ${adoption.routeId} direct_route_role_ids is required`,
+        `Escalation adoption ${adoption.routeId} direct_route_clauses is required`,
       );
     }
-    assertUnique(
-      actualRoleIds,
-      `escalation adoption ${adoption.routeId} direct_route_role_id`,
-    );
+    if (descriptors.length !== route.clauses.length) {
+      throw new Error(
+        `Escalation adoption ${adoption.routeId} direct_route_clauses cardinality must match direct-route clauses: expected ${route.clauses.length}; received ${descriptors.length}`,
+      );
+    }
     const expectedRoleIds = route.clauses.map((clause) => clause.role);
-    if (actualRoleIds.length !== expectedRoleIds.length) {
-      throw new Error(
-        `Escalation adoption ${adoption.routeId} direct_route_role_ids cardinality must match direct-route clauses: expected ${expectedRoleIds.length}; received ${actualRoleIds.length}`,
-      );
-    }
     if (!sameValues(actualRoleIds, expectedRoleIds)) {
       throw new Error(
-        `Escalation adoption ${adoption.routeId} direct_route_role_ids must match direct-route roles in order; expected: ${expectedRoleIds.join(", ")}; actual: ${actualRoleIds.join(", ")}`,
+        `Escalation adoption ${adoption.routeId} direct_route_clauses must match direct-route roles in order; expected: ${expectedRoleIds.join(", ")}; actual: ${actualRoleIds.join(", ")}`,
       );
+    }
+
+    for (const [index, descriptor] of descriptors.entries()) {
+      const tableClause = route.clauses[index];
+      if (descriptor.branchId !== tableClause.branchId) {
+        throw new Error(
+          `Escalation adoption ${adoption.routeId} branch_id must match direct-route clause ${index + 1}`,
+        );
+      }
+      if (descriptor.selectionMode !== tableClause.selectionMode) {
+        throw new Error(
+          `Escalation adoption ${adoption.routeId} selection_mode must match direct-route clause ${index + 1}`,
+        );
+      }
+      if (descriptor.networkBinding !== tableClause.networkBinding) {
+        throw new Error(
+          `Escalation adoption ${adoption.routeId} network_binding must match direct-route clause ${index + 1}`,
+        );
+      }
+      if (descriptor.evidenceQualifier !== tableClause.evidenceQualifier) {
+        throw new Error(
+          `Escalation adoption ${adoption.routeId} evidence_qualifier must match direct-route clause ${index + 1}`,
+        );
+      }
     }
   }
 }

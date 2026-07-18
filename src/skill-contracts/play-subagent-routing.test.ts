@@ -76,6 +76,36 @@ type EscalationConsumerSources = {
   adoptionInventory: string;
 };
 
+async function readEscalationConsumerSources(): Promise<EscalationConsumerSources> {
+  return {
+    adr: await readRepoFile(
+      "docs/adr/adr-0027-semantic-agent-routing-and-mutation-authority.md",
+    ),
+    agentSpec: await readRepoFile("docs/specs/agents.md"),
+    issuePriming: await readSkillSource("issue-priming-workflow"),
+    lifecyclePolicy: await readRepoFile(
+      "skills/play-subagent-execution/references/lifecycle-status-policy.md",
+    ),
+    prMerge: await readSkillSource("pr-merge"),
+    routingSpec: await readRepoFile("docs/specs/afds-workflow-routing.md"),
+    writingSkills: await readRepoFile("docs/guidelines/writing-skills.md"),
+    agentAuthoring: await readRepoFile(
+      "docs/guidelines/agent-authoring-guide.md",
+    ),
+    lifecycleOwner: await readSkillSource("subagent-lifecycle"),
+    adoptionInventory: await readRepoFile(
+      "docs/guidelines/agent-routing-and-mutation-policy.md",
+    ),
+  };
+}
+
+function replaceRequired(source: string, from: string, to: string): string {
+  expect(source, `missing mutation source: ${from}`).toContain(from);
+  const mutated = source.replace(from, to);
+  expect(mutated, `mutation did not change: ${from}`).not.toBe(source);
+  return mutated;
+}
+
 function validateEscalationConsumerContracts(
   sources: EscalationConsumerSources,
 ): string[] {
@@ -377,6 +407,40 @@ function mutateEscalationAnchor(
     match?.[0] ?? "",
     `<!-- escalation-adoption-anchor\n${JSON.stringify(anchor)}\n-->`,
   );
+}
+
+function parseEscalationAnchor(source: string): Record<string, unknown> {
+  const match = /<!-- escalation-adoption-anchor\n([\s\S]*?)\n-->/u.exec(
+    source,
+  );
+  expect(match, "missing escalation-adoption anchor").not.toBeNull();
+  return JSON.parse(match?.[1] ?? "") as Record<string, unknown>;
+}
+
+function mutateAdoptionRecord(
+  source: string,
+  routeId: string,
+  mutate: (record: Record<string, unknown>) => void,
+): string {
+  return mutateEscalationAnchor(source, (anchor) => {
+    const record = (anchor.adoptions as Record<string, unknown>[]).find(
+      (candidate) => candidate.route_id === routeId,
+    );
+    if (!record) throw new Error(`Missing adoption record ${routeId}`);
+    mutate(record);
+  });
+}
+
+function withExplicitD3EvidenceQualifier(
+  sources: EscalationConsumerSources,
+): EscalationConsumerSources {
+  expect(sources.adoptionInventory).toContain(
+    "network-binding `dispatch-named`, evidence-qualifier `named-network`",
+  );
+  expect(sources.adoptionInventory).toContain(
+    '"network_binding":"dispatch-named","evidence_qualifier":"named-network"',
+  );
+  return sources;
 }
 
 const CHILD_AGENT_PROMPT_TEMPLATES = [
@@ -3858,45 +3922,491 @@ describe("play subagent routing source contracts", () => {
     );
   });
 
+  const d17Route =
+    "branch `diagnosis`: `investigator`, balanced/high, source-immutable; branch `exact-fix`: `executor`, efficient/medium, source-mutable; branch `judgment-fix`: `implementer`, balanced/high, source-mutable";
+
+  const parserRepresentationProbes: Array<{
+    name: string;
+    mutate: (sources: EscalationConsumerSources) => EscalationConsumerSources;
+  }> = [
+    {
+      name: "D17 branch slug rename on both owner projections",
+      mutate: (sources) => ({
+        ...sources,
+        adoptionInventory: mutateAdoptionRecord(
+          replaceRequired(
+            sources.adoptionInventory,
+            "branch `diagnosis`",
+            "branch `diagnosis-next`",
+          ),
+          "D17",
+          (record) => {
+            (
+              record.direct_route_clauses as Record<string, unknown>[]
+            )[0].branch_id = "diagnosis-next";
+          },
+        ),
+      }),
+    },
+    {
+      name: "complete fourth D17 table clause and descriptor",
+      mutate: (sources) => ({
+        ...sources,
+        adoptionInventory: mutateAdoptionRecord(
+          replaceRequired(
+            sources.adoptionInventory,
+            d17Route,
+            `${d17Route}; branch \`verification\`: \`reviewer\`, frontier/high, source-immutable`,
+          ),
+          "D17",
+          (record) => {
+            (record.direct_route_clauses as Record<string, unknown>[]).push({
+              role_id: "reviewer",
+              branch_id: "verification",
+            });
+          },
+        ),
+      }),
+    },
+    {
+      name: "coherent complete D17 table clause and descriptor reorder",
+      mutate: (sources) => ({
+        ...sources,
+        adoptionInventory: mutateAdoptionRecord(
+          replaceRequired(
+            sources.adoptionInventory,
+            d17Route,
+            "branch `exact-fix`: `executor`, efficient/medium, source-mutable; branch `diagnosis`: `investigator`, balanced/high, source-immutable; branch `judgment-fix`: `implementer`, balanced/high, source-mutable",
+          ),
+          "D17",
+          (record) => {
+            record.direct_route_clauses = [
+              { role_id: "executor", branch_id: "exact-fix" },
+              { role_id: "investigator", branch_id: "diagnosis" },
+              { role_id: "implementer", branch_id: "judgment-fix" },
+            ];
+          },
+        ),
+      }),
+    },
+    {
+      name: "D3 network slug change on both owner projections",
+      mutate: (sources) => ({
+        ...sources,
+        adoptionInventory: mutateAdoptionRecord(
+          replaceRequired(
+            sources.adoptionInventory,
+            "network-binding `dispatch-named`",
+            "network-binding `dispatch-curated`",
+          ),
+          "D3",
+          (record) => {
+            record.direct_route_clauses = [
+              {
+                role_id: "investigator",
+                network_binding: "dispatch-curated",
+                evidence_qualifier: "named-network",
+              },
+            ];
+          },
+        ),
+      }),
+    },
+    {
+      name: "D13 selection slug change on both owner projections",
+      mutate: (sources) => ({
+        ...sources,
+        adoptionInventory: mutateAdoptionRecord(
+          replaceRequired(
+            sources.adoptionInventory,
+            "selection-mode `inline-or-delegated`",
+            "selection-mode `delegated-only`",
+          ),
+          "D13",
+          (record) => {
+            record.direct_route_clauses = [
+              { role_id: "executor", selection_mode: "delegated-only" },
+            ];
+          },
+        ),
+      }),
+    },
+  ];
+
+  for (const probe of parserRepresentationProbes) {
+    it(`accepts coherent parser representation probe: ${probe.name}`, async () => {
+      const sources = await readEscalationConsumerSources();
+      const mutated = probe.mutate(sources);
+
+      expect(mutated.adoptionInventory).not.toBe(sources.adoptionInventory);
+      expect(validateEscalationConsumerContracts(mutated)).toEqual([]);
+    });
+  }
+
   it("rejects one-dimension-invalid consumer escalation declarations", async () => {
-    const sources: EscalationConsumerSources = {
-      adr: await readRepoFile(
-        "docs/adr/adr-0027-semantic-agent-routing-and-mutation-authority.md",
-      ),
-      agentSpec: await readRepoFile("docs/specs/agents.md"),
-      issuePriming: await readSkillSource("issue-priming-workflow"),
-      lifecyclePolicy: await readRepoFile(
-        "skills/play-subagent-execution/references/lifecycle-status-policy.md",
-      ),
-      prMerge: await readSkillSource("pr-merge"),
-      routingSpec: await readRepoFile("docs/specs/afds-workflow-routing.md"),
-      writingSkills: await readRepoFile("docs/guidelines/writing-skills.md"),
-      agentAuthoring: await readRepoFile(
-        "docs/guidelines/agent-authoring-guide.md",
-      ),
-      lifecycleOwner: await readSkillSource("subagent-lifecycle"),
-      adoptionInventory: await readRepoFile(
-        "docs/guidelines/agent-routing-and-mutation-policy.md",
-      ),
-    };
+    const sources = await readEscalationConsumerSources();
 
     expect(validateEscalationConsumerContracts(sources)).toEqual([]);
 
+    const readableD1Before = "`assessor`, balanced/medium, source-immutable";
+    const readableD1After = "`investigator`, balanced/high, source-immutable";
+    const structuredD1Before =
+      '"route_id":"D1","adoption_ref":"ESC-ADOPT-D1","target_ids":["claude","codex"],"target_permission":"exact-only","role_permission":"same-role-must-match","direct_route_clauses":[{"role_id":"assessor"}]';
+    const structuredD1After =
+      '"route_id":"D1","adoption_ref":"ESC-ADOPT-D1","target_ids":["claude","codex"],"target_permission":"exact-only","role_permission":"same-role-must-match","direct_route_clauses":[{"role_id":"investigator"}]';
     const coherentD1OwnerChange = {
       ...sources,
-      adoptionInventory: sources.adoptionInventory
-        .replace(
-          "`assessor`, balanced/medium, source-immutable",
-          "`investigator`, balanced/high, source-immutable",
-        )
-        .replace(
-          '"route_id":"D1","adoption_ref":"ESC-ADOPT-D1","target_ids":["claude","codex"],"target_permission":"exact-only","role_permission":"same-role-must-match","direct_route_role_ids":["assessor"]',
-          '"route_id":"D1","adoption_ref":"ESC-ADOPT-D1","target_ids":["claude","codex"],"target_permission":"exact-only","role_permission":"same-role-must-match","direct_route_role_ids":["investigator"]',
+      adoptionInventory: replaceRequired(
+        replaceRequired(
+          sources.adoptionInventory,
+          readableD1Before,
+          readableD1After,
         ),
+        structuredD1Before,
+        structuredD1After,
+      ),
     };
+    const canonicalD1 = parseAgentRoutingPolicyOwner(
+      sources.adoptionInventory,
+    ).directChildRoutes.find((route) => route.id === "D1");
+    const reboundD1 = parseAgentRoutingPolicyOwner(
+      coherentD1OwnerChange.adoptionInventory,
+    ).directChildRoutes.find((route) => route.id === "D1");
+    const canonicalD1Row = markdownTableRow(sources.adoptionInventory, "D1");
+    const reboundD1Row = markdownTableRow(
+      coherentD1OwnerChange.adoptionInventory,
+      "D1",
+    );
+    const canonicalD1Record = (
+      parseEscalationAnchor(sources.adoptionInventory).adoptions as Record<
+        string,
+        unknown
+      >[]
+    ).find((record) => record.route_id === "D1");
+    const reboundD1Record = (
+      parseEscalationAnchor(coherentD1OwnerChange.adoptionInventory)
+        .adoptions as Record<string, unknown>[]
+    ).find((record) => record.route_id === "D1");
+    const {
+      direct_route_clauses: canonicalD1Clauses,
+      ...canonicalD1UnchangedFields
+    } = canonicalD1Record ?? {};
+    const {
+      direct_route_clauses: reboundD1Clauses,
+      ...reboundD1UnchangedFields
+    } = reboundD1Record ?? {};
+    expect(canonicalD1?.clauses[0]).toMatchObject({
+      role: "assessor",
+      capability: "balanced",
+      effort: "medium",
+      sourceAuthority: "source-immutable",
+    });
+    expect(reboundD1?.clauses[0]).toMatchObject({
+      role: "investigator",
+      capability: "balanced",
+      effort: "high",
+      sourceAuthority: "source-immutable",
+    });
+    expect(canonicalD1Row).toContain(readableD1Before);
+    expect(canonicalD1Row).not.toContain(readableD1After);
+    expect(reboundD1Row).toContain(readableD1After);
+    expect(reboundD1Row).not.toContain(readableD1Before);
+    expect(canonicalD1Clauses).toEqual([{ role_id: "assessor" }]);
+    expect(reboundD1Clauses).toEqual([{ role_id: "investigator" }]);
+    expect(reboundD1UnchangedFields).toEqual(canonicalD1UnchangedFields);
+    expect(reboundD1).toMatchObject({
+      id: "D1",
+      ownerSkill: canonicalD1?.ownerSkill,
+      surfaceAndOwner: canonicalD1?.surfaceAndOwner,
+      existingOutputOrTermination: canonicalD1?.existingOutputOrTermination,
+    });
     expect(validateEscalationConsumerContracts(coherentD1OwnerChange)).toEqual(
       [],
     );
+
+    const clauseSemanticCases: Array<{
+      name: string;
+      mutate: (value: EscalationConsumerSources) => EscalationConsumerSources;
+      expectedError: string;
+    }> = [
+      {
+        name: "D3 descriptor network binding",
+        mutate: (value) => ({
+          ...value,
+          adoptionInventory: mutateAdoptionRecord(
+            value.adoptionInventory,
+            "D3",
+            (record) => {
+              record.direct_route_clauses = [
+                { role_id: "investigator", network_binding: "ambient" },
+              ];
+            },
+          ),
+        }),
+        expectedError:
+          "Escalation adoption D3 network_binding must match direct-route clause 1",
+      },
+      {
+        name: "D3 descriptor missing role ID",
+        mutate: (value) => ({
+          ...value,
+          adoptionInventory: mutateAdoptionRecord(
+            value.adoptionInventory,
+            "D3",
+            (record) => {
+              record.direct_route_clauses = [
+                { network_binding: "dispatch-named" },
+              ];
+            },
+          ),
+        }),
+        expectedError:
+          "Escalation adoption D3 direct_route_clause fields identities must match exactly; missing: role_id; unexpected: none",
+      },
+      {
+        name: "D3 table network binding",
+        mutate: (value) => ({
+          ...value,
+          adoptionInventory: value.adoptionInventory.replace(
+            "network-binding `dispatch-named`",
+            "network-binding `ambient`",
+          ),
+        }),
+        expectedError:
+          "Escalation adoption D3 network_binding must match direct-route clause 1",
+      },
+      {
+        name: "D13 descriptor selection mode",
+        mutate: (value) => ({
+          ...value,
+          adoptionInventory: mutateAdoptionRecord(
+            value.adoptionInventory,
+            "D13",
+            (record) => {
+              record.direct_route_clauses = [
+                { role_id: "executor", selection_mode: "delegated-only" },
+              ];
+            },
+          ),
+        }),
+        expectedError:
+          "Escalation adoption D13 selection_mode must match direct-route clause 1",
+      },
+      {
+        name: "D13 descriptor missing selection mode",
+        mutate: (value) => ({
+          ...value,
+          adoptionInventory: mutateAdoptionRecord(
+            value.adoptionInventory,
+            "D13",
+            (record) => {
+              record.direct_route_clauses = [{ role_id: "executor" }];
+            },
+          ),
+        }),
+        expectedError:
+          "Escalation adoption D13 selection_mode must match direct-route clause 1",
+      },
+      {
+        name: "D13 table selection mode",
+        mutate: (value) => ({
+          ...value,
+          adoptionInventory: value.adoptionInventory.replace(
+            "selection-mode `inline-or-delegated`",
+            "selection-mode `delegated-only`",
+          ),
+        }),
+        expectedError:
+          "Escalation adoption D13 selection_mode must match direct-route clause 1",
+      },
+      ...(["diagnosis", "exact-fix", "judgment-fix"] as const).map(
+        (branchId, index) => ({
+          name: `D17 descriptor ${branchId} identity`,
+          mutate: (value: EscalationConsumerSources) => ({
+            ...value,
+            adoptionInventory: mutateAdoptionRecord(
+              value.adoptionInventory,
+              "D17",
+              (record) => {
+                const clauses = record.direct_route_clauses as Record<
+                  string,
+                  unknown
+                >[];
+                clauses[index].branch_id =
+                  branchId === "diagnosis" ? "exact-fix" : "diagnosis";
+              },
+            ),
+          }),
+          expectedError: `Escalation adoption D17 branch_id must match direct-route clause ${index + 1}`,
+        }),
+      ),
+      {
+        name: "D17 descriptor branch order",
+        mutate: (value) => ({
+          ...value,
+          adoptionInventory: mutateAdoptionRecord(
+            value.adoptionInventory,
+            "D17",
+            (record) => {
+              record.direct_route_clauses = [
+                { role_id: "investigator", branch_id: "exact-fix" },
+                { role_id: "executor", branch_id: "diagnosis" },
+                { role_id: "implementer", branch_id: "judgment-fix" },
+              ];
+            },
+          ),
+        }),
+        expectedError:
+          "Escalation adoption D17 branch_id must match direct-route clause 1",
+      },
+      {
+        name: "D1 unexpected qualifier",
+        mutate: (value) => ({
+          ...value,
+          adoptionInventory: mutateAdoptionRecord(
+            value.adoptionInventory,
+            "D1",
+            (record) => {
+              record.direct_route_clauses = [
+                { role_id: "assessor", network_binding: "dispatch-named" },
+              ];
+            },
+          ),
+        }),
+        expectedError:
+          "Escalation adoption D1 network_binding must match direct-route clause 1",
+      },
+    ];
+    for (const mutation of clauseSemanticCases) {
+      expect(
+        validateEscalationConsumerContracts(mutation.mutate(sources)),
+        mutation.name,
+      ).toEqual([mutation.expectedError]);
+    }
+
+    const falseGreenControls: Array<{
+      name: string;
+      mutate: (value: EscalationConsumerSources) => EscalationConsumerSources;
+      expectedError: string;
+    }> = [
+      {
+        name: "table-only cardinality",
+        mutate: (value) => ({
+          ...value,
+          adoptionInventory: replaceRequired(
+            value.adoptionInventory,
+            d17Route,
+            `${d17Route}; branch \`verification\`: \`reviewer\`, frontier/high, source-immutable`,
+          ),
+        }),
+        expectedError:
+          "Escalation adoption D17 direct_route_clauses cardinality must match direct-route clauses: expected 4; received 3",
+      },
+      {
+        name: "table-only role",
+        mutate: (value) => ({
+          ...value,
+          adoptionInventory: replaceRequired(
+            value.adoptionInventory,
+            "`assessor`, balanced/medium, source-immutable",
+            "`investigator`, balanced/high, source-immutable",
+          ),
+        }),
+        expectedError:
+          "Escalation adoption D1 direct_route_clauses must match direct-route roles in order; expected: investigator; actual: assessor",
+      },
+      {
+        name: "table-only index order",
+        mutate: (value) => ({
+          ...value,
+          adoptionInventory: replaceRequired(
+            value.adoptionInventory,
+            d17Route,
+            "branch `exact-fix`: `executor`, efficient/medium, source-mutable; branch `diagnosis`: `investigator`, balanced/high, source-immutable; branch `judgment-fix`: `implementer`, balanced/high, source-mutable",
+          ),
+        }),
+        expectedError:
+          "Escalation adoption D17 direct_route_clauses must match direct-route roles in order; expected: executor, investigator, implementer; actual: investigator, executor, implementer",
+      },
+      {
+        name: "structured clause unknown key",
+        mutate: (value) => ({
+          ...value,
+          adoptionInventory: mutateAdoptionRecord(
+            value.adoptionInventory,
+            "D1",
+            (record) => {
+              record.direct_route_clauses = [
+                { role_id: "assessor", unknown_key: "value" },
+              ];
+            },
+          ),
+        }),
+        expectedError:
+          "Escalation adoption D1 direct_route_clause fields identities must match exactly; missing: none; unexpected: unknown_key",
+      },
+      {
+        name: "structured clause malformed nonempty slug",
+        mutate: (value) => ({
+          ...value,
+          adoptionInventory: mutateAdoptionRecord(
+            value.adoptionInventory,
+            "D1",
+            (record) => {
+              record.direct_route_clauses = [{ role_id: "assessor_" }];
+            },
+          ),
+        }),
+        expectedError:
+          "Escalation adoption D1 direct_route_clause role_id must be one non-empty slug: assessor_",
+      },
+      {
+        name: "structured clause empty slug",
+        mutate: (value) => ({
+          ...value,
+          adoptionInventory: mutateAdoptionRecord(
+            value.adoptionInventory,
+            "D1",
+            (record) => {
+              record.direct_route_clauses = [{ role_id: "" }];
+            },
+          ),
+        }),
+        expectedError:
+          "Escalation adoption D1 direct_route_clause role_id must be one non-empty string",
+      },
+      {
+        name: "coherent table and descriptor unknown role",
+        mutate: (value) => ({
+          ...value,
+          adoptionInventory: mutateAdoptionRecord(
+            replaceRequired(
+              value.adoptionInventory,
+              "`assessor`, balanced/medium, source-immutable",
+              "`unknown-role`, balanced/medium, source-immutable",
+            ),
+            "D1",
+            (record) => {
+              record.direct_route_clauses = [{ role_id: "unknown-role" }];
+            },
+          ),
+        }),
+        expectedError:
+          "Direct-route D1 clause 1 role is absent from the canonical role owner: unknown-role",
+      },
+    ];
+    expect(falseGreenControls).toHaveLength(7);
+    for (const control of falseGreenControls) {
+      const mutated = control.mutate(sources);
+      expect(
+        mutated.adoptionInventory,
+        `${control.name} mutation must occur`,
+      ).not.toBe(sources.adoptionInventory);
+      expect(
+        validateEscalationConsumerContracts(mutated),
+        control.name,
+      ).toEqual([control.expectedError]);
+    }
 
     const d4RoleIds = parseAgentSemanticRoleOwner(sources.agentSpec).map(
       (role) => role.name,
@@ -4029,37 +4539,51 @@ describe("play subagent routing source contracts", () => {
         name: "D12 adoption-only valid-token role substitution",
         mutate: (value) => ({
           ...value,
-          adoptionInventory: value.adoptionInventory.replace(
-            '"route_id":"D12","adoption_ref":"ESC-ADOPT-D12","target_ids":["claude","codex"],"target_permission":"exact-only","role_permission":"same-role-must-match","direct_route_role_ids":["implementer"]',
-            '"route_id":"D12","adoption_ref":"ESC-ADOPT-D12","target_ids":["claude","codex"],"target_permission":"exact-only","role_permission":"same-role-must-match","direct_route_role_ids":["executor"]',
+          adoptionInventory: mutateAdoptionRecord(
+            value.adoptionInventory,
+            "D12",
+            (record) => {
+              record.direct_route_clauses = [{ role_id: "executor" }];
+            },
           ),
         }),
         expectedError:
-          "Escalation adoption D12 direct_route_role_ids must match direct-route roles in order; expected: implementer; actual: executor",
+          "Escalation adoption D12 direct_route_clauses must match direct-route roles in order; expected: implementer; actual: executor",
       },
       {
         name: "D1 adoption-only valid-token role substitution",
         mutate: (value) => ({
           ...value,
-          adoptionInventory: value.adoptionInventory.replace(
-            '"route_id":"D1","adoption_ref":"ESC-ADOPT-D1","target_ids":["claude","codex"],"target_permission":"exact-only","role_permission":"same-role-must-match","direct_route_role_ids":["assessor"]',
-            '"route_id":"D1","adoption_ref":"ESC-ADOPT-D1","target_ids":["claude","codex"],"target_permission":"exact-only","role_permission":"same-role-must-match","direct_route_role_ids":["investigator"]',
+          adoptionInventory: mutateAdoptionRecord(
+            value.adoptionInventory,
+            "D1",
+            (record) => {
+              record.direct_route_clauses = [{ role_id: "investigator" }];
+            },
           ),
         }),
         expectedError:
-          "Escalation adoption D1 direct_route_role_ids must match direct-route roles in order; expected: assessor; actual: investigator",
+          "Escalation adoption D1 direct_route_clauses must match direct-route roles in order; expected: assessor; actual: investigator",
       },
       {
         name: "D13 adoption-only valid-token role substitution",
         mutate: (value) => ({
           ...value,
-          adoptionInventory: value.adoptionInventory.replace(
-            '"route_id":"D13","adoption_ref":"ESC-ADOPT-D13","target_ids":["claude","codex"],"target_permission":"exact-only","role_permission":"same-role-must-match","direct_route_role_ids":["executor"]',
-            '"route_id":"D13","adoption_ref":"ESC-ADOPT-D13","target_ids":["claude","codex"],"target_permission":"exact-only","role_permission":"same-role-must-match","direct_route_role_ids":["implementer"]',
+          adoptionInventory: mutateAdoptionRecord(
+            value.adoptionInventory,
+            "D13",
+            (record) => {
+              record.direct_route_clauses = [
+                {
+                  role_id: "implementer",
+                  selection_mode: "inline-or-delegated",
+                },
+              ];
+            },
           ),
         }),
         expectedError:
-          "Escalation adoption D13 direct_route_role_ids must match direct-route roles in order; expected: executor; actual: implementer",
+          "Escalation adoption D13 direct_route_clauses must match direct-route roles in order; expected: executor; actual: implementer",
       },
       {
         name: "missing non-D4 direct-route binding",
@@ -4070,13 +4594,13 @@ describe("play subagent routing source contracts", () => {
             (anchor) => {
               Reflect.deleteProperty(
                 (anchor.adoptions as Record<string, unknown>[])[0],
-                "direct_route_role_ids",
+                "direct_route_clauses",
               );
             },
           ),
         }),
         expectedError:
-          "Agent spec escalation adoption record fields identities must match exactly; missing: direct_route_role_ids; unexpected: none",
+          "Agent spec escalation adoption record fields identities must match exactly; missing: direct_route_clauses; unexpected: none",
       },
       {
         name: "forbidden D4 direct-route binding",
@@ -4087,72 +4611,107 @@ describe("play subagent routing source contracts", () => {
             (anchor) => {
               (
                 anchor.adoptions as Record<string, unknown>[]
-              )[3].direct_route_role_ids = ["investigator"];
+              )[3].direct_route_clauses = [{ role_id: "investigator" }];
             },
           ),
         }),
         expectedError:
-          "Agent spec escalation adoption record fields identities must match exactly; missing: none; unexpected: direct_route_role_ids",
+          "Agent spec escalation adoption record fields identities must match exactly; missing: none; unexpected: direct_route_clauses",
       },
       {
         name: "D17 direct-route role order",
         mutate: (value) => ({
           ...value,
-          adoptionInventory: value.adoptionInventory.replace(
-            '"direct_route_role_ids":["investigator","executor","implementer"]',
-            '"direct_route_role_ids":["executor","investigator","implementer"]',
+          adoptionInventory: mutateAdoptionRecord(
+            value.adoptionInventory,
+            "D17",
+            (record) => {
+              record.direct_route_clauses = [
+                { role_id: "executor", branch_id: "diagnosis" },
+                { role_id: "investigator", branch_id: "exact-fix" },
+                { role_id: "implementer", branch_id: "judgment-fix" },
+              ];
+            },
           ),
         }),
         expectedError:
-          "Escalation adoption D17 direct_route_role_ids must match direct-route roles in order; expected: investigator, executor, implementer; actual: executor, investigator, implementer",
+          "Escalation adoption D17 direct_route_clauses must match direct-route roles in order; expected: investigator, executor, implementer; actual: executor, investigator, implementer",
       },
       {
         name: "D17 duplicate direct-route role",
         mutate: (value) => ({
           ...value,
-          adoptionInventory: value.adoptionInventory.replace(
-            '"direct_route_role_ids":["investigator","executor","implementer"]',
-            '"direct_route_role_ids":["investigator","investigator","implementer"]',
+          adoptionInventory: mutateAdoptionRecord(
+            value.adoptionInventory,
+            "D17",
+            (record) => {
+              record.direct_route_clauses = [
+                { role_id: "investigator", branch_id: "diagnosis" },
+                { role_id: "investigator", branch_id: "exact-fix" },
+                { role_id: "implementer", branch_id: "judgment-fix" },
+              ];
+            },
           ),
         }),
         expectedError:
-          "Agent routing policy owner duplicate escalation adoption D17 direct_route_role_id: investigator",
+          "Escalation adoption D17 direct_route_clauses must match direct-route roles in order; expected: investigator, executor, implementer; actual: investigator, investigator, implementer",
       },
       {
         name: "D17 missing direct-route role",
         mutate: (value) => ({
           ...value,
-          adoptionInventory: value.adoptionInventory.replace(
-            '"direct_route_role_ids":["investigator","executor","implementer"]',
-            '"direct_route_role_ids":["investigator","executor"]',
+          adoptionInventory: mutateAdoptionRecord(
+            value.adoptionInventory,
+            "D17",
+            (record) => {
+              record.direct_route_clauses = [
+                { role_id: "investigator", branch_id: "diagnosis" },
+                { role_id: "executor", branch_id: "exact-fix" },
+              ];
+            },
           ),
         }),
         expectedError:
-          "Escalation adoption D17 direct_route_role_ids cardinality must match direct-route clauses: expected 3; received 2",
+          "Escalation adoption D17 direct_route_clauses cardinality must match direct-route clauses: expected 3; received 2",
       },
       {
         name: "D17 extra direct-route role",
         mutate: (value) => ({
           ...value,
-          adoptionInventory: value.adoptionInventory.replace(
-            '"direct_route_role_ids":["investigator","executor","implementer"]',
-            '"direct_route_role_ids":["investigator","executor","implementer","deep-reviewer"]',
+          adoptionInventory: mutateAdoptionRecord(
+            value.adoptionInventory,
+            "D17",
+            (record) => {
+              record.direct_route_clauses = [
+                { role_id: "investigator", branch_id: "diagnosis" },
+                { role_id: "executor", branch_id: "exact-fix" },
+                { role_id: "implementer", branch_id: "judgment-fix" },
+                { role_id: "deep-reviewer", branch_id: "judgment-fix" },
+              ];
+            },
           ),
         }),
         expectedError:
-          "Escalation adoption D17 direct_route_role_ids cardinality must match direct-route clauses: expected 3; received 4",
+          "Escalation adoption D17 direct_route_clauses cardinality must match direct-route clauses: expected 3; received 4",
       },
       {
         name: "D17 valid-token direct-route mismatch",
         mutate: (value) => ({
           ...value,
-          adoptionInventory: value.adoptionInventory.replace(
-            '"direct_route_role_ids":["investigator","executor","implementer"]',
-            '"direct_route_role_ids":["investigator","executor","deep-reviewer"]',
+          adoptionInventory: mutateAdoptionRecord(
+            value.adoptionInventory,
+            "D17",
+            (record) => {
+              record.direct_route_clauses = [
+                { role_id: "investigator", branch_id: "diagnosis" },
+                { role_id: "executor", branch_id: "exact-fix" },
+                { role_id: "deep-reviewer", branch_id: "judgment-fix" },
+              ];
+            },
           ),
         }),
         expectedError:
-          "Escalation adoption D17 direct_route_role_ids must match direct-route roles in order; expected: investigator, executor, implementer; actual: investigator, executor, deep-reviewer",
+          "Escalation adoption D17 direct_route_clauses must match direct-route roles in order; expected: investigator, executor, implementer; actual: investigator, executor, deep-reviewer",
       },
       {
         name: "duplicate escalation owner",
@@ -4328,9 +4887,15 @@ describe("play subagent routing source contracts", () => {
       ],
       [
         "direct-route role binding",
-        '"direct_route_role_ids":["assessor"],"current_state"',
-        '"direct_route_role_ids":["assessor"],"direct_route_role_ids":["assessor"],"current_state"',
-        /duplicate key direct_route_role_ids/i,
+        '"direct_route_clauses":[{"role_id":"assessor"}],"current_state"',
+        '"direct_route_clauses":[{"role_id":"assessor"}],"direct_route_clauses":[{"role_id":"assessor"}],"current_state"',
+        /duplicate key direct_route_clauses/i,
+      ],
+      [
+        "direct-route clause descriptor",
+        '"direct_route_clauses":[{"role_id":"assessor"}],"current_state"',
+        '"direct_route_clauses":[{"role_id":"assessor","role_id":"assessor"}],"current_state"',
+        /duplicate key role_id/i,
       ],
     ] as const) {
       const errors = validateEscalationConsumerContracts({
@@ -4411,7 +4976,7 @@ describe("play subagent routing source contracts", () => {
       "target_ids",
       "target_permission",
       "role_permission",
-      "direct_route_role_ids",
+      "direct_route_clauses",
       "current_state",
       "transition",
       "next_tuple",
@@ -5025,4 +5590,262 @@ describe("play subagent routing source contracts", () => {
       ).toEqual(mutation.expectedError === "" ? [] : [mutation.expectedError]);
     }
   });
+
+  it("treats D3 qualifier evidence as explicit owner data", async () => {
+    const sources = await readEscalationConsumerSources();
+    const explicit = withExplicitD3EvidenceQualifier(sources);
+
+    expect(validateEscalationConsumerContracts(explicit)).toEqual([]);
+    const d3 = parseAgentRoutingPolicyOwner(
+      explicit.adoptionInventory,
+    ).directChildRoutes.find((route) => route.id === "D3");
+    expect(d3?.clauses[0]).toMatchObject({
+      networkBinding: "dispatch-named",
+      qualifier: "named-network",
+    });
+  });
+
+  it("keeps a present D3 binding qualifier absent only when both projections omit it", async () => {
+    const explicit = withExplicitD3EvidenceQualifier(
+      await readEscalationConsumerSources(),
+    );
+    const absent = {
+      ...explicit,
+      adoptionInventory: mutateAdoptionRecord(
+        replaceRequired(
+          explicit.adoptionInventory,
+          ", evidence-qualifier `named-network`",
+          "",
+        ),
+        "D3",
+        (record) => {
+          (
+            record.direct_route_clauses as Record<string, unknown>[]
+          )[0].evidence_qualifier = undefined;
+        },
+      ),
+    };
+
+    expect(absent.adoptionInventory).not.toBe(explicit.adoptionInventory);
+    expect(validateEscalationConsumerContracts(absent)).toEqual([]);
+    expect(
+      parseAgentRoutingPolicyOwner(
+        absent.adoptionInventory,
+      ).directChildRoutes.find((route) => route.id === "D3")?.clauses[0]
+        .qualifier,
+    ).toBeUndefined();
+  });
+
+  it("keeps D3 binding and qualifier independently coherent", async () => {
+    const explicit = withExplicitD3EvidenceQualifier(
+      await readEscalationConsumerSources(),
+    );
+    const bindingOnly = {
+      ...explicit,
+      adoptionInventory: mutateAdoptionRecord(
+        replaceRequired(
+          explicit.adoptionInventory,
+          "network-binding `dispatch-named`",
+          "network-binding `dispatch-curated`",
+        ),
+        "D3",
+        (record) => {
+          (
+            record.direct_route_clauses as Record<string, unknown>[]
+          )[0].network_binding = "dispatch-curated";
+        },
+      ),
+    };
+    const qualifierOnly = {
+      ...explicit,
+      adoptionInventory: mutateAdoptionRecord(
+        replaceRequired(
+          explicit.adoptionInventory,
+          "evidence-qualifier `named-network`",
+          "evidence-qualifier `curated-network`",
+        ),
+        "D3",
+        (record) => {
+          (
+            record.direct_route_clauses as Record<string, unknown>[]
+          )[0].evidence_qualifier = "curated-network";
+        },
+      ),
+    };
+
+    expect(validateEscalationConsumerContracts(bindingOnly)).toEqual([]);
+    expect(validateEscalationConsumerContracts(qualifierOnly)).toEqual([]);
+  });
+
+  const evidenceQualifierCases: Array<{
+    name: string;
+    mutate: (value: EscalationConsumerSources) => EscalationConsumerSources;
+    expected: string;
+  }> = [
+    {
+      name: "table-only qualifier",
+      mutate: (value) => ({
+        ...value,
+        adoptionInventory: replaceRequired(
+          value.adoptionInventory,
+          "evidence-qualifier `named-network`",
+          "evidence-qualifier `curated-network`",
+        ),
+      }),
+      expected:
+        "Escalation adoption D3 evidence_qualifier must match direct-route clause 1",
+    },
+    {
+      name: "duplicate table qualifier operand",
+      mutate: (value) => ({
+        ...value,
+        adoptionInventory: replaceRequired(
+          value.adoptionInventory,
+          "evidence-qualifier `named-network`",
+          "evidence-qualifier `named-network`, evidence-qualifier `named-network`",
+        ),
+      }),
+      expected:
+        "Agent routing policy owner direct-route D3 operand is duplicated: evidence_qualifier",
+    },
+    {
+      name: "empty human qualifier value",
+      mutate: (value) => ({
+        ...value,
+        adoptionInventory: replaceRequired(
+          value.adoptionInventory,
+          "evidence-qualifier `named-network`",
+          "evidence-qualifier ``",
+        ),
+      }),
+      expected:
+        "Agent routing policy owner direct-route D3 evidence_qualifier must be one non-empty string",
+    },
+    {
+      name: "malformed nonempty human qualifier slug",
+      mutate: (value) => ({
+        ...value,
+        adoptionInventory: replaceRequired(
+          value.adoptionInventory,
+          "evidence-qualifier `named-network`",
+          "evidence-qualifier `named_network`",
+        ),
+      }),
+      expected:
+        "Agent routing policy owner direct-route D3 evidence_qualifier must be one non-empty slug: named_network",
+    },
+    {
+      name: "descriptor-only qualifier",
+      mutate: (value) => ({
+        ...value,
+        adoptionInventory: mutateAdoptionRecord(
+          value.adoptionInventory,
+          "D3",
+          (record) => {
+            (
+              record.direct_route_clauses as Record<string, unknown>[]
+            )[0].evidence_qualifier = "curated-network";
+          },
+        ),
+      }),
+      expected:
+        "Escalation adoption D3 evidence_qualifier must match direct-route clause 1",
+    },
+    {
+      name: "missing qualifier field",
+      mutate: (value) => ({
+        ...value,
+        adoptionInventory: mutateAdoptionRecord(
+          value.adoptionInventory,
+          "D3",
+          (record) => {
+            (
+              record.direct_route_clauses as Record<string, unknown>[]
+            )[0].evidence_qualifier = undefined;
+          },
+        ),
+      }),
+      expected:
+        "Escalation adoption D3 evidence_qualifier must match direct-route clause 1",
+    },
+    {
+      name: "unexpected qualifier field",
+      mutate: (value) => ({
+        ...value,
+        adoptionInventory: mutateAdoptionRecord(
+          value.adoptionInventory,
+          "D3",
+          (record) => {
+            (
+              record.direct_route_clauses as Record<string, unknown>[]
+            )[0].evidence_qualifier_extra = "named-network";
+          },
+        ),
+      }),
+      expected:
+        "Escalation adoption D3 direct_route_clause fields identities must match exactly; missing: none; unexpected: evidence_qualifier_extra",
+    },
+    {
+      name: "duplicate qualifier field",
+      mutate: (value) => ({
+        ...value,
+        adoptionInventory: replaceRequired(
+          value.adoptionInventory,
+          '"evidence_qualifier":"named-network"',
+          '"evidence_qualifier":"named-network","evidence_qualifier":"named-network"',
+        ),
+      }),
+      expected:
+        "Escalation anchor has duplicate key evidence_qualifier: docs/guidelines/agent-routing-and-mutation-policy.md",
+    },
+    {
+      name: "empty qualifier slug",
+      mutate: (value) => ({
+        ...value,
+        adoptionInventory: mutateAdoptionRecord(
+          value.adoptionInventory,
+          "D3",
+          (record) => {
+            (
+              record.direct_route_clauses as Record<string, unknown>[]
+            )[0].evidence_qualifier = "";
+          },
+        ),
+      }),
+      expected:
+        "Escalation adoption D3 direct_route_clause evidence_qualifier must be one non-empty string",
+    },
+    {
+      name: "malformed qualifier slug",
+      mutate: (value) => ({
+        ...value,
+        adoptionInventory: mutateAdoptionRecord(
+          value.adoptionInventory,
+          "D3",
+          (record) => {
+            (
+              record.direct_route_clauses as Record<string, unknown>[]
+            )[0].evidence_qualifier = "named_network";
+          },
+        ),
+      }),
+      expected:
+        "Escalation adoption D3 direct_route_clause evidence_qualifier must be one non-empty slug: named_network",
+    },
+  ];
+  for (const control of evidenceQualifierCases) {
+    it(`fails closed for D3 evidence qualifier: ${control.name}`, async () => {
+      const explicit = withExplicitD3EvidenceQualifier(
+        await readEscalationConsumerSources(),
+      );
+      const mutated = control.mutate(explicit);
+      expect(mutated.adoptionInventory, control.name).not.toBe(
+        explicit.adoptionInventory,
+      );
+      expect(
+        validateEscalationConsumerContracts(mutated),
+        control.name,
+      ).toEqual([control.expected]);
+    });
+  }
 });

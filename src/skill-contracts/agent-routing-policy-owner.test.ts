@@ -57,6 +57,50 @@ describe("agent routing and mutation policy owner", () => {
     ]);
   });
 
+  it("derives normalized role IDs from exact non-D4 clause descriptors", async () => {
+    const contract = await parseCapabilityEscalationAdoptionContract();
+    const d3 = contract.adoptions.find((adoption) => adoption.routeId === "D3");
+    const d13 = contract.adoptions.find(
+      (adoption) => adoption.routeId === "D13",
+    );
+    const d17 = contract.adoptions.find(
+      (adoption) => adoption.routeId === "D17",
+    );
+    const d4 = contract.adoptions.find((adoption) => adoption.routeId === "D4");
+
+    expect(d3?.directRouteClauses).toEqual([
+      {
+        roleId: "investigator",
+        networkBinding: "dispatch-named",
+        evidenceQualifier: "named-network",
+      },
+    ]);
+    expect(d13?.directRouteClauses).toEqual([
+      { roleId: "executor", selectionMode: "inline-or-delegated" },
+    ]);
+    expect(d17?.directRouteClauses).toEqual([
+      { roleId: "investigator", branchId: "diagnosis" },
+      { roleId: "executor", branchId: "exact-fix" },
+      { roleId: "implementer", branchId: "judgment-fix" },
+    ]);
+    expect(d4?.directRouteClauses).toBeUndefined();
+    expect(d4?.directRouteRoleIds).toBeUndefined();
+  });
+
+  it("exposes D3 network binding and its explicit evidence qualifier independently", async () => {
+    const owner = await readAgentRoutingPolicyOwner(OWNER_PATH);
+    const d3 = owner.directChildRoutes.find((route) => route.id === "D3");
+
+    expect(d3?.clauses[0]).toMatchObject({
+      role: "investigator",
+      capability: "balanced",
+      effort: "high",
+      sourceAuthority: "source-immutable",
+      networkBinding: "dispatch-named",
+      qualifier: "named-network",
+    });
+  });
+
   it("validates a D4 selected role against its complete target tuple", async () => {
     const roles = await readAgentSemanticRoleOwner(AGENT_SPEC_PATH);
     const config = await loadConfig(REPOSITORY_CONFIG_PATH, true);
@@ -840,12 +884,12 @@ describe("agent routing and mutation policy owner", () => {
   it("rejects a non-owner inline-or prefix", async () => {
     const { markdown, sourceSkills } = await ownerInputs();
     const mutated = mutateRouteRow(markdown, "D13", (cells) => {
-      cells[2] = cells[2].replace("Inline or", "Executor or");
+      cells[2] = cells[2].replace("selection-mode", "execution-mode");
       return cells;
     });
 
     expect(() => parseAgentRoutingPolicyOwner(mutated, sourceSkills)).toThrow(
-      /direct-route D13 clause 1 has malformed clause structure/i,
+      /direct-route D13 operand key is unknown: execution-mode/i,
     );
   });
 
@@ -980,7 +1024,7 @@ describe("agent routing and mutation policy owner", () => {
     ).toThrow(/duplicate Claude tool in the assessor tool envelope/i);
   });
 
-  it("rejects deletion or addition of complete route clauses", async () => {
+  it("leaves non-D4 clause cardinality to the same-owner descriptor projection", async () => {
     const { markdown, sourceSkills } = await ownerInputs();
     const missingD17Clause = mutateRouteRow(markdown, "D17", (cells) => {
       cells[2] = cells[2].split(";").slice(0, -1).join(";");
@@ -993,10 +1037,10 @@ describe("agent routing and mutation policy owner", () => {
 
     expect(() =>
       parseAgentRoutingPolicyOwner(missingD17Clause, sourceSkills),
-    ).toThrow(/direct-route D17 must contain exactly 3 route clauses/i);
+    ).not.toThrow();
     expect(() =>
       parseAgentRoutingPolicyOwner(extraD12Clause, sourceSkills),
-    ).toThrow(/direct-route D12 must contain exactly 1 route clause/i);
+    ).not.toThrow();
   });
 
   it("validates the complete dynamic D4 route before role derivation", async () => {
