@@ -8,6 +8,7 @@ import type { ManagedRecord } from "../config/schema.js";
 import { ManifestSchema } from "../config/schema.js";
 import {
   ManifestIdentityError,
+  assertNoManagedPathConflicts,
   classifyManagedRecord,
   normalizeManifestBoundary,
   normalizeManifestIdentity,
@@ -457,4 +458,187 @@ describe("manifest identity", () => {
       ).ownership,
     ).toBe("owned");
   });
+});
+
+describe("managed component collision validation", () => {
+  const collisionRoot = path.join(TEST_ROOT, "managed-collisions");
+  const ancestorPath = path.join(collisionRoot, "shared");
+  const descendantPath = path.join(ancestorPath, "nested");
+
+  function entry(
+    name: string,
+    installedPath: string,
+    activity: "active" | "passive",
+    overrides: Partial<Pick<ManagedRecord, "target" | "type">> = {},
+  ) {
+    return {
+      target: "claude" as const,
+      type: "skill" as const,
+      name,
+      installedPath,
+      activity,
+      ...overrides,
+    };
+  }
+
+  function expectManagedConflict(
+    entries: Parameters<typeof assertNoManagedPathConflicts>[0],
+  ): void {
+    let thrown: unknown;
+    try {
+      assertNoManagedPathConflicts(entries);
+    } catch (error) {
+      thrown = error;
+    }
+    expect(thrown).toBeInstanceOf(ManifestIdentityError);
+    const message = (thrown as Error).message;
+    expect(message).toContain("Managed output physical path conflict");
+    for (const candidate of entries) {
+      expect(message).toContain(path.resolve(candidate.installedPath));
+      expect(message).toContain(
+        `${candidate.target}/${candidate.type}/${candidate.name}`,
+      );
+    }
+  }
+
+  it.each([
+    [
+      "ancestor first / first active",
+      ancestorPath,
+      descendantPath,
+      "active",
+      "passive",
+    ],
+    [
+      "ancestor first / second active",
+      ancestorPath,
+      descendantPath,
+      "passive",
+      "active",
+    ],
+    [
+      "descendant first / first active",
+      descendantPath,
+      ancestorPath,
+      "active",
+      "passive",
+    ],
+    [
+      "descendant first / second active",
+      descendantPath,
+      ancestorPath,
+      "passive",
+      "active",
+    ],
+    [
+      "ancestor first / both active",
+      ancestorPath,
+      descendantPath,
+      "active",
+      "active",
+    ],
+    [
+      "descendant first / both active",
+      descendantPath,
+      ancestorPath,
+      "active",
+      "active",
+    ],
+  ] as const)(
+    "rejects distinct tuples with component overlap: %s",
+    (_label, firstPath, secondPath, firstActivity, secondActivity) => {
+      const first = entry("first", firstPath, firstActivity);
+      const second = entry("second", secondPath, secondActivity);
+
+      expectManagedConflict([first, second]);
+      expectManagedConflict([second, first]);
+    },
+  );
+
+  it("treats installedPath as the fourth tuple dimension before alias-normalized overlap", () => {
+    const aliasedAncestor = `${ancestorPath}${path.sep}alias${path.sep}..`;
+    const first = entry("same", aliasedAncestor, "active");
+    const second = entry("same", descendantPath, "passive");
+
+    expect({
+      target: first.target,
+      type: first.type,
+      name: first.name,
+    }).toEqual({
+      target: second.target,
+      type: second.type,
+      name: second.name,
+    });
+    expect(first.installedPath).not.toBe(second.installedPath);
+    expect([first.activity, second.activity]).toEqual(["active", "passive"]);
+    expect(path.resolve(first.installedPath)).toBe(ancestorPath);
+    expect(path.resolve(second.installedPath)).toBe(descendantPath);
+
+    expectManagedConflict([first, second]);
+    expectManagedConflict([second, first]);
+  });
+
+  it.each([
+    ["target", entry("same", ancestorPath, "active", { target: "codex" })],
+    ["type", entry("same", ancestorPath, "active", { type: "agent" })],
+    ["name", entry("second", ancestorPath, "active")],
+  ])(
+    "rejects an exact-path tuple differing only by %s",
+    (_dimension, second) => {
+      const first = entry("same", ancestorPath, "passive");
+      expectManagedConflict([first, second]);
+      expectManagedConflict([second, first]);
+    },
+  );
+
+  it("allows the same full canonical tuple regardless of activity", () => {
+    expect(() =>
+      assertNoManagedPathConflicts([
+        entry("same", `${ancestorPath}${path.sep}.`, "active"),
+        entry("same", ancestorPath, "passive"),
+      ]),
+    ).not.toThrow();
+  });
+
+  it("allows passive/passive exact and component-overlap pairs for a targeted invocation", () => {
+    expect(() =>
+      assertNoManagedPathConflicts([
+        entry("first", ancestorPath, "passive"),
+        entry("second", ancestorPath, "passive"),
+        entry("third", descendantPath, "passive"),
+      ]),
+    ).not.toThrow();
+  });
+
+  it.each([
+    [
+      "component-prefix siblings",
+      path.join(collisionRoot, "foo"),
+      path.join(collisionRoot, "foobar"),
+    ],
+    [
+      "disjoint paths",
+      path.join(collisionRoot, "left"),
+      path.join(collisionRoot, "right"),
+    ],
+  ])("allows %s", (_label, firstPath, secondPath) => {
+    expect(() =>
+      assertNoManagedPathConflicts([
+        entry("first", firstPath, "active"),
+        entry("second", secondPath, "active"),
+      ]),
+    ).not.toThrow();
+  });
+
+  it.skipIf(process.platform !== "win32")(
+    "allows native cross-root paths",
+    () => {
+      expect(() =>
+        assertNoManagedPathConflicts([
+          entry("first", "C:\\managed\\shared", "active"),
+          entry("second", "D:\\managed\\shared", "active"),
+        ]),
+      ).not.toThrow();
+    },
+  );
 });

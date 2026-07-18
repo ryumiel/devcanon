@@ -28,6 +28,90 @@ export interface NormalizedManifestIdentity {
   records: ManagedRecordClassification[];
 }
 
+export type ManagedPathActivity = "active" | "passive";
+
+export interface ManagedPathIdentity {
+  target: ManagedRecord["target"];
+  type: ManagedRecord["type"];
+  name: string;
+  installedPath: string;
+  activity: ManagedPathActivity;
+}
+
+/**
+ * Reject component-overlapping managed destinations for distinct canonical
+ * tuples when either entry participates in the current invocation. This is a
+ * lexical install-domain check: it deliberately does not observe filesystem
+ * state, resolve symlinks, or impose a global rule on passive records.
+ */
+export function assertNoManagedPathConflicts(
+  entries: readonly ManagedPathIdentity[],
+): void {
+  const canonicalEntries = entries.map((entry) => ({
+    ...entry,
+    installedPath: path.resolve(entry.installedPath),
+  }));
+
+  for (let firstIndex = 0; firstIndex < canonicalEntries.length; firstIndex++) {
+    const first = canonicalEntries[firstIndex];
+    for (
+      let secondIndex = firstIndex + 1;
+      secondIndex < canonicalEntries.length;
+      secondIndex++
+    ) {
+      const second = canonicalEntries[secondIndex];
+      if (managedPathTupleMatches(first, second)) continue;
+      if (!managedPathsOverlap(first.installedPath, second.installedPath)) {
+        continue;
+      }
+      if (first.activity === "passive" && second.activity === "passive") {
+        continue;
+      }
+      throw new ManifestIdentityError(
+        `Managed output physical path conflict between ${first.installedPath} (${formatManagedPathTuple(first)}) and ${second.installedPath} (${formatManagedPathTuple(second)})`,
+      );
+    }
+  }
+}
+
+function managedPathTupleMatches(
+  first: ManagedPathIdentity,
+  second: ManagedPathIdentity,
+): boolean {
+  return (
+    first.target === second.target &&
+    first.type === second.type &&
+    first.name === second.name &&
+    first.installedPath === second.installedPath
+  );
+}
+
+function managedPathsOverlap(first: string, second: string): boolean {
+  return (
+    isSameOrComponentDescendant(first, second) ||
+    isSameOrComponentDescendant(second, first)
+  );
+}
+
+function isSameOrComponentDescendant(
+  ancestor: string,
+  descendant: string,
+): boolean {
+  const relative = path.relative(ancestor, descendant);
+  return (
+    relative === "" ||
+    (!path.isAbsolute(relative) &&
+      relative !== ".." &&
+      !relative.startsWith(`..${path.sep}`))
+  );
+}
+
+function formatManagedPathTuple(
+  entry: Pick<ManagedPathIdentity, "target" | "type" | "name">,
+): string {
+  return `${entry.target}/${entry.type}/${entry.name}`;
+}
+
 /**
  * Return the canonical, lexical installation boundary. This deliberately does
  * not resolve symlinks: configured homes may not exist yet and identity is
