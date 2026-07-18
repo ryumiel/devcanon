@@ -8,8 +8,8 @@ import {
   type Manifest,
   ManifestSchema,
 } from "../config/schema.js";
+import { UserError } from "../utils/errors.js";
 import { ensureDir } from "../utils/fs.js";
-import { getLogger } from "../utils/output.js";
 
 const activeBackupAuthorities = new Map<string, ManifestBackupAuthority>();
 const authorityState = new WeakMap<ManifestBackupAuthority, AuthorityState>();
@@ -27,35 +27,821 @@ type ManifestFaultStage =
   | "replacement-rename"
   | "save-before-lock"
   | "recovery-before-candidate"
-  | "recovery-after-candidate";
+  | "recovery-after-candidate"
+  | "recovery-candidate-open"
+  | "recovery-candidate-write"
+  | "recovery-candidate-sync"
+  | "recovery-candidate-close"
+  | "recovery-candidate-stat"
+  | "recovery-candidate-readback"
+  | "recovery-retirement";
 type ManifestFaultInjector = (
   stage: ManifestFaultStage,
 ) => void | Promise<void>;
 let manifestFaultInjector: ManifestFaultInjector | undefined;
+interface PersistenceStatIdentity {
+  readonly dev: number;
+  readonly ino: number;
+  readonly mode: number;
+  readonly size: number;
+  readonly isFile: boolean;
+  readonly isSymbolicLink: boolean;
+}
+
+type CloseProbeSample =
+  | Readonly<{ kind: "stat-ok"; identity: PersistenceStatIdentity }>
+  | Readonly<{ kind: "stat-rejected"; error: unknown }>;
+
+type UnlinkProbeSample =
+  | Readonly<{ kind: "present"; identity: PersistenceStatIdentity }>
+  | Readonly<{ kind: "absent" }>
+  | Readonly<{ kind: "lstat-error"; error: unknown }>;
+
+type PrimitiveSettlement =
+  | Readonly<{ status: "fulfilled" }>
+  | Readonly<{ status: "rejected"; error: unknown }>;
+
+type PersistenceErrorEvidence = Readonly<
+  | {
+      kind: "error";
+      name: string;
+      message: string;
+      code?: string;
+    }
+  | { kind: "unknown"; type: string }
+  | { kind: "unreadable" }
+>;
+
+type ProjectedCloseProbeSample =
+  | Readonly<{ kind: "stat-ok"; identity: PersistenceStatIdentity }>
+  | Readonly<{ kind: "stat-rejected"; error: PersistenceErrorEvidence }>;
+
+type ProjectedUnlinkProbeSample =
+  | Readonly<{ kind: "present"; identity: PersistenceStatIdentity }>
+  | Readonly<{ kind: "absent" }>
+  | Readonly<{ kind: "lstat-error"; error: PersistenceErrorEvidence }>;
+
+type ProjectedPrimitiveSettlement =
+  | Readonly<{ status: "fulfilled" }>
+  | Readonly<{ status: "rejected"; error: PersistenceErrorEvidence }>;
+
+type ProjectedAttemptAtom = Readonly<{
+  kind: "primitive" | "synthetic";
+  error: PersistenceErrorEvidence;
+}>;
+
+type PersistenceObservation =
+  | Readonly<{
+      attemptId: number;
+      operation: "candidate-close" | "recovery-lock-close";
+      targetPath: string;
+      before: ProjectedCloseProbeSample;
+      primitive: ProjectedPrimitiveSettlement;
+      after: ProjectedCloseProbeSample;
+      atoms: readonly ProjectedAttemptAtom[];
+    }>
+  | Readonly<{
+      attemptId: number;
+      operation: "recovery-lock-unlink";
+      targetPath: string;
+      before: ProjectedUnlinkProbeSample;
+      primitive: ProjectedPrimitiveSettlement;
+      after: ProjectedUnlinkProbeSample;
+      atoms: readonly ProjectedAttemptAtom[];
+    }>;
+
+interface PostAttemptOutcomeRequest {
+  readonly attemptId: number;
+  readonly operation: "recovery-lock-close" | "recovery-lock-unlink";
+  readonly primitive: ProjectedPrimitiveSettlement;
+}
+
+interface CombinationProbe {
+  readonly primary?: string;
+  readonly primitive?: string;
+  readonly synthetic?: string;
+}
+
+interface ProjectedCombinationProbe {
+  readonly atoms: readonly Readonly<{
+    kind: "primary" | "primitive" | "synthetic";
+    label: string;
+  }>[];
+}
+
+interface PersistenceHarnessDiagnostics {
+  readonly observations: readonly PersistenceObservation[];
+  readonly errors: readonly PersistenceErrorEvidence[];
+  readonly combinationProbes: readonly ProjectedCombinationProbe[];
+}
+
+interface ManifestPersistenceTestHooks {
+  readonly observe?: (
+    observation: PersistenceObservation,
+  ) => void | PromiseLike<void>;
+  readonly injectPostAttemptOutcome?: (
+    request: Readonly<PostAttemptOutcomeRequest>,
+  ) => Error | undefined;
+  readonly combinationProbes?: readonly CombinationProbe[];
+  readonly settleDiagnostics?: (
+    diagnostics: PersistenceHarnessDiagnostics,
+  ) => void | PromiseLike<void>;
+}
+
+type AttemptFailure =
+  | Readonly<{
+      kind: "primitive";
+      primary: unknown;
+      errors: readonly [unknown];
+    }>
+  | Readonly<{
+      kind: "injected";
+      primary: Error;
+      errors: readonly [Error];
+    }>
+  | Readonly<{
+      kind: "combined";
+      primary: unknown;
+      errors: readonly [unknown, Error];
+    }>;
+
+type SeamDiagnosticEntry =
+  | Readonly<{ kind: "settled"; error: unknown }>
+  | Readonly<{
+      kind: "pending";
+      promise: Promise<ProjectedPendingDiagnostic | undefined>;
+    }>;
+
+type ProjectedPendingDiagnostic = Readonly<{
+  kind: "projected";
+  evidence: PersistenceErrorEvidence;
+}>;
+
+interface PersistenceTestContext {
+  readonly observe?: ManifestPersistenceTestHooks["observe"];
+  readonly injectPostAttemptOutcome?: ManifestPersistenceTestHooks["injectPostAttemptOutcome"];
+  readonly settleDiagnostics?: ManifestPersistenceTestHooks["settleDiagnostics"];
+  readonly combinationProbes: readonly ProjectedCombinationProbe[];
+  readonly observations: PersistenceObservation[];
+  readonly seamDiagnostics: SeamDiagnosticEntry[];
+  nextAttemptId: number;
+}
+
+let persistenceTestContext: PersistenceTestContext | undefined;
+let persistenceTestOwner: symbol | undefined;
 
 /** @internal Scoped, test-only deterministic persistence fault seam. */
 export async function withManifestPersistenceFaultsForTesting<T>(
   injector: ManifestFaultInjector,
   callback: () => Promise<T>,
+  testHooks?: ManifestPersistenceTestHooks,
 ): Promise<T> {
   if (process.env.NODE_ENV !== "test") {
     throw new Error("Manifest persistence fault injection is test-only");
   }
-  if (manifestFaultInjector) {
+  if (manifestFaultInjector || persistenceTestContext || persistenceTestOwner) {
     throw new Error(
       "Manifest persistence fault injection does not support nesting",
     );
   }
-  manifestFaultInjector = injector;
+  const owner = Symbol("manifest-persistence-test-owner");
+  persistenceTestOwner = owner;
+  let context: PersistenceTestContext | undefined;
   try {
-    return await callback();
+    const initialDiagnostics: SeamDiagnosticEntry[] = [];
+    const capturedHooks = captureManifestTestHooks(
+      testHooks,
+      initialDiagnostics,
+    );
+    context = {
+      ...capturedHooks,
+      observations: [],
+      seamDiagnostics: initialDiagnostics,
+      nextAttemptId: 0,
+    };
+    manifestFaultInjector = injector;
+    persistenceTestContext = context;
+    let callbackResult: T | undefined;
+    let callbackError: unknown;
+    let callbackFailed = false;
+    try {
+      callbackResult = await callback();
+    } catch (error) {
+      callbackFailed = true;
+      callbackError = error;
+    }
+
+    const observations = Object.freeze([...context.observations]);
+    const observe = context.observe;
+    const settleDiagnostics = context.settleDiagnostics;
+    const combinationProbes = context.combinationProbes;
+
+    // Detach all recording state before any user-provided observer runs.
+    detachPersistenceTestContext(owner, context);
+
+    const seamErrors: PersistenceErrorEvidence[] = [];
+    for (const entry of context.seamDiagnostics) {
+      if (entry.kind === "settled") {
+        seamErrors.push(projectErrorEvidence(entry.error));
+        continue;
+      }
+      const projected = await entry.promise;
+      if (projected !== undefined) seamErrors.push(projected.evidence);
+    }
+
+    if (observe) {
+      for (const observation of observations) {
+        try {
+          await assimilatePromiseLike(observe(observation));
+        } catch (error) {
+          seamErrors.push(projectErrorEvidence(error));
+        }
+      }
+    }
+
+    const diagnostics = Object.freeze({
+      observations,
+      errors: Object.freeze(seamErrors),
+      combinationProbes,
+    });
+    if (settleDiagnostics) {
+      try {
+        await assimilatePromiseLike(settleDiagnostics(diagnostics));
+      } catch {
+        // Diagnostics delivery cannot affect the production operation channel.
+      }
+    }
+
+    if (callbackFailed) throw callbackError;
+    return callbackResult as T;
   } finally {
-    manifestFaultInjector = undefined;
+    detachPersistenceTestContext(owner, context);
   }
+}
+
+function detachPersistenceTestContext(
+  owner: symbol,
+  context: PersistenceTestContext | undefined,
+): void {
+  if (persistenceTestOwner !== owner) return;
+  persistenceTestOwner = undefined;
+  if (context === undefined || persistenceTestContext === context) {
+    manifestFaultInjector = undefined;
+    persistenceTestContext = undefined;
+  }
+}
+
+function captureManifestTestHooks(
+  hooks: ManifestPersistenceTestHooks | undefined,
+  diagnostics: SeamDiagnosticEntry[],
+): Pick<
+  PersistenceTestContext,
+  | "observe"
+  | "injectPostAttemptOutcome"
+  | "settleDiagnostics"
+  | "combinationProbes"
+> {
+  if (!hooks) {
+    return { combinationProbes: Object.freeze([]) };
+  }
+
+  // Read every accessor exactly once under containment before the operation.
+  const settleDiagnostics = captureHookFunction(
+    hooks,
+    "settleDiagnostics",
+    diagnostics,
+  ) as ManifestPersistenceTestHooks["settleDiagnostics"];
+  const observe = captureHookFunction(hooks, "observe", diagnostics) as
+    | ManifestPersistenceTestHooks["observe"]
+    | undefined;
+  const rawCombinationProbes = captureHookProperty(
+    hooks,
+    "combinationProbes",
+    diagnostics,
+  );
+  const injectPostAttemptOutcome = captureHookFunction(
+    hooks,
+    "injectPostAttemptOutcome",
+    diagnostics,
+  ) as ManifestPersistenceTestHooks["injectPostAttemptOutcome"];
+
+  return {
+    observe,
+    injectPostAttemptOutcome,
+    settleDiagnostics,
+    combinationProbes: projectCombinationProbes(
+      rawCombinationProbes,
+      diagnostics,
+    ),
+  };
+}
+
+function captureHookFunction(
+  hooks: ManifestPersistenceTestHooks,
+  property: "observe" | "injectPostAttemptOutcome" | "settleDiagnostics",
+  diagnostics: SeamDiagnosticEntry[],
+): unknown {
+  const value = captureHookProperty(hooks, property, diagnostics);
+  if (value === undefined || typeof value === "function") return value;
+  diagnostics.push({
+    kind: "settled",
+    error: new TypeError(
+      `Manifest persistence ${property} hook must be a function`,
+    ),
+  });
+  return undefined;
+}
+
+function captureHookProperty(
+  hooks: ManifestPersistenceTestHooks,
+  property: keyof ManifestPersistenceTestHooks,
+  diagnostics: SeamDiagnosticEntry[],
+): unknown {
+  try {
+    return Reflect.get(hooks, property);
+  } catch (error) {
+    diagnostics.push({ kind: "settled", error });
+    return undefined;
+  }
+}
+
+async function assimilatePromiseLike(value: unknown): Promise<void> {
+  if (
+    value === null ||
+    (typeof value !== "object" && typeof value !== "function")
+  ) {
+    return;
+  }
+  const then: unknown = Reflect.get(value, "then");
+  await assimilateKnownThen(value, then);
+}
+
+async function assimilateKnownThen(
+  value: object,
+  then: unknown,
+): Promise<void> {
+  if (typeof then !== "function") return;
+  await new Promise<void>((resolve, reject) => {
+    let settled = false;
+    const settleOnce = (callback: () => void) => {
+      if (settled) return;
+      settled = true;
+      callback();
+    };
+    try {
+      Reflect.apply(then, value, [
+        () => settleOnce(resolve),
+        (error: unknown) => settleOnce(() => reject(error)),
+      ]);
+    } catch (error) {
+      settleOnce(() => reject(error));
+    }
+  });
 }
 
 async function injectManifestFault(stage: ManifestFaultStage): Promise<void> {
   await manifestFaultInjector?.(stage);
+}
+
+function persistenceIdentity(stat: {
+  dev: number;
+  ino: number;
+  mode: number;
+  size: number;
+  isFile(): boolean;
+  isSymbolicLink(): boolean;
+}): PersistenceStatIdentity {
+  return Object.freeze({
+    dev: stat.dev,
+    ino: stat.ino,
+    mode: stat.mode,
+    size: stat.size,
+    isFile: stat.isFile(),
+    isSymbolicLink: stat.isSymbolicLink(),
+  });
+}
+
+async function sampleCloseTarget(
+  handle: Awaited<ReturnType<typeof open>>,
+): Promise<CloseProbeSample> {
+  try {
+    return {
+      kind: "stat-ok",
+      identity: persistenceIdentity(await handle.stat()),
+    };
+  } catch (error) {
+    return { kind: "stat-rejected", error };
+  }
+}
+
+async function sampleUnlinkTarget(
+  targetPath: string,
+): Promise<UnlinkProbeSample> {
+  try {
+    return {
+      kind: "present",
+      identity: persistenceIdentity(await lstat(targetPath)),
+    };
+  } catch (error) {
+    if (isNoEntryError(error)) return { kind: "absent" };
+    return { kind: "lstat-error", error };
+  }
+}
+
+function projectErrorEvidence(error: unknown): PersistenceErrorEvidence {
+  if (
+    error === null ||
+    (typeof error !== "object" && typeof error !== "function")
+  ) {
+    return Object.freeze({ kind: "unknown", type: typeof error });
+  }
+  let isError = false;
+  try {
+    isError = error instanceof Error;
+  } catch {
+    return Object.freeze({ kind: "unreadable" });
+  }
+  if (!isError) {
+    return Object.freeze({ kind: "unknown", type: typeof error });
+  }
+  try {
+    const name = Reflect.get(error, "name");
+    const message = Reflect.get(error, "message");
+    const code = Reflect.get(error, "code");
+    if (typeof name !== "string" || typeof message !== "string") {
+      return Object.freeze({ kind: "unreadable" });
+    }
+    return Object.freeze({
+      kind: "error",
+      name,
+      message,
+      ...(typeof code === "string" || typeof code === "number"
+        ? { code: String(code) }
+        : {}),
+    });
+  } catch {
+    return Object.freeze({ kind: "unreadable" });
+  }
+}
+
+function projectPrimitiveSettlement(
+  primitive: PrimitiveSettlement,
+): ProjectedPrimitiveSettlement {
+  return primitive.status === "fulfilled"
+    ? Object.freeze({ status: "fulfilled" })
+    : Object.freeze({
+        status: "rejected",
+        error: projectErrorEvidence(primitive.error),
+      });
+}
+
+function projectCloseSample(
+  sample: CloseProbeSample,
+): ProjectedCloseProbeSample {
+  return sample.kind === "stat-ok"
+    ? Object.freeze({ kind: "stat-ok", identity: sample.identity })
+    : Object.freeze({
+        kind: "stat-rejected",
+        error: projectErrorEvidence(sample.error),
+      });
+}
+
+function projectUnlinkSample(
+  sample: UnlinkProbeSample,
+): ProjectedUnlinkProbeSample {
+  if (sample.kind === "present") {
+    return Object.freeze({ kind: "present", identity: sample.identity });
+  }
+  if (sample.kind === "absent") return Object.freeze({ kind: "absent" });
+  return Object.freeze({
+    kind: "lstat-error",
+    error: projectErrorEvidence(sample.error),
+  });
+}
+
+function projectAttemptAtoms(
+  failure: AttemptFailure | undefined,
+): readonly ProjectedAttemptAtom[] {
+  if (!failure) return Object.freeze([]);
+  if (failure.kind === "primitive") {
+    return Object.freeze([
+      Object.freeze({
+        kind: "primitive" as const,
+        error: projectErrorEvidence(failure.primary),
+      }),
+    ]);
+  }
+  if (failure.kind === "injected") {
+    return Object.freeze([
+      Object.freeze({
+        kind: "synthetic" as const,
+        error: projectErrorEvidence(failure.primary),
+      }),
+    ]);
+  }
+  return Object.freeze([
+    Object.freeze({
+      kind: "primitive" as const,
+      error: projectErrorEvidence(failure.errors[0]),
+    }),
+    Object.freeze({
+      kind: "synthetic" as const,
+      error: projectErrorEvidence(failure.errors[1]),
+    }),
+  ]);
+}
+
+function recordPersistenceObservation(
+  observation:
+    | {
+        attemptId: number;
+        operation: "candidate-close" | "recovery-lock-close";
+        targetPath: string;
+        before: CloseProbeSample;
+        primitive: PrimitiveSettlement;
+        after: CloseProbeSample;
+        failure: AttemptFailure | undefined;
+      }
+    | {
+        attemptId: number;
+        operation: "recovery-lock-unlink";
+        targetPath: string;
+        before: UnlinkProbeSample;
+        primitive: PrimitiveSettlement;
+        after: UnlinkProbeSample;
+        failure: AttemptFailure | undefined;
+      },
+): void {
+  const context = persistenceTestContext;
+  if (!context) return;
+  const shared = {
+    attemptId: observation.attemptId,
+    operation: observation.operation,
+    targetPath: observation.targetPath,
+    primitive: projectPrimitiveSettlement(observation.primitive),
+    atoms: projectAttemptAtoms(observation.failure),
+  };
+  context.observations.push(
+    observation.operation === "recovery-lock-unlink"
+      ? Object.freeze({
+          ...shared,
+          operation: observation.operation,
+          before: projectUnlinkSample(observation.before),
+          after: projectUnlinkSample(observation.after),
+        })
+      : Object.freeze({
+          ...shared,
+          operation: observation.operation,
+          before: projectCloseSample(observation.before),
+          after: projectCloseSample(observation.after),
+        }),
+  );
+}
+
+function recordPersistenceSeamError(error: unknown): void {
+  persistenceTestContext?.seamDiagnostics.push({
+    kind: "settled",
+    error,
+  });
+}
+
+function requestPostAttemptOutcome(
+  request: PostAttemptOutcomeRequest,
+): Error | undefined {
+  const context = persistenceTestContext;
+  const injector = context?.injectPostAttemptOutcome;
+  if (!injector) return undefined;
+  try {
+    const outcome: unknown = injector(
+      Object.freeze({
+        attemptId: request.attemptId,
+        operation: request.operation,
+        primitive: request.primitive,
+      }),
+    );
+    if (outcome === undefined) return undefined;
+    let isErrorOutcome = false;
+    try {
+      isErrorOutcome = outcome instanceof Error;
+    } catch (error) {
+      recordPersistenceSeamError(error);
+    }
+    if (isErrorOutcome) return outcome as Error;
+    recordPersistenceSeamError(
+      new TypeError(
+        "Manifest persistence post-attempt injector must return Error or undefined",
+      ),
+    );
+    context?.seamDiagnostics.push({
+      kind: "pending",
+      promise: consumeInvalidThenable(outcome),
+    });
+  } catch (error) {
+    recordPersistenceSeamError(error);
+  }
+  return undefined;
+}
+
+function consumeInvalidThenable(
+  outcome: unknown,
+): Promise<ProjectedPendingDiagnostic | undefined> {
+  if (
+    outcome === null ||
+    (typeof outcome !== "object" && typeof outcome !== "function")
+  ) {
+    return Promise.resolve(undefined);
+  }
+  let then: unknown;
+  try {
+    then = Reflect.get(outcome, "then");
+  } catch (error) {
+    return Promise.resolve(projectPendingDiagnostic(error));
+  }
+  if (typeof then !== "function") return Promise.resolve(undefined);
+  return new Promise((resolve) => {
+    let settled = false;
+    const settleOnce = (diagnostic: ProjectedPendingDiagnostic | undefined) => {
+      if (settled) return;
+      settled = true;
+      resolve(diagnostic);
+    };
+    try {
+      Reflect.apply(then, outcome, [
+        () => settleOnce(undefined),
+        (error: unknown) => settleOnce(projectPendingDiagnostic(error)),
+      ]);
+    } catch (error) {
+      settleOnce(projectPendingDiagnostic(error));
+    }
+  });
+}
+
+function projectPendingDiagnostic(error: unknown): ProjectedPendingDiagnostic {
+  return Object.freeze({
+    kind: "projected",
+    evidence: projectErrorEvidence(error),
+  });
+}
+
+function projectCombinationProbes(
+  probes: unknown,
+  diagnostics: SeamDiagnosticEntry[],
+): readonly ProjectedCombinationProbe[] {
+  if (probes === undefined) return Object.freeze([]);
+  let isArray = false;
+  try {
+    isArray = Array.isArray(probes);
+  } catch (error) {
+    diagnostics.push({ kind: "settled", error });
+    return Object.freeze([]);
+  }
+  if (!isArray) {
+    diagnostics.push({
+      kind: "settled",
+      error: new TypeError(
+        "Manifest persistence combination probes must be an array",
+      ),
+    });
+    return Object.freeze([]);
+  }
+  const probeArray = probes as object;
+  let length: unknown;
+  try {
+    length = Reflect.get(probeArray, "length");
+  } catch (error) {
+    diagnostics.push({ kind: "settled", error });
+    return Object.freeze([]);
+  }
+  if (!Number.isSafeInteger(length) || (length as number) < 0) {
+    diagnostics.push({
+      kind: "settled",
+      error: new TypeError(
+        "Manifest persistence combination probes have an invalid length",
+      ),
+    });
+    return Object.freeze([]);
+  }
+  const projected: ProjectedCombinationProbe[] = [];
+  for (let index = 0; index < (length as number); index++) {
+    let probe: unknown;
+    try {
+      probe = Reflect.get(probeArray, index);
+    } catch (error) {
+      diagnostics.push({ kind: "settled", error });
+      continue;
+    }
+    if (
+      probe === null ||
+      (typeof probe !== "object" && typeof probe !== "function")
+    ) {
+      diagnostics.push({
+        kind: "settled",
+        error: new TypeError(
+          "Manifest persistence combination probe must be an object",
+        ),
+      });
+      continue;
+    }
+    const atoms = orderOperationAtoms(
+      captureCombinationLabel(probe, "primary", diagnostics),
+      captureCombinationLabel(probe, "primitive", diagnostics),
+      captureCombinationLabel(probe, "synthetic", diagnostics),
+    );
+    projected.push(
+      Object.freeze({
+        atoms: Object.freeze(
+          atoms.map(({ kind, value }) => Object.freeze({ kind, label: value })),
+        ),
+      }),
+    );
+  }
+  return Object.freeze(projected);
+}
+
+function captureCombinationLabel(
+  probe: object,
+  kind: "primary" | "primitive" | "synthetic",
+  diagnostics: SeamDiagnosticEntry[],
+): string | undefined {
+  let value: unknown;
+  try {
+    value = Reflect.get(probe, kind);
+  } catch (error) {
+    diagnostics.push({ kind: "settled", error });
+    return undefined;
+  }
+  if (value === undefined || typeof value === "string") return value;
+  diagnostics.push({
+    kind: "settled",
+    error: new TypeError(
+      "Manifest persistence combination probe label must be a string",
+    ),
+  });
+  return value === null ? "<invalid:null>" : `<invalid:${typeof value}>`;
+}
+
+function combineAttemptFailure(
+  primitive: PrimitiveSettlement,
+  injected: Error | undefined,
+): AttemptFailure | undefined {
+  const atoms = orderOperationAtoms(
+    undefined,
+    primitive.status === "rejected" ? primitive.error : undefined,
+    injected,
+  );
+  if (atoms.length === 0) return undefined;
+  if (atoms.length === 1 && atoms[0]?.kind === "primitive") {
+    return {
+      kind: "primitive",
+      primary: atoms[0].value,
+      errors: [atoms[0].value],
+    };
+  }
+  if (atoms.length === 1 && atoms[0]?.kind === "synthetic") {
+    return {
+      kind: "injected",
+      primary: atoms[0].value as Error,
+      errors: [atoms[0].value as Error],
+    };
+  }
+  const primitiveAtom = atoms.find(({ kind }) => kind === "primitive");
+  const syntheticAtom = atoms.find(({ kind }) => kind === "synthetic");
+  if (!primitiveAtom || !syntheticAtom) {
+    throw new Error("Attempt failure ordering is internally inconsistent");
+  }
+  return {
+    kind: "combined",
+    primary: primitiveAtom.value,
+    errors: [primitiveAtom.value, syntheticAtom.value as Error],
+  };
+}
+
+function orderOperationAtoms<T>(
+  primary: T | undefined,
+  primitive: T | undefined,
+  synthetic: T | undefined,
+): readonly Readonly<{
+  kind: "primary" | "primitive" | "synthetic";
+  value: T;
+}>[] {
+  return Object.freeze([
+    ...(primary === undefined
+      ? []
+      : [Object.freeze({ kind: "primary" as const, value: primary })]),
+    ...(primitive === undefined
+      ? []
+      : [Object.freeze({ kind: "primitive" as const, value: primitive })]),
+    ...(synthetic === undefined
+      ? []
+      : [Object.freeze({ kind: "synthetic" as const, value: synthetic })]),
+  ]);
+}
+
+function nextAttemptId(): number {
+  const context = persistenceTestContext;
+  if (!context) return 0;
+  context.nextAttemptId++;
+  return context.nextAttemptId;
 }
 
 interface ManifestLock {
@@ -87,9 +873,64 @@ export interface ManifestSaveOptions {
   operationId?: string;
 }
 
-type InvalidManifestRecoveryResult =
-  | { completed: true; backupPath: string }
-  | { completed: false };
+export type ManifestInspection =
+  | { status: "valid"; manifest: Manifest; snapshot: ManifestSnapshot }
+  | { status: "absent"; manifest: Manifest; snapshot: null }
+  | { status: "invalid"; message: string };
+
+export type ManifestRecoveryCleanup =
+  | "clean"
+  | "close-degraded"
+  | "unlink-degraded"
+  | "both-degraded";
+
+export type ManifestRecoveryFailureCategory =
+  | "source-changed"
+  | "lock-unavailable"
+  | "source-unavailable-or-unsafe"
+  | "backup-create-or-verify-failed"
+  | "source-retirement-failed";
+
+export type ManifestRecoveryResult =
+  | {
+      completed: true;
+      backupPath: string;
+      cleanup: ManifestRecoveryCleanup;
+    }
+  | {
+      completed: false;
+      category: ManifestRecoveryFailureCategory;
+      cause: unknown;
+      cleanup: ManifestRecoveryCleanup;
+    };
+
+type InvalidManifestEvidence =
+  | {
+      kind: "bytes";
+      manifestPath: string;
+      bytes: Buffer;
+      digest: string;
+      invalidKind: "json" | "schema";
+      cause: unknown;
+    }
+  | {
+      kind: "lock";
+      manifestPath: string;
+      lockPath: string;
+      cause: unknown;
+    }
+  | { kind: "source"; manifestPath: string; cause: unknown };
+
+type ByteInvalidManifestEvidence = Extract<
+  InvalidManifestEvidence,
+  { kind: "bytes" }
+>;
+
+type InvalidManifestEvidenceInput =
+  | Omit<ByteInvalidManifestEvidence, "digest">
+  | Exclude<InvalidManifestEvidence, ByteInvalidManifestEvidence>;
+
+const invalidManifestEvidence = new WeakMap<object, InvalidManifestEvidence>();
 
 /** An opaque, operation-scoped capability; mutable state stays module-private. */
 export interface ManifestBackupAuthority {
@@ -113,51 +954,132 @@ export async function loadManifest(manifestPath: string): Promise<Manifest> {
 }
 
 /**
- * Load a manifest together with the exact bytes later guarded rewrites must
- * compare. Invalid JSON or schema inputs retain the established recovery path
- * and deliberately provide no migration snapshot.
+ * Inspect the configured manifest without mutating it. Invalid observations
+ * deliberately do not grant empty-manifest or save authority.
  */
-export async function loadManifestWithSnapshot(
+export async function inspectManifest(
   manifestPath: string,
-): Promise<LoadedManifest> {
+): Promise<ManifestInspection> {
+  const normalizedManifestPath = path.resolve(manifestPath);
   let rawBytes: Buffer;
   try {
-    rawBytes = await readRegularManifestBytes(manifestPath);
+    rawBytes = await readRegularManifestBytes(normalizedManifestPath);
   } catch (error) {
     if (isNoEntryError(error)) {
-      return { manifest: emptyManifest(), snapshot: null };
+      return inspectAbsentManifest(normalizedManifestPath);
     }
-    throw error;
+    return createInvalidInspection(
+      `Manifest is invalid: source ${normalizedManifestPath} is unavailable or unsafe`,
+      { kind: "source", manifestPath: normalizedManifestPath, cause: error },
+    );
   }
 
   let parsed: unknown;
   try {
     parsed = JSON.parse(rawBytes.toString("utf-8"));
-  } catch {
-    const recovery = await recoverInvalidManifest(manifestPath, rawBytes);
-    if (recovery.completed) {
-      getLogger().warn(
-        `Warning: manifest is corrupt JSON. Backing up to ${recovery.backupPath}`,
-      );
-    }
-    return { manifest: emptyManifest(), snapshot: null };
+  } catch (error) {
+    return createInvalidInspection("Manifest is invalid: corrupt JSON", {
+      kind: "bytes",
+      manifestPath: normalizedManifestPath,
+      bytes: rawBytes,
+      invalidKind: "json",
+      cause: error,
+    });
   }
 
   const result = ManifestSchema.safeParse(parsed);
   if (!result.success) {
-    const recovery = await recoverInvalidManifest(manifestPath, rawBytes);
-    if (recovery.completed) {
-      getLogger().warn(
-        `Warning: manifest schema invalid. Backing up to ${recovery.backupPath}`,
-      );
-    }
-    return { manifest: emptyManifest(), snapshot: null };
+    return createInvalidInspection(
+      "Manifest is invalid: schema validation failed",
+      {
+        kind: "bytes",
+        manifestPath: normalizedManifestPath,
+        bytes: rawBytes,
+        invalidKind: "schema",
+        cause: new Error("Manifest schema validation failed"),
+      },
+    );
   }
 
   return {
+    status: "valid",
     manifest: result.data,
-    snapshot: createValidSnapshot(manifestPath, rawBytes),
+    snapshot: createValidSnapshot(normalizedManifestPath, rawBytes),
   };
+}
+
+/**
+ * Read-only compatibility facade for callers that need a usable manifest.
+ * Invalid state remains actionable instead of being silently treated as empty.
+ */
+export async function loadManifestWithSnapshot(
+  manifestPath: string,
+): Promise<LoadedManifest> {
+  const inspection = await inspectManifest(manifestPath);
+  if (inspection.status === "invalid") {
+    const error = new UserError(
+      inspection.message,
+      path.resolve(manifestPath),
+      "Inspect the manifest and explicitly recover invalid state before retrying.",
+    );
+    const evidence = invalidManifestEvidence.get(inspection);
+    if (evidence) {
+      Object.defineProperty(error, "cause", { value: evidence.cause });
+    }
+    throw error;
+  }
+  return { manifest: inspection.manifest, snapshot: inspection.snapshot };
+}
+
+async function inspectAbsentManifest(
+  manifestPath: string,
+): Promise<ManifestInspection> {
+  const lockPath = `${manifestPath}.lock`;
+  try {
+    await lstat(lockPath);
+  } catch (error) {
+    if (isNoEntryError(error)) {
+      return { status: "absent", manifest: emptyManifest(), snapshot: null };
+    }
+    return createInvalidInspection(
+      `Manifest is invalid: sibling lock ${lockPath} is unavailable or unsafe`,
+      {
+        kind: "lock",
+        manifestPath,
+        lockPath,
+        cause: error,
+      },
+    );
+  }
+  return createInvalidInspection(
+    `Manifest is invalid: sibling lock ${lockPath} is present`,
+    {
+      kind: "lock",
+      manifestPath,
+      lockPath,
+      cause: new Error(`Manifest sibling lock ${lockPath} is present`),
+    },
+  );
+}
+
+function createInvalidInspection(
+  message: string,
+  evidence?: InvalidManifestEvidenceInput,
+): ManifestInspection {
+  const inspection = Object.freeze({ status: "invalid" as const, message });
+  if (evidence) {
+    invalidManifestEvidence.set(
+      inspection,
+      evidence.kind === "bytes"
+        ? {
+            ...evidence,
+            bytes: Buffer.from(evidence.bytes),
+            digest: digestBytes(evidence.bytes),
+          }
+        : evidence,
+    );
+  }
+  return inspection;
 }
 
 export function updateManifest(
@@ -576,26 +1498,54 @@ async function assertNormalParent(manifestPath: string): Promise<void> {
 }
 
 async function readRegularManifestBytes(manifestPath: string): Promise<Buffer> {
+  let beforePath: Awaited<ReturnType<typeof lstat>>;
+  try {
+    beforePath = await lstat(manifestPath);
+  } catch (error) {
+    throw new Error(
+      `Manifest source ${manifestPath} must be a readable regular file: ${(error as Error).message}`,
+      { cause: error },
+    );
+  }
+  if (!beforePath.isFile() || beforePath.isSymbolicLink()) {
+    throw new Error(
+      `Manifest source ${manifestPath} must be a readable regular file`,
+    );
+  }
   let handle: Awaited<ReturnType<typeof open>>;
   try {
     handle = await open(
       manifestPath,
-      constants.O_RDONLY | constants.O_NOFOLLOW,
+      constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
     );
   } catch (error) {
     throw new Error(
-      `Manifest backup source must be a readable regular file: ${(error as Error).message}`,
+      `Manifest source ${manifestPath} must be a readable regular file: ${(error as Error).message}`,
       { cause: error },
     );
   }
   try {
     const before = await handle.stat();
-    if (!before.isFile()) {
-      throw new Error("Manifest backup source must be a readable regular file");
+    if (
+      !before.isFile() ||
+      before.dev !== beforePath.dev ||
+      before.ino !== beforePath.ino
+    ) {
+      throw new Error(
+        `Manifest source ${manifestPath} must be a readable regular file`,
+      );
     }
     const bytes = await handle.readFile();
     const after = await handle.stat();
-    if (after.dev !== before.dev || after.ino !== before.ino) {
+    const afterPath = await lstat(manifestPath);
+    if (
+      after.dev !== before.dev ||
+      after.ino !== before.ino ||
+      !afterPath.isFile() ||
+      afterPath.isSymbolicLink() ||
+      afterPath.dev !== beforePath.dev ||
+      afterPath.ino !== beforePath.ino
+    ) {
       throw new Error("Manifest backup source changed while it was read");
     }
     return bytes;
@@ -712,97 +1662,386 @@ async function releaseManifestLock(lock: ManifestLock): Promise<void> {
   }
 }
 
-async function recoverInvalidManifest(
-  manifestPath: string,
-  expectedBytes: Buffer,
-): Promise<InvalidManifestRecoveryResult> {
-  const normalizedPath = path.resolve(manifestPath);
+/**
+ * Recover only the module-private invalid bytes produced by inspectManifest.
+ * A successful source unlink is the irreversible recovery commit.
+ */
+export async function recoverInvalidManifest(
+  inspection: ManifestInspection,
+): Promise<ManifestRecoveryResult> {
+  const evidence = invalidManifestEvidence.get(inspection);
+  if (!evidence) {
+    throw new Error(
+      "Manifest recovery requires an invalid inspection from this module",
+    );
+  }
+  invalidManifestEvidence.delete(inspection);
+
+  if (evidence.kind === "lock") {
+    return unrecovered("lock-unavailable", evidence.cause, "clean");
+  }
+  if (evidence.kind === "source") {
+    return unrecovered("source-unavailable-or-unsafe", evidence.cause, "clean");
+  }
+
   try {
-    await assertNormalParent(normalizedPath);
-    const lock = await acquireManifestLock(normalizedPath);
-    try {
-      const currentBytes = await readRegularManifestBytes(normalizedPath);
-      if (!currentBytes.equals(expectedBytes)) return { completed: false };
-      for (let suffix = 0; suffix < 10000; suffix++) {
-        const backupPath =
-          suffix === 0
-            ? `${normalizedPath}.bak`
-            : `${normalizedPath}.bak-${suffix}`;
-        let created = false;
-        let completed = false;
-        try {
-          // Revalidate immediately before and after candidate creation. The
-          // candidate contains captured bytes, never a later path lookup.
-          await injectManifestFault("recovery-before-candidate");
-          const beforeCreate = await readRegularManifestBytes(normalizedPath);
-          if (!beforeCreate.equals(expectedBytes)) return { completed: false };
-          await writeExactExclusiveFile(backupPath, expectedBytes, () => {
-            created = true;
-          });
-          await injectManifestFault("recovery-after-candidate");
-          const candidateBytes = await readRegularManifestBytes(backupPath);
-          const afterCreate = await readRegularManifestBytes(normalizedPath);
-          if (
-            !afterCreate.equals(expectedBytes) ||
-            !candidateBytes.equals(expectedBytes)
-          ) {
-            return { completed: false };
-          }
-          await unlink(normalizedPath);
-          completed = true;
-          return { completed: true, backupPath };
-        } catch (error) {
-          if ((error as NodeJS.ErrnoException).code === "EEXIST" && !created) {
-            continue;
-          }
-          return { completed: false };
-        } finally {
-          // Any unsuccessful recovery attempt must not leave an unverified
-          // candidate behind, while occupied collision siblings remain intact.
-          if (created && !completed) await removeRecoveryCandidate(backupPath);
+    await assertNormalParent(evidence.manifestPath);
+  } catch (error) {
+    return unrecovered("source-unavailable-or-unsafe", error, "clean");
+  }
+
+  let lock: ManifestLock;
+  try {
+    lock = await acquireManifestLock(evidence.manifestPath);
+  } catch (error) {
+    return unrecovered("lock-unavailable", error, "clean");
+  }
+
+  const transition = await performInvalidRecovery(evidence);
+  if (!transition.committed && transition.candidate) {
+    await removeOwnedRecoveryCandidate(transition.candidate);
+  }
+  const cleanup = await releaseRecoveryLock(lock);
+  return { ...transition.result, cleanup };
+}
+
+interface RecoveryTransition {
+  result: ManifestRecoveryResult;
+  candidate?: RecoveryCandidate;
+  committed: boolean;
+}
+
+async function performInvalidRecovery(
+  evidence: ByteInvalidManifestEvidence,
+): Promise<RecoveryTransition> {
+  let candidate: RecoveryCandidate | undefined;
+  try {
+    const initial = await readRecoverySource(evidence);
+    if (!initial.ok) return { result: initial.result, committed: false };
+
+    for (let suffix = 0; suffix < 10000; suffix++) {
+      const backupPath =
+        suffix === 0
+          ? `${evidence.manifestPath}.bak`
+          : `${evidence.manifestPath}.bak-${suffix}`;
+      try {
+        await injectManifestFault("recovery-before-candidate");
+        const beforeCreate = await readRecoverySource(evidence);
+        if (!beforeCreate.ok) {
+          return { result: beforeCreate.result, candidate, committed: false };
         }
+        candidate = await writeRecoveryCandidate(
+          backupPath,
+          evidence.bytes,
+          (created) => {
+            candidate = created;
+          },
+        );
+        await injectManifestFault("recovery-after-candidate");
+        await injectManifestFault("recovery-candidate-readback");
+        const candidateBytes = await readRegularManifestBytes(backupPath);
+        if (!candidateBytes.equals(evidence.bytes)) {
+          return {
+            result: unrecovered(
+              "backup-create-or-verify-failed",
+              new Error(
+                `Manifest recovery backup verification failed for ${backupPath}`,
+              ),
+              "clean",
+            ),
+            candidate,
+            committed: false,
+          };
+        }
+        break;
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "EEXIST" && !candidate) {
+          continue;
+        }
+        return {
+          result: unrecovered("backup-create-or-verify-failed", error, "clean"),
+          candidate,
+          committed: false,
+        };
       }
-      return { completed: false };
-    } finally {
-      await releaseManifestLock(lock);
     }
-  } catch {
-    // Preserve established invalid-manifest recovery behavior on filesystem errors.
-    return { completed: false };
+
+    if (!candidate) {
+      return {
+        result: unrecovered(
+          "backup-create-or-verify-failed",
+          new Error("Manifest recovery backup suffixes are exhausted"),
+          "clean",
+        ),
+        committed: false,
+      };
+    }
+
+    const freshness = await readRecoverySource(evidence);
+    if (!freshness.ok) {
+      return { result: freshness.result, candidate, committed: false };
+    }
+    try {
+      await injectManifestFault("recovery-retirement");
+      await unlink(evidence.manifestPath);
+    } catch (error) {
+      return {
+        result: unrecovered("source-retirement-failed", error, "clean"),
+        candidate,
+        committed: false,
+      };
+    }
+    return {
+      result: { completed: true, backupPath: candidate.path, cleanup: "clean" },
+      candidate,
+      committed: true,
+    };
+  } catch (error) {
+    return {
+      result: unrecovered("source-unavailable-or-unsafe", error, "clean"),
+      candidate,
+      committed: false,
+    };
   }
 }
 
-async function removeRecoveryCandidate(backupPath: string): Promise<void> {
+function unrecovered(
+  category: ManifestRecoveryFailureCategory,
+  cause: unknown,
+  cleanup: ManifestRecoveryCleanup,
+): ManifestRecoveryResult {
+  return { completed: false, category, cause, cleanup };
+}
+
+async function readRecoverySource(
+  evidence: ByteInvalidManifestEvidence,
+): Promise<{ ok: true } | { ok: false; result: ManifestRecoveryResult }> {
   try {
-    const candidate = await lstat(backupPath);
-    if (!candidate.isDirectory()) await unlink(backupPath);
-  } catch {
-    // Recovery is intentionally best effort on filesystem errors.
+    const currentBytes = await readRegularManifestBytes(evidence.manifestPath);
+    if (
+      !currentBytes.equals(evidence.bytes) ||
+      digestBytes(currentBytes) !== evidence.digest
+    ) {
+      return {
+        ok: false,
+        result: unrecovered(
+          "source-changed",
+          new Error("Manifest changed since invalid inspection"),
+          "clean",
+        ),
+      };
+    }
+    return { ok: true };
+  } catch (error) {
+    return {
+      ok: false,
+      result: unrecovered("source-unavailable-or-unsafe", error, "clean"),
+    };
   }
 }
 
-async function writeExactExclusiveFile(
+interface RecoveryCandidate {
+  path: string;
+  dev: number;
+  ino: number;
+}
+
+interface ProvisionalRecoveryCandidate {
+  path: string;
+  handle: Awaited<ReturnType<typeof open>>;
+  closed: boolean;
+}
+
+async function writeRecoveryCandidate(
   filePath: string,
   bytes: Buffer,
-  onCreated: () => void,
-): Promise<void> {
+  onCreated: (candidate: RecoveryCandidate) => void,
+): Promise<RecoveryCandidate> {
+  await injectManifestFault("recovery-candidate-open");
   const handle = await open(filePath, "wx", 0o600);
-  onCreated();
-  let writeError: unknown;
+  const provisional: ProvisionalRecoveryCandidate = {
+    path: filePath,
+    handle,
+    closed: false,
+  };
+  let primaryError: unknown;
+  let candidate: RecoveryCandidate | undefined;
   try {
+    await injectManifestFault("recovery-candidate-stat");
+    const stat = await handle.stat();
+    candidate = { path: filePath, dev: stat.dev, ino: stat.ino };
+    onCreated(candidate);
+    await injectManifestFault("recovery-candidate-write");
     await handle.writeFile(bytes);
+    await injectManifestFault("recovery-candidate-sync");
     await handle.sync();
   } catch (error) {
-    writeError = error;
+    primaryError = error;
   }
   let closeError: unknown;
   try {
-    await handle.close();
+    await closeCandidateHandle(provisional);
   } catch (error) {
     closeError = error;
   }
-  if (writeError) throw writeError;
+  if (primaryError) throw primaryError;
   if (closeError) throw closeError;
+  if (!candidate)
+    throw new Error("Recovery candidate identity was not captured");
+  return candidate;
+}
+
+async function closeCandidateHandle(
+  provisional: ProvisionalRecoveryCandidate,
+): Promise<void> {
+  if (provisional.closed) return;
+  provisional.closed = true;
+  let injectedError: unknown;
+  try {
+    await injectManifestFault("recovery-candidate-close");
+  } catch (error) {
+    injectedError = error;
+  }
+  const failure = await attemptHandleClose(
+    "candidate-close",
+    provisional.path,
+    provisional.handle,
+  );
+  if (injectedError) throw injectedError;
+  if (failure) throw materializeAttemptFailure(failure);
+}
+
+async function removeOwnedRecoveryCandidate(
+  candidate: RecoveryCandidate,
+): Promise<void> {
+  try {
+    const stat = await lstat(candidate.path);
+    if (
+      stat.isFile() &&
+      !stat.isSymbolicLink() &&
+      stat.dev === candidate.dev &&
+      stat.ino === candidate.ino
+    ) {
+      await unlink(candidate.path);
+    }
+  } catch {
+    // Cleanup must not mask the primary pre-commit outcome.
+  }
+}
+
+async function releaseRecoveryLock(
+  lock: ManifestLock,
+): Promise<ManifestRecoveryCleanup> {
+  let closeDegraded = false;
+  try {
+    await closeRecoveryHandle(lock.path, lock.handle);
+  } catch {
+    closeDegraded = true;
+  }
+  let unlinkDegraded = false;
+  try {
+    const failure = await attemptRecoveryLockUnlink(lock.path);
+    if (failure) throw materializeAttemptFailure(failure);
+  } catch {
+    unlinkDegraded = true;
+  }
+  if (closeDegraded && unlinkDegraded) return "both-degraded";
+  if (closeDegraded) return "close-degraded";
+  if (unlinkDegraded) return "unlink-degraded";
+  return "clean";
+}
+
+/** Always attempt the real close once even when the test seam faults. */
+async function closeRecoveryHandle(
+  targetPath: string,
+  handle: Awaited<ReturnType<typeof open>>,
+): Promise<void> {
+  const failure = await attemptHandleClose(
+    "recovery-lock-close",
+    targetPath,
+    handle,
+  );
+  if (failure) throw materializeAttemptFailure(failure);
+}
+
+async function attemptHandleClose(
+  operation: "candidate-close" | "recovery-lock-close",
+  targetPath: string,
+  handle: Awaited<ReturnType<typeof open>>,
+): Promise<AttemptFailure | undefined> {
+  const attemptId = nextAttemptId();
+  const before = await sampleCloseTarget(handle);
+  let primitive: PrimitiveSettlement;
+  try {
+    await handle.close();
+    primitive = { status: "fulfilled" };
+  } catch (error) {
+    primitive = { status: "rejected", error };
+  }
+  const after = await sampleCloseTarget(handle);
+  const injected =
+    operation === "recovery-lock-close"
+      ? requestPostAttemptOutcome({
+          attemptId,
+          operation,
+          primitive: projectPrimitiveSettlement(primitive),
+        })
+      : undefined;
+  const failure = combineAttemptFailure(primitive, injected);
+  recordPersistenceObservation({
+    attemptId,
+    operation,
+    targetPath,
+    before,
+    primitive,
+    after,
+    failure,
+  });
+  return failure;
+}
+
+async function attemptRecoveryLockUnlink(
+  targetPath: string,
+): Promise<AttemptFailure | undefined> {
+  const attemptId = nextAttemptId();
+  const before = await sampleUnlinkTarget(targetPath);
+  let primitive: PrimitiveSettlement;
+  try {
+    await unlink(targetPath);
+    primitive = { status: "fulfilled" };
+  } catch (error) {
+    primitive = { status: "rejected", error };
+  }
+  const after = await sampleUnlinkTarget(targetPath);
+  const injected = requestPostAttemptOutcome({
+    attemptId,
+    operation: "recovery-lock-unlink",
+    primitive: projectPrimitiveSettlement(primitive),
+  });
+  const effectivePrimitive =
+    primitive.status === "rejected" && isNoEntryError(primitive.error)
+      ? ({ status: "fulfilled" } as const)
+      : primitive;
+  const failure = combineAttemptFailure(effectivePrimitive, injected);
+  recordPersistenceObservation({
+    attemptId,
+    operation: "recovery-lock-unlink",
+    targetPath,
+    before,
+    primitive,
+    after,
+    failure,
+  });
+  return failure;
+}
+
+function materializeAttemptFailure(failure: AttemptFailure): unknown {
+  return failure.kind === "combined"
+    ? new AggregateError(
+        failure.errors,
+        "Manifest persistence primitive and injected outcome failed",
+      )
+    : failure.primary;
 }
 
 async function atomicReplaceManifest(
