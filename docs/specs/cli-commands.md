@@ -154,6 +154,32 @@ rendering or mutation, and reconciliation cannot repurpose it. Bound manifests
 with foreign records are rejected as well; use the original configured homes or
 repair the manifest from a verified backup.
 
+Manifest inspection is pure. Non-dry `sync` may explicitly recover invalid
+manifest state only after an exact invalid-byte backup is verified, source
+freshness is verified, and the invalid source is successfully unlinked. A clean
+recovery warns with its exact verified allocated backup path and continues. A
+cleanup-degraded recovery warns with the exact committed backup path, exits 1,
+and performs no render, install, remove, no-op, or manifest save. Non-dry
+`sync` exits 1 for source changed, lock unavailable, source unavailable or
+unsafe, backup creation or verification failure (including suffix exhaustion),
+and source retirement failure. Neither unrecovered nor cleanup-degraded state
+produces a successful or no-op result or successful-backup wording.
+`sync --dry-run` never recovers or mutates; invalid or residual-lock state exits
+1 before planning installation work.
+
+`sync` first inspects purely. For a non-dry invalid manifest, explicit recovery
+disposition follows, and only recovered-clean state may continue. It then
+normalizes and classifies accepted state; applies ownership disposition and
+foreign-record policy; reconciles authorized foreign records record-only;
+partitions accepted records and selected outputs into active/passive scope; and
+validates component-aware managed-path collisions before legacy binding or save,
+writable render, plan construction, printing, execution, managed-output
+mutation or removal, and the final manifest save. Equal or lexical
+ancestor/descendant installed paths conflict for distinct tuples when either is
+active; same tuples, `foo`/`foobar` prefix siblings, and passive-passive pairs
+outside the request are allowed. Reconciled-away foreign records are excluded
+from collision validation but their paths remain protected for that invocation.
+
 ---
 
 ## `uninstall`
@@ -176,11 +202,27 @@ Behavior:
 - Source files under `skills/` and `agents/` are never touched.
 - `--target` filters by Claude or Codex; default is all targets.
 - `--dry-run` previews the plan without filesystem or manifest writes.
-- An empty manifest (or empty filtered set) prints `Nothing to remove.`
-  and exits 0.
+- An accepted or recovered-clean empty manifest (or empty filtered set) prints
+  `Nothing to remove.` and exits 0.
 - Per-record failures are accumulated; the run continues to subsequent
   records and exits non-zero at the end if any failed. Successfully
   removed records are still cleared from the manifest.
+- Non-dry uninstall may explicitly recover invalid manifest state under the
+  same verified-backup, freshness, commit, warning, and cleanup-degradation
+  rules as `sync`. It exits 1 for source changed, lock unavailable, source
+  unavailable or unsafe, backup creation or verification failure (including
+  suffix exhaustion), and source retirement failure. A cleanup-degraded
+  recovery warns with the exact committed backup path and exits 1. Neither
+  class produces a successful or no-op result, and uninstall does not print
+  `Nothing to remove.`. `--dry-run` performs inspection only and exits 1 on
+  invalid or residual-lock state.
+- After pure inspection and, for non-dry invalid state, only recovered-clean
+  explicit recovery, component-aware collision validation occurs after
+  ownership disposition and before uninstall plan construction, printing,
+  execution, managed-output removal, and final manifest save. Target filtering
+  makes nonselected identities passive, so passive-passive pairs are
+  nonblocking; reconciliation protection for foreign paths remains separate
+  from collision validation.
 
 ---
 
@@ -202,6 +244,10 @@ Reports:
 Changed agent files use a line-based patch. Skill-directory changes are
 reported as status summaries.
 
+`diff` performs manifest inspection only. It never recovers or mutates the
+manifest, and invalid or residual-lock state fails actionably with exit 1
+before reporting differences.
+
 ---
 
 ## `doctor`
@@ -221,6 +267,10 @@ Checks:
 - write permission
 - symlink capability
 - manifest accessibility
+- manifest inspection state; invalid or residual-lock state is reported as a
+  warning through the existing manifest-accessibility catch rather than as a
+  healthy result. `doctor` never recovers or mutates the manifest, and its
+  overall exit behavior is unchanged unless another check independently errors.
 - managed `.worktrees/` drift diagnostics, including orphaned entries,
   cross-repo Git metadata pointers, and unsafe symlink or path-containment
   shapes; this check is read-only and reports manual cleanup guidance

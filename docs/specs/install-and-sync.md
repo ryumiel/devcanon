@@ -91,6 +91,82 @@ throws. Each protected physical mutation reports a reconciliation-specific
 previews the conflict before any write, and real sync neither changes the
 output nor adds a replacement record.
 
+### Inspection and invalid-state recovery
+
+Manifest inspection is pure: it classifies the manifest as `valid`, `absent`,
+or `invalid` without creating a lock, backup, replacement, or other mutation.
+`absent` is trusted only when both the source and its exact sibling lock return
+trusted `ENOENT`. A residual lock, unreadable source, symlink, directory,
+unsafe lock, malformed bytes, schema-invalid bytes, or another untrusted
+observation is `invalid`; it is not empty-manifest authority.
+
+Only non-dry `sync` and `uninstall` may recover `invalid` state. They must
+acquire the exact sibling cooperating lock, allocate and verify a backup of the
+exact invalid bytes, verify source freshness, and successfully unlink the
+invalid source before recovery commits. Successful invalid-source unlink is the
+commit point. There is no rollback, source recreation, or retry against the
+same observation.
+
+Before that commit, source-changed, lock-unavailable, source-unavailable or
+unsafe, backup-create or verification failure (including suffix exhaustion),
+and source-retirement failure are unrecovered. They fail actionably and never
+authorize successful-backup wording, empty authority, rendering, installation,
+removal, no-op success, or a manifest save.
+
+On each post-I1, pre-I5 exit, recovery attempts real owned lock-handle close
+and exact owned lock-path unlink as the reached phase permits. The attempts are
+independent, including unlink after close failure. Any secondary cleanup
+degradation is recorded and reported without masking or replacing the primary
+unrecovered category, and is not a sixth category. Reporting preserves
+phase-accurate source/current replacement, occupied sibling, verified or
+incomplete candidate, and residual-lock state; it neither promises
+unconditional release nor automatically reclaims a lock.
+
+After commit, cleanup independently attempts lock-handle close and exact
+lock-path unlink. Recovery is `clean`, `close-degraded`, `unlink-degraded`, or
+`both-degraded`. A clean recovery warns with the exact verified allocated backup
+path and continues. A degraded recovery warns with that exact committed backup
+path, then exits 1 before render, install, remove, no-op, or manifest save.
+A close failure followed by successful lock unlink permits a later fresh
+source-and-lock absence observation. Failed lock unlink leaves a blocking
+residual lock; after the operator establishes inactivity, manual removal of the
+exact lock path is required.
+
+Dry `sync`, dry `uninstall`, and `diff` inspect only: they never recover or
+mutate, and invalid or residual-lock state fails actionably with exit 1.
+`doctor` inspects only and reports manifest invalidity through its existing
+warning path rather than a healthy result; its overall exit behavior remains
+unchanged unless another check independently reports an error.
+
+### Managed component collisions
+
+An invocation first inspects purely. For a non-dry invalid manifest, explicit
+recovery disposition follows, and only recovered-clean state may continue. It
+then normalizes and classifies accepted state; applies the ownership disposition
+and foreign-record policy; reconciles authorized foreign records record-only;
+partitions accepted records and selected outputs into active and passive
+invocation scope; and validates installed-path collisions before legacy binding
+or save, writable render, plan construction, printing, execution, managed-output
+mutation or removal, and the final manifest save. Reconciled-away foreign
+records are excluded from this validation, but their invocation-local physical
+path protection remains separate and continues to block planned mutation.
+
+Distinct accepted full tuples conflict when installed paths are equal or have a
+lexical component ancestor/descendant relationship and at least one identity is
+active. The complete tuple, including the configured four-home boundary,
+remains the ownership identity described above. The same tuple is allowed.
+`foo` and `foobar` are component-prefix siblings, not overlapping paths.
+Passive-passive pairs outside the targeted invocation are nonblocking. Target
+filtering determines activity and never turns a foreign record into owned
+state.
+
+Canonical examples are a same-tuple repeat, a `foo`/`foobar` pair, an active
+`foo`/`foo/bar` collision, a passive-passive pair, and a reconciled-away foreign
+record whose path remains protected. Invalid examples change one named
+dimension unless they are explicitly multi-fault; unsupported or inconsistent
+examples fail rather than authorizing a guess. Realpath, inode, case-folding,
+and external-writer race families are outside this contract.
+
 ### Migration, removal, and backup safety
 
 Before an existing legacy manifest is migrated (including a non-empty legacy
@@ -118,13 +194,20 @@ backups or manifest churn.
 ## Sync Steps
 
 1. load config
-2. accept the manifest and validate its boundary and record identity
-3. perform selected legacy reconciliation and binding as record-only state
-4. validate source
-5. render outputs
-6. compute and adapt the install plan for current-invocation reconciliation protection
-7. apply install plan
-8. update manifest
+2. inspect the manifest purely
+3. for invalid state, stop dry sync without recovery; non-dry sync performs
+   explicit recovery, and only recovered-clean state continues. Every
+   pre-I5-unrecovered or recovered-cleanup-degraded result stops before each
+   later effect.
+4. normalize and classify accepted state, apply foreign-record policy,
+   reconcile authorized foreign records record-only, then partition accepted
+   records and selected outputs into active/passive invocation scope and reject
+   component-aware managed collisions
+5. perform any required legacy binding or save
+6. validate source and perform writable render
+7. construct, print, and execute the install plan with reconciliation
+   protection as applicable
+8. perform the final manifest save
 9. print summary
 
 ---
@@ -241,6 +324,10 @@ explicit.
 
 ## See also
 
+- [ADR-0032](../adr/adr-0032-manifest-inspection-and-managed-path-collisions.md)
+  -- inspection, recovery, and component-collision decision
+- [ADR-0031](../adr/adr-0031-manifest-ownership-and-save-serialization.md)
+  -- tuple identity, backup authority, locking, and freshness
 - [Configuration](configuration.md) -- install mode and overwrite policy defaults
 - [Target mapping](target-mapping.md) -- generated output rules
 - [CLI commands](cli-commands.md) -- `sync` and `diff` command details
