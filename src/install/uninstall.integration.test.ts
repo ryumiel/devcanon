@@ -1133,15 +1133,193 @@ describe("uninstall", () => {
     await writeFile(lockPath, "other writer", "utf-8");
     await writeFile(installedPath, "managed sentinel", "utf-8");
 
-    await expect(uninstall(config, { dryRun: false })).rejects.toThrow(
-      "lock-unavailable",
-    );
+    let thrown: unknown;
+    try {
+      await uninstall(config, { dryRun: false });
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toMatchObject({
+      message: expect.stringContaining("lock-unavailable"),
+      hint: `Confirm no DevCanon manifest operation is active, then manually correct the pre-existing sibling lock at ${lockPath}.`,
+    });
+    expect((thrown as UserError).hint).not.toContain(".bak");
 
     expect(await readFile(config.manifest.path, "utf-8")).toBe(invalidBytes);
     expect(await readFile(lockPath, "utf-8")).toBe("other writer");
     expect(await readFile(installedPath, "utf-8")).toBe("managed sentinel");
     expect(testLogger.infos).not.toContain("Nothing to remove.");
     expect(testLogger.warnings).toEqual([]);
+  });
+
+  it("reports the exact retained unverifiable candidate before uninstall effects", async () => {
+    const config = makeResolvedConfig(tempDir);
+    const invalidBytes = "{corrupt pre-stat candidate";
+    const candidatePath = `${config.manifest.path}.bak`;
+    const installedPath = path.join(
+      config.targets.claude.agentsHome,
+      "managed.md",
+    );
+    const primary = new Error("candidate stat fault");
+    await mkdir(path.dirname(config.manifest.path), { recursive: true });
+    await mkdir(path.dirname(installedPath), { recursive: true });
+    await writeFile(config.manifest.path, invalidBytes, "utf-8");
+    await writeFile(installedPath, "managed sentinel", "utf-8");
+
+    let thrown: unknown;
+    try {
+      await withManifestPersistenceFaultsForTesting(
+        (stage) => {
+          if (stage === "recovery-candidate-stat") throw primary;
+        },
+        () => uninstall(config, { dryRun: false }),
+      );
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toMatchObject({
+      message: expect.stringContaining("backup-create-or-verify-failed"),
+      cause: primary,
+      hint: `Inspect and preserve the unverifiable recovery candidate at ${candidatePath}; do not remove it by pathname alone.`,
+    });
+    expect(await readFile(config.manifest.path, "utf-8")).toBe(invalidBytes);
+    expect(await readFile(candidatePath, "utf-8")).toBe("");
+    expect(await pathExists(`${config.manifest.path}.lock`)).toBe(false);
+    expect(await readFile(installedPath, "utf-8")).toBe("managed sentinel");
+    expect(testLogger.infos).not.toContain("Nothing to remove.");
+    expect(testLogger.warnings).toEqual([]);
+    expect((await readdir(path.dirname(config.manifest.path))).sort()).toEqual(
+      [
+        "home",
+        path.basename(config.manifest.path),
+        path.basename(candidatePath),
+      ].sort(),
+    );
+  });
+
+  it("reports an exact candidate replacement as unmanaged custody", async () => {
+    const config = makeResolvedConfig(tempDir);
+    const invalidBytes = "{corrupt candidate replacement";
+    const candidatePath = `${config.manifest.path}.bak`;
+    const replacementBytes = "unmanaged replacement";
+    const installedPath = path.join(
+      config.targets.claude.agentsHome,
+      "managed.md",
+    );
+    await mkdir(path.dirname(config.manifest.path), { recursive: true });
+    await mkdir(path.dirname(installedPath), { recursive: true });
+    await writeFile(config.manifest.path, invalidBytes, "utf-8");
+    await writeFile(installedPath, "managed sentinel", "utf-8");
+
+    let thrown: unknown;
+    try {
+      await withManifestPersistenceFaultsForTesting(
+        async (stage) => {
+          if (stage !== "recovery-after-candidate") return;
+          await rm(candidatePath);
+          await writeFile(candidatePath, replacementBytes, "utf-8");
+        },
+        () => uninstall(config, { dryRun: false }),
+      );
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toMatchObject({
+      message: expect.stringContaining("backup-create-or-verify-failed"),
+      hint: `Preserve and inspect the unmanaged replacement at ${candidatePath}; it is not owned by recovery and must not be auto-deleted.`,
+    });
+    expect((thrown as Error & { hint?: string }).hint).not.toContain(
+      "owned recovery candidate",
+    );
+    expect(await readFile(config.manifest.path, "utf-8")).toBe(invalidBytes);
+    expect(await readFile(candidatePath, "utf-8")).toBe(replacementBytes);
+    expect(await pathExists(`${config.manifest.path}.lock`)).toBe(false);
+    expect(await readFile(installedPath, "utf-8")).toBe("managed sentinel");
+    expect(testLogger.infos).not.toContain("Nothing to remove.");
+    expect(testLogger.warnings).toEqual([]);
+  });
+
+  it("reports primary failure before retained candidate and lock actions", async ({
+    skip,
+  }) => {
+    const config = makeResolvedConfig(tempDir);
+    const manifestDir = path.dirname(config.manifest.path);
+    const invalidBytes = "{corrupt retained artifacts";
+    const candidatePath = `${config.manifest.path}.bak`;
+    const lockPath = `${config.manifest.path}.lock`;
+    const installedPath = path.join(
+      config.targets.claude.agentsHome,
+      "managed.md",
+    );
+    await mkdir(manifestDir, { recursive: true });
+    await mkdir(path.dirname(installedPath), { recursive: true });
+    await writeFile(config.manifest.path, invalidBytes, "utf-8");
+    await writeFile(installedPath, "managed sentinel", "utf-8");
+    const probePath = path.join(manifestDir, "permission-probe");
+    await writeFile(probePath, "probe", "utf-8");
+    await chmod(manifestDir, 0o500);
+    let permissionsEnforced = false;
+    try {
+      try {
+        await rm(probePath);
+      } catch {
+        permissionsEnforced = true;
+      }
+    } finally {
+      await chmod(manifestDir, 0o700);
+    }
+    if (!permissionsEnforced) {
+      await rm(probePath, { force: true });
+      skip();
+      return;
+    }
+    await rm(probePath);
+    const primary = new Error("primary candidate verification failure");
+
+    let thrown: unknown;
+    try {
+      await withManifestPersistenceFaultsForTesting(
+        async (stage) => {
+          if (stage !== "recovery-after-candidate") return;
+          await chmod(manifestDir, 0o500);
+          throw primary;
+        },
+        () => uninstall(config, { dryRun: false }),
+      );
+    } catch (error) {
+      thrown = error;
+    } finally {
+      await chmod(manifestDir, 0o700);
+    }
+
+    const candidateAction = `Inspect the retained owned recovery candidate at ${candidatePath} before any manual removal.`;
+    const lockAction = `Confirm no DevCanon manifest operation is active, then manually remove or correct the retained owned recovery lock at ${lockPath}.`;
+    expect(thrown).toMatchObject({
+      message: expect.stringContaining("backup-create-or-verify-failed"),
+      cause: primary,
+      hint: `${candidateAction} ${lockAction}`,
+    });
+    const hint = (thrown as UserError).hint ?? "";
+    expect(hint.indexOf(candidateAction)).toBeLessThan(
+      hint.indexOf(lockAction),
+    );
+    expect(await readFile(config.manifest.path, "utf-8")).toBe(invalidBytes);
+    expect(await readFile(candidatePath, "utf-8")).toBe(invalidBytes);
+    expect(await readFile(lockPath, "utf-8")).toBe("");
+    expect(await readFile(installedPath, "utf-8")).toBe("managed sentinel");
+    expect(testLogger.infos).not.toContain("Nothing to remove.");
+    expect(testLogger.warnings).toEqual([]);
+    expect((await readdir(manifestDir)).sort()).toEqual(
+      [
+        "home",
+        path.basename(config.manifest.path),
+        path.basename(candidatePath),
+        path.basename(lockPath),
+      ].sort(),
+    );
   });
 
   it.each([

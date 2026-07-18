@@ -515,13 +515,128 @@ describe("sync", () => {
     await writeFile(lockPath, "other writer", "utf-8");
     await writeFile(generatedSentinel, "generated sentinel", "utf-8");
 
-    await expect(
-      sync(config, { dryRun: false, force: false, strict: false }),
-    ).rejects.toThrow("lock-unavailable");
+    let thrown: unknown;
+    try {
+      await sync(config, { dryRun: false, force: false, strict: false });
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toMatchObject({
+      message: expect.stringContaining("lock-unavailable"),
+      hint: `Confirm no DevCanon manifest operation is active, then manually correct the pre-existing sibling lock at ${lockPath}.`,
+    });
+    expect((thrown as UserError).hint).not.toContain(".bak");
 
     expect(await readTextFile(config.manifest.path)).toBe(invalidBytes);
     expect(await readTextFile(lockPath)).toBe("other writer");
     expect(await pathExists(`${config.manifest.path}.bak`)).toBe(false);
+    expect(await readTextFile(generatedSentinel)).toBe("generated sentinel");
+    expect(testLogger.infos).toEqual([]);
+    expect(testLogger.warnings).toEqual([]);
+  });
+
+  it("reports the exact retained unverifiable candidate before any sync effect", async () => {
+    const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
+    const invalidBytes = "{corrupt pre-stat candidate";
+    const candidatePath = `${config.manifest.path}.bak`;
+    const primary = new Error("candidate stat fault");
+    const agentName = "renderable";
+    const generatedSentinel = path.join(
+      config.library.generatedDir,
+      "claude",
+      "agents",
+      `${agentName}.md`,
+    );
+    await createAgentFixture(
+      config.library.agentsDir,
+      agentName,
+      makeAgentYaml(agentName),
+    );
+    await mkdir(path.dirname(config.manifest.path), { recursive: true });
+    await mkdir(path.dirname(generatedSentinel), { recursive: true });
+    await writeFile(config.manifest.path, invalidBytes, "utf-8");
+    await writeFile(generatedSentinel, "generated sentinel", "utf-8");
+
+    let thrown: unknown;
+    try {
+      await withManifestPersistenceFaultsForTesting(
+        (stage) => {
+          if (stage === "recovery-candidate-stat") throw primary;
+        },
+        () => sync(config, { dryRun: false, force: false, strict: false }),
+      );
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toMatchObject({
+      message: expect.stringContaining("backup-create-or-verify-failed"),
+      cause: primary,
+      hint: `Inspect and preserve the unverifiable recovery candidate at ${candidatePath}; do not remove it by pathname alone.`,
+    });
+    expect(await readTextFile(config.manifest.path)).toBe(invalidBytes);
+    expect(await readTextFile(candidatePath)).toBe("");
+    expect(await pathExists(`${config.manifest.path}.lock`)).toBe(false);
+    expect(await readTextFile(generatedSentinel)).toBe("generated sentinel");
+    expect(testLogger.infos).toEqual([]);
+    expect(testLogger.warnings).toEqual([]);
+    expect((await readdir(path.dirname(config.manifest.path))).sort()).toEqual(
+      [
+        "agents",
+        "generated",
+        path.basename(config.manifest.path),
+        path.basename(candidatePath),
+      ].sort(),
+    );
+  });
+
+  it("reports an exact candidate replacement without claiming recovery ownership", async () => {
+    const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
+    const invalidBytes = "{corrupt candidate replacement";
+    const candidatePath = `${config.manifest.path}.bak`;
+    const replacementBytes = "unmanaged replacement";
+    const agentName = "renderable";
+    const generatedSentinel = path.join(
+      config.library.generatedDir,
+      "claude",
+      "agents",
+      `${agentName}.md`,
+    );
+    await createAgentFixture(
+      config.library.agentsDir,
+      agentName,
+      makeAgentYaml(agentName),
+    );
+    await mkdir(path.dirname(config.manifest.path), { recursive: true });
+    await mkdir(path.dirname(generatedSentinel), { recursive: true });
+    await writeFile(config.manifest.path, invalidBytes, "utf-8");
+    await writeFile(generatedSentinel, "generated sentinel", "utf-8");
+
+    let thrown: unknown;
+    try {
+      await withManifestPersistenceFaultsForTesting(
+        async (stage) => {
+          if (stage !== "recovery-after-candidate") return;
+          await rm(candidatePath);
+          await writeFile(candidatePath, replacementBytes, "utf-8");
+        },
+        () => sync(config, { dryRun: false, force: false, strict: false }),
+      );
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toMatchObject({
+      message: expect.stringContaining("backup-create-or-verify-failed"),
+      hint: `Preserve and inspect the unmanaged replacement at ${candidatePath}; it is not owned by recovery and must not be auto-deleted.`,
+    });
+    expect((thrown as Error & { hint?: string }).hint).not.toContain(
+      "owned recovery candidate",
+    );
+    expect(await readTextFile(config.manifest.path)).toBe(invalidBytes);
+    expect(await readTextFile(candidatePath)).toBe(replacementBytes);
+    expect(await pathExists(`${config.manifest.path}.lock`)).toBe(false);
     expect(await readTextFile(generatedSentinel)).toBe("generated sentinel");
     expect(testLogger.infos).toEqual([]);
     expect(testLogger.warnings).toEqual([]);
@@ -556,8 +671,10 @@ describe("sync", () => {
     expect(thrown).toMatchObject({
       message: expect.stringContaining("backup-create-or-verify-failed"),
       cause: new Error("primary candidate write failure"),
+      hint: "Resolve the reported manifest state before retrying sync.",
     });
     expect((thrown as Error).message).toContain("close-degraded");
+    expect((thrown as UserError).hint).not.toContain(config.manifest.path);
     expect(await readTextFile(config.manifest.path)).toBe(invalidBytes);
     expect(await pathExists(`${config.manifest.path}.bak`)).toBe(false);
     expect(await pathExists(`${config.manifest.path}.lock`)).toBe(false);

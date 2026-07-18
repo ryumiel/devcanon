@@ -22,6 +22,7 @@ import {
 import {
   type LoadedManifest,
   type ManifestBackupAuthority,
+  type ManifestRecoveryResult,
   createManifestBackupAuthority,
   inspectManifest,
   recoverInvalidManifest,
@@ -413,7 +414,7 @@ async function loadManifestForSync(
     const error = new UserError(
       `Manifest recovery did not complete (${recovery.category}; cleanup ${recovery.cleanup}).`,
       config.manifest.path,
-      "Resolve the reported manifest state before retrying sync.",
+      unrecoveredManifestHint(recovery),
     );
     Object.defineProperty(error, "cause", { value: recovery.cause });
     throw error;
@@ -445,6 +446,50 @@ async function loadManifestForSync(
     manifest: afterRecovery.manifest,
     snapshot: afterRecovery.snapshot,
   };
+}
+
+function unrecoveredManifestHint(
+  recovery: Extract<ManifestRecoveryResult, { completed: false }>,
+): string {
+  const actions: string[] = [];
+  switch (recovery.candidate.status) {
+    case "retained-unverifiable":
+      actions.push(
+        `Inspect and preserve the unverifiable recovery candidate at ${recovery.candidate.path}; do not remove it by pathname alone.`,
+      );
+      break;
+    case "retained-owned":
+      actions.push(
+        `Inspect the retained owned recovery candidate at ${recovery.candidate.path} before any manual removal.`,
+      );
+      break;
+    case "retained-replacement":
+      actions.push(
+        `Preserve and inspect the unmanaged replacement at ${recovery.candidate.path}; it is not owned by recovery and must not be auto-deleted.`,
+      );
+      break;
+    case "none-created":
+    case "owned-removed":
+      break;
+  }
+  switch (recovery.lock.status) {
+    case "pre-existing-blocker":
+      actions.push(
+        `Confirm no DevCanon manifest operation is active, then manually correct the pre-existing sibling lock at ${recovery.lock.path}.`,
+      );
+      break;
+    case "retained-owned":
+      actions.push(
+        `Confirm no DevCanon manifest operation is active, then manually remove or correct the retained owned recovery lock at ${recovery.lock.path}.`,
+      );
+      break;
+    case "not-inspected-or-not-owned":
+    case "owned-removed":
+      break;
+  }
+  return actions.length > 0
+    ? actions.join(" ")
+    : "Resolve the reported manifest state before retrying sync.";
 }
 
 function dryInvalidManifestHint(message: string, manifestPath: string): string {

@@ -164,6 +164,15 @@ and performs no render, install, remove, no-op, or manifest save. Non-dry
 unsafe, backup creation or verification failure (including suffix exhaustion),
 and source retirement failure. Neither unrecovered nor cleanup-degraded state
 produces a successful or no-op result or successful-backup wording.
+For an unrecovered result, the primary category and cause remain authoritative.
+When structured custody says a candidate remains, the error then names its
+exact path and distinguishes unverifiable, retained-owned, and unmanaged
+replacement custody; removed or never-created candidates receive no retained
+artifact instruction. A pre-existing or retained recovery lock likewise names
+the exact sibling-lock path and requires the operator to establish inactivity
+before manual correction or removal. A lock already removed receives no lock
+removal instruction. These ordered secondary actions do not replace the
+primary failure, and every unrecovered result exits 1.
 `sync --dry-run` never recovers or mutates; invalid or residual-lock state exits
 1 before planning installation work.
 
@@ -216,6 +225,13 @@ Behavior:
   class produces a successful or no-op result, and uninstall does not print
   `Nothing to remove.`. `--dry-run` performs inspection only and exits 1 on
   invalid or residual-lock state.
+- Unrecovered candidate and sibling-lock custody uses the same exact-path,
+  primary-first reporting contract as `sync`: retained unverifiable or owned
+  candidates require inspection, replacements are explicitly unmanaged and
+  never auto-deletable, and only pre-existing or retained locks receive manual
+  inactivity/correction guidance. Removed or never-created artifacts are not
+  reported as remaining. Every such result exits 1 before removal, save, or
+  no-op output.
 - After pure inspection and, for non-dry invalid state, only recovered-clean
   explicit recovery, component-aware collision validation occurs after
   ownership disposition and before uninstall plan construction, printing,
