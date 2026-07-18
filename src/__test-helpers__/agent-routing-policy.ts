@@ -351,7 +351,7 @@ export function parseCapabilityEscalationAdoptionContractFromSources(
       "inventory_owner_path",
       "authority_ref",
     ],
-    "common owner",
+    "capability-escalation common owner fields",
   );
   assertExactAnchorKeys(
     inventory,
@@ -365,7 +365,7 @@ export function parseCapabilityEscalationAdoptionContractFromSources(
       "adoptions",
       "d4_route_set",
     ],
-    "inventory owner",
+    "capability-escalation inventory owner fields",
   );
   assertExactValues(
     common,
@@ -449,7 +449,7 @@ export async function validateD4ProducedDeclaration(
       "context_ref",
       "approval_ref",
     ],
-    "D4 produced declaration",
+    "D4 produced declaration fields",
   );
   if (declaration.route_id !== "D4")
     throw new Error("D4 declaration route_id must be exactly D4");
@@ -463,7 +463,7 @@ export async function validateD4ProducedDeclaration(
       "contextRef",
       "approvalRef",
     ],
-    "D4 dispatch expectations",
+    "D4 dispatch expectations fields",
   );
   assertNonEmptyExactBinding(
     declaration.selected_role_id,
@@ -664,7 +664,7 @@ export function parseAgentSemanticRoleOwner(
   assertExactIdentitySet(
     envelopes.map((role) => role.name),
     roles.map((role) => role.name),
-    "tool-envelope and semantic-role",
+    "Agent spec tool-envelope and semantic-role",
   );
 
   const envelopesByName = new Map(envelopes.map((row) => [row.name, row]));
@@ -1256,14 +1256,14 @@ function assertUnique(values: readonly string[], dimension: string): void {
 function assertExactIdentitySet(
   actual: readonly string[],
   expected: readonly string[],
-  dimension: string,
+  diagnosticLabel: string,
 ): void {
   const actualSet = new Set(actual);
   const missing = expected.filter((value) => !actualSet.has(value));
   const unexpected = actual.filter((value) => !expected.includes(value));
   if (missing.length > 0 || unexpected.length > 0) {
     throw new Error(
-      `Agent spec ${dimension} identities must match exactly; missing: ${missing.join(", ") || "none"}; unexpected: ${unexpected.join(", ") || "none"}`,
+      `${diagnosticLabel} identities must match exactly; missing: ${missing.join(", ") || "none"}; unexpected: ${unexpected.join(", ") || "none"}`,
     );
   }
 }
@@ -1459,7 +1459,7 @@ function parseEscalationAdoptionRecords(
             "counter",
             "producer_source_path",
           ],
-      "escalation adoption record",
+      "capability-escalation adoption record fields",
     );
     const routeId = exactRouteId(raw.route_id, "escalation adoption route_id");
     const targetIds = exactStringArray(
@@ -1470,7 +1470,7 @@ function parseEscalationAdoptionRecords(
     assertExactIdentitySet(
       targetIds,
       ["claude", "codex"],
-      "escalation adoption target_ids",
+      "capability-escalation adoption target IDs",
     );
     const directRouteClauses =
       routeId === "D4"
@@ -1577,7 +1577,7 @@ function parseEscalationAdoptionRecords(
   assertExactIdentitySet(
     records.map((record) => record.routeId),
     Array.from({ length: 17 }, (_, index) => `D${index + 1}`),
-    "escalation adoption route_id",
+    "capability-escalation adoption route IDs",
   );
   return records;
 }
@@ -1771,7 +1771,7 @@ function parseD4RouteSet(
   assertExactAnchorKeys(
     value,
     ["route_id", "allowed_role_ids", "selection_mode", "adoption_ref"],
-    "D4 route set",
+    "capability-escalation D4 route-set fields",
   );
   const allowedRoleIds = exactStringArray(
     value.allowed_role_ids,
@@ -1781,7 +1781,7 @@ function parseD4RouteSet(
   assertExactIdentitySet(
     allowedRoleIds,
     expectedRoleIds,
-    "D4 allowed_role_ids",
+    "capability-escalation D4 allowed role IDs",
   );
   return {
     routeId: exactLiteral(value.route_id, "D4", "D4 route_id"),
@@ -1813,7 +1813,7 @@ function parseProjection(
       "adoption_refs",
       "authority_ref",
     ],
-    "escalation projection",
+    "capability-escalation projection fields",
   );
   const [
     declarationId,
@@ -1852,12 +1852,12 @@ function parseProjection(
   assertExactIdentitySet(
     actualRouteIds,
     routeIds,
-    `escalation projection ${declarationId} route_ids`,
+    "capability-escalation projection route IDs",
   );
   assertExactIdentitySet(
     actualAdoptionRefs,
     adoptionRefs,
-    `escalation projection ${declarationId} adoption_refs`,
+    "capability-escalation projection adoption refs",
   );
   return {
     declarationId,
@@ -1873,17 +1873,17 @@ function parseProjection(
 function assertExactAnchorKeys(
   value: Record<string, unknown>,
   expected: readonly string[],
-  dimension: string,
+  diagnosticLabel: string,
 ): void {
-  assertExactIdentitySet(Object.keys(value), expected, `${dimension} fields`);
+  assertExactIdentitySet(Object.keys(value), expected, diagnosticLabel);
 }
 
 function assertExactObjectKeys(
   value: Record<string, unknown>,
   expected: readonly string[],
-  dimension: string,
+  diagnosticLabel: string,
 ): void {
-  assertExactIdentitySet(Object.keys(value), expected, `${dimension} fields`);
+  assertExactIdentitySet(Object.keys(value), expected, diagnosticLabel);
 }
 
 function assertExactValues(

@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  type D4DispatchExpectation,
+  type D4ProducedDeclaration,
   parseAgentRoutingPolicyOwner,
   parseAgentSemanticRoleOwner,
   parseCapabilityEscalationAdoptionContractFromSources,
+  validateD4ProducedDeclaration,
 } from "../__test-helpers__/agent-routing-policy.js";
 import {
   SNAPSHOT_REQUEST_TRIGGER_CONTRACTS,
@@ -11,6 +14,8 @@ import {
   readRepoFile,
   readSkillSource,
 } from "../__test-helpers__/skill-contracts.js";
+import { loadConfig } from "../config/load.js";
+import { resolveCapabilityModel } from "../render/capability-profiles.js";
 
 function sliceBetween(content: string, start: string, end: string): string {
   const startIndex = content.indexOf(start);
@@ -97,6 +102,85 @@ async function readEscalationConsumerSources(): Promise<EscalationConsumerSource
       "docs/guidelines/agent-routing-and-mutation-policy.md",
     ),
   };
+}
+
+function capabilityEscalationSourceRecord(
+  sources: EscalationConsumerSources,
+): Record<string, string> {
+  return {
+    "docs/adr/adr-0027-semantic-agent-routing-and-mutation-authority.md":
+      sources.adr,
+    "docs/guidelines/agent-authoring-guide.md": sources.agentAuthoring,
+    "docs/guidelines/writing-skills.md": sources.writingSkills,
+    "docs/specs/afds-workflow-routing.md": sources.routingSpec,
+    "docs/specs/agents.md": sources.agentSpec,
+    "skills/issue-priming-workflow/SKILL.md": sources.issuePriming,
+    "skills/play-subagent-execution/references/lifecycle-status-policy.md":
+      sources.lifecyclePolicy,
+    "skills/pr-merge/SKILL.md": sources.prMerge,
+    "skills/subagent-lifecycle/SKILL.md": sources.lifecycleOwner,
+    "docs/guidelines/agent-routing-and-mutation-policy.md":
+      sources.adoptionInventory,
+  };
+}
+
+async function canonicalD4RuntimeInput(): Promise<{
+  declaration: D4ProducedDeclaration;
+  expectations: D4DispatchExpectation;
+}> {
+  const agentSpec = await readRepoFile("docs/specs/agents.md");
+  const investigator = parseAgentSemanticRoleOwner(agentSpec).find(
+    (role) => role.name === "investigator",
+  );
+  expect(investigator).toBeDefined();
+  if (!investigator) throw new Error("Missing canonical investigator role");
+  const target = "codex" as const;
+  const config = await loadConfig("devcanon.config.yaml", true);
+
+  return {
+    declaration: {
+      route_id: "D4",
+      target_id: target,
+      selected_role_id: investigator.name,
+      capability: investigator.capability,
+      effort: investigator.codexEffort,
+      model:
+        resolveCapabilityModel(
+          undefined,
+          investigator.capability,
+          target,
+          config.capabilityProfiles,
+        ) ?? "",
+      source_authority: investigator.sourceAuthority,
+      external_authority: investigator.externalAuthority,
+      claude_tools: investigator.claudeTools,
+      codex_sandbox: investigator.codexSandbox,
+      default_network: investigator.defaultNetwork,
+      scope: "scope:diagnostic-attribution",
+      termination: "termination:response-only",
+      context_ref: "context-ref:diagnostic-attribution",
+      approval_ref: "approval-ref:diagnostic-attribution",
+    },
+    expectations: {
+      plannerSelectedRoleId: investigator.name,
+      targetId: target,
+      scope: "scope:diagnostic-attribution",
+      termination: "termination:response-only",
+      contextRef: "context-ref:diagnostic-attribution",
+      approvalRef: "approval-ref:diagnostic-attribution",
+    },
+  };
+}
+
+async function rejectedMessage(
+  operation: () => Promise<unknown>,
+): Promise<string> {
+  try {
+    await operation();
+  } catch (error) {
+    return (error as Error).message;
+  }
+  throw new Error("Expected operation to reject");
 }
 
 function replaceRequired(source: string, from: string, to: string): string {
@@ -723,6 +807,346 @@ function validateResearchOutcome(example: ResearchOutcomeExample): string[] {
 }
 
 describe("play subagent routing source contracts", () => {
+  it("attributes missing and unexpected escalation sources to the escalation source boundary", async () => {
+    const sources = await readEscalationConsumerSources();
+    const contractSources = {
+      "docs/adr/adr-0027-semantic-agent-routing-and-mutation-authority.md":
+        sources.adr,
+      "docs/guidelines/agent-authoring-guide.md": sources.agentAuthoring,
+      "docs/guidelines/writing-skills.md": sources.writingSkills,
+      "docs/specs/afds-workflow-routing.md": sources.routingSpec,
+      "docs/specs/agents.md": sources.agentSpec,
+      "skills/issue-priming-workflow/SKILL.md": sources.issuePriming,
+      "skills/play-subagent-execution/references/lifecycle-status-policy.md":
+        sources.lifecyclePolicy,
+      "skills/pr-merge/SKILL.md": sources.prMerge,
+      "skills/subagent-lifecycle/SKILL.md": sources.lifecycleOwner,
+      "docs/guidelines/agent-routing-and-mutation-policy.md":
+        sources.adoptionInventory,
+    };
+    const missingPath = "skills/pr-merge/SKILL.md";
+    const unexpectedPath = "skills/unexpected/SKILL.md";
+    const { [missingPath]: removedSource, ...missingSources } = contractSources;
+    const unexpectedSources = {
+      ...contractSources,
+      [unexpectedPath]: sources.prMerge,
+    };
+
+    expect(removedSource).toBe(sources.prMerge);
+    expect(Object.keys(missingSources)).not.toContain(missingPath);
+    expect(unexpectedSources[unexpectedPath]).toBe(sources.prMerge);
+    expect(() =>
+      parseCapabilityEscalationAdoptionContractFromSources(contractSources),
+    ).not.toThrow();
+    let missingMessage = "";
+    try {
+      parseCapabilityEscalationAdoptionContractFromSources(missingSources);
+    } catch (error) {
+      missingMessage = (error as Error).message;
+    }
+    let unexpectedMessage = "";
+    try {
+      parseCapabilityEscalationAdoptionContractFromSources(unexpectedSources);
+    } catch (error) {
+      unexpectedMessage = (error as Error).message;
+    }
+
+    expect(missingMessage).toBe(
+      `escalation source identities must match exactly; missing: ${missingPath}; unexpected: none`,
+    );
+    expect(unexpectedMessage).toBe(
+      `escalation source identities must match exactly; missing: none; unexpected: ${unexpectedPath}`,
+    );
+  });
+
+  const nonAgentSpecAttributionProbes: Array<{
+    name: string;
+    mutate: (sources: EscalationConsumerSources) => EscalationConsumerSources;
+    assertMutation: (sources: EscalationConsumerSources) => void;
+    expectedError: string;
+  }> = [
+    {
+      name: "common owner fields",
+      mutate: (sources) => ({
+        ...sources,
+        lifecycleOwner: mutateEscalationAnchor(
+          sources.lifecycleOwner,
+          (anchor) => {
+            anchor.unexpected_field = "probe";
+          },
+        ),
+      }),
+      assertMutation: (sources) => {
+        expect(parseEscalationAnchor(sources.lifecycleOwner)).toMatchObject({
+          unexpected_field: "probe",
+        });
+      },
+      expectedError:
+        "capability-escalation common owner fields identities must match exactly; missing: none; unexpected: unexpected_field",
+    },
+    {
+      name: "inventory owner fields",
+      mutate: (sources) => ({
+        ...sources,
+        adoptionInventory: mutateEscalationAnchor(
+          sources.adoptionInventory,
+          (anchor) => {
+            anchor.unexpected_field = "probe";
+          },
+        ),
+      }),
+      assertMutation: (sources) => {
+        expect(parseEscalationAnchor(sources.adoptionInventory)).toMatchObject({
+          unexpected_field: "probe",
+        });
+      },
+      expectedError:
+        "capability-escalation inventory owner fields identities must match exactly; missing: none; unexpected: unexpected_field",
+    },
+    {
+      name: "adoption record fields",
+      mutate: (sources) => ({
+        ...sources,
+        adoptionInventory: mutateAdoptionRecord(
+          sources.adoptionInventory,
+          "D1",
+          (record) => {
+            record.unexpected_field = "probe";
+          },
+        ),
+      }),
+      assertMutation: (sources) => {
+        const record = (
+          parseEscalationAnchor(sources.adoptionInventory).adoptions as Record<
+            string,
+            unknown
+          >[]
+        ).find((candidate) => candidate.route_id === "D1");
+        expect(record).toMatchObject({ unexpected_field: "probe" });
+      },
+      expectedError:
+        "capability-escalation adoption record fields identities must match exactly; missing: none; unexpected: unexpected_field",
+    },
+    {
+      name: "adoption target IDs",
+      mutate: (sources) => ({
+        ...sources,
+        adoptionInventory: mutateAdoptionRecord(
+          sources.adoptionInventory,
+          "D1",
+          (record) => {
+            record.target_ids = ["claude"];
+          },
+        ),
+      }),
+      assertMutation: (sources) => {
+        const record = (
+          parseEscalationAnchor(sources.adoptionInventory).adoptions as Record<
+            string,
+            unknown
+          >[]
+        ).find((candidate) => candidate.route_id === "D1");
+        expect(record?.target_ids).toEqual(["claude"]);
+      },
+      expectedError:
+        "capability-escalation adoption target IDs identities must match exactly; missing: codex; unexpected: none",
+    },
+    {
+      name: "adoption route IDs",
+      mutate: (sources) => ({
+        ...sources,
+        adoptionInventory: mutateEscalationAnchor(
+          sources.adoptionInventory,
+          (anchor) => {
+            anchor.adoptions = (
+              anchor.adoptions as Record<string, unknown>[]
+            ).filter((record) => record.route_id !== "D17");
+          },
+        ),
+      }),
+      assertMutation: (sources) => {
+        const records = parseEscalationAnchor(sources.adoptionInventory)
+          .adoptions as Record<string, unknown>[];
+        expect(records.some((record) => record.route_id === "D17")).toBe(false);
+      },
+      expectedError:
+        "capability-escalation adoption route IDs identities must match exactly; missing: D17; unexpected: none",
+    },
+    {
+      name: "D4 route-set fields",
+      mutate: (sources) => ({
+        ...sources,
+        adoptionInventory: mutateEscalationAnchor(
+          sources.adoptionInventory,
+          (anchor) => {
+            (anchor.d4_route_set as Record<string, unknown>).unexpected_field =
+              "probe";
+          },
+        ),
+      }),
+      assertMutation: (sources) => {
+        expect(
+          (
+            parseEscalationAnchor(sources.adoptionInventory)
+              .d4_route_set as Record<string, unknown>
+          ).unexpected_field,
+        ).toBe("probe");
+      },
+      expectedError:
+        "capability-escalation D4 route-set fields identities must match exactly; missing: none; unexpected: unexpected_field",
+    },
+    {
+      name: "D4 allowed role IDs",
+      mutate: (sources) => ({
+        ...sources,
+        adoptionInventory: mutateEscalationAnchor(
+          sources.adoptionInventory,
+          (anchor) => {
+            const d4RouteSet = anchor.d4_route_set as Record<string, unknown>;
+            d4RouteSet.allowed_role_ids = (
+              d4RouteSet.allowed_role_ids as string[]
+            ).filter((roleId) => roleId !== "deep-reviewer");
+          },
+        ),
+      }),
+      assertMutation: (sources) => {
+        const d4RouteSet = parseEscalationAnchor(sources.adoptionInventory)
+          .d4_route_set as Record<string, unknown>;
+        expect(d4RouteSet.allowed_role_ids).not.toContain("deep-reviewer");
+      },
+      expectedError:
+        "capability-escalation D4 allowed role IDs identities must match exactly; missing: deep-reviewer; unexpected: none",
+    },
+    {
+      name: "projection fields",
+      mutate: (sources) => ({
+        ...sources,
+        prMerge: mutateEscalationAnchor(sources.prMerge, (anchor) => {
+          anchor.unexpected_field = "probe";
+        }),
+      }),
+      assertMutation: (sources) => {
+        expect(parseEscalationAnchor(sources.prMerge)).toMatchObject({
+          unexpected_field: "probe",
+        });
+      },
+      expectedError:
+        "capability-escalation projection fields identities must match exactly; missing: none; unexpected: unexpected_field",
+    },
+    {
+      name: "projection route IDs",
+      mutate: (sources) => ({
+        ...sources,
+        prMerge: mutateEscalationAnchor(sources.prMerge, (anchor) => {
+          anchor.route_ids = ["D16"];
+        }),
+      }),
+      assertMutation: (sources) => {
+        expect(parseEscalationAnchor(sources.prMerge).route_ids).toEqual([
+          "D16",
+        ]);
+      },
+      expectedError:
+        "capability-escalation projection route IDs identities must match exactly; missing: D17; unexpected: D16",
+    },
+    {
+      name: "projection adoption refs",
+      mutate: (sources) => ({
+        ...sources,
+        prMerge: mutateEscalationAnchor(sources.prMerge, (anchor) => {
+          anchor.adoption_refs = ["ESC-ADOPT-D16"];
+        }),
+      }),
+      assertMutation: (sources) => {
+        expect(parseEscalationAnchor(sources.prMerge).adoption_refs).toEqual([
+          "ESC-ADOPT-D16",
+        ]);
+      },
+      expectedError:
+        "capability-escalation projection adoption refs identities must match exactly; missing: ESC-ADOPT-D17; unexpected: ESC-ADOPT-D16",
+    },
+  ];
+
+  for (const probe of nonAgentSpecAttributionProbes) {
+    it(`attributes ${probe.name} to its capability-escalation boundary`, async () => {
+      const sources = await readEscalationConsumerSources();
+      const mutated = probe.mutate(sources);
+
+      expect(
+        parseCapabilityEscalationAdoptionContractFromSources(
+          capabilityEscalationSourceRecord(sources),
+        ),
+      ).toMatchObject({ contractId: "capability-escalation-adoption" });
+      probe.assertMutation(mutated);
+      expect(validateEscalationConsumerContracts(mutated)).toEqual([
+        probe.expectedError,
+      ]);
+    });
+  }
+
+  it("attributes D4 declaration and dispatch-expectation fields to D4 runtime boundaries", async () => {
+    const { declaration, expectations } = await canonicalD4RuntimeInput();
+    const { approval_ref: removedApprovalRef, ...missingDeclaration } =
+      declaration;
+    const {
+      approvalRef: removedApprovalRefExpectation,
+      ...missingExpectations
+    } = expectations;
+
+    expect(removedApprovalRef).toBe("approval-ref:diagnostic-attribution");
+    expect(removedApprovalRefExpectation).toBe(
+      "approval-ref:diagnostic-attribution",
+    );
+    await expect(
+      validateD4ProducedDeclaration(declaration, expectations),
+    ).resolves.toBeUndefined();
+    const declarationMessage = await rejectedMessage(() =>
+      validateD4ProducedDeclaration(
+        missingDeclaration as unknown as D4ProducedDeclaration,
+        expectations,
+      ),
+    );
+    const expectationMessage = await rejectedMessage(() =>
+      validateD4ProducedDeclaration(
+        declaration,
+        missingExpectations as unknown as D4DispatchExpectation,
+      ),
+    );
+
+    expect([declarationMessage, expectationMessage]).toEqual([
+      "D4 produced declaration fields identities must match exactly; missing: approval_ref; unexpected: none",
+      "D4 dispatch expectations fields identities must match exactly; missing: approvalRef; unexpected: none",
+    ]);
+  });
+
+  it("preserves Agent spec attribution for actual agent-spec identity mismatches", async () => {
+    const sources = await readEscalationConsumerSources();
+    const originalToolEnvelope =
+      "| `deep-reviewer` | Read, Grep, Bash, Write                      | workspace-write | None            |";
+    const mutatedToolEnvelope =
+      "| `deep-reviewer-mutated` | Read, Grep, Bash, Write                      | workspace-write | None            |";
+    const mutatedAgentSpec = replaceRequired(
+      sources.agentSpec,
+      originalToolEnvelope,
+      mutatedToolEnvelope,
+    );
+
+    expect(mutatedAgentSpec).not.toBe(sources.agentSpec);
+    expect(mutatedAgentSpec).toContain(mutatedToolEnvelope);
+    expect(mutatedAgentSpec).not.toContain(originalToolEnvelope);
+    expect(() => parseAgentSemanticRoleOwner(sources.agentSpec)).not.toThrow();
+    let mismatchMessage = "";
+    try {
+      parseAgentSemanticRoleOwner(mutatedAgentSpec);
+    } catch (error) {
+      mismatchMessage = (error as Error).message;
+    }
+
+    expect(mismatchMessage).toBe(
+      "Agent spec tool-envelope and semantic-role identities must match exactly; missing: deep-reviewer; unexpected: deep-reviewer-mutated",
+    );
+  });
+
   it("uses capability vocabulary in the active model-selection contract", async () => {
     const skill = await readSkillSource("play-subagent-execution");
     const section = getMarkdownSection(skill, "Model Selection");
@@ -4600,7 +5024,7 @@ describe("play subagent routing source contracts", () => {
           ),
         }),
         expectedError:
-          "Agent spec escalation adoption record fields identities must match exactly; missing: direct_route_clauses; unexpected: none",
+          "capability-escalation adoption record fields identities must match exactly; missing: direct_route_clauses; unexpected: none",
       },
       {
         name: "forbidden D4 direct-route binding",
@@ -4616,7 +5040,7 @@ describe("play subagent routing source contracts", () => {
           ),
         }),
         expectedError:
-          "Agent spec escalation adoption record fields identities must match exactly; missing: none; unexpected: direct_route_clauses",
+          "capability-escalation adoption record fields identities must match exactly; missing: none; unexpected: direct_route_clauses",
       },
       {
         name: "D17 direct-route role order",
@@ -4767,7 +5191,7 @@ describe("play subagent routing source contracts", () => {
           ),
         }),
         expectedError:
-          "Agent spec D4 allowed_role_ids identities must match exactly; missing: none; unexpected: ambient",
+          "capability-escalation D4 allowed role IDs identities must match exactly; missing: none; unexpected: ambient",
       },
       {
         name: "missing D4 allowed role",
@@ -4778,7 +5202,7 @@ describe("play subagent routing source contracts", () => {
             `"allowed_role_ids":${JSON.stringify(d4RoleIds.filter((role) => role !== d4RoleIds[1]))}`,
           ),
         }),
-        expectedError: `Agent spec D4 allowed_role_ids identities must match exactly; missing: ${d4RoleIds[1]}; unexpected: none`,
+        expectedError: `capability-escalation D4 allowed role IDs identities must match exactly; missing: ${d4RoleIds[1]}; unexpected: none`,
       },
       {
         name: "nearby D4 allowed role",
@@ -4789,7 +5213,7 @@ describe("play subagent routing source contracts", () => {
             `"allowed_role_ids":${JSON.stringify(d4RoleIds.map((role, index) => (index === 1 ? `${role}-nearby` : role)))}`,
           ),
         }),
-        expectedError: `Agent spec D4 allowed_role_ids identities must match exactly; missing: ${d4RoleIds[1]}; unexpected: ${d4RoleIds[1]}-nearby`,
+        expectedError: `capability-escalation D4 allowed role IDs identities must match exactly; missing: ${d4RoleIds[1]}; unexpected: ${d4RoleIds[1]}-nearby`,
       },
       {
         name: "wrong D4 selection mode",
@@ -5025,7 +5449,7 @@ describe("play subagent routing source contracts", () => {
         validateEscalationConsumerContracts(mutated),
         `missing D4-route-set ${field}`,
       ).toEqual([
-        expect.stringMatching(/D4 route set fields identities must match/i),
+        expect.stringMatching(/D4 route-set fields identities must match/i),
       ]);
     }
 
