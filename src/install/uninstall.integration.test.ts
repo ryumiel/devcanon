@@ -1,5 +1,6 @@
 import {
   chmod,
+  lstat,
   mkdir,
   readFile,
   readdir,
@@ -25,7 +26,9 @@ import {
   installTestLogger,
 } from "../__test-helpers__/logger.js";
 import { buildSkillContentHash } from "../render/skill.js";
+import { UserError } from "../utils/errors.js";
 import { pathExists } from "../utils/fs.js";
+import { withManifestPersistenceFaultsForTesting } from "./manifest.js";
 import { sync } from "./sync.js";
 import { uninstall } from "./uninstall.js";
 
@@ -400,6 +403,799 @@ describe("uninstall", () => {
       ),
     ).toHaveLength(0);
   });
+
+  it.each(["owned-first", "foreign-first"] as const)(
+    "prioritizes legacy reconciliation over an exact owned/foreign collision in %s order",
+    async (order) => {
+      const config = makeResolvedConfig(tempDir);
+      const installedPath = path.join(
+        config.targets.claude.agentsHome,
+        "shared.md",
+      );
+      await mkdir(path.dirname(installedPath), { recursive: true });
+      await writeFile(installedPath, "owned sentinel", "utf-8");
+      const owned = {
+        target: "claude" as const,
+        type: "agent" as const,
+        sourcePath: "/source/shared.yaml",
+        generatedPath: null,
+        installedPath,
+        installMode: "copy" as const,
+        contentHash: "owned",
+        timestamp: new Date().toISOString(),
+      };
+      const foreign = {
+        ...owned,
+        type: "skill" as const,
+        contentHash: "foreign",
+      };
+      const records =
+        order === "owned-first" ? [owned, foreign] : [foreign, owned];
+      await mkdir(path.dirname(config.manifest.path), { recursive: true });
+      await writeFile(
+        config.manifest.path,
+        makeManifestJson(records, { legacy: true }),
+        "utf-8",
+      );
+      const manifestBefore = await readFile(config.manifest.path, "utf-8");
+
+      await expect(uninstall(config, { dryRun: false })).rejects.toMatchObject({
+        message:
+          "Legacy manifest contains foreign records; rerun sync with --reconcile-manifest.",
+      });
+
+      expect(await readFile(config.manifest.path, "utf-8")).toBe(
+        manifestBefore,
+      );
+      expect(await readFile(installedPath, "utf-8")).toBe("owned sentinel");
+      expect(
+        (await readdir(path.dirname(config.manifest.path))).filter((entry) =>
+          entry.includes(".backup-"),
+        ),
+      ).toEqual([]);
+    },
+  );
+
+  it("prioritizes legacy reconciliation over a component-overlapping foreign pair", async () => {
+    const config = makeResolvedConfig(tempDir);
+    const ancestorPath = path.join(tempDir, "foreign", "ancestor");
+    const descendantPath = path.join(ancestorPath, "descendant.toml");
+    await mkdir(ancestorPath, { recursive: true });
+    await writeFile(descendantPath, "foreign descendant", "utf-8");
+    const timestamp = new Date().toISOString();
+    await mkdir(path.dirname(config.manifest.path), { recursive: true });
+    await writeFile(
+      config.manifest.path,
+      makeManifestJson(
+        [
+          {
+            target: "claude",
+            type: "skill",
+            sourcePath: "/source/ancestor",
+            generatedPath: null,
+            installedPath: ancestorPath,
+            installMode: "copy",
+            contentHash: "ancestor",
+            timestamp,
+          },
+          {
+            target: "codex",
+            type: "agent",
+            sourcePath: "/source/descendant.yaml",
+            generatedPath: null,
+            installedPath: descendantPath,
+            installMode: "copy",
+            contentHash: "descendant",
+            timestamp,
+          },
+        ],
+        { legacy: true },
+      ),
+      "utf-8",
+    );
+    const manifestBefore = await readFile(config.manifest.path, "utf-8");
+
+    await expect(uninstall(config, { dryRun: false })).rejects.toThrow(
+      "Legacy manifest contains foreign records",
+    );
+
+    expect(await readFile(config.manifest.path, "utf-8")).toBe(manifestBefore);
+    expect(await readFile(descendantPath, "utf-8")).toBe("foreign descendant");
+  });
+
+  it("prioritizes legacy reconciliation over an exact foreign/foreign collision", async () => {
+    const config = makeResolvedConfig(tempDir);
+    const installedPath = path.join(tempDir, "foreign", "shared.md");
+    await mkdir(path.dirname(installedPath), { recursive: true });
+    await writeFile(installedPath, "foreign sentinel", "utf-8");
+    const timestamp = new Date().toISOString();
+    await mkdir(path.dirname(config.manifest.path), { recursive: true });
+    await writeFile(
+      config.manifest.path,
+      makeManifestJson(
+        [
+          {
+            target: "claude",
+            type: "agent",
+            sourcePath: "/source/shared.yaml",
+            generatedPath: null,
+            installedPath,
+            installMode: "copy",
+            contentHash: "agent",
+            timestamp,
+          },
+          {
+            target: "claude",
+            type: "skill",
+            sourcePath: "/source/shared",
+            generatedPath: null,
+            installedPath,
+            installMode: "copy",
+            contentHash: "skill",
+            timestamp,
+          },
+        ],
+        { legacy: true },
+      ),
+      "utf-8",
+    );
+    const manifestBefore = await readFile(config.manifest.path, "utf-8");
+
+    await expect(uninstall(config, { dryRun: false })).rejects.toThrow(
+      "Legacy manifest contains foreign records",
+    );
+
+    expect(await readFile(config.manifest.path, "utf-8")).toBe(manifestBefore);
+    expect(await readFile(installedPath, "utf-8")).toBe("foreign sentinel");
+  });
+
+  it("prioritizes bound-foreign repair guidance over an exact collision", async () => {
+    const config = makeResolvedConfig(tempDir);
+    const installedPath = path.join(
+      config.targets.claude.agentsHome,
+      "shared.md",
+    );
+    await mkdir(path.dirname(installedPath), { recursive: true });
+    await writeFile(installedPath, "bound sentinel", "utf-8");
+    const timestamp = new Date().toISOString();
+    await mkdir(path.dirname(config.manifest.path), { recursive: true });
+    await writeFile(
+      config.manifest.path,
+      makeManifestJson(
+        [
+          {
+            target: "claude",
+            type: "agent",
+            name: "shared",
+            sourcePath: "/source/shared.yaml",
+            generatedPath: null,
+            installedPath,
+            installMode: "copy",
+            contentHash: "owned",
+            timestamp,
+          },
+          {
+            target: "claude",
+            type: "skill",
+            name: "shared.md",
+            sourcePath: "/source/shared",
+            generatedPath: null,
+            installedPath,
+            installMode: "copy",
+            contentHash: "foreign",
+            timestamp,
+          },
+        ],
+        { config },
+      ),
+      "utf-8",
+    );
+    const manifestBefore = await readFile(config.manifest.path, "utf-8");
+
+    await expect(uninstall(config, { dryRun: false })).rejects.toMatchObject({
+      message:
+        "Bound manifest contains foreign records; automatic reconciliation is forbidden.",
+      hint: "Restore matching configured homes or repair the manifest from a verified backup.",
+    });
+
+    expect(await readFile(config.manifest.path, "utf-8")).toBe(manifestBefore);
+    expect(await readFile(installedPath, "utf-8")).toBe("bound sentinel");
+  });
+
+  it.skipIf(!symlinkAvailable)(
+    "preserves an exact bound-foreign collision symlink and its target before repair guidance",
+    async () => {
+      const config = makeResolvedConfig(tempDir);
+      const installedPath = path.join(
+        config.targets.claude.agentsHome,
+        "shared.md",
+      );
+      const targetPath = path.join(tempDir, "target", "sentinel.md");
+      await mkdir(path.dirname(installedPath), { recursive: true });
+      await mkdir(path.dirname(targetPath), { recursive: true });
+      await writeFile(targetPath, "symlink target sentinel", "utf-8");
+      await symlink(targetPath, installedPath, "file");
+      const timestamp = new Date().toISOString();
+      await mkdir(path.dirname(config.manifest.path), { recursive: true });
+      await writeFile(
+        config.manifest.path,
+        makeManifestJson(
+          [
+            {
+              target: "claude",
+              type: "agent",
+              name: "shared",
+              sourcePath: "/source/shared.yaml",
+              generatedPath: null,
+              installedPath,
+              installMode: "symlink",
+              contentHash: "owned",
+              timestamp,
+            },
+            {
+              target: "claude",
+              type: "skill",
+              name: "shared.md",
+              sourcePath: "/source/shared",
+              generatedPath: null,
+              installedPath,
+              installMode: "copy",
+              contentHash: "foreign",
+              timestamp,
+            },
+          ],
+          { config },
+        ),
+        "utf-8",
+      );
+      const manifestBefore = await readFile(config.manifest.path, "utf-8");
+
+      await expect(uninstall(config, { dryRun: false })).rejects.toThrow(
+        "Bound manifest contains foreign records",
+      );
+
+      expect(await readFile(config.manifest.path, "utf-8")).toBe(
+        manifestBefore,
+      );
+      expect((await lstat(installedPath)).isSymbolicLink()).toBe(true);
+      expect(await readlink(installedPath)).toBe(targetPath);
+      expect(await readFile(targetPath, "utf-8")).toBe(
+        "symlink target sentinel",
+      );
+    },
+  );
+
+  it.each([
+    ["active-ancestor", "selected-first"],
+    ["active-ancestor", "retained-first"],
+    ["passive-ancestor", "selected-first"],
+    ["passive-ancestor", "retained-first"],
+  ] as const)(
+    "rejects target-scoped %s component overlap in %s order before removal",
+    async (direction, order) => {
+      const scenarioDir = path.join(tempDir, `${direction}-${order}`);
+      const root = path.join(scenarioDir, "managed");
+      const config =
+        direction === "active-ancestor"
+          ? makeResolvedConfig(scenarioDir, {
+              claude: { skillsHome: root },
+              codex: { agentsHome: path.join(root, "outer") },
+            })
+          : makeResolvedConfig(scenarioDir, {
+              codex: { skillsHome: root },
+              claude: { agentsHome: path.join(root, "outer") },
+            });
+      const active =
+        direction === "active-ancestor"
+          ? {
+              target: "claude" as const,
+              type: "skill" as const,
+              name: "outer",
+              sourcePath: "/source/outer",
+              generatedPath: null,
+              installedPath: path.join(
+                config.targets.claude.skillsHome,
+                "outer",
+              ),
+              installMode: "copy" as const,
+              contentHash: "active",
+              timestamp: new Date().toISOString(),
+            }
+          : {
+              target: "claude" as const,
+              type: "agent" as const,
+              name: "inner",
+              sourcePath: "/source/inner.yaml",
+              generatedPath: null,
+              installedPath: path.join(
+                config.targets.claude.agentsHome,
+                "inner.md",
+              ),
+              installMode: "copy" as const,
+              contentHash: "active",
+              timestamp: new Date().toISOString(),
+            };
+      const passive =
+        direction === "active-ancestor"
+          ? {
+              target: "codex" as const,
+              type: "agent" as const,
+              name: "inner",
+              sourcePath: "/source/inner.yaml",
+              generatedPath: null,
+              installedPath: path.join(
+                config.targets.codex.agentsHome,
+                "inner.toml",
+              ),
+              installMode: "copy" as const,
+              contentHash: "passive",
+              timestamp: new Date().toISOString(),
+            }
+          : {
+              target: "codex" as const,
+              type: "skill" as const,
+              name: "outer",
+              sourcePath: "/source/outer",
+              generatedPath: null,
+              installedPath: path.join(
+                config.targets.codex.skillsHome,
+                "outer",
+              ),
+              installMode: "copy" as const,
+              contentHash: "passive",
+              timestamp: new Date().toISOString(),
+            };
+      if (active.type === "agent") {
+        await mkdir(path.dirname(active.installedPath), { recursive: true });
+        await writeFile(active.installedPath, "active sentinel", "utf-8");
+      } else {
+        await mkdir(active.installedPath, { recursive: true });
+        await writeFile(
+          path.join(active.installedPath, "SKILL.md"),
+          "active sentinel",
+          "utf-8",
+        );
+      }
+      if (passive.type === "agent") {
+        await mkdir(path.dirname(passive.installedPath), { recursive: true });
+        await writeFile(passive.installedPath, "passive sentinel", "utf-8");
+      } else {
+        await mkdir(passive.installedPath, { recursive: true });
+        await writeFile(
+          path.join(passive.installedPath, "SKILL.md"),
+          "passive sentinel",
+          "utf-8",
+        );
+      }
+      const records =
+        order === "selected-first" ? [active, passive] : [passive, active];
+      await mkdir(path.dirname(config.manifest.path), { recursive: true });
+      await writeFile(
+        config.manifest.path,
+        makeManifestJson(records, { config }),
+        "utf-8",
+      );
+      const manifestBefore = await readFile(config.manifest.path, "utf-8");
+
+      let thrown: unknown;
+      try {
+        await uninstall(config, { target: "claude", dryRun: false });
+      } catch (error) {
+        thrown = error;
+      }
+      expect(thrown).toBeInstanceOf(UserError);
+      expect((thrown as Error).message).toContain(
+        "Managed output physical path conflict",
+      );
+      expect((thrown as Error).message).toContain(active.installedPath);
+      expect((thrown as Error).message).toContain(passive.installedPath);
+      expect(await readFile(config.manifest.path, "utf-8")).toBe(
+        manifestBefore,
+      );
+      expect(await pathExists(active.installedPath)).toBe(true);
+      expect(await pathExists(passive.installedPath)).toBe(true);
+      expect(testLogger.infos).toEqual([]);
+      expect(
+        (await readdir(path.dirname(config.manifest.path))).filter((entry) =>
+          entry.includes(".backup-"),
+        ),
+      ).toEqual([]);
+    },
+  );
+
+  it("treats all accepted records as active without a target filter", async () => {
+    const root = path.join(tempDir, "all-active");
+    const config = makeResolvedConfig(tempDir, {
+      claude: { skillsHome: root },
+      codex: { agentsHome: path.join(root, "outer") },
+    });
+    const ancestorPath = path.join(config.targets.claude.skillsHome, "outer");
+    const descendantPath = path.join(
+      config.targets.codex.agentsHome,
+      "inner.toml",
+    );
+    await mkdir(path.dirname(config.manifest.path), { recursive: true });
+    await writeFile(
+      config.manifest.path,
+      makeManifestJson(
+        [
+          {
+            target: "claude",
+            type: "skill",
+            name: "outer",
+            sourcePath: "/source/outer",
+            generatedPath: null,
+            installedPath: ancestorPath,
+            installMode: "copy",
+            contentHash: "ancestor",
+            timestamp: new Date().toISOString(),
+          },
+          {
+            target: "codex",
+            type: "agent",
+            name: "inner",
+            sourcePath: "/source/inner.yaml",
+            generatedPath: null,
+            installedPath: descendantPath,
+            installMode: "copy",
+            contentHash: "descendant",
+            timestamp: new Date().toISOString(),
+          },
+        ],
+        { config },
+      ),
+      "utf-8",
+    );
+
+    await expect(uninstall(config, { dryRun: true })).rejects.toThrow(
+      "Managed output physical path conflict",
+    );
+  });
+
+  it("allows duplicate entries for the same complete managed tuple", async () => {
+    const config = makeResolvedConfig(tempDir);
+    const installedPath = path.join(
+      config.targets.claude.agentsHome,
+      "same.md",
+    );
+    await mkdir(path.dirname(installedPath), { recursive: true });
+    await writeFile(installedPath, "same tuple sentinel", "utf-8");
+    const record = {
+      target: "claude" as const,
+      type: "agent" as const,
+      name: "same",
+      sourcePath: "/source/same.yaml",
+      generatedPath: null,
+      installedPath,
+      installMode: "copy" as const,
+      contentHash: "same",
+      timestamp: new Date().toISOString(),
+    };
+    await mkdir(path.dirname(config.manifest.path), { recursive: true });
+    await writeFile(
+      config.manifest.path,
+      makeManifestJson([record, { ...record }], { config }),
+      "utf-8",
+    );
+    const manifestBefore = await readFile(config.manifest.path, "utf-8");
+
+    const result = await uninstall(config, { target: "claude", dryRun: true });
+
+    expect(result).toEqual({ removed: 0, errors: [] });
+    expect(
+      testLogger.infos.filter((line) => line.includes("[remove]")),
+    ).toHaveLength(2);
+    expect(await readFile(config.manifest.path, "utf-8")).toBe(manifestBefore);
+    expect(await readFile(installedPath, "utf-8")).toBe("same tuple sentinel");
+  });
+
+  it.each(["ancestor-first", "descendant-first"] as const)(
+    "allows target-filtered passive-passive component overlap in %s order",
+    async (order) => {
+      const root = path.join(tempDir, `passive-${order}`);
+      const config = makeResolvedConfig(tempDir, {
+        codex: {
+          skillsHome: root,
+          agentsHome: path.join(root, "outer"),
+        },
+      });
+      const ancestor = {
+        target: "codex" as const,
+        type: "skill" as const,
+        name: "outer",
+        sourcePath: "/source/outer",
+        generatedPath: null,
+        installedPath: path.join(config.targets.codex.skillsHome, "outer"),
+        installMode: "copy" as const,
+        contentHash: "ancestor",
+        timestamp: new Date().toISOString(),
+      };
+      const descendant = {
+        target: "codex" as const,
+        type: "agent" as const,
+        name: "inner",
+        sourcePath: "/source/inner.yaml",
+        generatedPath: null,
+        installedPath: path.join(config.targets.codex.agentsHome, "inner.toml"),
+        installMode: "copy" as const,
+        contentHash: "descendant",
+        timestamp: new Date().toISOString(),
+      };
+      await mkdir(ancestor.installedPath, { recursive: true });
+      await writeFile(
+        path.join(ancestor.installedPath, "SKILL.md"),
+        "ancestor sentinel",
+        "utf-8",
+      );
+      await mkdir(path.dirname(descendant.installedPath), { recursive: true });
+      await writeFile(descendant.installedPath, "descendant sentinel", "utf-8");
+      const records =
+        order === "ancestor-first"
+          ? [ancestor, descendant]
+          : [descendant, ancestor];
+      await mkdir(path.dirname(config.manifest.path), { recursive: true });
+      await writeFile(
+        config.manifest.path,
+        makeManifestJson(records, { config }),
+        "utf-8",
+      );
+      const manifestBefore = await readFile(config.manifest.path, "utf-8");
+
+      const result = await uninstall(config, {
+        target: "claude",
+        dryRun: true,
+      });
+
+      expect(result).toEqual({ removed: 0, errors: [] });
+      expect(testLogger.infos).toContain("Nothing to remove.");
+      expect(await readFile(config.manifest.path, "utf-8")).toBe(
+        manifestBefore,
+      );
+      expect(await pathExists(ancestor.installedPath)).toBe(true);
+      expect(await pathExists(descendant.installedPath)).toBe(true);
+    },
+  );
+
+  it.each([
+    ["json", "{corrupt uninstall"],
+    ["schema", '{"version":1}'],
+    ["lock", ""],
+    ["unsafe-lock", ""],
+    ["unsafe-source", ""],
+  ] as const)(
+    "keeps %s invalid dry uninstall observationally pure with evidence-specific guidance",
+    async (kind, invalidBytes) => {
+      const scenarioDir = path.join(tempDir, `dry-${kind}`);
+      const config = makeResolvedConfig(scenarioDir);
+      const installedPath = path.join(
+        config.targets.claude.agentsHome,
+        "managed.md",
+      );
+      await mkdir(path.dirname(installedPath), { recursive: true });
+      await writeFile(installedPath, "managed sentinel", "utf-8");
+      await mkdir(path.dirname(config.manifest.path), { recursive: true });
+      if (kind === "lock") {
+        await writeFile(
+          `${config.manifest.path}.lock`,
+          "residual lock sentinel",
+          "utf-8",
+        );
+      } else if (kind === "unsafe-lock") {
+        await mkdir(`${config.manifest.path}.lock`, { recursive: true });
+      } else if (kind === "unsafe-source") {
+        await mkdir(config.manifest.path, { recursive: true });
+      } else {
+        await writeFile(config.manifest.path, invalidBytes, "utf-8");
+      }
+
+      let thrown: unknown;
+      try {
+        await uninstall(config, { dryRun: true });
+      } catch (error) {
+        thrown = error;
+      }
+
+      expect(thrown).toBeInstanceOf(UserError);
+      if (kind === "json" || kind === "schema") {
+        expect((thrown as UserError).hint).toContain("non-dry uninstall");
+        expect(await readFile(config.manifest.path, "utf-8")).toBe(
+          invalidBytes,
+        );
+      } else if (kind === "lock" || kind === "unsafe-lock") {
+        expect((thrown as Error).message).toContain(
+          `${config.manifest.path}.lock`,
+        );
+        expect((thrown as UserError).hint).toContain("manually");
+        expect((thrown as UserError).hint).not.toContain("non-dry");
+        if (kind === "lock") {
+          expect(await readFile(`${config.manifest.path}.lock`, "utf-8")).toBe(
+            "residual lock sentinel",
+          );
+        } else {
+          expect(
+            (await lstat(`${config.manifest.path}.lock`)).isDirectory(),
+          ).toBe(true);
+        }
+      } else {
+        expect((thrown as Error).message).toContain(config.manifest.path);
+        expect((thrown as UserError).hint).toContain("regular file");
+        expect((thrown as UserError).hint).not.toContain("non-dry");
+        expect((await lstat(config.manifest.path)).isDirectory()).toBe(true);
+      }
+      expect(await readFile(installedPath, "utf-8")).toBe("managed sentinel");
+      expect(testLogger.infos).not.toContain("Nothing to remove.");
+      expect(testLogger.warnings).toEqual([]);
+      expect(
+        (await readdir(path.dirname(config.manifest.path))).filter(
+          (entry) =>
+            entry.includes(".bak") ||
+            entry.includes(".backup-") ||
+            entry.includes(".tmp"),
+        ),
+      ).toEqual([]);
+    },
+  );
+
+  it("recovers a schema-invalid manifest to the exact allocated backup before no-managed-record behavior", async () => {
+    const config = makeResolvedConfig(tempDir);
+    const invalidBytes = '{"version":1}';
+    const installedPath = path.join(
+      config.targets.claude.agentsHome,
+      "managed.md",
+    );
+    await mkdir(path.dirname(config.manifest.path), { recursive: true });
+    await mkdir(path.dirname(installedPath), { recursive: true });
+    await writeFile(config.manifest.path, invalidBytes, "utf-8");
+    await writeFile(`${config.manifest.path}.bak`, "occupied", "utf-8");
+    await writeFile(installedPath, "managed sentinel", "utf-8");
+
+    const result = await uninstall(config, { dryRun: false });
+
+    expect(result).toEqual({ removed: 0, errors: [] });
+    expect(await readFile(`${config.manifest.path}.bak`, "utf-8")).toBe(
+      "occupied",
+    );
+    expect(await readFile(`${config.manifest.path}.bak-1`, "utf-8")).toBe(
+      invalidBytes,
+    );
+    expect(testLogger.warnings).toEqual([
+      `Recovered invalid manifest to verified backup ${config.manifest.path}.bak-1.`,
+    ]);
+    expect(testLogger.infos).toContain("Nothing to remove.");
+    expect(await readFile(installedPath, "utf-8")).toBe("managed sentinel");
+  });
+
+  it.each([
+    ["source-changed", "recovery-after-candidate"],
+    ["source-unavailable-or-unsafe", "recovery-before-candidate"],
+    ["backup-create-or-verify-failed", "recovery-candidate-write"],
+    ["source-retirement-failed", "recovery-retirement"],
+  ] as const)(
+    "stops real invalid uninstall on pre-I5 %s before no-op, removal, or save",
+    async (category, faultStage) => {
+      const scenarioDir = path.join(tempDir, `uninstall-${category}`);
+      const config = makeResolvedConfig(scenarioDir);
+      const invalidBytes = `{corrupt ${category}`;
+      const installedPath = path.join(
+        config.targets.claude.agentsHome,
+        "managed.md",
+      );
+      await mkdir(path.dirname(config.manifest.path), { recursive: true });
+      await mkdir(path.dirname(installedPath), { recursive: true });
+      await writeFile(config.manifest.path, invalidBytes, "utf-8");
+      await writeFile(installedPath, "managed sentinel", "utf-8");
+
+      let thrown: unknown;
+      try {
+        await withManifestPersistenceFaultsForTesting(
+          async (stage) => {
+            if (stage !== faultStage) return;
+            if (category === "source-changed") {
+              await writeFile(config.manifest.path, "{replacement", "utf-8");
+              return;
+            }
+            if (category === "source-unavailable-or-unsafe") {
+              await rm(config.manifest.path);
+              await mkdir(config.manifest.path);
+              return;
+            }
+            throw new Error(`injected ${category}`);
+          },
+          () => uninstall(config, { dryRun: false }),
+        );
+      } catch (error) {
+        thrown = error;
+      }
+
+      expect(thrown).toBeInstanceOf(UserError);
+      expect((thrown as Error).message).toContain(category);
+      expect((thrown as Error & { cause?: unknown }).cause).toBeInstanceOf(
+        Error,
+      );
+      expect(await readFile(installedPath, "utf-8")).toBe("managed sentinel");
+      expect(testLogger.infos).not.toContain("Nothing to remove.");
+      expect(testLogger.warnings).toEqual([]);
+      expect(await pathExists(`${config.manifest.path}.lock`)).toBe(false);
+    },
+  );
+
+  it("preserves lock-unavailable as the primary real uninstall recovery failure", async () => {
+    const config = makeResolvedConfig(tempDir);
+    const invalidBytes = "{corrupt lock contention";
+    const lockPath = `${config.manifest.path}.lock`;
+    const installedPath = path.join(
+      config.targets.claude.agentsHome,
+      "managed.md",
+    );
+    await mkdir(path.dirname(config.manifest.path), { recursive: true });
+    await mkdir(path.dirname(installedPath), { recursive: true });
+    await writeFile(config.manifest.path, invalidBytes, "utf-8");
+    await writeFile(lockPath, "other writer", "utf-8");
+    await writeFile(installedPath, "managed sentinel", "utf-8");
+
+    await expect(uninstall(config, { dryRun: false })).rejects.toThrow(
+      "lock-unavailable",
+    );
+
+    expect(await readFile(config.manifest.path, "utf-8")).toBe(invalidBytes);
+    expect(await readFile(lockPath, "utf-8")).toBe("other writer");
+    expect(await readFile(installedPath, "utf-8")).toBe("managed sentinel");
+    expect(testLogger.infos).not.toContain("Nothing to remove.");
+    expect(testLogger.warnings).toEqual([]);
+  });
+
+  it.each([
+    [true, false, "close-degraded"],
+    [false, true, "unlink-degraded"],
+    [true, true, "both-degraded"],
+  ] as const)(
+    "stops uninstall after committed recovery with %s/%s cleanup as %s",
+    async (failClose, failUnlink, cleanup) => {
+      const scenarioDir = path.join(tempDir, `uninstall-${cleanup}`);
+      const config = makeResolvedConfig(scenarioDir);
+      const invalidBytes = `{corrupt ${cleanup}`;
+      const installedPath = path.join(
+        config.targets.claude.agentsHome,
+        "managed.md",
+      );
+      await mkdir(path.dirname(config.manifest.path), { recursive: true });
+      await mkdir(path.dirname(installedPath), { recursive: true });
+      await writeFile(config.manifest.path, invalidBytes, "utf-8");
+      await writeFile(installedPath, "managed sentinel", "utf-8");
+
+      await expect(
+        withManifestPersistenceFaultsForTesting(
+          () => {},
+          () => uninstall(config, { dryRun: false }),
+          {
+            injectPostAttemptOutcome: ({ operation }) => {
+              if (failClose && operation === "recovery-lock-close") {
+                return new Error("injected close degradation");
+              }
+              if (failUnlink && operation === "recovery-lock-unlink") {
+                return new Error("injected unlink degradation");
+              }
+              return undefined;
+            },
+          },
+        ),
+      ).rejects.toThrow(cleanup);
+
+      expect(await pathExists(config.manifest.path)).toBe(false);
+      expect(await readFile(`${config.manifest.path}.bak`, "utf-8")).toBe(
+        invalidBytes,
+      );
+      expect(await readFile(installedPath, "utf-8")).toBe("managed sentinel");
+      expect(testLogger.warnings).toEqual([
+        `Manifest recovery committed to verified backup ${config.manifest.path}.bak, but cleanup degraded (${cleanup}).`,
+      ]);
+      expect(testLogger.warnings.join("\n")).not.toContain(
+        "Recovered invalid manifest to verified backup",
+      );
+      expect(testLogger.infos).not.toContain("Nothing to remove.");
+      expect(await pathExists(`${config.manifest.path}.lock`)).toBe(false);
+    },
+  );
 
   it("skips uninstall removal when copied agent content no longer matches the manifest", async () => {
     const config = makeResolvedConfig(tempDir);
