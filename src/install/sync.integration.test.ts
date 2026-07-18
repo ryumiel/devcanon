@@ -31,7 +31,9 @@ import {
 import { loadConfig } from "../config/load.js";
 import { diffAll } from "../diff/diff.js";
 import { buildSkillContentHash } from "../render/skill.js";
+import { UserError } from "../utils/errors.js";
 import { pathExists, readTextFile } from "../utils/fs.js";
+import { withManifestPersistenceFaultsForTesting } from "./manifest.js";
 import { sync } from "./sync.js";
 import { uninstall } from "./uninstall.js";
 
@@ -273,6 +275,720 @@ describe("sync", () => {
       ),
     ).toHaveLength(0);
   });
+
+  it("keeps invalid dry sync observationally pure and explicitly recovers a real sync", async () => {
+    const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
+    const invalidBytes = "{corrupt manifest";
+    const agentName = "renderable";
+    const generatedSentinel = path.join(
+      config.library.generatedDir,
+      "claude",
+      "agents",
+      `${agentName}.md`,
+    );
+    await createAgentFixture(
+      config.library.agentsDir,
+      agentName,
+      makeAgentYaml(agentName),
+    );
+    await mkdir(path.dirname(config.manifest.path), { recursive: true });
+    await mkdir(path.dirname(generatedSentinel), { recursive: true });
+    await writeFile(config.manifest.path, invalidBytes, "utf-8");
+    await writeFile(generatedSentinel, "generated sentinel", "utf-8");
+
+    let dryError: unknown;
+    try {
+      await sync(config, { dryRun: true, force: false, strict: false });
+    } catch (error) {
+      dryError = error;
+    }
+    expect(dryError).toBeInstanceOf(UserError);
+    expect((dryError as Error).message).toContain(
+      "Manifest is invalid: corrupt JSON",
+    );
+    expect((dryError as UserError).hint).toContain("non-dry sync");
+    expect(await readTextFile(config.manifest.path)).toBe(invalidBytes);
+    expect(await readTextFile(generatedSentinel)).toBe("generated sentinel");
+    expect(
+      (await readdir(path.dirname(config.manifest.path))).filter((entry) =>
+        entry.startsWith(path.basename(config.manifest.path)),
+      ),
+    ).toEqual([path.basename(config.manifest.path)]);
+
+    const result = await sync(config, {
+      dryRun: false,
+      force: false,
+      strict: false,
+    });
+
+    expect(result.errors).toEqual([]);
+    expect(await readTextFile(`${config.manifest.path}.bak`)).toBe(
+      invalidBytes,
+    );
+    expect(testLogger.warnings.join("\n")).toContain(
+      `${config.manifest.path}.bak`,
+    );
+    expect(testLogger.warnings).toEqual([
+      `Recovered invalid manifest to verified backup ${config.manifest.path}.bak.`,
+    ]);
+    expect(
+      JSON.parse(await readTextFile(config.manifest.path)).boundary,
+    ).toBeDefined();
+  });
+
+  it("treats a residual lock as invalid during dry sync without rendering or recovery", async () => {
+    const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
+    const lockPath = `${config.manifest.path}.lock`;
+    const agentName = "renderable";
+    const generatedSentinel = path.join(
+      config.library.generatedDir,
+      "claude",
+      "agents",
+      `${agentName}.md`,
+    );
+    await createAgentFixture(
+      config.library.agentsDir,
+      agentName,
+      makeAgentYaml(agentName),
+    );
+    await mkdir(path.dirname(lockPath), { recursive: true });
+    await mkdir(path.dirname(generatedSentinel), { recursive: true });
+    await writeFile(lockPath, "residual lock", "utf-8");
+    await writeFile(generatedSentinel, "generated sentinel", "utf-8");
+
+    let dryError: unknown;
+    try {
+      await sync(config, { dryRun: true, force: false, strict: false });
+    } catch (error) {
+      dryError = error;
+    }
+    expect(dryError).toBeInstanceOf(UserError);
+    expect((dryError as Error).message).toContain(lockPath);
+    expect((dryError as UserError).hint).toContain("manually");
+    expect((dryError as UserError).hint).not.toContain("non-dry sync");
+
+    expect(await pathExists(config.manifest.path)).toBe(false);
+    expect(await readTextFile(lockPath)).toBe("residual lock");
+    expect(await readTextFile(generatedSentinel)).toBe("generated sentinel");
+    expect(testLogger.infos).toEqual([]);
+    expect(testLogger.warnings).toEqual([]);
+  });
+
+  it("gives unsafe manifest sources manual dry-run guidance without attempting recovery", async () => {
+    const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
+    const agentName = "renderable";
+    const generatedSentinel = path.join(
+      config.library.generatedDir,
+      "claude",
+      "agents",
+      `${agentName}.md`,
+    );
+    await createAgentFixture(
+      config.library.agentsDir,
+      agentName,
+      makeAgentYaml(agentName),
+    );
+    await mkdir(config.manifest.path, { recursive: true });
+    await mkdir(path.dirname(generatedSentinel), { recursive: true });
+    await writeFile(generatedSentinel, "generated sentinel", "utf-8");
+
+    let dryError: unknown;
+    try {
+      await sync(config, { dryRun: true, force: false, strict: false });
+    } catch (error) {
+      dryError = error;
+    }
+
+    expect(dryError).toBeInstanceOf(UserError);
+    expect((dryError as Error).message).toContain(config.manifest.path);
+    expect((dryError as Error).message).toContain("unavailable or unsafe");
+    expect((dryError as UserError).hint).toContain("regular file");
+    expect((dryError as UserError).hint).not.toContain("non-dry sync");
+    expect((await lstat(config.manifest.path)).isDirectory()).toBe(true);
+    expect(await readTextFile(generatedSentinel)).toBe("generated sentinel");
+    expect(await pathExists(`${config.manifest.path}.bak`)).toBe(false);
+    expect(await pathExists(`${config.manifest.path}.lock`)).toBe(false);
+    expect(testLogger.infos).toEqual([]);
+    expect(testLogger.warnings).toEqual([]);
+  });
+
+  it("continues from the exact collision-allocated invalid recovery backup", async () => {
+    const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
+    const invalidBytes = '{"version":1}';
+    await mkdir(path.dirname(config.manifest.path), { recursive: true });
+    await writeFile(config.manifest.path, invalidBytes, "utf-8");
+    await writeFile(`${config.manifest.path}.bak`, "occupied backup", "utf-8");
+
+    const result = await sync(config, {
+      dryRun: false,
+      force: false,
+      strict: false,
+    });
+
+    expect(result.errors).toEqual([]);
+    expect(await readTextFile(`${config.manifest.path}.bak`)).toBe(
+      "occupied backup",
+    );
+    expect(await readTextFile(`${config.manifest.path}.bak-1`)).toBe(
+      invalidBytes,
+    );
+    expect(testLogger.warnings.join("\n")).toContain(
+      `${config.manifest.path}.bak-1`,
+    );
+  });
+
+  it.each([
+    ["source-changed", "recovery-after-candidate"],
+    ["source-unavailable-or-unsafe", "recovery-before-candidate"],
+    ["backup-create-or-verify-failed", "recovery-candidate-write"],
+    ["source-retirement-failed", "recovery-retirement"],
+  ] as const)(
+    "stops a real invalid sync on pre-I5 %s without later effects",
+    async (category, faultStage) => {
+      const scenarioDir = path.join(tempDir, category);
+      const config = makeResolvedConfig(scenarioDir, {
+        codex: { enabled: false },
+      });
+      const invalidBytes = `{corrupt ${category}`;
+      const agentName = "renderable";
+      const generatedSentinel = path.join(
+        config.library.generatedDir,
+        "claude",
+        "agents",
+        `${agentName}.md`,
+      );
+      await createAgentFixture(
+        config.library.agentsDir,
+        agentName,
+        makeAgentYaml(agentName),
+      );
+      await mkdir(path.dirname(config.manifest.path), { recursive: true });
+      await mkdir(path.dirname(generatedSentinel), { recursive: true });
+      await writeFile(config.manifest.path, invalidBytes, "utf-8");
+      await writeFile(generatedSentinel, "generated sentinel", "utf-8");
+
+      await expect(
+        withManifestPersistenceFaultsForTesting(
+          async (stage) => {
+            if (stage !== faultStage) return;
+            if (category === "source-changed") {
+              await writeFile(config.manifest.path, "{replacement", "utf-8");
+              return;
+            }
+            if (category === "source-unavailable-or-unsafe") {
+              await rm(config.manifest.path);
+              await mkdir(config.manifest.path);
+              return;
+            }
+            throw new Error(`injected ${category}`);
+          },
+          () => sync(config, { dryRun: false, force: false, strict: false }),
+        ),
+      ).rejects.toThrow(category);
+
+      expect(await readTextFile(generatedSentinel)).toBe("generated sentinel");
+      expect(testLogger.infos).toEqual([]);
+      expect(testLogger.warnings).toEqual([]);
+      expect(await pathExists(`${config.manifest.path}.lock`)).toBe(false);
+    },
+  );
+
+  it("preserves lock-unavailable as the primary pre-I5 sync failure", async () => {
+    const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
+    const invalidBytes = "{corrupt lock contention";
+    const lockPath = `${config.manifest.path}.lock`;
+    const agentName = "renderable";
+    const generatedSentinel = path.join(
+      config.library.generatedDir,
+      "claude",
+      "agents",
+      `${agentName}.md`,
+    );
+    await createAgentFixture(
+      config.library.agentsDir,
+      agentName,
+      makeAgentYaml(agentName),
+    );
+    await mkdir(path.dirname(config.manifest.path), { recursive: true });
+    await mkdir(path.dirname(generatedSentinel), { recursive: true });
+    await writeFile(config.manifest.path, invalidBytes, "utf-8");
+    await writeFile(lockPath, "other writer", "utf-8");
+    await writeFile(generatedSentinel, "generated sentinel", "utf-8");
+
+    await expect(
+      sync(config, { dryRun: false, force: false, strict: false }),
+    ).rejects.toThrow("lock-unavailable");
+
+    expect(await readTextFile(config.manifest.path)).toBe(invalidBytes);
+    expect(await readTextFile(lockPath)).toBe("other writer");
+    expect(await pathExists(`${config.manifest.path}.bak`)).toBe(false);
+    expect(await readTextFile(generatedSentinel)).toBe("generated sentinel");
+    expect(testLogger.infos).toEqual([]);
+    expect(testLogger.warnings).toEqual([]);
+  });
+
+  it("does not mask a primary pre-I5 category with cleanup degradation", async () => {
+    const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
+    const invalidBytes = "{corrupt combined failure";
+    await mkdir(path.dirname(config.manifest.path), { recursive: true });
+    await writeFile(config.manifest.path, invalidBytes, "utf-8");
+
+    let thrown: unknown;
+    try {
+      await withManifestPersistenceFaultsForTesting(
+        (stage) => {
+          if (stage === "recovery-candidate-write") {
+            throw new Error("primary candidate write failure");
+          }
+        },
+        () => sync(config, { dryRun: false, force: false, strict: false }),
+        {
+          injectPostAttemptOutcome: ({ operation }) =>
+            operation === "recovery-lock-close"
+              ? new Error("secondary close degradation")
+              : undefined,
+        },
+      );
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toMatchObject({
+      message: expect.stringContaining("backup-create-or-verify-failed"),
+      cause: new Error("primary candidate write failure"),
+    });
+    expect((thrown as Error).message).toContain("close-degraded");
+    expect(await readTextFile(config.manifest.path)).toBe(invalidBytes);
+    expect(await pathExists(`${config.manifest.path}.bak`)).toBe(false);
+    expect(await pathExists(`${config.manifest.path}.lock`)).toBe(false);
+    expect(testLogger.infos).toEqual([]);
+    expect(testLogger.warnings).toEqual([]);
+  });
+
+  it.each([
+    [true, false, "close-degraded"],
+    [false, true, "unlink-degraded"],
+    [true, true, "both-degraded"],
+  ] as const)(
+    "stops after committed recovery with %s/%s cleanup as %s",
+    async (failClose, failUnlink, cleanup) => {
+      const scenarioDir = path.join(tempDir, cleanup);
+      const config = makeResolvedConfig(scenarioDir, {
+        codex: { enabled: false },
+      });
+      const invalidBytes = `{corrupt ${cleanup}`;
+      const agentName = "renderable";
+      const generatedSentinel = path.join(
+        config.library.generatedDir,
+        "claude",
+        "agents",
+        `${agentName}.md`,
+      );
+      await createAgentFixture(
+        config.library.agentsDir,
+        agentName,
+        makeAgentYaml(agentName),
+      );
+      await mkdir(path.dirname(config.manifest.path), { recursive: true });
+      await mkdir(path.dirname(generatedSentinel), { recursive: true });
+      await writeFile(config.manifest.path, invalidBytes, "utf-8");
+      await writeFile(generatedSentinel, "generated sentinel", "utf-8");
+
+      await expect(
+        withManifestPersistenceFaultsForTesting(
+          () => {},
+          () => sync(config, { dryRun: false, force: false, strict: false }),
+          {
+            injectPostAttemptOutcome: ({ operation }) => {
+              if (failClose && operation === "recovery-lock-close") {
+                return new Error("injected close degradation");
+              }
+              if (failUnlink && operation === "recovery-lock-unlink") {
+                return new Error("injected unlink degradation");
+              }
+              return undefined;
+            },
+          },
+        ),
+      ).rejects.toThrow(cleanup);
+
+      expect(await pathExists(config.manifest.path)).toBe(false);
+      expect(await readTextFile(`${config.manifest.path}.bak`)).toBe(
+        invalidBytes,
+      );
+      expect(await readTextFile(generatedSentinel)).toBe("generated sentinel");
+      expect(testLogger.warnings.join("\n")).toContain(
+        `${config.manifest.path}.bak`,
+      );
+      expect(testLogger.warnings).toEqual([
+        `Manifest recovery committed to verified backup ${config.manifest.path}.bak, but cleanup degraded (${cleanup}).`,
+      ]);
+      expect(testLogger.warnings.join("\n")).not.toContain(
+        "Recovered invalid manifest to verified backup",
+      );
+      // The deterministic post-attempt seam reports degraded cleanup after
+      // the literal unlink effect, so its exact lock state is absent.
+      expect(await pathExists(`${config.manifest.path}.lock`)).toBe(false);
+    },
+  );
+
+  it.each(["skill-ancestor", "agent-ancestor"] as const)(
+    "rejects selected-selected component overlap with %s before writes",
+    async (direction) => {
+      const scenarioDir = path.join(tempDir, direction);
+      const root = path.join(scenarioDir, "managed");
+      const skillsHome =
+        direction === "skill-ancestor" ? root : path.join(root, "parent.md");
+      const agentsHome =
+        direction === "skill-ancestor" ? path.join(root, "parent") : root;
+      const skillName = direction === "skill-ancestor" ? "parent" : "child";
+      const agentName = direction === "skill-ancestor" ? "child" : "parent";
+      const config = makeResolvedConfig(scenarioDir, {
+        claude: { skillsHome, agentsHome },
+        codex: { enabled: false },
+      });
+      const skillPath = path.join(skillsHome, skillName);
+      const agentPath = path.join(agentsHome, `${agentName}.md`);
+      await createSkillFixture(config.library.skillsDir, skillName);
+      await createAgentFixture(
+        config.library.agentsDir,
+        agentName,
+        makeAgentYaml(agentName),
+      );
+      const generatedSentinel = path.join(
+        config.library.generatedDir,
+        "claude",
+        "agents",
+        `${agentName}.md`,
+      );
+      await mkdir(path.dirname(generatedSentinel), { recursive: true });
+      await writeFile(generatedSentinel, "generated sentinel", "utf-8");
+
+      await expect(
+        sync(config, { dryRun: false, force: false, strict: false }),
+      ).rejects.toThrow("Managed output physical path conflict");
+
+      expect(await pathExists(skillPath)).toBe(false);
+      expect(await pathExists(agentPath)).toBe(false);
+      expect(await pathExists(config.manifest.path)).toBe(false);
+      expect(await readTextFile(generatedSentinel)).toBe("generated sentinel");
+    },
+  );
+
+  it.each([
+    ["active-first", "claude"],
+    ["passive-first", "claude"],
+    ["active-first", undefined],
+    ["passive-first", undefined],
+  ] as const)(
+    "rejects retained-retained component overlap in %s order for target %s",
+    async (order, target) => {
+      const scenarioDir = path.join(tempDir, order);
+      const root = path.join(scenarioDir, "managed");
+      const config = makeResolvedConfig(scenarioDir, {
+        claude: { skillsHome: root },
+        codex: { agentsHome: path.join(root, "parent") },
+        defaults: { cleanManagedOutputs: false },
+      });
+      const activeRecord = {
+        target: "claude" as const,
+        type: "skill" as const,
+        name: "parent",
+        sourcePath: path.join(config.library.skillsDir, "parent"),
+        generatedPath: null,
+        installedPath: path.join(root, "parent"),
+        installMode: "copy" as const,
+        contentHash: "active",
+        timestamp: new Date().toISOString(),
+      };
+      const passiveRecord = {
+        target: "codex" as const,
+        type: "agent" as const,
+        name: "child",
+        sourcePath: path.join(config.library.agentsDir, "child.yaml"),
+        generatedPath: null,
+        installedPath: path.join(root, "parent", "child.toml"),
+        installMode: "copy" as const,
+        contentHash: "passive",
+        timestamp: new Date().toISOString(),
+      };
+      const records =
+        order === "active-first"
+          ? [activeRecord, passiveRecord]
+          : [passiveRecord, activeRecord];
+      const renderableName = "render-sentinel";
+      const generatedSentinel = path.join(
+        config.library.generatedDir,
+        "claude",
+        "agents",
+        `${renderableName}.md`,
+      );
+      await createAgentFixture(
+        config.library.agentsDir,
+        renderableName,
+        makeAgentYaml(renderableName),
+      );
+      await mkdir(path.dirname(generatedSentinel), { recursive: true });
+      await writeFile(generatedSentinel, "generated sentinel", "utf-8");
+      await mkdir(path.dirname(config.manifest.path), { recursive: true });
+      await writeFile(
+        config.manifest.path,
+        makeManifestJson(records, { config }),
+        "utf-8",
+      );
+      const manifestBefore = await readTextFile(config.manifest.path);
+
+      await expect(
+        sync(config, {
+          dryRun: false,
+          force: false,
+          strict: false,
+          target,
+        }),
+      ).rejects.toThrow("Managed output physical path conflict");
+
+      expect(await readTextFile(config.manifest.path)).toBe(manifestBefore);
+      expect(await readTextFile(generatedSentinel)).toBe("generated sentinel");
+      expect(testLogger.infos).toEqual([]);
+    },
+  );
+
+  it.each(["active-first", "passive-first"] as const)(
+    "rejects passive-ancestor active-descendant retained overlap in %s order",
+    async (order) => {
+      const scenarioDir = path.join(tempDir, `passive-ancestor-${order}`);
+      const root = path.join(scenarioDir, "managed");
+      const config = makeResolvedConfig(scenarioDir, {
+        claude: { agentsHome: path.join(root, "parent") },
+        codex: { skillsHome: root },
+        defaults: { cleanManagedOutputs: false },
+      });
+      const passiveAncestor = {
+        target: "codex" as const,
+        type: "skill" as const,
+        name: "parent",
+        sourcePath: path.join(config.library.skillsDir, "parent"),
+        generatedPath: null,
+        installedPath: path.join(root, "parent"),
+        installMode: "copy" as const,
+        contentHash: "passive",
+        timestamp: new Date().toISOString(),
+      };
+      const activeDescendant = {
+        target: "claude" as const,
+        type: "agent" as const,
+        name: "child",
+        sourcePath: path.join(config.library.agentsDir, "child.yaml"),
+        generatedPath: null,
+        installedPath: path.join(root, "parent", "child.md"),
+        installMode: "copy" as const,
+        contentHash: "active",
+        timestamp: new Date().toISOString(),
+      };
+      const records =
+        order === "active-first"
+          ? [activeDescendant, passiveAncestor]
+          : [passiveAncestor, activeDescendant];
+      const renderableName = "render-sentinel";
+      const generatedSentinel = path.join(
+        config.library.generatedDir,
+        "claude",
+        "skills",
+        renderableName,
+        "SKILL.md",
+      );
+      await createSkillFixture(config.library.skillsDir, renderableName);
+      await mkdir(path.dirname(generatedSentinel), { recursive: true });
+      await writeFile(generatedSentinel, "generated sentinel", "utf-8");
+      await mkdir(path.dirname(config.manifest.path), { recursive: true });
+      await writeFile(
+        config.manifest.path,
+        makeManifestJson(records, { config }),
+        "utf-8",
+      );
+      const manifestBefore = await readTextFile(config.manifest.path);
+
+      let conflict: unknown;
+      try {
+        await sync(config, {
+          dryRun: false,
+          force: false,
+          strict: false,
+          target: "claude",
+        });
+      } catch (error) {
+        conflict = error;
+      }
+      expect(conflict).toBeInstanceOf(UserError);
+      expect((conflict as Error).message).toContain(
+        "Managed output physical path conflict",
+      );
+      expect((conflict as Error).message).toContain(
+        passiveAncestor.installedPath,
+      );
+      expect((conflict as Error).message).toContain(
+        activeDescendant.installedPath,
+      );
+
+      expect(await readTextFile(config.manifest.path)).toBe(manifestBefore);
+      expect(await readTextFile(generatedSentinel)).toBe("generated sentinel");
+      expect(await pathExists(activeDescendant.installedPath)).toBe(false);
+      expect(await pathExists(passiveAncestor.installedPath)).toBe(false);
+      expect(testLogger.infos).toEqual([]);
+    },
+  );
+
+  it.each(["skill-first", "agent-first"] as const)(
+    "allows passive-passive retained component overlap in %s order",
+    async (order) => {
+      const scenarioDir = path.join(tempDir, `passive-passive-${order}`);
+      const root = path.join(scenarioDir, "managed");
+      const config = makeResolvedConfig(scenarioDir, {
+        codex: {
+          skillsHome: root,
+          agentsHome: path.join(root, "parent"),
+        },
+        defaults: { cleanManagedOutputs: false },
+      });
+      const skillRecord = {
+        target: "codex" as const,
+        type: "skill" as const,
+        name: "parent",
+        sourcePath: path.join(config.library.skillsDir, "parent"),
+        generatedPath: null,
+        installedPath: path.join(root, "parent"),
+        installMode: "copy" as const,
+        contentHash: "passive-skill",
+        timestamp: new Date().toISOString(),
+      };
+      const agentRecord = {
+        target: "codex" as const,
+        type: "agent" as const,
+        name: "child",
+        sourcePath: path.join(config.library.agentsDir, "child.yaml"),
+        generatedPath: null,
+        installedPath: path.join(root, "parent", "child.toml"),
+        installMode: "copy" as const,
+        contentHash: "passive-agent",
+        timestamp: new Date().toISOString(),
+      };
+      const records =
+        order === "skill-first"
+          ? [skillRecord, agentRecord]
+          : [agentRecord, skillRecord];
+      const renderableName = "render-sentinel";
+      const generatedSentinel = path.join(
+        config.library.generatedDir,
+        "claude",
+        "skills",
+        renderableName,
+        "SKILL.md",
+      );
+      await createSkillFixture(config.library.skillsDir, renderableName);
+      await mkdir(path.dirname(generatedSentinel), { recursive: true });
+      await writeFile(generatedSentinel, "generated sentinel", "utf-8");
+      await mkdir(path.dirname(config.manifest.path), { recursive: true });
+      await writeFile(
+        config.manifest.path,
+        makeManifestJson(records, { config }),
+        "utf-8",
+      );
+      const manifestBefore = await readTextFile(config.manifest.path);
+
+      const result = await sync(config, {
+        dryRun: true,
+        force: false,
+        strict: false,
+        target: "claude",
+      });
+
+      expect(result).toMatchObject({
+        installed: 0,
+        updated: 0,
+        removed: 0,
+        conflicts: 0,
+        errors: [],
+      });
+      expect(await readTextFile(config.manifest.path)).toBe(manifestBefore);
+      expect(await readTextFile(generatedSentinel)).toBe("generated sentinel");
+      expect(await pathExists(skillRecord.installedPath)).toBe(false);
+      expect(await pathExists(agentRecord.installedPath)).toBe(false);
+    },
+  );
+
+  it.each(["retained-ancestor", "selected-ancestor"] as const)(
+    "rejects a %s retained-selected component overlap before side effects",
+    async (direction) => {
+      const scenarioDir = path.join(tempDir, direction);
+      const root = path.join(scenarioDir, "managed");
+      const claudeSkillsHome =
+        direction === "selected-ancestor"
+          ? root
+          : path.join(root, "parent.toml");
+      const codexAgentsHome =
+        direction === "selected-ancestor" ? path.join(root, "parent") : root;
+      const selectedName =
+        direction === "selected-ancestor" ? "parent" : "child";
+      const retainedName =
+        direction === "selected-ancestor" ? "child" : "parent";
+      const config = makeResolvedConfig(scenarioDir, {
+        claude: { skillsHome: claudeSkillsHome },
+        codex: { agentsHome: codexAgentsHome },
+      });
+      const selectedPath = path.join(claudeSkillsHome, selectedName);
+      const retainedPath = path.join(codexAgentsHome, `${retainedName}.toml`);
+      const generatedSentinel = path.join(
+        config.library.generatedDir,
+        "claude",
+        "skills",
+        selectedName,
+        "SKILL.md",
+      );
+      await createSkillFixture(config.library.skillsDir, selectedName);
+      await mkdir(path.dirname(generatedSentinel), { recursive: true });
+      await writeFile(generatedSentinel, "generated sentinel", "utf-8");
+      await mkdir(path.dirname(config.manifest.path), { recursive: true });
+      await writeFile(
+        config.manifest.path,
+        makeManifestJson(
+          [
+            {
+              target: "codex",
+              type: "agent",
+              name: retainedName,
+              sourcePath: path.join(
+                config.library.agentsDir,
+                `${retainedName}.yaml`,
+              ),
+              generatedPath: null,
+              installedPath: retainedPath,
+              installMode: "copy",
+              contentHash: "retained",
+              timestamp: new Date().toISOString(),
+            },
+          ],
+          { config },
+        ),
+        "utf-8",
+      );
+      const manifestBefore = await readTextFile(config.manifest.path);
+
+      await expect(
+        sync(config, {
+          dryRun: false,
+          force: false,
+          strict: false,
+          target: "claude",
+        }),
+      ).rejects.toThrow("Managed output physical path conflict");
+
+      expect(await readTextFile(config.manifest.path)).toBe(manifestBefore);
+      expect(await pathExists(selectedPath)).toBe(false);
+      expect(await pathExists(retainedPath)).toBe(false);
+      expect(await readTextFile(generatedSentinel)).toBe("generated sentinel");
+      expect(testLogger.infos).toEqual([]);
+    },
+  );
 
   it("previews mixed legacy reconciliation without mutating the manifest", async () => {
     const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });

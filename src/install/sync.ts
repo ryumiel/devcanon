@@ -14,13 +14,17 @@ import { getLogger } from "../utils/output.js";
 import { copyDirectory, copyFile } from "./copy.js";
 import { verifyManagedOutputIdentity } from "./identity.js";
 import {
+  type ManagedPathIdentity,
   ManifestIdentityError,
+  assertNoManagedPathConflicts,
   normalizeManifestIdentity,
 } from "./manifest-identity.js";
 import {
+  type LoadedManifest,
   type ManifestBackupAuthority,
   createManifestBackupAuthority,
-  loadManifestWithSnapshot,
+  inspectManifest,
+  recoverInvalidManifest,
   releaseManifestBackupAuthority,
   saveManifest,
 } from "./manifest.js";
@@ -65,7 +69,7 @@ export async function sync(
 
   // A manifest must be accepted before rendering can create generated output
   // or an install action can touch a configured home.
-  const loaded = await loadManifestWithSnapshot(config.manifest.path);
+  const loaded = await loadManifestForSync(config, options);
   let normalized: ReturnType<typeof normalizeManifestIdentity>;
   try {
     normalized = normalizeManifestIdentity(loaded.manifest, config);
@@ -150,19 +154,39 @@ export async function sync(
       ),
     };
   }
-  assertNoPhysicalPathConflicts(manifest.records, config);
-
   // Render the selected target without materializing generated output, then
-  // reject a retained manifest identity that would share a physical path with
-  // a different desired identity before any migration or generated-tree write.
+  // validate active selected outputs alongside retained active/passive records
+  // before any migration or generated-tree write.
   const { outputs: filteredOutputs } = await renderAll(
     config,
     false,
     options.strict,
     options.target,
   );
-  assertNoPhysicalPathConflicts(
-    [...manifest.records, ...filteredOutputs],
+  assertManagedPathConflicts(
+    [
+      ...manifest.records.map(
+        (record): ManagedPathIdentity => ({
+          target: record.target,
+          type: record.type,
+          name: recordName(record),
+          installedPath: record.installedPath,
+          activity:
+            options.target === undefined || options.target === record.target
+              ? "active"
+              : "passive",
+        }),
+      ),
+      ...filteredOutputs.map(
+        (output): ManagedPathIdentity => ({
+          target: output.target,
+          type: output.type,
+          name: output.name,
+          installedPath: output.installedPath,
+          activity: "active",
+        }),
+      ),
+    ],
     config,
   );
 
@@ -183,8 +207,6 @@ export async function sync(
       options.strict,
       options.target,
     );
-    assertNoPhysicalPathConflicts(outputs, config);
-
     // Filter for install planning (renderAll already filtered, but keep for clarity)
     const filteredOutputs = outputs;
 
@@ -350,29 +372,88 @@ function isComponentAncestor(ancestor: string, descendant: string): boolean {
   );
 }
 
-function assertNoPhysicalPathConflicts(
-  entries: Array<
-    Pick<ManagedRecord, "target" | "type" | "name" | "installedPath">
-  >,
+function assertManagedPathConflicts(
+  entries: readonly ManagedPathIdentity[],
   config: ResolvedConfig,
 ): void {
-  const byPath = new Map<string, (typeof entries)[number]>();
-  for (const entry of entries) {
-    const existing = byPath.get(entry.installedPath);
-    if (
-      existing &&
-      (existing.target !== entry.target ||
-        existing.type !== entry.type ||
-        existing.name !== entry.name)
-    ) {
-      throw new UserError(
-        `Managed output physical path conflict at ${entry.installedPath}: ${existing.target}/${existing.type}/${existing.name} and ${entry.target}/${entry.type}/${entry.name}`,
-        config.manifest.path,
-        "Configure distinct target homes or remove the conflicting manifest record before retrying.",
-      );
-    }
-    byPath.set(entry.installedPath, entry);
+  try {
+    assertNoManagedPathConflicts(entries);
+  } catch (error) {
+    if (!(error instanceof ManifestIdentityError)) throw error;
+    throw new UserError(
+      error.message,
+      config.manifest.path,
+      "Configure distinct target homes or remove the conflicting manifest record before retrying.",
+    );
   }
+}
+
+async function loadManifestForSync(
+  config: ResolvedConfig,
+  options: SyncOptions,
+): Promise<LoadedManifest> {
+  const inspection = await inspectManifest(config.manifest.path);
+  if (inspection.status !== "invalid") {
+    return { manifest: inspection.manifest, snapshot: inspection.snapshot };
+  }
+  if (options.dryRun) {
+    throw new UserError(
+      inspection.message,
+      config.manifest.path,
+      dryInvalidManifestHint(inspection.message, config.manifest.path),
+    );
+  }
+
+  const recovery = await recoverInvalidManifest(inspection);
+  if (!recovery.completed) {
+    const error = new UserError(
+      `Manifest recovery did not complete (${recovery.category}; cleanup ${recovery.cleanup}).`,
+      config.manifest.path,
+      "Resolve the reported manifest state before retrying sync.",
+    );
+    Object.defineProperty(error, "cause", { value: recovery.cause });
+    throw error;
+  }
+
+  if (recovery.cleanup !== "clean") {
+    getLogger().warn(
+      `Manifest recovery committed to verified backup ${recovery.backupPath}, but cleanup degraded (${recovery.cleanup}).`,
+    );
+    throw new UserError(
+      `Manifest recovery committed to ${recovery.backupPath}, but cleanup was ${recovery.cleanup}.`,
+      config.manifest.path,
+      "Resolve the recovery lock state before retrying sync.",
+    );
+  }
+  getLogger().warn(
+    `Recovered invalid manifest to verified backup ${recovery.backupPath}.`,
+  );
+
+  const afterRecovery = await inspectManifest(config.manifest.path);
+  if (afterRecovery.status !== "absent") {
+    throw new UserError(
+      "Manifest state changed after invalid recovery completed.",
+      config.manifest.path,
+      "Inspect the current manifest state before retrying sync.",
+    );
+  }
+  return {
+    manifest: afterRecovery.manifest,
+    snapshot: afterRecovery.snapshot,
+  };
+}
+
+function dryInvalidManifestHint(message: string, manifestPath: string): string {
+  if (
+    message === "Manifest is invalid: corrupt JSON" ||
+    message === "Manifest is invalid: schema validation failed"
+  ) {
+    return "Recover the byte-backed invalid manifest with an explicit non-dry sync before retrying.";
+  }
+  if (message.includes("sibling lock")) {
+    return `Confirm no DevCanon manifest operation is active, then manually correct the exact sibling lock for ${manifestPath} before retrying.`;
+  }
+  return `Restore ${manifestPath} as a readable regular file, or manually remove the unsafe source after verifying its custody, before retrying.`;
 }
 
 function updateManifestByIdentity(
