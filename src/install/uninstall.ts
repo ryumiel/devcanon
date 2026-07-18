@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import path from "node:path";
 import type { Manifest, ResolvedConfig } from "../config/schema.js";
 import type { PlanAction, UninstallOptions } from "../models/types.js";
 import { UserError } from "../utils/errors.js";
@@ -183,8 +184,12 @@ function assertManagedPathConflicts(
   entries: readonly ManagedPathIdentity[],
   config: ResolvedConfig,
 ): void {
+  const manifestPath = path.resolve(config.manifest.path);
   try {
-    assertNoManagedPathConflicts(entries);
+    assertNoManagedPathConflicts(entries, [
+      { kind: "manifest", path: manifestPath },
+      { kind: "manifest-lock", path: `${manifestPath}.lock` },
+    ]);
   } catch (error) {
     if (!(error instanceof ManifestIdentityError)) throw error;
     throw new UserError(

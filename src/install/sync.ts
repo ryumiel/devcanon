@@ -6,7 +6,11 @@ import type {
   Manifest,
   ResolvedConfig,
 } from "../config/schema.js";
-import type { PlanAction, SyncOptions } from "../models/types.js";
+import type {
+  PlanAction,
+  RenderedOutput,
+  SyncOptions,
+} from "../models/types.js";
 import { renderAll } from "../render/pipeline.js";
 import { UserError } from "../utils/errors.js";
 import { ensureDir } from "../utils/fs.js";
@@ -121,7 +125,10 @@ export async function sync(
       path.resolve(normalized.manifest.records[index].installedPath),
     ),
   );
-
+  const reconciledForeignRecords = foreignIndexes.map(
+    (index) => normalized.manifest.records[index],
+  );
+  assertReconciledForeignControlReservations(reconciledForeignRecords, config);
   const operationId = `sync-${randomUUID()}`;
   let authority: ManifestBackupAuthority | undefined;
   const ensureAuthority = async (): Promise<ManifestBackupAuthority> => {
@@ -162,6 +169,12 @@ export async function sync(
     config,
     false,
     options.strict,
+    options.target,
+  );
+  assertReconciledForeignGeneratedMutationReservations(
+    reconciledForeignRecords,
+    filteredOutputs,
+    config,
     options.target,
   );
   assertManagedPathConflicts(
@@ -390,6 +403,80 @@ function assertManagedPathConflicts(
       config.manifest.path,
       "Configure distinct target homes or remove the conflicting manifest record before retrying.",
     );
+  }
+}
+
+function assertReconciledForeignControlReservations(
+  records: readonly ManagedRecord[],
+  config: ResolvedConfig,
+): void {
+  const manifestPath = path.resolve(config.manifest.path);
+  const controls = [
+    { kind: "manifest" as const, path: manifestPath },
+    { kind: "manifest-lock" as const, path: `${manifestPath}.lock` },
+  ];
+  try {
+    for (const record of records) {
+      assertNoManagedPathConflicts(
+        [
+          {
+            target: record.target,
+            type: record.type,
+            name: recordName(record),
+            installedPath: record.installedPath,
+            activity: "active",
+          },
+        ],
+        controls,
+      );
+    }
+  } catch (error) {
+    if (!(error instanceof ManifestIdentityError)) throw error;
+    throw new UserError(
+      error.message,
+      config.manifest.path,
+      "Move the foreign manifest record away from the manifest control paths before retrying reconciliation.",
+    );
+  }
+}
+
+function assertReconciledForeignGeneratedMutationReservations(
+  records: readonly ManagedRecord[],
+  outputs: readonly RenderedOutput[],
+  config: ResolvedConfig,
+  targetFilter: SyncOptions["target"],
+): void {
+  const domains = new Map<string, string>();
+  for (const output of outputs) {
+    const generatedPath = path.resolve(output.generatedPath);
+    domains.set(
+      generatedPath,
+      `${output.target}/${output.type}/${output.name}`,
+    );
+  }
+  for (const target of ["claude", "codex"] as const) {
+    if (!config.targets[target].enabled) continue;
+    if (targetFilter && target !== targetFilter) continue;
+    for (const type of ["agents", "skills"] as const) {
+      const cleanupRoot = path.resolve(
+        config.library.generatedDir,
+        target,
+        type,
+      );
+      domains.set(cleanupRoot, `${target}/${type} stale-cleanup`);
+    }
+  }
+
+  for (const record of records) {
+    const foreignPath = path.resolve(record.installedPath);
+    for (const [domainPath, domainName] of domains) {
+      if (!pathsOverlapByComponent(foreignPath, domainPath)) continue;
+      throw new UserError(
+        `Reconciled foreign path overlaps selected generated mutation domain: ${foreignPath} (${record.target}/${record.type}/${recordName(record)}) and ${domainPath} (${domainName})`,
+        config.manifest.path,
+        "Move the foreign manifest record away from selected generated outputs and cleanup roots before retrying reconciliation.",
+      );
+    }
   }
 }
 

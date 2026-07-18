@@ -102,6 +102,13 @@ lexical gate completes after read-only output projection and before legacy
 binding or save, writable rendering, plan construction or preview, force or
 overwrite execution, result success, or final manifest save.
 
+During uninstall, accepted records are normalized, classified, subjected to
+the foreign-record policy, and partitioned by target activity before active
+records are checked against the same resolved manifest and exact sibling lock
+controls. The gate precedes empty-plan success, plan construction or preview,
+backup authority, verification or removal, result counters, and manifest save.
+Passive records excluded by `--target` do not reserve controls by themselves.
+
 ### Inspection and invalid-state recovery
 
 Manifest inspection is pure: it classifies the manifest as `valid`, `absent`,
@@ -172,9 +179,13 @@ and foreign-record policy; reconciles authorized foreign records record-only;
 partitions accepted records and selected outputs into active and passive
 invocation scope; and validates installed-path collisions before legacy binding
 or save, writable render, plan construction, printing, execution, managed-output
-mutation or removal, and the final manifest save. Reconciled-away foreign
-records are excluded from this validation, but their invocation-local physical
-path protection remains separate and continues to block planned mutation.
+mutation or removal, and the final manifest save. During sync, reconciled-away
+foreign records are checked individually against persistence controls but are
+excluded from managed-to-managed collision comparisons. Foreign-to-managed and
+foreign-to-foreign collision validation remains intentionally excluded. This
+record-only control reservation neither makes a foreign path owned nor
+authorizes its deletion; invocation-local physical path protection remains
+separate and continues to block planned mutation.
 
 Distinct accepted full tuples conflict when installed paths are equal or have a
 lexical component ancestor/descendant relationship and at least one identity is
@@ -331,6 +342,11 @@ Behavior:
   Source files under `skills/` and `agents/` are never touched.
 - Records are filtered by `--target` when provided; otherwise all
   records are processed.
+- After normalization, ownership classification, foreign-record disposition,
+  and target activity selection, active records reserve the resolved manifest
+  path and its exact sibling lock before no-op handling, planning, preview,
+  backup authority, removal, counters, or save. Passive target-filtered records
+  do not reserve these controls.
 - `--dry-run` previews the plan without modifying the filesystem or
   manifest.
 - Per-record I/O failures are accumulated in the result's `errors[]`

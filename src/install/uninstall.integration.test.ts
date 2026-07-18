@@ -28,7 +28,11 @@ import {
 import { buildSkillContentHash } from "../render/skill.js";
 import { UserError } from "../utils/errors.js";
 import { pathExists } from "../utils/fs.js";
-import { withManifestPersistenceFaultsForTesting } from "./manifest.js";
+import {
+  inspectManifest,
+  recoverInvalidManifest,
+  withManifestPersistenceFaultsForTesting,
+} from "./manifest.js";
 import { sync } from "./sync.js";
 import { uninstall } from "./uninstall.js";
 
@@ -666,6 +670,279 @@ describe("uninstall", () => {
   );
 
   it.each([
+    ["exact manifest", "manifest", "exact", "copy", true, "file"],
+    [
+      "managed below manifest",
+      "manifest",
+      "control-ancestor",
+      "symlink",
+      false,
+      "missing",
+    ],
+    [
+      "managed above manifest",
+      "manifest",
+      "control-descendant",
+      "copy",
+      false,
+      "directory",
+    ],
+    ["exact sibling lock", "lock", "exact", "symlink", true, "missing"],
+    [
+      "managed below sibling lock",
+      "lock",
+      "control-ancestor",
+      "copy",
+      false,
+      "missing",
+    ],
+    [
+      "managed above sibling lock",
+      "lock",
+      "control-descendant",
+      "copy",
+      false,
+      "directory",
+    ],
+  ] as const)(
+    "reserves the %s control relation before uninstall effects",
+    async (_label, control, relation, installMode, dryRun, shape) => {
+      const scenarioDir = path.join(
+        tempDir,
+        `uninstall-control-${control}-${relation}`,
+      );
+      const ordinaryManifestPath = path.join(
+        scenarioDir,
+        "state",
+        "manifest.json",
+      );
+      const ordinaryLockPath = `${ordinaryManifestPath}.lock`;
+      const ordinaryControlPath =
+        control === "manifest" ? ordinaryManifestPath : ordinaryLockPath;
+      const installedPath =
+        relation === "exact"
+          ? ordinaryControlPath
+          : relation === "control-ancestor"
+            ? path.join(ordinaryControlPath, "managed")
+            : path.join(scenarioDir, "home", "managed");
+      const manifestPath =
+        relation === "control-descendant"
+          ? path.join(installedPath, "state", "manifest.json")
+          : ordinaryManifestPath;
+      const lockPath = `${manifestPath}.lock`;
+      const skillsHome = path.dirname(installedPath);
+      const name = path.basename(installedPath);
+      const generatedPath = path.join(scenarioDir, "generated-target");
+      const sourcePath = path.join(scenarioDir, "source-target");
+      const config = makeResolvedConfig(scenarioDir, {
+        claude: { skillsHome },
+        codex: { enabled: false },
+        manifest: { path: manifestPath },
+      });
+      await mkdir(generatedPath, { recursive: true });
+      await mkdir(sourcePath, { recursive: true });
+      await writeFile(
+        path.join(generatedPath, "generated-sentinel.txt"),
+        "generated sentinel",
+        "utf-8",
+      );
+      await writeFile(
+        path.join(sourcePath, "source-sentinel.txt"),
+        "source sentinel",
+        "utf-8",
+      );
+      if (shape === "directory") {
+        await mkdir(installedPath, { recursive: true });
+        await writeFile(
+          path.join(installedPath, "SKILL.md"),
+          "installed directory sentinel",
+          "utf-8",
+        );
+      }
+      await mkdir(path.dirname(manifestPath), { recursive: true });
+      const manifestBytes = makeManifestJson(
+        [
+          {
+            target: "claude",
+            type: "skill",
+            name,
+            sourcePath,
+            generatedPath,
+            installedPath,
+            installMode,
+            contentHash: "active-control-record",
+            timestamp: new Date().toISOString(),
+          },
+        ],
+        { config },
+      );
+      await writeFile(manifestPath, manifestBytes, "utf-8");
+
+      let result: Awaited<ReturnType<typeof uninstall>> | undefined;
+      let thrown: unknown;
+      try {
+        result = await uninstall(config, { dryRun });
+      } catch (error) {
+        thrown = error;
+      }
+
+      expect(await readFile(manifestPath, "utf-8")).toBe(manifestBytes);
+      expect(await pathExists(lockPath)).toBe(false);
+      expect(
+        (await readdir(path.dirname(manifestPath))).filter(
+          (entry) =>
+            entry.includes(".backup-") ||
+            entry.includes(".tmp") ||
+            entry.endsWith(".lock"),
+        ),
+      ).toEqual([]);
+      expect(
+        await readFile(
+          path.join(generatedPath, "generated-sentinel.txt"),
+          "utf-8",
+        ),
+      ).toBe("generated sentinel");
+      expect(
+        await readFile(path.join(sourcePath, "source-sentinel.txt"), "utf-8"),
+      ).toBe("source sentinel");
+      if (shape === "directory") {
+        expect((await lstat(installedPath)).isDirectory()).toBe(true);
+        expect(
+          await readFile(path.join(installedPath, "SKILL.md"), "utf-8"),
+        ).toBe("installed directory sentinel");
+      } else if (installedPath !== manifestPath) {
+        expect(await pathExists(installedPath)).toBe(false);
+      }
+      expect(testLogger.infos).toEqual([]);
+      expect(result).toBeUndefined();
+      expect(thrown).toBeInstanceOf(UserError);
+      expect((thrown as Error).message).toContain(
+        "Managed output physical path conflict",
+      );
+      expect((thrown as Error).message).toContain(path.resolve(installedPath));
+      expect((thrown as Error).message).toContain(
+        control === "lock" && relation !== "control-descendant"
+          ? "manifest-lock control path"
+          : "manifest control path",
+      );
+    },
+  );
+
+  it.skipIf(!symlinkAvailable)(
+    "preserves an active uninstall symlink that contains the manifest and lock controls",
+    async () => {
+      const scenarioDir = path.join(tempDir, "uninstall-control-symlink");
+      const installedPath = path.join(scenarioDir, "home", "managed");
+      const generatedPath = path.join(scenarioDir, "generated-target");
+      const manifestPath = path.join(installedPath, "state", "manifest.json");
+      const physicalManifestPath = path.join(
+        generatedPath,
+        "state",
+        "manifest.json",
+      );
+      const config = makeResolvedConfig(scenarioDir, {
+        claude: { skillsHome: path.dirname(installedPath) },
+        codex: { enabled: false },
+        manifest: { path: manifestPath },
+      });
+      await mkdir(generatedPath, { recursive: true });
+      await mkdir(path.dirname(installedPath), { recursive: true });
+      await symlink(generatedPath, installedPath, "dir");
+      await mkdir(path.dirname(manifestPath), { recursive: true });
+      await writeFile(
+        path.join(generatedPath, "generated-sentinel.txt"),
+        "generated sentinel",
+        "utf-8",
+      );
+      const manifestBytes = makeManifestJson(
+        [
+          {
+            target: "claude",
+            type: "skill",
+            name: "managed",
+            sourcePath: path.join(scenarioDir, "source-target"),
+            generatedPath,
+            installedPath,
+            installMode: "symlink",
+            contentHash: "active-symlink",
+            timestamp: new Date().toISOString(),
+          },
+        ],
+        { config },
+      );
+      await writeFile(manifestPath, manifestBytes, "utf-8");
+
+      let result: Awaited<ReturnType<typeof uninstall>> | undefined;
+      let thrown: unknown;
+      try {
+        result = await uninstall(config, { dryRun: false });
+      } catch (error) {
+        thrown = error;
+      }
+
+      expect(await readFile(physicalManifestPath, "utf-8")).toBe(manifestBytes);
+      expect(await pathExists(installedPath)).toBe(true);
+      expect((await lstat(installedPath)).isSymbolicLink()).toBe(true);
+      expect(await readlink(installedPath)).toBe(generatedPath);
+      expect(
+        await readFile(
+          path.join(generatedPath, "generated-sentinel.txt"),
+          "utf-8",
+        ),
+      ).toBe("generated sentinel");
+      expect(await pathExists(`${manifestPath}.lock`)).toBe(false);
+      expect(
+        (await readdir(path.dirname(manifestPath))).filter((entry) =>
+          entry.includes(".backup-"),
+        ),
+      ).toEqual([]);
+      expect(testLogger.infos).toEqual([]);
+      expect(result).toBeUndefined();
+      expect(thrown).toBeInstanceOf(UserError);
+      expect((thrown as Error).message).toContain(
+        "Managed output physical path conflict",
+      );
+    },
+  );
+
+  it("permits a passive target-filtered record at a manifest control path", async () => {
+    const scenarioDir = path.join(tempDir, "uninstall-passive-control");
+    const manifestPath = path.join(scenarioDir, "state", "manifest.json");
+    const config = makeResolvedConfig(scenarioDir, {
+      codex: { skillsHome: path.dirname(manifestPath) },
+      manifest: { path: manifestPath },
+    });
+    await mkdir(path.dirname(manifestPath), { recursive: true });
+    const manifestBytes = makeManifestJson(
+      [
+        {
+          target: "codex",
+          type: "skill",
+          name: path.basename(manifestPath),
+          sourcePath: path.join(scenarioDir, "source-target"),
+          generatedPath: path.join(scenarioDir, "generated-target"),
+          installedPath: manifestPath,
+          installMode: "copy",
+          contentHash: "passive-control-record",
+          timestamp: new Date().toISOString(),
+        },
+      ],
+      { config },
+    );
+    await writeFile(manifestPath, manifestBytes, "utf-8");
+
+    const result = await uninstall(config, {
+      target: "claude",
+      dryRun: true,
+    });
+
+    expect(result).toEqual({ removed: 0, errors: [] });
+    expect(await readFile(manifestPath, "utf-8")).toBe(manifestBytes);
+    expect(testLogger.infos).toEqual(["Nothing to remove."]);
+    expect(await pathExists(`${manifestPath}.lock`)).toBe(false);
+  });
+
+  it.each([
     ["active-ancestor", "selected-first"],
     ["active-ancestor", "retained-first"],
     ["passive-ancestor", "selected-first"],
@@ -1149,6 +1426,154 @@ describe("uninstall", () => {
     expect(await readFile(config.manifest.path, "utf-8")).toBe(invalidBytes);
     expect(await readFile(lockPath, "utf-8")).toBe("other writer");
     expect(await readFile(installedPath, "utf-8")).toBe("managed sentinel");
+    expect(testLogger.infos).not.toContain("Nothing to remove.");
+    expect(testLogger.warnings).toEqual([]);
+  });
+
+  it.each(["EACCES", "EROFS", "ENOSPC", "EMFILE"] as const)(
+    "reports an injected %s recovery lock failure without lock-removal guidance",
+    async (code) => {
+      const scenarioDir = path.join(tempDir, `uninstall-lock-${code}`);
+      const config = makeResolvedConfig(scenarioDir);
+      const primary = Object.assign(new Error(`injected ${code}`), { code });
+      const installedPath = path.join(
+        config.targets.claude.agentsHome,
+        "managed.md",
+      );
+      await mkdir(path.dirname(config.manifest.path), { recursive: true });
+      await mkdir(path.dirname(installedPath), { recursive: true });
+      await writeFile(config.manifest.path, "{corrupt", "utf-8");
+      await writeFile(installedPath, "managed sentinel", "utf-8");
+
+      let thrown: unknown;
+      try {
+        await withManifestPersistenceFaultsForTesting(
+          (stage) => {
+            if (stage === ("recovery-lock-open" as typeof stage)) {
+              throw primary;
+            }
+          },
+          () => uninstall(config, { dryRun: false }),
+        );
+      } catch (error) {
+        thrown = error;
+      }
+
+      expect(thrown).toMatchObject({
+        message: expect.stringContaining("lock-unavailable"),
+        cause: primary,
+        hint: "Resolve the reported manifest state before retrying uninstall.",
+      });
+      expect((thrown as UserError).hint).not.toContain("manually");
+      expect(await readFile(config.manifest.path, "utf-8")).toBe("{corrupt");
+      expect(await readFile(installedPath, "utf-8")).toBe("managed sentinel");
+      expect(await pathExists(`${config.manifest.path}.bak`)).toBe(false);
+      expect(await pathExists(`${config.manifest.path}.lock`)).toBe(false);
+      expect(testLogger.infos).not.toContain("Nothing to remove.");
+      expect(testLogger.warnings).toEqual([]);
+    },
+  );
+
+  it("reports an injected pre-open EEXIST recovery lock failure without lock-removal guidance", async () => {
+    const scenarioDir = path.join(tempDir, "uninstall-lock-EEXIST");
+    const config = makeResolvedConfig(scenarioDir);
+    const primary = Object.assign(new Error("injected EEXIST"), {
+      code: "EEXIST",
+    });
+    const installedPath = path.join(
+      config.targets.claude.agentsHome,
+      "managed.md",
+    );
+    await mkdir(path.dirname(config.manifest.path), { recursive: true });
+    await mkdir(path.dirname(installedPath), { recursive: true });
+    await writeFile(config.manifest.path, "{corrupt", "utf-8");
+    await writeFile(installedPath, "managed sentinel", "utf-8");
+
+    let thrown: unknown;
+    try {
+      await withManifestPersistenceFaultsForTesting(
+        (stage) => {
+          if (stage === ("recovery-lock-open" as typeof stage)) {
+            throw primary;
+          }
+        },
+        () => uninstall(config, { dryRun: false }),
+      );
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toMatchObject({
+      message: expect.stringContaining("lock-unavailable"),
+      cause: primary,
+      hint: "Resolve the reported manifest state before retrying uninstall.",
+    });
+    expect((thrown as UserError).hint).not.toContain("manually");
+    expect(await readFile(config.manifest.path, "utf-8")).toBe("{corrupt");
+    expect(await readFile(installedPath, "utf-8")).toBe("managed sentinel");
+    expect(await pathExists(`${config.manifest.path}.bak`)).toBe(false);
+    expect(await pathExists(`${config.manifest.path}.lock`)).toBe(false);
+    expect((await readdir(path.dirname(config.manifest.path))).sort()).toEqual([
+      "home",
+      "manifest.json",
+    ]);
+    expect(testLogger.infos).not.toContain("Nothing to remove.");
+    expect(testLogger.warnings).toEqual([]);
+  });
+
+  it("does not replay a genuine contention cause as pre-existing uninstall custody", async () => {
+    const contentionPath = path.join(
+      tempDir,
+      "genuine-uninstall-contention.json",
+    );
+    await writeFile(contentionPath, "{corrupt", "utf-8");
+    const contentionInspection = await inspectManifest(contentionPath);
+    await writeFile(`${contentionPath}.lock`, "active", "utf-8");
+    const contention = await recoverInvalidManifest(contentionInspection);
+    if (contention.completed) throw new Error("expected contention result");
+    const replayedCause = contention.cause;
+    expect((replayedCause as NodeJS.ErrnoException).code).toBe("EEXIST");
+
+    const scenarioDir = path.join(tempDir, "uninstall-replayed-EEXIST");
+    const config = makeResolvedConfig(scenarioDir);
+    const installedPath = path.join(
+      config.targets.claude.agentsHome,
+      "managed.md",
+    );
+    await mkdir(path.dirname(config.manifest.path), { recursive: true });
+    await mkdir(path.dirname(installedPath), { recursive: true });
+    await writeFile(config.manifest.path, "{corrupt", "utf-8");
+    await writeFile(installedPath, "managed sentinel", "utf-8");
+
+    let thrown: unknown;
+    try {
+      await withManifestPersistenceFaultsForTesting(
+        (stage) => {
+          if (stage === ("recovery-lock-open" as typeof stage)) {
+            throw replayedCause;
+          }
+        },
+        () => uninstall(config, { dryRun: false }),
+      );
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toMatchObject({
+      message: expect.stringContaining("lock-unavailable"),
+      cause: replayedCause,
+      hint: "Resolve the reported manifest state before retrying uninstall.",
+    });
+    expect((thrown as Error & { cause?: unknown }).cause).toBe(replayedCause);
+    expect((thrown as UserError).hint).not.toContain("manually");
+    expect(await readFile(config.manifest.path, "utf-8")).toBe("{corrupt");
+    expect(await readFile(installedPath, "utf-8")).toBe("managed sentinel");
+    expect(await pathExists(`${config.manifest.path}.bak`)).toBe(false);
+    expect(await pathExists(`${config.manifest.path}.lock`)).toBe(false);
+    expect((await readdir(path.dirname(config.manifest.path))).sort()).toEqual([
+      "home",
+      "manifest.json",
+    ]);
     expect(testLogger.infos).not.toContain("Nothing to remove.");
     expect(testLogger.warnings).toEqual([]);
   });

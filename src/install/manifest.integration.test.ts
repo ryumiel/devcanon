@@ -1076,6 +1076,142 @@ describe("manifest integration", () => {
       expect(await pathExists(`${manifestPath}.lock`)).toBe(true);
     });
 
+    it.each(["EACCES", "EROFS", "ENOSPC", "EMFILE"] as const)(
+      "keeps an injected %s recovery lock acquisition failure unowned and absent",
+      async (code) => {
+        const manifestPath = path.join(tempDir, `lock-${code}.json`);
+        const primary = Object.assign(new Error(`injected ${code}`), { code });
+        await writeFile(manifestPath, "{corrupt", "utf-8");
+        const inspection = await inspectManifest(manifestPath);
+
+        const recovery = await withManifestPersistenceFaultsForTesting(
+          (stage) => {
+            if (stage === ("recovery-lock-open" as typeof stage)) {
+              throw primary;
+            }
+          },
+          () => recoverInvalidManifest(inspection),
+        );
+
+        expect(recovery).toMatchObject({
+          completed: false,
+          category: "lock-unavailable",
+          cause: primary,
+          cleanup: "clean",
+          candidate: { status: "none-created" },
+          lock: {
+            status: "not-inspected-or-not-owned",
+            path: `${manifestPath}.lock`,
+          },
+        });
+        expect(await readFile(manifestPath, "utf-8")).toBe("{corrupt");
+        expect(await pathExists(`${manifestPath}.bak`)).toBe(false);
+        expect(await pathExists(`${manifestPath}.lock`)).toBe(false);
+        expect(await readdir(tempDir)).toEqual([`lock-${code}.json`]);
+      },
+    );
+
+    it("keeps an injected pre-open EEXIST recovery lock failure unowned and absent", async () => {
+      const manifestPath = path.join(tempDir, "synthetic-lock-EEXIST.json");
+      const primary = Object.assign(new Error("injected EEXIST"), {
+        code: "EEXIST",
+      });
+      await writeFile(manifestPath, "{corrupt", "utf-8");
+      const inspection = await inspectManifest(manifestPath);
+
+      const recovery = await withManifestPersistenceFaultsForTesting(
+        (stage) => {
+          if (stage === ("recovery-lock-open" as typeof stage)) {
+            throw primary;
+          }
+        },
+        () => recoverInvalidManifest(inspection),
+      );
+
+      expect(recovery).toMatchObject({
+        completed: false,
+        category: "lock-unavailable",
+        cause: primary,
+        cleanup: "clean",
+        candidate: { status: "none-created" },
+        lock: {
+          status: "not-inspected-or-not-owned",
+          path: `${manifestPath}.lock`,
+        },
+      });
+      expect(await readFile(manifestPath, "utf-8")).toBe("{corrupt");
+      expect(await pathExists(`${manifestPath}.bak`)).toBe(false);
+      expect(await pathExists(`${manifestPath}.lock`)).toBe(false);
+      expect(await readdir(tempDir)).toEqual(["synthetic-lock-EEXIST.json"]);
+    });
+
+    it("does not replay a genuine contention cause as pre-existing custody", async () => {
+      const contentionPath = path.join(tempDir, "genuine-contention.json");
+      await writeFile(contentionPath, "{corrupt", "utf-8");
+      const contentionInspection = await inspectManifest(contentionPath);
+      await writeFile(`${contentionPath}.lock`, "active", "utf-8");
+      const contention = await recoverInvalidManifest(contentionInspection);
+
+      expect(contention).toMatchObject({
+        completed: false,
+        category: "lock-unavailable",
+        lock: {
+          status: "pre-existing-blocker",
+          path: `${contentionPath}.lock`,
+        },
+      });
+      if (contention.completed) throw new Error("expected contention result");
+      const replayedCause = contention.cause;
+      expect(replayedCause).toBeInstanceOf(Error);
+      const replayedError = replayedCause as NodeJS.ErrnoException;
+      const causeConstructor = replayedError.constructor as new (
+        message?: string,
+      ) => Error;
+      const equivalentCause = Object.assign(
+        new causeConstructor(replayedError.message),
+        { code: replayedError.code },
+      );
+      expect(replayedError.code).toBe("EEXIST");
+      expect(equivalentCause.constructor).toBe(replayedError.constructor);
+
+      for (const [label, injectedCause] of [
+        ["captured", replayedCause],
+        ["constructed", equivalentCause],
+      ] as const) {
+        const replayDir = path.join(tempDir, `replay-${label}`);
+        const manifestPath = path.join(replayDir, "manifest.json");
+        await mkdir(replayDir);
+        await writeFile(manifestPath, "{corrupt", "utf-8");
+        const inspection = await inspectManifest(manifestPath);
+
+        const recovery = await withManifestPersistenceFaultsForTesting(
+          (stage) => {
+            if (stage === ("recovery-lock-open" as typeof stage)) {
+              throw injectedCause;
+            }
+          },
+          () => recoverInvalidManifest(inspection),
+        );
+
+        expect(recovery).toMatchObject({
+          completed: false,
+          category: "lock-unavailable",
+          cause: injectedCause,
+          cleanup: "clean",
+          candidate: { status: "none-created" },
+          lock: {
+            status: "not-inspected-or-not-owned",
+            path: `${manifestPath}.lock`,
+          },
+        });
+        if (!recovery.completed) expect(recovery.cause).toBe(injectedCause);
+        expect(await readFile(manifestPath, "utf-8")).toBe("{corrupt");
+        expect(await pathExists(`${manifestPath}.bak`)).toBe(false);
+        expect(await pathExists(`${manifestPath}.lock`)).toBe(false);
+        expect(await readdir(replayDir)).toEqual(["manifest.json"]);
+      }
+    });
+
     it("reports candidate suffix exhaustion without a false backup result", async () => {
       const manifestPath = path.join(tempDir, "exhausted.json");
       await writeFile(manifestPath, "{corrupt", "utf-8");

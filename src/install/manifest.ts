@@ -26,6 +26,7 @@ type ManifestFaultStage =
   | "replacement-freshness"
   | "replacement-rename"
   | "save-before-lock"
+  | "recovery-lock-open"
   | "recovery-before-candidate"
   | "recovery-after-candidate"
   | "recovery-candidate-open"
@@ -849,6 +850,10 @@ interface ManifestLock {
   handle: Awaited<ReturnType<typeof open>>;
 }
 
+type ManifestLockAcquisition =
+  | { kind: "acquired"; lock: ManifestLock }
+  | { kind: "contended"; cause: unknown };
+
 interface AuthorityState {
   lastAcceptedBytes: Buffer;
   lock: ManifestLock;
@@ -1671,17 +1676,33 @@ async function closeHandleWithFault(
 async function acquireManifestLock(
   manifestPath: string,
 ): Promise<ManifestLock> {
+  const acquisition = await acquireManifestLockResult(manifestPath);
+  if (acquisition.kind === "acquired") return acquisition.lock;
+  throw new Error("Manifest operation is already active");
+}
+
+async function acquireManifestLockResult(
+  manifestPath: string,
+): Promise<ManifestLockAcquisition> {
   const lockPath = `${manifestPath}.lock`;
   try {
-    return { path: lockPath, handle: await open(lockPath, "wx", 0o600) };
+    return {
+      kind: "acquired",
+      lock: { path: lockPath, handle: await open(lockPath, "wx", 0o600) },
+    };
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "EEXIST") {
-      throw new Error("Manifest operation is already active");
+      return { kind: "contended", cause: error };
     }
-    throw new Error(
-      `Could not acquire manifest operation lock: ${(error as Error).message}`,
-    );
+    throw error;
   }
+}
+
+async function acquireRecoveryManifestLock(
+  manifestPath: string,
+): Promise<ManifestLockAcquisition> {
+  await injectManifestFault("recovery-lock-open");
+  return acquireManifestLockResult(manifestPath);
 }
 
 async function releaseManifestLock(lock: ManifestLock): Promise<void> {
@@ -1739,12 +1760,22 @@ export async function recoverInvalidManifest(
     );
   }
 
-  let lock: ManifestLock;
+  let acquisition: ManifestLockAcquisition;
   try {
-    lock = await acquireManifestLock(evidence.manifestPath);
+    acquisition = await acquireRecoveryManifestLock(evidence.manifestPath);
   } catch (error) {
     return withRecoveryDispositions(
       unrecovered("lock-unavailable", error, "clean"),
+      { status: "none-created" },
+      {
+        status: "not-inspected-or-not-owned",
+        path: `${evidence.manifestPath}.lock`,
+      },
+    );
+  }
+  if (acquisition.kind === "contended") {
+    return withRecoveryDispositions(
+      unrecovered("lock-unavailable", acquisition.cause, "clean"),
       { status: "none-created" },
       {
         status: "pre-existing-blocker",
@@ -1752,6 +1783,7 @@ export async function recoverInvalidManifest(
       },
     );
   }
+  const lock = acquisition.lock;
 
   const transition = await performInvalidRecovery(evidence);
   const candidate = transition.committed
