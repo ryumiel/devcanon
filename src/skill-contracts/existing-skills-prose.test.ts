@@ -8,8 +8,12 @@ import { parse as parseYaml } from "yaml";
 import {
   type AgentRoutingDirectChildRouteRow,
   type AgentSemanticRoleContract,
+  type D4DispatchExpectation,
+  type D4ProducedDeclaration,
+  parseAgentRoutingPolicyOwner,
   readAgentRoutingPolicyOwner,
   readAgentSemanticRoleOwner,
+  validateD4ProducedDeclaration,
 } from "../__test-helpers__/agent-routing-policy.js";
 import { cleanupTempDir } from "../__test-helpers__/fixtures.js";
 import { getSkillOutput } from "../__test-helpers__/render.js";
@@ -20,6 +24,7 @@ import {
   readSkillSource,
 } from "../__test-helpers__/skill-contracts.js";
 import { loadConfig } from "../config/load.js";
+import { resolveCapabilityModel } from "../render/capability-profiles.js";
 import { renderAll } from "../render/pipeline.js";
 
 const execFileAsync = promisify(execFile);
@@ -40,6 +45,33 @@ function sliceBetween(content: string, start: string, end: string): string {
   expect(endIndex).toBeGreaterThan(startIndex);
 
   return content.slice(startIndex, endIndex);
+}
+
+function d4BoundedHeadingSection(
+  content: string,
+  heading: "### D4 Declaration Obligation" | "### Semantic Route Contract",
+): string | undefined {
+  const lines = content.split("\n");
+  const start = lines.findIndex((line) => line.trim() === heading);
+  if (start === -1) return undefined;
+
+  const level = /^#+(?=\s)/u.exec(heading)?.[0].length;
+  if (level === undefined) return undefined;
+  const relativeEnd = lines.slice(start + 1).findIndex((line) => {
+    const nextLevel = /^#+(?=\s)/u.exec(line)?.[0].length;
+    return nextLevel !== undefined && nextLevel <= level;
+  });
+  const end = relativeEnd === -1 ? lines.length : start + relativeEnd + 1;
+  return lines.slice(start, end).join("\n");
+}
+
+function d4SectionHasBody(section: string | undefined): boolean {
+  return (
+    section?.split("\n").some((line) => {
+      const trimmed = line.trim();
+      return trimmed !== "" && !/^#+(?=\s)/u.test(trimmed);
+    }) ?? false
+  );
 }
 
 function markdownBlocksContaining(content: string, pattern: RegExp): string {
@@ -125,16 +157,6 @@ function markdownTableRows(section: string): string[][] {
   return rows;
 }
 
-function exactBacktickedRole(value: string, dimension: string): string {
-  const match = /^`([a-z][a-z0-9-]*)`$/.exec(value);
-  if (!match) {
-    throw new Error(
-      `Agent spec ${dimension} must be one exact backticked role token: ${value}`,
-    );
-  }
-  return match[1];
-}
-
 function routeSpecAlignmentErrors(
   row: AgentRoutingDirectChildRouteRow,
   rolesByName: ReadonlyMap<string, AgentSemanticRoleContract>,
@@ -160,6 +182,500 @@ function routeSpecAlignmentErrors(
     if (clause.sourceAuthority !== role.sourceAuthority) {
       errors.push(`${row.id}:${clause.role}:source-authority`);
     }
+  }
+
+  return errors;
+}
+
+async function canonicalD4RuntimeInput(
+  role: AgentSemanticRoleContract,
+  target: "claude" | "codex",
+): Promise<{
+  declaration: D4ProducedDeclaration;
+  expectations: D4DispatchExpectation;
+}> {
+  const config = await loadConfig("devcanon.config.yaml", true);
+  const expectations = {
+    plannerSelectedRoleId: role.name,
+    targetId: target,
+    scope: "scope:producer-declaration",
+    termination: "termination:returned-summary",
+    contextRef: "context-ref:producer-declaration",
+    approvalRef: "approval-ref:producer-declaration",
+  } as const;
+
+  return {
+    declaration: {
+      route_id: "D4",
+      target_id: target,
+      selected_role_id: role.name,
+      capability: role.capability,
+      effort: target === "claude" ? role.claudeEffort : role.codexEffort,
+      model:
+        resolveCapabilityModel(
+          undefined,
+          role.capability,
+          target,
+          config.capabilityProfiles,
+        ) ?? "",
+      source_authority: role.sourceAuthority,
+      external_authority: role.externalAuthority,
+      claude_tools: role.claudeTools,
+      codex_sandbox: role.codexSandbox,
+      default_network: role.defaultNetwork,
+      scope: expectations.scope,
+      termination: expectations.termination,
+      context_ref: expectations.contextRef,
+      approval_ref: expectations.approvalRef,
+    },
+    expectations,
+  };
+}
+
+function replaceRequired(source: string, from: string, to: string): string {
+  expect(source, `missing mutation source: ${from}`).toContain(from);
+  const mutated = source.replace(from, to);
+  expect(mutated, `mutation did not change: ${from}`).not.toBe(source);
+  return mutated;
+}
+
+type SemanticRoleField = "role" | "capability" | "effort" | "source_authority";
+
+type SemanticRoleRecord = Record<SemanticRoleField, string>;
+
+const SEMANTIC_ROLE_FIELDS = [
+  "role",
+  "capability",
+  "effort",
+  "source_authority",
+] as const;
+
+function canonicalSemanticRoleField(
+  label: string,
+): SemanticRoleField | undefined {
+  const normalized = label.toLowerCase().replaceAll(/[\s_-]+/g, "");
+  switch (normalized) {
+    case "role":
+    case "semanticrole":
+      return "role";
+    case "capability":
+    case "effort":
+      return normalized;
+    case "sourceauthority":
+    case "sourcemutationdefault":
+      return "source_authority";
+    default:
+      return undefined;
+  }
+}
+
+function semanticRoleRecord(
+  pairs: readonly (readonly [string, string])[],
+): SemanticRoleRecord | undefined {
+  const fields = new Map<SemanticRoleField, string>();
+  for (const [label, value] of pairs) {
+    const field = canonicalSemanticRoleField(label);
+    if (!field) continue;
+    if (fields.has(field)) return undefined;
+    fields.set(field, value.trim().replace(/^['"`]|['"`]$/g, ""));
+  }
+  if (!SEMANTIC_ROLE_FIELDS.every((field) => fields.has(field))) {
+    return undefined;
+  }
+  return Object.fromEntries(fields) as SemanticRoleRecord;
+}
+
+function labeledSemanticRoleRecord(
+  record: string,
+  separator: ":" | "=",
+): SemanticRoleRecord | undefined {
+  const escapedSeparator = separator === "=" ? "=" : ":";
+  const pairs = Array.from(
+    record.matchAll(
+      new RegExp(
+        `(?:^|[\\s;,])([a-z_ -]+?)\\s*${escapedSeparator}\\s*([^\\s,;]+)`,
+        "gi",
+      ),
+    ),
+    (match) => [match[1], match[2]] as const,
+  );
+  return semanticRoleRecord(pairs);
+}
+
+function positionalCompactPipeSemanticRoleRecord(
+  record: string,
+): SemanticRoleRecord | undefined {
+  if (!/^[^\s|]+ \| [^\s|]+ \| [^\s|]+ \| [^\s|]+$/u.test(record)) {
+    return undefined;
+  }
+  return semanticRoleRecord(
+    SEMANTIC_ROLE_FIELDS.map(
+      (field, index) => [field, record.split(" | ")[index]] as const,
+    ),
+  );
+}
+
+function markdownPipeCells(line: string): string[] | undefined {
+  const trimmed = line.trim();
+  if (!trimmed.startsWith("|") || !trimmed.endsWith("|")) return undefined;
+  return trimmed
+    .slice(1, -1)
+    .split("|")
+    .map((cell) => cell.trim());
+}
+
+function copiedSemanticRoleNames(
+  section: string,
+  roles: readonly AgentSemanticRoleContract[],
+  target: "claude" | "codex",
+): string[] {
+  const records: SemanticRoleRecord[] = [];
+  const lines = section.split(/\r?\n/);
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const header = markdownPipeCells(lines[index]);
+    if (header && /^\s*\|[\s|:-]+\|\s*$/.test(lines[index + 1] ?? "")) {
+      for (
+        index += 2;
+        index < lines.length && markdownPipeCells(lines[index]);
+        index += 1
+      ) {
+        const row = markdownPipeCells(lines[index]);
+        if (!row || row.length !== header.length) continue;
+        const record = semanticRoleRecord(
+          header.map((label, column) => [label, row[column]] as const),
+        );
+        if (record) records.push(record);
+      }
+      index -= 1;
+      continue;
+    }
+
+    const bullet = /^\s*-\s*(.*)$/.exec(lines[index]);
+    if (bullet) {
+      const item = [bullet[1]];
+      while (
+        index + 1 < lines.length &&
+        /^\s+\S/.test(lines[index + 1]) &&
+        !/^\s*-\s/.test(lines[index + 1])
+      ) {
+        item.push(lines[index + 1]);
+        index += 1;
+      }
+      const yamlRecord = labeledSemanticRoleRecord(item.join("\n"), ":");
+      const labeledRecord = labeledSemanticRoleRecord(item.join("\n"), "=");
+      if (yamlRecord) records.push(yamlRecord);
+      if (labeledRecord) records.push(labeledRecord);
+    }
+  }
+
+  for (const object of section.matchAll(/\{[^{}]*\}/gs)) {
+    const value = object[0];
+    if (
+      value
+        .replace(/"([^"\\]|\\.)*"\s*:\s*"([^"\\]|\\.)*"/g, "")
+        .replace(/[{}\s,]/g, "")
+    ) {
+      continue;
+    }
+    const jsonRecord = semanticRoleRecord(
+      Array.from(
+        value.matchAll(/"([^"\\]+)"\s*:\s*"([^"\\]*)"/g),
+        (match) => [match[1], match[2]] as const,
+      ),
+    );
+    if (jsonRecord) records.push(jsonRecord);
+  }
+
+  for (const line of lines) {
+    const positionalCompactPipeRecord =
+      positionalCompactPipeSemanticRoleRecord(line);
+    if (positionalCompactPipeRecord) records.push(positionalCompactPipeRecord);
+    const candidates = line.includes(" | ") ? line.split(" | ") : [line];
+    for (const candidate of candidates) {
+      const record = labeledSemanticRoleRecord(candidate, "=");
+      if (record) records.push(record);
+    }
+  }
+
+  return roles
+    .filter((role) => {
+      const effort = target === "claude" ? role.claudeEffort : role.codexEffort;
+      return records.some(
+        (record) =>
+          record.role === role.name &&
+          record.capability === role.capability &&
+          record.effort === effort &&
+          record.source_authority === role.sourceAuthority,
+      );
+    })
+    .map((role) => role.name);
+}
+
+function d4ProducerDeclarationProseErrors(input: {
+  routingOwner: string;
+  producer: string;
+  roles: readonly AgentSemanticRoleContract[];
+  declaration: D4ProducedDeclaration;
+  expectations: D4DispatchExpectation;
+}): string[] {
+  const errors: string[] = [];
+  const owner = parseAgentRoutingPolicyOwner(input.routingOwner);
+  const d4 = owner.directChildRoutes.find((route) => route.id === "D4");
+  const ownerDeclarationSection = d4BoundedHeadingSection(
+    input.routingOwner,
+    "### D4 Declaration Obligation",
+  );
+  const producerSection = d4BoundedHeadingSection(
+    input.producer,
+    "### Semantic Route Contract",
+  );
+  const normalizedProducerSection = normalizeWhitespace(producerSection ?? "");
+  const normalizedRoutingOwner = normalizeWhitespace(input.routingOwner);
+
+  if (
+    d4?.ownerSkill !== "play-agent-dispatch" ||
+    d4.d4Contract?.roleCardinality !== input.roles.length ||
+    !input.routingOwner.includes("### D4 Declaration Obligation")
+  ) {
+    errors.push(
+      "D4 routing owner must declare its controller declaration obligation for the exact six-role set",
+    );
+    return errors;
+  }
+  if (
+    ownerDeclarationSection === undefined ||
+    !d4SectionHasBody(ownerDeclarationSection)
+  ) {
+    return ["D4 routing owner declaration obligation section is incomplete"];
+  }
+  if (producerSection === undefined || !d4SectionHasBody(producerSection)) {
+    return [
+      "play-agent-dispatch producer semantic route contract section is incomplete",
+    ];
+  }
+  if (
+    !normalizeWhitespace(ownerDeclarationSection).includes(
+      "This policy is the sole D4 route owner",
+    )
+  ) {
+    errors.push("D4 routing owner must be the sole D4 route owner");
+  }
+  if (
+    !normalizeWhitespace(ownerDeclarationSection).includes(
+      "The producer consumes this obligation; it does not define a peer route or role registry",
+    )
+  ) {
+    errors.push(
+      "D4 routing owner must bind play-agent-dispatch as a consumer without peer route or role registry authority",
+    );
+  }
+  if (
+    !normalizeWhitespace(ownerDeclarationSection).includes(
+      "Before D4 spawns, the controller must issue one complete pre-spawn declaration",
+    )
+  ) {
+    errors.push(
+      "D4 routing owner declaration obligation must require one complete pre-spawn declaration",
+    );
+  }
+  const ownerHasGlobalAgentConfigPartition =
+    normalizedRoutingOwner.includes(
+      "[agent spec](../specs/agents.md) is the sole semantic-role catalog and role-envelope owner",
+    ) &&
+    normalizedRoutingOwner.includes(
+      "[`devcanon.config.yaml`](../../devcanon.config.yaml) solely resolves the exact-target/capability `model`",
+    );
+  if (!ownerHasGlobalAgentConfigPartition) {
+    errors.push(
+      "D4 routing owner must preserve the complete agent-spec/config owner partition",
+    );
+  }
+  const normalizedOwnerDeclarationSection = normalizeWhitespace(
+    ownerDeclarationSection,
+  );
+  if (
+    ownerHasGlobalAgentConfigPartition &&
+    ![
+      "[agent spec](../specs/agents.md) is the sole semantic-role catalog and role-envelope owner",
+      "[`devcanon.config.yaml`](../../devcanon.config.yaml) solely resolves the exact-target/capability `model`",
+      "`agents/*.yaml` are governed declarations/instances and parity inputs, never peer semantic authorities",
+      "Cognitive demand and stance remain planner classification inputs only, not declaration fields or authority",
+    ].every((evidence) => normalizedOwnerDeclarationSection.includes(evidence))
+  ) {
+    errors.push(
+      "D4 routing owner must preserve the exact agent-spec/config/YAML/planner authority partition",
+    );
+  }
+  if (/YAML is a peer semantic authority/u.test(ownerDeclarationSection)) {
+    errors.push(
+      "D4 routing owner must not contradict the YAML non-authority partition",
+    );
+  }
+  if (
+    normalizedOwnerDeclarationSection.includes(
+      "Cognitive demand and stance remain planner classification inputs only, not declaration fields or authority",
+    ) &&
+    /Cognitive demand and stance are declaration authority/u.test(
+      ownerDeclarationSection,
+    )
+  ) {
+    errors.push(
+      "D4 routing owner must not contradict planner classification authority",
+    );
+  }
+  if (
+    !normalizedRoutingOwner.includes(
+      "[`skills/play-agent-dispatch/SKILL.md`](../../skills/play-agent-dispatch/SKILL.md)",
+    )
+  ) {
+    errors.push(
+      "D4 routing owner producer path must be skills/play-agent-dispatch/SKILL.md",
+    );
+  }
+  if (
+    !normalizedRoutingOwner.includes(
+      "Missing, unresolved, unknown, nearby, ambient, or mismatched controller-bound or owner-derived values block before spawn",
+    )
+  ) {
+    errors.push(
+      "D4 routing owner must block missing or mismatched values before spawn",
+    );
+  }
+
+  const ownerControllerBoundFields =
+    /Its controller-bound fields are exactly\s+([\s\S]*?);\s*`termination` includes/u.exec(
+      ownerDeclarationSection,
+    )?.[1];
+  const expectedControllerBoundFields = [
+    "route_id",
+    "target_id",
+    "selected_role_id",
+    "scope",
+    "termination",
+    "context_ref",
+    "approval_ref",
+  ];
+  const ownerFieldTokens = Array.from(
+    ownerControllerBoundFields?.matchAll(/`([^`]+)`/g) ?? [],
+    (match) => match[1],
+  );
+  if (
+    !ownerControllerBoundFields?.includes("`route_id` (`D4`)") ||
+    JSON.stringify(ownerFieldTokens) !==
+      JSON.stringify([
+        "route_id",
+        "D4",
+        ...expectedControllerBoundFields.slice(1),
+      ])
+  ) {
+    errors.push(
+      "D4 routing owner controller-bound fields must be exactly route_id, target_id, selected_role_id, scope, termination, context_ref, approval_ref",
+    );
+  }
+
+  const controllerBoundFields = Object.keys(input.expectations).map(
+    (field) =>
+      ({
+        plannerSelectedRoleId: "selected_role_id",
+        targetId: "target_id",
+        scope: "scope",
+        termination: "termination",
+        contextRef: "context_ref",
+        approvalRef: "approval_ref",
+      })[field] ?? field,
+  );
+  const declarationFields = Object.keys(input.declaration);
+  const missingProducerFields = [
+    "route_id",
+    ...controllerBoundFields,
+    ...declarationFields.filter(
+      (field) => field !== "route_id" && !controllerBoundFields.includes(field),
+    ),
+  ].filter((field) => !producerSection.includes(`\`${field}\``));
+  if (missingProducerFields.length > 0) {
+    errors.push(
+      `play-agent-dispatch producer declaration is missing field(s): ${missingProducerFields.join(", ")}`,
+    );
+  }
+
+  if (!normalizedProducerSection.includes("`route_id`: `D4`")) {
+    errors.push(
+      "play-agent-dispatch producer declaration must bind route_id exactly to D4",
+    );
+  }
+  if (
+    !normalizedProducerSection.includes(
+      "The controller selects one of the policy-owned six-role set before spawn; a generic or inherited workflow does not supply a child route",
+    )
+  ) {
+    errors.push(
+      "play-agent-dispatch producer must consume the policy-owned six-role route set without defining a peer route",
+    );
+  }
+  const producerControllerBoundDeclaration =
+    /`route_id`:\s*`D4`;\s*`target_id`;\s*planner-selected\s*`selected_role_id`;\s*`scope`;\s*`termination`;\s*`context_ref`;\s*and\s*`approval_ref` are controller-bound;/u.test(
+      producerSection,
+    );
+  const missingControllerBoundFields = [
+    "route_id",
+    ...expectedControllerBoundFields,
+  ].filter((field) => !producerSection.includes(`\`${field}\``));
+  if (
+    missingControllerBoundFields.length === 0 &&
+    !producerControllerBoundDeclaration
+  ) {
+    errors.push(
+      "play-agent-dispatch producer controller-bound fields must be one exact non-scattered set",
+    );
+  }
+  if (!normalizedProducerSection.includes("`docs/specs/agents.md`")) {
+    errors.push(
+      "play-agent-dispatch producer declaration must consume the agent-spec envelope owner",
+    );
+  }
+  if (!normalizedProducerSection.includes("`devcanon.config.yaml`")) {
+    errors.push(
+      "play-agent-dispatch producer declaration must consume config model resolution",
+    );
+  }
+  if (
+    !normalizedProducerSection.includes(
+      "governed declarations and parity inputs, never semantic authorities",
+    )
+  ) {
+    errors.push(
+      "play-agent-dispatch producer declaration must reject YAML as peer semantic authority",
+    );
+  }
+  if (/YAML is a peer semantic authority/u.test(producerSection)) {
+    errors.push(
+      "play-agent-dispatch producer must not contradict the policy-owned YAML authority partition",
+    );
+  }
+  if (
+    !normalizedProducerSection.includes(
+      "Cognitive demand and stance remain planner classification inputs only",
+    )
+  ) {
+    errors.push(
+      "play-agent-dispatch producer declaration must keep cognitive demand and stance out of declaration authority",
+    );
+  }
+  const target =
+    input.declaration.target_id === "claude"
+      ? "claude"
+      : input.declaration.target_id === "codex"
+        ? "codex"
+        : undefined;
+  if (
+    target &&
+    new Set(copiedSemanticRoleNames(producerSection, input.roles, target))
+      .size === input.roles.length
+  ) {
+    errors.push(
+      "play-agent-dispatch producer declaration must not copy the complete semantic role registry",
+    );
   }
 
   return errors;
@@ -6193,12 +6709,16 @@ describe("existing skills source prose contracts", () => {
     }
 
     const d4 = owner.directChildRoutes.find((row) => row.id === "D4");
-    const dispatchRouteRows = markdownTableRows(
-      sliceBetween(
-        await readSkillSource("play-agent-dispatch"),
-        "### Semantic Route Contract",
-        "### Source-Immutable Specialists",
-      ),
+    const dispatchProducer = await readSkillSource("play-agent-dispatch");
+    const dispatchProducerWithUnrelatedTable = replaceRequired(
+      dispatchProducer,
+      "### Source-Immutable Specialists",
+      "| Domain | Result |\n| --- | --- |\n| formatting | pass |\n\n### Source-Immutable Specialists",
+    );
+    const dispatchRouteSection = sliceBetween(
+      dispatchProducerWithUnrelatedTable,
+      "### Semantic Route Contract",
+      "### Source-Immutable Specialists",
     );
     expect(d4?.surfaceAndOwner).toContain("play-agent-dispatch");
     expect(d4?.route).toContain("exact configured capability/effort");
@@ -6206,21 +6726,10 @@ describe("existing skills source prose contracts", () => {
     expect(d4?.existingOutputOrTermination).toContain(
       "unresolved route blocks",
     );
-    expect(
-      dispatchRouteRows.map(([name, capability, effort, sourceAuthority]) => ({
-        name: exactBacktickedRole(name, "D4 consumer role identity"),
-        capability,
-        effort,
-        sourceAuthority,
-      })),
-    ).toEqual(
-      roles.map((role) => ({
-        name: role.name,
-        capability: role.capability,
-        effort: role.claudeEffort,
-        sourceAuthority: role.sourceAuthority,
-      })),
-    );
+    expect(markdownTableRows(dispatchRouteSection)).toEqual([
+      ["formatting", "pass"],
+    ]);
+    expect(dispatchRouteSection).toContain("policy-owned six-role set");
 
     const brainstorm = await readSkillSource("play-brainstorm");
     const routingChangeCheck = getMarkdownSection(
@@ -6301,25 +6810,1103 @@ describe("existing skills source prose contracts", () => {
     const normalizedRouteSection = normalizeWhitespace(routeSection);
 
     expect(normalizedRouteSection).toContain(
-      "Before each focused specialist spawn, independently classify and declare the full semantic route tuple",
+      "Before each focused specialist spawn, the controller must issue the complete D4 pre-spawn declaration",
     );
     for (const field of [
-      "cognitive demand",
-      "stance",
-      "source mutation default",
-      "exactly one of the six semantic roles",
-      "exact configured capability and effort",
-      "dispatch scope",
-      "termination and output behavior",
-      "external authority `none`",
+      "`route_id`: `D4`",
+      "`target_id`",
+      "`selected_role_id`",
+      "`scope`",
+      "`termination`",
+      "`context_ref`",
+      "`approval_ref`",
+      "`capability`",
+      "target-native `effort`",
+      "`model`",
+      "`source_authority`",
+      "`external_authority`",
+      "`claude_tools`",
+      "`codex_sandbox`",
+      "`default_network`",
     ]) {
       expect(normalizedRouteSection).toContain(field);
     }
-    expect(normalizedRouteSection).toContain("without per-call substitution");
-
     expect(normalizedRouteSection).toContain(
-      "Do not use an ambient model or ambient effort",
+      "Cognitive demand and stance remain planner classification inputs only",
     );
+  });
+
+  it("keeps the D4 producer declaration complete and singularly owner-derived", async () => {
+    const [routingOwner, producer, roles] = await Promise.all([
+      readRepoFile("docs/guidelines/agent-routing-and-mutation-policy.md"),
+      readSkillSource("play-agent-dispatch"),
+      readAgentSemanticRoleOwner(),
+    ]);
+
+    expect(roles).toHaveLength(6);
+    for (const target of ["claude", "codex"] as const) {
+      for (const role of roles) {
+        const { declaration, expectations } = await canonicalD4RuntimeInput(
+          role,
+          target,
+        );
+        await expect(
+          validateD4ProducedDeclaration(declaration, expectations),
+        ).resolves.toBeUndefined();
+      }
+    }
+
+    const { declaration, expectations } = await canonicalD4RuntimeInput(
+      roles[0],
+      "codex",
+    );
+    const canonicalInput = {
+      routingOwner,
+      producer,
+      roles,
+      declaration,
+      expectations,
+    };
+    const copiedRegistryError =
+      "play-agent-dispatch producer declaration must not copy the complete semantic role registry";
+    expect(d4ProducerDeclarationProseErrors(canonicalInput)).toEqual([]);
+
+    expect(
+      d4ProducerDeclarationProseErrors({
+        ...canonicalInput,
+        routingOwner: replaceRequired(
+          routingOwner,
+          "### D4 Declaration Obligation\n\nThis policy",
+          "### D4 Declaration Obligation\n\n### Peer Route Registry\n\nThis policy",
+        ),
+      }),
+    ).toEqual([
+      "D4 routing owner declaration obligation section is incomplete",
+    ]);
+    expect(
+      d4ProducerDeclarationProseErrors({
+        ...canonicalInput,
+        producer: replaceRequired(
+          producer,
+          "### Semantic Route Contract\n\nBefore each",
+          "### Semantic Route Contract\n\n### Peer Route Registry\n\nBefore each",
+        ),
+      }),
+    ).toEqual([
+      "play-agent-dispatch producer semantic route contract section is incomplete",
+    ]);
+    expect(
+      d4ProducerDeclarationProseErrors({
+        ...canonicalInput,
+        routingOwner: replaceRequired(
+          routingOwner,
+          "### D4 Declaration Obligation\n\nThis policy",
+          "### D4 Declaration Obligation\n\n## Peer Route Registry\n\nThis policy",
+        ),
+      }),
+    ).toEqual([
+      "D4 routing owner declaration obligation section is incomplete",
+    ]);
+    expect(
+      d4ProducerDeclarationProseErrors({
+        ...canonicalInput,
+        producer: replaceRequired(
+          producer,
+          "### Semantic Route Contract\n\nBefore each",
+          "### Semantic Route Contract\n\n## Peer Route Registry\n\nBefore each",
+        ),
+      }),
+    ).toEqual([
+      "play-agent-dispatch producer semantic route contract section is incomplete",
+    ]);
+    expect(
+      d4ProducerDeclarationProseErrors({
+        ...canonicalInput,
+        routingOwner: replaceRequired(
+          routingOwner,
+          "### D4 Declaration Obligation\n\nThis policy",
+          "### D4 Declaration Obligation Appendix\n\n### D4 Declaration Obligation\n\nThis policy",
+        ),
+      }),
+    ).toEqual([]);
+    expect(
+      d4ProducerDeclarationProseErrors({
+        ...canonicalInput,
+        producer: replaceRequired(
+          producer,
+          "### Semantic Route Contract\n\nBefore each",
+          "### Semantic Route Contract Appendix\n\n### Semantic Route Contract\n\nBefore each",
+        ),
+      }),
+    ).toEqual([]);
+    expect(
+      d4ProducerDeclarationProseErrors({
+        ...canonicalInput,
+        routingOwner: replaceRequired(
+          routingOwner,
+          "### D4 Declaration Obligation\n\nThis policy",
+          "### D4 Declaration Obligation\n\n#### Peer Route Registry\n\nThis policy",
+        ),
+      }),
+    ).toEqual([]);
+    expect(
+      d4ProducerDeclarationProseErrors({
+        ...canonicalInput,
+        producer: replaceRequired(
+          producer,
+          "### Semantic Route Contract\n\nBefore each",
+          "### Semantic Route Contract\n\n#### Peer Route Registry\n\nBefore each",
+        ),
+      }),
+    ).toEqual([]);
+
+    const producerWithUnrelatedTable = replaceRequired(
+      producer,
+      "### Source-Immutable Specialists",
+      "| Domain | Result |\n| --- | --- |\n| formatting | pass |\n\n### Source-Immutable Specialists",
+    );
+    expect(
+      d4ProducerDeclarationProseErrors({
+        ...canonicalInput,
+        producer: producerWithUnrelatedTable,
+      }),
+    ).toEqual([]);
+
+    const copiedRoleTable = [
+      "| Role | Capability | Effort | Source authority |",
+      "| --- | --- | --- | --- |",
+      ...roles.map(
+        (role) =>
+          `| ${role.name} | ${role.capability} | ${role.codexEffort} | ${role.sourceAuthority} |`,
+      ),
+    ].join("\n");
+    const copiedRoleRegistries = {
+      table: copiedRoleTable,
+      multilineYaml: roles
+        .map((role) =>
+          [
+            `- role: ${role.name}`,
+            `  capability: ${role.capability}`,
+            `  effort: ${role.codexEffort}`,
+            `  source_authority: ${role.sourceAuthority}`,
+          ].join("\n"),
+        )
+        .join("\n"),
+      prettyJson: roles
+        .map((role) =>
+          [
+            "{",
+            `  "role": "${role.name}",`,
+            `  "capability": "${role.capability}",`,
+            `  "effort": "${role.codexEffort}",`,
+            `  "source_authority": "${role.sourceAuthority}"`,
+            "}",
+          ].join("\n"),
+        )
+        .join(",\n"),
+      markdownRoleNonLeading: [
+        "| Capability | Role | Source authority | Effort |",
+        "| --- | --- | --- | --- |",
+        ...roles.map(
+          (role) =>
+            `| ${role.capability} | ${role.name} | ${role.sourceAuthority} | ${role.codexEffort} |`,
+        ),
+      ].join("\n"),
+      multilineYamlRoleLast: roles
+        .map((role) =>
+          [
+            `- capability: ${role.capability}`,
+            `  effort: ${role.codexEffort}`,
+            `  source_authority: ${role.sourceAuthority}`,
+            `  role: ${role.name}`,
+          ].join("\n"),
+        )
+        .join("\n"),
+      dashOnlyYamlRoleLast: roles
+        .map((role) =>
+          [
+            "-",
+            `  capability: ${role.capability}`,
+            `  effort: ${role.codexEffort}`,
+            `  source_authority: ${role.sourceAuthority}`,
+            `  role: ${role.name}`,
+          ].join("\n"),
+        )
+        .join("\n"),
+      prettyJsonRoleLast: roles
+        .map((role) =>
+          [
+            "{",
+            `  "capability": "${role.capability}",`,
+            `  "effort": "${role.codexEffort}",`,
+            `  "source_authority": "${role.sourceAuthority}",`,
+            `  "role": "${role.name}"`,
+            "}",
+          ].join("\n"),
+        )
+        .join(",\n"),
+      labeledBulletsRoleNonLeading: roles
+        .map(
+          (role) =>
+            `- capability=${role.capability}; effort=${role.codexEffort}; source_authority=${role.sourceAuthority}; role=${role.name}`,
+        )
+        .join("\n"),
+      inlineRoleNonLeading: roles
+        .map(
+          (role) =>
+            `capability=${role.capability}, effort=${role.codexEffort}, source_authority=${role.sourceAuthority}, role=${role.name}`,
+        )
+        .join(" | "),
+    };
+    for (const format of [
+      "markdownRoleNonLeading",
+      "multilineYamlRoleLast",
+      "dashOnlyYamlRoleLast",
+      "prettyJsonRoleLast",
+      "labeledBulletsRoleNonLeading",
+      "inlineRoleNonLeading",
+    ] as const) {
+      const registry = copiedRoleRegistries[format];
+      const firstRoleIndex = registry.indexOf(roles[0].name);
+      expect(firstRoleIndex, `${format}:role`).toBeGreaterThan(-1);
+      expect(
+        registry.indexOf(roles[0].capability),
+        `${format}:capability-before-role`,
+      ).toBeLessThan(firstRoleIndex);
+      if (format !== "markdownRoleNonLeading") {
+        expect(
+          registry.indexOf(roles[0].codexEffort),
+          `${format}:effort-before-role`,
+        ).toBeLessThan(firstRoleIndex);
+        expect(
+          registry.indexOf(roles[0].sourceAuthority),
+          `${format}:source-authority-before-role`,
+        ).toBeLessThan(firstRoleIndex);
+      }
+      if (format === "dashOnlyYamlRoleLast") {
+        expect(registry, `${format}:dash-only-item`).toContain(
+          "-\n  capability:",
+        );
+      }
+    }
+    for (const [format, copiedRegistry] of Object.entries(
+      copiedRoleRegistries,
+    )) {
+      const producerWithCopiedRegistry = replaceRequired(
+        producer,
+        "### Source-Immutable Specialists",
+        `${copiedRegistry}\n\n### Source-Immutable Specialists`,
+      );
+      expect(
+        d4ProducerDeclarationProseErrors({
+          ...canonicalInput,
+          producer: producerWithCopiedRegistry,
+        }),
+        format,
+      ).toEqual([copiedRegistryError]);
+    }
+
+    for (const [control, nearMissRegistry] of Object.entries({
+      missingEffort: copiedRoleRegistries.multilineYamlRoleLast.replace(
+        `  effort: ${roles[0].codexEffort}\n`,
+        "",
+      ),
+      changedSourceAuthority: copiedRoleRegistries.prettyJsonRoleLast.replace(
+        `  "source_authority": "${roles[0].sourceAuthority}",`,
+        '  "source_authority": "not-the-owned-authority",',
+      ),
+    })) {
+      expect(nearMissRegistry, control).not.toBe(
+        control === "missingEffort"
+          ? copiedRoleRegistries.multilineYamlRoleLast
+          : copiedRoleRegistries.prettyJsonRoleLast,
+      );
+      const firstRecord = nearMissRegistry.slice(
+        0,
+        nearMissRegistry.indexOf(roles[0].name),
+      );
+      if (control === "missingEffort") {
+        expect(firstRecord, control).not.toContain(
+          `effort: ${roles[0].codexEffort}`,
+        );
+      } else {
+        expect(firstRecord, control).toContain(
+          '"source_authority": "not-the-owned-authority"',
+        );
+        expect(firstRecord, control).not.toContain(
+          `"source_authority": "${roles[0].sourceAuthority}"`,
+        );
+      }
+      const producerWithNearMiss = replaceRequired(
+        producer,
+        "### Source-Immutable Specialists",
+        `${nearMissRegistry}\n\n### Source-Immutable Specialists`,
+      );
+      expect(
+        d4ProducerDeclarationProseErrors({
+          ...canonicalInput,
+          producer: producerWithNearMiss,
+        }),
+        control,
+      ).toEqual([]);
+    }
+
+    const distributedRecordControls = {
+      splitJsonObjectsOnOneLine: roles
+        .map(
+          (role) =>
+            `{"role":"${role.name}"} {"capability":"${role.capability}","effort":"${role.codexEffort}","source_authority":"${role.sourceAuthority}"}`,
+        )
+        .join("\n"),
+      adjacentMixedRecords: roles
+        .map((role) =>
+          [
+            `- role: ${role.name}`,
+            `- capability: ${role.capability}`,
+            `{"effort":"${role.codexEffort}"}`,
+            "| Field | Value |",
+            "| --- | --- |",
+            `| source_authority | ${role.sourceAuthority} |`,
+          ].join("\n"),
+        )
+        .join("\n"),
+    };
+    expect(
+      distributedRecordControls.splitJsonObjectsOnOneLine
+        .split("\n")[0]
+        .match(/\{/g),
+    ).toHaveLength(2);
+    expect(distributedRecordControls.adjacentMixedRecords).toContain(
+      `- role: ${roles[0].name}\n- capability: ${roles[0].capability}`,
+    );
+    for (const [control, distributedRegistry] of Object.entries(
+      distributedRecordControls,
+    )) {
+      const producerWithDistributedRecords = replaceRequired(
+        producer,
+        "### Source-Immutable Specialists",
+        `${distributedRegistry}\n\n### Source-Immutable Specialists`,
+      );
+      expect(
+        d4ProducerDeclarationProseErrors({
+          ...canonicalInput,
+          producer: producerWithDistributedRecords,
+        }),
+        control,
+      ).toEqual([]);
+    }
+
+    expect
+      .soft(
+        d4ProducerDeclarationProseErrors({
+          ...canonicalInput,
+          routingOwner: replaceRequired(
+            routingOwner,
+            "Before D4 spawns, the controller must issue one complete pre-spawn declaration.",
+            "Before D4 spawns, the controller may omit the pre-spawn declaration.",
+          ),
+        }),
+      )
+      .toEqual([
+        "D4 routing owner declaration obligation must require one complete pre-spawn declaration",
+      ]);
+    expect
+      .soft(
+        d4ProducerDeclarationProseErrors({
+          ...canonicalInput,
+          routingOwner: replaceRequired(
+            routingOwner,
+            "[agent spec](../specs/agents.md) is the sole semantic-role catalog and\nrole-envelope owner",
+            "[agent spec](../specs/agents.md) is a supporting role-envelope input",
+          ),
+        }),
+      )
+      .toEqual([
+        "D4 routing owner must preserve the complete agent-spec/config owner partition",
+      ]);
+    expect(
+      d4ProducerDeclarationProseErrors({
+        ...canonicalInput,
+        routingOwner: `${replaceRequired(
+          routingOwner,
+          "[agent spec](../specs/agents.md) is the sole semantic-role catalog and\nrole-envelope owner",
+          "[agent spec](../specs/agents.md) is a supporting role-envelope input",
+        )}\n\n[agent spec](../specs/agents.md) is the sole semantic-role catalog and role-envelope owner.`,
+      }),
+    ).toEqual([
+      "D4 routing owner must preserve the exact agent-spec/config/YAML/planner authority partition",
+    ]);
+    expect(
+      d4ProducerDeclarationProseErrors({
+        ...canonicalInput,
+        routingOwner: replaceRequired(
+          routingOwner,
+          "Cognitive demand and stance remain planner\nclassification inputs only, not declaration fields or authority.",
+          "Cognitive demand and stance remain planner\nclassification inputs only, not declaration fields or authority. Cognitive demand and stance are declaration authority.",
+        ),
+      }),
+    ).toEqual([
+      "D4 routing owner must not contradict planner classification authority",
+    ]);
+    expect(
+      d4ProducerDeclarationProseErrors({
+        ...canonicalInput,
+        routingOwner: `${replaceRequired(
+          routingOwner,
+          "[`devcanon.config.yaml`](../../devcanon.config.yaml)\nsolely resolves the exact-target/capability `model`",
+          "[`devcanon.config.yaml`](../../devcanon.config.yaml) is an ambient model input",
+        )}\n\n[\`devcanon.config.yaml\`](../../devcanon.config.yaml) solely resolves the exact-target/capability \`model\`.`,
+      }),
+    ).toEqual([
+      "D4 routing owner must preserve the exact agent-spec/config/YAML/planner authority partition",
+    ]);
+    expect(
+      d4ProducerDeclarationProseErrors({
+        ...canonicalInput,
+        routingOwner: replaceRequired(
+          routingOwner,
+          "peer semantic authorities. Cognitive demand",
+          "peer semantic authorities. YAML is a peer semantic authority. Cognitive demand",
+        ),
+      }),
+    ).toEqual([
+      "D4 routing owner must not contradict the YAML non-authority partition",
+    ]);
+    expect(
+      d4ProducerDeclarationProseErrors({
+        ...canonicalInput,
+        routingOwner: replaceRequired(
+          routingOwner,
+          "Cognitive demand and stance remain planner\nclassification inputs only, not declaration fields or authority.",
+          "Cognitive demand and stance are declaration authority.",
+        ),
+      }),
+    ).toEqual([
+      "D4 routing owner must preserve the exact agent-spec/config/YAML/planner authority partition",
+    ]);
+    expect
+      .soft(
+        d4ProducerDeclarationProseErrors({
+          ...canonicalInput,
+          routingOwner: replaceRequired(
+            routingOwner,
+            "../../skills/play-agent-dispatch/SKILL.md",
+            "../../skills/play-review/SKILL.md",
+          ),
+        }),
+      )
+      .toEqual([
+        "D4 routing owner producer path must be skills/play-agent-dispatch/SKILL.md",
+      ]);
+    expect
+      .soft(
+        d4ProducerDeclarationProseErrors({
+          ...canonicalInput,
+          routingOwner: replaceRequired(
+            routingOwner,
+            "owner-derived values block before spawn",
+            "owner-derived values may be resolved after spawn",
+          ),
+        }),
+      )
+      .toEqual([
+        "D4 routing owner must block missing or mismatched values before spawn",
+      ]);
+
+    expect(
+      d4ProducerDeclarationProseErrors({
+        ...canonicalInput,
+        routingOwner: replaceRequired(
+          routingOwner,
+          "### D4 Declaration Obligation",
+          "### D4 Producer Boundary",
+        ),
+      }),
+    ).toEqual([
+      "D4 routing owner must declare its controller declaration obligation for the exact six-role set",
+    ]);
+    expect(
+      d4ProducerDeclarationProseErrors({
+        ...canonicalInput,
+        producer: replaceRequired(
+          producer,
+          "and `approval_ref` are controller-bound;",
+          "are controller-bound;",
+        ),
+      }),
+    ).toEqual([
+      "play-agent-dispatch producer declaration is missing field(s): approval_ref",
+    ]);
+    expect(
+      d4ProducerDeclarationProseErrors({
+        ...canonicalInput,
+        producer: replaceRequired(
+          producer,
+          "governed declarations and parity\ninputs, never semantic authorities",
+          "peer semantic authorities",
+        ),
+      }),
+    ).toEqual([
+      "play-agent-dispatch producer declaration must reject YAML as peer semantic authority",
+    ]);
+    expect(
+      d4ProducerDeclarationProseErrors({
+        ...canonicalInput,
+        producer: replaceRequired(
+          producer,
+          "`devcanon.config.yaml`",
+          "ambient dispatch state",
+        ),
+      }),
+    ).toEqual([
+      "play-agent-dispatch producer declaration must consume config model resolution",
+    ]);
+    expect(
+      d4ProducerDeclarationProseErrors({
+        ...canonicalInput,
+        producer: replaceRequired(
+          producer,
+          "one\nof the policy-owned six-role set before spawn; a generic or inherited workflow\ndoes not supply a child route",
+          "one\nof the producer-owned six-role set before spawn; a generic or inherited workflow\ndoes not supply a child route",
+        ),
+      }),
+    ).toEqual([
+      "play-agent-dispatch producer must consume the policy-owned six-role route set without defining a peer route",
+    ]);
+
+    expect(
+      d4ProducerDeclarationProseErrors({
+        ...canonicalInput,
+        routingOwner: replaceRequired(
+          routingOwner,
+          "This policy is the sole D4 route owner",
+          "This policy is a D4 route owner",
+        ),
+      }),
+    ).toEqual(["D4 routing owner must be the sole D4 route owner"]);
+    expect(
+      d4ProducerDeclarationProseErrors({
+        ...canonicalInput,
+        routingOwner: replaceRequired(
+          routingOwner,
+          "it does\nnot define a peer route or role registry",
+          "it defines a peer route and role registry",
+        ),
+      }),
+    ).toEqual([
+      "D4 routing owner must bind play-agent-dispatch as a consumer without peer route or role registry authority",
+    ]);
+    expect(
+      d4ProducerDeclarationProseErrors({
+        ...canonicalInput,
+        routingOwner: replaceRequired(
+          routingOwner,
+          "the\nplanner-selected `selected_role_id`",
+          "the\nplanner-selected `role_id`",
+        ),
+      }),
+    ).toEqual([
+      "D4 routing owner controller-bound fields must be exactly route_id, target_id, selected_role_id, scope, termination, context_ref, approval_ref",
+    ]);
+    expect(
+      d4ProducerDeclarationProseErrors({
+        ...canonicalInput,
+        routingOwner: replaceRequired(
+          routingOwner,
+          "and\n`approval_ref`; `termination`",
+          "and\n`approval_ref`, `approval_ref`; `termination`",
+        ),
+      }),
+    ).toEqual([
+      "D4 routing owner controller-bound fields must be exactly route_id, target_id, selected_role_id, scope, termination, context_ref, approval_ref",
+    ]);
+    expect(
+      d4ProducerDeclarationProseErrors({
+        ...canonicalInput,
+        producer: replaceRequired(
+          producer,
+          "`termination`; `context_ref`; and `approval_ref` are controller-bound;",
+          "`termination`; and `approval_ref` are controller-bound. `context_ref` is controller-bound;",
+        ),
+      }),
+    ).toEqual([
+      "play-agent-dispatch producer controller-bound fields must be one exact non-scattered set",
+    ]);
+    expect(
+      d4ProducerDeclarationProseErrors({
+        ...canonicalInput,
+        producer: replaceRequired(
+          producer,
+          "`termination`; `context_ref`; and `approval_ref` are controller-bound;",
+          "`termination`; `context_ref`; `approval_ref`; and `authority_ref` are controller-bound;",
+        ),
+      }),
+    ).toEqual([
+      "play-agent-dispatch producer controller-bound fields must be one exact non-scattered set",
+    ]);
+    expect(
+      d4ProducerDeclarationProseErrors({
+        ...canonicalInput,
+        producer: replaceRequired(
+          producer,
+          "governed declarations and parity\ninputs, never semantic authorities; they never override the policy, agent spec,\nor configuration owner.",
+          "governed declarations and parity\ninputs, never semantic authorities; they never override the policy, agent spec,\nor configuration owner. YAML is a peer semantic authority for this producer.",
+        ),
+      }),
+    ).toEqual([
+      "play-agent-dispatch producer must not contradict the policy-owned YAML authority partition",
+    ]);
+  });
+
+  it("binds copied role dimensions to supported labeled records", async () => {
+    const [routingOwner, producer, roles] = await Promise.all([
+      readRepoFile("docs/guidelines/agent-routing-and-mutation-policy.md"),
+      readSkillSource("play-agent-dispatch"),
+      readAgentSemanticRoleOwner(),
+    ]);
+    const copiedRegistryError =
+      "play-agent-dispatch producer declaration must not copy the complete semantic role registry";
+
+    for (const target of ["claude", "codex"] as const) {
+      const { declaration, expectations } = await canonicalD4RuntimeInput(
+        roles[0],
+        target,
+      );
+      const canonicalInput = {
+        routingOwner,
+        producer,
+        roles,
+        declaration,
+        expectations,
+      };
+      const tuples = roles.map((role) => ({
+        role: role.name,
+        capability: role.capability,
+        effort: target === "claude" ? role.claudeEffort : role.codexEffort,
+        sourceAuthority: role.sourceAuthority,
+      }));
+      const positionalCompactPipeRecord = (item: (typeof tuples)[number]) =>
+        `${item.role} | ${item.capability} | ${item.effort} | ${item.sourceAuthority}`;
+      const positionalCompactPipeFailures = (registry: string): string[] => {
+        const mutated = replaceRequired(
+          producer,
+          "### Source-Immutable Specialists",
+          `${registry}\n\n### Source-Immutable Specialists`,
+        );
+        expect(mutated, `${target}:positional-compact-pipe mutation`).not.toBe(
+          producer,
+        );
+        return d4ProducerDeclarationProseErrors({
+          ...canonicalInput,
+          producer: mutated,
+        });
+      };
+      const positionalCompactPipeRegistry = tuples
+        .map(positionalCompactPipeRecord)
+        .join("\n");
+      expect(
+        positionalCompactPipeRegistry.split("\n"),
+        `${target}:positional-compact-pipe complete-six`,
+      ).toHaveLength(6);
+      expect(positionalCompactPipeRegistry).toContain(" | ");
+      expect(
+        positionalCompactPipeFailures(positionalCompactPipeRegistry),
+        `${target}:positional-compact-pipe complete-six`,
+      ).toEqual([copiedRegistryError]);
+
+      const legacyHeaderTable = (
+        items: readonly {
+          role: string;
+          capability: string;
+          effort: string;
+          sourceAuthority: string;
+        }[],
+      ) =>
+        [
+          "| Semantic role | Capability | Effort | Source mutation default |",
+          "| --- | --- | --- | --- |",
+          ...items.map(
+            (item) =>
+              `| ${item.role} | ${item.capability} | ${item.effort} | ${item.sourceAuthority} |`,
+          ),
+        ].join("\n");
+      const completeLegacyHeaderTable = legacyHeaderTable(tuples);
+      expect(
+        completeLegacyHeaderTable.split("\n").slice(2),
+        `${target}:legacy-header complete-six`,
+      ).toHaveLength(6);
+      expect(
+        positionalCompactPipeFailures(completeLegacyHeaderTable),
+        `${target}:legacy-header complete-six`,
+      ).toEqual([copiedRegistryError]);
+      for (const subsetSize of [0, 1, 2, 3, 4, 5]) {
+        expect(
+          positionalCompactPipeFailures(
+            legacyHeaderTable(tuples.slice(0, subsetSize)),
+          ),
+          `${target}:legacy-header subset-${subsetSize}`,
+        ).toEqual([]);
+      }
+      const legacySixth = tuples[5];
+      const legacyHeaderControls = {
+        wrongSixth: legacyHeaderTable([
+          ...tuples.slice(0, 5),
+          { ...legacySixth, sourceAuthority: "not-the-owned-authority" },
+        ]),
+        incompleteSixth: [
+          "| Semantic role | Capability | Effort | Source mutation default |",
+          "| --- | --- | --- | --- |",
+          ...tuples
+            .slice(0, 5)
+            .map(
+              (item) =>
+                `| ${item.role} | ${item.capability} | ${item.effort} | ${item.sourceAuthority} |`,
+            ),
+          `| ${legacySixth.role} | ${legacySixth.capability} | ${legacySixth.effort} |`,
+        ].join("\n"),
+        fiveDistinctPlusDuplicate: legacyHeaderTable([
+          ...tuples.slice(0, 5),
+          tuples[0],
+        ]),
+        noteMasking: [
+          "| Semantic role | Capability | Effort | Note |",
+          "| --- | --- | --- | --- |",
+          ...tuples.map(
+            (item) =>
+              `| ${item.role} | ${item.capability} | ${item.effort} | ${item.sourceAuthority} |`,
+          ),
+        ].join("\n"),
+        distributedRecords: tuples
+          .map((item) =>
+            [
+              `- Semantic role: ${item.role}`,
+              `- Capability: ${item.capability}`,
+              `- Effort: ${item.effort}`,
+              `- Source mutation default: ${item.sourceAuthority}`,
+            ].join("\n"),
+          )
+          .join("\n"),
+        unrelatedTable: [
+          "| Semantic role | Result |",
+          "| --- | --- |",
+          ...tuples.map((item) => `| ${item.role} | pass |`),
+        ].join("\n"),
+      };
+      for (const [control, registry] of Object.entries(legacyHeaderControls)) {
+        expect(registry, `${target}:legacy-header ${control}`).not.toBe(
+          completeLegacyHeaderTable,
+        );
+        expect(
+          positionalCompactPipeFailures(registry),
+          `${target}:legacy-header ${control}`,
+        ).toEqual([]);
+      }
+      expect(
+        positionalCompactPipeFailures(
+          legacyHeaderTable([...tuples, tuples[0]]),
+        ),
+        `${target}:legacy-header complete-six-plus-duplicate`,
+      ).toEqual([copiedRegistryError]);
+      const reorderedLegacyHeaderTable = [
+        "| Source mutation default | Capability | Semantic role | Effort |",
+        "| --- | --- | --- | --- |",
+        ...tuples.map(
+          (item) =>
+            `| ${item.sourceAuthority} | ${item.capability} | ${item.role} | ${item.effort} |`,
+        ),
+      ].join("\n");
+      expect(
+        positionalCompactPipeFailures(reorderedLegacyHeaderTable),
+        `${target}:legacy-header reordered-columns`,
+      ).toEqual([copiedRegistryError]);
+
+      for (const subsetSize of [0, 1, 2, 3, 4, 5]) {
+        const subsetRegistry = tuples
+          .slice(0, subsetSize)
+          .map(positionalCompactPipeRecord)
+          .join("\n");
+        expect(
+          positionalCompactPipeFailures(subsetRegistry),
+          `${target}:positional-compact-pipe subset-${subsetSize}`,
+        ).toEqual([]);
+      }
+
+      const positionalSixthTuple = tuples[5];
+      const wrongSixthSourceAuthority = "not-the-owned-authority";
+      const positionalCompactPipeNearMisses = {
+        wrongSixth: [
+          ...tuples.slice(0, 5).map(positionalCompactPipeRecord),
+          `${positionalSixthTuple.role} | ${positionalSixthTuple.capability} | ${positionalSixthTuple.effort} | ${wrongSixthSourceAuthority}`,
+        ].join("\n"),
+        incompleteSixth: [
+          ...tuples.slice(0, 5).map(positionalCompactPipeRecord),
+          `${positionalSixthTuple.role} | ${positionalSixthTuple.capability} | ${positionalSixthTuple.effort}`,
+        ].join("\n"),
+      };
+      for (const [control, registry] of Object.entries(
+        positionalCompactPipeNearMisses,
+      )) {
+        const sixthRecord = registry.split("\n").at(-1);
+        expect(
+          registry,
+          `${target}:positional-compact-pipe ${control}`,
+        ).not.toBe(positionalCompactPipeRegistry);
+        expect(
+          sixthRecord,
+          `${target}:positional-compact-pipe ${control}`,
+        ).toBe(
+          control === "wrongSixth"
+            ? `${positionalSixthTuple.role} | ${positionalSixthTuple.capability} | ${positionalSixthTuple.effort} | ${wrongSixthSourceAuthority}`
+            : `${positionalSixthTuple.role} | ${positionalSixthTuple.capability} | ${positionalSixthTuple.effort}`,
+        );
+        expect(
+          positionalCompactPipeFailures(registry),
+          `${target}:positional-compact-pipe ${control}`,
+        ).toEqual([]);
+      }
+
+      const fiveDistinctPlusDuplicate = [...tuples.slice(0, 5), tuples[0]];
+      expect(fiveDistinctPlusDuplicate).toHaveLength(6);
+      expect(
+        new Set(fiveDistinctPlusDuplicate.map((item) => item.role)).size,
+      ).toBe(5);
+      expect(
+        positionalCompactPipeFailures(
+          fiveDistinctPlusDuplicate.map(positionalCompactPipeRecord).join("\n"),
+        ),
+        `${target}:positional-compact-pipe five-distinct-plus-duplicate`,
+      ).toEqual([]);
+      expect(
+        positionalCompactPipeFailures(
+          [...tuples, tuples[0]].map(positionalCompactPipeRecord).join("\n"),
+        ),
+        `${target}:positional-compact-pipe complete-six-plus-duplicate`,
+      ).toEqual([copiedRegistryError]);
+      const labeledRecord = (item: (typeof tuples)[number]): string =>
+        `- role=${item.role}; capability=${item.capability}; effort=${item.effort}; source_authority=${item.sourceAuthority}`;
+      const duplicateTuple = tuples[0];
+      const fiveDistinctTuplesWithDuplicate = [
+        ...tuples.slice(0, 5),
+        duplicateTuple,
+      ];
+      const duplicateRegistry = fiveDistinctTuplesWithDuplicate
+        .map(labeledRecord)
+        .join("\n");
+      expect(fiveDistinctTuplesWithDuplicate).toHaveLength(6);
+      expect(
+        new Set(fiveDistinctTuplesWithDuplicate.map((item) => item.role)).size,
+      ).toBe(5);
+      expect(fiveDistinctTuplesWithDuplicate.at(-1)?.role).toBe(
+        duplicateTuple.role,
+      );
+      expect(duplicateRegistry.split("\n")).toHaveLength(6);
+      expect(
+        d4ProducerDeclarationProseErrors({
+          ...canonicalInput,
+          producer: replaceRequired(
+            producer,
+            "### Source-Immutable Specialists",
+            `${duplicateRegistry}\n\n### Source-Immutable Specialists`,
+          ),
+        }),
+        `${target}:five-distinct-roles-plus-duplicate`,
+      ).toEqual([]);
+
+      const sixthTuple = tuples[5];
+      const sixthRecordWithoutSourceAuthority = `- role=${sixthTuple.role}; capability=${sixthTuple.capability}; effort=${sixthTuple.effort}; note=${sixthTuple.sourceAuthority}`;
+      const noteMaskedSixthRegistry = [
+        ...tuples.slice(0, 5).map(labeledRecord),
+        sixthRecordWithoutSourceAuthority,
+      ].join("\n");
+      expect(noteMaskedSixthRegistry.split("\n")).toHaveLength(6);
+      expect(sixthRecordWithoutSourceAuthority).toContain(
+        `note=${sixthTuple.sourceAuthority}`,
+      );
+      expect(
+        ["role=", "capability=", "effort=", "source_authority="].filter(
+          (label) => sixthRecordWithoutSourceAuthority.includes(label),
+        ),
+      ).toEqual(["role=", "capability=", "effort="]);
+      expect(
+        d4ProducerDeclarationProseErrors({
+          ...canonicalInput,
+          producer: replaceRequired(
+            producer,
+            "### Source-Immutable Specialists",
+            `${noteMaskedSixthRegistry}\n\n### Source-Immutable Specialists`,
+          ),
+        }),
+        `${target}:sixth-role-note-masked-source-authority`,
+      ).toEqual([]);
+      const fieldBindingControls = {
+        noteTokenMasking: tuples
+          .map(
+            (item) =>
+              `- note=${item.role}; note=${item.capability}; note=${item.effort}; note=${item.sourceAuthority}`,
+          )
+          .join("\n"),
+        swappedLabeledValues: tuples
+          .map(
+            (item) =>
+              `- role=${item.capability}; capability=${item.role}; effort=${item.sourceAuthority}; source_authority=${item.effort}`,
+          )
+          .join("\n"),
+        unlabeledVocabulary: tuples
+          .map(
+            (item) =>
+              `- ${item.role}; ${item.capability}; ${item.effort}; ${item.sourceAuthority}`,
+          )
+          .join("\n"),
+        duplicateRoleLabel: tuples
+          .map(
+            (item) =>
+              `- role=${item.role}; role=ambiguous; capability=${item.capability}; effort=${item.effort}; source_authority=${item.sourceAuthority}`,
+          )
+          .join("\n"),
+      };
+      for (const [control, registry] of Object.entries(fieldBindingControls)) {
+        expect(registry, `${target}:${control}:registry`).toContain(
+          tuples[0].role,
+        );
+        const producerWithControl = replaceRequired(
+          producer,
+          "### Source-Immutable Specialists",
+          `${registry}\n\n### Source-Immutable Specialists`,
+        );
+        expect(
+          d4ProducerDeclarationProseErrors({
+            ...canonicalInput,
+            producer: producerWithControl,
+          }),
+          `${target}:${control}`,
+        ).toEqual([]);
+      }
+
+      const labeledRegistry = tuples
+        .map(
+          (item) =>
+            `- role=${item.role}; capability=${item.capability}; effort=${item.effort}; source_authority=${item.sourceAuthority}`,
+        )
+        .join("\n");
+      const producerWithCompleteRegistry = replaceRequired(
+        producer,
+        "### Source-Immutable Specialists",
+        `${labeledRegistry}\n\n### Source-Immutable Specialists`,
+      );
+      expect(
+        d4ProducerDeclarationProseErrors({
+          ...canonicalInput,
+          producer: producerWithCompleteRegistry,
+        }),
+      ).toEqual([copiedRegistryError]);
+
+      for (const subsetSize of [0, 1, 2, 3, 4, 5]) {
+        const subsetRegistry = tuples
+          .slice(0, subsetSize)
+          .map(
+            (item) =>
+              `- role=${item.role}; capability=${item.capability}; effort=${item.effort}; source_authority=${item.sourceAuthority}`,
+          )
+          .join("\n");
+        const producerWithSubset = replaceRequired(
+          producer,
+          "### Source-Immutable Specialists",
+          `${subsetRegistry}\n\n### Source-Immutable Specialists`,
+        );
+        expect(
+          d4ProducerDeclarationProseErrors({
+            ...canonicalInput,
+            producer: producerWithSubset,
+          }),
+          `${target}:subset-${subsetSize}`,
+        ).toEqual([]);
+      }
+
+      const completeSixPlusDuplicate = `${labeledRegistry}\n${labeledRegistry.split("\n")[0]}`;
+      const producerWithDuplicate = replaceRequired(
+        producer,
+        "### Source-Immutable Specialists",
+        `${completeSixPlusDuplicate}\n\n### Source-Immutable Specialists`,
+      );
+      expect(
+        d4ProducerDeclarationProseErrors({
+          ...canonicalInput,
+          producer: producerWithDuplicate,
+        }),
+      ).toEqual([copiedRegistryError]);
+    }
+  });
+
+  it("keeps copied registry efforts target-native under owner-derived divergence", async () => {
+    const [routingOwner, producer, roles] = await Promise.all([
+      readRepoFile("docs/guidelines/agent-routing-and-mutation-policy.md"),
+      readSkillSource("play-agent-dispatch"),
+      readAgentSemanticRoleOwner(),
+    ]);
+    const selectedRole = roles[0];
+    const alternateEffortRole = roles.find(
+      (role) => role.codexEffort !== selectedRole.claudeEffort,
+    );
+    expect(alternateEffortRole).toBeDefined();
+    if (!alternateEffortRole) return;
+    const divergentRoles = roles.map((role) =>
+      role.name === selectedRole.name
+        ? { ...role, codexEffort: alternateEffortRole.codexEffort }
+        : role,
+    );
+    const divergentSelectedRole = divergentRoles[0];
+    expect(divergentSelectedRole.claudeEffort).not.toBe(
+      divergentSelectedRole.codexEffort,
+    );
+    expect({
+      ...divergentSelectedRole,
+      codexEffort: selectedRole.codexEffort,
+    }).toEqual(selectedRole);
+    expect(
+      divergentRoles.filter((role, index) => role !== roles[index]),
+    ).toEqual([divergentSelectedRole]);
+
+    const registryFor = (target: "claude" | "codex"): string =>
+      divergentRoles
+        .map(
+          (role) =>
+            `- role=${role.name}; capability=${role.capability}; effort=${target === "claude" ? role.claudeEffort : role.codexEffort}; source_authority=${role.sourceAuthority}`,
+        )
+        .join("\n");
+    const copiedRegistryError =
+      "play-agent-dispatch producer declaration must not copy the complete semantic role registry";
+
+    for (const target of ["claude", "codex"] as const) {
+      const otherTarget = target === "claude" ? "codex" : "claude";
+      const correctRegistry = registryFor(target);
+      const otherTargetRegistry = registryFor(otherTarget);
+      expect(otherTargetRegistry, `${target}:effort divergence`).not.toBe(
+        correctRegistry,
+      );
+      const { declaration, expectations } = await canonicalD4RuntimeInput(
+        divergentSelectedRole,
+        target,
+      );
+      const failures = (registry: string): string[] =>
+        d4ProducerDeclarationProseErrors({
+          routingOwner,
+          producer: replaceRequired(
+            producer,
+            "### Source-Immutable Specialists",
+            `${registry}\n\n### Source-Immutable Specialists`,
+          ),
+          roles: divergentRoles,
+          declaration,
+          expectations,
+        });
+
+      expect(failures(correctRegistry), `${target}:correct effort`).toEqual([
+        copiedRegistryError,
+      ]);
+      expect(failures(otherTargetRegistry), `${target}:other effort`).toEqual(
+        [],
+      );
+    }
   });
 
   it("preserves the existing parallel join without adding parallelism", async () => {
@@ -6416,10 +8003,10 @@ describe("existing skills source prose contracts", () => {
     const normalizedRouteSection = normalizeWhitespace(routeSection);
 
     expect(normalizedRouteSection).toContain(
-      "If any tuple field is unresolved, do not spawn that specialist",
+      "Missing, unresolved, unknown, nearby, ambient, or mismatched fields block before spawn",
     );
     expect(normalizedRouteSection).toContain(
-      "Do not infer authority from tools, sandbox, network, model, effort, the owning workflow, or the controller's own authority",
+      "Do not infer model, effort, tools, sandbox, network, authority, or any other declaration field",
     );
     expect(normalizedRouteSection).toContain(
       "The route inventory is not a marker, annotation, or discovery grammar",

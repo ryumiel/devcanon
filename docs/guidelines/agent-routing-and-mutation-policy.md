@@ -203,12 +203,32 @@ Task-specific prompts, schemas, skip criteria, retries, fallbacks, and
 termination remain owned by the source skill. A route may not collapse two
 distinct sessions just because they share a semantic agent.
 
-Before D4 spawns, the owner must select exactly one spec-owned semantic role,
-use that role's configured capability and effort without per-call substitution,
-and use the role's matching `source-immutable` or `source-mutable` default. The
-dispatch declares its bounded scope and termination and has external authority
-`none`. Under the B3 routing boundary, a source-immutable D4 selection is
-response-only; a route that cannot satisfy every field blocks.
+### D4 Declaration Obligation
+
+This policy is the sole D4 route owner: it owns the D4 route identity, exact
+six-role allowed set, controller declaration obligation, producer path
+[`skills/play-agent-dispatch/SKILL.md`](../../skills/play-agent-dispatch/SKILL.md),
+and current D4 adoption record. The producer consumes this obligation; it does
+not define a peer route or role registry.
+
+Before D4 spawns, the controller must issue one complete pre-spawn declaration.
+Its controller-bound fields are exactly `route_id` (`D4`), `target_id`, the
+planner-selected `selected_role_id`, `scope`, `termination`, `context_ref`, and
+`approval_ref`; `termination` includes the declared output behavior. The
+[agent spec](../specs/agents.md) is the sole semantic-role catalog and
+role-envelope owner. For the exact selected role and target, it derives
+`capability`, target-native `effort`, `source_authority`,
+`external_authority`, ordered duplicate-free `claude_tools`, `codex_sandbox`,
+and `default_network`. [`devcanon.config.yaml`](../../devcanon.config.yaml)
+solely resolves the exact-target/capability `model`.
+
+`agents/*.yaml` are governed declarations/instances and parity inputs, never
+peer semantic authorities. Cognitive demand and stance remain planner
+classification inputs only, not declaration fields or authority. Missing,
+unresolved, unknown, nearby, ambient, or mismatched controller-bound or
+owner-derived values block before spawn; no declaration field is optional or
+may be inferred from the child, parent, workflow, or runtime environment. Under
+the B3 routing boundary, a source-immutable D4 selection is response-only.
 
 ### Ordinary child failure disposition
 
