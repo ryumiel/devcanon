@@ -162,8 +162,12 @@ skills or agents are not treated as stale.
 
 ## Data Flow
 
-The following non-normative overview shows the primary **sync pipeline**;
-runtime source and the install specification own its behavior:
+The following non-normative overview shows the primary **sync pipeline**.
+Runtime source is the executable authority; [ADR-0031](../adr/adr-0031-manifest-ownership-and-save-serialization.md)
+and [ADR-0032](../adr/adr-0032-manifest-inspection-and-managed-path-collisions.md)
+own the manifest decisions and rationale, while the
+[install and sync policy](../specs/install-and-sync.md) and
+[CLI command specification](../specs/cli-commands.md) own public behavior.
 
 ```
 Config                     Manifest
@@ -172,9 +176,9 @@ Config                     Manifest
        └─────────┐          │
                  ▼          ▼
    ┌────────────────────────────┐
-   │  load / accept manifest    │
-   │ identity, reconciliation,  │
-   │        and binding         │
+   │  pure inspection, eligible │
+   │  recovery, identity, and   │
+   │  collision-gated binding   │
    └────────────┬───────────────┘
                 ▼
 Source files    │
@@ -203,9 +207,16 @@ Source files    │
    └────────────────────────────┘
 ```
 
-Steps: load config -> accept manifest, identity, reconciliation, and binding
--> validate source -> render outputs -> compute install plan -> apply install
-plan -> update manifest -> print summary.
+The ordering is intentionally broad: load config -> inspect the manifest
+purely -> for eligible non-dry `sync` or `uninstall`, perform explicit invalid
+state recovery -> normalize and classify accepted identity -> apply ownership
+and foreign-record policy -> reconcile authorized foreign records record-only
+-> partition records and selected outputs into active and passive scope ->
+validate shared component-aware managed-path collisions -> perform any allowed
+legacy binding or save -> perform writable render -> construct, print, and
+execute the plan or removal -> make the final manifest save. This is a topology
+summary, not an executable algorithm; the linked owners define the exact
+conditions and outcomes.
 
 ---
 
@@ -262,18 +273,31 @@ timestamp.
 ### Manifest ownership summary (non-normative)
 
 This is a concise architecture summary, not executable or behavioral
-authority; runtime source remains the executable authority. Manifest identity
-owns classification from the normalized four-home boundary and each record's
-full target/type/name/home/destination identity. Manifest persistence owns the
-backup and save authority required for migration or removal. `sync` owns the
-legacy reconciliation transition, while `diff` and `uninstall` consume the
-resulting classification. The install and CLI specifications own public
-behavior and command syntax respectively.
+authority; runtime source remains the executable authority.
+`src/install/manifest.ts` owns the pure manifest-inspection facade and the
+persistence boundaries for verified backups, cooperating locks, and freshness.
+It does not turn invalid observations into empty authority. A successful
+invalid-source retirement is the recovery commit: clean cleanup permits the
+command to continue, while close or unlink cleanup degradation retains the
+truthful exact committed backup and aborts before later effects. A residual
+exact lock blocks a later trusted-absence observation until that lock is absent.
 
-At a high level, `sync` accepts the manifest, checks identity, and performs
-selected record-only legacy reconciliation and binding before validating or
-rendering source. This ordering is descriptive only; the install specification
-and runtime source own behavior.
+`src/install/manifest-identity.ts` owns shared managed-path full-tuple identity
+and component-collision validation. The identity spans the normalized four-home
+boundary plus target, type, name, owning home, and exact target-native
+destination; installed-path equality alone is insufficient. `sync` and
+`uninstall` consume that shared owner for their activity and policy scopes.
+`sync` is the policy consumer that can reconcile eligible legacy foreign
+records record-only, without gaining authority over their physical outputs.
+`diff` and Doctor are pure manifest-facade consumers: they inspect and report,
+but never recover.
+
+The [install and sync policy](../specs/install-and-sync.md) owns the exact
+inspection, recovery, reconciliation, collision, backup, lock, and freshness
+behavior. [ADR-0031](../adr/adr-0031-manifest-ownership-and-save-serialization.md)
+and [ADR-0032](../adr/adr-0032-manifest-inspection-and-managed-path-collisions.md)
+own the corresponding decisions; the [CLI command specification](../specs/cli-commands.md)
+owns command-facing behavior.
 
 Bound records include `name`; unbound legacy records omit it until identity
 normalization derives it from their target-native destination during binding.
