@@ -213,8 +213,9 @@ async function loadManifestForUninstall(
 
   const recovery = await recoverInvalidManifest(inspection);
   if (!recovery.completed) {
+    const cause = recoveryCauseMessage(recovery.cause);
     const error = new UserError(
-      `Manifest recovery did not complete (${recovery.category}; cleanup ${recovery.cleanup}).`,
+      `Manifest recovery did not complete (${recovery.category}; cleanup ${recovery.cleanup}).${cause ? ` Primary cause: ${cause}` : ""}`,
       config.manifest.path,
       unrecoveredManifestHint(recovery),
     );
@@ -248,6 +249,12 @@ async function loadManifestForUninstall(
     manifest: afterRecovery.manifest,
     snapshot: afterRecovery.snapshot,
   };
+}
+
+function recoveryCauseMessage(cause: unknown): string | undefined {
+  if (!(cause instanceof Error)) return undefined;
+  const message = cause.message.replaceAll(/\s+/g, " ").trim();
+  return message || undefined;
 }
 
 function unrecoveredManifestHint(

@@ -575,6 +575,8 @@ describe("sync", () => {
       cause: primary,
       hint: `Inspect and preserve the unverifiable recovery candidate at ${candidatePath}; do not remove it by pathname alone.`,
     });
+    expect((thrown as Error).message).toContain(primary.message);
+    expect((thrown as Error & { cause?: unknown }).cause).toBe(primary);
     expect(await readTextFile(config.manifest.path)).toBe(invalidBytes);
     expect(await readTextFile(candidatePath)).toBe("");
     expect(await pathExists(`${config.manifest.path}.lock`)).toBe(false);
