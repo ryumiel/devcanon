@@ -2061,7 +2061,11 @@ describe("existing skills render cleanly", () => {
         multilineHtmlCommentInterruptsLazyQuote:
           "> Reference prose\n   <!-- machine\n   note -->\nAnother policy is a peer D4 route owner.",
         htmlCommentNearMatchPeerOwner:
-          "<! -- machine note -->\nAnother policy is a peer D4 route owner.",
+          "<! -- Another policy is a peer D4 route owner. -->",
+        fourSpaceHtmlCommentImpostor:
+          "    <!-- machine note\nAnother policy is a peer D4 route owner.\n-->",
+        tabIndentedHtmlCommentImpostor:
+          "\t<!-- machine note\nAnother policy is a peer D4 route owner.\n-->",
       })) {
         const policyWithContradictoryClaim = routingPolicySource.replace(
           "This policy is the sole D4 route owner",
@@ -2249,10 +2253,6 @@ describe("existing skills render cleanly", () => {
           "  <!-- Another policy is a peer D4 route owner. -->",
         threeSpaceHtmlComment:
           "   <!-- Another policy is a peer D4 route owner. -->",
-        fourSpaceHtmlCommentCode:
-          "    <!-- Another policy is a peer D4 route owner. -->",
-        tabIndentedHtmlCommentCode:
-          "\t<!-- Another policy is a peer D4 route owner. -->",
         exampleProse: "Example: Another policy is a peer D4 route owner.",
       })) {
         const policyWithNonAuthoritativeEvidence = routingPolicySource.replace(

@@ -7818,7 +7818,17 @@ describe("existing skills source prose contracts", () => {
       htmlCommentNearMatchPeerOwner: replaceRequired(
         routingPolicy,
         "This policy is the sole D4 route owner",
-        "This policy is the sole D4 route owner.\n\n<! -- machine note -->\nAnother policy is a peer D4 route owner.",
+        "This policy is the sole D4 route owner.\n\n<! -- Another policy is a peer D4 route owner. -->",
+      ),
+      fourSpaceHtmlCommentImpostor: replaceRequired(
+        routingPolicy,
+        "This policy is the sole D4 route owner",
+        "This policy is the sole D4 route owner.\n\n    <!-- machine note\nAnother policy is a peer D4 route owner.\n-->",
+      ),
+      tabIndentedHtmlCommentImpostor: replaceRequired(
+        routingPolicy,
+        "This policy is the sole D4 route owner",
+        "This policy is the sole D4 route owner.\n\n\t<!-- machine note\nAnother policy is a peer D4 route owner.\n-->",
       ),
       quoteInterruptedByBullet: replaceRequired(
         routingPolicy,
@@ -8066,10 +8076,6 @@ describe("existing skills source prose contracts", () => {
         "  <!-- Another policy is a peer D4 route owner. -->",
       threeSpaceHtmlComment:
         "   <!-- Another policy is a peer D4 route owner. -->",
-      fourSpaceHtmlCommentCode:
-        "    <!-- Another policy is a peer D4 route owner. -->",
-      tabIndentedHtmlCommentCode:
-        "\t<!-- Another policy is a peer D4 route owner. -->",
       exampleProse: "Example: Another policy is a peer D4 route owner.",
     })) {
       const ownerWithNonAuthoritativeEvidence = replaceRequired(
