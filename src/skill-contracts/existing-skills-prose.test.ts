@@ -525,7 +525,7 @@ function d4ProducerDeclarationProseErrors(input: {
     );
   }
   if (
-    !normalizedRoutingOwner.includes(
+    !normalizedOwnerDeclarationSection.includes(
       "[`skills/play-agent-dispatch/SKILL.md`](../../skills/play-agent-dispatch/SKILL.md)",
     )
   ) {
@@ -534,7 +534,7 @@ function d4ProducerDeclarationProseErrors(input: {
     );
   }
   if (
-    !normalizedRoutingOwner.includes(
+    !normalizedOwnerDeclarationSection.includes(
       "Missing, unresolved, unknown, nearby, ambient, or mismatched controller-bound or owner-derived values block before spawn",
     )
   ) {
@@ -7298,6 +7298,18 @@ describe("existing skills source prose contracts", () => {
       .toEqual([
         "D4 routing owner producer path must be skills/play-agent-dispatch/SKILL.md",
       ]);
+    expect(
+      d4ProducerDeclarationProseErrors({
+        ...canonicalInput,
+        routingOwner: `${replaceRequired(
+          routingOwner,
+          "controller declaration obligation, producer path\n[`skills/play-agent-dispatch/SKILL.md`](../../skills/play-agent-dispatch/SKILL.md),",
+          "controller declaration obligation, with its producer path declared elsewhere,",
+        )}\n\n[\`skills/play-agent-dispatch/SKILL.md\`](../../skills/play-agent-dispatch/SKILL.md)`,
+      }),
+    ).toEqual([
+      "D4 routing owner producer path must be skills/play-agent-dispatch/SKILL.md",
+    ]);
     expect
       .soft(
         d4ProducerDeclarationProseErrors({
@@ -7312,6 +7324,18 @@ describe("existing skills source prose contracts", () => {
       .toEqual([
         "D4 routing owner must block missing or mismatched values before spawn",
       ]);
+    expect(
+      d4ProducerDeclarationProseErrors({
+        ...canonicalInput,
+        routingOwner: `${replaceRequired(
+          routingOwner,
+          "Missing,\nunresolved, unknown, nearby, ambient, or mismatched controller-bound or\nowner-derived values block before spawn",
+          "Controller-bound and owner-derived values are described elsewhere",
+        )}\n\nMissing, unresolved, unknown, nearby, ambient, or mismatched controller-bound or owner-derived values block before spawn.`,
+      }),
+    ).toEqual([
+      "D4 routing owner must block missing or mismatched values before spawn",
+    ]);
 
     expect(
       d4ProducerDeclarationProseErrors({
