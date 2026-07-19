@@ -2534,7 +2534,7 @@ describe("sync", () => {
       },
       {
         label: "stale agent exact removal",
-        selectedType: "agent",
+        selectedType: "skill",
         domain: "stale-agent",
         relation: "exact",
         dryRun: false,
@@ -2542,7 +2542,7 @@ describe("sync", () => {
       },
       {
         label: "stale agent foreign ancestor",
-        selectedType: "agent",
+        selectedType: "skill",
         domain: "stale-agent",
         relation: "foreign-ancestor",
         dryRun: true,
@@ -2599,6 +2599,16 @@ describe("sync", () => {
                 "skills",
                 "stale",
               );
+      const authoritativeMutationPath =
+        domain === "selected"
+          ? selectedGeneratedPath
+          : path.join(
+              config.library.generatedDir,
+              "claude",
+              domain === "stale-agent" ? "agents" : "skills",
+            );
+      const authoritativeMutationKind =
+        domain === "selected" ? "selected-output" : "stale-cleanup-root";
       const foreignPath =
         relation === "exact"
           ? mutationPath
@@ -2731,9 +2741,12 @@ describe("sync", () => {
       expect(result).toBeUndefined();
       expect(thrown).toBeInstanceOf(UserError);
       expect((thrown as Error).message).toContain(
-        "Reconciled foreign path overlaps selected generated mutation domain",
+        "Reconciled foreign path overlaps renderer mutation inventory",
       );
       expect((thrown as Error).message).toContain(path.resolve(foreignPath));
+      expect((thrown as Error).message).toContain(
+        `${authoritativeMutationKind} ${path.resolve(authoritativeMutationPath)}`,
+      );
       expect(
         (await readdir(path.dirname(config.manifest.path))).filter(
           (entry) =>
@@ -2815,6 +2828,65 @@ describe("sync", () => {
     expect(
       await pathExists(
         path.join(config.targets.claude.agentsHome, "selected.md"),
+      ),
+    ).toBe(true);
+  });
+
+  it("allows an active selected-tree component sibling without overbroad root containment", async () => {
+    const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
+    const selectedName = "selected";
+    await createAgentFixture(
+      config.library.agentsDir,
+      selectedName,
+      makeAgentYaml(selectedName),
+    );
+    const foreignPath = path.join(
+      config.library.generatedDir,
+      "claude",
+      "agents-archive",
+      "foreign.md",
+    );
+    await mkdir(path.dirname(foreignPath), { recursive: true });
+    await writeFile(foreignPath, "active sibling sentinel", "utf-8");
+    await mkdir(path.dirname(config.manifest.path), { recursive: true });
+    await writeFile(
+      config.manifest.path,
+      makeManifestJson(
+        [
+          {
+            target: "claude",
+            type: "agent",
+            sourcePath: path.join(config.library.agentsDir, "foreign.yaml"),
+            generatedPath: null,
+            installedPath: foreignPath,
+            installMode: "copy",
+            contentHash: "foreign",
+            timestamp: new Date().toISOString(),
+          },
+        ],
+        { legacy: true },
+      ),
+      "utf-8",
+    );
+
+    const result = await sync(config, {
+      dryRun: false,
+      force: false,
+      strict: false,
+      reconcileManifest: true,
+    });
+
+    expect(result.errors).toEqual([]);
+    expect(result.installed).toBe(1);
+    expect(await readTextFile(foreignPath)).toBe("active sibling sentinel");
+    expect(
+      await pathExists(
+        path.join(
+          config.library.generatedDir,
+          "claude",
+          "agents",
+          `${selectedName}.md`,
+        ),
       ),
     ).toBe(true);
   });

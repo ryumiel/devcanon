@@ -91,6 +91,24 @@ throws. Each protected physical mutation reports a reconciliation-specific
 previews the conflict before any write, and real sync neither changes the
 output nor adds a replacement record.
 
+The source-driven renderer supplies the authoritative ordered inventory of
+selected output paths and selected agent/skill stale-cleanup roots for the
+invocation. After record-only reconciliation and read-only output projection,
+sync rejects a reconciled-away foreign path that equals, contains, or is
+contained by any inventory entry. The error identifies the authoritative
+`selected-output` or `stale-cleanup-root` entry and both resolved paths. This
+gate applies to dry and real sync before legacy binding or save, writable
+rendering, plan construction or preview, execution, result emission, or final
+save. Disabled, filtered-out, and otherwise passive targets contribute no
+inventory entries; component-prefix siblings and other nonoverlapping paths
+continue normally.
+
+This renderer-mutation reservation does not compare foreign records with
+managed records or with one another, does not make a foreign path owned, and
+does not authorize its deletion. It is separate from both managed component
+collision validation and the later invocation-local protection against planned
+mutation described above.
+
 During sync, the resolved manifest path and its exact resolved sibling lock
 are reserved persistence control paths. After foreign-record disposition and
 record-only reconciliation, every active retained or selected managed
@@ -236,15 +254,17 @@ backups or manifest churn.
    pre-I5-unrecovered or recovered-cleanup-degraded result stops before each
    later effect.
 4. normalize and classify accepted state, apply foreign-record policy,
-   reconcile authorized foreign records record-only, then partition accepted
-   records and selected outputs into active/passive invocation scope and reject
-   component-aware managed and manifest-control collisions
-5. perform any required legacy binding or save
-6. validate source and perform writable render
-7. construct, print, and execute the install plan with reconciliation
+   reconcile authorized foreign records record-only, and project selected
+   outputs plus the renderer-owned mutation inventory read-only
+5. partition accepted records and selected outputs into active/passive scope;
+   reject component-aware managed and manifest-control collisions and every
+   reconciled-away foreign overlap with a selected renderer mutation entry
+6. perform any required legacy binding or save
+7. validate source and perform writable render
+8. construct, print, and execute the install plan with reconciliation
    protection as applicable
-8. perform the final manifest save
-9. print summary
+9. perform the final manifest save
+10. print summary
 
 ---
 

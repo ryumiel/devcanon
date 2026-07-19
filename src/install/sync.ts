@@ -6,12 +6,8 @@ import type {
   Manifest,
   ResolvedConfig,
 } from "../config/schema.js";
-import type {
-  PlanAction,
-  RenderedOutput,
-  SyncOptions,
-} from "../models/types.js";
-import { renderAll } from "../render/pipeline.js";
+import type { PlanAction, SyncOptions } from "../models/types.js";
+import { type RenderMutation, renderAll } from "../render/pipeline.js";
 import { UserError } from "../utils/errors.js";
 import { ensureDir } from "../utils/fs.js";
 import { getLogger } from "../utils/output.js";
@@ -165,7 +161,7 @@ export async function sync(
   // Render the selected target without materializing generated output, then
   // validate active selected outputs alongside retained active/passive records
   // before any migration or generated-tree write.
-  const { outputs: filteredOutputs } = await renderAll(
+  const { outputs: filteredOutputs, mutationInventory } = await renderAll(
     config,
     false,
     options.strict,
@@ -173,9 +169,8 @@ export async function sync(
   );
   assertReconciledForeignGeneratedMutationReservations(
     reconciledForeignRecords,
-    filteredOutputs,
+    mutationInventory,
     config,
-    options.target,
   );
   assertManagedPathConflicts(
     [
@@ -442,37 +437,19 @@ function assertReconciledForeignControlReservations(
 
 function assertReconciledForeignGeneratedMutationReservations(
   records: readonly ManagedRecord[],
-  outputs: readonly RenderedOutput[],
+  mutationInventory: readonly RenderMutation[],
   config: ResolvedConfig,
-  targetFilter: SyncOptions["target"],
 ): void {
-  const domains = new Map<string, string>();
-  for (const output of outputs) {
-    const generatedPath = path.resolve(output.generatedPath);
-    domains.set(
-      generatedPath,
-      `${output.target}/${output.type}/${output.name}`,
-    );
-  }
-  for (const target of ["claude", "codex"] as const) {
-    if (!config.targets[target].enabled) continue;
-    if (targetFilter && target !== targetFilter) continue;
-    for (const type of ["agents", "skills"] as const) {
-      const cleanupRoot = path.resolve(
-        config.library.generatedDir,
-        target,
-        type,
-      );
-      domains.set(cleanupRoot, `${target}/${type} stale-cleanup`);
-    }
-  }
-
   for (const record of records) {
     const foreignPath = path.resolve(record.installedPath);
-    for (const [domainPath, domainName] of domains) {
-      if (!pathsOverlapByComponent(foreignPath, domainPath)) continue;
+    for (const mutation of mutationInventory) {
+      if (!pathsOverlapByComponent(foreignPath, mutation.path)) continue;
+      const mutationIdentity =
+        mutation.kind === "selected-output"
+          ? `${mutation.target}/${mutation.type}/${mutation.name}`
+          : `${mutation.target}/${mutation.type} stale-cleanup`;
       throw new UserError(
-        `Reconciled foreign path overlaps selected generated mutation domain: ${foreignPath} (${record.target}/${record.type}/${recordName(record)}) and ${domainPath} (${domainName})`,
+        `Reconciled foreign path overlaps renderer mutation inventory: ${foreignPath} (${record.target}/${record.type}/${recordName(record)}) and ${mutation.kind} ${mutation.path} (${mutationIdentity})`,
         config.manifest.path,
         "Move the foreign manifest record away from selected generated outputs and cleanup roots before retrying reconciliation.",
       );
