@@ -133,12 +133,12 @@ must not use ambient model or effort, infer a route from the owning skill's
 highest mutation authority, collapse distinct review sessions because they
 share a semantic agent, or dispatch when the route is unresolved.
 
-For D4, pre-spawn resolution must select exactly one of the six semantic roles,
-use that role's exact configured capability and effort plus its matching
-`source-immutable` or `source-mutable` default, and declare the child scope and
-termination. The dispatch receives external authority `none`; no external
-authority is inferred. Under the B3 routing boundary, a source-immutable D4
-selection is response-only. Any unresolved field blocks spawn.
+For D4, resolve the complete pre-spawn declaration through the
+[D4 Declaration Obligation](../guidelines/agent-routing-and-mutation-policy.md#d4-declaration-obligation),
+the sole complete declaration authority. Observable semantic direct-child
+dispatch selects exactly one resolved route, and any unresolved route or
+declaration state blocks before spawn. Under the B3 routing boundary, a
+source-immutable D4 selection is response-only.
 
 Task-specific prompts, schemas, network authorization, failure fallbacks, skip
 criteria, retry loops, and termination remain owned by the source skill. A
