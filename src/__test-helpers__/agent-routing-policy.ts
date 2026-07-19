@@ -1852,12 +1852,12 @@ function parseProjection(
   assertExactIdentitySet(
     actualRouteIds,
     routeIds,
-    "capability-escalation projection route IDs",
+    `capability-escalation projection ${declarationId} at ${sourcePath} route IDs`,
   );
   assertExactIdentitySet(
     actualAdoptionRefs,
     adoptionRefs,
-    "capability-escalation projection adoption refs",
+    `capability-escalation projection ${declarationId} at ${sourcePath} adoption refs`,
   );
   return {
     declarationId,

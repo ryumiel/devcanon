@@ -1047,7 +1047,7 @@ describe("play subagent routing source contracts", () => {
         ]);
       },
       expectedError:
-        "capability-escalation projection route IDs identities must match exactly; missing: D17; unexpected: D16",
+        "capability-escalation projection ESC-PR-MERGE at skills/pr-merge/SKILL.md route IDs identities must match exactly; missing: D17; unexpected: D16",
     },
     {
       name: "projection adoption refs",
@@ -1063,7 +1063,37 @@ describe("play subagent routing source contracts", () => {
         ]);
       },
       expectedError:
-        "capability-escalation projection adoption refs identities must match exactly; missing: ESC-ADOPT-D17; unexpected: ESC-ADOPT-D16",
+        "capability-escalation projection ESC-PR-MERGE at skills/pr-merge/SKILL.md adoption refs identities must match exactly; missing: ESC-ADOPT-D17; unexpected: ESC-ADOPT-D16",
+    },
+    {
+      name: "empty ADR-0027 projection route IDs",
+      mutate: (sources) => ({
+        ...sources,
+        adr: mutateEscalationAnchor(sources.adr, (anchor) => {
+          anchor.route_ids = ["D1"];
+        }),
+      }),
+      assertMutation: (sources) => {
+        expect(parseEscalationAnchor(sources.adr).route_ids).toEqual(["D1"]);
+      },
+      expectedError:
+        "capability-escalation projection ESC-ADR-0027 at docs/adr/adr-0027-semantic-agent-routing-and-mutation-authority.md route IDs identities must match exactly; missing: none; unexpected: D1",
+    },
+    {
+      name: "empty ADR-0027 projection adoption refs",
+      mutate: (sources) => ({
+        ...sources,
+        adr: mutateEscalationAnchor(sources.adr, (anchor) => {
+          anchor.adoption_refs = ["ESC-ADOPT-D1"];
+        }),
+      }),
+      assertMutation: (sources) => {
+        expect(parseEscalationAnchor(sources.adr).adoption_refs).toEqual([
+          "ESC-ADOPT-D1",
+        ]);
+      },
+      expectedError:
+        "capability-escalation projection ESC-ADR-0027 at docs/adr/adr-0027-semantic-agent-routing-and-mutation-authority.md adoption refs identities must match exactly; missing: none; unexpected: ESC-ADOPT-D1",
     },
   ];
 

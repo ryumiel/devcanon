@@ -695,6 +695,25 @@ function d4OwnerDeclarationFieldSets(
     : undefined;
 }
 
+function d4ProducerOwnerDerivedFieldsValid(section: string): boolean {
+  const matches = [
+    ...section.matchAll(
+      /For that exact selected role and\s+target, declare its\s+([\s\S]*?)\.\s*Resolve `model` only from the exact target\/capability resolution in\s+`devcanon\.config\.yaml`\./gu,
+    ),
+  ];
+  if (matches.length !== 1) return false;
+
+  const list = normalizeWhitespace(matches[0]?.[1] ?? "");
+  const fields = Array.from(list.matchAll(/`([^`]+)`/gu), (match) => match[1]);
+  return (
+    list ===
+      "`capability`, target-native `effort`, `source_authority`, `external_authority`, ordered duplicate-free `claude_tools`, `codex_sandbox`, and `default_network`" &&
+    new Set(fields).size === fields.length &&
+    JSON.stringify([...fields, "model"]) ===
+      JSON.stringify(D4_OWNER_DERIVED_FIELDS)
+  );
+}
+
 function route006D4ReferenceOnlyErrors(input: {
   routingSpec: string;
   routingPolicy: string;
@@ -1216,6 +1235,14 @@ function d4ProducerDeclarationProseErrors(input: {
   if (missingProducerFields.length > 0) {
     errors.push(
       `play-agent-dispatch producer declaration is missing field(s): ${missingProducerFields.join(", ")}`,
+    );
+  }
+  if (
+    missingProducerFields.length === 0 &&
+    !d4ProducerOwnerDerivedFieldsValid(producerSection)
+  ) {
+    errors.push(
+      "play-agent-dispatch producer owner-derived fields must be one exact non-scattered set",
     );
   }
 
@@ -8957,6 +8984,7 @@ describe("existing skills source prose contracts", () => {
         ),
       }),
     ).toEqual([
+      "play-agent-dispatch producer owner-derived fields must be one exact non-scattered set",
       "play-agent-dispatch producer declaration must consume config model resolution",
     ]);
     expect(
@@ -9151,6 +9179,135 @@ describe("existing skills source prose contracts", () => {
         }),
         qualifier,
       ).toEqual([exactOwnerDerivedFieldError]);
+    }
+    const producerOwnerDerivedFieldError =
+      "play-agent-dispatch producer owner-derived fields must be one exact non-scattered set";
+    const producerOwnerDerivedMutations = [
+      {
+        name: "masked missing default_network",
+        mutated: replaceRequired(
+          replaceRequired(
+            producer,
+            "ordered duplicate-free `claude_tools`, `codex_sandbox`, and `default_network`.",
+            "ordered duplicate-free `claude_tools` and `codex_sandbox`.",
+          ),
+          "`devcanon.config.yaml`.",
+          "`devcanon.config.yaml`. Backticked `default_network` remains a nearby reference.",
+        ),
+        fragment: "Backticked `default_network` remains a nearby reference.",
+        expected: [producerOwnerDerivedFieldError],
+      },
+      {
+        name: "extra owner-derived field",
+        mutated: replaceRequired(
+          producer,
+          "ordered duplicate-free `claude_tools`, `codex_sandbox`, and `default_network`.",
+          "ordered duplicate-free `claude_tools`, `codex_sandbox`, `default_network`, and `authority_ref`.",
+        ),
+        fragment: "`authority_ref`",
+        expected: [producerOwnerDerivedFieldError],
+      },
+      {
+        name: "duplicate owner-derived field",
+        mutated: replaceRequired(
+          producer,
+          "`capability`, target-native `effort`",
+          "`capability`, `capability`, target-native `effort`",
+        ),
+        fragment: "`capability`, `capability`",
+        expected: [producerOwnerDerivedFieldError],
+      },
+      {
+        name: "scattered owner-derived field",
+        mutated: replaceRequired(
+          replaceRequired(
+            producer,
+            "ordered duplicate-free `claude_tools`, `codex_sandbox`, and `default_network`.",
+            "ordered duplicate-free `claude_tools` and `codex_sandbox`.",
+          ),
+          "`devcanon.config.yaml`.",
+          "`devcanon.config.yaml`. The selected role also declares `default_network`.",
+        ),
+        fragment: "The selected role also declares `default_network`.",
+        expected: [producerOwnerDerivedFieldError],
+      },
+      {
+        name: "reordered owner-derived fields",
+        mutated: replaceRequired(
+          producer,
+          "`source_authority`, `external_authority`",
+          "`external_authority`, `source_authority`",
+        ),
+        fragment: "`external_authority`, `source_authority`",
+        expected: [producerOwnerDerivedFieldError],
+      },
+      {
+        name: "non-target-native effort",
+        mutated: replaceRequired(
+          producer,
+          "target-native `effort`",
+          "generic `effort`",
+        ),
+        fragment: "generic `effort`",
+        expected: [producerOwnerDerivedFieldError],
+      },
+      {
+        name: "near-miss owner-derived clause anchor",
+        mutated: replaceRequired(
+          producer,
+          "For that exact selected role and\ntarget, declare its",
+          "For a nearby selected role and target, declare its",
+        ),
+        fragment: "For a nearby selected role and target, declare its",
+        expected: [producerOwnerDerivedFieldError],
+      },
+      {
+        name: "model moved into owner-derived list",
+        mutated: replaceRequired(
+          producer,
+          "ordered duplicate-free `claude_tools`, `codex_sandbox`, and `default_network`.",
+          "ordered duplicate-free `claude_tools`, `codex_sandbox`, `default_network`, and `model`.",
+        ),
+        fragment: "`default_network`, and `model`.",
+        expected: [producerOwnerDerivedFieldError],
+      },
+      {
+        name: "unmasked missing default_network",
+        mutated: replaceRequired(
+          producer,
+          "ordered duplicate-free `claude_tools`, `codex_sandbox`, and `default_network`.",
+          "ordered duplicate-free `claude_tools` and `codex_sandbox`.",
+        ),
+        fragment: "ordered duplicate-free `claude_tools` and `codex_sandbox`.",
+        expected: [
+          "play-agent-dispatch producer declaration is missing field(s): default_network",
+        ],
+      },
+    ];
+    const canonicalProducerSection = d4BoundedHeadingSection(
+      producer,
+      "### Semantic Route Contract",
+    );
+    expect(canonicalProducerSection).toBeDefined();
+    for (const mutation of producerOwnerDerivedMutations) {
+      expect(mutation.mutated, mutation.name).not.toBe(producer);
+      const mutatedSection = d4BoundedHeadingSection(
+        mutation.mutated,
+        "### Semantic Route Contract",
+      );
+      expect(mutatedSection, `${mutation.name}:bounded`).toContain(
+        mutation.fragment,
+      );
+      expect(mutatedSection, `${mutation.name}:section-change`).not.toBe(
+        canonicalProducerSection,
+      );
+      expect(
+        d4ProducerDeclarationProseErrors({
+          ...canonicalInput,
+          producer: mutation.mutated,
+        }),
+        mutation.name,
+      ).toEqual(mutation.expected);
     }
     expect(
       d4ProducerDeclarationProseErrors({

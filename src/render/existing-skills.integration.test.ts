@@ -784,6 +784,25 @@ function d4OwnerDeclarationFieldValidation(
   };
 }
 
+function d4ProducerOwnerDerivedFieldsValid(section: string): boolean {
+  const matches = [
+    ...section.matchAll(
+      /For that exact selected role and\s+target, declare its\s+([\s\S]*?)\.\s*Resolve `model` only from the exact target\/capability resolution in\s+`devcanon\.config\.yaml`\./gu,
+    ),
+  ];
+  if (matches.length !== 1) return false;
+
+  const list = normalizeWhitespace(matches[0]?.[1] ?? "");
+  const fields = Array.from(list.matchAll(/`([^`]+)`/gu), (match) => match[1]);
+  return (
+    list ===
+      "`capability`, target-native `effort`, `source_authority`, `external_authority`, ordered duplicate-free `claude_tools`, `codex_sandbox`, and `default_network`" &&
+    new Set(fields).size === fields.length &&
+    JSON.stringify([...fields, "model"]) ===
+      JSON.stringify(D4_OWNER_DERIVED_FIELDS)
+  );
+}
+
 function d4AuthoritativeOwnerClaims(ownerSection: string): string[] {
   const lines = ownerSection.split("\n");
   const referenceLabels = new Set<string>();
@@ -1202,6 +1221,12 @@ function d4ProducerProjectionFailures(
     )
   ) {
     failures.push("D4:controller-field-set");
+  }
+  if (
+    missingFields.length === 0 &&
+    !d4ProducerOwnerDerivedFieldsValid(section)
+  ) {
+    failures.push("D4:owner-derived-field-set");
   }
   for (const [partition, evidence] of [
     ["routing-policy", "Agent Routing and Mutation Policy"],
@@ -2427,6 +2452,126 @@ describe("existing skills render cleanly", () => {
         ).toEqual(["D4:owner:owner-field-set"]);
       }
 
+      const producerOwnerDerivedMutations = [
+        {
+          name: "masked missing default_network",
+          mutated: producer
+            .replace(
+              "ordered duplicate-free `claude_tools`, `codex_sandbox`, and `default_network`.",
+              "ordered duplicate-free `claude_tools` and `codex_sandbox`.",
+            )
+            .replace(
+              "`devcanon.config.yaml`.",
+              "`devcanon.config.yaml`. Backticked `default_network` remains a nearby reference.",
+            ),
+          fragment: "Backticked `default_network` remains a nearby reference.",
+          expected: ["D4:owner-derived-field-set"],
+        },
+        {
+          name: "extra owner-derived field",
+          mutated: producer.replace(
+            "ordered duplicate-free `claude_tools`, `codex_sandbox`, and `default_network`.",
+            "ordered duplicate-free `claude_tools`, `codex_sandbox`, `default_network`, and `authority_ref`.",
+          ),
+          fragment: "`authority_ref`",
+          expected: ["D4:owner-derived-field-set"],
+        },
+        {
+          name: "duplicate owner-derived field",
+          mutated: producer.replace(
+            "`capability`, target-native `effort`",
+            "`capability`, `capability`, target-native `effort`",
+          ),
+          fragment: "`capability`, `capability`",
+          expected: ["D4:owner-derived-field-set"],
+        },
+        {
+          name: "scattered owner-derived field",
+          mutated: producer
+            .replace(
+              "ordered duplicate-free `claude_tools`, `codex_sandbox`, and `default_network`.",
+              "ordered duplicate-free `claude_tools` and `codex_sandbox`.",
+            )
+            .replace(
+              "`devcanon.config.yaml`.",
+              "`devcanon.config.yaml`. The selected role also declares `default_network`.",
+            ),
+          fragment: "The selected role also declares `default_network`.",
+          expected: ["D4:owner-derived-field-set"],
+        },
+        {
+          name: "reordered owner-derived fields",
+          mutated: producer.replace(
+            "`source_authority`, `external_authority`",
+            "`external_authority`, `source_authority`",
+          ),
+          fragment: "`external_authority`, `source_authority`",
+          expected: ["D4:owner-derived-field-set"],
+        },
+        {
+          name: "non-target-native effort",
+          mutated: producer.replace(
+            "target-native `effort`",
+            "generic `effort`",
+          ),
+          fragment: "generic `effort`",
+          expected: ["D4:owner-derived-field-set"],
+        },
+        {
+          name: "near-miss owner-derived clause anchor",
+          mutated: producer.replace(
+            /For that exact selected role and\s+target, declare its/u,
+            "For a nearby selected role and target, declare its",
+          ),
+          fragment: "For a nearby selected role and target, declare its",
+          expected: ["D4:owner-derived-field-set"],
+        },
+        {
+          name: "model moved into owner-derived list",
+          mutated: producer.replace(
+            "ordered duplicate-free `claude_tools`, `codex_sandbox`, and `default_network`.",
+            "ordered duplicate-free `claude_tools`, `codex_sandbox`, `default_network`, and `model`.",
+          ),
+          fragment: "`default_network`, and `model`.",
+          expected: ["D4:owner-derived-field-set"],
+        },
+        {
+          name: "unmasked missing default_network",
+          mutated: producer.replace(
+            "ordered duplicate-free `claude_tools`, `codex_sandbox`, and `default_network`.",
+            "ordered duplicate-free `claude_tools` and `codex_sandbox`.",
+          ),
+          fragment:
+            "ordered duplicate-free `claude_tools` and `codex_sandbox`.",
+          expected: ["D4:required-field:default_network"],
+        },
+      ];
+      const canonicalProducerSection = markdownHeadingSection(
+        producer,
+        "### Semantic Route Contract",
+      );
+      expect(canonicalProducerSection).toBeDefined();
+      for (const mutation of producerOwnerDerivedMutations) {
+        expect(mutation.mutated, `${target}:${mutation.name}`).not.toBe(
+          producer,
+        );
+        const mutatedSection = markdownHeadingSection(
+          mutation.mutated,
+          "### Semantic Route Contract",
+        );
+        expect(mutatedSection, `${target}:${mutation.name}:bounded`).toContain(
+          mutation.fragment,
+        );
+        expect(
+          mutatedSection,
+          `${target}:${mutation.name}:section-change`,
+        ).not.toBe(canonicalProducerSection);
+        expect(
+          projectionFailures(mutation.mutated),
+          `${target}:${mutation.name}`,
+        ).toEqual(mutation.expected);
+      }
+
       const withoutApproval = producer.replace("`approval_ref`", "approval");
       expect(withoutApproval).not.toBe(producer);
       expect(projectionFailures(withoutApproval)).toEqual([
@@ -2448,6 +2593,7 @@ describe("existing skills render cleanly", () => {
       );
       expect(withoutConfigOwner).not.toBe(producer);
       expect(projectionFailures(withoutConfigOwner)).toEqual([
+        "D4:owner-derived-field-set",
         "D4:partition:config",
       ]);
 
