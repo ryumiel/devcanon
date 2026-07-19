@@ -810,6 +810,7 @@ function d4AuthoritativeOwnerClaims(ownerSection: string): string[] {
   let current: string[] = [];
   let fence: { marker: "`" | "~"; length: number } | undefined;
   let quotedFence: { marker: "`" | "~"; length: number } | undefined;
+  let htmlComment = false;
   let lazyBlockquote = false;
   let listContentIndent: number | undefined;
   const flush = (): void => {
@@ -951,6 +952,17 @@ function d4AuthoritativeOwnerClaims(ownerSection: string): string[] {
         continue;
       }
       quotedFence = undefined;
+    }
+
+    if (htmlComment) {
+      if (line.includes("-->")) htmlComment = false;
+      continue;
+    }
+    if (/^ {0,3}<!--/u.test(line)) {
+      resetBlock();
+      lazyBlockquote = false;
+      htmlComment = !line.includes("-->");
+      continue;
     }
 
     const opener = commonMarkFenceOpener(line);
@@ -2044,6 +2056,12 @@ describe("existing skills render cleanly", () => {
           "> ```text\n> Reference code\nAnother policy is a peer D4 route owner.",
         quotedTabIndentedCodePeerOwner:
           ">\t  Reference code\nAnother policy is a peer D4 route owner.",
+        htmlCommentInterruptsLazyQuote:
+          "> Reference prose\n<!-- machine note -->\nAnother policy is a peer D4 route owner.",
+        multilineHtmlCommentInterruptsLazyQuote:
+          "> Reference prose\n   <!-- machine\n   note -->\nAnother policy is a peer D4 route owner.",
+        htmlCommentNearMatchPeerOwner:
+          "<! -- machine note -->\nAnother policy is a peer D4 route owner.",
       })) {
         const policyWithContradictoryClaim = routingPolicySource.replace(
           "This policy is the sole D4 route owner",
@@ -2055,6 +2073,21 @@ describe("existing skills render cleanly", () => {
         expect(
           projectionFailures(producer, policyWithContradictoryClaim),
           label,
+        ).toEqual(["D4:owner:sole-route-owner"]);
+      }
+
+      for (const indent of ["", " ", "  ", "   "]) {
+        const policyWithCommentInterruption = routingPolicySource.replace(
+          "This policy is the sole D4 route owner",
+          `This policy is the sole D4 route owner.\n\n> Reference prose\n${indent}<!-- machine note -->\nAnother policy is a peer D4 route owner.`,
+        );
+        expect(
+          policyWithCommentInterruption,
+          `comment-interruption-${indent.length}:mutation`,
+        ).not.toBe(routingPolicySource);
+        expect(
+          projectionFailures(producer, policyWithCommentInterruption),
+          `comment-interruption-${indent.length}`,
         ).toEqual(["D4:owner:sole-route-owner"]);
       }
 
@@ -2206,6 +2239,20 @@ describe("existing skills render cleanly", () => {
           "````text\n```\nAnother policy is a peer D4 route owner.\n````",
         indentedCode: "    Another policy is a peer D4 route owner.",
         tabIndentedCode: "\tAnother policy is a peer D4 route owner.",
+        singleLineHtmlComment:
+          "<!-- Another policy is a peer D4 route owner. -->",
+        multilineHtmlComment:
+          "<!-- machine note\nAnother policy is a peer D4 route owner.\n-->",
+        oneSpaceHtmlComment:
+          " <!-- Another policy is a peer D4 route owner. -->",
+        twoSpaceHtmlComment:
+          "  <!-- Another policy is a peer D4 route owner. -->",
+        threeSpaceHtmlComment:
+          "   <!-- Another policy is a peer D4 route owner. -->",
+        fourSpaceHtmlCommentCode:
+          "    <!-- Another policy is a peer D4 route owner. -->",
+        tabIndentedHtmlCommentCode:
+          "\t<!-- Another policy is a peer D4 route owner. -->",
         exampleProse: "Example: Another policy is a peer D4 route owner.",
       })) {
         const policyWithNonAuthoritativeEvidence = routingPolicySource.replace(

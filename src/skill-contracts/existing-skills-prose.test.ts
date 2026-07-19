@@ -333,6 +333,7 @@ function d4AuthoritativeOwnerClaims(ownerSection: string): string[] {
   let current: string[] = [];
   let fence: { marker: "`" | "~"; length: number } | undefined;
   let quotedFence: { marker: "`" | "~"; length: number } | undefined;
+  let htmlComment = false;
   let lazyBlockquote = false;
   let listContentIndent: number | undefined;
   const flush = (): void => {
@@ -474,6 +475,17 @@ function d4AuthoritativeOwnerClaims(ownerSection: string): string[] {
         continue;
       }
       quotedFence = undefined;
+    }
+
+    if (htmlComment) {
+      if (line.includes("-->")) htmlComment = false;
+      continue;
+    }
+    if (/^ {0,3}<!--/u.test(line)) {
+      resetBlock();
+      lazyBlockquote = false;
+      htmlComment = !line.includes("-->");
+      continue;
     }
 
     const opener = commonMarkFenceOpener(line);
@@ -7793,6 +7805,21 @@ describe("existing skills source prose contracts", () => {
         "This policy is the sole D4 route owner",
         "This policy is the sole D4 route owner.\n\n>\t  Reference code\nAnother policy is a peer D4 route owner.",
       ),
+      htmlCommentInterruptsLazyQuote: replaceRequired(
+        routingPolicy,
+        "This policy is the sole D4 route owner",
+        "This policy is the sole D4 route owner.\n\n> Reference prose\n<!-- machine note -->\nAnother policy is a peer D4 route owner.",
+      ),
+      multilineHtmlCommentInterruptsLazyQuote: replaceRequired(
+        routingPolicy,
+        "This policy is the sole D4 route owner",
+        "This policy is the sole D4 route owner.\n\n> Reference prose\n   <!-- machine\n   note -->\nAnother policy is a peer D4 route owner.",
+      ),
+      htmlCommentNearMatchPeerOwner: replaceRequired(
+        routingPolicy,
+        "This policy is the sole D4 route owner",
+        "This policy is the sole D4 route owner.\n\n<! -- machine note -->\nAnother policy is a peer D4 route owner.",
+      ),
       quoteInterruptedByBullet: replaceRequired(
         routingPolicy,
         "This policy is the sole D4 route owner",
@@ -8030,6 +8057,19 @@ describe("existing skills source prose contracts", () => {
         "````text\n```\nAnother policy is a peer D4 route owner.\n````",
       indentedCode: "    Another policy is a peer D4 route owner.",
       tabIndentedCode: "\tAnother policy is a peer D4 route owner.",
+      singleLineHtmlComment:
+        "<!-- Another policy is a peer D4 route owner. -->",
+      multilineHtmlComment:
+        "<!-- machine note\nAnother policy is a peer D4 route owner.\n-->",
+      oneSpaceHtmlComment: " <!-- Another policy is a peer D4 route owner. -->",
+      twoSpaceHtmlComment:
+        "  <!-- Another policy is a peer D4 route owner. -->",
+      threeSpaceHtmlComment:
+        "   <!-- Another policy is a peer D4 route owner. -->",
+      fourSpaceHtmlCommentCode:
+        "    <!-- Another policy is a peer D4 route owner. -->",
+      tabIndentedHtmlCommentCode:
+        "\t<!-- Another policy is a peer D4 route owner. -->",
       exampleProse: "Example: Another policy is a peer D4 route owner.",
     })) {
       const ownerWithNonAuthoritativeEvidence = replaceRequired(
@@ -8320,6 +8360,47 @@ describe("existing skills source prose contracts", () => {
     const copiedRegistryError =
       "play-agent-dispatch producer declaration must not copy the complete semantic role registry";
     expect(d4ProducerDeclarationProseErrors(canonicalInput)).toEqual([]);
+
+    for (const [label, ownerEvidence] of Object.entries({
+      singleLineComment:
+        "<!-- Another policy is a peer D4 route owner. -->\n\nThis policy is the sole D4 route owner",
+      multilineComment:
+        "  <!-- machine note\nAnother policy is a peer D4 route owner.\n  -->\n\nThis policy is the sole D4 route owner",
+    })) {
+      const ownerWithCommentEvidence = replaceRequired(
+        routingOwner,
+        "This policy is the sole D4 route owner",
+        ownerEvidence,
+      );
+      expect(ownerWithCommentEvidence, `${label}:mutation`).not.toBe(
+        routingOwner,
+      );
+      expect(
+        d4ProducerDeclarationProseErrors({
+          ...canonicalInput,
+          routingOwner: ownerWithCommentEvidence,
+        }),
+        label,
+      ).toEqual([]);
+    }
+    for (const indent of ["", " ", "  ", "   "]) {
+      const ownerWithCommentInterruption = replaceRequired(
+        routingOwner,
+        "This policy is the sole D4 route owner",
+        `This policy is the sole D4 route owner.\n\n> Reference prose\n${indent}<!-- machine note -->\nAnother policy is a peer D4 route owner.`,
+      );
+      expect(
+        ownerWithCommentInterruption,
+        `comment-interruption-${indent.length}:mutation`,
+      ).not.toBe(routingOwner);
+      expect(
+        d4ProducerDeclarationProseErrors({
+          ...canonicalInput,
+          routingOwner: ownerWithCommentInterruption,
+        }),
+        `comment-interruption-${indent.length}`,
+      ).toEqual(["D4 routing owner must be the sole D4 route owner"]);
+    }
 
     expect(
       d4ProducerDeclarationProseErrors({
