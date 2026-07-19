@@ -47,21 +47,119 @@ function sliceBetween(content: string, start: string, end: string): string {
   return content.slice(startIndex, endIndex);
 }
 
+function commonMarkAtxHeading(
+  line: string,
+): { level: number; title: string } | undefined {
+  const match = /^ {0,3}(#{1,6})(?:[ \t]+(.*)|[ \t]*)$/u.exec(line);
+  if (!match) return undefined;
+  const title = (match[2] ?? "").replace(/[ \t]+#+[ \t]*$/u, "").trimEnd();
+  return { level: match[1].length, title };
+}
+
+function commonMarkFenceOpener(line: string): string | undefined {
+  const match = /^ {0,3}(`{3,}|~{3,})(.*)$/u.exec(line);
+  if (!match) return undefined;
+  const [marker, info] = [match[1], match[2]];
+  return marker[0] === "`" && info.includes("`") ? undefined : marker;
+}
+
+function commonMarkColumnAfter(text: string, startingColumn = 0): number {
+  let column = startingColumn;
+  for (const character of text) {
+    column += character === "\t" ? 4 - (column % 4) : 1;
+  }
+  return column;
+}
+
+function commonMarkBlockquoteContent(
+  line: string,
+): { content: string; startingColumn: number } | undefined {
+  const match = /^( {0,3})>(.*)$/u.exec(line);
+  if (!match) return undefined;
+  const markerEndColumn = commonMarkColumnAfter(`${match[1]}>`);
+  const remainder = match[2];
+  if (remainder.startsWith(" ")) {
+    return {
+      content: remainder.slice(1),
+      startingColumn: markerEndColumn + 1,
+    };
+  }
+  if (remainder.startsWith("\t")) {
+    const tabWidth = 4 - (markerEndColumn % 4);
+    return {
+      content: `${" ".repeat(tabWidth - 1)}${remainder.slice(1)}`,
+      startingColumn: markerEndColumn + 1,
+    };
+  }
+  return { content: remainder, startingColumn: markerEndColumn };
+}
+
+function isCommonMarkThematicBreak(line: string, startingColumn = 0): boolean {
+  let column = startingColumn;
+  let indentColumns = 0;
+  let markerStart = 0;
+  for (; markerStart < line.length; markerStart += 1) {
+    const character = line[markerStart];
+    if (character !== " " && character !== "\t") break;
+    const advance = character === "\t" ? 4 - (column % 4) : 1;
+    column += advance;
+    indentColumns += advance;
+    if (indentColumns >= 4) return false;
+  }
+  const compact = line.slice(markerStart).replace(/[ \t]/gu, "");
+  return /^(?:\*{3,}|-{3,}|_{3,})$/u.test(compact);
+}
+
+function commonMarkHeadingsOutsideFences(
+  lines: readonly string[],
+): Array<{ index: number; level: number; title: string }> {
+  const headings: Array<{ index: number; level: number; title: string }> = [];
+  let fence: { marker: "`" | "~"; length: number } | undefined;
+  for (const [index, line] of lines.entries()) {
+    if (fence !== undefined) {
+      const closer = /^ {0,3}(`+|~+)[ \t]*$/u.exec(line)?.[1];
+      if (
+        closer !== undefined &&
+        closer[0] === fence.marker &&
+        closer.length >= fence.length
+      ) {
+        fence = undefined;
+      }
+      continue;
+    }
+    const opener = commonMarkFenceOpener(line);
+    if (opener !== undefined) {
+      fence = {
+        marker: opener[0] as "`" | "~",
+        length: opener.length,
+      };
+      continue;
+    }
+    const heading = commonMarkAtxHeading(line);
+    if (heading !== undefined) headings.push({ index, ...heading });
+  }
+  return headings;
+}
+
 function d4BoundedHeadingSection(
   content: string,
   heading: "### D4 Declaration Obligation" | "### Semantic Route Contract",
 ): string | undefined {
   const lines = content.split("\n");
-  const start = lines.findIndex((line) => line.trim() === heading);
-  if (start === -1) return undefined;
-
-  const level = /^#+(?=\s)/u.exec(heading)?.[0].length;
-  if (level === undefined) return undefined;
-  const relativeEnd = lines.slice(start + 1).findIndex((line) => {
-    const nextLevel = /^#+(?=\s)/u.exec(line)?.[0].length;
-    return nextLevel !== undefined && nextLevel <= level;
-  });
-  const end = relativeEnd === -1 ? lines.length : start + relativeEnd + 1;
+  const expected = commonMarkAtxHeading(heading);
+  if (!expected) return undefined;
+  const headings = commonMarkHeadingsOutsideFences(lines);
+  const matchingHeadings = headings.filter(
+    (candidate) =>
+      candidate.level === expected.level && candidate.title === expected.title,
+  );
+  if (matchingHeadings.length !== 1) return undefined;
+  const start = matchingHeadings[0].index;
+  const end =
+    headings.find(
+      (candidate) =>
+        candidate.index > start && candidate.level <= expected.level,
+    )?.index ?? lines.length;
   return lines.slice(start, end).join("\n");
 }
 
@@ -187,6 +285,514 @@ function routeSpecAlignmentErrors(
   return errors;
 }
 
+function route006BoundedSection(routingSpec: string): string | undefined {
+  const lines = routingSpec.split("\n");
+  const heading = "### ROUTE-006: Semantic Direct-Child Routing";
+  const expected = commonMarkAtxHeading(heading);
+  if (!expected) return undefined;
+  const headings = commonMarkHeadingsOutsideFences(lines);
+  const matchingHeadings = headings.filter(
+    (candidate) =>
+      candidate.level === expected.level && candidate.title === expected.title,
+  );
+  if (matchingHeadings.length !== 1) return undefined;
+  const start = matchingHeadings[0].index;
+  const end =
+    headings.find(
+      (candidate) =>
+        candidate.index > start && candidate.level <= expected.level,
+    )?.index ?? lines.length;
+  return lines.slice(start, end).join("\n");
+}
+
+const D4_CONTROLLER_BOUND_OWNER_FIELDS = [
+  "route_id",
+  "target_id",
+  "selected_role_id",
+  "scope",
+  "termination",
+  "context_ref",
+  "approval_ref",
+] as const;
+
+const D4_OWNER_DERIVED_FIELDS = [
+  "capability",
+  "effort",
+  "source_authority",
+  "external_authority",
+  "claude_tools",
+  "codex_sandbox",
+  "default_network",
+  "model",
+] as const;
+
+function d4AuthoritativeOwnerClaims(ownerSection: string): string[] {
+  const lines = ownerSection.split("\n");
+  const referenceLabels = new Set<string>();
+  const blocks: string[] = [];
+  let current: string[] = [];
+  let fence: { marker: "`" | "~"; length: number } | undefined;
+  let quotedFence: { marker: "`" | "~"; length: number } | undefined;
+  let lazyBlockquote = false;
+  let listContentIndent: number | undefined;
+  const flush = (): void => {
+    if (current.length > 0) blocks.push(current.join(" "));
+    current = [];
+  };
+  const resetBlock = (): void => {
+    flush();
+    listContentIndent = undefined;
+  };
+  const validReferenceDestination = (destination: string): boolean => {
+    const hasControlCharacter = [...destination].some((character) => {
+      const codePoint = character.codePointAt(0) ?? 0;
+      return codePoint <= 0x1f || codePoint === 0x7f;
+    });
+    if (hasControlCharacter) return false;
+    if (destination.startsWith("<") || destination.endsWith(">")) {
+      return /^<[^<>\s]+>$/u.test(destination);
+    }
+    if (destination === "" || /[\s<>]/u.test(destination)) {
+      return false;
+    }
+    let parenthesisDepth = 0;
+    for (const character of destination) {
+      if (character === "(") parenthesisDepth += 1;
+      if (character === ")") {
+        if (parenthesisDepth === 0) return false;
+        parenthesisDepth -= 1;
+      }
+    }
+    return parenthesisDepth === 0;
+  };
+  const removeValidInlineLinks = (block: string): string => {
+    const spans: Array<{ start: number; end: number }> = [];
+    const opener = /!?\[[^\]\n]*\]\(/gu;
+    for (
+      let match = opener.exec(block);
+      match !== null;
+      match = opener.exec(block)
+    ) {
+      const destinationStart = opener.lastIndex;
+      let destinationEnd = -1;
+      let outerClose = -1;
+      if (block[destinationStart] === "<") {
+        const angleClose = block.indexOf(">", destinationStart + 1);
+        if (angleClose !== -1 && block[angleClose + 1] === ")") {
+          destinationEnd = angleClose + 1;
+          outerClose = angleClose + 1;
+        }
+      } else {
+        let depth = 0;
+        for (let index = destinationStart; index < block.length; index += 1) {
+          if (block[index] === "(") depth += 1;
+          if (block[index] === ")") {
+            if (depth === 0) {
+              destinationEnd = index;
+              outerClose = index;
+              break;
+            }
+            depth -= 1;
+          }
+        }
+      }
+      const destination = block.slice(destinationStart, destinationEnd);
+      if (outerClose !== -1 && validReferenceDestination(destination)) {
+        spans.push({ start: match.index, end: outerClose + 1 });
+        opener.lastIndex = outerClose + 1;
+      } else {
+        opener.lastIndex = match.index + 1;
+      }
+    }
+    let cursor = 0;
+    let result = "";
+    for (const span of spans) {
+      result += block.slice(cursor, span.start);
+      cursor = span.end;
+    }
+    return result + block.slice(cursor);
+  };
+  const isQuotedParagraphContent = (
+    content: string,
+    startingColumn: number,
+  ): boolean => {
+    if (
+      content.trim() === "" ||
+      commonMarkAtxHeading(content) !== undefined ||
+      commonMarkFenceOpener(content) !== undefined ||
+      isCommonMarkThematicBreak(content, startingColumn) ||
+      /^ {0,3}>/u.test(content) ||
+      /^ {0,3}(?:[-+*]|\d{1,9}[.)])[ \t]+/u.test(content)
+    ) {
+      return false;
+    }
+    let column = startingColumn;
+    let indentation = 0;
+    for (const character of content) {
+      if (character !== " " && character !== "\t") break;
+      const advance = character === "\t" ? 4 - (column % 4) : 1;
+      column += advance;
+      indentation += advance;
+      if (indentation >= 4) return false;
+    }
+    const referenceDefinition = /^ {0,3}\[([^\]]*)\]:[ \t]*(.*)$/u.exec(
+      content,
+    );
+    return !(
+      referenceDefinition !== null &&
+      normalizeWhitespace(referenceDefinition[1]).toLowerCase() !== "" &&
+      validReferenceDestination(referenceDefinition[2].trim())
+    );
+  };
+
+  for (const line of lines) {
+    if (fence !== undefined) {
+      const closer = /^ {0,3}(`+|~+)[ \t]*$/u.exec(line)?.[1];
+      if (
+        closer !== undefined &&
+        closer[0] === fence.marker &&
+        closer.length >= fence.length
+      ) {
+        fence = undefined;
+      }
+      continue;
+    }
+
+    const blockquote = commonMarkBlockquoteContent(line);
+    if (quotedFence !== undefined) {
+      if (blockquote !== undefined) {
+        const closer = /^ {0,3}(`+|~+)[ \t]*$/u.exec(blockquote.content)?.[1];
+        if (
+          closer !== undefined &&
+          closer[0] === quotedFence.marker &&
+          closer.length >= quotedFence.length
+        ) {
+          quotedFence = undefined;
+        }
+        resetBlock();
+        lazyBlockquote = false;
+        continue;
+      }
+      quotedFence = undefined;
+    }
+
+    const opener = commonMarkFenceOpener(line);
+    if (opener !== undefined) {
+      resetBlock();
+      lazyBlockquote = false;
+      fence = {
+        marker: opener[0] as "`" | "~",
+        length: opener.length,
+      };
+      continue;
+    }
+    if (line.trim() === "") {
+      resetBlock();
+      lazyBlockquote = false;
+      continue;
+    }
+    if (commonMarkAtxHeading(line) !== undefined) {
+      resetBlock();
+      lazyBlockquote = false;
+      continue;
+    }
+    if (blockquote !== undefined) {
+      resetBlock();
+      const quotedOpener = commonMarkFenceOpener(blockquote.content);
+      if (quotedOpener !== undefined) {
+        quotedFence = {
+          marker: quotedOpener[0] as "`" | "~",
+          length: quotedOpener.length,
+        };
+        lazyBlockquote = false;
+        continue;
+      }
+      lazyBlockquote = isQuotedParagraphContent(
+        blockquote.content,
+        blockquote.startingColumn,
+      );
+      continue;
+    }
+    const listItem = /^( *)([-+*]|\d{1,9}[.)])([ \t]+)(.*)$/u.exec(line);
+    if (lazyBlockquote) {
+      if (isCommonMarkThematicBreak(line)) {
+        resetBlock();
+        lazyBlockquote = false;
+        continue;
+      }
+      const marker = listItem?.[2];
+      const orderedMarker = marker?.match(/^(\d{1,9})[.)]$/u);
+      const interruptsParagraph =
+        marker !== undefined &&
+        (/^[-+*]$/u.test(marker) ||
+          (orderedMarker !== null &&
+            orderedMarker !== undefined &&
+            Number.parseInt(orderedMarker[1], 10) === 1));
+      if (listItem === null || listItem[1].length > 3 || !interruptsParagraph) {
+        continue;
+      }
+      lazyBlockquote = false;
+    }
+    const referenceDefinition = /^ {0,3}\[([^\]]*)\]:[ \t]*(.*)$/u.exec(line);
+    const normalizedReferenceLabel = normalizeWhitespace(
+      referenceDefinition?.[1] ?? "",
+    ).toLowerCase();
+    const referenceDestination = referenceDefinition?.[2].trim() ?? "";
+    if (
+      referenceDefinition !== null &&
+      normalizedReferenceLabel !== "" &&
+      validReferenceDestination(referenceDestination)
+    ) {
+      resetBlock();
+      referenceLabels.add(normalizedReferenceLabel);
+      continue;
+    }
+
+    if (listItem !== null) {
+      const indent = listItem[1].length;
+      if (
+        indent <= 3 ||
+        (listContentIndent !== undefined && indent >= listContentIndent)
+      ) {
+        flush();
+        current = [listItem[4].trim()];
+        listContentIndent = indent + listItem[2].length + listItem[3].length;
+        continue;
+      }
+    }
+
+    if (listContentIndent !== undefined) {
+      const leadingSpaces = /^ */u.exec(line)?.[0].length ?? 0;
+      if (line.startsWith("\t")) {
+        current.push(line.trim());
+        continue;
+      }
+      if (!line.startsWith("\t") && leadingSpaces >= listContentIndent) {
+        current.push(line.trim());
+        continue;
+      }
+    }
+    if (line.startsWith("\t") || /^ {4}/u.test(line)) {
+      if (current.length > 0 && listContentIndent === undefined) {
+        current.push(line.trim());
+        continue;
+      }
+      resetBlock();
+      continue;
+    }
+    current.push(line.trim());
+  }
+  flush();
+
+  const removeResolvedReferences = (block: string): string => {
+    let result = removeValidInlineLinks(block.replace(/`+[^`]*`+/gu, ""));
+    result = result.replace(
+      /\[([^\]]+)\]\[([^\]]*)\]/gu,
+      (source, text: string, label: string) =>
+        referenceLabels.has(
+          normalizeWhitespace(label === "" ? text : label).toLowerCase(),
+        )
+          ? ""
+          : source,
+    );
+    return result.replace(/\[([^\]]+)\](?![\[(])/gu, (source, text: string) =>
+      referenceLabels.has(normalizeWhitespace(text).toLowerCase())
+        ? ""
+        : source,
+    );
+  };
+
+  return blocks.flatMap((block) => {
+    if (/^(?:Example|For example|Reference):/iu.test(block)) return [];
+    const authoritativeText = removeResolvedReferences(block);
+    return Array.from(
+      authoritativeText.matchAll(
+        /(?:^|[.!?]\s+)([^.!?]*?\bis\s+[^.!?:;]*?\bD4\s+route\s+owner)(?=\s*[:.;]|$)/gu,
+      ),
+      (match) => normalizeWhitespace(match[1]),
+    );
+  });
+}
+
+function d4OwnerDeclarationFieldValidation(
+  routingPolicy: string,
+  boundedOwnerSection = d4BoundedHeadingSection(
+    routingPolicy,
+    "### D4 Declaration Obligation",
+  ),
+):
+  | {
+      controllerBound: string[];
+      ownerDerived: string[];
+      controllerBoundValid: boolean;
+      ownerDerivedValid: boolean;
+      soleOwnerValid: boolean;
+    }
+  | undefined {
+  const ownerSection = boundedOwnerSection;
+  if (ownerSection === undefined) {
+    return undefined;
+  }
+
+  const controllerBoundSource =
+    /Its controller-bound fields are exactly\s+([\s\S]*?);\s*`termination` includes/u.exec(
+      ownerSection,
+    )?.[1];
+  const ownerDerivedMatch =
+    /For the exact selected role and target, it derives\s+([\s\S]*?)\.\s*\[`devcanon\.config\.yaml`\][\s\S]*?`([^`]+)`\./u.exec(
+      ownerSection,
+    );
+  const backtickedFields = (source: string): string[] =>
+    Array.from(source.matchAll(/`([^`]+)`/g), (match) => match[1]);
+  const controllerBoundTokens = backtickedFields(controllerBoundSource ?? "");
+  const controllerBound = controllerBoundTokens.filter(
+    (field) => field !== "D4",
+  );
+  const ownerDerived = [
+    ...backtickedFields(ownerDerivedMatch?.[1] ?? ""),
+    ...(ownerDerivedMatch?.[2] ? [ownerDerivedMatch[2]] : []),
+  ];
+  const duplicateFree = (fields: string[]): boolean =>
+    new Set(fields).size === fields.length;
+  const disjoint = controllerBound.every(
+    (field) => !ownerDerived.includes(field),
+  );
+  const targetNativeEffortValid =
+    /(?:^|,\s*)target-native\s+`effort`(?:,|$)/u.test(
+      ownerDerivedMatch?.[1] ?? "",
+    );
+  const ownerClaims = d4AuthoritativeOwnerClaims(ownerSection);
+  return {
+    controllerBound,
+    ownerDerived,
+    controllerBoundValid:
+      JSON.stringify(controllerBoundTokens) ===
+        JSON.stringify([
+          "route_id",
+          "D4",
+          ...D4_CONTROLLER_BOUND_OWNER_FIELDS.slice(1),
+        ]) && disjoint,
+    ownerDerivedValid:
+      duplicateFree(ownerDerived) &&
+      JSON.stringify(ownerDerived) ===
+        JSON.stringify(D4_OWNER_DERIVED_FIELDS) &&
+      targetNativeEffortValid &&
+      disjoint,
+    soleOwnerValid:
+      ownerClaims.length === 1 &&
+      ownerClaims[0] === "This policy is the sole D4 route owner",
+  };
+}
+
+function d4OwnerDeclarationFieldSets(
+  routingPolicy: string,
+): { controllerBound: string[]; ownerDerived: string[] } | undefined {
+  const validation = d4OwnerDeclarationFieldValidation(routingPolicy);
+  return validation?.controllerBoundValid &&
+    validation.ownerDerivedValid &&
+    validation.soleOwnerValid
+    ? validation
+    : undefined;
+}
+
+function route006D4ReferenceOnlyErrors(input: {
+  routingSpec: string;
+  routingPolicy: string;
+  roles: readonly AgentSemanticRoleContract[];
+}): string[] {
+  const errors: string[] = [];
+  const section = route006BoundedSection(input.routingSpec);
+  const paragraphs = section?.split(/\n(?:[ \t]*\n)+/u) ?? [];
+  const d4Paragraphs = paragraphs.filter((paragraph) =>
+    /^ {0,3}For[ \t]+D4,/u.test(paragraph),
+  );
+  const d4OwnerLink =
+    "[D4 Declaration Obligation](../guidelines/agent-routing-and-mutation-policy.md#d4-declaration-obligation)";
+  const referenceParagraphs = d4Paragraphs.filter((paragraph) =>
+    paragraph.includes(d4OwnerLink),
+  );
+  const referenceParagraph = referenceParagraphs[0];
+  const normalizedReferenceParagraph = normalizeWhitespace(
+    referenceParagraph ?? "",
+  );
+  const normalizedSection = normalizeWhitespace(section ?? "");
+  const ownerFieldSets = d4OwnerDeclarationFieldSets(input.routingPolicy);
+
+  if (ownerFieldSets === undefined) {
+    errors.push(
+      "ROUTE-006 must consume one successfully validated D4 Declaration Obligation owner",
+    );
+  }
+
+  if (
+    referenceParagraphs.length !== 1 ||
+    section?.split(d4OwnerLink).length !== 2 ||
+    !normalizedReferenceParagraph.includes(
+      "the sole complete declaration authority",
+    )
+  ) {
+    errors.push(
+      "ROUTE-006 must reference the D4 Declaration Obligation as its sole complete declaration authority",
+    );
+  }
+
+  if (
+    !normalizedReferenceParagraph.includes(
+      "Observable semantic direct-child dispatch selects exactly one resolved route",
+    ) ||
+    !normalizedReferenceParagraph.includes(
+      "any unresolved route or declaration state blocks before spawn",
+    ) ||
+    !normalizedReferenceParagraph.includes(
+      "Under the B3 routing boundary, a source-immutable D4 selection is response-only",
+    )
+  ) {
+    errors.push(
+      "ROUTE-006 must retain only observable direct-child dispatch, block-before-spawn, and B3 response-only behavior",
+    );
+  }
+
+  const copiesRoleCatalog = input.roles.every((role) =>
+    new RegExp(`(?:^|[^a-z0-9-])${role.name}(?:$|[^a-z0-9-])`, "u").test(
+      section ?? "",
+    ),
+  );
+  const copiesFormerDeclarationFields = [
+    "exact configured capability and effort",
+    "`source-immutable` or `source-mutable` default",
+    "declare the child scope and termination",
+    "external authority `none`",
+  ].every((evidence) => normalizedSection.includes(evidence));
+  const copiesCanonicalDeclarationFieldSet =
+    ownerFieldSets !== undefined &&
+    [ownerFieldSets.controllerBound, ownerFieldSets.ownerDerived].some(
+      (fieldSet) =>
+        paragraphs.some((paragraph) =>
+          fieldSet.every((field) => paragraph.includes(`\`${field}\``)),
+        ),
+    );
+  const copiesProducerPath =
+    section?.includes("skills/play-agent-dispatch/SKILL.md") ?? false;
+  const declaresPeerAuthority =
+    /(?:independent|peer) D4 (?:declaration )?(?:authority|owner)/u.test(
+      normalizedSection,
+    );
+  if (
+    copiesRoleCatalog ||
+    copiesFormerDeclarationFields ||
+    copiesCanonicalDeclarationFieldSet ||
+    copiesProducerPath ||
+    declaresPeerAuthority ||
+    d4Paragraphs.length !== 1
+  ) {
+    errors.push(
+      "ROUTE-006 must not copy D4 role, declaration-field, producer, or peer-authority ownership",
+    );
+  }
+
+  return errors;
+}
+
 async function canonicalD4RuntimeInput(
   role: AgentSemanticRoleContract,
   target: "claude" | "codex",
@@ -269,12 +875,36 @@ function canonicalSemanticRoleField(
   }
 }
 
+function canonicalMarkdownSemanticRoleField(
+  label: string,
+  target: "claude" | "codex",
+): SemanticRoleField | undefined {
+  const canonicalField = canonicalSemanticRoleField(label);
+  if (canonicalField) return canonicalField;
+  const normalized = label.toLowerCase().replaceAll(/[\s_-]+/g, "");
+  switch (normalized) {
+    case "agent":
+      return "role";
+    case "sourcedefault":
+      return "source_authority";
+    case "claudeeffort":
+      return target === "claude" ? "effort" : undefined;
+    case "codexeffort":
+      return target === "codex" ? "effort" : undefined;
+    default:
+      return undefined;
+  }
+}
+
 function semanticRoleRecord(
   pairs: readonly (readonly [string, string])[],
+  fieldForLabel: (
+    label: string,
+  ) => SemanticRoleField | undefined = canonicalSemanticRoleField,
 ): SemanticRoleRecord | undefined {
   const fields = new Map<SemanticRoleField, string>();
   for (const [label, value] of pairs) {
-    const field = canonicalSemanticRoleField(label);
+    const field = fieldForLabel(label);
     if (!field) continue;
     if (fields.has(field)) return undefined;
     fields.set(field, value.trim().replace(/^['"`]|['"`]$/g, ""));
@@ -344,6 +974,7 @@ function copiedSemanticRoleNames(
         if (!row || row.length !== header.length) continue;
         const record = semanticRoleRecord(
           header.map((label, column) => [label, row[column]] as const),
+          (label) => canonicalMarkdownSemanticRoleField(label, target),
         );
         if (record) records.push(record);
       }
@@ -432,6 +1063,10 @@ function d4ProducerDeclarationProseErrors(input: {
   );
   const normalizedProducerSection = normalizeWhitespace(producerSection ?? "");
   const normalizedRoutingOwner = normalizeWhitespace(input.routingOwner);
+  const ownerFieldValidation = d4OwnerDeclarationFieldValidation(
+    input.routingOwner,
+    ownerDeclarationSection,
+  );
 
   if (
     d4?.ownerSkill !== "play-agent-dispatch" ||
@@ -454,11 +1089,7 @@ function d4ProducerDeclarationProseErrors(input: {
       "play-agent-dispatch producer semantic route contract section is incomplete",
     ];
   }
-  if (
-    !normalizeWhitespace(ownerDeclarationSection).includes(
-      "This policy is the sole D4 route owner",
-    )
-  ) {
+  if (!ownerFieldValidation?.soleOwnerValid) {
     errors.push("D4 routing owner must be the sole D4 route owner");
   }
   if (
@@ -543,10 +1174,6 @@ function d4ProducerDeclarationProseErrors(input: {
     );
   }
 
-  const ownerControllerBoundFields =
-    /Its controller-bound fields are exactly\s+([\s\S]*?);\s*`termination` includes/u.exec(
-      ownerDeclarationSection,
-    )?.[1];
   const expectedControllerBoundFields = [
     "route_id",
     "target_id",
@@ -556,21 +1183,14 @@ function d4ProducerDeclarationProseErrors(input: {
     "context_ref",
     "approval_ref",
   ];
-  const ownerFieldTokens = Array.from(
-    ownerControllerBoundFields?.matchAll(/`([^`]+)`/g) ?? [],
-    (match) => match[1],
-  );
-  if (
-    !ownerControllerBoundFields?.includes("`route_id` (`D4`)") ||
-    JSON.stringify(ownerFieldTokens) !==
-      JSON.stringify([
-        "route_id",
-        "D4",
-        ...expectedControllerBoundFields.slice(1),
-      ])
-  ) {
+  if (!ownerFieldValidation?.controllerBoundValid) {
     errors.push(
       "D4 routing owner controller-bound fields must be exactly route_id, target_id, selected_role_id, scope, termination, context_ref, approval_ref",
+    );
+  }
+  if (!ownerFieldValidation?.ownerDerivedValid) {
+    errors.push(
+      "D4 routing owner owner-derived fields must be exactly capability, effort, source_authority, external_authority, claude_tools, codex_sandbox, default_network, model",
     );
   }
 
@@ -6757,6 +7377,809 @@ describe("existing skills source prose contracts", () => {
     expect(routingChangeCheck).not.toContain("| `assessor`");
   });
 
+  it("keeps ROUTE-006 reference-only for the complete D4 declaration", async () => {
+    const [routingSpec, routingPolicy, roles] = await Promise.all([
+      readRepoFile("docs/specs/afds-workflow-routing.md"),
+      readRepoFile("docs/guidelines/agent-routing-and-mutation-policy.md"),
+      readAgentSemanticRoleOwner(),
+    ]);
+    const currentD4Reference = [
+      "For D4, resolve the complete pre-spawn declaration through the",
+      "[D4 Declaration Obligation](../guidelines/agent-routing-and-mutation-policy.md#d4-declaration-obligation),",
+      "the sole complete declaration authority. Observable semantic direct-child",
+      "dispatch selects exactly one resolved route, and any unresolved route or",
+      "declaration state blocks before spawn. Under the B3 routing boundary, a",
+      "source-immutable D4 selection is response-only.",
+    ].join("\n");
+    const formerDuplicatedDeclaration = [
+      "For D4, pre-spawn resolution must select exactly one of the six semantic roles,",
+      "use that role's exact configured capability and effort plus its matching",
+      "`source-immutable` or `source-mutable` default, and declare the child scope and",
+      "termination. The dispatch receives external authority `none`; no external",
+      "authority is inferred. Under the B3 routing boundary, a source-immutable D4",
+      "selection is response-only. Any unresolved field blocks spawn.",
+    ].join("\n");
+    const duplicatedRoute006 = replaceRequired(
+      routingSpec,
+      currentD4Reference,
+      formerDuplicatedDeclaration,
+    );
+    const duplicatedSection = route006BoundedSection(duplicatedRoute006);
+    expect(duplicatedSection).toContain(formerDuplicatedDeclaration);
+    expect(duplicatedSection).not.toContain(currentD4Reference);
+
+    expect(
+      route006D4ReferenceOnlyErrors({ routingSpec, routingPolicy, roles }),
+    ).toEqual([]);
+    expect(
+      route006D4ReferenceOnlyErrors({
+        routingSpec: duplicatedRoute006,
+        routingPolicy,
+        roles,
+      }),
+    ).toEqual([
+      "ROUTE-006 must reference the D4 Declaration Obligation as its sole complete declaration authority",
+      "ROUTE-006 must retain only observable direct-child dispatch, block-before-spawn, and B3 response-only behavior",
+      "ROUTE-006 must not copy D4 role, declaration-field, producer, or peer-authority ownership",
+    ]);
+
+    const nestedReference = replaceRequired(
+      routingSpec,
+      currentD4Reference,
+      `#### D4 Reference\n\n${currentD4Reference}`,
+    );
+    expect(route006BoundedSection(nestedReference)).toContain(
+      `#### D4 Reference\n\n${currentD4Reference}`,
+    );
+    expect(
+      route006D4ReferenceOnlyErrors({
+        routingSpec: nestedReference,
+        routingPolicy,
+        roles,
+      }),
+    ).toEqual([]);
+
+    const borrowedAfterNextSection = replaceRequired(
+      duplicatedRoute006,
+      "### AUTH-001: Separate Mutation Axes",
+      `### AUTH-001: Separate Mutation Axes\n\n${currentD4Reference}`,
+    );
+    expect(route006BoundedSection(borrowedAfterNextSection)).not.toContain(
+      currentD4Reference,
+    );
+    expect(borrowedAfterNextSection).toContain(currentD4Reference);
+    expect(
+      route006D4ReferenceOnlyErrors({
+        routingSpec: borrowedAfterNextSection,
+        routingPolicy,
+        roles,
+      }),
+    ).toEqual([
+      "ROUTE-006 must reference the D4 Declaration Obligation as its sole complete declaration authority",
+      "ROUTE-006 must retain only observable direct-child dispatch, block-before-spawn, and B3 response-only behavior",
+      "ROUTE-006 must not copy D4 role, declaration-field, producer, or peer-authority ownership",
+    ]);
+
+    const forbiddenAuthorityError =
+      "ROUTE-006 must not copy D4 role, declaration-field, producer, or peer-authority ownership";
+    const fencedRouteHeadingWithPeerAuthority = replaceRequired(
+      routingSpec,
+      currentD4Reference,
+      `${currentD4Reference}\n\n\`\`\`markdown\n### AUTH-001: Separate Mutation Axes\n\`\`\`\n\n${formerDuplicatedDeclaration}`,
+    );
+    expect(
+      fencedRouteHeadingWithPeerAuthority,
+      "ROUTE-006 fenced sibling mutation",
+    ).not.toBe(routingSpec);
+    expect(
+      route006D4ReferenceOnlyErrors({
+        routingSpec: fencedRouteHeadingWithPeerAuthority,
+        routingPolicy,
+        roles,
+      }),
+    ).toEqual([forbiddenAuthorityError]);
+    const invalidBacktickInfoDuplicateRouteHeading = replaceRequired(
+      routingSpec,
+      currentD4Reference,
+      `${currentD4Reference}\n\n\`\`\`markdown\`\n### ROUTE-006: Semantic Direct-Child Routing`,
+    );
+    expect(
+      invalidBacktickInfoDuplicateRouteHeading,
+      "ROUTE-006 invalid backtick-info opener mutation",
+    ).not.toBe(routingSpec);
+    expect(
+      route006D4ReferenceOnlyErrors({
+        routingSpec: invalidBacktickInfoDuplicateRouteHeading,
+        routingPolicy,
+        roles,
+      }),
+    ).toEqual([
+      "ROUTE-006 must reference the D4 Declaration Obligation as its sole complete declaration authority",
+      "ROUTE-006 must retain only observable direct-child dispatch, block-before-spawn, and B3 response-only behavior",
+      forbiddenAuthorityError,
+    ]);
+    const blankParagraphFailures = (
+      label: string,
+      forbiddenParagraph: string,
+      separator = "\n\n",
+    ): string[] => {
+      const mutated = replaceRequired(
+        routingSpec,
+        currentD4Reference,
+        `${currentD4Reference}${separator}${forbiddenParagraph}`,
+      );
+      const section = route006BoundedSection(mutated);
+      expect(section, `${label}:bounded mutation`).toContain(
+        `${currentD4Reference}${separator}${forbiddenParagraph}`,
+      );
+      expect(
+        mutated.indexOf(forbiddenParagraph),
+        `${label}:before next sibling`,
+      ).toBeLessThan(mutated.indexOf("### AUTH-001: Separate Mutation Axes"));
+      return route006D4ReferenceOnlyErrors({
+        routingSpec: mutated,
+        routingPolicy,
+        roles,
+      });
+    };
+    const duplicateRoute006Heading = replaceRequired(
+      routingSpec,
+      "### AUTH-001: Separate Mutation Axes",
+      `### ROUTE-006: Semantic Direct-Child Routing\n\n${formerDuplicatedDeclaration}\n\n### AUTH-001: Separate Mutation Axes`,
+    );
+    const duplicateRoute006Headings = duplicateRoute006Heading
+      .split("\n")
+      .filter(
+        (line) =>
+          line.trim() === "### ROUTE-006: Semantic Direct-Child Routing",
+      );
+    expect(duplicateRoute006Headings).toHaveLength(2);
+    expect(duplicateRoute006Heading).toContain(formerDuplicatedDeclaration);
+    expect(
+      route006D4ReferenceOnlyErrors({
+        routingSpec: duplicateRoute006Heading,
+        routingPolicy,
+        roles,
+      }),
+    ).toEqual([
+      "ROUTE-006 must reference the D4 Declaration Obligation as its sole complete declaration authority",
+      "ROUTE-006 must retain only observable direct-child dispatch, block-before-spawn, and B3 response-only behavior",
+      forbiddenAuthorityError,
+    ]);
+    const missingRoute006SectionErrors = [
+      "ROUTE-006 must reference the D4 Declaration Obligation as its sole complete declaration authority",
+      "ROUTE-006 must retain only observable direct-child dispatch, block-before-spawn, and B3 response-only behavior",
+      forbiddenAuthorityError,
+    ];
+    for (const indent of [" ", "  ", "   "]) {
+      const indentedCanonicalRoute = replaceRequired(
+        routingSpec,
+        "### ROUTE-006: Semantic Direct-Child Routing",
+        `${indent}### ROUTE-006: Semantic Direct-Child Routing`,
+      );
+      expect(
+        route006D4ReferenceOnlyErrors({
+          routingSpec: indentedCanonicalRoute,
+          routingPolicy,
+          roles,
+        }),
+        `ROUTE-006 canonical heading indent ${indent.length}`,
+      ).toEqual([]);
+    }
+    const indentedRouteSibling = replaceRequired(
+      routingSpec,
+      currentD4Reference,
+      `  ### Peer Route Registry\n\n${currentD4Reference}`,
+    );
+    expect(
+      route006D4ReferenceOnlyErrors({
+        routingSpec: indentedRouteSibling,
+        routingPolicy,
+        roles,
+      }),
+    ).toEqual(missingRoute006SectionErrors);
+    const codeImpostorRouteHeading = replaceRequired(
+      routingSpec,
+      "### ROUTE-006: Semantic Direct-Child Routing",
+      "    ### ROUTE-006: Semantic Direct-Child Routing",
+    );
+    expect(
+      route006D4ReferenceOnlyErrors({
+        routingSpec: codeImpostorRouteHeading,
+        routingPolicy,
+        roles,
+      }),
+    ).toEqual(missingRoute006SectionErrors);
+    const codeImpostorRouteSibling = replaceRequired(
+      routingSpec,
+      currentD4Reference,
+      `    ### Peer Route Registry\n\n${currentD4Reference}`,
+    );
+    expect(
+      route006D4ReferenceOnlyErrors({
+        routingSpec: codeImpostorRouteSibling,
+        routingPolicy,
+        roles,
+      }),
+    ).toEqual([]);
+
+    const validatedD4OwnerError =
+      "ROUTE-006 must consume one successfully validated D4 Declaration Obligation owner";
+    const invalidD4Owners = {
+      nonSoleOwner: replaceRequired(
+        routingPolicy,
+        "This policy is the sole D4 route owner",
+        "This policy is a D4 route owner",
+      ),
+      peerOwner: replaceRequired(
+        routingPolicy,
+        "This policy is the sole D4 route owner",
+        "This policy is a peer D4 route owner",
+      ),
+      alternativeSubjectPeerOwner: replaceRequired(
+        routingPolicy,
+        "This policy is the sole D4 route owner",
+        "This policy is the sole D4 route owner. Another policy is a peer D4 route owner",
+      ),
+      duplicateCanonicalOwner: replaceRequired(
+        routingPolicy,
+        "This policy is the sole D4 route owner",
+        "This policy is the sole D4 route owner. This policy is the sole D4 route owner",
+      ),
+      omittedOwner: replaceRequired(
+        routingPolicy,
+        "This policy is the sole D4 route owner: ",
+        "",
+      ),
+      blankParagraphPeerOwner: replaceRequired(
+        routingPolicy,
+        "This policy is the sole D4 route owner",
+        "This policy is the sole D4 route owner.\n\nAnother policy is a peer D4 route owner",
+      ),
+      nestedPeerOwner: replaceRequired(
+        routingPolicy,
+        "This policy is the sole D4 route owner",
+        "This policy is the sole D4 route owner.\n\n#### Ownership detail\n\nAnother policy is a non-sole D4 route owner",
+      ),
+      fencedSiblingPeerOwner: replaceRequired(
+        routingPolicy,
+        "This policy is the sole D4 route owner",
+        "This policy is the sole D4 route owner.\n\n```markdown\n### Ordinary child failure disposition\n```\n\nAnother policy is a peer D4 route owner",
+      ),
+      invalidBacktickInfoPeerOwner: replaceRequired(
+        routingPolicy,
+        "This policy is the sole D4 route owner",
+        "This policy is the sole D4 route owner.\n\n```markdown`\n#### Ownership detail\n\nAnother policy is a peer D4 route owner",
+      ),
+      fourSpaceParagraphContinuation: replaceRequired(
+        routingPolicy,
+        "This policy is the sole D4 route owner",
+        "This policy is the sole D4 route owner\n    Another policy is a peer D4 route owner.",
+      ),
+      tabParagraphContinuation: replaceRequired(
+        routingPolicy,
+        "This policy is the sole D4 route owner",
+        "This policy is the sole D4 route owner\n\tAnother policy is a peer D4 route owner.",
+      ),
+      malformedInlineLinkPeerOwner: replaceRequired(
+        routingPolicy,
+        "This policy is the sole D4 route owner",
+        "This policy is the sole D4 route owner.\n\n[Another policy is a peer D4 route owner.](./owners/(peer.md)",
+      ),
+      nestedBulletPeerOwner: replaceRequired(
+        routingPolicy,
+        "This policy is the sole D4 route owner",
+        "This policy is the sole D4 route owner.\n\n#### Ownership detail\n\n- Another policy is a peer D4 route owner",
+      ),
+      orderedPeerOwner: replaceRequired(
+        routingPolicy,
+        "This policy is the sole D4 route owner",
+        "This policy is the sole D4 route owner.\n\n1. Another policy is a peer D4 route owner",
+      ),
+      softWrappedPeerOwner: replaceRequired(
+        routingPolicy,
+        "This policy is the sole D4 route owner",
+        "This policy is the sole D4 route owner.\n\nAnother policy is a peer D4\nroute owner.",
+      ),
+      softWrappedBulletPeerOwner: replaceRequired(
+        routingPolicy,
+        "This policy is the sole D4 route owner",
+        "This policy is the sole D4 route owner.\n\n- Another policy is a peer D4\n  route owner.",
+      ),
+      nestedListPeerOwner: replaceRequired(
+        routingPolicy,
+        "This policy is the sole D4 route owner",
+        "This policy is the sole D4 route owner.\n\n- Ownership detail:\n    - Another policy is a peer D4 route owner.",
+      ),
+      nestedOrderedPeerOwner: replaceRequired(
+        routingPolicy,
+        "This policy is the sole D4 route owner",
+        "This policy is the sole D4 route owner.\n\n1. Ownership detail:\n   1. Another policy is a peer D4 route owner.",
+      ),
+      fourSpaceListContinuation: replaceRequired(
+        routingPolicy,
+        "This policy is the sole D4 route owner",
+        "This policy is the sole D4 route owner.\n\n10. Another policy is a peer D4\n    route owner.",
+      ),
+      tabbedListContinuation: replaceRequired(
+        routingPolicy,
+        "This policy is the sole D4 route owner",
+        "This policy is the sole D4 route owner.\n\n- Another policy is a peer D4\n\troute owner.",
+      ),
+      dashThematicBreakInterrupt: replaceRequired(
+        routingPolicy,
+        "This policy is the sole D4 route owner",
+        "This policy is the sole D4 route owner.\n\n> Reference prose\n---\nAnother policy is a peer D4 route owner.",
+      ),
+      asteriskThematicBreakInterrupt: replaceRequired(
+        routingPolicy,
+        "This policy is the sole D4 route owner",
+        "This policy is the sole D4 route owner.\n\n> Reference prose\n***\nAnother policy is a peer D4 route owner.",
+      ),
+      underscoreThematicBreakInterrupt: replaceRequired(
+        routingPolicy,
+        "This policy is the sole D4 route owner",
+        "This policy is the sole D4 route owner.\n\n> Reference prose\n_ _ _\nAnother policy is a peer D4 route owner.",
+      ),
+      quotedDashThematicBreak: replaceRequired(
+        routingPolicy,
+        "This policy is the sole D4 route owner",
+        "This policy is the sole D4 route owner.\n\n> ---\nAnother policy is a peer D4 route owner.",
+      ),
+      quotedAsteriskThematicBreak: replaceRequired(
+        routingPolicy,
+        "This policy is the sole D4 route owner",
+        "This policy is the sole D4 route owner.\n\n> ***\nAnother policy is a peer D4 route owner.",
+      ),
+      quotedUnderscoreThematicBreak: replaceRequired(
+        routingPolicy,
+        "This policy is the sole D4 route owner",
+        "This policy is the sole D4 route owner.\n\n> _ _ _\nAnother policy is a peer D4 route owner.",
+      ),
+      quotedTabDashThematicBreak: replaceRequired(
+        routingPolicy,
+        "This policy is the sole D4 route owner",
+        "This policy is the sole D4 route owner.\n\n> \t---\nAnother policy is a peer D4 route owner.",
+      ),
+      quotedTabAsteriskThematicBreak: replaceRequired(
+        routingPolicy,
+        "This policy is the sole D4 route owner",
+        "This policy is the sole D4 route owner.\n\n> \t***\nAnother policy is a peer D4 route owner.",
+      ),
+      quotedTabUnderscoreThematicBreak: replaceRequired(
+        routingPolicy,
+        "This policy is the sole D4 route owner",
+        "This policy is the sole D4 route owner.\n\n> \t_ _ _\nAnother policy is a peer D4 route owner.",
+      ),
+      quotedHeadingPeerOwner: replaceRequired(
+        routingPolicy,
+        "This policy is the sole D4 route owner",
+        "This policy is the sole D4 route owner.\n\n> #### Reference heading\nAnother policy is a peer D4 route owner.",
+      ),
+      quotedFenceBodyPeerOwner: replaceRequired(
+        routingPolicy,
+        "This policy is the sole D4 route owner",
+        "This policy is the sole D4 route owner.\n\n> ```text\n> Reference code\nAnother policy is a peer D4 route owner.",
+      ),
+      quotedTabIndentedCodePeerOwner: replaceRequired(
+        routingPolicy,
+        "This policy is the sole D4 route owner",
+        "This policy is the sole D4 route owner.\n\n>\t  Reference code\nAnother policy is a peer D4 route owner.",
+      ),
+      quoteInterruptedByBullet: replaceRequired(
+        routingPolicy,
+        "This policy is the sole D4 route owner",
+        "This policy is the sole D4 route owner.\n\n> Reference prose\n- Another policy is a peer D4 route owner.",
+      ),
+      quoteInterruptedByOrderedList: replaceRequired(
+        routingPolicy,
+        "This policy is the sole D4 route owner",
+        "This policy is the sole D4 route owner.\n\n> Reference prose\n1. Another policy is a peer D4 route owner.",
+      ),
+      quoteInterruptedByLeadingZeroDot: replaceRequired(
+        routingPolicy,
+        "This policy is the sole D4 route owner",
+        "This policy is the sole D4 route owner.\n\n> Reference prose\n01. Another policy is a peer D4 route owner.",
+      ),
+      quoteInterruptedByLeadingZeroParen: replaceRequired(
+        routingPolicy,
+        "This policy is the sole D4 route owner",
+        "This policy is the sole D4 route owner.\n\n> Reference prose\n01) Another policy is a peer D4 route owner.",
+      ),
+      duplicateHeading: replaceRequired(
+        routingPolicy,
+        "### Ordinary child failure disposition",
+        "### D4 Declaration Obligation\n\nThis is a competing D4 owner.\n\n### Ordinary child failure disposition",
+      ),
+      missingControllerField: replaceRequired(
+        routingPolicy,
+        "and\n`approval_ref`; `termination`",
+        "and\n`termination`",
+      ),
+      missingOwnerField: replaceRequired(
+        routingPolicy,
+        "`codex_sandbox`,\nand `default_network`.",
+        "`codex_sandbox`.",
+      ),
+      extraOwnerField: replaceRequired(
+        routingPolicy,
+        "`codex_sandbox`,\nand `default_network`.",
+        "`codex_sandbox`, `default_network`, and `authority_ref`.",
+      ),
+      duplicateOwnerField: replaceRequired(
+        routingPolicy,
+        "`capability`, target-native `effort`",
+        "`capability`, `capability`, target-native `effort`",
+      ),
+      scatteredOwnerField: replaceRequired(
+        replaceRequired(
+          routingPolicy,
+          "`codex_sandbox`,\nand `default_network`.",
+          "`codex_sandbox`.",
+        ),
+        "solely resolves the exact-target/capability `model`.",
+        "solely resolves the exact-target/capability `model`. The selected role also derives `default_network`.",
+      ),
+    };
+    for (const [mutation, invalidOwner] of Object.entries(invalidD4Owners)) {
+      expect(invalidOwner, mutation).not.toBe(routingPolicy);
+      expect(
+        route006D4ReferenceOnlyErrors({
+          routingSpec,
+          routingPolicy: invalidOwner,
+          roles,
+        }),
+        mutation,
+      ).toEqual([validatedD4OwnerError]);
+    }
+    for (const [syntax, reference] of Object.entries({
+      shortcut: {
+        claim: "[Another policy is a peer D4 route owner.]",
+        definition:
+          "[Another policy is a peer D4 route owner.]: ./peer-owner-example.md",
+      },
+      collapsed: {
+        claim: "[Another policy is a peer D4 route owner.][]",
+        definition:
+          "[Another policy is a peer D4 route owner.]: ./peer-owner-example.md",
+      },
+      full: {
+        claim: "[Another policy is a peer D4 route owner.][peer-owner]",
+        definition: "[peer-owner]: ./peer-owner-example.md",
+      },
+    })) {
+      for (const [codeKind, codedDefinition] of Object.entries({
+        fenced: `\`\`\`text\n${reference.definition}\n\`\`\``,
+        indented: `    ${reference.definition}`,
+        tabIndented: `\t${reference.definition}`,
+        blockquote: `> ${reference.definition}`,
+      })) {
+        const ownerWithCodeDefinition = replaceRequired(
+          routingPolicy,
+          "This policy is the sole D4 route owner",
+          `${reference.claim}\n\n${codedDefinition}\n\nThis policy is the sole D4 route owner`,
+        );
+        expect(ownerWithCodeDefinition, `${syntax}:${codeKind}`).not.toBe(
+          routingPolicy,
+        );
+        expect(
+          route006D4ReferenceOnlyErrors({
+            routingSpec,
+            routingPolicy: ownerWithCodeDefinition,
+            roles,
+          }),
+          `${syntax}:${codeKind}`,
+        ).toEqual([validatedD4OwnerError]);
+      }
+      const definitionPrefix = reference.definition.slice(
+        0,
+        reference.definition.indexOf(":") + 1,
+      );
+      for (const [invalidKind, invalidDefinition] of Object.entries({
+        prefixOnly: definitionPrefix,
+        whitespaceOnly: `${definitionPrefix}   `,
+        emptyAngleDestination: `${definitionPrefix} <>`,
+        unmatchedOpeningParenthesis: `${definitionPrefix} ./owners/(peer.md`,
+        unmatchedClosingParenthesis: `${definitionPrefix} ./owners/peer).md`,
+        whitespaceBreak: `${definitionPrefix} ./owners/peer owner.md`,
+        controlBreakTab: `${definitionPrefix} ./owners/peer\towner.md`,
+        missingClosingAngle: `${definitionPrefix} <./owners/peer.md`,
+        unmatchedClosingAngle: `${definitionPrefix} ./owners/peer.md>`,
+      })) {
+        const ownerWithInvalidDefinition = replaceRequired(
+          routingPolicy,
+          "This policy is the sole D4 route owner",
+          `${reference.claim}\n\n${invalidDefinition}\n\nThis policy is the sole D4 route owner`,
+        );
+        expect(ownerWithInvalidDefinition, `${syntax}:${invalidKind}`).not.toBe(
+          routingPolicy,
+        );
+        expect(
+          d4BoundedHeadingSection(
+            ownerWithInvalidDefinition,
+            "### D4 Declaration Obligation",
+          ),
+          `${syntax}:${invalidKind}:bounded-placement`,
+        ).toContain(invalidDefinition);
+        expect(
+          route006D4ReferenceOnlyErrors({
+            routingSpec,
+            routingPolicy: ownerWithInvalidDefinition,
+            roles,
+          }),
+          `${syntax}:${invalidKind}`,
+        ).toEqual([validatedD4OwnerError]);
+      }
+    }
+    for (const [label, evidence] of Object.entries({
+      normalizedEmptyLabel:
+        "[Another policy is a peer D4 route owner.][ ]\n\n[   ]: ./peer-owner-example.md",
+      unmatchedShortcutDestination:
+        "[Another policy is a peer D4 route owner.]\n\n[Another policy is a peer D4 route owner.]: )",
+    })) {
+      const invalidReferenceOwner = replaceRequired(
+        routingPolicy,
+        "This policy is the sole D4 route owner",
+        `${evidence}\n\nThis policy is the sole D4 route owner`,
+      );
+      expect(invalidReferenceOwner, label).not.toBe(routingPolicy);
+      expect(
+        route006D4ReferenceOnlyErrors({
+          routingSpec,
+          routingPolicy: invalidReferenceOwner,
+          roles,
+        }),
+        label,
+      ).toEqual([validatedD4OwnerError]);
+    }
+    for (const [label, evidence] of Object.entries({
+      normalizedValidLabel:
+        "[Another policy is a peer D4 route owner.][peer owner]\n\n[  peer   owner ]: ./peer-owner-example.md",
+      balancedDestination:
+        "[Another policy is a peer D4 route owner.]\n\n[Another policy is a peer D4 route owner.]: ./owners/(peer).md",
+      angleDestination:
+        "[Another policy is a peer D4 route owner.]\n\n[Another policy is a peer D4 route owner.]: <./peer-owner-example.md>",
+    })) {
+      const validReferenceOwner = replaceRequired(
+        routingPolicy,
+        "This policy is the sole D4 route owner",
+        `${evidence}\n\nThis policy is the sole D4 route owner`,
+      );
+      expect(validReferenceOwner, label).not.toBe(routingPolicy);
+      expect(
+        route006D4ReferenceOnlyErrors({
+          routingSpec,
+          routingPolicy: validReferenceOwner,
+          roles,
+        }),
+        label,
+      ).toEqual([]);
+    }
+    const ownerNearMatch = replaceRequired(
+      routingPolicy,
+      "This policy is the sole D4 route owner",
+      "This policy is the sole D4 route owner. Another policy documents a peer D4 route owner reference",
+    );
+    expect(ownerNearMatch).not.toBe(routingPolicy);
+    expect(
+      route006D4ReferenceOnlyErrors({
+        routingSpec,
+        routingPolicy: ownerNearMatch,
+        roles,
+      }),
+    ).toEqual([]);
+    for (const [label, nonAuthoritativeEvidence] of Object.entries({
+      blockquote: "> Another policy is a peer D4 route owner.",
+      lazyBlockquote:
+        "> Reference: another ownership example follows\nAnother policy is a peer D4 route owner.",
+      nonInterruptingOrderedQuote:
+        "> Reference prose\n2. Another policy is a peer D4 route owner.",
+      nonInterruptingZeroQuote:
+        "> Reference prose\n0. Another policy is a peer D4 route owner.",
+      nonInterruptingTenDigitQuote:
+        "> Reference prose\n0000000001. Another policy is a peer D4 route owner.",
+      nonThematicTwoMarkerQuote:
+        "> Reference prose\n--\nAnother policy is a peer D4 route owner.",
+      nonThematicMixedMarkerQuote:
+        "> Reference prose\n-*-\nAnother policy is a peer D4 route owner.",
+      tabExpandedDashNearMissQuote:
+        "> Reference prose\n \t---\nAnother policy is a peer D4 route owner.",
+      tabExpandedAsteriskNearMissQuote:
+        "> Reference prose\n \t***\nAnother policy is a peer D4 route owner.",
+      tabExpandedUnderscoreNearMissQuote:
+        "> Reference prose\n \t_ _ _\nAnother policy is a peer D4 route owner.",
+      link: "[Another policy is a peer D4 route owner.](./peer-owner-example.md)",
+      referenceDefinition:
+        "[Another policy is a peer D4 route owner.]: ./peer-owner-example.md",
+      shortcutReference:
+        "[Another policy is a peer D4 route owner.]\n\n[Another policy is a peer D4 route owner.]: ./peer-owner-example.md",
+      collapsedReference:
+        "[Another policy is a peer D4 route owner.][]\n\n[Another policy is a peer D4 route owner.]: ./peer-owner-example.md",
+      fullReference:
+        "[Another policy is a peer D4 route owner.][peer-owner]\n\n[peer-owner]: ./peer-owner-example.md",
+      inlineCode: "`Another policy is a peer D4 route owner.`",
+      fencedCode: "```text\nAnother policy is a peer D4 route owner.\n```",
+      longerFence:
+        "````text\n```\nAnother policy is a peer D4 route owner.\n````",
+      indentedCode: "    Another policy is a peer D4 route owner.",
+      tabIndentedCode: "\tAnother policy is a peer D4 route owner.",
+      exampleProse: "Example: Another policy is a peer D4 route owner.",
+    })) {
+      const ownerWithNonAuthoritativeEvidence = replaceRequired(
+        routingPolicy,
+        "This policy is the sole D4 route owner",
+        `${nonAuthoritativeEvidence}\n\nThis policy is the sole D4 route owner`,
+      );
+      expect(ownerWithNonAuthoritativeEvidence, label).not.toBe(routingPolicy);
+      expect(
+        route006D4ReferenceOnlyErrors({
+          routingSpec,
+          routingPolicy: ownerWithNonAuthoritativeEvidence,
+          roles,
+        }),
+        label,
+      ).toEqual([]);
+    }
+    const listCanonicalOwner = replaceRequired(
+      routingPolicy,
+      "This policy is the sole D4 route owner",
+      "- This policy is the sole D4 route owner",
+    );
+    expect(listCanonicalOwner).not.toBe(routingPolicy);
+    expect(
+      route006D4ReferenceOnlyErrors({
+        routingSpec,
+        routingPolicy: listCanonicalOwner,
+        roles,
+      }),
+    ).toEqual([]);
+
+    expect(
+      blankParagraphFailures(
+        "indented second D4 paragraph",
+        "  For D4, this spec declares a second D4 declaration contract.",
+      ),
+    ).toEqual([forbiddenAuthorityError]);
+    expect(
+      blankParagraphFailures(
+        "internally spaced second D4 paragraph",
+        "For   D4, this spec declares a second D4 declaration contract.",
+      ),
+    ).toEqual([forbiddenAuthorityError]);
+    const copiedRoleParagraph = `The copied D4 role catalog is ${roles
+      .map((role) => `\`${role.name}\``)
+      .join(", ")}.`;
+    const copiedFieldParagraph =
+      "This D4 declaration uses exact configured capability and effort, a `source-immutable` or `source-mutable` default, must declare the child scope and termination, and assigns external authority `none`.";
+    const copiedProducerParagraph =
+      "The D4 declaration producer path is skills/play-agent-dispatch/SKILL.md.";
+    const peerAuthorityParagraph =
+      "This spec is an independent D4 declaration authority.";
+    const secondD4DeclarationParagraph =
+      "For D4, this spec declares a second D4 declaration contract.";
+
+    for (const [label, forbiddenParagraph] of Object.entries({
+      formerDuplicatedDeclaration,
+      copiedRoleParagraph,
+      copiedFieldParagraph,
+      copiedProducerParagraph,
+      peerAuthorityParagraph,
+      secondD4DeclarationParagraph,
+    })) {
+      expect(blankParagraphFailures(label, forbiddenParagraph), label).toEqual([
+        forbiddenAuthorityError,
+      ]);
+    }
+
+    const d4OwnerFieldSets = d4OwnerDeclarationFieldSets(routingPolicy);
+    expect(d4OwnerFieldSets).toBeDefined();
+    if (d4OwnerFieldSets === undefined) {
+      throw new Error("canonical D4 declaration field ownership is missing");
+    }
+    const copiedControllerBoundFieldSet = `This spec independently declares the D4 controller-bound fields ${d4OwnerFieldSets.controllerBound
+      .map((field) => `\`${field}\``)
+      .join(", ")}.`;
+    const copiedOwnerDerivedFieldSet = `This spec independently declares the D4 owner-derived fields ${d4OwnerFieldSets.ownerDerived
+      .map((field) => `\`${field}\``)
+      .join(", ")}.`;
+    expect(
+      blankParagraphFailures(
+        "complete controller-bound field set",
+        copiedControllerBoundFieldSet,
+      ),
+    ).toEqual([forbiddenAuthorityError]);
+    expect(
+      blankParagraphFailures(
+        "complete owner-derived field set",
+        copiedOwnerDerivedFieldSet,
+      ),
+    ).toEqual([forbiddenAuthorityError]);
+
+    const controllerBoundOneFieldMissing = `This spec notes the D4 controller-bound fields ${d4OwnerFieldSets.controllerBound
+      .slice(0, -1)
+      .map((field) => `\`${field}\``)
+      .join(", ")}.`;
+    const ownerDerivedOneFieldMissing = `This spec notes the D4 owner-derived fields ${d4OwnerFieldSets.ownerDerived
+      .slice(0, -1)
+      .map((field) => `\`${field}\``)
+      .join(", ")}.`;
+    expect(
+      blankParagraphFailures(
+        "controller-bound one-field-missing control",
+        controllerBoundOneFieldMissing,
+      ),
+    ).toEqual([]);
+    expect(
+      blankParagraphFailures(
+        "owner-derived one-field-missing control",
+        ownerDerivedOneFieldMissing,
+      ),
+    ).toEqual([]);
+
+    for (const [label, separator, forbiddenParagraph] of [
+      ["spaces-only blank line", "\n   \n", secondD4DeclarationParagraph],
+      ["tab-only blank line", "\n\t\n", formerDuplicatedDeclaration],
+      ["mixed whitespace blank line", "\n \t \t\n", copiedRoleParagraph],
+      [
+        "multiple whitespace-only blank lines",
+        "\n  \n\t\n \t \n",
+        copiedProducerParagraph,
+      ],
+    ] as const) {
+      expect(
+        blankParagraphFailures(label, forbiddenParagraph, separator),
+        label,
+      ).toEqual([forbiddenAuthorityError]);
+    }
+
+    const copiedRoleCatalog = replaceRequired(
+      routingSpec,
+      currentD4Reference,
+      `${currentD4Reference}\nThe copied D4 role catalog is ${roles
+        .map((role) => `\`${role.name}\``)
+        .join(", ")}.`,
+    );
+    expect(
+      route006D4ReferenceOnlyErrors({
+        routingSpec: copiedRoleCatalog,
+        routingPolicy,
+        roles,
+      }),
+    ).toEqual([
+      "ROUTE-006 must not copy D4 role, declaration-field, producer, or peer-authority ownership",
+    ]);
+
+    const copiedFieldsAndProducerAuthority = replaceRequired(
+      routingSpec,
+      currentD4Reference,
+      `${currentD4Reference}\nThis independent D4 declaration authority uses exact configured capability and effort, a \`source-immutable\` or \`source-mutable\` default, must declare the child scope and termination, assigns external authority \`none\`, and is produced by skills/play-agent-dispatch/SKILL.md.`,
+    );
+    expect(
+      route006D4ReferenceOnlyErrors({
+        routingSpec: copiedFieldsAndProducerAuthority,
+        routingPolicy,
+        roles,
+      }),
+    ).toEqual([
+      "ROUTE-006 must not copy D4 role, declaration-field, producer, or peer-authority ownership",
+    ]);
+
+    const missingPolicyAnchor = replaceRequired(
+      routingPolicy,
+      "### D4 Declaration Obligation",
+      "### D4 Declaration Reference",
+    );
+    expect(
+      route006D4ReferenceOnlyErrors({
+        routingSpec,
+        routingPolicy: missingPolicyAnchor,
+        roles,
+      }),
+    ).toEqual([
+      "ROUTE-006 must consume one successfully validated D4 Declaration Obligation owner",
+    ]);
+  });
+
   it("detects a one-field semantic agent source drift", async () => {
     const roles = await readAgentSemanticRoleOwner();
     const role = roles.find(({ name }) => name === "implementer");
@@ -6895,6 +8318,132 @@ describe("existing skills source prose contracts", () => {
     ).toEqual([
       "play-agent-dispatch producer semantic route contract section is incomplete",
     ]);
+    for (const indent of [" ", "  ", "   "]) {
+      expect(
+        d4ProducerDeclarationProseErrors({
+          ...canonicalInput,
+          routingOwner: replaceRequired(
+            routingOwner,
+            "### D4 Declaration Obligation",
+            `${indent}### D4 Declaration Obligation`,
+          ),
+        }),
+        `owner canonical heading indent ${indent.length}`,
+      ).toEqual([]);
+      expect(
+        d4ProducerDeclarationProseErrors({
+          ...canonicalInput,
+          producer: replaceRequired(
+            producer,
+            "### Semantic Route Contract",
+            `${indent}### Semantic Route Contract`,
+          ),
+        }),
+        `producer canonical heading indent ${indent.length}`,
+      ).toEqual([]);
+    }
+    expect(
+      d4ProducerDeclarationProseErrors({
+        ...canonicalInput,
+        routingOwner: replaceRequired(
+          routingOwner,
+          "### D4 Declaration Obligation\n\nThis policy",
+          "### D4 Declaration Obligation\n\n  ### Peer Route Registry\n\nThis policy",
+        ),
+      }),
+    ).toEqual([
+      "D4 routing owner declaration obligation section is incomplete",
+    ]);
+    expect(
+      d4ProducerDeclarationProseErrors({
+        ...canonicalInput,
+        producer: replaceRequired(
+          producer,
+          "### Semantic Route Contract\n\nBefore each",
+          "### Semantic Route Contract\n\n  ### Peer Route Registry\n\nBefore each",
+        ),
+      }),
+    ).toEqual([
+      "play-agent-dispatch producer semantic route contract section is incomplete",
+    ]);
+    expect(
+      d4ProducerDeclarationProseErrors({
+        ...canonicalInput,
+        routingOwner: replaceRequired(
+          routingOwner,
+          "### D4 Declaration Obligation",
+          "    ### D4 Declaration Obligation",
+        ),
+      }),
+    ).toEqual([
+      "D4 routing owner declaration obligation section is incomplete",
+    ]);
+    expect(
+      d4ProducerDeclarationProseErrors({
+        ...canonicalInput,
+        producer: replaceRequired(
+          producer,
+          "### Semantic Route Contract",
+          "    ### Semantic Route Contract",
+        ),
+      }),
+    ).toEqual([
+      "play-agent-dispatch producer semantic route contract section is incomplete",
+    ]);
+    expect(
+      d4ProducerDeclarationProseErrors({
+        ...canonicalInput,
+        routingOwner: replaceRequired(
+          routingOwner,
+          "### D4 Declaration Obligation\n\nThis policy",
+          "### D4 Declaration Obligation\n\n    ### Peer Route Registry\n\nThis policy",
+        ),
+      }),
+    ).toEqual([]);
+    const producerWithFencedSiblingAuthority = replaceRequired(
+      producer,
+      "### Source-Immutable Specialists",
+      "```markdown\n### Source-Immutable Specialists\n```\n\nYAML is a peer semantic authority.\n\n### Source-Immutable Specialists",
+    );
+    expect(producerWithFencedSiblingAuthority).not.toBe(producer);
+    expect(
+      d4ProducerDeclarationProseErrors({
+        ...canonicalInput,
+        producer: producerWithFencedSiblingAuthority,
+      }),
+    ).toEqual([
+      "play-agent-dispatch producer must not contradict the policy-owned YAML authority partition",
+    ]);
+    const producerWithInvalidBacktickInfoDuplicateHeading = replaceRequired(
+      producer,
+      "### Semantic Route Contract\n\nBefore each",
+      "### Semantic Route Contract\n\nBefore each\n\n```markdown`\n### Semantic Route Contract",
+    );
+    expect(producerWithInvalidBacktickInfoDuplicateHeading).not.toBe(producer);
+    expect(
+      d4ProducerDeclarationProseErrors({
+        ...canonicalInput,
+        producer: producerWithInvalidBacktickInfoDuplicateHeading,
+      }),
+    ).toEqual([
+      "play-agent-dispatch producer declaration is missing field(s): route_id, selected_role_id, target_id, scope, termination, context_ref, approval_ref, capability, effort, model, source_authority, external_authority, claude_tools, codex_sandbox, default_network",
+      "play-agent-dispatch producer declaration must bind route_id exactly to D4",
+      "play-agent-dispatch producer must consume the policy-owned six-role route set without defining a peer route",
+      "play-agent-dispatch producer declaration must consume the agent-spec envelope owner",
+      "play-agent-dispatch producer declaration must consume config model resolution",
+      "play-agent-dispatch producer declaration must reject YAML as peer semantic authority",
+      "play-agent-dispatch producer declaration must keep cognitive demand and stance out of declaration authority",
+    ]);
+    expect(
+      d4ProducerDeclarationProseErrors({
+        ...canonicalInput,
+        producer: replaceRequired(
+          producer,
+          "### Semantic Route Contract\n\nBefore each",
+          "### Semantic Route Contract\n\n    ### Peer Route Registry\n\nBefore each",
+        ),
+      }),
+    ).toEqual([]);
     expect(
       d4ProducerDeclarationProseErrors({
         ...canonicalInput,
@@ -6939,6 +8488,30 @@ describe("existing skills source prose contracts", () => {
         ),
       }),
     ).toEqual([]);
+    expect(
+      d4ProducerDeclarationProseErrors({
+        ...canonicalInput,
+        routingOwner: replaceRequired(
+          routingOwner,
+          "### Ordinary child failure disposition",
+          "### D4 Declaration Obligation\n\nThis competing section is an independent D4 declaration authority.\n\n### Ordinary child failure disposition",
+        ),
+      }),
+    ).toEqual([
+      "D4 routing owner declaration obligation section is incomplete",
+    ]);
+    expect(
+      d4ProducerDeclarationProseErrors({
+        ...canonicalInput,
+        producer: replaceRequired(
+          producer,
+          "### Source-Immutable Specialists",
+          "### Semantic Route Contract\n\nThis competing producer defines a peer D4 role registry.\n\n### Source-Immutable Specialists",
+        ),
+      }),
+    ).toEqual([
+      "play-agent-dispatch producer semantic route contract section is incomplete",
+    ]);
     expect(
       d4ProducerDeclarationProseErrors({
         ...canonicalInput,
@@ -7259,6 +8832,7 @@ describe("existing skills source prose contracts", () => {
       }),
     ).toEqual([
       "D4 routing owner must preserve the exact agent-spec/config/YAML/planner authority partition",
+      "D4 routing owner owner-derived fields must be exactly capability, effort, source_authority, external_authority, claude_tools, codex_sandbox, default_network, model",
     ]);
     expect(
       d4ProducerDeclarationProseErrors({
@@ -7408,6 +8982,85 @@ describe("existing skills source prose contracts", () => {
         ),
       }),
     ).toEqual(["D4 routing owner must be the sole D4 route owner"]);
+    for (const [label, indentation] of Object.entries({
+      fourSpaceParagraphContinuation: "    ",
+      tabParagraphContinuation: "\t",
+    })) {
+      const ownerWithIndentedContinuation = replaceRequired(
+        routingOwner,
+        "This policy is the sole D4 route owner",
+        `This policy is the sole D4 route owner\n${indentation}Another policy is a peer D4 route owner.`,
+      );
+      expect(ownerWithIndentedContinuation, label).not.toBe(routingOwner);
+      expect(
+        d4ProducerDeclarationProseErrors({
+          ...canonicalInput,
+          routingOwner: ownerWithIndentedContinuation,
+        }),
+        label,
+      ).toEqual(["D4 routing owner must be the sole D4 route owner"]);
+    }
+    for (const [label, ownerEvidence] of Object.entries({
+      tabbedListContinuation: "- Another policy is a peer D4\n\troute owner.",
+      dashThematicBreakInterrupt:
+        "> Reference prose\n---\nAnother policy is a peer D4 route owner.",
+      asteriskThematicBreakInterrupt:
+        "> Reference prose\n***\nAnother policy is a peer D4 route owner.",
+      underscoreThematicBreakInterrupt:
+        "> Reference prose\n_ _ _\nAnother policy is a peer D4 route owner.",
+      quotedDashThematicBreak:
+        "> ---\nAnother policy is a peer D4 route owner.",
+      quotedAsteriskThematicBreak:
+        "> ***\nAnother policy is a peer D4 route owner.",
+      quotedUnderscoreThematicBreak:
+        "> _ _ _\nAnother policy is a peer D4 route owner.",
+      quotedTabDashThematicBreak:
+        "> \t---\nAnother policy is a peer D4 route owner.",
+      quotedTabAsteriskThematicBreak:
+        "> \t***\nAnother policy is a peer D4 route owner.",
+      quotedTabUnderscoreThematicBreak:
+        "> \t_ _ _\nAnother policy is a peer D4 route owner.",
+      quotedHeadingPeerOwner:
+        "> #### Reference heading\nAnother policy is a peer D4 route owner.",
+      quotedFenceBodyPeerOwner:
+        "> ```text\n> Reference code\nAnother policy is a peer D4 route owner.",
+      quotedTabIndentedCodePeerOwner:
+        ">\t  Reference code\nAnother policy is a peer D4 route owner.",
+    })) {
+      const ownerWithBlockStateMutation = replaceRequired(
+        routingOwner,
+        "This policy is the sole D4 route owner",
+        `This policy is the sole D4 route owner.\n\n${ownerEvidence}`,
+      );
+      expect(ownerWithBlockStateMutation, label).not.toBe(routingOwner);
+      expect(
+        d4ProducerDeclarationProseErrors({
+          ...canonicalInput,
+          routingOwner: ownerWithBlockStateMutation,
+        }),
+        label,
+      ).toEqual(["D4 routing owner must be the sole D4 route owner"]);
+    }
+    expect(
+      d4ProducerDeclarationProseErrors({
+        ...canonicalInput,
+        routingOwner: replaceRequired(
+          routingOwner,
+          "This policy is the sole D4 route owner",
+          "This policy is the sole D4 route owner.\n\n- Another policy is a peer D4\n  route owner.",
+        ),
+      }),
+    ).toEqual(["D4 routing owner must be the sole D4 route owner"]);
+    expect(
+      d4ProducerDeclarationProseErrors({
+        ...canonicalInput,
+        routingOwner: replaceRequired(
+          routingOwner,
+          "This policy is the sole D4 route owner",
+          "This policy is the sole D4 route owner. Another policy is a peer D4 route owner",
+        ),
+      }),
+    ).toEqual(["D4 routing owner must be the sole D4 route owner"]);
     expect(
       d4ProducerDeclarationProseErrors({
         ...canonicalInput,
@@ -7444,6 +9097,61 @@ describe("existing skills source prose contracts", () => {
     ).toEqual([
       "D4 routing owner controller-bound fields must be exactly route_id, target_id, selected_role_id, scope, termination, context_ref, approval_ref",
     ]);
+    const exactOwnerDerivedFieldError =
+      "D4 routing owner owner-derived fields must be exactly capability, effort, source_authority, external_authority, claude_tools, codex_sandbox, default_network, model";
+    const ownerDerivedFieldMutations = {
+      missing: replaceRequired(
+        routingOwner,
+        "`codex_sandbox`,\nand `default_network`.",
+        "`codex_sandbox`.",
+      ),
+      extra: replaceRequired(
+        routingOwner,
+        "`codex_sandbox`,\nand `default_network`.",
+        "`codex_sandbox`, `default_network`, and `authority_ref`.",
+      ),
+      duplicate: replaceRequired(
+        routingOwner,
+        "`capability`, target-native `effort`",
+        "`capability`, `capability`, target-native `effort`",
+      ),
+      scattered: replaceRequired(
+        replaceRequired(
+          routingOwner,
+          "`codex_sandbox`,\nand `default_network`.",
+          "`codex_sandbox`.",
+        ),
+        "solely resolves the exact-target/capability `model`.",
+        "solely resolves the exact-target/capability `model`. The selected role also derives `default_network`.",
+      ),
+    };
+    for (const [mutation, mutatedOwner] of Object.entries(
+      ownerDerivedFieldMutations,
+    )) {
+      expect(mutatedOwner, mutation).not.toBe(routingOwner);
+      expect(
+        d4ProducerDeclarationProseErrors({
+          ...canonicalInput,
+          routingOwner: mutatedOwner,
+        }),
+        mutation,
+      ).toEqual([exactOwnerDerivedFieldError]);
+    }
+    for (const qualifier of ["generic", "ambient", "Claude-native"] as const) {
+      const mutatedOwner = replaceRequired(
+        routingOwner,
+        "target-native `effort`",
+        `${qualifier} \`effort\``,
+      );
+      expect(mutatedOwner, qualifier).not.toBe(routingOwner);
+      expect(
+        d4ProducerDeclarationProseErrors({
+          ...canonicalInput,
+          routingOwner: mutatedOwner,
+        }),
+        qualifier,
+      ).toEqual([exactOwnerDerivedFieldError]);
+    }
     expect(
       d4ProducerDeclarationProseErrors({
         ...canonicalInput,
@@ -7520,11 +9228,259 @@ describe("existing skills source prose contracts", () => {
         expect(mutated, `${target}:positional-compact-pipe mutation`).not.toBe(
           producer,
         );
+        expect(
+          d4BoundedHeadingSection(mutated, "### Semantic Route Contract"),
+          `${target}:bounded registry insertion`,
+        ).toContain(registry);
         return d4ProducerDeclarationProseErrors({
           ...canonicalInput,
           producer: mutated,
         });
       };
+      const ownerNativeColumns = [
+        "Agent",
+        "Capability",
+        "Claude effort",
+        "Codex effort",
+        "Source default",
+      ] as const;
+      const ownerNativeTable = (
+        items: readonly {
+          name: string;
+          capability: string;
+          claudeEffort: string;
+          codexEffort: string;
+          sourceAuthority: string;
+        }[],
+        columns: readonly string[] = ownerNativeColumns,
+      ): string => {
+        const cell = (role: (typeof items)[number], column: string) => {
+          switch (column) {
+            case "Agent":
+            case "Semantic role":
+              return role.name;
+            case "Capability":
+              return role.capability;
+            case "Claude effort":
+              return role.claudeEffort;
+            case "Codex effort":
+              return role.codexEffort;
+            case "Source default":
+            case "Note":
+              return role.sourceAuthority;
+            default:
+              return "unrelated";
+          }
+        };
+        return [
+          `| ${columns.join(" | ")} |`,
+          `| ${columns.map(() => "---").join(" | ")} |`,
+          ...items.map(
+            (role) =>
+              `| ${columns.map((column) => cell(role, column)).join(" | ")} |`,
+          ),
+        ].join("\n");
+      };
+      const completeOwnerNativeTable = ownerNativeTable(roles);
+      expect(completeOwnerNativeTable.split("\n").slice(2)).toHaveLength(6);
+      expect(
+        positionalCompactPipeFailures(completeOwnerNativeTable),
+        `${target}:owner-native complete-six`,
+      ).toEqual([copiedRegistryError]);
+      expect(
+        positionalCompactPipeFailures(
+          ownerNativeTable(roles, [
+            "Source default",
+            "Codex effort",
+            "Agent",
+            "Capability",
+            "Claude effort",
+          ]),
+        ),
+        `${target}:owner-native reordered complete-six`,
+      ).toEqual([copiedRegistryError]);
+      for (const subsetSize of [0, 1, 2, 3, 4, 5]) {
+        expect(
+          positionalCompactPipeFailures(
+            ownerNativeTable(roles.slice(0, subsetSize)),
+          ),
+          `${target}:owner-native subset-${subsetSize}`,
+        ).toEqual([]);
+      }
+      const sixthOwnerRole = roles[5];
+      const ownerNativeControls = {
+        wrongSixth: ownerNativeTable([
+          ...roles.slice(0, 5),
+          { ...sixthOwnerRole, sourceAuthority: "not-the-owned-authority" },
+        ]),
+        incompleteSixth: ownerNativeTable([
+          ...roles.slice(0, 5),
+          { ...sixthOwnerRole, sourceAuthority: "" },
+        ]),
+        fiveDistinctPlusDuplicate: ownerNativeTable([
+          ...roles.slice(0, 5),
+          roles[0],
+        ]),
+        otherTargetEffortOnly: ownerNativeTable(roles, [
+          "Agent",
+          "Capability",
+          target === "claude" ? "Codex effort" : "Claude effort",
+          "Source default",
+        ]),
+        missingHeader: ownerNativeTable(roles, [
+          "Agent",
+          "Capability",
+          target === "claude" ? "Claude effort" : "Codex effort",
+        ]),
+        duplicateRoleHeader: ownerNativeTable(roles, [
+          "Agent",
+          "Semantic role",
+          "Capability",
+          target === "claude" ? "Claude effort" : "Codex effort",
+          "Source default",
+        ]),
+        literalDuplicateAgentHeader: ownerNativeTable(roles, [
+          "Agent",
+          "Agent",
+          "Capability",
+          target === "claude" ? "Claude effort" : "Codex effort",
+          "Source default",
+        ]),
+        noteMasking: ownerNativeTable(roles, [
+          "Agent",
+          "Capability",
+          target === "claude" ? "Claude effort" : "Codex effort",
+          "Note",
+        ]),
+        distributedRecords: `${ownerNativeTable(roles, ["Agent", "Capability"])}\n\n${ownerNativeTable(roles, [target === "claude" ? "Claude effort" : "Codex effort", "Source default"])}`,
+        unrelatedTable: ownerNativeTable(roles, ["Agent", "Result"]),
+      };
+      for (const [control, registry] of Object.entries(ownerNativeControls)) {
+        expect(registry, `${target}:owner-native ${control}`).not.toBe(
+          completeOwnerNativeTable,
+        );
+        expect(
+          positionalCompactPipeFailures(registry),
+          `${target}:owner-native ${control}`,
+        ).toEqual([]);
+      }
+      expect(
+        positionalCompactPipeFailures(ownerNativeTable([...roles, roles[0]])),
+        `${target}:owner-native complete-six-plus-duplicate`,
+      ).toEqual([copiedRegistryError]);
+      const nonTableOwnerAliasRecords = roles.map((role) => ({
+        agent: role.name,
+        capability: role.capability,
+        effort: target === "claude" ? role.claudeEffort : role.codexEffort,
+        sourceDefault: role.sourceAuthority,
+      }));
+      const nonTableOwnerAliasControls = {
+        jsonObjects: nonTableOwnerAliasRecords
+          .map(
+            (item) =>
+              `{"Agent":"${item.agent}","Capability":"${item.capability}","Effort":"${item.effort}","Source default":"${item.sourceDefault}"}`,
+          )
+          .join("\n"),
+        yamlRecords: nonTableOwnerAliasRecords
+          .map((item) =>
+            [
+              `- Agent: ${item.agent}`,
+              `  Capability: ${item.capability}`,
+              `  Effort: ${item.effort}`,
+              `  Source default: ${item.sourceDefault}`,
+            ].join("\n"),
+          )
+          .join("\n"),
+        dashOnlyYamlRecords: nonTableOwnerAliasRecords
+          .map((item) =>
+            [
+              "-",
+              `  Agent: ${item.agent}`,
+              `  Capability: ${item.capability}`,
+              `  Effort: ${item.effort}`,
+              `  Source default: ${item.sourceDefault}`,
+            ].join("\n"),
+          )
+          .join("\n"),
+        labeledBullets: nonTableOwnerAliasRecords
+          .map(
+            (item) =>
+              `- Agent=${item.agent}; Capability=${item.capability}; Effort=${item.effort}; Source default=${item.sourceDefault}`,
+          )
+          .join("\n"),
+        labeledInline: nonTableOwnerAliasRecords
+          .map(
+            (item) =>
+              `Agent=${item.agent}, Capability=${item.capability}, Effort=${item.effort}, Source default=${item.sourceDefault}`,
+          )
+          .join("\n"),
+        labeledCompact: nonTableOwnerAliasRecords
+          .map(
+            (item) =>
+              `Agent=${item.agent}; Capability=${item.capability}; Effort=${item.effort}; Source default=${item.sourceDefault}`,
+          )
+          .join(" | "),
+        arbitraryNotes: nonTableOwnerAliasRecords
+          .map(
+            (item) =>
+              `- note=Agent:${item.agent}; note=Capability:${item.capability}; note=Effort:${item.effort}; note=Source-default:${item.sourceDefault}`,
+          )
+          .join("\n"),
+        distributedRecords: nonTableOwnerAliasRecords
+          .map((item) =>
+            [
+              `- Agent=${item.agent}`,
+              `- Capability=${item.capability}`,
+              `- Effort=${item.effort}`,
+              `- Source default=${item.sourceDefault}`,
+            ].join("\n"),
+          )
+          .join("\n"),
+      };
+      for (const [control, registry] of Object.entries(
+        nonTableOwnerAliasControls,
+      )) {
+        expect(
+          registry,
+          `${target}:non-table owner aliases ${control}`,
+        ).toContain(roles[0].name);
+        expect(
+          positionalCompactPipeFailures(registry),
+          `${target}:non-table owner aliases ${control}`,
+        ).toEqual([]);
+      }
+      const independentOwnerAliasJsonControls = {
+        agentOnly: roles
+          .map(
+            (role) =>
+              `{"Agent":"${role.name}","capability":"${role.capability}","effort":"${target === "claude" ? role.claudeEffort : role.codexEffort}","source_authority":"${role.sourceAuthority}"}`,
+          )
+          .join("\n"),
+        sourceDefaultOnly: roles
+          .map(
+            (role) =>
+              `{"role":"${role.name}","capability":"${role.capability}","effort":"${target === "claude" ? role.claudeEffort : role.codexEffort}","Source default":"${role.sourceAuthority}"}`,
+          )
+          .join("\n"),
+        targetEffortOnly: roles
+          .map(
+            (role) =>
+              `{"role":"${role.name}","capability":"${role.capability}","${target === "claude" ? "Claude effort" : "Codex effort"}":"${target === "claude" ? role.claudeEffort : role.codexEffort}","source_authority":"${role.sourceAuthority}"}`,
+          )
+          .join("\n"),
+      };
+      for (const [control, registry] of Object.entries(
+        independentOwnerAliasJsonControls,
+      )) {
+        expect(
+          registry,
+          `${target}:independent non-table owner alias ${control}`,
+        ).toContain(roles[0].name);
+        expect(
+          positionalCompactPipeFailures(registry),
+          `${target}:independent non-table owner alias ${control}`,
+        ).toEqual([]);
+      }
       const positionalCompactPipeRegistry = tuples
         .map(positionalCompactPipeRecord)
         .join("\n");
@@ -7897,6 +9853,25 @@ describe("existing skills source prose contracts", () => {
             `- role=${role.name}; capability=${role.capability}; effort=${target === "claude" ? role.claudeEffort : role.codexEffort}; source_authority=${role.sourceAuthority}`,
         )
         .join("\n");
+    const ownerNativeRegistryFor = (
+      target: "claude" | "codex",
+      useOtherTargetEffort: boolean,
+    ): string =>
+      [
+        "| Agent | Capability | Claude effort | Codex effort | Source default |",
+        "| --- | --- | --- | --- | --- |",
+        ...divergentRoles.map((role) => {
+          const claudeEffort =
+            target === "claude" && useOtherTargetEffort
+              ? role.codexEffort
+              : role.claudeEffort;
+          const codexEffort =
+            target === "codex" && useOtherTargetEffort
+              ? role.claudeEffort
+              : role.codexEffort;
+          return `| ${role.name} | ${role.capability} | ${claudeEffort} | ${codexEffort} | ${role.sourceAuthority} |`;
+        }),
+      ].join("\n");
     const copiedRegistryError =
       "play-agent-dispatch producer declaration must not copy the complete semantic role registry";
 
@@ -7930,6 +9905,23 @@ describe("existing skills source prose contracts", () => {
       expect(failures(otherTargetRegistry), `${target}:other effort`).toEqual(
         [],
       );
+      const correctOwnerNativeRegistry = ownerNativeRegistryFor(target, false);
+      const otherEffortOwnerNativeRegistry = ownerNativeRegistryFor(
+        target,
+        true,
+      );
+      expect(
+        otherEffortOwnerNativeRegistry,
+        `${target}:owner-native effort divergence`,
+      ).not.toBe(correctOwnerNativeRegistry);
+      expect(
+        failures(correctOwnerNativeRegistry),
+        `${target}:owner-native correct effort`,
+      ).toEqual([copiedRegistryError]);
+      expect(
+        failures(otherEffortOwnerNativeRegistry),
+        `${target}:owner-native other effort`,
+      ).toEqual([]);
     }
   });
 
