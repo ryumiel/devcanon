@@ -5,6 +5,7 @@ import {
   readFile,
   readdir,
   readlink,
+  rename,
   rm,
   symlink,
   writeFile,
@@ -1630,6 +1631,7 @@ describe("uninstall", () => {
     const config = makeResolvedConfig(tempDir);
     const invalidBytes = "{corrupt candidate replacement";
     const candidatePath = `${config.manifest.path}.bak`;
+    const replacementPath = `${candidatePath}.replacement`;
     const replacementBytes = "unmanaged replacement";
     const installedPath = path.join(
       config.targets.claude.agentsHome,
@@ -1645,8 +1647,9 @@ describe("uninstall", () => {
       await withManifestPersistenceFaultsForTesting(
         async (stage) => {
           if (stage !== "recovery-after-candidate") return;
+          await writeFile(replacementPath, replacementBytes, "utf-8");
           await rm(candidatePath);
-          await writeFile(candidatePath, replacementBytes, "utf-8");
+          await rename(replacementPath, candidatePath);
         },
         () => uninstall(config, { dryRun: false }),
       );

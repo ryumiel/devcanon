@@ -5,6 +5,7 @@ import {
   mkdir,
   readdir,
   readlink,
+  rename,
   rm,
   symlink,
   writeFile,
@@ -758,6 +759,7 @@ describe("sync", () => {
     const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
     const invalidBytes = "{corrupt candidate replacement";
     const candidatePath = `${config.manifest.path}.bak`;
+    const replacementPath = `${candidatePath}.replacement`;
     const replacementBytes = "unmanaged replacement";
     const agentName = "renderable";
     const generatedSentinel = path.join(
@@ -781,8 +783,9 @@ describe("sync", () => {
       await withManifestPersistenceFaultsForTesting(
         async (stage) => {
           if (stage !== "recovery-after-candidate") return;
+          await writeFile(replacementPath, replacementBytes, "utf-8");
           await rm(candidatePath);
-          await writeFile(candidatePath, replacementBytes, "utf-8");
+          await rename(replacementPath, candidatePath);
         },
         () => sync(config, { dryRun: false, force: false, strict: false }),
       );

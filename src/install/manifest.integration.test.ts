@@ -6,6 +6,7 @@ import {
   readFile,
   readdir,
   readlink,
+  rename,
   symlink,
   unlink,
   writeFile,
@@ -950,18 +951,16 @@ describe("manifest integration", () => {
 
     it("preserves a replacement of an owned incomplete candidate", async () => {
       const manifestPath = path.join(tempDir, "replaced-candidate.json");
+      const replacementPath = `${manifestPath}.replacement`;
       await writeFile(manifestPath, "{corrupt", "utf-8");
       const inspection = await inspectManifest(manifestPath);
 
       const recovery = await withManifestPersistenceFaultsForTesting(
         async (stage) => {
           if (stage === "recovery-after-candidate") {
+            await writeFile(replacementPath, "unmanaged replacement", "utf-8");
             await unlink(`${manifestPath}.bak`);
-            await writeFile(
-              `${manifestPath}.bak`,
-              "unmanaged replacement",
-              "utf-8",
-            );
+            await rename(replacementPath, `${manifestPath}.bak`);
           }
         },
         () => recoverInvalidManifest(inspection),
