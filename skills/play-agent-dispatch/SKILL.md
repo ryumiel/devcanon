@@ -83,10 +83,10 @@ target, declare its
 ordered duplicate-free `claude_tools`, `codex_sandbox`, and `default_network`.
 Resolve `model` first from the selected governed agent source's target-local
 literal `claude.model` or `codex.model`; use the exact target/capability
-resolution in `devcanon.config.yaml` only as fallback. When neither input
-exists, the renderer omits `model` and ambient target selection applies;
-because D4 requires a complete declaration, block that unresolved selection
-before spawn. `agents/*.yaml` are governed declarations and parity inputs,
+resolution in `devcanon.config.yaml` only as fallback. Require the selected
+source capability to match the selected semantic role before resolving the
+model; a capability-less or mismatched source fails that parity check.
+`agents/*.yaml` are governed declarations and parity inputs,
 never semantic authorities; their target-local literal fields are governed
 values under the agent spec and take precedence over configuration fallback.
 

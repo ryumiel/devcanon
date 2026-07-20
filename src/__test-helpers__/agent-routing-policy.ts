@@ -570,11 +570,12 @@ export async function validateD4ProducedDeclaration(
       "D4 selected agent source capability must match selected role",
     );
   }
-  const expectedModel = resolveD4SelectedModel(
-    selectedAgentSource,
-    target,
-    config.capabilityProfiles,
-  );
+  const targetLocalModel =
+    target === "claude"
+      ? selectedAgentSource.claude?.model
+      : selectedAgentSource.codex?.model;
+  const expectedModel =
+    targetLocalModel ?? config.capabilityProfiles[role.capability][target];
   const expectedEffort =
     target === "claude" ? role.claudeEffort : role.codexEffort;
   if (declaration.capability !== role.capability)
@@ -583,11 +584,6 @@ export async function validateD4ProducedDeclaration(
     throw new Error(
       "D4 declaration effort must match selected role and target",
     );
-  if (expectedModel === undefined) {
-    throw new Error(
-      "D4 declaration model must resolve from selected role target-local literal or capability fallback",
-    );
-  }
   if (declaration.model !== expectedModel)
     throw new Error(
       "D4 declaration model must match selected role target-local literal or capability fallback",

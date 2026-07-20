@@ -222,10 +222,10 @@ role-envelope owner. For the exact selected role and target, it derives
 and `default_network`. The selected governed agent source supplies its
 target-local literal `claude.model` or `codex.model` when present;
 [`devcanon.config.yaml`](../../devcanon.config.yaml) supplies the
-exact-target/capability `model` only as fallback. When neither input exists,
-the renderer omits `model` and ambient target selection applies; because D4
-requires a complete declaration, that unresolved selection blocks before D4
-spawn.
+exact-target/capability `model` only as fallback. The selected source must
+match the selected role's capability before model resolution; a
+capability-less or mismatched source fails that parity check rather than
+entering model resolution.
 
 `agents/*.yaml` are governed declarations/instances and parity inputs, never
 peer semantic authorities. Cognitive demand and stance remain planner

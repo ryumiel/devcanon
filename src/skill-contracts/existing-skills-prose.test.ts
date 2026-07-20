@@ -892,6 +892,16 @@ function replaceRequired(source: string, from: string, to: string): string {
   return mutated;
 }
 
+async function rejectionMessage(promise: Promise<unknown>): Promise<string> {
+  try {
+    await promise;
+  } catch (error) {
+    expect(error).toBeInstanceOf(Error);
+    return (error as Error).message;
+  }
+  throw new Error("Expected promise to reject");
+}
+
 type SemanticRoleField = "role" | "capability" | "effort" | "source_authority";
 
 type SemanticRoleRecord = Record<SemanticRoleField, string>;
@@ -1220,6 +1230,15 @@ function d4ProducerDeclarationProseErrors(input: {
       "D4 routing owner must block missing or mismatched values before spawn",
     );
   }
+  if (
+    normalizedOwnerDeclarationSection.includes(
+      "When neither input exists, the renderer omits `model` and ambient target selection applies",
+    )
+  ) {
+    errors.push(
+      "D4 routing owner must not project generic renderer ambient omission into parity-valid D4",
+    );
+  }
 
   const expectedControllerBoundFields = [
     "route_id",
@@ -1319,6 +1338,15 @@ function d4ProducerDeclarationProseErrors(input: {
   ) {
     errors.push(
       "play-agent-dispatch producer declaration must consume selected-source model precedence",
+    );
+  }
+  if (
+    normalizedProducerSection.includes(
+      "When neither input exists, the renderer omits `model` and ambient target selection applies",
+    )
+  ) {
+    errors.push(
+      "play-agent-dispatch producer must not project generic renderer ambient omission into parity-valid D4",
     );
   }
   if (
@@ -8447,15 +8475,23 @@ describe("existing skills source prose contracts", () => {
       const capabilityModel =
         config.capabilityProfiles[selectedRole.capability][target];
       expect(capabilityModel).not.toBe(literalModel);
-      await expect(
-        validateD4ProducedDeclaration(
-          { ...declaration, model: capabilityModel },
-          expectations,
-          { selectedAgentSource: literalSource },
+      const mismatchDiagnostic =
+        "D4 declaration model must match selected role target-local literal or capability fallback";
+      expect(
+        await rejectionMessage(
+          validateD4ProducedDeclaration(
+            { ...declaration, model: capabilityModel },
+            expectations,
+            { selectedAgentSource: literalSource },
+          ),
         ),
         `${target}:literal mismatch diagnostic`,
-      ).rejects.toThrow(
-        "D4 declaration model must match selected role target-local literal or capability fallback",
+      ).toBe(mismatchDiagnostic);
+      expect(`${mismatchDiagnostic}: nearby detail`).not.toBe(
+        mismatchDiagnostic,
+      );
+      expect(`nearby detail: ${mismatchDiagnostic}`).not.toBe(
+        mismatchDiagnostic,
       );
 
       const oppositeTargetSource: AgentSource =
@@ -8488,13 +8524,13 @@ describe("existing skills source prose contracts", () => {
         codex: { ...selectedSource.codex, model: undefined },
       };
       expect(
-        resolveD4SelectedModel(
-          ambientSource,
-          target,
-          config.capabilityProfiles,
+        await rejectionMessage(
+          validateD4ProducedDeclaration(declaration, expectations, {
+            selectedAgentSource: ambientSource,
+          }),
         ),
-        `${target}:ambient omission`,
-      ).toBeUndefined();
+        `${target}:capability parity precedes model resolution`,
+      ).toBe("D4 selected agent source capability must match selected role");
     }
 
     const { declaration, expectations } = await canonicalD4RuntimeInput(
@@ -8511,6 +8547,36 @@ describe("existing skills source prose contracts", () => {
     const copiedRegistryError =
       "play-agent-dispatch producer declaration must not copy the complete semantic role registry";
     expect(d4ProducerDeclarationProseErrors(canonicalInput)).toEqual([]);
+
+    const falseAmbientRendererClause =
+      "When neither input exists, the renderer omits `model` and ambient target selection applies";
+    const ownerWithFalseAmbientRendererClause = replaceRequired(
+      routingOwner,
+      "exact-target/capability `model` only as fallback.",
+      `exact-target/capability \`model\` only as fallback. ${falseAmbientRendererClause}.`,
+    );
+    expect(
+      d4ProducerDeclarationProseErrors({
+        ...canonicalInput,
+        routingOwner: ownerWithFalseAmbientRendererClause,
+      }),
+    ).toEqual([
+      "D4 routing owner must not project generic renderer ambient omission into parity-valid D4",
+    ]);
+
+    const producerWithFalseAmbientRendererClause = replaceRequired(
+      producer,
+      "resolution in `devcanon.config.yaml` only as fallback.",
+      `resolution in \`devcanon.config.yaml\` only as fallback. ${falseAmbientRendererClause}.`,
+    );
+    expect(
+      d4ProducerDeclarationProseErrors({
+        ...canonicalInput,
+        producer: producerWithFalseAmbientRendererClause,
+      }),
+    ).toEqual([
+      "play-agent-dispatch producer must not project generic renderer ambient omission into parity-valid D4",
+    ]);
 
     const ownerHeadingCommentMutations = {
       duplicateCanonical:
