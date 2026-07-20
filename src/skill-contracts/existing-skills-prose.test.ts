@@ -13,6 +13,7 @@ import {
   parseAgentRoutingPolicyOwner,
   readAgentRoutingPolicyOwner,
   readAgentSemanticRoleOwner,
+  resolveD4SelectedModel,
   validateD4ProducedDeclaration,
 } from "../__test-helpers__/agent-routing-policy.js";
 import { cleanupTempDir } from "../__test-helpers__/fixtures.js";
@@ -24,6 +25,7 @@ import {
   readSkillSource,
 } from "../__test-helpers__/skill-contracts.js";
 import { loadConfig } from "../config/load.js";
+import type { AgentSource } from "../config/schema.js";
 import { resolveCapabilityModel } from "../render/capability-profiles.js";
 import { renderAll } from "../render/pipeline.js";
 
@@ -241,9 +243,14 @@ interface AgentSourceContract {
   description: string;
   name: string;
   instructions: string;
-  capability: string;
-  claude: { effort: string; tools: string[] };
-  codex: { model_reasoning_effort: string; sandbox_mode: string };
+  skills: string[];
+  capability?: AgentSemanticRoleContract["capability"];
+  claude: { model?: string; effort: string; tools: string[] };
+  codex: {
+    model?: string;
+    model_reasoning_effort: string;
+    sandbox_mode: string;
+  };
 }
 
 function markdownTableRows(section: string): string[][] {
@@ -660,7 +667,7 @@ function d4OwnerDeclarationFieldValidation(
       ownerSection,
     )?.[1];
   const ownerDerivedMatch =
-    /For the exact selected role and target, it derives\s+([\s\S]*?)\.\s*\[`devcanon\.config\.yaml`\][\s\S]*?`([^`]+)`\./u.exec(
+    /For the exact selected role and target, it derives\s+([\s\S]*?)\.\s*The selected governed agent source supplies its\s+target-local literal `claude\.model` or `codex\.model` when present;\s*\[`devcanon\.config\.yaml`\]\(\.\.\/\.\.\/devcanon\.config\.yaml\) supplies the\s+exact-target\/capability `model` only as fallback\./u.exec(
       ownerSection,
     );
   const backtickedFields = (source: string): string[] =>
@@ -671,7 +678,7 @@ function d4OwnerDeclarationFieldValidation(
   );
   const ownerDerived = [
     ...backtickedFields(ownerDerivedMatch?.[1] ?? ""),
-    ...(ownerDerivedMatch?.[2] ? [ownerDerivedMatch[2]] : []),
+    ...(ownerDerivedMatch ? ["model"] : []),
   ];
   const duplicateFree = (fields: string[]): boolean =>
     new Set(fields).size === fields.length;
@@ -719,7 +726,7 @@ function d4OwnerDeclarationFieldSets(
 function d4ProducerOwnerDerivedFieldsValid(section: string): boolean {
   const matches = [
     ...section.matchAll(
-      /For that exact selected role and\s+target, declare its\s+([\s\S]*?)\.\s*Resolve `model` only from the exact target\/capability resolution in\s+`devcanon\.config\.yaml`\./gu,
+      /For that exact selected role and\s+target, declare its\s+([\s\S]*?)\.\s*Resolve `model` first from the selected governed agent source's target-local\s+literal `claude\.model` or `codex\.model`; use the exact target\/capability\s+resolution in `devcanon\.config\.yaml` only as fallback\./gu,
     ),
   ];
   if (matches.length !== 1) return false;
@@ -840,7 +847,12 @@ async function canonicalD4RuntimeInput(
   declaration: D4ProducedDeclaration;
   expectations: D4DispatchExpectation;
 }> {
-  const config = await loadConfig("devcanon.config.yaml", true);
+  const [config, source] = await Promise.all([
+    loadConfig("devcanon.config.yaml", true),
+    readFile(path.join("agents", `${role.name}.yaml`), "utf8").then(
+      (value) => parseYaml(value) as AgentSource,
+    ),
+  ]);
   const expectations = {
     plannerSelectedRoleId: role.name,
     targetId: target,
@@ -858,12 +870,7 @@ async function canonicalD4RuntimeInput(
       capability: role.capability,
       effort: target === "claude" ? role.claudeEffort : role.codexEffort,
       model:
-        resolveCapabilityModel(
-          undefined,
-          role.capability,
-          target,
-          config.capabilityProfiles,
-        ) ?? "",
+        resolveD4SelectedModel(source, target, config.capabilityProfiles) ?? "",
       source_authority: role.sourceAuthority,
       external_authority: role.externalAuthority,
       claude_tools: role.claudeTools,
@@ -1155,7 +1162,7 @@ function d4ProducerDeclarationProseErrors(input: {
       "[agent spec](../specs/agents.md) is the sole semantic-role catalog and role-envelope owner",
     ) &&
     normalizedRoutingOwner.includes(
-      "[`devcanon.config.yaml`](../../devcanon.config.yaml) solely resolves the exact-target/capability `model`",
+      "The selected governed agent source supplies its target-local literal `claude.model` or `codex.model` when present; [`devcanon.config.yaml`](../../devcanon.config.yaml) supplies the exact-target/capability `model` only as fallback",
     );
   if (!ownerHasGlobalAgentConfigPartition) {
     errors.push(
@@ -1169,7 +1176,7 @@ function d4ProducerDeclarationProseErrors(input: {
     ownerHasGlobalAgentConfigPartition &&
     ![
       "[agent spec](../specs/agents.md) is the sole semantic-role catalog and role-envelope owner",
-      "[`devcanon.config.yaml`](../../devcanon.config.yaml) solely resolves the exact-target/capability `model`",
+      "The selected governed agent source supplies its target-local literal `claude.model` or `codex.model` when present; [`devcanon.config.yaml`](../../devcanon.config.yaml) supplies the exact-target/capability `model` only as fallback",
       "`agents/*.yaml` are governed declarations/instances and parity inputs, never peer semantic authorities",
       "Cognitive demand and stance remain planner classification inputs only, not declaration fields or authority",
     ].every((evidence) => normalizedOwnerDeclarationSection.includes(evidence))
@@ -1302,9 +1309,16 @@ function d4ProducerDeclarationProseErrors(input: {
       "play-agent-dispatch producer declaration must consume the agent-spec envelope owner",
     );
   }
-  if (!normalizedProducerSection.includes("`devcanon.config.yaml`")) {
+  if (
+    !normalizedProducerSection.includes(
+      "selected governed agent source's target-local literal `claude.model` or `codex.model`",
+    ) ||
+    !normalizedProducerSection.includes(
+      "`devcanon.config.yaml` only as fallback",
+    )
+  ) {
     errors.push(
-      "play-agent-dispatch producer declaration must consume config model resolution",
+      "play-agent-dispatch producer declaration must consume selected-source model precedence",
     );
   }
   if (
@@ -7923,8 +7937,8 @@ describe("existing skills source prose contracts", () => {
           "`codex_sandbox`,\nand `default_network`.",
           "`codex_sandbox`.",
         ),
-        "solely resolves the exact-target/capability `model`.",
-        "solely resolves the exact-target/capability `model`. The selected role also derives `default_network`.",
+        "exact-target/capability `model` only as fallback.",
+        "exact-target/capability `model` only as fallback. The selected role also derives `default_network`.",
       ),
     };
     for (const [mutation, invalidOwner] of Object.entries(invalidD4Owners)) {
@@ -8306,7 +8320,10 @@ describe("existing skills source prose contracts", () => {
     ) as AgentSourceContract;
     expect(agentSourceAlignmentErrors(role, source)).toEqual([]);
 
-    const oneFieldDrift = { ...source, capability: "frontier" };
+    const oneFieldDrift: AgentSourceContract = {
+      ...source,
+      capability: "frontier",
+    };
     expect(agentSourceAlignmentErrors(role, oneFieldDrift)).toEqual([
       "implementer:capability",
     ]);
@@ -8392,6 +8409,92 @@ describe("existing skills source prose contracts", () => {
           validateD4ProducedDeclaration(declaration, expectations),
         ).resolves.toBeUndefined();
       }
+    }
+
+    const selectedRole = roles[0];
+    const [selectedSource, config] = await Promise.all([
+      readFile(path.join("agents", `${selectedRole.name}.yaml`), "utf8").then(
+        (value) => parseYaml(value) as AgentSource,
+      ),
+      loadConfig("devcanon.config.yaml", true),
+    ]);
+    for (const target of ["claude", "codex"] as const) {
+      const { declaration, expectations } = await canonicalD4RuntimeInput(
+        selectedRole,
+        target,
+      );
+      const literalModel = `${target}-literal-model`;
+      const literalSource: AgentSource =
+        target === "claude"
+          ? {
+              ...selectedSource,
+              claude: { ...selectedSource.claude, model: literalModel },
+            }
+          : {
+              ...selectedSource,
+              codex: { ...selectedSource.codex, model: literalModel },
+            };
+      expect(literalSource).not.toEqual(selectedSource);
+      await expect(
+        validateD4ProducedDeclaration(
+          { ...declaration, model: literalModel },
+          expectations,
+          { selectedAgentSource: literalSource },
+        ),
+        `${target}:literal precedence`,
+      ).resolves.toBeUndefined();
+
+      const capabilityModel =
+        config.capabilityProfiles[selectedRole.capability][target];
+      expect(capabilityModel).not.toBe(literalModel);
+      await expect(
+        validateD4ProducedDeclaration(
+          { ...declaration, model: capabilityModel },
+          expectations,
+          { selectedAgentSource: literalSource },
+        ),
+        `${target}:literal mismatch diagnostic`,
+      ).rejects.toThrow(
+        "D4 declaration model must match selected role target-local literal or capability fallback",
+      );
+
+      const oppositeTargetSource: AgentSource =
+        target === "claude"
+          ? {
+              ...selectedSource,
+              codex: {
+                ...selectedSource.codex,
+                model: "codex-opposite-target-literal",
+              },
+            }
+          : {
+              ...selectedSource,
+              claude: {
+                ...selectedSource.claude,
+                model: "claude-opposite-target-literal",
+              },
+            };
+      await expect(
+        validateD4ProducedDeclaration(declaration, expectations, {
+          selectedAgentSource: oppositeTargetSource,
+        }),
+        `${target}:opposite-target isolation`,
+      ).resolves.toBeUndefined();
+
+      const ambientSource: AgentSource = {
+        ...selectedSource,
+        capability: undefined,
+        claude: { ...selectedSource.claude, model: undefined },
+        codex: { ...selectedSource.codex, model: undefined },
+      };
+      expect(
+        resolveD4SelectedModel(
+          ambientSource,
+          target,
+          config.capabilityProfiles,
+        ),
+        `${target}:ambient omission`,
+      ).toBeUndefined();
     }
 
     const { declaration, expectations } = await canonicalD4RuntimeInput(
@@ -8691,7 +8794,7 @@ describe("existing skills source prose contracts", () => {
       "play-agent-dispatch producer declaration must bind route_id exactly to D4",
       "play-agent-dispatch producer must consume the policy-owned six-role route set without defining a peer route",
       "play-agent-dispatch producer declaration must consume the agent-spec envelope owner",
-      "play-agent-dispatch producer declaration must consume config model resolution",
+      "play-agent-dispatch producer declaration must consume selected-source model precedence",
       "play-agent-dispatch producer declaration must reject YAML as peer semantic authority",
       "play-agent-dispatch producer declaration must keep cognitive demand and stance out of declaration authority",
     ]);
@@ -9087,9 +9190,9 @@ describe("existing skills source prose contracts", () => {
         ...canonicalInput,
         routingOwner: `${replaceRequired(
           routingOwner,
-          "[`devcanon.config.yaml`](../../devcanon.config.yaml)\nsolely resolves the exact-target/capability `model`",
+          "The selected governed agent source supplies its\ntarget-local literal `claude.model` or `codex.model` when present;\n[`devcanon.config.yaml`](../../devcanon.config.yaml) supplies the\nexact-target/capability `model` only as fallback",
           "[`devcanon.config.yaml`](../../devcanon.config.yaml) is an ambient model input",
-        )}\n\n[\`devcanon.config.yaml\`](../../devcanon.config.yaml) solely resolves the exact-target/capability \`model\`.`,
+        )}\n\nThe selected governed agent source supplies its target-local literal \`claude.model\` or \`codex.model\` when present; [\`devcanon.config.yaml\`](../../devcanon.config.yaml) supplies the exact-target/capability \`model\` only as fallback.`,
       }),
     ).toEqual([
       "D4 routing owner must preserve the exact agent-spec/config/YAML/planner authority partition",
@@ -9201,7 +9304,7 @@ describe("existing skills source prose contracts", () => {
         ...canonicalInput,
         producer: replaceRequired(
           producer,
-          "governed declarations and parity\ninputs, never semantic authorities",
+          "governed declarations and parity inputs,\nnever semantic authorities",
           "peer semantic authorities",
         ),
       }),
@@ -9219,7 +9322,7 @@ describe("existing skills source prose contracts", () => {
       }),
     ).toEqual([
       "play-agent-dispatch producer owner-derived fields must be one exact non-scattered set",
-      "play-agent-dispatch producer declaration must consume config model resolution",
+      "play-agent-dispatch producer declaration must consume selected-source model precedence",
     ]);
     expect(
       d4ProducerDeclarationProseErrors({
@@ -9383,8 +9486,8 @@ describe("existing skills source prose contracts", () => {
           "`codex_sandbox`,\nand `default_network`.",
           "`codex_sandbox`.",
         ),
-        "solely resolves the exact-target/capability `model`.",
-        "solely resolves the exact-target/capability `model`. The selected role also derives `default_network`.",
+        "exact-target/capability `model` only as fallback.",
+        "exact-target/capability `model` only as fallback. The selected role also derives `default_network`.",
       ),
     };
     for (const [mutation, mutatedOwner] of Object.entries(
@@ -9425,8 +9528,8 @@ describe("existing skills source prose contracts", () => {
             "ordered duplicate-free `claude_tools`, `codex_sandbox`, and `default_network`.",
             "ordered duplicate-free `claude_tools` and `codex_sandbox`.",
           ),
-          "`devcanon.config.yaml`.",
-          "`devcanon.config.yaml`. Backticked `default_network` remains a nearby reference.",
+          "`devcanon.config.yaml` only as fallback.",
+          "`devcanon.config.yaml` only as fallback. Backticked `default_network` remains a nearby reference.",
         ),
         fragment: "Backticked `default_network` remains a nearby reference.",
         expected: [producerOwnerDerivedFieldError],
@@ -9459,8 +9562,8 @@ describe("existing skills source prose contracts", () => {
             "ordered duplicate-free `claude_tools`, `codex_sandbox`, and `default_network`.",
             "ordered duplicate-free `claude_tools` and `codex_sandbox`.",
           ),
-          "`devcanon.config.yaml`.",
-          "`devcanon.config.yaml`. The selected role also declares `default_network`.",
+          "`devcanon.config.yaml` only as fallback.",
+          "`devcanon.config.yaml` only as fallback. The selected role also declares `default_network`.",
         ),
         fragment: "The selected role also declares `default_network`.",
         expected: [producerOwnerDerivedFieldError],
@@ -9572,8 +9675,8 @@ describe("existing skills source prose contracts", () => {
         ...canonicalInput,
         producer: replaceRequired(
           producer,
-          "governed declarations and parity\ninputs, never semantic authorities; they never override the policy, agent spec,\nor configuration owner.",
-          "governed declarations and parity\ninputs, never semantic authorities; they never override the policy, agent spec,\nor configuration owner. YAML is a peer semantic authority for this producer.",
+          "governed declarations and parity inputs,\nnever semantic authorities; their target-local literal fields are governed\nvalues under the agent spec and take precedence over configuration fallback.",
+          "governed declarations and parity inputs,\nnever semantic authorities; their target-local literal fields are governed\nvalues under the agent spec and take precedence over configuration fallback. YAML is a peer semantic authority for this producer.",
         ),
       }),
     ).toEqual([

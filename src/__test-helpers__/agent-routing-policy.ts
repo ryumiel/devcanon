@@ -1,6 +1,12 @@
 import { access, readFile, readdir } from "node:fs/promises";
 import path from "node:path";
+import { parse as parseYaml } from "yaml";
 import { loadConfig } from "../config/load.js";
+import {
+  type AgentSource,
+  AgentSourceSchema,
+  type CapabilityProfiles,
+} from "../config/schema.js";
 import { resolveCapabilityModel } from "../render/capability-profiles.js";
 
 const INVENTORY_HEADING = "Complete Skill Inventory";
@@ -284,6 +290,26 @@ export interface D4DispatchExpectation {
   readonly approvalRef: string;
 }
 
+export interface D4ProducedDeclarationValidationOptions {
+  readonly selectedAgentSource?: AgentSource;
+}
+
+/** Resolves D4 model precedence from the selected governed agent source. */
+export function resolveD4SelectedModel(
+  source: Pick<AgentSource, "capability" | "claude" | "codex">,
+  target: "claude" | "codex",
+  capabilityProfiles: CapabilityProfiles,
+): string | undefined {
+  const literalModel =
+    target === "claude" ? source.claude?.model : source.codex?.model;
+  return resolveCapabilityModel(
+    literalModel,
+    source.capability,
+    target,
+    capabilityProfiles,
+  );
+}
+
 /** Reads the two owners and all closed consumer projections before normalization. */
 export async function parseCapabilityEscalationAdoptionContract(): Promise<CapabilityEscalationAdoptionContract> {
   const paths = [
@@ -429,6 +455,7 @@ export function parseCapabilityEscalationAdoptionContractFromSources(
 export async function validateD4ProducedDeclaration(
   declaration: D4ProducedDeclaration,
   expectations: D4DispatchExpectation,
+  options: D4ProducedDeclarationValidationOptions = {},
 ): Promise<void> {
   assertExactObjectKeys(
     declaration as unknown as Record<string, unknown>,
@@ -522,9 +549,29 @@ export async function validateD4ProducedDeclaration(
     resolveRepositoryRelativePath("devcanon.config.yaml"),
     true,
   );
-  const expectedModel = resolveCapabilityModel(
-    undefined,
-    role.capability,
+  const selectedAgentSource = AgentSourceSchema.parse(
+    options.selectedAgentSource ??
+      parseYaml(
+        await readFile(
+          resolveRepositoryRelativePath(
+            path.join("agents", `${declaration.selected_role_id}.yaml`),
+          ),
+          "utf8",
+        ),
+      ),
+  );
+  if (selectedAgentSource.name !== declaration.selected_role_id) {
+    throw new Error(
+      "D4 selected agent source name must match selected_role_id",
+    );
+  }
+  if (selectedAgentSource.capability !== role.capability) {
+    throw new Error(
+      "D4 selected agent source capability must match selected role",
+    );
+  }
+  const expectedModel = resolveD4SelectedModel(
+    selectedAgentSource,
     target,
     config.capabilityProfiles,
   );
@@ -536,8 +583,15 @@ export async function validateD4ProducedDeclaration(
     throw new Error(
       "D4 declaration effort must match selected role and target",
     );
+  if (expectedModel === undefined) {
+    throw new Error(
+      "D4 declaration model must resolve from selected role target-local literal or capability fallback",
+    );
+  }
   if (declaration.model !== expectedModel)
-    throw new Error("D4 declaration model must match target model resolution");
+    throw new Error(
+      "D4 declaration model must match selected role target-local literal or capability fallback",
+    );
   if (declaration.source_authority !== role.sourceAuthority)
     throw new Error("D4 declaration source authority must match selected role");
   if (declaration.external_authority !== role.externalAuthority)

@@ -81,10 +81,14 @@ semantic-role catalog and role-envelope owner. For that exact selected role and
 target, declare its
 `capability`, target-native `effort`, `source_authority`, `external_authority`,
 ordered duplicate-free `claude_tools`, `codex_sandbox`, and `default_network`.
-Resolve `model` only from the exact target/capability resolution in
-`devcanon.config.yaml`. `agents/*.yaml` are governed declarations and parity
-inputs, never semantic authorities; they never override the policy, agent spec,
-or configuration owner.
+Resolve `model` first from the selected governed agent source's target-local
+literal `claude.model` or `codex.model`; use the exact target/capability
+resolution in `devcanon.config.yaml` only as fallback. When neither input
+exists, the renderer omits `model` and ambient target selection applies;
+because D4 requires a complete declaration, block that unresolved selection
+before spawn. `agents/*.yaml` are governed declarations and parity inputs,
+never semantic authorities; their target-local literal fields are governed
+values under the agent spec and take precedence over configuration fallback.
 
 Classify each independent problem domain separately. The controller selects one
 of the policy-owned six-role set before spawn; a generic or inherited workflow

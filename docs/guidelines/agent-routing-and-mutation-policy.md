@@ -219,8 +219,13 @@ planner-selected `selected_role_id`, `scope`, `termination`, `context_ref`, and
 role-envelope owner. For the exact selected role and target, it derives
 `capability`, target-native `effort`, `source_authority`,
 `external_authority`, ordered duplicate-free `claude_tools`, `codex_sandbox`,
-and `default_network`. [`devcanon.config.yaml`](../../devcanon.config.yaml)
-solely resolves the exact-target/capability `model`.
+and `default_network`. The selected governed agent source supplies its
+target-local literal `claude.model` or `codex.model` when present;
+[`devcanon.config.yaml`](../../devcanon.config.yaml) supplies the
+exact-target/capability `model` only as fallback. When neither input exists,
+the renderer omits `model` and ambient target selection applies; because D4
+requires a complete declaration, that unresolved selection blocks before D4
+spawn.
 
 `agents/*.yaml` are governed declarations/instances and parity inputs, never
 peer semantic authorities. Cognitive demand and stance remain planner

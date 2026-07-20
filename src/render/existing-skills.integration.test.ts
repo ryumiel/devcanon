@@ -20,8 +20,13 @@ import {
   parseRenderedTomlArtifact,
 } from "../__test-helpers__/render.js";
 import { loadConfig } from "../config/load.js";
-import { CODEX_SKILL_OVERRIDE_FIELDS } from "../config/schema.js";
+import {
+  CODEX_SKILL_OVERRIDE_FIELDS,
+  type Capability,
+  type CapabilityProfiles,
+} from "../config/schema.js";
 import { pathExists } from "../utils/fs.js";
+import { resolveCapabilityModel } from "./capability-profiles.js";
 import { parseFrontmatter } from "./frontmatter.js";
 import { renderAll } from "./pipeline.js";
 
@@ -72,9 +77,13 @@ interface AgentSourceContract {
   name: string;
   description: string;
   instructions: string;
-  capability: string;
-  claude: { effort: string; tools: string[] };
-  codex: { model_reasoning_effort: string; sandbox_mode: string };
+  capability?: Capability;
+  claude: { model?: string; effort: string; tools: string[] };
+  codex: {
+    model?: string;
+    model_reasoning_effort: string;
+    sandbox_mode: string;
+  };
 }
 
 interface ParsedRenderedAgent {
@@ -756,7 +765,7 @@ function d4OwnerDeclarationFieldValidation(
       section,
     )?.[1];
   const ownerDerivedMatch =
-    /For the exact selected role and target, it derives\s+([\s\S]*?)\.\s*\[`devcanon\.config\.yaml`\][\s\S]*?`([^`]+)`\./u.exec(
+    /For the exact selected role and target, it derives\s+([\s\S]*?)\.\s*The selected governed agent source supplies its\s+target-local literal `claude\.model` or `codex\.model` when present;\s*\[`devcanon\.config\.yaml`\]\(\.\.\/\.\.\/devcanon\.config\.yaml\) supplies the\s+exact-target\/capability `model` only as fallback\./u.exec(
       section,
     );
   const backtickedFields = (source: string): string[] =>
@@ -765,7 +774,7 @@ function d4OwnerDeclarationFieldValidation(
   const controllerBound = controllerTokens.filter((field) => field !== "D4");
   const ownerDerived = [
     ...backtickedFields(ownerDerivedMatch?.[1] ?? ""),
-    ...(ownerDerivedMatch?.[2] ? [ownerDerivedMatch[2]] : []),
+    ...(ownerDerivedMatch ? ["model"] : []),
   ];
   const duplicateFree = (fields: string[]): boolean =>
     new Set(fields).size === fields.length;
@@ -796,7 +805,7 @@ function d4OwnerDeclarationFieldValidation(
 function d4ProducerOwnerDerivedFieldsValid(section: string): boolean {
   const matches = [
     ...section.matchAll(
-      /For that exact selected role and\s+target, declare its\s+([\s\S]*?)\.\s*Resolve `model` only from the exact target\/capability resolution in\s+`devcanon\.config\.yaml`\./gu,
+      /For that exact selected role and\s+target, declare its\s+([\s\S]*?)\.\s*Resolve `model` first from the selected governed agent source's target-local\s+literal `claude\.model` or `codex\.model`; use the exact target\/capability\s+resolution in `devcanon\.config\.yaml` only as fallback\./gu,
     ),
   ];
   if (matches.length !== 1) return false;
@@ -1160,7 +1169,7 @@ function d4OwnerDeclarationFailures(routingPolicySource: string): string[] {
     ],
     [
       "config",
-      "[`devcanon.config.yaml`](../../devcanon.config.yaml) solely resolves the exact-target/capability `model`",
+      "The selected governed agent source supplies its target-local literal `claude.model` or `codex.model` when present; [`devcanon.config.yaml`](../../devcanon.config.yaml) supplies the exact-target/capability `model` only as fallback",
     ],
     [
       "yaml-conformance",
@@ -1436,7 +1445,7 @@ function renderedAgentAlignmentFailures(
   source: AgentSourceContract,
   target: "claude" | "codex",
   parsed: ParsedRenderedAgent,
-  expectedModel: string,
+  capabilityProfiles: CapabilityProfiles,
 ): string[] {
   const failures = [...agentSourceConformanceFailures(role, source)];
   const expectedEffort =
@@ -1451,9 +1460,17 @@ function renderedAgentAlignmentFailures(
       `D4:${role.name}:${target}:rendered-description:${String(parsed.description)}`,
     );
   }
+  const literalModel =
+    target === "claude" ? source.claude.model : source.codex.model;
+  const expectedModel = resolveCapabilityModel(
+    literalModel,
+    source.capability,
+    target,
+    capabilityProfiles,
+  );
   if (parsed.model !== expectedModel) {
     failures.push(
-      `D4:${role.name}:${target}:config-model-resolution:${String(parsed.model)}`,
+      `D4:${role.name}:${target}:model-precedence:${String(parsed.model)}`,
     );
   }
   if (parsed.effort !== expectedEffort) {
@@ -1727,7 +1744,7 @@ describe("existing skills render cleanly", () => {
             source,
             target,
             parsed,
-            expectedModel,
+            config.capabilityProfiles,
           ),
         ).toEqual([]);
         const alternateNetworkRole = roles.find(
@@ -1748,7 +1765,7 @@ describe("existing skills render cleanly", () => {
               source,
               target,
               parsed,
-              expectedModel,
+              config.capabilityProfiles,
             ),
           ).toEqual([
             `${role.name}:default-network`,
@@ -1764,7 +1781,7 @@ describe("existing skills render cleanly", () => {
               source,
               target,
               effortDrift,
-              expectedModel,
+              config.capabilityProfiles,
             ),
           ).toEqual([
             `D4:${role.name}:${target}:target-effort:${effortDrift.effort}`,
@@ -2557,8 +2574,8 @@ describe("existing skills render cleanly", () => {
             "`codex_sandbox`.",
           )
           .replace(
-            "solely resolves the exact-target/capability `model`.",
-            "solely resolves the exact-target/capability `model`. The selected role also derives `default_network`.",
+            "exact-target/capability `model` only as fallback.",
+            "exact-target/capability `model` only as fallback. The selected role also derives `default_network`.",
           ),
       };
       for (const [mutation, mutatedOwner] of Object.entries(
@@ -2599,8 +2616,8 @@ describe("existing skills render cleanly", () => {
               "ordered duplicate-free `claude_tools` and `codex_sandbox`.",
             )
             .replace(
-              "`devcanon.config.yaml`.",
-              "`devcanon.config.yaml`. Backticked `default_network` remains a nearby reference.",
+              "`devcanon.config.yaml` only as fallback.",
+              "`devcanon.config.yaml` only as fallback. Backticked `default_network` remains a nearby reference.",
             ),
           fragment: "Backticked `default_network` remains a nearby reference.",
           expected: ["D4:owner-derived-field-set"],
@@ -2631,8 +2648,8 @@ describe("existing skills render cleanly", () => {
               "ordered duplicate-free `claude_tools` and `codex_sandbox`.",
             )
             .replace(
-              "`devcanon.config.yaml`.",
-              "`devcanon.config.yaml`. The selected role also declares `default_network`.",
+              "`devcanon.config.yaml` only as fallback.",
+              "`devcanon.config.yaml` only as fallback. The selected role also declares `default_network`.",
             ),
           fragment: "The selected role also declares `default_network`.",
           expected: ["D4:owner-derived-field-set"],
@@ -2736,7 +2753,7 @@ describe("existing skills render cleanly", () => {
       ]);
 
       const yamlAsPeer = producer.replace(
-        "governed declarations and parity\ninputs, never semantic authorities",
+        "governed declarations and parity inputs,\nnever semantic authorities",
         "peer semantic authorities",
       );
       expect(yamlAsPeer).not.toBe(producer);
@@ -2809,8 +2826,8 @@ describe("existing skills render cleanly", () => {
       ]);
 
       const producerAuthorityContradiction = producer.replace(
-        "governed declarations and parity\ninputs, never semantic authorities; they never override the policy, agent spec,\nor configuration owner.",
-        "governed declarations and parity\ninputs, never semantic authorities; they never override the policy, agent spec,\nor configuration owner. YAML is a peer semantic authority for this producer.",
+        "governed declarations and parity inputs,\nnever semantic authorities; their target-local literal fields are governed\nvalues under the agent spec and take precedence over configuration fallback.",
+        "governed declarations and parity inputs,\nnever semantic authorities; their target-local literal fields are governed\nvalues under the agent spec and take precedence over configuration fallback. YAML is a peer semantic authority for this producer.",
       );
       expect(producerAuthorityContradiction).not.toBe(producer);
       expect(projectionFailures(producerAuthorityContradiction)).toEqual([
@@ -2856,6 +2873,87 @@ describe("existing skills render cleanly", () => {
       }
       const expectedModel = config.capabilityProfiles[role.capability][target];
 
+      const literalModel = `${target}-literal-model`;
+      const literalSource: AgentSourceContract =
+        target === "claude"
+          ? {
+              ...source,
+              claude: { ...source.claude, model: literalModel },
+            }
+          : {
+              ...source,
+              codex: { ...source.codex, model: literalModel },
+            };
+      const literalParsed = { ...parsed, model: literalModel };
+      expect(literalParsed).not.toEqual(parsed);
+      expect(
+        renderedAgentAlignmentFailures(
+          role,
+          literalSource,
+          target,
+          literalParsed,
+          config.capabilityProfiles,
+        ),
+        `${role.name}:${target}:target-local literal precedence`,
+      ).toEqual([]);
+      expect(
+        renderedAgentAlignmentFailures(
+          role,
+          literalSource,
+          target,
+          parsed,
+          config.capabilityProfiles,
+        ),
+        `${role.name}:${target}:literal mismatch`,
+      ).toEqual([
+        `D4:${role.name}:${target}:model-precedence:${String(parsed.model)}`,
+      ]);
+
+      const oppositeTargetSource: AgentSourceContract =
+        target === "claude"
+          ? {
+              ...source,
+              codex: {
+                ...source.codex,
+                model: "codex-opposite-target-literal",
+              },
+            }
+          : {
+              ...source,
+              claude: {
+                ...source.claude,
+                model: "claude-opposite-target-literal",
+              },
+            };
+      expect(oppositeTargetSource).not.toEqual(source);
+      expect(
+        renderedAgentAlignmentFailures(
+          role,
+          oppositeTargetSource,
+          target,
+          parsed,
+          config.capabilityProfiles,
+        ),
+        `${role.name}:${target}:opposite-target isolation`,
+      ).toEqual([]);
+
+      const ambientSource: AgentSourceContract = {
+        ...source,
+        capability: undefined,
+        claude: { ...source.claude, model: undefined },
+        codex: { ...source.codex, model: undefined },
+      };
+      expect(
+        renderedAgentAlignmentFailures(
+          role,
+          ambientSource,
+          target,
+          { ...parsed, model: undefined },
+          config.capabilityProfiles,
+        ),
+        `${role.name}:${target}:ambient omission`,
+      ).toEqual([`${role.name}:capability`]);
+
       const specDrift: AgentSemanticRoleContract = {
         ...role,
         claudeEffort:
@@ -2876,7 +2974,7 @@ describe("existing skills render cleanly", () => {
           source,
           target,
           parsed,
-          expectedModel,
+          config.capabilityProfiles,
         ),
       ).toEqual([
         `${role.name}:${target}-effort`,
@@ -2900,12 +2998,9 @@ describe("existing skills render cleanly", () => {
           yamlPeerDrift,
           target,
           yamlPeerParsed,
-          expectedModel,
+          config.capabilityProfiles,
         ),
-      ).toEqual([
-        `${role.name}:capability`,
-        `D4:${role.name}:${target}:config-model-resolution:${String(yamlPeerParsed.model)}`,
-      ]);
+      ).toEqual([`${role.name}:capability`]);
 
       const modelDrift = { ...parsed, model: `${expectedModel}-drift` };
       expect({ ...modelDrift, model: parsed.model }).toEqual(parsed);
@@ -2915,10 +3010,10 @@ describe("existing skills render cleanly", () => {
           source,
           target,
           modelDrift,
-          expectedModel,
+          config.capabilityProfiles,
         ),
       ).toEqual([
-        `D4:${role.name}:${target}:config-model-resolution:${modelDrift.model}`,
+        `D4:${role.name}:${target}:model-precedence:${modelDrift.model}`,
       ]);
 
       const evolvedRole: AgentSemanticRoleContract = {
@@ -2950,7 +3045,7 @@ describe("existing skills render cleanly", () => {
           evolvedSource,
           target,
           evolvedParsed,
-          expectedModel,
+          config.capabilityProfiles,
         ),
       ).toEqual([]);
       expect(
@@ -2978,7 +3073,7 @@ describe("existing skills render cleanly", () => {
           source,
           target,
           parsed,
-          expectedModel,
+          config.capabilityProfiles,
         ),
       ).toEqual([
         `${role.name}:source-authority`,
@@ -2998,7 +3093,7 @@ describe("existing skills render cleanly", () => {
           source,
           target,
           sourceAuthorityOpposition,
-          expectedModel,
+          config.capabilityProfiles,
         ),
       ).toEqual([
         `D4:${role.name}:${target}:render-projection:source_authority`,
@@ -3017,7 +3112,7 @@ describe("existing skills render cleanly", () => {
           source,
           target,
           defaultNetworkOpposition,
-          expectedModel,
+          config.capabilityProfiles,
         ),
       ).toEqual([
         `D4:${role.name}:${target}:render-projection:default_network`,
@@ -3163,7 +3258,7 @@ describe("existing skills render cleanly", () => {
             evolvedSource,
             target,
             parsed,
-            config.capabilityProfiles[evolvedRole.capability][target],
+            config.capabilityProfiles,
           ),
         ).toEqual([]);
         expect(parsed.description).toBe(evolvedSource.description);
