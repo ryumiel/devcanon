@@ -140,6 +140,13 @@ dispatch selects exactly one resolved route, and any unresolved route or
 declaration state blocks before spawn. Under the B3 routing boundary, a
 source-immutable D4 selection is response-only.
 
+D4 contract verification is bounded to the canonical repository-authored
+policy, producer, routing-spec, and rendered forms. It does not establish a
+general Markdown grammar, and test-local scanners are not required to recognize
+arbitrary CommonMark-equivalent representations. The repository-wide
+[Markdown contract-testing boundary](../guidelines/documentation-standard.md#55-markdown-contract-testing-boundary)
+governs review and acceptance.
+
 Task-specific prompts, schemas, network authorization, failure fallbacks, skip
 criteria, retry loops, and termination remain owned by the source skill. A
 shared role provides stable work identity and target-native constraints, not

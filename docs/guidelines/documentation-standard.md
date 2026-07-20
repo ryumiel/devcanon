@@ -277,7 +277,39 @@ When creating or substantially changing a durable doc:
 Use [documentation-checklists.md](documentation-checklists.md) for the quick
 review checklist and gardening checklist.
 
-### 5.5 Mechanical validation
+### 5.5 Markdown contract-testing boundary
+
+Markdown is the storage and presentation format for repository-owned
+documentation. It is not implicitly a product grammar or parsing API.
+
+Contract tests must validate the semantic requirements of canonical repository
+artifacts and only the syntax forms explicitly supported by a durable
+specification. Another valid CommonMark representation does not create an
+implicit compatibility requirement. Tests must not become general Markdown or
+CommonMark conformance suites, and acceptance does not require parser
+completeness, exhaustive syntax permutations, or mutation coverage of
+unsupported Markdown forms.
+
+Do not introduce a shared Markdown parser, structured intermediate
+representation, or scanner-consolidation project solely to support tests.
+Production Markdown parsing requires an independently approved product
+requirement and a defined supported grammar. This boundary does not prohibit
+parsing when production behavior genuinely owns that requirement.
+
+A review finding based only on a hypothetical or unsupported Markdown
+construction is nonblocking unless it:
+
+- reproduces a failure in a canonical repository artifact;
+- violates an explicitly documented supported syntax form; or
+- exposes incorrect externally observable production behavior.
+
+Contract tests should use stable bounded anchors, fail-loud fixture insertion,
+semantic assertions, and exact diagnostic assertions when diagnostics are part
+of the contract. When a canonical document's structure changes, update its
+bounded contract tests directly rather than expanding them into a generic
+Markdown parser.
+
+### 5.6 Mechanical validation
 
 Repositories should add automated checks where practical:
 
@@ -285,7 +317,7 @@ Repositories should add automated checks where practical:
 - markdown formatting (`pnpm run format:markdown:check`)
 - pre-commit hooks enforce formatting and linting on staged files
 
-### 5.6 Ongoing gardening
+### 5.7 Ongoing gardening
 
 After adoption, documentation should be maintained through continuous small
 maintenance in normal feature and refactor PRs:
