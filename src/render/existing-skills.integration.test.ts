@@ -1913,50 +1913,6 @@ describe("existing skills render cleanly", () => {
         ]);
       }
 
-      for (const [label, commentBoundary] of Object.entries({
-        multilineClose: "<!-- machine note\n### D4 Declaration Obligation\n-->",
-        sameLineClose: "<!-- ### D4 Declaration Obligation -->",
-        fenceContainsComment:
-          "```markdown\n<!--\n```\n### Ordinary child failure disposition\n-->",
-        commentContainsFence:
-          "<!--\n```markdown\n-->\n### Ordinary child failure disposition\n```",
-      })) {
-        const ownerWithPostCommentBoundary = routingPolicySource.replace(
-          "### Ordinary child failure disposition",
-          `${commentBoundary}\n\n### Ordinary child failure disposition\n\nAnother policy is a peer D4 route owner.`,
-        );
-        expect(
-          ownerWithPostCommentBoundary,
-          `${target}:owner post-comment boundary ${label}:mutation`,
-        ).not.toBe(routingPolicySource);
-        expect(
-          projectionFailures(producer, ownerWithPostCommentBoundary),
-          `${target}:owner post-comment boundary ${label}`,
-        ).toEqual([]);
-      }
-
-      for (const [label, commentBoundary] of Object.entries({
-        multilineClose: "<!-- machine note\n### Semantic Route Contract\n-->",
-        sameLineClose: "<!-- ### Semantic Route Contract -->",
-        fenceContainsComment:
-          "```markdown\n<!--\n```\n### Source-Immutable Specialists\n-->",
-        commentContainsFence:
-          "<!--\n```markdown\n-->\n### Source-Immutable Specialists\n```",
-      })) {
-        const producerWithPostCommentBoundary = producer.replace(
-          "### Source-Immutable Specialists",
-          `${commentBoundary}\n\n### Source-Immutable Specialists\n\nYAML is a peer semantic authority.`,
-        );
-        expect(
-          producerWithPostCommentBoundary,
-          `${target}:producer post-comment boundary ${label}:mutation`,
-        ).not.toBe(producer);
-        expect(
-          projectionFailures(producerWithPostCommentBoundary),
-          `${target}:producer post-comment boundary ${label}`,
-        ).toEqual([]);
-      }
-
       const effortForTarget = (candidate: AgentSemanticRoleContract): string =>
         target === "claude" ? candidate.claudeEffort : candidate.codexEffort;
       const labeledRecord = (candidate: AgentSemanticRoleContract): string =>

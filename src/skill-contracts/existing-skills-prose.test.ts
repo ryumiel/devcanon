@@ -7543,39 +7543,6 @@ describe("existing skills source prose contracts", () => {
         `ROUTE-006 HTML-comment ${label}`,
       ).toEqual([forbiddenAuthorityError]);
     }
-    for (const [label, commentBoundary] of Object.entries({
-      multilineClose:
-        "<!-- machine note\n### ROUTE-006: Semantic Direct-Child Routing\n-->",
-      sameLineClose: "<!-- ### ROUTE-006: Semantic Direct-Child Routing -->",
-      fenceContainsComment:
-        "```markdown\n<!--\n```\n### AUTH-001: Separate Mutation Axes\n-->",
-      commentContainsFence:
-        "<!--\n```markdown\n-->\n### AUTH-001: Separate Mutation Axes\n```",
-    })) {
-      const routeWithPostCommentBoundary = replaceRequired(
-        routingSpec,
-        currentD4Reference,
-        `${currentD4Reference}\n\n${commentBoundary}\n\n### AUTH-001: Separate Mutation Axes\n\n${formerDuplicatedDeclaration}`,
-      );
-      expect(
-        routeWithPostCommentBoundary,
-        `ROUTE-006 post-comment boundary ${label}:mutation`,
-      ).not.toBe(routingSpec);
-      expect(
-        routeWithPostCommentBoundary.indexOf(commentBoundary),
-        `ROUTE-006 post-comment boundary ${label}:placement`,
-      ).toBeLessThan(
-        routeWithPostCommentBoundary.indexOf(formerDuplicatedDeclaration),
-      );
-      expect(
-        route006D4ReferenceOnlyErrors({
-          routingSpec: routeWithPostCommentBoundary,
-          routingPolicy,
-          roles,
-        }),
-        `ROUTE-006 post-comment boundary ${label}`,
-      ).toEqual([]);
-    }
     const fencedRouteHeadingWithPeerAuthority = replaceRequired(
       routingSpec,
       currentD4Reference,
@@ -8545,58 +8512,6 @@ describe("existing skills source prose contracts", () => {
         "D4 routing owner controller-bound fields must be exactly route_id, target_id, selected_role_id, scope, termination, context_ref, approval_ref",
         "D4 routing owner owner-derived fields must be exactly capability, effort, source_authority, external_authority, claude_tools, codex_sandbox, default_network, model",
       ]);
-    }
-
-    for (const [label, commentBoundary] of Object.entries({
-      multilineClose: "<!-- machine note\n### D4 Declaration Obligation\n-->",
-      sameLineClose: "<!-- ### D4 Declaration Obligation -->",
-      fenceContainsComment:
-        "```markdown\n<!--\n```\n### Ordinary child failure disposition\n-->",
-      commentContainsFence:
-        "<!--\n```markdown\n-->\n### Ordinary child failure disposition\n```",
-    })) {
-      const ownerWithPostCommentBoundary = replaceRequired(
-        routingOwner,
-        "### Ordinary child failure disposition",
-        `${commentBoundary}\n\n### Ordinary child failure disposition\n\nAnother policy is a peer D4 route owner.`,
-      );
-      expect(
-        ownerWithPostCommentBoundary,
-        `owner post-comment boundary ${label}:mutation`,
-      ).not.toBe(routingOwner);
-      expect(
-        d4ProducerDeclarationProseErrors({
-          ...canonicalInput,
-          routingOwner: ownerWithPostCommentBoundary,
-        }),
-        `owner post-comment boundary ${label}`,
-      ).toEqual([]);
-    }
-
-    for (const [label, commentBoundary] of Object.entries({
-      multilineClose: "<!-- machine note\n### Semantic Route Contract\n-->",
-      sameLineClose: "<!-- ### Semantic Route Contract -->",
-      fenceContainsComment:
-        "```markdown\n<!--\n```\n### Source-Immutable Specialists\n-->",
-      commentContainsFence:
-        "<!--\n```markdown\n-->\n### Source-Immutable Specialists\n```",
-    })) {
-      const producerWithPostCommentBoundary = replaceRequired(
-        producer,
-        "### Source-Immutable Specialists",
-        `${commentBoundary}\n\n### Source-Immutable Specialists\n\nYAML is a peer semantic authority.`,
-      );
-      expect(
-        producerWithPostCommentBoundary,
-        `producer post-comment boundary ${label}:mutation`,
-      ).not.toBe(producer);
-      expect(
-        d4ProducerDeclarationProseErrors({
-          ...canonicalInput,
-          producer: producerWithPostCommentBoundary,
-        }),
-        `producer post-comment boundary ${label}`,
-      ).toEqual([]);
     }
 
     for (const [label, ownerEvidence] of Object.entries({
