@@ -115,6 +115,7 @@ function commonMarkHeadingsOutsideFences(
 ): Array<{ index: number; level: number; title: string }> {
   const headings: Array<{ index: number; level: number; title: string }> = [];
   let fence: { marker: "`" | "~"; length: number } | undefined;
+  let htmlComment = false;
   for (const [index, line] of lines.entries()) {
     if (fence !== undefined) {
       const closer = /^ {0,3}(`+|~+)[ \t]*$/u.exec(line)?.[1];
@@ -125,6 +126,14 @@ function commonMarkHeadingsOutsideFences(
       ) {
         fence = undefined;
       }
+      continue;
+    }
+    if (htmlComment) {
+      if (line.includes("-->")) htmlComment = false;
+      continue;
+    }
+    if (/^ {0,3}<!--/u.test(line)) {
+      htmlComment = !line.includes("-->");
       continue;
     }
     const opener = commonMarkFenceOpener(line);
@@ -7501,6 +7510,39 @@ describe("existing skills source prose contracts", () => {
 
     const forbiddenAuthorityError =
       "ROUTE-006 must not copy D4 role, declaration-field, producer, or peer-authority ownership";
+    for (const [label, hiddenHeading] of Object.entries({
+      duplicateCanonical:
+        "<!-- machine note\n### ROUTE-006: Semantic Direct-Child Routing\n-->",
+      sameLevelSibling:
+        " <!-- machine note\n### AUTH-001: Separate Mutation Axes\n-->",
+      higherLevelSibling: "   <!-- machine note\n## Hidden route boundary\n-->",
+    })) {
+      const routeWithCommentHiddenHeading = replaceRequired(
+        routingSpec,
+        currentD4Reference,
+        `${currentD4Reference}\n\n${hiddenHeading}\n\n${formerDuplicatedDeclaration}`,
+      );
+      expect(
+        routeWithCommentHiddenHeading,
+        `ROUTE-006 HTML-comment ${label}:mutation`,
+      ).not.toBe(routingSpec);
+      expect(
+        routeWithCommentHiddenHeading.indexOf(hiddenHeading),
+        `ROUTE-006 HTML-comment ${label}:bounded-placement`,
+      ).toBeLessThan(
+        routeWithCommentHiddenHeading.indexOf(
+          "### AUTH-001: Separate Mutation Axes",
+        ),
+      );
+      expect(
+        route006D4ReferenceOnlyErrors({
+          routingSpec: routeWithCommentHiddenHeading,
+          routingPolicy,
+          roles,
+        }),
+        `ROUTE-006 HTML-comment ${label}`,
+      ).toEqual([forbiddenAuthorityError]);
+    }
     const fencedRouteHeadingWithPeerAuthority = replaceRequired(
       routingSpec,
       currentD4Reference,
@@ -8366,6 +8408,111 @@ describe("existing skills source prose contracts", () => {
     const copiedRegistryError =
       "play-agent-dispatch producer declaration must not copy the complete semantic role registry";
     expect(d4ProducerDeclarationProseErrors(canonicalInput)).toEqual([]);
+
+    const ownerHeadingCommentMutations = {
+      duplicateCanonical:
+        "<!-- machine note\n### D4 Declaration Obligation\n-->",
+      sameLevelSibling: " <!-- machine note\n### Peer Route Registry\n-->",
+      higherLevelSibling: "  <!-- machine note\n## Peer Route Registry\n-->",
+      threeSpaceMultilineClose:
+        "   <!-- machine note\n### Peer Route Registry\ncontinued note\n-->",
+      fenceInsideComment:
+        "<!-- machine note\n```markdown\n### Peer Route Registry\n-->",
+    };
+    for (const [label, hiddenHeading] of Object.entries(
+      ownerHeadingCommentMutations,
+    )) {
+      const routingOwnerWithHiddenHeading = replaceRequired(
+        routingOwner,
+        "This policy is the sole D4 route owner",
+        `This policy is the sole D4 route owner.\n\n${hiddenHeading}\n\nAnother policy is a peer D4 route owner.`,
+      );
+      expect(
+        routingOwnerWithHiddenHeading,
+        `owner HTML-comment ${label}:mutation`,
+      ).not.toBe(routingOwner);
+      expect(
+        d4ProducerDeclarationProseErrors({
+          ...canonicalInput,
+          routingOwner: routingOwnerWithHiddenHeading,
+        }),
+        `owner HTML-comment ${label}`,
+      ).toEqual(["D4 routing owner must be the sole D4 route owner"]);
+    }
+
+    const producerHeadingCommentMutations = {
+      duplicateCanonical: "<!-- machine note\n### Semantic Route Contract\n-->",
+      sameLevelSibling:
+        " <!-- machine note\n### Source-Immutable Specialists\n-->",
+      higherLevelSibling:
+        "   <!-- machine note\n## Hidden producer boundary\n-->",
+    };
+    for (const [label, hiddenHeading] of Object.entries(
+      producerHeadingCommentMutations,
+    )) {
+      const producerWithHiddenHeading = replaceRequired(
+        producer,
+        "### Source-Immutable Specialists",
+        `${hiddenHeading}\n\nYAML is a peer semantic authority.\n\n### Source-Immutable Specialists`,
+      );
+      expect(
+        producerWithHiddenHeading,
+        `producer HTML-comment ${label}:mutation`,
+      ).not.toBe(producer);
+      expect(
+        d4ProducerDeclarationProseErrors({
+          ...canonicalInput,
+          producer: producerWithHiddenHeading,
+        }),
+        `producer HTML-comment ${label}`,
+      ).toEqual([
+        "play-agent-dispatch producer must not contradict the policy-owned YAML authority partition",
+      ]);
+    }
+
+    const ownerFenceContainingCommentOpener = replaceRequired(
+      routingOwner,
+      "This policy is the sole D4 route owner",
+      "This policy is the sole D4 route owner.\n\n```markdown\n<!--\n### D4 Declaration Obligation\n-->\n```\n\nAnother policy is a peer D4 route owner.",
+    );
+    expect(ownerFenceContainingCommentOpener).not.toBe(routingOwner);
+    expect(
+      d4ProducerDeclarationProseErrors({
+        ...canonicalInput,
+        routingOwner: ownerFenceContainingCommentOpener,
+      }),
+    ).toEqual(["D4 routing owner must be the sole D4 route owner"]);
+
+    for (const [label, impostor] of Object.entries({
+      fourSpace: "    <!--\n### Peer Route Registry\n-->",
+      tabIndented: "\t<!--\n### Peer Route Registry\n-->",
+      nearMatch: "<! --\n### Peer Route Registry\n-->",
+    })) {
+      const ownerWithLiveHeadingImpostor = replaceRequired(
+        routingOwner,
+        "This policy is the sole D4 route owner",
+        `This policy is the sole D4 route owner.\n\n${impostor}\n\nAnother policy is a peer D4 route owner.`,
+      );
+      expect(
+        ownerWithLiveHeadingImpostor,
+        `owner HTML-comment impostor ${label}:mutation`,
+      ).not.toBe(routingOwner);
+      expect(
+        d4ProducerDeclarationProseErrors({
+          ...canonicalInput,
+          routingOwner: ownerWithLiveHeadingImpostor,
+        }),
+        `owner HTML-comment impostor ${label}`,
+      ).toEqual([
+        "D4 routing owner must bind play-agent-dispatch as a consumer without peer route or role registry authority",
+        "D4 routing owner declaration obligation must require one complete pre-spawn declaration",
+        "D4 routing owner must preserve the exact agent-spec/config/YAML/planner authority partition",
+        "D4 routing owner producer path must be skills/play-agent-dispatch/SKILL.md",
+        "D4 routing owner must block missing or mismatched values before spawn",
+        "D4 routing owner controller-bound fields must be exactly route_id, target_id, selected_role_id, scope, termination, context_ref, approval_ref",
+        "D4 routing owner owner-derived fields must be exactly capability, effort, source_authority, external_authority, claude_tools, codex_sandbox, default_network, model",
+      ]);
+    }
 
     for (const [label, ownerEvidence] of Object.entries({
       singleLineComment:

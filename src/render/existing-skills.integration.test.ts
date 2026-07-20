@@ -685,6 +685,7 @@ function commonMarkHeadingsOutsideFences(
 ): Array<{ index: number; level: number; title: string }> {
   const headings: Array<{ index: number; level: number; title: string }> = [];
   let fence: { marker: "`" | "~"; length: number } | undefined;
+  let htmlComment = false;
   for (const [index, line] of lines.entries()) {
     if (fence !== undefined) {
       const closer = /^ {0,3}(`+|~+)[ \t]*$/u.exec(line)?.[1];
@@ -695,6 +696,14 @@ function commonMarkHeadingsOutsideFences(
       ) {
         fence = undefined;
       }
+      continue;
+    }
+    if (htmlComment) {
+      if (line.includes("-->")) htmlComment = false;
+      continue;
+    }
+    if (/^ {0,3}<!--/u.test(line)) {
+      htmlComment = !line.includes("-->");
       continue;
     }
     const opener = commonMarkFenceOpener(line);
@@ -1821,6 +1830,88 @@ describe("existing skills render cleanly", () => {
           policySource,
         );
       expect(projectionFailures(producer)).toEqual([]);
+
+      for (const [label, hiddenHeading] of Object.entries({
+        duplicateCanonical:
+          "<!-- machine note\n### D4 Declaration Obligation\n-->",
+        sameLevelSibling: " <!-- machine note\n### Peer Route Registry\n-->",
+        higherLevelSibling: "  <!-- machine note\n## Peer Route Registry\n-->",
+        threeSpaceMultilineClose:
+          "   <!-- machine note\n### Peer Route Registry\ncontinued note\n-->",
+        fenceInsideComment:
+          "<!-- machine note\n```markdown\n### Peer Route Registry\n-->",
+      })) {
+        const ownerWithCommentHiddenHeading = routingPolicySource.replace(
+          "This policy is the sole D4 route owner",
+          `This policy is the sole D4 route owner.\n\n${hiddenHeading}\n\nAnother policy is a peer D4 route owner.`,
+        );
+        expect(
+          ownerWithCommentHiddenHeading,
+          `${target}:owner HTML-comment ${label}:mutation`,
+        ).not.toBe(routingPolicySource);
+        expect(
+          projectionFailures(producer, ownerWithCommentHiddenHeading),
+          `${target}:owner HTML-comment ${label}`,
+        ).toEqual(["D4:owner:sole-route-owner"]);
+      }
+
+      for (const [label, hiddenHeading] of Object.entries({
+        duplicateCanonical:
+          "<!-- machine note\n### Semantic Route Contract\n-->",
+        sameLevelSibling:
+          " <!-- machine note\n### Source-Immutable Specialists\n-->",
+        higherLevelSibling:
+          "   <!-- machine note\n## Hidden producer boundary\n-->",
+      })) {
+        const producerWithCommentHiddenHeading = producer.replace(
+          "### Source-Immutable Specialists",
+          `${hiddenHeading}\n\nYAML is a peer semantic authority.\n\n### Source-Immutable Specialists`,
+        );
+        expect(
+          producerWithCommentHiddenHeading,
+          `${target}:producer HTML-comment ${label}:mutation`,
+        ).not.toBe(producer);
+        expect(
+          projectionFailures(producerWithCommentHiddenHeading),
+          `${target}:producer HTML-comment ${label}`,
+        ).toEqual(["D4:partition:yaml-contradiction"]);
+      }
+
+      const ownerFenceContainingCommentOpener = routingPolicySource.replace(
+        "This policy is the sole D4 route owner",
+        "This policy is the sole D4 route owner.\n\n```markdown\n<!--\n### D4 Declaration Obligation\n-->\n```\n\nAnother policy is a peer D4 route owner.",
+      );
+      expect(ownerFenceContainingCommentOpener).not.toBe(routingPolicySource);
+      expect(
+        projectionFailures(producer, ownerFenceContainingCommentOpener),
+      ).toEqual(["D4:owner:sole-route-owner"]);
+
+      for (const [label, impostor] of Object.entries({
+        fourSpace: "    <!--\n### Peer Route Registry\n-->",
+        tabIndented: "\t<!--\n### Peer Route Registry\n-->",
+        nearMatch: "<! --\n### Peer Route Registry\n-->",
+      })) {
+        const ownerWithLiveHeadingImpostor = routingPolicySource.replace(
+          "This policy is the sole D4 route owner",
+          `This policy is the sole D4 route owner.\n\n${impostor}\n\nAnother policy is a peer D4 route owner.`,
+        );
+        expect(
+          ownerWithLiveHeadingImpostor,
+          `${target}:owner HTML-comment impostor ${label}:mutation`,
+        ).not.toBe(routingPolicySource);
+        expect(
+          projectionFailures(producer, ownerWithLiveHeadingImpostor),
+          `${target}:owner HTML-comment impostor ${label}`,
+        ).toEqual([
+          "D4:owner:producer-consumer-boundary",
+          "D4:owner:controller-field-set",
+          "D4:owner:owner-field-set",
+          "D4:owner:agent-spec",
+          "D4:owner:config",
+          "D4:owner:yaml-conformance",
+          "D4:owner:planner-classification",
+        ]);
+      }
 
       const effortForTarget = (candidate: AgentSemanticRoleContract): string =>
         target === "claude" ? candidate.claudeEffort : candidate.codexEffort;
