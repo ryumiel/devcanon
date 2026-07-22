@@ -9,6 +9,7 @@ interface SyncCommandOptions {
   mode?: string;
   dryRun?: boolean;
   force?: boolean;
+  reconcileManifest?: boolean;
 }
 
 export async function syncAction(
@@ -39,6 +40,7 @@ export async function syncAction(
     dryRun: options.dryRun ?? false,
     force: options.force ?? false,
     strict,
+    reconcileManifest: options.reconcileManifest ?? false,
   };
 
   const result = await sync(config, syncOptions);
@@ -47,6 +49,11 @@ export async function syncAction(
     logger.info(
       `\nSync complete: ${result.installed} installed, ${result.updated} updated, ${result.removed} removed, ${result.skipped} skipped, ${result.conflicts} conflicts`,
     );
+    if (result.reconciliation) {
+      logger.info(
+        `Manifest reconciliation: ${result.reconciliation.retained.length} retained, ${result.reconciliation.removed.length} removed.`,
+      );
+    }
 
     if (result.errors.length > 0) {
       for (const err of result.errors) {

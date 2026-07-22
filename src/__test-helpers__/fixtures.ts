@@ -10,7 +10,7 @@ import {
 import os from "node:os";
 import path from "node:path";
 import { stringify as yamlStringify } from "yaml";
-import type { ResolvedConfig } from "../config/schema.js";
+import type { ManifestBoundary, ResolvedConfig } from "../config/schema.js";
 import type { LoadedAgent } from "../models/types.js";
 
 type CodexSource = NonNullable<LoadedAgent["source"]["codex"]>;
@@ -193,19 +193,73 @@ export function makeResolvedConfig(
   };
 }
 
+const DEFAULT_MANIFEST_BOUNDARY: ManifestBoundary = {
+  claudeSkillsHome: "/home/claude/skills",
+  claudeAgentsHome: "/home/claude/agents",
+  codexSkillsHome: "/home/codex/skills",
+  codexAgentsHome: "/home/codex/agents",
+};
+
+export interface ManifestFixtureOptions {
+  /** Omit identity fields only when a test specifically exercises v1 input. */
+  legacy?: boolean;
+  boundary?: ManifestBoundary;
+  config?: ResolvedConfig;
+}
+
 export function makeManifestJson(
   records: Array<Record<string, unknown>> = [],
+  options: ManifestFixtureOptions = {},
 ): string {
   return JSON.stringify(
     {
       version: 1,
       managedBy: "devcanon",
       lastSync: new Date().toISOString(),
-      records,
+      ...(options.legacy
+        ? {}
+        : {
+            boundary:
+              options.boundary ??
+              (options.config
+                ? manifestBoundaryForConfig(options.config)
+                : DEFAULT_MANIFEST_BOUNDARY),
+          }),
+      records: options.legacy ? records : records.map(withFixtureRecordName),
     },
     null,
     2,
   );
+}
+
+function manifestBoundaryForConfig(config: ResolvedConfig): ManifestBoundary {
+  return {
+    claudeSkillsHome: path.resolve(config.targets.claude.skillsHome),
+    claudeAgentsHome: path.resolve(config.targets.claude.agentsHome),
+    codexSkillsHome: path.resolve(config.targets.codex.skillsHome),
+    codexAgentsHome: path.resolve(config.targets.codex.agentsHome),
+  };
+}
+
+function withFixtureRecordName(record: Record<string, unknown>) {
+  if (typeof record.name === "string") return record;
+  const target = record.target;
+  const type = record.type;
+  const installedPath = record.installedPath;
+  if (
+    (target !== "claude" && target !== "codex") ||
+    (type !== "skill" && type !== "agent") ||
+    typeof installedPath !== "string"
+  ) {
+    return record;
+  }
+  const basename = path.basename(installedPath);
+  const suffix = target === "claude" ? ".md" : ".toml";
+  const name =
+    type === "agent" && basename.endsWith(suffix)
+      ? basename.slice(0, -suffix.length)
+      : basename;
+  return { ...record, ...(name ? { name } : {}) };
 }
 
 let _symlinkSupport: boolean | null = null;

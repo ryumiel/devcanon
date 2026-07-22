@@ -1,10 +1,14 @@
 import { realpath } from "node:fs/promises";
-import path from "node:path";
 import { createTwoFilesPatch } from "diff";
 import type { ResolvedConfig } from "../config/schema.js";
-import { loadManifest } from "../install/manifest.js";
+import {
+  ManifestIdentityError,
+  normalizeManifestIdentity,
+} from "../install/manifest-identity.js";
+import { loadManifestWithSnapshot } from "../install/manifest.js";
 import type { DiffResult } from "../models/types.js";
 import { renderAll } from "../render/pipeline.js";
+import { UserError } from "../utils/errors.js";
 import { pathExists, readTextFile } from "../utils/fs.js";
 
 export async function diffAll(
@@ -12,13 +16,48 @@ export async function diffAll(
   targetFilter?: "claude" | "codex",
   strict = false,
 ): Promise<DiffResult[]> {
+  const loaded = await loadManifestWithSnapshot(config.manifest.path);
+  let normalized: ReturnType<typeof normalizeManifestIdentity>;
+  try {
+    normalized = normalizeManifestIdentity(loaded.manifest, config);
+  } catch (error) {
+    if (!(error instanceof ManifestIdentityError)) throw error;
+    const message = (error as Error).message;
+    if (!message.startsWith("Manifest boundary mismatch")) {
+      throw new UserError(
+        `Manifest identity is invalid: ${message}`,
+        config.manifest.path,
+      );
+    }
+    throw new UserError(
+      `Manifest boundary does not match the configured homes: ${message}`,
+      config.manifest.path,
+      "Use the manifest with its original configured homes; boundary mismatches cannot be reconciled.",
+    );
+  }
+  if (normalized.records.some((record) => record.ownership === "foreign")) {
+    if (!loaded.manifest.boundary) {
+      throw new UserError(
+        "Legacy manifest contains foreign records; rerun sync with --reconcile-manifest.",
+        config.manifest.path,
+        "Run sync --reconcile-manifest to safely reconcile the legacy manifest.",
+      );
+    }
+    throw new UserError(
+      "Bound manifest contains foreign records; automatic reconciliation is forbidden.",
+      config.manifest.path,
+      "Restore matching configured homes or repair the manifest from a verified backup.",
+    );
+  }
+  const manifest = normalized.manifest;
   const { outputs } = await renderAll(config, false, strict, targetFilter);
-  const manifest = await loadManifest(config.manifest.path);
   const results: DiffResult[] = [];
 
   for (const output of outputs) {
     if (output.type === "agent") {
-      results.push(await diffAgentFile(output.content, output));
+      results.push(
+        await diffAgentFile(output.content, output, manifest.records),
+      );
     } else if (output.type === "skill") {
       // For skills, just check if installed and hash matches
       const exists = await pathExists(output.installedPath);
@@ -32,8 +71,8 @@ export async function diffAll(
           diff: null,
         });
       } else {
-        const record = manifest.records.find(
-          (r) => r.installedPath === output.installedPath,
+        const record = manifest.records.find((candidate) =>
+          recordMatchesOutput(candidate, output),
         );
         if (record && record.contentHash === output.contentHash) {
           results.push({
@@ -68,16 +107,16 @@ export async function diffAll(
   }
 
   // Check for removed outputs
-  const currentPaths = new Set(outputs.map((o) => o.installedPath));
+  const currentPaths = new Set(outputs.map(outputKey));
   for (const record of manifest.records) {
-    if (!currentPaths.has(record.installedPath)) {
+    if (!currentPaths.has(recordKey(record))) {
       const filterMatch = !targetFilter || record.target === targetFilter;
       if (filterMatch) {
         results.push({
           status: "removed",
           target: record.target,
           type: record.type,
-          name: path.basename(record.installedPath),
+          name: recordName(record),
           installedPath: record.installedPath,
           diff: null,
         });
@@ -88,14 +127,86 @@ export async function diffAll(
   return results;
 }
 
+function recordMatchesOutput(
+  record: {
+    target: string;
+    type: string;
+    name?: string;
+    installedPath: string;
+  },
+  output: { target: string; type: string; name: string; installedPath: string },
+): boolean {
+  return (
+    record.target === output.target &&
+    record.type === output.type &&
+    record.name === output.name &&
+    record.installedPath === output.installedPath
+  );
+}
+
+function outputKey(output: {
+  target: string;
+  type: string;
+  name: string;
+  installedPath: string;
+}): string {
+  return JSON.stringify([
+    output.target,
+    output.type,
+    output.name,
+    output.installedPath,
+  ]);
+}
+
+function recordKey(record: {
+  target: string;
+  type: string;
+  name?: string;
+  installedPath: string;
+}): string {
+  return JSON.stringify([
+    record.target,
+    record.type,
+    record.name,
+    record.installedPath,
+  ]);
+}
+
+function recordName(record: { name?: string }): string {
+  if (record.name === undefined) {
+    throw new Error("Managed manifest record is missing its normalized name");
+  }
+  return record.name;
+}
+
 async function diffAgentFile(
   generatedContent: string,
   output: { target: string; type: string; name: string; installedPath: string },
+  records: Array<{
+    target: string;
+    type: string;
+    name?: string;
+    installedPath: string;
+  }>,
 ): Promise<DiffResult> {
   const exists = await pathExists(output.installedPath);
   if (!exists) {
     return {
       status: "added",
+      target: output.target as "claude" | "codex",
+      type: output.type as "skill" | "agent",
+      name: output.name,
+      installedPath: output.installedPath,
+      diff: null,
+    };
+  }
+
+  const record = records.find((candidate) =>
+    recordMatchesOutput(candidate, output),
+  );
+  if (!record) {
+    return {
+      status: "unmanaged-conflict",
       target: output.target as "claude" | "codex",
       type: output.type as "skill" | "agent",
       name: output.name,

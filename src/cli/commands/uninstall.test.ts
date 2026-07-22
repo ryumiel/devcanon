@@ -17,6 +17,12 @@ import { UserError } from "../../utils/errors.js";
 import { pathExists } from "../../utils/fs.js";
 import { uninstallAction } from "./uninstall.js";
 
+function makeLegacyManifestJson(
+  records: Parameters<typeof makeManifestJson>[0],
+): string {
+  return makeManifestJson(records, { legacy: true });
+}
+
 describe("uninstallAction", () => {
   let tempDir: string;
   let configPath: string;
@@ -104,7 +110,7 @@ describe("uninstallAction", () => {
 
     await writeFile(
       manifestPath,
-      makeManifestJson([
+      makeLegacyManifestJson([
         {
           target: "claude",
           type: "skill",
@@ -146,7 +152,7 @@ describe("uninstallAction", () => {
 
     await writeFile(
       manifestPath,
-      makeManifestJson([
+      makeLegacyManifestJson([
         {
           target: "claude",
           type: "skill",
@@ -191,7 +197,7 @@ describe("uninstallAction", () => {
 
     await writeFile(
       manifestPath,
-      makeManifestJson([
+      makeLegacyManifestJson([
         {
           target: "claude",
           type: "skill",
@@ -227,13 +233,7 @@ describe("uninstallAction", () => {
       // skill-a lives inside a chmod 0o555 parent so rm cannot unlink it;
       // this exercises the error accumulation and process.exitCode path.
       // Skipped when running as root, since chmod does not block root unlinks.
-      const lockedParent = path.join(
-        tempDir,
-        "home",
-        "claude",
-        "skills",
-        "_locked",
-      );
+      const lockedParent = path.join(tempDir, "home", "claude", "skills");
       await mkdir(lockedParent, { recursive: true });
       const installedPath = path.join(lockedParent, "skill-a");
       await mkdir(installedPath, { recursive: true });
@@ -241,7 +241,7 @@ describe("uninstallAction", () => {
 
       await writeFile(
         manifestPath,
-        makeManifestJson([
+        makeLegacyManifestJson([
           {
             target: "claude",
             type: "skill",

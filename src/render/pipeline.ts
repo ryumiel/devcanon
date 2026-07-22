@@ -29,7 +29,23 @@ export interface RenderResult<
   outputs: RenderedOutput[];
   skills: TSkills;
   agents: TAgents;
+  mutationInventory: readonly RenderMutation[];
 }
+
+export type RenderMutation =
+  | Readonly<{
+      kind: "selected-output";
+      path: string;
+      target: "claude" | "codex";
+      type: "agent" | "skill";
+      name: string;
+    }>
+  | Readonly<{
+      kind: "stale-cleanup-root";
+      path: string;
+      target: "claude" | "codex";
+      type: "agent" | "skill";
+    }>;
 
 export interface RenderLoadedOptions<
   TSkills extends readonly LoadedSkill[] = readonly LoadedSkill[],
@@ -61,7 +77,7 @@ export async function renderAll(
     validatedSkills: skills,
     writeToGenerated,
     targetFilter,
-    cleanStaleGenerated: writeToGenerated,
+    cleanStaleGenerated: true,
   });
 }
 
@@ -108,6 +124,11 @@ async function renderLoadedInternal<
   const targets = ["claude", "codex"] as const;
 
   const outputs: RenderedOutput[] = [];
+  const skillWrites: Array<{
+    skill: LoadedSkill;
+    rendered: RenderedSkill;
+    extraFiles: Map<string, string>;
+  }> = [];
 
   for (const target of targets) {
     if (!config.targets[target].enabled) continue;
@@ -132,41 +153,55 @@ async function renderLoadedInternal<
       assertRenderedOutputPath(config, rendered);
 
       outputs.push(rendered);
+      skillWrites.push({ skill, rendered, extraFiles });
+    }
+  }
 
-      if (writeToGenerated) {
-        await assertNoSymlinkPathComponents(
-          config.library.generatedDir,
+  for (const output of outputs) {
+    assertRenderedOutputPath(config, output);
+  }
+  const mutationInventory = buildMutationInventory(
+    config,
+    outputs,
+    targets,
+    targetFilter,
+    cleanStaleGenerated,
+  );
+
+  if (writeToGenerated) {
+    for (const { skill, rendered, extraFiles } of skillWrites) {
+      await assertNoSymlinkPathComponents(
+        config.library.generatedDir,
+        rendered.generatedPath,
+        `Skill "${skill.name}" generated directory`,
+      );
+      // Purge the per-skill generated dir before writing. Without this,
+      // dropping `codex_sidecar:` from a source or removing a previously
+      // mirrored subdir (e.g. scripts/) leaves stale files lingering in
+      // generated/<target>/skills/<name>/. The generated/ tree is
+      // documented as disposable, so a full rebuild per skill is fine.
+      await rm(rendered.generatedPath, { recursive: true, force: true });
+      await ensureDir(rendered.generatedPath);
+      await writeTextFile(
+        path.join(rendered.generatedPath, "SKILL.md"),
+        rendered.content,
+      );
+      for (const [filePath, fileContent] of extraFiles) {
+        assertPathInside(
           rendered.generatedPath,
-          `Skill "${skill.name}" generated directory`,
+          filePath,
+          `Skill "${skill.name}" extra generated file`,
         );
-        // Purge the per-skill generated dir before writing. Without this,
-        // dropping `codex_sidecar:` from a source or removing a previously
-        // mirrored subdir (e.g. scripts/) leaves stale files lingering in
-        // generated/<target>/skills/<name>/. The generated/ tree is
-        // documented as disposable, so a full rebuild per skill is fine.
-        await rm(rendered.generatedPath, { recursive: true, force: true });
-        await ensureDir(rendered.generatedPath);
-        await writeTextFile(
-          path.join(rendered.generatedPath, "SKILL.md"),
-          rendered.content,
+        await ensureDir(path.dirname(filePath));
+        await writeTextFile(filePath, fileContent);
+      }
+      // Mirror known subdirs
+      for (const sub of skill.subdirs) {
+        await cp(
+          path.join(skill.dirPath, sub),
+          path.join(rendered.generatedPath, sub),
+          { recursive: true, verbatimSymlinks: true },
         );
-        for (const [filePath, fileContent] of extraFiles) {
-          assertPathInside(
-            rendered.generatedPath,
-            filePath,
-            `Skill "${skill.name}" extra generated file`,
-          );
-          await ensureDir(path.dirname(filePath));
-          await writeTextFile(filePath, fileContent);
-        }
-        // Mirror known subdirs
-        for (const sub of skill.subdirs) {
-          await cp(
-            path.join(skill.dirPath, sub),
-            path.join(rendered.generatedPath, sub),
-            { recursive: true, verbatimSymlinks: true },
-          );
-        }
       }
     }
   }
@@ -174,7 +209,6 @@ async function renderLoadedInternal<
   // Write agent outputs to generated/ directory
   if (writeToGenerated) {
     for (const output of outputs) {
-      assertRenderedOutputPath(config, output);
       if (output.type === "agent") {
         await assertNoSymlinkPathComponents(
           config.library.generatedDir,
@@ -195,19 +229,15 @@ async function renderLoadedInternal<
         .map((o) => o.generatedPath),
     );
 
-    for (const target of targets) {
-      if (!config.targets[target].enabled) continue;
-      if (targetFilter && target !== targetFilter) continue;
-
-      const agentsDir = path.join(
-        config.library.generatedDir,
-        target,
-        "agents",
-      );
+    const agentCleanupRoots = mutationInventory.filter(
+      (entry) => entry.kind === "stale-cleanup-root" && entry.type === "agent",
+    );
+    for (const root of agentCleanupRoots) {
+      const agentsDir = root.path;
       await assertNoSymlinkPathComponents(
         config.library.generatedDir,
         agentsDir,
-        `Generated agents directory for "${target}"`,
+        `Generated agents directory for "${root.target}"`,
       );
       let entries: string[];
       try {
@@ -235,19 +265,15 @@ async function renderLoadedInternal<
         .map((o) => o.generatedPath),
     );
 
-    for (const target of targets) {
-      if (!config.targets[target].enabled) continue;
-      if (targetFilter && target !== targetFilter) continue;
-
-      const skillsGeneratedDir = path.join(
-        config.library.generatedDir,
-        target,
-        "skills",
-      );
+    const skillCleanupRoots = mutationInventory.filter(
+      (entry) => entry.kind === "stale-cleanup-root" && entry.type === "skill",
+    );
+    for (const root of skillCleanupRoots) {
+      const skillsGeneratedDir = root.path;
       await assertNoSymlinkPathComponents(
         config.library.generatedDir,
         skillsGeneratedDir,
-        `Generated skills directory for "${target}"`,
+        `Generated skills directory for "${root.target}"`,
       );
       let skillEntries: string[];
       try {
@@ -269,7 +295,70 @@ async function renderLoadedInternal<
     }
   }
 
-  return { outputs, skills, agents };
+  return { outputs, skills, agents, mutationInventory };
+}
+
+function buildMutationInventory(
+  config: ResolvedConfig,
+  outputs: readonly RenderedOutput[],
+  targets: readonly ("claude" | "codex")[],
+  targetFilter: "claude" | "codex" | undefined,
+  includeStaleCleanupRoots: boolean,
+): readonly RenderMutation[] {
+  const outputMutations = outputs
+    .map((output) =>
+      Object.freeze({
+        kind: "selected-output" as const,
+        path: path.resolve(output.generatedPath),
+        target: output.target,
+        type: output.type,
+        name: output.name,
+      }),
+    )
+    .sort(compareSelectedOutputMutations);
+  if (!includeStaleCleanupRoots) {
+    return Object.freeze(outputMutations);
+  }
+
+  const selectedTargets = targets.filter(
+    (target) =>
+      config.targets[target].enabled &&
+      (targetFilter === undefined || targetFilter === target),
+  );
+  const cleanupRoots = (["agent", "skill"] as const).flatMap((type) =>
+    selectedTargets.map((target) =>
+      Object.freeze({
+        kind: "stale-cleanup-root" as const,
+        path: path.resolve(
+          config.library.generatedDir,
+          target,
+          type === "agent" ? "agents" : "skills",
+        ),
+        target,
+        type,
+      }),
+    ),
+  );
+
+  return Object.freeze([...outputMutations, ...cleanupRoots]);
+}
+
+function compareSelectedOutputMutations(
+  left: Extract<RenderMutation, { kind: "selected-output" }>,
+  right: Extract<RenderMutation, { kind: "selected-output" }>,
+): number {
+  const targetOrder = { claude: 0, codex: 1 } as const;
+  const typeOrder = { agent: 0, skill: 1 } as const;
+  return (
+    targetOrder[left.target] - targetOrder[right.target] ||
+    typeOrder[left.type] - typeOrder[right.type] ||
+    compareBytewise(left.name, right.name) ||
+    compareBytewise(left.path, right.path)
+  );
+}
+
+function compareBytewise(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
 }
 
 function validateLoadedInputs(

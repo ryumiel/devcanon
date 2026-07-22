@@ -397,6 +397,8 @@ export type AgentSource = z.infer<typeof AgentSourceSchema>;
 const ManagedRecordSchema = z.object({
   target: z.enum(["claude", "codex"]),
   type: z.enum(["skill", "agent"]),
+  // Absent only for manifests written before identity binding was introduced.
+  name: z.string().min(1).optional(),
   sourcePath: z.string(),
   generatedPath: z.string().nullable(),
   installedPath: z.string(),
@@ -407,12 +409,44 @@ const ManagedRecordSchema = z.object({
 
 export type ManagedRecord = z.infer<typeof ManagedRecordSchema>;
 
-export const ManifestSchema = z.object({
-  version: z.literal(1),
-  managedBy: z.literal(MANIFEST_MANAGED_BY),
-  lastSync: z.string(),
-  records: z.array(ManagedRecordSchema),
-});
+export const ManifestBoundarySchema = z
+  .object({
+    claudeSkillsHome: z.string(),
+    claudeAgentsHome: z.string(),
+    codexSkillsHome: z.string(),
+    codexAgentsHome: z.string(),
+  })
+  .strict();
+
+export type ManifestBoundary = z.infer<typeof ManifestBoundarySchema>;
+
+export const ManifestSchema = z
+  .object({
+    version: z.literal(1),
+    managedBy: z.literal(MANIFEST_MANAGED_BY),
+    lastSync: z.string(),
+    // Optional keeps valid v1 manifests backward-readable.
+    boundary: ManifestBoundarySchema.optional(),
+    records: z.array(ManagedRecordSchema),
+  })
+  .superRefine((manifest, ctx) => {
+    for (const [index, record] of manifest.records.entries()) {
+      if (manifest.boundary && record.name === undefined) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["records", index, "name"],
+          message: "bound manifests require every record to have a name",
+        });
+      }
+      if (!manifest.boundary && record.name !== undefined) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["records", index, "name"],
+          message: "legacy manifests must not include record names",
+        });
+      }
+    }
+  });
 
 export type Manifest = z.infer<typeof ManifestSchema>;
 

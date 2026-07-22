@@ -32,7 +32,17 @@ function makeManifest(records: Manifest["records"] = []): Manifest {
     version: 1,
     managedBy: "devcanon",
     lastSync: new Date().toISOString(),
-    records,
+    records: records.map((record) => {
+      const basename = record.installedPath.split("/").at(-1) ?? "";
+      return {
+        ...record,
+        name:
+          record.name ??
+          (record.type === "agent"
+            ? basename.replace(record.target === "claude" ? ".md" : ".toml", "")
+            : basename),
+      };
+    }),
   };
 }
 
@@ -193,6 +203,7 @@ describe("computePlan", () => {
 
     const currentOutput = makeOutput({
       installedPath: "/installed/current.md",
+      name: "current",
     });
     const manifest = makeManifest([
       {
@@ -231,6 +242,33 @@ describe("computePlan", () => {
     expect(removeActions[0].reason).toContain("cleaning up");
   });
 
+  it("outputs remove-missing for a stale record whose output is already absent", async () => {
+    mockedPathOrSymlinkExists.mockResolvedValue(false);
+    const manifest = makeManifest([
+      {
+        target: "claude",
+        type: "agent",
+        sourcePath: "/src/agents/stale.yaml",
+        generatedPath: null,
+        installedPath: "/installed/stale.md",
+        installMode: "symlink",
+        contentHash: "stale-hash",
+        timestamp: new Date().toISOString(),
+      },
+    ]);
+
+    const actions = await computePlan(
+      [],
+      manifest,
+      "overwrite-managed",
+      false,
+      true,
+    );
+
+    expect(actions).toHaveLength(1);
+    expect(actions[0].kind).toBe("remove-missing");
+  });
+
   it("does not remove other target's records when targetFilter is set", async () => {
     mockedPathExists.mockResolvedValue(true);
     mockedPathOrSymlinkExists.mockResolvedValue(true);
@@ -239,6 +277,7 @@ describe("computePlan", () => {
       target: "claude",
       installedPath: "/installed/claude-agent.md",
       contentHash: "claude-hash",
+      name: "claude-agent",
     });
     const manifest = makeManifest([
       {
@@ -282,6 +321,7 @@ describe("computePlan", () => {
 
     const currentOutput = makeOutput({
       installedPath: "/installed/current.md",
+      name: "current",
     });
     const manifest = makeManifest([
       {
@@ -329,6 +369,7 @@ describe("computePlan", () => {
 
     const currentOutput = makeOutput({
       installedPath: "/installed/current.md",
+      name: "current",
     });
     const manifest = makeManifest([
       {
@@ -364,5 +405,45 @@ describe("computePlan", () => {
     const removeActions = actions.filter((a) => a.kind === "remove");
     expect(removeActions).toHaveLength(1);
     expect(removeActions[0].installedPath).toBe("/installed/stale-skill");
+  });
+
+  it("matches a shared installed path by the full target identity", async () => {
+    mockedPathOrSymlinkExists.mockResolvedValue(true);
+    const output = makeOutput({ contentHash: "claude-hash" });
+    const manifest = makeManifest([
+      {
+        target: "codex",
+        type: "agent",
+        name: "test-agent",
+        sourcePath: "/src/agents/test-agent.yaml",
+        generatedPath: "/gen/codex/agents/test-agent.toml",
+        installedPath: output.installedPath,
+        installMode: "copy",
+        contentHash: "codex-hash",
+        timestamp: new Date().toISOString(),
+      },
+      {
+        target: "claude",
+        type: "agent",
+        name: "test-agent",
+        sourcePath: output.sourcePath,
+        generatedPath: output.generatedPath,
+        installedPath: output.installedPath,
+        installMode: "copy",
+        contentHash: "claude-hash",
+        timestamp: new Date().toISOString(),
+      },
+    ]);
+
+    const actions = await computePlan(
+      [output],
+      manifest,
+      "overwrite-managed",
+      false,
+      false,
+    );
+
+    expect(actions).toHaveLength(1);
+    expect(actions[0].kind).toBe("skip-up-to-date");
   });
 });

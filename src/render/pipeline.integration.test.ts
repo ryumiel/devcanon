@@ -195,6 +195,208 @@ describe("renderAll", () => {
     expect(result.agents).toEqual([]);
   });
 
+  it("projects selected output mutations before independent stale-cleanup roots", async () => {
+    await createSkillFixture(config.library.skillsDir, "inventory-skill");
+    await createAgentFixture(
+      config.library.agentsDir,
+      "inventory-agent",
+      makeAgentYaml("inventory-agent", { skills: ["inventory-skill"] }),
+    );
+
+    const result = await renderAll(config, false);
+
+    expect(result.mutationInventory).toEqual([
+      {
+        kind: "selected-output",
+        path: path.resolve(
+          config.library.generatedDir,
+          "claude",
+          "agents",
+          "inventory-agent.md",
+        ),
+        target: "claude",
+        type: "agent",
+        name: "inventory-agent",
+      },
+      {
+        kind: "selected-output",
+        path: path.resolve(
+          config.library.generatedDir,
+          "claude",
+          "skills",
+          "inventory-skill",
+        ),
+        target: "claude",
+        type: "skill",
+        name: "inventory-skill",
+      },
+      {
+        kind: "selected-output",
+        path: path.resolve(
+          config.library.generatedDir,
+          "codex",
+          "agents",
+          "inventory-agent.toml",
+        ),
+        target: "codex",
+        type: "agent",
+        name: "inventory-agent",
+      },
+      {
+        kind: "selected-output",
+        path: path.resolve(
+          config.library.generatedDir,
+          "codex",
+          "skills",
+          "inventory-skill",
+        ),
+        target: "codex",
+        type: "skill",
+        name: "inventory-skill",
+      },
+      {
+        kind: "stale-cleanup-root",
+        path: path.resolve(config.library.generatedDir, "claude", "agents"),
+        target: "claude",
+        type: "agent",
+      },
+      {
+        kind: "stale-cleanup-root",
+        path: path.resolve(config.library.generatedDir, "codex", "agents"),
+        target: "codex",
+        type: "agent",
+      },
+      {
+        kind: "stale-cleanup-root",
+        path: path.resolve(config.library.generatedDir, "claude", "skills"),
+        target: "claude",
+        type: "skill",
+      },
+      {
+        kind: "stale-cleanup-root",
+        path: path.resolve(config.library.generatedDir, "codex", "skills"),
+        target: "codex",
+        type: "skill",
+      },
+    ]);
+    expect(Object.isFrozen(result.mutationInventory)).toBe(true);
+    expect(result.mutationInventory.every(Object.isFrozen)).toBe(true);
+    expect(await pathExists(config.library.generatedDir)).toBe(false);
+  });
+
+  it("keeps prospective and writable mutation inventories equal to actual effects", async () => {
+    await createSkillFixture(config.library.skillsDir, "current-skill");
+    await createAgentFixture(
+      config.library.agentsDir,
+      "current-agent",
+      makeAgentYaml("current-agent", { skills: ["current-skill"] }),
+    );
+    const staleAgent = path.join(
+      config.library.generatedDir,
+      "claude",
+      "agents",
+      "stale.md",
+    );
+    const staleSkill = path.join(
+      config.library.generatedDir,
+      "claude",
+      "skills",
+      "stale-skill",
+      "SKILL.md",
+    );
+    await mkdir(path.dirname(staleAgent), { recursive: true });
+    await mkdir(path.dirname(staleSkill), { recursive: true });
+    await writeFile(staleAgent, "stale agent\n", "utf-8");
+    await writeFile(staleSkill, "stale skill\n", "utf-8");
+
+    const prospective = await renderAll(config, false, false, "claude");
+    expect(await readFile(staleAgent, "utf-8")).toBe("stale agent\n");
+    expect(await readFile(staleSkill, "utf-8")).toBe("stale skill\n");
+
+    const writable = await renderAll(config, true, false, "claude");
+
+    expect(writable.mutationInventory).toEqual(prospective.mutationInventory);
+    expect(await pathExists(staleAgent)).toBe(false);
+    expect(await pathExists(path.dirname(staleSkill))).toBe(false);
+    for (const output of writable.outputs) {
+      expect(await pathExists(output.generatedPath)).toBe(true);
+      expect(
+        writable.mutationInventory.some(
+          (entry) =>
+            entry.kind === "selected-output" &&
+            entry.path === output.generatedPath,
+        ),
+      ).toBe(true);
+    }
+  });
+
+  it("projects cleanup roots for empty selected sources and excludes passive targets", async () => {
+    const result = await renderAll(config, false, false, "claude");
+
+    expect(result.outputs).toEqual([]);
+    expect(result.mutationInventory).toEqual([
+      {
+        kind: "stale-cleanup-root",
+        path: path.resolve(config.library.generatedDir, "claude", "agents"),
+        target: "claude",
+        type: "agent",
+      },
+      {
+        kind: "stale-cleanup-root",
+        path: path.resolve(config.library.generatedDir, "claude", "skills"),
+        target: "claude",
+        type: "skill",
+      },
+    ]);
+
+    const disabledConfig = makeResolvedConfig(tempDir, {
+      claude: { enabled: false },
+      codex: { enabled: false },
+    });
+    const disabled = await renderAll(disabledConfig, false);
+    expect(disabled.mutationInventory).toEqual([]);
+  });
+
+  it("orders multiple selected outputs deterministically before cleanup roots", async () => {
+    await createSkillFixture(config.library.skillsDir, "z-skill");
+    await createSkillFixture(config.library.skillsDir, "a-skill");
+    await createAgentFixture(
+      config.library.agentsDir,
+      "z-agent",
+      makeAgentYaml("z-agent"),
+    );
+    await createAgentFixture(
+      config.library.agentsDir,
+      "a-agent",
+      makeAgentYaml("a-agent"),
+    );
+
+    const first = await renderAll(config, false);
+    const second = await renderAll(config, false);
+    const summarize = (result: typeof first) =>
+      result.mutationInventory.map((entry) =>
+        entry.kind === "selected-output"
+          ? `${entry.kind}:${entry.target}:${entry.type}:${entry.name}`
+          : `${entry.kind}:${entry.target}:${entry.type}`,
+      );
+
+    expect(summarize(first)).toEqual([
+      "selected-output:claude:agent:a-agent",
+      "selected-output:claude:agent:z-agent",
+      "selected-output:claude:skill:a-skill",
+      "selected-output:claude:skill:z-skill",
+      "selected-output:codex:agent:a-agent",
+      "selected-output:codex:agent:z-agent",
+      "selected-output:codex:skill:a-skill",
+      "selected-output:codex:skill:z-skill",
+      "stale-cleanup-root:claude:agent",
+      "stale-cleanup-root:codex:agent",
+      "stale-cleanup-root:claude:skill",
+      "stale-cleanup-root:codex:skill",
+    ]);
+    expect(summarize(second)).toEqual(summarize(first));
+  });
+
   it("propagates strict mode to agent validation", async () => {
     await createAgentFixture(
       config.library.agentsDir,
@@ -1120,6 +1322,21 @@ describe("renderLoaded", () => {
       targetFilter: "codex",
     });
 
+    expect(result.mutationInventory).toEqual(
+      result.outputs.map((output) => ({
+        kind: "selected-output",
+        path: path.resolve(output.generatedPath),
+        target: output.target,
+        type: output.type,
+        name: output.name,
+      })),
+    );
+    expect(
+      result.mutationInventory.some(
+        (entry) => entry.kind === "stale-cleanup-root",
+      ),
+    ).toBe(false);
+
     expect(result.skills).toBe(skills);
     expect(result.agents).toBe(agents);
     expect(result.outputs).toHaveLength(2);
@@ -1147,6 +1364,62 @@ describe("renderLoaded", () => {
     expect(generatedSkillContent).toContain("A test skill.");
     expect(generatedSkillContent).not.toContain("Mutated source");
     expect(generatedSkillContent).not.toContain("# changed");
+  });
+
+  it("finishes the complete inventory before replacing the first writable skill", async () => {
+    await createSkillFixture(config.library.skillsDir, "first-skill");
+    await createSkillFixture(config.library.skillsDir, "second-skill");
+    const validatedSkills = await loadAndValidateSkills(
+      config.library.skillsDir,
+    );
+    const firstSkill = validatedSkills.find(
+      (skill) => skill.name === "first-skill",
+    );
+    const secondSkill = validatedSkills.find(
+      (skill) => skill.name === "second-skill",
+    );
+    expect(firstSkill).toBeDefined();
+    expect(secondSkill).toBeDefined();
+    if (!firstSkill || !secondSkill) throw new Error("fixture setup failed");
+
+    let secondBodyReads = 0;
+    const lateFailingSkill = { ...secondSkill };
+    Object.defineProperty(lateFailingSkill, "body", {
+      enumerable: true,
+      get() {
+        secondBodyReads += 1;
+        if (secondBodyReads === 2) {
+          throw new Error("late selected-output derivation failure");
+        }
+        return secondSkill.body;
+      },
+    });
+    const firstGeneratedDir = path.join(
+      config.library.generatedDir,
+      "claude",
+      "skills",
+      "first-skill",
+    );
+    const sentinelPath = path.join(firstGeneratedDir, "sentinel.txt");
+    await mkdir(firstGeneratedDir, { recursive: true });
+    await writeFile(sentinelPath, "must survive\n", "utf-8");
+
+    await expect(
+      renderLoaded({
+        config,
+        skills: [firstSkill, lateFailingSkill],
+        agents: [],
+        validatedSkills,
+        writeToGenerated: true,
+        targetFilter: "claude",
+      }),
+    ).rejects.toThrow("late selected-output derivation failure");
+
+    expect(secondBodyReads).toBe(2);
+    expect(await readFile(sentinelPath, "utf-8")).toBe("must survive\n");
+    expect(await pathExists(path.join(firstGeneratedDir, "SKILL.md"))).toBe(
+      false,
+    );
   });
 
   it("reports the exact loaded SKILL.md path for invalid model tokens", async () => {

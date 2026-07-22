@@ -1,4 +1,5 @@
-import { writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -158,6 +159,148 @@ describe("loadConfig", () => {
     const configDir = path.dirname(path.resolve(configPath));
     expect(result.library.skillsDir).toBe(path.resolve(configDir, "my-skills"));
     expect(result.library.agentsDir).toBe(path.resolve(configDir, "my-agents"));
+  });
+
+  it("resolves relative target homes and manifest path from the config directory outside the cwd", async () => {
+    const configDir = path.join(tempDir, "project", "config");
+    const elsewhere = path.join(tempDir, "elsewhere");
+    await mkdir(elsewhere, { recursive: true });
+    const yaml = makeConfigYaml({
+      targets: {
+        claude: {
+          enabled: true,
+          skillsHome: "./homes/claude/skills",
+          agentsHome: "./homes/claude/agents",
+        },
+        codex: {
+          enabled: true,
+          skillsHome: "./homes/codex/skills",
+          agentsHome: "./homes/codex/agents",
+        },
+      },
+      manifest: { path: "./state/manifest.json" },
+    });
+    await mkdir(configDir, { recursive: true });
+    const configPath = path.join(configDir, "devcanon.config.yaml");
+    await writeFile(configPath, yaml, "utf8");
+    const previousCwd = process.cwd();
+
+    try {
+      process.chdir(elsewhere);
+      const result = await loadConfig(configPath);
+
+      expect(result.targets.claude.skillsHome).toBe(
+        path.join(configDir, "homes", "claude", "skills"),
+      );
+      expect(result.targets.claude.agentsHome).toBe(
+        path.join(configDir, "homes", "claude", "agents"),
+      );
+      expect(result.targets.codex.skillsHome).toBe(
+        path.join(configDir, "homes", "codex", "skills"),
+      );
+      expect(result.targets.codex.agentsHome).toBe(
+        path.join(configDir, "homes", "codex", "agents"),
+      );
+      expect(result.manifest.path).toBe(
+        path.join(configDir, "state", "manifest.json"),
+      );
+    } finally {
+      process.chdir(previousCwd);
+    }
+  });
+
+  it("resolves an absolute target-home spelling identically to its config-relative spelling", async () => {
+    const configDir = path.join(tempDir, "project", "config");
+    const absoluteClaudeSkillsHome = path.join(
+      configDir,
+      "homes",
+      "claude",
+      "skills",
+    );
+    await mkdir(configDir, { recursive: true });
+    await writeFile(
+      path.join(configDir, "relative.config.yaml"),
+      makeConfigYaml({
+        targets: {
+          claude: {
+            enabled: true,
+            skillsHome: "./homes/claude/skills",
+            agentsHome: "./homes/claude/agents",
+          },
+          codex: {
+            enabled: true,
+            skillsHome: "./homes/codex/skills",
+            agentsHome: "./homes/codex/agents",
+          },
+        },
+      }),
+      "utf8",
+    );
+    await writeFile(
+      path.join(configDir, "absolute.config.yaml"),
+      makeConfigYaml({
+        targets: {
+          claude: {
+            enabled: true,
+            skillsHome: absoluteClaudeSkillsHome,
+            agentsHome: "./homes/claude/agents",
+          },
+          codex: {
+            enabled: true,
+            skillsHome: "./homes/codex/skills",
+            agentsHome: "./homes/codex/agents",
+          },
+        },
+      }),
+      "utf8",
+    );
+
+    const relativeConfig = await loadConfig(
+      path.join(configDir, "relative.config.yaml"),
+    );
+    const absoluteConfig = await loadConfig(
+      path.join(configDir, "absolute.config.yaml"),
+    );
+
+    expect(absoluteConfig.targets.claude.skillsHome).toBe(
+      relativeConfig.targets.claude.skillsHome,
+    );
+    expect(absoluteConfig.targets.claude.skillsHome).toBe(
+      absoluteClaudeSkillsHome,
+    );
+  });
+
+  it("keeps a tilde target home user-home based instead of rebasing it from the config directory", async () => {
+    const configDir = path.join(tempDir, "project", "config");
+    await mkdir(configDir, { recursive: true });
+    const configPath = path.join(configDir, "devcanon.config.yaml");
+    await writeFile(
+      configPath,
+      makeConfigYaml({
+        targets: {
+          claude: {
+            enabled: true,
+            skillsHome: "./homes/claude/skills",
+            agentsHome: "./homes/claude/agents",
+          },
+          codex: {
+            enabled: true,
+            skillsHome: "./homes/codex/skills",
+            agentsHome: "~/codex-agents",
+          },
+        },
+      }),
+      "utf8",
+    );
+
+    const result = await loadConfig(configPath);
+
+    expect(result.targets.codex.agentsHome).toBe(
+      path.join(os.homedir(), "codex-agents"),
+    );
+    expect(result.targets.codex.agentsHome).not.toBe(
+      path.join(configDir, "codex-agents"),
+    );
   });
 
   it("warns about unknown top-level fields in non-strict mode but still returns config", async () => {

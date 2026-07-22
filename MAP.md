@@ -201,6 +201,8 @@ Quick navigation index for the DevCanon repository.
 - Where is the uninstall orchestration? -> [`src/install/uninstall.ts`](src/install/uninstall.ts)
 - Where is the install plan computation? -> [`src/install/plan.ts`](src/install/plan.ts)
 - Where is the manifest read/write? -> [`src/install/manifest.ts`](src/install/manifest.ts)
+- Where is the canonical manifest boundary/full-tuple identity and managed component-collision owner? ->
+  [`src/install/manifest-identity.ts`](src/install/manifest-identity.ts)
 - Where is managed-output identity verification? -> [`src/install/identity.ts`](src/install/identity.ts)
 - Where is the copy install mode? -> [`src/install/copy.ts`](src/install/copy.ts)
 - Where is the symlink install mode? -> [`src/install/symlink.ts`](src/install/symlink.ts)
