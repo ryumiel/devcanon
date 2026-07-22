@@ -220,6 +220,8 @@ supports both tuples; verified classification; invariant envelope; remaining
 budget; and the existing terminal continuation if the attempt cannot start or
 does not succeed. The controller may narrow eligibility or declare budget `0`,
 but it may never broaden eligibility.
+A remaining budget of `0` is valid controller narrowing and does not change the
+settled result's eligibility classification.
 
 The current tuple is explicit and exact. Ambient or omitted current effort, a
 maximal current pair, unavailable or unsupported override, incomplete
@@ -231,7 +233,9 @@ with a nearby or ambient value.
 ### Budget and Invariants
 
 The budget permits at most one fresh attempt at a capability/effort pair and no
-chains.
+chains. Remaining budget exactly `1` is required to spawn; remaining budget `0`
+uses the existing declared terminal/manual continuation without consuming an
+attempt. A budget greater than `1` fails closed.
 Slot recovery, same-pair context redispatch, review fix loops, and CI repair
 cycles have independent counters and are not capability escalation attempts.
 
@@ -257,7 +261,9 @@ Use this fixed order:
 2. Complete guard/lifecycle cleanup.
 3. Classify the settled result.
 4. Validate declaration/support/invariants/budget, including target support.
-5. Spawn exactly one fresh attempt.
+5. If remaining budget is `0`, use the existing declared terminal/manual
+   continuation; do not spawn.
+6. If remaining budget is exactly `1`, spawn exactly one fresh attempt.
 
 The output is exactly one fresh attempt or the existing declared
 terminal/manual route; this procedure creates no new artifact.

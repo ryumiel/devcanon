@@ -2957,6 +2957,9 @@ describe("play subagent routing source contracts", () => {
       expect(normalizeWhitespace(declaration)).toContain(
         "positively support the exact requested tuple",
       );
+      expect(normalizeWhitespace(declaration)).toContain(
+        "A remaining budget of `0` is valid controller narrowing and does not change the settled result's eligibility classification",
+      );
 
       expect(normalizeWhitespace(budgetAndInvariants)).toContain(
         "at most one fresh attempt at a capability/effort pair and no chains",
@@ -2970,7 +2973,8 @@ describe("play subagent routing source contracts", () => {
         "Complete guard/lifecycle cleanup",
         "Classify the settled result",
         "Validate declaration/support/invariants/budget, including target support",
-        "Spawn exactly one fresh attempt",
+        "If remaining budget is `0`, use the existing declared terminal/manual continuation; do not spawn",
+        "If remaining budget is exactly `1`, spawn exactly one fresh attempt",
       ]);
       expect(normalizeWhitespace(summaryAndOrdering)).toContain(
         "task/scope; exact prior and requested tuples; classified failure; attempted actions; concise verified evidence and repository anchors; unresolved success condition; invariant envelope; and remaining budget",
@@ -2991,6 +2995,15 @@ describe("play subagent routing source contracts", () => {
     };
 
     assertLifecycleEscalationContract(skillSource);
+
+    const unconditionalZeroBudgetSpawnFixture = skillSource.replace(
+      "If remaining budget is `0`, use the existing declared terminal/manual\n   continuation; do not spawn.",
+      "If remaining budget is `0`, spawn exactly one fresh attempt.",
+    );
+    expect(unconditionalZeroBudgetSpawnFixture).not.toBe(skillSource);
+    expect(() =>
+      assertLifecycleEscalationContract(unconditionalZeroBudgetSpawnFixture),
+    ).toThrow();
 
     const invalidFamilyFixture = skillSource.replace(
       /^\| Missing context\s+\|.*$/m,
