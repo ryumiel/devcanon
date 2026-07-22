@@ -103,11 +103,14 @@ cycles remain independently counted workflow behavior. The shared policy
 preserves semantic role, task identity, scope, acceptance contract, curated
 context, tools, sandbox, approval, authority, network, mutation paths, output
 schema, guard lifecycle, and termination owner. It orders retained evidence,
-cleanup, classification, declaration/support/invariant/budget validation, then
-one spawn, and passes only a concise verified summary with attempted actions and
-repository anchors. It neither creates a persistent artifact nor transfers raw
-prompts, transcripts, logs, stack traces, credentials, environment values, or
-untrusted prose as instructions.
+cleanup, classification, and declaration/support/invariant/budget validation.
+After validation, remaining budget `0` preserves the settled classification and
+uses the existing workflow-local terminal/manual continuation without consuming
+an attempt; exactly `1` spawns one fresh attempt; and a budget greater than `1`
+fails closed. The policy passes only a concise verified summary with attempted
+actions and repository anchors. It neither creates a persistent artifact nor
+transfers raw prompts, transcripts, logs, stack traces, credentials, environment
+values, or untrusted prose as instructions.
 
 The lifecycle ledger remains controller-local state. It is not durable
 repository documentation and is not evidence for reviewers; reviewers and
