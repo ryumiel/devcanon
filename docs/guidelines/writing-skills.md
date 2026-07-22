@@ -1,9 +1,5 @@
 # Writing Skills
 
-<!-- escalation-adoption-anchor
-{"declaration_id":"ESC-WRITING-SKILLS","source_path":"docs/guidelines/writing-skills.md","surface_mode":"authoring-consumer","route_ids":[],"adoption_refs":[],"authority_ref":"non-owner"}
--->
-
 This guide covers how to author or edit skills under `skills/` in this
 repository: the project-specific layer that the
 [skill spec](../specs/skills.md) and the

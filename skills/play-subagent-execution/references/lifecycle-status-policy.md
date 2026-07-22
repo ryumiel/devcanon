@@ -1,9 +1,5 @@
 # Lifecycle And Status Policy - `play-subagent-execution`
 
-<!-- escalation-adoption-anchor
-{"declaration_id":"ESC-EXECUTION-LIFECYCLE","source_path":"skills/play-subagent-execution/references/lifecycle-status-policy.md","surface_mode":"workflow-consumer","route_ids":["D12","D13"],"adoption_refs":["ESC-ADOPT-D12","ESC-ADOPT-D13"],"authority_ref":"non-owner"}
--->
-
 This file is the sole normative owner of returned D12/D13 dispositions,
 D14/D15 result freshness and invalidation, D14-D16 guard capture and cleanup
 failure, and incomplete or terminal outcomes. Load it after initial route

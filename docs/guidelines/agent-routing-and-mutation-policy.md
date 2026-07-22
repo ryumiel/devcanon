@@ -129,43 +129,11 @@ existing response contract.
 
 ## Capability Escalation Adoption Inventory
 
-For every current non-D4 route, ordered `direct_route_clauses` is this
-owner's machine adoption representation of clause count, order, role IDs, and
-operand presence and values. The Direct-Child Route Inventory table is the same
-owner's readable projection and must agree index by index. This representation
-does not authorize workflow evolution: workflow-local operational behavior
-remains owned by the applicable skill and workflow sources.
-
-<!-- escalation-adoption-anchor
-{
-  "declaration_id": "ESC-INVENTORY-OWNER",
-  "source_path": "docs/guidelines/agent-routing-and-mutation-policy.md",
-  "surface_mode": "inventory-owner",
-  "contract_id": "capability-escalation-adoption",
-  "common_owner_path": "skills/subagent-lifecycle/SKILL.md",
-  "authority_ref": "inventory-owner",
-  "adoptions": [
-    {"route_id":"D1","adoption_ref":"ESC-ADOPT-D1","target_ids":["claude","codex"],"target_permission":"exact-only","role_permission":"same-role-must-match","direct_route_clauses":[{"role_id":"assessor"}],"current_state":"opt-out","transition":"none","next_tuple":"none","mechanism":"none","escalation_budget":"none","relation":"none","counter":"none","producer_source_path":"none"},
-    {"route_id":"D2","adoption_ref":"ESC-ADOPT-D2","target_ids":["claude","codex"],"target_permission":"exact-only","role_permission":"same-role-must-match","direct_route_clauses":[{"role_id":"investigator"}],"current_state":"opt-out","transition":"none","next_tuple":"none","mechanism":"none","escalation_budget":"none","relation":"none","counter":"none","producer_source_path":"none"},
-    {"route_id":"D3","adoption_ref":"ESC-ADOPT-D3","target_ids":["claude","codex"],"target_permission":"exact-only","role_permission":"same-role-must-match","direct_route_clauses":[{"role_id":"investigator","network_binding":"dispatch-named","evidence_qualifier":"named-network"}],"current_state":"opt-out","transition":"none","next_tuple":"none","mechanism":"none","escalation_budget":"none","relation":"none","counter":"none","producer_source_path":"none"},
-    {"route_id":"D4","adoption_ref":"ESC-ADOPT-D4","target_ids":["claude","codex"],"target_permission":"exact-only","role_permission":"selected-role-must-match","current_state":"opt-out","transition":"none","next_tuple":"none","mechanism":"none","escalation_budget":"none","relation":"none","counter":"none","producer_source_path":"skills/play-agent-dispatch/SKILL.md"},
-    {"route_id":"D5","adoption_ref":"ESC-ADOPT-D5","target_ids":["claude","codex"],"target_permission":"exact-only","role_permission":"same-role-must-match","direct_route_clauses":[{"role_id":"reviewer"}],"current_state":"opt-out","transition":"none","next_tuple":"none","mechanism":"none","escalation_budget":"none","relation":"none","counter":"none","producer_source_path":"none"},
-    {"route_id":"D6","adoption_ref":"ESC-ADOPT-D6","target_ids":["claude","codex"],"target_permission":"exact-only","role_permission":"same-role-must-match","direct_route_clauses":[{"role_id":"reviewer"}],"current_state":"opt-out","transition":"none","next_tuple":"none","mechanism":"none","escalation_budget":"none","relation":"none","counter":"none","producer_source_path":"none"},
-    {"route_id":"D7","adoption_ref":"ESC-ADOPT-D7","target_ids":["claude","codex"],"target_permission":"exact-only","role_permission":"same-role-must-match","direct_route_clauses":[{"role_id":"reviewer"}],"current_state":"opt-out","transition":"none","next_tuple":"none","mechanism":"none","escalation_budget":"none","relation":"none","counter":"none","producer_source_path":"none"},
-    {"route_id":"D8","adoption_ref":"ESC-ADOPT-D8","target_ids":["claude","codex"],"target_permission":"exact-only","role_permission":"same-role-must-match","direct_route_clauses":[{"role_id":"reviewer"}],"current_state":"opt-out","transition":"none","next_tuple":"none","mechanism":"none","escalation_budget":"none","relation":"none","counter":"none","producer_source_path":"none"},
-    {"route_id":"D9","adoption_ref":"ESC-ADOPT-D9","target_ids":["claude","codex"],"target_permission":"exact-only","role_permission":"same-role-must-match","direct_route_clauses":[{"role_id":"reviewer"}],"current_state":"opt-out","transition":"none","next_tuple":"none","mechanism":"none","escalation_budget":"none","relation":"none","counter":"none","producer_source_path":"none"},
-    {"route_id":"D10","adoption_ref":"ESC-ADOPT-D10","target_ids":["claude","codex"],"target_permission":"exact-only","role_permission":"same-role-must-match","direct_route_clauses":[{"role_id":"deep-reviewer"}],"current_state":"opt-out","transition":"none","next_tuple":"none","mechanism":"none","escalation_budget":"none","relation":"none","counter":"none","producer_source_path":"none"},
-    {"route_id":"D11","adoption_ref":"ESC-ADOPT-D11","target_ids":["claude","codex"],"target_permission":"exact-only","role_permission":"same-role-must-match","direct_route_clauses":[{"role_id":"assessor"}],"current_state":"opt-out","transition":"none","next_tuple":"none","mechanism":"none","escalation_budget":"none","relation":"none","counter":"none","producer_source_path":"none"},
-    {"route_id":"D12","adoption_ref":"ESC-ADOPT-D12","target_ids":["claude","codex"],"target_permission":"exact-only","role_permission":"same-role-must-match","direct_route_clauses":[{"role_id":"implementer"}],"current_state":"opt-out","transition":"none","next_tuple":"none","mechanism":"none","escalation_budget":"none","relation":"none","counter":"none","producer_source_path":"none"},
-    {"route_id":"D13","adoption_ref":"ESC-ADOPT-D13","target_ids":["claude","codex"],"target_permission":"exact-only","role_permission":"same-role-must-match","direct_route_clauses":[{"role_id":"executor","selection_mode":"inline-or-delegated"}],"current_state":"opt-out","transition":"none","next_tuple":"none","mechanism":"none","escalation_budget":"none","relation":"D13-to-D12-reclassification","counter":"none","producer_source_path":"none"},
-    {"route_id":"D14","adoption_ref":"ESC-ADOPT-D14","target_ids":["claude","codex"],"target_permission":"exact-only","role_permission":"same-role-must-match","direct_route_clauses":[{"role_id":"deep-reviewer"}],"current_state":"opt-out","transition":"none","next_tuple":"none","mechanism":"none","escalation_budget":"none","relation":"none","counter":"none","producer_source_path":"none"},
-    {"route_id":"D15","adoption_ref":"ESC-ADOPT-D15","target_ids":["claude","codex"],"target_permission":"exact-only","role_permission":"same-role-must-match","direct_route_clauses":[{"role_id":"deep-reviewer"}],"current_state":"opt-out","transition":"none","next_tuple":"none","mechanism":"none","escalation_budget":"none","relation":"none","counter":"none","producer_source_path":"none"},
-    {"route_id":"D16","adoption_ref":"ESC-ADOPT-D16","target_ids":["claude","codex"],"target_permission":"exact-only","role_permission":"same-role-must-match","direct_route_clauses":[{"role_id":"deep-reviewer"}],"current_state":"opt-out","transition":"none","next_tuple":"none","mechanism":"none","escalation_budget":"none","relation":"none","counter":"none","producer_source_path":"none"},
-    {"route_id":"D17","adoption_ref":"ESC-ADOPT-D17","target_ids":["claude","codex"],"target_permission":"exact-only","role_permission":"same-role-must-match","direct_route_clauses":[{"role_id":"investigator","branch_id":"diagnosis"},{"role_id":"executor","branch_id":"exact-fix"},{"role_id":"implementer","branch_id":"judgment-fix"}],"current_state":"opt-out","transition":"none","next_tuple":"none","mechanism":"none","escalation_budget":"none","relation":"none","counter":"independent-from-escalation","producer_source_path":"none"}
-  ],
-  "d4_route_set": {"route_id":"D4","allowed_role_ids":["assessor","investigator","executor","implementer","reviewer","deep-reviewer"],"selection_mode":"planner-selected","adoption_ref":"ESC-ADOPT-D4"}
-}
--->
+The Direct-Child Route Inventory and the adoption table below are the single
+authoritative representation of current route identity, ownership, and
+adoption state. They do not authorize workflow evolution: workflow-local
+operational behavior remains owned by the applicable skill and workflow
+sources.
 
 The shared [`subagent-lifecycle`](../../skills/subagent-lifecycle/SKILL.md)
 procedure owns eligibility, declaration, support, invariants, evidence, budget,

@@ -1,9 +1,5 @@
 # ADR-0027: Semantic Agent Routing and Mutation Authority
 
-<!-- escalation-adoption-anchor
-{"declaration_id":"ESC-ADR-0027","source_path":"docs/adr/adr-0027-semantic-agent-routing-and-mutation-authority.md","surface_mode":"reference-consumer","route_ids":[],"adoption_refs":[],"authority_ref":"non-owner"}
--->
-
 ## Status
 
 Proposed

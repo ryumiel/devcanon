@@ -1,9 +1,5 @@
 # AFDS Workflow Routing and Evidence Behavior
 
-<!-- escalation-adoption-anchor
-{"declaration_id":"ESC-AFDS-ROUTING","source_path":"docs/specs/afds-workflow-routing.md","surface_mode":"reference-consumer","route_ids":[],"adoption_refs":[],"authority_ref":"non-owner"}
--->
-
 Scope: Portable AFDS Toolkit lifecycle routing and evidence behavior\
 Product requirements:\
 [Portable AFDS Toolkit](../product-requirements/portable-afds-toolkit.md)\
