@@ -35,10 +35,11 @@ closest stable boundary. Other layers may prove their own integration with
 that contract, but must consume the same owner-derived data instead of
 recreating its inventory, topology, or prose.
 
-For skill documentation and executable mechanics, the complete allocation and
-admissibility rule is in
+For skill documentation and executable mechanics, the primary allocation rule
+is in
 [Writing Skills](../guidelines/writing-skills.md#documentation-abstraction-ceiling).
-This specification selects the layer: allow direct observable behavior, stable
+This specification retains operational test authority and applies that
+allocation when selecting the layer: allow direct observable behavior, stable
 intentional public interfaces, executable syntax or wire tokens, and focused
 helper/runtime behavior. Reject proof-for-proof narrative, ordering,
 source-string, reviewer-ceremony, or fixture-only coverage without an

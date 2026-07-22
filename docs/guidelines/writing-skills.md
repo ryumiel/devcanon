@@ -317,7 +317,8 @@ workflow documentation and executable mechanics. It allocates the boundary for
 skills; the [Documentation Standard](documentation-standard.md) owns the
 repository-wide anti-duplication rule, the
 [Documentation Checklists](documentation-checklists.md) own review prompts,
-and the [Testing Requirements](../specs/testing.md) own test-layer selection.
+and the [Testing Requirements](../specs/testing.md) own general test
+admissibility and test-layer selection.
 
 Workflow documentation owns intent, authority, responsibilities, invariants,
 inputs, outputs, externally meaningful outcomes, and stop conditions. It gives
@@ -335,7 +336,7 @@ It does not restate the helper algorithm as shell-like prose. Keep the
 workflow's judgment, routing, and operator escalation in the skill; execute
 the helper for deterministic mechanics.
 
-### Test admissibility
+### Verification consequences of the boundary
 
 Prefer executing the owning helper or runtime and asserting its direct,
 observable behavior over source-text assertions. Admissible coverage proves
