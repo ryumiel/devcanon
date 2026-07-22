@@ -37,7 +37,7 @@ recreating its inventory, topology, or prose.
 
 For skill documentation and executable mechanics, the complete allocation and
 admissibility rule is in
-[Writing Skills](../guidelines/writing-skills.md#7-documentation-abstraction-ceiling).
+[Writing Skills](../guidelines/writing-skills.md#documentation-abstraction-ceiling).
 This specification selects the layer: allow direct observable behavior, stable
 intentional public interfaces, executable syntax or wire tokens, and focused
 helper/runtime behavior. Reject proof-for-proof narrative, ordering,

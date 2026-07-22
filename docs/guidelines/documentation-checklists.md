@@ -113,7 +113,7 @@ Before planning or approving the artifact contract, confirm:
 
 ## Executable-Mechanics Boundary Prompts
 
-Use [Writing Skills](writing-skills.md#7-documentation-abstraction-ceiling) for
+Use [Writing Skills](writing-skills.md#documentation-abstraction-ceiling) for
 the complete allocation and admissibility rule. During review or gardening:
 
 - Is there one executable owner for deterministic work, rather than a duplicate

@@ -250,7 +250,7 @@ If something is authoritative, it must live in exactly one place:
 When one executable owner can enforce a deterministic algorithm, documentation
 must not restate that algorithm as a competing implementation. For the
 skill-specific operational boundary, use
-[Writing Skills](writing-skills.md#7-documentation-abstraction-ceiling).
+[Writing Skills](writing-skills.md#documentation-abstraction-ceiling).
 
 ### 5.2 Same-PR update rules
 
