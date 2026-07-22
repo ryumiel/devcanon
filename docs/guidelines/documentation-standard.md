@@ -247,6 +247,11 @@ If something is authoritative, it must live in exactly one place:
 - contributor policy -> `CONTRIBUTING.md`
 - reusable procedures and policies -> `docs/guidelines/` or `WORKFLOW.md`
 
+When one executable owner can enforce a deterministic algorithm, documentation
+must not restate that algorithm as a competing implementation. For the
+skill-specific operational boundary, use
+[Writing Skills](writing-skills.md#documentation-abstraction-ceiling).
+
 ### 5.2 Same-PR update rules
 
 A PR must update docs when it changes:
