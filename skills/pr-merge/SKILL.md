@@ -206,6 +206,12 @@ the workflow that owns the specific gate.
 
 Track retry count explicitly. **Max 2 failure cycles.** A "failure cycle" is: CI fails → investigation → fix → push. Pending/timeout does NOT count as a failure cycle.
 
+The shared `subagent-lifecycle` owner and the Agent Routing and Mutation Policy
+adoption inventory own capability-escalation declarations. No current exact
+target transition is declared here: `D17 current exact target transition: none`.
+Guarded diagnosis and classified exact/judgment fix routes remain exact. The two
+CI repair cycles are workflow retries, not a capability escalation budget.
+
 ### 4a. Get failure details
 
 Use GitHub Actions evidence from the failing check: list recent runs for the PR

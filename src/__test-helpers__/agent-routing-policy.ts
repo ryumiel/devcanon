@@ -3,6 +3,7 @@ import path from "node:path";
 
 const INVENTORY_HEADING = "Complete Skill Inventory";
 const ROUTES_HEADING = "Direct-Child Route Inventory";
+const ESCALATION_ADOPTION_HEADING = "Capability Escalation Adoption Inventory";
 const INVENTORY_HEADERS = [
   "Skill",
   "Demand / stance",
@@ -15,6 +16,11 @@ const ROUTE_HEADERS = [
   "Surface and owner",
   "Route",
   "Existing output / termination",
+] as const;
+const ESCALATION_ADOPTION_HEADERS = [
+  "ID",
+  "Adoption state",
+  "Transition",
 ] as const;
 const SEMANTIC_ROLE_HEADING = "Semantic role catalog";
 const SEMANTIC_ROLE_HEADERS = [
@@ -49,6 +55,7 @@ const DEMANDS = ["mechanical", "bounded", "inherited", "synthesis"] as const;
 const STANCES = ["normal", "adversarial"] as const;
 const SOURCE_AUTHORITIES = ["source-immutable", "source-mutable"] as const;
 const EXTERNAL_AUTHORITIES = ["none", "external-mutable"] as const;
+const ESCALATION_ADOPTION_STATES = ["adopt", "specialize", "opt-out"] as const;
 
 type Demand = (typeof DEMANDS)[number];
 type Stance = (typeof STANCES)[number];
@@ -76,6 +83,12 @@ export interface AgentRoutingDirectChildRouteRow {
   readonly d4Contract?: AgentRoutingD4RouteContract;
 }
 
+export interface AgentRoutingEscalationAdoptionRow {
+  readonly id: `D${number}`;
+  readonly state: (typeof ESCALATION_ADOPTION_STATES)[number];
+  readonly transition: string;
+}
+
 export interface AgentRoutingD4RouteContract {
   readonly roleCardinality: 6;
   readonly selectionTiming: "before spawn";
@@ -91,11 +104,16 @@ export interface AgentRoutingRouteClause {
   readonly effort: (typeof ROUTE_EFFORTS)[number];
   readonly sourceAuthority: SourceAuthority;
   readonly qualifier?: string;
+  readonly branchId?: string;
+  readonly selectionMode?: string;
+  readonly networkBinding?: string;
+  readonly evidenceQualifier?: string;
 }
 
 export interface AgentRoutingPolicyOwner {
   readonly inventory: readonly AgentRoutingSkillInventoryRow[];
   readonly directChildRoutes: readonly AgentRoutingDirectChildRouteRow[];
+  readonly escalationAdoptionInventory: readonly AgentRoutingEscalationAdoptionRow[];
 }
 
 export interface AgentSemanticRoleContract {
@@ -274,10 +292,19 @@ export function parseAgentRoutingPolicyOwner(
     ROUTE_HEADERS,
     "direct-route",
   );
+  const adoptionTable = parseOwnedTable(
+    markdown,
+    ESCALATION_ADOPTION_HEADING,
+    ESCALATION_ADOPTION_HEADERS,
+    "adoption",
+  );
   const inventory = inventoryTable.map(parseInventoryRow);
   const knownSkills = new Set(inventory.map((row) => row.skill));
   const directChildRoutes = routeTable.map((cells, index) =>
     parseRouteRow(cells, index, knownSkills),
+  );
+  const escalationAdoptionInventory = adoptionTable.map(
+    parseEscalationAdoptionRow,
   );
 
   assertUnique(
@@ -290,8 +317,13 @@ export function parseAgentRoutingPolicyOwner(
     "direct-route ID",
   );
   assertDirectRouteCoverage(directChildRoutes);
+  assertUnique(
+    escalationAdoptionInventory.map((row) => row.id),
+    "escalation-adoption ID",
+  );
+  assertEscalationAdoptionCoverage(escalationAdoptionInventory);
 
-  return { inventory, directChildRoutes };
+  return { inventory, directChildRoutes, escalationAdoptionInventory };
 }
 
 function resolveRepositoryRelativePath(relativePath: string): string {
@@ -499,12 +531,40 @@ function parseInventoryRow(
   };
 }
 
+function parseEscalationAdoptionRow(
+  cells: readonly string[],
+  index: number,
+): AgentRoutingEscalationAdoptionRow {
+  const id = cells[0];
+  if (!/^D\d+$/.test(id)) {
+    throw new Error(
+      `Agent routing policy owner escalation-adoption ID at row ${index + 1} is invalid: ${id}`,
+    );
+  }
+  const state = closedValue(
+    cells[1],
+    ESCALATION_ADOPTION_STATES,
+    "adoption state",
+  );
+  if (state !== "opt-out") {
+    throw new Error(
+      `Agent routing policy owner adoption state is unsupported until an exact transition contract exists: ${state}`,
+    );
+  }
+  if (cells[2] !== "none") {
+    throw new Error(
+      "Agent routing policy owner adoption opt-out transition must be exactly: none",
+    );
+  }
+  return { id: id as `D${number}`, state, transition: cells[2] };
+}
+
 const ROUTE_CAPABILITIES = ["efficient", "balanced", "frontier"] as const;
 const ROUTE_EFFORTS = ["medium", "high", "xhigh"] as const;
 const ROUTE_CLAUSE_PATTERN =
-  /^(?:(?:[A-Za-z][A-Za-z -]{0,38}:|Inline or)\s+)?`([a-z][a-z0-9-]*)`,\s*([a-z][a-z-]*)\/([a-z][a-z0-9-]*),\s*(source-[^,;\s]+)(?:,\s*([A-Za-z][A-Za-z -]{0,38}))?$/;
+  /^(?:branch `([a-z][a-z0-9-]*)`:\s+)?`([a-z][a-z0-9-]*)`,\s*([a-z][a-z-]*)\/([a-z][a-z0-9-]*),\s*(source-[^,;\s]+)(.*)$/;
 const ROUTE_CLAUSE_WITHOUT_SOURCE_PATTERN =
-  /^(?:(?:[A-Za-z][A-Za-z -]{0,38}:|Inline or)\s+)?`[a-z][a-z0-9-]*`,\s*[a-z][a-z-]*\/[a-z][a-z0-9-]*\s*,?$/;
+  /^(?:branch `[a-z][a-z0-9-]*`:\s+)?`[a-z][a-z0-9-]*`,\s*[a-z][a-z-]*\/[a-z][a-z0-9-]*(?:,\s*[a-z][a-z-]* `[a-z][a-z0-9-]*`)*\s*,?$/;
 
 function parseRouteRow(
   cells: readonly string[],
@@ -639,22 +699,68 @@ function parseRouteClauses(
       );
     }
 
+    const operands = parseRouteClauseOperands(id, index, tuple[6]);
+
     return {
-      role: tuple[1],
+      role: tuple[2],
       capability: closedValue(
-        tuple[2],
+        tuple[3],
         ROUTE_CAPABILITIES,
         `direct-route ${id} capability`,
       ),
-      effort: closedValue(tuple[3], ROUTE_EFFORTS, `direct-route ${id} effort`),
+      effort: closedValue(tuple[4], ROUTE_EFFORTS, `direct-route ${id} effort`),
       sourceAuthority: closedValue(
-        tuple[4],
+        tuple[5],
         SOURCE_AUTHORITIES,
         `direct-route ${id} source authority`,
       ),
-      qualifier: tuple[5],
+      branchId: tuple[1],
+      ...operands,
+      qualifier: operands.evidenceQualifier,
     };
   });
+}
+
+function parseRouteClauseOperands(
+  routeId: string,
+  index: number,
+  suffix: string,
+): Pick<
+  AgentRoutingRouteClause,
+  "selectionMode" | "networkBinding" | "evidenceQualifier"
+> {
+  let rest = suffix;
+  const operands: Record<string, string> = {};
+  while (rest !== "") {
+    const match = /^,\s*([a-z][a-z-]*) `([^`]*)`([\s\S]*)$/u.exec(rest);
+    if (!match) {
+      throw new Error(
+        `Agent routing policy owner direct-route ${routeId} clause ${index + 1} has malformed clause structure`,
+      );
+    }
+    const key = match[1].replaceAll("-", "_");
+    if (
+      key !== "selection_mode" &&
+      key !== "network_binding" &&
+      key !== "evidence_qualifier"
+    ) {
+      throw new Error(
+        `Agent routing policy owner direct-route ${routeId} operand key is unknown: ${match[1]}`,
+      );
+    }
+    if (operands[key] !== undefined) {
+      throw new Error(
+        `Agent routing policy owner direct-route ${routeId} operand is duplicated: ${key}`,
+      );
+    }
+    operands[key] = match[2];
+    rest = match[3];
+  }
+  return {
+    selectionMode: operands.selection_mode,
+    networkBinding: operands.network_binding,
+    evidenceQualifier: operands.evidence_qualifier,
+  };
 }
 
 function assertInventoryCoverage(
@@ -689,6 +795,25 @@ function assertDirectRouteCoverage(
   if (missing.length > 0 || unexpected.length > 0) {
     throw new Error(
       `Agent routing policy owner direct-route ID coverage must be exactly D1-D17; missing: ${missing.join(", ") || "none"}; unexpected: ${unexpected.join(", ") || "none"}`,
+    );
+  }
+}
+
+function assertEscalationAdoptionCoverage(
+  rows: readonly AgentRoutingEscalationAdoptionRow[],
+): void {
+  const expected: readonly `D${number}`[] = Array.from(
+    { length: 17 },
+    (_, index) => `D${index + 1}` as const,
+  );
+  const actual = new Set(rows.map((row) => row.id));
+  const missing = expected.filter((id) => !actual.has(id));
+  const unexpected = rows
+    .map((row) => row.id)
+    .filter((id) => !expected.includes(id));
+  if (missing.length > 0 || unexpected.length > 0) {
+    throw new Error(
+      `Agent routing policy owner escalation-adoption ID coverage must be exactly D1-D17; missing: ${missing.join(", ") || "none"}; unexpected: ${unexpected.join(", ") || "none"}`,
     );
   }
 }

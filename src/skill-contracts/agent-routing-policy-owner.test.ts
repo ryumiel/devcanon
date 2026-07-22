@@ -1,5 +1,6 @@
 import { readdir } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
+import { parse as parseYaml } from "yaml";
 import {
   parseAgentRoutingPolicyOwner,
   parseAgentSemanticRoleOwner,
@@ -7,9 +8,20 @@ import {
   readAgentSemanticRoleOwner,
 } from "../__test-helpers__/agent-routing-policy.js";
 import { readRepoFile } from "../__test-helpers__/skill-contracts.js";
+import { loadConfig } from "../config/load.js";
+import { resolveCapabilityModel } from "../render/capability-profiles.js";
 
 const OWNER_PATH = "docs/guidelines/agent-routing-and-mutation-policy.md";
 const AGENT_SPEC_PATH = "docs/specs/agents.md";
+
+interface D4AgentSource {
+  readonly capability?: string;
+  readonly claude?: { readonly effort?: string; readonly model?: string };
+  readonly codex?: {
+    readonly model_reasoning_effort?: string;
+    readonly model?: string;
+  };
+}
 
 describe("agent routing and mutation policy owner", () => {
   it("covers every source skill exactly once and exactly D1-D17", async () => {
@@ -25,6 +37,44 @@ describe("agent routing and mutation policy owner", () => {
     expect(owner.directChildRoutes.map((row) => row.id)).toEqual(
       Array.from({ length: 17 }, (_, index) => `D${index + 1}`),
     );
+    expect(owner.escalationAdoptionInventory).toEqual(
+      Array.from({ length: 17 }, (_, index) => ({
+        id: `D${index + 1}`,
+        state: "opt-out",
+        transition: "none",
+      })),
+    );
+  });
+
+  it("rejects representative adoption and owner-reference drift", async () => {
+    const { markdown, sourceSkills } = await ownerInputs();
+    const d1 = markdown.match(/^\| D1\s+\| opt-out\s+\| none\s+\|$/m)?.[0];
+    expect(d1).toBeDefined();
+
+    const missing = markdown.replace(`${d1}\n`, "");
+    const duplicate = markdown.replace(d1 ?? "", `${d1}\n${d1}`);
+    const qualifierMismatch = markdown.replace(
+      "evidence-qualifier `named-network`",
+      "evidence-qualifier `unnamed-network`",
+    );
+    const ownerReferenceMismatch = markdown.replace(
+      "[`subagent-lifecycle`](../../skills/subagent-lifecycle/SKILL.md)",
+      "[`subagent-lifecycle`](../../skills/other/SKILL.md)",
+    );
+
+    expect(() => parseAgentRoutingPolicyOwner(missing, sourceSkills)).toThrow(
+      /escalation-adoption ID coverage must be exactly D1-D17; missing: D1/i,
+    );
+    expect(() => parseAgentRoutingPolicyOwner(duplicate, sourceSkills)).toThrow(
+      /duplicate escalation-adoption ID: D1/i,
+    );
+    expect(representativeOwnerErrors(markdown, sourceSkills)).toEqual([]);
+    expect(representativeOwnerErrors(qualifierMismatch, sourceSkills)).toEqual([
+      "D3:evidence-qualifier",
+    ]);
+    expect(
+      representativeOwnerErrors(ownerReferenceMismatch, sourceSkills),
+    ).toEqual(["shared-owner-reference"]);
   });
 
   it("preserves representative closed inventory and route fields", async () => {
@@ -83,6 +133,55 @@ describe("agent routing and mutation policy owner", () => {
     expect(d6?.existingOutputOrTermination).toBe(
       "Distinct digest-bound PASS/FAIL; join paired results for one digest",
     );
+  });
+
+  it("derives canonical D4 target tuples with literal-first model precedence", async () => {
+    const [roles, config] = await Promise.all([
+      readAgentSemanticRoleOwner(AGENT_SPEC_PATH),
+      loadConfig("devcanon.config.yaml", true),
+    ]);
+
+    for (const role of roles) {
+      const source = parseYaml(
+        await readRepoFile(`agents/${role.name}.yaml`),
+      ) as D4AgentSource;
+      for (const target of ["claude", "codex"] as const) {
+        expect(
+          d4AlignmentErrors(role, source, target, config.capabilityProfiles),
+        ).toEqual([]);
+
+        const literal = `${target}-literal-model`;
+        const withTargetLiteral = {
+          ...source,
+          [target]: { ...source[target], model: literal },
+        };
+        expect(
+          resolveD4Model(withTargetLiteral, target, config.capabilityProfiles),
+        ).toBe(literal);
+
+        const opposite = target === "claude" ? "codex" : "claude";
+        const withOppositeLiteral = {
+          ...source,
+          [opposite]: { ...source[opposite], model: "opposite-target-model" },
+        };
+        expect(
+          resolveD4Model(
+            withOppositeLiteral,
+            target,
+            config.capabilityProfiles,
+          ),
+        ).toBe(config.capabilityProfiles[role.capability][target]);
+
+        expect(
+          d4AlignmentErrors(
+            role,
+            { ...source, capability: "frontier-nearby" },
+            target,
+            config.capabilityProfiles,
+          ),
+        ).toEqual(["source-capability-parity"]);
+      }
+    }
   });
 
   it("rejects a malformed inventory row in the inventory dimension", async () => {
@@ -326,15 +425,15 @@ describe("agent routing and mutation policy owner", () => {
     );
   });
 
-  it("rejects a non-owner inline-or prefix", async () => {
+  it("rejects an unknown D13 operand", async () => {
     const { markdown, sourceSkills } = await ownerInputs();
     const mutated = mutateRouteRow(markdown, "D13", (cells) => {
-      cells[2] = cells[2].replace("Inline or", "Executor or");
+      cells[2] = cells[2].replace("selection-mode", "dispatch-mode");
       return cells;
     });
 
     expect(() => parseAgentRoutingPolicyOwner(mutated, sourceSkills)).toThrow(
-      /direct-route D13 clause 1 has malformed clause structure/i,
+      /direct-route D13 operand key is unknown: dispatch-mode/i,
     );
   });
 
@@ -572,4 +671,63 @@ function mutateRouteRow(
     .split("|")
     .map((cell) => cell.trim());
   return markdown.replace(row, `| ${mutate(cells).join(" | ")} |`);
+}
+
+function representativeOwnerErrors(
+  markdown: string,
+  sourceSkills: readonly string[],
+): string[] {
+  const owner = parseAgentRoutingPolicyOwner(markdown, sourceSkills);
+  const d3 = owner.directChildRoutes.find((route) => route.id === "D3");
+  const errors: string[] = [];
+  if (d3?.clauses[0]?.evidenceQualifier !== "named-network") {
+    errors.push("D3:evidence-qualifier");
+  }
+  if (
+    !markdown.includes(
+      "[`subagent-lifecycle`](../../skills/subagent-lifecycle/SKILL.md)",
+    )
+  ) {
+    errors.push("shared-owner-reference");
+  }
+  return errors;
+}
+
+function resolveD4Model(
+  source: D4AgentSource,
+  target: "claude" | "codex",
+  capabilityProfiles: Awaited<
+    ReturnType<typeof loadConfig>
+  >["capabilityProfiles"],
+): string | undefined {
+  const literal =
+    target === "claude" ? source.claude?.model : source.codex?.model;
+  return resolveCapabilityModel(
+    literal,
+    source.capability as "efficient" | "balanced" | "frontier" | undefined,
+    target,
+    capabilityProfiles,
+  );
+}
+
+function d4AlignmentErrors(
+  role: Awaited<ReturnType<typeof readAgentSemanticRoleOwner>>[number],
+  source: D4AgentSource,
+  target: "claude" | "codex",
+  capabilityProfiles: Awaited<
+    ReturnType<typeof loadConfig>
+  >["capabilityProfiles"],
+): string[] {
+  if (source.capability !== role.capability)
+    return ["source-capability-parity"];
+  const effort =
+    target === "claude"
+      ? source.claude?.effort
+      : source.codex?.model_reasoning_effort;
+  const expectedEffort =
+    target === "claude" ? role.claudeEffort : role.codexEffort;
+  if (effort !== expectedEffort) return [`${target}-effort`];
+  return resolveD4Model(source, target, capabilityProfiles) === undefined
+    ? [`${target}-model`]
+    : [];
 }

@@ -323,6 +323,7 @@ function renderedRouteEvidenceFailures(
     ),
   );
   return owner.directChildRoutes
+    .filter((route) => route.id !== "D4")
     .filter((route) => {
       const clauses = routeClausesForTarget(route, roles, target);
       const units = markdownStructuralUnits(
@@ -555,6 +556,19 @@ describe("existing skills render cleanly", () => {
       expect(
         renderedRouteEvidenceFailures(owner, roles, renderedBySkill, target),
       ).toEqual([]);
+      const renderedDispatch = normalizeWhitespace(
+        renderedBySkill.get("play-agent-dispatch") ?? "",
+      );
+      expect(renderedDispatch).toContain("complete D4 pre-spawn declaration");
+      expect(renderedDispatch).toContain(
+        "target-local literal `claude.model` or `codex.model`",
+      );
+      expect(renderedDispatch).toContain(
+        "exact target/capability resolution in `devcanon.config.yaml` only as fallback",
+      );
+      expect(renderedDispatch).toContain(
+        "selected source capability to match the selected semantic role",
+      );
       const prMerge = normalizeWhitespace(
         renderedBySkill.get("pr-merge") ?? "",
       );

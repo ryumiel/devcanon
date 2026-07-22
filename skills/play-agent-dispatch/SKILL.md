@@ -67,40 +67,37 @@ Each domain is independent - fixing tool approval doesn't affect abort tests.
 
 ### Semantic Route Contract
 
-Before each focused specialist spawn, independently classify and declare the
-full semantic route tuple:
+Before each focused specialist spawn, the controller must issue the complete D4
+pre-spawn declaration required by the
+[Agent Routing and Mutation Policy](../../docs/guidelines/agent-routing-and-mutation-policy.md#d4-declaration-obligation).
+`route_id`: `D4`; `target_id`; planner-selected `selected_role_id`; `scope`;
+`termination`; `context_ref`; and `approval_ref` are controller-bound;
+`termination` includes the declared output behavior. Cognitive demand and
+stance remain planner classification inputs only; they are not declaration
+fields or authority.
 
-1. cognitive demand: `mechanical`, `bounded`, `synthesis`, or `inherited`;
-2. stance: `normal` or `adversarial`;
-3. source mutation default: `source-immutable` or `source-mutable`;
-4. exactly one of the six semantic roles;
-5. the role's exact configured capability and effort, without per-call
-   substitution;
-6. dispatch scope;
-7. termination and output behavior; and
-8. external authority `none`.
+The [agent spec `docs/specs/agents.md`](../../docs/specs/agents.md) is the sole
+semantic-role catalog and role-envelope owner. For that exact selected role and
+target, declare its
+`capability`, target-native `effort`, `source_authority`, `external_authority`,
+ordered duplicate-free `claude_tools`, `codex_sandbox`, and `default_network`.
+Resolve `model` first from the selected governed agent source's target-local
+literal `claude.model` or `codex.model`; use the exact target/capability
+resolution in `devcanon.config.yaml` only as fallback. Require the selected
+source capability to match the selected semantic role before resolving the
+model; a capability-less or mismatched source fails that parity check.
+`agents/*.yaml` are governed declarations and parity inputs,
+never semantic authorities; their target-local literal fields are governed
+values under the agent spec and take precedence over configuration fallback.
 
-Use the selected role's complete configured tuple:
-
-| Semantic role   | Capability | Effort | Source mutation default |
-| --------------- | ---------- | ------ | ----------------------- |
-| `assessor`      | balanced   | medium | source-immutable        |
-| `investigator`  | balanced   | high   | source-immutable        |
-| `executor`      | efficient  | medium | source-mutable          |
-| `implementer`   | balanced   | high   | source-mutable          |
-| `reviewer`      | frontier   | high   | source-immutable        |
-| `deep-reviewer` | frontier   | xhigh  | source-immutable        |
-
-Classify each independent problem domain separately. The owning controller's
-classification is the dispatch authority; a generic or inherited workflow does
-not supply a child route by itself. Do not use an ambient model or ambient
-effort, and do not substitute another capability or effort at spawn time.
-
-If any tuple field is unresolved, do not spawn that specialist. Do not infer
-authority from tools, sandbox, network, model, effort, the owning workflow, or
-the controller's own authority. The route inventory is not a marker,
-annotation, or discovery grammar. It is a controller-owned pre-spawn decision,
-and child prompts do not discover or select their own route.
+Classify each independent problem domain separately. The controller selects one
+of the policy-owned six-role set before spawn; a generic or inherited workflow
+does not supply a child route. No field is optional. Missing, unresolved,
+unknown, nearby, ambient, or mismatched fields block before spawn. Do not infer
+model, effort, tools, sandbox, network, authority, or any other declaration
+field from the child, parent, workflow, runtime, or controller authority. The
+route inventory is not a marker, annotation, or discovery grammar; the child
+prompt does not discover or select its own route.
 
 ### Source-Immutable Specialists
 

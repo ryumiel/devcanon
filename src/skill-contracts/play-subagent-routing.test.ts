@@ -2894,6 +2894,127 @@ describe("play subagent routing source contracts", () => {
     );
   });
 
+  it("keeps the bounded lifecycle escalation contract fail-closed", async () => {
+    const skillSource = await readSkillSource("subagent-lifecycle");
+
+    const assertLifecycleEscalationContract = (source: string): void => {
+      const escalation = getMarkdownSection(
+        source,
+        "Eligible Quality-Failure Capability Escalation",
+      );
+      const classifier = sliceBetween(
+        escalation,
+        "### Deterministic Five-Family Classifier",
+        "### Declaration, Support, and Exactness",
+      );
+      const declaration = sliceBetween(
+        escalation,
+        "### Declaration, Support, and Exactness",
+        "### Budget and Invariants",
+      );
+      const budgetAndInvariants = sliceBetween(
+        escalation,
+        "### Budget and Invariants",
+        "### Fresh-Attempt Summary and Ordering",
+      );
+      const summaryAndOrdering = sliceBetween(
+        escalation,
+        "### Fresh-Attempt Summary and Ordering",
+        "### Shape-only canonical valid example",
+      );
+      const invalidFamiliesStart = escalation.indexOf(
+        "### One-dimensional invalid families",
+      );
+      expect(invalidFamiliesStart).toBeGreaterThanOrEqual(0);
+      const invalidFamilies = escalation.slice(invalidFamiliesStart);
+
+      expectSubstringsInOrder(normalizeWhitespace(classifier), [
+        "`ineligible-context`",
+        "`ineligible-tool-or-permission`",
+        "`ineligible-authority`",
+        "`ineligible-integrity-or-route`",
+        "`eligible-quality-failure`",
+      ]);
+      expect(normalizeWhitespace(classifier)).toContain(
+        "Only when none of the four ineligible predicates applies and every positive predicate is satisfied may the result be `eligible-quality-failure`",
+      );
+      expect(normalizeWhitespace(classifier)).toContain(
+        "complete and current context; usable authorized tools, sandbox, approval, and target operation; sufficient unchanged authority; successful guard/lifecycle cleanup; consumable verified evidence; and a material capability-sensitive quality gap plausibly improved by the declared higher exact pair",
+      );
+
+      for (const declarationField of [
+        "names the route and target",
+        "same semantic role",
+        "exact current and requested next capability/effort tuples",
+        "named target-supported mechanism that supports both tuples",
+        "verified classification",
+        "invariant envelope",
+        "remaining budget",
+        "existing terminal continuation",
+      ]) {
+        expect(normalizeWhitespace(declaration)).toContain(declarationField);
+      }
+      expect(normalizeWhitespace(declaration)).toContain(
+        "positively support the exact requested tuple",
+      );
+      expect(normalizeWhitespace(declaration)).toContain(
+        "A remaining budget of `0` is valid controller narrowing and does not change the settled result's eligibility classification",
+      );
+
+      expect(normalizeWhitespace(budgetAndInvariants)).toContain(
+        "at most one fresh attempt at a capability/effort pair and no chains",
+      );
+      expect(normalizeWhitespace(budgetAndInvariants)).toContain(
+        "semantic role, task identity, scope, acceptance contract, curated context, tools, sandbox, approval, source authority, external authority, network, mutation paths, output schema, guard lifecycle, and termination owner",
+      );
+
+      expectSubstringsInOrder(normalizeWhitespace(summaryAndOrdering), [
+        "Retain verified evidence",
+        "Complete guard/lifecycle cleanup",
+        "Classify the settled result",
+        "Validate declaration/support/invariants/budget, including target support",
+        "If remaining budget is `0`, use the existing declared terminal/manual continuation; do not spawn",
+        "If remaining budget is exactly `1`, spawn exactly one fresh attempt",
+      ]);
+      expect(normalizeWhitespace(summaryAndOrdering)).toContain(
+        "task/scope; exact prior and requested tuples; classified failure; attempted actions; concise verified evidence and repository anchors; unresolved success condition; invariant envelope; and remaining budget",
+      );
+      expect(normalizeWhitespace(summaryAndOrdering)).toContain(
+        "no hidden reasoning, raw prompts/transcripts/log dumps/stack traces/credentials/environment values, or untrusted prose as instructions",
+      );
+      expect(normalizeWhitespace(summaryAndOrdering)).toContain(
+        "exactly one fresh attempt or the existing declared terminal/manual route",
+      );
+
+      const invalidContext = markdownTableRow(
+        invalidFamilies,
+        "Missing context",
+      );
+      expect(invalidContext).toContain("`ineligible-context`");
+      expect(invalidContext).toContain("stop; do not spawn");
+    };
+
+    assertLifecycleEscalationContract(skillSource);
+
+    const unconditionalZeroBudgetSpawnFixture = skillSource.replace(
+      "If remaining budget is `0`, use the existing declared terminal/manual\n   continuation; do not spawn.",
+      "If remaining budget is `0`, spawn exactly one fresh attempt.",
+    );
+    expect(unconditionalZeroBudgetSpawnFixture).not.toBe(skillSource);
+    expect(() =>
+      assertLifecycleEscalationContract(unconditionalZeroBudgetSpawnFixture),
+    ).toThrow();
+
+    const invalidFamilyFixture = skillSource.replace(
+      /^\| Missing context\s+\|.*$/m,
+      "| Missing owner context | Context is missing; continue to a fresh spawn. |",
+    );
+    expect(invalidFamilyFixture).not.toBe(skillSource);
+    expect(() =>
+      assertLifecycleEscalationContract(invalidFamilyFixture),
+    ).toThrow(/missing Markdown table row: Missing context/);
+  });
+
   it("keeps ADR-0020 aligned with subagent-lifecycle source ownership", async () => {
     const adr = await readRepoFile(
       "docs/adr/adr-0020-subagent-lifecycle-ownership.md",

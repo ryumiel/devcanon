@@ -36,6 +36,15 @@ session until every reviewer loop required by the task's effective route
 passes, unless the target lacks same-session follow-up and a fresh implementer
 can receive the complete captured state.
 
+The shared `subagent-lifecycle` owner and the Agent Routing and Mutation Policy
+adoption inventory own capability-escalation declarations. No current exact
+target transition is declared here: `D12 current exact target transition: none`
+and `D13 current exact target transition: none`. D13-to-D12 reclassification is not
+capability escalation. D12 context repair remains on the configured
+implementer, balanced/high; without a separately authorized future declaration,
+it returns through the existing blocker/manual-owner path without a model or
+effort override. D14-D16 freshness and fix loops remain unchanged.
+
 ## Handling Mutable Task-Worker Status
 
 Before acting on any returned D12 implementer or dispatched D13 executor

@@ -286,6 +286,30 @@ Prefer moving coherent supporting sections over deleting nuance. A smaller
 to use the skill, what contract it must preserve, and which supporting file or
 script to open when more detail is needed.
 
+### Future controller capability transitions
+
+When authoring a controller that could change a direct child's capability or
+effort after a failure, reference `subagent-lifecycle` and the
+[Agent Routing and Mutation Policy](agent-routing-and-mutation-policy.md)
+adoption inventory. That policy is the sole authoritative D1-D17 adoption inventory and grammar owner; this guide is a non-owning consumer projection, so
+authors must consult the owner rather than reproduce a registry or grammar here.
+
+<!-- guide-capability-transition-projection
+{"declaration_id":"GUIDE-WRITING-SKILLS-CAPABILITY-TRANSITIONS","source_path":"docs/guidelines/writing-skills.md","surface_mode":"non-owning-semantic-projection","authority_ref":"docs/guidelines/agent-routing-and-mutation-policy.md","opt_out":{"route_identity":"route-level","target_ids":"plural","target_permission":"exact-only","role_permission":"canonical-direct-route","transition":"none","non_d4_direct_route_role_ids":"required","owner_clauses":"route-specific"},"d4":{"route_id":"D4","declaration_count":1,"role_set":"canonical-complete","selection_mode":"planner-selected","direct_route_role_ids":"forbidden"},"d17":{"route_id":"D17","declaration_count":1,"direct_route_role_ids":"canonical-ordered","binding":"route-level"}}
+-->
+
+The bounded projection above is this guide's only machine-checkable transition
+contract. All explanatory prose in this subsection is non-authoritative; use
+the routing-policy owner for operational details and current route bindings.
+
+For active transition declaration shapes, declare the shared owner's complete
+exact target-supported current and next capability plus effort, mechanism,
+budget, invariants, and terminal behavior. Do not infer a transition from
+ambient, nearby, alias, or role substitution. No static agent schema or runtime
+change is required; capability/effort, tools, sandbox, approvals, context,
+scope, termination, authority, orchestration, retries, and escalation remain
+separate concerns; controller orchestration remains skill prose.
+
 ## 7. Testing
 
 The general discipline lives in

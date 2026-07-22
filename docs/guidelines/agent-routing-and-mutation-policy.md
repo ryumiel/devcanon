@@ -107,36 +107,101 @@ language. Each source-immutable row is response-only unless it explicitly
 declares a handoff. It uses the minimum source-immutable guard around the
 existing response contract.
 
-| ID  | Surface and owner                                                                       | Route                                                                                                                                                                                    | Existing output / termination                                                                                                 |
-| --- | --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| D1  | Issue gate — `issue-priming-workflow` Phase 2                                           | `assessor`, balanced/medium, source-immutable                                                                                                                                            | Gate enum; terminal Phase 2 route                                                                                             |
-| D2  | Internal research — issue priming Phase 3                                               | `investigator`, balanced/high, source-immutable                                                                                                                                          | Existing report headings; root synthesizes                                                                                    |
-| D3  | External research — issue priming Phase 3                                               | `investigator`, balanced/high, source-immutable, named network                                                                                                                           | Existing necessity/URL/headings; root synthesizes                                                                             |
-| D4  | Focused specialist — `play-agent-dispatch`                                              | Resolve exactly one of the six semantic roles before spawn; use its exact configured capability/effort and matching source default; declare scope/termination; external authority `none` | Source-immutable selection is response-only under B3; unresolved route blocks                                                 |
-| D5  | Plan review — `play-planning`                                                           | `reviewer`, frontier/high, source-immutable                                                                                                                                              | Distinct digest-bound PASS/FAIL; join paired results for one digest                                                           |
-| D6  | Executability review — `play-planning`                                                  | `reviewer`, frontier/high, source-immutable                                                                                                                                              | Distinct digest-bound PASS/FAIL; join paired results for one digest                                                           |
-| D7  | Code-quality topical — `play-review` Phase 3                                            | `reviewer`, frontier/high, source-immutable                                                                                                                                              | Existing findings; controller aggregates                                                                                      |
-| D8  | Architecture topical — `play-review` Phase 3                                            | `reviewer`, frontier/high, source-immutable                                                                                                                                              | Existing triggered findings; controller aggregates                                                                            |
-| D9  | Spec topical — `play-review` Phase 3                                                    | `reviewer`, frontier/high, source-immutable                                                                                                                                              | Existing triggered findings; controller aggregates                                                                            |
-| D10 | Critic — `play-review` Phase 5                                                          | `deep-reviewer`, frontier/xhigh, source-immutable                                                                                                                                        | Existing finding verdicts; no recursion                                                                                       |
-| D11 | Skill pressure scenario — `play-skill-authoring`                                        | `assessor`, balanced/medium, source-immutable                                                                                                                                            | Existing scenario evidence; invalid evidence retested                                                                         |
-| D12 | Default implementation — `play-subagent-execution`                                      | `implementer`, balanced/high, source-mutable                                                                                                                                             | Existing status/snapshot; scoped commit                                                                                       |
-| D13 | Exact task — `play-subagent-execution`                                                  | Inline or `executor`, efficient/medium, source-mutable                                                                                                                                   | Five guardrails; stop/reclassify on judgment                                                                                  |
-| D14 | Per-task spec review — execution review routing                                         | `deep-reviewer`, frontier/xhigh, source-immutable                                                                                                                                        | Existing distinct prompt/same-head fix loop                                                                                   |
-| D15 | Per-task quality review — execution review routing                                      | `deep-reviewer`, frontier/xhigh, source-immutable                                                                                                                                        | Existing distinct prompt/provisional same-head loop                                                                           |
-| D16 | Final whole-implementation quality review — execution Process step 10/final-review gate | `deep-reviewer`, frontier/xhigh, source-immutable                                                                                                                                        | Whole-range prompt; narrow ADR-0016 skip; final fix/fresh-review or terminal-owner route                                      |
-| D17 | CI diagnosis/fix — `pr-merge` Step 4                                                    | Diagnosis: `investigator`, balanced/high, source-immutable; exact fix: `executor`, efficient/medium, source-mutable; judgment fix: `implementer`, balanced/high, source-mutable          | Guard diagnosis before fix classification; mutable child commits only; root alone separately owns external-mutable push/merge |
+| ID  | Surface and owner                                                                       | Route                                                                                                                                                                                                      | Existing output / termination                                                                                                 |
+| --- | --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| D1  | Issue gate — `issue-priming-workflow` Phase 2                                           | `assessor`, balanced/medium, source-immutable                                                                                                                                                              | Gate enum; terminal Phase 2 route                                                                                             |
+| D2  | Internal research — issue priming Phase 3                                               | `investigator`, balanced/high, source-immutable                                                                                                                                                            | Existing report headings; root synthesizes                                                                                    |
+| D3  | External research — issue priming Phase 3                                               | `investigator`, balanced/high, source-immutable, network-binding `dispatch-named`, evidence-qualifier `named-network`                                                                                      | Existing necessity/URL/headings; root synthesizes                                                                             |
+| D4  | Focused specialist — `play-agent-dispatch`                                              | Resolve exactly one of the six semantic roles before spawn; use its exact configured capability/effort and matching source default; declare scope/termination; external authority `none`                   | Source-immutable selection is response-only under B3; unresolved route blocks                                                 |
+| D5  | Plan review — `play-planning`                                                           | `reviewer`, frontier/high, source-immutable                                                                                                                                                                | Distinct digest-bound PASS/FAIL; join paired results for one digest                                                           |
+| D6  | Executability review — `play-planning`                                                  | `reviewer`, frontier/high, source-immutable                                                                                                                                                                | Distinct digest-bound PASS/FAIL; join paired results for one digest                                                           |
+| D7  | Code-quality topical — `play-review` Phase 3                                            | `reviewer`, frontier/high, source-immutable                                                                                                                                                                | Existing findings; controller aggregates                                                                                      |
+| D8  | Architecture topical — `play-review` Phase 3                                            | `reviewer`, frontier/high, source-immutable                                                                                                                                                                | Existing triggered findings; controller aggregates                                                                            |
+| D9  | Spec topical — `play-review` Phase 3                                                    | `reviewer`, frontier/high, source-immutable                                                                                                                                                                | Existing triggered findings; controller aggregates                                                                            |
+| D10 | Critic — `play-review` Phase 5                                                          | `deep-reviewer`, frontier/xhigh, source-immutable                                                                                                                                                          | Existing finding verdicts; no recursion                                                                                       |
+| D11 | Skill pressure scenario — `play-skill-authoring`                                        | `assessor`, balanced/medium, source-immutable                                                                                                                                                              | Existing scenario evidence; invalid evidence retested                                                                         |
+| D12 | Default implementation — `play-subagent-execution`                                      | `implementer`, balanced/high, source-mutable                                                                                                                                                               | Existing status/snapshot; scoped commit                                                                                       |
+| D13 | Exact task — `play-subagent-execution`                                                  | `executor`, efficient/medium, source-mutable, selection-mode `inline-or-delegated`                                                                                                                         | Five guardrails; stop/reclassify on judgment                                                                                  |
+| D14 | Per-task spec review — execution review routing                                         | `deep-reviewer`, frontier/xhigh, source-immutable                                                                                                                                                          | Existing distinct prompt/same-head fix loop                                                                                   |
+| D15 | Per-task quality review — execution review routing                                      | `deep-reviewer`, frontier/xhigh, source-immutable                                                                                                                                                          | Existing distinct prompt/provisional same-head loop                                                                           |
+| D16 | Final whole-implementation quality review — execution Process step 10/final-review gate | `deep-reviewer`, frontier/xhigh, source-immutable                                                                                                                                                          | Whole-range prompt; narrow ADR-0016 skip; final fix/fresh-review or terminal-owner route                                      |
+| D17 | CI diagnosis/fix — `pr-merge` Step 4                                                    | branch `diagnosis`: `investigator`, balanced/high, source-immutable; branch `exact-fix`: `executor`, efficient/medium, source-mutable; branch `judgment-fix`: `implementer`, balanced/high, source-mutable | Guard diagnosis before fix classification; mutable child commits only; root alone separately owns external-mutable push/merge |
+
+## Capability Escalation Adoption Inventory
+
+The Direct-Child Route Inventory and the adoption table below are the single
+authoritative representation of current route identity, ownership, and
+adoption state. They do not authorize workflow evolution: workflow-local
+operational behavior remains owned by the applicable skill and workflow
+sources.
+
+The shared [`subagent-lifecycle`](../../skills/subagent-lifecycle/SKILL.md)
+procedure owns eligibility, declaration, support, invariants, evidence, budget,
+and terminal semantics. This table is the authoritative current adoption record;
+it does not replace any route's workflow-local dispatch or termination owner.
+
+| ID  | Adoption state | Transition |
+| --- | -------------- | ---------- |
+| D1  | opt-out        | none       |
+| D2  | opt-out        | none       |
+| D3  | opt-out        | none       |
+| D4  | opt-out        | none       |
+| D5  | opt-out        | none       |
+| D6  | opt-out        | none       |
+| D7  | opt-out        | none       |
+| D8  | opt-out        | none       |
+| D9  | opt-out        | none       |
+| D10 | opt-out        | none       |
+| D11 | opt-out        | none       |
+| D12 | opt-out        | none       |
+| D13 | opt-out        | none       |
+| D14 | opt-out        | none       |
+| D15 | opt-out        | none       |
+| D16 | opt-out        | none       |
+| D17 | opt-out        | none       |
+
+`adopt`, `specialize`, and `opt-out` remain the conceptual closed adoption
+states. Current parser validation is deliberately fail-closed: it accepts only
+an `opt-out` row with literal transition `none`. Until an authorized
+implementation defines and validates the complete exact declaration grammar,
+`adopt` and `specialize` rows are unsupported and rejected rather than treated
+as a marker language or partial declaration.
 
 Task-specific prompts, schemas, skip criteria, retries, fallbacks, and
 termination remain owned by the source skill. A route may not collapse two
 distinct sessions just because they share a semantic agent.
 
-Before D4 spawns, the owner must select exactly one spec-owned semantic role,
-use that role's configured capability and effort without per-call substitution,
-and use the role's matching `source-immutable` or `source-mutable` default. The
-dispatch declares its bounded scope and termination and has external authority
-`none`. Under the B3 routing boundary, a source-immutable D4 selection is
-response-only; a route that cannot satisfy every field blocks.
+### D4 Declaration Obligation
+
+This policy is the sole D4 route owner: it owns the D4 route identity, exact
+six-role allowed set, controller declaration obligation, producer path
+[`skills/play-agent-dispatch/SKILL.md`](../../skills/play-agent-dispatch/SKILL.md),
+and current D4 adoption record. The producer consumes this obligation; it does
+not define a peer route or role registry.
+
+Before D4 spawns, the controller must issue one complete pre-spawn declaration.
+Its controller-bound fields are exactly `route_id` (`D4`), `target_id`, the
+planner-selected `selected_role_id`, `scope`, `termination`, `context_ref`, and
+`approval_ref`; `termination` includes the declared output behavior. The
+[agent spec](../specs/agents.md) is the sole semantic-role catalog and
+role-envelope owner. For the exact selected role and target, it derives
+`capability`, target-native `effort`, `source_authority`,
+`external_authority`, ordered duplicate-free `claude_tools`, `codex_sandbox`,
+and `default_network`. The selected governed agent source supplies its
+target-local literal `claude.model` or `codex.model` when present;
+[`devcanon.config.yaml`](../../devcanon.config.yaml) supplies the
+exact-target/capability `model` only as fallback. The selected source must
+match the selected role's capability before model resolution; a
+capability-less or mismatched source fails that parity check rather than
+entering model resolution.
+
+`agents/*.yaml` are governed declarations/instances and parity inputs, never
+peer semantic authorities. Cognitive demand and stance remain planner
+classification inputs only, not declaration fields or authority. Missing,
+unresolved, unknown, nearby, ambient, or mismatched controller-bound or
+owner-derived values block before spawn; no declaration field is optional or
+may be inferred from the child, parent, workflow, or runtime environment. Under
+the B3 routing boundary, a source-immutable D4 selection is response-only.
 
 ### Ordinary child failure disposition
 

@@ -88,6 +88,13 @@ Capability and target-native effort are both explicit for all six roles and
 remain independent. Neither setting implies tools, sandbox, network, mutation,
 or escalation behavior.
 
+The shared [`subagent-lifecycle`](../../skills/subagent-lifecycle/SKILL.md)
+procedure owns future capability-escalation declarations and the
+[Agent Routing and Mutation Policy](../guidelines/agent-routing-and-mutation-policy.md)
+owns their current adoption inventory. This schema records role envelopes only:
+it does not claim current target support, encode orchestration or retry policy,
+or add a static agent-schema field for escalation.
+
 ### Tool and sandbox behavior
 
 | Agent           | Claude tools                                 | Codex sandbox   | Default network |

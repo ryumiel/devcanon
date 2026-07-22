@@ -53,8 +53,9 @@ routing and source-immutable guard behavior for DevCanon workflow skills.
   validation implementation details.
 - Creating repository-local logbooks, work journals, validation summaries,
   execution ledgers, postmortem archives, or copied tracker and PR histories.
-- Defining a capability or effort escalation policy. The separately tracked
-  owner, issue #528, retains that work; this spec adds no escalation rule.
+- Defining a capability or effort escalation policy. The shared
+  `subagent-lifecycle` procedure and Agent Routing and Mutation Policy adoption
+  inventory retain that work; this spec adds no escalation rule.
 - Defining benchmark corpora, resumable evidence stores, direct-dispatch marker
   syntax, comprehensive workspace enforcement, or a cross-provider evaluation
   framework.
@@ -128,17 +129,35 @@ must not use ambient model or effort, infer a route from the owning skill's
 highest mutation authority, collapse distinct review sessions because they
 share a semantic agent, or dispatch when the route is unresolved.
 
-For D4, pre-spawn resolution must select exactly one of the six semantic roles,
-use that role's exact configured capability and effort plus its matching
-`source-immutable` or `source-mutable` default, and declare the child scope and
-termination. The dispatch receives external authority `none`; no external
-authority is inferred. Under the B3 routing boundary, a source-immutable D4
-selection is response-only. Any unresolved field blocks spawn.
+For D4, resolve the complete pre-spawn declaration through the
+[D4 Declaration Obligation](../guidelines/agent-routing-and-mutation-policy.md#d4-declaration-obligation),
+the sole complete declaration authority. Observable semantic direct-child
+dispatch selects exactly one resolved route, and any unresolved route or
+declaration state blocks before spawn. Under the B3 routing boundary, a
+source-immutable D4 selection is response-only.
+
+D4 contract verification is bounded to the canonical repository-authored
+policy, producer, routing-spec, and rendered forms. It does not establish a
+general Markdown grammar, and test-local scanners are not required to recognize
+arbitrary CommonMark-equivalent representations. The repository-wide
+[Markdown contract-testing boundary](../guidelines/documentation-standard.md#55-markdown-contract-testing-boundary)
+governs review and acceptance.
 
 Task-specific prompts, schemas, network authorization, failure fallbacks, skip
 criteria, retry loops, and termination remain owned by the source skill. A
 shared role provides stable work identity and target-native constraints, not
 workflow method.
+
+Capability-escalation adoption is not owned by this spec. For routing context,
+the shared [`subagent-lifecycle`](../../skills/subagent-lifecycle/SKILL.md)
+procedure is the canonical common owner of declaration, support, invariants,
+evidence, budget, and terminal semantics; the
+[Agent Routing and Mutation Policy](../guidelines/agent-routing-and-mutation-policy.md)
+adoption inventory is the canonical current adoption record. This spec records
+no declaration grammar or escalation requirement. It only preserves the routing
+distinction: an inventory opt-out records `transition: none`, while existing
+fallbacks, reclassifications, and workflow retries remain task-local behavior
+unless the canonical owner declares a supported transition.
 
 ### AUTH-001: Separate Mutation Axes
 

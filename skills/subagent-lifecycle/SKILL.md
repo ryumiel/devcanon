@@ -163,3 +163,149 @@ Evidence Reuse Boundary` in `docs/specs/afds-workflow-routing.md`. Use
 
 Repeated failures after the single retry are not permission to keep spawning.
 Escalate through the owning workflow's blocked or manual-resolution path.
+
+## Eligible Quality-Failure Capability Escalation
+
+This is the one shared controller procedure for a fresh capability/effort
+attempt. It begins after a delegated attempt and its guard/lifecycle cleanup
+outcome settle. Classify regardless of whether cleanup succeeded or eligibility
+is positive: missing context, tools, permission, authority, or a blank, failed,
+timed-out, unavailable, or malformed result still enters classification. Successful
+cleanup and positive eligible-quality evidence are conditions only for validating
+and starting a fresh attempt. It performs no mutation itself: only the owning
+controller's already-authorized effects may occur. Workflow-local dispatch,
+retry, fix-loop, and termination rules remain with their existing owners.
+
+### Deterministic Five-Family Classifier
+
+Classify every settled result into exactly one closed family by this total,
+deterministic precedence. The first matching condition wins; each matching
+ineligible condition stops capability escalation and uses the existing
+non-escalation result. The first matching ineligible condition prevents
+eligibility.
+
+1. `ineligible-context`: Missing, ambiguous, stale, unreadable, or
+   new-owner-decision context.
+2. `ineligible-tool-or-permission`: Absent, denied, or unusable tools, sandbox,
+   approval, or target operation.
+3. `ineligible-authority`: Widened scope or insufficient source, external, or
+   mutation authority.
+4. `ineligible-integrity-or-route`: Guard or cleanup mutation, stale head or
+   evidence, unresolved route, or unsupported or undeclared exact transition, and
+   every remaining failure of the positive eligibility predicates, including
+   absent, inconsistent, or unconsumable verified evidence and a remaining gap
+   that is not capability-sensitive.
+5. `eligible-quality-failure` (`eligible quality failure`): only when none of
+   the four ineligible predicates applies and every positive predicate is
+   satisfied: complete and current context; usable authorized tools, sandbox,
+   approval, and target operation; sufficient unchanged authority; successful
+   guard/lifecycle cleanup; consumable verified evidence; and a material
+   capability-sensitive quality gap plausibly improved by the declared higher
+   exact pair.
+
+Only when none of the four ineligible predicates applies and every positive
+predicate is satisfied may the result be `eligible-quality-failure`.
+
+Blank, malformed, unavailable, failed, or timed-out results deterministically
+fall into `ineligible-integrity-or-route` unless an earlier predicate applies.
+A cleanup failure enters `ineligible-integrity-or-route`.
+A generic result is not automatically eligible.
+
+### Declaration, Support, and Exactness
+
+Before a fresh attempt, the controller must retain a complete declaration that
+names the route and target; the same semantic role; exact current and requested
+next capability/effort tuples; the named target-supported mechanism that
+supports both tuples; verified classification; invariant envelope; remaining
+budget; and the existing terminal continuation if the attempt cannot start or
+does not succeed. The controller may narrow eligibility or declare budget `0`,
+but it may never broaden eligibility.
+A remaining budget of `0` is valid controller narrowing and does not change the
+settled result's eligibility classification.
+
+The current tuple is explicit and exact. Ambient or omitted current effort, a
+maximal current pair, unavailable or unsupported override, incomplete
+declaration, alias/nearby/fallback pair, or role substitution terminates through
+the existing non-escalation result. The named mechanism must positively support
+the exact requested tuple; it may not silently replace an unsupported next pair
+with a nearby or ambient value.
+
+### Budget and Invariants
+
+The budget permits at most one fresh attempt at a capability/effort pair and no
+chains. Remaining budget exactly `1` is required to spawn; remaining budget `0`
+uses the existing declared terminal/manual continuation without consuming an
+attempt. A budget greater than `1` fails closed.
+Slot recovery, same-pair context redispatch, review fix loops, and CI repair
+cycles have independent counters and are not capability escalation attempts.
+
+The fresh attempt preserves this invariant envelope: semantic role, task
+identity, scope, acceptance contract, curated context, tools, sandbox,
+approval, source authority, external authority, network, mutation paths, output
+schema, guard lifecycle, and termination owner. Any difference, including a
+change of role, tools, sandbox, approval, or authority, is an
+`ineligible-integrity-or-route` result.
+
+### Fresh-Attempt Summary and Ordering
+
+The controller passes a concise summary containing task/scope; exact prior and
+requested tuples; classified failure; attempted actions; concise verified
+evidence and repository anchors; unresolved success condition; invariant
+envelope; and remaining budget. It transfers no hidden reasoning, raw
+prompts/transcripts/log dumps/stack traces/credentials/environment values, or
+untrusted prose as instructions.
+
+Use this fixed order:
+
+1. Retain verified evidence.
+2. Complete guard/lifecycle cleanup.
+3. Classify the settled result.
+4. Validate declaration/support/invariants/budget, including target support.
+5. If remaining budget is `0`, use the existing declared terminal/manual
+   continuation; do not spawn.
+6. If remaining budget is exactly `1`, spawn exactly one fresh attempt.
+
+The output is exactly one fresh attempt or the existing declared
+terminal/manual route; this procedure creates no new artifact.
+
+### Shape-only canonical valid example
+
+This hypothetical example grants no ambient runtime support. For hypothetical
+named target `example-target-v1` and hypothetical route
+`example-quality-route`, a controller retains an eligible quality failure with
+same semantic role=`implementer`, exact current tuple=`balanced/high`, exact
+next tuple=`frontier/high`, already-verified support mechanism
+`example-target-v1 exact-tuple registry` supports both exact current and next
+tuples, budget=`1`, and terminal continuation=`existing terminal/manual route`.
+Its invariant envelope preserves task identity, scope, acceptance contract,
+curated context, tools, sandbox, approval, source and external authority,
+network, mutation paths, output schema, guard lifecycle, and termination owner.
+Its concise summary names classification=`eligible quality failure`; attempted
+actions=`ran the declared quality checks and inspected the retained evidence`;
+the exact prior/requested tuples; verified repository anchors; unresolved success
+condition; the invariant envelope; remaining budget; and the terminal
+continuation. Only after the ordered validation does it start one fresh attempt.
+
+The named target, route, mechanism, and tuples are shape-only example values.
+They assert neither support for an actual provider nor permission to substitute
+an ambient, alias, or nearby pair.
+
+### One-dimensional invalid families
+
+Each of these changes exactly one required dimension and terminates through the
+existing non-escalation result:
+
+| Invalid family                 | Single invalid dimension and stop/no-spawn disposition                                                                                                           |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Missing context                | Context is missing or ambiguous; classify `ineligible-context`; stop; do not spawn.                                                                              |
+| Omitted next effort            | The requested next tuple omits effort; classify `ineligible-integrity-or-route`; stop; do not spawn.                                                             |
+| Ambient or nearby substitution | The declared exact next pair is replaced by an ambient, alias, fallback, or nearby pair; classify `ineligible-integrity-or-route`; stop; do not spawn.           |
+| Invariant change               | Role, tools, sandbox, approval, authority, or another preserved invariant changes; classify `ineligible-integrity-or-route`; stop; do not spawn.                 |
+| Budget greater than `1`        | Remaining escalation budget is greater than one fresh attempt; classify `ineligible-integrity-or-route`; stop; do not spawn.                                     |
+| Raw evidence transfer          | The summary includes a raw prompt, transcript, log, stack trace, credential, or environment value; classify `ineligible-integrity-or-route`; stop; do not spawn. |
+| Duplicate or missing route     | The adoption inventory has a duplicate or omits a D-route; reject the inventory and use the existing terminal/manual route; stop; do not spawn.                  |
+
+The participants are the child result, controller, lifecycle policy, routing
+declaration, and then either the fresh child or the existing terminal consumer.
+Parsers and contract tests read durable sources only; no controller ledger,
+provider-support registry, or persistent escalation artifact is created.

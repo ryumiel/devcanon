@@ -125,16 +125,6 @@ function markdownTableRows(section: string): string[][] {
   return rows;
 }
 
-function exactBacktickedRole(value: string, dimension: string): string {
-  const match = /^`([a-z][a-z0-9-]*)`$/.exec(value);
-  if (!match) {
-    throw new Error(
-      `Agent spec ${dimension} must be one exact backticked role token: ${value}`,
-    );
-  }
-  return match[1];
-}
-
 function routeSpecAlignmentErrors(
   row: AgentRoutingDirectChildRouteRow,
   rolesByName: ReadonlyMap<string, AgentSemanticRoleContract>,
@@ -6193,7 +6183,7 @@ describe("existing skills source prose contracts", () => {
     }
 
     const d4 = owner.directChildRoutes.find((row) => row.id === "D4");
-    const dispatchRouteRows = markdownTableRows(
+    const dispatchRoute = normalizeWhitespace(
       sliceBetween(
         await readSkillSource("play-agent-dispatch"),
         "### Semantic Route Contract",
@@ -6206,20 +6196,31 @@ describe("existing skills source prose contracts", () => {
     expect(d4?.existingOutputOrTermination).toContain(
       "unresolved route blocks",
     );
-    expect(
-      dispatchRouteRows.map(([name, capability, effort, sourceAuthority]) => ({
-        name: exactBacktickedRole(name, "D4 consumer role identity"),
-        capability,
-        effort,
-        sourceAuthority,
-      })),
-    ).toEqual(
-      roles.map((role) => ({
-        name: role.name,
-        capability: role.capability,
-        effort: role.claudeEffort,
-        sourceAuthority: role.sourceAuthority,
-      })),
+    expect(dispatchRoute).toContain("Agent Routing and Mutation Policy");
+    for (const field of [
+      "`route_id`",
+      "`target_id`",
+      "`selected_role_id`",
+      "`capability`",
+      "target-native `effort`",
+      "`model`",
+      "`source_authority`",
+      "`external_authority`",
+      "`claude_tools`",
+      "`codex_sandbox`",
+      "`default_network`",
+      "`scope`",
+      "`termination`",
+      "`context_ref`",
+      "`approval_ref`",
+    ]) {
+      expect(dispatchRoute).toContain(field);
+    }
+    expect(dispatchRoute).toContain(
+      "target-local literal `claude.model` or `codex.model`",
+    );
+    expect(dispatchRoute).toContain(
+      "exact target/capability resolution in `devcanon.config.yaml` only as fallback",
     );
 
     const brainstorm = await readSkillSource("play-brainstorm");
@@ -6301,24 +6302,27 @@ describe("existing skills source prose contracts", () => {
     const normalizedRouteSection = normalizeWhitespace(routeSection);
 
     expect(normalizedRouteSection).toContain(
-      "Before each focused specialist spawn, independently classify and declare the full semantic route tuple",
+      "Before each focused specialist spawn, the controller must issue the complete D4 pre-spawn declaration",
     );
     for (const field of [
-      "cognitive demand",
-      "stance",
-      "source mutation default",
-      "exactly one of the six semantic roles",
-      "exact configured capability and effort",
-      "dispatch scope",
-      "termination and output behavior",
-      "external authority `none`",
+      "`route_id`: `D4`",
+      "`target_id`",
+      "planner-selected `selected_role_id`",
+      "`scope`",
+      "`termination`",
+      "`context_ref`",
+      "`approval_ref`",
+      "target-native `effort`",
+      "`source_authority`",
+      "`external_authority`",
     ]) {
       expect(normalizedRouteSection).toContain(field);
     }
-    expect(normalizedRouteSection).toContain("without per-call substitution");
-
     expect(normalizedRouteSection).toContain(
-      "Do not use an ambient model or ambient effort",
+      "target-local literal `claude.model` or `codex.model`",
+    );
+    expect(normalizedRouteSection).toContain(
+      "exact target/capability resolution in `devcanon.config.yaml` only as fallback",
     );
   });
 
@@ -6416,10 +6420,10 @@ describe("existing skills source prose contracts", () => {
     const normalizedRouteSection = normalizeWhitespace(routeSection);
 
     expect(normalizedRouteSection).toContain(
-      "If any tuple field is unresolved, do not spawn that specialist",
+      "Missing, unresolved, unknown, nearby, ambient, or mismatched fields block before spawn",
     );
     expect(normalizedRouteSection).toContain(
-      "Do not infer authority from tools, sandbox, network, model, effort, the owning workflow, or the controller's own authority",
+      "Do not infer model, effort, tools, sandbox, network, authority, or any other declaration field from the child, parent, workflow, runtime, or controller authority",
     );
     expect(normalizedRouteSection).toContain(
       "The route inventory is not a marker, annotation, or discovery grammar",

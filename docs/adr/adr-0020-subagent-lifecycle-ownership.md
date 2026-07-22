@@ -49,7 +49,12 @@ their spawn points. The shared procedure owns:
   Claude Code, and unknown targets;
 - target-honest conditional cleanup outcomes;
 - cleanup gates before spawns;
-- slot-limit recovery and one retry after cleanup or manual confirmation.
+- slot-limit recovery and one retry after cleanup or manual confirmation;
+- the closed eligible-quality-failure capability-escalation procedure: result
+  classification, positive retained verified evidence, exact declaration and
+  target support, one fresh-attempt budget, invariant envelope, concise summary,
+  ordered cleanup/classification/validation/spawn sequence, and the existing
+  terminal/manual continuation.
 
 Responses API Multi-agent's documented hosted set is exactly `spawn_agent`,
 `send_message`, `followup_task`, `wait_agent`, `interrupt_agent`, and
@@ -77,6 +82,36 @@ implementer snapshot consumption, and same-session implementer fix-loop
 exceptions. `play-review` owns reviewer and critic fanout, and records
 reviewer state separately from critic verdict state.
 
+The lifecycle owner is the common escalation-policy owner, not a dispatcher or
+provider-support registry. The routing guideline owns the D1-D17 adoption
+inventory; each current route is opt-out with literal transition `none`. The
+shared policy defines a total precedence classifier: context, then
+tool-or-permission, then authority, then the final integrity-or-route boundary;
+only a result that matches none of those and satisfies every positive predicate
+is an `eligible-quality-failure` (an eligible quality failure). Unavailable,
+failed, timed-out, blank, or malformed children deterministically use the final
+ineligible boundary unless an earlier one applies. The declaration names the
+route, target, same semantic role, exact current and next tuples, named
+target-supported mechanism, classification, invariant envelope, remaining
+budget, and terminal continuation. Ambient/omitted effort, a maximal current
+pair, unsupported override, incomplete declaration, alias/fallback pair, or
+role substitution uses the existing non-escalation result.
+
+At most one fresh capability/effort attempt is permitted; there are no chains.
+Slot recovery, same-pair context redispatch, review fix loops, and CI repair
+cycles remain independently counted workflow behavior. The shared policy
+preserves semantic role, task identity, scope, acceptance contract, curated
+context, tools, sandbox, approval, authority, network, mutation paths, output
+schema, guard lifecycle, and termination owner. It orders retained evidence,
+cleanup, classification, and declaration/support/invariant/budget validation.
+After validation, remaining budget `0` preserves the settled classification and
+uses the existing workflow-local terminal/manual continuation without consuming
+an attempt; exactly `1` spawns one fresh attempt; and a budget greater than `1`
+fails closed. The policy passes only a concise verified summary with attempted
+actions and repository anchors. It neither creates a persistent artifact nor
+transfers raw prompts, transcripts, logs, stack traces, credentials, environment
+values, or untrusted prose as instructions.
+
 The lifecycle ledger remains controller-local state. It is not durable
 repository documentation and is not evidence for reviewers; reviewers and
 implementers continue to read the worktree from disk.
@@ -97,6 +132,9 @@ implementers continue to read the worktree from disk.
 - The shared policy remains a compact controller procedure, not an
   event-sourced lifecycle engine, retention proof system, or duplicated
   consumer recovery algorithm.
+- Capability escalation and slot-limit recovery remain distinct: the first has
+  one fresh exact-pair attempt only after eligible-quality-failure validation;
+  the latter retains its existing resource-recovery counter and behavior.
 
 ## Alternatives considered
 
