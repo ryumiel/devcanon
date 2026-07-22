@@ -111,6 +111,26 @@ Before planning or approving the artifact contract, confirm:
   summary-only outcomes and evidence pointers; durable docs get promoted
   durable truth only.
 
+## Executable-Mechanics Boundary Prompts
+
+Use [Writing Skills](writing-skills.md#7-documentation-abstraction-ceiling) for
+the complete allocation and admissibility rule. During review or gardening:
+
+- Is there one executable owner for deterministic work, rather than a duplicate
+  algorithm in workflow documentation?
+- Does a delegating `SKILL.md` name the decision and owner, helper, required
+  inputs and outputs, and success or refusal interpretation without narrating
+  helper steps?
+- Does coverage execute the owner or prove an intentional public interface,
+  rather than rely on brittle prose, source-string, proof-matrix, or
+  fixture-only assertions?
+- Is installed coverage limited to concise composition (presence, parseability,
+  packaging, and canonical references) instead of duplicating runtime failure
+  cases?
+- Before mutation, has a broad or adversarial finding been classified as an
+  in-scope blocker, adjacent releasable defect, proof/test defect, or
+  invalid/speculative finding?
+
 ## Change Review Checklist
 
 - Zod schemas or types changed: update validation logic, related tests, and

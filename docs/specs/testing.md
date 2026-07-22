@@ -35,6 +35,17 @@ closest stable boundary. Other layers may prove their own integration with
 that contract, but must consume the same owner-derived data instead of
 recreating its inventory, topology, or prose.
 
+For skill documentation and executable mechanics, the complete allocation and
+admissibility rule is in
+[Writing Skills](../guidelines/writing-skills.md#7-documentation-abstraction-ceiling).
+This specification selects the layer: allow direct observable behavior, stable
+intentional public interfaces, executable syntax or wire tokens, and focused
+helper/runtime behavior. Reject proof-for-proof narrative, ordering,
+source-string, reviewer-ceremony, or fixture-only coverage without an
+authoritative consumer failure, and prefer executing the owner. Installed
+coverage is limited to concise composition—presence, parseability, packaging,
+and canonical references—not a duplicate unit/runtime failure matrix.
+
 When a Markdown table owns a contract, one test-only adapter parses and
 validates that table once. Source-contract and render consumers reuse the
 adapter's parsed rows. They must not maintain separate skill, agent, route, or
@@ -59,77 +70,25 @@ Render tests prove generated artifact behavior:
   fenced-code boundaries
 - agent model-placeholder rejection in validation and direct render entrypoints
 
-Render consumers preserve runtime and structural behavior for both supported
-targets: parseability, packaging and sidecars, Claude frontmatter, Codex TOML,
-semantic agent identity, capability, effort, authority, and route evidence.
-Source-contract consumers prove source-owned policy, including route
-membership and qualifier locality. A representative drift test should mutate
-one owned dimension at a time at the actual layout boundary, such as moving a
-route qualifier to another row, omitting an owned route clause, changing one
-target's effort, or adding an unowned tool-envelope role.
+Render consumers preserve structural behavior for both supported targets:
+parseability, packaging and sidecars, target-native frontmatter, semantic agent
+identity, capability, effort, authority, and route evidence. Source-contract
+consumers prove stable source-owned interfaces, such as required handoff
+inputs, outputs, authority decisions, and helper references. Script-runtime
+consumers execute source scripts against focused fixtures. Each layer stays at
+its own boundary and does not turn broad skill prose, prompt wording, ADR
+wording, or helper algorithms into a render or source-text contract.
 
-Render tests should not own broad skill prose, prompt wording, ADR wording,
-workflow policy, or helper runtime behavior. Keep those contracts in the
-authoritative source area:
-
-- `src/skill-contracts/` tests source-owned skill prose, workflow policy,
-  routing, handoff, and ADR alignment by reading `skills/**`, `docs/**`, and
-  reference files directly.
-- `src/skill-scripts/` tests executable helper runtime behavior by running
-  source scripts from `skills/**/scripts/**` against focused fixtures.
-
-Avoid long-lived full-output snapshots or phrase inventories for shipped skill
-and agent bodies. Use structured artifact assertions and source-level contract
-tests instead.
-
-Source-contract tests should pin load-bearing invariants. Include coverage for:
-
-- required inputs, outputs, handoff schemas, and notice lines consumed by other
-  skills, agents, scripts, or generated outputs
-- authority and ownership rules that decide which artifact wins when sources
-  disagree
-- path, trust-boundary, fail-closed, and compatibility behavior that protects
-  safety or prevents ambiguous execution
-- required helper/script references, routing decisions, and cross-skill
-  preconditions that would break downstream workflows if removed
-
-Do not use source-contract tests for:
-
-- explanatory prose, examples, section narration, or repeated wording that has
-  no consumer contract
-- every guard message when the guard behavior is already covered by an
-  executable helper test or a higher-level invariant
-- duplicated checks whose only purpose is to keep old render-body phrase
-  inventories alive in a different test suite
-
-Only assert exact text when that text is executable syntax or a required wire
-token consumed by another component, such as a schema name, emitted notice,
-CLI flag, environment variable, helper path, route tuple, or documented error.
-Do not use exact text to preserve incidental narration, diagrams, examples, or
-prompt wording.
-
-Each new regression test must name:
-
-- the concrete failure it prevents;
-- the normative owner of the affected contract;
-- the primary test layer for that contract; and
-- why existing coverage at that layer is insufficient.
-
-Prefer a focused owner-derived assertion and a bounded mutation that would
-reproduce the concrete failure. Do not introduce generalized topology
-registries, marker grammars, runtime discovery, or mutation frameworks to make
-a prose contract testable. If the owner cannot be consumed without such
-machinery, improve the owner or test a narrower observable boundary.
+Each new regression test names the concrete failure, normative owner, primary
+test layer, and the gap in existing coverage. Use the smallest owner-derived
+assertion that would fail for that regression; improve the owner or choose a
+narrower observable boundary rather than creating a prose-testing framework.
 
 For a breaking source-contract migration, compare deterministic v1 and v2
 renders in isolation: require identical relative artifact inventory, parse
 representative outputs, and enumerate an explicit allowlist of intentional
 semantic deltas. Ignored `generated/` previews remain local evidence and are
 not committed snapshot authority.
-
-During review response, add the smallest source-owned assertion set that would
-fail for a real contract regression and leave non-load-bearing wording to
-source review.
 
 ---
 
