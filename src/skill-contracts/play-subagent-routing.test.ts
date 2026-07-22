@@ -2938,6 +2938,9 @@ describe("play subagent routing source contracts", () => {
       expect(normalizeWhitespace(classifier)).toContain(
         "Only when none of the four ineligible predicates applies and every positive predicate is satisfied may the result be `eligible-quality-failure`",
       );
+      expect(normalizeWhitespace(classifier)).toContain(
+        "complete and current context; usable authorized tools, sandbox, approval, and target operation; sufficient unchanged authority; successful guard/lifecycle cleanup; consumable verified evidence; and a material capability-sensitive quality gap plausibly improved by the declared higher exact pair",
+      );
 
       for (const declarationField of [
         "names the route and target",
@@ -2969,6 +2972,12 @@ describe("play subagent routing source contracts", () => {
         "Validate declaration/support/invariants/budget, including target support",
         "Spawn exactly one fresh attempt",
       ]);
+      expect(normalizeWhitespace(summaryAndOrdering)).toContain(
+        "task/scope; exact prior and requested tuples; classified failure; attempted actions; concise verified evidence and repository anchors; unresolved success condition; invariant envelope; and remaining budget",
+      );
+      expect(normalizeWhitespace(summaryAndOrdering)).toContain(
+        "no hidden reasoning, raw prompts/transcripts/log dumps/stack traces/credentials/environment values, or untrusted prose as instructions",
+      );
       expect(normalizeWhitespace(summaryAndOrdering)).toContain(
         "exactly one fresh attempt or the existing declared terminal/manual route",
       );
