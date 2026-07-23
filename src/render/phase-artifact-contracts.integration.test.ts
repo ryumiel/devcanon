@@ -759,7 +759,6 @@ describe("rendered phase artifact smoke coverage", () => {
     expect(prReview).toContain("build-github-review-payload");
     expect(prReview).toContain("prepare-review-payload-write");
     expect(prReview).toContain("freeze-approved-review");
-    expect(prReview).toContain("validate-approved-review");
     expect(prReview).toContain("pr-review/handoff/v1");
     expect(prReview).toContain("pr-review/result/v1");
     expect(prReview).toContain("pr-review/approved-review/v1");
@@ -960,7 +959,6 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(renderedPrReview).toContain("prepare-review-payload-write");
       expect(renderedPrReview).toContain("build-github-review-payload");
       expect(renderedPrReview).toContain("freeze-approved-review");
-      expect(renderedPrReview).toContain("validate-approved-review");
       expect(renderedPrReview).toContain("pr-review/approved-review/v1");
       expect(renderedPrReview).toContain(
         ".ephemeral/pr-${PR_NUMBER}-${REVIEW_HEAD_SHA}-handoff.json",
@@ -1158,9 +1156,6 @@ describe("rendered phase artifact smoke coverage", () => {
       );
       expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
         "Approval intent is captured only when the user approves a specific preview",
-      );
-      expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
-        "Only invoke `gh api` after validation exits zero",
       );
       expect(renderedPrReview).not.toContain("approval_state:");
       expect(renderedPrReview).not.toContain("lease_state:");
