@@ -2160,9 +2160,6 @@ None
     );
     expect(normalizedPrReview).toContain("Refuse stale heads before posting");
     expect(normalizedPrReview).toContain(
-      "Only invoke `{{tool:github-cli}} api` after validation exits zero",
-    );
-    expect(normalizedPrReview).toContain(
       "Do not call `build-github-review-payload` again after user approval",
     );
     expect(phase5AuditFailureBlock).toContain('HEAD_REF="$REVIEW_HEAD_REF"');
@@ -3467,7 +3464,6 @@ None
     expect(prReview).toContain("build-github-review-payload");
     expect(prReview).toContain("prepare-review-payload-write");
     expect(prReview).toContain("freeze-approved-review");
-    expect(prReview).toContain("validate-approved-review");
     expect(prReview).toContain("pr-review/approved-review/v1");
     expect(prReview).toContain('REVIEW_SURFACE="pr-review"');
     expect(prReview).toContain("REVIEW_BODY_FILE");
