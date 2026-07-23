@@ -144,7 +144,8 @@ boundaries:
 - Write `aborted` immediately after the user chooses `abort`, with
   `FINISHED_AT` and `TERMINAL_REASON`, then proceed to lease-gated cleanup.
 - Write `posted` only after the GitHub review post succeeds, with
-  `APPROVED_REVIEW_FILE`, `FINISHED_AT`, and `GITHUB_POSTED_AT`. The runtime
+  `APPROVED_REVIEW_FILE`, `VALIDATED_REVIEW_PAYLOAD_FILE`, `FINISHED_AT`, and
+  `GITHUB_POSTED_AT`. The runtime
   reducer records `github_post_attempted=true` and
   `github_post_result=succeeded` as derived metadata.
 - Write `failed` before any cleanup decision when validation, preview,
@@ -875,6 +876,7 @@ Only after user approval:
        bash "$PLAY_REVIEW_HELPER" build-github-review-payload > "$REVIEW_PAYLOAD_FILE" || return 1
      APPROVED_REVIEW_FILE=$(
        HEAD_SHA="$REVIEW_HEAD_SHA" \
+       PR_NUMBER="$PR_NUMBER" \
        FINDINGS_FILE="$REVIEW_FINDINGS_FILE" \
        REVIEW_BODY_FILE="$REVIEW_BODY_FILE" \
        REVIEW_PAYLOAD_FILE="$REVIEW_PAYLOAD_FILE" \
@@ -914,30 +916,24 @@ Only after user approval:
    ```
 
 5. **Post exactly the validated approved payload.** After the stale-head guard
-   passes, call `validate-approved-review` into a guarded direct-child
-   `.ephemeral` payload file first. Only invoke `{{tool:github-cli}} api` after validation exits
-   zero. Do not call `build-github-review-payload` again after user approval.
+   passes, have the approved-review helper materialize the guarded canonical
+   payload and bind its returned path. Only invoke `{{tool:github-cli}} api`
+   after materialization exits zero. Do not call `build-github-review-payload` again after user approval.
    Do not edit, reformat, filter, or reconstruct the payload between validation
    and posting.
 
    ```sh
-   (
+   VALIDATED_REVIEW_PAYLOAD_FILE=$( (
      cd "$WORKING_DIRECTORY" || exit 1
-     VALIDATED_REVIEW_PAYLOAD_FILE=".ephemeral/pr-${PR_NUMBER}-${REVIEW_HEAD_SHA}-validated-review-payload.json"
-     case "$VALIDATED_REVIEW_PAYLOAD_FILE" in .ephemeral/*/* | *..*) exit 1 ;; .ephemeral/*) ;; *) exit 1 ;; esac
-     [ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
-     mkdir -p .ephemeral
-     [ ! -L "$VALIDATED_REVIEW_PAYLOAD_FILE" ] || { echo "validated review payload must not be a symlink" >&2; exit 1; }
-     [ ! -d "$VALIDATED_REVIEW_PAYLOAD_FILE" ] || { echo "validated review payload path is a directory" >&2; exit 1; }
-     [ ! -e "$VALIDATED_REVIEW_PAYLOAD_FILE" ] || [ -f "$VALIDATED_REVIEW_PAYLOAD_FILE" ] || { echo "validated review payload path exists but is not a regular file" >&2; exit 1; }
-     if ! HEAD_SHA="$REVIEW_HEAD_SHA" \
+     HEAD_SHA="$REVIEW_HEAD_SHA" \
+       PR_NUMBER="$PR_NUMBER" \
        BASE_REF="$REVIEW_SCOPE_BASE_REF" \
        APPROVED_REVIEW_FILE="$APPROVED_REVIEW_FILE" \
-       bash "$PR_REVIEW_HELPER" validate-approved-review > "$VALIDATED_REVIEW_PAYLOAD_FILE"; then
-       rm -f "$VALIDATED_REVIEW_PAYLOAD_FILE"
-       echo "approved review validation failed; refusing to invoke gh api" >&2
-       exit 1
-     fi
+       bash "$PR_REVIEW_HELPER" materialize-validated-review-payload
+   ) ) || exit 1
+   [ -n "$VALIDATED_REVIEW_PAYLOAD_FILE" ] || exit 1
+   (
+     cd "$WORKING_DIRECTORY" || exit 1
      gh api repos/{owner}/{repo}/pulls/<N>/reviews \
        --method POST \
        --silent \
@@ -955,7 +951,7 @@ Only after user approval:
 7. Verify each API response succeeded. Report failures, stop on error.
 
 After the GitHub review post succeeds, write `posted` with
-`APPROVED_REVIEW_FILE`, `FINISHED_AT`, and `GITHUB_POSTED_AT`. If
+`APPROVED_REVIEW_FILE`, `VALIDATED_REVIEW_PAYLOAD_FILE`, `FINISHED_AT`, and `GITHUB_POSTED_AT`. If
 approved-review validation, stale-head verification, or GitHub posting fails
 after the approval freeze, write `failed` with `FINISHED_AT`, `FAILURE_PHASE`,
 `FAILURE_REASON`, and `FAILURE_RECOVERABILITY` before any cleanup decision.
@@ -987,8 +983,8 @@ For the `{{tool:github-cli}} api` flag conventions used here, see [docs/guidelin
 **Posting boundary reference:** the only review-creation path in this skill is
 Phase 6's explicitly user-approved artifact flow: after approval,
 `prepare-review-payload-write`, `build-github-review-payload`,
-`freeze-approved-review`, stale-head refusal, `validate-approved-review` into the
-guarded `VALIDATED_REVIEW_PAYLOAD_FILE`, and then `{{tool:github-cli}} api --input
+`freeze-approved-review`, stale-head refusal,
+`materialize-validated-review-payload`, and then `{{tool:github-cli}} api --input
 "$VALIDATED_REVIEW_PAYLOAD_FILE"`. Do not manually construct a `jq` payload
 here, do not fetch `commit_id` from live `{{tool:github-cli}} pr view` for posting, and do not
 call `{{tool:github-cli}} api` until the approved artifact has validated successfully.

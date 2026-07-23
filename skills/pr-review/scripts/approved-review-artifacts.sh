@@ -68,6 +68,16 @@ validate_head_sha() {
   validate_sha HEAD_SHA "$HEAD_SHA"
 }
 
+validate_pr_number() {
+  require_env PR_NUMBER
+  case "$PR_NUMBER" in
+    0 | *[!0-9]*)
+      echo "PR_NUMBER must be a positive integer" >&2
+      exit 1
+      ;;
+  esac
+}
+
 slug_branch() {
   local branch_name="$1"
   local slug
@@ -104,6 +114,11 @@ expected_payload_path_for() {
 expected_approved_path_for() {
   local review_head_sha="$1"
   printf '.ephemeral/%s-%s-approved-review.json\n' "$(branch_slug)" "$review_head_sha"
+}
+
+expected_validated_payload_path_for() {
+  local review_head_sha="$1"
+  printf '.ephemeral/pr-%s-%s-validated-review-payload.json\n' "$PR_NUMBER" "$review_head_sha"
 }
 
 expected_scope_decision_path_for() {
@@ -154,7 +169,14 @@ validate_findings_path_shape() {
 }
 
 validate_review_body_path_shape() {
-  validate_direct_child_path "review body" "$1"
+  local review_body_file="$1"
+  local review_head_sha="$2"
+  local expected=".ephemeral/pr-${PR_NUMBER}-${review_head_sha}-review-body.md"
+  validate_direct_child_path "review body" "$review_body_file"
+  [ "$review_body_file" = "$expected" ] || {
+    echo "review body path mismatch: $review_body_file" >&2
+    exit 1
+  }
 }
 
 validate_payload_path_shape() {
@@ -180,6 +202,18 @@ validate_approved_path_identity() {
   expected="$(expected_approved_path_for "$review_head_sha")"
   [ "$approved_review_file" = "$expected" ] || {
     echo "approved review path mismatch: $approved_review_file" >&2
+    exit 1
+  }
+}
+
+validate_validated_payload_path_shape() {
+  local validated_payload_file="$1"
+  local review_head_sha="$2"
+  local expected
+  validate_direct_child_path "validated review payload" "$validated_payload_file" "-validated-review-payload.json"
+  expected="$(expected_validated_payload_path_for "$review_head_sha")"
+  [ "$validated_payload_file" = "$expected" ] || {
+    echo "validated review payload path mismatch: $validated_payload_file" >&2
     exit 1
   }
 }
@@ -526,6 +560,35 @@ prepare_review_payload_write() {
   printf '%s\n' "$REVIEW_PAYLOAD_FILE"
 }
 
+materialize_validated_review_payload() {
+  local validated_payload_file
+  local tmp_file
+  require_repo_root
+  validate_head_sha
+  validate_pr_number
+  validated_payload_file="$(expected_validated_payload_path_for "$HEAD_SHA")"
+  validate_validated_payload_path_shape "$validated_payload_file" "$HEAD_SHA"
+  [ ! -L .ephemeral ] || {
+    echo ".ephemeral must be a directory, not a symlink" >&2
+    exit 1
+  }
+  mkdir -p .ephemeral
+  [ ! -L "$validated_payload_file" ] || {
+    echo "validated review payload path must not be a symlink: $validated_payload_file" >&2
+    exit 1
+  }
+  [ ! -e "$validated_payload_file" ] || {
+    echo "validated review payload path already exists: $validated_payload_file" >&2
+    exit 1
+  }
+  tmp_file="$(mktemp ".ephemeral/.validated-review-payload-${HEAD_SHA}.XXXXXX")"
+  trap 'rm -f "${tmp_file:-}"' EXIT
+  validate_approved_review > "$tmp_file"
+  mv "$tmp_file" "$validated_payload_file"
+  tmp_file=""
+  printf '%s\n' "$validated_payload_file"
+}
+
 freeze_approved_review() {
   local approved_review_file
   local tmp_file
@@ -537,11 +600,12 @@ freeze_approved_review() {
   local review_event
   require_repo_root
   validate_head_sha
+  validate_pr_number
   require_env FINDINGS_FILE
   require_env REVIEW_BODY_FILE
   require_env REVIEW_PAYLOAD_FILE
   validate_findings_path_shape "$FINDINGS_FILE" "$HEAD_SHA"
-  validate_review_body_path_shape "$REVIEW_BODY_FILE"
+  validate_review_body_path_shape "$REVIEW_BODY_FILE" "$HEAD_SHA"
   validate_payload_path_shape "$REVIEW_PAYLOAD_FILE" "$HEAD_SHA"
   assert_readable_file "findings file" "$FINDINGS_FILE"
   assert_readable_file "review body file" "$REVIEW_BODY_FILE"
@@ -621,6 +685,7 @@ validate_approved_review() {
   local review_event
   require_repo_root
   validate_head_sha
+  validate_pr_number
   require_env APPROVED_REVIEW_FILE
   validate_approved_path_shape "$APPROVED_REVIEW_FILE"
   assert_readable_file "approved review file" "$APPROVED_REVIEW_FILE"
@@ -644,7 +709,7 @@ validate_approved_review() {
   review_event="$(jq -r '.payload.event' "$APPROVED_REVIEW_FILE")"
 
   validate_findings_path_shape "$findings_file" "$review_head_sha"
-  validate_review_body_path_shape "$review_body_file"
+  validate_review_body_path_shape "$review_body_file" "$review_head_sha"
   validate_payload_path_shape "$payload_file" "$review_head_sha"
   assert_readable_file "findings file" "$findings_file"
   assert_readable_file "review body file" "$review_body_file"
@@ -666,9 +731,24 @@ validate_approved_review() {
   jq '.payload' "$APPROVED_REVIEW_FILE"
 }
 
+inspect_approved_review_ownership() {
+  local validated_review_body_file
+  local validated_review_payload_file
+  validate_approved_review >/dev/null
+  validated_review_body_file="$(jq -r '.review_body_file' "$APPROVED_REVIEW_FILE")"
+  validated_review_payload_file="$(jq -r '.review_payload_file' "$APPROVED_REVIEW_FILE")"
+  jq -cn \
+    --arg review_body_file "$validated_review_body_file" \
+    --arg review_payload_file "$validated_review_payload_file" \
+    '{review_body_file: $review_body_file, review_payload_file: $review_payload_file}'
+}
+
 case "$command_name" in
   prepare-review-payload-write)
     prepare_review_payload_write
+    ;;
+  materialize-validated-review-payload)
+    materialize_validated_review_payload
     ;;
   freeze-approved-review)
     freeze_approved_review
@@ -676,8 +756,11 @@ case "$command_name" in
   validate-approved-review)
     validate_approved_review
     ;;
+  inspect-approved-review-ownership)
+    inspect_approved_review_ownership
+    ;;
   *)
-    echo "usage: approved-review-artifacts.sh prepare-review-payload-write|freeze-approved-review|validate-approved-review" >&2
+    echo "usage: approved-review-artifacts.sh prepare-review-payload-write|materialize-validated-review-payload|freeze-approved-review|validate-approved-review|inspect-approved-review-ownership" >&2
     exit 1
     ;;
 esac

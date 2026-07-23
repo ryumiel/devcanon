@@ -179,6 +179,7 @@ async function validateResultFacts(result, input) {
     }
     await assertReadableFile("findings file", findingsFile);
     const reviewBodyFile = nullableStringField(result, "review_body_file");
+    validateCanonicalReviewBodyPath(reviewBodyFile, input.prNumber, reviewHeadSha);
     const contextFile = nullableStringField(result, "context_file");
     const renderedPreviewFile = nullableStringField(artifacts, "rendered_preview_file");
     await validateOptionalReadableArtifact("review body file", reviewBodyFile);
@@ -778,6 +779,12 @@ function expectedHandoffPath(prNumber, headSha) {
 }
 function expectedResultPath(prNumber, headSha) {
     return `.ephemeral/pr-${prNumber}-${headSha}-result.json`;
+}
+function validateCanonicalReviewBodyPath(reviewBodyFile, prNumber, headSha) {
+    if (reviewBodyFile !== null &&
+        reviewBodyFile !== `.ephemeral/pr-${prNumber}-${headSha}-review-body.md`) {
+        fail(`review body path mismatch: ${reviewBodyFile}`);
+    }
 }
 function slugBranch(branchName) {
     const slug = branchName.replaceAll("/", "-").replace(/[^A-Za-z0-9._-]/gu, "");

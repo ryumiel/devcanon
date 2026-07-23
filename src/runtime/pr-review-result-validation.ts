@@ -290,6 +290,11 @@ async function validateResultFacts(
   }
   await assertReadableFile("findings file", findingsFile);
   const reviewBodyFile = nullableStringField(result, "review_body_file");
+  validateCanonicalReviewBodyPath(
+    reviewBodyFile,
+    input.prNumber,
+    reviewHeadSha,
+  );
   const contextFile = nullableStringField(result, "context_file");
   const renderedPreviewFile = nullableStringField(
     artifacts,
@@ -1184,6 +1189,19 @@ function expectedHandoffPath(prNumber: number, headSha: string): string {
 
 function expectedResultPath(prNumber: number, headSha: string): string {
   return `.ephemeral/pr-${prNumber}-${headSha}-result.json`;
+}
+
+function validateCanonicalReviewBodyPath(
+  reviewBodyFile: string | null,
+  prNumber: number,
+  headSha: string,
+): void {
+  if (
+    reviewBodyFile !== null &&
+    reviewBodyFile !== `.ephemeral/pr-${prNumber}-${headSha}-review-body.md`
+  ) {
+    fail(`review body path mismatch: ${reviewBodyFile}`);
+  }
 }
 
 function slugBranch(branchName: string): string {

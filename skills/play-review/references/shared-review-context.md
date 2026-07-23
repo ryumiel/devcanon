@@ -18,7 +18,9 @@ shared-context suffixes.
 
 Derive both paths from the `$FINDINGS_FILE` path returned by § Output's
 `prepare-findings-write` helper. The manifest is the only Phase 2.5 source of
-shared review-context content.
+shared review-context content. Runtime ownership validates this closed pair
+internally: both canonical paths and digests are accepted only when the
+rendered context is the deterministic rendering of its validated input.
 
 ## Input Manifest
 

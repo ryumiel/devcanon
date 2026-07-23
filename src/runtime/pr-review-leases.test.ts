@@ -3642,13 +3642,32 @@ async function writeReviewHelperScripts(tempRoot: string): Promise<{
   );
   const playReviewHelper = path.join(playReviewScripts, "review-artifacts.sh");
   const passThrough = "#!/usr/bin/env bash\nset -euo pipefail\nexit 0\n";
+  const approvedReviewHelper = path.join(
+    prReviewScripts,
+    "approved-review-artifacts.sh",
+  );
   await writeFile(scopeHelper, passThrough);
   await writeFile(prReviewManifestHelperScript, passThrough);
   await writeFile(prReviewLeaseHelperScript, passThrough);
+  await writeFile(
+    approvedReviewHelper,
+    [
+      "#!/usr/bin/env bash",
+      "set -euo pipefail",
+      'command_name="${1:-}"',
+      'if [ "$command_name" = "inspect-approved-review-ownership" ]; then',
+      '  jq -cn --arg review_body_file ".ephemeral/pr-${PR_NUMBER}-${HEAD_SHA}-review-body.md" --arg review_payload_file ".ephemeral/review-topic-${HEAD_SHA}-review-payload.json" \'{review_body_file: $review_body_file, review_payload_file: $review_payload_file}\'',
+      "  exit 0",
+      "fi",
+      "exit 1",
+      "",
+    ].join("\n"),
+  );
   await writeFile(playReviewHelper, passThrough);
   await chmod(scopeHelper, 0o755);
   await chmod(prReviewManifestHelperScript, 0o755);
   await chmod(prReviewLeaseHelperScript, 0o755);
+  await chmod(approvedReviewHelper, 0o755);
   await chmod(playReviewHelper, 0o755);
   return {
     prReviewDir,
@@ -3670,7 +3689,7 @@ async function writeResultArtifact(
 ): Promise<{ findingsFile: string }> {
   const handoffFile = `.ephemeral/pr-432-${reviewHead}-handoff.json`;
   const findingsFile = `.ephemeral/review-topic-${reviewHead}-findings.json`;
-  const reviewBodyFile = ".ephemeral/review-topic-review-body.md";
+  const reviewBodyFile = `.ephemeral/pr-432-${reviewHead}-review-body.md`;
   const scopeDecisionFile = ".ephemeral/review-topic-scope-decision.json";
   const providerScopeEvidenceFile = `.ephemeral/review-topic-${reviewHead}-provider-scope-evidence.json`;
   const providerPrDiffRange = `${reviewHead}..${reviewHead}`;
@@ -3820,7 +3839,7 @@ async function writeApprovedReviewArtifact(
     `${JSON.stringify({
       schema: "pr-review/approved-review/v1",
       review_head_sha: reviewHead,
-      review_body_file: ".ephemeral/topic-review-body.md",
+      review_body_file: `.ephemeral/pr-432-${reviewHead}-review-body.md`,
       payload: reviewPayload(reviewHead),
     })}\n`,
   );

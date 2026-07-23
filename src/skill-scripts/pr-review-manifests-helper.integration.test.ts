@@ -184,7 +184,7 @@ function findingsPath(headSha: string) {
 }
 
 function reviewBodyPath(headSha: string) {
-  return `.ephemeral/topic-${headSha}-review-body.md`;
+  return `.ephemeral/pr-${prNumber}-${headSha}-review-body.md`;
 }
 
 function previewPath(headSha: string) {

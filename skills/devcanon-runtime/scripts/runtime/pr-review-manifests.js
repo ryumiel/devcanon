@@ -154,6 +154,7 @@ async function writeResult() {
     });
     await validateHandoffFile(handoffFile, handoffFile);
     await validateOptionalDirectChildReadableArtifact("review body", reviewBodyFile, "-review-body.md");
+    validateCanonicalReviewBodyPath(reviewBodyFile, prNumber, headSha);
     await validateOptionalDirectChildReadableArtifact("context", contextFile, "-context.md");
     await validateOptionalDirectChildReadableArtifact("rendered preview", renderedPreviewFile, "-review-preview.md");
     const scope = await readJsonObject(scopeDecisionFile, "scope decision file");
@@ -754,6 +755,7 @@ async function validateResultFacts(result, identityFile) {
     }
     await validateFindingsAuthority(findingsFile);
     const reviewBodyFile = nullableStringField(result, "review_body_file");
+    validateCanonicalReviewBodyPath(reviewBodyFile, Number(manifestPrNumber), reviewHeadSha);
     const contextFile = nullableStringField(result, "context_file");
     const renderedPreviewFile = nullableStringField(artifacts, "rendered_preview_file");
     await validateOptionalReadableArtifact("review body file", reviewBodyFile);
@@ -1278,6 +1280,12 @@ function expectedHandoffPath(prNumber, headSha) {
 }
 function expectedResultPath(prNumber, headSha) {
     return `.ephemeral/pr-${prNumber}-${headSha}-result.json`;
+}
+function validateCanonicalReviewBodyPath(reviewBodyFile, prNumber, headSha) {
+    if (reviewBodyFile !== null &&
+        reviewBodyFile !== `.ephemeral/pr-${prNumber}-${headSha}-review-body.md`) {
+        fail(`review body path mismatch: ${reviewBodyFile}`);
+    }
 }
 async function expectedFindingsPath(headSha) {
     const rawBranch = await currentBranchName();
