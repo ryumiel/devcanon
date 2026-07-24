@@ -13,7 +13,7 @@ require_env() {
 
 require_jq() {
   command -v jq >/dev/null 2>&1 || {
-    echo "jq is required to validate play-review/findings/v1" >&2
+    echo "jq is required to validate play-review/findings/v2" >&2
     exit 1
   }
 }
@@ -165,7 +165,7 @@ assert_readable_envelope() {
         .incomplete_topical_routes as $routes
         | ($routes | map(.route) | unique | length) == ($routes | length)
       );
-    .schema == "play-review/findings/v1"
+    .schema == "play-review/findings/v2"
     and (.findings | type == "array")
     and (.carry_forward | type == "array")
     and valid_incomplete_topical_routes
@@ -625,7 +625,7 @@ prepare_judgment_nits() {
       end;
     . as $envelope
     | {
-      schema: "play-review/findings/v1",
+      schema: "play-review/findings/v2",
       findings: (selected_indexes | map(. as $index | $envelope.findings[$index] | normalize_downgrade)),
       carry_forward: [],
       incomplete_topical_routes: $envelope.incomplete_topical_routes

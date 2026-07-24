@@ -176,7 +176,7 @@ async function writeJson(cwd: string, relPath: string, value: unknown) {
 async function writeEmptyFindings(cwd: string, headSha: string) {
   const file = findingsPath(headSha);
   await writeJson(cwd, file, {
-    schema: "play-review/findings/v1",
+    schema: "play-review/findings/v2",
     findings: [],
     carry_forward: [],
     incomplete_topical_routes: [],
@@ -682,7 +682,7 @@ describe.skipIf(!jqAvailable)("branch-review scope-decision adapter", () => {
         }),
       );
       await writeJson(cwd, findingsFile, {
-        schema: "play-review/findings/v1",
+        schema: "play-review/findings/v2",
         findings: [reviewFinding()],
         carry_forward: [],
         incomplete_topical_routes: [],
@@ -729,7 +729,7 @@ describe.skipIf(!jqAvailable)("branch-review scope-decision adapter", () => {
         }),
       );
       await writeJson(cwd, findingsFile, {
-        schema: "play-review/findings/v1",
+        schema: "play-review/findings/v2",
         findings: [],
         carry_forward: [],
         incomplete_topical_routes: [
@@ -777,12 +777,12 @@ describe.skipIf(!jqAvailable)("branch-review scope-decision adapter", () => {
       );
       for (const findings of [
         {
-          schema: "play-review/findings/v1",
+          schema: "play-review/findings/v2",
           findings: [],
           carry_forward: [],
         },
         {
-          schema: "play-review/findings/v1",
+          schema: "play-review/findings/v2",
           findings: [],
           carry_forward: [],
           incomplete_topical_routes: [
@@ -831,7 +831,7 @@ describe.skipIf(!jqAvailable)("branch-review scope-decision adapter", () => {
         { route: "D9", disposition: "CONTROLLER_OBSERVED_FAILURE" },
       ]) {
         await writeJson(cwd, findingsFile, {
-          schema: "play-review/findings/v1",
+          schema: "play-review/findings/v2",
           findings: [],
           carry_forward: [],
           incomplete_topical_routes: [incompleteRoute],
@@ -872,7 +872,7 @@ describe.skipIf(!jqAvailable)("branch-review scope-decision adapter", () => {
         }),
       );
       await writeJson(cwd, findingsFile, {
-        schema: "play-review/findings/v1",
+        schema: "play-review/findings/v2",
         findings: [reviewFinding({ critic: "DOWNGRADE" })],
         carry_forward: [],
         incomplete_topical_routes: [],
@@ -919,7 +919,7 @@ describe.skipIf(!jqAvailable)("branch-review scope-decision adapter", () => {
         }),
       );
       await writeJson(cwd, findingsFile, {
-        schema: "play-review/findings/v1",
+        schema: "play-review/findings/v2",
         findings: [reviewFinding({ critic: "INVALID" })],
         carry_forward: [],
         incomplete_topical_routes: [],
@@ -966,7 +966,7 @@ describe.skipIf(!jqAvailable)("branch-review scope-decision adapter", () => {
         }),
       );
       await writeJson(cwd, findingsFile, {
-        schema: "play-review/findings/v1",
+        schema: "play-review/findings/v2",
         findings: [],
         carry_forward: [
           reviewFinding({
@@ -1059,7 +1059,7 @@ describe.skipIf(!jqAvailable)("branch-review scope-decision adapter", () => {
         }),
       );
       await writeJson(cwd, findingsFile, {
-        schema: "play-review/findings/v1",
+        schema: "play-review/findings/v2",
         findings: [
           {
             severity: "Blocking",

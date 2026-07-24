@@ -1504,7 +1504,6 @@ async function validateApprovalSummary(options) {
     const findings = await assertFindingsEnvelope(findingsFile);
     await validateApprovalDigest("approval summary findings digest mismatch", findingsFile, stringField(summary, "findings_sha256"));
     await validateApprovalDigest("approval summary scope-decision digest mismatch", scopeDecisionFile, stringField(summary, "scope_decision_sha256"));
-    requireIncompleteTopicalEvidence(findings);
     const counts = findingsCounts(findings);
     if (numberField(summary, "blocker_count") !== counts.blockerCount) {
         fail("approval summary blocker count mismatch");
@@ -1921,9 +1920,10 @@ async function assertFindingsEnvelope(file) {
     return envelope;
 }
 function validateFindingsEnvelopeSchema(envelope) {
-    if (stringField(envelope, "schema") !== "play-review/findings/v1" ||
+    if (stringField(envelope, "schema") !== "play-review/findings/v2" ||
         !Array.isArray(envelope.findings) ||
-        !Array.isArray(envelope.carry_forward)) {
+        !Array.isArray(envelope.carry_forward) ||
+        !Array.isArray(envelope.incomplete_topical_routes)) {
         fail("findings envelope validation failed");
     }
     for (const finding of allFindings(envelope)) {
@@ -1938,9 +1938,6 @@ function validateFindingsEnvelopeSchema(envelope) {
     }
 }
 function incompleteTopicalRoutes(envelope) {
-    if (envelope.incomplete_topical_routes === undefined) {
-        return [];
-    }
     if (!Array.isArray(envelope.incomplete_topical_routes)) {
         fail("findings envelope validation failed");
     }
@@ -1949,11 +1946,6 @@ function incompleteTopicalRoutes(envelope) {
         fail("findings envelope validation failed");
     }
     return routes;
-}
-function requireIncompleteTopicalEvidence(envelope) {
-    if (envelope.incomplete_topical_routes === undefined) {
-        fail("approval findings omit incomplete topical route evidence");
-    }
 }
 function isIncompleteTopicalRoute(value) {
     return (value !== null &&

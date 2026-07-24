@@ -637,7 +637,7 @@ describe("rendered phase artifact smoke coverage", () => {
     expect(issuePrimingWorkflow).toContain("Plan written to");
     expect(issuePrimingWorkflow).toContain("Auto handoff:");
     expect(issuePrimingWorkflow).toContain("phase-6-auto-handoff.md");
-    expect(issuePrimingWorkflow).toContain("play-review/findings/v1");
+    expect(issuePrimingWorkflow).toContain("play-review/findings/v2");
     expect(issuePrimingWorkflow).toContain("phase-7-review-handling.md");
     expect(issuePrimingWorkflow).toContain("prepare-judgment-nits");
 
@@ -663,7 +663,7 @@ describe("rendered phase artifact smoke coverage", () => {
     );
     const playReviewWithWrapperHelpers = `${playReview}\n${playReviewWrapperHelpers}`;
     const playReviewWithEnvelopeContract = `${playReview}\n${playReviewEnvelopeContract}`;
-    expect(playReview).toContain("play-review/findings/v1");
+    expect(playReview).toContain("play-review/findings/v2");
     expect(playReview).toContain("Findings written to");
     expect(playReview).toContain("PLAY_REVIEW_HELPER");
     expect(playReview).toContain("scripts/review-artifacts.sh");
@@ -692,7 +692,7 @@ describe("rendered phase artifact smoke coverage", () => {
 
     for (const skillName of ["branch-review", "pr-review"]) {
       const body = bodyFor(skillName);
-      expect(body).toContain("play-review/findings/v1");
+      expect(body).toContain("play-review/findings/v2");
       expect(body).toContain("Findings written to");
       expect(body).toContain("PLAY_REVIEW_HELPER");
       expect(body).toContain("render-review-preview");
@@ -1208,7 +1208,7 @@ describe("rendered phase artifact smoke coverage", () => {
     );
 
     const playBranchFinish = bodyFor("play-branch-finish");
-    expect(playBranchFinish).toContain("play-review/findings/v1");
+    expect(playBranchFinish).toContain("play-review/findings/v2");
     expect(playBranchFinish).toContain("nits_file");
     expect(playBranchFinish).toContain("PLAY_REVIEW_HELPER");
 
@@ -1269,7 +1269,7 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(phase7).toContain("branch-review --fix");
       expect(phase7).toContain("phase-7-review-handling.md");
       expect(phase7).toContain("prepare-judgment-nits");
-      expect(phase7).toContain("play-review/findings/v1");
+      expect(phase7).toContain("play-review/findings/v2");
       expect(phase7).toContain("Approval summary written to <path>.");
       expect(phase7).toContain("-nits-pending.json");
       expect(normalizedPhase7).toContain(
@@ -1689,7 +1689,7 @@ describe("rendered phase artifact smoke coverage", () => {
       const normalizedIntegration = normalizeRenderedWhitespace(integration);
 
       expect(normalizedOption2).toContain(
-        "may pass a `nits_file` argument: a repo-relative path to a file containing a `play-review/findings/v1` envelope",
+        "may pass a `nits_file` argument: a repo-relative path to a file containing a `play-review/findings/v2` envelope",
       );
       expect(normalizedOption2).toContain(
         "posts them as PR review comments after `gh pr create` succeeds",
@@ -2262,7 +2262,7 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(playReview).toContain("Active diff invocation");
       expect(playReview).toContain("prior_branch_findings");
       expect(playReview).toContain(
-        "Branch review context from a validated local `play-review/findings/v1` envelope path",
+        "Branch review context from a validated local `play-review/findings/v2` envelope path",
       );
       expect(playReview).toContain("validate-findings");
       expect(playReview).toContain("Prior review context");
@@ -2355,7 +2355,7 @@ describe("rendered phase artifact smoke coverage", () => {
         "`prepare-findings-write` derives, validates, and prepares the deterministic findings target, then prints the repo-relative path",
       );
       expect(normalizedPlayReviewWithFollowUpReferences).toContain(
-        "`prepare-findings-write` does not write the `play-review/findings/v1` envelope JSON",
+        "`prepare-findings-write` does not write the `play-review/findings/v2` envelope JSON",
       );
       expect(normalizedPlayReviewWithFollowUpReferences).toContain(
         "`play-review` writes the envelope JSON to the prepared path before emitting `Findings written to <repo-relative-path>.`",

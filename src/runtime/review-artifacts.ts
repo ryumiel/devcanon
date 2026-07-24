@@ -1968,7 +1968,6 @@ async function validateApprovalSummary(
     stringField(summary, "scope_decision_sha256"),
   );
 
-  requireIncompleteTopicalEvidence(findings);
   const counts = findingsCounts(findings);
   if (numberField(summary, "blocker_count") !== counts.blockerCount) {
     fail("approval summary blocker count mismatch");
@@ -2523,9 +2522,10 @@ async function assertFindingsEnvelope(file: string): Promise<JsonObject> {
 
 function validateFindingsEnvelopeSchema(envelope: JsonObject): void {
   if (
-    stringField(envelope, "schema") !== "play-review/findings/v1" ||
+    stringField(envelope, "schema") !== "play-review/findings/v2" ||
     !Array.isArray(envelope.findings) ||
-    !Array.isArray(envelope.carry_forward)
+    !Array.isArray(envelope.carry_forward) ||
+    !Array.isArray(envelope.incomplete_topical_routes)
   ) {
     fail("findings envelope validation failed");
   }
@@ -2542,9 +2542,6 @@ function validateFindingsEnvelopeSchema(envelope: JsonObject): void {
 }
 
 function incompleteTopicalRoutes(envelope: JsonObject): JsonObject[] {
-  if (envelope.incomplete_topical_routes === undefined) {
-    return [];
-  }
   if (!Array.isArray(envelope.incomplete_topical_routes)) {
     fail("findings envelope validation failed");
   }
@@ -2557,12 +2554,6 @@ function incompleteTopicalRoutes(envelope: JsonObject): JsonObject[] {
     fail("findings envelope validation failed");
   }
   return routes;
-}
-
-function requireIncompleteTopicalEvidence(envelope: JsonObject): void {
-  if (envelope.incomplete_topical_routes === undefined) {
-    fail("approval findings omit incomplete topical route evidence");
-  }
 }
 
 function isIncompleteTopicalRoute(value: unknown): value is JsonObject {

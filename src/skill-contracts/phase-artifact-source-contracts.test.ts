@@ -2022,7 +2022,7 @@ None
       expect(skillSource).toContain("play-review findings notice missing");
       expect(skillSource).toContain("validate-findings");
       expect(skillSource).toContain("PLAY_REVIEW_HELPER");
-      expect(skillSource).toContain("play-review/findings/v1");
+      expect(skillSource).toContain("play-review/findings/v2");
     }
 
     expect(normalizeWhitespace(branchReview)).toContain(
@@ -2658,7 +2658,7 @@ None
       "form one cohesive bounded grouped blocker set",
     );
     expect(normalizedBranchReview).toContain(
-      "does not add or require fields in the `play-review/findings/v1` envelope",
+      "does not add or require fields in the `play-review/findings/v2` envelope",
     );
     expect(normalizedBranchReview).toContain(
       "individual finding anchors and classifications remain authoritative for classification, reporting, and stop-rule evaluation",
@@ -3320,7 +3320,7 @@ None
 
     expect(playReview).toContain("`prior_branch_findings`");
     expect(playReview).toContain(
-      "Branch review context from a validated local `play-review/findings/v1` envelope path",
+      "Branch review context from a validated local `play-review/findings/v2` envelope path",
     );
     expect(playReview).toContain(
       "prior_branch_findings` is accepted only as already-validated wrapper input",
@@ -3335,7 +3335,7 @@ None
     );
     expect(playReview).toContain("Prior review context");
     expect(normalizedPlayReview).toContain(
-      "do not include the validated `play-review/findings/v1` envelope content verbatim",
+      "do not include the validated `play-review/findings/v2` envelope content verbatim",
     );
     expect(normalizedPlayReview).toContain(
       "branch-local prior findings rather than GitHub threads",
@@ -3488,7 +3488,7 @@ None
       "`prepare-findings-write` derives, validates, and prepares the deterministic findings target, then prints the repo-relative path",
     );
     expect(normalizedEnvelope).toContain(
-      "`prepare-findings-write` does not write the `play-review/findings/v1` envelope JSON",
+      "`prepare-findings-write` does not write the `play-review/findings/v2` envelope JSON",
     );
     expect(normalizedEnvelope).toContain(
       "`play-review` writes the envelope JSON to the prepared path before emitting `Findings written to <repo-relative-path>.`",
@@ -3592,7 +3592,7 @@ None
       "private paths, ticket IDs, incident names, source-owner labels, or private implementation details",
     );
     expect(normalizedPlayReview).toContain(
-      "does not add fields to the `play-review/findings/v1` envelope",
+      "does not add fields to the `play-review/findings/v2` envelope",
     );
     expect(envelopeShape).not.toContain('"summary"');
     expect(envelopeShape).not.toContain("root_cause");
@@ -3806,7 +3806,7 @@ None
       },
       baselineBranchReview: {
         prompt:
-          "Read current `skills/branch-review/SKILL.md` and `skills/play-review/SKILL.md` before edits. Scenario: running `branch-review` present mode after writing a `play-review/findings/v1` file. Describe how findings are presented, helper commands, notice line, and whether GitHub review/payload/posting semantics are involved. Do not infer future helper behavior unless prose says so.",
+          "Read current `skills/branch-review/SKILL.md` and `skills/play-review/SKILL.md` before edits. Scenario: running `branch-review` present mode after writing a `play-review/findings/v2` file. Describe how findings are presented, helper commands, notice line, and whether GitHub review/payload/posting semantics are involved. Do not infer future helper behavior unless prose says so.",
         observed:
           "Agent would rely on `play-review` markdown output and exact notice line, invoke existing input/context/findings write helpers, and not invoke `validate-findings` unless opening/overwriting. No GitHub posting, but prose had nearby GitHub schema/API language.",
         result:
@@ -3838,7 +3838,7 @@ None
       "manual preview can diverge from posted JSON",
     );
     expect(pressureText).toContain(
-      "running `branch-review` present mode after writing a `play-review/findings/v1` file",
+      "running `branch-review` present mode after writing a `play-review/findings/v2` file",
     );
     expect(pressureText).toContain(
       "risk notice-line drift, or rebuild evidence from mutable current checkout",

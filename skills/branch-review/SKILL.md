@@ -31,7 +31,7 @@ digraph branch_review {
 | `--fix`                               | Auto-fix eligible blocking findings and objectively fixable nit findings instead of presenting them. Used by `issue-priming-workflow --auto` for GitHub and Linear entrypoints.                                                                     |
 | `--risk-signals <repo-relative-path>` | Optional, non-authoritative repo-relative `.ephemeral/*-risk-signals.json` handoff from `play-subagent-execution`. Valid signals can only preserve or escalate scrutiny; invalid supplied signals fail closed.                                      |
 | `--last-reviewed <sha>`               | Enter follow-up mode using the immutable 40-character lowercase hex commit SHA from the previous branch-review run. Must be supplied together with `--prior-findings`; supplying only one follow-up argument is invalid and stops before reviewing. |
-| `--prior-findings <path>`             | Repo-relative `.ephemeral/*-findings.json` file from the prior `play-review/findings/v1` run. Must be supplied together with `--last-reviewed`; validate it with the installed `play-review` helper before reading or passing it onward.            |
+| `--prior-findings <path>`             | Repo-relative `.ephemeral/*-findings.json` file from the prior `play-review/findings/v2` run. Must be supplied together with `--last-reviewed`; validate it with the installed `play-review` helper before reading or passing it onward.            |
 
 `--fix` without follow-up arguments keeps the existing full-diff default used
 by `issue-priming-workflow --auto`. Do not silently convert that Phase 7 gate
@@ -422,7 +422,7 @@ Hand off to `play-review` with these inputs (compose them into the briefing pros
 Follow `skills/play-review/SKILL.md` end-to-end. The output is a markdown
 document with optional pre-findings presentation such as
 `## Root-Cause Synthesis`, followed by a `## Findings` section, plus a
-side-channel `play-review/findings/v1` envelope file at
+side-channel `play-review/findings/v2` envelope file at
 `.ephemeral/<branch_slug>-<head_sha>-findings.json` and a one-line
 `Findings written to <path>.` notice. The detailed envelope and transport
 contract lives in `skills/play-review/references/findings-envelope-contract.md`;
@@ -488,7 +488,7 @@ use the helper-rendered preview for findings and evidence snippets; do not
 manually reshape finding entries.
 Findings tagged `Anchor: out-of-diff` remain report-only and require human judgment.
 
-After the human-readable findings, surface `play-review`'s `Findings written to <path>.` notice line in the wrapper's output (echo it as-is; do not reword). The `play-review/findings/v1` envelope (defined in `skills/play-review/references/findings-envelope-contract.md`) is on disk at the cited path; downstream tools that wrap `branch-review`'s output read the file directly. No JSON fence is appended to conversation — the file is the consumer contract.
+After the human-readable findings, surface `play-review`'s `Findings written to <path>.` notice line in the wrapper's output (echo it as-is; do not reword). The `play-review/findings/v2` envelope (defined in `skills/play-review/references/findings-envelope-contract.md`) is on disk at the cited path; downstream tools that wrap `branch-review`'s output read the file directly. No JSON fence is appended to conversation — the file is the consumer contract.
 
 Then write and validate the approval summary using the finalized scope-decision
 artifact and this original present-mode findings envelope:
@@ -543,7 +543,7 @@ Run a same-invariant grouping pass over the eligible blockers verified by the
 critic. Inspect the eligible blockers for a shared root invariant using only the
 existing finding text, evidence, anchors, classifications, and active diff
 context. This is controller planning only: it does not add or require fields in
-the `play-review/findings/v1` envelope, and individual finding anchors and
+the `play-review/findings/v2` envelope, and individual finding anchors and
 classifications remain authoritative for classification, reporting, and
 stop-rule evaluation.
 
@@ -649,7 +649,7 @@ copied into the post-`--fix` remaining `findings[]` so downstream consumers that
 gate on `findings[]` do not mistake the run for clean. If the remaining set is
 empty, `carry_forward[]` is also empty, and no selected topical route is
 incomplete, still write the canonical empty envelope
-(`{"schema":"play-review/findings/v1","findings":[],"carry_forward":[],"incomplete_topical_routes":[]}`) —
+(`{"schema":"play-review/findings/v2","findings":[],"carry_forward":[],"incomplete_topical_routes":[]}`) —
 never leave the file from `play-review`'s pre-fix run unchanged, and never
 delete it. If current-run findings are empty but `carry_forward[]` is
 non-empty, the post-`--fix` envelope must keep those carry-forward entries and

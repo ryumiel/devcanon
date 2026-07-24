@@ -20,7 +20,7 @@ may have committed auto-fixes after the findings file was created. Resolve
 helper and validate the findings path before reading the envelope.
 
 Do not re-parse human-readable review markdown. The side-channel
-`play-review/findings/v1` envelope is the consumer contract.
+`play-review/findings/v2` envelope is the consumer contract.
 
 Once a run is candidate-final because all Phase 7 blocker, nit, and rerun
 criteria are satisfied, also capture the approval-summary path from the exact

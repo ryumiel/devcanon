@@ -7,7 +7,7 @@ Accepted
 ## Context
 
 ADR-0012 moved `play-review`'s findings off-conversation by writing a
-`play-review/findings/v1` envelope to a deterministic `.ephemeral/`
+`play-review/findings/v2` envelope to a deterministic `.ephemeral/`
 path; ADR-0013 generalized the same pattern upstream for research
 briefs, designs, and plans. The four hops it covers all flow from a
 producer skill to a consumer skill across `--auto`'s pipeline.

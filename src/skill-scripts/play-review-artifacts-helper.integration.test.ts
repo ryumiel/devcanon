@@ -98,7 +98,7 @@ async function writeEnvelope(cwd: string, relPath: string): Promise<void> {
   await writeFile(
     path.join(cwd, relPath),
     JSON.stringify({
-      schema: "play-review/findings/v1",
+      schema: "play-review/findings/v2",
       findings: [],
       carry_forward: [],
       incomplete_topical_routes: [],
@@ -110,19 +110,8 @@ async function writeRawEnvelope(
   cwd: string,
   relPath: string,
   envelope: unknown,
-  preserveMissingIncompleteRoutes = false,
 ): Promise<void> {
-  const normalized =
-    !preserveMissingIncompleteRoutes &&
-    envelope !== null &&
-    typeof envelope === "object" &&
-    !Array.isArray(envelope) &&
-    (envelope as Record<string, unknown>).schema ===
-      "play-review/findings/v1" &&
-    !("incomplete_topical_routes" in envelope)
-      ? { ...envelope, incomplete_topical_routes: [] }
-      : envelope;
-  await writeFile(path.join(cwd, relPath), JSON.stringify(normalized));
+  await writeFile(path.join(cwd, relPath), JSON.stringify(envelope));
 }
 
 function finding(overrides: Record<string, unknown> = {}) {
@@ -189,7 +178,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
       const reviewBodyFile = ".ephemeral/review-body.md";
       await writeFile(path.join(cwd, reviewBodyFile), "Draft summary\n");
       await writeRawEnvelope(cwd, findingsFile, {
-        schema: "play-review/findings/v1",
+        schema: "play-review/findings/v2",
         findings: [
           sourceFinding({
             line: 4,
@@ -226,6 +215,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
             body: "**Blocking | Contracts** — Carry-forward out-of-diff entries also belong in the body.\n\n**Recommendation:** Keep them out of inline comments.",
           }),
         ],
+        incomplete_topical_routes: [],
       });
       await writeFile(
         path.join(cwd, "src/review-target.ts"),
@@ -303,7 +293,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
 
       await writeFile(path.join(cwd, reviewBodyFile), "Summary\n");
       await writeRawEnvelope(cwd, reviewFindingsFile, {
-        schema: "play-review/findings/v1",
+        schema: "play-review/findings/v2",
         findings: [
           sourceFinding({
             path: "src/trailing.ts",
@@ -364,7 +354,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
 
       await writeFile(path.join(cwd, reviewBodyFile), "Summary\n");
       await writeRawEnvelope(cwd, reviewFindingsFile, {
-        schema: "play-review/findings/v1",
+        schema: "play-review/findings/v2",
         findings: [
           sourceFinding({
             path: "src/empty.ts",
@@ -421,7 +411,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
         "**Nit | Tests** — Posted missing-file body from the frozen artifact.\n\n**Recommendation:** Post this missing-file recommendation.";
       await writeFile(path.join(cwd, reviewBodyFile), "Draft summary\n");
       await writeRawEnvelope(cwd, findingsFile, {
-        schema: "play-review/findings/v1",
+        schema: "play-review/findings/v2",
         findings: [
           sourceFinding({
             line: 4,
@@ -442,6 +432,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
           }),
         ],
         carry_forward: [],
+        incomplete_topical_routes: [],
       });
 
       const preview = await runHelper(cwd, "render-review-preview", {
@@ -484,7 +475,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
       await makeReviewSourceWorkspace();
     try {
       await writeRawEnvelope(cwd, findingsFile, {
-        schema: "play-review/findings/v1",
+        schema: "play-review/findings/v2",
         findings: [
           sourceFinding({
             line: 4,
@@ -494,6 +485,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
           }),
         ],
         carry_forward: [],
+        incomplete_topical_routes: [],
       });
 
       await expect(
@@ -513,7 +505,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
     const cwd = await makeTopicGitWorkspace();
     try {
       await writeRawEnvelope(cwd, findingsFile, {
-        schema: "play-review/findings/v1",
+        schema: "play-review/findings/v2",
         findings: [
           finding({
             critic: "DOWNGRADE",
@@ -523,6 +515,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
           }),
         ],
         carry_forward: [],
+        incomplete_topical_routes: [],
       });
 
       await expect(
@@ -546,7 +539,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
       await makeReviewSourceWorkspace();
     try {
       await writeRawEnvelope(cwd, findingsFile, {
-        schema: "play-review/findings/v1",
+        schema: "play-review/findings/v2",
         findings: [
           sourceFinding({
             severity: "Nit",
@@ -563,6 +556,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
           }),
         ],
         carry_forward: [],
+        incomplete_topical_routes: [],
       });
 
       const { stdout } = await runHelper(cwd, "render-review-preview", {
@@ -591,7 +585,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
       const reviewBodyFile = ".ephemeral/review-body.md";
       await writeFile(path.join(cwd, reviewBodyFile), "Top-level summary\n");
       await writeRawEnvelope(cwd, findingsFile, {
-        schema: "play-review/findings/v1",
+        schema: "play-review/findings/v2",
         findings: [
           sourceFinding({
             anchor: "natural",
@@ -634,6 +628,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
             body: "**Blocking | Contracts** — Carry forward out of diff.\n\n**Recommendation:** Put in body too.",
           }),
         ],
+        incomplete_topical_routes: [],
       });
 
       const { stdout } = await runHelper(cwd, "build-github-review-payload", {
@@ -681,9 +676,10 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
       await writeFile(path.join(cwd, reviewBodyFile), "Summary\n");
 
       await writeRawEnvelope(cwd, findingsFile, {
-        schema: "play-review/findings/v1",
+        schema: "play-review/findings/v2",
         findings: [sourceFinding({ anchor: "out-of-diff" })],
         carry_forward: [],
+        incomplete_topical_routes: [],
       });
       const outOfDiffOnly = await runHelper(
         cwd,
@@ -699,9 +695,10 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
       expect(JSON.parse(outOfDiffOnly.stdout).comments).toEqual([]);
 
       await writeRawEnvelope(cwd, findingsFile, {
-        schema: "play-review/findings/v1",
+        schema: "play-review/findings/v2",
         findings: [],
         carry_forward: [],
+        incomplete_topical_routes: [],
       });
       const empty = await runHelper(cwd, "build-github-review-payload", {
         HEAD_SHA: reviewHeadSha,
@@ -723,9 +720,10 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
       const reviewBodyFile = ".ephemeral/review-body.md";
       await writeFile(path.join(cwd, reviewBodyFile), "Summary\n");
       await writeRawEnvelope(cwd, findingsFile, {
-        schema: "play-review/findings/v1",
+        schema: "play-review/findings/v2",
         findings: [sourceFinding({ path: "src/missing.ts" })],
         carry_forward: [],
+        incomplete_topical_routes: [],
       });
 
       await expect(
@@ -799,9 +797,10 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
       const outside = path.join(cwd, "outside-body");
       try {
         await writeRawEnvelope(cwd, findingsFile, {
-          schema: "play-review/findings/v1",
+          schema: "play-review/findings/v2",
           findings: [sourceFinding()],
           carry_forward: [],
+          incomplete_topical_routes: [],
         });
         await mkdir(outside);
         await writeFile(path.join(outside, "review.md"), "unsafe body\n");
@@ -839,7 +838,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
     const cwd = await makeTopicGitWorkspace();
     try {
       const nonEmptyEnvelope = {
-        schema: "play-review/findings/v1",
+        schema: "play-review/findings/v2",
         findings: [
           finding(),
           finding({
@@ -862,6 +861,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
             body: "**Nit | Tests** — The coverage should prove non-empty carry-forward entries.\n\n**Recommendation:** Keep this positive fixture.",
           }),
         ],
+        incomplete_topical_routes: [],
       };
       await writeRawEnvelope(cwd, findingsFile, nonEmptyEnvelope);
       await writeRawEnvelope(cwd, nitsFile, nonEmptyEnvelope);
@@ -884,13 +884,14 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
     const cwd = await makeTopicGitWorkspace();
     try {
       await writeRawEnvelope(cwd, findingsFile, {
-        schema: "play-review/findings/v1",
+        schema: "play-review/findings/v2",
         findings: [
           finding({
             body: "**Blocking | Contracts** - The contract would otherwise be ambiguous.\n\n**Recommendation:** Keep the helper contract explicit.",
           }),
         ],
         carry_forward: [],
+        incomplete_topical_routes: [],
       });
 
       await expect(
@@ -920,7 +921,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
     const cwd = await makeTopicGitWorkspace();
     try {
       await writeRawEnvelope(cwd, findingsFile, {
-        schema: "play-review/findings/v1",
+        schema: "play-review/findings/v2",
         findings: [
           finding({
             severity: "Nit",
@@ -961,7 +962,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
         await readFile(path.join(cwd, nitsFile), "utf-8"),
       );
       expect(written).toMatchObject({
-        schema: "play-review/findings/v1",
+        schema: "play-review/findings/v2",
         carry_forward: [],
         incomplete_topical_routes: [
           { route: "D8", disposition: "NEEDS_CONTEXT" },
@@ -988,11 +989,52 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
     }
   });
 
+  it("rejects v2 envelopes that omit incomplete-route evidence", async () => {
+    const cwd = await makeTopicGitWorkspace();
+    try {
+      await writeRawEnvelope(cwd, findingsFile, {
+        schema: "play-review/findings/v2",
+        findings: [
+          finding({
+            severity: "Nit",
+            category: "Documentation",
+            critic: null,
+            why: "The wording has a single clear improvement.",
+            recommendation: "Tighten the wording.",
+            body: "**Nit | Documentation** — The wording has a single clear improvement.\n\n**Recommendation:** Tighten the wording.",
+          }),
+        ],
+        carry_forward: [],
+      });
+
+      await expect(
+        runHelper(cwd, "validate-findings", { FINDINGS_FILE: findingsFile }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("envelope shape mismatch"),
+      });
+      await expect(
+        runHelper(cwd, "validate-nits-file", { NITS_FILE: findingsFile }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("envelope shape mismatch"),
+      });
+      await expect(
+        runHelper(cwd, "prepare-judgment-nits", {
+          FINDINGS_FILE: findingsFile,
+          JUDGMENT_REQUIRED_FINDING_INDEXES: "0",
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("envelope schema mismatch"),
+      });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
   it("rejects unsafe judgment-nits selections before writing", async () => {
     const cwd = await makeTopicGitWorkspace();
     try {
       await writeRawEnvelope(cwd, findingsFile, {
-        schema: "play-review/findings/v1",
+        schema: "play-review/findings/v2",
         findings: [
           finding({
             severity: "Nit",
@@ -1011,6 +1053,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
           }),
         ],
         carry_forward: [],
+        incomplete_topical_routes: [],
       });
 
       for (const selectedIndexes of ["", "0,0", "2", "a", "0, 1"]) {
@@ -1044,7 +1087,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
     const cwd = await makeTopicGitWorkspace();
     try {
       await writeRawEnvelope(cwd, findingsFile, {
-        schema: "play-review/findings/v1",
+        schema: "play-review/findings/v2",
         findings: [
           finding({
             severity: "Nit",
@@ -1063,6 +1106,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
           }),
         ],
         carry_forward: [],
+        incomplete_topical_routes: [],
       });
 
       await expect(
@@ -1085,7 +1129,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
     const cwd = await makeTopicGitWorkspace();
     try {
       await writeRawEnvelope(cwd, findingsFile, {
-        schema: "play-review/findings/v1",
+        schema: "play-review/findings/v2",
         findings: [
           finding({
             severity: "Nit",
@@ -1105,6 +1149,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
             body: "**Blocking | Contracts** — This carry-forward finding is still blocking.\n\n**Recommendation:** Stop before Phase 8.",
           }),
         ],
+        incomplete_topical_routes: [],
       });
 
       await expect(
@@ -1260,6 +1305,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
           schema: "wrong/v1",
           findings: [],
           carry_forward: [],
+          incomplete_topical_routes: [],
         }),
       );
 
@@ -1313,18 +1359,18 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
     const cwd = await makeTopicGitWorkspace();
     const malformedEnvelopes = [
       {
-        schema: "play-review/findings/v1",
+        schema: "play-review/findings/v2",
         findings: [],
         carry_forward: [],
       },
       {
-        schema: "play-review/findings/v1",
+        schema: "play-review/findings/v2",
         findings: [],
         carry_forward: [],
         incomplete_topical_routes: "missing",
       },
       {
-        schema: "play-review/findings/v1",
+        schema: "play-review/findings/v2",
         findings: [],
         carry_forward: [],
         incomplete_topical_routes: [
@@ -1333,17 +1379,18 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
         ],
       },
       {
-        schema: "play-review/findings/v1",
+        schema: "play-review/findings/v2",
         findings: "not-array",
         carry_forward: [],
+        incomplete_topical_routes: [],
       },
       {
-        schema: "play-review/findings/v1",
+        schema: "play-review/findings/v2",
         findings: [],
         carry_forward: {},
       },
       {
-        schema: "play-review/findings/v1",
+        schema: "play-review/findings/v2",
         findings: [
           {
             ...finding(),
@@ -1351,41 +1398,47 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
           },
         ],
         carry_forward: [],
+        incomplete_topical_routes: [],
       },
       {
-        schema: "play-review/findings/v1",
+        schema: "play-review/findings/v2",
         findings: [finding({ body: 42 })],
         carry_forward: [],
+        incomplete_topical_routes: [],
       },
       {
-        schema: "play-review/findings/v1",
+        schema: "play-review/findings/v2",
         findings: [
           finding({
             body: "**Blocking | Contracts** — Missing the recommendation label.",
           }),
         ],
         carry_forward: [],
+        incomplete_topical_routes: [],
       },
       {
-        schema: "play-review/findings/v1",
+        schema: "play-review/findings/v2",
         findings: [finding({ path: "../../outside" })],
         carry_forward: [],
+        incomplete_topical_routes: [],
       },
       {
-        schema: "play-review/findings/v1",
+        schema: "play-review/findings/v2",
         findings: [finding({ severity: "Nit", critic: "VALID" })],
         carry_forward: [],
+        incomplete_topical_routes: [],
       },
       {
-        schema: "play-review/findings/v1",
+        schema: "play-review/findings/v2",
         findings: [finding({ path: "/absolute/path" })],
         carry_forward: [],
+        incomplete_topical_routes: [],
       },
     ];
 
     try {
-      for (const [index, envelope] of malformedEnvelopes.entries()) {
-        await writeRawEnvelope(cwd, findingsFile, envelope, index === 0);
+      for (const envelope of malformedEnvelopes) {
+        await writeRawEnvelope(cwd, findingsFile, envelope);
         await expect(
           runHelper(cwd, "validate-findings", { FINDINGS_FILE: findingsFile }),
         ).rejects.toMatchObject({

@@ -3787,7 +3787,7 @@ async function mutateNestedFindingsWithoutUpdatingResult(
     path.join(workspace.worktree, workspace.findingsFile),
     `${JSON.stringify(
       {
-        schema: "play-review/findings/v1",
+        schema: "play-review/findings/v2",
         findings: [{ stale: true }],
         carry_forward: [],
       },

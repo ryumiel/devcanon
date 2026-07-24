@@ -847,7 +847,7 @@ report to the user**.
 
 Before classifying findings or preparing Phase 8 nits, load
 [`references/phase-7-review-handling.md`](references/phase-7-review-handling.md).
-That reference owns review-head parsing, `play-review/findings/v1` validation,
+That reference owns review-head parsing, `play-review/findings/v2` validation,
 approval-summary notice-path capture, blocker checks, nit classification
 details, branch-review-owned fix commit rules, remaining-nit selection, and the
 `prepare-judgment-nits` helper handoff.

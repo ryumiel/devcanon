@@ -622,7 +622,7 @@ findings_count_json() {
   local file="$1"
 
   jq -c '
-    if .schema != "play-review/findings/v1" or (.findings | type) != "array" or (.carry_forward | type) != "array" or (.incomplete_topical_routes | type) != "array" then
+    if .schema != "play-review/findings/v2" or (.findings | type) != "array" or (.carry_forward | type) != "array" or (.incomplete_topical_routes | type) != "array" then
       error("findings schema mismatch")
     else
       def true_blocker:

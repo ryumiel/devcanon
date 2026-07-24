@@ -1127,7 +1127,7 @@ describe.skipIf(isWindows)("review artifact runtime reducers", () => {
       reviewEvent: "COMMENT",
       reviewBody: "Body\n",
       findings: {
-        schema: "play-review/findings/v1",
+        schema: "play-review/findings/v2",
         findings: [
           {
             path: "src/app.ts",
@@ -2082,7 +2082,7 @@ describe.skipIf(isWindows)("review artifact runtime reducers", () => {
           }),
         );
         await writeJson(cwd, ".ephemeral/topic-findings.json", {
-          schema: "play-review/findings/v1",
+          schema: "play-review/findings/v2",
           findings: [
             {
               path: ":(top)README.md",
@@ -2098,6 +2098,7 @@ describe.skipIf(isWindows)("review artifact runtime reducers", () => {
             },
           ],
           carry_forward: [],
+          incomplete_topical_routes: [],
         });
 
         await expect(
@@ -2120,9 +2121,10 @@ describe.skipIf(isWindows)("review artifact runtime reducers", () => {
         await makeProviderLeadingColonWorkspace();
       const evidencePath = providerScopeEvidencePath(headSha);
       const findings = {
-        schema: "play-review/findings/v1",
+        schema: "play-review/findings/v2",
         findings: [inlineFinding(":(top)README.md")],
         carry_forward: [],
+        incomplete_topical_routes: [],
       };
       try {
         const fileEntry = await providerEvidenceFileEntry(
@@ -2182,9 +2184,10 @@ describe.skipIf(isWindows)("review artifact runtime reducers", () => {
   ])("rejects NUL finding paths for $command", async ({ args }) => {
     const { cwd, baseSha, headSha } = await makeProviderScopeWorkspace();
     const findings = {
-      schema: "play-review/findings/v1",
+      schema: "play-review/findings/v2",
       findings: [inlineFinding("src/app.ts\0spoof")],
       carry_forward: [],
+      incomplete_topical_routes: [],
     };
     try {
       await writeProviderScopeAndFindings(cwd, baseSha, headSha, findings);
@@ -2213,9 +2216,10 @@ describe.skipIf(isWindows)("review artifact runtime reducers", () => {
   ])("rejects non-NUL invalid finding paths for $command", async ({ args }) => {
     const { cwd, baseSha, headSha } = await makeProviderScopeWorkspace();
     const findings = {
-      schema: "play-review/findings/v1",
+      schema: "play-review/findings/v2",
       findings: [inlineFinding("../src/app.ts")],
       carry_forward: [],
+      incomplete_topical_routes: [],
     };
     try {
       await writeProviderScopeAndFindings(cwd, baseSha, headSha, findings);
@@ -2244,9 +2248,10 @@ describe.skipIf(isWindows)("review artifact runtime reducers", () => {
   ])("rejects invalid UTF-8 findings files for $command", async ({ args }) => {
     const { cwd, baseSha, headSha } = await makeProviderScopeWorkspace();
     const findings = {
-      schema: "play-review/findings/v1",
+      schema: "play-review/findings/v2",
       findings: [inlineFinding()],
       carry_forward: [],
+      incomplete_topical_routes: [],
     };
     try {
       await writeProviderScopeAndFindings(cwd, baseSha, headSha, findings);
@@ -2255,7 +2260,7 @@ describe.skipIf(isWindows)("review artifact runtime reducers", () => {
         path.join(cwd, ".ephemeral/topic-findings.json"),
         Buffer.from([
           ...Buffer.from(
-            '{"schema":"play-review/findings/v1","findings":[{"path":"src/',
+            '{"schema":"play-review/findings/v2","findings":[{"path":"src/',
           ),
           0xc3,
           0x28,
@@ -2346,9 +2351,10 @@ describe.skipIf(isWindows)("review artifact runtime reducers", () => {
   ])("rejects $poisonName for $command", async ({ args, poison, stderr }) => {
     const { cwd, baseSha, headSha } = await makeProviderScopeWorkspace();
     const findings = {
-      schema: "play-review/findings/v1",
+      schema: "play-review/findings/v2",
       findings: [inlineFinding()],
       carry_forward: [],
+      incomplete_topical_routes: [],
     };
     try {
       await writeProviderScopeAndFindings(cwd, baseSha, headSha, findings);

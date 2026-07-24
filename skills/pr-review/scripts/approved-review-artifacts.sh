@@ -470,7 +470,7 @@ assert_findings_envelope() {
       and (.why | type == "string")
       and (.recommendation | type == "string")
       and (.body | type == "string");
-    .schema == "play-review/findings/v1"
+    .schema == "play-review/findings/v2"
     and (.findings | type == "array")
     and (.carry_forward | type == "array")
     and ((.findings + .carry_forward) | all(.[]; valid_finding))
