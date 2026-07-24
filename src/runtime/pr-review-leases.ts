@@ -155,6 +155,11 @@ interface DiscoveryWorktree {
   status: DiscoveryWorktreeStatus;
 }
 
+interface DiscoveryWorktreeInspection {
+  worktree: DiscoveryWorktree;
+  isSymbolicLink: boolean;
+}
+
 interface DiscoveryLease {
   lease_file: string;
   worktree_path: string | null;
@@ -648,11 +653,12 @@ async function discoverReviewLeases(): Promise<string> {
   const identity = await readDiscoveryIdentity();
   const registrations = await listRegisteredWorktrees(identity.primaryRoot);
   const registrationSet = new Set(registrations.map(normalizeComparablePath));
-  const inspectedCanonicalWorktree = await inspectDiscoveryWorktree(
+  const canonicalInspection = await inspectDiscoveryWorktreeEntry(
     identity.canonicalWorktreePath,
     registrationSet,
     true,
   );
+  const inspectedCanonicalWorktree = canonicalInspection.worktree;
   const scanned = await scanDiscoveryLeaseFiles(identity, registrationSet);
   const activeLeases = scanned.active.sort((left, right) =>
     left.lease_file.localeCompare(right.lease_file),
@@ -670,7 +676,8 @@ async function discoverReviewLeases(): Promise<string> {
     (lease) =>
       lease.worktree_path === identity.canonicalWorktreePath &&
       lease.worktree.exists &&
-      lease.worktree.registered,
+      lease.worktree.registered &&
+      !canonicalInspection.isSymbolicLink,
   );
   const canonicalWorktree =
     canonicalResumableLease === undefined
@@ -788,12 +795,28 @@ async function inspectDiscoveryWorktree(
   registrationSet: Set<string>,
   canonical: boolean,
 ): Promise<DiscoveryWorktree> {
+  return (
+    await inspectDiscoveryWorktreeEntry(
+      worktreePath,
+      registrationSet,
+      canonical,
+    )
+  ).worktree;
+}
+
+async function inspectDiscoveryWorktreeEntry(
+  worktreePath: string,
+  registrationSet: Set<string>,
+  canonical: boolean,
+): Promise<DiscoveryWorktreeInspection> {
   let exists = false;
+  let isSymbolicLink = false;
   try {
-    await lstat(physicalPathForIo(worktreePath));
+    const stat = await lstat(physicalPathForIo(worktreePath));
     // Any occupied canonical path blocks creation. In particular, a symlink or
     // regular file must never be treated as an absent review worktree.
     exists = true;
+    isSymbolicLink = stat.isSymbolicLink();
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
   }
@@ -801,7 +824,7 @@ async function inspectDiscoveryWorktree(
     canonicalLeaseIdentityPath(worktreePath),
   );
   let dirty: boolean | null = null;
-  if (exists && registered) {
+  if (exists && registered && !isSymbolicLink) {
     try {
       dirty = await isWorktreeDirty(physicalPathForIo(worktreePath));
     } catch {
@@ -809,17 +832,20 @@ async function inspectDiscoveryWorktree(
     }
   }
   return {
-    path: worktreePath,
-    exists,
-    registered,
-    dirty,
-    status: !exists
-      ? "absent"
-      : canonical
-        ? "unleased-canonical"
-        : registered
-          ? "registered"
-          : "unregistered",
+    worktree: {
+      path: worktreePath,
+      exists,
+      registered,
+      dirty,
+      status: !exists
+        ? "absent"
+        : canonical
+          ? "unleased-canonical"
+          : registered
+            ? "registered"
+            : "unregistered",
+    },
+    isSymbolicLink,
   };
 }
 
@@ -946,13 +972,14 @@ async function inspectActiveDiscoveryLease(
     return invalid("invalid-lease");
   }
 
-  const observed = await inspectDiscoveryWorktree(
+  const inspection = await inspectDiscoveryWorktreeEntry(
     lease.worktree_path,
     registrationSet,
     false,
   );
+  const observed = inspection.worktree;
   let unmanaged: string[] = [];
-  if (observed.exists && observed.registered) {
+  if (observed.exists && observed.registered && !inspection.isSymbolicLink) {
     try {
       unmanaged = await findUnmanagedEphemeralArtifacts(
         lease,
@@ -979,17 +1006,19 @@ async function inspectActiveDiscoveryLease(
   const terminal = lease.state === "posted" || lease.state === "aborted";
   const reason = !observed.exists
     ? "missing-worktree"
-    : !observed.registered
-      ? "unregistered-worktree"
-      : observed.dirty === null
-        ? "status-inspection-failed"
-        : observed.dirty === true
-          ? "dirty"
-          : unmanaged.length > 0
-            ? "unmanaged-ephemeral-artifacts"
-            : terminal
-              ? "terminal-lease"
-              : null;
+    : inspection.isSymbolicLink
+      ? "symlink-worktree"
+      : !observed.registered
+        ? "unregistered-worktree"
+        : observed.dirty === null
+          ? "status-inspection-failed"
+          : observed.dirty === true
+            ? "dirty"
+            : unmanaged.length > 0
+              ? "unmanaged-ephemeral-artifacts"
+              : terminal
+                ? "terminal-lease"
+                : null;
   return {
     lease: {
       lease_file: leaseFile,
@@ -2096,6 +2125,21 @@ function validateStateInvariants(
     throw new PrReviewLeaseError("lease schema mismatch");
   }
   if (
+    (lease.state === "created" ||
+      lease.state === "reviewed" ||
+      lease.state === "gated") &&
+    lease.terminal.finished_at !== null
+  ) {
+    throw new PrReviewLeaseError("lease schema mismatch");
+  }
+  if (
+    (lease.state === "aborted" &&
+      (lease.terminal.reason === null || lease.terminal.reason.length === 0)) ||
+    (lease.state !== "aborted" && lease.terminal.reason !== null)
+  ) {
+    throw new PrReviewLeaseError("lease schema mismatch");
+  }
+  if (
     lease.state === "posted" &&
     (lease.artifacts.approved_review_file === null ||
       lease.artifacts.validated_payload_file === null)
@@ -2962,8 +3006,231 @@ function assertLeaseObjectShape(lease: PrReviewLease): void {
   if (!isObject(lease.github)) {
     throw new PrReviewLeaseError("lease schema mismatch");
   }
-  if (lease.cleanup !== undefined && !isObject(lease.cleanup)) {
-    throw new PrReviewLeaseError("lease cleanup metadata mismatch");
+  assertExactLeaseObject(
+    lease,
+    [
+      "schema",
+      "repository",
+      "pr_number",
+      "state",
+      "base_ref",
+      "head_ref",
+      "worktree_path",
+      "worktree_digest",
+      "lease_file",
+      "created_at",
+      "updated_at",
+      "artifacts",
+      "validation",
+      "presentation",
+      "terminal",
+      "failure",
+      "github",
+    ],
+    ["cleanup"],
+    "lease schema",
+  );
+  for (const key of [
+    "schema",
+    "repository",
+    "state",
+    "base_ref",
+    "head_ref",
+    "worktree_path",
+    "worktree_digest",
+    "lease_file",
+    "created_at",
+    "updated_at",
+  ] as const) {
+    assertStringLeaseField(lease, key, "lease schema");
+  }
+  if (!Number.isSafeInteger(lease.pr_number) || lease.pr_number <= 0) {
+    throw new PrReviewLeaseError("lease schema mismatch");
+  }
+  assertExactLeaseObject(
+    lease.artifacts,
+    [
+      "handoff_file",
+      "result_file",
+      "approved_review_file",
+      "validated_payload_file",
+    ],
+    [],
+    "lease artifacts metadata",
+  );
+  for (const key of [
+    "handoff_file",
+    "result_file",
+    "approved_review_file",
+    "validated_payload_file",
+  ] as const) {
+    assertNullableStringLeaseField(
+      lease.artifacts,
+      key,
+      "lease artifacts metadata",
+    );
+  }
+  assertExactLeaseObject(
+    lease.validation,
+    ["result_manifest"],
+    [],
+    "lease validation metadata",
+  );
+  assertExactLeaseObject(
+    lease.validation.result_manifest,
+    ["status", "validated_at", "sha256"],
+    [],
+    "lease result_manifest metadata",
+  );
+  if (
+    lease.validation.result_manifest.status !== null &&
+    lease.validation.result_manifest.status !== "valid"
+  ) {
+    throw new PrReviewLeaseError("lease schema mismatch");
+  }
+  assertNullableStringLeaseField(
+    lease.validation.result_manifest,
+    "validated_at",
+    "lease result_manifest metadata",
+  );
+  assertNullableStringLeaseField(
+    lease.validation.result_manifest,
+    "sha256",
+    "lease result_manifest metadata",
+  );
+  assertExactLeaseObject(
+    lease.presentation,
+    ["presented_at", "status"],
+    [],
+    "lease presentation metadata",
+  );
+  assertNullableStringLeaseField(
+    lease.presentation,
+    "presented_at",
+    "lease presentation metadata",
+  );
+  if (
+    lease.presentation.status !== null &&
+    lease.presentation.status !== "preview-current" &&
+    lease.presentation.status !== "edited"
+  ) {
+    throw new PrReviewLeaseError("lease schema mismatch");
+  }
+  assertExactLeaseObject(
+    lease.terminal,
+    ["finished_at", "reason"],
+    [],
+    "lease terminal metadata",
+  );
+  assertNullableStringLeaseField(
+    lease.terminal,
+    "finished_at",
+    "lease terminal metadata",
+  );
+  assertNullableStringLeaseField(
+    lease.terminal,
+    "reason",
+    "lease terminal metadata",
+  );
+  assertExactLeaseObject(
+    lease.failure,
+    ["phase", "reason", "recoverability"],
+    [],
+    "lease failure metadata",
+  );
+  if (
+    lease.failure.phase !== null &&
+    ![
+      "handoff-validation",
+      "review",
+      "result-validation",
+      "preview-render",
+      "approval-freeze",
+      "stale-head",
+      "github-post",
+    ].includes(lease.failure.phase)
+  ) {
+    throw new PrReviewLeaseError("lease schema mismatch");
+  }
+  assertNullableStringLeaseField(
+    lease.failure,
+    "reason",
+    "lease failure metadata",
+  );
+  if (
+    lease.failure.recoverability !== null &&
+    !["recoverable", "unrecoverable", "unknown"].includes(
+      lease.failure.recoverability,
+    )
+  ) {
+    throw new PrReviewLeaseError("lease schema mismatch");
+  }
+  assertExactLeaseObject(
+    lease.github,
+    ["github_post_attempted", "github_post_result", "github_posted_at"],
+    [],
+    "lease GitHub metadata",
+  );
+  if (typeof lease.github.github_post_attempted !== "boolean") {
+    throw new PrReviewLeaseError("lease schema mismatch");
+  }
+  if (
+    lease.github.github_post_result !== "succeeded" &&
+    lease.github.github_post_result !== "failed" &&
+    lease.github.github_post_result !== "not-attempted"
+  ) {
+    throw new PrReviewLeaseError("lease schema mismatch");
+  }
+  assertNullableStringLeaseField(
+    lease.github,
+    "github_posted_at",
+    "lease GitHub metadata",
+  );
+  if (lease.cleanup !== undefined) {
+    assertExactLeaseObject(
+      lease.cleanup,
+      ["last_outcome", "last_checked_at"],
+      ["removed_at"],
+      "lease cleanup metadata",
+    );
+  }
+}
+
+function assertExactLeaseObject(
+  value: unknown,
+  requiredKeys: readonly string[],
+  optionalKeys: readonly string[],
+  label: string,
+): asserts value is JsonObject {
+  if (!isObject(value)) {
+    throw new PrReviewLeaseError(`${label} missing`);
+  }
+  const allowed = new Set([...requiredKeys, ...optionalKeys]);
+  if (
+    requiredKeys.some((key) => !(key in value)) ||
+    Object.keys(value).some((key) => !allowed.has(key))
+  ) {
+    throw new PrReviewLeaseError(`${label} mismatch`);
+  }
+}
+
+function assertStringLeaseField(
+  value: JsonObject,
+  key: string,
+  label: string,
+): void {
+  if (typeof value[key] !== "string") {
+    throw new PrReviewLeaseError(`${label} mismatch`);
+  }
+}
+
+function assertNullableStringLeaseField(
+  value: JsonObject,
+  key: string,
+  label: string,
+): void {
+  if (value[key] !== null && typeof value[key] !== "string") {
+    throw new PrReviewLeaseError(`${label} mismatch`);
   }
 }
 
@@ -2980,6 +3247,17 @@ function validateCleanupMetadata(cleanup: PrReviewLease["cleanup"]): void {
     keys[1] === "last_outcome" &&
     keys[2] === "removed_at";
   if (!isLegacyCleanup && !isCurrentCleanup) {
+    throw new PrReviewLeaseError("lease cleanup metadata mismatch");
+  }
+  if (
+    (cleanup.last_outcome !== null &&
+      typeof cleanup.last_outcome !== "string") ||
+    (cleanup.last_checked_at !== null &&
+      typeof cleanup.last_checked_at !== "string") ||
+    (isCurrentCleanup &&
+      cleanup.removed_at !== null &&
+      typeof cleanup.removed_at !== "string")
+  ) {
     throw new PrReviewLeaseError("lease cleanup metadata mismatch");
   }
   if (

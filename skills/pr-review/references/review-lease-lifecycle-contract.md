@@ -268,10 +268,11 @@ it may archive and write a fresh lease. The helper writes `removed_at` only
 after `git worktree remove` succeeds. Legacy, missing, malformed, or
 timestamp-inconsistent cleanup evidence never grants LC-18 authority: the
 active lease remains unchanged, with no archive and no fresh creation. There
-is no historical-artifact fallback for LC-18. The helper validates the entire
-stored terminal lease shape before consulting this authority; any malformed
-terminal or cleanup schema likewise leaves the active lease unchanged, with no
-archive and no fresh creation. This narrowly scoped authority
+is no historical-artifact fallback for LC-18. The helper validates the complete
+stored lease and every nested object before consulting this authority; unknown
+keys, invalid field types or values, and malformed terminal or cleanup schema
+all leave the active lease unchanged, with no archive and no fresh creation.
+This narrowly scoped authority
 does not refresh or create artifact authority, and discovery still requires
 both the prior worktree and canonical target to be absent and unregistered.
 A fresh `created` lease carries none of the terminal lease's artifact,

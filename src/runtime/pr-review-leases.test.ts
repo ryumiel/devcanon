@@ -3171,12 +3171,16 @@ describe("pr-review lease discovery", () => {
               lease_file: leaseFile,
               state: "aborted",
               status: "terminal",
-              reason: "unregistered-worktree",
+              reason:
+                kind === "symlink"
+                  ? "symlink-worktree"
+                  : "unregistered-worktree",
             },
           ],
           cleanup: {
             lease_file: leaseFile,
-            reason: "unregistered-worktree",
+            reason:
+              kind === "symlink" ? "symlink-worktree" : "unregistered-worktree",
           },
         });
       } finally {
@@ -3325,6 +3329,57 @@ describe("pr-review lease discovery", () => {
           worktree_path: canonicalLeaseIdentityPath(canonical),
         },
         cleanup: null,
+      });
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps a moved registered canonical worktree replaced by a symlink cleanup-required", async () => {
+    const workspace = await makeRegisteredWorkspace(
+      "pr-review-discovery-canonical-symlink-move-",
+    );
+    const canonical = path.join(
+      workspace.physicalPrimary,
+      ".worktrees",
+      "pr-432-review",
+    );
+    const moved = path.join(workspace.tempRoot, "moved-review");
+
+    try {
+      await mkdir(path.dirname(canonical), { recursive: true });
+      await execFileAsync(
+        "git",
+        ["worktree", "add", "-b", "canonical-review-topic", canonical],
+        { cwd: workspace.primary },
+      );
+      await mkdir(path.join(canonical, ".ephemeral"), { recursive: true });
+      const leaseFile = await writeDiscoveryLease(workspace.primary, canonical);
+      await rename(canonical, moved);
+      await symlink(moved, canonical);
+      process.chdir(workspace.physicalPrimary);
+      setDiscoveryEnv(workspace.physicalPrimary);
+
+      const result = await runPrReviewLeasesCommand(["discover"]);
+      expect(result.exitCode, result.stderr).toBe(0);
+      expect(JSON.parse(result.stdout)).toMatchObject({
+        disposition: "cleanup-required",
+        canonical_worktree: {
+          exists: true,
+          registered: true,
+          dirty: null,
+          status: "unleased-canonical",
+        },
+        resume: null,
+        cleanup: { lease_file: leaseFile, reason: "symlink-worktree" },
+        active_leases: [
+          {
+            lease_file: leaseFile,
+            status: "cleanup-required",
+            reason: "symlink-worktree",
+          },
+        ],
       });
     } finally {
       process.chdir(originalCwd);
@@ -4274,6 +4329,72 @@ describe("pr-review lease Git cleanup safety", () => {
         lease.terminal = {
           finished_at: "not-a-timestamp",
           reason: "user-aborted",
+        };
+        lease.cleanup = {
+          last_outcome: "removed",
+          last_checked_at: "2026-06-11T00:03:00Z",
+          removed_at: "2026-06-11T00:03:00Z",
+        };
+      },
+    },
+    {
+      name: "an extra terminal key",
+      mutate: (lease: Record<string, unknown>) => {
+        lease.terminal = {
+          finished_at: "2026-06-11T00:03:00Z",
+          reason: "user-aborted",
+          unexpected: true,
+        };
+        lease.cleanup = {
+          last_outcome: "removed",
+          last_checked_at: "2026-06-11T00:03:00Z",
+          removed_at: "2026-06-11T00:03:00Z",
+        };
+      },
+    },
+    {
+      name: "an extra top-level key",
+      mutate: (lease: Record<string, unknown>) => {
+        lease.unexpected = true;
+        lease.cleanup = {
+          last_outcome: "removed",
+          last_checked_at: "2026-06-11T00:03:00Z",
+          removed_at: "2026-06-11T00:03:00Z",
+        };
+      },
+    },
+    {
+      name: "a non-string terminal timestamp",
+      mutate: (lease: Record<string, unknown>) => {
+        lease.terminal = { finished_at: 1, reason: "user-aborted" };
+        lease.cleanup = {
+          last_outcome: "removed",
+          last_checked_at: "2026-06-11T00:03:00Z",
+          removed_at: "2026-06-11T00:03:00Z",
+        };
+      },
+    },
+    {
+      name: "an invalid aborted terminal reason",
+      mutate: (lease: Record<string, unknown>) => {
+        lease.terminal = {
+          finished_at: "2026-06-11T00:03:00Z",
+          reason: "",
+        };
+        lease.cleanup = {
+          last_outcome: "removed",
+          last_checked_at: "2026-06-11T00:03:00Z",
+          removed_at: "2026-06-11T00:03:00Z",
+        };
+      },
+    },
+    {
+      name: "a malformed nested GitHub object",
+      mutate: (lease: Record<string, unknown>) => {
+        lease.github = {
+          github_post_attempted: "false",
+          github_post_result: "not-attempted",
+          github_posted_at: null,
         };
         lease.cleanup = {
           last_outcome: "removed",
