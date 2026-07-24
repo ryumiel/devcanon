@@ -204,6 +204,29 @@ archive, then moves it to:
 .ephemeral/pr-${PR_NUMBER}-${WORKTREE_DIGEST}-${YYYYMMDDTHHMMSS}-${STATE}-archived-lease.json
 ```
 
+For a `posted` or `aborted` lease whose cleanup helper has recorded a closed
+`cleanup` observation with `last_outcome: "removed"` and a valid
+`last_checked_at` timestamp, LC-18 may archive after recreating the canonical
+worktree path without revalidating historical artifacts in that new checkout.
+That observation is narrowly scoped archive authority; it does not refresh or
+create artifact authority. In every other case, LC-18 keeps strict historical
+artifact validation before archive. A fresh `created` lease carries none of the
+terminal lease's artifact, validation, presentation, terminal, failure, GitHub,
+or cleanup metadata.
+
+The optional `cleanup` object is closed: it has exactly `last_outcome` and
+`last_checked_at`; outcomes are `removed`, `retained`, `skipped`, `failed`, or
+`null`; and a non-null timestamp is RFC 3339 UTC at second precision. Invalid
+cleanup metadata fails lease validation before archive or fresh creation.
+
+Cleanup and archive are independently retryable. An interruption before a
+successful helper-recorded removal leaves ordinary validation in force. An
+interruption after recorded removal may use the narrow archive authority on a
+later LC-18 attempt. Archive and fresh-creation retries must preserve historical
+evidence or a valid active lease, and invalid authority must leave the active
+lease unchanged without creating an archive. These are observable guarantees;
+they do not prescribe a private removal/archive write order.
+
 ## Cleanup Classifier
 
 `inspect-worktree` and `cleanup-worktree` share one classifier. The classifier

@@ -189,7 +189,7 @@ async function writeLease() {
             validateResultAuthority: true,
             policy: policyForLifecycleWrite(row),
         });
-        if (archive !== null) {
+        if (archive !== null && !hasPostCleanupArchiveAuthority(previous)) {
             if (previous === null) {
                 throw new PrReviewLeaseError("archived lease missing");
             }
@@ -340,16 +340,16 @@ async function cleanupWorktree() {
         return cleanupOutput(outcome, decision);
     }
     try {
-        if (shouldRecordCleanupMetadata(decision)) {
-            await recordCleanupMetadata(identity, decision.leaseState, "removed", shouldValidateCleanupMetadataArtifacts(decision));
-            decision.metadataOutcome = "removed";
-        }
         const args = ["-C", identity.primaryRoot, "worktree", "remove"];
         if (decision.forceRemoveAllowed) {
             args.push("-f");
         }
         args.push(identity.worktreePath);
         await execFileAsync("git", args);
+        if (shouldRecordCleanupMetadata(decision)) {
+            await recordCleanupMetadata(identity, decision.leaseState, "removed", false);
+            decision.metadataOutcome = "removed";
+        }
         return cleanupOutput("removed", {
             ...decision,
             metadataOutcome: "removed",
@@ -358,7 +358,7 @@ async function cleanupWorktree() {
     }
     catch {
         if (shouldRecordCleanupMetadata(decision)) {
-            await recordCleanupMetadata(identity, decision.leaseState, "failed", shouldValidateCleanupMetadataArtifacts(decision));
+            await recordCleanupMetadata(identity, decision.leaseState, "failed", false);
         }
         return cleanupOutput("failed", {
             ...decision,
@@ -965,6 +965,7 @@ function validateLeaseShape(lease, options = {}) {
     if (lease.validation.result_manifest.validated_at !== null) {
         validateTimestamp("validation.result_manifest.validated_at", lease.validation.result_manifest.validated_at);
     }
+    validateCleanupMetadata(lease.cleanup);
     if (lease.validation.result_manifest.sha256 !== null &&
         !SHA256_RE.test(lease.validation.result_manifest.sha256)) {
         throw new PrReviewLeaseError("validation.result_manifest.sha256 must be a lowercase 64-character sha256 or null");
@@ -1639,6 +1640,35 @@ function assertLeaseObjectShape(lease) {
     if (!isObject(lease.github)) {
         throw new PrReviewLeaseError("lease schema mismatch");
     }
+    if (lease.cleanup !== undefined && !isObject(lease.cleanup)) {
+        throw new PrReviewLeaseError("lease cleanup metadata missing");
+    }
+}
+function validateCleanupMetadata(cleanup) {
+    if (cleanup === undefined)
+        return;
+    const keys = Object.keys(cleanup).sort();
+    if (keys.length !== 2 ||
+        keys[0] !== "last_checked_at" ||
+        keys[1] !== "last_outcome") {
+        throw new PrReviewLeaseError("lease cleanup metadata mismatch");
+    }
+    if (cleanup.last_outcome !== null &&
+        cleanup.last_outcome !== "removed" &&
+        cleanup.last_outcome !== "retained" &&
+        cleanup.last_outcome !== "skipped" &&
+        cleanup.last_outcome !== "failed") {
+        throw new PrReviewLeaseError("lease cleanup outcome mismatch");
+    }
+    if (cleanup.last_checked_at !== null) {
+        validateTimestamp("cleanup.last_checked_at", cleanup.last_checked_at);
+    }
+}
+function hasPostCleanupArchiveAuthority(previous) {
+    return (previous !== null &&
+        (previous.state === "posted" || previous.state === "aborted") &&
+        previous.cleanup?.last_outcome === "removed" &&
+        previous.cleanup.last_checked_at !== null);
 }
 function assertExistingLeaseIdentity(lease, identity) {
     if (lease === null) {
