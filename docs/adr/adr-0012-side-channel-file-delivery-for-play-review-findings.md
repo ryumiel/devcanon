@@ -220,10 +220,9 @@ Consumer responsibilities:
   no worktree mutation) is unchanged and still authoritative for
   `play-review`. Writing `.ephemeral/<…>-findings.json` is an output
   artifact, not a disposition.
-- ADR-0010 is marked `Superseded by ADR-0012`. The schema name and
-  field shape it defines remain authoritative — only the transport
-  paragraph (Decision § "Wrappers re-emit the block on their surfaces"
-  and Positional rules) is overridden by this ADR.
+- ADR-0010 is marked `Superseded by ADR-0012`. Its historical v1 schema
+  and transport are both superseded by this ADR's current v2 contract;
+  ADR-0010 remains the source of the versioned-schema discipline.
 
 ## Alternatives considered
 
@@ -252,5 +251,5 @@ Consumer responsibilities:
 - ADR-0009: review-pipeline consolidation (defined the
   GitHub / auto-fix / worktree disposition boundary `play-review`
   preserves)
-- ADR-0010: structured review-finding schema (superseded by this ADR
-  for transport; schema name and field shape unchanged)
+- ADR-0010: predecessor structured review-finding schema and versioned-schema
+  discipline (its v1 contract is superseded by this ADR's v2 contract)
