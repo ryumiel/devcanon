@@ -547,6 +547,7 @@ function findingsEnvelope(): JsonObject {
     schema: "play-review/findings/v1",
     findings: [finding()],
     carry_forward: [],
+    incomplete_topical_routes: [],
   };
 }
 
@@ -1113,11 +1114,13 @@ describe("play-validate-review-artifacts validator", () => {
         schema: "play-review/findings/v1",
         findings: [],
         carry_forward: [],
+        incomplete_topical_routes: [],
       });
       const approvedFindings = {
         schema: "play-review/findings/v1",
         findings: [],
         carry_forward: [],
+        incomplete_topical_routes: [],
       };
       await writeJson(
         cwd,
@@ -1230,6 +1233,20 @@ describe("play-validate-review-artifacts validator", () => {
         "approval summary scope-decision digest mismatch",
       );
 
+      const { incomplete_topical_routes: _ignored, ...missingRouteEvidence } =
+        findings;
+      await writeJson(cwd, findingsFile, missingRouteEvidence);
+      await writeJson(cwd, ".ephemeral/topic-approval-summary.json", {
+        ...summary,
+        findings_sha256: jsonDigest(missingRouteEvidence),
+      });
+      await expectRejectsWith(
+        runValidator(cwd, "validate-approval-summary", [
+          ...approvalSummaryArgs(headSha),
+        ]),
+        "approval findings omit incomplete topical route evidence",
+      );
+
       await expectRejectsWith(
         runValidator(cwd, "validate-approval-summary", [
           ...approvalSummaryArgs(headSha),
@@ -1268,6 +1285,7 @@ describe("play-validate-review-artifacts validator", () => {
         schema: "play-review/findings/v1",
         findings: [finding({ severity: "Nit", critic: null })],
         carry_forward: [],
+        incomplete_topical_routes: [],
       };
       await writeJson(cwd, ".ephemeral/topic-scope-decision.json", scope);
       await writeJson(cwd, findingsFile, nits);
@@ -1322,6 +1340,7 @@ describe("play-validate-review-artifacts validator", () => {
         schema: "play-review/findings/v1",
         findings: [finding({ critic: "DOWNGRADE" })],
         carry_forward: [],
+        incomplete_topical_routes: [],
       };
       await writeJson(cwd, ".ephemeral/topic-scope-decision.json", scope);
       await writeJson(cwd, findingsFile, downgradedBlocker);
@@ -1381,6 +1400,7 @@ describe("play-validate-review-artifacts validator", () => {
         schema: "play-review/findings/v1",
         findings: [finding({ critic: "INVALID" })],
         carry_forward: [],
+        incomplete_topical_routes: [],
       };
       await writeJson(cwd, findingsFile, invalidatedBlocker);
       await writeJson(
@@ -1405,6 +1425,7 @@ describe("play-validate-review-artifacts validator", () => {
         schema: "play-review/findings/v1",
         findings: [finding({ critic: "VALID" })],
         carry_forward: [],
+        incomplete_topical_routes: [],
       };
       await writeJson(cwd, findingsFile, validBlocker);
       await writeJson(
@@ -1468,6 +1489,7 @@ describe("play-validate-review-artifacts validator", () => {
         schema: "play-review/findings/v1",
         findings: [],
         carry_forward: [finding({ anchor: "out-of-diff" })],
+        incomplete_topical_routes: [],
       };
       await writeJson(cwd, ".ephemeral/topic-scope-decision.json", scope);
       await writeJson(cwd, findingsFile, carryForwardBlocker);
@@ -1524,6 +1546,7 @@ describe("play-validate-review-artifacts validator", () => {
             critic: "INVALID",
           }),
         ],
+        incomplete_topical_routes: [],
       };
       await writeJson(cwd, ".ephemeral/topic-scope-decision.json", scope);
       await writeJson(cwd, findingsFile, invalidCarryForward);
@@ -1578,6 +1601,7 @@ describe("play-validate-review-artifacts validator", () => {
         schema: "play-review/findings/v1",
         findings: [mirroredBlocker],
         carry_forward: [mirroredBlocker],
+        incomplete_topical_routes: [],
       };
       await writeJson(cwd, ".ephemeral/topic-scope-decision.json", scope);
       await writeJson(cwd, findingsFile, findings);
@@ -4226,6 +4250,13 @@ describe("play-validate-review-artifacts validator", () => {
       });
 
       for (const malformedFindings of [
+        {
+          ...findingsEnvelope(),
+          incomplete_topical_routes: [
+            { route: "D7", disposition: "FAILED" },
+            { route: "D7", disposition: "NEEDS_CONTEXT" },
+          ],
+        },
         {
           ...findingsEnvelope(),
           findings: [finding({ anchor: "bogus" })],

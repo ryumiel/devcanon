@@ -1504,6 +1504,7 @@ async function validateApprovalSummary(options) {
     const findings = await assertFindingsEnvelope(findingsFile);
     await validateApprovalDigest("approval summary findings digest mismatch", findingsFile, stringField(summary, "findings_sha256"));
     await validateApprovalDigest("approval summary scope-decision digest mismatch", scopeDecisionFile, stringField(summary, "scope_decision_sha256"));
+    requireIncompleteTopicalEvidence(findings);
     const counts = findingsCounts(findings);
     if (numberField(summary, "blocker_count") !== counts.blockerCount) {
         fail("approval summary blocker count mismatch");
@@ -1943,7 +1944,16 @@ function incompleteTopicalRoutes(envelope) {
     if (!Array.isArray(envelope.incomplete_topical_routes)) {
         fail("findings envelope validation failed");
     }
-    return envelope.incomplete_topical_routes.map((item) => item);
+    const routes = envelope.incomplete_topical_routes.map((item) => item);
+    if (new Set(routes.map((route) => String(route.route))).size !== routes.length) {
+        fail("findings envelope validation failed");
+    }
+    return routes;
+}
+function requireIncompleteTopicalEvidence(envelope) {
+    if (envelope.incomplete_topical_routes === undefined) {
+        fail("approval findings omit incomplete topical route evidence");
+    }
 }
 function isIncompleteTopicalRoute(value) {
     return (value !== null &&
