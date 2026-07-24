@@ -155,18 +155,22 @@ describe("pr-review Phase 5 audit summary renderer", () => {
 
   it("uses WORKTREE_PATH for result artifacts and PRIMARY_REPOSITORY_ROOT for lease status", async () => {
     const workspace = await makeManifestWorkspace("pr-review-distinct-roots-");
-    setSummaryEnv(workspace);
-    process.chdir(workspace.tempRoot);
+    try {
+      setSummaryEnv(workspace);
+      process.chdir(workspace.tempRoot);
 
-    const result = await runManifestCommand(["render-phase5-audit-summary"]);
+      const result = await runManifestCommand(["render-phase5-audit-summary"]);
 
-    expect(result.exitCode, result.stderr).toBe(0);
-    expect(result.stdout).toContain(
-      `worktree \`${canonicalLeaseIdentityPath(workspace.physicalWorktree)}\``,
-    );
-    await expect(
-      readFile(path.join(workspace.primary, workspace.resultFile), "utf8"),
-    ).rejects.toThrow();
+      expect(result.exitCode, result.stderr).toBe(0);
+      expect(result.stdout).toContain(
+        `worktree \`${canonicalLeaseIdentityPath(workspace.physicalWorktree)}\``,
+      );
+      await expect(
+        readFile(path.join(workspace.primary, workspace.resultFile), "utf8"),
+      ).rejects.toThrow();
+    } finally {
+      process.chdir(originalCwd);
+    }
   });
 
   it("does not mutate the lease file or result artifacts", async () => {

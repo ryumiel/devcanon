@@ -2691,7 +2691,7 @@ describe("pr-review lease read-status", () => {
     );
 
     try {
-      process.chdir(workspace.physicalPrimary);
+      process.chdir(workspace.primary);
       setAuditFailureEnv(workspace, "2026-06-11T00:03:00Z");
       unsetEnv("WORKTREE_PATH");
       await execFileAsync(
@@ -3773,6 +3773,40 @@ describe("pr-review lease discovery", () => {
         disposition: "resume",
         active_leases: [{ state: "failed", status: "resumable" }],
       });
+    });
+  });
+
+  it("fails closed for failed recovery evidence with a stale preserved presentation", async () => {
+    await withDiscoveryOnlyApprovedReviewFixture(async (fixture) => {
+      const lease = JSON.parse(fixture.originalLease) as PrReviewLease;
+      lease.state = "failed";
+      lease.artifacts.validated_payload_file = null;
+      lease.terminal = {
+        finished_at: "2026-06-11T00:03:00Z",
+        reason: null,
+      };
+      lease.failure = {
+        phase: "github-post",
+        reason: "GitHub API rejected review",
+        recoverability: "recoverable",
+      };
+      lease.github = {
+        github_post_attempted: true,
+        github_post_result: "failed",
+        github_posted_at: null,
+      };
+      await rm(fixture.validatedPayloadPath);
+      const result = JSON.parse(await readFile(fixture.resultPath, "utf8")) as {
+        presentation: { status: string; notes: string | null };
+      };
+      result.presentation.status = "edited";
+      await writeFile(fixture.resultPath, `${JSON.stringify(result)}\n`);
+      lease.validation.result_manifest.sha256 = await sha256File(
+        fixture.resultPath,
+      );
+      await writeFile(fixture.leasePath, `${JSON.stringify(lease)}\n`);
+
+      await fixture.expectInvalidDiscovery();
     });
   });
 
@@ -6112,7 +6146,7 @@ function setAuditFailureEnv(
 ): void {
   process.env.REPOSITORY = "owner/repo";
   process.env.PR_NUMBER = "432";
-  process.env.PRIMARY_REPOSITORY_ROOT = workspace.physicalPrimary;
+  process.env.PRIMARY_REPOSITORY_ROOT = workspace.primary;
   process.env.LEASE_FILE = workspace.leaseFile;
   process.env.STATE = "failed";
   process.env.EXPECTED_STATE = "gated";
@@ -6899,7 +6933,12 @@ async function writeSharedContextFamily(
   const priorEnv = new Map(contextEnv.map((key) => [key, process.env[key]]));
 
   try {
-    process.chdir(physicalWorktree);
+    const { stdout: repositoryRoot } = await execFileAsync(
+      "git",
+      ["rev-parse", "--show-toplevel"],
+      { cwd: physicalWorktree },
+    );
+    process.chdir(await realpath(repositoryRoot.trim()));
     process.env.HEAD_SHA = reviewHead;
     process.env.FINDINGS_FILE = findingsFile;
     process.env.REVIEW_CONTEXT_INPUT_JSON = JSON.stringify({

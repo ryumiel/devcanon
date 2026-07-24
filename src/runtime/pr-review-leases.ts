@@ -2956,6 +2956,12 @@ async function validateDiscoveryResultArtifacts(
   if (lease.state === "gated") {
     validateResultFreshness(lease, "validate-stored-lease");
     validateResultPresentation(evidence.result, lease, "validate-stored-lease");
+  } else if (
+    lease.state === "failed" &&
+    (lease.presentation.status !== null ||
+      lease.presentation.presented_at !== null)
+  ) {
+    validateResultPresentation(evidence.result, lease, "validate-stored-lease");
   }
   return evidence;
 }
