@@ -6,11 +6,8 @@ Accepted
 
 ## Context
 
-ADR-0010 introduced the `play-review/findings/v2` JSON schema (a
-top-level envelope with `schema`, `findings`, `carry_forward`, and additive
-`incomplete_topical_routes`
-fields, now detailed in
-`skills/play-review/references/findings-envelope-contract.md`) and
+ADR-0010 introduced the predecessor `play-review/findings/v1` JSON schema (a
+top-level envelope with `schema`, `findings`, and `carry_forward`) and
 specified its transport: a trailing fenced `json` block appended to
 `play-review`'s conversation output. Wrappers (`branch-review`,
 `pr-review`) re-emit the same block on their surfaces;
@@ -18,6 +15,11 @@ specified its transport: a trailing fenced `json` block appended to
 `issue-priming-workflow` Phase 7 reads it from conversation to select
 judgment-required remaining nits. The same envelope traverses 4 conversation contexts
 per `--auto` run.
+
+This ADR owns the later incompatible `play-review/findings/v2` migration. Its
+mandatory `incomplete_topical_routes` field is now detailed in
+`skills/play-review/references/findings-envelope-contract.md` and is required
+across producers and consumers.
 
 That propagation was observed to be a measurable share of total session
 tokens — on the order of 5KB per hop across 4 hops, though the exact
