@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
   chmod,
+  cp,
   mkdir,
   mkdtemp,
   readFile,
@@ -15,7 +16,7 @@ import {
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, describe, expect, it } from "vitest";
 import { runPlayReviewSharedContextCommand } from "./play-review-shared-context.js";
 import {
   type PrReviewLease,
@@ -178,6 +179,14 @@ const refreshedResultDigest =
   "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc";
 
 const originalCwd = process.cwd();
+let primaryRepositorySeed: Promise<string> | null = null;
+let primaryRepositorySeedRoot: string | null = null;
+
+afterAll(async () => {
+  if (primaryRepositorySeedRoot !== null) {
+    await rm(primaryRepositorySeedRoot, { recursive: true, force: true });
+  }
+});
 const managedEnvKeys = [
   "REPOSITORY",
   "PR_NUMBER",
@@ -679,7 +688,7 @@ describe("pr-review lease command validation", () => {
       );
 
       await writeResultArtifact(
-        worktree,
+        physicalWorktree,
         physicalWorktree,
         resultFile,
         reviewHead,
@@ -957,7 +966,7 @@ describe("pr-review lease command validation", () => {
 
     try {
       await writeResultArtifact(
-        worktree,
+        physicalWorktree,
         physicalWorktree,
         resultFile,
         reviewHead,
@@ -965,7 +974,9 @@ describe("pr-review lease command validation", () => {
         false,
         reviewBase,
       );
-      const resultSha256 = await sha256File(path.join(worktree, resultFile));
+      const resultSha256 = await sha256File(
+        path.join(physicalWorktree, resultFile),
+      );
       process.chdir(physicalPrimary);
       setLeaseCommandEnv(physicalPrimary, physicalWorktree);
       setHelperAuthorityEnv({
@@ -3810,6 +3821,46 @@ describe("pr-review lease discovery", () => {
     });
   });
 
+  it("resumes failed recovery evidence without preserved presentation metadata", async () => {
+    await withDiscoveryOnlyApprovedReviewFixture(async (fixture) => {
+      const lease = JSON.parse(fixture.originalLease) as PrReviewLease;
+      lease.state = "failed";
+      lease.artifacts.validated_payload_file = null;
+      lease.presentation = { presented_at: null, status: null };
+      lease.terminal = {
+        finished_at: "2026-06-11T00:03:00Z",
+        reason: null,
+      };
+      lease.failure = {
+        phase: "github-post",
+        reason: "GitHub API rejected review",
+        recoverability: "recoverable",
+      };
+      lease.github = {
+        github_post_attempted: true,
+        github_post_result: "failed",
+        github_posted_at: null,
+      };
+      await rm(fixture.validatedPayloadPath);
+      const result = JSON.parse(await readFile(fixture.resultPath, "utf8")) as {
+        presentation: { status: string; notes: string | null };
+      };
+      result.presentation.status = "not-presented";
+      await writeFile(fixture.resultPath, `${JSON.stringify(result)}\n`);
+      lease.validation.result_manifest.sha256 = await sha256File(
+        fixture.resultPath,
+      );
+      await writeFile(fixture.leasePath, `${JSON.stringify(lease)}\n`);
+
+      const discovery = await runPrReviewLeasesCommand(["discover"]);
+      expect(discovery.exitCode, discovery.stderr).toBe(0);
+      expect(JSON.parse(discovery.stdout)).toMatchObject({
+        disposition: "resume",
+        active_leases: [{ state: "failed", status: "resumable" }],
+      });
+    });
+  });
+
   it.each(["extra approved-review key", "approved-review digest drift"])(
     "fails closed for failed partial approval evidence with %s",
     async (caseName) => {
@@ -6285,21 +6336,7 @@ async function makeRegisteredWorkspace(
     options.canonicalWorktree === true
       ? path.join(primary, ".worktrees", "pr-432-review")
       : path.join(tempRoot, "worktree");
-  await mkdir(primary, { recursive: true });
-  await execFileAsync("git", ["init", "--initial-branch=main"], {
-    cwd: primary,
-  });
-  await execFileAsync("git", ["config", "user.name", "Test User"], {
-    cwd: primary,
-  });
-  await execFileAsync("git", ["config", "user.email", "test@example.com"], {
-    cwd: primary,
-  });
-  await writeFile(path.join(primary, "README.md"), "baseline\n");
-  await execFileAsync("git", ["add", "README.md"], { cwd: primary });
-  await execFileAsync("git", ["commit", "-m", "chore: baseline"], {
-    cwd: primary,
-  });
+  await cp(await preparePrimaryRepositorySeed(), primary, { recursive: true });
   await mkdir(path.dirname(worktree), { recursive: true });
   await execFileAsync(
     "git",
@@ -6315,6 +6352,35 @@ async function makeRegisteredWorkspace(
     physicalPrimary: await realpath(primary),
     physicalWorktree: await realpath(worktree),
   };
+}
+
+async function preparePrimaryRepositorySeed(): Promise<string> {
+  if (primaryRepositorySeed === null) {
+    primaryRepositorySeed = (async () => {
+      const seedRoot = await mkdtemp(
+        path.join(tmpdir(), "pr-review-primary-seed-"),
+      );
+      const primary = path.join(seedRoot, "primary");
+      primaryRepositorySeedRoot = seedRoot;
+      await mkdir(primary, { recursive: true });
+      await execFileAsync("git", ["init", "--initial-branch=main"], {
+        cwd: primary,
+      });
+      await execFileAsync("git", ["config", "user.name", "Test User"], {
+        cwd: primary,
+      });
+      await execFileAsync("git", ["config", "user.email", "test@example.com"], {
+        cwd: primary,
+      });
+      await writeFile(path.join(primary, "README.md"), "baseline\n");
+      await execFileAsync("git", ["add", "README.md"], { cwd: primary });
+      await execFileAsync("git", ["commit", "-m", "chore: baseline"], {
+        cwd: primary,
+      });
+      return primary;
+    })();
+  }
+  return primaryRepositorySeed;
 }
 
 function identityFromLeaseFile(
