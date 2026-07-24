@@ -2174,6 +2174,58 @@ function validateStateInvariants(
   if (lease.state === "failed" && lease.failure.phase === null) {
     throw new PrReviewLeaseError("lease schema mismatch");
   }
+  validateFailureAndGitHubTuple(lease);
+}
+
+function validateFailureAndGitHubTuple(lease: PrReviewLease): void {
+  const noFailure =
+    lease.failure.phase === null &&
+    lease.failure.reason === null &&
+    lease.failure.recoverability === null;
+  const noGitHubPost =
+    lease.github.github_post_attempted === false &&
+    lease.github.github_post_result === "not-attempted" &&
+    lease.github.github_posted_at === null;
+  if (lease.state === "failed") {
+    if (
+      lease.failure.phase === null ||
+      lease.failure.reason === null ||
+      lease.failure.reason.length === 0 ||
+      lease.failure.recoverability === null
+    ) {
+      throw new PrReviewLeaseError("lease schema mismatch");
+    }
+    if (lease.failure.phase === "github-post") {
+      if (
+        lease.github.github_post_attempted !== true ||
+        lease.github.github_post_result !== "failed" ||
+        lease.github.github_posted_at !== null
+      ) {
+        throw new PrReviewLeaseError("lease schema mismatch");
+      }
+      return;
+    }
+    if (!noGitHubPost) {
+      throw new PrReviewLeaseError("lease schema mismatch");
+    }
+    return;
+  }
+  if (!noFailure) {
+    throw new PrReviewLeaseError("lease schema mismatch");
+  }
+  if (lease.state === "posted") {
+    if (
+      lease.github.github_post_attempted !== true ||
+      lease.github.github_post_result !== "succeeded" ||
+      lease.github.github_posted_at === null
+    ) {
+      throw new PrReviewLeaseError("lease schema mismatch");
+    }
+    return;
+  }
+  if (!noGitHubPost) {
+    throw new PrReviewLeaseError("lease schema mismatch");
+  }
 }
 
 function clearPreviewRenderRecoveryArtifacts(

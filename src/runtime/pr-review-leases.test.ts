@@ -3540,6 +3540,72 @@ describe("pr-review lease discovery", () => {
     },
   );
 
+  it("fails closed for a posted lease with an impossible GitHub tuple", async () => {
+    await withDiscoveryOnlyApprovedReviewFixture(async (fixture) => {
+      const lease = JSON.parse(fixture.originalLease) as PrReviewLease;
+      lease.github = {
+        github_post_attempted: false,
+        github_post_result: "not-attempted",
+        github_posted_at: null,
+      };
+      await writeFile(fixture.leasePath, `${JSON.stringify(lease)}\n`);
+      await fixture.expectInvalidDiscovery();
+    });
+  });
+
+  it.each([
+    {
+      name: "missing failure phase",
+      mutate: (lease: PrReviewLease) => {
+        lease.failure.phase = null;
+      },
+    },
+    {
+      name: "missing failure reason and recoverability",
+      mutate: (lease: PrReviewLease) => {
+        lease.failure.reason = null;
+        lease.failure.recoverability = null;
+      },
+    },
+    {
+      name: "non-GitHub failure with attempted GitHub metadata",
+      mutate: (lease: PrReviewLease) => {
+        lease.github = {
+          github_post_attempted: true,
+          github_post_result: "failed",
+          github_posted_at: null,
+        };
+      },
+    },
+  ])(
+    "fails closed for failed partial approval evidence with $name",
+    async ({ mutate }) => {
+      await withDiscoveryOnlyApprovedReviewFixture(async (fixture) => {
+        const lease = JSON.parse(fixture.originalLease) as PrReviewLease;
+        lease.state = "failed";
+        lease.artifacts.validated_payload_file = null;
+        lease.terminal = {
+          finished_at: "2026-06-11T00:03:00Z",
+          reason: null,
+        };
+        lease.failure = {
+          phase: "approval-freeze",
+          reason: "approved review validation failed",
+          recoverability: "recoverable",
+        };
+        lease.github = {
+          github_post_attempted: false,
+          github_post_result: "not-attempted",
+          github_posted_at: null,
+        };
+        mutate(lease);
+        await rm(fixture.validatedPayloadPath);
+        await writeFile(fixture.leasePath, `${JSON.stringify(lease)}\n`);
+        await fixture.expectInvalidDiscovery();
+      });
+    },
+  );
+
   it("resumes exactly one valid schema-bound canonical worktree lease", async () => {
     const workspace = await makeRegisteredWorkspace(
       "pr-review-discovery-canonical-resume-",
@@ -5200,6 +5266,21 @@ describe("pr-review lease Git cleanup safety", () => {
           github_post_attempted: "false",
           github_post_result: "not-attempted",
           github_posted_at: null,
+        };
+        lease.cleanup = {
+          last_outcome: "removed",
+          last_checked_at: "2026-06-11T00:03:00Z",
+          removed_at: "2026-06-11T00:03:00Z",
+        };
+      },
+    },
+    {
+      name: "an impossible terminal GitHub tuple",
+      mutate: (lease: Record<string, unknown>) => {
+        lease.github = {
+          github_post_attempted: true,
+          github_post_result: "succeeded",
+          github_posted_at: "2026-06-11T00:03:00Z",
         };
         lease.cleanup = {
           last_outcome: "removed",

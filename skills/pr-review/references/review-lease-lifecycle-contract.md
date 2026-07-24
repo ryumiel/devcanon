@@ -130,6 +130,9 @@ required digest evidence makes a lease invalid. Classify it as
 
 GitHub post metadata is phase-scoped:
 
+- Only `failed` leases may carry a failure tuple, and they require non-empty
+  `phase`, `reason`, and `recoverability`; every other state stores all three
+  fields as `null`.
 - `github-post` failures must record `GITHUB_POST_ATTEMPTED=true` and
   `GITHUB_POST_RESULT=failed`.
 - Non-`github-post` failures clear GitHub post metadata to
