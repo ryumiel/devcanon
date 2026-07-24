@@ -1577,6 +1577,21 @@ describe("rendered phase artifact smoke coverage", () => {
       );
       expect(normalizedPhase5).toContain("critic_not_required: zero blockers");
       expect(normalizedPhase5).toContain("do not spawn D10");
+      expect(normalizedPhase5).toContain(
+        "the merged blocker count is greater than zero, D10 may start",
+      );
+      expect(normalizedPhase5).toContain(
+        "for a legitimately spawned D10 that returns a completed critic result, `input_blocker_count` is greater than zero and its `verdict count` equals `input_blocker_count`",
+      );
+      expect(normalizedPhase5).toContain(
+        "Its `critic verdicts` contain exactly one unique `VALID`, `INVALID`, or `DOWNGRADE` verdict for every input blocker",
+      );
+      expect(normalizedPhase5).toContain(
+        "`COMPLETE_NO_FINDINGS` is unreachable for a spawned D10",
+      );
+      expect(normalizedPhase5).toContain(
+        "If every input blocker is `INVALID` or `DOWNGRADE`, D10 still returns `COMPLETE_WITH_FINDINGS` because its critic-verdict vector is nonempty",
+      );
     }
   });
 

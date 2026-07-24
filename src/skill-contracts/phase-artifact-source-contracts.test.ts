@@ -1230,6 +1230,7 @@ describe("phase artifact source contracts", () => {
       "every selected topical route has captured an allowed terminal child result or controller-observed orchestration failure",
       "critic_not_required: zero blockers",
       "do not spawn D10",
+      "the merged blocker count is greater than zero, D10 may start",
     ]) {
       const gateIndex = normalizedPhase5.indexOf(
         gateStep,
@@ -1240,6 +1241,18 @@ describe("phase artifact source contracts", () => {
     }
     expect(normalizedPhase5).toContain(
       "Successful sibling findings remain usable in partial fanout",
+    );
+    expect(normalizedPhase5).toContain(
+      "for a legitimately spawned D10 that returns a completed critic result, `input_blocker_count` is greater than zero and its `verdict count` equals `input_blocker_count`",
+    );
+    expect(normalizedPhase5).toContain(
+      "Its `critic verdicts` contain exactly one unique `VALID`, `INVALID`, or `DOWNGRADE` verdict for every input blocker",
+    );
+    expect(normalizedPhase5).toContain(
+      "`COMPLETE_NO_FINDINGS` is unreachable for a spawned D10",
+    );
+    expect(normalizedPhase5).toContain(
+      "If every input blocker is `INVALID` or `DOWNGRADE`, D10 still returns `COMPLETE_WITH_FINDINGS` because its critic-verdict vector is nonempty",
     );
   });
 

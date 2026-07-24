@@ -432,7 +432,8 @@ controller-observed orchestration failure. Successful sibling findings remain
 usable in partial fanout while final output names missing or incomplete sessions.
 After the merged blocker count is known, record exactly
 `critic_not_required: zero blockers` when it is zero and do not spawn D10. If
-blockers exist, preserve the existing D10 verification policy below.
+the merged blocker count is greater than zero, D10 may start under the existing
+verification policy below.
 
 Before spawning the critic agent, run the `subagent-lifecycle` cleanup gate for
 completed or superseded reviewer sessions, preserving target-honest cleanup
@@ -457,6 +458,15 @@ reference as a literal claim, not illustrative rhetoric: verify cited
 `file:line`, identifiers, commands, commit SHAs, and PR numbers by opening the
 cited artifact. Tag INVALID if the artifact does not exist or does not contain
 the cited text. See `references/critic-rationale.md`.
+
+Cardinality invariant: for a legitimately spawned D10 that returns a completed
+critic result, `input_blocker_count` is greater than zero and its `verdict count`
+equals `input_blocker_count`. Its `critic verdicts` contain exactly one unique
+`VALID`, `INVALID`, or `DOWNGRADE` verdict for every input blocker. The
+critic-verdict vector is therefore nonempty. `COMPLETE_NO_FINDINGS` is
+unreachable for a spawned D10. If every input blocker is `INVALID` or
+`DOWNGRADE`, D10 still returns `COMPLETE_WITH_FINDINGS` because its
+critic-verdict vector is nonempty.
 
 The D10 prompt must say: “Immediately after the required checks, return exactly
 one terminal disposition. Do not wait for peers, a nudge, or an invitation.” It
