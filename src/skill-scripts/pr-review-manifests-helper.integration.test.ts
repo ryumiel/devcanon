@@ -21,6 +21,7 @@ import {
   canCreateSymlinks,
   cleanupTempDir,
 } from "../__test-helpers__/fixtures.js";
+import { canonicalLeaseIdentityPath } from "../runtime/pr-review-leases.js";
 
 const execFileAsync = promisify(execFile);
 const helperScript = path.join(
@@ -940,11 +941,19 @@ describe("pr-review manifest helper", () => {
           "utf8",
         );
         const lease = JSON.parse(beforeLease) as {
+          worktree_path: string;
           worktree_digest: string;
           validation: {
             result_manifest: { sha256: string; validated_at: string };
           };
         };
+        const canonicalWorktreePath = canonicalLeaseIdentityPath(
+          workspace.physicalWorktree,
+        );
+        expect(lease.worktree_path).toBe(canonicalWorktreePath);
+        expect(lease.worktree_digest).toBe(
+          createHash("sha256").update(canonicalWorktreePath).digest("hex"),
+        );
         const { stdout } = await runPhase5Audit(workspace);
 
         expect(stdout).toContain("## Phase 5 Artifact Audit Summary");
@@ -973,7 +982,7 @@ describe("pr-review manifest helper", () => {
           "Presentation status: result `preview-current`; lease `preview-current`; presented at `2026-07-17T00:02:00Z`",
         );
         expect(stdout).toContain(
-          `Lease/worktree status: lease \`gated\`; worktree \`${workspace.physicalWorktree}\`; digest \`${lease.worktree_digest}\`; exists \`true\`; registered \`true\`; dirty \`true\`; identity match \`true\``,
+          `Lease/worktree status: lease \`gated\`; worktree \`${canonicalWorktreePath}\`; digest \`${lease.worktree_digest}\`; exists \`true\`; registered \`true\`; dirty \`true\`; identity match \`true\``,
         );
         expect(stdout).toContain(
           "Cleanup note: lease-gated cleanup pending; cleanup not attempted in Phase 5.",
