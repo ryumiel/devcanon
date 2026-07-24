@@ -8,6 +8,7 @@ import { writeTextAtomically } from "./artifacts.js";
 import { requireDirectEphemeralChild } from "./paths.js";
 import { validateSharedContextFamilyBinding } from "./play-review-shared-context.js";
 import { validatePrReviewResultCommandAuthority } from "./pr-review-result-validation.js";
+import { PR_REVIEW_GOVERNED_PATH_PATTERN, PR_REVIEW_MAX_NARROW_CHANGED_FILES, validateCanonicalApprovedReviewArtifacts, } from "./review-artifacts.js";
 const execFileAsync = promisify(execFile);
 const SHA_RE = /^[0-9a-f]{40}$/u;
 const SHA256_RE = /^[0-9a-f]{64}$/u;
@@ -1987,12 +1988,44 @@ async function validateDiscoveryApprovedReviewOwnership(lease, result, approved,
     }
     const payloadFile = stringField(approved, "review_payload_file");
     const payload = await readRequiredJson(worktreePath, payloadFile, "review payload file");
-    if (JSON.stringify(payload) !== JSON.stringify(approved.payload) ||
-        payload.commit_id !== approved.review_head_sha) {
+    const scope = await readRequiredJson(worktreePath, expected.scopeDecisionFile, "scope decision file");
+    const scopeArtifacts = scope.artifacts;
+    const priorContext = scope.prior_context;
+    if (!isObject(scopeArtifacts) || !isObject(priorContext)) {
+        throw new PrReviewLeaseError("approved review discovery ownership mismatch");
+    }
+    const fullRange = stringField(scope, "full_range");
+    const baseMatch = /^([0-9a-f]{40})\.\./u.exec(fullRange);
+    if (baseMatch === null) {
+        throw new PrReviewLeaseError("approved review discovery ownership mismatch");
+    }
+    const expectedPayload = await validateCanonicalApprovedReviewArtifacts({
+        worktreeRoot: worktreePath,
+        options: {
+            surface: "pr-review",
+            headSha: reviewHead,
+            baseRef: baseMatch[1],
+            scopeDecision: expected.scopeDecisionFile,
+            providerScopeEvidenceFile: stringField(scopeArtifacts, "provider_scope_evidence_file"),
+            expectedSchema: "pr-review/scope-decision/v1",
+            priorContextKind: stringField(priorContext, "kind"),
+            priorContextPath: nullableStringField(priorContext, "path") ?? "null",
+            governedPathPattern: PR_REVIEW_GOVERNED_PATH_PATTERN,
+            configuredPathPattern: "^$",
+            maxNarrowChangedFiles: PR_REVIEW_MAX_NARROW_CHANGED_FILES,
+            allowAmbiguousFull: "true",
+            findingsFile: expected.findingsFile,
+            reviewBodyFile: expected.reviewBodyFile,
+            reviewPayloadFile: expected.reviewPayloadFile,
+            reviewEvent: stringField(approved.payload, "event"),
+        },
+    });
+    if (JSON.stringify(payload) !== JSON.stringify(expectedPayload) ||
+        JSON.stringify(approved.payload) !== JSON.stringify(expectedPayload)) {
         throw new PrReviewLeaseError("approved review discovery payload mismatch");
     }
     const validatedPayload = await readRequiredJson(worktreePath, validatedPayloadFile, "validated payload file");
-    if (JSON.stringify(validatedPayload) !== JSON.stringify(approved.payload)) {
+    if (JSON.stringify(validatedPayload) !== JSON.stringify(expectedPayload)) {
         throw new PrReviewLeaseError("validated payload approved-review mismatch");
     }
 }
