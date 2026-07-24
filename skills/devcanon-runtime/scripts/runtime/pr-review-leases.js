@@ -2097,9 +2097,10 @@ function validateDirectChild(label, value, suffix = "") {
     }
 }
 function digestPath(value) {
-    return createHash("sha256")
-        .update(normalizeComparablePath(value))
-        .digest("hex");
+    // Lease filename identity preserves the physical path representation recorded
+    // at lease creation. Comparable-path normalization is only for equality with
+    // Git's slash-normalized registration output.
+    return createHash("sha256").update(value).digest("hex");
 }
 function expectedValidatedPayloadPath(prNumber, reviewHead) {
     return `.ephemeral/pr-${prNumber}-${reviewHead}-validated-review-payload.json`;
