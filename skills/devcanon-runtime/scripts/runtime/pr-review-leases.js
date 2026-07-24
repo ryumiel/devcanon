@@ -339,22 +339,13 @@ async function cleanupWorktree() {
         }
         return cleanupOutput(outcome, decision);
     }
+    const args = ["-C", identity.primaryRoot, "worktree", "remove"];
+    if (decision.forceRemoveAllowed) {
+        args.push("-f");
+    }
+    args.push(identity.worktreePath);
     try {
-        const args = ["-C", identity.primaryRoot, "worktree", "remove"];
-        if (decision.forceRemoveAllowed) {
-            args.push("-f");
-        }
-        args.push(identity.worktreePath);
         await execFileAsync("git", args);
-        if (shouldRecordCleanupMetadata(decision)) {
-            await recordCleanupMetadata(identity, decision.leaseState, "removed", false);
-            decision.metadataOutcome = "removed";
-        }
-        return cleanupOutput("removed", {
-            ...decision,
-            metadataOutcome: "removed",
-            message: "worktree removed",
-        });
     }
     catch {
         if (shouldRecordCleanupMetadata(decision)) {
@@ -366,6 +357,15 @@ async function cleanupWorktree() {
             message: "git worktree remove failed",
         });
     }
+    if (shouldRecordCleanupMetadata(decision)) {
+        await recordCleanupMetadata(identity, decision.leaseState, "removed", false);
+        decision.metadataOutcome = "removed";
+    }
+    return cleanupOutput("removed", {
+        ...decision,
+        metadataOutcome: "removed",
+        message: "worktree removed",
+    });
 }
 function shouldRecordCleanupMetadata(decision) {
     return (decision.identityMatch &&
@@ -1641,7 +1641,7 @@ function assertLeaseObjectShape(lease) {
         throw new PrReviewLeaseError("lease schema mismatch");
     }
     if (lease.cleanup !== undefined && !isObject(lease.cleanup)) {
-        throw new PrReviewLeaseError("lease cleanup metadata missing");
+        throw new PrReviewLeaseError("lease cleanup metadata mismatch");
     }
 }
 function validateCleanupMetadata(cleanup) {

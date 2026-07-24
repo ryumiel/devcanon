@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
+  access,
   chmod,
   mkdir,
   mkdtemp,
@@ -3146,6 +3147,51 @@ describe("pr-review lease Git cleanup safety", () => {
         process.chdir(originalCwd);
         await rm(workspace.tempRoot, { recursive: true, force: true });
       }
+    }
+  });
+
+  it("surfaces post-removal cleanup metadata failures without recording failure", async () => {
+    const { tempRoot, primary, worktree, physicalPrimary, physicalWorktree } =
+      await makeRegisteredWorkspace("pr-review-cleanup-metadata-failure-");
+
+    try {
+      process.chdir(physicalPrimary);
+      setLeaseCommandEnv(physicalPrimary, physicalWorktree);
+      const pathResult = await runPrReviewLeasesCommand(["derive-path"]);
+      expect(pathResult.exitCode).toBe(0);
+      const leaseFile = pathResult.stdout.trim();
+      const dynamicIdentity = identityFromLeaseFile(
+        leaseFile,
+        physicalWorktree,
+      );
+      await writeFile(
+        path.join(primary, leaseFile),
+        `${JSON.stringify(
+          abortedCommandLease(
+            leaseFile,
+            physicalWorktree,
+            dynamicIdentity.worktreeDigest,
+          ),
+          null,
+          2,
+        )}\n`,
+      );
+      const before = await readFile(path.join(primary, leaseFile), "utf8");
+      await chmod(path.join(primary, ".ephemeral"), 0o500);
+
+      process.env.LEASE_FILE = leaseFile;
+      const result = await runPrReviewLeasesCommand(["cleanup-worktree"]);
+      expect(result.exitCode).toBe(1);
+      await expect(access(worktree)).rejects.toThrow();
+
+      await chmod(path.join(primary, ".ephemeral"), 0o700);
+      await expect(
+        readFile(path.join(primary, leaseFile), "utf8"),
+      ).resolves.toBe(before);
+    } finally {
+      await chmod(path.join(primary, ".ephemeral"), 0o700).catch(() => {});
+      process.chdir(originalCwd);
+      await rm(tempRoot, { recursive: true, force: true });
     }
   });
 

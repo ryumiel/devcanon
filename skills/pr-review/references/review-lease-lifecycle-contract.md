@@ -227,6 +227,12 @@ evidence or a valid active lease, and invalid authority must leave the active
 lease unchanged without creating an archive. These are observable guarantees;
 they do not prescribe a private removal/archive write order.
 
+If removal succeeds but the helper cannot write the `removed` observation, the
+helper reports that metadata failure without recording a false `failed` cleanup
+outcome. The worktree is already gone, but no archive authority exists until the
+cleanup metadata can be safely repaired; automatic re-entry must remain blocked
+rather than treating the successful removal as a failed removal.
+
 ## Cleanup Classifier
 
 `inspect-worktree` and `cleanup-worktree` share one classifier. The classifier
