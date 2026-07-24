@@ -2105,7 +2105,10 @@ function expectedValidatedPayloadPath(prNumber, reviewHead) {
     return `.ephemeral/pr-${prNumber}-${reviewHead}-validated-review-payload.json`;
 }
 function normalizeComparablePath(value) {
-    const normalized = value.replace(/\\/gu, "/");
+    // Git may emit forward slashes on Windows while fs.realpath and lease
+    // identities use native backslashes. Collapse both spellings before every
+    // identity/digest comparison.
+    const normalized = value.replace(/[\\/]+/gu, "/");
     return /^[A-Za-z]:\//u.test(normalized)
         ? normalized.toLowerCase()
         : normalized;

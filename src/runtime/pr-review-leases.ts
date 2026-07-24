@@ -3050,7 +3050,10 @@ function expectedValidatedPayloadPath(
 }
 
 function normalizeComparablePath(value: string): string {
-  const normalized = value.replace(/\\/gu, "/");
+  // Git may emit forward slashes on Windows while fs.realpath and lease
+  // identities use native backslashes. Collapse both spellings before every
+  // identity/digest comparison.
+  const normalized = value.replace(/[\\/]+/gu, "/");
   return /^[A-Za-z]:\//u.test(normalized)
     ? normalized.toLowerCase()
     : normalized;
