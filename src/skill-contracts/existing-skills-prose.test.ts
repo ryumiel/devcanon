@@ -379,7 +379,7 @@ describe("existing skills source prose contracts", () => {
       "references/reviewer-sub-checks.md",
     ] as const;
 
-    expect(lines).toBeLessThan(600);
+    expect(lines).toBeLessThan(500);
     expect(normalizedPlayReview).toContain(
       "Always spawn the Code-quality reviewer",
     );
