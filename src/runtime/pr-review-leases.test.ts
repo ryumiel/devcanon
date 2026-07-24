@@ -3718,8 +3718,8 @@ describe("pr-review lease discovery", () => {
     const workspace = await makeGatedStatusWorkspace(
       "pr-review-discovery-approved-review-",
     );
-    const approvedReviewFile = `.ephemeral/topic-${workspace.reviewHead}-approved-review.json`;
-    const reviewPayloadFile = `.ephemeral/topic-${workspace.reviewHead}-review-payload.json`;
+    const approvedReviewFile = `.ephemeral/review-topic-${workspace.reviewHead}-approved-review.json`;
+    const reviewPayloadFile = `.ephemeral/review-topic-${workspace.reviewHead}-review-payload.json`;
 
     try {
       await writeFile(
@@ -3819,6 +3819,104 @@ describe("pr-review lease discovery", () => {
           reason: "unmanaged-ephemeral-artifacts",
         },
       });
+
+      await rm(path.join(workspace.worktree, ".ephemeral", "foreign.txt"));
+      const leasePath = path.join(workspace.primary, workspace.leaseFile);
+      const approvedPath = path.join(workspace.worktree, approvedReviewFile);
+      const validatedPayloadPath = path.join(
+        workspace.worktree,
+        validatedPayloadFile,
+      );
+      const originalLease = await readFile(leasePath, "utf8");
+      const originalApproved = await readFile(approvedPath, "utf8");
+      const originalValidatedPayload = await readFile(
+        validatedPayloadPath,
+        "utf8",
+      );
+      const expectInvalidDiscovery = async (
+        mutate: () => Promise<void>,
+      ): Promise<void> => {
+        await writeFile(leasePath, originalLease);
+        await writeFile(approvedPath, originalApproved);
+        await writeFile(validatedPayloadPath, originalValidatedPayload);
+        await mutate();
+        const invalid = await runPrReviewLeasesCommand(["discover"]);
+        expect(invalid.exitCode, invalid.stderr).toBe(0);
+        expect(JSON.parse(invalid.stdout)).toMatchObject({
+          disposition: "invalid",
+          active_leases: [
+            { lease_file: workspace.leaseFile, status: "invalid" },
+          ],
+        });
+      };
+      const mutateApproved = async (
+        mutate: (approved: Record<string, unknown>) => void,
+      ): Promise<void> => {
+        const approved = JSON.parse(originalApproved) as Record<
+          string,
+          unknown
+        >;
+        mutate(approved);
+        await writeFile(approvedPath, `${JSON.stringify(approved)}\n`);
+      };
+
+      await expectInvalidDiscovery(async () => {
+        const lease = JSON.parse(originalLease) as {
+          artifacts: Record<string, unknown>;
+        };
+        const arbitrary = `.ephemeral/arbitrary-${workspace.reviewHead}-validated-review-payload.json`;
+        await writeFile(
+          path.join(workspace.worktree, arbitrary),
+          originalValidatedPayload,
+        );
+        lease.artifacts.validated_payload_file = arbitrary;
+        await writeFile(leasePath, `${JSON.stringify(lease)}\n`);
+      });
+      await expectInvalidDiscovery(async () => {
+        const lease = JSON.parse(originalLease) as {
+          artifacts: Record<string, unknown>;
+        };
+        const arbitrary = `.ephemeral/arbitrary-${workspace.reviewHead}-approved-review.json`;
+        await writeFile(
+          path.join(workspace.worktree, arbitrary),
+          originalApproved,
+        );
+        lease.artifacts.approved_review_file = arbitrary;
+        await writeFile(leasePath, `${JSON.stringify(lease)}\n`);
+      });
+      await expectInvalidDiscovery(() =>
+        mutateApproved((approved) => {
+          approved.review_head_sha = "0".repeat(40);
+        }),
+      );
+      for (const [field, value] of [
+        ["findings_file", ".ephemeral/wrong-findings.json"],
+        ["review_body_file", ".ephemeral/wrong-review-body.md"],
+        ["review_payload_file", ".ephemeral/wrong-review-payload.json"],
+        ["scope_decision_file", ".ephemeral/wrong-scope-decision.json"],
+      ] as const) {
+        await expectInvalidDiscovery(() =>
+          mutateApproved((approved) => {
+            approved[field] = value;
+          }),
+        );
+      }
+      await expectInvalidDiscovery(async () => {
+        await writeFile(
+          validatedPayloadPath,
+          `${JSON.stringify({ ...reviewPayload(workspace.reviewHead), body: "drift" })}\n`,
+        );
+      });
+      await expectInvalidDiscovery(() =>
+        mutateApproved((approved) => {
+          approved.review_payload_sha256 = "0".repeat(64);
+        }),
+      );
+      await expectInvalidDiscovery(() =>
+        mutateApproved((approved) => {
+          approved.unexpected = true;
+        }),
+      );
     } finally {
       process.chdir(originalCwd);
       await rm(workspace.tempRoot, { recursive: true, force: true });
@@ -5612,7 +5710,7 @@ async function writeResultArtifact(
   const handoffFile = `.ephemeral/pr-432-${reviewHead}-handoff.json`;
   const findingsFile = `.ephemeral/review-topic-${reviewHead}-findings.json`;
   const reviewBodyFile = `.ephemeral/pr-432-${reviewHead}-review-body.md`;
-  const scopeDecisionFile = ".ephemeral/review-topic-scope-decision.json";
+  const scopeDecisionFile = `.ephemeral/review-topic-${reviewHead}-scope-decision.json`;
   const providerScopeEvidenceFile = `.ephemeral/review-topic-${reviewHead}-provider-scope-evidence.json`;
   const providerPrDiffRange = `${reviewHead}..${reviewHead}`;
   await writeFile(

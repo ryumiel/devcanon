@@ -2855,6 +2855,24 @@ async function validateDiscoveryApprovedReviewOwnership(
   approved: JsonObject,
   worktreePath: string,
 ): Promise<void> {
+  const resultFile = lease.artifacts.result_file;
+  const approvedReviewFile = lease.artifacts.approved_review_file;
+  const validatedPayloadFile = lease.artifacts.validated_payload_file;
+  if (
+    resultFile === null ||
+    approvedReviewFile === null ||
+    validatedPayloadFile === null
+  ) {
+    throw new PrReviewLeaseError(
+      "approved review discovery ownership mismatch",
+    );
+  }
+  const reviewHead = reviewHeadShaFromResultFile(resultFile);
+  const expected = await discoveryApprovedReviewPaths(
+    lease.pr_number,
+    reviewHead,
+    worktreePath,
+  );
   const expectedKeys = [
     "schema",
     "review_head_sha",
@@ -2872,49 +2890,60 @@ async function validateDiscoveryApprovedReviewOwnership(
     Object.keys(approved).length !== expectedKeys.length ||
     expectedKeys.some((key) => !(key in approved)) ||
     approved.schema !== "pr-review/approved-review/v1" ||
-    approved.review_head_sha !== result.review_head_sha ||
-    approved.findings_file !== result.findings_file ||
-    approved.review_body_file !== result.review_body_file ||
+    approvedReviewFile !== expected.approvedReviewFile ||
+    validatedPayloadFile !== expected.validatedPayloadFile ||
+    approved.review_head_sha !== reviewHead ||
+    result.review_head_sha !== reviewHead ||
+    approved.findings_file !== expected.findingsFile ||
+    result.findings_file !== expected.findingsFile ||
+    approved.review_body_file !== expected.reviewBodyFile ||
+    result.review_body_file !== expected.reviewBodyFile ||
+    approved.review_payload_file !== expected.reviewPayloadFile ||
     !isObject(approved.payload) ||
     !isObject(result.artifacts) ||
-    approved.scope_decision_file !== result.artifacts.scope_decision_file
+    approved.scope_decision_file !== expected.scopeDecisionFile ||
+    result.artifacts.scope_decision_file !== expected.scopeDecisionFile
   ) {
     throw new PrReviewLeaseError(
       "approved review discovery ownership mismatch",
     );
   }
-  for (const [label, file, digest, suffix] of [
+  for (const [label, file, digest, expectedPath] of [
     [
       "findings",
       approved.findings_file,
       approved.findings_sha256,
-      "-findings.json",
+      expected.findingsFile,
     ],
     [
       "review body",
       approved.review_body_file,
       approved.review_body_sha256,
-      "-review-body.md",
+      expected.reviewBodyFile,
     ],
     [
       "review payload",
       approved.review_payload_file,
       approved.review_payload_sha256,
-      "-review-payload.json",
+      expected.reviewPayloadFile,
     ],
     [
       "scope decision",
       approved.scope_decision_file,
       approved.scope_decision_sha256,
-      "-scope-decision.json",
+      expected.scopeDecisionFile,
     ],
   ] as const) {
-    if (typeof file !== "string" || typeof digest !== "string") {
+    if (
+      typeof file !== "string" ||
+      typeof digest !== "string" ||
+      file !== expectedPath
+    ) {
       throw new PrReviewLeaseError(
         "approved review discovery ownership mismatch",
       );
     }
-    validateDirectChild(label, file, suffix);
+    validateDirectChild(label, file);
     if ((await sha256DirectChild(worktreePath, file, label)) !== digest) {
       throw new PrReviewLeaseError("approved review discovery digest mismatch");
     }
@@ -2931,6 +2960,55 @@ async function validateDiscoveryApprovedReviewOwnership(
   ) {
     throw new PrReviewLeaseError("approved review discovery payload mismatch");
   }
+  const validatedPayload = await readRequiredJson<JsonObject>(
+    worktreePath,
+    validatedPayloadFile,
+    "validated payload file",
+  );
+  if (JSON.stringify(validatedPayload) !== JSON.stringify(approved.payload)) {
+    throw new PrReviewLeaseError("validated payload approved-review mismatch");
+  }
+}
+
+async function discoveryApprovedReviewPaths(
+  prNumber: number,
+  reviewHead: string,
+  worktreePath: string,
+): Promise<{
+  findingsFile: string;
+  reviewBodyFile: string;
+  reviewPayloadFile: string;
+  scopeDecisionFile: string;
+  approvedReviewFile: string;
+  validatedPayloadFile: string;
+}> {
+  const branchSlug = await discoveryBranchSlug(worktreePath);
+  return {
+    findingsFile: `.ephemeral/${branchSlug}-${reviewHead}-findings.json`,
+    reviewBodyFile: `.ephemeral/pr-${prNumber}-${reviewHead}-review-body.md`,
+    reviewPayloadFile: `.ephemeral/${branchSlug}-${reviewHead}-review-payload.json`,
+    scopeDecisionFile: `.ephemeral/${branchSlug}-${reviewHead}-scope-decision.json`,
+    approvedReviewFile: `.ephemeral/${branchSlug}-${reviewHead}-approved-review.json`,
+    validatedPayloadFile: expectedValidatedPayloadPath(prNumber, reviewHead),
+  };
+}
+
+async function discoveryBranchSlug(worktreePath: string): Promise<string> {
+  const { stdout } = await execFileAsync(
+    "git",
+    ["-C", worktreePath, "rev-parse", "--abbrev-ref", "HEAD"],
+    { maxBuffer: 1024 * 1024 },
+  );
+  const branch = stdout.trim();
+  if (branch === "HEAD") return "detached";
+  const slug = branch.replaceAll("/", "-").replace(/[^A-Za-z0-9._-]/gu, "");
+  return slug.length === 0 ||
+    slug === "." ||
+    slug === ".." ||
+    slug.startsWith("-") ||
+    slug.startsWith(".")
+    ? "unnamed"
+    : slug;
 }
 
 function collectHandoffArtifactPaths(
