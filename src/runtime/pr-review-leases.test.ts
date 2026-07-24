@@ -3288,6 +3288,164 @@ describe("pr-review lease discovery", () => {
     }
   });
 
+  it("resumes exactly one valid schema-bound canonical worktree lease", async () => {
+    const workspace = await makeRegisteredWorkspace(
+      "pr-review-discovery-canonical-resume-",
+    );
+    const canonical = path.join(
+      workspace.physicalPrimary,
+      ".worktrees",
+      "pr-432-review",
+    );
+
+    try {
+      await mkdir(path.dirname(canonical), { recursive: true });
+      await execFileAsync(
+        "git",
+        ["worktree", "add", "-b", "canonical-review-topic", canonical],
+        { cwd: workspace.primary },
+      );
+      await mkdir(path.join(canonical, ".ephemeral"), { recursive: true });
+      const leaseFile = await writeDiscoveryLease(workspace.primary, canonical);
+      process.chdir(workspace.physicalPrimary);
+      setDiscoveryEnv(workspace.physicalPrimary);
+
+      const result = await runPrReviewLeasesCommand(["discover"]);
+      expect(result.exitCode, result.stderr).toBe(0);
+      expect(JSON.parse(result.stdout)).toMatchObject({
+        disposition: "resume",
+        canonical_worktree: {
+          exists: true,
+          registered: true,
+          dirty: false,
+          status: "registered",
+        },
+        resume: {
+          lease_file: leaseFile,
+          worktree_path: canonicalLeaseIdentityPath(canonical),
+        },
+        cleanup: null,
+      });
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it.each([
+    {
+      name: "dirty",
+      prepare: async (canonical: string) => {
+        await writeFile(path.join(canonical, "dirty.txt"), "dirty\n");
+      },
+      reason: "dirty",
+    },
+    {
+      name: "unmanaged",
+      prepare: async (canonical: string) => {
+        await writeFile(path.join(canonical, ".gitignore"), ".ephemeral/\n");
+        await execFileAsync("git", ["add", ".gitignore"], {
+          cwd: canonical,
+        });
+        await execFileAsync("git", ["commit", "-m", "chore: ignore runtime"], {
+          cwd: canonical,
+        });
+        await writeFile(
+          path.join(canonical, ".ephemeral", "unmanaged.json"),
+          "{}\n",
+        );
+      },
+      reason: "unmanaged-ephemeral-artifacts",
+    },
+  ])(
+    "keeps a canonical $name lease cleanup-required instead of resuming it",
+    async ({ prepare, reason }) => {
+      const workspace = await makeRegisteredWorkspace(
+        "pr-review-discovery-canonical-blocking-",
+      );
+      const canonical = path.join(
+        workspace.physicalPrimary,
+        ".worktrees",
+        "pr-432-review",
+      );
+
+      try {
+        await mkdir(path.dirname(canonical), { recursive: true });
+        await execFileAsync(
+          "git",
+          ["worktree", "add", "-b", "canonical-review-topic", canonical],
+          { cwd: workspace.primary },
+        );
+        await mkdir(path.join(canonical, ".ephemeral"), { recursive: true });
+        await prepare(canonical);
+        const leaseFile = await writeDiscoveryLease(
+          workspace.primary,
+          canonical,
+        );
+        process.chdir(workspace.physicalPrimary);
+        setDiscoveryEnv(workspace.physicalPrimary);
+
+        const result = await runPrReviewLeasesCommand(["discover"]);
+        expect(result.exitCode, result.stderr).toBe(0);
+        expect(JSON.parse(result.stdout)).toMatchObject({
+          disposition: "cleanup-required",
+          canonical_worktree: { status: "unleased-canonical" },
+          resume: null,
+          cleanup: { lease_file: leaseFile, reason },
+          active_leases: [
+            {
+              lease_file: leaseFile,
+              status: "cleanup-required",
+              reason,
+            },
+          ],
+        });
+      } finally {
+        process.chdir(originalCwd);
+        await rm(workspace.tempRoot, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it("keeps a missing but registered canonical target cleanup-required", async () => {
+    const workspace = await makeRegisteredWorkspace(
+      "pr-review-discovery-canonical-stale-registration-",
+    );
+    const canonical = path.join(
+      workspace.physicalPrimary,
+      ".worktrees",
+      "pr-432-review",
+    );
+
+    try {
+      await mkdir(path.dirname(canonical), { recursive: true });
+      await execFileAsync(
+        "git",
+        ["worktree", "add", "-b", "canonical-review-topic", canonical],
+        { cwd: workspace.primary },
+      );
+      await rm(canonical, { recursive: true, force: true });
+      process.chdir(workspace.physicalPrimary);
+      setDiscoveryEnv(workspace.physicalPrimary);
+
+      const result = await runPrReviewLeasesCommand(["discover"]);
+      expect(result.exitCode, result.stderr).toBe(0);
+      expect(JSON.parse(result.stdout)).toMatchObject({
+        disposition: "cleanup-required",
+        canonical_worktree: {
+          exists: false,
+          registered: true,
+          status: "absent",
+        },
+        resume: null,
+        cleanup: null,
+      });
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
+    }
+  });
+
   it("returns ambiguous for multiple valid active leases without mutation", async () => {
     const workspace = await makeRegisteredWorkspace(
       "pr-review-discovery-ambiguous-",
@@ -4072,6 +4230,99 @@ describe("pr-review lease Git cleanup safety", () => {
         expect(result.stderr).toContain(
           "LC-18 requires recorded post-cleanup archive authority",
         );
+        await expect(
+          readFile(path.join(workspace.primary, leaseFile), "utf8"),
+        ).resolves.toBe(before);
+        const entries = await readdir(
+          path.join(workspace.primary, ".ephemeral"),
+        );
+        expect(
+          entries.some((entry) => entry.includes("-archived-lease.json")),
+        ).toBe(false);
+      } finally {
+        process.chdir(originalCwd);
+        await rm(workspace.tempRoot, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it.each([
+    {
+      name: "an invalid cleanup timestamp",
+      mutate: (lease: Record<string, unknown>) => {
+        lease.cleanup = {
+          last_outcome: "removed",
+          last_checked_at: "2026-06-11T00:03:00Z",
+          removed_at: "not-a-timestamp",
+        };
+      },
+    },
+    {
+      name: "an extra cleanup key",
+      mutate: (lease: Record<string, unknown>) => {
+        lease.cleanup = {
+          last_outcome: "removed",
+          last_checked_at: "2026-06-11T00:03:00Z",
+          removed_at: "2026-06-11T00:03:00Z",
+          unexpected: true,
+        };
+      },
+    },
+    {
+      name: "a malformed terminal object",
+      mutate: (lease: Record<string, unknown>) => {
+        lease.terminal = {
+          finished_at: "not-a-timestamp",
+          reason: "user-aborted",
+        };
+        lease.cleanup = {
+          last_outcome: "removed",
+          last_checked_at: "2026-06-11T00:03:00Z",
+          removed_at: "2026-06-11T00:03:00Z",
+        };
+      },
+    },
+  ])(
+    "rejects LC-18 atomically before consulting authority for $name",
+    async ({ mutate }) => {
+      const workspace = await makeRegisteredWorkspace(
+        "pr-review-lc18-invalid-terminal-shape-",
+      );
+
+      try {
+        const leaseFile = discoveryLeaseFile(workspace.physicalWorktree);
+        const prior = JSON.parse(
+          JSON.stringify(
+            abortedCommandLease(
+              leaseFile,
+              workspace.physicalWorktree,
+              digestLeaseIdentityPath(workspace.physicalWorktree),
+            ),
+          ),
+        ) as Record<string, unknown>;
+        mutate(prior);
+        await writeFile(
+          path.join(workspace.primary, leaseFile),
+          `${JSON.stringify(prior, null, 2)}\n`,
+        );
+        const before = await readFile(
+          path.join(workspace.primary, leaseFile),
+          "utf8",
+        );
+        process.chdir(workspace.physicalPrimary);
+        setLeaseCommandEnv(
+          workspace.physicalPrimary,
+          workspace.physicalWorktree,
+        );
+        process.env.LEASE_FILE = leaseFile;
+        process.env.STATE = "created";
+        process.env.BASE_REF = "main";
+        process.env.HEAD_REF = "topic";
+        process.env.CREATED_AT = "2026-06-11T00:04:00Z";
+        process.env.UPDATED_AT = "2026-06-11T00:04:00Z";
+
+        const result = await runPrReviewLeasesCommand(["write"]);
+        expect(result.exitCode).toBe(1);
         await expect(
           readFile(path.join(workspace.primary, leaseFile), "utf8"),
         ).resolves.toBe(before);

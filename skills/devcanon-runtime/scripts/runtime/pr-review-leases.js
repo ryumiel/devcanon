@@ -326,12 +326,20 @@ async function discoverReviewLeases() {
     const identity = await readDiscoveryIdentity();
     const registrations = await listRegisteredWorktrees(identity.primaryRoot);
     const registrationSet = new Set(registrations.map(normalizeComparablePath));
-    const canonicalWorktree = await inspectDiscoveryWorktree(identity.canonicalWorktreePath, registrationSet, true);
+    const inspectedCanonicalWorktree = await inspectDiscoveryWorktree(identity.canonicalWorktreePath, registrationSet, true);
     const scanned = await scanDiscoveryLeaseFiles(identity, registrationSet);
     const activeLeases = scanned.active.sort((left, right) => left.lease_file.localeCompare(right.lease_file));
     const archivedLeases = scanned.archived.sort((left, right) => left.archived_lease_file.localeCompare(right.archived_lease_file));
     const invalidLeaseFiles = scanned.invalid.sort((left, right) => left.lease_file.localeCompare(right.lease_file));
     const resumable = activeLeases.filter((lease) => lease.status === "resumable");
+    const canonicalResumableLease = resumable.find((lease) => lease.worktree_path === identity.canonicalWorktreePath &&
+        lease.worktree.exists &&
+        lease.worktree.registered);
+    const canonicalWorktree = canonicalResumableLease === undefined
+        ? inspectedCanonicalWorktree
+        : { ...inspectedCanonicalWorktree, status: "registered" };
+    const canonicalTargetRequiresCleanup = (canonicalWorktree.exists || canonicalWorktree.registered) &&
+        canonicalResumableLease === undefined;
     const invalid = invalidLeaseFiles.length > 0 ||
         activeLeases.some((lease) => lease.status === "invalid");
     const cleanupLease = activeLeases.find((lease) => {
@@ -353,8 +361,7 @@ async function discoverReviewLeases() {
         ? "invalid"
         : resumable.length > 1
             ? "ambiguous"
-            : cleanupLease !== undefined ||
-                canonicalWorktree.status === "unleased-canonical"
+            : cleanupLease !== undefined || canonicalTargetRequiresCleanup
                 ? "cleanup-required"
                 : resumable.length === 1
                     ? "resume"
@@ -1258,6 +1265,9 @@ function archivePathIfNeeded(previous, identity, inputs) {
         (previous?.state !== "posted" && previous?.state !== "aborted")) {
         return null;
     }
+    // LC-18 authority is meaningful only for a fully valid stored terminal
+    // lease. Validate its complete closed shape before consulting cleanup data.
+    validateLeaseShape(previous);
     if (!hasPostCleanupArchiveAuthority(previous)) {
         throw new PrReviewLeaseError("LC-18 requires recorded post-cleanup archive authority");
     }

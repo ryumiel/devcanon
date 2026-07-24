@@ -648,7 +648,7 @@ async function discoverReviewLeases(): Promise<string> {
   const identity = await readDiscoveryIdentity();
   const registrations = await listRegisteredWorktrees(identity.primaryRoot);
   const registrationSet = new Set(registrations.map(normalizeComparablePath));
-  const canonicalWorktree = await inspectDiscoveryWorktree(
+  const inspectedCanonicalWorktree = await inspectDiscoveryWorktree(
     identity.canonicalWorktreePath,
     registrationSet,
     true,
@@ -666,6 +666,19 @@ async function discoverReviewLeases(): Promise<string> {
   const resumable = activeLeases.filter(
     (lease) => lease.status === "resumable",
   );
+  const canonicalResumableLease = resumable.find(
+    (lease) =>
+      lease.worktree_path === identity.canonicalWorktreePath &&
+      lease.worktree.exists &&
+      lease.worktree.registered,
+  );
+  const canonicalWorktree =
+    canonicalResumableLease === undefined
+      ? inspectedCanonicalWorktree
+      : { ...inspectedCanonicalWorktree, status: "registered" as const };
+  const canonicalTargetRequiresCleanup =
+    (canonicalWorktree.exists || canonicalWorktree.registered) &&
+    canonicalResumableLease === undefined;
   const invalid =
     invalidLeaseFiles.length > 0 ||
     activeLeases.some((lease) => lease.status === "invalid");
@@ -689,8 +702,7 @@ async function discoverReviewLeases(): Promise<string> {
     ? "invalid"
     : resumable.length > 1
       ? "ambiguous"
-      : cleanupLease !== undefined ||
-          canonicalWorktree.status === "unleased-canonical"
+      : cleanupLease !== undefined || canonicalTargetRequiresCleanup
         ? "cleanup-required"
         : resumable.length === 1
           ? "resume"
@@ -1900,6 +1912,9 @@ function archivePathIfNeeded(
   ) {
     return null;
   }
+  // LC-18 authority is meaningful only for a fully valid stored terminal
+  // lease. Validate its complete closed shape before consulting cleanup data.
+  validateLeaseShape(previous);
   if (!hasPostCleanupArchiveAuthority(previous)) {
     throw new PrReviewLeaseError(
       "LC-18 requires recorded post-cleanup archive authority",
