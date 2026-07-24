@@ -720,6 +720,8 @@ async function inspectArchivedDiscoveryLease(identity, archivedLeaseFile) {
         if (lease.repository !== identity.repository ||
             lease.pr_number !== identity.prNumber ||
             lease.lease_file !== expectedLeaseFile ||
+            lease.worktree_path ===
+                canonicalLeaseIdentityPath(identity.primaryRoot) ||
             !isAbsoluteLeaseIdentityPath(lease.worktree_path) ||
             lease.worktree_digest !== digestPath(lease.worktree_path) ||
             lease.worktree_digest !== filenameMatch[1] ||

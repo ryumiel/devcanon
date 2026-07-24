@@ -4741,6 +4741,54 @@ describe("pr-review lease discovery", () => {
     }
   });
 
+  it("rejects an otherwise valid archived lease bound to the primary root", async () => {
+    const workspace = await makeRegisteredWorkspace(
+      "pr-review-discovery-archived-primary-root-",
+    );
+
+    try {
+      const leaseFile = discoveryLeaseFile(workspace.physicalPrimary);
+      const terminal = abortedCommandLease(
+        leaseFile,
+        workspace.physicalPrimary,
+        digestLeaseIdentityPath(workspace.physicalPrimary),
+      );
+      terminal.cleanup = {
+        last_outcome: "removed",
+        removed_at: "2026-06-11T00:01:00Z",
+        last_checked_at: "2026-06-11T00:02:00Z",
+      };
+      const archiveTimestamp = (
+        terminal.terminal.finished_at ?? terminal.updated_at
+      ).replace(/[-:Z]/gu, "");
+      const archiveFile = `.ephemeral/pr-432-${terminal.worktree_digest}-${archiveTimestamp}-aborted-archived-lease.json`;
+      await writeFile(
+        path.join(workspace.primary, archiveFile),
+        `${JSON.stringify(terminal, null, 2)}\n`,
+      );
+      process.chdir(workspace.physicalPrimary);
+      setDiscoveryEnv(workspace.physicalPrimary);
+
+      const result = await runPrReviewLeasesCommand(["discover"]);
+
+      expect(result.exitCode, result.stderr).toBe(0);
+      expect(JSON.parse(result.stdout)).toMatchObject({
+        disposition: "invalid",
+        active_leases: [],
+        archived_leases: [
+          {
+            archived_lease_file: archiveFile,
+            status: "invalid",
+            reason: "lease-identity-mismatch",
+          },
+        ],
+      });
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
+    }
+  });
+
   it.each([
     {
       name: "malformed JSON",
