@@ -691,11 +691,11 @@ async function discoverReviewLeases(): Promise<string> {
     ? "invalid"
     : resumable.length > 1
       ? "ambiguous"
-      : resumable.length === 1
-        ? "resume"
-        : cleanupLease !== undefined ||
-            canonicalWorktree.status === "unleased-canonical"
-          ? "cleanup-required"
+      : cleanupLease !== undefined ||
+          canonicalWorktree.status === "unleased-canonical"
+        ? "cleanup-required"
+        : resumable.length === 1
+          ? "resume"
           : "create";
 
   return JSON.stringify({
@@ -1901,6 +1901,11 @@ function archivePathIfNeeded(
     (previous?.state !== "posted" && previous?.state !== "aborted")
   ) {
     return null;
+  }
+  if (!hasPostCleanupArchiveAuthority(previous)) {
+    throw new PrReviewLeaseError(
+      "LC-18 requires recorded post-cleanup archive authority",
+    );
   }
   const stamp = (previous.terminal.finished_at ?? previous.updated_at).replace(
     /[-:Z]/gu,

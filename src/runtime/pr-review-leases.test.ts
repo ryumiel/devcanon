@@ -3394,6 +3394,69 @@ describe("pr-review lease discovery", () => {
     }
   });
 
+  it("does not resume when a cleanup-required terminal lease accompanies one resumable lease", async () => {
+    const workspace = await makeRegisteredWorkspace(
+      "pr-review-discovery-resume-cleanup-precedence-",
+    );
+    const second = path.join(workspace.tempRoot, "second-review");
+
+    try {
+      await execFileAsync(
+        "git",
+        ["worktree", "add", "-b", "second-review-topic", second],
+        { cwd: workspace.primary },
+      );
+      const physicalSecond = await realpath(second);
+      await mkdir(path.join(second, ".ephemeral"), { recursive: true });
+      const resumableFile = await writeDiscoveryLease(
+        workspace.primary,
+        workspace.physicalWorktree,
+      );
+      const blockingFile = discoveryLeaseFile(physicalSecond);
+      await writeFile(
+        path.join(workspace.primary, blockingFile),
+        `${JSON.stringify(
+          abortedCommandLease(
+            blockingFile,
+            physicalSecond,
+            digestLeaseIdentityPath(physicalSecond),
+          ),
+          null,
+          2,
+        )}\n`,
+      );
+      process.chdir(workspace.physicalPrimary);
+      setDiscoveryEnv(workspace.physicalPrimary);
+
+      const result = await runPrReviewLeasesCommand(["discover"]);
+      expect(result.exitCode, result.stderr).toBe(0);
+      expect(JSON.parse(result.stdout)).toMatchObject({
+        disposition: "cleanup-required",
+        resume: null,
+        cleanup: {
+          lease_file: blockingFile,
+          reason: "terminal-lease",
+        },
+      });
+      expect(JSON.parse(result.stdout).active_leases).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            lease_file: resumableFile,
+            status: "resumable",
+          }),
+          expect.objectContaining({
+            lease_file: blockingFile,
+            status: "terminal",
+            reason: "terminal-lease",
+          }),
+        ]),
+      );
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
+    }
+  });
+
   it("reports terminal, missing, dirty, unmanaged, invalid, and unleased canonical cases distinctly", async () => {
     const workspace = await makeRegisteredWorkspace(
       "pr-review-discovery-classify-",
@@ -3536,7 +3599,7 @@ describe("pr-review lease Git cleanup safety", () => {
     }
   });
 
-  it("rejects nested result artifact drift before archive-on-recreate writes", async () => {
+  it("rejects archive-on-recreate writes without authority before nested artifact validation", async () => {
     for (const state of ["posted", "aborted"] as const) {
       const workspace = await makeGatedStatusWorkspace(
         `pr-review-${state}-archive-nested-drift-`,
@@ -3604,7 +3667,9 @@ describe("pr-review lease Git cleanup safety", () => {
 
         const result = await runPrReviewLeasesCommand(["write"]);
         expect(result.exitCode, state).toBe(1);
-        expect(result.stderr, state).toContain("findings digest mismatch");
+        expect(result.stderr, state).toContain(
+          "LC-18 requires recorded post-cleanup archive authority",
+        );
         await expect(
           readFile(path.join(workspace.primary, workspace.leaseFile), "utf8"),
         ).resolves.toBe(before);
@@ -3753,7 +3818,7 @@ describe("pr-review lease Git cleanup safety", () => {
     },
   );
 
-  it("keeps legacy removed cleanup observations under strict archive validation", async () => {
+  it("rejects legacy removed cleanup observations before archive validation", async () => {
     const workspace = await makeGatedStatusWorkspace(
       "pr-review-legacy-cleanup-authority-",
     );
@@ -3803,7 +3868,9 @@ describe("pr-review lease Git cleanup safety", () => {
 
       const result = await runPrReviewLeasesCommand(["write"]);
       expect(result.exitCode).toBe(1);
-      expect(result.stderr).toContain("result file missing");
+      expect(result.stderr).toContain(
+        "LC-18 requires recorded post-cleanup archive authority",
+      );
       await expect(
         readFile(path.join(workspace.primary, workspace.leaseFile), "utf8"),
       ).resolves.toBe(before);
@@ -3816,6 +3883,80 @@ describe("pr-review lease Git cleanup safety", () => {
       await rm(workspace.tempRoot, { recursive: true, force: true });
     }
   });
+
+  it.each([
+    {
+      name: "legacy cleanup metadata without removed_at",
+      cleanup: {
+        last_outcome: "removed" as const,
+        last_checked_at: "2026-06-11T00:03:00Z",
+      },
+    },
+    {
+      name: "a removal timestamp later than its last cleanup observation",
+      cleanup: {
+        last_outcome: "removed" as const,
+        last_checked_at: "2026-06-11T00:03:00Z",
+        removed_at: "2026-06-11T00:03:01Z",
+      },
+    },
+  ])(
+    "rejects artifact-free aborted LC-18 writes without authority for $name",
+    async ({ cleanup }) => {
+      const workspace = await makeRegisteredWorkspace(
+        "pr-review-lc18-missing-authority-",
+      );
+
+      try {
+        const leaseFile = discoveryLeaseFile(workspace.physicalWorktree);
+        const prior = {
+          ...abortedCommandLease(
+            leaseFile,
+            workspace.physicalWorktree,
+            digestLeaseIdentityPath(workspace.physicalWorktree),
+          ),
+          cleanup,
+        };
+        await writeFile(
+          path.join(workspace.primary, leaseFile),
+          `${JSON.stringify(prior, null, 2)}\n`,
+        );
+        const before = await readFile(
+          path.join(workspace.primary, leaseFile),
+          "utf8",
+        );
+        process.chdir(workspace.physicalPrimary);
+        setLeaseCommandEnv(
+          workspace.physicalPrimary,
+          workspace.physicalWorktree,
+        );
+        process.env.LEASE_FILE = leaseFile;
+        process.env.STATE = "created";
+        process.env.BASE_REF = "main";
+        process.env.HEAD_REF = "topic";
+        process.env.CREATED_AT = "2026-06-11T00:04:00Z";
+        process.env.UPDATED_AT = "2026-06-11T00:04:00Z";
+
+        const result = await runPrReviewLeasesCommand(["write"]);
+        expect(result.exitCode).toBe(1);
+        expect(result.stderr).toContain(
+          "LC-18 requires recorded post-cleanup archive authority",
+        );
+        await expect(
+          readFile(path.join(workspace.primary, leaseFile), "utf8"),
+        ).resolves.toBe(before);
+        const entries = await readdir(
+          path.join(workspace.primary, ".ephemeral"),
+        );
+        expect(
+          entries.some((entry) => entry.includes("-archived-lease.json")),
+        ).toBe(false);
+      } finally {
+        process.chdir(originalCwd);
+        await rm(workspace.tempRoot, { recursive: true, force: true });
+      }
+    },
+  );
 
   it("keeps post-removal metadata writes outside git-removal failure handling", async () => {
     const source = await readFile(
