@@ -648,7 +648,7 @@ async function discoverReviewLeases(): Promise<string> {
   const identity = await readDiscoveryIdentity();
   const registrations = await listRegisteredWorktrees(identity.primaryRoot);
   const registrationSet = new Set(registrations.map(normalizeComparablePath));
-  let canonicalWorktree = await inspectDiscoveryWorktree(
+  const canonicalWorktree = await inspectDiscoveryWorktree(
     identity.canonicalWorktreePath,
     registrationSet,
     true,
@@ -663,30 +663,28 @@ async function discoverReviewLeases(): Promise<string> {
   const invalidLeaseFiles = scanned.invalid.sort((left, right) =>
     left.lease_file.localeCompare(right.lease_file),
   );
-  if (
-    activeLeases.some(
-      (lease) =>
-        lease.status !== "invalid" &&
-        lease.worktree_path === identity.canonicalWorktreePath,
-    )
-  ) {
-    canonicalWorktree = {
-      ...canonicalWorktree,
-      status: canonicalWorktree.registered ? "registered" : "unregistered",
-    };
-  }
   const resumable = activeLeases.filter(
     (lease) => lease.status === "resumable",
   );
   const invalid =
     invalidLeaseFiles.length > 0 ||
     activeLeases.some((lease) => lease.status === "invalid");
-  const cleanupLease = activeLeases.find(
-    (lease) =>
-      lease.status === "cleanup-required" ||
-      (lease.status === "terminal" &&
-        !scanned.postCleanupArchiveLeaseFiles.has(lease.lease_file)),
-  );
+  const cleanupLease = activeLeases.find((lease) => {
+    if (lease.status === "cleanup-required") return true;
+    if (lease.status !== "terminal") return false;
+
+    // A helper-recorded removal is archive authority only after both the
+    // recorded terminal worktree and the fresh canonical target are absent.
+    // Retaining occupancy as cleanup-required prevents discovery from
+    // masking a file, symlink, or unmanaged worktree at the canonical path.
+    return !(
+      scanned.postCleanupArchiveLeaseFiles.has(lease.lease_file) &&
+      !lease.worktree.exists &&
+      !lease.worktree.registered &&
+      !canonicalWorktree.exists &&
+      !canonicalWorktree.registered
+    );
+  });
   const disposition: DiscoveryDisposition = invalid
     ? "invalid"
     : resumable.length > 1

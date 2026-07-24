@@ -3120,6 +3120,136 @@ describe("pr-review lease discovery", () => {
     },
   );
 
+  it.each(["file", "symlink", "directory"])(
+    "keeps an authorized terminal lease cleanup-required when the canonical target is occupied by a %s",
+    async (kind) => {
+      const workspace = await makeRegisteredWorkspace(
+        "pr-review-discovery-authorized-terminal-occupied-",
+      );
+      const canonical = path.join(
+        workspace.physicalPrimary,
+        ".worktrees",
+        "pr-432-review",
+      );
+      const leaseFile = discoveryLeaseFile(canonical);
+
+      try {
+        await mkdir(path.dirname(canonical), { recursive: true });
+        if (kind === "file") {
+          await writeFile(canonical, "occupied\n");
+        } else if (kind === "symlink") {
+          await symlink(workspace.worktree, canonical);
+        } else {
+          await mkdir(canonical);
+        }
+        const terminal = {
+          ...abortedCommandLease(
+            leaseFile,
+            canonical,
+            digestLeaseIdentityPath(canonical),
+          ),
+          cleanup: {
+            last_outcome: "removed" as const,
+            last_checked_at: "2026-06-11T00:03:00Z",
+            removed_at: "2026-06-11T00:03:00Z",
+          },
+        };
+        await writeFile(
+          path.join(workspace.primary, leaseFile),
+          `${JSON.stringify(terminal, null, 2)}\n`,
+        );
+        process.chdir(workspace.physicalPrimary);
+        setDiscoveryEnv(workspace.physicalPrimary);
+
+        const result = await runPrReviewLeasesCommand(["discover"]);
+        expect(result.exitCode, result.stderr).toBe(0);
+        expect(JSON.parse(result.stdout)).toMatchObject({
+          disposition: "cleanup-required",
+          canonical_worktree: { exists: true, status: "unleased-canonical" },
+          active_leases: [
+            {
+              lease_file: leaseFile,
+              state: "aborted",
+              status: "terminal",
+              reason: "unregistered-worktree",
+            },
+          ],
+          cleanup: {
+            lease_file: leaseFile,
+            reason: "unregistered-worktree",
+          },
+        });
+      } finally {
+        process.chdir(originalCwd);
+        await rm(workspace.tempRoot, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it("keeps an authorized terminal lease cleanup-required when the canonical worktree is dirty", async () => {
+    const workspace = await makeRegisteredWorkspace(
+      "pr-review-discovery-authorized-terminal-dirty-",
+    );
+    const canonical = path.join(
+      workspace.physicalPrimary,
+      ".worktrees",
+      "pr-432-review",
+    );
+    const leaseFile = discoveryLeaseFile(canonical);
+
+    try {
+      await mkdir(path.dirname(canonical), { recursive: true });
+      await execFileAsync(
+        "git",
+        ["worktree", "add", "-b", "canonical-review-topic", canonical],
+        { cwd: workspace.primary },
+      );
+      await writeFile(path.join(canonical, "dirty.txt"), "dirty\n");
+      const terminal = {
+        ...abortedCommandLease(
+          leaseFile,
+          canonical,
+          digestLeaseIdentityPath(canonical),
+        ),
+        cleanup: {
+          last_outcome: "removed" as const,
+          last_checked_at: "2026-06-11T00:03:00Z",
+          removed_at: "2026-06-11T00:03:00Z",
+        },
+      };
+      await writeFile(
+        path.join(workspace.primary, leaseFile),
+        `${JSON.stringify(terminal, null, 2)}\n`,
+      );
+      process.chdir(workspace.physicalPrimary);
+      setDiscoveryEnv(workspace.physicalPrimary);
+
+      const result = await runPrReviewLeasesCommand(["discover"]);
+      expect(result.exitCode, result.stderr).toBe(0);
+      expect(JSON.parse(result.stdout)).toMatchObject({
+        disposition: "cleanup-required",
+        canonical_worktree: {
+          exists: true,
+          registered: true,
+          dirty: true,
+          status: "unleased-canonical",
+        },
+        active_leases: [
+          {
+            lease_file: leaseFile,
+            state: "aborted",
+            status: "terminal",
+            reason: "dirty",
+          },
+        ],
+        cleanup: { lease_file: leaseFile, reason: "dirty" },
+      });
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
+    }
+  });
+
   it("resumes exactly one valid schema-bound alternate worktree lease", async () => {
     const workspace = await makeRegisteredWorkspace(
       "pr-review-discovery-resume-",
