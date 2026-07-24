@@ -4253,179 +4253,57 @@ describe("pr-review lease discovery", () => {
   );
 
   it("classifies a posted lease with approved-review pointers using discovery-only inputs", async () => {
-    const workspace = await makeGatedStatusWorkspace(
-      "pr-review-discovery-approved-review-",
-    );
+    await withDiscoveryOnlyApprovedReviewFixture(async (fixture) => {
+      await fixture.expectTerminalDiscovery();
+    });
+  });
 
-    try {
-      const reviewBase = workspace.reviewHead;
-      await execFileAsync(
-        "git",
-        ["commit", "--allow-empty", "-m", "test: approved review evidence"],
-        { cwd: workspace.worktree },
-      );
-      const { stdout: reviewHeadOutput } = await execFileAsync("git", [
-        "-C",
-        workspace.worktree,
-        "rev-parse",
-        "HEAD",
-      ]);
-      workspace.reviewHead = reviewHeadOutput.trim();
-      workspace.resultFile = `.ephemeral/pr-432-${workspace.reviewHead}-result.json`;
-      await rm(path.join(workspace.worktree, ".ephemeral"), {
-        recursive: true,
-        force: true,
-      });
-      await mkdir(path.join(workspace.worktree, ".ephemeral"), {
-        recursive: true,
-      });
-      const { findingsFile } = await writeResultArtifact(
-        workspace.worktree,
-        workspace.physicalWorktree,
-        workspace.resultFile,
-        workspace.reviewHead,
-        "preview-current",
-        true,
-        reviewBase,
-      );
-      workspace.findingsFile = findingsFile;
-      workspace.resultSha256 = await sha256File(
-        path.join(workspace.worktree, workspace.resultFile),
-      );
-      const approvedReviewFile = `.ephemeral/review-topic-${workspace.reviewHead}-approved-review.json`;
-      const reviewPayloadFile = `.ephemeral/review-topic-${workspace.reviewHead}-review-payload.json`;
-      const canonicalPayload = {
-        ...reviewPayload(workspace.reviewHead),
-        body: "Review preview.",
-      };
-      await writeFile(
-        path.join(workspace.primary, ".git", "info", "exclude"),
-        ".ephemeral/\n",
-      );
-      await writeFile(
-        path.join(workspace.worktree, reviewPayloadFile),
-        `${JSON.stringify(canonicalPayload)}\n`,
-      );
-      const resultArtifact = JSON.parse(
-        await readFile(
-          path.join(workspace.worktree, workspace.resultFile),
-          "utf8",
-        ),
-      ) as {
-        artifacts: { scope_decision_file: string };
-        findings_file: string;
-        review_body_file: string;
-      };
-      await writeFile(
-        path.join(workspace.worktree, approvedReviewFile),
-        `${JSON.stringify({
-          schema: "pr-review/approved-review/v1",
-          review_head_sha: workspace.reviewHead,
-          findings_file: resultArtifact.findings_file,
-          review_body_file: resultArtifact.review_body_file,
-          review_payload_file: reviewPayloadFile,
-          scope_decision_file: resultArtifact.artifacts.scope_decision_file,
-          findings_sha256: await sha256File(
-            path.join(workspace.worktree, resultArtifact.findings_file),
-          ),
-          review_body_sha256: await sha256File(
-            path.join(workspace.worktree, resultArtifact.review_body_file),
-          ),
-          review_payload_sha256: await sha256File(
-            path.join(workspace.worktree, reviewPayloadFile),
-          ),
-          scope_decision_sha256: await sha256File(
-            path.join(
-              workspace.worktree,
-              resultArtifact.artifacts.scope_decision_file,
-            ),
-          ),
-          payload: canonicalPayload,
-        })}\n`,
-      );
-      const validatedPayloadFile = `.ephemeral/pr-432-${workspace.reviewHead}-validated-review-payload.json`;
-      await writeFile(
-        path.join(workspace.worktree, validatedPayloadFile),
-        `${JSON.stringify(canonicalPayload)}\n`,
-      );
-      const posted = postedCommandLease({
-        leaseFile: workspace.leaseFile,
-        worktreePath: workspace.physicalWorktree,
-        worktreeDigest: workspace.worktreeDigest,
-        resultFile: workspace.resultFile,
-        resultSha256: workspace.resultSha256,
-        approvedReviewFile,
-        validatedPayloadFile,
-      });
-      await writeFile(
-        path.join(workspace.primary, workspace.leaseFile),
-        `${JSON.stringify(posted, null, 2)}\n`,
-      );
-      process.chdir(workspace.physicalPrimary);
-      setDiscoveryEnv(workspace.physicalPrimary);
-      process.env.PR_REVIEW_DIR = undefined;
-      process.env.PR_REVIEW_MANIFEST_HELPER_SCRIPT = undefined;
-      process.env.PR_REVIEW_LEASE_HELPER_SCRIPT = undefined;
-      process.env.PLAY_REVIEW_HELPER = undefined;
-
-      process.chdir(workspace.physicalWorktree);
-      const compared = await runReviewArtifactsCommand([
-        "compare-approved-payload",
-        "--surface",
-        "pr-review",
-        "--head-sha",
-        workspace.reviewHead,
-        "--base-ref",
-        reviewBase,
-        "--scope-decision-file",
-        resultArtifact.artifacts.scope_decision_file,
-        "--provider-scope-evidence-file",
-        `.ephemeral/review-topic-${workspace.reviewHead}-provider-scope-evidence.json`,
-        "--expected-schema",
-        "pr-review/scope-decision/v1",
-        "--expected-prior-context-kind",
-        "none",
-        "--expected-prior-context-path",
-        "null",
-        "--governed-path-pattern",
-        "^(docs/(adr|arch|product-requirements|specs|guidelines)/|MAP\\.md$|AGENTS\\.md$|CONTRIBUTING\\.md$)",
-        "--configured-path-pattern",
-        "^$",
-        "--max-narrow-changed-files",
-        "5",
-        "--allow-ambiguous-full-escalation",
-        "true",
-        "--findings-file",
-        resultArtifact.findings_file,
-        "--review-body-file",
-        resultArtifact.review_body_file,
-        "--review-event",
-        "COMMENT",
-        "--review-payload-file",
-        reviewPayloadFile,
-      ]);
-      expect(compared.exitCode, compared.stderr).toBe(0);
-      expect(JSON.parse(compared.stdout)).toEqual(canonicalPayload);
-      process.chdir(workspace.physicalPrimary);
-
-      const result = await runPrReviewLeasesCommand(["discover"]);
-      expect(result.exitCode, result.stderr).toBe(0);
-      expect(JSON.parse(result.stdout)).toMatchObject({
-        disposition: "cleanup-required",
-        active_leases: [
-          {
-            lease_file: workspace.leaseFile,
-            state: "posted",
-            status: "terminal",
-            reason: "terminal-lease",
-          },
-        ],
-        cleanup: { lease_file: workspace.leaseFile, reason: "terminal-lease" },
-      });
-    } finally {
-      process.chdir(originalCwd);
-      await rm(workspace.tempRoot, { recursive: true, force: true });
-    }
+  it("compares the canonical posted approved-review payload independently", async () => {
+    await withDiscoveryOnlyApprovedReviewFixture(async (fixture) => {
+      const discoveryCwd = process.cwd();
+      process.chdir(fixture.worktreePath);
+      try {
+        const compared = await runReviewArtifactsCommand([
+          "compare-approved-payload",
+          "--surface",
+          "pr-review",
+          "--head-sha",
+          fixture.reviewHead,
+          "--base-ref",
+          fixture.reviewBase,
+          "--scope-decision-file",
+          `.ephemeral/review-topic-${fixture.reviewHead}-scope-decision.json`,
+          "--provider-scope-evidence-file",
+          `.ephemeral/review-topic-${fixture.reviewHead}-provider-scope-evidence.json`,
+          "--expected-schema",
+          "pr-review/scope-decision/v1",
+          "--expected-prior-context-kind",
+          "none",
+          "--expected-prior-context-path",
+          "null",
+          "--governed-path-pattern",
+          "^(docs/(adr|arch|product-requirements|specs|guidelines)/|MAP\\.md$|AGENTS\\.md$|CONTRIBUTING\\.md$)",
+          "--configured-path-pattern",
+          "^$",
+          "--max-narrow-changed-files",
+          "5",
+          "--allow-ambiguous-full-escalation",
+          "true",
+          "--findings-file",
+          `.ephemeral/review-topic-${fixture.reviewHead}-findings.json`,
+          "--review-body-file",
+          `.ephemeral/pr-432-${fixture.reviewHead}-review-body.md`,
+          "--review-event",
+          "COMMENT",
+          "--review-payload-file",
+          `.ephemeral/review-topic-${fixture.reviewHead}-review-payload.json`,
+        ]);
+        expect(compared.exitCode, compared.stderr).toBe(0);
+        expect(JSON.parse(compared.stdout)).toEqual(fixture.canonicalPayload);
+      } finally {
+        process.chdir(discoveryCwd);
+      }
+    });
   });
 
   it.each([
@@ -6262,6 +6140,7 @@ async function writeReviewHelperScripts(tempRoot: string): Promise<{
 type DiscoveryOnlyApprovedReviewFixture = {
   canonicalPayload: Record<string, unknown>;
   worktreePath: string;
+  reviewBase: string;
   reviewHead: string;
   leasePath: string;
   approvedPath: string;
@@ -6451,6 +6330,7 @@ async function withDiscoveryOnlyApprovedReviewFixture(
     await callback({
       canonicalPayload,
       worktreePath: workspace.worktree,
+      reviewBase,
       reviewHead: workspace.reviewHead,
       leasePath: path.join(workspace.primary, workspace.leaseFile),
       approvedPath,
