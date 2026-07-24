@@ -3367,6 +3367,179 @@ describe("pr-review lease discovery", () => {
     }
   });
 
+  it("resumes a result-backed gated lease with a null lease handoff pointer", async () => {
+    const workspace = await makeGatedStatusWorkspace(
+      "pr-review-discovery-result-handoff-null-",
+    );
+
+    try {
+      await writeFile(
+        path.join(workspace.primary, ".git", "info", "exclude"),
+        ".ephemeral/\n",
+      );
+      process.chdir(workspace.physicalPrimary);
+      setDiscoveryEnv(workspace.physicalPrimary);
+
+      const result = await runPrReviewLeasesCommand(["discover"]);
+      expect(result.exitCode, result.stderr).toBe(0);
+      expect(JSON.parse(result.stdout)).toMatchObject({
+        disposition: "resume",
+        resume: { lease_file: workspace.leaseFile },
+        active_leases: [
+          {
+            lease_file: workspace.leaseFile,
+            state: "gated",
+            status: "resumable",
+          },
+        ],
+      });
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("fails closed when a result-backed lease loses its ephemeral directory", async () => {
+    const workspace = await makeGatedStatusWorkspace(
+      "pr-review-discovery-missing-ephemeral-",
+    );
+
+    try {
+      await writeFile(
+        path.join(workspace.primary, ".git", "info", "exclude"),
+        ".ephemeral/\n",
+      );
+      await rm(path.join(workspace.worktree, ".ephemeral"), {
+        recursive: true,
+        force: true,
+      });
+      process.chdir(workspace.physicalPrimary);
+      setDiscoveryEnv(workspace.physicalPrimary);
+
+      const result = await runPrReviewLeasesCommand(["discover"]);
+      expect(result.exitCode, result.stderr).toBe(0);
+      expect(JSON.parse(result.stdout)).toMatchObject({
+        disposition: "invalid",
+        active_leases: [{ lease_file: workspace.leaseFile, status: "invalid" }],
+      });
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it.each([
+    {
+      name: "stale result validation",
+      mutate: (lease: PrReviewLease) => {
+        lease.validation.result_manifest.validated_at = "2026-06-11T00:01:00Z";
+      },
+    },
+    {
+      name: "presentation drift",
+      mutate: (lease: PrReviewLease) => {
+        lease.presentation.status = "edited";
+      },
+    },
+  ])("fails closed for gated discovery with $name", async ({ mutate }) => {
+    const workspace = await makeGatedStatusWorkspace(
+      "pr-review-discovery-gated-validation-",
+    );
+
+    try {
+      await writeFile(
+        path.join(workspace.primary, ".git", "info", "exclude"),
+        ".ephemeral/\n",
+      );
+      const lease = await readLease(workspace.primary, workspace.leaseFile);
+      mutate(lease);
+      await writeFile(
+        path.join(workspace.primary, workspace.leaseFile),
+        `${JSON.stringify(lease, null, 2)}\n`,
+      );
+      process.chdir(workspace.physicalPrimary);
+      setDiscoveryEnv(workspace.physicalPrimary);
+
+      const result = await runPrReviewLeasesCommand(["discover"]);
+      expect(result.exitCode, result.stderr).toBe(0);
+      expect(JSON.parse(result.stdout)).toMatchObject({
+        disposition: "invalid",
+        active_leases: [{ lease_file: workspace.leaseFile, status: "invalid" }],
+      });
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("resumes failed partial approval evidence without a validated payload copy", async () => {
+    await withDiscoveryOnlyApprovedReviewFixture(async (fixture) => {
+      const lease = JSON.parse(fixture.originalLease) as PrReviewLease;
+      lease.state = "failed";
+      lease.artifacts.validated_payload_file = null;
+      lease.terminal = {
+        finished_at: "2026-06-11T00:03:00Z",
+        reason: null,
+      };
+      lease.failure = {
+        phase: "github-post",
+        reason: "GitHub API rejected review",
+        recoverability: "recoverable",
+      };
+      lease.github = {
+        github_post_attempted: true,
+        github_post_result: "failed",
+        github_posted_at: null,
+      };
+      await rm(fixture.validatedPayloadPath);
+      await writeFile(fixture.leasePath, `${JSON.stringify(lease)}\n`);
+
+      const result = await runPrReviewLeasesCommand(["discover"]);
+      expect(result.exitCode, result.stderr).toBe(0);
+      expect(JSON.parse(result.stdout)).toMatchObject({
+        disposition: "resume",
+        active_leases: [{ state: "failed", status: "resumable" }],
+      });
+    });
+  });
+
+  it.each(["extra approved-review key", "approved-review digest drift"])(
+    "fails closed for failed partial approval evidence with %s",
+    async (caseName) => {
+      await withDiscoveryOnlyApprovedReviewFixture(async (fixture) => {
+        const lease = JSON.parse(fixture.originalLease) as PrReviewLease;
+        lease.state = "failed";
+        lease.artifacts.validated_payload_file = null;
+        lease.terminal = {
+          finished_at: "2026-06-11T00:03:00Z",
+          reason: null,
+        };
+        lease.failure = {
+          phase: "github-post",
+          reason: "GitHub API rejected review",
+          recoverability: "recoverable",
+        };
+        lease.github = {
+          github_post_attempted: true,
+          github_post_result: "failed",
+          github_posted_at: null,
+        };
+        await rm(fixture.validatedPayloadPath);
+        const approved = JSON.parse(
+          await readFile(fixture.approvedPath, "utf8"),
+        ) as Record<string, unknown>;
+        if (caseName === "extra approved-review key") {
+          approved.unexpected = true;
+        } else {
+          approved.findings_sha256 = "0".repeat(64);
+        }
+        await writeFile(fixture.approvedPath, `${JSON.stringify(approved)}\n`);
+        await writeFile(fixture.leasePath, `${JSON.stringify(lease)}\n`);
+        await fixture.expectInvalidDiscovery();
+      });
+    },
+  );
+
   it("resumes exactly one valid schema-bound canonical worktree lease", async () => {
     const workspace = await makeRegisteredWorkspace(
       "pr-review-discovery-canonical-resume-",

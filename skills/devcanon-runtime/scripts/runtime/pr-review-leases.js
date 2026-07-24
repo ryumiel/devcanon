@@ -1857,17 +1857,22 @@ async function resolveApprovedReviewHelper() {
 }
 async function findUnmanagedEphemeralArtifacts(lease, worktreePath, options = {}) {
     const ephemeralPath = path.join(worktreePath, ".ephemeral");
+    // Validate every declared artifact family before treating a missing directory
+    // as empty. Otherwise a lease can appear resumable merely because the
+    // directory holding the evidence disappeared.
+    const owned = await collectOwnedEphemeralArtifacts(lease, worktreePath, options);
     let entries;
     try {
         entries = await readdir(ephemeralPath, { withFileTypes: true });
     }
     catch (err) {
         if (err.code === "ENOENT") {
-            return [];
+            if (owned.size === 0)
+                return [];
+            throw new PrReviewLeaseError("owned ephemeral artifacts missing");
         }
         throw err;
     }
-    const owned = await collectOwnedEphemeralArtifacts(lease, worktreePath, options);
     return entries
         .map((entry) => `.ephemeral/${entry.name}`)
         .filter((entryPath) => !owned.has(entryPath))
@@ -1878,7 +1883,8 @@ async function collectOwnedEphemeralArtifacts(lease, worktreePath, options = {})
     if (lease.artifacts.result_file !== null) {
         const { result, handoff } = await validateDiscoveryResultArtifacts(lease, worktreePath);
         const resultHandoffFile = stringField(isObject(result.artifacts) ? result.artifacts : {}, "handoff_file");
-        if (lease.artifacts.handoff_file !== resultHandoffFile) {
+        if (lease.artifacts.handoff_file !== null &&
+            lease.artifacts.handoff_file !== resultHandoffFile) {
             throw new PrReviewLeaseError("result handoff mismatch");
         }
         addOwnedPath(owned, lease.artifacts.result_file);
@@ -1928,7 +1934,7 @@ async function validateDiscoveryResultArtifacts(lease, worktreePath) {
     }
     const reviewHeadSha = reviewHeadShaFromResultFile(resultFile);
     await validateResultDigest(lease, worktreePath, resultFile);
-    return validatePrReviewResultEvidence({
+    const evidence = await validatePrReviewResultEvidence({
         worktreeRoot: worktreePath,
         resultFile,
         resultIdentityPath: resultFile,
@@ -1938,6 +1944,11 @@ async function validateDiscoveryResultArtifacts(lease, worktreePath) {
         leaseBaseRef: lease.base_ref,
         leaseHeadRef: lease.head_ref,
     });
+    if (lease.state === "gated") {
+        validateResultFreshness(lease, "validate-stored-lease");
+        validateResultPresentation(evidence.result, lease, "validate-stored-lease");
+    }
+    return evidence;
 }
 async function validateDiscoveryHandoffArtifacts(lease, worktreePath) {
     const handoffFile = lease.artifacts.handoff_file;
@@ -1959,9 +1970,11 @@ async function validateDiscoveryApprovedReviewOwnership(lease, result, approved,
     const resultFile = lease.artifacts.result_file;
     const approvedReviewFile = lease.artifacts.approved_review_file;
     const validatedPayloadFile = lease.artifacts.validated_payload_file;
-    if (resultFile === null ||
-        approvedReviewFile === null ||
-        validatedPayloadFile === null) {
+    if (resultFile === null || approvedReviewFile === null) {
+        throw new PrReviewLeaseError("approved review discovery ownership mismatch");
+    }
+    const requiresValidatedPayload = lease.state === "posted" || validatedPayloadFile !== null;
+    if (!requiresValidatedPayload && lease.state !== "failed") {
         throw new PrReviewLeaseError("approved review discovery ownership mismatch");
     }
     const reviewHead = reviewHeadShaFromResultFile(resultFile);
@@ -1983,7 +1996,8 @@ async function validateDiscoveryApprovedReviewOwnership(lease, result, approved,
         expectedKeys.some((key) => !(key in approved)) ||
         approved.schema !== "pr-review/approved-review/v1" ||
         approvedReviewFile !== expected.approvedReviewFile ||
-        validatedPayloadFile !== expected.validatedPayloadFile ||
+        (requiresValidatedPayload &&
+            validatedPayloadFile !== expected.validatedPayloadFile) ||
         approved.review_head_sha !== reviewHead ||
         result.review_head_sha !== reviewHead ||
         approved.findings_file !== expected.findingsFile ||
@@ -2071,9 +2085,11 @@ async function validateDiscoveryApprovedReviewOwnership(lease, result, approved,
         !jsonEqual(approved.payload, expectedPayload)) {
         throw new PrReviewLeaseError("approved review discovery payload mismatch");
     }
-    const validatedPayload = await readRequiredJson(worktreePath, validatedPayloadFile, "validated payload file");
-    if (!jsonEqual(validatedPayload, expectedPayload)) {
-        throw new PrReviewLeaseError("validated payload approved-review mismatch");
+    if (validatedPayloadFile !== null) {
+        const validatedPayload = await readRequiredJson(worktreePath, validatedPayloadFile, "validated payload file");
+        if (!jsonEqual(validatedPayload, expectedPayload)) {
+            throw new PrReviewLeaseError("validated payload approved-review mismatch");
+        }
     }
 }
 async function discoveryApprovedReviewPaths(prNumber, reviewHead, worktreePath) {
