@@ -3381,6 +3381,9 @@ None
       wrapperHelperContract,
     ].join("\n");
     const prReview = await readSkillSource("pr-review");
+    const approvedReviewHelper = await readRepoFile(
+      "skills/pr-review/scripts/approved-review-artifacts.sh",
+    );
     const branchReview = await readSkillSource("branch-review");
     const codeReviewGuideline = await readRepoFile(
       "docs/guidelines/code-review-guideline.md",
@@ -3397,6 +3400,11 @@ None
     const envelopeShape = playReview.slice(
       envelopeShapeStart,
       envelopeShapeEnd,
+    );
+    const prReviewPhase6 = getMarkdownSection(prReview, "Phase 6: Post");
+    const materializer = shellFunctionBody(
+      approvedReviewHelper,
+      "materialize_validated_review_payload",
     );
 
     expect(playReview).toContain("scripts/review-artifacts.sh");
@@ -3558,22 +3566,39 @@ None
     expect(normalizedPrReview).toContain(
       "Do not call `build-github-review-payload` again after user approval",
     );
-    expect(prReview).not.toContain(
-      '(\n     cd "$WORKING_DIRECTORY" || exit 1\n     HEAD_SHA="$REVIEW_HEAD_SHA"',
-    );
     expect(normalizedPrReview).toContain(
       "Post exactly the validated approved payload",
     );
-    expect(normalizedPrReview).toContain(
-      "call `validate-approved-review` into a guarded direct-child `.ephemeral` payload file first",
+    const materializeIndex = prReviewPhase6.indexOf(
+      "materialize-validated-review-payload",
     );
-    expect(prReview).toContain("VALIDATED_REVIEW_PAYLOAD_FILE");
-    expect(prReview).toContain(
-      "validated review payload path exists but is not a regular file",
+    const providerIndex = prReviewPhase6.indexOf(
+      "gh api repos/{owner}/{repo}/pulls/<N>/reviews",
     );
-    expect(prReview).toContain(
-      "approved review validation failed; refusing to invoke gh api",
+    expect(materializeIndex).toBeGreaterThanOrEqual(0);
+    expect(providerIndex).toBeGreaterThan(materializeIndex);
+    const materializationGate = prReviewPhase6.slice(
+      materializeIndex,
+      providerIndex,
     );
+    expect(materializationGate).toContain("VALIDATED_REVIEW_PAYLOAD_FILE");
+    expect(materializationGate).toContain("|| exit 1");
+    expect(prReviewPhase6.slice(providerIndex)).toContain(
+      '--input "$VALIDATED_REVIEW_PAYLOAD_FILE"',
+    );
+    expect(materializer).toContain("expected_validated_payload_path_for");
+    expect(materializer).toContain("validate_validated_payload_path_shape");
+    expect(materializer).toContain('[ ! -L "$validated_payload_file" ]');
+    expect(materializer).toContain('[ ! -e "$validated_payload_file" ]');
+    const materializerValidationIndex = materializer.indexOf(
+      "validate_approved_review >",
+    );
+    expect(materializerValidationIndex).toBeGreaterThan(
+      materializer.indexOf("validate_validated_payload_path_shape"),
+    );
+    expect(
+      materializer.indexOf('mv "$tmp_file" "$validated_payload_file"'),
+    ).toBeGreaterThan(materializerValidationIndex);
     expect(normalizedPrReview).toContain(
       "Do not manually construct a `jq` payload here",
     );
@@ -3658,9 +3683,9 @@ None
       },
       postEditPrReview: {
         prompt:
-          "Read edited `skills/pr-review/SKILL.md` and `skills/play-review/SKILL.md`. Scenario same as baseline. PASS requires `render-review-preview`, `build-github-review-payload`, `prepare-review-payload-write`, `freeze-approved-review`, `validate-approved-review`, stale-head refusal, user gate preservation, body/finding rewrite loops, and no payload rebuild after approval.",
+          "Read edited `skills/pr-review/SKILL.md` and `skills/play-review/SKILL.md`. Scenario same as baseline. PASS requires `render-review-preview`, `build-github-review-payload`, `prepare-review-payload-write`, `freeze-approved-review`, helper-owned payload materialization, stale-head refusal, user gate preservation, body/finding rewrite loops, and no payload rebuild after approval.",
         observed:
-          "Agent creates `.ephemeral/pr-${PR_NUMBER}-${REVIEW_HEAD_SHA}-review-body.md`, renders preview with `render-review-preview`, rewrites `REVIEW_BODY_FILE` for body edits, rewrites validated findings envelope for drops/reclassification with `validate-findings`/`prepare-findings-write`, rerenders and returns to user gate. After approval, it calls `prepare-review-payload-write`, writes `build-github-review-payload` output to `REVIEW_PAYLOAD_FILE`, freezes with `freeze-approved-review`, refuses stale heads, validates approved artifact, and posts only validated frozen payload without rebuilding.",
+          "Agent creates `.ephemeral/pr-${PR_NUMBER}-${REVIEW_HEAD_SHA}-review-body.md`, renders preview with `render-review-preview`, rewrites `REVIEW_BODY_FILE` for body edits, rewrites validated findings envelope for drops/reclassification with `validate-findings`/`prepare-findings-write`, rerenders and returns to user gate. After approval, it calls `prepare-review-payload-write`, writes `build-github-review-payload` output to `REVIEW_PAYLOAD_FILE`, freezes with `freeze-approved-review`, refuses stale heads, materializes the helper-validated payload, and posts only that materialized payload without rebuilding.",
         result: "PASS",
       },
       postEditBranchReview: {
@@ -3688,10 +3713,10 @@ None
       "risk notice-line drift, or rebuild evidence from mutable current checkout",
     );
     expect(pressureText).toContain(
-      "PASS requires `render-review-preview`, `build-github-review-payload`, `prepare-review-payload-write`, `freeze-approved-review`, `validate-approved-review`, stale-head refusal",
+      "PASS requires `render-review-preview`, `build-github-review-payload`, `prepare-review-payload-write`, `freeze-approved-review`, helper-owned payload materialization, stale-head refusal",
     );
     expect(pressureText).toContain(
-      "posts only validated frozen payload without rebuilding",
+      "posts only that materialized payload without rebuilding",
     );
     expect(pressureText).toContain(
       "PASS requires artifact-backed preview with `REVIEW_SURFACE=branch-review`",
@@ -3709,7 +3734,7 @@ None
       "prepare-review-payload-write",
       "build-github-review-payload",
       "freeze-approved-review",
-      "validate-approved-review",
+      "materialize-validated-review-payload",
       "VALIDATED_REVIEW_PAYLOAD_FILE",
       "Do not call `build-github-review-payload` again after user approval",
     ]) {

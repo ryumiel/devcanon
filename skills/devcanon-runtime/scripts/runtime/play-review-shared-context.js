@@ -1,9 +1,35 @@
 import { execFile } from "node:child_process";
+import { createHash } from "node:crypto";
 import { constants } from "node:fs";
 import { access, lstat, mkdir, mkdtemp, readFile, realpath, rename, rm, writeFile, } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
+export async function validateSharedContextFamilyBinding(input) {
+    return withCwd(input.worktreeRoot, async () => {
+        const repoRoot = await requireRepoRoot();
+        validateHeadSha(input.headSha);
+        validateFindingsPath(input.findingsFile, input.headSha);
+        const { inputFile, outputFile } = deriveContextPaths(input.findingsFile);
+        await guardEphemeralDirectory();
+        await guardManifestReadTarget(inputFile);
+        await guardContextReadTarget(outputFile);
+        const manifest = await readManifest(inputFile);
+        validateManifestBindings(manifest, input.headSha, repoRoot);
+        const expected = renderReviewContext(manifest, input.headSha, input.findingsFile, inputFile, repoRoot);
+        const actual = await readFile(outputFile);
+        if (!actual.equals(Buffer.from(expected, "utf8"))) {
+            throw new SharedContextError("review context output does not match input manifest");
+        }
+        return Object.freeze({
+            schema: "play-review/shared-context-family/v1",
+            input_file: inputFile,
+            input_sha256: await sha256File(inputFile),
+            context_file: outputFile,
+            context_sha256: await sha256File(outputFile),
+        });
+    });
+}
 const TOTAL_BUDGET = 64_000;
 const CORE_BUDGET = 20_000;
 const GUIDELINE_BUDGET = 24_000;
@@ -58,19 +84,7 @@ async function buildReviewContext() {
     await guardReadInputAndOutput(reviewContextInputFile, reviewContextOutputFile);
     const manifest = await readManifest(reviewContextInputFile);
     validateManifestBindings(manifest, headSha, repoRoot);
-    const coreSection = buildCoreSection(manifest, headSha, findingsFile, reviewContextInputFile, repoRoot);
-    if (byteCount(coreSection) > CORE_BUDGET) {
-        throw new SharedContextError("core section byte budget exceeded");
-    }
-    const guidelineSection = buildGuidelineSection(manifest);
-    const priorSection = buildPriorSection(manifest);
-    const content = `${coreSection}${guidelineSection}${priorSection}`;
-    if (content.length === 0) {
-        throw new SharedContextError("review context output is empty");
-    }
-    if (byteCount(content) > TOTAL_BUDGET) {
-        throw new SharedContextError("review context byte budget exceeded");
-    }
+    const content = renderReviewContext(manifest, headSha, findingsFile, reviewContextInputFile, repoRoot);
     await writeReviewContext(reviewContextOutputFile, content);
     const written = await readFile(reviewContextOutputFile, "utf8");
     if (written.length === 0) {
@@ -80,6 +94,20 @@ async function buildReviewContext() {
         throw new SharedContextError("review context byte budget exceeded");
     }
     return reviewContextOutputFile;
+}
+function renderReviewContext(manifest, headSha, findingsFile, reviewContextInputFile, repoRoot) {
+    const coreSection = buildCoreSection(manifest, headSha, findingsFile, reviewContextInputFile, repoRoot);
+    if (byteCount(coreSection) > CORE_BUDGET) {
+        throw new SharedContextError("core section byte budget exceeded");
+    }
+    const content = `${coreSection}${buildGuidelineSection(manifest)}${buildPriorSection(manifest)}`;
+    if (content.length === 0) {
+        throw new SharedContextError("review context output is empty");
+    }
+    if (byteCount(content) > TOTAL_BUDGET) {
+        throw new SharedContextError("review context byte budget exceeded");
+    }
+    return content;
 }
 async function requireRepoRoot() {
     let gitToplevel;
@@ -191,6 +219,38 @@ async function guardManifestReadTarget(inputFile) {
     await access(inputFile, constants.R_OK).catch(() => {
         throw new SharedContextError(`review context input missing or unreadable: ${inputFile}`);
     });
+}
+async function guardContextReadTarget(outputFile) {
+    const outputStat = await lstat(outputFile).catch(() => null);
+    if (outputStat?.isSymbolicLink()) {
+        throw new SharedContextError(`review context output must not be a symlink: ${outputFile}`);
+    }
+    if (outputStat === null || !outputStat.isFile()) {
+        throw new SharedContextError(`review context output missing or not a regular file: ${outputFile}`);
+    }
+    await access(outputFile, constants.R_OK).catch(() => {
+        throw new SharedContextError(`review context output missing or unreadable: ${outputFile}`);
+    });
+    if ((await readFile(outputFile)).length === 0) {
+        throw new SharedContextError("review context output is empty");
+    }
+}
+async function sha256File(file) {
+    return createHash("sha256")
+        .update(await readFile(file))
+        .digest("hex");
+}
+async function withCwd(directory, callback) {
+    if (directory === undefined)
+        return callback();
+    const previous = process.cwd();
+    process.chdir(directory);
+    try {
+        return await callback();
+    }
+    finally {
+        process.chdir(previous);
+    }
 }
 async function readManifest(file) {
     let raw;

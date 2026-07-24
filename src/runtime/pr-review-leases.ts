@@ -14,6 +14,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 import { writeTextAtomically } from "./artifacts.js";
 import { requireDirectEphemeralChild } from "./paths.js";
+import { validateSharedContextFamilyBinding } from "./play-review-shared-context.js";
 import { validatePrReviewResultCommandAuthority } from "./pr-review-result-validation.js";
 
 const execFileAsync = promisify(execFile);
@@ -285,6 +286,10 @@ export function reducePrReviewLease(
       };
     case "LC-08":
       requireInput("APPROVED_REVIEW_FILE", inputs.approvedReviewFile);
+      requireInput(
+        "VALIDATED_REVIEW_PAYLOAD_FILE",
+        inputs.validatedPayloadFile,
+      );
       requireInput("FINISHED_AT", inputs.finishedAt);
       requireInput("GITHUB_POSTED_AT", inputs.githubPostedAt);
       return {
@@ -1527,7 +1532,8 @@ function validateStateInvariants(
   }
   if (
     lease.state === "posted" &&
-    lease.artifacts.approved_review_file === null
+    (lease.artifacts.approved_review_file === null ||
+      lease.artifacts.validated_payload_file === null)
   ) {
     throw new PrReviewLeaseError("lease schema mismatch");
   }
@@ -1735,6 +1741,7 @@ async function validateReferencedArtifacts(
 ): Promise<void> {
   const policy = options.policy ?? "validate-stored-lease";
   let resultReviewHead: string | null = null;
+  let resultArtifact: JsonObject | null = null;
   if (lease.artifacts.handoff_file !== null) {
     const handoff = await readRequiredJson<JsonObject>(
       worktreePath,
@@ -1758,6 +1765,7 @@ async function validateReferencedArtifacts(
     validateResultFreshness(lease, policy, options.freshnessTimestamp);
     validateResultPresentation(result, lease, policy);
     resultReviewHead = stringField(result, "review_head_sha");
+    resultArtifact = result;
   }
   if (lease.artifacts.approved_review_file !== null) {
     const approved = await readRequiredJson<JsonObject>(
@@ -1770,6 +1778,9 @@ async function validateReferencedArtifacts(
       lease,
       resultReviewHead,
     );
+    if (resultArtifact === null) {
+      throw new PrReviewLeaseError("approved review result binding missing");
+    }
     if (lease.artifacts.validated_payload_file !== null) {
       const expectedPayloadFile = expectedValidatedPayloadPath(
         lease.pr_number,
@@ -1789,6 +1800,17 @@ async function validateReferencedArtifacts(
         );
       }
     }
+    await validateResultCommandAuthority(lease, worktreePath);
+    const scopeBaseRef = await scopeBaseRefFromValidatedResult(
+      resultArtifact,
+      worktreePath,
+    );
+    await validateApprovedReviewOwnership(
+      lease,
+      worktreePath,
+      approvedReviewHead,
+      scopeBaseRef,
+    );
   }
   if (options.validateResultAuthority === true) {
     await validateResultCommandAuthority(lease, worktreePath);
@@ -1956,6 +1978,139 @@ async function validateResultCommandAuthority(
   });
 }
 
+interface ApprovedReviewOwnership {
+  reviewBodyFile: string;
+  reviewPayloadFile: string;
+}
+
+async function validateApprovedReviewOwnership(
+  lease: PrReviewLease,
+  worktreePath: string,
+  reviewHeadSha: string,
+  scopeBaseRef: string,
+): Promise<ApprovedReviewOwnership> {
+  const approvedReviewFile = lease.artifacts.approved_review_file;
+  if (approvedReviewFile === null) {
+    throw new PrReviewLeaseError("approved review file missing");
+  }
+  const helper = await resolveApprovedReviewHelper();
+  let stdout: string;
+  try {
+    ({ stdout } = await execFileAsync(
+      "bash",
+      [helper, "inspect-approved-review-ownership"],
+      {
+        cwd: worktreePath,
+        env: {
+          ...inheritedHelperEnv(),
+          PR_NUMBER: String(lease.pr_number),
+          HEAD_SHA: reviewHeadSha,
+          BASE_REF: scopeBaseRef,
+          APPROVED_REVIEW_FILE: approvedReviewFile,
+        },
+        maxBuffer: 1024 * 1024,
+      },
+    ));
+  } catch (err) {
+    const stderr =
+      err && typeof err === "object" && "stderr" in err
+        ? String((err as { stderr?: unknown }).stderr).trim()
+        : "";
+    throw new PrReviewLeaseError(
+      stderr.length > 0 ? stderr : "approved review validation helper failed",
+    );
+  }
+  let ownership: unknown;
+  try {
+    ownership = JSON.parse(stdout);
+  } catch {
+    throw new PrReviewLeaseError("approved review ownership output malformed");
+  }
+  if (
+    !isObject(ownership) ||
+    Object.keys(ownership).length !== 2 ||
+    typeof ownership.review_body_file !== "string" ||
+    typeof ownership.review_payload_file !== "string"
+  ) {
+    throw new PrReviewLeaseError("approved review ownership output malformed");
+  }
+  const expectedBody = `.ephemeral/pr-${lease.pr_number}-${reviewHeadSha}-review-body.md`;
+  if (ownership.review_body_file !== expectedBody) {
+    throw new PrReviewLeaseError(
+      `review body path mismatch: ${ownership.review_body_file}`,
+    );
+  }
+  validateDirectChild(
+    "review payload",
+    ownership.review_payload_file,
+    "-review-payload.json",
+  );
+  return {
+    reviewBodyFile: ownership.review_body_file,
+    reviewPayloadFile: ownership.review_payload_file,
+  };
+}
+
+async function scopeBaseRefFromValidatedResult(
+  result: JsonObject,
+  worktreePath: string,
+): Promise<string> {
+  const artifacts = result.artifacts;
+  if (!isObject(artifacts)) {
+    throw new PrReviewLeaseError("result artifacts metadata missing");
+  }
+  const scopeDecision = await readRequiredJson<JsonObject>(
+    worktreePath,
+    stringField(artifacts, "scope_decision_file"),
+    "scope decision file",
+  );
+  const scopeArtifacts = scopeDecision.artifacts;
+  if (!isObject(scopeArtifacts)) {
+    throw new PrReviewLeaseError("scope decision artifacts missing");
+  }
+  const providerEvidence = await readRequiredJson<JsonObject>(
+    worktreePath,
+    stringField(scopeArtifacts, "provider_scope_evidence_file"),
+    "provider scope evidence file",
+  );
+  return stringField(providerEvidence, "provider_pr_diff_base_sha");
+}
+
+async function resolveApprovedReviewHelper(): Promise<string> {
+  const candidates: string[] = [];
+  const configuredDir = optionalEnv("PR_REVIEW_DIR");
+  if (configuredDir !== undefined) candidates.push(configuredDir);
+  for (const script of [
+    optionalEnv("PR_REVIEW_MANIFEST_HELPER_SCRIPT"),
+    optionalEnv("PR_REVIEW_LEASE_HELPER_SCRIPT"),
+  ]) {
+    if (script === undefined) continue;
+    candidates.push(path.dirname(path.dirname(script)));
+    try {
+      candidates.push(path.dirname(path.dirname(await realpath(script))));
+    } catch {
+      // The executable check below reports the missing helper.
+    }
+  }
+  for (const candidate of candidates) {
+    const helper = path.join(candidate, "scripts/approved-review-artifacts.sh");
+    try {
+      const stat = await lstat(helper);
+      if (
+        stat.isFile() &&
+        (process.platform === "win32" || (stat.mode & 0o111) !== 0)
+      ) {
+        return helper;
+      }
+    } catch {
+      // Try the next configured location.
+    }
+  }
+  throw new PrReviewLeaseError(
+    "approved review artifact helper missing or not executable",
+  );
+}
+
 async function findUnmanagedEphemeralArtifacts(
   lease: PrReviewLease,
   worktreePath: string,
@@ -1985,8 +2140,6 @@ async function collectOwnedEphemeralArtifacts(
   const owned = new Set<string>();
   addOwnedPath(owned, lease.artifacts.handoff_file);
   addOwnedPath(owned, lease.artifacts.result_file);
-  addOwnedPath(owned, lease.artifacts.approved_review_file);
-  addOwnedPath(owned, lease.artifacts.validated_payload_file);
 
   if (lease.artifacts.handoff_file !== null) {
     const handoff = await readRequiredJson<JsonObject>(
@@ -2004,21 +2157,40 @@ async function collectOwnedEphemeralArtifacts(
     );
     addOwnedPath(owned, stringField(result, "findings_file"));
     addOwnedPath(owned, nullableStringField(result, "review_body_file"));
-    addOwnedPath(owned, nullableStringField(result, "context_file"));
+    const sharedContext = await validateSharedContextFamilyBinding({
+      headSha: stringField(result, "review_head_sha"),
+      findingsFile: stringField(result, "findings_file"),
+      worktreeRoot: worktreePath,
+    });
+    addOwnedPath(owned, sharedContext.input_file);
+    addOwnedPath(owned, sharedContext.context_file);
     collectResultArtifactPaths(owned, result);
   }
   if (lease.artifacts.approved_review_file !== null) {
+    const result = await readRequiredJson<JsonObject>(
+      worktreePath,
+      lease.artifacts.result_file ?? "",
+      "result file",
+    );
     const approved = await readRequiredJson<JsonObject>(
       worktreePath,
       lease.artifacts.approved_review_file,
       "approved review file",
     );
-    addOwnedPath(
-      owned,
-      typeof approved.review_body_file === "string"
-        ? approved.review_body_file
-        : null,
+    const ownership = await validateApprovedReviewOwnership(
+      lease,
+      worktreePath,
+      validateApprovedIdentity(
+        approved,
+        lease,
+        stringField(result, "review_head_sha"),
+      ),
+      await scopeBaseRefFromValidatedResult(result, worktreePath),
     );
+    addOwnedPath(owned, lease.artifacts.approved_review_file);
+    addOwnedPath(owned, ownership.reviewBodyFile);
+    addOwnedPath(owned, ownership.reviewPayloadFile);
+    addOwnedPath(owned, lease.artifacts.validated_payload_file);
   }
 
   return owned;

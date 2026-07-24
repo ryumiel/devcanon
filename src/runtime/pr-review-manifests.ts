@@ -227,6 +227,7 @@ async function writeResult(): Promise<string> {
     reviewBodyFile,
     "-review-body.md",
   );
+  validateCanonicalReviewBodyPath(reviewBodyFile, prNumber, headSha);
   await validateOptionalDirectChildReadableArtifact(
     "context",
     contextFile,
@@ -1107,6 +1108,11 @@ async function validateResultFacts(result: JsonObject, identityFile: string) {
   }
   await validateFindingsAuthority(findingsFile);
   const reviewBodyFile = nullableStringField(result, "review_body_file");
+  validateCanonicalReviewBodyPath(
+    reviewBodyFile,
+    Number(manifestPrNumber),
+    reviewHeadSha,
+  );
   const contextFile = nullableStringField(result, "context_file");
   const renderedPreviewFile = nullableStringField(
     artifacts,
@@ -1837,6 +1843,19 @@ function expectedHandoffPath(prNumber: number, headSha: string): string {
 
 function expectedResultPath(prNumber: number, headSha: string): string {
   return `.ephemeral/pr-${prNumber}-${headSha}-result.json`;
+}
+
+function validateCanonicalReviewBodyPath(
+  reviewBodyFile: string | null,
+  prNumber: number,
+  headSha: string,
+): void {
+  if (
+    reviewBodyFile !== null &&
+    reviewBodyFile !== `.ephemeral/pr-${prNumber}-${headSha}-review-body.md`
+  ) {
+    fail(`review body path mismatch: ${reviewBodyFile}`);
+  }
 }
 
 async function expectedFindingsPath(headSha: string): Promise<string> {

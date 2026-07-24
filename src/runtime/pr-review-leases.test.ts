@@ -14,6 +14,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
+import { runPlayReviewSharedContextCommand } from "./play-review-shared-context.js";
 import {
   type PrReviewLease,
   reducePrReviewLease,
@@ -45,7 +46,10 @@ const managedEnvKeys = [
   "LEASE_FILE",
   "HANDOFF_FILE",
   "RESULT_FILE",
+  "FINDINGS_FILE",
   "HEAD_SHA",
+  "REVIEW_CONTEXT_INPUT_FILE",
+  "REVIEW_CONTEXT_INPUT_JSON",
   "STATE",
   "BASE_REF",
   "HEAD_REF",
@@ -201,6 +205,8 @@ describe("pr-review lease reducer", () => {
       state: "posted",
       artifacts: {
         approved_review_file: ".ephemeral/topic-approved-review.json",
+        validated_payload_file:
+          ".ephemeral/pr-432-1111111111111111111111111111111111111111-validated-review-payload.json",
       },
       github: {
         github_post_attempted: true,
@@ -209,6 +215,21 @@ describe("pr-review lease reducer", () => {
       },
       failure: { phase: null },
     });
+  });
+
+  it("rejects posted leases without a validated payload pointer", () => {
+    expect(() =>
+      reducePrReviewLease(gatedLease(), identity, {
+        state: "posted",
+        baseRef: "main",
+        headRef: "topic",
+        createdAt: "2026-06-11T00:00:00Z",
+        updatedAt: "2026-06-11T00:03:00Z",
+        approvedReviewFile: ".ephemeral/topic-approved-review.json",
+        finishedAt: "2026-06-11T00:03:00Z",
+        githubPostedAt: "2026-06-11T00:03:00Z",
+      }),
+    ).toThrow("VALIDATED_REVIEW_PAYLOAD_FILE is required");
   });
 
   it("preserves gated recovery evidence for GitHub post failures", () => {
@@ -398,6 +419,8 @@ describe("pr-review lease reducer", () => {
       createdAt: "2026-06-11T00:00:00Z",
       updatedAt: "2026-06-11T00:11:00Z",
       approvedReviewFile: ".ephemeral/topic-approved-review.json",
+      validatedPayloadFile:
+        ".ephemeral/pr-432-1111111111111111111111111111111111111111-validated-review-payload.json",
       finishedAt: "2026-06-11T00:11:00Z",
       failurePhase: "github-post",
       failureReason: "GitHub API rejected review",
@@ -955,6 +978,10 @@ describe("pr-review lease command validation", () => {
         process.env.APPROVED_REVIEW_FILE,
         workspace.reviewHead,
       );
+      await writeValidatedPayloadArtifact(
+        workspace.worktree,
+        workspace.reviewHead,
+      );
       const beforeFailure = await readFile(
         path.join(workspace.primary, workspace.leaseFile),
         "utf8",
@@ -1000,6 +1027,7 @@ describe("pr-review lease command validation", () => {
             artifacts: {
               ...JSON.parse(beforeFailure).artifacts,
               approved_review_file: process.env.APPROVED_REVIEW_FILE,
+              validated_payload_file: `.ephemeral/pr-432-${workspace.reviewHead}-validated-review-payload.json`,
             },
             terminal: {
               finished_at: "2026-06-11T00:03:00Z",
@@ -1586,6 +1614,7 @@ describe("pr-review lease command validation", () => {
             resultFile,
             resultSha256: await sha256File(path.join(worktree, resultFile)),
             approvedReviewFile,
+            validatedPayloadFile: `.ephemeral/pr-432-${approvedHead}-validated-review-payload.json`,
           }),
           null,
           2,
@@ -1660,6 +1689,86 @@ describe("pr-review lease command validation", () => {
     } finally {
       process.chdir(originalCwd);
       await rm(tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("refuses posted leases missing the validated payload before cleanup ownership", async () => {
+    const workspace = await makeGatedStatusWorkspace(
+      "pr-review-posted-missing-payload-",
+    );
+    const approvedReviewFile = `.ephemeral/topic-${workspace.reviewHead}-approved-review.json`;
+
+    try {
+      await writeApprovedReviewArtifact(
+        workspace.worktree,
+        approvedReviewFile,
+        workspace.reviewHead,
+      );
+      const posted = postedCommandLease({
+        leaseFile: workspace.leaseFile,
+        worktreePath: workspace.physicalWorktree,
+        worktreeDigest: workspace.worktreeDigest,
+        resultFile: workspace.resultFile,
+        resultSha256: workspace.resultSha256,
+        approvedReviewFile,
+      });
+      await writeFile(
+        path.join(workspace.primary, workspace.leaseFile),
+        `${JSON.stringify(posted, null, 2)}\n`,
+      );
+
+      process.chdir(workspace.physicalPrimary);
+      setReadStatusEnv(workspace);
+      const result = await runPrReviewLeasesCommand(["inspect-worktree"]);
+
+      expect(result.exitCode, result.stderr).toBe(0);
+      expect(result.stdout).toContain("REFUSAL_REASON=invalid-lease");
+      expect(result.stdout).not.toContain("CAN_REMOVE=yes");
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("accepts a complete validated posted chain for cleanup ownership", async () => {
+    const workspace = await makeGatedStatusWorkspace(
+      "pr-review-complete-posted-chain-",
+    );
+    const approvedReviewFile = `.ephemeral/topic-${workspace.reviewHead}-approved-review.json`;
+    const validatedPayloadFile = await writeValidatedPayloadArtifact(
+      workspace.worktree,
+      workspace.reviewHead,
+    );
+
+    try {
+      await writeApprovedReviewArtifact(
+        workspace.worktree,
+        approvedReviewFile,
+        workspace.reviewHead,
+      );
+      const posted = postedCommandLease({
+        leaseFile: workspace.leaseFile,
+        worktreePath: workspace.physicalWorktree,
+        worktreeDigest: workspace.worktreeDigest,
+        resultFile: workspace.resultFile,
+        resultSha256: workspace.resultSha256,
+        approvedReviewFile,
+        validatedPayloadFile,
+      });
+      await writeFile(
+        path.join(workspace.primary, workspace.leaseFile),
+        `${JSON.stringify(posted, null, 2)}\n`,
+      );
+
+      process.chdir(workspace.physicalPrimary);
+      setReadStatusEnv(workspace);
+      const result = await runPrReviewLeasesCommand(["validate"]);
+
+      expect(result.exitCode, result.stderr).toBe(0);
+      expect(result.stdout).toBe("");
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
     }
   });
 });
@@ -2788,6 +2897,7 @@ describe("pr-review lease Git cleanup safety", () => {
         resultFile: workspace.resultFile,
         resultSha256: workspace.resultSha256,
         approvedReviewFile: `.ephemeral/topic-${workspace.reviewHead}-approved-review.json`,
+        validatedPayloadFile: `.ephemeral/pr-432-${workspace.reviewHead}-validated-review-payload.json`,
       });
       await writeFile(
         path.join(workspace.primary, workspace.leaseFile),
@@ -2836,6 +2946,7 @@ describe("pr-review lease Git cleanup safety", () => {
                 resultFile: workspace.resultFile,
                 resultSha256: workspace.resultSha256,
                 approvedReviewFile: `.ephemeral/topic-${workspace.reviewHead}-approved-review.json`,
+                validatedPayloadFile: `.ephemeral/pr-432-${workspace.reviewHead}-validated-review-payload.json`,
               })
             : {
                 ...(await readLease(workspace.primary, workspace.leaseFile)),
@@ -2850,6 +2961,10 @@ describe("pr-review lease Git cleanup safety", () => {
           await writeApprovedReviewArtifact(
             workspace.worktree,
             prior.artifacts.approved_review_file ?? "",
+            workspace.reviewHead,
+          );
+          await writeValidatedPayloadArtifact(
+            workspace.worktree,
             workspace.reviewHead,
           );
         }
@@ -2954,6 +3069,7 @@ describe("pr-review lease Git cleanup safety", () => {
         resultFile: workspace.resultFile,
         resultSha256: workspace.resultSha256,
         approvedReviewFile: `.ephemeral/topic-${workspace.reviewHead}-approved-review.json`,
+        validatedPayloadFile: `.ephemeral/pr-432-${workspace.reviewHead}-validated-review-payload.json`,
       });
       await writeFile(
         path.join(workspace.primary, workspace.leaseFile),
@@ -3296,6 +3412,7 @@ async function makeGatedStatusWorkspace(
     resultFile,
     reviewHead,
     "preview-current",
+    true,
   );
   const resultSha256 = await sha256File(
     path.join(workspace.worktree, resultFile),
@@ -3642,13 +3759,32 @@ async function writeReviewHelperScripts(tempRoot: string): Promise<{
   );
   const playReviewHelper = path.join(playReviewScripts, "review-artifacts.sh");
   const passThrough = "#!/usr/bin/env bash\nset -euo pipefail\nexit 0\n";
+  const approvedReviewHelper = path.join(
+    prReviewScripts,
+    "approved-review-artifacts.sh",
+  );
   await writeFile(scopeHelper, passThrough);
   await writeFile(prReviewManifestHelperScript, passThrough);
   await writeFile(prReviewLeaseHelperScript, passThrough);
+  await writeFile(
+    approvedReviewHelper,
+    [
+      "#!/usr/bin/env bash",
+      "set -euo pipefail",
+      'command_name="${1:-}"',
+      'if [ "$command_name" = "inspect-approved-review-ownership" ]; then',
+      '  jq -cn --arg review_body_file ".ephemeral/pr-${PR_NUMBER}-${HEAD_SHA}-review-body.md" --arg review_payload_file ".ephemeral/review-topic-${HEAD_SHA}-review-payload.json" \'{review_body_file: $review_body_file, review_payload_file: $review_payload_file}\'',
+      "  exit 0",
+      "fi",
+      "exit 1",
+      "",
+    ].join("\n"),
+  );
   await writeFile(playReviewHelper, passThrough);
   await chmod(scopeHelper, 0o755);
   await chmod(prReviewManifestHelperScript, 0o755);
   await chmod(prReviewLeaseHelperScript, 0o755);
+  await chmod(approvedReviewHelper, 0o755);
   await chmod(playReviewHelper, 0o755);
   return {
     prReviewDir,
@@ -3667,10 +3803,11 @@ async function writeResultArtifact(
     | "not-presented"
     | "preview-current"
     | "edited" = "preview-current",
+  includeSharedContext = false,
 ): Promise<{ findingsFile: string }> {
   const handoffFile = `.ephemeral/pr-432-${reviewHead}-handoff.json`;
   const findingsFile = `.ephemeral/review-topic-${reviewHead}-findings.json`;
-  const reviewBodyFile = ".ephemeral/review-topic-review-body.md";
+  const reviewBodyFile = `.ephemeral/pr-432-${reviewHead}-review-body.md`;
   const scopeDecisionFile = ".ephemeral/review-topic-scope-decision.json";
   const providerScopeEvidenceFile = `.ephemeral/review-topic-${reviewHead}-provider-scope-evidence.json`;
   const providerPrDiffRange = `${reviewHead}..${reviewHead}`;
@@ -3731,6 +3868,14 @@ async function writeResultArtifact(
     `${JSON.stringify({ findings: [], carry_forward: [] }, null, 2)}\n`,
   );
   await writeFile(path.join(worktree, reviewBodyFile), "Review preview.\n");
+  const sharedContext = includeSharedContext
+    ? await writeSharedContextFamily(
+        physicalWorktree,
+        findingsFile,
+        reviewHead,
+        providerPrDiffRange,
+      )
+    : null;
   const handoff = {
     schema: "pr-review/handoff/v1",
     pr_number: 432,
@@ -3770,7 +3915,7 @@ async function writeResultArtifact(
     review_head_sha: reviewHead,
     findings_file: findingsFile,
     review_body_file: reviewBodyFile,
-    context_file: null,
+    context_file: sharedContext?.contextFile ?? null,
     artifacts: {
       handoff_file: handoffFile,
       scope_decision_file: scopeDecisionFile,
@@ -3782,7 +3927,7 @@ async function writeResultArtifact(
       handoff_sha256: await sha256File(path.join(worktree, handoffFile)),
       findings_sha256: await sha256File(path.join(worktree, findingsFile)),
       review_body_sha256: await sha256File(path.join(worktree, reviewBodyFile)),
-      context_sha256: null,
+      context_sha256: sharedContext?.contextSha256 ?? null,
       scope_decision_sha256: await sha256File(
         path.join(worktree, scopeDecisionFile),
       ),
@@ -3810,6 +3955,91 @@ async function writeResultArtifact(
   return { findingsFile };
 }
 
+async function writeSharedContextFamily(
+  physicalWorktree: string,
+  findingsFile: string,
+  reviewHead: string,
+  diffRange: string,
+): Promise<{ contextFile: string; contextSha256: string }> {
+  const priorCwd = process.cwd();
+  const contextEnv = [
+    "HEAD_SHA",
+    "FINDINGS_FILE",
+    "REVIEW_CONTEXT_INPUT_FILE",
+    "REVIEW_CONTEXT_INPUT_JSON",
+  ] as const;
+  const priorEnv = new Map(contextEnv.map((key) => [key, process.env[key]]));
+
+  try {
+    process.chdir(physicalWorktree);
+    process.env.HEAD_SHA = reviewHead;
+    process.env.FINDINGS_FILE = findingsFile;
+    process.env.REVIEW_CONTEXT_INPUT_JSON = JSON.stringify({
+      schema: "play-review/shared-context-input/v1",
+      header: {
+        working_directory: physicalWorktree,
+        base_ref: "main",
+        head_sha: reviewHead,
+        active_diff_range: diffRange,
+        full_pr_diff_range: diffRange,
+        mode: "github-post",
+        language_hints: [],
+      },
+      changed_files: {
+        command: "fixture",
+        total_count: 0,
+        truncated: false,
+        records: [],
+      },
+      doc_impact_summary: {
+        arch_files: [],
+        new_adrs: [],
+        modified_adrs: [],
+        architecture_routing_risks: {
+          mechanical_path_signals: [],
+          semantic_classification_notes: [],
+        },
+        spec_routing_risks: {
+          mechanical_path_signals: [],
+          semantic_classification_notes: [],
+        },
+        notes: "fixture",
+      },
+      adr_references: [],
+      discovered_guidelines: { records: [] },
+      output_format: { markdown: "fixture" },
+      prior_review_context: null,
+    });
+    const input = await runPlayReviewSharedContextCommand([
+      "write-review-context-input",
+    ]);
+    if (input.exitCode !== 0) {
+      throw new Error(input.stderr);
+    }
+    process.env.REVIEW_CONTEXT_INPUT_FILE = input.stdout.trim();
+    const output = await runPlayReviewSharedContextCommand([
+      "build-review-context",
+    ]);
+    if (output.exitCode !== 0) {
+      throw new Error(output.stderr);
+    }
+    const contextFile = output.stdout.trim();
+    return {
+      contextFile,
+      contextSha256: await sha256File(path.join(physicalWorktree, contextFile)),
+    };
+  } finally {
+    process.chdir(priorCwd);
+    for (const [key, value] of priorEnv) {
+      if (value === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
+    }
+  }
+}
+
 async function writeApprovedReviewArtifact(
   worktree: string,
   approvedReviewFile: string,
@@ -3820,10 +4050,22 @@ async function writeApprovedReviewArtifact(
     `${JSON.stringify({
       schema: "pr-review/approved-review/v1",
       review_head_sha: reviewHead,
-      review_body_file: ".ephemeral/topic-review-body.md",
+      review_body_file: `.ephemeral/pr-432-${reviewHead}-review-body.md`,
       payload: reviewPayload(reviewHead),
     })}\n`,
   );
+}
+
+async function writeValidatedPayloadArtifact(
+  worktree: string,
+  reviewHead: string,
+): Promise<string> {
+  const validatedPayloadFile = `.ephemeral/pr-432-${reviewHead}-validated-review-payload.json`;
+  await writeFile(
+    path.join(worktree, validatedPayloadFile),
+    `${JSON.stringify(reviewPayload(reviewHead))}\n`,
+  );
+  return validatedPayloadFile;
 }
 
 function reviewPayload(reviewHead: string): Record<string, unknown> {

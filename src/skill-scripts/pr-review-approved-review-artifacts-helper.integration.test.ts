@@ -29,9 +29,11 @@ const helperScript = path.join(
 );
 const headSha = "0123456789abcdef0123456789abcdef01234567";
 const staleHeadSha = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+const prNumber = "390";
 const findingsFile = `.ephemeral/topic-${headSha}-findings.json`;
-const reviewBodyFile = ".ephemeral/topic-review-body.md";
+const reviewBodyFile = `.ephemeral/pr-${prNumber}-${headSha}-review-body.md`;
 const payloadFile = `.ephemeral/topic-${headSha}-review-payload.json`;
+const validatedPayloadFile = `.ephemeral/pr-${prNumber}-${headSha}-validated-review-payload.json`;
 const scopeDecisionFile = `.ephemeral/topic-${headSha}-scope-decision.json`;
 const providerScopeEvidenceFile = `.ephemeral/topic-${headSha}-provider-scope-evidence.json`;
 const PROVIDER_EVIDENCE_SCHEMA = "pr-review/provider-scope-evidence/v2";
@@ -306,6 +308,7 @@ async function runHelper(
       ...process.env,
       BASE_REF: "main",
       HEAD_SHA: headSha,
+      PR_NUMBER: prNumber,
       PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT: supportValidator,
       ...env,
     },
@@ -421,6 +424,37 @@ describe.skipIf(!jqAvailable)(
         expect(artifact.review_body_sha256).toMatch(/^[0-9a-f]{64}$/);
         expect(artifact.review_payload_sha256).toMatch(/^[0-9a-f]{64}$/);
         expect(artifact.scope_decision_sha256).toMatch(/^[0-9a-f]{64}$/);
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    });
+
+    it("materializes the validated payload only through the approved-review helper", async () => {
+      const cwd = await makeGitWorkspace();
+      try {
+        await writeInputs(cwd);
+        await runHelper(cwd, "freeze-approved-review", {
+          FINDINGS_FILE: findingsFile,
+          REVIEW_BODY_FILE: reviewBodyFile,
+          REVIEW_PAYLOAD_FILE: payloadFile,
+        });
+
+        const { stdout } = await runHelper(
+          cwd,
+          "materialize-validated-review-payload",
+          { APPROVED_REVIEW_FILE: approvedReviewFile },
+        );
+
+        expect(stdout).toBe(`${validatedPayloadFile}\n`);
+        await expect(
+          readFile(path.join(cwd, validatedPayloadFile), "utf8"),
+        ).resolves.toBe(
+          (
+            await runHelper(cwd, "validate-approved-review", {
+              APPROVED_REVIEW_FILE: approvedReviewFile,
+            })
+          ).stdout,
+        );
       } finally {
         await cleanupTempDir(cwd);
       }
@@ -671,6 +705,7 @@ describe.skipIf(!jqAvailable)(
         ).stdout.trim();
         const realFindingsFile = `.ephemeral/topic-${realHeadSha}-findings.json`;
         const realPayloadFile = `.ephemeral/topic-${realHeadSha}-review-payload.json`;
+        const realReviewBodyFile = `.ephemeral/pr-${prNumber}-${realHeadSha}-review-body.md`;
         const realScopeDecisionFile = `.ephemeral/topic-${realHeadSha}-scope-decision.json`;
         const realProviderEvidenceFile = `.ephemeral/topic-${realHeadSha}-provider-scope-evidence.json`;
         const realApprovedReviewFile = `.ephemeral/topic-${realHeadSha}-approved-review.json`;
@@ -679,7 +714,7 @@ describe.skipIf(!jqAvailable)(
           "skills/play-validate-review-artifacts/scripts/review-artifacts.sh",
         );
         await writeJson(cwd, realFindingsFile, findingsEnvelope());
-        await writeFile(path.join(cwd, reviewBodyFile), "Review body");
+        await writeFile(path.join(cwd, realReviewBodyFile), "Review body");
         await writeJson(
           cwd,
           realPayloadFile,
@@ -736,7 +771,7 @@ describe.skipIf(!jqAvailable)(
             BASE_REF: baseSha,
             HEAD_SHA: realHeadSha,
             FINDINGS_FILE: realFindingsFile,
-            REVIEW_BODY_FILE: reviewBodyFile,
+            REVIEW_BODY_FILE: realReviewBodyFile,
             REVIEW_PAYLOAD_FILE: realPayloadFile,
             PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT: realValidator,
           }),
@@ -760,7 +795,7 @@ describe.skipIf(!jqAvailable)(
           BASE_REF: baseSha,
           HEAD_SHA: realHeadSha,
           FINDINGS_FILE: realFindingsFile,
-          REVIEW_BODY_FILE: reviewBodyFile,
+          REVIEW_BODY_FILE: realReviewBodyFile,
           REVIEW_PAYLOAD_FILE: realPayloadFile,
           PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT: realValidator,
         });
@@ -791,7 +826,7 @@ describe.skipIf(!jqAvailable)(
             BASE_REF: baseSha,
             HEAD_SHA: realHeadSha,
             FINDINGS_FILE: realFindingsFile,
-            REVIEW_BODY_FILE: reviewBodyFile,
+            REVIEW_BODY_FILE: realReviewBodyFile,
             REVIEW_PAYLOAD_FILE: realPayloadFile,
             PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT: realValidator,
           }),
@@ -878,6 +913,7 @@ describe.skipIf(!jqAvailable)(
 
         const realFindingsFile = `.ephemeral/topic-${realHeadSha}-findings.json`;
         const realPayloadFile = `.ephemeral/topic-${realHeadSha}-review-payload.json`;
+        const realReviewBodyFile = `.ephemeral/pr-${prNumber}-${realHeadSha}-review-body.md`;
         const realScopeDecisionFile = `.ephemeral/topic-${realHeadSha}-scope-decision.json`;
         const realProviderEvidenceFile = `.ephemeral/topic-${realHeadSha}-provider-scope-evidence.json`;
         const realValidator = path.join(
@@ -885,7 +921,7 @@ describe.skipIf(!jqAvailable)(
           "skills/play-validate-review-artifacts/scripts/review-artifacts.sh",
         );
         await writeJson(cwd, realFindingsFile, findingsEnvelope());
-        await writeFile(path.join(cwd, reviewBodyFile), "Review body");
+        await writeFile(path.join(cwd, realReviewBodyFile), "Review body");
         await writeJson(
           cwd,
           realPayloadFile,
@@ -928,7 +964,7 @@ describe.skipIf(!jqAvailable)(
               BASE_REF: wrongBaseRef,
               HEAD_SHA: realHeadSha,
               FINDINGS_FILE: realFindingsFile,
-              REVIEW_BODY_FILE: reviewBodyFile,
+              REVIEW_BODY_FILE: realReviewBodyFile,
               REVIEW_PAYLOAD_FILE: realPayloadFile,
               PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT: realValidator,
             }),
@@ -943,7 +979,7 @@ describe.skipIf(!jqAvailable)(
           BASE_REF: baseSha,
           HEAD_SHA: realHeadSha,
           FINDINGS_FILE: realFindingsFile,
-          REVIEW_BODY_FILE: reviewBodyFile,
+          REVIEW_BODY_FILE: realReviewBodyFile,
           REVIEW_PAYLOAD_FILE: realPayloadFile,
           PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT: realValidator,
         });
@@ -972,6 +1008,7 @@ describe.skipIf(!jqAvailable)(
         ).stdout.trim();
         const realFindingsFile = `.ephemeral/topic-${realHeadSha}-findings.json`;
         const realPayloadFile = `.ephemeral/topic-${realHeadSha}-review-payload.json`;
+        const realReviewBodyFile = `.ephemeral/pr-${prNumber}-${realHeadSha}-review-body.md`;
         const realScopeDecisionFile = `.ephemeral/topic-${realHeadSha}-scope-decision.json`;
         const realProviderEvidenceFile = `.ephemeral/topic-${realHeadSha}-provider-scope-evidence.json`;
         const realValidator = path.join(
@@ -979,7 +1016,7 @@ describe.skipIf(!jqAvailable)(
           "skills/play-validate-review-artifacts/scripts/review-artifacts.sh",
         );
         await writeJson(cwd, realFindingsFile, findingsEnvelope());
-        await writeFile(path.join(cwd, reviewBodyFile), "Review body");
+        await writeFile(path.join(cwd, realReviewBodyFile), "Review body");
         await writeJson(
           cwd,
           realPayloadFile,
@@ -1021,7 +1058,7 @@ describe.skipIf(!jqAvailable)(
             BASE_REF: baseSha,
             HEAD_SHA: realHeadSha,
             FINDINGS_FILE: realFindingsFile,
-            REVIEW_BODY_FILE: reviewBodyFile,
+            REVIEW_BODY_FILE: realReviewBodyFile,
             REVIEW_PAYLOAD_FILE: realPayloadFile,
             PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT: realValidator,
           }),

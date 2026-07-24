@@ -1132,12 +1132,27 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(renderedPrReview).toContain(
         "review worktree HEAD changed since handoff; refusing stale review",
       );
-      expect(renderedPrReview).toContain("VALIDATED_REVIEW_PAYLOAD_FILE");
-      expect(renderedPrReview).toContain(
-        "validated review payload path exists but is not a regular file",
+      const renderedPrReviewPhase6 = sliceRenderedSection(
+        renderedPrReview,
+        "## Phase 6: Post",
+        "## Phase 7: Cleanup",
       );
-      expect(renderedPrReview).toContain(
-        "approved review validation failed; refusing to invoke gh api",
+      const materializeIndex = renderedPrReviewPhase6.indexOf(
+        "materialize-validated-review-payload",
+      );
+      const providerIndex = renderedPrReviewPhase6.indexOf(
+        "gh api repos/{owner}/{repo}/pulls/<N>/reviews",
+      );
+      expect(materializeIndex).toBeGreaterThanOrEqual(0);
+      expect(providerIndex).toBeGreaterThan(materializeIndex);
+      const materializationGate = renderedPrReviewPhase6.slice(
+        materializeIndex,
+        providerIndex,
+      );
+      expect(materializationGate).toContain("VALIDATED_REVIEW_PAYLOAD_FILE");
+      expect(materializationGate).toContain("|| exit 1");
+      expect(renderedPrReviewPhase6.slice(providerIndex)).toContain(
+        '--input "$VALIDATED_REVIEW_PAYLOAD_FILE"',
       );
       expect(renderedPrReview).not.toContain(
         "Create review with inline comments** (primary posting method)",

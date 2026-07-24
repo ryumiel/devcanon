@@ -57,7 +57,7 @@ updates are valid only when the matching row says so.
 | LC-05 | `present-preview`             | `gated`               | `gated`    | Existing or supplied `RESULT_FILE`, fresh `PRESENTED_AT`, `PRESENTATION_STATUS`, `UPDATED_AT`; the helper refreshes `validation.result_manifest.sha256` from the validated result file  |
 | LC-06 | `abort`                       | `reviewed`            | `aborted`  | `FINISHED_AT`, `TERMINAL_REASON`, `UPDATED_AT`                                                                                                                                          |
 | LC-07 | `abort`                       | `gated`               | `aborted`  | `FINISHED_AT`, `TERMINAL_REASON`, `UPDATED_AT`                                                                                                                                          |
-| LC-08 | `record-post-success`         | `gated`               | `posted`   | `APPROVED_REVIEW_FILE`, `FINISHED_AT`, `GITHUB_POSTED_AT`, `UPDATED_AT`                                                                                                                 |
+| LC-08 | `record-post-success`         | `gated`               | `posted`   | `APPROVED_REVIEW_FILE`, `VALIDATED_REVIEW_PAYLOAD_FILE`, `FINISHED_AT`, `GITHUB_POSTED_AT`, `UPDATED_AT`                                                                                |
 | LC-09 | `record-failure`              | `created`             | `failed`   | `FINISHED_AT`, `FAILURE_PHASE`, `FAILURE_REASON`, `FAILURE_RECOVERABILITY`, `UPDATED_AT`                                                                                                |
 | LC-10 | `record-failure`              | `reviewed`            | `failed`   | `FINISHED_AT`, `FAILURE_PHASE`, `FAILURE_REASON`, `FAILURE_RECOVERABILITY`, `UPDATED_AT`                                                                                                |
 | LC-11 | `record-failure`              | `gated`               | `failed`   | Pre-approval failure phase, `FINISHED_AT`, `FAILURE_REASON`, `FAILURE_RECOVERABILITY`, `UPDATED_AT`                                                                                     |
@@ -115,10 +115,11 @@ GitHub post metadata is phase-scoped:
 - `posted` writes set `github_post_attempted=true`,
   `github_post_result=succeeded`, and require `GITHUB_POSTED_AT`.
 
-The lease stores a direct-child validated payload pointer only after
-approved-review validation produced a payload copy. That pointer is cleanup
-evidence only when it is derived from the PR number and review head and matches
-the frozen approved-review payload.
+The lease stores the existing direct-child `validated_payload_file` only after
+the approved-review helper materializes a validated payload. That pointer is
+cleanup evidence only when the helper validates the complete approved-review
+artifact, its canonical paths and digests, and the pointer is derived from the
+PR number and review head.
 
 ## Read-Only Status
 
@@ -182,7 +183,9 @@ The policy selects which families are required:
   policies require a presented status.
 - Gated result: presentation status and timestamp must be current for the
   presented preview.
-- Approved-review: review head and payload commit must bind to the gated result.
+- Approved-review: the authoritative helper validates the complete
+  `pr-review/approved-review/v1` artifact, review head, canonical body path,
+  source paths, digests, and payload before its body and payload become owned.
 - Validated payload copy: direct-child path must match the approved-review
   payload.
 

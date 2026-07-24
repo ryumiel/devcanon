@@ -613,7 +613,7 @@ async function makeManifestWorkspace(
   const scopeFile = `.ephemeral/topic-${headSha}-scope-decision.json`;
   const handoffFile = `.ephemeral/pr-432-${headSha}-handoff.json`;
   const resultFile = `.ephemeral/pr-432-${headSha}-result.json`;
-  const reviewBodyFile = `.ephemeral/topic-${headSha}-review-body.md`;
+  const reviewBodyFile = `.ephemeral/pr-432-${headSha}-review-body.md`;
   const previewFile = `.ephemeral/topic-${headSha}-review-preview.md`;
   const providerScopeEvidenceFile = `.ephemeral/topic-${headSha}-provider-scope-evidence.json`;
   const providerPrDiffRange = `${baseSha}..${headSha}`;
