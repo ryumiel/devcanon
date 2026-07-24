@@ -1535,6 +1535,42 @@ describe("rendered phase artifact smoke coverage", () => {
     }
   });
 
+  it("renders play-review terminal role-result and critic-eligibility contracts for both targets", () => {
+    for (const target of ["claude", "codex"] as const) {
+      const workflow = bodies[`play-review:${target}`];
+      const phase3 = sliceRenderedSection(
+        workflow,
+        "## Phase 3: Spawn agents",
+        "## Phase 4: Sub-checks",
+      );
+      const phase5 = sliceRenderedSection(
+        workflow,
+        "## Phase 5: Critic verification",
+        "## Phase 5.5: Finding Pattern Synthesis",
+      );
+      const normalizedPhase3 = normalizeRenderedWhitespace(phase3);
+      const normalizedPhase5 = normalizeRenderedWhitespace(phase5);
+
+      expectSubstringsInOrder(normalizedPhase3, [
+        "COMPLETE_WITH_FINDINGS",
+        "COMPLETE_NO_FINDINGS",
+        "NEEDS_CONTEXT",
+        "FAILED",
+      ]);
+      expect(normalizedPhase3).toContain(
+        "Capture the returned disposition, or controller-observed orchestration failure, before cleanup or supersession",
+      );
+      expect(normalizedPhase3).toContain(
+        "Silence, waiting, timeout, interruption, and nudging are nonterminal recovery observations, never `COMPLETE_NO_FINDINGS`",
+      );
+      expect(normalizedPhase5).toContain(
+        "every selected topical route has captured an allowed terminal child result or controller-observed orchestration failure",
+      );
+      expect(normalizedPhase5).toContain("critic_not_required: zero blockers");
+      expect(normalizedPhase5).toContain("do not spawn D10");
+    }
+  });
+
   it("renders the play-brainstorm design review option menu for both targets", () => {
     for (const target of ["claude", "codex"] as const) {
       const playBrainstorm = bodies[`play-brainstorm:${target}`];

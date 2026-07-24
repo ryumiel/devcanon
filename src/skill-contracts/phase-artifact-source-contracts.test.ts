@@ -1162,6 +1162,81 @@ describe("phase artifact source contracts", () => {
     );
   });
 
+  it("defines and gates play-review terminal role results before lifecycle cleanup", async () => {
+    const workflow = await readSkillSource("play-review");
+    const phase3 = getMarkdownSection(workflow, "Phase 3: Spawn agents");
+    const phase5 = getMarkdownSection(workflow, "Phase 5: Critic verification");
+    const normalizedPhase3 = normalizeWhitespace(phase3);
+    const normalizedPhase5 = normalizeWhitespace(phase5);
+
+    let previousDispositionIndex = -1;
+    for (const disposition of [
+      "COMPLETE_WITH_FINDINGS",
+      "COMPLETE_NO_FINDINGS",
+      "NEEDS_CONTEXT",
+      "FAILED",
+    ]) {
+      const dispositionIndex = normalizedPhase3.indexOf(
+        disposition,
+        previousDispositionIndex + 1,
+      );
+      expect(dispositionIndex).toBeGreaterThan(previousDispositionIndex);
+      previousDispositionIndex = dispositionIndex;
+    }
+    expect(normalizedPhase3).toContain(
+      "D7-D9 topical reviewer and D10 critic must return exactly one disposition",
+    );
+    expect(normalizedPhase3).toContain(
+      "`COMPLETE_WITH_FINDINGS`: completed checks, final report, findings, and finding count",
+    );
+    expect(normalizedPhase3).toContain(
+      "`COMPLETE_NO_FINDINGS`: completed checks, final report, and finding count of zero",
+    );
+    expect(normalizedPhase3).toContain(
+      "`NEEDS_CONTEXT`: the exact missing input and completed partial checks",
+    );
+    expect(normalizedPhase3).toContain(
+      "`FAILED`: the failure class and safe partial results when available",
+    );
+    expect(normalizedPhase3).toContain(
+      "Capture the returned disposition, or controller-observed orchestration failure, before cleanup or supersession",
+    );
+    expect(normalizedPhase3).toContain(
+      "Silence, waiting, timeout, interruption, and nudging are nonterminal recovery observations, never `COMPLETE_NO_FINDINGS`",
+    );
+    expect(normalizedPhase3).toContain(
+      "controller records an observed orchestration failure rather than fabricating a child disposition",
+    );
+    expect(normalizedPhase3).toContain(
+      "Valid: a Code-quality reviewer completes all checks and returns `COMPLETE_WITH_FINDINGS` with checks, report, and count",
+    );
+    expect(normalizedPhase3).toContain(
+      "Invalid single-dimension cases: a nonterminal observation presented as a child result",
+    );
+    expect(normalizedPhase3).toContain(
+      "a completed disposition without completed-check evidence",
+    );
+    expect(normalizedPhase3).toContain(
+      "cleanup or supersession before capture",
+    );
+    let previousGateIndex = -1;
+    for (const gateStep of [
+      "every selected topical route has captured an allowed terminal child result or controller-observed orchestration failure",
+      "critic_not_required: zero blockers",
+      "do not spawn D10",
+    ]) {
+      const gateIndex = normalizedPhase5.indexOf(
+        gateStep,
+        previousGateIndex + 1,
+      );
+      expect(gateIndex).toBeGreaterThan(previousGateIndex);
+      previousGateIndex = gateIndex;
+    }
+    expect(normalizedPhase5).toContain(
+      "Successful sibling findings remain usable in partial fanout",
+    );
+  });
+
   it("keeps root-owned issue research validation, report, persistence, and failure contracts in source", async () => {
     const issuePrimingWorkflow = await readSkillSource(
       "issue-priming-workflow",

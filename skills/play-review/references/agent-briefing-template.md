@@ -39,6 +39,18 @@ them forward.
 Open with one or two short narrative sentences naming what the
 implementation got right before the findings list.
 
+Immediately after the required checks, return exactly one terminal disposition.
+Do not wait for peers, a nudge, or an invitation. Silence, waiting, timeout,
+interruption, and nudging are nonterminal recovery observations, never
+`COMPLETE_NO_FINDINGS`.
+
+- `COMPLETE_WITH_FINDINGS`: completed checks, final report, findings, and
+  finding count.
+- `COMPLETE_NO_FINDINGS`: completed checks, final report, and finding count of
+  zero.
+- `NEEDS_CONTEXT`: the exact missing input and completed partial checks.
+- `FAILED`: the failure class and safe partial results when available.
+
 Sub-checks for this review:
 
 <sub-checks>

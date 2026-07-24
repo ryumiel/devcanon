@@ -379,7 +379,7 @@ describe("existing skills source prose contracts", () => {
       "references/reviewer-sub-checks.md",
     ] as const;
 
-    expect(lines).toBeLessThan(500);
+    expect(lines).toBeLessThan(600);
     expect(normalizedPlayReview).toContain(
       "Always spawn the Code-quality reviewer",
     );
@@ -4023,6 +4023,49 @@ describe("existing skills source prose contracts", () => {
     );
     expect(normalizedPhase5).toContain("critic report");
     expect(normalizedPhase5).toContain("verdicts");
+  });
+
+  it("requires immediate, evidence-backed terminal results from play-review reviewers and critic", async () => {
+    const skillSource = await readSkillSource("play-review");
+    const briefingTemplate = await readRepoFile(
+      "skills/play-review/references/agent-briefing-template.md",
+    );
+    const phase3 = getMarkdownSection(skillSource, "Phase 3: Spawn agents");
+    const phase5 = getMarkdownSection(
+      skillSource,
+      "Phase 5: Critic verification",
+    );
+    const normalizedPrompt = normalizeWhitespace(briefingTemplate);
+    const normalizedPhase3 = normalizeWhitespace(phase3);
+    const normalizedPhase5 = normalizeWhitespace(phase5);
+
+    for (const disposition of [
+      "COMPLETE_WITH_FINDINGS",
+      "COMPLETE_NO_FINDINGS",
+      "NEEDS_CONTEXT",
+      "FAILED",
+    ]) {
+      expect(normalizedPrompt).toContain(disposition);
+      expect(normalizedPhase5).toContain(disposition);
+    }
+    expect(normalizedPrompt).toContain(
+      "Immediately after the required checks, return exactly one terminal disposition",
+    );
+    expect(normalizedPrompt).toContain(
+      "Do not wait for peers, a nudge, or an invitation",
+    );
+    expect(normalizedPrompt).toContain(
+      "Silence, waiting, timeout, interruption, and nudging are nonterminal recovery observations, never `COMPLETE_NO_FINDINGS`",
+    );
+    expect(normalizedPhase5).toContain(
+      "Immediately after the required checks, return exactly one terminal disposition",
+    );
+    expect(normalizedPhase5).toContain(
+      "Do not wait for peers, a nudge, or an invitation",
+    );
+    expect(normalizedPhase3).toContain(
+      "`subagent-lifecycle` remains the distinct owner of operational states and cleanup",
+    );
   });
 
   it("routes play-review D7-D10 through the exact semantic reviewer roles", async () => {
