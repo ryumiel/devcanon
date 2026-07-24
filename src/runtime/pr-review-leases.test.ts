@@ -3558,6 +3558,48 @@ describe("pr-review lease discovery", () => {
     });
   });
 
+  it("accepts reordered approved-review payload objects during discovery", async () => {
+    await withDiscoveryOnlyApprovedReviewFixture(async (fixture) => {
+      await fixture.rewriteApprovedEvidence(
+        reverseJsonObject(fixture.canonicalPayload) as Record<string, unknown>,
+      );
+      await fixture.expectTerminalDiscovery();
+    });
+  });
+
+  it.each(["result", "handoff"])(
+    "rejects a result artifact with a foreign declared %s path during discovery",
+    async (kind) => {
+      await withDiscoveryOnlyApprovedReviewFixture(async (fixture) => {
+        const foreign = `.ephemeral/foreign-${kind}.txt`;
+        await writeFile(path.join(fixture.worktreePath, foreign), "foreign\n");
+        const result = JSON.parse(
+          await readFile(fixture.resultPath, "utf8"),
+        ) as {
+          artifacts: Record<string, unknown>;
+          digests: Record<string, unknown>;
+        };
+        if (kind === "result") {
+          result.artifacts.rendered_preview_file = foreign;
+          result.digests.rendered_preview_sha256 = await sha256File(
+            path.join(fixture.worktreePath, foreign),
+          );
+        } else {
+          result.artifacts.handoff_file = foreign;
+        }
+        await writeFile(fixture.resultPath, `${JSON.stringify(result)}\n`);
+        const lease = JSON.parse(fixture.originalLease) as {
+          validation: { result_manifest: { sha256: string } };
+        };
+        lease.validation.result_manifest.sha256 = await sha256File(
+          fixture.resultPath,
+        );
+        await writeFile(fixture.leasePath, `${JSON.stringify(lease)}\n`);
+        await fixture.expectInvalidDiscovery();
+      });
+    },
+  );
+
   it.each([
     {
       name: "dirty",
@@ -5403,6 +5445,20 @@ async function readLease(
   return JSON.parse(await readFile(path.join(primary, leaseFile), "utf8"));
 }
 
+function reverseJsonObject(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(reverseJsonObject);
+  }
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value)
+        .reverse()
+        .map(([key, nested]) => [key, reverseJsonObject(nested)]),
+    );
+  }
+  return value;
+}
+
 async function sha256File(file: string): Promise<string> {
   return createHash("sha256")
     .update(await readFile(file))
@@ -5841,6 +5897,7 @@ type DiscoveryOnlyApprovedReviewFixture = {
   approvedPath: string;
   validatedPayloadPath: string;
   reviewPayloadPath: string;
+  resultPath: string;
   originalLease: string;
   originalApproved: string;
   originalValidatedPayload: string;
@@ -5849,6 +5906,7 @@ type DiscoveryOnlyApprovedReviewFixture = {
   scopeDecisionPath: string;
   rewriteApprovedEvidence: (payload?: Record<string, unknown>) => Promise<void>;
   expectInvalidDiscovery: () => Promise<void>;
+  expectTerminalDiscovery: () => Promise<void>;
 };
 
 async function withDiscoveryOnlyApprovedReviewFixture(
@@ -5996,6 +6054,20 @@ async function withDiscoveryOnlyApprovedReviewFixture(
         active_leases: [{ lease_file: workspace.leaseFile, status: "invalid" }],
       });
     };
+    const expectTerminalDiscovery = async (): Promise<void> => {
+      const result = await runPrReviewLeasesCommand(["discover"]);
+      expect(result.exitCode, result.stderr).toBe(0);
+      expect(JSON.parse(result.stdout)).toMatchObject({
+        disposition: "cleanup-required",
+        active_leases: [
+          {
+            lease_file: workspace.leaseFile,
+            status: "terminal",
+            reason: "terminal-lease",
+          },
+        ],
+      });
+    };
     const originalLease = await readFile(
       path.join(workspace.primary, workspace.leaseFile),
       "utf8",
@@ -6014,6 +6086,7 @@ async function withDiscoveryOnlyApprovedReviewFixture(
       approvedPath,
       validatedPayloadPath,
       reviewPayloadPath,
+      resultPath: path.join(workspace.worktree, workspace.resultFile),
       originalLease,
       originalApproved,
       originalValidatedPayload,
@@ -6022,6 +6095,7 @@ async function withDiscoveryOnlyApprovedReviewFixture(
       scopeDecisionPath,
       rewriteApprovedEvidence,
       expectInvalidDiscovery,
+      expectTerminalDiscovery,
     });
   } finally {
     process.chdir(originalCwd);
@@ -6149,7 +6223,7 @@ async function writeResultArtifact(
     },
     base_ref: "main",
     head_ref: "topic",
-    review_scope_base_ref: reviewHead,
+    review_scope_base_ref: reviewBase,
     active_diff_range: providerPrDiffRange,
     full_pr_diff_range: providerPrDiffRange,
     review_head_sha: reviewHead,

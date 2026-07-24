@@ -3648,7 +3648,7 @@ function uniqueSorted(values: readonly string[]): string[] {
   return [...new Set(values)].sort();
 }
 
-function jsonEqual(left: unknown, right: unknown): boolean {
+export function jsonEqual(left: unknown, right: unknown): boolean {
   if (left === right) {
     return true;
   }

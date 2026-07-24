@@ -21,6 +21,15 @@ export interface PrReviewResultValidationInput {
   leaseHeadRef?: string;
 }
 
+export interface PrReviewHandoffValidationInput
+  extends Omit<
+    PrReviewResultValidationInput,
+    "resultFile" | "resultIdentityPath"
+  > {
+  handoffFile: string;
+  handoffIdentityPath?: string;
+}
+
 export interface PrReviewResultCommandAuthorityInput
   extends PrReviewResultValidationInput {
   prReviewDir?: string;
@@ -70,6 +79,19 @@ export async function validatePrReviewResultEvidence(
   });
 }
 
+export async function validatePrReviewHandoffEvidence(
+  input: PrReviewHandoffValidationInput,
+): Promise<JsonObject> {
+  return withCwd(input.worktreeRoot, async () => {
+    await requireRepoRoot();
+    return validateHandoffFile(
+      input.handoffFile,
+      input,
+      input.handoffIdentityPath ?? input.handoffFile,
+    );
+  });
+}
+
 export async function validatePrReviewResultCommandAuthority(
   input: PrReviewResultCommandAuthorityInput,
 ): Promise<void> {
@@ -108,7 +130,10 @@ export async function validatePrReviewResultCommandAuthority(
 
 async function validateHandoffFile(
   file: string,
-  input: PrReviewResultValidationInput,
+  input: Omit<
+    PrReviewResultValidationInput,
+    "resultFile" | "resultIdentityPath"
+  >,
   identityPath = file,
 ): Promise<JsonObject> {
   validateDirectChildPath("handoff", file, "-handoff.json");
@@ -122,7 +147,10 @@ async function validateHandoffFile(
 async function validateHandoffFacts(
   handoff: JsonObject,
   identityPath: string,
-  input: PrReviewResultValidationInput,
+  input: Omit<
+    PrReviewResultValidationInput,
+    "resultFile" | "resultIdentityPath"
+  >,
 ): Promise<void> {
   const manifestPrNumber = String(numberField(handoff, "pr_number"));
   if (manifestPrNumber !== String(input.prNumber)) {

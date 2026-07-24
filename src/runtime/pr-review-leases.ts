@@ -15,10 +15,15 @@ import { promisify } from "node:util";
 import { writeTextAtomically } from "./artifacts.js";
 import { requireDirectEphemeralChild } from "./paths.js";
 import { validateSharedContextFamilyBinding } from "./play-review-shared-context.js";
-import { validatePrReviewResultCommandAuthority } from "./pr-review-result-validation.js";
+import {
+  validatePrReviewHandoffEvidence,
+  validatePrReviewResultCommandAuthority,
+  validatePrReviewResultEvidence,
+} from "./pr-review-result-validation.js";
 import {
   PR_REVIEW_GOVERNED_PATH_PATTERN,
   PR_REVIEW_MAX_NARROW_CHANGED_FILES,
+  jsonEqual,
   validateCanonicalApprovedReviewArtifacts,
 } from "./review-artifacts.js";
 
@@ -2329,6 +2334,16 @@ function reviewHeadShaFromResultFile(resultFile: string): string {
   return match[1];
 }
 
+function reviewHeadShaFromHandoffFile(handoffFile: string): string {
+  const match = /^\.ephemeral\/pr-[0-9]+-([0-9a-f]{40})-handoff\.json$/u.exec(
+    handoffFile,
+  );
+  if (match === null) {
+    throw new PrReviewLeaseError("handoff path mismatch");
+  }
+  return match[1];
+}
+
 function inheritedHelperEnv(): Record<string, string> {
   const inherited: Record<string, string> = {};
   for (const key of [
@@ -2423,7 +2438,7 @@ async function validateReferencedArtifacts(
         lease.artifacts.validated_payload_file,
         "validated payload file",
       );
-      if (JSON.stringify(payload) !== JSON.stringify(approved.payload)) {
+      if (!jsonEqual(payload, approved.payload)) {
         throw new PrReviewLeaseError(
           "validated payload approved-review mismatch",
         );
@@ -2776,19 +2791,10 @@ async function collectOwnedEphemeralArtifacts(
   addOwnedPath(owned, lease.artifacts.handoff_file);
   addOwnedPath(owned, lease.artifacts.result_file);
 
-  if (lease.artifacts.handoff_file !== null) {
-    const handoff = await readRequiredJson<JsonObject>(
-      worktreePath,
-      lease.artifacts.handoff_file,
-      "handoff file",
-    );
-    collectHandoffArtifactPaths(owned, handoff);
-  }
   if (lease.artifacts.result_file !== null) {
-    const result = await readRequiredJson<JsonObject>(
+    const { result, handoff } = await validateDiscoveryResultArtifacts(
+      lease,
       worktreePath,
-      lease.artifacts.result_file,
-      "result file",
     );
     addOwnedPath(owned, stringField(result, "findings_file"));
     addOwnedPath(owned, nullableStringField(result, "review_body_file"));
@@ -2799,7 +2805,14 @@ async function collectOwnedEphemeralArtifacts(
     });
     addOwnedPath(owned, sharedContext.input_file);
     addOwnedPath(owned, sharedContext.context_file);
+    collectHandoffArtifactPaths(owned, handoff);
     collectResultArtifactPaths(owned, result);
+  } else if (lease.artifacts.handoff_file !== null) {
+    const handoff = await validateDiscoveryHandoffArtifacts(
+      lease,
+      worktreePath,
+    );
+    collectHandoffArtifactPaths(owned, handoff);
   }
   if (lease.artifacts.approved_review_file !== null) {
     if (options.discovery === true) {
@@ -2852,6 +2865,48 @@ async function collectOwnedEphemeralArtifacts(
   }
 
   return owned;
+}
+
+async function validateDiscoveryResultArtifacts(
+  lease: PrReviewLease,
+  worktreePath: string,
+): Promise<{ result: JsonObject; handoff: JsonObject }> {
+  const resultFile = lease.artifacts.result_file;
+  if (resultFile === null) {
+    throw new PrReviewLeaseError("result file missing");
+  }
+  const reviewHeadSha = reviewHeadShaFromResultFile(resultFile);
+  await validateResultDigest(lease, worktreePath, resultFile);
+  return validatePrReviewResultEvidence({
+    worktreeRoot: worktreePath,
+    resultFile,
+    resultIdentityPath: resultFile,
+    repository: lease.repository,
+    prNumber: lease.pr_number,
+    reviewHeadSha,
+    leaseBaseRef: lease.base_ref,
+    leaseHeadRef: lease.head_ref,
+  });
+}
+
+async function validateDiscoveryHandoffArtifacts(
+  lease: PrReviewLease,
+  worktreePath: string,
+): Promise<JsonObject> {
+  const handoffFile = lease.artifacts.handoff_file;
+  if (handoffFile === null) {
+    throw new PrReviewLeaseError("handoff file missing");
+  }
+  return validatePrReviewHandoffEvidence({
+    worktreeRoot: worktreePath,
+    handoffFile,
+    handoffIdentityPath: handoffFile,
+    repository: lease.repository,
+    prNumber: lease.pr_number,
+    reviewHeadSha: reviewHeadShaFromHandoffFile(handoffFile),
+    leaseBaseRef: lease.base_ref,
+    leaseHeadRef: lease.head_ref,
+  });
 }
 
 async function validateDiscoveryApprovedReviewOwnership(
@@ -3003,8 +3058,8 @@ async function validateDiscoveryApprovedReviewOwnership(
     },
   });
   if (
-    JSON.stringify(payload) !== JSON.stringify(expectedPayload) ||
-    JSON.stringify(approved.payload) !== JSON.stringify(expectedPayload)
+    !jsonEqual(payload, expectedPayload) ||
+    !jsonEqual(approved.payload, expectedPayload)
   ) {
     throw new PrReviewLeaseError("approved review discovery payload mismatch");
   }
@@ -3013,7 +3068,7 @@ async function validateDiscoveryApprovedReviewOwnership(
     validatedPayloadFile,
     "validated payload file",
   );
-  if (JSON.stringify(validatedPayload) !== JSON.stringify(expectedPayload)) {
+  if (!jsonEqual(validatedPayload, expectedPayload)) {
     throw new PrReviewLeaseError("validated payload approved-review mismatch");
   }
 }

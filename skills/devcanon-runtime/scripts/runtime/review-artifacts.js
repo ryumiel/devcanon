@@ -2802,7 +2802,7 @@ function hasExactKeys(object, keys) {
 function uniqueSorted(values) {
     return [...new Set(values)].sort();
 }
-function jsonEqual(left, right) {
+export function jsonEqual(left, right) {
     if (left === right) {
         return true;
     }

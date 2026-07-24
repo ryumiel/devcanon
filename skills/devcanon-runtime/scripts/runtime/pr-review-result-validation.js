@@ -33,6 +33,12 @@ export async function validatePrReviewResultEvidence(input) {
         return { result, handoff };
     });
 }
+export async function validatePrReviewHandoffEvidence(input) {
+    return withCwd(input.worktreeRoot, async () => {
+        await requireRepoRoot();
+        return validateHandoffFile(input.handoffFile, input, input.handoffIdentityPath ?? input.handoffFile);
+    });
+}
 export async function validatePrReviewResultCommandAuthority(input) {
     await withCwd(input.worktreeRoot, async () => {
         const { result, handoff } = await validatePrReviewResultEvidence({
