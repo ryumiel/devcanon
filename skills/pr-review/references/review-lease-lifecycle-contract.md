@@ -204,6 +204,41 @@ archive, then moves it to:
 .ephemeral/pr-${PR_NUMBER}-${WORKTREE_DIGEST}-${YYYYMMDDTHHMMSS}-${STATE}-archived-lease.json
 ```
 
+For a `posted` or `aborted` lease whose cleanup helper has recorded a closed
+`cleanup` observation with a valid non-null `removed_at` timestamp, LC-18 may
+archive after recreating the canonical worktree path without revalidating
+historical artifacts in that new checkout. The helper writes `removed_at` only
+after `git worktree remove` succeeds; a legacy `last_outcome: "removed"`
+observation without that marker remains subject to strict historical-artifact
+validation. That observation is narrowly scoped archive authority; it does not
+refresh or create artifact authority. In every other case, LC-18 keeps strict
+historical artifact validation before archive. A fresh `created` lease carries
+none of the terminal lease's artifact, validation, presentation, terminal,
+failure, GitHub, or cleanup metadata.
+
+The optional `cleanup` object is closed: it has exactly `last_outcome`,
+`last_checked_at`, and `removed_at`; outcomes are `removed`, `retained`,
+`skipped`, `failed`, or `null`; and non-null timestamps are RFC 3339 UTC at
+second precision with valid calendar dates. `removed_at` persists across later
+cleanup retries, but is set only by a successfully completed removal. Invalid
+cleanup metadata fails lease validation before archive or fresh creation.
+The exact historical two-key shape without `removed_at` is accepted only for
+backward-compatible strict validation; it can never grant archive authority.
+
+Cleanup and archive are independently retryable. An interruption before a
+successful helper-recorded removal leaves ordinary validation in force. An
+interruption after recorded removal may use the narrow archive authority on a
+later LC-18 attempt. Archive and fresh-creation retries must preserve historical
+evidence or a valid active lease, and invalid authority must leave the active
+lease unchanged without creating an archive. These are observable guarantees;
+they do not prescribe a private removal/archive write order.
+
+If removal succeeds but the helper cannot write the `removed` observation, the
+helper reports that metadata failure without recording a false `failed` cleanup
+outcome. The worktree is already gone, but no archive authority exists until the
+cleanup metadata can be safely repaired; automatic re-entry must remain blocked
+rather than treating the successful removal as a failed removal.
+
 ## Cleanup Classifier
 
 `inspect-worktree` and `cleanup-worktree` share one classifier. The classifier

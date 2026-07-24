@@ -103,6 +103,7 @@ export interface PrReviewLease {
   cleanup?: {
     last_outcome: "removed" | "retained" | "skipped" | "failed" | null;
     last_checked_at: string | null;
+    removed_at: string | null;
   };
 }
 
@@ -378,7 +379,7 @@ async function writeLease(): Promise<string> {
       validateResultAuthority: true,
       policy: policyForLifecycleWrite(row),
     });
-    if (archive !== null) {
+    if (archive !== null && !hasPostCleanupArchiveAuthority(previous)) {
       if (previous === null) {
         throw new PrReviewLeaseError("archived lease missing");
       }
@@ -596,34 +597,20 @@ async function cleanupWorktree(): Promise<string> {
     return cleanupOutput(outcome, decision);
   }
 
+  const args = ["-C", identity.primaryRoot, "worktree", "remove"];
+  if (decision.forceRemoveAllowed) {
+    args.push("-f");
+  }
+  args.push(identity.worktreePath);
   try {
-    if (shouldRecordCleanupMetadata(decision)) {
-      await recordCleanupMetadata(
-        identity,
-        decision.leaseState,
-        "removed",
-        shouldValidateCleanupMetadataArtifacts(decision),
-      );
-      decision.metadataOutcome = "removed";
-    }
-    const args = ["-C", identity.primaryRoot, "worktree", "remove"];
-    if (decision.forceRemoveAllowed) {
-      args.push("-f");
-    }
-    args.push(identity.worktreePath);
     await execFileAsync("git", args);
-    return cleanupOutput("removed", {
-      ...decision,
-      metadataOutcome: "removed",
-      message: "worktree removed",
-    });
   } catch {
     if (shouldRecordCleanupMetadata(decision)) {
       await recordCleanupMetadata(
         identity,
         decision.leaseState,
         "failed",
-        shouldValidateCleanupMetadataArtifacts(decision),
+        false,
       );
     }
     return cleanupOutput("failed", {
@@ -632,6 +619,21 @@ async function cleanupWorktree(): Promise<string> {
       message: "git worktree remove failed",
     });
   }
+
+  if (shouldRecordCleanupMetadata(decision)) {
+    await recordCleanupMetadata(
+      identity,
+      decision.leaseState,
+      "removed",
+      false,
+    );
+    decision.metadataOutcome = "removed";
+  }
+  return cleanupOutput("removed", {
+    ...decision,
+    metadataOutcome: "removed",
+    message: "worktree removed",
+  });
 }
 
 function shouldRecordCleanupMetadata(
@@ -795,12 +797,17 @@ async function recordCleanupMetadata(
       "lease state changed during cleanup metadata write",
     );
   }
+  const observedAt = nowTimestamp();
   const next: PrReviewLease = {
     ...lease,
     cleanup: {
       last_outcome:
         outcome === "" ? (lease.cleanup?.last_outcome ?? null) : outcome,
-      last_checked_at: nowTimestamp(),
+      last_checked_at: observedAt,
+      removed_at:
+        outcome === "removed"
+          ? observedAt
+          : (lease.cleanup?.removed_at ?? null),
     },
   };
   validateLeaseShape(next);
@@ -1453,6 +1460,7 @@ function validateLeaseShape(
       lease.validation.result_manifest.validated_at,
     );
   }
+  validateCleanupMetadata(lease.cleanup);
   if (
     lease.validation.result_manifest.sha256 !== null &&
     !SHA256_RE.test(lease.validation.result_manifest.sha256)
@@ -2397,6 +2405,51 @@ function assertLeaseObjectShape(lease: PrReviewLease): void {
   if (!isObject(lease.github)) {
     throw new PrReviewLeaseError("lease schema mismatch");
   }
+  if (lease.cleanup !== undefined && !isObject(lease.cleanup)) {
+    throw new PrReviewLeaseError("lease cleanup metadata mismatch");
+  }
+}
+
+function validateCleanupMetadata(cleanup: PrReviewLease["cleanup"]): void {
+  if (cleanup === undefined) return;
+  const keys = Object.keys(cleanup).sort();
+  const isLegacyCleanup =
+    keys.length === 2 &&
+    keys[0] === "last_checked_at" &&
+    keys[1] === "last_outcome";
+  const isCurrentCleanup =
+    keys.length === 3 &&
+    keys[0] === "last_checked_at" &&
+    keys[1] === "last_outcome" &&
+    keys[2] === "removed_at";
+  if (!isLegacyCleanup && !isCurrentCleanup) {
+    throw new PrReviewLeaseError("lease cleanup metadata mismatch");
+  }
+  if (
+    cleanup.last_outcome !== null &&
+    cleanup.last_outcome !== "removed" &&
+    cleanup.last_outcome !== "retained" &&
+    cleanup.last_outcome !== "skipped" &&
+    cleanup.last_outcome !== "failed"
+  ) {
+    throw new PrReviewLeaseError("lease cleanup outcome mismatch");
+  }
+  if (cleanup.last_checked_at !== null) {
+    validateTimestamp("cleanup.last_checked_at", cleanup.last_checked_at);
+  }
+  if (isCurrentCleanup && cleanup.removed_at !== null) {
+    validateTimestamp("cleanup.removed_at", cleanup.removed_at);
+  }
+}
+
+function hasPostCleanupArchiveAuthority(
+  previous: PrReviewLease | null,
+): boolean {
+  return (
+    previous !== null &&
+    (previous.state === "posted" || previous.state === "aborted") &&
+    typeof previous.cleanup?.removed_at === "string"
+  );
 }
 
 function assertExistingLeaseIdentity(
@@ -2626,6 +2679,11 @@ function parsePositiveInteger(name: string, value: string): number {
 
 function validateTimestamp(label: string, value: string): void {
   if (!TIMESTAMP_RE.test(value) || Number.isNaN(Date.parse(value))) {
+    throw new PrReviewLeaseError(
+      `${label} must be a UTC RFC3339 timestamp ending in Z`,
+    );
+  }
+  if (new Date(value).toISOString().replace(/\.\d{3}Z$/u, "Z") !== value) {
     throw new PrReviewLeaseError(
       `${label} must be a UTC RFC3339 timestamp ending in Z`,
     );

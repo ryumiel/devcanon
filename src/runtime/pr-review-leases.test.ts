@@ -960,6 +960,53 @@ describe("pr-review lease command validation", () => {
     }
   });
 
+  it("rejects malformed closed cleanup metadata", async () => {
+    const workspace = await makeGatedStatusWorkspace(
+      "pr-review-cleanup-shape-",
+    );
+
+    try {
+      process.chdir(workspace.physicalPrimary);
+      setLeaseCommandEnv(workspace.physicalPrimary, workspace.physicalWorktree);
+      process.env.LEASE_FILE = workspace.leaseFile;
+      for (const cleanup of [
+        {
+          last_outcome: "unknown",
+          last_checked_at: null,
+          removed_at: null,
+        },
+        {
+          last_outcome: "removed",
+          last_checked_at: "not-a-timestamp",
+          removed_at: "2026-06-11T00:03:00Z",
+        },
+        {
+          last_outcome: "removed",
+          last_checked_at: "2026-02-30T00:00:00Z",
+          removed_at: "2026-06-11T00:03:00Z",
+        },
+        {
+          last_outcome: "removed",
+          last_checked_at: "2026-06-11T00:03:00Z",
+          removed_at: "2026-06-11T00:03:00Z",
+          unexpected: true,
+        },
+      ]) {
+        const lease = await readLease(workspace.primary, workspace.leaseFile);
+        lease.cleanup = cleanup as PrReviewLease["cleanup"];
+        await writeFile(
+          path.join(workspace.primary, workspace.leaseFile),
+          `${JSON.stringify(lease, null, 2)}\n`,
+        );
+        const result = await runPrReviewLeasesCommand(["validate"]);
+        expect(result.exitCode).toBe(1);
+      }
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
+    }
+  });
+
   it("clears invalid strict failure evidence instead of rejecting failed writes", async () => {
     const workspace = await makeGatedStatusWorkspace(
       "pr-review-terminal-nested-drift-",
@@ -3012,6 +3059,219 @@ describe("pr-review lease Git cleanup safety", () => {
         await rm(workspace.tempRoot, { recursive: true, force: true });
       }
     }
+  });
+
+  it("archives helper-recorded removed terminal leases before fresh creation", async () => {
+    for (const state of ["posted", "aborted"] as const) {
+      const workspace = await makeGatedStatusWorkspace(
+        `pr-review-${state}-archive-after-cleanup-`,
+      );
+
+      try {
+        const prior =
+          state === "posted"
+            ? postedCommandLease({
+                leaseFile: workspace.leaseFile,
+                worktreePath: workspace.physicalWorktree,
+                worktreeDigest: workspace.worktreeDigest,
+                resultFile: workspace.resultFile,
+                resultSha256: workspace.resultSha256,
+                approvedReviewFile: `.ephemeral/topic-${workspace.reviewHead}-approved-review.json`,
+                validatedPayloadFile: `.ephemeral/pr-432-${workspace.reviewHead}-validated-review-payload.json`,
+              })
+            : {
+                ...(await readLease(workspace.primary, workspace.leaseFile)),
+                state: "aborted" as const,
+                updated_at: "2026-06-11T00:03:00Z",
+                terminal: {
+                  finished_at: "2026-06-11T00:03:00Z",
+                  reason: "user-aborted",
+                },
+              };
+        if (state === "posted") {
+          await writeApprovedReviewArtifact(
+            workspace.worktree,
+            prior.artifacts.approved_review_file ?? "",
+            workspace.reviewHead,
+          );
+          await writeValidatedPayloadArtifact(
+            workspace.worktree,
+            workspace.reviewHead,
+          );
+        }
+        await writeFile(
+          path.join(workspace.primary, workspace.leaseFile),
+          `${JSON.stringify(prior, null, 2)}\n`,
+        );
+        await writeFile(
+          path.join(workspace.primary, ".git", "info", "exclude"),
+          ".ephemeral/\n",
+        );
+        process.chdir(workspace.physicalPrimary);
+        setReadStatusEnv(workspace);
+        const cleanup = await runPrReviewLeasesCommand(["cleanup-worktree"]);
+        expect(cleanup.exitCode, state).toBe(0);
+        expect(cleanup.stdout, state).toContain("OUTCOME=removed");
+        const removedLease = await readLease(
+          workspace.primary,
+          workspace.leaseFile,
+        );
+        expect(removedLease.cleanup).toMatchObject({ last_outcome: "removed" });
+        expect(removedLease.cleanup?.removed_at).toMatch(
+          /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/u,
+        );
+        const removedAt = removedLease.cleanup?.removed_at;
+        const retry = await runPrReviewLeasesCommand(["cleanup-worktree"]);
+        expect(retry.exitCode, state).toBe(0);
+        expect(retry.stdout, state).toContain("OUTCOME=skipped");
+        const retriedLease = await readLease(
+          workspace.primary,
+          workspace.leaseFile,
+        );
+        expect(retriedLease.cleanup).toMatchObject({
+          last_outcome: "skipped",
+          removed_at: removedAt,
+        });
+        await execFileAsync(
+          "git",
+          ["worktree", "add", workspace.worktree, "review-topic"],
+          { cwd: workspace.primary },
+        );
+
+        process.chdir(workspace.physicalPrimary);
+        setLeaseCommandEnv(
+          workspace.physicalPrimary,
+          workspace.physicalWorktree,
+        );
+        process.env.LEASE_FILE = workspace.leaseFile;
+        process.env.STATE = "created";
+        process.env.BASE_REF = "main";
+        process.env.HEAD_REF = "topic";
+        process.env.CREATED_AT = "2026-06-11T00:04:00Z";
+        process.env.UPDATED_AT = "2026-06-11T00:04:00Z";
+
+        const result = await runPrReviewLeasesCommand(["write"]);
+        expect(result.exitCode, state).toBe(0);
+        const fresh = await readLease(workspace.primary, workspace.leaseFile);
+        expect(fresh).toMatchObject({
+          state: "created",
+          artifacts: {
+            handoff_file: null,
+            result_file: null,
+            approved_review_file: null,
+            validated_payload_file: null,
+          },
+        });
+        expect("cleanup" in fresh).toBe(false);
+        const entries = await readdir(
+          path.join(workspace.primary, ".ephemeral"),
+        );
+        expect(
+          entries.some((entry) =>
+            entry.includes(`-${state}-archived-lease.json`),
+          ),
+        ).toBe(true);
+      } finally {
+        process.chdir(originalCwd);
+        await rm(workspace.tempRoot, { recursive: true, force: true });
+      }
+    }
+  });
+
+  it("keeps legacy removed cleanup observations under strict archive validation", async () => {
+    const workspace = await makeGatedStatusWorkspace(
+      "pr-review-legacy-cleanup-authority-",
+    );
+
+    try {
+      const lease = await readLease(workspace.primary, workspace.leaseFile);
+      const legacy = {
+        ...lease,
+        state: "aborted" as const,
+        updated_at: "2026-06-11T00:03:00Z",
+        terminal: {
+          finished_at: "2026-06-11T00:03:00Z",
+          reason: "user-aborted",
+        },
+        cleanup: {
+          last_outcome: "removed" as const,
+          last_checked_at: "2026-06-11T00:03:00Z",
+        },
+      };
+      await writeFile(
+        path.join(workspace.primary, workspace.leaseFile),
+        `${JSON.stringify(legacy, null, 2)}\n`,
+      );
+      const before = await readFile(
+        path.join(workspace.primary, workspace.leaseFile),
+        "utf8",
+      );
+      await execFileAsync(
+        "git",
+        ["worktree", "remove", "-f", workspace.worktree],
+        { cwd: workspace.primary },
+      );
+      await execFileAsync(
+        "git",
+        ["worktree", "add", workspace.worktree, "review-topic"],
+        { cwd: workspace.primary },
+      );
+
+      process.chdir(workspace.physicalPrimary);
+      setLeaseCommandEnv(workspace.physicalPrimary, workspace.physicalWorktree);
+      process.env.LEASE_FILE = workspace.leaseFile;
+      process.env.STATE = "created";
+      process.env.BASE_REF = "main";
+      process.env.HEAD_REF = "topic";
+      process.env.CREATED_AT = "2026-06-11T00:04:00Z";
+      process.env.UPDATED_AT = "2026-06-11T00:04:00Z";
+
+      const result = await runPrReviewLeasesCommand(["write"]);
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain("result file missing");
+      await expect(
+        readFile(path.join(workspace.primary, workspace.leaseFile), "utf8"),
+      ).resolves.toBe(before);
+      const entries = await readdir(path.join(workspace.primary, ".ephemeral"));
+      expect(
+        entries.some((entry) => entry.includes("-archived-lease.json")),
+      ).toBe(false);
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps post-removal metadata writes outside git-removal failure handling", async () => {
+    const source = await readFile(
+      path.join(process.cwd(), "src/runtime/pr-review-leases.ts"),
+      "utf8",
+    );
+    const cleanupStart = source.indexOf("async function cleanupWorktree()");
+    const cleanupEnd = source.indexOf(
+      "\nfunction shouldRecordCleanupMetadata",
+      cleanupStart,
+    );
+    const cleanupSource = source.slice(cleanupStart, cleanupEnd);
+    const removalCall = cleanupSource.indexOf(
+      'await execFileAsync("git", args);',
+    );
+    const removalCatch = cleanupSource.indexOf("  } catch {", removalCall);
+    const postRemovalSuccessPath = cleanupSource.indexOf(
+      "\n\n  if (shouldRecordCleanupMetadata(decision)) {",
+      removalCatch,
+    );
+    const removedMetadata = cleanupSource.indexOf(
+      '"removed",\n      false,',
+      postRemovalSuccessPath,
+    );
+
+    expect(cleanupStart).toBeGreaterThan(-1);
+    expect(cleanupEnd).toBeGreaterThan(cleanupStart);
+    expect(removalCall).toBeGreaterThan(-1);
+    expect(removalCatch).toBeGreaterThan(removalCall);
+    expect(postRemovalSuccessPath).toBeGreaterThan(removalCatch);
+    expect(removedMetadata).toBeGreaterThan(postRemovalSuccessPath);
   });
 
   it("skips cleanup targets that are clean separate clones, not registered worktrees", async () => {

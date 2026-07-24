@@ -132,6 +132,11 @@ value domains, and cleanup artifact ownership rules. Keep `SKILL.md`
 operator-facing; update the reference and focused tests when lease lifecycle
 behavior changes.
 
+After helper-recorded terminal worktree removal, LC-18 may archive and create a
+fresh lease when the lifecycle reference's closed cleanup-authority rules pass.
+This does not relax normal validation for other terminal re-entry attempts;
+consult the lifecycle reference for retry and failure-atomicity behavior.
+
 Fresh PR reviews with no existing worktree follow the same Phase 1 through
 Phase 6 flow as before, except the lease is created and updated at lifecycle
 boundaries:
