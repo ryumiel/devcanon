@@ -1261,6 +1261,12 @@ describe("phase artifact source contracts", () => {
       "`COMPLETE_NO_FINDINGS` is unreachable for a spawned D10",
     );
     expect(normalizedPhase5).toContain(
+      "The shared list does not make `COMPLETE_NO_FINDINGS` semantically valid for a spawned D10",
+    );
+    expect(normalizedPhase5).toContain(
+      "the controller rejects a returned `COMPLETE_NO_FINDINGS` as a semantic rejection before using the unverified-critic fallback",
+    );
+    expect(normalizedPhase5).toContain(
       "If every current merged blocker is `INVALID` or `DOWNGRADE`, or every combined input is an unresolved carry-forward candidate, D10 still returns `COMPLETE_WITH_FINDINGS` because its combined outcome vector is nonempty",
     );
     expect(normalizedPhase5).toContain(

@@ -356,11 +356,16 @@ every combined input is an unresolved carry-forward candidate, D10 still returns
 
 The D10 prompt must say: “Immediately after the required checks, return exactly
 one terminal disposition. Do not wait for peers, a nudge, or an invitation.” It
-must return exactly one of the same four role-result dispositions:
+must name the same four role-result dispositions:
 `COMPLETE_WITH_FINDINGS` with completed checks, final report, verdict findings,
 and count; `COMPLETE_NO_FINDINGS` with completed checks, final report, and count
 of zero; `NEEDS_CONTEXT` with the exact missing input and completed partial
 checks; or `FAILED` with failure class and safe partial results when available.
+The shared list does not make `COMPLETE_NO_FINDINGS` semantically valid for a
+spawned D10: its nonempty input vector requires `COMPLETE_WITH_FINDINGS` for a
+completed critic result, and the controller rejects a returned
+`COMPLETE_NO_FINDINGS` as a semantic rejection before using the unverified-critic
+fallback.
 Silence, waiting, timeout, interruption, and nudging are nonterminal recovery
 observations, never `COMPLETE_NO_FINDINGS`.
 
