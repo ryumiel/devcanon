@@ -76,18 +76,21 @@ afterEach(async () => {
 });
 
 describe("pr-review Phase 5 audit summary renderer", () => {
-  it("preserves literal POSIX backslashes at physical I/O boundaries", async () => {
-    const workspace = await makeManifestWorkspace(
-      "pr-review-manifest-physical-\\-",
-    );
-    setSummaryEnv(workspace);
-    process.chdir(workspace.tempRoot);
+  it.skipIf(process.platform === "win32")(
+    "preserves literal POSIX backslashes at physical I/O boundaries",
+    async () => {
+      const workspace = await makeManifestWorkspace(
+        "pr-review-manifest-physical-\\-",
+      );
+      setSummaryEnv(workspace);
+      process.chdir(workspace.tempRoot);
 
-    const result = await runManifestCommand(["render-phase5-audit-summary"]);
+      const result = await runManifestCommand(["render-phase5-audit-summary"]);
 
-    expect(result.exitCode, result.stderr).toBe(0);
-    expect(result.stdout).toContain(workspace.physicalWorktree);
-  });
+      expect(result.exitCode, result.stderr).toBe(0);
+      expect(result.stdout).toContain(workspace.physicalWorktree);
+    },
+  );
 
   it("renders all mandatory audit families from the worktree and read-only lease status", async () => {
     const workspace = await makeManifestWorkspace(

@@ -134,6 +134,33 @@ describe("pr-review Windows canonical identity lifecycle", () => {
   );
 });
 
+describe("pr-review absent worktree identity derivation", () => {
+  it("derives the same lease path after the absolute worktree path is removed", async () => {
+    const workspace = await makeRegisteredWorkspace(
+      "pr-review-missing-identity-",
+    );
+
+    try {
+      process.chdir(workspace.physicalPrimary);
+      setLeaseCommandEnv(workspace.physicalPrimary, workspace.physicalWorktree);
+      const beforeRemoval = await runPrReviewLeasesCommand(["derive-path"]);
+      expect(beforeRemoval.exitCode, beforeRemoval.stderr).toBe(0);
+
+      await rm(workspace.worktree, { recursive: true, force: true });
+
+      const afterRemoval = await runPrReviewLeasesCommand(["derive-path"]);
+      expect(afterRemoval.exitCode, afterRemoval.stderr).toBe(0);
+      expect(afterRemoval.stdout).toBe(beforeRemoval.stdout);
+
+      const write = await runPrReviewLeasesCommand(["write"]);
+      expect(write.exitCode).toBe(1);
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
+    }
+  });
+});
+
 const identity = {
   repository: "owner/repo",
   prNumber: 432,

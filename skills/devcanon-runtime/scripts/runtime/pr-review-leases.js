@@ -835,7 +835,7 @@ async function readIdentity(requireLeaseFile) {
     if (canonicalLeaseIdentityPath(primaryRoot) !== canonicalLeaseIdentityPath(cwd)) {
         throw new PrReviewLeaseError("PRIMARY_REPOSITORY_ROOT must match the primary repository root");
     }
-    const physicalWorktreePath = await realpath(requiredEnv("WORKTREE_PATH"));
+    const physicalWorktreePath = await resolveWorktreePathForIdentity(requiredEnv("WORKTREE_PATH"), requireLeaseFile);
     const worktreePath = canonicalLeaseIdentityPath(physicalWorktreePath);
     if (canonicalLeaseIdentityPath(physicalWorktreePath) ===
         canonicalLeaseIdentityPath(primaryRoot)) {
@@ -860,6 +860,24 @@ async function readIdentity(requireLeaseFile) {
         worktreeDigest,
         leaseFile,
     };
+}
+async function resolveWorktreePathForIdentity(worktreePath, requirePhysicalTarget) {
+    if (!isAbsoluteLeaseIdentityPath(worktreePath)) {
+        throw new PrReviewLeaseError("WORKTREE_PATH must be absolute");
+    }
+    if (requirePhysicalTarget) {
+        return await realpath(worktreePath);
+    }
+    try {
+        return await realpath(worktreePath);
+    }
+    catch (err) {
+        const code = err.code;
+        if (code !== "ENOENT" && code !== "ENOTDIR") {
+            throw err;
+        }
+        return path.resolve(worktreePath);
+    }
 }
 async function readAuditFailureIdentity() {
     const repository = requiredEnv("REPOSITORY");

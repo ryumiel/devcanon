@@ -1318,7 +1318,10 @@ async function readIdentity(requireLeaseFile: boolean): Promise<LeaseIdentity> {
       "PRIMARY_REPOSITORY_ROOT must match the primary repository root",
     );
   }
-  const physicalWorktreePath = await realpath(requiredEnv("WORKTREE_PATH"));
+  const physicalWorktreePath = await resolveWorktreePathForIdentity(
+    requiredEnv("WORKTREE_PATH"),
+    requireLeaseFile,
+  );
   const worktreePath = canonicalLeaseIdentityPath(physicalWorktreePath);
   if (
     canonicalLeaseIdentityPath(physicalWorktreePath) ===
@@ -1347,6 +1350,27 @@ async function readIdentity(requireLeaseFile: boolean): Promise<LeaseIdentity> {
     worktreeDigest,
     leaseFile,
   };
+}
+
+async function resolveWorktreePathForIdentity(
+  worktreePath: string,
+  requirePhysicalTarget: boolean,
+): Promise<string> {
+  if (!isAbsoluteLeaseIdentityPath(worktreePath)) {
+    throw new PrReviewLeaseError("WORKTREE_PATH must be absolute");
+  }
+  if (requirePhysicalTarget) {
+    return await realpath(worktreePath);
+  }
+  try {
+    return await realpath(worktreePath);
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code !== "ENOENT" && code !== "ENOTDIR") {
+      throw err;
+    }
+    return path.resolve(worktreePath);
+  }
 }
 
 async function readAuditFailureIdentity(): Promise<{
