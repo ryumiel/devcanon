@@ -688,7 +688,8 @@ async function discoverReviewLeases(): Promise<string> {
     canonicalResumableLease === undefined;
   const invalid =
     invalidLeaseFiles.length > 0 ||
-    activeLeases.some((lease) => lease.status === "invalid");
+    activeLeases.some((lease) => lease.status === "invalid") ||
+    archivedLeases.some((lease) => lease.status === "invalid");
   const cleanupLease = activeLeases.find((lease) => {
     if (lease.status === "cleanup-required") return true;
     if (lease.status !== "terminal") return false;
@@ -984,6 +985,7 @@ async function inspectActiveDiscoveryLease(
       unmanaged = await findUnmanagedEphemeralArtifacts(
         lease,
         physicalPathForIo(lease.worktree_path),
+        { discovery: true },
       );
     } catch {
       return {
@@ -2723,6 +2725,7 @@ async function resolveApprovedReviewHelper(): Promise<string> {
 async function findUnmanagedEphemeralArtifacts(
   lease: PrReviewLease,
   worktreePath: string,
+  options: { discovery?: boolean } = {},
 ): Promise<string[]> {
   const ephemeralPath = path.join(worktreePath, ".ephemeral");
   let entries: { name: string }[];
@@ -2735,7 +2738,11 @@ async function findUnmanagedEphemeralArtifacts(
     throw err;
   }
 
-  const owned = await collectOwnedEphemeralArtifacts(lease, worktreePath);
+  const owned = await collectOwnedEphemeralArtifacts(
+    lease,
+    worktreePath,
+    options,
+  );
   return entries
     .map((entry) => `.ephemeral/${entry.name}`)
     .filter((entryPath) => !owned.has(entryPath))
@@ -2745,6 +2752,7 @@ async function findUnmanagedEphemeralArtifacts(
 async function collectOwnedEphemeralArtifacts(
   lease: PrReviewLease,
   worktreePath: string,
+  options: { discovery?: boolean } = {},
 ): Promise<Set<string>> {
   const owned = new Set<string>();
   addOwnedPath(owned, lease.artifacts.handoff_file);
@@ -2776,6 +2784,18 @@ async function collectOwnedEphemeralArtifacts(
     collectResultArtifactPaths(owned, result);
   }
   if (lease.artifacts.approved_review_file !== null) {
+    if (options.discovery === true) {
+      const approved = await readRequiredJson<JsonObject>(
+        worktreePath,
+        lease.artifacts.approved_review_file,
+        "approved review file",
+      );
+      addOwnedPath(owned, stringField(approved, "review_body_file"));
+      addOwnedPath(owned, stringField(approved, "review_payload_file"));
+      addOwnedPath(owned, lease.artifacts.approved_review_file);
+      addOwnedPath(owned, lease.artifacts.validated_payload_file);
+      return owned;
+    }
     const result = await readRequiredJson<JsonObject>(
       worktreePath,
       lease.artifacts.result_file ?? "",

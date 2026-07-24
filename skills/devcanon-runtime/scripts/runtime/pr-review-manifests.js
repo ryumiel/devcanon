@@ -1039,11 +1039,11 @@ async function validateExecutionRoot(workingDirectory, reviewHeadSha) {
         fail("execution worktree HEAD mismatch");
     }
 }
-function normalizeExecutionWorkingDirectory(value) {
+export function normalizeExecutionWorkingDirectory(value, platform = process.platform) {
     if (!isAbsolutePath(value)) {
         fail("execution working_directory must be absolute");
     }
-    return normalizePathTextForComparison(value);
+    return normalizePathTextForComparison(value, platform);
 }
 async function guardedScopeBaseRef(scopeDecisionFile) {
     validateDirectChildPath("scope decision", scopeDecisionFile, "-scope-decision.json");
@@ -1422,7 +1422,11 @@ function digestMatchesNullable(file, digest) {
         ? digest === null
         : typeof digest === "string" && isSha256(digest);
 }
-function normalizePathTextForComparison(value) {
+export function normalizePathTextForComparison(value, platform = process.platform) {
+    const msysDrive = /^\/([A-Za-z])\/(.*)$/u.exec(value);
+    if (platform === "win32" && msysDrive !== null) {
+        return `${msysDrive[1]}:/${msysDrive[2]}`.toLowerCase();
+    }
     if (!/^[A-Za-z]:[\\/]/u.test(value))
         return value;
     return value.replace(/[\\/]+/gu, "/").toLowerCase();

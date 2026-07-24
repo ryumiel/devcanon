@@ -343,7 +343,8 @@ async function discoverReviewLeases() {
     const canonicalTargetRequiresCleanup = (canonicalWorktree.exists || canonicalWorktree.registered) &&
         canonicalResumableLease === undefined;
     const invalid = invalidLeaseFiles.length > 0 ||
-        activeLeases.some((lease) => lease.status === "invalid");
+        activeLeases.some((lease) => lease.status === "invalid") ||
+        archivedLeases.some((lease) => lease.status === "invalid");
     const cleanupLease = activeLeases.find((lease) => {
         if (lease.status === "cleanup-required")
             return true;
@@ -571,7 +572,7 @@ async function inspectActiveDiscoveryLease(identity, leaseFile, filenameDigest, 
     let unmanaged = [];
     if (observed.exists && observed.registered && !inspection.isSymbolicLink) {
         try {
-            unmanaged = await findUnmanagedEphemeralArtifacts(lease, physicalPathForIo(lease.worktree_path));
+            unmanaged = await findUnmanagedEphemeralArtifacts(lease, physicalPathForIo(lease.worktree_path), { discovery: true });
         }
         catch {
             return {
@@ -1838,7 +1839,7 @@ async function resolveApprovedReviewHelper() {
     }
     throw new PrReviewLeaseError("approved review artifact helper missing or not executable");
 }
-async function findUnmanagedEphemeralArtifacts(lease, worktreePath) {
+async function findUnmanagedEphemeralArtifacts(lease, worktreePath, options = {}) {
     const ephemeralPath = path.join(worktreePath, ".ephemeral");
     let entries;
     try {
@@ -1850,13 +1851,13 @@ async function findUnmanagedEphemeralArtifacts(lease, worktreePath) {
         }
         throw err;
     }
-    const owned = await collectOwnedEphemeralArtifacts(lease, worktreePath);
+    const owned = await collectOwnedEphemeralArtifacts(lease, worktreePath, options);
     return entries
         .map((entry) => `.ephemeral/${entry.name}`)
         .filter((entryPath) => !owned.has(entryPath))
         .sort();
 }
-async function collectOwnedEphemeralArtifacts(lease, worktreePath) {
+async function collectOwnedEphemeralArtifacts(lease, worktreePath, options = {}) {
     const owned = new Set();
     addOwnedPath(owned, lease.artifacts.handoff_file);
     addOwnedPath(owned, lease.artifacts.result_file);
@@ -1878,6 +1879,14 @@ async function collectOwnedEphemeralArtifacts(lease, worktreePath) {
         collectResultArtifactPaths(owned, result);
     }
     if (lease.artifacts.approved_review_file !== null) {
+        if (options.discovery === true) {
+            const approved = await readRequiredJson(worktreePath, lease.artifacts.approved_review_file, "approved review file");
+            addOwnedPath(owned, stringField(approved, "review_body_file"));
+            addOwnedPath(owned, stringField(approved, "review_payload_file"));
+            addOwnedPath(owned, lease.artifacts.approved_review_file);
+            addOwnedPath(owned, lease.artifacts.validated_payload_file);
+            return owned;
+        }
         const result = await readRequiredJson(worktreePath, lease.artifacts.result_file ?? "", "result file");
         const approved = await readRequiredJson(worktreePath, lease.artifacts.approved_review_file, "approved review file");
         const ownership = await validateApprovedReviewOwnership(lease, worktreePath, validateApprovedIdentity(approved, lease, stringField(result, "review_head_sha")), await scopeBaseRefFromValidatedResult(result, worktreePath));

@@ -17,8 +17,30 @@ import {
   canonicalLeaseIdentityPath,
   digestLeaseIdentityPath,
 } from "./pr-review-leases.js";
+import {
+  normalizeExecutionWorkingDirectory,
+  normalizePathTextForComparison,
+} from "./pr-review-manifests.js";
 
 const execFileAsync = promisify(execFile);
+
+describe("pr-review operational path comparison", () => {
+  it("keeps MSYS handoff output comparable with Windows execution roots", () => {
+    const msysPath = "/c/Users/Example/review-worktree";
+    const nativePath = "C:\\Users\\Example\\review-worktree";
+
+    expect(normalizeExecutionWorkingDirectory(msysPath, "win32")).toBe(
+      "c:/users/example/review-worktree",
+    );
+    expect(normalizePathTextForComparison(msysPath, "win32")).toBe(
+      normalizePathTextForComparison(nativePath, "win32"),
+    );
+    expect(normalizePathTextForComparison("/x/a\\b")).toBe("/x/a\\b");
+    expect(normalizePathTextForComparison("/x/a\\b")).not.toBe(
+      normalizePathTextForComparison("/x/a/b"),
+    );
+  });
+});
 
 const originalCwd = process.cwd();
 const tempRoots: string[] = [];

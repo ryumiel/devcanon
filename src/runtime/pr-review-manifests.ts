@@ -1559,11 +1559,14 @@ async function validateExecutionRoot(
   }
 }
 
-function normalizeExecutionWorkingDirectory(value: string): string {
+export function normalizeExecutionWorkingDirectory(
+  value: string,
+  platform = process.platform,
+): string {
   if (!isAbsolutePath(value)) {
     fail("execution working_directory must be absolute");
   }
-  return normalizePathTextForComparison(value);
+  return normalizePathTextForComparison(value, platform);
 }
 
 async function guardedScopeBaseRef(scopeDecisionFile: string): Promise<string> {
@@ -2047,7 +2050,14 @@ function digestMatchesNullable(file: unknown, digest: unknown): boolean {
     : typeof digest === "string" && isSha256(digest);
 }
 
-function normalizePathTextForComparison(value: string): string {
+export function normalizePathTextForComparison(
+  value: string,
+  platform = process.platform,
+): string {
+  const msysDrive = /^\/([A-Za-z])\/(.*)$/u.exec(value);
+  if (platform === "win32" && msysDrive !== null) {
+    return `${msysDrive[1]}:/${msysDrive[2]}`.toLowerCase();
+  }
   if (!/^[A-Za-z]:[\\/]/u.test(value)) return value;
   return value.replace(/[\\/]+/gu, "/").toLowerCase();
 }

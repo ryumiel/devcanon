@@ -3615,6 +3615,147 @@ describe("pr-review lease discovery", () => {
 
   it.each([
     {
+      name: "malformed JSON",
+      write: async (
+        file: string,
+        workspace: Awaited<ReturnType<typeof makeRegisteredWorkspace>>,
+      ) => {
+        await writeFile(file, "{\n");
+      },
+      reason: "invalid-lease",
+    },
+    {
+      name: "a symlink",
+      write: async (
+        file: string,
+        workspace: Awaited<ReturnType<typeof makeRegisteredWorkspace>>,
+      ) => {
+        await symlink(workspace.worktree, file);
+      },
+      reason: "lease-file-symlink",
+    },
+  ])(
+    "fails closed for an archived lease with $name",
+    async ({ write, reason }) => {
+      const workspace = await makeRegisteredWorkspace(
+        "pr-review-discovery-invalid-archived-",
+      );
+      const archiveFile = path.join(
+        workspace.primary,
+        `.ephemeral/pr-432-${digestLeaseIdentityPath(workspace.physicalWorktree)}-20260611T000001-aborted-archived-lease.json`,
+      );
+
+      try {
+        await write(archiveFile, workspace);
+        process.chdir(workspace.physicalPrimary);
+        setDiscoveryEnv(workspace.physicalPrimary);
+
+        const result = await runPrReviewLeasesCommand(["discover"]);
+        expect(result.exitCode, result.stderr).toBe(0);
+        expect(JSON.parse(result.stdout)).toMatchObject({
+          disposition: "invalid",
+          active_leases: [],
+          archived_leases: [
+            {
+              archived_lease_file: path.relative(
+                workspace.primary,
+                archiveFile,
+              ),
+              status: "invalid",
+              reason,
+            },
+          ],
+        });
+      } finally {
+        process.chdir(originalCwd);
+        await rm(workspace.tempRoot, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it("classifies a posted lease with approved-review pointers using discovery-only inputs", async () => {
+    const workspace = await makeGatedStatusWorkspace(
+      "pr-review-discovery-approved-review-",
+    );
+    const approvedReviewFile = `.ephemeral/topic-${workspace.reviewHead}-approved-review.json`;
+    const reviewPayloadFile = `.ephemeral/topic-${workspace.reviewHead}-review-payload.json`;
+
+    try {
+      await writeFile(
+        path.join(workspace.primary, ".git", "info", "exclude"),
+        ".ephemeral/\n",
+      );
+      await writeFile(
+        path.join(workspace.worktree, reviewPayloadFile),
+        `${JSON.stringify(reviewPayload(workspace.reviewHead))}\n`,
+      );
+      await writeFile(
+        path.join(workspace.worktree, approvedReviewFile),
+        `${JSON.stringify({
+          review_body_file: `.ephemeral/pr-432-${workspace.reviewHead}-review-body.md`,
+          review_payload_file: reviewPayloadFile,
+        })}\n`,
+      );
+      const validatedPayloadFile = await writeValidatedPayloadArtifact(
+        workspace.worktree,
+        workspace.reviewHead,
+      );
+      const posted = postedCommandLease({
+        leaseFile: workspace.leaseFile,
+        worktreePath: workspace.physicalWorktree,
+        worktreeDigest: workspace.worktreeDigest,
+        resultFile: workspace.resultFile,
+        resultSha256: workspace.resultSha256,
+        approvedReviewFile,
+        validatedPayloadFile,
+      });
+      await writeFile(
+        path.join(workspace.primary, workspace.leaseFile),
+        `${JSON.stringify(posted, null, 2)}\n`,
+      );
+      process.chdir(workspace.physicalPrimary);
+      setDiscoveryEnv(workspace.physicalPrimary);
+      process.env.PR_REVIEW_DIR = undefined;
+      process.env.PR_REVIEW_MANIFEST_HELPER_SCRIPT = undefined;
+      process.env.PR_REVIEW_LEASE_HELPER_SCRIPT = undefined;
+      process.env.PLAY_REVIEW_HELPER = undefined;
+
+      const result = await runPrReviewLeasesCommand(["discover"]);
+      expect(result.exitCode, result.stderr).toBe(0);
+      expect(JSON.parse(result.stdout)).toMatchObject({
+        disposition: "cleanup-required",
+        active_leases: [
+          {
+            lease_file: workspace.leaseFile,
+            state: "posted",
+            status: "terminal",
+            reason: "terminal-lease",
+          },
+        ],
+        cleanup: { lease_file: workspace.leaseFile, reason: "terminal-lease" },
+      });
+
+      await writeFile(
+        path.join(workspace.worktree, ".ephemeral", "foreign.txt"),
+        "foreign\n",
+      );
+      const negative = await runPrReviewLeasesCommand(["discover"]);
+      expect(negative.exitCode, negative.stderr).toBe(0);
+      expect(JSON.parse(negative.stdout)).toMatchObject({
+        disposition: "cleanup-required",
+        cleanup: {
+          lease_file: workspace.leaseFile,
+          reason: "unmanaged-ephemeral-artifacts",
+        },
+      });
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it.each([
+    {
       name: "legacy cleanup metadata without removed_at",
       cleanup: {
         last_outcome: "removed" as const,

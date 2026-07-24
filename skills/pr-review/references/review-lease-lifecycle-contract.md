@@ -146,7 +146,7 @@ PR number and review head.
 
 ## Read-Only Status
 
-## Discovery Before Worktree Creation
+### Discovery Before Worktree Creation
 
 `review-leases.sh discover` delegates to `devcanon-runtime runtime
 pr-review-leases discover`. It is read-only and requires only `REPOSITORY`,
@@ -180,6 +180,8 @@ paths are `cleanup-required`; otherwise discovery returns `create`. A
 schema-bound. An unleased canonical path requires manual reconciliation and
 must not be deleted by inference. All removal attempts remain exclusively on
 the `inspect-worktree`/`cleanup-worktree` path.
+
+### Read Status
 
 `review-leases.sh read-status` delegates to `devcanon-runtime runtime
 pr-review-leases read-status`. It is read-only, must inspect git status with
