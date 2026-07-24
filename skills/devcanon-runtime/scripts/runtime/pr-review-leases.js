@@ -1026,7 +1026,8 @@ function validateStateInvariants(lease, options = {}) {
         throw new PrReviewLeaseError("lease schema mismatch");
     }
     if (lease.state === "posted" &&
-        lease.artifacts.approved_review_file === null) {
+        (lease.artifacts.approved_review_file === null ||
+            lease.artifacts.validated_payload_file === null)) {
         throw new PrReviewLeaseError("lease schema mismatch");
     }
     if (lease.state === "failed" && lease.failure.phase === null) {
