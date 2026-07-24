@@ -168,9 +168,11 @@ invalid, never followed. Archived leases never produce an active ambiguity.
 
 Precedence is fail-closed: invalid files or active lease identity failures are
 `invalid`; more than one valid resumable nonterminal lease is `ambiguous`; one
-valid clean registered nonterminal lease is `resume`; terminal, missing,
-unregistered, dirty, unmanaged, and unleased-canonical paths are
-`cleanup-required`; otherwise discovery returns `create`. A
+valid clean registered nonterminal lease is `resume`; terminal leases with a
+valid recorded post-cleanup `removed_at` observation are eligible for `create`
+so LC-18 can archive them after recreating the canonical worktree; all other
+terminal, missing, unregistered, dirty, unmanaged, and unleased-canonical
+paths are `cleanup-required`; otherwise discovery returns `create`. A
 `cleanup-required` result identifies a lease only when that lease is
 schema-bound. An unleased canonical path requires manual reconciliation and
 must not be deleted by inference. All removal attempts remain exclusively on

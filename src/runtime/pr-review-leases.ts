@@ -182,6 +182,11 @@ interface DiscoveryInvalidFile {
   reason: string;
 }
 
+interface InspectedActiveDiscoveryLease {
+  lease: DiscoveryLease;
+  postCleanupArchiveAuthorized: boolean;
+}
+
 interface LeaseInputs {
   state: LeaseState;
   baseRef: string;
@@ -678,7 +683,9 @@ async function discoverReviewLeases(): Promise<string> {
     activeLeases.some((lease) => lease.status === "invalid");
   const cleanupLease = activeLeases.find(
     (lease) =>
-      lease.status === "cleanup-required" || lease.status === "terminal",
+      lease.status === "cleanup-required" ||
+      (lease.status === "terminal" &&
+        !scanned.postCleanupArchiveLeaseFiles.has(lease.lease_file)),
   );
   const disposition: DiscoveryDisposition = invalid
     ? "invalid"
@@ -813,11 +820,18 @@ async function scanDiscoveryLeaseFiles(
   active: DiscoveryLease[];
   archived: DiscoveryArchivedLease[];
   invalid: DiscoveryInvalidFile[];
+  postCleanupArchiveLeaseFiles: Set<string>;
 }> {
-  const empty = { active: [], archived: [], invalid: [] } as {
+  const empty = {
+    active: [],
+    archived: [],
+    invalid: [],
+    postCleanupArchiveLeaseFiles: new Set<string>(),
+  } as {
     active: DiscoveryLease[];
     archived: DiscoveryArchivedLease[];
     invalid: DiscoveryInvalidFile[];
+    postCleanupArchiveLeaseFiles: Set<string>;
   };
   const ephemeral = path.join(identity.primaryRoot, ".ephemeral");
   let entries: { name: string }[];
@@ -860,14 +874,16 @@ async function scanDiscoveryLeaseFiles(
       });
       continue;
     }
-    empty.active.push(
-      await inspectActiveDiscoveryLease(
-        identity,
-        leaseFile,
-        match[1],
-        registrationSet,
-      ),
+    const inspected = await inspectActiveDiscoveryLease(
+      identity,
+      leaseFile,
+      match[1],
+      registrationSet,
     );
+    empty.active.push(inspected.lease);
+    if (inspected.postCleanupArchiveAuthorized) {
+      empty.postCleanupArchiveLeaseFiles.add(leaseFile);
+    }
   }
   return empty;
 }
@@ -877,20 +893,23 @@ async function inspectActiveDiscoveryLease(
   leaseFile: string,
   filenameDigest: string,
   registrationSet: Set<string>,
-): Promise<DiscoveryLease> {
-  const invalid = (reason: string): DiscoveryLease => ({
-    lease_file: leaseFile,
-    worktree_path: null,
-    worktree_digest: null,
-    state: null,
-    status: "invalid",
-    reason,
-    worktree: {
-      exists: false,
-      registered: false,
-      dirty: null,
-      unmanaged_ephemeral_artifacts: [],
+): Promise<InspectedActiveDiscoveryLease> {
+  const invalid = (reason: string): InspectedActiveDiscoveryLease => ({
+    lease: {
+      lease_file: leaseFile,
+      worktree_path: null,
+      worktree_digest: null,
+      state: null,
+      status: "invalid",
+      reason,
+      worktree: {
+        exists: false,
+        registered: false,
+        dirty: null,
+        unmanaged_ephemeral_artifacts: [],
+      },
     },
+    postCleanupArchiveAuthorized: false,
   });
   let lease: PrReviewLease;
   try {
@@ -931,16 +950,19 @@ async function inspectActiveDiscoveryLease(
       );
     } catch {
       return {
-        ...invalid("invalid-lease"),
-        worktree_path: lease.worktree_path,
-        worktree_digest: lease.worktree_digest,
-        state: lease.state,
-        worktree: {
-          exists: observed.exists,
-          registered: observed.registered,
-          dirty: observed.dirty,
-          unmanaged_ephemeral_artifacts: [],
+        lease: {
+          ...invalid("invalid-lease").lease,
+          worktree_path: lease.worktree_path,
+          worktree_digest: lease.worktree_digest,
+          state: lease.state,
+          worktree: {
+            exists: observed.exists,
+            registered: observed.registered,
+            dirty: observed.dirty,
+            unmanaged_ephemeral_artifacts: [],
+          },
         },
+        postCleanupArchiveAuthorized: false,
       };
     }
   }
@@ -959,22 +981,26 @@ async function inspectActiveDiscoveryLease(
               ? "terminal-lease"
               : null;
   return {
-    lease_file: leaseFile,
-    worktree_path: lease.worktree_path,
-    worktree_digest: lease.worktree_digest,
-    state: lease.state,
-    status: terminal
-      ? "terminal"
-      : reason === null
-        ? "resumable"
-        : "cleanup-required",
-    reason,
-    worktree: {
-      exists: observed.exists,
-      registered: observed.registered,
-      dirty: observed.dirty,
-      unmanaged_ephemeral_artifacts: unmanaged,
+    lease: {
+      lease_file: leaseFile,
+      worktree_path: lease.worktree_path,
+      worktree_digest: lease.worktree_digest,
+      state: lease.state,
+      status: terminal
+        ? "terminal"
+        : reason === null
+          ? "resumable"
+          : "cleanup-required",
+      reason,
+      worktree: {
+        exists: observed.exists,
+        registered: observed.registered,
+        dirty: observed.dirty,
+        unmanaged_ephemeral_artifacts: unmanaged,
+      },
     },
+    postCleanupArchiveAuthorized:
+      terminal && hasPostCleanupArchiveAuthority(lease),
   };
 }
 
@@ -2958,10 +2984,13 @@ function validateCleanupMetadata(cleanup: PrReviewLease["cleanup"]): void {
 function hasPostCleanupArchiveAuthority(
   previous: PrReviewLease | null,
 ): boolean {
+  const cleanup = previous?.cleanup;
   return (
     previous !== null &&
     (previous.state === "posted" || previous.state === "aborted") &&
-    typeof previous.cleanup?.removed_at === "string"
+    typeof cleanup?.removed_at === "string" &&
+    typeof cleanup.last_checked_at === "string" &&
+    cleanup.removed_at <= cleanup.last_checked_at
   );
 }
 

@@ -3270,6 +3270,130 @@ describe("pr-review lease discovery", () => {
     }
   });
 
+  it.each([
+    {
+      name: "legacy cleanup metadata without removed_at",
+      cleanup: {
+        last_outcome: "removed" as const,
+        last_checked_at: "2026-06-11T00:03:00Z",
+      },
+      disposition: "cleanup-required",
+      status: "terminal",
+    },
+    {
+      name: "malformed removed_at metadata",
+      cleanup: {
+        last_outcome: "removed" as const,
+        last_checked_at: "2026-06-11T00:03:00Z",
+        removed_at: "not-a-timestamp",
+      },
+      disposition: "invalid",
+      status: "invalid",
+    },
+    {
+      name: "a removal timestamp later than its last cleanup observation",
+      cleanup: {
+        last_outcome: "removed" as const,
+        last_checked_at: "2026-06-11T00:03:00Z",
+        removed_at: "2026-06-11T00:03:01Z",
+      },
+      disposition: "cleanup-required",
+      status: "terminal",
+    },
+  ])(
+    "does not grant post-cleanup recreation for $name",
+    async ({ cleanup, disposition, status }) => {
+      const workspace = await makeRegisteredWorkspace(
+        "pr-review-discovery-incomplete-cleanup-",
+      );
+
+      try {
+        const leaseFile = discoveryLeaseFile(workspace.physicalWorktree);
+        const terminal = {
+          ...abortedCommandLease(
+            leaseFile,
+            workspace.physicalWorktree,
+            digestLeaseIdentityPath(workspace.physicalWorktree),
+          ),
+          cleanup,
+        };
+        await writeFile(
+          path.join(workspace.primary, leaseFile),
+          `${JSON.stringify(terminal, null, 2)}\n`,
+        );
+        process.chdir(workspace.physicalPrimary);
+        setDiscoveryEnv(workspace.physicalPrimary);
+
+        const result = await runPrReviewLeasesCommand(["discover"]);
+        expect(result.exitCode, result.stderr).toBe(0);
+        expect(JSON.parse(result.stdout)).toMatchObject({
+          disposition,
+          active_leases: [{ status }],
+        });
+      } finally {
+        process.chdir(originalCwd);
+        await rm(workspace.tempRoot, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it("keeps another blocking terminal lease cleanup-required beside a post-cleanup terminal", async () => {
+    const workspace = await makeRegisteredWorkspace(
+      "pr-review-discovery-post-cleanup-coexistence-",
+    );
+    const second = path.join(workspace.tempRoot, "second-review");
+
+    try {
+      await execFileAsync(
+        "git",
+        ["worktree", "add", "-b", "second-review-topic", second],
+        { cwd: workspace.primary },
+      );
+      const physicalSecond = await realpath(second);
+      const archiveEligibleFile = discoveryLeaseFile(
+        workspace.physicalWorktree,
+      );
+      const blockingFile = discoveryLeaseFile(physicalSecond);
+      const archiveEligible = {
+        ...abortedCommandLease(
+          archiveEligibleFile,
+          workspace.physicalWorktree,
+          digestLeaseIdentityPath(workspace.physicalWorktree),
+        ),
+        cleanup: {
+          last_outcome: "removed" as const,
+          last_checked_at: "2026-06-11T00:03:00Z",
+          removed_at: "2026-06-11T00:03:00Z",
+        },
+      };
+      const blocking = abortedCommandLease(
+        blockingFile,
+        physicalSecond,
+        digestLeaseIdentityPath(physicalSecond),
+      );
+      await writeFile(
+        path.join(workspace.primary, archiveEligibleFile),
+        `${JSON.stringify(archiveEligible, null, 2)}\n`,
+      );
+      await writeFile(
+        path.join(workspace.primary, blockingFile),
+        `${JSON.stringify(blocking, null, 2)}\n`,
+      );
+      process.chdir(workspace.physicalPrimary);
+      setDiscoveryEnv(workspace.physicalPrimary);
+
+      const result = await runPrReviewLeasesCommand(["discover"]);
+      expect(result.exitCode, result.stderr).toBe(0);
+      expect(JSON.parse(result.stdout)).toMatchObject({
+        disposition: "cleanup-required",
+        active_leases: [{ status: "terminal" }, { status: "terminal" }],
+      });
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
+    }
+  });
+
   it("reports terminal, missing, dirty, unmanaged, invalid, and unleased canonical cases distinctly", async () => {
     const workspace = await makeRegisteredWorkspace(
       "pr-review-discovery-classify-",
@@ -3568,6 +3692,20 @@ describe("pr-review lease Git cleanup safety", () => {
         expect(retriedLease.cleanup).toMatchObject({
           last_outcome: "skipped",
           removed_at: removedAt,
+        });
+
+        setDiscoveryEnv(workspace.physicalPrimary);
+        const discovery = await runPrReviewLeasesCommand(["discover"]);
+        expect(discovery.exitCode, state).toBe(0);
+        expect(JSON.parse(discovery.stdout)).toMatchObject({
+          disposition: "create",
+          active_leases: [
+            {
+              state,
+              status: "terminal",
+              reason: "missing-worktree",
+            },
+          ],
         });
         await execFileAsync(
           "git",
