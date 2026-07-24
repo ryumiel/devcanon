@@ -12,14 +12,11 @@ codex_sidecar:
 # play-review
 
 Internal multi-agent code review pipeline. Wrappers gather inputs, select the
-working directory and active diff, and dispose of findings; this skill runs the
-review and emits a local findings envelope.
+working directory and active diff, and dispose of findings; this skill reviews and emits a local findings envelope.
 
-`play-review` remains provider-agnostic: it consumes explicit final scope facts
-and must not discover provider scope, provider OIDs, provider file lists,
-provider diffs, or provider PR diff-base proof. It never invokes
-`{{tool:github-cli}}`, never posts GitHub reviews, never auto-fixes, and never
-creates or removes worktrees.
+`play-review` remains provider-agnostic: it consumes explicit final scope facts,
+never discovering provider scope, OIDs, file lists, diffs, or PR diff-base proof.
+It never invokes `{{tool:github-cli}}`, posts GitHub reviews, auto-fixes, or creates or removes worktrees.
 
 ## Reference Map
 
@@ -39,10 +36,7 @@ Load these directly referenced files only when their detail is needed:
 | [`references/red-flags.md`](references/red-flags.md)                                   | Checking behavior that violates this skill.                                                                                                                                                                     |
 | [`references/sub-check-examples.md`](references/sub-check-examples.md)                 | Legacy examples mirror for Phase 4 sub-check scenarios.                                                                                                                                                         |
 
-Spec identifier-drift examples are mirrored at
-`references/sub-check-examples.md#spec-reviewer--sub-check-a-within-document-identifier-drift--illustrative-scenario`
-and
-`references/sub-check-examples.md#spec-reviewer--sub-check-b-cross-document-identifier-drift--illustrative-scenario`.
+Spec identifier-drift examples are mirrored at `references/sub-check-examples.md#spec-reviewer--sub-check-a-within-document-identifier-drift--illustrative-scenario` and `references/sub-check-examples.md#spec-reviewer--sub-check-b-cross-document-identifier-drift--illustrative-scenario`.
 
 ## Inputs
 
