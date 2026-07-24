@@ -188,7 +188,10 @@ Each selected topical route is an independent response-only `reviewer`, frontier
 
 These are role results, not subagent operational states. `subagent-lifecycle` remains the distinct owner of operational states and cleanup. Capture the returned disposition, or controller-observed orchestration failure, before cleanup or supersession. Silence, waiting, timeout, interruption, and nudging are nonterminal recovery observations, never `COMPLETE_NO_FINDINGS`. If a child never returns after the current recovery, the controller records an observed orchestration failure rather than fabricating a child disposition. See `references/terminal-result-boundaries.md` for preserved boundaries.
 
-Do not add these role results to the findings-envelope schema, lifecycle state model, source agent roles/models/effort, retry or escalation policy, wrappers, generated sources, or ADRs.
+Do not add these role results to the lifecycle state model, source agent
+roles/models/effort, retry or escalation policy, wrappers, or generated
+sources. A same-PR update to the accepted ADR that owns a directly changed
+durable artifact boundary is allowed.
 
 Contract-example discipline:
 
@@ -224,6 +227,12 @@ and `FAILED` retain their required diagnostic evidence for the final report but
 do not manufacture findings. A verified, semantically valid `NEEDS_CONTEXT` or
 `FAILED` retains its required missing-context or failure and completed-partial-check
 diagnostics in the final report while contributing no findings.
+For every selected topical route that is incomplete (`NEEDS_CONTEXT`, `FAILED`,
+or a controller-observed orchestration failure), record its route and
+disposition in the findings envelope's `incomplete_topical_routes[]`. This is
+durable approval evidence, not a finding: it is not aggregated, posted, or
+given to D10, but it must prevent branch-review approval until no selected
+topical route is incomplete.
 
 Resolve `PLAY_REVIEW_DIR` to the loaded or installed `play-review` skill bundle,
 resolve `SOURCE_IMMUTABILITY_HELPER` to
@@ -452,8 +461,9 @@ not authorize grouped fixes, and does not weaken line-grounded evidence.
 8. Never auto-fix.
 9. Never create or remove worktrees.
 10. Always write the `play-review/findings/v1` envelope to the deterministic
-    file path defined in `references/findings-envelope-contract.md`, even when
-    both `findings` and `carry_forward` are empty. Always emit the literal
+    file path defined in `references/findings-envelope-contract.md`, including
+    `incomplete_topical_routes` (an empty array when every selected topical
+    route completed). Always emit the literal
     `Findings written to <repo-relative-path>.` notice line.
 11. Always write the shared review-context file (Phase 2.5) before dispatching
     Phase 3 agents. An absent or empty shared review-context file is a

@@ -653,6 +653,7 @@ describe.skipIf(!jqAvailable)("branch-review scope-decision adapter", () => {
         blocker_count: 0,
         nit_count: 0,
         carry_forward_count: 0,
+        incomplete_topical_count: 0,
       });
       const summary = await readJson(cwd, summaryPath);
       expect(summary).not.toHaveProperty("gate_passed");
@@ -703,6 +704,53 @@ describe.skipIf(!jqAvailable)("branch-review scope-decision adapter", () => {
         terminal_state: "blocked",
         blocker_count: 1,
         nit_count: 0,
+      });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("blocks approval when a selected topical route is incomplete", async () => {
+    const { cwd, headSha } = await makeGitWorkspace();
+    try {
+      const decisionPath = scopePath(headSha);
+      const summaryPath = approvalSummaryPath(headSha);
+      const findingsFile = findingsPath(headSha);
+      await writeJson(
+        cwd,
+        decisionPath,
+        initialScope("main", headSha, {
+          full_range: "main...HEAD",
+          selected_range: "main...HEAD",
+          candidate_narrow_range: "main...HEAD",
+          selection_reason: "not-followup",
+        }),
+      );
+      await writeJson(cwd, findingsFile, {
+        schema: "play-review/findings/v1",
+        findings: [],
+        carry_forward: [],
+        incomplete_topical_routes: [
+          { route: "D8", disposition: "NEEDS_CONTEXT" },
+        ],
+      });
+
+      await runHelper(cwd, helperScript, "write-approval-summary", {
+        HEAD_SHA: headSha,
+        BASE: "main",
+        FULL_DIFF_RANGE: "main...HEAD",
+        ACTIVE_DIFF_RANGE: "main...HEAD",
+        SCOPE_DECISION_FILE: decisionPath,
+        FINDINGS_FILE: findingsFile,
+        APPROVAL_SUMMARY_FILE: summaryPath,
+      });
+
+      await expect(readJson(cwd, summaryPath)).resolves.toMatchObject({
+        terminal_state: "blocked",
+        blocker_count: 0,
+        nit_count: 0,
+        carry_forward_count: 0,
+        incomplete_topical_count: 1,
       });
     } finally {
       await cleanupTempDir(cwd);

@@ -572,6 +572,7 @@ function approvalSummary(
     blocker_count: 1,
     nit_count: 0,
     carry_forward_count: 0,
+    incomplete_topical_count: 0,
     ...overrides,
   };
 }

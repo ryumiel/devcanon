@@ -375,7 +375,11 @@ Approval-summary counts are derived from the true remaining findings after any
 `critic` verdict is neither `INVALID` nor `DOWNGRADE`. Downgraded blocking
 findings remain non-blocking feedback for the `approved_with_nits` path, while
 invalid findings are non-feedback: they are neither blockers, postable nits, nor
-carry-forward feedback for approval counts.
+carry-forward feedback for approval counts. A non-empty
+`incomplete_topical_routes[]` list in the linked findings envelope is separate
+approval evidence: it produces `incomplete_topical_count` and forces the
+terminal state to `blocked`, even when finding, nit, and carry-forward counts
+are zero.
 `skills/play-validate-review-artifacts/scripts/review-artifacts.sh` owns
 deterministic validation and pass/block interpretation for the summary through
 `validate-approval-summary`. Branch review owns only the lifecycle point and
@@ -643,8 +647,9 @@ and fixed nits do NOT appear — they're already committed in the worktree. In f
 continuity; unresolved blocking carry-forward entries must additionally be
 copied into the post-`--fix` remaining `findings[]` so downstream consumers that
 gate on `findings[]` do not mistake the run for clean. If the remaining set is
-empty and `carry_forward[]` is also empty, still write the canonical empty envelope
-(`{"schema":"play-review/findings/v1","findings":[],"carry_forward":[]}`) —
+empty, `carry_forward[]` is also empty, and no selected topical route is
+incomplete, still write the canonical empty envelope
+(`{"schema":"play-review/findings/v1","findings":[],"carry_forward":[],"incomplete_topical_routes":[]}`) —
 never leave the file from `play-review`'s pre-fix run unchanged, and never
 delete it. If current-run findings are empty but `carry_forward[]` is
 non-empty, the post-`--fix` envelope must keep those carry-forward entries and
@@ -685,7 +690,9 @@ subset of the pre-fix findings plus carry-forward set: this skill only removes
 auto-fixed blockers and fixed nits from `findings[]`; it preserves `carry_forward[]` unchanged,
 mirrors unresolved blocking carry-forward entries into `findings[]` for
 downstream blocker gates, never invents new entries, never re-anchors lines, and
-never edits `body` / `why` / `recommendation` text.
+never edits `body` / `why` / `recommendation` text. It preserves
+`incomplete_topical_routes[]` unchanged; those entries are approval evidence,
+not auto-fix candidates.
 Downstream consumers (`pr-review` Phase 6, `issue-priming-workflow` Phase 7)
 cannot tell from the file alone whether they are reading the pre-fix or
 post-`--fix` version — the order is workflow-determined (Phase 7 always runs

@@ -7,7 +7,8 @@ Accepted
 ## Context
 
 ADR-0010 introduced the `play-review/findings/v1` JSON schema (a
-top-level envelope with `schema`, `findings`, and `carry_forward`
+top-level envelope with `schema`, `findings`, `carry_forward`, and additive
+`incomplete_topical_routes`
 fields, now detailed in
 `skills/play-review/references/findings-envelope-contract.md`) and
 specified its transport: a trailing fenced `json` block appended to
@@ -100,19 +101,22 @@ policy and points consumers to the detailed reference.
 The path is computed and written by `play-review` itself, not by the
 wrapper. The envelope is always written, even for empty findings (the
 canonical empty form
-`{"schema":"play-review/findings/v1","findings":[],"carry_forward":[]}`).
+`{"schema":"play-review/findings/v1","findings":[],"carry_forward":[],"incomplete_topical_routes":[]}`).
 The notice line is the only structured surface in conversation; the
 human-readable `## Findings` and `## Carry-forward` markdown sections
 are unchanged and remain in-conversation for operator review.
 
-The schema name `play-review/findings/v1` and per-field contract are
-unchanged. Only the transport changes. Additive evolution stays on
-`v1` per ADR-0010 Decision §.
+The schema name `play-review/findings/v1` remains unchanged. Its additive
+`incomplete_topical_routes` field records selected D7-D9 routes that did not
+complete, without presenting them as findings or critic input. A linked
+branch-review approval summary counts those routes and must be `blocked` when
+the count is nonzero. Additive evolution stays on `v1` per ADR-0010 Decision §.
 
 Consumer responsibilities:
 
 - `branch-review` Phase 3 (no-`--fix`) — surface the notice line in
-  wrapper output. No JSON re-emission.
+  wrapper output. No JSON re-emission. Its approval summary consumes
+  `incomplete_topical_routes` as blocking review-completeness evidence.
 - `branch-review --fix` — after auto-fixes, _overwrite the same
   file_ with the remaining-set envelope: all pre-fix findings except findings
   successfully fixed and committed by `branch-review --fix`, including

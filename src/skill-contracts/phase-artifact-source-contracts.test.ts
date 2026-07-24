@@ -1222,6 +1222,10 @@ describe("phase artifact source contracts", () => {
     expect(normalizedPhase3).toContain(
       "A verified, semantically valid `NEEDS_CONTEXT` or `FAILED` retains its required missing-context or failure and completed-partial-check diagnostics in the final report while contributing no findings",
     );
+    expect(normalizedPhase3).toContain("incomplete_topical_routes[]");
+    expect(normalizedPhase3).toContain(
+      "must prevent branch-review approval until no selected topical route is incomplete",
+    );
     expect(normalizedPhase3).toContain(
       "Valid: a Code-quality reviewer completes all checks and returns `COMPLETE_WITH_FINDINGS` with checks, report, and count",
     );

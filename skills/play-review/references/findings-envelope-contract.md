@@ -91,35 +91,42 @@ contract violation. Findings-file consumers fail closed.
       "body": "**Blocking | Safety** — <why>\n\n**Recommendation:** <recommendation>"
     }
   ],
-  "carry_forward": []
+  "carry_forward": [],
+  "incomplete_topical_routes": []
 }
 ```
 
 Per-field contract:
 
-| Field            | Type                                                                                           | Notes                                                                                                             |
-| ---------------- | ---------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `schema`         | `"play-review/findings/v1"`                                                                    | Pinned. Additive optional fields stay on v1; renames, removals, or type changes require v2.                       |
-| `findings`       | array                                                                                          | One object per finding emitted in this report.                                                                    |
-| `carry_forward`  | array                                                                                          | Same shape as `findings`; unresolved follow-up findings preserved from PR threads or branch-local prior findings. |
-| `path`           | repo-relative string                                                                           | Shape expected by consumers.                                                                                      |
-| `line`           | integer                                                                                        | HEAD-side absolute line.                                                                                          |
-| `start_line`     | integer or `null`                                                                              | `null` for single-line findings.                                                                                  |
-| `severity`       | `Blocking` or `Nit`                                                                            | Verbatim from markdown.                                                                                           |
-| `category`       | `Logic`, `Safety`, `Architecture`, `Tests`, `Maintainability`, `Documentation`, or `Contracts` | Verbatim from markdown.                                                                                           |
-| `critic`         | `VALID`, `INVALID`, `DOWNGRADE`, or `null`                                                     | `null` for nits and for blocking findings only when critic is unavailable.                                        |
-| `anchor`         | `natural`, `missing-file`, or `out-of-diff`                                                    | Verbatim from markdown.                                                                                           |
-| `why`            | non-empty plain text                                                                           | No markdown wrappers.                                                                                             |
-| `recommendation` | non-empty plain text                                                                           | Concrete suggestion.                                                                                              |
-| `body`           | ready-to-post markdown string                                                                  | Rendered from severity, category, why, and recommendation.                                                        |
+| Field                       | Type                                                                                           | Notes                                                                                                                                                 |
+| --------------------------- | ---------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ---- | ------------------------------------ | -------- | ------------------------------------------------------------------------------------------- |
+| `schema`                    | `"play-review/findings/v1"`                                                                    | Pinned. Additive optional fields stay on v1; renames, removals, or type changes require v2.                                                           |
+| `findings`                  | array                                                                                          | One object per finding emitted in this report.                                                                                                        |
+| `carry_forward`             | array                                                                                          | Same shape as `findings`; unresolved follow-up findings preserved from PR threads or branch-local prior findings.                                     |
+| `incomplete_topical_routes` | array                                                                                          | Selected D7-D9 routes that returned `NEEDS_CONTEXT`, `FAILED`, or reached a controller-observed orchestration failure. Each entry is `{ "route": "D7" | "D8" | "D9", "disposition": "NEEDS_CONTEXT" | "FAILED" | "CONTROLLER_OBSERVED_FAILURE" }`. This is approval evidence, not a finding or critic input. |
+| `path`                      | repo-relative string                                                                           | Shape expected by consumers.                                                                                                                          |
+| `line`                      | integer                                                                                        | HEAD-side absolute line.                                                                                                                              |
+| `start_line`                | integer or `null`                                                                              | `null` for single-line findings.                                                                                                                      |
+| `severity`                  | `Blocking` or `Nit`                                                                            | Verbatim from markdown.                                                                                                                               |
+| `category`                  | `Logic`, `Safety`, `Architecture`, `Tests`, `Maintainability`, `Documentation`, or `Contracts` | Verbatim from markdown.                                                                                                                               |
+| `critic`                    | `VALID`, `INVALID`, `DOWNGRADE`, or `null`                                                     | `null` for nits and for blocking findings only when critic is unavailable.                                                                            |
+| `anchor`                    | `natural`, `missing-file`, or `out-of-diff`                                                    | Verbatim from markdown.                                                                                                                               |
+| `why`                       | non-empty plain text                                                                           | No markdown wrappers.                                                                                                                                 |
+| `recommendation`            | non-empty plain text                                                                           | Concrete suggestion.                                                                                                                                  |
+| `body`                      | ready-to-post markdown string                                                                  | Rendered from severity, category, why, and recommendation.                                                                                            |
 
 The schema omits evidence code and a `side` field. Consumers re-read source via
 `path`, `line`, and `start_line`; all findings are HEAD-side.
 
 ## Write Rules
 
-- Always write the envelope, even when empty. Canonical empty form:
-  `{"schema":"play-review/findings/v1","findings":[],"carry_forward":[]}`.
+- Always write the envelope, even when no findings, carry-forward candidates,
+  or incomplete topical routes exist. Canonical empty form:
+  `{"schema":"play-review/findings/v1","findings":[],"carry_forward":[],"incomplete_topical_routes":[]}`.
+- Any non-empty `incomplete_topical_routes` array makes the linked
+  `branch-review/approval-summary/v1` terminal state `blocked`. Consumers do
+  not render these entries as findings, nits, carry-forward feedback, or critic
+  input.
 - Overwrite on each invocation. Do not append.
 - Run `prepare-findings-write` immediately before writing the findings file and
   before `branch-review --fix` overwrites it with the remaining-set envelope.

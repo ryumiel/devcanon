@@ -1514,6 +1514,10 @@ async function validateApprovalSummary(options) {
     if (numberField(summary, "carry_forward_count") !== counts.carryForwardCount) {
         fail("approval summary carry-forward count mismatch");
     }
+    if (numberField(summary, "incomplete_topical_count") !==
+        counts.incompleteTopicalCount) {
+        fail("approval summary incomplete topical count mismatch");
+    }
     validateTerminalStateMatchesCounts(terminalState, counts);
     if (!options.emitGateResult) {
         return "";
@@ -1736,6 +1740,7 @@ function validateApprovalSummarySchema(summary) {
             "blocker_count",
             "nit_count",
             "carry_forward_count",
+            "incomplete_topical_count",
         ]) ||
             stringField(summary, "schema") !== "branch-review/approval-summary/v1" ||
             stringField(summary, "surface") !== "branch-review" ||
@@ -1749,7 +1754,8 @@ function validateApprovalSummarySchema(summary) {
             !isSha256(stringField(summary, "findings_sha256")) ||
             !isNonNegativeInteger(summary.blocker_count) ||
             !isNonNegativeInteger(summary.nit_count) ||
-            !isNonNegativeInteger(summary.carry_forward_count)) {
+            !isNonNegativeInteger(summary.carry_forward_count) ||
+            !isNonNegativeInteger(summary.incomplete_topical_count)) {
             fail("approval summary schema mismatch");
         }
     }
@@ -1823,6 +1829,7 @@ function findingsCounts(findings) {
         blockerCount: remainingFindings.filter(isTrueBlockingFinding).length,
         nitCount: remainingFindings.filter(isNonblockingFeedbackFinding).length,
         carryForwardCount: carryForwardFindings.filter(isCarryForwardFeedbackFinding).length,
+        incompleteTopicalCount: incompleteTopicalRoutes(findings).length,
     };
 }
 function isTrueBlockingFinding(finding) {
@@ -1852,7 +1859,7 @@ function validateTerminalStateMatchesCounts(terminalState, counts) {
     if (terminalState === "invalid") {
         return;
     }
-    const expectedState = counts.blockerCount > 0
+    const expectedState = counts.incompleteTopicalCount > 0 || counts.blockerCount > 0
         ? "blocked"
         : counts.nitCount > 0 || counts.carryForwardCount > 0
             ? "approved_with_nits"
@@ -1923,6 +1930,28 @@ function validateFindingsEnvelopeSchema(envelope) {
             fail("findings envelope validation failed");
         }
     }
+    for (const incompleteRoute of incompleteTopicalRoutes(envelope)) {
+        if (!isIncompleteTopicalRoute(incompleteRoute)) {
+            fail("findings envelope validation failed");
+        }
+    }
+}
+function incompleteTopicalRoutes(envelope) {
+    if (envelope.incomplete_topical_routes === undefined) {
+        return [];
+    }
+    if (!Array.isArray(envelope.incomplete_topical_routes)) {
+        fail("findings envelope validation failed");
+    }
+    return envelope.incomplete_topical_routes.map((item) => item);
+}
+function isIncompleteTopicalRoute(value) {
+    return (value !== null &&
+        typeof value === "object" &&
+        !Array.isArray(value) &&
+        hasExactKeys(value, ["route", "disposition"]) &&
+        ["D7", "D8", "D9"].includes(String(value.route)) &&
+        ["NEEDS_CONTEXT", "FAILED", "CONTROLLER_OBSERVED_FAILURE"].includes(String(value.disposition)));
 }
 function allFindings(envelope) {
     return [
