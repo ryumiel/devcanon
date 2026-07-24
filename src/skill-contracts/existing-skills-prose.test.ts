@@ -4068,6 +4068,24 @@ describe("existing skills source prose contracts", () => {
     );
   });
 
+  it("keeps play-review terminal response structure authoritative over shared finding formatting", async () => {
+    const briefingTemplate = await readRepoFile(
+      "skills/play-review/references/agent-briefing-template.md",
+    );
+    const composedPrompt = `${briefingTemplate}\n\n## Output Format\nonly findings`;
+
+    expect(composedPrompt).toContain("only findings");
+    expect(normalizeWhitespace(briefingTemplate)).toContain(
+      "The terminal-result response structure above is authoritative for the entire response",
+    );
+    expect(normalizeWhitespace(briefingTemplate)).toContain(
+      "finding fields and presentation",
+    );
+    expect(normalizeWhitespace(briefingTemplate)).toContain(
+      "terminal disposition, completed checks, final report, or finding count",
+    );
+  });
+
   it("routes play-review D7-D10 through the exact semantic reviewer roles", async () => {
     const skillSource = await readSkillSource("play-review");
     const briefingTemplate = await readRepoFile(

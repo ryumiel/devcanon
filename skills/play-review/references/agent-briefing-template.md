@@ -55,8 +55,12 @@ Sub-checks for this review:
 
 <sub-checks>
 
-Emit findings using the output format defined in the shared review
-context.
+The terminal-result response structure above is authoritative for the entire
+response. Use the shared review-context output format only for individual
+finding entries in the findings subsection. It remains authoritative for
+finding fields and presentation, but cannot replace, omit, reorder, or
+constrain the terminal disposition, completed checks, final report, or finding
+count — even when it says to return only findings.
 ```
 
 ## Placeholder reference
