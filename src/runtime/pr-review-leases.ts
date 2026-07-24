@@ -103,6 +103,7 @@ export interface PrReviewLease {
   cleanup?: {
     last_outcome: "removed" | "retained" | "skipped" | "failed" | null;
     last_checked_at: string | null;
+    removed_at: string | null;
   };
 }
 
@@ -796,12 +797,17 @@ async function recordCleanupMetadata(
       "lease state changed during cleanup metadata write",
     );
   }
+  const observedAt = nowTimestamp();
   const next: PrReviewLease = {
     ...lease,
     cleanup: {
       last_outcome:
         outcome === "" ? (lease.cleanup?.last_outcome ?? null) : outcome,
-      last_checked_at: nowTimestamp(),
+      last_checked_at: observedAt,
+      removed_at:
+        outcome === "removed"
+          ? observedAt
+          : (lease.cleanup?.removed_at ?? null),
     },
   };
   validateLeaseShape(next);
@@ -2407,11 +2413,16 @@ function assertLeaseObjectShape(lease: PrReviewLease): void {
 function validateCleanupMetadata(cleanup: PrReviewLease["cleanup"]): void {
   if (cleanup === undefined) return;
   const keys = Object.keys(cleanup).sort();
-  if (
-    keys.length !== 2 ||
-    keys[0] !== "last_checked_at" ||
-    keys[1] !== "last_outcome"
-  ) {
+  const isLegacyCleanup =
+    keys.length === 2 &&
+    keys[0] === "last_checked_at" &&
+    keys[1] === "last_outcome";
+  const isCurrentCleanup =
+    keys.length === 3 &&
+    keys[0] === "last_checked_at" &&
+    keys[1] === "last_outcome" &&
+    keys[2] === "removed_at";
+  if (!isLegacyCleanup && !isCurrentCleanup) {
     throw new PrReviewLeaseError("lease cleanup metadata mismatch");
   }
   if (
@@ -2426,6 +2437,9 @@ function validateCleanupMetadata(cleanup: PrReviewLease["cleanup"]): void {
   if (cleanup.last_checked_at !== null) {
     validateTimestamp("cleanup.last_checked_at", cleanup.last_checked_at);
   }
+  if (isCurrentCleanup && cleanup.removed_at !== null) {
+    validateTimestamp("cleanup.removed_at", cleanup.removed_at);
+  }
 }
 
 function hasPostCleanupArchiveAuthority(
@@ -2434,8 +2448,7 @@ function hasPostCleanupArchiveAuthority(
   return (
     previous !== null &&
     (previous.state === "posted" || previous.state === "aborted") &&
-    previous.cleanup?.last_outcome === "removed" &&
-    previous.cleanup.last_checked_at !== null
+    typeof previous.cleanup?.removed_at === "string"
   );
 }
 
@@ -2666,6 +2679,11 @@ function parsePositiveInteger(name: string, value: string): number {
 
 function validateTimestamp(label: string, value: string): void {
   if (!TIMESTAMP_RE.test(value) || Number.isNaN(Date.parse(value))) {
+    throw new PrReviewLeaseError(
+      `${label} must be a UTC RFC3339 timestamp ending in Z`,
+    );
+  }
+  if (new Date(value).toISOString().replace(/\.\d{3}Z$/u, "Z") !== value) {
     throw new PrReviewLeaseError(
       `${label} must be a UTC RFC3339 timestamp ending in Z`,
     );

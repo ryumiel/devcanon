@@ -970,11 +970,25 @@ describe("pr-review lease command validation", () => {
       setLeaseCommandEnv(workspace.physicalPrimary, workspace.physicalWorktree);
       process.env.LEASE_FILE = workspace.leaseFile;
       for (const cleanup of [
-        { last_outcome: "unknown", last_checked_at: null },
-        { last_outcome: "removed", last_checked_at: "not-a-timestamp" },
+        {
+          last_outcome: "unknown",
+          last_checked_at: null,
+          removed_at: null,
+        },
+        {
+          last_outcome: "removed",
+          last_checked_at: "not-a-timestamp",
+          removed_at: "2026-06-11T00:03:00Z",
+        },
+        {
+          last_outcome: "removed",
+          last_checked_at: "2026-02-30T00:00:00Z",
+          removed_at: "2026-06-11T00:03:00Z",
+        },
         {
           last_outcome: "removed",
           last_checked_at: "2026-06-11T00:03:00Z",
+          removed_at: "2026-06-11T00:03:00Z",
           unexpected: true,
         },
       ]) {
@@ -3103,6 +3117,21 @@ describe("pr-review lease Git cleanup safety", () => {
           workspace.leaseFile,
         );
         expect(removedLease.cleanup).toMatchObject({ last_outcome: "removed" });
+        expect(removedLease.cleanup?.removed_at).toMatch(
+          /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/u,
+        );
+        const removedAt = removedLease.cleanup?.removed_at;
+        const retry = await runPrReviewLeasesCommand(["cleanup-worktree"]);
+        expect(retry.exitCode, state).toBe(0);
+        expect(retry.stdout, state).toContain("OUTCOME=skipped");
+        const retriedLease = await readLease(
+          workspace.primary,
+          workspace.leaseFile,
+        );
+        expect(retriedLease.cleanup).toMatchObject({
+          last_outcome: "skipped",
+          removed_at: removedAt,
+        });
         await execFileAsync(
           "git",
           ["worktree", "add", workspace.worktree, "review-topic"],
@@ -3146,6 +3175,70 @@ describe("pr-review lease Git cleanup safety", () => {
         process.chdir(originalCwd);
         await rm(workspace.tempRoot, { recursive: true, force: true });
       }
+    }
+  });
+
+  it("keeps legacy removed cleanup observations under strict archive validation", async () => {
+    const workspace = await makeGatedStatusWorkspace(
+      "pr-review-legacy-cleanup-authority-",
+    );
+
+    try {
+      const lease = await readLease(workspace.primary, workspace.leaseFile);
+      const legacy = {
+        ...lease,
+        state: "aborted" as const,
+        updated_at: "2026-06-11T00:03:00Z",
+        terminal: {
+          finished_at: "2026-06-11T00:03:00Z",
+          reason: "user-aborted",
+        },
+        cleanup: {
+          last_outcome: "removed" as const,
+          last_checked_at: "2026-06-11T00:03:00Z",
+        },
+      };
+      await writeFile(
+        path.join(workspace.primary, workspace.leaseFile),
+        `${JSON.stringify(legacy, null, 2)}\n`,
+      );
+      const before = await readFile(
+        path.join(workspace.primary, workspace.leaseFile),
+        "utf8",
+      );
+      await execFileAsync(
+        "git",
+        ["worktree", "remove", "-f", workspace.worktree],
+        { cwd: workspace.primary },
+      );
+      await execFileAsync(
+        "git",
+        ["worktree", "add", workspace.worktree, "review-topic"],
+        { cwd: workspace.primary },
+      );
+
+      process.chdir(workspace.physicalPrimary);
+      setLeaseCommandEnv(workspace.physicalPrimary, workspace.physicalWorktree);
+      process.env.LEASE_FILE = workspace.leaseFile;
+      process.env.STATE = "created";
+      process.env.BASE_REF = "main";
+      process.env.HEAD_REF = "topic";
+      process.env.CREATED_AT = "2026-06-11T00:04:00Z";
+      process.env.UPDATED_AT = "2026-06-11T00:04:00Z";
+
+      const result = await runPrReviewLeasesCommand(["write"]);
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain("result file missing");
+      await expect(
+        readFile(path.join(workspace.primary, workspace.leaseFile), "utf8"),
+      ).resolves.toBe(before);
+      const entries = await readdir(path.join(workspace.primary, ".ephemeral"));
+      expect(
+        entries.some((entry) => entry.includes("-archived-lease.json")),
+      ).toBe(false);
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
     }
   });
 

@@ -205,19 +205,25 @@ archive, then moves it to:
 ```
 
 For a `posted` or `aborted` lease whose cleanup helper has recorded a closed
-`cleanup` observation with `last_outcome: "removed"` and a valid
-`last_checked_at` timestamp, LC-18 may archive after recreating the canonical
-worktree path without revalidating historical artifacts in that new checkout.
-That observation is narrowly scoped archive authority; it does not refresh or
-create artifact authority. In every other case, LC-18 keeps strict historical
-artifact validation before archive. A fresh `created` lease carries none of the
-terminal lease's artifact, validation, presentation, terminal, failure, GitHub,
-or cleanup metadata.
+`cleanup` observation with a valid non-null `removed_at` timestamp, LC-18 may
+archive after recreating the canonical worktree path without revalidating
+historical artifacts in that new checkout. The helper writes `removed_at` only
+after `git worktree remove` succeeds; a legacy `last_outcome: "removed"`
+observation without that marker remains subject to strict historical-artifact
+validation. That observation is narrowly scoped archive authority; it does not
+refresh or create artifact authority. In every other case, LC-18 keeps strict
+historical artifact validation before archive. A fresh `created` lease carries
+none of the terminal lease's artifact, validation, presentation, terminal,
+failure, GitHub, or cleanup metadata.
 
-The optional `cleanup` object is closed: it has exactly `last_outcome` and
-`last_checked_at`; outcomes are `removed`, `retained`, `skipped`, `failed`, or
-`null`; and a non-null timestamp is RFC 3339 UTC at second precision. Invalid
+The optional `cleanup` object is closed: it has exactly `last_outcome`,
+`last_checked_at`, and `removed_at`; outcomes are `removed`, `retained`,
+`skipped`, `failed`, or `null`; and non-null timestamps are RFC 3339 UTC at
+second precision with valid calendar dates. `removed_at` persists across later
+cleanup retries, but is set only by a successfully completed removal. Invalid
 cleanup metadata fails lease validation before archive or fresh creation.
+The exact historical two-key shape without `removed_at` is accepted only for
+backward-compatible strict validation; it can never grant archive authority.
 
 Cleanup and archive are independently retryable. An interruption before a
 successful helper-recorded removal leaves ordinary validation in force. An
