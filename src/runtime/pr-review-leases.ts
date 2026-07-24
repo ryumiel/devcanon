@@ -787,6 +787,16 @@ async function readDiscoveryIdentity(): Promise<DiscoveryIdentity> {
 }
 
 async function assertPrimaryGitWorktree(primaryRoot: string): Promise<void> {
+  const { stdout: bareOutput } = await execFileAsync(
+    "git",
+    ["-C", primaryRoot, "rev-parse", "--is-bare-repository"],
+    { maxBuffer: 1024 * 1024 },
+  );
+  if (bareOutput.trim() !== "false") {
+    throw new PrReviewLeaseError(
+      "PRIMARY_REPOSITORY_ROOT must be a non-bare primary Git worktree",
+    );
+  }
   const { stdout } = await execFileAsync(
     "git",
     [
@@ -794,14 +804,27 @@ async function assertPrimaryGitWorktree(primaryRoot: string): Promise<void> {
       primaryRoot,
       "rev-parse",
       "--path-format=absolute",
+      "--show-toplevel",
       "--git-dir",
       "--git-common-dir",
     ],
     { maxBuffer: 1024 * 1024 },
   );
-  const [gitDir, commonDir] = stdout.trim().split(/\r?\n/u);
-  if (gitDir === undefined || commonDir === undefined) {
+  const [topLevel, gitDir, commonDir] = stdout.trim().split(/\r?\n/u);
+  if (
+    topLevel === undefined ||
+    gitDir === undefined ||
+    commonDir === undefined
+  ) {
     throw new PrReviewLeaseError("primary repository Git metadata missing");
+  }
+  if (
+    canonicalLeaseIdentityPath(await realpath(topLevel)) !==
+    canonicalLeaseIdentityPath(primaryRoot)
+  ) {
+    throw new PrReviewLeaseError(
+      "PRIMARY_REPOSITORY_ROOT must be the primary Git worktree root",
+    );
   }
   if (
     canonicalLeaseIdentityPath(await realpath(gitDir)) !==
@@ -1187,6 +1210,9 @@ async function inspectArchivedDiscoveryLease(
       (lease.state !== "posted" && lease.state !== "aborted")
     ) {
       return invalid("lease-identity-mismatch");
+    }
+    if (!hasPostCleanupArchiveAuthority(lease)) {
+      return invalid("invalid-archive-authority");
     }
     return {
       archived_lease_file: archivedLeaseFile,

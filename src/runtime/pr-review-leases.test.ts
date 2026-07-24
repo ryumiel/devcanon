@@ -3129,7 +3129,7 @@ describe("pr-review lease discovery", () => {
     }
   });
 
-  it("allows an absent canonical leaf beneath real primary-root parents", async () => {
+  it("accepts the real primary Git worktree with an absent canonical leaf", async () => {
     const workspace = await makeRegisteredWorkspace(
       "pr-review-discovery-absent-canonical-leaf-",
     );
@@ -3204,6 +3204,52 @@ describe("pr-review lease discovery", () => {
     } finally {
       process.chdir(originalCwd);
       await rm(workspace.tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects discovery invoked from a primary-worktree subdirectory", async () => {
+    const workspace = await makeRegisteredWorkspace(
+      "pr-review-discovery-primary-subdirectory-",
+    );
+    const subdirectory = path.join(workspace.physicalPrimary, "nested");
+
+    try {
+      await mkdir(subdirectory, { recursive: true });
+      process.chdir(subdirectory);
+      setDiscoveryEnv(subdirectory);
+
+      const result = await runPrReviewLeasesCommand(["discover"]);
+
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain(
+        "PRIMARY_REPOSITORY_ROOT must be the primary Git worktree root",
+      );
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects discovery invoked from a bare repository", async () => {
+    const tempRoot = await mkdtemp(
+      path.join(tmpdir(), "pr-review-discovery-bare-primary-"),
+    );
+    const bareRepository = path.join(tempRoot, "primary.git");
+
+    try {
+      await execFileAsync("git", ["init", "--bare", bareRepository]);
+      process.chdir(bareRepository);
+      setDiscoveryEnv(bareRepository);
+
+      const result = await runPrReviewLeasesCommand(["discover"]);
+
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain(
+        "PRIMARY_REPOSITORY_ROOT must be a non-bare primary Git worktree",
+      );
+    } finally {
+      process.chdir(originalCwd);
+      await rm(tempRoot, { recursive: true, force: true });
     }
   });
 
@@ -4535,6 +4581,11 @@ describe("pr-review lease discovery", () => {
         workspace.physicalWorktree,
         digestLeaseIdentityPath(workspace.physicalWorktree),
       );
+      terminal.cleanup = {
+        last_outcome: "removed",
+        removed_at: "2026-06-11T00:01:00Z",
+        last_checked_at: "2026-06-11T00:02:00Z",
+      };
       await writeFile(
         path.join(workspace.primary, leaseFile),
         `${JSON.stringify(terminal, null, 2)}\n`,
@@ -4625,6 +4676,62 @@ describe("pr-review lease discovery", () => {
             archived_lease_file: archiveFile,
             status: "invalid",
             reason: "lease-identity-mismatch",
+          },
+        ],
+      });
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it.each([
+    {
+      name: "missing cleanup authority",
+      cleanup: undefined,
+    },
+    {
+      name: "pre-terminal cleanup authority",
+      cleanup: {
+        last_outcome: "removed" as const,
+        removed_at: "2026-06-11T00:00:00Z",
+        last_checked_at: "2026-06-11T00:00:30Z",
+      },
+    },
+  ])("fails closed for archived history with $name", async ({ cleanup }) => {
+    const workspace = await makeRegisteredWorkspace(
+      "pr-review-discovery-archive-authority-",
+    );
+
+    try {
+      const leaseFile = discoveryLeaseFile(workspace.physicalWorktree);
+      const terminal = abortedCommandLease(
+        leaseFile,
+        workspace.physicalWorktree,
+        digestLeaseIdentityPath(workspace.physicalWorktree),
+      );
+      terminal.cleanup = cleanup;
+      const archiveTimestamp = (
+        terminal.terminal.finished_at ?? terminal.updated_at
+      ).replace(/[-:Z]/gu, "");
+      const archiveFile = `.ephemeral/pr-432-${terminal.worktree_digest}-${archiveTimestamp}-aborted-archived-lease.json`;
+      await writeFile(
+        path.join(workspace.primary, archiveFile),
+        `${JSON.stringify(terminal, null, 2)}\n`,
+      );
+      process.chdir(workspace.physicalPrimary);
+      setDiscoveryEnv(workspace.physicalPrimary);
+
+      const result = await runPrReviewLeasesCommand(["discover"]);
+
+      expect(result.exitCode, result.stderr).toBe(0);
+      expect(JSON.parse(result.stdout)).toMatchObject({
+        disposition: "invalid",
+        archived_leases: [
+          {
+            archived_lease_file: archiveFile,
+            status: "invalid",
+            reason: "invalid-archive-authority",
           },
         ],
       });
