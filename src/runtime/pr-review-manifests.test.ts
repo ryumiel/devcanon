@@ -13,6 +13,10 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  canonicalLeaseIdentityPath,
+  digestLeaseIdentityPath,
+} from "./pr-review-leases.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -72,11 +76,17 @@ afterEach(async () => {
 });
 
 describe("pr-review Phase 5 audit summary renderer", () => {
-  it("keeps POSIX single-letter roots as operational paths", async () => {
-    const { toOperationalPathText } = await import("./pr-review-manifests.js");
-    expect(toOperationalPathText("/c/repo")).toBe("/c/repo");
-    expect(toOperationalPathText("/w/worktree")).toBe("/w/worktree");
-    expect(toOperationalPathText("C:\\repo")).toBe("C:/repo");
+  it("preserves literal POSIX backslashes at physical I/O boundaries", async () => {
+    const workspace = await makeManifestWorkspace(
+      "pr-review-manifest-physical-\\-",
+    );
+    setSummaryEnv(workspace);
+    process.chdir(workspace.tempRoot);
+
+    const result = await runManifestCommand(["render-phase5-audit-summary"]);
+
+    expect(result.exitCode, result.stderr).toBe(0);
+    expect(result.stdout).toContain(workspace.physicalWorktree);
   });
 
   it("renders all mandatory audit families from the worktree and read-only lease status", async () => {
@@ -739,7 +749,8 @@ async function makeManifestWorkspace(
   };
   await writeJson(worktree, resultFile, resultManifest);
   const resultSha256 = await sha256File(path.join(worktree, resultFile));
-  const worktreeDigest = digestPath(physicalWorktree);
+  const canonicalWorktree = canonicalLeaseIdentityPath(physicalWorktree);
+  const worktreeDigest = digestLeaseIdentityPath(canonicalWorktree);
   const leaseFile = `.ephemeral/pr-432-${worktreeDigest}-lease.json`;
   await writeJson(primary, leaseFile, {
     schema: "pr-review/lease/v1",
@@ -748,7 +759,7 @@ async function makeManifestWorkspace(
     state: "gated",
     base_ref: "main",
     head_ref: "topic",
-    worktree_path: physicalWorktree,
+    worktree_path: canonicalWorktree,
     worktree_digest: worktreeDigest,
     lease_file: leaseFile,
     created_at: "2026-06-11T00:00:00Z",
@@ -814,7 +825,7 @@ function setSummaryEnv(workspace: ManifestWorkspace): void {
 function validStatus(workspace: ManifestWorkspace): Record<string, unknown> {
   return {
     lease_state: "gated",
-    worktree_path: workspace.physicalWorktree,
+    worktree_path: canonicalLeaseIdentityPath(workspace.physicalWorktree),
     worktree_digest: workspace.worktreeDigest,
     worktree_exists: true,
     worktree_registered: true,
@@ -863,12 +874,6 @@ async function sha256File(file: string): Promise<string> {
     .digest("hex");
 }
 
-function digestPath(value: string): string {
-  return createHash("sha256")
-    .update(normalizeComparablePath(value))
-    .digest("hex");
-}
-
 function formatExpectedMarkdownCodeSpan(value: string): string {
   const backtickRuns = value.match(/`+/gu) ?? [];
   if (backtickRuns.length === 0) {
@@ -878,11 +883,4 @@ function formatExpectedMarkdownCodeSpan(value: string): string {
     Math.max(...backtickRuns.map((run) => run.length)) + 1,
   );
   return `${delimiter} ${value} ${delimiter}`;
-}
-
-function normalizeComparablePath(value: string): string {
-  const normalized = value.replace(/\\/gu, "/");
-  return /^[A-Za-z]:\//u.test(normalized)
-    ? normalized.toLowerCase()
-    : normalized;
 }

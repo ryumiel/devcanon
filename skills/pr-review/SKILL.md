@@ -95,8 +95,9 @@ PR_REVIEW_LEASE_HELPER="$PR_REVIEW_DIR/scripts/review-leases.sh"
 `pr-review/lease/v1` records the local lifecycle of one `pr-review` review
 session. Its deterministic path is
 `.ephemeral/pr-${PR_NUMBER}-${WORKTREE_DIGEST}-lease.json`, where
-`WORKTREE_DIGEST` is derived by `scripts/review-leases.sh` from the physical
-review worktree path. Store leases in the primary repository `.ephemeral/`
+`WORKTREE_DIGEST` is derived by `scripts/review-leases.sh` from the canonical
+persisted review-worktree identity (Windows drive paths use lowercase slash
+form; POSIX paths preserve their original bytes). Store leases in the primary repository `.ephemeral/`
 directory, outside the disposable review worktree.
 
 `review-leases.sh` preserves the public helper commands but delegates lease

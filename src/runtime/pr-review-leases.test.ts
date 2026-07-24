@@ -54,6 +54,86 @@ describe("pr-review comparable path identity", () => {
   });
 });
 
+describe("pr-review Windows canonical identity lifecycle", () => {
+  it.skipIf(process.platform !== "win32")(
+    "uses one persisted identity across create, read-status, cleanup, and missing-path derivation",
+    async () => {
+      const created = await makeRegisteredWorkspace(
+        "pr-review-windows-identity-create-",
+      );
+      const gated = await makeGatedStatusWorkspace(
+        "pr-review-windows-identity-read-",
+      );
+
+      try {
+        process.chdir(created.physicalPrimary);
+        setLeaseCommandEnv(
+          created.physicalPrimary,
+          windowsMixedSpelling(created.physicalWorktree),
+        );
+        const derived = await runPrReviewLeasesCommand(["derive-path"]);
+        expect(derived.exitCode, derived.stderr).toBe(0);
+        const leaseFile = derived.stdout.trim();
+        await writeLeaseCommandState({
+          state: "created",
+          updatedAt: "2026-06-11T00:00:00Z",
+        });
+        expect(await readLease(created.primary, leaseFile)).toMatchObject({
+          worktree_path: canonicalLeaseIdentityPath(created.physicalWorktree),
+          worktree_digest: digestLeaseIdentityPath(created.physicalWorktree),
+          lease_file: leaseFile,
+        });
+
+        process.chdir(gated.physicalPrimary);
+        setReadStatusEnv(gated);
+        process.env.WORKTREE_PATH = windowsBackslashSpelling(
+          gated.physicalWorktree,
+        );
+        const readStatus = await runPrReviewLeasesCommand(["read-status"]);
+        expect(readStatus.exitCode, readStatus.stderr).toBe(0);
+        expect(JSON.parse(readStatus.stdout)).toMatchObject({
+          worktree_path: canonicalLeaseIdentityPath(gated.physicalWorktree),
+          worktree_digest: digestLeaseIdentityPath(gated.physicalWorktree),
+        });
+
+        await writeFile(
+          path.join(created.primary, leaseFile),
+          `${JSON.stringify(
+            abortedCommandLease(
+              leaseFile,
+              created.physicalWorktree,
+              digestLeaseIdentityPath(created.physicalWorktree),
+            ),
+            null,
+            2,
+          )}\n`,
+        );
+        process.chdir(created.physicalPrimary);
+        setLeaseCommandEnv(
+          created.physicalPrimary,
+          windowsBackslashSpelling(created.physicalWorktree),
+        );
+        process.env.LEASE_FILE = leaseFile;
+        const cleanup = await runPrReviewLeasesCommand(["cleanup-worktree"]);
+        expect(cleanup.exitCode, cleanup.stderr).toBe(0);
+        expect(cleanup.stdout).toContain("OUTCOME=removed");
+
+        unsetEnv("LEASE_FILE");
+        process.env.WORKTREE_PATH = windowsMixedSpelling(
+          created.physicalWorktree,
+        );
+        const missingDerived = await runPrReviewLeasesCommand(["derive-path"]);
+        expect(missingDerived.exitCode, missingDerived.stderr).toBe(0);
+        expect(missingDerived.stdout.trim()).toBe(leaseFile);
+      } finally {
+        process.chdir(originalCwd);
+        await rm(created.tempRoot, { recursive: true, force: true });
+        await rm(gated.tempRoot, { recursive: true, force: true });
+      }
+    },
+  );
+});
+
 const identity = {
   repository: "owner/repo",
   prNumber: 432,
@@ -3980,6 +4060,18 @@ async function writeDiscoveryLease(
 
 function unsetEnv(key: (typeof managedEnvKeys)[number]): void {
   delete process.env[key];
+}
+
+function windowsMixedSpelling(value: string): string {
+  return value
+    .replace(/^([A-Za-z]):/u, (_, drive: string) => {
+      return `${drive.toLowerCase()}:`;
+    })
+    .replace(/\\/gu, "/");
+}
+
+function windowsBackslashSpelling(value: string): string {
+  return windowsMixedSpelling(value).replace(/\//gu, "\\");
 }
 
 async function writeLeaseCommandState({
