@@ -700,6 +700,7 @@ async function discoverReviewLeases(): Promise<string> {
     // masking a file, symlink, or unmanaged worktree at the canonical path.
     return !(
       scanned.postCleanupArchiveLeaseFiles.has(lease.lease_file) &&
+      lease.worktree_path === identity.canonicalWorktreePath &&
       !lease.worktree.exists &&
       !lease.worktree.registered &&
       !canonicalWorktree.exists &&
@@ -1056,6 +1057,12 @@ async function inspectArchivedDiscoveryLease(
     reason,
   });
   try {
+    const filename = path.basename(archivedLeaseFile);
+    const filenameMatch = new RegExp(
+      `^pr-${identity.prNumber}-([0-9a-f]{64})-(\\d{8}T\\d{6})-(posted|aborted)-archived-lease\\.json$`,
+      "u",
+    ).exec(filename);
+    if (filenameMatch === null) return invalid("malformed-archived-lease-path");
     const stat = await lstat(
       path.join(identity.primaryRoot, archivedLeaseFile),
     );
@@ -1075,6 +1082,12 @@ async function inspectArchivedDiscoveryLease(
       lease.lease_file !== expectedLeaseFile ||
       !isAbsoluteLeaseIdentityPath(lease.worktree_path) ||
       lease.worktree_digest !== digestPath(lease.worktree_path) ||
+      lease.worktree_digest !== filenameMatch[1] ||
+      lease.state !== filenameMatch[3] ||
+      (lease.terminal.finished_at ?? lease.updated_at).replace(
+        /[-:Z]/gu,
+        "",
+      ) !== filenameMatch[2] ||
       (lease.state !== "posted" && lease.state !== "aborted")
     ) {
       return invalid("lease-identity-mismatch");
@@ -2785,10 +2798,21 @@ async function collectOwnedEphemeralArtifacts(
   }
   if (lease.artifacts.approved_review_file !== null) {
     if (options.discovery === true) {
+      const result = await readRequiredJson<JsonObject>(
+        worktreePath,
+        lease.artifacts.result_file ?? "",
+        "result file",
+      );
       const approved = await readRequiredJson<JsonObject>(
         worktreePath,
         lease.artifacts.approved_review_file,
         "approved review file",
+      );
+      await validateDiscoveryApprovedReviewOwnership(
+        lease,
+        result,
+        approved,
+        worktreePath,
       );
       addOwnedPath(owned, stringField(approved, "review_body_file"));
       addOwnedPath(owned, stringField(approved, "review_payload_file"));
@@ -2823,6 +2847,90 @@ async function collectOwnedEphemeralArtifacts(
   }
 
   return owned;
+}
+
+async function validateDiscoveryApprovedReviewOwnership(
+  lease: PrReviewLease,
+  result: JsonObject,
+  approved: JsonObject,
+  worktreePath: string,
+): Promise<void> {
+  const expectedKeys = [
+    "schema",
+    "review_head_sha",
+    "findings_file",
+    "review_body_file",
+    "review_payload_file",
+    "scope_decision_file",
+    "findings_sha256",
+    "review_body_sha256",
+    "review_payload_sha256",
+    "scope_decision_sha256",
+    "payload",
+  ];
+  if (
+    Object.keys(approved).length !== expectedKeys.length ||
+    expectedKeys.some((key) => !(key in approved)) ||
+    approved.schema !== "pr-review/approved-review/v1" ||
+    approved.review_head_sha !== result.review_head_sha ||
+    approved.findings_file !== result.findings_file ||
+    approved.review_body_file !== result.review_body_file ||
+    !isObject(approved.payload) ||
+    !isObject(result.artifacts) ||
+    approved.scope_decision_file !== result.artifacts.scope_decision_file
+  ) {
+    throw new PrReviewLeaseError(
+      "approved review discovery ownership mismatch",
+    );
+  }
+  for (const [label, file, digest, suffix] of [
+    [
+      "findings",
+      approved.findings_file,
+      approved.findings_sha256,
+      "-findings.json",
+    ],
+    [
+      "review body",
+      approved.review_body_file,
+      approved.review_body_sha256,
+      "-review-body.md",
+    ],
+    [
+      "review payload",
+      approved.review_payload_file,
+      approved.review_payload_sha256,
+      "-review-payload.json",
+    ],
+    [
+      "scope decision",
+      approved.scope_decision_file,
+      approved.scope_decision_sha256,
+      "-scope-decision.json",
+    ],
+  ] as const) {
+    if (typeof file !== "string" || typeof digest !== "string") {
+      throw new PrReviewLeaseError(
+        "approved review discovery ownership mismatch",
+      );
+    }
+    validateDirectChild(label, file, suffix);
+    if ((await sha256DirectChild(worktreePath, file, label)) !== digest) {
+      throw new PrReviewLeaseError("approved review discovery digest mismatch");
+    }
+  }
+  const payloadFile = stringField(approved, "review_payload_file");
+  const payload = await readRequiredJson<JsonObject>(
+    worktreePath,
+    payloadFile,
+    "review payload file",
+  );
+  if (
+    JSON.stringify(payload) !== JSON.stringify(approved.payload) ||
+    payload.commit_id !== approved.review_head_sha
+  ) {
+    throw new PrReviewLeaseError("approved review discovery payload mismatch");
+  }
 }
 
 function collectHandoffArtifactPaths(
