@@ -120,6 +120,65 @@ interface CleanupIdentity extends LeaseIdentity {
   worktreeExists: boolean;
 }
 
+type DiscoveryDisposition =
+  | "create"
+  | "resume"
+  | "cleanup-required"
+  | "ambiguous"
+  | "invalid";
+type DiscoveryLeaseStatus =
+  | "resumable"
+  | "cleanup-required"
+  | "terminal"
+  | "invalid";
+type DiscoveryWorktreeStatus =
+  | "absent"
+  | "registered"
+  | "unregistered"
+  | "unleased-canonical";
+
+interface DiscoveryIdentity {
+  repository: string;
+  prNumber: number;
+  primaryRoot: string;
+  canonicalWorktreePath: string;
+}
+
+interface DiscoveryWorktree {
+  path: string;
+  exists: boolean;
+  registered: boolean;
+  dirty: boolean | null;
+  status: DiscoveryWorktreeStatus;
+}
+
+interface DiscoveryLease {
+  lease_file: string;
+  worktree_path: string | null;
+  worktree_digest: string | null;
+  state: LeaseState | null;
+  status: DiscoveryLeaseStatus;
+  reason: string | null;
+  worktree: {
+    exists: boolean;
+    registered: boolean;
+    dirty: boolean | null;
+    unmanaged_ephemeral_artifacts: string[];
+  };
+}
+
+interface DiscoveryArchivedLease {
+  archived_lease_file: string;
+  state: LeaseState | null;
+  status: "valid" | "invalid";
+  reason: string | null;
+}
+
+interface DiscoveryInvalidFile {
+  lease_file: string;
+  reason: string;
+}
+
 interface LeaseInputs {
   state: LeaseState;
   baseRef: string;
@@ -172,13 +231,15 @@ export async function runPrReviewLeasesCommand(
         return ok("");
       case "read-status":
         return ok(`${await readStatus()}\n`);
+      case "discover":
+        return ok(`${await discoverReviewLeases()}\n`);
       case "inspect-worktree":
         return ok(await inspectWorktree());
       case "cleanup-worktree":
         return ok(await cleanupWorktree());
       default:
         throw new PrReviewLeaseError(
-          "usage: review-leases.sh derive-path|write|record-audit-failure|validate|read-status|inspect-worktree|cleanup-worktree",
+          "usage: review-leases.sh derive-path|write|record-audit-failure|validate|read-status|discover|inspect-worktree|cleanup-worktree",
         );
     }
   } catch (err) {
@@ -563,6 +624,386 @@ async function readStatus(): Promise<string> {
     presentation_status: lease.presentation.status,
     presented_at: lease.presentation.presented_at,
   });
+}
+
+async function discoverReviewLeases(): Promise<string> {
+  const identity = await readDiscoveryIdentity();
+  const registrations = await listRegisteredWorktrees(identity.primaryRoot);
+  const registrationSet = new Set(registrations.map(normalizeComparablePath));
+  let canonicalWorktree = await inspectDiscoveryWorktree(
+    identity.canonicalWorktreePath,
+    registrationSet,
+    true,
+  );
+  const scanned = await scanDiscoveryLeaseFiles(identity, registrationSet);
+  const activeLeases = scanned.active.sort((left, right) =>
+    left.lease_file.localeCompare(right.lease_file),
+  );
+  const archivedLeases = scanned.archived.sort((left, right) =>
+    left.archived_lease_file.localeCompare(right.archived_lease_file),
+  );
+  const invalidLeaseFiles = scanned.invalid.sort((left, right) =>
+    left.lease_file.localeCompare(right.lease_file),
+  );
+  if (
+    activeLeases.some(
+      (lease) =>
+        lease.status !== "invalid" &&
+        lease.worktree_path === identity.canonicalWorktreePath,
+    )
+  ) {
+    canonicalWorktree = {
+      ...canonicalWorktree,
+      status: canonicalWorktree.registered ? "registered" : "unregistered",
+    };
+  }
+  const resumable = activeLeases.filter(
+    (lease) => lease.status === "resumable",
+  );
+  const invalid =
+    invalidLeaseFiles.length > 0 ||
+    activeLeases.some((lease) => lease.status === "invalid");
+  const cleanupLease = activeLeases.find(
+    (lease) =>
+      lease.status === "cleanup-required" || lease.status === "terminal",
+  );
+  const disposition: DiscoveryDisposition = invalid
+    ? "invalid"
+    : resumable.length > 1
+      ? "ambiguous"
+      : resumable.length === 1
+        ? "resume"
+        : cleanupLease !== undefined ||
+            canonicalWorktree.status === "unleased-canonical"
+          ? "cleanup-required"
+          : "create";
+
+  return JSON.stringify({
+    schema: "pr-review/discovery/v1",
+    repository: identity.repository,
+    pr_number: identity.prNumber,
+    primary_repository_root: identity.primaryRoot,
+    canonical_worktree: canonicalWorktree,
+    worktree_registrations: registrations,
+    active_leases: activeLeases,
+    archived_leases: archivedLeases,
+    invalid_lease_files: invalidLeaseFiles,
+    disposition,
+    resume:
+      disposition === "resume"
+        ? {
+            lease_file: resumable[0].lease_file,
+            worktree_path: resumable[0].worktree_path,
+          }
+        : null,
+    cleanup:
+      disposition === "cleanup-required" && cleanupLease !== undefined
+        ? {
+            lease_file: cleanupLease.lease_file,
+            worktree_path: cleanupLease.worktree_path,
+            reason: cleanupLease.reason ?? "terminal-lease",
+          }
+        : null,
+  });
+}
+
+async function readDiscoveryIdentity(): Promise<DiscoveryIdentity> {
+  const repository = requiredEnv("REPOSITORY");
+  if (!/^[^/\s]+\/[^/\s]+$/u.test(repository)) {
+    throw new PrReviewLeaseError("REPOSITORY must be owner/name");
+  }
+  const prNumber = parsePositiveInteger("PR_NUMBER", requiredEnv("PR_NUMBER"));
+  const primaryRoot = await realpath(requiredEnv("PRIMARY_REPOSITORY_ROOT"));
+  if (primaryRoot !== (await realpath(process.cwd()))) {
+    throw new PrReviewLeaseError(
+      "PRIMARY_REPOSITORY_ROOT must match the primary repository root",
+    );
+  }
+  return {
+    repository,
+    prNumber,
+    primaryRoot,
+    canonicalWorktreePath: path.join(
+      primaryRoot,
+      ".worktrees",
+      `pr-${prNumber}-review`,
+    ),
+  };
+}
+
+async function listRegisteredWorktrees(primaryRoot: string): Promise<string[]> {
+  const { stdout } = await execFileAsync(
+    "git",
+    [
+      "--no-optional-locks",
+      "-C",
+      primaryRoot,
+      "worktree",
+      "list",
+      "--porcelain",
+      "-z",
+    ],
+    { maxBuffer: 1024 * 1024 },
+  );
+  return stdout
+    .split("\0")
+    .filter((entry) => entry.startsWith("worktree "))
+    .map((entry) => entry.slice(9))
+    .sort((left, right) => left.localeCompare(right));
+}
+
+async function inspectDiscoveryWorktree(
+  worktreePath: string,
+  registrationSet: Set<string>,
+  canonical: boolean,
+): Promise<DiscoveryWorktree> {
+  let exists = false;
+  try {
+    await lstat(worktreePath);
+    // Any occupied canonical path blocks creation. In particular, a symlink or
+    // regular file must never be treated as an absent review worktree.
+    exists = true;
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
+  }
+  const registered = registrationSet.has(normalizeComparablePath(worktreePath));
+  let dirty: boolean | null = null;
+  if (exists && registered) {
+    try {
+      dirty = await isWorktreeDirty(worktreePath);
+    } catch {
+      dirty = null;
+    }
+  }
+  return {
+    path: worktreePath,
+    exists,
+    registered,
+    dirty,
+    status: !exists
+      ? "absent"
+      : canonical
+        ? "unleased-canonical"
+        : registered
+          ? "registered"
+          : "unregistered",
+  };
+}
+
+async function scanDiscoveryLeaseFiles(
+  identity: DiscoveryIdentity,
+  registrationSet: Set<string>,
+): Promise<{
+  active: DiscoveryLease[];
+  archived: DiscoveryArchivedLease[];
+  invalid: DiscoveryInvalidFile[];
+}> {
+  const empty = { active: [], archived: [], invalid: [] } as {
+    active: DiscoveryLease[];
+    archived: DiscoveryArchivedLease[];
+    invalid: DiscoveryInvalidFile[];
+  };
+  const ephemeral = path.join(identity.primaryRoot, ".ephemeral");
+  let entries: { name: string }[];
+  try {
+    const stat = await lstat(ephemeral);
+    if (stat.isSymbolicLink() || !stat.isDirectory()) {
+      empty.invalid.push({
+        lease_file: ".ephemeral",
+        reason: "ephemeral-directory-invalid",
+      });
+      return empty;
+    }
+    entries = await readdir(ephemeral, { withFileTypes: true });
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return empty;
+    throw err;
+  }
+  const prefix = `pr-${identity.prNumber}-`;
+  for (const entry of entries.sort((left, right) =>
+    left.name.localeCompare(right.name),
+  )) {
+    const leaseFile = `.ephemeral/${entry.name}`;
+    if (!entry.name.startsWith(prefix)) continue;
+    if (entry.name.endsWith("-archived-lease.json")) {
+      empty.archived.push(
+        await inspectArchivedDiscoveryLease(identity, leaseFile),
+      );
+      continue;
+    }
+    if (!entry.name.endsWith("-lease.json")) continue;
+    const activeName = new RegExp(
+      `^pr-${identity.prNumber}-([0-9a-f]{64})-lease\\.json$`,
+      "u",
+    );
+    const match = activeName.exec(entry.name);
+    if (match === null) {
+      empty.invalid.push({
+        lease_file: leaseFile,
+        reason: "malformed-lease-path",
+      });
+      continue;
+    }
+    empty.active.push(
+      await inspectActiveDiscoveryLease(
+        identity,
+        leaseFile,
+        match[1],
+        registrationSet,
+      ),
+    );
+  }
+  return empty;
+}
+
+async function inspectActiveDiscoveryLease(
+  identity: DiscoveryIdentity,
+  leaseFile: string,
+  filenameDigest: string,
+  registrationSet: Set<string>,
+): Promise<DiscoveryLease> {
+  const invalid = (reason: string): DiscoveryLease => ({
+    lease_file: leaseFile,
+    worktree_path: null,
+    worktree_digest: null,
+    state: null,
+    status: "invalid",
+    reason,
+    worktree: {
+      exists: false,
+      registered: false,
+      dirty: null,
+      unmanaged_ephemeral_artifacts: [],
+    },
+  });
+  let lease: PrReviewLease;
+  try {
+    const stat = await lstat(path.join(identity.primaryRoot, leaseFile));
+    if (stat.isSymbolicLink()) return invalid("lease-file-symlink");
+    if (!stat.isFile()) return invalid("lease-file-not-regular");
+    lease = JSON.parse(
+      await readFile(path.join(identity.primaryRoot, leaseFile), "utf8"),
+    ) as PrReviewLease;
+    validateLeaseShape(lease);
+    if (
+      lease.repository !== identity.repository ||
+      lease.pr_number !== identity.prNumber ||
+      lease.lease_file !== leaseFile ||
+      !path.isAbsolute(lease.worktree_path) ||
+      lease.worktree_path === identity.primaryRoot ||
+      lease.worktree_digest !== filenameDigest ||
+      lease.worktree_digest !== digestPath(lease.worktree_path)
+    ) {
+      return invalid("lease-identity-mismatch");
+    }
+  } catch {
+    return invalid("invalid-lease");
+  }
+
+  const observed = await inspectDiscoveryWorktree(
+    lease.worktree_path,
+    registrationSet,
+    false,
+  );
+  let unmanaged: string[] = [];
+  if (observed.exists && observed.registered) {
+    try {
+      unmanaged = await findUnmanagedEphemeralArtifacts(
+        lease,
+        lease.worktree_path,
+      );
+    } catch {
+      return {
+        ...invalid("invalid-lease"),
+        worktree_path: lease.worktree_path,
+        worktree_digest: lease.worktree_digest,
+        state: lease.state,
+        worktree: {
+          exists: observed.exists,
+          registered: observed.registered,
+          dirty: observed.dirty,
+          unmanaged_ephemeral_artifacts: [],
+        },
+      };
+    }
+  }
+  const terminal = lease.state === "posted" || lease.state === "aborted";
+  const reason = !observed.exists
+    ? "missing-worktree"
+    : !observed.registered
+      ? "unregistered-worktree"
+      : observed.dirty === null
+        ? "status-inspection-failed"
+        : observed.dirty === true
+          ? "dirty"
+          : unmanaged.length > 0
+            ? "unmanaged-ephemeral-artifacts"
+            : terminal
+              ? "terminal-lease"
+              : null;
+  return {
+    lease_file: leaseFile,
+    worktree_path: lease.worktree_path,
+    worktree_digest: lease.worktree_digest,
+    state: lease.state,
+    status: terminal
+      ? "terminal"
+      : reason === null
+        ? "resumable"
+        : "cleanup-required",
+    reason,
+    worktree: {
+      exists: observed.exists,
+      registered: observed.registered,
+      dirty: observed.dirty,
+      unmanaged_ephemeral_artifacts: unmanaged,
+    },
+  };
+}
+
+async function inspectArchivedDiscoveryLease(
+  identity: DiscoveryIdentity,
+  archivedLeaseFile: string,
+): Promise<DiscoveryArchivedLease> {
+  const invalid = (reason: string): DiscoveryArchivedLease => ({
+    archived_lease_file: archivedLeaseFile,
+    state: null,
+    status: "invalid",
+    reason,
+  });
+  try {
+    const stat = await lstat(
+      path.join(identity.primaryRoot, archivedLeaseFile),
+    );
+    if (stat.isSymbolicLink()) return invalid("lease-file-symlink");
+    if (!stat.isFile()) return invalid("lease-file-not-regular");
+    const lease = JSON.parse(
+      await readFile(
+        path.join(identity.primaryRoot, archivedLeaseFile),
+        "utf8",
+      ),
+    ) as PrReviewLease;
+    validateLeaseShape(lease);
+    const expectedLeaseFile = `.ephemeral/pr-${identity.prNumber}-${lease.worktree_digest}-lease.json`;
+    if (
+      lease.repository !== identity.repository ||
+      lease.pr_number !== identity.prNumber ||
+      lease.lease_file !== expectedLeaseFile ||
+      !path.isAbsolute(lease.worktree_path) ||
+      lease.worktree_digest !== digestPath(lease.worktree_path) ||
+      (lease.state !== "posted" && lease.state !== "aborted")
+    ) {
+      return invalid("lease-identity-mismatch");
+    }
+    return {
+      archived_lease_file: archivedLeaseFile,
+      state: lease.state,
+      status: "valid",
+      reason: null,
+    };
+  } catch {
+    return invalid("invalid-lease");
+  }
 }
 
 async function inspectWorktree(): Promise<string> {

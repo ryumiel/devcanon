@@ -123,6 +123,36 @@ PR number and review head.
 
 ## Read-Only Status
 
+## Discovery Before Worktree Creation
+
+`review-leases.sh discover` delegates to `devcanon-runtime runtime
+pr-review-leases discover`. It is read-only and requires only `REPOSITORY`,
+`PR_NUMBER`, and `PRIMARY_REPOSITORY_ROOT`; the current directory must be that
+primary root. It scans direct-child `.ephemeral` lease files for the requested
+PR, reports archived leases separately, and inventories the canonical
+`.worktrees/pr-<PR_NUMBER>-review` path plus Git worktree registrations.
+
+Stdout is one closed-schema `pr-review/discovery/v1` JSON object. Its
+`disposition` is exactly one of `create`, `resume`, `cleanup-required`,
+`ambiguous`, or `invalid`. `active_leases`, `archived_leases`,
+`invalid_lease_files`, and registrations are deterministically ordered.
+
+Only a direct-child active lease path with the canonical PR/path digest and a
+schema-valid `pr-review/lease/v1` identity is a lease ownership candidate.
+Arbitrary names, branch names, metadata strings, ages, and HEAD SHAs do not
+create cleanup authority. Symlinked or malformed lease files are reported as
+invalid, never followed. Archived leases never produce an active ambiguity.
+
+Precedence is fail-closed: invalid files or active lease identity failures are
+`invalid`; more than one valid resumable nonterminal lease is `ambiguous`; one
+valid clean registered nonterminal lease is `resume`; terminal, missing,
+unregistered, dirty, unmanaged, and unleased-canonical paths are
+`cleanup-required`; otherwise discovery returns `create`. A
+`cleanup-required` result identifies a lease only when that lease is
+schema-bound. An unleased canonical path requires manual reconciliation and
+must not be deleted by inference. All removal attempts remain exclusively on
+the `inspect-worktree`/`cleanup-worktree` path.
+
 `review-leases.sh read-status` delegates to `devcanon-runtime runtime
 pr-review-leases read-status`. It is read-only, must inspect git status with
 optional locks disabled, and must not record cleanup metadata.

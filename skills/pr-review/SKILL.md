@@ -119,6 +119,7 @@ Helper command surface:
 - `derive-path`
 - `write`
 - `validate`
+- `discover`
 - `inspect-worktree`
 - `read-status`
 - `record-audit-failure`
@@ -166,6 +167,14 @@ physical worktree path and run `review-leases.sh validate` or
 reports a cleanup outcome that permits removal. A prior Phase 5 preview is not
 approval; resume must present or re-render the latest validated artifacts and
 wait for fresh user action.
+
+Before creating a Phase 2 worktree, run `review-leases.sh discover` from the
+primary repository root with only `REPOSITORY`, `PR_NUMBER`, and
+`PRIMARY_REPOSITORY_ROOT` set. Its single JSON disposition is authoritative:
+`create` may continue to `git worktree add`; `resume` selects the reported
+lease; `cleanup-required`, `ambiguous`, and `invalid` stop creation. Discovery
+is read-only and never removes a worktree; route every removal through the
+existing `inspect-worktree` and `cleanup-worktree` lifecycle commands.
 
 ## Phase 3: Determine diff ranges
 
