@@ -2788,14 +2788,21 @@ async function collectOwnedEphemeralArtifacts(
   options: { discovery?: boolean } = {},
 ): Promise<Set<string>> {
   const owned = new Set<string>();
-  addOwnedPath(owned, lease.artifacts.handoff_file);
-  addOwnedPath(owned, lease.artifacts.result_file);
 
   if (lease.artifacts.result_file !== null) {
     const { result, handoff } = await validateDiscoveryResultArtifacts(
       lease,
       worktreePath,
     );
+    const resultHandoffFile = stringField(
+      isObject(result.artifacts) ? result.artifacts : {},
+      "handoff_file",
+    );
+    if (lease.artifacts.handoff_file !== resultHandoffFile) {
+      throw new PrReviewLeaseError("result handoff mismatch");
+    }
+    addOwnedPath(owned, lease.artifacts.result_file);
+    addOwnedPath(owned, resultHandoffFile);
     addOwnedPath(owned, stringField(result, "findings_file"));
     addOwnedPath(owned, nullableStringField(result, "review_body_file"));
     const sharedContext = await validateSharedContextFamilyBinding({

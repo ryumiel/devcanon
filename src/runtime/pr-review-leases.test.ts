@@ -3600,6 +3600,19 @@ describe("pr-review lease discovery", () => {
     },
   );
 
+  it("rejects a foreign valid-suffix lease handoff pointer during discovery", async () => {
+    await withDiscoveryOnlyApprovedReviewFixture(async (fixture) => {
+      const foreign = ".ephemeral/foreign-handoff.json";
+      await writeFile(path.join(fixture.worktreePath, foreign), "{}\n");
+      const lease = JSON.parse(fixture.originalLease) as {
+        artifacts: Record<string, unknown>;
+      };
+      lease.artifacts.handoff_file = foreign;
+      await writeFile(fixture.leasePath, `${JSON.stringify(lease)}\n`);
+      await fixture.expectInvalidDiscovery();
+    });
+  });
+
   it.each([
     {
       name: "dirty",
@@ -4451,7 +4464,9 @@ describe("pr-review lease Git cleanup safety", () => {
                 validatedPayloadFile: `.ephemeral/pr-432-${workspace.reviewHead}-validated-review-payload.json`,
               })
             : {
-                ...(await readLease(workspace.primary, workspace.leaseFile)),
+                ...withCanonicalHandoffPointer(
+                  await readLease(workspace.primary, workspace.leaseFile),
+                ),
                 state: "aborted" as const,
                 updated_at: "2026-06-11T00:03:00Z",
                 terminal: {
@@ -4539,7 +4554,9 @@ describe("pr-review lease Git cleanup safety", () => {
                 validatedPayloadFile: `.ephemeral/pr-432-${workspace.reviewHead}-validated-review-payload.json`,
               })
             : {
-                ...(await readLease(workspace.primary, workspace.leaseFile)),
+                ...withCanonicalHandoffPointer(
+                  await readLease(workspace.primary, workspace.leaseFile),
+                ),
                 state: "aborted" as const,
                 updated_at: "2026-06-11T00:03:00Z",
                 terminal: {
@@ -4658,7 +4675,9 @@ describe("pr-review lease Git cleanup safety", () => {
 
     try {
       const prior = {
-        ...(await readLease(workspace.primary, workspace.leaseFile)),
+        ...withCanonicalHandoffPointer(
+          await readLease(workspace.primary, workspace.leaseFile),
+        ),
         state: "aborted" as const,
         updated_at: "2026-06-11T00:03:00Z",
         terminal: {
@@ -5805,7 +5824,7 @@ function postedCommandLease({
     created_at: "2026-06-11T00:00:00Z",
     updated_at: "2026-06-11T00:03:00Z",
     artifacts: {
-      handoff_file: null,
+      handoff_file: handoffFileFromResultFile(resultFile),
       result_file: resultFile,
       approved_review_file: approvedReviewFile,
       validated_payload_file: validatedPayloadFile,
@@ -5827,6 +5846,29 @@ function postedCommandLease({
       github_post_attempted: true,
       github_post_result: "succeeded",
       github_posted_at: "2026-06-11T00:03:00Z",
+    },
+  };
+}
+
+function handoffFileFromResultFile(resultFile: string): string {
+  const match = /^\.ephemeral\/pr-432-([0-9a-f]{40})-result\.json$/u.exec(
+    resultFile,
+  );
+  if (match === null) {
+    throw new Error(`unexpected result path: ${resultFile}`);
+  }
+  return `.ephemeral/pr-432-${match[1]}-handoff.json`;
+}
+
+function withCanonicalHandoffPointer(lease: PrReviewLease): PrReviewLease {
+  if (lease.artifacts.result_file === null) {
+    throw new Error("result-backed lease is required");
+  }
+  return {
+    ...lease,
+    artifacts: {
+      ...lease.artifacts,
+      handoff_file: handoffFileFromResultFile(lease.artifacts.result_file),
     },
   };
 }
