@@ -101,6 +101,7 @@ async function writeEnvelope(cwd: string, relPath: string): Promise<void> {
       schema: "play-review/findings/v1",
       findings: [],
       carry_forward: [],
+      incomplete_topical_routes: [],
     }),
   );
 }
@@ -109,8 +110,19 @@ async function writeRawEnvelope(
   cwd: string,
   relPath: string,
   envelope: unknown,
+  preserveMissingIncompleteRoutes = false,
 ): Promise<void> {
-  await writeFile(path.join(cwd, relPath), JSON.stringify(envelope));
+  const normalized =
+    !preserveMissingIncompleteRoutes &&
+    envelope !== null &&
+    typeof envelope === "object" &&
+    !Array.isArray(envelope) &&
+    (envelope as Record<string, unknown>).schema ===
+      "play-review/findings/v1" &&
+    !("incomplete_topical_routes" in envelope)
+      ? { ...envelope, incomplete_topical_routes: [] }
+      : envelope;
+  await writeFile(path.join(cwd, relPath), JSON.stringify(normalized));
 }
 
 function finding(overrides: Record<string, unknown> = {}) {
@@ -302,6 +314,9 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
           }),
         ],
         carry_forward: [],
+        incomplete_topical_routes: [
+          { route: "D8", disposition: "NEEDS_CONTEXT" },
+        ],
       });
 
       const preview = await runHelper(cwd, "render-review-preview", {
@@ -360,6 +375,9 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
           }),
         ],
         carry_forward: [],
+        incomplete_topical_routes: [
+          { route: "D8", disposition: "NEEDS_CONTEXT" },
+        ],
       });
 
       await expect(
@@ -928,6 +946,9 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
           }),
         ],
         carry_forward: [],
+        incomplete_topical_routes: [
+          { route: "D8", disposition: "NEEDS_CONTEXT" },
+        ],
       });
 
       const { stdout } = await runHelper(cwd, "prepare-judgment-nits", {
@@ -942,6 +963,9 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
       expect(written).toMatchObject({
         schema: "play-review/findings/v1",
         carry_forward: [],
+        incomplete_topical_routes: [
+          { route: "D8", disposition: "NEEDS_CONTEXT" },
+        ],
       });
       expect(written.findings).toHaveLength(2);
       expect(written.findings[0]).toMatchObject({
@@ -1290,6 +1314,26 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
     const malformedEnvelopes = [
       {
         schema: "play-review/findings/v1",
+        findings: [],
+        carry_forward: [],
+      },
+      {
+        schema: "play-review/findings/v1",
+        findings: [],
+        carry_forward: [],
+        incomplete_topical_routes: "missing",
+      },
+      {
+        schema: "play-review/findings/v1",
+        findings: [],
+        carry_forward: [],
+        incomplete_topical_routes: [
+          { route: "D7", disposition: "FAILED" },
+          { route: "D7", disposition: "NEEDS_CONTEXT" },
+        ],
+      },
+      {
+        schema: "play-review/findings/v1",
         findings: "not-array",
         carry_forward: [],
       },
@@ -1340,10 +1384,15 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
     ];
 
     try {
-      for (const envelope of malformedEnvelopes) {
-        await writeRawEnvelope(cwd, findingsFile, envelope);
+      for (const [index, envelope] of malformedEnvelopes.entries()) {
+        await writeRawEnvelope(cwd, findingsFile, envelope, index === 0);
         await expect(
           runHelper(cwd, "validate-findings", { FINDINGS_FILE: findingsFile }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("envelope shape mismatch"),
+        });
+        await expect(
+          runHelper(cwd, "validate-nits-file", { NITS_FILE: findingsFile }),
         ).rejects.toMatchObject({
           stderr: expect.stringContaining("envelope shape mismatch"),
         });

@@ -364,6 +364,7 @@ function findingsEnvelope() {
     schema: "play-review/findings/v1",
     findings: [],
     carry_forward: [],
+    incomplete_topical_routes: [],
   };
 }
 
