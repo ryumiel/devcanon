@@ -1466,6 +1466,42 @@ export async function validateCanonicalApprovedReviewArtifacts(input) {
         return expectedPayload;
     });
 }
+export async function validatePrReviewEvidenceAuthority(input) {
+    await reviewArtifactRootContext.run(input.worktreeRoot, async () => {
+        const priorContextKind = input.priorThreadsFile === null ? "none" : "github-prior-threads";
+        const priorContextPath = input.priorThreadsFile ?? "null";
+        const scopeOptions = {
+            ...EMPTY_OPTIONS,
+            surface: "pr-review",
+            headSha: input.headSha,
+            baseRef: input.baseRef,
+            scopeDecision: input.scopeDecisionFile,
+            providerScopeEvidenceFile: input.providerScopeEvidenceFile,
+            expectedSchema: "pr-review/scope-decision/v1",
+            priorContextKind,
+            priorContextPath,
+            governedPathPattern: PR_REVIEW_GOVERNED_PATH_PATTERN,
+            configuredPathPattern: "^$",
+            maxNarrowChangedFiles: PR_REVIEW_MAX_NARROW_CHANGED_FILES,
+            allowAmbiguousFull: "true",
+        };
+        const scope = await validateScopeDecision(scopeOptions);
+        if (input.priorThreadsFile !== null) {
+            await validatePriorThreads({
+                ...scopeOptions,
+                provider: "github",
+                expectedSchema: "pr-review/prior-threads/v1",
+                priorThreads: input.priorThreadsFile,
+            });
+        }
+        if (input.findingsFile !== undefined) {
+            await assertReadableFile("--findings-file", input.findingsFile);
+            validateSuffix("--findings-file", input.findingsFile, "-findings.json");
+            const findings = await assertFindingsEnvelope(input.findingsFile);
+            await validateSelectedDiffAnchors(scope, findings, input.headSha);
+        }
+    });
+}
 async function validateApprovalSummary(options) {
     await requireRepoRoot();
     requireApprovalSummaryFlags(options);

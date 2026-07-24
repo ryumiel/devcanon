@@ -620,6 +620,7 @@ describe("pr-review lease command validation", () => {
       physicalPrimary,
       physicalWorktree,
       reviewHead,
+      reviewBase,
       prReviewDir,
       prReviewManifestHelperScript,
       prReviewLeaseHelperScript,
@@ -651,6 +652,8 @@ describe("pr-review lease command validation", () => {
         resultFile,
         reviewHead,
         "preview-current",
+        false,
+        reviewBase,
       );
       process.env.RESULT_FILE = resultFile;
       await writeLeaseCommandState({
@@ -681,6 +684,8 @@ describe("pr-review lease command validation", () => {
         resultFile,
         reviewHead,
         "edited",
+        false,
+        reviewBase,
       );
       const secondDigest = await sha256File(path.join(worktree, resultFile));
       expect(secondDigest).not.toBe(firstDigest);
@@ -867,6 +872,7 @@ describe("pr-review lease command validation", () => {
       physicalPrimary,
       physicalWorktree,
       reviewHead,
+      reviewBase,
       prReviewDir,
       prReviewManifestHelperScript,
       prReviewLeaseHelperScript,
@@ -881,6 +887,8 @@ describe("pr-review lease command validation", () => {
         resultFile,
         reviewHead,
         "preview-current",
+        false,
+        reviewBase,
       );
       process.chdir(physicalPrimary);
       setLeaseCommandEnv(physicalPrimary, physicalWorktree);
@@ -939,6 +947,7 @@ describe("pr-review lease command validation", () => {
       physicalPrimary,
       physicalWorktree,
       reviewHead,
+      reviewBase,
       prReviewDir,
       prReviewManifestHelperScript,
       prReviewLeaseHelperScript,
@@ -953,6 +962,8 @@ describe("pr-review lease command validation", () => {
         resultFile,
         reviewHead,
         "not-presented",
+        false,
+        reviewBase,
       );
       const resultSha256 = await sha256File(path.join(worktree, resultFile));
       process.chdir(physicalPrimary);
@@ -1343,6 +1354,7 @@ describe("pr-review lease command validation", () => {
       physicalPrimary,
       physicalWorktree,
       reviewHead,
+      reviewBase,
     } = await makeResultAuthorityWorkspace("pr-review-handoff-failure-");
     const resultFile = `.ephemeral/pr-432-${reviewHead}-result.json`;
     const handoffFile = `.ephemeral/pr-432-${reviewHead}-handoff.json`;
@@ -2359,6 +2371,7 @@ describe("pr-review lease read-status", () => {
       physicalPrimary,
       physicalWorktree,
       reviewHead,
+      reviewBase,
       prReviewDir,
       prReviewManifestHelperScript,
       prReviewLeaseHelperScript,
@@ -2389,6 +2402,8 @@ describe("pr-review lease read-status", () => {
         resultFile,
         reviewHead,
         "preview-current",
+        false,
+        reviewBase,
       );
       process.env.RESULT_FILE = resultFile;
       await writeLeaseCommandState({
@@ -2580,22 +2595,34 @@ describe("pr-review lease read-status", () => {
     const approvedReviewFile = `.ephemeral/topic-${workspace.reviewHead}-approved-review.json`;
 
     try {
-      process.chdir(workspace.physicalPrimary);
-      setAuditFailureEnv(workspace, "2026-06-11T00:03:00Z");
-      process.env.FAILURE_PHASE = "github-post";
-      process.env.FAILURE_REASON = "GitHub API rejected review";
-      process.env.GITHUB_POST_ATTEMPTED = "true";
-      process.env.GITHUB_POST_RESULT = "failed";
-      process.env.APPROVED_REVIEW_FILE = approvedReviewFile;
       await writeApprovedReviewArtifact(
         workspace.worktree,
         approvedReviewFile,
         workspace.reviewHead,
       );
-
-      let result = await runPrReviewLeasesCommand(["write"]);
-      expect(result.exitCode, result.stderr).toBe(0);
-      let failed = await readLease(workspace.primary, workspace.leaseFile);
+      const gated = await readLease(workspace.primary, workspace.leaseFile);
+      const failed = reducePrReviewLease(
+        gated,
+        identityFromLeaseFile(workspace.leaseFile, workspace.physicalWorktree),
+        {
+          state: "failed",
+          baseRef: "main",
+          headRef: "topic",
+          createdAt: gated.created_at,
+          updatedAt: "2026-06-11T00:03:00Z",
+          approvedReviewFile,
+          finishedAt: "2026-06-11T00:03:00Z",
+          failurePhase: "github-post",
+          failureReason: "GitHub API rejected review",
+          failureRecoverability: "recoverable",
+          githubPostAttempted: true,
+          githubPostResult: "failed",
+        },
+      );
+      await writeFile(
+        path.join(workspace.primary, workspace.leaseFile),
+        `${JSON.stringify(failed, null, 2)}\n`,
+      );
       expect(failed.updated_at).toBe("2026-06-11T00:03:00Z");
       expect(failed.validation.result_manifest.validated_at).toBe(
         "2026-06-11T00:02:00Z",
@@ -2625,10 +2652,10 @@ describe("pr-review lease read-status", () => {
       process.env.GITHUB_POST_ATTEMPTED = "true";
       process.env.GITHUB_POST_RESULT = "failed";
 
-      result = await runPrReviewLeasesCommand(["write"]);
+      const result = await runPrReviewLeasesCommand(["write"]);
       expect(result.exitCode, result.stderr).toBe(0);
-      failed = await readLease(workspace.primary, workspace.leaseFile);
-      expect(failed).toMatchObject({
+      const updated = await readLease(workspace.primary, workspace.leaseFile);
+      expect(updated).toMatchObject({
         state: "failed",
         updated_at: "2026-06-11T00:04:00Z",
         artifacts: {
@@ -3392,6 +3419,252 @@ describe("pr-review lease discovery", () => {
             status: "resumable",
           },
         ],
+      });
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it.each([
+    {
+      name: "findings envelope",
+      mutate: async (workspace: GatedStatusWorkspace) => {
+        await writeFile(
+          path.join(workspace.worktree, workspace.findingsFile),
+          `${JSON.stringify({ schema: "play-review/findings/v2" })}\n`,
+        );
+        const result = await readResultArtifact(workspace);
+        result.digests.findings_sha256 = await sha256File(
+          path.join(workspace.worktree, workspace.findingsFile),
+        );
+        await writeResultArtifactFile(workspace, result);
+      },
+    },
+    {
+      name: "scope decision",
+      mutate: async (workspace: GatedStatusWorkspace) => {
+        const result = await readResultArtifact(workspace);
+        const scopePath = path.join(
+          workspace.worktree,
+          result.artifacts.scope_decision_file,
+        );
+        const scope = JSON.parse(await readFile(scopePath, "utf8")) as {
+          semantic_decision: { checked: boolean };
+        };
+        scope.semantic_decision.checked = false;
+        await writeFile(scopePath, `${JSON.stringify(scope)}\n`);
+        result.digests.scope_decision_sha256 = await sha256File(scopePath);
+        await writeResultArtifactFile(workspace, result);
+      },
+    },
+  ])(
+    "fails closed for result-backed discovery with a self-consistent tampered $name",
+    async ({ mutate }) => {
+      const workspace = await makeGatedStatusWorkspace(
+        "pr-review-discovery-result-authority-",
+      );
+
+      try {
+        await writeFile(
+          path.join(workspace.primary, ".git", "info", "exclude"),
+          ".ephemeral/\n",
+        );
+        await mutate(workspace);
+        process.chdir(workspace.physicalPrimary);
+        setDiscoveryEnv(workspace.physicalPrimary);
+
+        const result = await runPrReviewLeasesCommand(["discover"]);
+        expect(result.exitCode, result.stderr).toBe(0);
+        expect(JSON.parse(result.stdout)).toMatchObject({
+          disposition: "invalid",
+          active_leases: [
+            { lease_file: workspace.leaseFile, status: "invalid" },
+          ],
+        });
+      } finally {
+        process.chdir(originalCwd);
+        await rm(workspace.tempRoot, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it("fails closed for handoff-only discovery with tampered scope authority", async () => {
+    const workspace = await makeGatedStatusWorkspace(
+      "pr-review-discovery-handoff-authority-",
+    );
+    const handoffFile = handoffFileFromResultFile(workspace.resultFile);
+
+    try {
+      await writeFile(
+        path.join(workspace.primary, ".git", "info", "exclude"),
+        ".ephemeral/\n",
+      );
+      const lease = await readLease(workspace.primary, workspace.leaseFile);
+      lease.state = "created";
+      lease.updated_at = "2026-06-11T00:01:00Z";
+      lease.artifacts = {
+        handoff_file: handoffFile,
+        result_file: null,
+        approved_review_file: null,
+        validated_payload_file: null,
+      };
+      lease.validation.result_manifest = {
+        status: null,
+        validated_at: null,
+        sha256: null,
+      };
+      lease.presentation = { presented_at: null, status: null };
+      await writeFile(
+        path.join(workspace.primary, workspace.leaseFile),
+        `${JSON.stringify(lease, null, 2)}\n`,
+      );
+      const handoff = JSON.parse(
+        await readFile(path.join(workspace.worktree, handoffFile), "utf8"),
+      ) as { artifacts: { scope_decision_file: string } };
+      const scopePath = path.join(
+        workspace.worktree,
+        handoff.artifacts.scope_decision_file,
+      );
+      const scope = JSON.parse(await readFile(scopePath, "utf8")) as {
+        semantic_decision: { checked: boolean };
+      };
+      scope.semantic_decision.checked = false;
+      await writeFile(scopePath, `${JSON.stringify(scope)}\n`);
+      process.chdir(workspace.physicalPrimary);
+      setDiscoveryEnv(workspace.physicalPrimary);
+
+      const result = await runPrReviewLeasesCommand(["discover"]);
+      expect(result.exitCode, result.stderr).toBe(0);
+      expect(JSON.parse(result.stdout)).toMatchObject({
+        disposition: "invalid",
+        active_leases: [{ lease_file: workspace.leaseFile, status: "invalid" }],
+      });
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("fails closed for result-backed discovery with self-consistent tampered prior threads", async () => {
+    const workspace = await makeGatedStatusWorkspace(
+      "pr-review-discovery-result-prior-authority-",
+    );
+
+    try {
+      const reviewBase = await gitRevision(workspace.worktree, "HEAD~1");
+      const lastReviewed = workspace.reviewHead;
+      await execFileAsync(
+        "git",
+        ["commit", "--allow-empty", "-m", "test: prior thread evidence"],
+        { cwd: workspace.worktree },
+      );
+      workspace.reviewHead = await gitRevision(workspace.worktree, "HEAD");
+      workspace.resultFile = `.ephemeral/pr-432-${workspace.reviewHead}-result.json`;
+      await rm(path.join(workspace.worktree, ".ephemeral"), {
+        recursive: true,
+        force: true,
+      });
+      await mkdir(path.join(workspace.worktree, ".ephemeral"), {
+        recursive: true,
+      });
+      const { findingsFile } = await writeResultArtifact(
+        workspace.worktree,
+        workspace.physicalWorktree,
+        workspace.resultFile,
+        workspace.reviewHead,
+        "preview-current",
+        true,
+        reviewBase,
+      );
+      workspace.findingsFile = findingsFile;
+
+      const result = await readResultArtifact(workspace);
+      const handoffPath = path.join(
+        workspace.worktree,
+        handoffFileFromResultFile(workspace.resultFile),
+      );
+      const handoff = JSON.parse(await readFile(handoffPath, "utf8")) as {
+        artifacts: {
+          prior_threads_file: string | null;
+          scope_decision_file: string;
+        };
+      };
+      const priorThreadsFile = `.ephemeral/review-topic-${workspace.reviewHead}-prior-threads.json`;
+      const priorThreadsPath = path.join(workspace.worktree, priorThreadsFile);
+      await writeFile(
+        priorThreadsPath,
+        `${JSON.stringify({
+          schema: "pr-review/prior-threads/v1",
+          provider: "github",
+          pr_number: 432,
+          head_sha: workspace.reviewHead,
+          threads: [],
+          dropped: [],
+        })}\n`,
+      );
+      const scopePath = path.join(
+        workspace.worktree,
+        result.artifacts.scope_decision_file,
+      );
+      const scope = JSON.parse(await readFile(scopePath, "utf8")) as {
+        mode: string;
+        selected_range: string;
+        candidate_narrow_range: string;
+        is_followup_narrow: boolean;
+        escalation_reasons: string[];
+        last_reviewed_sha: string | null;
+        prior_context: { kind: string; path: string | null };
+        mechanical_facts: {
+          changed_file_count: number;
+          followup_sha_usable: boolean;
+          mechanical_escalate_full: boolean;
+          mechanical_escalation_reason: string;
+        };
+      };
+      scope.mode = "follow-up";
+      scope.selected_range = `${lastReviewed}..${workspace.reviewHead}`;
+      scope.candidate_narrow_range = scope.selected_range;
+      scope.is_followup_narrow = true;
+      scope.escalation_reasons = [];
+      scope.last_reviewed_sha = lastReviewed;
+      scope.prior_context = {
+        kind: "github-prior-threads",
+        path: priorThreadsFile,
+      };
+      scope.mechanical_facts = {
+        changed_file_count: 0,
+        followup_sha_usable: true,
+        mechanical_escalate_full: false,
+        mechanical_escalation_reason: "",
+      };
+      await writeFile(scopePath, `${JSON.stringify(scope)}\n`);
+      handoff.artifacts.prior_threads_file = priorThreadsFile;
+      await writeFile(handoffPath, `${JSON.stringify(handoff)}\n`);
+      result.artifacts.prior_threads_file = priorThreadsFile;
+      result.digests.handoff_sha256 = await sha256File(handoffPath);
+      result.digests.scope_decision_sha256 = await sha256File(scopePath);
+      result.digests.prior_threads_sha256 = await sha256File(priorThreadsPath);
+      await writeResultArtifactFile(workspace, result);
+
+      await writeFile(
+        priorThreadsPath,
+        `${JSON.stringify({ threads: [{}] })}\n`,
+      );
+      result.digests.prior_threads_sha256 = await sha256File(priorThreadsPath);
+      await writeResultArtifactFile(workspace, result);
+      await writeFile(
+        path.join(workspace.primary, ".git", "info", "exclude"),
+        ".ephemeral/\n",
+      );
+      process.chdir(workspace.physicalPrimary);
+      setDiscoveryEnv(workspace.physicalPrimary);
+
+      const discovery = await runPrReviewLeasesCommand(["discover"]);
+      expect(discovery.exitCode, discovery.stderr).toBe(0);
+      expect(JSON.parse(discovery.stdout)).toMatchObject({
+        disposition: "invalid",
+        active_leases: [{ lease_file: workspace.leaseFile, status: "invalid" }],
       });
     } finally {
       process.chdir(originalCwd);
@@ -5690,6 +5963,48 @@ async function sha256File(file: string): Promise<string> {
     .digest("hex");
 }
 
+type ResultArtifact = {
+  artifacts: {
+    scope_decision_file: string;
+    prior_threads_file: string | null;
+  };
+  digests: {
+    handoff_sha256: string;
+    findings_sha256: string;
+    scope_decision_sha256: string;
+    prior_threads_sha256: string | null;
+  };
+};
+
+async function gitRevision(cwd: string, revision: string): Promise<string> {
+  const { stdout } = await execFileAsync("git", ["rev-parse", revision], {
+    cwd,
+  });
+  return stdout.trim();
+}
+
+async function readResultArtifact(
+  workspace: GatedStatusWorkspace,
+): Promise<ResultArtifact> {
+  return JSON.parse(
+    await readFile(path.join(workspace.worktree, workspace.resultFile), "utf8"),
+  ) as ResultArtifact;
+}
+
+async function writeResultArtifactFile(
+  workspace: GatedStatusWorkspace,
+  result: ResultArtifact,
+): Promise<void> {
+  const resultPath = path.join(workspace.worktree, workspace.resultFile);
+  await writeFile(resultPath, `${JSON.stringify(result)}\n`);
+  const lease = await readLease(workspace.primary, workspace.leaseFile);
+  lease.validation.result_manifest.sha256 = await sha256File(resultPath);
+  await writeFile(
+    path.join(workspace.primary, workspace.leaseFile),
+    `${JSON.stringify(lease, null, 2)}\n`,
+  );
+}
+
 type GatedStatusWorkspace = Awaited<
   ReturnType<typeof makeRegisteredWorkspace>
 > & {
@@ -5710,6 +6025,11 @@ async function makeGatedStatusWorkspace(
   options: { canonicalWorktree?: boolean } = {},
 ): Promise<GatedStatusWorkspace> {
   const workspace = await makeRegisteredWorkspace(prefix, options);
+  await execFileAsync(
+    "git",
+    ["commit", "--allow-empty", "-m", "test: review evidence"],
+    { cwd: workspace.worktree },
+  );
   const { stdout: reviewHeadOutput } = await execFileAsync("git", [
     "-C",
     workspace.worktree,
@@ -5717,6 +6037,13 @@ async function makeGatedStatusWorkspace(
     "HEAD",
   ]);
   const reviewHead = reviewHeadOutput.trim();
+  const { stdout: reviewBaseOutput } = await execFileAsync("git", [
+    "-C",
+    workspace.worktree,
+    "rev-parse",
+    "HEAD~1",
+  ]);
+  const reviewBase = reviewBaseOutput.trim();
   const helpers = await writeReviewHelperScripts(workspace.tempRoot);
   const resultFile = `.ephemeral/pr-432-${reviewHead}-result.json`;
   const { findingsFile } = await writeResultArtifact(
@@ -5726,6 +6053,7 @@ async function makeGatedStatusWorkspace(
     reviewHead,
     "preview-current",
     true,
+    reviewBase,
   );
   const resultSha256 = await sha256File(
     path.join(workspace.worktree, resultFile),
@@ -5874,6 +6202,7 @@ async function makeLeaseWorkspace(prefix: string): Promise<{
 async function makeResultAuthorityWorkspace(prefix: string): Promise<
   Awaited<ReturnType<typeof makeRegisteredWorkspace>> & {
     reviewHead: string;
+    reviewBase: string;
     prReviewDir: string;
     prReviewManifestHelperScript: string;
     prReviewLeaseHelperScript: string;
@@ -5881,15 +6210,27 @@ async function makeResultAuthorityWorkspace(prefix: string): Promise<
   }
 > {
   const workspace = await makeRegisteredWorkspace(prefix);
+  await execFileAsync(
+    "git",
+    ["commit", "--allow-empty", "-m", "test: review evidence"],
+    { cwd: workspace.worktree },
+  );
   const { stdout } = await execFileAsync("git", [
     "-C",
     workspace.worktree,
     "rev-parse",
     "HEAD",
   ]);
+  const { stdout: reviewBaseOutput } = await execFileAsync("git", [
+    "-C",
+    workspace.worktree,
+    "rev-parse",
+    "HEAD~1",
+  ]);
   return {
     ...workspace,
     reviewHead: stdout.trim(),
+    reviewBase: reviewBaseOutput.trim(),
     ...(await writeReviewHelperScripts(workspace.tempRoot)),
   };
 }

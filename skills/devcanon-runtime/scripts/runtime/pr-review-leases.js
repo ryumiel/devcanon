@@ -7,7 +7,7 @@ import { promisify } from "node:util";
 import { writeTextAtomically } from "./artifacts.js";
 import { requireDirectEphemeralChild } from "./paths.js";
 import { validateSharedContextFamilyBinding } from "./play-review-shared-context.js";
-import { validatePrReviewHandoffEvidence, validatePrReviewResultCommandAuthority, validatePrReviewResultEvidence, } from "./pr-review-result-validation.js";
+import { validatePrReviewHandoffEvidenceAuthority, validatePrReviewResultCommandAuthority, validatePrReviewResultEvidenceAuthority, } from "./pr-review-result-validation.js";
 import { PR_REVIEW_GOVERNED_PATH_PATTERN, PR_REVIEW_MAX_NARROW_CHANGED_FILES, jsonEqual, validateCanonicalApprovedReviewArtifacts, } from "./review-artifacts.js";
 const execFileAsync = promisify(execFile);
 const SHA_RE = /^[0-9a-f]{40}$/u;
@@ -1977,7 +1977,7 @@ async function validateDiscoveryResultArtifacts(lease, worktreePath) {
     }
     const reviewHeadSha = reviewHeadShaFromResultFile(resultFile);
     await validateResultDigest(lease, worktreePath, resultFile);
-    const evidence = await validatePrReviewResultEvidence({
+    const evidence = await validatePrReviewResultEvidenceAuthority({
         worktreeRoot: worktreePath,
         resultFile,
         resultIdentityPath: resultFile,
@@ -1998,7 +1998,7 @@ async function validateDiscoveryHandoffArtifacts(lease, worktreePath) {
     if (handoffFile === null) {
         throw new PrReviewLeaseError("handoff file missing");
     }
-    return validatePrReviewHandoffEvidence({
+    return validatePrReviewHandoffEvidenceAuthority({
         worktreeRoot: worktreePath,
         handoffFile,
         handoffIdentityPath: handoffFile,

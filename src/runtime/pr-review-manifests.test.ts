@@ -277,40 +277,40 @@ describe("pr-review Phase 5 audit summary renderer", () => {
     }
   }, 30_000);
 
-  it("reports dirty-but-valid worktree status and fails closed for false status booleans", async () => {
+  it("reports dirty-but-valid worktree status", async () => {
     const dirty = await makeManifestWorkspace("pr-review-summary-dirty-");
     setSummaryEnv(dirty);
-    let result = await runManifestCommand(["render-phase5-audit-summary"]);
+    const result = await runManifestCommand(["render-phase5-audit-summary"]);
     expect(result.exitCode, result.stderr).toBe(0);
     expect(result.stdout).toContain("dirty `true`");
+  });
 
-    const falseStatusWorkspace = await makeManifestWorkspace(
-      "pr-review-summary-false-status-",
+  it.each([
+    ["worktree_exists", "worktree does not exist"],
+    ["worktree_registered", "worktree is not registered"],
+    ["identity_match", "identity mismatch"],
+  ] as const)("fails closed when %s is false", async (field, expected) => {
+    const workspace = await makeManifestWorkspace(
+      `pr-review-summary-false-status-${field}-`,
     );
-    for (const [field, expected] of [
-      ["worktree_exists", "worktree does not exist"],
-      ["worktree_registered", "worktree is not registered"],
-      ["identity_match", "identity mismatch"],
-    ] as const) {
-      setSummaryEnv(falseStatusWorkspace);
+    setSummaryEnv(workspace);
+    vi.resetModules();
+    vi.doMock("./pr-review-leases.js", () => ({
+      runPrReviewLeasesCommand: vi.fn(async () => ({
+        exitCode: 0,
+        stdout: `${JSON.stringify({ ...validStatus(workspace), [field]: false })}\n`,
+        stderr: "",
+      })),
+    }));
+
+    try {
+      const result = await runManifestCommand(["render-phase5-audit-summary"]);
+
+      expect(result.exitCode, field).toBe(1);
+      expect(result.stderr, field).toContain(expected);
+    } finally {
+      vi.doUnmock("./pr-review-leases.js");
       vi.resetModules();
-      vi.doMock("./pr-review-leases.js", () => ({
-        runPrReviewLeasesCommand: vi.fn(async () => ({
-          exitCode: 0,
-          stdout: `${JSON.stringify({ ...validStatus(falseStatusWorkspace), [field]: false })}\n`,
-          stderr: "",
-        })),
-      }));
-
-      try {
-        result = await runManifestCommand(["render-phase5-audit-summary"]);
-
-        expect(result.exitCode, field).toBe(1);
-        expect(result.stderr, field).toContain(expected);
-      } finally {
-        vi.doUnmock("./pr-review-leases.js");
-        vi.resetModules();
-      }
     }
   });
 
@@ -635,6 +635,11 @@ async function makeManifestWorkspace(
   await execFileAsync("git", ["worktree", "add", "-b", "topic", worktree], {
     cwd: primary,
   });
+  await execFileAsync(
+    "git",
+    ["commit", "--allow-empty", "-m", "test: review evidence"],
+    { cwd: worktree },
+  );
   const physicalPrimary = await realpath(primary);
   const physicalWorktree = await realpath(worktree);
   const headSha = (
@@ -676,8 +681,10 @@ async function makeManifestWorkspace(
     },
     provider_files: [],
     local_files: [],
-    provider_diff_sha256: "0".repeat(64),
-    local_diff_sha256: "0".repeat(64),
+    provider_diff_sha256:
+      "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    local_diff_sha256:
+      "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
   });
   const providerScopeEvidenceSha256 = await sha256File(
     path.join(worktree, providerScopeEvidenceFile),
@@ -685,21 +692,38 @@ async function makeManifestWorkspace(
 
   await writeJson(worktree, findingsFile, {
     schema: "play-review/findings/v2",
-    findings: [{ id: "F1", title: "Finding" }],
+    findings: [],
     carry_forward: [],
+    incomplete_topical_routes: [],
   });
   await writeFile(path.join(worktree, reviewBodyFile), "Review body.\n");
   await writeFile(path.join(worktree, previewFile), "Rendered preview.\n");
   await writeJson(worktree, scopeFile, {
+    schema: "pr-review/scope-decision/v1",
+    surface: "pr-review",
     head_sha: headSha,
     selection_reason: "Initial review covers the full pull request.",
     selected_range: providerPrDiffRange,
     full_range: providerPrDiffRange,
+    candidate_narrow_range: providerPrDiffRange,
     is_followup_narrow: false,
     language_hints: [],
     mode: "initial",
     last_reviewed_sha: null,
+    changed_files: [],
+    escalation_reasons: ["not-followup"],
     prior_context: { kind: "none", path: null },
+    mechanical_facts: {
+      changed_file_count: 0,
+      followup_sha_usable: false,
+      mechanical_escalate_full: true,
+      mechanical_escalation_reason: "not-followup",
+    },
+    semantic_decision: {
+      checked: true,
+      ambiguous: false,
+      notes: "No semantic narrowing for initial PR review.",
+    },
     artifacts: {
       provider_scope_evidence_file: providerScopeEvidenceFile,
       provider_scope_evidence_sha256: providerScopeEvidenceSha256,

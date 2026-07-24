@@ -16,9 +16,9 @@ import { writeTextAtomically } from "./artifacts.js";
 import { requireDirectEphemeralChild } from "./paths.js";
 import { validateSharedContextFamilyBinding } from "./play-review-shared-context.js";
 import {
-  validatePrReviewHandoffEvidence,
+  validatePrReviewHandoffEvidenceAuthority,
   validatePrReviewResultCommandAuthority,
-  validatePrReviewResultEvidence,
+  validatePrReviewResultEvidenceAuthority,
 } from "./pr-review-result-validation.js";
 import {
   PR_REVIEW_GOVERNED_PATH_PATTERN,
@@ -2943,7 +2943,7 @@ async function validateDiscoveryResultArtifacts(
   }
   const reviewHeadSha = reviewHeadShaFromResultFile(resultFile);
   await validateResultDigest(lease, worktreePath, resultFile);
-  const evidence = await validatePrReviewResultEvidence({
+  const evidence = await validatePrReviewResultEvidenceAuthority({
     worktreeRoot: worktreePath,
     resultFile,
     resultIdentityPath: resultFile,
@@ -2968,7 +2968,7 @@ async function validateDiscoveryHandoffArtifacts(
   if (handoffFile === null) {
     throw new PrReviewLeaseError("handoff file missing");
   }
-  return validatePrReviewHandoffEvidence({
+  return validatePrReviewHandoffEvidenceAuthority({
     worktreeRoot: worktreePath,
     handoffFile,
     handoffIdentityPath: handoffFile,
