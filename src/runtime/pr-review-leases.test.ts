@@ -19,11 +19,24 @@ import { afterEach, describe, expect, it } from "vitest";
 import { runPlayReviewSharedContextCommand } from "./play-review-shared-context.js";
 import {
   type PrReviewLease,
+  normalizeComparablePath,
   reducePrReviewLease,
   runPrReviewLeasesCommand,
 } from "./pr-review-leases.js";
 
 const execFileAsync = promisify(execFile);
+
+describe("pr-review comparable path identity", () => {
+  it("normalizes mixed Windows separators without collapsing POSIX backslashes", () => {
+    expect(normalizeComparablePath("C:\\Work\\Review")).toBe("c:/work/review");
+    expect(normalizeComparablePath("c:/work/review")).toBe("c:/work/review");
+    expect(normalizeComparablePath("/x/a\\b")).toBe("/x/a\\b");
+    expect(normalizeComparablePath("/x/a/b")).toBe("/x/a/b");
+    expect(normalizeComparablePath("/x/a\\b")).not.toBe(
+      normalizeComparablePath("/x/a/b"),
+    );
+  });
+});
 
 const identity = {
   repository: "owner/repo",

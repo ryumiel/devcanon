@@ -2105,14 +2105,13 @@ function digestPath(value) {
 function expectedValidatedPayloadPath(prNumber, reviewHead) {
     return `.ephemeral/pr-${prNumber}-${reviewHead}-validated-review-payload.json`;
 }
-function normalizeComparablePath(value) {
-    // Git may emit forward slashes on Windows while fs.realpath and lease
-    // identities use native backslashes. Collapse both spellings before every
-    // identity/digest comparison.
-    const normalized = value.replace(/[\\/]+/gu, "/");
-    return /^[A-Za-z]:\//u.test(normalized)
-        ? normalized.toLowerCase()
-        : normalized;
+export function normalizeComparablePath(value) {
+    // Git can emit forward slashes for a Windows drive path while filesystem
+    // identity uses backslashes. Do not reinterpret backslashes in POSIX paths:
+    // they are legal literal filename characters there.
+    if (!/^[A-Za-z]:[\\/]/u.test(value))
+        return value;
+    return value.replace(/[\\/]+/gu, "/").toLowerCase();
 }
 function emptyArtifacts() {
     return {
