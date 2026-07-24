@@ -602,7 +602,7 @@ async function requireAbsoluteDirectory(
     if (!fileStat.isDirectory()) {
       fail(`${label} must be a directory`);
     }
-    return toOperationalPathText(await realpath(value));
+    return await realpath(value);
   } catch (err) {
     if (err instanceof PrReviewManifestError) {
       throw err;
@@ -1559,11 +1559,14 @@ async function validateExecutionRoot(
   }
 }
 
-function normalizeExecutionWorkingDirectory(value: string): string {
+export function normalizeExecutionWorkingDirectory(
+  value: string,
+  platform = process.platform,
+): string {
   if (!isAbsolutePath(value)) {
     fail("execution working_directory must be absolute");
   }
-  return value.replace(/\\/gu, "/");
+  return normalizePathTextForComparison(value, platform);
 }
 
 async function guardedScopeBaseRef(scopeDecisionFile: string): Promise<string> {
@@ -2047,19 +2050,16 @@ function digestMatchesNullable(file: unknown, digest: unknown): boolean {
     : typeof digest === "string" && isSha256(digest);
 }
 
-export function toOperationalPathText(value: string): string {
-  return value.replace(/\\/gu, "/");
-}
-
-function normalizePathTextForComparison(value: string): string {
-  let normalized = value.replace(/\\/gu, "/");
-  if (/^\/[A-Za-z]\//u.test(normalized)) {
-    normalized = `${normalized[1]}:${normalized.slice(2)}`;
+export function normalizePathTextForComparison(
+  value: string,
+  platform = process.platform,
+): string {
+  const msysDrive = /^\/([A-Za-z])\/(.*)$/u.exec(value);
+  if (platform === "win32" && msysDrive !== null) {
+    return `${msysDrive[1]}:/${msysDrive[2]}`.toLowerCase();
   }
-  if (/^[A-Za-z]:\//u.test(normalized)) {
-    normalized = normalized.toLowerCase();
-  }
-  return normalized;
+  if (!/^[A-Za-z]:[\\/]/u.test(value)) return value;
+  return value.replace(/[\\/]+/gu, "/").toLowerCase();
 }
 
 function json(value: unknown): string {

@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import { createHash } from "node:crypto";
 import { constants } from "node:fs";
 import { access, lstat, mkdtemp, readFile, readdir, realpath, rm, stat, writeFile, } from "node:fs/promises";
@@ -36,6 +37,8 @@ const EMPTY_OPTIONS = {
 };
 const BRANCH_REVIEW_GOVERNED_PATH_PATTERN = "^(docs/(adr|arch|product-requirements|specs|guidelines)/|MAP\\.md$|AGENTS\\.md$|CONTRIBUTING\\.md$)";
 const BRANCH_REVIEW_MAX_NARROW_CHANGED_FILES = "5";
+export const PR_REVIEW_GOVERNED_PATH_PATTERN = "^(docs/(adr|arch|product-requirements|specs|guidelines)/|MAP\\.md$|AGENTS\\.md$|CONTRIBUTING\\.md$)";
+export const PR_REVIEW_MAX_NARROW_CHANGED_FILES = "5";
 const KNOWN_ESCALATION_REASONS = new Set([
     "not-followup",
     "file-count",
@@ -85,6 +88,13 @@ const GITHUB_PROVIDER_DIFF_DIALECT = "github-provider-diff/v1";
 const LOCAL_INTERPRETATION_HARDENING_FAILURE = "canonical Git local interpretation hardening failed";
 const OBJECT_GRAPH_HARDENING_FAILURE = "canonical Git object graph hardening failed";
 const UTF8_DECODER = new TextDecoder("utf-8", { fatal: true });
+const reviewArtifactRootContext = new AsyncLocalStorage();
+function reviewArtifactRoot() {
+    return reviewArtifactRootContext.getStore() ?? process.cwd();
+}
+function reviewArtifactPath(file) {
+    return path.resolve(reviewArtifactRoot(), file);
+}
 const ACCEPTED_BRANCH_SCOPE_REASON_CODES = new Set([
     "governed_path",
     "file_count",
@@ -629,7 +639,7 @@ async function validatePrReviewProviderEvidence(scope, options) {
     if (artifactEvidenceFile !== options.providerScopeEvidenceFile) {
         fail("provider scope evidence file mismatch");
     }
-    const evidenceText = await readFile(options.providerScopeEvidenceFile, "utf-8");
+    const evidenceText = await readFile(reviewArtifactPath(options.providerScopeEvidenceFile), "utf-8");
     const evidenceDigest = createHash("sha256")
         .update(evidenceText)
         .digest("hex");
@@ -994,13 +1004,13 @@ async function canonicalGitDiffOutputWithArgs(args, options, output) {
         const providerArgs = providerBoundGitArgs(gitArgs);
         if (output === "sha256") {
             const { stdoutSha256 } = await runGitStdoutSha256(providerArgs, {
-                cwd: process.cwd(),
+                cwd: reviewArtifactRoot(),
                 env: canonicalGitEnv(globalConfigFile),
             });
             return stdoutSha256;
         }
         const { stdout } = await runGitRaw(providerArgs, {
-            cwd: process.cwd(),
+            cwd: reviewArtifactRoot(),
             env: canonicalGitEnv(globalConfigFile),
         });
         return stdout;
@@ -1063,7 +1073,7 @@ async function providerBoundGit(args) {
     await writeFile(globalConfigFile, "");
     try {
         const { stdout } = await runGit(providerBoundGitArgs(args), {
-            cwd: process.cwd(),
+            cwd: reviewArtifactRoot(),
             env: providerBoundGitEnv(globalConfigFile),
         });
         return stdout;
@@ -1081,7 +1091,7 @@ async function providerBoundGitStatus(args) {
     await writeFile(globalConfigFile, "");
     try {
         return await runGitStatus(providerBoundGitArgs(args), {
-            cwd: process.cwd(),
+            cwd: reviewArtifactRoot(),
             env: providerBoundGitEnv(globalConfigFile),
         });
     }
@@ -1271,7 +1281,7 @@ async function gitConfigEntries(args) {
     await writeFile(globalConfigFile, "");
     try {
         const { stdout } = await runGit(providerBoundGitArgs(args), {
-            cwd: process.cwd(),
+            cwd: reviewArtifactRoot(),
             env: providerBoundGitEnv(globalConfigFile),
         });
         return stdout.trim().split("\n").filter(Boolean);
@@ -1297,7 +1307,7 @@ async function gitConfigEntries(args) {
 function resolveGitPath(gitPath) {
     return path.isAbsolute(gitPath)
         ? gitPath
-        : path.resolve(process.cwd(), gitPath);
+        : path.resolve(reviewArtifactRoot(), gitPath);
 }
 function isNodeErrorCode(err, code) {
     return (typeof err === "object" &&
@@ -1413,41 +1423,84 @@ async function validateDiffAnchors(options) {
     await validateSelectedDiffAnchors(scope, findings, options.headSha);
 }
 async function compareApprovedPayload(options) {
-    const scope = await validateScopeDecision(options);
-    if (options.surface !== "pr-review") {
-        fail("compare-approved-payload requires --surface pr-review");
-    }
-    requireFlag("--findings-file", options.findingsFile);
-    requireFlag("--review-body-file", options.reviewBodyFile);
-    requireFlag("--review-payload-file", options.reviewPayloadFile);
-    requireFlag("--review-event", options.reviewEvent);
-    if (!["APPROVE", "REQUEST_CHANGES", "COMMENT"].includes(options.reviewEvent)) {
-        fail("--review-event must be APPROVE, REQUEST_CHANGES, or COMMENT");
-    }
-    await assertReadableFile("--findings-file", options.findingsFile);
-    await assertReadableReviewBodyFile(options.reviewBodyFile);
-    await assertReadableFile("--review-payload-file", options.reviewPayloadFile);
-    validateSuffix("--findings-file", options.findingsFile, "-findings.json");
-    validateSuffix("--review-payload-file", options.reviewPayloadFile, "-review-payload.json");
-    const findings = await assertFindingsEnvelope(options.findingsFile);
-    await validateSelectedDiffAnchors(scope, findings, options.headSha);
-    const actualPayload = await readSingleJsonObject(options.reviewPayloadFile, "review payload JSON validation failed");
-    const expectedPayload = buildApprovedReviewPayload({
-        headSha: options.headSha,
-        reviewEvent: options.reviewEvent,
-        reviewBody: await readFile(options.reviewBodyFile, "utf-8"),
-        findings,
+    const expectedPayload = await validateCanonicalApprovedReviewArtifacts({
+        worktreeRoot: reviewArtifactRoot(),
+        options,
     });
-    if (!jsonEqual(expectedPayload, actualPayload)) {
-        fail("approved review payload does not match generated payload");
-    }
-    const tempDir = await mkdtemp(path.join(process.cwd(), ".ephemeral", ".expected-approved-payload."));
-    await rm(tempDir, { recursive: true, force: true });
-    const expectedPath = tempDir;
-    await writeFile(expectedPath, `${JSON.stringify(expectedPayload, null, 2)}\n`);
-    const output = await readFile(expectedPath, "utf-8");
-    await rm(expectedPath, { force: true });
-    return output;
+    return `${JSON.stringify(expectedPayload, null, 2)}\n`;
+}
+export async function validateCanonicalApprovedReviewArtifacts(input) {
+    return reviewArtifactRootContext.run(input.worktreeRoot, async () => {
+        const options = {
+            ...EMPTY_OPTIONS,
+            ...input.options,
+        };
+        const scope = await validateScopeDecision(options);
+        if (options.surface !== "pr-review") {
+            fail("compare-approved-payload requires --surface pr-review");
+        }
+        requireFlag("--findings-file", options.findingsFile);
+        requireFlag("--review-body-file", options.reviewBodyFile);
+        requireFlag("--review-payload-file", options.reviewPayloadFile);
+        requireFlag("--review-event", options.reviewEvent);
+        if (!["APPROVE", "REQUEST_CHANGES", "COMMENT"].includes(options.reviewEvent)) {
+            fail("--review-event must be APPROVE, REQUEST_CHANGES, or COMMENT");
+        }
+        await assertReadableFile("--findings-file", options.findingsFile);
+        await assertReadableReviewBodyFile(options.reviewBodyFile);
+        await assertReadableFile("--review-payload-file", options.reviewPayloadFile);
+        validateSuffix("--findings-file", options.findingsFile, "-findings.json");
+        validateSuffix("--review-payload-file", options.reviewPayloadFile, "-review-payload.json");
+        const findings = await assertFindingsEnvelope(options.findingsFile);
+        await validateSelectedDiffAnchors(scope, findings, options.headSha);
+        const actualPayload = await readSingleJsonObject(options.reviewPayloadFile, "review payload JSON validation failed");
+        const expectedPayload = buildApprovedReviewPayload({
+            headSha: options.headSha,
+            reviewEvent: options.reviewEvent,
+            reviewBody: await readFile(reviewArtifactPath(options.reviewBodyFile), "utf-8"),
+            findings,
+        });
+        if (!jsonEqual(expectedPayload, actualPayload)) {
+            fail("approved review payload does not match generated payload");
+        }
+        return expectedPayload;
+    });
+}
+export async function validatePrReviewEvidenceAuthority(input) {
+    await reviewArtifactRootContext.run(input.worktreeRoot, async () => {
+        const priorContextKind = input.priorThreadsFile === null ? "none" : "github-prior-threads";
+        const priorContextPath = input.priorThreadsFile ?? "null";
+        const scopeOptions = {
+            ...EMPTY_OPTIONS,
+            surface: "pr-review",
+            headSha: input.headSha,
+            baseRef: input.baseRef,
+            scopeDecision: input.scopeDecisionFile,
+            providerScopeEvidenceFile: input.providerScopeEvidenceFile,
+            expectedSchema: "pr-review/scope-decision/v1",
+            priorContextKind,
+            priorContextPath,
+            governedPathPattern: PR_REVIEW_GOVERNED_PATH_PATTERN,
+            configuredPathPattern: "^$",
+            maxNarrowChangedFiles: PR_REVIEW_MAX_NARROW_CHANGED_FILES,
+            allowAmbiguousFull: "true",
+        };
+        const scope = await validateScopeDecision(scopeOptions);
+        if (input.priorThreadsFile !== null) {
+            await validatePriorThreads({
+                ...scopeOptions,
+                provider: "github",
+                expectedSchema: "pr-review/prior-threads/v1",
+                priorThreads: input.priorThreadsFile,
+            });
+        }
+        if (input.findingsFile !== undefined) {
+            await assertReadableFile("--findings-file", input.findingsFile);
+            validateSuffix("--findings-file", input.findingsFile, "-findings.json");
+            const findings = await assertFindingsEnvelope(input.findingsFile);
+            await validateSelectedDiffAnchors(scope, findings, input.headSha);
+        }
+    });
 }
 async function validateApprovalSummary(options) {
     await requireRepoRoot();
@@ -1812,7 +1865,7 @@ function scopeOptionsForApprovalSummary(options, summary, scope) {
 }
 async function validateApprovalDigest(message, file, expectedDigest) {
     const digest = createHash("sha256")
-        .update(await readFile(file, "utf-8"))
+        .update(await readFile(reviewArtifactPath(file), "utf-8"))
         .digest("hex");
     if (digest !== expectedDigest) {
         fail(message);
@@ -2185,7 +2238,7 @@ function validatePriorContextSurface(kind, surface) {
 async function requireRepoRoot() {
     const gitTopLevel = (await git(["rev-parse", "--show-toplevel"])).trim();
     const physicalTopLevel = await realpath(gitTopLevel);
-    const physicalCwd = await realpath(process.cwd());
+    const physicalCwd = await realpath(reviewArtifactRoot());
     if (physicalTopLevel !== physicalCwd) {
         fail("review-artifacts.sh must run from the repository root");
     }
@@ -2208,7 +2261,7 @@ async function validateCurrentHead(headSha) {
 async function assertReadableFile(label, file) {
     validateDirectChildPath(label, file);
     await assertEphemeralDirectory();
-    const stat = await lstat(file).catch(() => null);
+    const stat = await lstat(reviewArtifactPath(file)).catch(() => null);
     if (stat === null) {
         fail(`${label} missing or not a regular file: ${file}`);
     }
@@ -2219,7 +2272,7 @@ async function assertReadableFile(label, file) {
         fail(`${label} missing or not a regular file: ${file}`);
     }
     try {
-        await access(file, constants.R_OK);
+        await access(reviewArtifactPath(file), constants.R_OK);
     }
     catch {
         fail(`${label} missing or unreadable: ${file}`);
@@ -2228,7 +2281,7 @@ async function assertReadableFile(label, file) {
 async function assertReadableReviewBodyFile(file) {
     validateReviewBodyPath(file);
     await assertEphemeralDirectory();
-    const stat = await lstat(file).catch(() => null);
+    const stat = await lstat(reviewArtifactPath(file)).catch(() => null);
     if (stat === null) {
         fail(`review body missing or not a regular file: ${file}`);
     }
@@ -2239,7 +2292,7 @@ async function assertReadableReviewBodyFile(file) {
         fail(`review body missing or not a regular file: ${file}`);
     }
     try {
-        await access(file, constants.R_OK);
+        await access(reviewArtifactPath(file), constants.R_OK);
     }
     catch {
         fail(`review body missing or unreadable: ${file}`);
@@ -2289,7 +2342,7 @@ function validateReviewBodyPath(file) {
     }
 }
 async function assertEphemeralDirectory() {
-    const stat = await lstat(".ephemeral").catch(() => undefined);
+    const stat = await lstat(reviewArtifactPath(".ephemeral")).catch(() => undefined);
     if (stat?.isSymbolicLink()) {
         fail(".ephemeral must be a directory, not a symlink");
     }
@@ -2344,7 +2397,7 @@ async function readSingleJsonObject(file, failureMessage) {
     }
 }
 async function readUtf8FileStrict(file) {
-    return UTF8_DECODER.decode(await readFile(file));
+    return UTF8_DECODER.decode(await readFile(reviewArtifactPath(file)));
 }
 async function changedFiles(range) {
     return parseGitChangedFilesZ(await gitRaw(["diff", "-z", "--name-only", range])).sort();
@@ -2450,7 +2503,7 @@ function stripTrailingNewlines(value) {
 }
 async function git(args) {
     try {
-        const { stdout } = await runGit(args, { cwd: process.cwd() });
+        const { stdout } = await runGit(args, { cwd: reviewArtifactRoot() });
         return stdout;
     }
     catch {
@@ -2461,7 +2514,7 @@ async function git(args) {
 }
 async function gitRaw(args) {
     try {
-        const { stdout } = await runGitRaw(args, { cwd: process.cwd() });
+        const { stdout } = await runGitRaw(args, { cwd: reviewArtifactRoot() });
         return stdout;
     }
     catch {
@@ -2480,7 +2533,7 @@ async function gitDiffRangeExists(range) {
     return status <= 1;
 }
 async function gitStatus(args) {
-    return runGitStatus(args, { cwd: process.cwd() });
+    return runGitStatus(args, { cwd: reviewArtifactRoot() });
 }
 function validatePattern(label, pattern) {
     if (pattern.length === 0) {
@@ -2785,7 +2838,7 @@ function hasExactKeys(object, keys) {
 function uniqueSorted(values) {
     return [...new Set(values)].sort();
 }
-function jsonEqual(left, right) {
+export function jsonEqual(left, right) {
     if (left === right) {
         return true;
     }

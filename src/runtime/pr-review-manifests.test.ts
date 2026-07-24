@@ -13,8 +13,38 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  canonicalLeaseIdentityPath,
+  digestLeaseIdentityPath,
+} from "./pr-review-leases.js";
+import {
+  normalizeExecutionWorkingDirectory,
+  normalizePathTextForComparison,
+} from "./pr-review-manifests.js";
 
 const execFileAsync = promisify(execFile);
+
+describe("pr-review operational path comparison", () => {
+  it("keeps MSYS handoff output comparable with Windows execution roots", () => {
+    const msysPath = "/c/Users/Example/review-worktree";
+    const nativePath = "C:\\Users\\Example\\review-worktree";
+
+    expect(normalizeExecutionWorkingDirectory(msysPath, "win32")).toBe(
+      "c:/users/example/review-worktree",
+    );
+    expect(normalizePathTextForComparison(msysPath, "win32")).toBe(
+      normalizePathTextForComparison(nativePath, "win32"),
+    );
+    expect(normalizePathTextForComparison("/x/a\\b", "win32")).toBe("x:/a\\b");
+    expect(normalizePathTextForComparison("/x/a\\b")).toBe(
+      process.platform === "win32" ? "x:/a\\b" : "/x/a\\b",
+    );
+    expect(normalizePathTextForComparison("/x/a\\b", "linux")).toBe("/x/a\\b");
+    expect(normalizePathTextForComparison("/x/a\\b", "linux")).not.toBe(
+      normalizePathTextForComparison("/x/a/b", "linux"),
+    );
+  });
+});
 
 const originalCwd = process.cwd();
 const tempRoots: string[] = [];
@@ -72,12 +102,21 @@ afterEach(async () => {
 });
 
 describe("pr-review Phase 5 audit summary renderer", () => {
-  it("keeps POSIX single-letter roots as operational paths", async () => {
-    const { toOperationalPathText } = await import("./pr-review-manifests.js");
-    expect(toOperationalPathText("/c/repo")).toBe("/c/repo");
-    expect(toOperationalPathText("/w/worktree")).toBe("/w/worktree");
-    expect(toOperationalPathText("C:\\repo")).toBe("C:/repo");
-  });
+  it.skipIf(process.platform === "win32")(
+    "preserves literal POSIX backslashes at physical I/O boundaries",
+    async () => {
+      const workspace = await makeManifestWorkspace(
+        "pr-review-manifest-physical-\\-",
+      );
+      setSummaryEnv(workspace);
+      process.chdir(workspace.tempRoot);
+
+      const result = await runManifestCommand(["render-phase5-audit-summary"]);
+
+      expect(result.exitCode, result.stderr).toBe(0);
+      expect(result.stdout).toContain(workspace.physicalWorktree);
+    },
+  );
 
   it("renders all mandatory audit families from the worktree and read-only lease status", async () => {
     const workspace = await makeManifestWorkspace(
@@ -116,18 +155,22 @@ describe("pr-review Phase 5 audit summary renderer", () => {
 
   it("uses WORKTREE_PATH for result artifacts and PRIMARY_REPOSITORY_ROOT for lease status", async () => {
     const workspace = await makeManifestWorkspace("pr-review-distinct-roots-");
-    setSummaryEnv(workspace);
-    process.chdir(workspace.tempRoot);
+    try {
+      setSummaryEnv(workspace);
+      process.chdir(workspace.tempRoot);
 
-    const result = await runManifestCommand(["render-phase5-audit-summary"]);
+      const result = await runManifestCommand(["render-phase5-audit-summary"]);
 
-    expect(result.exitCode, result.stderr).toBe(0);
-    expect(result.stdout).toContain(
-      `worktree \`${workspace.physicalWorktree}\``,
-    );
-    await expect(
-      readFile(path.join(workspace.primary, workspace.resultFile), "utf8"),
-    ).rejects.toThrow();
+      expect(result.exitCode, result.stderr).toBe(0);
+      expect(result.stdout).toContain(
+        `worktree \`${canonicalLeaseIdentityPath(workspace.physicalWorktree)}\``,
+      );
+      await expect(
+        readFile(path.join(workspace.primary, workspace.resultFile), "utf8"),
+      ).rejects.toThrow();
+    } finally {
+      process.chdir(originalCwd);
+    }
   });
 
   it("does not mutate the lease file or result artifacts", async () => {
@@ -238,40 +281,40 @@ describe("pr-review Phase 5 audit summary renderer", () => {
     }
   }, 30_000);
 
-  it("reports dirty-but-valid worktree status and fails closed for false status booleans", async () => {
+  it("reports dirty-but-valid worktree status", async () => {
     const dirty = await makeManifestWorkspace("pr-review-summary-dirty-");
     setSummaryEnv(dirty);
-    let result = await runManifestCommand(["render-phase5-audit-summary"]);
+    const result = await runManifestCommand(["render-phase5-audit-summary"]);
     expect(result.exitCode, result.stderr).toBe(0);
     expect(result.stdout).toContain("dirty `true`");
+  });
 
-    const falseStatusWorkspace = await makeManifestWorkspace(
-      "pr-review-summary-false-status-",
+  it.each([
+    ["worktree_exists", "worktree does not exist"],
+    ["worktree_registered", "worktree is not registered"],
+    ["identity_match", "identity mismatch"],
+  ] as const)("fails closed when %s is false", async (field, expected) => {
+    const workspace = await makeManifestWorkspace(
+      `pr-review-summary-false-status-${field}-`,
     );
-    for (const [field, expected] of [
-      ["worktree_exists", "worktree does not exist"],
-      ["worktree_registered", "worktree is not registered"],
-      ["identity_match", "identity mismatch"],
-    ] as const) {
-      setSummaryEnv(falseStatusWorkspace);
+    setSummaryEnv(workspace);
+    vi.resetModules();
+    vi.doMock("./pr-review-leases.js", () => ({
+      runPrReviewLeasesCommand: vi.fn(async () => ({
+        exitCode: 0,
+        stdout: `${JSON.stringify({ ...validStatus(workspace), [field]: false })}\n`,
+        stderr: "",
+      })),
+    }));
+
+    try {
+      const result = await runManifestCommand(["render-phase5-audit-summary"]);
+
+      expect(result.exitCode, field).toBe(1);
+      expect(result.stderr, field).toContain(expected);
+    } finally {
+      vi.doUnmock("./pr-review-leases.js");
       vi.resetModules();
-      vi.doMock("./pr-review-leases.js", () => ({
-        runPrReviewLeasesCommand: vi.fn(async () => ({
-          exitCode: 0,
-          stdout: `${JSON.stringify({ ...validStatus(falseStatusWorkspace), [field]: false })}\n`,
-          stderr: "",
-        })),
-      }));
-
-      try {
-        result = await runManifestCommand(["render-phase5-audit-summary"]);
-
-        expect(result.exitCode, field).toBe(1);
-        expect(result.stderr, field).toContain(expected);
-      } finally {
-        vi.doUnmock("./pr-review-leases.js");
-        vi.resetModules();
-      }
     }
   });
 
@@ -330,7 +373,7 @@ describe("pr-review Phase 5 audit summary renderer", () => {
       "Base/head refs: `main` -> `` topic`review ``",
     );
     expect(result.stdout).toContain(
-      `worktree ${formatExpectedMarkdownCodeSpan(workspace.physicalWorktree)}`,
+      `worktree ${formatExpectedMarkdownCodeSpan(canonicalLeaseIdentityPath(workspace.physicalWorktree))}`,
     );
   });
 
@@ -596,6 +639,11 @@ async function makeManifestWorkspace(
   await execFileAsync("git", ["worktree", "add", "-b", "topic", worktree], {
     cwd: primary,
   });
+  await execFileAsync(
+    "git",
+    ["commit", "--allow-empty", "-m", "test: review evidence"],
+    { cwd: worktree },
+  );
   const physicalPrimary = await realpath(primary);
   const physicalWorktree = await realpath(worktree);
   const headSha = (
@@ -637,8 +685,10 @@ async function makeManifestWorkspace(
     },
     provider_files: [],
     local_files: [],
-    provider_diff_sha256: "0".repeat(64),
-    local_diff_sha256: "0".repeat(64),
+    provider_diff_sha256:
+      "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    local_diff_sha256:
+      "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
   });
   const providerScopeEvidenceSha256 = await sha256File(
     path.join(worktree, providerScopeEvidenceFile),
@@ -646,21 +696,38 @@ async function makeManifestWorkspace(
 
   await writeJson(worktree, findingsFile, {
     schema: "play-review/findings/v2",
-    findings: [{ id: "F1", title: "Finding" }],
+    findings: [],
     carry_forward: [],
+    incomplete_topical_routes: [],
   });
   await writeFile(path.join(worktree, reviewBodyFile), "Review body.\n");
   await writeFile(path.join(worktree, previewFile), "Rendered preview.\n");
   await writeJson(worktree, scopeFile, {
+    schema: "pr-review/scope-decision/v1",
+    surface: "pr-review",
     head_sha: headSha,
     selection_reason: "Initial review covers the full pull request.",
     selected_range: providerPrDiffRange,
     full_range: providerPrDiffRange,
+    candidate_narrow_range: providerPrDiffRange,
     is_followup_narrow: false,
     language_hints: [],
     mode: "initial",
     last_reviewed_sha: null,
+    changed_files: [],
+    escalation_reasons: ["not-followup"],
     prior_context: { kind: "none", path: null },
+    mechanical_facts: {
+      changed_file_count: 0,
+      followup_sha_usable: false,
+      mechanical_escalate_full: true,
+      mechanical_escalation_reason: "not-followup",
+    },
+    semantic_decision: {
+      checked: true,
+      ambiguous: false,
+      notes: "No semantic narrowing for initial PR review.",
+    },
     artifacts: {
       provider_scope_evidence_file: providerScopeEvidenceFile,
       provider_scope_evidence_sha256: providerScopeEvidenceSha256,
@@ -739,7 +806,8 @@ async function makeManifestWorkspace(
   };
   await writeJson(worktree, resultFile, resultManifest);
   const resultSha256 = await sha256File(path.join(worktree, resultFile));
-  const worktreeDigest = digestPath(physicalWorktree);
+  const canonicalWorktree = canonicalLeaseIdentityPath(physicalWorktree);
+  const worktreeDigest = digestLeaseIdentityPath(canonicalWorktree);
   const leaseFile = `.ephemeral/pr-432-${worktreeDigest}-lease.json`;
   await writeJson(primary, leaseFile, {
     schema: "pr-review/lease/v1",
@@ -748,7 +816,7 @@ async function makeManifestWorkspace(
     state: "gated",
     base_ref: "main",
     head_ref: "topic",
-    worktree_path: physicalWorktree,
+    worktree_path: canonicalWorktree,
     worktree_digest: worktreeDigest,
     lease_file: leaseFile,
     created_at: "2026-06-11T00:00:00Z",
@@ -814,7 +882,7 @@ function setSummaryEnv(workspace: ManifestWorkspace): void {
 function validStatus(workspace: ManifestWorkspace): Record<string, unknown> {
   return {
     lease_state: "gated",
-    worktree_path: workspace.physicalWorktree,
+    worktree_path: canonicalLeaseIdentityPath(workspace.physicalWorktree),
     worktree_digest: workspace.worktreeDigest,
     worktree_exists: true,
     worktree_registered: true,
@@ -863,12 +931,6 @@ async function sha256File(file: string): Promise<string> {
     .digest("hex");
 }
 
-function digestPath(value: string): string {
-  return createHash("sha256")
-    .update(normalizeComparablePath(value))
-    .digest("hex");
-}
-
 function formatExpectedMarkdownCodeSpan(value: string): string {
   const backtickRuns = value.match(/`+/gu) ?? [];
   if (backtickRuns.length === 0) {
@@ -878,11 +940,4 @@ function formatExpectedMarkdownCodeSpan(value: string): string {
     Math.max(...backtickRuns.map((run) => run.length)) + 1,
   );
   return `${delimiter} ${value} ${delimiter}`;
-}
-
-function normalizeComparablePath(value: string): string {
-  const normalized = value.replace(/\\/gu, "/");
-  return /^[A-Za-z]:\//u.test(normalized)
-    ? normalized.toLowerCase()
-    : normalized;
 }

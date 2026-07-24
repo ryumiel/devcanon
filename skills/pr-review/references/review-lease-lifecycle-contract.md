@@ -67,7 +67,7 @@ updates are valid only when the matching row says so.
 | LC-15 | `abort`                       | `failed`              | `aborted`  | `FINISHED_AT`, `TERMINAL_REASON`, `UPDATED_AT`                                                                                                                                          |
 | LC-16 | `record-failure`              | `failed`              | `failed`   | `FINISHED_AT`, `FAILURE_PHASE`, `FAILURE_REASON`, `FAILURE_RECOVERABILITY`, `UPDATED_AT`                                                                                                |
 | LC-17 | `retry-post-success`          | `failed`              | `posted`   | Prior failure is `github-post`, `FINISHED_AT`, `GITHUB_POSTED_AT`, `UPDATED_AT`                                                                                                         |
-| LC-18 | `archive-terminal-and-create` | `posted` or `aborted` | `created`  | `CREATED_AT`, `UPDATED_AT`                                                                                                                                                              |
+| LC-18 | `archive-terminal-and-create` | `posted` or `aborted` | `created`  | `CREATED_AT`, `UPDATED_AT`, valid helper-recorded post-cleanup authority; the previous worktree and canonical target are both absent                                                    |
 
 All other transitions are forbidden. `stale-head` is a valid failure phase for
 post-freeze refusal, but it is not eligible for LC-17 retry-to-post; it must
@@ -78,6 +78,29 @@ return through review discovery or a fresh approval path before posting.
 `UPDATED_AT` is required on every write. `created_at`, `base_ref`, `head_ref`,
 `worktree_path`, `worktree_digest`, and `lease_file` are immutable after lease
 creation.
+
+### Lease Path Identity
+
+`worktree_path` is the canonical lease identity, not a host-native display
+path. For an absolute Windows drive path it uses lowercase drive/path text and
+`/` separators; mixed slash forms and case variants therefore have one
+identity. For an absolute POSIX path it preserves every byte, including a
+literal `\` in a filename. Windows normalization never applies to a POSIX
+path.
+
+`worktree_digest` and the digest-bearing active lease filename hash exactly
+that canonical identity string. Discovery active/resume/cleanup paths,
+`read-status.worktree_path`, and `worktree_registrations` serialize the same
+representation, so discovery output is deterministic with forward-slash
+Windows drive paths. Git registration paths are canonicalized before equality
+or emission.
+
+Filesystem reads, status checks, artifact access, and removal use a separately
+resolved physical path only at the I/O boundary. They must not substitute its
+native spelling into persisted identity or digest calculation. A stored path,
+digest, or filename that is not the canonical identity relationship is invalid
+and fails closed; commands never repair or reinterpret it through a legacy
+digest mode.
 
 Terminal writes require `FINISHED_AT`. `aborted` writes also require
 `TERMINAL_REASON`. `failed` writes require `FAILURE_PHASE`, `FAILURE_REASON`,
@@ -107,6 +130,9 @@ required digest evidence makes a lease invalid. Classify it as
 
 GitHub post metadata is phase-scoped:
 
+- Only `failed` leases may carry a failure tuple, and they require non-empty
+  `phase`, `reason`, and `recoverability`; every other state stores all three
+  fields as `null`.
 - `github-post` failures must record `GITHUB_POST_ATTEMPTED=true` and
   `GITHUB_POST_RESULT=failed`.
 - Non-`github-post` failures clear GitHub post metadata to
@@ -122,6 +148,43 @@ artifact, its canonical paths and digests, and the pointer is derived from the
 PR number and review head.
 
 ## Read-Only Status
+
+### Discovery Before Worktree Creation
+
+`review-leases.sh discover` delegates to `devcanon-runtime runtime
+pr-review-leases discover`. It is read-only and requires only `REPOSITORY`,
+`PR_NUMBER`, and `PRIMARY_REPOSITORY_ROOT`; the current directory must be that
+primary root. It scans direct-child `.ephemeral` lease files for the requested
+PR, reports archived leases separately, and inventories the canonical
+`.worktrees/pr-<PR_NUMBER>-review` path plus Git worktree registrations.
+
+Stdout is one closed-schema `pr-review/discovery/v1` JSON object. Its
+`disposition` is exactly one of `create`, `resume`, `cleanup-required`,
+`ambiguous`, or `invalid`. `active_leases`, `archived_leases`,
+`invalid_lease_files`, and registrations are deterministically ordered.
+
+Only a direct-child active lease path with the canonical PR/path digest and a
+schema-valid `pr-review/lease/v1` identity is a lease ownership candidate.
+Arbitrary names, branch names, metadata strings, ages, and HEAD SHAs do not
+create cleanup authority. Symlinked or malformed lease files are reported as
+invalid, never followed. Archived leases never produce an active ambiguity.
+
+Precedence is fail-closed: invalid files or active lease identity failures are
+`invalid`; more than one valid resumable nonterminal lease is `ambiguous`; one
+valid clean registered nonterminal lease is `resume` only when no active lease
+requires cleanup; a terminal lease with valid helper-recorded post-cleanup
+authority is eligible for `create` only when both its recorded worktree and the
+canonical target are absent and unregistered, so LC-18 can archive it before
+fresh creation. Any file, symlink, dirty or unmanaged worktree, registration,
+or other canonical-target occupancy remains `cleanup-required`; all other
+terminal, missing, unregistered, dirty, unmanaged, and unleased-canonical
+paths are `cleanup-required`; otherwise discovery returns `create`. A
+`cleanup-required` result identifies a lease only when that lease is
+schema-bound. An unleased canonical path requires manual reconciliation and
+must not be deleted by inference. All removal attempts remain exclusively on
+the `inspect-worktree`/`cleanup-worktree` path.
+
+### Read Status
 
 `review-leases.sh read-status` delegates to `devcanon-runtime runtime
 pr-review-leases read-status`. It is read-only, must inspect git status with
@@ -204,17 +267,21 @@ archive, then moves it to:
 .ephemeral/pr-${PR_NUMBER}-${WORKTREE_DIGEST}-${YYYYMMDDTHHMMSS}-${STATE}-archived-lease.json
 ```
 
-For a `posted` or `aborted` lease whose cleanup helper has recorded a closed
-`cleanup` observation with a valid non-null `removed_at` timestamp, LC-18 may
-archive after recreating the canonical worktree path without revalidating
-historical artifacts in that new checkout. The helper writes `removed_at` only
-after `git worktree remove` succeeds; a legacy `last_outcome: "removed"`
-observation without that marker remains subject to strict historical-artifact
-validation. That observation is narrowly scoped archive authority; it does not
-refresh or create artifact authority. In every other case, LC-18 keeps strict
-historical artifact validation before archive. A fresh `created` lease carries
-none of the terminal lease's artifact, validation, presentation, terminal,
-failure, GitHub, or cleanup metadata.
+For a `posted` or `aborted` lease, LC-18 requires a closed `cleanup`
+observation with a valid non-null helper-recorded `removed_at` timestamp before
+it may archive and write a fresh lease. The helper writes `removed_at` only
+after `git worktree remove` succeeds. Legacy, missing, malformed, or
+timestamp-inconsistent cleanup evidence never grants LC-18 authority: the
+active lease remains unchanged, with no archive and no fresh creation. There
+is no historical-artifact fallback for LC-18. The helper validates the complete
+stored lease and every nested object before consulting this authority; unknown
+keys, invalid field types or values, and malformed terminal or cleanup schema
+all leave the active lease unchanged, with no archive and no fresh creation.
+This narrowly scoped authority
+does not refresh or create artifact authority, and discovery still requires
+both the prior worktree and canonical target to be absent and unregistered.
+A fresh `created` lease carries none of the terminal lease's artifact,
+validation, presentation, terminal, failure, GitHub, or cleanup metadata.
 
 The optional `cleanup` object is closed: it has exactly `last_outcome`,
 `last_checked_at`, and `removed_at`; outcomes are `removed`, `retained`,

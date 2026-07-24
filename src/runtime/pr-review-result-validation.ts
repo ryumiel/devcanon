@@ -5,6 +5,7 @@ import { access, lstat, readFile, realpath, stat } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import { requireDirectEphemeralChild } from "./paths.js";
+import { validatePrReviewEvidenceAuthority } from "./review-artifacts.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -19,6 +20,15 @@ export interface PrReviewResultValidationInput {
   reviewHeadSha: string;
   leaseBaseRef?: string;
   leaseHeadRef?: string;
+}
+
+export interface PrReviewHandoffValidationInput
+  extends Omit<
+    PrReviewResultValidationInput,
+    "resultFile" | "resultIdentityPath"
+  > {
+  handoffFile: string;
+  handoffIdentityPath?: string;
 }
 
 export interface PrReviewResultCommandAuthorityInput
@@ -70,20 +80,24 @@ export async function validatePrReviewResultEvidence(
   });
 }
 
+export async function validatePrReviewHandoffEvidence(
+  input: PrReviewHandoffValidationInput,
+): Promise<JsonObject> {
+  return withCwd(input.worktreeRoot, async () => {
+    await requireRepoRoot();
+    return validateHandoffFile(
+      input.handoffFile,
+      input,
+      input.handoffIdentityPath ?? input.handoffFile,
+    );
+  });
+}
+
 export async function validatePrReviewResultCommandAuthority(
   input: PrReviewResultCommandAuthorityInput,
-): Promise<void> {
-  await withCwd(input.worktreeRoot, async () => {
-    const { result, handoff } = await validatePrReviewResultEvidence({
-      worktreeRoot: input.worktreeRoot,
-      resultFile: input.resultFile,
-      resultIdentityPath: input.resultIdentityPath,
-      repository: input.repository,
-      prNumber: input.prNumber,
-      reviewHeadSha: input.reviewHeadSha,
-      leaseBaseRef: input.leaseBaseRef,
-      leaseHeadRef: input.leaseHeadRef,
-    });
+): Promise<ResultEvidence> {
+  return withCwd(input.worktreeRoot, async () => {
+    const { result, handoff } = await validatePrReviewResultEvidence(input);
     const findingsFile = stringField(result, "findings_file");
     await validateFindingsAuthority(findingsFile, input);
 
@@ -103,12 +117,59 @@ export async function validatePrReviewResultCommandAuthority(
       nullableStringField(artifacts, "prior_threads_file"),
       input,
     );
+    await validatePrReviewResultEvidenceAuthority(input, { result, handoff });
+    return { result, handoff };
   });
+}
+
+export async function validatePrReviewResultEvidenceAuthority(
+  input: PrReviewResultValidationInput,
+  evidence?: ResultEvidence,
+): Promise<ResultEvidence> {
+  const { result, handoff } =
+    evidence ?? (await validatePrReviewResultEvidence(input));
+  const artifacts = objectField(result, "artifacts");
+  const handoffArtifacts = objectField(handoff, "artifacts");
+  await validatePrReviewEvidenceAuthority({
+    worktreeRoot: input.worktreeRoot,
+    headSha: input.reviewHeadSha,
+    baseRef: stringField(handoff, "review_scope_base_ref"),
+    scopeDecisionFile: stringField(artifacts, "scope_decision_file"),
+    providerScopeEvidenceFile: stringField(
+      handoffArtifacts,
+      "provider_scope_evidence_file",
+    ),
+    priorThreadsFile: nullableStringField(artifacts, "prior_threads_file"),
+    findingsFile: stringField(result, "findings_file"),
+  });
+  return { result, handoff };
+}
+
+export async function validatePrReviewHandoffEvidenceAuthority(
+  input: PrReviewHandoffValidationInput,
+): Promise<JsonObject> {
+  const handoff = await validatePrReviewHandoffEvidence(input);
+  const artifacts = objectField(handoff, "artifacts");
+  await validatePrReviewEvidenceAuthority({
+    worktreeRoot: input.worktreeRoot,
+    headSha: input.reviewHeadSha,
+    baseRef: stringField(handoff, "review_scope_base_ref"),
+    scopeDecisionFile: stringField(artifacts, "scope_decision_file"),
+    providerScopeEvidenceFile: stringField(
+      artifacts,
+      "provider_scope_evidence_file",
+    ),
+    priorThreadsFile: nullableStringField(artifacts, "prior_threads_file"),
+  });
+  return handoff;
 }
 
 async function validateHandoffFile(
   file: string,
-  input: PrReviewResultValidationInput,
+  input: Omit<
+    PrReviewResultValidationInput,
+    "resultFile" | "resultIdentityPath"
+  >,
   identityPath = file,
 ): Promise<JsonObject> {
   validateDirectChildPath("handoff", file, "-handoff.json");
@@ -122,7 +183,10 @@ async function validateHandoffFile(
 async function validateHandoffFacts(
   handoff: JsonObject,
   identityPath: string,
-  input: PrReviewResultValidationInput,
+  input: Omit<
+    PrReviewResultValidationInput,
+    "resultFile" | "resultIdentityPath"
+  >,
 ): Promise<void> {
   const manifestPrNumber = String(numberField(handoff, "pr_number"));
   if (manifestPrNumber !== String(input.prNumber)) {

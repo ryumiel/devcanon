@@ -410,7 +410,7 @@ async function requireAbsoluteDirectory(label, value) {
         if (!fileStat.isDirectory()) {
             fail(`${label} must be a directory`);
         }
-        return toOperationalPathText(await realpath(value));
+        return await realpath(value);
     }
     catch (err) {
         if (err instanceof PrReviewManifestError) {
@@ -1039,11 +1039,11 @@ async function validateExecutionRoot(workingDirectory, reviewHeadSha) {
         fail("execution worktree HEAD mismatch");
     }
 }
-function normalizeExecutionWorkingDirectory(value) {
+export function normalizeExecutionWorkingDirectory(value, platform = process.platform) {
     if (!isAbsolutePath(value)) {
         fail("execution working_directory must be absolute");
     }
-    return value.replace(/\\/gu, "/");
+    return normalizePathTextForComparison(value, platform);
 }
 async function guardedScopeBaseRef(scopeDecisionFile) {
     validateDirectChildPath("scope decision", scopeDecisionFile, "-scope-decision.json");
@@ -1422,18 +1422,14 @@ function digestMatchesNullable(file, digest) {
         ? digest === null
         : typeof digest === "string" && isSha256(digest);
 }
-export function toOperationalPathText(value) {
-    return value.replace(/\\/gu, "/");
-}
-function normalizePathTextForComparison(value) {
-    let normalized = value.replace(/\\/gu, "/");
-    if (/^\/[A-Za-z]\//u.test(normalized)) {
-        normalized = `${normalized[1]}:${normalized.slice(2)}`;
+export function normalizePathTextForComparison(value, platform = process.platform) {
+    const msysDrive = /^\/([A-Za-z])\/(.*)$/u.exec(value);
+    if (platform === "win32" && msysDrive !== null) {
+        return `${msysDrive[1]}:/${msysDrive[2]}`.toLowerCase();
     }
-    if (/^[A-Za-z]:\//u.test(normalized)) {
-        normalized = normalized.toLowerCase();
-    }
-    return normalized;
+    if (!/^[A-Za-z]:[\\/]/u.test(value))
+        return value;
+    return value.replace(/[\\/]+/gu, "/").toLowerCase();
 }
 function json(value) {
     return JSON.stringify(value, null, 2);

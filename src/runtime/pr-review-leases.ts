@@ -15,7 +15,17 @@ import { promisify } from "node:util";
 import { writeTextAtomically } from "./artifacts.js";
 import { requireDirectEphemeralChild } from "./paths.js";
 import { validateSharedContextFamilyBinding } from "./play-review-shared-context.js";
-import { validatePrReviewResultCommandAuthority } from "./pr-review-result-validation.js";
+import {
+  validatePrReviewHandoffEvidenceAuthority,
+  validatePrReviewResultCommandAuthority,
+  validatePrReviewResultEvidenceAuthority,
+} from "./pr-review-result-validation.js";
+import {
+  PR_REVIEW_GOVERNED_PATH_PATTERN,
+  PR_REVIEW_MAX_NARROW_CHANGED_FILES,
+  jsonEqual,
+  validateCanonicalApprovedReviewArtifacts,
+} from "./review-artifacts.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -111,13 +121,85 @@ interface LeaseIdentity {
   repository: string;
   prNumber: number;
   primaryRoot: string;
+  /** Canonical persisted identity, never a host-native display path. */
   worktreePath: string;
+  /** Resolved native filesystem path, used only at an I/O boundary. */
+  physicalWorktreePath: string;
   worktreeDigest: string;
   leaseFile: string;
 }
 
 interface CleanupIdentity extends LeaseIdentity {
   worktreeExists: boolean;
+}
+
+type DiscoveryDisposition =
+  | "create"
+  | "resume"
+  | "cleanup-required"
+  | "ambiguous"
+  | "invalid";
+type DiscoveryLeaseStatus =
+  | "resumable"
+  | "cleanup-required"
+  | "terminal"
+  | "invalid";
+type DiscoveryWorktreeStatus =
+  | "absent"
+  | "registered"
+  | "unregistered"
+  | "unleased-canonical";
+
+interface DiscoveryIdentity {
+  repository: string;
+  prNumber: number;
+  primaryRoot: string;
+  canonicalWorktreePath: string;
+}
+
+interface DiscoveryWorktree {
+  path: string;
+  exists: boolean;
+  registered: boolean;
+  dirty: boolean | null;
+  status: DiscoveryWorktreeStatus;
+}
+
+interface DiscoveryWorktreeInspection {
+  worktree: DiscoveryWorktree;
+  isSymbolicLink: boolean;
+}
+
+interface DiscoveryLease {
+  lease_file: string;
+  worktree_path: string | null;
+  worktree_digest: string | null;
+  state: LeaseState | null;
+  status: DiscoveryLeaseStatus;
+  reason: string | null;
+  worktree: {
+    exists: boolean;
+    registered: boolean;
+    dirty: boolean | null;
+    unmanaged_ephemeral_artifacts: string[];
+  };
+}
+
+interface DiscoveryArchivedLease {
+  archived_lease_file: string;
+  state: LeaseState | null;
+  status: "valid" | "invalid";
+  reason: string | null;
+}
+
+interface DiscoveryInvalidFile {
+  lease_file: string;
+  reason: string;
+}
+
+interface InspectedActiveDiscoveryLease {
+  lease: DiscoveryLease;
+  postCleanupArchiveAuthorized: boolean;
 }
 
 interface LeaseInputs {
@@ -172,13 +254,15 @@ export async function runPrReviewLeasesCommand(
         return ok("");
       case "read-status":
         return ok(`${await readStatus()}\n`);
+      case "discover":
+        return ok(`${await discoverReviewLeases()}\n`);
       case "inspect-worktree":
         return ok(await inspectWorktree());
       case "cleanup-worktree":
         return ok(await cleanupWorktree());
       default:
         throw new PrReviewLeaseError(
-          "usage: review-leases.sh derive-path|write|record-audit-failure|validate|read-status|inspect-worktree|cleanup-worktree",
+          "usage: review-leases.sh derive-path|write|record-audit-failure|validate|read-status|discover|inspect-worktree|cleanup-worktree",
         );
     }
   } catch (err) {
@@ -201,7 +285,7 @@ interface CleanupDecision {
 
 export function reducePrReviewLease(
   previous: PrReviewLease | null,
-  identity: Omit<LeaseIdentity, "primaryRoot">,
+  identity: Omit<LeaseIdentity, "primaryRoot" | "physicalWorktreePath">,
   inputs: LeaseInputs,
   options: ReductionOptions = {},
 ): PrReviewLease {
@@ -360,7 +444,10 @@ async function writeLease(): Promise<string> {
   const identity = await readIdentity(true);
   const previous = await readExistingLease(identity.leaseFile);
   assertExistingLeaseIdentity(previous, identity);
-  const inputs = await readInputsForWrite(previous, identity.worktreePath);
+  const inputs = await readInputsForWrite(
+    previous,
+    identity.physicalWorktreePath,
+  );
   const archive = archivePathIfNeeded(previous, identity, inputs);
   const row = transitionId(previous, inputs);
   let reduced = reducePrReviewLease(previous, identity, inputs);
@@ -370,12 +457,12 @@ async function writeLease(): Promise<string> {
       reduced,
       previous,
       identity.primaryRoot,
-      identity.worktreePath,
+      identity.physicalWorktreePath,
       recoveryPolicyForPreviousState(previous.state),
     );
   } else {
     validateLeaseShape(reduced);
-    await validateReferencedArtifacts(reduced, identity.worktreePath, {
+    await validateReferencedArtifacts(reduced, identity.physicalWorktreePath, {
       validateResultAuthority: true,
       policy: policyForLifecycleWrite(row),
     });
@@ -384,10 +471,14 @@ async function writeLease(): Promise<string> {
         throw new PrReviewLeaseError("archived lease missing");
       }
       validateLeaseShape(previous);
-      await validateReferencedArtifacts(previous, identity.worktreePath, {
-        validateResultAuthority: true,
-        policy: "validate-stored-lease",
-      });
+      await validateReferencedArtifacts(
+        previous,
+        identity.physicalWorktreePath,
+        {
+          validateResultAuthority: true,
+          policy: "validate-stored-lease",
+        },
+      );
     }
   }
   validateLeaseShape(reduced);
@@ -431,7 +522,7 @@ async function recordAuditFailure(): Promise<string> {
     reduced,
     previous,
     identity.primaryRoot,
-    identity.worktreePath,
+    identity.physicalWorktreePath,
     "preserve-gated-recovery",
   );
   validateLeaseShape(reduced);
@@ -471,7 +562,7 @@ async function validateLeaseCommand(): Promise<void> {
   if (lease.lease_file !== identity.leaseFile) {
     throw new PrReviewLeaseError("lease file identity mismatch");
   }
-  await validateReferencedArtifacts(lease, identity.worktreePath, {
+  await validateReferencedArtifacts(lease, identity.physicalWorktreePath, {
     validateResultAuthority: true,
     policy: "validate-stored-lease",
   });
@@ -479,7 +570,7 @@ async function validateLeaseCommand(): Promise<void> {
 
 async function readStatus(): Promise<string> {
   const identity = await readIdentity(true);
-  await assertReadableWorktree(identity.worktreePath);
+  await assertReadableWorktree(identity.physicalWorktreePath);
   const lease = await readRequiredJson<PrReviewLease>(
     identity.primaryRoot,
     identity.leaseFile,
@@ -491,7 +582,10 @@ async function readStatus(): Promise<string> {
     throw new PrReviewLeaseError("read-status requires gated lease");
   }
   if (
-    !(await isRegisteredWorktree(identity.primaryRoot, identity.worktreePath))
+    !(await isRegisteredWorktree(
+      identity.primaryRoot,
+      identity.physicalWorktreePath,
+    ))
   ) {
     throw new PrReviewLeaseError(
       "worktree path is not registered for the primary repository",
@@ -511,12 +605,12 @@ async function readStatus(): Promise<string> {
   }
 
   const resultSha256 = await sha256DirectChild(
-    identity.worktreePath,
+    identity.physicalWorktreePath,
     resultFile,
     "result file",
   );
   const result = await readRequiredJson<JsonObject>(
-    identity.worktreePath,
+    identity.physicalWorktreePath,
     resultFile,
     "result file",
   );
@@ -543,7 +637,7 @@ async function readStatus(): Promise<string> {
   if (lease.validation.result_manifest.validated_at !== lease.updated_at) {
     throw new PrReviewLeaseError("result manifest validation is stale");
   }
-  await validateReferencedArtifacts(lease, identity.worktreePath, {
+  await validateReferencedArtifacts(lease, identity.physicalWorktreePath, {
     validateResultAuthority: true,
     policy: "validate-live-gated-status",
   });
@@ -554,7 +648,7 @@ async function readStatus(): Promise<string> {
     worktree_digest: identity.worktreeDigest,
     worktree_exists: true,
     worktree_registered: true,
-    worktree_dirty: await isWorktreeDirty(identity.worktreePath),
+    worktree_dirty: await isWorktreeDirty(identity.physicalWorktreePath),
     identity_match: true,
     result_file: resultFile,
     result_sha256: resultSha256,
@@ -563,6 +657,460 @@ async function readStatus(): Promise<string> {
     presentation_status: lease.presentation.status,
     presented_at: lease.presentation.presented_at,
   });
+}
+
+async function discoverReviewLeases(): Promise<string> {
+  const identity = await readDiscoveryIdentity();
+  const registrations = await listRegisteredWorktrees(identity.primaryRoot);
+  const registrationSet = new Set(registrations.map(normalizeComparablePath));
+  const canonicalInspection = await inspectDiscoveryWorktreeEntry(
+    identity.canonicalWorktreePath,
+    registrationSet,
+    true,
+  );
+  const inspectedCanonicalWorktree = canonicalInspection.worktree;
+  const scanned = await scanDiscoveryLeaseFiles(identity, registrationSet);
+  const activeLeases = scanned.active.sort((left, right) =>
+    left.lease_file.localeCompare(right.lease_file),
+  );
+  const archivedLeases = scanned.archived.sort((left, right) =>
+    left.archived_lease_file.localeCompare(right.archived_lease_file),
+  );
+  const invalidLeaseFiles = scanned.invalid.sort((left, right) =>
+    left.lease_file.localeCompare(right.lease_file),
+  );
+  const resumable = activeLeases.filter(
+    (lease) => lease.status === "resumable",
+  );
+  const canonicalResumableLease = resumable.find(
+    (lease) =>
+      lease.worktree_path === identity.canonicalWorktreePath &&
+      lease.worktree.exists &&
+      lease.worktree.registered &&
+      !canonicalInspection.isSymbolicLink,
+  );
+  const canonicalWorktree =
+    canonicalResumableLease === undefined
+      ? inspectedCanonicalWorktree
+      : { ...inspectedCanonicalWorktree, status: "registered" as const };
+  const canonicalTargetRequiresCleanup =
+    (canonicalWorktree.exists || canonicalWorktree.registered) &&
+    canonicalResumableLease === undefined;
+  const invalid =
+    invalidLeaseFiles.length > 0 ||
+    activeLeases.some((lease) => lease.status === "invalid") ||
+    archivedLeases.some((lease) => lease.status === "invalid");
+  const cleanupLease = activeLeases.find((lease) => {
+    if (lease.status === "cleanup-required") return true;
+    if (lease.status !== "terminal") return false;
+
+    // A helper-recorded removal is archive authority only after both the
+    // recorded terminal worktree and the fresh canonical target are absent.
+    // Retaining occupancy as cleanup-required prevents discovery from
+    // masking a file, symlink, or unmanaged worktree at the canonical path.
+    return !(
+      scanned.postCleanupArchiveLeaseFiles.has(lease.lease_file) &&
+      lease.worktree_path === identity.canonicalWorktreePath &&
+      !lease.worktree.exists &&
+      !lease.worktree.registered &&
+      !canonicalWorktree.exists &&
+      !canonicalWorktree.registered
+    );
+  });
+  const disposition: DiscoveryDisposition = invalid
+    ? "invalid"
+    : resumable.length > 1
+      ? "ambiguous"
+      : cleanupLease !== undefined || canonicalTargetRequiresCleanup
+        ? "cleanup-required"
+        : resumable.length === 1
+          ? "resume"
+          : "create";
+
+  return JSON.stringify({
+    schema: "pr-review/discovery/v1",
+    repository: identity.repository,
+    pr_number: identity.prNumber,
+    primary_repository_root: identity.primaryRoot,
+    canonical_worktree: canonicalWorktree,
+    worktree_registrations: registrations,
+    active_leases: activeLeases,
+    archived_leases: archivedLeases,
+    invalid_lease_files: invalidLeaseFiles,
+    disposition,
+    resume:
+      disposition === "resume"
+        ? {
+            lease_file: resumable[0].lease_file,
+            worktree_path: resumable[0].worktree_path,
+          }
+        : null,
+    cleanup:
+      disposition === "cleanup-required" && cleanupLease !== undefined
+        ? {
+            lease_file: cleanupLease.lease_file,
+            worktree_path: cleanupLease.worktree_path,
+            reason: cleanupLease.reason ?? "terminal-lease",
+          }
+        : null,
+  });
+}
+
+async function readDiscoveryIdentity(): Promise<DiscoveryIdentity> {
+  const repository = requiredEnv("REPOSITORY");
+  if (!/^[^/\s]+\/[^/\s]+$/u.test(repository)) {
+    throw new PrReviewLeaseError("REPOSITORY must be owner/name");
+  }
+  const prNumber = parsePositiveInteger("PR_NUMBER", requiredEnv("PR_NUMBER"));
+  const primaryRoot = await realpath(requiredEnv("PRIMARY_REPOSITORY_ROOT"));
+  if (
+    canonicalLeaseIdentityPath(primaryRoot) !==
+    canonicalLeaseIdentityPath(await realpath(process.cwd()))
+  ) {
+    throw new PrReviewLeaseError(
+      "PRIMARY_REPOSITORY_ROOT must match the primary repository root",
+    );
+  }
+  return {
+    repository,
+    prNumber,
+    primaryRoot,
+    canonicalWorktreePath: canonicalLeaseIdentityPath(
+      path.join(primaryRoot, ".worktrees", `pr-${prNumber}-review`),
+    ),
+  };
+}
+
+async function listRegisteredWorktrees(primaryRoot: string): Promise<string[]> {
+  const { stdout } = await execFileAsync(
+    "git",
+    [
+      "--no-optional-locks",
+      "-C",
+      primaryRoot,
+      "worktree",
+      "list",
+      "--porcelain",
+      "-z",
+    ],
+    { maxBuffer: 1024 * 1024 },
+  );
+  return stdout
+    .split("\0")
+    .filter((entry) => entry.startsWith("worktree "))
+    .map((entry) => canonicalLeaseIdentityPath(entry.slice(9)))
+    .sort((left, right) => left.localeCompare(right));
+}
+
+async function inspectDiscoveryWorktree(
+  worktreePath: string,
+  registrationSet: Set<string>,
+  canonical: boolean,
+): Promise<DiscoveryWorktree> {
+  return (
+    await inspectDiscoveryWorktreeEntry(
+      worktreePath,
+      registrationSet,
+      canonical,
+    )
+  ).worktree;
+}
+
+async function inspectDiscoveryWorktreeEntry(
+  worktreePath: string,
+  registrationSet: Set<string>,
+  canonical: boolean,
+): Promise<DiscoveryWorktreeInspection> {
+  let exists = false;
+  let isSymbolicLink = false;
+  try {
+    const stat = await lstat(physicalPathForIo(worktreePath));
+    // Any occupied canonical path blocks creation. In particular, a symlink or
+    // regular file must never be treated as an absent review worktree.
+    exists = true;
+    isSymbolicLink = stat.isSymbolicLink();
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
+  }
+  const registered = registrationSet.has(
+    canonicalLeaseIdentityPath(worktreePath),
+  );
+  let dirty: boolean | null = null;
+  if (exists && registered && !isSymbolicLink) {
+    try {
+      dirty = await isWorktreeDirty(physicalPathForIo(worktreePath));
+    } catch {
+      dirty = null;
+    }
+  }
+  return {
+    worktree: {
+      path: worktreePath,
+      exists,
+      registered,
+      dirty,
+      status: !exists
+        ? "absent"
+        : canonical
+          ? "unleased-canonical"
+          : registered
+            ? "registered"
+            : "unregistered",
+    },
+    isSymbolicLink,
+  };
+}
+
+async function scanDiscoveryLeaseFiles(
+  identity: DiscoveryIdentity,
+  registrationSet: Set<string>,
+): Promise<{
+  active: DiscoveryLease[];
+  archived: DiscoveryArchivedLease[];
+  invalid: DiscoveryInvalidFile[];
+  postCleanupArchiveLeaseFiles: Set<string>;
+}> {
+  const empty = {
+    active: [],
+    archived: [],
+    invalid: [],
+    postCleanupArchiveLeaseFiles: new Set<string>(),
+  } as {
+    active: DiscoveryLease[];
+    archived: DiscoveryArchivedLease[];
+    invalid: DiscoveryInvalidFile[];
+    postCleanupArchiveLeaseFiles: Set<string>;
+  };
+  const ephemeral = path.join(identity.primaryRoot, ".ephemeral");
+  let entries: { name: string }[];
+  try {
+    const stat = await lstat(ephemeral);
+    if (stat.isSymbolicLink() || !stat.isDirectory()) {
+      empty.invalid.push({
+        lease_file: ".ephemeral",
+        reason: "ephemeral-directory-invalid",
+      });
+      return empty;
+    }
+    entries = await readdir(ephemeral, { withFileTypes: true });
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return empty;
+    throw err;
+  }
+  const prefix = `pr-${identity.prNumber}-`;
+  for (const entry of entries.sort((left, right) =>
+    left.name.localeCompare(right.name),
+  )) {
+    const leaseFile = `.ephemeral/${entry.name}`;
+    if (!entry.name.startsWith(prefix)) continue;
+    if (entry.name.endsWith("-archived-lease.json")) {
+      empty.archived.push(
+        await inspectArchivedDiscoveryLease(identity, leaseFile),
+      );
+      continue;
+    }
+    if (!entry.name.endsWith("-lease.json")) continue;
+    const activeName = new RegExp(
+      `^pr-${identity.prNumber}-([0-9a-f]{64})-lease\\.json$`,
+      "u",
+    );
+    const match = activeName.exec(entry.name);
+    if (match === null) {
+      empty.invalid.push({
+        lease_file: leaseFile,
+        reason: "malformed-lease-path",
+      });
+      continue;
+    }
+    const inspected = await inspectActiveDiscoveryLease(
+      identity,
+      leaseFile,
+      match[1],
+      registrationSet,
+    );
+    empty.active.push(inspected.lease);
+    if (inspected.postCleanupArchiveAuthorized) {
+      empty.postCleanupArchiveLeaseFiles.add(leaseFile);
+    }
+  }
+  return empty;
+}
+
+async function inspectActiveDiscoveryLease(
+  identity: DiscoveryIdentity,
+  leaseFile: string,
+  filenameDigest: string,
+  registrationSet: Set<string>,
+): Promise<InspectedActiveDiscoveryLease> {
+  const invalid = (reason: string): InspectedActiveDiscoveryLease => ({
+    lease: {
+      lease_file: leaseFile,
+      worktree_path: null,
+      worktree_digest: null,
+      state: null,
+      status: "invalid",
+      reason,
+      worktree: {
+        exists: false,
+        registered: false,
+        dirty: null,
+        unmanaged_ephemeral_artifacts: [],
+      },
+    },
+    postCleanupArchiveAuthorized: false,
+  });
+  let lease: PrReviewLease;
+  try {
+    const stat = await lstat(path.join(identity.primaryRoot, leaseFile));
+    if (stat.isSymbolicLink()) return invalid("lease-file-symlink");
+    if (!stat.isFile()) return invalid("lease-file-not-regular");
+    lease = JSON.parse(
+      await readFile(path.join(identity.primaryRoot, leaseFile), "utf8"),
+    ) as PrReviewLease;
+    validateLeaseShape(lease);
+    if (
+      lease.repository !== identity.repository ||
+      lease.pr_number !== identity.prNumber ||
+      lease.lease_file !== leaseFile ||
+      !isAbsoluteLeaseIdentityPath(lease.worktree_path) ||
+      lease.worktree_path ===
+        canonicalLeaseIdentityPath(identity.primaryRoot) ||
+      lease.worktree_digest !== filenameDigest ||
+      lease.worktree_digest !== digestPath(lease.worktree_path)
+    ) {
+      return invalid("lease-identity-mismatch");
+    }
+  } catch {
+    return invalid("invalid-lease");
+  }
+
+  const inspection = await inspectDiscoveryWorktreeEntry(
+    lease.worktree_path,
+    registrationSet,
+    false,
+  );
+  const observed = inspection.worktree;
+  let unmanaged: string[] = [];
+  if (observed.exists && observed.registered && !inspection.isSymbolicLink) {
+    try {
+      unmanaged = await findUnmanagedEphemeralArtifacts(
+        lease,
+        physicalPathForIo(lease.worktree_path),
+        { discovery: true },
+      );
+    } catch {
+      return {
+        lease: {
+          ...invalid("invalid-lease").lease,
+          worktree_path: lease.worktree_path,
+          worktree_digest: lease.worktree_digest,
+          state: lease.state,
+          worktree: {
+            exists: observed.exists,
+            registered: observed.registered,
+            dirty: observed.dirty,
+            unmanaged_ephemeral_artifacts: [],
+          },
+        },
+        postCleanupArchiveAuthorized: false,
+      };
+    }
+  }
+  const terminal = lease.state === "posted" || lease.state === "aborted";
+  const reason = !observed.exists
+    ? "missing-worktree"
+    : inspection.isSymbolicLink
+      ? "symlink-worktree"
+      : !observed.registered
+        ? "unregistered-worktree"
+        : observed.dirty === null
+          ? "status-inspection-failed"
+          : observed.dirty === true
+            ? "dirty"
+            : unmanaged.length > 0
+              ? "unmanaged-ephemeral-artifacts"
+              : terminal
+                ? "terminal-lease"
+                : null;
+  return {
+    lease: {
+      lease_file: leaseFile,
+      worktree_path: lease.worktree_path,
+      worktree_digest: lease.worktree_digest,
+      state: lease.state,
+      status: terminal
+        ? "terminal"
+        : reason === null
+          ? "resumable"
+          : "cleanup-required",
+      reason,
+      worktree: {
+        exists: observed.exists,
+        registered: observed.registered,
+        dirty: observed.dirty,
+        unmanaged_ephemeral_artifacts: unmanaged,
+      },
+    },
+    postCleanupArchiveAuthorized:
+      terminal && hasPostCleanupArchiveAuthority(lease),
+  };
+}
+
+async function inspectArchivedDiscoveryLease(
+  identity: DiscoveryIdentity,
+  archivedLeaseFile: string,
+): Promise<DiscoveryArchivedLease> {
+  const invalid = (reason: string): DiscoveryArchivedLease => ({
+    archived_lease_file: archivedLeaseFile,
+    state: null,
+    status: "invalid",
+    reason,
+  });
+  try {
+    const filename = path.basename(archivedLeaseFile);
+    const filenameMatch = new RegExp(
+      `^pr-${identity.prNumber}-([0-9a-f]{64})-(\\d{8}T\\d{6})-(posted|aborted)-archived-lease\\.json$`,
+      "u",
+    ).exec(filename);
+    if (filenameMatch === null) return invalid("malformed-archived-lease-path");
+    const stat = await lstat(
+      path.join(identity.primaryRoot, archivedLeaseFile),
+    );
+    if (stat.isSymbolicLink()) return invalid("lease-file-symlink");
+    if (!stat.isFile()) return invalid("lease-file-not-regular");
+    const lease = JSON.parse(
+      await readFile(
+        path.join(identity.primaryRoot, archivedLeaseFile),
+        "utf8",
+      ),
+    ) as PrReviewLease;
+    validateLeaseShape(lease);
+    const expectedLeaseFile = `.ephemeral/pr-${identity.prNumber}-${lease.worktree_digest}-lease.json`;
+    if (
+      lease.repository !== identity.repository ||
+      lease.pr_number !== identity.prNumber ||
+      lease.lease_file !== expectedLeaseFile ||
+      !isAbsoluteLeaseIdentityPath(lease.worktree_path) ||
+      lease.worktree_digest !== digestPath(lease.worktree_path) ||
+      lease.worktree_digest !== filenameMatch[1] ||
+      lease.state !== filenameMatch[3] ||
+      (lease.terminal.finished_at ?? lease.updated_at).replace(
+        /[-:Z]/gu,
+        "",
+      ) !== filenameMatch[2] ||
+      (lease.state !== "posted" && lease.state !== "aborted")
+    ) {
+      return invalid("lease-identity-mismatch");
+    }
+    return {
+      archived_lease_file: archivedLeaseFile,
+      state: lease.state,
+      status: "valid",
+      reason: null,
+    };
+  } catch {
+    return invalid("invalid-lease");
+  }
 }
 
 async function inspectWorktree(): Promise<string> {
@@ -601,7 +1149,7 @@ async function cleanupWorktree(): Promise<string> {
   if (decision.forceRemoveAllowed) {
     args.push("-f");
   }
-  args.push(identity.worktreePath);
+  args.push(identity.physicalWorktreePath);
   try {
     await execFileAsync("git", args);
   } catch {
@@ -700,7 +1248,10 @@ async function classifyCleanup(
       };
     }
     if (
-      !(await isRegisteredWorktree(identity.primaryRoot, identity.worktreePath))
+      !(await isRegisteredWorktree(
+        identity.primaryRoot,
+        identity.physicalWorktreePath,
+      ))
     ) {
       return {
         ...base,
@@ -709,13 +1260,13 @@ async function classifyCleanup(
         message: "worktree path is not registered for the primary repository",
       };
     }
-    await validateReferencedArtifacts(lease, identity.worktreePath, {
+    await validateReferencedArtifacts(lease, identity.physicalWorktreePath, {
       validateResultAuthority: true,
       policy: "validate-stored-lease",
     });
     const unmanagedArtifacts = await findUnmanagedEphemeralArtifacts(
       lease,
-      identity.worktreePath,
+      identity.physicalWorktreePath,
     );
     if (unmanagedArtifacts.length > 0) {
       return {
@@ -733,7 +1284,7 @@ async function classifyCleanup(
   }
 
   try {
-    base.dirty = await isWorktreeDirty(identity.worktreePath);
+    base.dirty = await isWorktreeDirty(identity.physicalWorktreePath);
   } catch {
     return {
       ...base,
@@ -812,7 +1363,7 @@ async function recordCleanupMetadata(
   };
   validateLeaseShape(next);
   if (validateArtifacts) {
-    await validateReferencedArtifacts(next, identity.worktreePath, {
+    await validateReferencedArtifacts(next, identity.physicalWorktreePath, {
       validateResultAuthority: true,
       policy: "validate-cleanup-metadata",
     });
@@ -850,18 +1401,27 @@ async function readIdentity(requireLeaseFile: boolean): Promise<LeaseIdentity> {
   const prNumber = parsePositiveInteger("PR_NUMBER", requiredEnv("PR_NUMBER"));
   const primaryRoot = await realpath(requiredEnv("PRIMARY_REPOSITORY_ROOT"));
   const cwd = await realpath(process.cwd());
-  if (primaryRoot !== cwd) {
+  if (
+    canonicalLeaseIdentityPath(primaryRoot) !== canonicalLeaseIdentityPath(cwd)
+  ) {
     throw new PrReviewLeaseError(
       "PRIMARY_REPOSITORY_ROOT must match the primary repository root",
     );
   }
-  const worktreePath = await realpath(requiredEnv("WORKTREE_PATH"));
-  if (worktreePath === primaryRoot) {
+  const physicalWorktreePath = await resolveWorktreePathForIdentity(
+    requiredEnv("WORKTREE_PATH"),
+    requireLeaseFile,
+  );
+  const worktreePath = canonicalLeaseIdentityPath(physicalWorktreePath);
+  if (
+    canonicalLeaseIdentityPath(physicalWorktreePath) ===
+    canonicalLeaseIdentityPath(primaryRoot)
+  ) {
     throw new PrReviewLeaseError(
       "WORKTREE_PATH must be a review worktree, not the primary repository root",
     );
   }
-  const worktreeDigest = digestPath(worktreePath);
+  const worktreeDigest = digestLeaseIdentityPath(worktreePath);
   const expected = `.ephemeral/pr-${prNumber}-${worktreeDigest}-lease.json`;
   const leaseFile = process.env.LEASE_FILE ?? expected;
   if (requireLeaseFile && process.env.LEASE_FILE === undefined) {
@@ -876,9 +1436,31 @@ async function readIdentity(requireLeaseFile: boolean): Promise<LeaseIdentity> {
     prNumber,
     primaryRoot,
     worktreePath,
+    physicalWorktreePath,
     worktreeDigest,
     leaseFile,
   };
+}
+
+async function resolveWorktreePathForIdentity(
+  worktreePath: string,
+  requirePhysicalTarget: boolean,
+): Promise<string> {
+  if (!isAbsoluteLeaseIdentityPath(worktreePath)) {
+    throw new PrReviewLeaseError("WORKTREE_PATH must be absolute");
+  }
+  if (requirePhysicalTarget) {
+    return await realpath(worktreePath);
+  }
+  try {
+    return await realpath(worktreePath);
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code !== "ENOENT" && code !== "ENOTDIR") {
+      throw err;
+    }
+    return path.resolve(worktreePath);
+  }
 }
 
 async function readAuditFailureIdentity(): Promise<{
@@ -892,7 +1474,9 @@ async function readAuditFailureIdentity(): Promise<{
   const prNumber = parsePositiveInteger("PR_NUMBER", requiredEnv("PR_NUMBER"));
   const primaryRoot = await realpath(requiredEnv("PRIMARY_REPOSITORY_ROOT"));
   const cwd = await realpath(process.cwd());
-  if (primaryRoot !== cwd) {
+  if (
+    canonicalLeaseIdentityPath(primaryRoot) !== canonicalLeaseIdentityPath(cwd)
+  ) {
     throw new PrReviewLeaseError(
       "PRIMARY_REPOSITORY_ROOT must match the primary repository root",
     );
@@ -917,7 +1501,9 @@ async function readAuditFailureIdentity(): Promise<{
   if (previous.lease_file !== leaseFile) {
     throw new PrReviewLeaseError("lease file identity mismatch");
   }
-  if (previous.worktree_digest !== digestPath(previous.worktree_path)) {
+  if (
+    previous.worktree_digest !== digestLeaseIdentityPath(previous.worktree_path)
+  ) {
     throw new PrReviewLeaseError("lease worktree digest mismatch");
   }
   const expected = `.ephemeral/pr-${prNumber}-${previous.worktree_digest}-lease.json`;
@@ -930,6 +1516,7 @@ async function readAuditFailureIdentity(): Promise<{
       prNumber,
       primaryRoot,
       worktreePath: previous.worktree_path,
+      physicalWorktreePath: physicalPathForIo(previous.worktree_path),
       worktreeDigest: previous.worktree_digest,
       leaseFile,
     },
@@ -945,7 +1532,9 @@ async function readCleanupIdentity(): Promise<CleanupIdentity> {
   const prNumber = parsePositiveInteger("PR_NUMBER", requiredEnv("PR_NUMBER"));
   const primaryRoot = await realpath(requiredEnv("PRIMARY_REPOSITORY_ROOT"));
   const cwd = await realpath(process.cwd());
-  if (primaryRoot !== cwd) {
+  if (
+    canonicalLeaseIdentityPath(primaryRoot) !== canonicalLeaseIdentityPath(cwd)
+  ) {
     throw new PrReviewLeaseError(
       "PRIMARY_REPOSITORY_ROOT must match the primary repository root",
     );
@@ -953,12 +1542,13 @@ async function readCleanupIdentity(): Promise<CleanupIdentity> {
   const resolvedWorktree = await resolveWorktreePathForCleanup(
     requiredEnv("WORKTREE_PATH"),
   );
-  if (resolvedWorktree.path === primaryRoot) {
+  const worktreePath = canonicalLeaseIdentityPath(resolvedWorktree.path);
+  if (worktreePath === canonicalLeaseIdentityPath(primaryRoot)) {
     throw new PrReviewLeaseError(
       "WORKTREE_PATH must be a review worktree, not the primary repository root",
     );
   }
-  const worktreeDigest = digestPath(resolvedWorktree.path);
+  const worktreeDigest = digestLeaseIdentityPath(worktreePath);
   const expected = `.ephemeral/pr-${prNumber}-${worktreeDigest}-lease.json`;
   const leaseFile = requiredEnv("LEASE_FILE");
   validateDirectChild("lease", leaseFile, DIRECT_SUFFIXES.lease);
@@ -969,7 +1559,8 @@ async function readCleanupIdentity(): Promise<CleanupIdentity> {
     repository,
     prNumber,
     primaryRoot,
-    worktreePath: resolvedWorktree.path,
+    worktreePath,
+    physicalWorktreePath: resolvedWorktree.path,
     worktreeDigest,
     leaseFile,
     worktreeExists: resolvedWorktree.exists,
@@ -1074,7 +1665,7 @@ function resultFileForLifecycleValidation(
 
 function buildBaseLease(
   previous: PrReviewLease | null,
-  identity: Omit<LeaseIdentity, "primaryRoot">,
+  identity: Omit<LeaseIdentity, "primaryRoot" | "physicalWorktreePath">,
   inputs: LeaseInputs,
   row: TransitionId,
 ): PrReviewLease {
@@ -1375,6 +1966,14 @@ function archivePathIfNeeded(
   ) {
     return null;
   }
+  // LC-18 authority is meaningful only for a fully valid stored terminal
+  // lease. Validate its complete closed shape before consulting cleanup data.
+  validateLeaseShape(previous);
+  if (!hasPostCleanupArchiveAuthority(previous)) {
+    throw new PrReviewLeaseError(
+      "LC-18 requires recorded post-cleanup archive authority",
+    );
+  }
   const stamp = (previous.terminal.finished_at ?? previous.updated_at).replace(
     /[-:Z]/gu,
     "",
@@ -1438,6 +2037,18 @@ function validateLeaseShape(
   assertLeaseObjectShape(lease);
   if (lease.schema !== "pr-review/lease/v1") {
     throw new PrReviewLeaseError("lease schema mismatch");
+  }
+  if (!isCanonicalLeaseIdentityPath(lease.worktree_path)) {
+    throw new PrReviewLeaseError("lease worktree path is not canonical");
+  }
+  if (lease.worktree_digest !== digestLeaseIdentityPath(lease.worktree_path)) {
+    throw new PrReviewLeaseError("lease worktree digest mismatch");
+  }
+  if (
+    lease.lease_file !==
+    `.ephemeral/pr-${lease.pr_number}-${lease.worktree_digest}-lease.json`
+  ) {
+    throw new PrReviewLeaseError("lease file identity mismatch");
   }
   validateKnownLeaseState((lease as { state?: unknown }).state);
   validateTimestamp("created_at", lease.created_at);
@@ -1539,6 +2150,21 @@ function validateStateInvariants(
     throw new PrReviewLeaseError("lease schema mismatch");
   }
   if (
+    (lease.state === "created" ||
+      lease.state === "reviewed" ||
+      lease.state === "gated") &&
+    lease.terminal.finished_at !== null
+  ) {
+    throw new PrReviewLeaseError("lease schema mismatch");
+  }
+  if (
+    (lease.state === "aborted" &&
+      (lease.terminal.reason === null || lease.terminal.reason.length === 0)) ||
+    (lease.state !== "aborted" && lease.terminal.reason !== null)
+  ) {
+    throw new PrReviewLeaseError("lease schema mismatch");
+  }
+  if (
     lease.state === "posted" &&
     (lease.artifacts.approved_review_file === null ||
       lease.artifacts.validated_payload_file === null)
@@ -1546,6 +2172,58 @@ function validateStateInvariants(
     throw new PrReviewLeaseError("lease schema mismatch");
   }
   if (lease.state === "failed" && lease.failure.phase === null) {
+    throw new PrReviewLeaseError("lease schema mismatch");
+  }
+  validateFailureAndGitHubTuple(lease);
+}
+
+function validateFailureAndGitHubTuple(lease: PrReviewLease): void {
+  const noFailure =
+    lease.failure.phase === null &&
+    lease.failure.reason === null &&
+    lease.failure.recoverability === null;
+  const noGitHubPost =
+    lease.github.github_post_attempted === false &&
+    lease.github.github_post_result === "not-attempted" &&
+    lease.github.github_posted_at === null;
+  if (lease.state === "failed") {
+    if (
+      lease.failure.phase === null ||
+      lease.failure.reason === null ||
+      lease.failure.reason.length === 0 ||
+      lease.failure.recoverability === null
+    ) {
+      throw new PrReviewLeaseError("lease schema mismatch");
+    }
+    if (lease.failure.phase === "github-post") {
+      if (
+        lease.github.github_post_attempted !== true ||
+        lease.github.github_post_result !== "failed" ||
+        lease.github.github_posted_at !== null
+      ) {
+        throw new PrReviewLeaseError("lease schema mismatch");
+      }
+      return;
+    }
+    if (!noGitHubPost) {
+      throw new PrReviewLeaseError("lease schema mismatch");
+    }
+    return;
+  }
+  if (!noFailure) {
+    throw new PrReviewLeaseError("lease schema mismatch");
+  }
+  if (lease.state === "posted") {
+    if (
+      lease.github.github_post_attempted !== true ||
+      lease.github.github_post_result !== "succeeded" ||
+      lease.github.github_posted_at === null
+    ) {
+      throw new PrReviewLeaseError("lease schema mismatch");
+    }
+    return;
+  }
+  if (!noGitHubPost) {
     throw new PrReviewLeaseError("lease schema mismatch");
   }
 }
@@ -1708,6 +2386,16 @@ function reviewHeadShaFromResultFile(resultFile: string): string {
   return match[1];
 }
 
+function reviewHeadShaFromHandoffFile(handoffFile: string): string {
+  const match = /^\.ephemeral\/pr-[0-9]+-([0-9a-f]{40})-handoff\.json$/u.exec(
+    handoffFile,
+  );
+  if (match === null) {
+    throw new PrReviewLeaseError("handoff path mismatch");
+  }
+  return match[1];
+}
+
 function inheritedHelperEnv(): Record<string, string> {
   const inherited: Record<string, string> = {};
   for (const key of [
@@ -1802,7 +2490,7 @@ async function validateReferencedArtifacts(
         lease.artifacts.validated_payload_file,
         "validated payload file",
       );
-      if (JSON.stringify(payload) !== JSON.stringify(approved.payload)) {
+      if (!jsonEqual(payload, approved.payload)) {
         throw new PrReviewLeaseError(
           "validated payload approved-review mismatch",
         );
@@ -2122,19 +2810,27 @@ async function resolveApprovedReviewHelper(): Promise<string> {
 async function findUnmanagedEphemeralArtifacts(
   lease: PrReviewLease,
   worktreePath: string,
+  options: { discovery?: boolean } = {},
 ): Promise<string[]> {
   const ephemeralPath = path.join(worktreePath, ".ephemeral");
+  // Validate every declared artifact family before treating a missing directory
+  // as empty. Otherwise a lease can appear resumable merely because the
+  // directory holding the evidence disappeared.
+  const owned = await collectOwnedEphemeralArtifacts(
+    lease,
+    worktreePath,
+    options,
+  );
   let entries: { name: string }[];
   try {
     entries = await readdir(ephemeralPath, { withFileTypes: true });
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === "ENOENT") {
-      return [];
+      if (owned.size === 0) return [];
+      throw new PrReviewLeaseError("owned ephemeral artifacts missing");
     }
     throw err;
   }
-
-  const owned = await collectOwnedEphemeralArtifacts(lease, worktreePath);
   return entries
     .map((entry) => `.ephemeral/${entry.name}`)
     .filter((entryPath) => !owned.has(entryPath))
@@ -2144,25 +2840,27 @@ async function findUnmanagedEphemeralArtifacts(
 async function collectOwnedEphemeralArtifacts(
   lease: PrReviewLease,
   worktreePath: string,
+  options: { discovery?: boolean } = {},
 ): Promise<Set<string>> {
   const owned = new Set<string>();
-  addOwnedPath(owned, lease.artifacts.handoff_file);
-  addOwnedPath(owned, lease.artifacts.result_file);
 
-  if (lease.artifacts.handoff_file !== null) {
-    const handoff = await readRequiredJson<JsonObject>(
-      worktreePath,
-      lease.artifacts.handoff_file,
-      "handoff file",
-    );
-    collectHandoffArtifactPaths(owned, handoff);
-  }
   if (lease.artifacts.result_file !== null) {
-    const result = await readRequiredJson<JsonObject>(
+    const { result, handoff } = await validateDiscoveryResultArtifacts(
+      lease,
       worktreePath,
-      lease.artifacts.result_file,
-      "result file",
     );
+    const resultHandoffFile = stringField(
+      isObject(result.artifacts) ? result.artifacts : {},
+      "handoff_file",
+    );
+    if (
+      lease.artifacts.handoff_file !== null &&
+      lease.artifacts.handoff_file !== resultHandoffFile
+    ) {
+      throw new PrReviewLeaseError("result handoff mismatch");
+    }
+    addOwnedPath(owned, lease.artifacts.result_file);
+    addOwnedPath(owned, resultHandoffFile);
     addOwnedPath(owned, stringField(result, "findings_file"));
     addOwnedPath(owned, nullableStringField(result, "review_body_file"));
     const sharedContext = await validateSharedContextFamilyBinding({
@@ -2172,9 +2870,40 @@ async function collectOwnedEphemeralArtifacts(
     });
     addOwnedPath(owned, sharedContext.input_file);
     addOwnedPath(owned, sharedContext.context_file);
+    collectHandoffArtifactPaths(owned, handoff);
     collectResultArtifactPaths(owned, result);
+  } else if (lease.artifacts.handoff_file !== null) {
+    const handoff = await validateDiscoveryHandoffArtifacts(
+      lease,
+      worktreePath,
+    );
+    addOwnedPath(owned, lease.artifacts.handoff_file);
+    collectHandoffArtifactPaths(owned, handoff);
   }
   if (lease.artifacts.approved_review_file !== null) {
+    if (options.discovery === true) {
+      const result = await readRequiredJson<JsonObject>(
+        worktreePath,
+        lease.artifacts.result_file ?? "",
+        "result file",
+      );
+      const approved = await readRequiredJson<JsonObject>(
+        worktreePath,
+        lease.artifacts.approved_review_file,
+        "approved review file",
+      );
+      await validateDiscoveryApprovedReviewOwnership(
+        lease,
+        result,
+        approved,
+        worktreePath,
+      );
+      addOwnedPath(owned, stringField(approved, "review_body_file"));
+      addOwnedPath(owned, stringField(approved, "review_payload_file"));
+      addOwnedPath(owned, lease.artifacts.approved_review_file);
+      addOwnedPath(owned, lease.artifacts.validated_payload_file);
+      return owned;
+    }
     const result = await readRequiredJson<JsonObject>(
       worktreePath,
       lease.artifacts.result_file ?? "",
@@ -2202,6 +2931,272 @@ async function collectOwnedEphemeralArtifacts(
   }
 
   return owned;
+}
+
+async function validateDiscoveryResultArtifacts(
+  lease: PrReviewLease,
+  worktreePath: string,
+): Promise<{ result: JsonObject; handoff: JsonObject }> {
+  const resultFile = lease.artifacts.result_file;
+  if (resultFile === null) {
+    throw new PrReviewLeaseError("result file missing");
+  }
+  const reviewHeadSha = reviewHeadShaFromResultFile(resultFile);
+  await validateResultDigest(lease, worktreePath, resultFile);
+  const evidence = await validatePrReviewResultEvidenceAuthority({
+    worktreeRoot: worktreePath,
+    resultFile,
+    resultIdentityPath: resultFile,
+    repository: lease.repository,
+    prNumber: lease.pr_number,
+    reviewHeadSha,
+    leaseBaseRef: lease.base_ref,
+    leaseHeadRef: lease.head_ref,
+  });
+  if (lease.state === "gated") {
+    validateResultFreshness(lease, "validate-stored-lease");
+    validateResultPresentation(evidence.result, lease, "validate-stored-lease");
+  } else if (
+    lease.state === "failed" &&
+    (lease.presentation.status !== null ||
+      lease.presentation.presented_at !== null)
+  ) {
+    validateResultPresentation(evidence.result, lease, "validate-stored-lease");
+  }
+  return evidence;
+}
+
+async function validateDiscoveryHandoffArtifacts(
+  lease: PrReviewLease,
+  worktreePath: string,
+): Promise<JsonObject> {
+  const handoffFile = lease.artifacts.handoff_file;
+  if (handoffFile === null) {
+    throw new PrReviewLeaseError("handoff file missing");
+  }
+  return validatePrReviewHandoffEvidenceAuthority({
+    worktreeRoot: worktreePath,
+    handoffFile,
+    handoffIdentityPath: handoffFile,
+    repository: lease.repository,
+    prNumber: lease.pr_number,
+    reviewHeadSha: reviewHeadShaFromHandoffFile(handoffFile),
+    leaseBaseRef: lease.base_ref,
+    leaseHeadRef: lease.head_ref,
+  });
+}
+
+async function validateDiscoveryApprovedReviewOwnership(
+  lease: PrReviewLease,
+  result: JsonObject,
+  approved: JsonObject,
+  worktreePath: string,
+): Promise<void> {
+  const resultFile = lease.artifacts.result_file;
+  const approvedReviewFile = lease.artifacts.approved_review_file;
+  const validatedPayloadFile = lease.artifacts.validated_payload_file;
+  if (resultFile === null || approvedReviewFile === null) {
+    throw new PrReviewLeaseError(
+      "approved review discovery ownership mismatch",
+    );
+  }
+  const requiresValidatedPayload =
+    lease.state === "posted" || validatedPayloadFile !== null;
+  if (!requiresValidatedPayload && lease.state !== "failed") {
+    throw new PrReviewLeaseError(
+      "approved review discovery ownership mismatch",
+    );
+  }
+  const reviewHead = reviewHeadShaFromResultFile(resultFile);
+  const expected = await discoveryApprovedReviewPaths(
+    lease.pr_number,
+    reviewHead,
+    worktreePath,
+  );
+  const expectedKeys = [
+    "schema",
+    "review_head_sha",
+    "findings_file",
+    "review_body_file",
+    "review_payload_file",
+    "scope_decision_file",
+    "findings_sha256",
+    "review_body_sha256",
+    "review_payload_sha256",
+    "scope_decision_sha256",
+    "payload",
+  ];
+  if (
+    Object.keys(approved).length !== expectedKeys.length ||
+    expectedKeys.some((key) => !(key in approved)) ||
+    approved.schema !== "pr-review/approved-review/v1" ||
+    approvedReviewFile !== expected.approvedReviewFile ||
+    (requiresValidatedPayload &&
+      validatedPayloadFile !== expected.validatedPayloadFile) ||
+    approved.review_head_sha !== reviewHead ||
+    result.review_head_sha !== reviewHead ||
+    approved.findings_file !== expected.findingsFile ||
+    result.findings_file !== expected.findingsFile ||
+    approved.review_body_file !== expected.reviewBodyFile ||
+    result.review_body_file !== expected.reviewBodyFile ||
+    approved.review_payload_file !== expected.reviewPayloadFile ||
+    !isObject(approved.payload) ||
+    !isObject(result.artifacts) ||
+    approved.scope_decision_file !== expected.scopeDecisionFile ||
+    result.artifacts.scope_decision_file !== expected.scopeDecisionFile
+  ) {
+    throw new PrReviewLeaseError(
+      "approved review discovery ownership mismatch",
+    );
+  }
+  for (const [label, file, digest, expectedPath] of [
+    [
+      "findings",
+      approved.findings_file,
+      approved.findings_sha256,
+      expected.findingsFile,
+    ],
+    [
+      "review body",
+      approved.review_body_file,
+      approved.review_body_sha256,
+      expected.reviewBodyFile,
+    ],
+    [
+      "review payload",
+      approved.review_payload_file,
+      approved.review_payload_sha256,
+      expected.reviewPayloadFile,
+    ],
+    [
+      "scope decision",
+      approved.scope_decision_file,
+      approved.scope_decision_sha256,
+      expected.scopeDecisionFile,
+    ],
+  ] as const) {
+    if (
+      typeof file !== "string" ||
+      typeof digest !== "string" ||
+      file !== expectedPath
+    ) {
+      throw new PrReviewLeaseError(
+        "approved review discovery ownership mismatch",
+      );
+    }
+    validateDirectChild(label, file);
+    if ((await sha256DirectChild(worktreePath, file, label)) !== digest) {
+      throw new PrReviewLeaseError("approved review discovery digest mismatch");
+    }
+  }
+  const payloadFile = stringField(approved, "review_payload_file");
+  const payload = await readRequiredJson<JsonObject>(
+    worktreePath,
+    payloadFile,
+    "review payload file",
+  );
+  const scope = await readRequiredJson<JsonObject>(
+    worktreePath,
+    expected.scopeDecisionFile,
+    "scope decision file",
+  );
+  const scopeArtifacts = scope.artifacts;
+  const priorContext = scope.prior_context;
+  if (!isObject(scopeArtifacts) || !isObject(priorContext)) {
+    throw new PrReviewLeaseError(
+      "approved review discovery ownership mismatch",
+    );
+  }
+  const fullRange = stringField(scope, "full_range");
+  const baseMatch = /^([0-9a-f]{40})\.\./u.exec(fullRange);
+  if (baseMatch === null) {
+    throw new PrReviewLeaseError(
+      "approved review discovery ownership mismatch",
+    );
+  }
+  const expectedPayload = await validateCanonicalApprovedReviewArtifacts({
+    worktreeRoot: worktreePath,
+    options: {
+      surface: "pr-review",
+      headSha: reviewHead,
+      baseRef: baseMatch[1],
+      scopeDecision: expected.scopeDecisionFile,
+      providerScopeEvidenceFile: stringField(
+        scopeArtifacts,
+        "provider_scope_evidence_file",
+      ),
+      expectedSchema: "pr-review/scope-decision/v1",
+      priorContextKind: stringField(priorContext, "kind"),
+      priorContextPath: nullableStringField(priorContext, "path") ?? "null",
+      governedPathPattern: PR_REVIEW_GOVERNED_PATH_PATTERN,
+      configuredPathPattern: "^$",
+      maxNarrowChangedFiles: PR_REVIEW_MAX_NARROW_CHANGED_FILES,
+      allowAmbiguousFull: "true",
+      findingsFile: expected.findingsFile,
+      reviewBodyFile: expected.reviewBodyFile,
+      reviewPayloadFile: expected.reviewPayloadFile,
+      reviewEvent: stringField(approved.payload, "event"),
+    },
+  });
+  if (
+    !jsonEqual(payload, expectedPayload) ||
+    !jsonEqual(approved.payload, expectedPayload)
+  ) {
+    throw new PrReviewLeaseError("approved review discovery payload mismatch");
+  }
+  if (validatedPayloadFile !== null) {
+    const validatedPayload = await readRequiredJson<JsonObject>(
+      worktreePath,
+      validatedPayloadFile,
+      "validated payload file",
+    );
+    if (!jsonEqual(validatedPayload, expectedPayload)) {
+      throw new PrReviewLeaseError(
+        "validated payload approved-review mismatch",
+      );
+    }
+  }
+}
+
+async function discoveryApprovedReviewPaths(
+  prNumber: number,
+  reviewHead: string,
+  worktreePath: string,
+): Promise<{
+  findingsFile: string;
+  reviewBodyFile: string;
+  reviewPayloadFile: string;
+  scopeDecisionFile: string;
+  approvedReviewFile: string;
+  validatedPayloadFile: string;
+}> {
+  const branchSlug = await discoveryBranchSlug(worktreePath);
+  return {
+    findingsFile: `.ephemeral/${branchSlug}-${reviewHead}-findings.json`,
+    reviewBodyFile: `.ephemeral/pr-${prNumber}-${reviewHead}-review-body.md`,
+    reviewPayloadFile: `.ephemeral/${branchSlug}-${reviewHead}-review-payload.json`,
+    scopeDecisionFile: `.ephemeral/${branchSlug}-${reviewHead}-scope-decision.json`,
+    approvedReviewFile: `.ephemeral/${branchSlug}-${reviewHead}-approved-review.json`,
+    validatedPayloadFile: expectedValidatedPayloadPath(prNumber, reviewHead),
+  };
+}
+
+async function discoveryBranchSlug(worktreePath: string): Promise<string> {
+  const { stdout } = await execFileAsync(
+    "git",
+    ["-C", worktreePath, "rev-parse", "--abbrev-ref", "HEAD"],
+    { maxBuffer: 1024 * 1024 },
+  );
+  const branch = stdout.trim();
+  if (branch === "HEAD") return "detached";
+  const slug = branch.replaceAll("/", "-").replace(/[^A-Za-z0-9._-]/gu, "");
+  return slug.length === 0 ||
+    slug === "." ||
+    slug === ".." ||
+    slug.startsWith("-") ||
+    slug.startsWith(".")
+    ? "unnamed"
+    : slug;
 }
 
 function collectHandoffArtifactPaths(
@@ -2405,8 +3400,231 @@ function assertLeaseObjectShape(lease: PrReviewLease): void {
   if (!isObject(lease.github)) {
     throw new PrReviewLeaseError("lease schema mismatch");
   }
-  if (lease.cleanup !== undefined && !isObject(lease.cleanup)) {
-    throw new PrReviewLeaseError("lease cleanup metadata mismatch");
+  assertExactLeaseObject(
+    lease,
+    [
+      "schema",
+      "repository",
+      "pr_number",
+      "state",
+      "base_ref",
+      "head_ref",
+      "worktree_path",
+      "worktree_digest",
+      "lease_file",
+      "created_at",
+      "updated_at",
+      "artifacts",
+      "validation",
+      "presentation",
+      "terminal",
+      "failure",
+      "github",
+    ],
+    ["cleanup"],
+    "lease schema",
+  );
+  for (const key of [
+    "schema",
+    "repository",
+    "state",
+    "base_ref",
+    "head_ref",
+    "worktree_path",
+    "worktree_digest",
+    "lease_file",
+    "created_at",
+    "updated_at",
+  ] as const) {
+    assertStringLeaseField(lease, key, "lease schema");
+  }
+  if (!Number.isSafeInteger(lease.pr_number) || lease.pr_number <= 0) {
+    throw new PrReviewLeaseError("lease schema mismatch");
+  }
+  assertExactLeaseObject(
+    lease.artifacts,
+    [
+      "handoff_file",
+      "result_file",
+      "approved_review_file",
+      "validated_payload_file",
+    ],
+    [],
+    "lease artifacts metadata",
+  );
+  for (const key of [
+    "handoff_file",
+    "result_file",
+    "approved_review_file",
+    "validated_payload_file",
+  ] as const) {
+    assertNullableStringLeaseField(
+      lease.artifacts,
+      key,
+      "lease artifacts metadata",
+    );
+  }
+  assertExactLeaseObject(
+    lease.validation,
+    ["result_manifest"],
+    [],
+    "lease validation metadata",
+  );
+  assertExactLeaseObject(
+    lease.validation.result_manifest,
+    ["status", "validated_at", "sha256"],
+    [],
+    "lease result_manifest metadata",
+  );
+  if (
+    lease.validation.result_manifest.status !== null &&
+    lease.validation.result_manifest.status !== "valid"
+  ) {
+    throw new PrReviewLeaseError("lease schema mismatch");
+  }
+  assertNullableStringLeaseField(
+    lease.validation.result_manifest,
+    "validated_at",
+    "lease result_manifest metadata",
+  );
+  assertNullableStringLeaseField(
+    lease.validation.result_manifest,
+    "sha256",
+    "lease result_manifest metadata",
+  );
+  assertExactLeaseObject(
+    lease.presentation,
+    ["presented_at", "status"],
+    [],
+    "lease presentation metadata",
+  );
+  assertNullableStringLeaseField(
+    lease.presentation,
+    "presented_at",
+    "lease presentation metadata",
+  );
+  if (
+    lease.presentation.status !== null &&
+    lease.presentation.status !== "preview-current" &&
+    lease.presentation.status !== "edited"
+  ) {
+    throw new PrReviewLeaseError("lease schema mismatch");
+  }
+  assertExactLeaseObject(
+    lease.terminal,
+    ["finished_at", "reason"],
+    [],
+    "lease terminal metadata",
+  );
+  assertNullableStringLeaseField(
+    lease.terminal,
+    "finished_at",
+    "lease terminal metadata",
+  );
+  assertNullableStringLeaseField(
+    lease.terminal,
+    "reason",
+    "lease terminal metadata",
+  );
+  assertExactLeaseObject(
+    lease.failure,
+    ["phase", "reason", "recoverability"],
+    [],
+    "lease failure metadata",
+  );
+  if (
+    lease.failure.phase !== null &&
+    ![
+      "handoff-validation",
+      "review",
+      "result-validation",
+      "preview-render",
+      "approval-freeze",
+      "stale-head",
+      "github-post",
+    ].includes(lease.failure.phase)
+  ) {
+    throw new PrReviewLeaseError("lease schema mismatch");
+  }
+  assertNullableStringLeaseField(
+    lease.failure,
+    "reason",
+    "lease failure metadata",
+  );
+  if (
+    lease.failure.recoverability !== null &&
+    !["recoverable", "unrecoverable", "unknown"].includes(
+      lease.failure.recoverability,
+    )
+  ) {
+    throw new PrReviewLeaseError("lease schema mismatch");
+  }
+  assertExactLeaseObject(
+    lease.github,
+    ["github_post_attempted", "github_post_result", "github_posted_at"],
+    [],
+    "lease GitHub metadata",
+  );
+  if (typeof lease.github.github_post_attempted !== "boolean") {
+    throw new PrReviewLeaseError("lease schema mismatch");
+  }
+  if (
+    lease.github.github_post_result !== "succeeded" &&
+    lease.github.github_post_result !== "failed" &&
+    lease.github.github_post_result !== "not-attempted"
+  ) {
+    throw new PrReviewLeaseError("lease schema mismatch");
+  }
+  assertNullableStringLeaseField(
+    lease.github,
+    "github_posted_at",
+    "lease GitHub metadata",
+  );
+  if (lease.cleanup !== undefined) {
+    assertExactLeaseObject(
+      lease.cleanup,
+      ["last_outcome", "last_checked_at"],
+      ["removed_at"],
+      "lease cleanup metadata",
+    );
+  }
+}
+
+function assertExactLeaseObject(
+  value: unknown,
+  requiredKeys: readonly string[],
+  optionalKeys: readonly string[],
+  label: string,
+): asserts value is JsonObject {
+  if (!isObject(value)) {
+    throw new PrReviewLeaseError(`${label} missing`);
+  }
+  const allowed = new Set([...requiredKeys, ...optionalKeys]);
+  if (
+    requiredKeys.some((key) => !(key in value)) ||
+    Object.keys(value).some((key) => !allowed.has(key))
+  ) {
+    throw new PrReviewLeaseError(`${label} mismatch`);
+  }
+}
+
+function assertStringLeaseField(
+  value: JsonObject,
+  key: string,
+  label: string,
+): void {
+  if (typeof value[key] !== "string") {
+    throw new PrReviewLeaseError(`${label} mismatch`);
+  }
+}
+
+function assertNullableStringLeaseField(
+  value: JsonObject,
+  key: string,
+  label: string,
+): void {
+  if (value[key] !== null && typeof value[key] !== "string") {
+    throw new PrReviewLeaseError(`${label} mismatch`);
   }
 }
 
@@ -2423,6 +3641,17 @@ function validateCleanupMetadata(cleanup: PrReviewLease["cleanup"]): void {
     keys[1] === "last_outcome" &&
     keys[2] === "removed_at";
   if (!isLegacyCleanup && !isCurrentCleanup) {
+    throw new PrReviewLeaseError("lease cleanup metadata mismatch");
+  }
+  if (
+    (cleanup.last_outcome !== null &&
+      typeof cleanup.last_outcome !== "string") ||
+    (cleanup.last_checked_at !== null &&
+      typeof cleanup.last_checked_at !== "string") ||
+    (isCurrentCleanup &&
+      cleanup.removed_at !== null &&
+      typeof cleanup.removed_at !== "string")
+  ) {
     throw new PrReviewLeaseError("lease cleanup metadata mismatch");
   }
   if (
@@ -2445,10 +3674,13 @@ function validateCleanupMetadata(cleanup: PrReviewLease["cleanup"]): void {
 function hasPostCleanupArchiveAuthority(
   previous: PrReviewLease | null,
 ): boolean {
+  const cleanup = previous?.cleanup;
   return (
     previous !== null &&
     (previous.state === "posted" || previous.state === "aborted") &&
-    typeof previous.cleanup?.removed_at === "string"
+    typeof cleanup?.removed_at === "string" &&
+    typeof cleanup.last_checked_at === "string" &&
+    cleanup.removed_at <= cleanup.last_checked_at
   );
 }
 
@@ -2595,10 +3827,14 @@ function validateDirectChild(label: string, value: string, suffix = ""): void {
   }
 }
 
-function digestPath(value: string): string {
+export function digestLeaseIdentityPath(value: string): string {
   return createHash("sha256")
-    .update(normalizeComparablePath(value))
+    .update(canonicalLeaseIdentityPath(value))
     .digest("hex");
+}
+
+function digestPath(value: string): string {
+  return digestLeaseIdentityPath(value);
 }
 
 function expectedValidatedPayloadPath(
@@ -2608,11 +3844,37 @@ function expectedValidatedPayloadPath(
   return `.ephemeral/pr-${prNumber}-${reviewHead}-validated-review-payload.json`;
 }
 
-function normalizeComparablePath(value: string): string {
-  const normalized = value.replace(/\\/gu, "/");
-  return /^[A-Za-z]:\//u.test(normalized)
-    ? normalized.toLowerCase()
-    : normalized;
+/**
+ * Canonical persisted lease identity. Windows drive paths compare
+ * case-insensitively with slash-normalized separators; POSIX paths preserve
+ * every byte, including a literal backslash in a filename.
+ */
+export function canonicalLeaseIdentityPath(value: string): string {
+  if (!/^[A-Za-z]:[\\/]/u.test(value)) return value;
+  return value.replace(/[\\/]+/gu, "/").toLowerCase();
+}
+
+export function normalizeComparablePath(value: string): string {
+  return canonicalLeaseIdentityPath(value);
+}
+
+function isAbsoluteLeaseIdentityPath(value: string): boolean {
+  return path.isAbsolute(value) || /^[a-z]:\//u.test(value);
+}
+
+function isCanonicalLeaseIdentityPath(value: string): boolean {
+  return (
+    isAbsoluteLeaseIdentityPath(value) &&
+    canonicalLeaseIdentityPath(value) === value
+  );
+}
+
+function physicalPathForIo(identityPath: string): string {
+  // Win32 APIs accept canonical drive paths in most cases; the explicit
+  // boundary conversion keeps persisted identity independent of that detail.
+  return process.platform === "win32" && /^[a-z]:\//u.test(identityPath)
+    ? identityPath.replace(/\//gu, "\\")
+    : identityPath;
 }
 
 function emptyArtifacts(): PrReviewLease["artifacts"] {
