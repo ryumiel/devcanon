@@ -181,10 +181,15 @@ const refreshedResultDigest =
 const originalCwd = process.cwd();
 let primaryRepositorySeed: Promise<string> | null = null;
 let primaryRepositorySeedRoot: string | null = null;
+let reviewHelperSeed: Promise<string> | null = null;
+let reviewHelperSeedRoot: string | null = null;
 
 afterAll(async () => {
   if (primaryRepositorySeedRoot !== null) {
     await rm(primaryRepositorySeedRoot, { recursive: true, force: true });
+  }
+  if (reviewHelperSeedRoot !== null) {
+    await rm(reviewHelperSeedRoot, { recursive: true, force: true });
   }
 });
 const managedEnvKeys = [
@@ -3124,6 +3129,84 @@ describe("pr-review lease discovery", () => {
     }
   });
 
+  it("allows an absent canonical leaf beneath real primary-root parents", async () => {
+    const workspace = await makeRegisteredWorkspace(
+      "pr-review-discovery-absent-canonical-leaf-",
+    );
+
+    try {
+      await mkdir(path.join(workspace.primary, ".worktrees"), {
+        recursive: true,
+      });
+      process.chdir(workspace.physicalPrimary);
+      setDiscoveryEnv(workspace.physicalPrimary);
+
+      const result = await runPrReviewLeasesCommand(["discover"]);
+
+      expect(result.exitCode, result.stderr).toBe(0);
+      expect(JSON.parse(result.stdout)).toMatchObject({
+        disposition: "create",
+        canonical_worktree: { exists: false, registered: false },
+      });
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it.each(["symlink", "file"] as const)(
+    "fails closed when a canonical worktree parent is a $kind",
+    async (kind) => {
+      const workspace = await makeRegisteredWorkspace(
+        `pr-review-discovery-parent-${kind}-`,
+      );
+      const parent = path.join(workspace.primary, ".worktrees");
+
+      try {
+        if (kind === "symlink") {
+          const target = path.join(workspace.tempRoot, "external-worktrees");
+          await mkdir(target, { recursive: true });
+          await symlink(target, parent, "dir");
+        } else {
+          await writeFile(parent, "not a directory\n");
+        }
+        process.chdir(workspace.physicalPrimary);
+        setDiscoveryEnv(workspace.physicalPrimary);
+
+        const result = await runPrReviewLeasesCommand(["discover"]);
+
+        expect(result.exitCode).toBe(1);
+        expect(result.stderr).toContain(
+          "canonical worktree parent must be a real directory",
+        );
+      } finally {
+        process.chdir(originalCwd);
+        await rm(workspace.tempRoot, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it("rejects discovery invoked from a linked worktree that self-declares primary root", async () => {
+    const workspace = await makeRegisteredWorkspace(
+      "pr-review-discovery-linked-primary-",
+    );
+
+    try {
+      process.chdir(workspace.physicalWorktree);
+      setDiscoveryEnv(workspace.physicalWorktree);
+
+      const result = await runPrReviewLeasesCommand(["discover"]);
+
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain(
+        "PRIMARY_REPOSITORY_ROOT must be the primary Git worktree",
+      );
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
+    }
+  });
+
   it.each(["file", "symlink"])(
     "fails closed when the unleased canonical path is occupied by a %s",
     async (kind) => {
@@ -5334,6 +5417,54 @@ describe("pr-review lease Git cleanup safety", () => {
     }
   });
 
+  it("does not grant LC-18 authority to cleanup observations before terminal completion", async () => {
+    const workspace = await makeGatedStatusWorkspace(
+      "pr-review-preterminal-cleanup-authority-",
+      { canonicalWorktree: true },
+    );
+
+    try {
+      const prior = {
+        ...withCanonicalHandoffPointer(
+          await readLease(workspace.primary, workspace.leaseFile),
+        ),
+        state: "aborted" as const,
+        updated_at: "2026-06-11T00:03:00Z",
+        terminal: {
+          finished_at: "2026-06-11T00:03:00Z",
+          reason: "user-aborted",
+        },
+        cleanup: {
+          last_outcome: "removed" as const,
+          removed_at: "2026-06-11T00:02:00Z",
+          last_checked_at: "2026-06-11T00:02:00Z",
+        },
+      };
+      await writeFile(
+        path.join(workspace.primary, workspace.leaseFile),
+        `${JSON.stringify(prior, null, 2)}\n`,
+      );
+      await execFileAsync(
+        "git",
+        ["worktree", "remove", "-f", workspace.worktree],
+        { cwd: workspace.primary },
+      );
+      process.chdir(workspace.physicalPrimary);
+      setDiscoveryEnv(workspace.physicalPrimary);
+
+      const discovery = await runPrReviewLeasesCommand(["discover"]);
+
+      expect(discovery.exitCode, discovery.stderr).toBe(0);
+      expect(JSON.parse(discovery.stdout)).toMatchObject({
+        disposition: "cleanup-required",
+        cleanup: { lease_file: workspace.leaseFile },
+      });
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
+    }
+  });
+
   it.each([
     {
       name: "legacy cleanup metadata without removed_at",
@@ -6110,11 +6241,6 @@ async function makeGatedStatusWorkspace(
   options: { canonicalWorktree?: boolean } = {},
 ): Promise<GatedStatusWorkspace> {
   const workspace = await makeRegisteredWorkspace(prefix, options);
-  await execFileAsync(
-    "git",
-    ["commit", "--allow-empty", "-m", "test: review evidence"],
-    { cwd: workspace.worktree },
-  );
   const { stdout: reviewHeadOutput } = await execFileAsync("git", [
     "-C",
     workspace.worktree,
@@ -6197,7 +6323,7 @@ function setAuditFailureEnv(
 ): void {
   process.env.REPOSITORY = "owner/repo";
   process.env.PR_NUMBER = "432";
-  process.env.PRIMARY_REPOSITORY_ROOT = workspace.primary;
+  process.env.PRIMARY_REPOSITORY_ROOT = workspace.physicalPrimary;
   process.env.LEASE_FILE = workspace.leaseFile;
   process.env.STATE = "failed";
   process.env.EXPECTED_STATE = "gated";
@@ -6295,11 +6421,6 @@ async function makeResultAuthorityWorkspace(prefix: string): Promise<
   }
 > {
   const workspace = await makeRegisteredWorkspace(prefix);
-  await execFileAsync(
-    "git",
-    ["commit", "--allow-empty", "-m", "test: review evidence"],
-    { cwd: workspace.worktree },
-  );
   const { stdout } = await execFileAsync("git", [
     "-C",
     workspace.worktree,
@@ -6340,7 +6461,7 @@ async function makeRegisteredWorkspace(
   await mkdir(path.dirname(worktree), { recursive: true });
   await execFileAsync(
     "git",
-    ["worktree", "add", "-b", "review-topic", worktree],
+    ["worktree", "add", "-b", "review-topic", worktree, "review-seed"],
     { cwd: primary },
   );
   await mkdir(path.join(primary, ".ephemeral"), { recursive: true });
@@ -6377,6 +6498,18 @@ async function preparePrimaryRepositorySeed(): Promise<string> {
       await execFileAsync("git", ["commit", "-m", "chore: baseline"], {
         cwd: primary,
       });
+      await execFileAsync("git", ["branch", "review-seed"], {
+        cwd: primary,
+      });
+      await execFileAsync("git", ["checkout", "review-seed"], {
+        cwd: primary,
+      });
+      await execFileAsync(
+        "git",
+        ["commit", "--allow-empty", "-m", "test: review evidence"],
+        { cwd: primary },
+      );
+      await execFileAsync("git", ["checkout", "main"], { cwd: primary });
       return primary;
     })();
   }
@@ -6527,6 +6660,28 @@ async function writeReviewHelperScripts(tempRoot: string): Promise<{
   playReviewHelper: string;
 }> {
   const skillsRoot = path.join(tempRoot, "skills");
+  await cp(await prepareReviewHelperSeed(), skillsRoot, { recursive: true });
+  return reviewHelperScriptPaths(skillsRoot);
+}
+
+async function prepareReviewHelperSeed(): Promise<string> {
+  if (reviewHelperSeed === null) {
+    reviewHelperSeed = (async () => {
+      const seedRoot = await mkdtemp(
+        path.join(tmpdir(), "pr-review-helper-seed-"),
+      );
+      reviewHelperSeedRoot = seedRoot;
+      const skillsRoot = path.join(seedRoot, "skills");
+      await writeReviewHelperScriptsUncached(skillsRoot);
+      return skillsRoot;
+    })();
+  }
+  return reviewHelperSeed;
+}
+
+async function writeReviewHelperScriptsUncached(
+  skillsRoot: string,
+): Promise<void> {
   const prReviewDir = path.join(skillsRoot, "pr-review");
   const prReviewScripts = path.join(prReviewDir, "scripts");
   const playReviewScripts = path.join(skillsRoot, "play-review", "scripts");
@@ -6570,11 +6725,33 @@ async function writeReviewHelperScripts(tempRoot: string): Promise<{
   await chmod(prReviewLeaseHelperScript, 0o755);
   await chmod(approvedReviewHelper, 0o755);
   await chmod(playReviewHelper, 0o755);
+}
+
+function reviewHelperScriptPaths(skillsRoot: string): {
+  prReviewDir: string;
+  prReviewManifestHelperScript: string;
+  prReviewLeaseHelperScript: string;
+  playReviewHelper: string;
+} {
+  const prReviewDir = path.join(skillsRoot, "pr-review");
   return {
     prReviewDir,
-    prReviewManifestHelperScript,
-    prReviewLeaseHelperScript,
-    playReviewHelper,
+    prReviewManifestHelperScript: path.join(
+      prReviewDir,
+      "scripts",
+      "review-manifests.sh",
+    ),
+    prReviewLeaseHelperScript: path.join(
+      prReviewDir,
+      "scripts",
+      "review-leases.sh",
+    ),
+    playReviewHelper: path.join(
+      skillsRoot,
+      "play-review",
+      "scripts",
+      "review-artifacts.sh",
+    ),
   };
 }
 

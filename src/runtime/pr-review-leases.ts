@@ -661,6 +661,10 @@ async function readStatus(): Promise<string> {
 
 async function discoverReviewLeases(): Promise<string> {
   const identity = await readDiscoveryIdentity();
+  await assertCanonicalWorktreeParentChain(
+    identity.primaryRoot,
+    identity.canonicalWorktreePath,
+  );
   const registrations = await listRegisteredWorktrees(identity.primaryRoot);
   const registrationSet = new Set(registrations.map(normalizeComparablePath));
   const canonicalInspection = await inspectDiscoveryWorktreeEntry(
@@ -771,6 +775,7 @@ async function readDiscoveryIdentity(): Promise<DiscoveryIdentity> {
       "PRIMARY_REPOSITORY_ROOT must match the primary repository root",
     );
   }
+  await assertPrimaryGitWorktree(primaryRoot);
   return {
     repository,
     prNumber,
@@ -779,6 +784,87 @@ async function readDiscoveryIdentity(): Promise<DiscoveryIdentity> {
       path.join(primaryRoot, ".worktrees", `pr-${prNumber}-review`),
     ),
   };
+}
+
+async function assertPrimaryGitWorktree(primaryRoot: string): Promise<void> {
+  const { stdout } = await execFileAsync(
+    "git",
+    [
+      "-C",
+      primaryRoot,
+      "rev-parse",
+      "--path-format=absolute",
+      "--git-dir",
+      "--git-common-dir",
+    ],
+    { maxBuffer: 1024 * 1024 },
+  );
+  const [gitDir, commonDir] = stdout.trim().split(/\r?\n/u);
+  if (gitDir === undefined || commonDir === undefined) {
+    throw new PrReviewLeaseError("primary repository Git metadata missing");
+  }
+  if (
+    canonicalLeaseIdentityPath(await realpath(gitDir)) !==
+    canonicalLeaseIdentityPath(await realpath(commonDir))
+  ) {
+    throw new PrReviewLeaseError(
+      "PRIMARY_REPOSITORY_ROOT must be the primary Git worktree",
+    );
+  }
+}
+
+async function assertCanonicalWorktreeParentChain(
+  primaryRoot: string,
+  canonicalWorktreePath: string,
+): Promise<void> {
+  const physicalPrimaryRoot = physicalPathForIo(primaryRoot);
+  const physicalCanonicalWorktree = physicalPathForIo(canonicalWorktreePath);
+  const relativeTarget = path.relative(
+    physicalPrimaryRoot,
+    physicalCanonicalWorktree,
+  );
+  if (
+    relativeTarget.length === 0 ||
+    relativeTarget === ".." ||
+    relativeTarget.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(relativeTarget)
+  ) {
+    throw new PrReviewLeaseError(
+      "canonical worktree path escapes primary root",
+    );
+  }
+
+  const parents: string[] = [];
+  for (
+    let candidate = path.dirname(physicalCanonicalWorktree);
+    candidate !== physicalPrimaryRoot;
+    candidate = path.dirname(candidate)
+  ) {
+    parents.push(candidate);
+    if (candidate === path.dirname(candidate)) {
+      throw new PrReviewLeaseError(
+        "canonical worktree path escapes primary root",
+      );
+    }
+  }
+
+  for (const parent of parents.reverse()) {
+    try {
+      const stat = await lstat(parent);
+      if (stat.isSymbolicLink() || !stat.isDirectory()) {
+        throw new PrReviewLeaseError(
+          "canonical worktree parent must be a real directory",
+        );
+      }
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+        // The review-worktree leaf and any not-yet-created ancestors are
+        // intentionally allowed; git creates ordinary missing directories.
+        return;
+      }
+      throw err;
+    }
+  }
 }
 
 async function listRegisteredWorktrees(primaryRoot: string): Promise<string[]> {
@@ -3678,9 +3764,12 @@ function hasPostCleanupArchiveAuthority(
   return (
     previous !== null &&
     (previous.state === "posted" || previous.state === "aborted") &&
+    typeof previous.terminal.finished_at === "string" &&
     typeof cleanup?.removed_at === "string" &&
     typeof cleanup.last_checked_at === "string" &&
-    cleanup.removed_at <= cleanup.last_checked_at
+    cleanup.removed_at <= cleanup.last_checked_at &&
+    cleanup.removed_at >= previous.terminal.finished_at &&
+    cleanup.last_checked_at >= previous.terminal.finished_at
   );
 }
 

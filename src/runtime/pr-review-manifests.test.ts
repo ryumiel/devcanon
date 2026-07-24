@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
   chmod,
+  cp,
   mkdir,
   mkdtemp,
   readFile,
@@ -12,7 +13,7 @@ import {
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 import {
   canonicalLeaseIdentityPath,
   digestLeaseIdentityPath,
@@ -48,6 +49,8 @@ describe("pr-review operational path comparison", () => {
 
 const originalCwd = process.cwd();
 const tempRoots: string[] = [];
+let manifestRepositorySeed: Promise<string> | null = null;
+let manifestRepositorySeedRoot: string | null = null;
 const rmTempRootOptions = {
   recursive: true,
   force: true,
@@ -98,6 +101,12 @@ afterEach(async () => {
   vi.resetModules();
   for (const tempRoot of tempRoots.splice(0)) {
     await rm(tempRoot, rmTempRootOptions);
+  }
+});
+
+afterAll(async () => {
+  if (manifestRepositorySeedRoot !== null) {
+    await rm(manifestRepositorySeedRoot, rmTempRootOptions);
   }
 });
 
@@ -618,21 +627,7 @@ async function makeManifestWorkspace(
   tempRoots.push(tempRoot);
   const primary = path.join(tempRoot, "primary");
   const worktree = path.join(tempRoot, "review-worktree");
-  await mkdir(primary, { recursive: true });
-  await execFileAsync("git", ["init", "--initial-branch=main"], {
-    cwd: primary,
-  });
-  await execFileAsync("git", ["config", "user.name", "Test User"], {
-    cwd: primary,
-  });
-  await execFileAsync("git", ["config", "user.email", "test@example.com"], {
-    cwd: primary,
-  });
-  await writeFile(path.join(primary, "README.md"), "baseline\n");
-  await execFileAsync("git", ["add", "README.md"], { cwd: primary });
-  await execFileAsync("git", ["commit", "-m", "chore: baseline"], {
-    cwd: primary,
-  });
+  await cp(await prepareManifestRepositorySeed(), primary, { recursive: true });
   const baseSha = (
     await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: primary })
   ).stdout.trim();
@@ -865,6 +860,35 @@ async function makeManifestWorkspace(
     reviewBodyFile,
     providerScopeEvidenceFile,
   };
+}
+
+async function prepareManifestRepositorySeed(): Promise<string> {
+  if (manifestRepositorySeed === null) {
+    manifestRepositorySeed = (async () => {
+      const seedRoot = await mkdtemp(
+        path.join(tmpdir(), "pr-review-manifest-seed-"),
+      );
+      const primary = path.join(seedRoot, "primary");
+      manifestRepositorySeedRoot = seedRoot;
+      await mkdir(primary, { recursive: true });
+      await execFileAsync("git", ["init", "--initial-branch=main"], {
+        cwd: primary,
+      });
+      await execFileAsync("git", ["config", "user.name", "Test User"], {
+        cwd: primary,
+      });
+      await execFileAsync("git", ["config", "user.email", "test@example.com"], {
+        cwd: primary,
+      });
+      await writeFile(path.join(primary, "README.md"), "baseline\n");
+      await execFileAsync("git", ["add", "README.md"], { cwd: primary });
+      await execFileAsync("git", ["commit", "-m", "chore: baseline"], {
+        cwd: primary,
+      });
+      return primary;
+    })();
+  }
+  return manifestRepositorySeed;
 }
 
 function setSummaryEnv(workspace: ManifestWorkspace): void {
