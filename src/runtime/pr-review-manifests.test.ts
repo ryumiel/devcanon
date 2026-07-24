@@ -36,9 +36,12 @@ describe("pr-review operational path comparison", () => {
       normalizePathTextForComparison(nativePath, "win32"),
     );
     expect(normalizePathTextForComparison("/x/a\\b", "win32")).toBe("x:/a\\b");
-    expect(normalizePathTextForComparison("/x/a\\b")).toBe("/x/a\\b");
-    expect(normalizePathTextForComparison("/x/a\\b")).not.toBe(
-      normalizePathTextForComparison("/x/a/b"),
+    expect(normalizePathTextForComparison("/x/a\\b")).toBe(
+      process.platform === "win32" ? "x:/a\\b" : "/x/a\\b",
+    );
+    expect(normalizePathTextForComparison("/x/a\\b", "linux")).toBe("/x/a\\b");
+    expect(normalizePathTextForComparison("/x/a\\b", "linux")).not.toBe(
+      normalizePathTextForComparison("/x/a/b", "linux"),
     );
   });
 });
