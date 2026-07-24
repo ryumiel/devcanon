@@ -1897,6 +1897,7 @@ async function collectOwnedEphemeralArtifacts(lease, worktreePath, options = {})
     }
     else if (lease.artifacts.handoff_file !== null) {
         const handoff = await validateDiscoveryHandoffArtifacts(lease, worktreePath);
+        addOwnedPath(owned, lease.artifacts.handoff_file);
         collectHandoffArtifactPaths(owned, handoff);
     }
     if (lease.artifacts.approved_review_file !== null) {

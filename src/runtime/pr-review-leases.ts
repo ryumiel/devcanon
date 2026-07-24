@@ -2819,6 +2819,7 @@ async function collectOwnedEphemeralArtifacts(
       lease,
       worktreePath,
     );
+    addOwnedPath(owned, lease.artifacts.handoff_file);
     collectHandoffArtifactPaths(owned, handoff);
   }
   if (lease.artifacts.approved_review_file !== null) {

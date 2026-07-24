@@ -3293,6 +3293,80 @@ describe("pr-review lease discovery", () => {
     }
   });
 
+  it("resumes a valid handoff-only lease without unmanaged artifacts", async () => {
+    const workspace = await makeGatedStatusWorkspace(
+      "pr-review-discovery-handoff-only-resume-",
+    );
+    const handoffFile = handoffFileFromResultFile(workspace.resultFile);
+
+    try {
+      await writeFile(
+        path.join(workspace.primary, ".git", "info", "exclude"),
+        ".ephemeral/\n",
+      );
+      const lease = await readLease(workspace.primary, workspace.leaseFile);
+      lease.state = "created";
+      lease.updated_at = "2026-06-11T00:01:00Z";
+      lease.artifacts = {
+        handoff_file: handoffFile,
+        result_file: null,
+        approved_review_file: null,
+        validated_payload_file: null,
+      };
+      lease.validation.result_manifest = {
+        status: null,
+        validated_at: null,
+        sha256: null,
+      };
+      lease.presentation = { presented_at: null, status: null };
+      await writeFile(
+        path.join(workspace.primary, workspace.leaseFile),
+        `${JSON.stringify(lease, null, 2)}\n`,
+      );
+      const handoff = JSON.parse(
+        await readFile(path.join(workspace.worktree, handoffFile), "utf8"),
+      ) as {
+        artifacts: {
+          provider_scope_evidence_file: string;
+          scope_decision_file: string;
+        };
+      };
+      const handoffOnlyArtifacts = new Set([
+        path.basename(handoffFile),
+        path.basename(handoff.artifacts.scope_decision_file),
+        path.basename(handoff.artifacts.provider_scope_evidence_file),
+      ]);
+      for (const entry of await readdir(
+        path.join(workspace.worktree, ".ephemeral"),
+      )) {
+        if (!handoffOnlyArtifacts.has(entry)) {
+          await rm(path.join(workspace.worktree, ".ephemeral", entry));
+        }
+      }
+      process.chdir(workspace.physicalPrimary);
+      setDiscoveryEnv(workspace.physicalPrimary);
+
+      const result = await runPrReviewLeasesCommand(["discover"]);
+      expect(result.exitCode, result.stderr).toBe(0);
+      expect(JSON.parse(result.stdout)).toMatchObject({
+        disposition: "resume",
+        resume: { lease_file: workspace.leaseFile },
+        active_leases: [
+          {
+            lease_file: workspace.leaseFile,
+            state: "created",
+            status: "resumable",
+            reason: null,
+            worktree: { dirty: false, unmanaged_ephemeral_artifacts: [] },
+          },
+        ],
+      });
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
+    }
+  });
+
   it("resumes exactly one valid schema-bound canonical worktree lease", async () => {
     const workspace = await makeRegisteredWorkspace(
       "pr-review-discovery-canonical-resume-",
