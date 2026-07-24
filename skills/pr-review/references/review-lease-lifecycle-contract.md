@@ -79,6 +79,29 @@ return through review discovery or a fresh approval path before posting.
 `worktree_path`, `worktree_digest`, and `lease_file` are immutable after lease
 creation.
 
+### Lease Path Identity
+
+`worktree_path` is the canonical lease identity, not a host-native display
+path. For an absolute Windows drive path it uses lowercase drive/path text and
+`/` separators; mixed slash forms and case variants therefore have one
+identity. For an absolute POSIX path it preserves every byte, including a
+literal `\` in a filename. Windows normalization never applies to a POSIX
+path.
+
+`worktree_digest` and the digest-bearing active lease filename hash exactly
+that canonical identity string. Discovery active/resume/cleanup paths,
+`read-status.worktree_path`, and `worktree_registrations` serialize the same
+representation, so discovery output is deterministic with forward-slash
+Windows drive paths. Git registration paths are canonicalized before equality
+or emission.
+
+Filesystem reads, status checks, artifact access, and removal use a separately
+resolved physical path only at the I/O boundary. They must not substitute its
+native spelling into persisted identity or digest calculation. A stored path,
+digest, or filename that is not the canonical identity relationship is invalid
+and fails closed; commands never repair or reinterpret it through a legacy
+digest mode.
+
 Terminal writes require `FINISHED_AT`. `aborted` writes also require
 `TERMINAL_REASON`. `failed` writes require `FAILURE_PHASE`, `FAILURE_REASON`,
 and `FAILURE_RECOVERABILITY`.

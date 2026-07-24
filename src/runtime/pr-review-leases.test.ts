@@ -19,6 +19,8 @@ import { afterEach, describe, expect, it } from "vitest";
 import { runPlayReviewSharedContextCommand } from "./play-review-shared-context.js";
 import {
   type PrReviewLease,
+  canonicalLeaseIdentityPath,
+  digestLeaseIdentityPath,
   normalizeComparablePath,
   reducePrReviewLease,
   runPrReviewLeasesCommand,
@@ -27,13 +29,27 @@ import {
 const execFileAsync = promisify(execFile);
 
 describe("pr-review comparable path identity", () => {
-  it("normalizes mixed Windows separators without collapsing POSIX backslashes", () => {
+  it("canonicalizes Windows lease identities without collapsing POSIX backslashes", () => {
     expect(normalizeComparablePath("C:\\Work\\Review")).toBe("c:/work/review");
     expect(normalizeComparablePath("c:/work/review")).toBe("c:/work/review");
+    expect(canonicalLeaseIdentityPath("C:\\Work/mixed\\Review")).toBe(
+      "c:/work/mixed/review",
+    );
+    expect(canonicalLeaseIdentityPath("c:/WORK/mixed/review")).toBe(
+      "c:/work/mixed/review",
+    );
     expect(normalizeComparablePath("/x/a\\b")).toBe("/x/a\\b");
     expect(normalizeComparablePath("/x/a/b")).toBe("/x/a/b");
     expect(normalizeComparablePath("/x/a\\b")).not.toBe(
       normalizeComparablePath("/x/a/b"),
+    );
+    expect(canonicalLeaseIdentityPath("/x/a\\b")).toBe("/x/a\\b");
+    expect(canonicalLeaseIdentityPath("/x/a/b")).toBe("/x/a/b");
+    expect(digestLeaseIdentityPath("/x/a\\b")).not.toBe(
+      digestLeaseIdentityPath("/x/a/b"),
+    );
+    expect(digestLeaseIdentityPath("C:\\Work\\Review")).toBe(
+      digestLeaseIdentityPath("c:/work/review"),
     );
   });
 });
@@ -1546,7 +1562,7 @@ describe("pr-review lease command validation", () => {
           state: "reviewed",
           base_ref: "main",
           head_ref: "topic",
-          worktree_path: physicalWorktree,
+          worktree_path: canonicalLeaseIdentityPath(physicalWorktree),
           worktree_digest: dynamicIdentity.worktreeDigest,
           lease_file: leaseFile,
           created_at: "2026-06-11T00:00:00Z",
@@ -1602,7 +1618,7 @@ describe("pr-review lease command validation", () => {
           state: "postd",
           base_ref: "main",
           head_ref: "topic",
-          worktree_path: physicalWorktree,
+          worktree_path: canonicalLeaseIdentityPath(physicalWorktree),
           worktree_digest: dynamicIdentity.worktreeDigest,
           lease_file: leaseFile,
           created_at: "2026-06-11T00:00:00Z",
@@ -1854,6 +1870,16 @@ describe("pr-review lease read-status", () => {
 
       expect(result.exitCode).toBe(0);
       expect(after).toEqual(before);
+      const lease = JSON.parse(after) as PrReviewLease;
+      expect(lease.worktree_path).toBe(
+        canonicalLeaseIdentityPath(workspace.physicalWorktree),
+      );
+      expect(lease.worktree_digest).toBe(
+        digestLeaseIdentityPath(workspace.physicalWorktree),
+      );
+      expect(lease.lease_file).toBe(
+        `.ephemeral/pr-432-${digestLeaseIdentityPath(workspace.physicalWorktree)}-lease.json`,
+      );
       const status = JSON.parse(result.stdout) as Record<string, unknown>;
       expect(Object.keys(status)).toEqual([
         "lease_state",
@@ -1872,7 +1898,7 @@ describe("pr-review lease read-status", () => {
       ]);
       expect(status).toMatchObject({
         lease_state: "gated",
-        worktree_path: workspace.physicalWorktree,
+        worktree_path: canonicalLeaseIdentityPath(workspace.physicalWorktree),
         worktree_digest: workspace.worktreeDigest,
         worktree_exists: true,
         worktree_registered: true,
@@ -2926,10 +2952,8 @@ describe("pr-review lease discovery", () => {
         pr_number: 432,
         primary_repository_root: workspace.physicalPrimary,
         canonical_worktree: {
-          path: path.join(
-            workspace.physicalPrimary,
-            ".worktrees",
-            "pr-432-review",
+          path: canonicalLeaseIdentityPath(
+            path.join(workspace.physicalPrimary, ".worktrees", "pr-432-review"),
           ),
           exists: false,
           registered: false,
@@ -2937,8 +2961,8 @@ describe("pr-review lease discovery", () => {
           status: "absent",
         },
         worktree_registrations: [
-          workspace.physicalPrimary,
-          workspace.physicalWorktree,
+          canonicalLeaseIdentityPath(workspace.physicalPrimary),
+          canonicalLeaseIdentityPath(workspace.physicalWorktree),
         ],
         active_leases: [],
         archived_leases: [],
@@ -3004,7 +3028,7 @@ describe("pr-review lease discovery", () => {
         disposition: "resume",
         resume: {
           lease_file: discoveryLeaseFile(workspace.physicalWorktree),
-          worktree_path: workspace.physicalWorktree,
+          worktree_path: canonicalLeaseIdentityPath(workspace.physicalWorktree),
         },
         active_leases: [
           {
@@ -3078,7 +3102,7 @@ describe("pr-review lease discovery", () => {
       const terminal = abortedCommandLease(
         leaseFile,
         workspace.physicalWorktree,
-        createHash("sha256").update(workspace.physicalWorktree).digest("hex"),
+        digestLeaseIdentityPath(workspace.physicalWorktree),
       );
       await writeFile(
         path.join(workspace.primary, leaseFile),
@@ -3794,7 +3818,7 @@ describe("pr-review lease Git cleanup safety", () => {
         state: "aborted",
         base_ref: "main",
         head_ref: "topic",
-        worktree_path: physicalWorktree,
+        worktree_path: canonicalLeaseIdentityPath(physicalWorktree),
         worktree_digest: dynamicIdentity.worktreeDigest,
         lease_file: leaseFile,
         created_at: "2026-06-11T00:00:00Z",
@@ -3921,7 +3945,7 @@ function setDiscoveryEnv(primary: string): void {
 }
 
 function discoveryLeaseFile(worktreePath: string): string {
-  const digest = createHash("sha256").update(worktreePath).digest("hex");
+  const digest = digestLeaseIdentityPath(worktreePath);
   return `.ephemeral/pr-432-${digest}-lease.json`;
 }
 
@@ -3935,8 +3959,8 @@ async function writeDiscoveryLease(
     {
       repository: "owner/repo",
       prNumber: 432,
-      worktreePath,
-      worktreeDigest: createHash("sha256").update(worktreePath).digest("hex"),
+      worktreePath: canonicalLeaseIdentityPath(worktreePath),
+      worktreeDigest: digestLeaseIdentityPath(worktreePath),
       leaseFile,
     },
     {
@@ -4242,7 +4266,7 @@ function identityFromLeaseFile(
   }
   return {
     ...identity,
-    worktreePath,
+    worktreePath: canonicalLeaseIdentityPath(worktreePath),
     worktreeDigest: match[1],
     leaseFile,
   };
@@ -4260,7 +4284,7 @@ function abortedCommandLease(
     state: "aborted",
     base_ref: "main",
     head_ref: "topic",
-    worktree_path: worktreePath,
+    worktree_path: canonicalLeaseIdentityPath(worktreePath),
     worktree_digest: worktreeDigest,
     lease_file: leaseFile,
     created_at: "2026-06-11T00:00:00Z",
@@ -4312,7 +4336,7 @@ function postedCommandLease({
     state: "posted",
     base_ref: "main",
     head_ref: "topic",
-    worktree_path: worktreePath,
+    worktree_path: canonicalLeaseIdentityPath(worktreePath),
     worktree_digest: worktreeDigest,
     lease_file: leaseFile,
     created_at: "2026-06-11T00:00:00Z",
@@ -4707,7 +4731,7 @@ function reviewedCommandLease(
     state: "reviewed",
     base_ref: "main",
     head_ref: "topic",
-    worktree_path: worktreePath,
+    worktree_path: canonicalLeaseIdentityPath(worktreePath),
     worktree_digest: worktreeDigest,
     lease_file: leaseFile,
     created_at: "2026-06-11T00:00:00Z",
@@ -4756,7 +4780,7 @@ function gatedCommandLease({
     state: "gated",
     base_ref: "main",
     head_ref: "topic",
-    worktree_path: worktreePath,
+    worktree_path: canonicalLeaseIdentityPath(worktreePath),
     worktree_digest: worktreeDigest,
     lease_file: leaseFile,
     created_at: "2026-06-11T00:00:00Z",
