@@ -35,6 +35,7 @@ describe("pr-review operational path comparison", () => {
     expect(normalizePathTextForComparison(msysPath, "win32")).toBe(
       normalizePathTextForComparison(nativePath, "win32"),
     );
+    expect(normalizePathTextForComparison("/x/a\\b", "win32")).toBe("x:/a\\b");
     expect(normalizePathTextForComparison("/x/a\\b")).toBe("/x/a\\b");
     expect(normalizePathTextForComparison("/x/a\\b")).not.toBe(
       normalizePathTextForComparison("/x/a/b"),
