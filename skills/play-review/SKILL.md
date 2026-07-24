@@ -352,7 +352,9 @@ all four terminal role-result dispositions and their required evidence as owned
 above. The controller accepts a verified, semantically valid disposition before
 cleanup; only completed findings remain eligible for aggregation. `NEEDS_CONTEXT`
 and `FAILED` retain their required diagnostic evidence for the final report but
-do not manufacture findings.
+do not manufacture findings. A verified, semantically valid `NEEDS_CONTEXT` or
+`FAILED` retains its required missing-context or failure and completed-partial-check
+diagnostics in the final report while contributing no findings.
 
 Resolve `PLAY_REVIEW_DIR` to the loaded or installed `play-review` skill bundle,
 resolve `SOURCE_IMMUTABILITY_HELPER` to
@@ -368,10 +370,10 @@ baseline and apply GUARD-001 independently with no `--handoff`:
 3. **verify before semantic validation or consumption** against that route's
    retained baseline;
 4. **validate and retain the topical response in controller memory** only after
-   successful verification. On a malformed, semantically rejected, or
-   verification-rejected response, record a controller-observed
-   validation/orchestration failure—not a child-returned `FAILED`—before exact
-   cleanup; this record satisfies the Phase 5 terminal-fanout gate;
+   successful verification. On a malformed or semantically rejected response,
+   record a controller-observed validation/orchestration failure—not a
+   child-returned `FAILED`—before exact cleanup; after safe cleanup, this record
+   satisfies the Phase 5 terminal-fanout gate;
 5. **cleanup the exact retained baseline**; and
 6. **apply the retained topical result only after cleanup** by making it eligible
    for the existing findings aggregation.
@@ -388,14 +390,24 @@ bash "$SOURCE_IMMUTABILITY_HELPER" cleanup --baseline "$TOPICAL_BASELINE"
 After capture succeeds, every post-capture terminal path attempts exact cleanup,
 including dispatch or spawn failure or unavailability before a child session
 exists, child failure, malformed output, semantic rejection, and verification
-rejection. A failed, invalid, malformed, or verification-rejected topical response
-contributes no findings. After safe cleanup, only that missing topical reviewer
-follows the existing partial-findings path; successful independently guarded
-siblings remain eligible. Run all selected topical reviewers in parallel under
-the existing maximum-three and lifecycle/slot-recovery rules, let every
-already-started sibling settle and attempt exact cleanup, and aggregate only the
-independently retained topical findings after every selected route has cleaned
-up safely.
+rejection. On verification rejection, first determine whether the guard reports
+source mutation. A verification rejection does not satisfy the Phase 5
+terminal-fanout gate until source mutation has been ruled out and exact cleanup
+succeeds. Only then record the ordinary verification rejection as a
+controller-observed validation/orchestration failure; this record satisfies the
+Phase 5 terminal-fanout gate. A valid verified `NEEDS_CONTEXT` or `FAILED`
+retains its required missing-context or failure and completed-partial-check
+diagnostics in the final report while contributing no findings. For a timeout,
+nonreturn, controller-observed failure, malformed response, semantic rejection,
+or ordinary verification rejection, reject the topical response and use the
+existing missing-reviewer fallback. A failed, invalid, malformed, or
+verification-rejected topical response contributes no findings. After safe
+cleanup, only that missing topical reviewer follows the existing
+partial-findings path. Successful independently guarded siblings remain
+eligible. Run all selected topical reviewers in parallel under the existing
+maximum-three and lifecycle/slot-recovery rules, let every already-started
+sibling settle and attempt exact cleanup, and aggregate only the independently
+retained topical findings after every selected route has cleaned up safely.
 
 Detected source mutation or cleanup failure is guard-integrity terminal: leave
 the source state visible, let already-started siblings reach their exact cleanup
@@ -430,10 +442,13 @@ Critic eligibility is a terminal topical fanout gate: start D10 only after every
 selected topical route has captured an allowed terminal child result or
 controller-observed orchestration failure. Successful sibling findings remain
 usable in partial fanout while final output names missing or incomplete sessions.
-After the merged blocker count is known, record exactly
-`critic_not_required: zero blockers` when it is zero and do not spawn D10. If
-the merged blocker count is greater than zero, D10 may start under the existing
-verification policy below.
+`input_blocker_count` is the combined count of current merged blockers plus
+unresolved prior blocking carry-forward candidates. The
+`critic_not_required: zero blockers` shortcut applies only when that combined
+count is zero; otherwise D10 may start under the existing verification policy
+below. A follow-up with zero new blockers and one unresolved prior blocking
+carry-forward candidate therefore has `input_blocker_count` of one and must
+spawn D10.
 
 Before spawning the critic agent, run the `subagent-lifecycle` cleanup gate for
 completed or superseded reviewer sessions, preserving target-honest cleanup
@@ -460,13 +475,15 @@ cited artifact. Tag INVALID if the artifact does not exist or does not contain
 the cited text. See `references/critic-rationale.md`.
 
 Cardinality invariant: for a legitimately spawned D10 that returns a completed
-critic result, `input_blocker_count` is greater than zero and its `verdict count`
-equals `input_blocker_count`. Its `critic verdicts` contain exactly one unique
-`VALID`, `INVALID`, or `DOWNGRADE` verdict for every input blocker. The
-critic-verdict vector is therefore nonempty. `COMPLETE_NO_FINDINGS` is
-unreachable for a spawned D10. If every input blocker is `INVALID` or
-`DOWNGRADE`, D10 still returns `COMPLETE_WITH_FINDINGS` because its
-critic-verdict vector is nonempty.
+critic result, `input_blocker_count` is greater than zero and its combined
+outcome count equals `input_blocker_count`. It returns one unique critic verdict
+or carry-forward verification for every combined input: `VALID`, `INVALID`, or
+`DOWNGRADE` for each current merged blocker, and a resolution or unresolved
+verification for each prior blocking carry-forward candidate. The combined
+outcome vector is therefore nonempty. `COMPLETE_NO_FINDINGS` is unreachable for
+a spawned D10. If every current merged blocker is `INVALID` or `DOWNGRADE`, or
+every combined input is an unresolved carry-forward candidate, D10 still returns
+`COMPLETE_WITH_FINDINGS` because its combined outcome vector is nonempty.
 
 The D10 prompt must say: “Immediately after the required checks, return exactly
 one terminal disposition. Do not wait for peers, a nudge, or an invitation.” It
@@ -505,13 +522,23 @@ bash "$SOURCE_IMMUTABILITY_HELPER" cleanup --baseline "$CRITIC_BASELINE"
 After capture succeeds, every post-capture terminal path attempts exact cleanup,
 including dispatch or spawn failure or unavailability before a child session
 exists, child failure, malformed output, semantic rejection, and verification
-rejection. A failed, invalid, malformed, or verification-rejected critic response
-contributes no verdicts. After safe cleanup, preserve the existing fallback:
-report the retained topical findings without critic verdicts and mark them
-unverified. Detected source mutation or cleanup failure is guard-integrity
-terminal: leave the source state visible, stop before applying critic state or
-writing final output, and never reset, check out, stage, repair, or otherwise
-hide source. Nits continue to skip critic verification.
+rejection. On verification rejection, first determine whether the guard reports
+source mutation. A source mutation or cleanup failure is guard-integrity
+terminal before applying critic state or writing final output. Only after source
+mutation has been ruled out and exact cleanup succeeds is verification rejection
+ordinary. A verified, semantically valid critic `NEEDS_CONTEXT` or `FAILED`
+retains its required missing-context or failure and completed-partial-check
+diagnostics in the final report while contributing no verdicts. A timeout,
+nonreturn, controller-observed failure, malformed response, semantic rejection,
+or ordinary verification rejection rejects the critic response and uses the
+unverified-critic fallback. A failed, invalid, malformed, or
+verification-rejected critic response contributes no verdicts. After safe
+cleanup, preserve the existing fallback: report the retained topical findings
+without critic verdicts and mark them unverified.
+Detected source mutation or cleanup failure is guard-integrity terminal: leave
+the source state visible, stop before applying critic state or writing final
+output, and never reset, check out, stage, repair, or otherwise hide source.
+Nits continue to skip critic verification.
 
 **Carry-forward (follow-up only):** when `prior_threads` or
 `prior_branch_findings` is provided, cross-reference each prior blocking finding

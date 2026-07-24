@@ -1208,10 +1208,19 @@ describe("phase artifact source contracts", () => {
       "controller records an observed orchestration failure rather than fabricating a child disposition",
     );
     expect(normalizedPhase3).toContain(
-      "On a malformed, semantically rejected, or verification-rejected response, record a controller-observed validation/orchestration failure—not a child-returned `FAILED`—before exact cleanup",
+      "On a malformed or semantically rejected response, record a controller-observed validation/orchestration failure—not a child-returned `FAILED`—before exact cleanup",
     );
     expect(normalizedPhase3).toContain(
       "this record satisfies the Phase 5 terminal-fanout gate",
+    );
+    expect(normalizedPhase3).toContain(
+      "A verification rejection does not satisfy the Phase 5 terminal-fanout gate until source mutation has been ruled out and exact cleanup succeeds",
+    );
+    expect(normalizedPhase3).toContain(
+      "Only then record the ordinary verification rejection as a controller-observed validation/orchestration failure",
+    );
+    expect(normalizedPhase3).toContain(
+      "A verified, semantically valid `NEEDS_CONTEXT` or `FAILED` retains its required missing-context or failure and completed-partial-check diagnostics in the final report while contributing no findings",
     );
     expect(normalizedPhase3).toContain(
       "Valid: a Code-quality reviewer completes all checks and returns `COMPLETE_WITH_FINDINGS` with checks, report, and count",
@@ -1229,8 +1238,8 @@ describe("phase artifact source contracts", () => {
     for (const gateStep of [
       "every selected topical route has captured an allowed terminal child result or controller-observed orchestration failure",
       "critic_not_required: zero blockers",
-      "do not spawn D10",
-      "the merged blocker count is greater than zero, D10 may start",
+      "shortcut applies only when that combined count is zero",
+      "otherwise D10 may start",
     ]) {
       const gateIndex = normalizedPhase5.indexOf(
         gateStep,
@@ -1243,16 +1252,34 @@ describe("phase artifact source contracts", () => {
       "Successful sibling findings remain usable in partial fanout",
     );
     expect(normalizedPhase5).toContain(
-      "for a legitimately spawned D10 that returns a completed critic result, `input_blocker_count` is greater than zero and its `verdict count` equals `input_blocker_count`",
+      "for a legitimately spawned D10 that returns a completed critic result, `input_blocker_count` is greater than zero and its combined outcome count equals `input_blocker_count`",
     );
     expect(normalizedPhase5).toContain(
-      "Its `critic verdicts` contain exactly one unique `VALID`, `INVALID`, or `DOWNGRADE` verdict for every input blocker",
+      "It returns one unique critic verdict or carry-forward verification for every combined input",
     );
     expect(normalizedPhase5).toContain(
       "`COMPLETE_NO_FINDINGS` is unreachable for a spawned D10",
     );
     expect(normalizedPhase5).toContain(
-      "If every input blocker is `INVALID` or `DOWNGRADE`, D10 still returns `COMPLETE_WITH_FINDINGS` because its critic-verdict vector is nonempty",
+      "If every current merged blocker is `INVALID` or `DOWNGRADE`, or every combined input is an unresolved carry-forward candidate, D10 still returns `COMPLETE_WITH_FINDINGS` because its combined outcome vector is nonempty",
+    );
+    expect(normalizedPhase5).toContain(
+      "`input_blocker_count` is the combined count of current merged blockers plus unresolved prior blocking carry-forward candidates",
+    );
+    expect(normalizedPhase5).toContain(
+      "A follow-up with zero new blockers and one unresolved prior blocking carry-forward candidate therefore has `input_blocker_count` of one and must spawn D10",
+    );
+    expect(normalizedPhase5).toContain(
+      "one unique critic verdict or carry-forward verification for every combined input",
+    );
+    expect(normalizedPhase5).toContain(
+      "The `critic_not_required: zero blockers` shortcut applies only when that combined count is zero",
+    );
+    expect(normalizedPhase5).toContain(
+      "A verified, semantically valid critic `NEEDS_CONTEXT` or `FAILED` retains its required missing-context or failure and completed-partial-check diagnostics in the final report while contributing no verdicts",
+    );
+    expect(normalizedPhase5).toContain(
+      "timeout, nonreturn, controller-observed failure, malformed response, semantic rejection, or ordinary verification rejection rejects the critic response and uses the unverified-critic fallback",
     );
   });
 
