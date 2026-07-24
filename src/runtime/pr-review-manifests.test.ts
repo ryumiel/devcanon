@@ -136,7 +136,7 @@ describe("pr-review Phase 5 audit summary renderer", () => {
 
     expect(result.exitCode, result.stderr).toBe(0);
     expect(result.stdout).toContain(
-      `worktree \`${workspace.physicalWorktree}\``,
+      `worktree \`${canonicalLeaseIdentityPath(workspace.physicalWorktree)}\``,
     );
     await expect(
       readFile(path.join(workspace.primary, workspace.resultFile), "utf8"),
@@ -343,7 +343,7 @@ describe("pr-review Phase 5 audit summary renderer", () => {
       "Base/head refs: `main` -> `` topic`review ``",
     );
     expect(result.stdout).toContain(
-      `worktree ${formatExpectedMarkdownCodeSpan(workspace.physicalWorktree)}`,
+      `worktree ${formatExpectedMarkdownCodeSpan(canonicalLeaseIdentityPath(workspace.physicalWorktree))}`,
     );
   });
 

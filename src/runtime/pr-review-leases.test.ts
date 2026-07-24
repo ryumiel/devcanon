@@ -74,6 +74,7 @@ describe("pr-review Windows canonical identity lifecycle", () => {
         const derived = await runPrReviewLeasesCommand(["derive-path"]);
         expect(derived.exitCode, derived.stderr).toBe(0);
         const leaseFile = derived.stdout.trim();
+        process.env.LEASE_FILE = leaseFile;
         await writeLeaseCommandState({
           state: "created",
           updatedAt: "2026-06-11T00:00:00Z",
@@ -3496,8 +3497,9 @@ describe("pr-review lease Git cleanup safety", () => {
     }
   });
 
-  it("archives helper-recorded removed terminal leases before fresh creation", async () => {
-    for (const state of ["posted", "aborted"] as const) {
+  it.each(["posted", "aborted"] as const)(
+    "archives helper-recorded removed $state terminal leases before fresh creation",
+    async (state) => {
       const workspace = await makeGatedStatusWorkspace(
         `pr-review-${state}-archive-after-cleanup-`,
       );
@@ -3610,8 +3612,8 @@ describe("pr-review lease Git cleanup safety", () => {
         process.chdir(originalCwd);
         await rm(workspace.tempRoot, { recursive: true, force: true });
       }
-    }
-  });
+    },
+  );
 
   it("keeps legacy removed cleanup observations under strict archive validation", async () => {
     const workspace = await makeGatedStatusWorkspace(
