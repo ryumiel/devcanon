@@ -75,9 +75,10 @@ async function makeGitWorkspace(): Promise<string> {
 
 function findingsEnvelope() {
   return {
-    schema: "play-review/findings/v1",
+    schema: "play-review/findings/v2",
     findings: [],
     carry_forward: [],
+    incomplete_topical_routes: [],
   };
 }
 
@@ -1393,9 +1394,10 @@ describe.skipIf(!jqAvailable)(
 
         for (const invalidEntry of invalidFreezeEntries) {
           await writeJson(cwd, findingsFile, {
-            schema: "play-review/findings/v1",
+            schema: "play-review/findings/v2",
             findings: [invalidEntry],
             carry_forward: [],
+            incomplete_topical_routes: [],
           });
 
           await expect(
@@ -1421,7 +1423,7 @@ describe.skipIf(!jqAvailable)(
         artifact.findings_sha256 = "0".repeat(64);
         await writeJson(cwd, approvedReviewFile, artifact);
         await writeJson(cwd, findingsFile, {
-          schema: "play-review/findings/v1",
+          schema: "play-review/findings/v2",
           findings: [
             {
               path: "src/example.ts",
@@ -1437,6 +1439,7 @@ describe.skipIf(!jqAvailable)(
             },
           ],
           carry_forward: [],
+          incomplete_topical_routes: [],
         });
 
         await expect(

@@ -11,7 +11,7 @@ render review-head source, not the mutable working tree.
 
 ## `render-review-preview`
 
-Renders the operator preview from a validated `play-review/findings/v1`
+Renders the operator preview from a validated `play-review/findings/v2`
 envelope:
 
 ```bash

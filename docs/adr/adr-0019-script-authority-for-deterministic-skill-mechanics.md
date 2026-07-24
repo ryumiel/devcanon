@@ -47,7 +47,7 @@ contracts, not that every internal guard line appears in every prompt.
 
 Scripts stay under owning skills until there is a separate accepted decision for
 a shared runtime utility layer. Ownership boundaries matter: a helper for
-`play-review/findings/v1` belongs to `play-review`; a helper for an
+`play-review/findings/v2` belongs to `play-review`; a helper for an
 `issue-priming-workflow` artifact belongs to `issue-priming-workflow`.
 
 The narrow exception is the `play-validate-review-artifacts` support skill. Its

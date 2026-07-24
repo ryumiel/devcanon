@@ -622,7 +622,7 @@ findings_count_json() {
   local file="$1"
 
   jq -c '
-    if .schema != "play-review/findings/v1" or (.findings | type) != "array" or (.carry_forward | type) != "array" then
+    if .schema != "play-review/findings/v2" or (.findings | type) != "array" or (.carry_forward | type) != "array" or (.incomplete_topical_routes | type) != "array" then
       error("findings schema mismatch")
     else
       def true_blocker:
@@ -637,7 +637,8 @@ findings_count_json() {
       | {
           blocker_count: ($remaining | map(select(true_blocker)) | length),
           nit_count: ($remaining | map(select(nonblocking_feedback)) | length),
-          carry_forward_count: (.carry_forward | map(select(carry_forward_feedback)) | length)
+          carry_forward_count: (.carry_forward | map(select(carry_forward_feedback)) | length),
+          incomplete_topical_count: (.incomplete_topical_routes | length)
         }
     end
   ' "$file" || fail "findings evidence validation failed"
@@ -647,7 +648,7 @@ terminal_state_for_counts() {
   local counts_json="$1"
 
   printf '%s\n' "$counts_json" | jq -r '
-    if .blocker_count > 0 then "blocked"
+    if .incomplete_topical_count > 0 or .blocker_count > 0 then "blocked"
     elif .nit_count > 0 or .carry_forward_count > 0 then "approved_with_nits"
     else "approved"
     end
@@ -724,7 +725,8 @@ write_approval_summary() {
       terminal_state: $terminal_state,
       blocker_count: $counts.blocker_count,
       nit_count: $counts.nit_count,
-      carry_forward_count: $counts.carry_forward_count
+      carry_forward_count: $counts.carry_forward_count,
+      incomplete_topical_count: $counts.incomplete_topical_count
     }' >"$tmp_file"
   if ! run_approval_summary_validator "$tmp_file"; then
     rm -f "$tmp_file"

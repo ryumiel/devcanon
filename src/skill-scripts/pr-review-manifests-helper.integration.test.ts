@@ -361,9 +361,10 @@ function priorThreadsEnvelope(headSha: string) {
 
 function findingsEnvelope() {
   return {
-    schema: "play-review/findings/v1",
+    schema: "play-review/findings/v2",
     findings: [],
     carry_forward: [],
+    incomplete_topical_routes: [],
   };
 }
 
@@ -2255,7 +2256,7 @@ describe("pr-review manifest helper", () => {
         ).resolves.toMatchObject({ stdout: "" });
 
         await writeJson(cwd, findingsPath(headSha), {
-          schema: "play-review/findings/v1",
+          schema: "play-review/findings/v2",
           findings: [{ invalid: true }],
           carry_forward: [],
         });
@@ -2290,7 +2291,7 @@ describe("pr-review manifest helper", () => {
 
         const invalidFindingsFile = `.ephemeral/topic-${headSha}-bad-findings.json`;
         await writeJson(cwd, invalidFindingsFile, {
-          schema: "play-review/findings/v1",
+          schema: "play-review/findings/v2",
           findings: [{ invalid: true }],
           carry_forward: [],
         });

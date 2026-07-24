@@ -7,7 +7,7 @@ Accepted
 ## Context
 
 ADR-0012 ratified a side-channel file pattern for `play-review`'s findings:
-the producer skill writes a `play-review/findings/v1` envelope to
+the producer skill writes a `play-review/findings/v2` envelope to
 `.ephemeral/<branch_slug>-<head_sha>-findings.json` and emits a single
 `Findings written to <path>.` notice line; consumers read the file off the
 path. The motivating evidence showed inline re-emission across consumer hops
@@ -318,7 +318,8 @@ per-task boundary.
 
 ## Related
 
-- [ADR-0010](adr-0010-structured-review-findings-schema.md) — defines the
-  `play-review/findings/v1` schema (transport superseded by ADR-0012).
+- [ADR-0010](adr-0010-structured-review-findings-schema.md) — predecessor v1
+  schema and versioned-schema discipline.
 - [ADR-0012](adr-0012-side-channel-file-delivery-for-play-review-findings.md)
-  — establishes the side-channel file pattern this ADR generalizes upstream.
+  — establishes the side-channel file pattern and current v2 findings contract
+  this ADR generalizes upstream.

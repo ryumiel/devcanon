@@ -637,7 +637,7 @@ describe("rendered phase artifact smoke coverage", () => {
     expect(issuePrimingWorkflow).toContain("Plan written to");
     expect(issuePrimingWorkflow).toContain("Auto handoff:");
     expect(issuePrimingWorkflow).toContain("phase-6-auto-handoff.md");
-    expect(issuePrimingWorkflow).toContain("play-review/findings/v1");
+    expect(issuePrimingWorkflow).toContain("play-review/findings/v2");
     expect(issuePrimingWorkflow).toContain("phase-7-review-handling.md");
     expect(issuePrimingWorkflow).toContain("prepare-judgment-nits");
 
@@ -663,7 +663,7 @@ describe("rendered phase artifact smoke coverage", () => {
     );
     const playReviewWithWrapperHelpers = `${playReview}\n${playReviewWrapperHelpers}`;
     const playReviewWithEnvelopeContract = `${playReview}\n${playReviewEnvelopeContract}`;
-    expect(playReview).toContain("play-review/findings/v1");
+    expect(playReview).toContain("play-review/findings/v2");
     expect(playReview).toContain("Findings written to");
     expect(playReview).toContain("PLAY_REVIEW_HELPER");
     expect(playReview).toContain("scripts/review-artifacts.sh");
@@ -692,7 +692,7 @@ describe("rendered phase artifact smoke coverage", () => {
 
     for (const skillName of ["branch-review", "pr-review"]) {
       const body = bodyFor(skillName);
-      expect(body).toContain("play-review/findings/v1");
+      expect(body).toContain("play-review/findings/v2");
       expect(body).toContain("Findings written to");
       expect(body).toContain("PLAY_REVIEW_HELPER");
       expect(body).toContain("render-review-preview");
@@ -1208,7 +1208,7 @@ describe("rendered phase artifact smoke coverage", () => {
     );
 
     const playBranchFinish = bodyFor("play-branch-finish");
-    expect(playBranchFinish).toContain("play-review/findings/v1");
+    expect(playBranchFinish).toContain("play-review/findings/v2");
     expect(playBranchFinish).toContain("nits_file");
     expect(playBranchFinish).toContain("PLAY_REVIEW_HELPER");
 
@@ -1269,7 +1269,7 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(phase7).toContain("branch-review --fix");
       expect(phase7).toContain("phase-7-review-handling.md");
       expect(phase7).toContain("prepare-judgment-nits");
-      expect(phase7).toContain("play-review/findings/v1");
+      expect(phase7).toContain("play-review/findings/v2");
       expect(phase7).toContain("Approval summary written to <path>.");
       expect(phase7).toContain("-nits-pending.json");
       expect(normalizedPhase7).toContain(
@@ -1535,6 +1535,103 @@ describe("rendered phase artifact smoke coverage", () => {
     }
   });
 
+  it("renders play-review terminal role-result and critic-eligibility contracts for both targets", () => {
+    for (const target of ["claude", "codex"] as const) {
+      const workflow = bodies[`play-review:${target}`];
+      const phase3 = sliceRenderedSection(
+        workflow,
+        "## Phase 3: Spawn agents",
+        "## Phase 4: Sub-checks",
+      );
+      const phase5 = sliceRenderedSection(
+        workflow,
+        "## Phase 5: Critic verification",
+        "## Phase 5.5: Finding Pattern Synthesis",
+      );
+      const normalizedPhase3 = normalizeRenderedWhitespace(phase3);
+      const normalizedPhase5 = normalizeRenderedWhitespace(phase5);
+
+      expectSubstringsInOrder(normalizedPhase3, [
+        "COMPLETE_WITH_FINDINGS",
+        "COMPLETE_NO_FINDINGS",
+        "NEEDS_CONTEXT",
+        "FAILED",
+      ]);
+      expect(normalizedPhase3).toContain(
+        "Capture the returned disposition, or controller-observed orchestration failure, before cleanup or supersession",
+      );
+      expect(normalizedPhase3).toContain(
+        "Silence, waiting, timeout, interruption, and nudging are nonterminal recovery observations, never `COMPLETE_NO_FINDINGS`",
+      );
+      expectSubstringsInOrder(normalizedPhase3, [
+        "malformed or semantically rejected response",
+        "controller-observed validation/orchestration failure—not a child-returned `FAILED`",
+        "before exact cleanup",
+        "this record satisfies the Phase 5 terminal-fanout gate",
+      ]);
+      expect(normalizedPhase3).toContain(
+        "A verification rejection does not satisfy the Phase 5 terminal-fanout gate until source mutation has been ruled out and exact cleanup succeeds",
+      );
+      expect(normalizedPhase3).toContain(
+        "Only then record the ordinary verification rejection as a controller-observed validation/orchestration failure",
+      );
+      expect(normalizedPhase3).toContain(
+        "A verified, semantically valid `NEEDS_CONTEXT` or `FAILED` retains its required missing-context or failure and completed-partial-check diagnostics in the final report while contributing no findings",
+      );
+      expect(normalizedPhase3).toContain("incomplete_topical_routes[]");
+      expect(normalizedPhase3).toContain(
+        "must prevent branch-review approval until no selected topical route is incomplete",
+      );
+      expect(normalizedPhase5).toContain(
+        "every selected topical route has captured an allowed terminal child result or controller-observed orchestration failure",
+      );
+      expect(normalizedPhase5).toContain(
+        "Successful sibling findings remain usable in partial fanout",
+      );
+      expect(normalizedPhase5).toContain("critic_not_required: zero blockers");
+      expect(normalizedPhase5).toContain(
+        "shortcut applies only when that combined count is zero",
+      );
+      expect(normalizedPhase5).toContain("otherwise D10 may start");
+      expect(normalizedPhase5).toContain(
+        "for a legitimately spawned D10 that returns a completed critic result, `input_blocker_count` is greater than zero and its combined outcome count equals `input_blocker_count`",
+      );
+      expect(normalizedPhase5).toContain(
+        "It returns one unique critic verdict or carry-forward verification for every combined input",
+      );
+      expect(normalizedPhase5).toContain(
+        "`COMPLETE_NO_FINDINGS` is unreachable for a spawned D10",
+      );
+      expect(normalizedPhase5).toContain(
+        "The shared list does not make `COMPLETE_NO_FINDINGS` semantically valid for a spawned D10",
+      );
+      expect(normalizedPhase5).toContain(
+        "the controller rejects a returned `COMPLETE_NO_FINDINGS` as a semantic rejection before using the unverified-critic fallback",
+      );
+      expect(normalizedPhase5).toContain(
+        "If every current merged blocker is `INVALID` or `DOWNGRADE`, or every combined input is an unresolved carry-forward candidate, D10 still returns `COMPLETE_WITH_FINDINGS` because its combined outcome vector is nonempty",
+      );
+      expect(normalizedPhase5).toContain(
+        "`input_blocker_count` is the combined count of current merged blockers plus unresolved prior blocking carry-forward candidates",
+      );
+      expect(normalizedPhase5).toContain(
+        "A follow-up with zero new blockers and one unresolved prior blocking carry-forward candidate therefore has `input_blocker_count` of one and must spawn D10",
+      );
+      expect(normalizedPhase5).toContain(
+        "one unique critic verdict or carry-forward verification for every combined input",
+      );
+      expect(normalizedPhase5).toContain(
+        "The `critic_not_required: zero blockers` shortcut applies only when that combined count is zero",
+      );
+      expect(normalizedPhase5).toContain(
+        "A verified, semantically valid critic `NEEDS_CONTEXT` or `FAILED` retains its required missing-context or failure and completed-partial-check diagnostics in the final report while contributing no verdicts",
+      );
+      expect(normalizedPhase5).toContain(
+        "timeout, nonreturn, controller-observed failure, malformed response, semantic rejection, or ordinary verification rejection rejects the critic response and uses the unverified-critic fallback",
+      );
+    }
+  });
+
   it("renders the play-brainstorm design review option menu for both targets", () => {
     for (const target of ["claude", "codex"] as const) {
       const playBrainstorm = bodies[`play-brainstorm:${target}`];
@@ -1592,7 +1689,7 @@ describe("rendered phase artifact smoke coverage", () => {
       const normalizedIntegration = normalizeRenderedWhitespace(integration);
 
       expect(normalizedOption2).toContain(
-        "may pass a `nits_file` argument: a repo-relative path to a file containing a `play-review/findings/v1` envelope",
+        "may pass a `nits_file` argument: a repo-relative path to a file containing a `play-review/findings/v2` envelope",
       );
       expect(normalizedOption2).toContain(
         "posts them as PR review comments after `gh pr create` succeeds",
@@ -2165,7 +2262,7 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(playReview).toContain("Active diff invocation");
       expect(playReview).toContain("prior_branch_findings");
       expect(playReview).toContain(
-        "Branch review context from a validated local `play-review/findings/v1` envelope path",
+        "Branch review context from a validated local `play-review/findings/v2` envelope path",
       );
       expect(playReview).toContain("validate-findings");
       expect(playReview).toContain("Prior review context");
@@ -2258,7 +2355,7 @@ describe("rendered phase artifact smoke coverage", () => {
         "`prepare-findings-write` derives, validates, and prepares the deterministic findings target, then prints the repo-relative path",
       );
       expect(normalizedPlayReviewWithFollowUpReferences).toContain(
-        "`prepare-findings-write` does not write the `play-review/findings/v1` envelope JSON",
+        "`prepare-findings-write` does not write the `play-review/findings/v2` envelope JSON",
       );
       expect(normalizedPlayReviewWithFollowUpReferences).toContain(
         "`play-review` writes the envelope JSON to the prepared path before emitting `Findings written to <repo-relative-path>.`",

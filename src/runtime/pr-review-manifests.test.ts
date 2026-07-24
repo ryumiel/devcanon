@@ -645,7 +645,7 @@ async function makeManifestWorkspace(
   );
 
   await writeJson(worktree, findingsFile, {
-    schema: "play-review/findings/v1",
+    schema: "play-review/findings/v2",
     findings: [{ id: "F1", title: "Finding" }],
     carry_forward: [],
   });

@@ -814,6 +814,37 @@ describe("existing skills render cleanly", () => {
     }
   });
 
+  it("renders play-review terminal response authority over shared finding formatting for both targets", async () => {
+    const repoRoot = process.cwd();
+    const config = await loadConfig(
+      path.join(repoRoot, "devcanon.config.yaml"),
+    );
+
+    await renderAll(config, true);
+
+    for (const target of ["claude", "codex"] as const) {
+      const briefingPath = path.join(
+        config.library.generatedDir,
+        target,
+        "skills",
+        "play-review",
+        "references",
+        "agent-briefing-template.md",
+      );
+      const composedPrompt = `${await readFile(briefingPath, "utf-8")}\n\n## Output Format\nonly findings`;
+      const normalizedPrompt = normalizeWhitespace(composedPrompt);
+
+      expect(composedPrompt).toContain("only findings");
+      expect(normalizedPrompt).toContain(
+        "The terminal-result response structure above is authoritative for the entire response",
+      );
+      expect(normalizedPrompt).toContain("finding fields and presentation");
+      expect(normalizedPrompt).toContain(
+        "terminal disposition, completed checks, final report, or finding count",
+      );
+    }
+  });
+
   it("keeps explicit metadata expectations covered by touched-skill reasons", () => {
     const metadataExpectationSkills = getMetadataExpectationSkills();
     const uncoveredMetadataSkills = [...metadataExpectationSkills].filter(

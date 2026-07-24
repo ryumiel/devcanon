@@ -1980,6 +1980,12 @@ async function validateApprovalSummary(
   ) {
     fail("approval summary carry-forward count mismatch");
   }
+  if (
+    numberField(summary, "incomplete_topical_count") !==
+    counts.incompleteTopicalCount
+  ) {
+    fail("approval summary incomplete topical count mismatch");
+  }
   validateTerminalStateMatchesCounts(terminalState, counts);
 
   if (!options.emitGateResult) {
@@ -2256,6 +2262,7 @@ function validateApprovalSummarySchema(summary: JsonObject): void {
         "blocker_count",
         "nit_count",
         "carry_forward_count",
+        "incomplete_topical_count",
       ]) ||
       stringField(summary, "schema") !== "branch-review/approval-summary/v1" ||
       stringField(summary, "surface") !== "branch-review" ||
@@ -2269,7 +2276,8 @@ function validateApprovalSummarySchema(summary: JsonObject): void {
       !isSha256(stringField(summary, "findings_sha256")) ||
       !isNonNegativeInteger(summary.blocker_count) ||
       !isNonNegativeInteger(summary.nit_count) ||
-      !isNonNegativeInteger(summary.carry_forward_count)
+      !isNonNegativeInteger(summary.carry_forward_count) ||
+      !isNonNegativeInteger(summary.incomplete_topical_count)
     ) {
       fail("approval summary schema mismatch");
     }
@@ -2360,6 +2368,7 @@ function findingsCounts(findings: JsonObject): {
   blockerCount: number;
   nitCount: number;
   carryForwardCount: number;
+  incompleteTopicalCount: number;
 } {
   const currentFindings = arrayField(findings, "findings").map(
     (item) => item as JsonObject,
@@ -2377,6 +2386,7 @@ function findingsCounts(findings: JsonObject): {
     carryForwardCount: carryForwardFindings.filter(
       isCarryForwardFeedbackFinding,
     ).length,
+    incompleteTopicalCount: incompleteTopicalRoutes(findings).length,
   };
 }
 
@@ -2419,13 +2429,14 @@ function validateTerminalStateMatchesCounts(
     blockerCount: number;
     nitCount: number;
     carryForwardCount: number;
+    incompleteTopicalCount: number;
   },
 ): void {
   if (terminalState === "invalid") {
     return;
   }
   const expectedState =
-    counts.blockerCount > 0
+    counts.incompleteTopicalCount > 0 || counts.blockerCount > 0
       ? "blocked"
       : counts.nitCount > 0 || counts.carryForwardCount > 0
         ? "approved_with_nits"
@@ -2511,9 +2522,10 @@ async function assertFindingsEnvelope(file: string): Promise<JsonObject> {
 
 function validateFindingsEnvelopeSchema(envelope: JsonObject): void {
   if (
-    stringField(envelope, "schema") !== "play-review/findings/v1" ||
+    stringField(envelope, "schema") !== "play-review/findings/v2" ||
     !Array.isArray(envelope.findings) ||
-    !Array.isArray(envelope.carry_forward)
+    !Array.isArray(envelope.carry_forward) ||
+    !Array.isArray(envelope.incomplete_topical_routes)
   ) {
     fail("findings envelope validation failed");
   }
@@ -2522,6 +2534,39 @@ function validateFindingsEnvelopeSchema(envelope: JsonObject): void {
       fail("findings envelope validation failed");
     }
   }
+  for (const incompleteRoute of incompleteTopicalRoutes(envelope)) {
+    if (!isIncompleteTopicalRoute(incompleteRoute)) {
+      fail("findings envelope validation failed");
+    }
+  }
+}
+
+function incompleteTopicalRoutes(envelope: JsonObject): JsonObject[] {
+  if (!Array.isArray(envelope.incomplete_topical_routes)) {
+    fail("findings envelope validation failed");
+  }
+  const routes = envelope.incomplete_topical_routes.map(
+    (item) => item as JsonObject,
+  );
+  if (
+    new Set(routes.map((route) => String(route.route))).size !== routes.length
+  ) {
+    fail("findings envelope validation failed");
+  }
+  return routes;
+}
+
+function isIncompleteTopicalRoute(value: unknown): value is JsonObject {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    hasExactKeys(value as JsonObject, ["route", "disposition"]) &&
+    ["D7", "D8", "D9"].includes(String((value as JsonObject).route)) &&
+    ["NEEDS_CONTEXT", "FAILED", "CONTROLLER_OBSERVED_FAILURE"].includes(
+      String((value as JsonObject).disposition),
+    )
+  );
 }
 
 function allFindings(envelope: JsonObject): JsonObject[] {

@@ -13,7 +13,7 @@ require_env() {
 
 require_jq() {
   command -v jq >/dev/null 2>&1 || {
-    echo "jq is required to validate play-review/findings/v1" >&2
+    echo "jq is required to validate play-review/findings/v2" >&2
     exit 1
   }
 }
@@ -153,9 +153,22 @@ assert_readable_envelope() {
       and (.why | type == "string")
       and (.recommendation | type == "string")
       and valid_body;
-    .schema == "play-review/findings/v1"
+    def valid_incomplete_topical_route:
+      type == "object"
+      and (keys == ["disposition", "route"])
+      and one_of(["D7", "D8", "D9"]; .route)
+      and one_of(["NEEDS_CONTEXT", "FAILED", "CONTROLLER_OBSERVED_FAILURE"]; .disposition);
+    def valid_incomplete_topical_routes:
+      (.incomplete_topical_routes | type == "array")
+      and (.incomplete_topical_routes | all(.[]; valid_incomplete_topical_route))
+      and (
+        .incomplete_topical_routes as $routes
+        | ($routes | map(.route) | unique | length) == ($routes | length)
+      );
+    .schema == "play-review/findings/v2"
     and (.findings | type == "array")
     and (.carry_forward | type == "array")
+    and valid_incomplete_topical_routes
     and ((.findings + .carry_forward) | all(.[]; valid_finding))
   ' "$file" >/dev/null || {
     echo "envelope schema mismatch or envelope shape mismatch: $file" >&2
@@ -612,9 +625,10 @@ prepare_judgment_nits() {
       end;
     . as $envelope
     | {
-      schema: "play-review/findings/v1",
+      schema: "play-review/findings/v2",
       findings: (selected_indexes | map(. as $index | $envelope.findings[$index] | normalize_downgrade)),
-      carry_forward: []
+      carry_forward: [],
+      incomplete_topical_routes: $envelope.incomplete_topical_routes
     }
   ' "$FINDINGS_FILE" >"$tmp_file"
   mv "$tmp_file" "$nits_pending_file"

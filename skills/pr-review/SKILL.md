@@ -746,7 +746,7 @@ immediately before every rewrite. Do not proceed to Phase 6 until the user
 approves that latest preview.
 
 **Dropped or reclassified findings:** rewrite the
-`play-review/findings/v1` envelope at `REVIEW_FINDINGS_FILE`, recomputing each
+`play-review/findings/v2` envelope at `REVIEW_FINDINGS_FILE`, recomputing each
 affected finding's pre-rendered `body` field after any severity or category
 change. Validate the original path before reading, and immediately before
 overwriting run `prepare-findings-write` for the same immutable review head and
@@ -767,7 +767,7 @@ sentences naming what the implementation got right before findings:
     bash "$PLAY_REVIEW_HELPER" validate-findings || exit 1
   HEAD_SHA="$REVIEW_HEAD_SHA" FINDINGS_FILE="$REVIEW_FINDINGS_FILE" \
     bash "$PLAY_REVIEW_HELPER" prepare-findings-write || exit 1
-  # Write the rewritten play-review/findings/v1 envelope to "$REVIEW_FINDINGS_FILE".
+  # Write the rewritten play-review/findings/v2 envelope to "$REVIEW_FINDINGS_FILE".
   case "$REVIEW_BODY_FILE" in .ephemeral/*/* | *..*) echo "review body path validation failed: $REVIEW_BODY_FILE" >&2; exit 1 ;; .ephemeral/*) ;; *) echo "review body path validation failed: $REVIEW_BODY_FILE" >&2; exit 1 ;; esac
   [ "$(dirname "$REVIEW_BODY_FILE")" = ".ephemeral" ] || { echo "review body parent must be .ephemeral" >&2; exit 1; }
   [ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }

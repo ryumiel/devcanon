@@ -1162,6 +1162,137 @@ describe("phase artifact source contracts", () => {
     );
   });
 
+  it("defines and gates play-review terminal role results before lifecycle cleanup", async () => {
+    const workflow = await readSkillSource("play-review");
+    const phase3 = getMarkdownSection(workflow, "Phase 3: Spawn agents");
+    const phase5 = getMarkdownSection(workflow, "Phase 5: Critic verification");
+    const normalizedPhase3 = normalizeWhitespace(phase3);
+    const normalizedPhase5 = normalizeWhitespace(phase5);
+
+    let previousDispositionIndex = -1;
+    for (const disposition of [
+      "COMPLETE_WITH_FINDINGS",
+      "COMPLETE_NO_FINDINGS",
+      "NEEDS_CONTEXT",
+      "FAILED",
+    ]) {
+      const dispositionIndex = normalizedPhase3.indexOf(
+        disposition,
+        previousDispositionIndex + 1,
+      );
+      expect(dispositionIndex).toBeGreaterThan(previousDispositionIndex);
+      previousDispositionIndex = dispositionIndex;
+    }
+    expect(normalizedPhase3).toContain(
+      "D7-D9 topical reviewer and D10 critic must return exactly one disposition",
+    );
+    expect(normalizedPhase3).toContain(
+      "`COMPLETE_WITH_FINDINGS`: completed checks, final report, findings, and finding count",
+    );
+    expect(normalizedPhase3).toContain(
+      "`COMPLETE_NO_FINDINGS`: completed checks, final report, and finding count of zero",
+    );
+    expect(normalizedPhase3).toContain(
+      "`NEEDS_CONTEXT`: the exact missing input and completed partial checks",
+    );
+    expect(normalizedPhase3).toContain(
+      "`FAILED`: the failure class and safe partial results when available",
+    );
+    expect(normalizedPhase3).toContain(
+      "Capture the returned disposition, or controller-observed orchestration failure, before cleanup or supersession",
+    );
+    expect(normalizedPhase3).toContain(
+      "Silence, waiting, timeout, interruption, and nudging are nonterminal recovery observations, never `COMPLETE_NO_FINDINGS`",
+    );
+    expect(normalizedPhase3).toContain(
+      "controller records an observed orchestration failure rather than fabricating a child disposition",
+    );
+    expect(normalizedPhase3).toContain(
+      "On a malformed or semantically rejected response, record a controller-observed validation/orchestration failure—not a child-returned `FAILED`—before exact cleanup",
+    );
+    expect(normalizedPhase3).toContain(
+      "this record satisfies the Phase 5 terminal-fanout gate",
+    );
+    expect(normalizedPhase3).toContain(
+      "A verification rejection does not satisfy the Phase 5 terminal-fanout gate until source mutation has been ruled out and exact cleanup succeeds",
+    );
+    expect(normalizedPhase3).toContain(
+      "Only then record the ordinary verification rejection as a controller-observed validation/orchestration failure",
+    );
+    expect(normalizedPhase3).toContain(
+      "A verified, semantically valid `NEEDS_CONTEXT` or `FAILED` retains its required missing-context or failure and completed-partial-check diagnostics in the final report while contributing no findings",
+    );
+    expect(normalizedPhase3).toContain("incomplete_topical_routes[]");
+    expect(normalizedPhase3).toContain(
+      "must prevent branch-review approval until no selected topical route is incomplete",
+    );
+    expect(normalizedPhase3).toContain(
+      "Valid: a Code-quality reviewer completes all checks and returns `COMPLETE_WITH_FINDINGS` with checks, report, and count",
+    );
+    expect(normalizedPhase3).toContain(
+      "Invalid single-dimension cases: a nonterminal observation presented as a child result",
+    );
+    expect(normalizedPhase3).toContain(
+      "a completed disposition without completed-check evidence",
+    );
+    expect(normalizedPhase3).toContain(
+      "cleanup or supersession before capture",
+    );
+    let previousGateIndex = -1;
+    for (const gateStep of [
+      "every selected topical route has captured an allowed terminal child result or controller-observed orchestration failure",
+      "critic_not_required: zero blockers",
+      "shortcut applies only when that combined count is zero",
+      "otherwise D10 may start",
+    ]) {
+      const gateIndex = normalizedPhase5.indexOf(
+        gateStep,
+        previousGateIndex + 1,
+      );
+      expect(gateIndex).toBeGreaterThan(previousGateIndex);
+      previousGateIndex = gateIndex;
+    }
+    expect(normalizedPhase5).toContain(
+      "Successful sibling findings remain usable in partial fanout",
+    );
+    expect(normalizedPhase5).toContain(
+      "for a legitimately spawned D10 that returns a completed critic result, `input_blocker_count` is greater than zero and its combined outcome count equals `input_blocker_count`",
+    );
+    expect(normalizedPhase5).toContain(
+      "It returns one unique critic verdict or carry-forward verification for every combined input",
+    );
+    expect(normalizedPhase5).toContain(
+      "`COMPLETE_NO_FINDINGS` is unreachable for a spawned D10",
+    );
+    expect(normalizedPhase5).toContain(
+      "The shared list does not make `COMPLETE_NO_FINDINGS` semantically valid for a spawned D10",
+    );
+    expect(normalizedPhase5).toContain(
+      "the controller rejects a returned `COMPLETE_NO_FINDINGS` as a semantic rejection before using the unverified-critic fallback",
+    );
+    expect(normalizedPhase5).toContain(
+      "If every current merged blocker is `INVALID` or `DOWNGRADE`, or every combined input is an unresolved carry-forward candidate, D10 still returns `COMPLETE_WITH_FINDINGS` because its combined outcome vector is nonempty",
+    );
+    expect(normalizedPhase5).toContain(
+      "`input_blocker_count` is the combined count of current merged blockers plus unresolved prior blocking carry-forward candidates",
+    );
+    expect(normalizedPhase5).toContain(
+      "A follow-up with zero new blockers and one unresolved prior blocking carry-forward candidate therefore has `input_blocker_count` of one and must spawn D10",
+    );
+    expect(normalizedPhase5).toContain(
+      "one unique critic verdict or carry-forward verification for every combined input",
+    );
+    expect(normalizedPhase5).toContain(
+      "The `critic_not_required: zero blockers` shortcut applies only when that combined count is zero",
+    );
+    expect(normalizedPhase5).toContain(
+      "A verified, semantically valid critic `NEEDS_CONTEXT` or `FAILED` retains its required missing-context or failure and completed-partial-check diagnostics in the final report while contributing no verdicts",
+    );
+    expect(normalizedPhase5).toContain(
+      "timeout, nonreturn, controller-observed failure, malformed response, semantic rejection, or ordinary verification rejection rejects the critic response and uses the unverified-critic fallback",
+    );
+  });
+
   it("keeps root-owned issue research validation, report, persistence, and failure contracts in source", async () => {
     const issuePrimingWorkflow = await readSkillSource(
       "issue-priming-workflow",
@@ -1891,7 +2022,7 @@ None
       expect(skillSource).toContain("play-review findings notice missing");
       expect(skillSource).toContain("validate-findings");
       expect(skillSource).toContain("PLAY_REVIEW_HELPER");
-      expect(skillSource).toContain("play-review/findings/v1");
+      expect(skillSource).toContain("play-review/findings/v2");
     }
 
     expect(normalizeWhitespace(branchReview)).toContain(
@@ -2527,7 +2658,7 @@ None
       "form one cohesive bounded grouped blocker set",
     );
     expect(normalizedBranchReview).toContain(
-      "does not add or require fields in the `play-review/findings/v1` envelope",
+      "does not add or require fields in the `play-review/findings/v2` envelope",
     );
     expect(normalizedBranchReview).toContain(
       "individual finding anchors and classifications remain authoritative for classification, reporting, and stop-rule evaluation",
@@ -3189,7 +3320,7 @@ None
 
     expect(playReview).toContain("`prior_branch_findings`");
     expect(playReview).toContain(
-      "Branch review context from a validated local `play-review/findings/v1` envelope path",
+      "Branch review context from a validated local `play-review/findings/v2` envelope path",
     );
     expect(playReview).toContain(
       "prior_branch_findings` is accepted only as already-validated wrapper input",
@@ -3204,7 +3335,7 @@ None
     );
     expect(playReview).toContain("Prior review context");
     expect(normalizedPlayReview).toContain(
-      "do not include the validated `play-review/findings/v1` envelope content verbatim",
+      "do not include the validated `play-review/findings/v2` envelope content verbatim",
     );
     expect(normalizedPlayReview).toContain(
       "branch-local prior findings rather than GitHub threads",
@@ -3357,7 +3488,7 @@ None
       "`prepare-findings-write` derives, validates, and prepares the deterministic findings target, then prints the repo-relative path",
     );
     expect(normalizedEnvelope).toContain(
-      "`prepare-findings-write` does not write the `play-review/findings/v1` envelope JSON",
+      "`prepare-findings-write` does not write the `play-review/findings/v2` envelope JSON",
     );
     expect(normalizedEnvelope).toContain(
       "`play-review` writes the envelope JSON to the prepared path before emitting `Findings written to <repo-relative-path>.`",
@@ -3461,7 +3592,7 @@ None
       "private paths, ticket IDs, incident names, source-owner labels, or private implementation details",
     );
     expect(normalizedPlayReview).toContain(
-      "does not add fields to the `play-review/findings/v1` envelope",
+      "does not add fields to the `play-review/findings/v2` envelope",
     );
     expect(envelopeShape).not.toContain('"summary"');
     expect(envelopeShape).not.toContain("root_cause");
@@ -3675,7 +3806,7 @@ None
       },
       baselineBranchReview: {
         prompt:
-          "Read current `skills/branch-review/SKILL.md` and `skills/play-review/SKILL.md` before edits. Scenario: running `branch-review` present mode after writing a `play-review/findings/v1` file. Describe how findings are presented, helper commands, notice line, and whether GitHub review/payload/posting semantics are involved. Do not infer future helper behavior unless prose says so.",
+          "Read current `skills/branch-review/SKILL.md` and `skills/play-review/SKILL.md` before edits. Scenario: running `branch-review` present mode after writing a `play-review/findings/v2` file. Describe how findings are presented, helper commands, notice line, and whether GitHub review/payload/posting semantics are involved. Do not infer future helper behavior unless prose says so.",
         observed:
           "Agent would rely on `play-review` markdown output and exact notice line, invoke existing input/context/findings write helpers, and not invoke `validate-findings` unless opening/overwriting. No GitHub posting, but prose had nearby GitHub schema/API language.",
         result:
@@ -3707,7 +3838,7 @@ None
       "manual preview can diverge from posted JSON",
     );
     expect(pressureText).toContain(
-      "running `branch-review` present mode after writing a `play-review/findings/v1` file",
+      "running `branch-review` present mode after writing a `play-review/findings/v2` file",
     );
     expect(pressureText).toContain(
       "risk notice-line drift, or rebuild evidence from mutable current checkout",

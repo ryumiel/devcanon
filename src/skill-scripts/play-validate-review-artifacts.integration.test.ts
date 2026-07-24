@@ -544,9 +544,10 @@ function finding(overrides: JsonObject = {}): JsonObject {
 
 function findingsEnvelope(): JsonObject {
   return {
-    schema: "play-review/findings/v1",
+    schema: "play-review/findings/v2",
     findings: [finding()],
     carry_forward: [],
+    incomplete_topical_routes: [],
   };
 }
 
@@ -572,6 +573,7 @@ function approvalSummary(
     blocker_count: 1,
     nit_count: 0,
     carry_forward_count: 0,
+    incomplete_topical_count: 0,
     ...overrides,
   };
 }
@@ -1109,14 +1111,16 @@ describe("play-validate-review-artifacts validator", () => {
       });
 
       await writeJson(cwd, findingsFile, {
-        schema: "play-review/findings/v1",
+        schema: "play-review/findings/v2",
         findings: [],
         carry_forward: [],
+        incomplete_topical_routes: [],
       });
       const approvedFindings = {
-        schema: "play-review/findings/v1",
+        schema: "play-review/findings/v2",
         findings: [],
         carry_forward: [],
+        incomplete_topical_routes: [],
       };
       await writeJson(
         cwd,
@@ -1229,6 +1233,20 @@ describe("play-validate-review-artifacts validator", () => {
         "approval summary scope-decision digest mismatch",
       );
 
+      const { incomplete_topical_routes: _ignored, ...missingRouteEvidence } =
+        findings;
+      await writeJson(cwd, findingsFile, missingRouteEvidence);
+      await writeJson(cwd, ".ephemeral/topic-approval-summary.json", {
+        ...summary,
+        findings_sha256: jsonDigest(missingRouteEvidence),
+      });
+      await expectRejectsWith(
+        runValidator(cwd, "validate-approval-summary", [
+          ...approvalSummaryArgs(headSha),
+        ]),
+        "findings envelope validation failed",
+      );
+
       await expectRejectsWith(
         runValidator(cwd, "validate-approval-summary", [
           ...approvalSummaryArgs(headSha),
@@ -1264,9 +1282,10 @@ describe("play-validate-review-artifacts validator", () => {
       const findingsFile = approvalFindingsPath(headSha);
       const scope = initialScope(baseSha, headSha);
       const nits = {
-        schema: "play-review/findings/v1",
+        schema: "play-review/findings/v2",
         findings: [finding({ severity: "Nit", critic: null })],
         carry_forward: [],
+        incomplete_topical_routes: [],
       };
       await writeJson(cwd, ".ephemeral/topic-scope-decision.json", scope);
       await writeJson(cwd, findingsFile, nits);
@@ -1318,9 +1337,10 @@ describe("play-validate-review-artifacts validator", () => {
       const findingsFile = approvalFindingsPath(headSha);
       const scope = initialScope(baseSha, headSha);
       const downgradedBlocker = {
-        schema: "play-review/findings/v1",
+        schema: "play-review/findings/v2",
         findings: [finding({ critic: "DOWNGRADE" })],
         carry_forward: [],
+        incomplete_topical_routes: [],
       };
       await writeJson(cwd, ".ephemeral/topic-scope-decision.json", scope);
       await writeJson(cwd, findingsFile, downgradedBlocker);
@@ -1377,9 +1397,10 @@ describe("play-validate-review-artifacts validator", () => {
       );
 
       const invalidatedBlocker = {
-        schema: "play-review/findings/v1",
+        schema: "play-review/findings/v2",
         findings: [finding({ critic: "INVALID" })],
         carry_forward: [],
+        incomplete_topical_routes: [],
       };
       await writeJson(cwd, findingsFile, invalidatedBlocker);
       await writeJson(
@@ -1401,9 +1422,10 @@ describe("play-validate-review-artifacts validator", () => {
       });
 
       const validBlocker = {
-        schema: "play-review/findings/v1",
+        schema: "play-review/findings/v2",
         findings: [finding({ critic: "VALID" })],
         carry_forward: [],
+        incomplete_topical_routes: [],
       };
       await writeJson(cwd, findingsFile, validBlocker);
       await writeJson(
@@ -1464,9 +1486,10 @@ describe("play-validate-review-artifacts validator", () => {
       const findingsFile = approvalFindingsPath(headSha);
       const scope = initialScope(baseSha, headSha);
       const carryForwardBlocker = {
-        schema: "play-review/findings/v1",
+        schema: "play-review/findings/v2",
         findings: [],
         carry_forward: [finding({ anchor: "out-of-diff" })],
+        incomplete_topical_routes: [],
       };
       await writeJson(cwd, ".ephemeral/topic-scope-decision.json", scope);
       await writeJson(cwd, findingsFile, carryForwardBlocker);
@@ -1515,7 +1538,7 @@ describe("play-validate-review-artifacts validator", () => {
       const findingsFile = approvalFindingsPath(headSha);
       const scope = initialScope(baseSha, headSha);
       const invalidCarryForward = {
-        schema: "play-review/findings/v1",
+        schema: "play-review/findings/v2",
         findings: [],
         carry_forward: [
           finding({
@@ -1523,6 +1546,7 @@ describe("play-validate-review-artifacts validator", () => {
             critic: "INVALID",
           }),
         ],
+        incomplete_topical_routes: [],
       };
       await writeJson(cwd, ".ephemeral/topic-scope-decision.json", scope);
       await writeJson(cwd, findingsFile, invalidCarryForward);
@@ -1574,9 +1598,10 @@ describe("play-validate-review-artifacts validator", () => {
       const scope = initialScope(baseSha, headSha);
       const mirroredBlocker = finding({ anchor: "out-of-diff" });
       const findings = {
-        schema: "play-review/findings/v1",
+        schema: "play-review/findings/v2",
         findings: [mirroredBlocker],
         carry_forward: [mirroredBlocker],
+        incomplete_topical_routes: [],
       };
       await writeJson(cwd, ".ephemeral/topic-scope-decision.json", scope);
       await writeJson(cwd, findingsFile, findings);
@@ -3570,6 +3595,7 @@ describe("play-validate-review-artifacts validator", () => {
           },
         ],
         carry_forward: [],
+        incomplete_topical_routes: [],
       });
       await writeJson(cwd, ".ephemeral/topic-review-payload.json", {
         commit_id: headSha,
@@ -3949,7 +3975,7 @@ describe("play-validate-review-artifacts validator", () => {
       }
 
       await writeJson(cwd, ".ephemeral/topic-findings.json", {
-        schema: "play-review/findings/v1",
+        schema: "play-review/findings/v2",
         findings: [
           {
             path: "src/app.ts",
@@ -3974,6 +4000,7 @@ describe("play-validate-review-artifacts validator", () => {
           },
         ],
         carry_forward: [],
+        incomplete_topical_routes: [],
       });
       await writeJson(cwd, ".ephemeral/topic-review-payload.json", {
         commit_id: headSha,
@@ -4225,6 +4252,13 @@ describe("play-validate-review-artifacts validator", () => {
       });
 
       for (const malformedFindings of [
+        {
+          ...findingsEnvelope(),
+          incomplete_topical_routes: [
+            { route: "D7", disposition: "FAILED" },
+            { route: "D7", disposition: "NEEDS_CONTEXT" },
+          ],
+        },
         {
           ...findingsEnvelope(),
           findings: [finding({ anchor: "bogus" })],

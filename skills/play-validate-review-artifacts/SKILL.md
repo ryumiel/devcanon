@@ -37,7 +37,7 @@ The script does not own:
 - human review workflow entry points;
 - review finding judgment, severity, category, or critic decisions;
 - GitHub posting or thread-resolution approval;
-- `play-review/findings/v1` envelope production;
+- `play-review/findings/v2` envelope production;
 - a general shared runtime utility model for unrelated skills.
 
 This support skill is a narrow exception because multiple review surfaces must

@@ -7,9 +7,10 @@ Superseded by ADR-0012
 ## Note
 
 This ADR is superseded by [ADR-0012](adr-0012-side-channel-file-delivery-for-play-review-findings.md).
-The schema name and field shape it defines (`play-review/findings/v1`)
-are unchanged; only the transport (in-band JSON fence vs. side-channel
-file) is overridden. The Decision § paragraphs about positional rules
+The schema name and field shape it defines (`play-review/findings/v1`) are
+historical: ADR-0012 first moved the transport to a side-channel file and later
+introduced the incompatible `play-review/findings/v2` envelope with mandatory
+review-completeness evidence. The Decision § paragraphs about positional rules
 ("the JSON block is the last fenced block in the report" and the
 empty-block-still-emitted rule) and the wrapper re-emission paragraphs
 are no longer authoritative — see ADR-0012 § Decision for the current

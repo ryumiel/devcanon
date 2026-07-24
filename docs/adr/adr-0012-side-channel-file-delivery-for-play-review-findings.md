@@ -6,10 +6,8 @@ Accepted
 
 ## Context
 
-ADR-0010 introduced the `play-review/findings/v1` JSON schema (a
-top-level envelope with `schema`, `findings`, and `carry_forward`
-fields, now detailed in
-`skills/play-review/references/findings-envelope-contract.md`) and
+ADR-0010 introduced the predecessor `play-review/findings/v1` JSON schema (a
+top-level envelope with `schema`, `findings`, and `carry_forward`) and
 specified its transport: a trailing fenced `json` block appended to
 `play-review`'s conversation output. Wrappers (`branch-review`,
 `pr-review`) re-emit the same block on their surfaces;
@@ -17,6 +15,11 @@ specified its transport: a trailing fenced `json` block appended to
 `issue-priming-workflow` Phase 7 reads it from conversation to select
 judgment-required remaining nits. The same envelope traverses 4 conversation contexts
 per `--auto` run.
+
+This ADR owns the later incompatible `play-review/findings/v2` migration. Its
+mandatory `incomplete_topical_routes` field is now detailed in
+`skills/play-review/references/findings-envelope-contract.md` and is required
+across producers and consumers.
 
 That propagation was observed to be a measurable share of total session
 tokens — on the order of 5KB per hop across 4 hops, though the exact
@@ -63,7 +66,7 @@ load-bearing and addressable.
 
 ## Decision
 
-`play-review` writes the `play-review/findings/v1` envelope to a
+`play-review` writes the `play-review/findings/v2` envelope to a
 deterministic side-channel file and emits a single notice line in its
 conversation output:
 
@@ -88,7 +91,7 @@ Path scheme:
   stripping, bare `.`/`..`, or starting with `-`/`.`).
 
 The path scheme and consumer responsibilities in this ADR remain authoritative.
-The detailed `play-review/findings/v1` envelope, write-target guard, validation,
+The detailed `play-review/findings/v2` envelope, write-target guard, validation,
 and derived nits-file contract lives in
 `skills/play-review/references/findings-envelope-contract.md`;
 `skills/play-review/SKILL.md` retains the workflow and notice-line contract.
@@ -100,19 +103,32 @@ policy and points consumers to the detailed reference.
 The path is computed and written by `play-review` itself, not by the
 wrapper. The envelope is always written, even for empty findings (the
 canonical empty form
-`{"schema":"play-review/findings/v1","findings":[],"carry_forward":[]}`).
+`{"schema":"play-review/findings/v2","findings":[],"carry_forward":[],"incomplete_topical_routes":[]}`).
 The notice line is the only structured surface in conversation; the
 human-readable `## Findings` and `## Carry-forward` markdown sections
 are unchanged and remain in-conversation for operator review.
 
-The schema name `play-review/findings/v1` and per-field contract are
-unchanged. Only the transport changes. Additive evolution stays on
-`v1` per ADR-0010 Decision §.
+The schema name is `play-review/findings/v2`. Its mandatory
+`incomplete_topical_routes` field records selected D7-D9 routes that did not
+complete, without presenting them as findings or critic input. A linked
+branch-review approval summary counts those routes and must be `blocked` when
+the count is nonzero. The v2 migration is intentional: every producer,
+derived-envelope path, general validator, and approval consumer requires the
+field and fails closed when it is absent or malformed. It is an incompatible
+schema change under ADR-0010's versioned-schema discipline.
+
+Migration inventory: the active source, runtime, and generated-target
+contracts now use `play-review/findings/v2`; source and render contract tests,
+runtime and shell validators, branch-review approval, pr-review payloads, and
+all fixture producers are migrated together. ADR-0010 intentionally retains
+its `v1` text only as the superseded historical record; it is not an active
+consumer or accepted schema boundary.
 
 Consumer responsibilities:
 
 - `branch-review` Phase 3 (no-`--fix`) — surface the notice line in
-  wrapper output. No JSON re-emission.
+  wrapper output. No JSON re-emission. Its approval summary consumes
+  `incomplete_topical_routes` as blocking review-completeness evidence.
 - `branch-review --fix` — after auto-fixes, _overwrite the same
   file_ with the remaining-set envelope: all pre-fix findings except findings
   successfully fixed and committed by `branch-review --fix`, including
@@ -130,7 +146,7 @@ Consumer responsibilities:
   partition-by-`anchor` logic, `start_line` null-handling, and
   GitHub Reviews API call are unchanged.
 - `play-branch-finish` Option 2 — accept `nits_file` (a
-  repo-relative path to a `play-review/findings/v1` envelope) in
+  repo-relative path to a `play-review/findings/v2` envelope) in
   place of today's inline `nits` JSON array. Iterate `findings[]`
   and post anchorable / unanchorable subsets as before.
 - `issue-priming-workflow` Phase 7 — read the immutable review SHA from
@@ -204,10 +220,9 @@ Consumer responsibilities:
   no worktree mutation) is unchanged and still authoritative for
   `play-review`. Writing `.ephemeral/<…>-findings.json` is an output
   artifact, not a disposition.
-- ADR-0010 is marked `Superseded by ADR-0012`. The schema name and
-  field shape it defines remain authoritative — only the transport
-  paragraph (Decision § "Wrappers re-emit the block on their surfaces"
-  and Positional rules) is overridden by this ADR.
+- ADR-0010 is marked `Superseded by ADR-0012`. Its historical v1 schema
+  and transport are both superseded by this ADR's current v2 contract;
+  ADR-0010 remains the source of the versioned-schema discipline.
 
 ## Alternatives considered
 
@@ -236,5 +251,5 @@ Consumer responsibilities:
 - ADR-0009: review-pipeline consolidation (defined the
   GitHub / auto-fix / worktree disposition boundary `play-review`
   preserves)
-- ADR-0010: structured review-finding schema (superseded by this ADR
-  for transport; schema name and field shape unchanged)
+- ADR-0010: predecessor structured review-finding schema and versioned-schema
+  discipline (its v1 contract is superseded by this ADR's v2 contract)
