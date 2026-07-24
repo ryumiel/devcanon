@@ -368,7 +368,10 @@ baseline and apply GUARD-001 independently with no `--handoff`:
 3. **verify before semantic validation or consumption** against that route's
    retained baseline;
 4. **validate and retain the topical response in controller memory** only after
-   successful verification;
+   successful verification. On a malformed, semantically rejected, or
+   verification-rejected response, record a controller-observed
+   validation/orchestration failure—not a child-returned `FAILED`—before exact
+   cleanup; this record satisfies the Phase 5 terminal-fanout gate;
 5. **cleanup the exact retained baseline**; and
 6. **apply the retained topical result only after cleanup** by making it eligible
    for the existing findings aggregation.

@@ -1563,8 +1563,17 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(normalizedPhase3).toContain(
         "Silence, waiting, timeout, interruption, and nudging are nonterminal recovery observations, never `COMPLETE_NO_FINDINGS`",
       );
+      expectSubstringsInOrder(normalizedPhase3, [
+        "malformed, semantically rejected, or verification-rejected response",
+        "controller-observed validation/orchestration failure—not a child-returned `FAILED`",
+        "before exact cleanup",
+        "this record satisfies the Phase 5 terminal-fanout gate",
+      ]);
       expect(normalizedPhase5).toContain(
         "every selected topical route has captured an allowed terminal child result or controller-observed orchestration failure",
+      );
+      expect(normalizedPhase5).toContain(
+        "Successful sibling findings remain usable in partial fanout",
       );
       expect(normalizedPhase5).toContain("critic_not_required: zero blockers");
       expect(normalizedPhase5).toContain("do not spawn D10");

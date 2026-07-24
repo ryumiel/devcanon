@@ -1208,6 +1208,12 @@ describe("phase artifact source contracts", () => {
       "controller records an observed orchestration failure rather than fabricating a child disposition",
     );
     expect(normalizedPhase3).toContain(
+      "On a malformed, semantically rejected, or verification-rejected response, record a controller-observed validation/orchestration failure—not a child-returned `FAILED`—before exact cleanup",
+    );
+    expect(normalizedPhase3).toContain(
+      "this record satisfies the Phase 5 terminal-fanout gate",
+    );
+    expect(normalizedPhase3).toContain(
       "Valid: a Code-quality reviewer completes all checks and returns `COMPLETE_WITH_FINDINGS` with checks, report, and count",
     );
     expect(normalizedPhase3).toContain(
