@@ -188,6 +188,10 @@ interface PrReviewDiscoveryInventory {
   invalid: DiscoveryInvalidEntry[];
 }
 
+interface PrReviewDiscoveryReductionInput extends PrReviewDiscoveryInventory {
+  comparison_platform: NodeJS.Platform;
+}
+
 interface PrReviewDiscoveryResult extends PrReviewDiscoveryInventory {
   schema: "pr-review/discovery/v1";
   disposition:
@@ -260,7 +264,7 @@ export async function runPrReviewLeasesCommand(
 }
 
 export function reducePrReviewDiscovery(
-  inventory: PrReviewDiscoveryInventory,
+  inventory: PrReviewDiscoveryReductionInput,
 ): PrReviewDiscoveryResult {
   const active = [...inventory.active].sort((left, right) =>
     ordinalCompare(left.lease_file, right.lease_file),
@@ -282,11 +286,15 @@ export function reducePrReviewDiscovery(
   );
   const canonicalKey = discoveryComparablePath(
     inventory.canonical_target.worktree_path,
+    inventory.comparison_platform,
   );
   const canonicalClaimed = active.some(
     (entry) =>
       entry.worktree_path !== null &&
-      discoveryComparablePath(entry.worktree_path) === canonicalKey,
+      discoveryComparablePath(
+        entry.worktree_path,
+        inventory.comparison_platform,
+      ) === canonicalKey,
   );
   const canonicalBlocked =
     inventory.canonical_target.parent_status === "invalid" ||
@@ -334,7 +342,10 @@ export function reducePrReviewDiscovery(
 
   return {
     schema: "pr-review/discovery/v1",
-    ...inventory,
+    repository: inventory.repository,
+    pr_number: inventory.pr_number,
+    primary_repository_root: inventory.primary_repository_root,
+    canonical_target: inventory.canonical_target,
     registrations: ordinalSort(inventory.registrations),
     active,
     archived,
@@ -363,7 +374,9 @@ async function discoverReviewSession(): Promise<PrReviewDiscoveryResult> {
     gitEnv,
   );
   const registrationKeys = new Set(
-    registrations.map((entry) => discoveryComparablePath(entry)),
+    registrations.map((entry) =>
+      discoveryComparablePath(entry, process.platform),
+    ),
   );
   const canonicalPath = path.join(
     primaryRoot,
@@ -386,7 +399,9 @@ async function discoverReviewSession(): Promise<PrReviewDiscoveryResult> {
         : targetObservation === "directory"
           ? "directory"
           : "invalid",
-    registered: registrationKeys.has(discoveryComparablePath(canonicalPath)),
+    registered: registrationKeys.has(
+      discoveryComparablePath(canonicalPath, process.platform),
+    ),
     parent_status:
       parentObservation === "absent"
         ? "absent"
@@ -470,10 +485,7 @@ async function discoverReviewSession(): Promise<PrReviewDiscoveryResult> {
         );
       }
     } else {
-      await assertSameDiscoveryDirectory(
-        ephemeralPath,
-        ephemeralSnapshot.identity,
-      );
+      await assertSameDiscoveryDirectory(ephemeralPath, ephemeralSnapshot);
     }
   } catch {
     if (!invalid.some((entry) => entry.path === ".ephemeral")) {
@@ -499,6 +511,33 @@ async function discoverReviewSession(): Promise<PrReviewDiscoveryResult> {
     });
   }
 
+  let registrationsChanged = false;
+  try {
+    const finalRegistrations = await readDiscoveryWorktreeRegistrations(
+      primaryRoot,
+      gitEnv,
+    );
+    registrationsChanged = !sameOrdinalStringArray(
+      discoveryRegistrationSnapshot(registrations, process.platform),
+      discoveryRegistrationSnapshot(finalRegistrations, process.platform),
+    );
+  } catch {
+    registrationsChanged = true;
+  }
+  if (
+    registrationsChanged &&
+    !invalid.some(
+      (entry) =>
+        entry.path === ".git/worktrees" &&
+        entry.reason === "worktree-registrations-changed",
+    )
+  ) {
+    invalid.push({
+      path: ".git/worktrees",
+      reason: "worktree-registrations-changed",
+    });
+  }
+
   return reducePrReviewDiscovery({
     repository,
     pr_number: prNumber,
@@ -508,6 +547,7 @@ async function discoverReviewSession(): Promise<PrReviewDiscoveryResult> {
     active,
     archived,
     invalid,
+    comparison_platform: process.platform,
   });
 }
 
@@ -590,18 +630,31 @@ async function inspectDiscoveryLease({
   if (before.isSymbolicLink() || !before.isDirectory()) {
     return finalize(invalid("invalid-worktree-entry", lease));
   }
+  let physicalWorktree: string;
+  try {
+    physicalWorktree = await realpath(filesystemPath);
+  } catch {
+    return finalize(invalid("worktree-identity-unverifiable", lease));
+  }
+  if (
+    discoveryComparablePath(physicalWorktree, process.platform) !==
+      discoveryComparablePath(lease.worktree_path, process.platform) ||
+    digestPath(physicalWorktree) !== lease.worktree_digest
+  ) {
+    return finalize(invalid("worktree-digest-mismatch", lease));
+  }
 
   let ephemeralSnapshot: StableDiscoveryDirectory | null;
   try {
     ephemeralSnapshot = await readStableDiscoveryDirectory(
       path.join(filesystemPath, ".ephemeral"),
     );
-    await assertSameDiscoveryDirectory(filesystemPath, before);
+    await assertSameDiscoveryDirectoryIdentity(filesystemPath, before);
   } catch {
     return finalize(invalid("invalid-ephemeral-directory", lease));
   }
   const verifyCandidateSnapshot = async (): Promise<void> => {
-    await assertSameDiscoveryDirectory(filesystemPath, before);
+    await assertSameDiscoveryDirectoryIdentity(filesystemPath, before);
     const candidateEphemeral = path.join(filesystemPath, ".ephemeral");
     if (ephemeralSnapshot === null) {
       if (
@@ -613,13 +666,14 @@ async function inspectDiscoveryLease({
         );
       }
     } else {
-      await assertSameDiscoveryDirectory(
-        candidateEphemeral,
-        ephemeralSnapshot.identity,
-      );
+      await assertSameDiscoveryDirectory(candidateEphemeral, ephemeralSnapshot);
     }
   };
-  if (!registrationKeys.has(discoveryComparablePath(lease.worktree_path))) {
+  if (
+    !registrationKeys.has(
+      discoveryComparablePath(lease.worktree_path, process.platform),
+    )
+  ) {
     try {
       await verifyCandidateSnapshot();
     } catch {
@@ -957,6 +1011,28 @@ async function readStableDiscoveryDirectory(
 
 async function assertSameDiscoveryDirectory(
   directory: string,
+  expected: StableDiscoveryDirectory,
+): Promise<void> {
+  const actual = await lstat(directory);
+  if (
+    actual.isSymbolicLink() ||
+    !actual.isDirectory() ||
+    !sameDiscoveryIdentity(expected.identity, actual)
+  ) {
+    throw new PrReviewLeaseError(
+      "discovery worktree changed during inspection",
+    );
+  }
+  const entries = ordinalSort(await readdir(directory));
+  if (!sameOrdinalStringArray(expected.entries, entries)) {
+    throw new PrReviewLeaseError(
+      "discovery directory entries changed during inspection",
+    );
+  }
+}
+
+async function assertSameDiscoveryDirectoryIdentity(
+  directory: string,
   expected: Awaited<ReturnType<typeof lstat>>,
 ): Promise<void> {
   const actual = await lstat(directory);
@@ -1037,16 +1113,22 @@ async function assertDiscoveryPrimaryRoot(
       ? commonDirectoryRaw
       : path.resolve(primaryRoot, commonDirectoryRaw);
     if (
-      discoveryComparablePath(await realpath(topLevel)) !==
-        discoveryComparablePath(primaryRoot) ||
-      discoveryComparablePath(await realpath(gitDirectory)) !==
-        discoveryComparablePath(await realpath(commonDirectory))
+      discoveryComparablePath(await realpath(topLevel), process.platform) !==
+        discoveryComparablePath(primaryRoot, process.platform) ||
+      discoveryComparablePath(
+        await realpath(gitDirectory),
+        process.platform,
+      ) !==
+        discoveryComparablePath(
+          await realpath(commonDirectory),
+          process.platform,
+        )
     ) {
       throw new PrReviewLeaseError(
         "PRIMARY_REPOSITORY_ROOT must be the primary Git worktree",
       );
     }
-    await assertSameDiscoveryDirectory(primaryRoot, before);
+    await assertSameDiscoveryDirectoryIdentity(primaryRoot, before);
   } catch (err) {
     if (err instanceof PrReviewLeaseError) throw err;
     throw new PrReviewLeaseError(
@@ -1149,13 +1231,35 @@ export function discoveryFilesystemPath(
   return value;
 }
 
-function discoveryComparablePath(value: string): string {
+function discoveryComparablePath(
+  value: string,
+  platform: NodeJS.Platform,
+): string {
   const normalized = value.replace(/\\/gu, "/");
-  return process.platform === "win32" ||
+  return platform === "win32" ||
     /^[A-Za-z]:\//u.test(normalized) ||
     /^\/\/[^/]+\/[^/]+/u.test(normalized)
     ? normalized.toLowerCase()
     : normalized;
+}
+
+function sameOrdinalStringArray(
+  left: readonly string[],
+  right: readonly string[],
+): boolean {
+  return (
+    left.length === right.length &&
+    left.every((value, index) => value === right[index])
+  );
+}
+
+function discoveryRegistrationSnapshot(
+  registrations: readonly string[],
+  platform: NodeJS.Platform,
+): string[] {
+  return ordinalSort(
+    registrations.map((entry) => discoveryComparablePath(entry, platform)),
+  );
 }
 
 function ordinalCompare(left: string, right: string): number {

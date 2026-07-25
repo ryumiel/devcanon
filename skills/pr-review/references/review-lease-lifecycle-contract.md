@@ -126,8 +126,9 @@ PR number and review head.
 `review-leases.sh discover` is a selection planner, not lifecycle authority. It
 takes exactly `REPOSITORY`, `PR_NUMBER`, and `PRIMARY_REPOSITORY_ROOT`, runs
 from the proven primary Git worktree, and performs no write, checkout,
-worktree creation, rollback, transition, cleanup, hashing, or artifact-content
-validation.
+worktree creation, rollback, transition, cleanup, artifact hashing, or
+artifact-content validation. Its only digest operation recomputes the
+established canonical physical worktree-path identity digest.
 
 The planner inventories direct-child active lease names for the selected PR,
 separately named canonical terminal archives, the canonical
@@ -143,6 +144,10 @@ leases are blockers. Symlinks, non-files/directories, malformed names or
 leases, and unverifiable replacement are invalid. Archived names use the
 closed digest, compact UTC timestamp, terminal-state filename grammar; other
 PR-matching lease names are invalid and are never hidden as history.
+Directory entry sets and normalized Git registration sets are captured and
+rechecked as one coherent inventory snapshot. Any addition, removal,
+replacement, or registration drift during collection makes the result
+`invalid`.
 
 The deterministic precedence is:
 
@@ -159,6 +164,12 @@ existing lease-gated cleanup authority. A null-lease cleanup tuple is an
 explicit manual stop for unleased canonical occupancy or registration and must
 not be passed to lease-gated cleanup. Discovery output itself never authorizes
 removal or mutation.
+
+When multiple cleanup blockers remain after precedence is applied, select the
+ordinal-first active lease blocker. An active blocker takes cleanup-tuple
+priority over a simultaneous unleased canonical collision; the collision still
+prevents `resume` or `create`. Emit the canonical null-lease tuple only when no
+active blocker is available.
 
 ## Read-Only Status
 

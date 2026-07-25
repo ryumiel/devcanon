@@ -57,9 +57,9 @@ export function reducePrReviewDiscovery(inventory) {
         entry.classification !== "artifact-bearing");
     const resumable = active.filter((entry) => entry.classification === "resumable");
     const blockers = active.filter((entry) => entry.classification !== "resumable");
-    const canonicalKey = discoveryComparablePath(inventory.canonical_target.worktree_path);
+    const canonicalKey = discoveryComparablePath(inventory.canonical_target.worktree_path, inventory.comparison_platform);
     const canonicalClaimed = active.some((entry) => entry.worktree_path !== null &&
-        discoveryComparablePath(entry.worktree_path) === canonicalKey);
+        discoveryComparablePath(entry.worktree_path, inventory.comparison_platform) === canonicalKey);
     const canonicalBlocked = inventory.canonical_target.parent_status === "invalid" ||
         (inventory.canonical_target.status !== "absent" && !canonicalClaimed) ||
         (inventory.canonical_target.registered && !canonicalClaimed);
@@ -104,7 +104,10 @@ export function reducePrReviewDiscovery(inventory) {
     }
     return {
         schema: "pr-review/discovery/v1",
-        ...inventory,
+        repository: inventory.repository,
+        pr_number: inventory.pr_number,
+        primary_repository_root: inventory.primary_repository_root,
+        canonical_target: inventory.canonical_target,
         registrations: ordinalSort(inventory.registrations),
         active,
         archived,
@@ -125,7 +128,7 @@ async function discoverReviewSession() {
     const gitEnv = discoveryGitEnvironment();
     await assertDiscoveryPrimaryRoot(primaryRoot, gitEnv);
     const registrations = await readDiscoveryWorktreeRegistrations(primaryRoot, gitEnv);
-    const registrationKeys = new Set(registrations.map((entry) => discoveryComparablePath(entry)));
+    const registrationKeys = new Set(registrations.map((entry) => discoveryComparablePath(entry, process.platform)));
     const canonicalPath = path.join(primaryRoot, ".worktrees", `pr-${prNumber}-review`);
     const parentObservation = await observeStableDiscoveryPath(path.dirname(canonicalPath), true);
     const targetObservation = parentObservation === "directory"
@@ -138,7 +141,7 @@ async function discoverReviewSession() {
             : targetObservation === "directory"
                 ? "directory"
                 : "invalid",
-        registered: registrationKeys.has(discoveryComparablePath(canonicalPath)),
+        registered: registrationKeys.has(discoveryComparablePath(canonicalPath, process.platform)),
         parent_status: parentObservation === "absent"
             ? "absent"
             : parentObservation === "directory"
@@ -208,7 +211,7 @@ async function discoverReviewSession() {
             }
         }
         else {
-            await assertSameDiscoveryDirectory(ephemeralPath, ephemeralSnapshot.identity);
+            await assertSameDiscoveryDirectory(ephemeralPath, ephemeralSnapshot);
         }
     }
     catch {
@@ -229,6 +232,22 @@ async function discoverReviewSession() {
             reason: "canonical-target-changed",
         });
     }
+    let registrationsChanged = false;
+    try {
+        const finalRegistrations = await readDiscoveryWorktreeRegistrations(primaryRoot, gitEnv);
+        registrationsChanged = !sameOrdinalStringArray(discoveryRegistrationSnapshot(registrations, process.platform), discoveryRegistrationSnapshot(finalRegistrations, process.platform));
+    }
+    catch {
+        registrationsChanged = true;
+    }
+    if (registrationsChanged &&
+        !invalid.some((entry) => entry.path === ".git/worktrees" &&
+            entry.reason === "worktree-registrations-changed")) {
+        invalid.push({
+            path: ".git/worktrees",
+            reason: "worktree-registrations-changed",
+        });
+    }
     return reducePrReviewDiscovery({
         repository,
         pr_number: prNumber,
@@ -238,6 +257,7 @@ async function discoverReviewSession() {
         active,
         archived,
         invalid,
+        comparison_platform: process.platform,
     });
 }
 function isValidCompactUtcTimestamp(value) {
@@ -297,16 +317,28 @@ async function inspectDiscoveryLease({ primaryRoot, relativePath, repository, pr
     if (before.isSymbolicLink() || !before.isDirectory()) {
         return finalize(invalid("invalid-worktree-entry", lease));
     }
+    let physicalWorktree;
+    try {
+        physicalWorktree = await realpath(filesystemPath);
+    }
+    catch {
+        return finalize(invalid("worktree-identity-unverifiable", lease));
+    }
+    if (discoveryComparablePath(physicalWorktree, process.platform) !==
+        discoveryComparablePath(lease.worktree_path, process.platform) ||
+        digestPath(physicalWorktree) !== lease.worktree_digest) {
+        return finalize(invalid("worktree-digest-mismatch", lease));
+    }
     let ephemeralSnapshot;
     try {
         ephemeralSnapshot = await readStableDiscoveryDirectory(path.join(filesystemPath, ".ephemeral"));
-        await assertSameDiscoveryDirectory(filesystemPath, before);
+        await assertSameDiscoveryDirectoryIdentity(filesystemPath, before);
     }
     catch {
         return finalize(invalid("invalid-ephemeral-directory", lease));
     }
     const verifyCandidateSnapshot = async () => {
-        await assertSameDiscoveryDirectory(filesystemPath, before);
+        await assertSameDiscoveryDirectoryIdentity(filesystemPath, before);
         const candidateEphemeral = path.join(filesystemPath, ".ephemeral");
         if (ephemeralSnapshot === null) {
             if ((await observeStableDiscoveryPath(candidateEphemeral, true)) !==
@@ -315,10 +347,10 @@ async function inspectDiscoveryLease({ primaryRoot, relativePath, repository, pr
             }
         }
         else {
-            await assertSameDiscoveryDirectory(candidateEphemeral, ephemeralSnapshot.identity);
+            await assertSameDiscoveryDirectory(candidateEphemeral, ephemeralSnapshot);
         }
     };
-    if (!registrationKeys.has(discoveryComparablePath(lease.worktree_path))) {
+    if (!registrationKeys.has(discoveryComparablePath(lease.worktree_path, process.platform))) {
         try {
             await verifyCandidateSnapshot();
         }
@@ -583,6 +615,18 @@ async function assertSameDiscoveryDirectory(directory, expected) {
     const actual = await lstat(directory);
     if (actual.isSymbolicLink() ||
         !actual.isDirectory() ||
+        !sameDiscoveryIdentity(expected.identity, actual)) {
+        throw new PrReviewLeaseError("discovery worktree changed during inspection");
+    }
+    const entries = ordinalSort(await readdir(directory));
+    if (!sameOrdinalStringArray(expected.entries, entries)) {
+        throw new PrReviewLeaseError("discovery directory entries changed during inspection");
+    }
+}
+async function assertSameDiscoveryDirectoryIdentity(directory, expected) {
+    const actual = await lstat(directory);
+    if (actual.isSymbolicLink() ||
+        !actual.isDirectory() ||
         !sameDiscoveryIdentity(expected, actual)) {
         throw new PrReviewLeaseError("discovery worktree changed during inspection");
     }
@@ -630,13 +674,13 @@ async function assertDiscoveryPrimaryRoot(primaryRoot, env) {
         const commonDirectory = path.isAbsolute(commonDirectoryRaw)
             ? commonDirectoryRaw
             : path.resolve(primaryRoot, commonDirectoryRaw);
-        if (discoveryComparablePath(await realpath(topLevel)) !==
-            discoveryComparablePath(primaryRoot) ||
-            discoveryComparablePath(await realpath(gitDirectory)) !==
-                discoveryComparablePath(await realpath(commonDirectory))) {
+        if (discoveryComparablePath(await realpath(topLevel), process.platform) !==
+            discoveryComparablePath(primaryRoot, process.platform) ||
+            discoveryComparablePath(await realpath(gitDirectory), process.platform) !==
+                discoveryComparablePath(await realpath(commonDirectory), process.platform)) {
             throw new PrReviewLeaseError("PRIMARY_REPOSITORY_ROOT must be the primary Git worktree");
         }
-        await assertSameDiscoveryDirectory(primaryRoot, before);
+        await assertSameDiscoveryDirectoryIdentity(primaryRoot, before);
     }
     catch (err) {
         if (err instanceof PrReviewLeaseError)
@@ -708,13 +752,20 @@ export function discoveryFilesystemPath(value, platform = process.platform) {
     }
     return value;
 }
-function discoveryComparablePath(value) {
+function discoveryComparablePath(value, platform) {
     const normalized = value.replace(/\\/gu, "/");
-    return process.platform === "win32" ||
+    return platform === "win32" ||
         /^[A-Za-z]:\//u.test(normalized) ||
         /^\/\/[^/]+\/[^/]+/u.test(normalized)
         ? normalized.toLowerCase()
         : normalized;
+}
+function sameOrdinalStringArray(left, right) {
+    return (left.length === right.length &&
+        left.every((value, index) => value === right[index]));
+}
+function discoveryRegistrationSnapshot(registrations, platform) {
+    return ordinalSort(registrations.map((entry) => discoveryComparablePath(entry, platform)));
 }
 function ordinalCompare(left, right) {
     return left < right ? -1 : left > right ? 1 : 0;

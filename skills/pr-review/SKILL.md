@@ -62,6 +62,19 @@ Detect mode:
 - **Initial:** No prior review from the current user on this PR.
 - **Follow-up:** Prior review exists. Find the last reviewed commit from the prior review's `commit_id`. Set `last_reviewed_sha` to that value.
 
+Bind the repository identity from the authoritative provider response before
+Phase 2. Do not inherit or reuse an ambient `REPOSITORY` value. Run
+`REPOSITORY="$({{tool:github-cli}} repo view --json nameWithOwner --jq '.nameWithOwner')" || exit 1`
+and stop if the provider command fails. Then validate the bound value:
+
+```bash
+case "$REPOSITORY" in
+  */*) [ -n "${REPOSITORY%%/*}" ] && [ -n "${REPOSITORY#*/}" ] &&
+    [ "${REPOSITORY#*/}" = "${REPOSITORY##*/}" ] || exit 1 ;;
+  *) exit 1 ;;
+esac
+```
+
 ## Phase 2: Worktree setup
 
 Resolve the installed skill directory before using its helper. From the proven
@@ -188,14 +201,14 @@ boundaries:
   include `FINISHED_AT`, `FAILURE_PHASE`, `FAILURE_REASON`, and
   `FAILURE_RECOVERABILITY`.
 
-Resume `created`, `reviewed`, `gated`, and `failed` leases from validated lease
-and manifest artifacts. Do not remove an existing review worktree during resume
-discovery. If a review worktree exists, first derive the lease path from the
-physical worktree path and run `review-leases.sh validate` or
-`review-leases.sh inspect-worktree`; only treat it as stale after the helper
-reports a cleanup outcome that permits removal. A prior Phase 5 preview is not
-approval; resume must present or re-render the latest validated artifacts and
-wait for fresh user action.
+Planner resume is limited to one clean, registered, artifact-free `created`
+lease. Continue that selected lease only after the existing lifecycle authority
+validates it. Artifact-bearing `created` leases and every `reviewed`, `gated`,
+`posted`, `aborted`, or `failed` lease stop as `cleanup-required`; discovery
+does not open or semantically validate their artifacts. Do not remove an
+existing review worktree during discovery. Route only a non-null cleanup lease
+through the existing lease-gated cleanup authority, and stop manually for a
+null-lease collision.
 
 ## Phase 3: Determine diff ranges
 

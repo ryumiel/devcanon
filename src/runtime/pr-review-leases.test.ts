@@ -22,6 +22,7 @@ import {
   discoveryFilesystemPath,
   discoveryGitEnvironment,
   parseDiscoveryLease,
+  reducePrReviewDiscovery,
   reducePrReviewLease,
   runPrReviewLeasesCommand,
 } from "./pr-review-leases.js";
@@ -4098,6 +4099,22 @@ describe("read-only PR review discovery planner", () => {
     }
   });
 
+  it("rejects a self-consistent lease filename and digest that do not bind the physical worktree", async () => {
+    const root = await createDiscoveryRepository();
+    const worktree = await createDiscoveryWorktree(root, "forged-digest");
+    const lease = discoveryLease(worktree);
+    lease.worktree_digest = "a".repeat(64);
+    lease.lease_file = `.ephemeral/pr-432-${lease.worktree_digest}-lease.json`;
+    await writeDiscoveryLease(root, lease);
+
+    const result = await runDiscovery(root);
+    expect(result.disposition).toBe("invalid");
+    expect(result.active[0]).toMatchObject({
+      classification: "invalid",
+      reason: "worktree-digest-mismatch",
+    });
+  });
+
   it("gives ambiguity precedence across clean and operationally blocked claims", async () => {
     const root = await createDiscoveryRepository();
     const clean = await createDiscoveryWorktree(root, "alternate-clean");
@@ -4374,6 +4391,160 @@ describe("read-only PR review discovery planner", () => {
     }
   });
 
+  it("fails closed when the primary lease inventory changes during status", async () => {
+    const root = await createDiscoveryRepository();
+    const worktree = await createDiscoveryWorktree(root, "primary-entry-race");
+    await writeDiscoveryLease(root, discoveryLease(worktree));
+    const concurrentLease = path.join(
+      root,
+      `.ephemeral/pr-432-${"b".repeat(64)}-lease.json`,
+    );
+    const wrapperDir = await mkdtemp(path.join(tmpdir(), "git-wrapper-"));
+    discoveryTempRoots.push(wrapperDir);
+    const realGit = (
+      await execFileAsync("sh", ["-c", "command -v git"])
+    ).stdout.trim();
+    const wrapper = path.join(wrapperDir, "git");
+    await writeFile(
+      wrapper,
+      [
+        "#!/bin/sh",
+        'case " $* " in',
+        `  *" status "*) printf '%s\\n' '{}' >'${concurrentLease}' ;;`,
+        "esac",
+        `exec '${realGit}' "$@"`,
+        "",
+      ].join("\n"),
+    );
+    await chmod(wrapper, 0o755);
+    const oldPath = process.env.PATH;
+    process.env.PATH = `${wrapperDir}:${oldPath ?? ""}`;
+    try {
+      const result = await runDiscovery(root);
+      expect(result.disposition).toBe("invalid");
+      expect(result.invalid).toContainEqual({
+        path: ".ephemeral",
+        reason: "invalid-discovery-directory",
+      });
+    } finally {
+      process.env.PATH = oldPath;
+    }
+  });
+
+  it("fails closed when candidate ephemeral entries change during status", async () => {
+    const root = await createDiscoveryRepository();
+    const worktree = await createDiscoveryWorktree(root, "artifact-entry-race");
+    await mkdir(path.join(worktree, ".ephemeral"));
+    await writeDiscoveryLease(root, discoveryLease(worktree));
+    const racedArtifact = path.join(worktree, ".ephemeral", "concurrent.json");
+    const wrapperDir = await mkdtemp(path.join(tmpdir(), "git-wrapper-"));
+    discoveryTempRoots.push(wrapperDir);
+    const realGit = (
+      await execFileAsync("sh", ["-c", "command -v git"])
+    ).stdout.trim();
+    const wrapper = path.join(wrapperDir, "git");
+    await writeFile(
+      wrapper,
+      [
+        "#!/bin/sh",
+        'case " $* " in',
+        `  *" status "*) printf '%s\\n' '{}' >'${racedArtifact}' ;;`,
+        "esac",
+        `exec '${realGit}' "$@"`,
+        "",
+      ].join("\n"),
+    );
+    await chmod(wrapper, 0o755);
+    const oldPath = process.env.PATH;
+    process.env.PATH = `${wrapperDir}:${oldPath ?? ""}`;
+    try {
+      const result = await runDiscovery(root);
+      expect(result.disposition).toBe("invalid");
+      expect(result.active[0]).toMatchObject({
+        classification: "invalid",
+        reason: "worktree-replaced",
+      });
+    } finally {
+      process.env.PATH = oldPath;
+    }
+  });
+
+  it("fails closed when the worktree registration snapshot changes", async () => {
+    const root = await createDiscoveryRepository();
+    const wrapperDir = await mkdtemp(path.join(tmpdir(), "git-wrapper-"));
+    discoveryTempRoots.push(wrapperDir);
+    const counter = path.join(wrapperDir, "count");
+    const realGit = (
+      await execFileAsync("sh", ["-c", "command -v git"])
+    ).stdout.trim();
+    const wrapper = path.join(wrapperDir, "git");
+    await writeFile(
+      wrapper,
+      [
+        "#!/bin/sh",
+        'case " $* " in',
+        '  *" worktree list --porcelain -z "*)',
+        `    count=$(cat '${counter}' 2>/dev/null || printf 0)`,
+        `    next=$((count + 1)); printf '%s' \"$next\" >'${counter}'`,
+        `    '${realGit}' "$@" || exit $?`,
+        '    [ "$next" -lt 2 ] || printf "worktree /concurrent\\0"',
+        "    exit 0",
+        "    ;;",
+        "esac",
+        `exec '${realGit}' "$@"`,
+        "",
+      ].join("\n"),
+    );
+    await chmod(wrapper, 0o755);
+    const oldPath = process.env.PATH;
+    process.env.PATH = `${wrapperDir}:${oldPath ?? ""}`;
+    try {
+      const result = await runDiscovery(root);
+      expect(result.disposition).toBe("invalid");
+      expect(result.invalid).toContainEqual({
+        path: ".git/worktrees",
+        reason: "worktree-registrations-changed",
+      });
+    } finally {
+      process.env.PATH = oldPath;
+    }
+  });
+
+  it("reduces deterministically under an explicit comparison policy and selects active cleanup first", () => {
+    const inventory = {
+      repository: "owner/repo",
+      pr_number: 432,
+      primary_repository_root: "/repo",
+      canonical_target: {
+        worktree_path: "/repo/.worktrees/pr-432-review",
+        status: "directory" as const,
+        registered: false,
+        parent_status: "directory" as const,
+      },
+      registrations: [],
+      active: [
+        {
+          lease_file: ".ephemeral/pr-432-a-lease.json",
+          worktree_path: "/repo/alternate",
+          state: "created" as const,
+          classification: "dirty" as const,
+          reason: "worktree-dirty",
+        },
+      ],
+      archived: [],
+      invalid: [],
+      comparison_platform: "linux" as const,
+    };
+    const first = reducePrReviewDiscovery(inventory);
+    const second = reducePrReviewDiscovery(structuredClone(inventory));
+    expect(second).toEqual(first);
+    expect(first.cleanup).toEqual({
+      lease_file: ".ephemeral/pr-432-a-lease.json",
+      worktree_path: "/repo/alternate",
+      reason: "worktree-dirty",
+    });
+  });
+
   it("reports only canonical archive names and invalidates malformed suffixes", async () => {
     const root = await createDiscoveryRepository();
     const valid =
@@ -4631,6 +4802,69 @@ describe("pr-review discovery wrapper resolution", () => {
       ),
     ).rejects.toBeDefined();
     await expect(lstat(marker)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+});
+
+describe("pr-review discovery operator contract", () => {
+  it("binds repository authority before discovery and rejects failed or malformed provider output", async () => {
+    const skill = await readFile("skills/pr-review/SKILL.md", "utf8");
+    const assignment =
+      "REPOSITORY=\"$({{tool:github-cli}} repo view --json nameWithOwner --jq '.nameWithOwner')\" || exit 1";
+    const validationMatch = skill.match(
+      /```bash\n(case "\$REPOSITORY"[\s\S]*?esac)\n```/u,
+    );
+    expect(skill).toContain(`\`${assignment}\``);
+    expect(validationMatch).not.toBeNull();
+    const validationBlock = validationMatch?.[1] ?? "";
+    expect(validationBlock).not.toContain("{{tool:github-cli}}");
+    expect(skill.indexOf(assignment)).toBeLessThan(
+      skill.indexOf("DISCOVERY_JSON=$("),
+    );
+    expect(skill.indexOf(validationBlock)).toBeLessThan(
+      skill.indexOf("DISCOVERY_JSON=$("),
+    );
+
+    const root = await mkdtemp(path.join(tmpdir(), "provider-binding-"));
+    discoveryTempRoots.push(root);
+    const provider = path.join(root, "provider");
+    const execute = async (providerBody: string) => {
+      await writeFile(provider, `#!/bin/sh\n${providerBody}\n`);
+      await chmod(provider, 0o755);
+      return execFileAsync(
+        "bash",
+        [
+          "-c",
+          `${assignment.replace("{{tool:github-cli}}", `'${provider}'`)}\n${validationBlock}\nprintf '%s' "$REPOSITORY"`,
+        ],
+        {
+          env: { ...process.env, REPOSITORY: "ambient/poison" },
+        },
+      );
+    };
+
+    await expect(execute("printf '%s\\n' owner/repo")).resolves.toMatchObject({
+      stdout: "owner/repo",
+    });
+    await expect(execute("exit 9")).rejects.toMatchObject({ code: 1 });
+    await expect(execute("printf '%s\\n' malformed")).rejects.toMatchObject({
+      code: 1,
+    });
+    await expect(
+      execute("printf '%s\\n' owner/repo/extra"),
+    ).rejects.toMatchObject({ code: 1 });
+  });
+
+  it("documents created-only resume and excludes semantic artifact consumption", async () => {
+    const skill = await readFile("skills/pr-review/SKILL.md", "utf8");
+    expect(skill).toContain(
+      "Planner resume is limited to one clean, registered, artifact-free `created`",
+    );
+    expect(skill).not.toContain(
+      "Resume `created`, `reviewed`, `gated`, and `failed` leases",
+    );
+    expect(skill).toMatch(
+      /discovery\s+does not open or semantically validate their artifacts/u,
+    );
   });
 });
 
