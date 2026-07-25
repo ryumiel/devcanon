@@ -4683,7 +4683,7 @@ describe("read-only PR review discovery planner", () => {
         '  *" status "*)',
         `    count=$(cat '${counter}' 2>/dev/null || printf 0)`,
         `    next=$((count + 1)); printf '%s' "$next" >'${counter}'`,
-        '    [ "$next" -lt 2 ] || exit 17',
+        '    [ "$next" -lt 3 ] || exit 17',
         "    ;;",
         "esac",
         `exec '${realGit}' "$@"`,
@@ -4700,6 +4700,92 @@ describe("read-only PR review discovery planner", () => {
         classification: "invalid",
         reason: "status-inspection-failed",
       });
+      expect(result.resume).toBeNull();
+    } finally {
+      process.env.PATH = oldPath;
+    }
+  });
+
+  it("rejects a stale registration occupied by a clean foreign repository", async () => {
+    const root = await createDiscoveryRepository();
+    const worktree = await createDiscoveryWorktree(root, "foreign-repository");
+    await writeDiscoveryLease(root, discoveryLease(worktree));
+    await rm(worktree, { recursive: true, force: true });
+    await execFileAsync("git", ["init", "-b", "main", worktree]);
+    await execFileAsync("git", [
+      "-C",
+      worktree,
+      "config",
+      "user.name",
+      "Foreign",
+    ]);
+    await execFileAsync("git", [
+      "-C",
+      worktree,
+      "config",
+      "user.email",
+      "foreign@example.com",
+    ]);
+    await writeFile(path.join(worktree, "README.md"), "foreign\n");
+    await execFileAsync("git", ["-C", worktree, "add", "README.md"]);
+    await execFileAsync("git", ["-C", worktree, "commit", "-m", "foreign"]);
+    await mkdir(path.join(worktree, ".ephemeral"));
+
+    const result = await runDiscovery(root);
+    expect(result.disposition).toBe("invalid");
+    expect(result.active[0]).toMatchObject({
+      classification: "invalid",
+      reason: "worktree-repository-mismatch",
+    });
+    expect(result.resume).toBeNull();
+  });
+
+  it("fails closed when repository identity changes during the final registration snapshot", async () => {
+    const root = await createDiscoveryRepository();
+    const worktree = await createDiscoveryWorktree(
+      root,
+      "late-repository-identity",
+    );
+    await writeDiscoveryLease(root, discoveryLease(worktree));
+    const foreign = await createDiscoveryRepository();
+    const wrapperDir = await mkdtemp(path.join(tmpdir(), "git-wrapper-"));
+    discoveryTempRoots.push(wrapperDir);
+    const counter = path.join(wrapperDir, "count");
+    const realGit = (
+      await execFileAsync("sh", ["-c", "command -v git"])
+    ).stdout.trim();
+    const wrapper = path.join(wrapperDir, "git");
+    await writeFile(
+      wrapper,
+      [
+        "#!/bin/sh",
+        'case " $* " in',
+        '  *" worktree list --porcelain -z "*)',
+        `    count=$(cat '${counter}' 2>/dev/null || printf 0)`,
+        `    next=$((count + 1)); printf '%s' "$next" >'${counter}'`,
+        `    '${realGit}' "$@" || exit $?`,
+        `    [ "$next" -lt 2 ] || printf 'gitdir: %s/.git\\n' '${foreign}' >'${path.join(
+          worktree,
+          ".git",
+        )}'`,
+        "    exit 0",
+        "    ;;",
+        "esac",
+        `exec '${realGit}' "$@"`,
+        "",
+      ].join("\n"),
+    );
+    await chmod(wrapper, 0o755);
+    const oldPath = process.env.PATH;
+    process.env.PATH = `${wrapperDir}:${oldPath ?? ""}`;
+    try {
+      const result = await runDiscovery(root);
+      expect(result.disposition).toBe("invalid");
+      expect(result.active[0]).toMatchObject({
+        classification: "invalid",
+        reason: "worktree-repository-mismatch",
+      });
+      expect(result.resume).toBeNull();
     } finally {
       process.env.PATH = oldPath;
     }

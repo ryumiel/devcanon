@@ -225,6 +225,11 @@ interface StableDiscoveryPath {
   identity: Awaited<ReturnType<typeof lstat>> | null;
 }
 
+interface DiscoveryRepositoryIdentity {
+  top_level: string;
+  common_directory: string;
+}
+
 interface DiscoveryLeaseInspection {
   entry: DiscoveryActiveLease;
   verifyFinal: () => Promise<DiscoveryActiveLease>;
@@ -379,7 +384,10 @@ async function discoverReviewSession(): Promise<PrReviewDiscoveryResult> {
   );
   const primaryRoot = await realpath(requestedRoot);
   const gitEnv = discoveryGitEnvironment();
-  await assertDiscoveryPrimaryRoot(primaryRoot, gitEnv);
+  const primaryRepository = await assertDiscoveryPrimaryRoot(
+    primaryRoot,
+    gitEnv,
+  );
 
   const registrations = await readDiscoveryWorktreeRegistrations(
     primaryRoot,
@@ -481,6 +489,7 @@ async function discoverReviewSession(): Promise<PrReviewDiscoveryResult> {
         prNumber,
         registrationKeys,
         gitEnv,
+        primaryRepository,
       });
       active.push(inspection.entry);
       activeInspections.push(inspection);
@@ -612,6 +621,7 @@ async function inspectDiscoveryLease({
   prNumber,
   registrationKeys,
   gitEnv,
+  primaryRepository,
 }: {
   primaryRoot: string;
   relativePath: string;
@@ -619,6 +629,7 @@ async function inspectDiscoveryLease({
   prNumber: number;
   registrationKeys: ReadonlySet<string>;
   gitEnv: NodeJS.ProcessEnv;
+  primaryRepository: DiscoveryRepositoryIdentity;
 }): Promise<DiscoveryLeaseInspection> {
   const invalid = (
     reason: string,
@@ -659,6 +670,7 @@ async function inspectDiscoveryLease({
     };
   }
   let verifyCandidateFinal = async (): Promise<void> => {};
+  let verifyCandidateRepositoryFinal = async (): Promise<void> => {};
   const finalize = async (
     entry: DiscoveryActiveLease,
   ): Promise<DiscoveryLeaseInspection> => {
@@ -674,6 +686,11 @@ async function inspectDiscoveryLease({
         return invalid("worktree-replaced", lease);
       }
       if (entry.classification === "resumable") {
+        try {
+          await verifyCandidateRepositoryFinal();
+        } catch {
+          return invalid("worktree-repository-mismatch", lease);
+        }
         let finalDirty: boolean;
         try {
           finalDirty = await discoveryWorktreeDirty(
@@ -692,6 +709,11 @@ async function inspectDiscoveryLease({
           await verifyCandidateFinal();
         } catch {
           return invalid("worktree-replaced", lease);
+        }
+        try {
+          await verifyCandidateRepositoryFinal();
+        } catch {
+          return invalid("worktree-repository-mismatch", lease);
         }
         if (finalDirty) {
           return invalid("worktree-dirty-after-snapshot", lease);
@@ -857,6 +879,47 @@ async function inspectDiscoveryLease({
       discoveryEntry(lease, "unsupported", "unsupported-lease-state"),
     );
   }
+  let candidateRepository: DiscoveryRepositoryIdentity;
+  try {
+    candidateRepository = await readDiscoveryRepositoryIdentity(
+      filesystemPath,
+      gitEnv,
+    );
+    assertDiscoveryCandidateRepository(
+      candidateRepository,
+      physicalWorktree,
+      primaryRepository,
+    );
+  } catch {
+    return finalize(invalid("worktree-repository-mismatch", lease));
+  }
+  verifyCandidateRepositoryFinal = async (): Promise<void> => {
+    const current = await readDiscoveryRepositoryIdentity(
+      filesystemPath,
+      gitEnv,
+    );
+    assertDiscoveryCandidateRepository(
+      current,
+      physicalWorktree,
+      primaryRepository,
+    );
+    if (
+      discoveryComparablePath(current.top_level, process.platform) !==
+        discoveryComparablePath(
+          candidateRepository.top_level,
+          process.platform,
+        ) ||
+      discoveryComparablePath(current.common_directory, process.platform) !==
+        discoveryComparablePath(
+          candidateRepository.common_directory,
+          process.platform,
+        )
+    ) {
+      throw new PrReviewLeaseError(
+        "candidate repository identity changed during inspection",
+      );
+    }
+  };
   return finalize(discoveryEntry(lease, "resumable", "resumable"));
 }
 
@@ -1278,7 +1341,7 @@ async function observeStableDiscoveryPath(
 async function assertDiscoveryPrimaryRoot(
   primaryRoot: string,
   env: NodeJS.ProcessEnv,
-): Promise<void> {
+): Promise<DiscoveryRepositoryIdentity> {
   const before = await lstat(primaryRoot);
   if (before.isSymbolicLink() || !before.isDirectory()) {
     throw new PrReviewLeaseError(
@@ -1286,9 +1349,7 @@ async function assertDiscoveryPrimaryRoot(
     );
   }
   try {
-    const topLevel = (
-      await runDiscoveryGit(primaryRoot, ["rev-parse", "--show-toplevel"], env)
-    ).trim();
+    const repository = await readDiscoveryRepositoryIdentity(primaryRoot, env);
     const gitDirectory = (
       await runDiscoveryGit(
         primaryRoot,
@@ -1296,33 +1357,72 @@ async function assertDiscoveryPrimaryRoot(
         env,
       )
     ).trim();
-    const commonDirectoryRaw = (
-      await runDiscoveryGit(primaryRoot, ["rev-parse", "--git-common-dir"], env)
-    ).trim();
-    const commonDirectory = path.isAbsolute(commonDirectoryRaw)
-      ? commonDirectoryRaw
-      : path.resolve(primaryRoot, commonDirectoryRaw);
+    if (gitDirectory.length === 0) {
+      throw new PrReviewLeaseError(
+        "PRIMARY_REPOSITORY_ROOT Git directory is empty",
+      );
+    }
     if (
-      discoveryComparablePath(await realpath(topLevel), process.platform) !==
+      discoveryComparablePath(repository.top_level, process.platform) !==
         discoveryComparablePath(primaryRoot, process.platform) ||
       discoveryComparablePath(
-        await realpath(gitDirectory),
+        await realpath(discoveryFilesystemPath(gitDirectory)),
         process.platform,
       ) !==
-        discoveryComparablePath(
-          await realpath(commonDirectory),
-          process.platform,
-        )
+        discoveryComparablePath(repository.common_directory, process.platform)
     ) {
       throw new PrReviewLeaseError(
         "PRIMARY_REPOSITORY_ROOT must be the primary Git worktree",
       );
     }
     await assertSameDiscoveryDirectoryIdentity(primaryRoot, before);
+    return repository;
   } catch (err) {
     if (err instanceof PrReviewLeaseError) throw err;
     throw new PrReviewLeaseError(
       "PRIMARY_REPOSITORY_ROOT must be the primary Git worktree",
+    );
+  }
+}
+
+async function readDiscoveryRepositoryIdentity(
+  root: string,
+  env: NodeJS.ProcessEnv,
+): Promise<DiscoveryRepositoryIdentity> {
+  const topLevelRaw = (
+    await runDiscoveryGit(root, ["rev-parse", "--show-toplevel"], env)
+  ).trim();
+  const commonDirectoryRaw = (
+    await runDiscoveryGit(root, ["rev-parse", "--git-common-dir"], env)
+  ).trim();
+  if (topLevelRaw.length === 0 || commonDirectoryRaw.length === 0) {
+    throw new PrReviewLeaseError("discovery repository identity is empty");
+  }
+  const topLevelPath = discoveryFilesystemPath(topLevelRaw);
+  const commonDirectoryPath = discoveryFilesystemPath(commonDirectoryRaw);
+  return {
+    top_level: await realpath(topLevelPath),
+    common_directory: await realpath(
+      path.isAbsolute(commonDirectoryPath)
+        ? commonDirectoryPath
+        : path.resolve(root, commonDirectoryPath),
+    ),
+  };
+}
+
+function assertDiscoveryCandidateRepository(
+  candidate: DiscoveryRepositoryIdentity,
+  physicalWorktree: string,
+  primary: DiscoveryRepositoryIdentity,
+): void {
+  if (
+    discoveryComparablePath(candidate.top_level, process.platform) !==
+      discoveryComparablePath(physicalWorktree, process.platform) ||
+    discoveryComparablePath(candidate.common_directory, process.platform) !==
+      discoveryComparablePath(primary.common_directory, process.platform)
+  ) {
+    throw new PrReviewLeaseError(
+      "candidate worktree does not belong to the primary repository",
     );
   }
 }
