@@ -73,8 +73,6 @@ Fetch `<head-ref>` for the worktree and `<base-ref>` for GitHub PR context.
 They run as separate commands so a fork-PR failure on `<head-ref>` doesn't lose
 the `<base-ref>` fetch.
 
-**Fork PRs:** if `git fetch origin <head-ref>` fails or `origin/<head-ref>` doesn't exist, use `{{tool:github-cli}} pr checkout <N> --detach` in a fresh worktree instead (this populates `HEAD` without needing `origin/<head-ref>`), or add the fork as a remote and re-fetch. The `<base-ref>` fetch is still useful for local context, but Phase 3 review scope must use the provider-proven PR diff base SHA from explicit provider scope evidence, not a moving `origin/<base-ref>` ref.
-
 Before any `git worktree add`, bind the lease helper and run its authoritative,
 read-only discovery from the primary repository root. Only the fetch operations
 above may precede discovery:
@@ -96,6 +94,15 @@ worktree command below; `resume` selects the reported lease; `cleanup-required`,
 `ambiguous`, and `invalid` stop creation. Discovery is read-only and never
 removes a worktree; route every removal through the existing
 `inspect-worktree` and `cleanup-worktree` lifecycle commands.
+
+For a fork PR, a failed `git fetch origin <head-ref>` or absent
+`origin/<head-ref>` may use `{{tool:github-cli}} pr checkout <N> --detach` in a
+fresh worktree, or add the fork as a remote and re-fetch, only after discovery
+returns `create`. `resume` reuses the reported lease and never creates a fresh
+worktree; `cleanup-required`, `ambiguous`, and `invalid` stop. The `<base-ref>`
+fetch remains useful for local context, but Phase 3 review scope must use the
+provider-proven PR diff base SHA from explicit provider scope evidence, not a
+moving `origin/<base-ref>` ref.
 
 ```sh
 git worktree add .worktrees/pr-<N>-review origin/<head-ref>

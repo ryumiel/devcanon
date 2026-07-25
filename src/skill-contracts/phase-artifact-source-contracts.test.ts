@@ -2144,8 +2144,13 @@ None
       "git worktree add .worktrees/pr-<N>-review",
       phase2Start,
     );
+    const forkCheckoutStart = prReview.indexOf(
+      "pr checkout <N> --detach",
+      phase2Start,
+    );
     expect(discoveryStart).toBeGreaterThan(phase2Start);
     expect(worktreeAddStart).toBeGreaterThan(discoveryStart);
+    expect(forkCheckoutStart).toBeGreaterThan(discoveryStart);
 
     for (const noticeLine of PR_REVIEW_MANIFEST_NOTICE_LINES) {
       expect(prReview).toContain(noticeLine);

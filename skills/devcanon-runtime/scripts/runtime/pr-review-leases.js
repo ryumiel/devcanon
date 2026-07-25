@@ -1507,6 +1507,10 @@ function validateStateInvariants(lease, options = {}) {
             lease.artifacts.validated_payload_file === null)) {
         throw new PrReviewLeaseError("lease schema mismatch");
     }
+    if (lease.artifacts.validated_payload_file !== null &&
+        lease.artifacts.approved_review_file === null) {
+        throw new PrReviewLeaseError("lease schema mismatch");
+    }
     if (lease.state === "failed" && lease.failure.phase === null) {
         throw new PrReviewLeaseError("lease schema mismatch");
     }
@@ -1990,10 +1994,6 @@ async function findUnmanagedEphemeralArtifacts(lease, worktreePath, options = {}
 }
 async function collectOwnedEphemeralArtifacts(lease, worktreePath, options = {}) {
     const owned = new Set();
-    if (lease.artifacts.validated_payload_file !== null &&
-        lease.artifacts.approved_review_file === null) {
-        throw new PrReviewLeaseError("validated payload requires an approved review artifact");
-    }
     if (lease.artifacts.result_file !== null) {
         const { result, handoff } = await validateDiscoveryResultArtifacts(lease, worktreePath);
         const resultHandoffFile = stringField(isObject(result.artifacts) ? result.artifacts : {}, "handoff_file");

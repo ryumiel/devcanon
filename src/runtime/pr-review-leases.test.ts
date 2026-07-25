@@ -3938,11 +3938,26 @@ describe("pr-review lease discovery", () => {
     });
   });
 
-  it("fails closed when a discovery lease has a validated payload without approved-review evidence", async () => {
+  it("fails closed before worktree inspection when a failed lease has a validated payload without approved-review evidence", async () => {
     await withDiscoveryOnlyApprovedReviewFixture(async (fixture) => {
       const lease = JSON.parse(fixture.originalLease) as PrReviewLease;
+      lease.state = "failed";
       lease.artifacts.approved_review_file = null;
-      await rm(path.dirname(fixture.validatedPayloadPath), {
+      lease.terminal = {
+        finished_at: "2026-06-11T00:03:00Z",
+        reason: null,
+      };
+      lease.failure = {
+        phase: "github-post",
+        reason: "GitHub API rejected review",
+        recoverability: "recoverable",
+      };
+      lease.github = {
+        github_post_attempted: true,
+        github_post_result: "failed",
+        github_posted_at: null,
+      };
+      await rm(fixture.worktreePath, {
         recursive: true,
         force: true,
       });
