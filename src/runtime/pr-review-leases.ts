@@ -842,25 +842,18 @@ async function assertCanonicalWorktreeParentChain(
 ): Promise<void> {
   const physicalPrimaryRoot = physicalPathForIo(primaryRoot);
   const physicalCanonicalWorktree = physicalPathForIo(canonicalWorktreePath);
-  const relativeTarget = path.relative(
-    physicalPrimaryRoot,
-    physicalCanonicalWorktree,
-  );
-  if (
-    relativeTarget.length === 0 ||
-    relativeTarget === ".." ||
-    relativeTarget.startsWith(`..${path.sep}`) ||
-    path.isAbsolute(relativeTarget)
-  ) {
+  if (!isCanonicalLeasePathChildOf(primaryRoot, canonicalWorktreePath)) {
     throw new PrReviewLeaseError(
       "canonical worktree path escapes primary root",
     );
   }
 
+  const canonicalPhysicalPrimaryRoot =
+    canonicalLeaseIdentityPath(physicalPrimaryRoot);
   const parents: string[] = [];
   for (
     let candidate = path.dirname(physicalCanonicalWorktree);
-    candidate !== physicalPrimaryRoot;
+    canonicalLeaseIdentityPath(candidate) !== canonicalPhysicalPrimaryRoot;
     candidate = path.dirname(candidate)
   ) {
     parents.push(candidate);
@@ -2958,6 +2951,15 @@ async function collectOwnedEphemeralArtifacts(
 ): Promise<Set<string>> {
   const owned = new Set<string>();
 
+  if (
+    lease.artifacts.validated_payload_file !== null &&
+    lease.artifacts.approved_review_file === null
+  ) {
+    throw new PrReviewLeaseError(
+      "validated payload requires an approved review artifact",
+    );
+  }
+
   if (lease.artifacts.result_file !== null) {
     const { result, handoff } = await validateDiscoveryResultArtifacts(
       lease,
@@ -3973,6 +3975,34 @@ export function canonicalLeaseIdentityPath(value: string): string {
 
 export function normalizeComparablePath(value: string): string {
   return canonicalLeaseIdentityPath(value);
+}
+
+/**
+ * Confirms that a canonical lease target is a strict descendant of its primary
+ * root. Windows drive identities compare using their persisted slash-normalized
+ * and case-folded form; POSIX paths retain their native byte identity.
+ */
+export function isCanonicalLeasePathChildOf(
+  primaryRoot: string,
+  candidate: string,
+): boolean {
+  const canonicalPrimaryRoot = canonicalLeaseIdentityPath(primaryRoot);
+  const canonicalCandidate = canonicalLeaseIdentityPath(candidate);
+  const isWindowsDrivePath =
+    /^[a-z]:\//u.test(canonicalPrimaryRoot) &&
+    /^[a-z]:\//u.test(canonicalCandidate);
+  const pathApi = isWindowsDrivePath ? path.win32 : path;
+  const relativeTarget = pathApi.relative(
+    canonicalPrimaryRoot,
+    canonicalCandidate,
+  );
+  return (
+    relativeTarget.length > 0 &&
+    relativeTarget !== ".." &&
+    !relativeTarget.startsWith("../") &&
+    !relativeTarget.startsWith("..\\") &&
+    !pathApi.isAbsolute(relativeTarget)
+  );
 }
 
 function isAbsoluteLeaseIdentityPath(value: string): boolean {

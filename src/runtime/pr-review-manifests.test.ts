@@ -44,6 +44,20 @@ describe("pr-review operational path comparison", () => {
     expect(normalizePathTextForComparison("/x/a\\b", "linux")).not.toBe(
       normalizePathTextForComparison("/x/a/b", "linux"),
     );
+    expect(
+      normalizePathTextForComparison("//server/share/review-worktree", "win32"),
+    ).toBe(
+      normalizePathTextForComparison(
+        "\\\\server\\share\\review-worktree",
+        "win32",
+      ),
+    );
+    expect(normalizePathTextForComparison("//server/share/a\\b", "linux")).toBe(
+      "//server/share/a\\b",
+    );
+    expect(
+      normalizePathTextForComparison("//server/share/a\\b", "linux"),
+    ).not.toBe("//server/share/a/b");
   });
 });
 

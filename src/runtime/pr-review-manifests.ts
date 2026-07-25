@@ -2054,6 +2054,9 @@ export function normalizePathTextForComparison(
   value: string,
   platform = process.platform,
 ): string {
+  if (platform === "win32" && /^(?:\/\/|\\\\)/u.test(value)) {
+    return `//${value.replace(/^(?:\/\/|\\\\)+/u, "").replace(/[\\/]+/gu, "/")}`.toLowerCase();
+  }
   const msysDrive = /^\/([A-Za-z])\/(.*)$/u.exec(value);
   if (platform === "win32" && msysDrive !== null) {
     return `${msysDrive[1]}:/${msysDrive[2]}`.toLowerCase();

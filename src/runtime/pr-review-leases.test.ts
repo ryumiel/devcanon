@@ -22,6 +22,7 @@ import {
   type PrReviewLease,
   canonicalLeaseIdentityPath,
   digestLeaseIdentityPath,
+  isCanonicalLeasePathChildOf,
   normalizeComparablePath,
   reducePrReviewLease,
   runPrReviewLeasesCommand,
@@ -53,6 +54,27 @@ describe("pr-review comparable path identity", () => {
     expect(digestLeaseIdentityPath("C:\\Work\\Review")).toBe(
       digestLeaseIdentityPath("c:/work/review"),
     );
+  });
+
+  it("accepts mixed-case Windows descendants without accepting escapes", () => {
+    expect(
+      isCanonicalLeasePathChildOf(
+        "C:\\Users\\Test User\\Repo",
+        "c:/users/test user/repo/.worktrees/pr-432-review",
+      ),
+    ).toBe(true);
+    expect(
+      isCanonicalLeasePathChildOf(
+        "C:/Users/Test User/Repo",
+        "c:/users/test user/repo/../outside",
+      ),
+    ).toBe(false);
+    expect(
+      isCanonicalLeasePathChildOf(
+        "C:/Users/Test User/Repo",
+        "d:/users/test user/repo/.worktrees/pr-432-review",
+      ),
+    ).toBe(false);
   });
 });
 
@@ -3913,6 +3935,20 @@ describe("pr-review lease discovery", () => {
         disposition: "resume",
         active_leases: [{ state: "failed", status: "resumable" }],
       });
+    });
+  });
+
+  it("fails closed when a discovery lease has a validated payload without approved-review evidence", async () => {
+    await withDiscoveryOnlyApprovedReviewFixture(async (fixture) => {
+      const lease = JSON.parse(fixture.originalLease) as PrReviewLease;
+      lease.artifacts.approved_review_file = null;
+      await rm(path.dirname(fixture.validatedPayloadPath), {
+        recursive: true,
+        force: true,
+      });
+      await writeFile(fixture.leasePath, `${JSON.stringify(lease)}\n`);
+
+      await fixture.expectInvalidDiscovery();
     });
   });
 

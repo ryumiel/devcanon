@@ -67,7 +67,6 @@ Detect mode:
 ```sh
 git fetch origin <base-ref>
 git fetch origin <head-ref>
-git worktree add .worktrees/pr-<N>-review origin/<head-ref>
 ```
 
 Fetch `<head-ref>` for the worktree and `<base-ref>` for GitHub PR context.
@@ -76,6 +75,32 @@ the `<base-ref>` fetch.
 
 **Fork PRs:** if `git fetch origin <head-ref>` fails or `origin/<head-ref>` doesn't exist, use `{{tool:github-cli}} pr checkout <N> --detach` in a fresh worktree instead (this populates `HEAD` without needing `origin/<head-ref>`), or add the fork as a remote and re-fetch. The `<base-ref>` fetch is still useful for local context, but Phase 3 review scope must use the provider-proven PR diff base SHA from explicit provider scope evidence, not a moving `origin/<base-ref>` ref.
 
+Before any `git worktree add`, bind the lease helper and run its authoritative,
+read-only discovery from the primary repository root. Only the fetch operations
+above may precede discovery:
+
+```bash
+PR_REVIEW_DIR="<installed-pr-review-skill-bundle>"
+PR_REVIEW_LEASE_HELPER="$PR_REVIEW_DIR/scripts/review-leases.sh"
+PRIMARY_REPOSITORY_ROOT="$(pwd -P)"
+LEASE_DISCOVERY=$(
+  REPOSITORY="<owner/repo>" \
+    PR_NUMBER="<N>" \
+    PRIMARY_REPOSITORY_ROOT="$PRIMARY_REPOSITORY_ROOT" \
+    "$PR_REVIEW_LEASE_HELPER" discover
+) || exit 1
+```
+
+Its single JSON disposition is authoritative: `create` may continue to the
+worktree command below; `resume` selects the reported lease; `cleanup-required`,
+`ambiguous`, and `invalid` stop creation. Discovery is read-only and never
+removes a worktree; route every removal through the existing
+`inspect-worktree` and `cleanup-worktree` lifecycle commands.
+
+```sh
+git worktree add .worktrees/pr-<N>-review origin/<head-ref>
+```
+
 Use the repo root as the base for `.worktrees/` to avoid cwd issues across bash
 calls.
 
@@ -83,12 +108,6 @@ calls.
 `.worktrees/pr-<N>-review`, for example
 `WORKING_DIRECTORY="$(cd ".worktrees/pr-<N>-review" && pwd -P)"`. Manifest
 validation rejects subdirectories, `.` aliases, and symlinked aliases.
-
-Bind the lease helper after `PR_REVIEW_DIR` is known:
-
-```bash
-PR_REVIEW_LEASE_HELPER="$PR_REVIEW_DIR/scripts/review-leases.sh"
-```
 
 ## Lease Lifecycle
 
@@ -168,14 +187,6 @@ physical worktree path and run `review-leases.sh validate` or
 reports a cleanup outcome that permits removal. A prior Phase 5 preview is not
 approval; resume must present or re-render the latest validated artifacts and
 wait for fresh user action.
-
-Before creating a Phase 2 worktree, run `review-leases.sh discover` from the
-primary repository root with only `REPOSITORY`, `PR_NUMBER`, and
-`PRIMARY_REPOSITORY_ROOT` set. Its single JSON disposition is authoritative:
-`create` may continue to `git worktree add`; `resume` selects the reported
-lease; `cleanup-required`, `ambiguous`, and `invalid` stop creation. Discovery
-is read-only and never removes a worktree; route every removal through the
-existing `inspect-worktree` and `cleanup-worktree` lifecycle commands.
 
 ## Phase 3: Determine diff ranges
 

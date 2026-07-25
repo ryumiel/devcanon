@@ -2135,6 +2135,18 @@ None
     );
     expect(prReview).toContain("- `record-audit-failure`");
 
+    const phase2Start = prReview.indexOf("## Phase 2: Worktree setup");
+    const discoveryStart = prReview.indexOf(
+      '"$PR_REVIEW_LEASE_HELPER" discover',
+      phase2Start,
+    );
+    const worktreeAddStart = prReview.indexOf(
+      "git worktree add .worktrees/pr-<N>-review",
+      phase2Start,
+    );
+    expect(discoveryStart).toBeGreaterThan(phase2Start);
+    expect(worktreeAddStart).toBeGreaterThan(discoveryStart);
+
     for (const noticeLine of PR_REVIEW_MANIFEST_NOTICE_LINES) {
       expect(prReview).toContain(noticeLine);
     }
