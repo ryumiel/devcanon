@@ -350,6 +350,30 @@ async function inspectDiscoveryLease({ primaryRoot, relativePath, repository, pr
             catch {
                 return invalid("worktree-replaced", lease);
             }
+            if (entry.classification === "resumable") {
+                let finalDirty;
+                try {
+                    finalDirty = await discoveryWorktreeDirty(discoveryFilesystemPath(lease.worktree_path), gitEnv);
+                }
+                catch {
+                    return invalid("status-inspection-failed", lease);
+                }
+                try {
+                    await assertSameDiscoveryFile(leasePath, leaseSnapshot);
+                }
+                catch {
+                    return invalid("lease-replaced", lease);
+                }
+                try {
+                    await verifyCandidateFinal();
+                }
+                catch {
+                    return invalid("worktree-replaced", lease);
+                }
+                if (finalDirty) {
+                    return invalid("worktree-dirty-after-snapshot", lease);
+                }
+            }
             return entry;
         };
         const verified = await verifyFinal();
