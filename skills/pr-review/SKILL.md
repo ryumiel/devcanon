@@ -64,6 +64,41 @@ Detect mode:
 
 ## Phase 2: Worktree setup
 
+Resolve the installed skill directory before using its helper. From the proven
+primary repository root, run the read-only planner exactly once before any
+worktree creation or checkout:
+
+```bash
+PR_REVIEW_DIR="<installed-pr-review-skill-dir>"
+PR_REVIEW_LEASE_HELPER="$PR_REVIEW_DIR/scripts/review-leases.sh"
+PRIMARY_REPOSITORY_ROOT="$(pwd -P)"
+DISCOVERY_JSON=$(
+  REPOSITORY="$REPOSITORY" \
+    PR_NUMBER="$PR_NUMBER" \
+    PRIMARY_REPOSITORY_ROOT="$PRIMARY_REPOSITORY_ROOT" \
+    "$PR_REVIEW_LEASE_HELPER" discover
+) || exit 1
+DISCOVERY_DISPOSITION=$(printf '%s' "$DISCOVERY_JSON" | jq -er '.disposition') ||
+  exit 1
+```
+
+Route the planner result without treating it as lifecycle or cleanup authority:
+
+- `create`: continue with the existing creation flow below. Creation, rollback,
+  and the initial lease write remain owned by that flow.
+- `resume`: bind `LEASE_FILE` and `WORKING_DIRECTORY` from the reported
+  `resume` tuple, then use the existing lease validation and lifecycle
+  authority before continuing. The planner does not validate handoff, result,
+  or approved-review evidence.
+- `cleanup-required`: when `cleanup.lease_file` is non-null, route the tuple to
+  the existing lease-gated cleanup procedure. When it is null, stop for manual
+  handling of the unleased collision; never invoke lease-gated cleanup without
+  a lease.
+- `ambiguous` or `invalid`: stop without creation, checkout, cleanup, or lease
+  mutation.
+
+Only the `create` disposition authorizes the following worktree commands:
+
 ```sh
 git fetch origin <base-ref>
 git fetch origin <head-ref>
@@ -77,18 +112,12 @@ the `<base-ref>` fetch.
 **Fork PRs:** if `git fetch origin <head-ref>` fails or `origin/<head-ref>` doesn't exist, use `{{tool:github-cli}} pr checkout <N> --detach` in a fresh worktree instead (this populates `HEAD` without needing `origin/<head-ref>`), or add the fork as a remote and re-fetch. The `<base-ref>` fetch is still useful for local context, but Phase 3 review scope must use the provider-proven PR diff base SHA from explicit provider scope evidence, not a moving `origin/<base-ref>` ref.
 
 Use the repo root as the base for `.worktrees/` to avoid cwd issues across bash
-calls.
+calls. Do not run these commands for any disposition other than `create`.
 
 `working_directory` for the play-review handoff = the physical absolute path to
 `.worktrees/pr-<N>-review`, for example
 `WORKING_DIRECTORY="$(cd ".worktrees/pr-<N>-review" && pwd -P)"`. Manifest
 validation rejects subdirectories, `.` aliases, and symlinked aliases.
-
-Bind the lease helper after `PR_REVIEW_DIR` is known:
-
-```bash
-PR_REVIEW_LEASE_HELPER="$PR_REVIEW_DIR/scripts/review-leases.sh"
-```
 
 ## Lease Lifecycle
 
@@ -117,6 +146,7 @@ and never constructs GitHub review payloads.
 Helper command surface:
 
 - `derive-path`
+- `discover`
 - `write`
 - `validate`
 - `inspect-worktree`

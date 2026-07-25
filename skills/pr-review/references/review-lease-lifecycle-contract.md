@@ -121,6 +121,45 @@ cleanup evidence only when the helper validates the complete approved-review
 artifact, its canonical paths and digests, and the pointer is derived from the
 PR number and review head.
 
+## Read-Only Session Discovery
+
+`review-leases.sh discover` is a selection planner, not lifecycle authority. It
+takes exactly `REPOSITORY`, `PR_NUMBER`, and `PRIMARY_REPOSITORY_ROOT`, runs
+from the proven primary Git worktree, and performs no write, checkout,
+worktree creation, rollback, transition, cleanup, hashing, or artifact-content
+validation.
+
+The planner inventories direct-child active lease names for the selected PR,
+separately named canonical terminal archives, the canonical
+`.worktrees/pr-<N>-review` target, and Git worktree registrations. It validates
+the closed primitive-complete `pr-review/lease/v1` shape and lease identity,
+but never opens declared handoff, result, approved-review, or validated-payload
+content. Any such declared pointer is a cleanup-required stop.
+
+Only one clean, registered, artifact-free `created` lease may be reported as
+`resume`; its schema-bound worktree may be canonical or alternate. Missing,
+unregistered, dirty, unmanaged, terminal, unsupported, or artifact-bearing
+leases are blockers. Symlinks, non-files/directories, malformed names or
+leases, and unverifiable replacement are invalid. Archived names use the
+closed digest, compact UTC timestamp, terminal-state filename grammar; other
+PR-matching lease names are invalid and are never hidden as history.
+
+The deterministic precedence is:
+
+1. `invalid`
+2. `ambiguous` when more than one structurally valid artifact-free lease claims
+   the session, before operational eligibility is considered
+3. `cleanup-required`
+4. `resume`
+5. `create`
+
+`create` requires no active claim or blocker, a safe absent canonical leaf, and
+no canonical registration. A cleanup tuple with a lease may be passed to the
+existing lease-gated cleanup authority. A null-lease cleanup tuple is an
+explicit manual stop for unleased canonical occupancy or registration and must
+not be passed to lease-gated cleanup. Discovery output itself never authorizes
+removal or mutation.
+
 ## Read-Only Status
 
 `review-leases.sh read-status` delegates to `devcanon-runtime runtime

@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import { constants } from "node:fs";
-import { access, lstat, mkdir, readFile, readdir, realpath, rename, } from "node:fs/promises";
+import { access, lstat, mkdir, open, readFile, readdir, realpath, rename, } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import { writeTextAtomically } from "./artifacts.js";
@@ -25,6 +25,8 @@ export async function runPrReviewLeasesCommand(args) {
         switch (commandName) {
             case "derive-path":
                 return ok(`${(await readIdentity(false)).leaseFile}\n`);
+            case "discover":
+                return ok(`${JSON.stringify(await discoverReviewSession())}\n`);
             case "write":
                 return ok(`${await writeLease()}\n`);
             case "record-audit-failure":
@@ -39,13 +41,686 @@ export async function runPrReviewLeasesCommand(args) {
             case "cleanup-worktree":
                 return ok(await cleanupWorktree());
             default:
-                throw new PrReviewLeaseError("usage: review-leases.sh derive-path|write|record-audit-failure|validate|read-status|inspect-worktree|cleanup-worktree");
+                throw new PrReviewLeaseError("usage: review-leases.sh derive-path|discover|write|record-audit-failure|validate|read-status|inspect-worktree|cleanup-worktree");
         }
     }
     catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         return { exitCode: 1, stdout: "", stderr: `${message}\n` };
     }
+}
+export function reducePrReviewDiscovery(inventory) {
+    const active = [...inventory.active].sort((left, right) => ordinalCompare(left.lease_file, right.lease_file));
+    const archived = ordinalSort(inventory.archived);
+    const invalid = [...inventory.invalid].sort((left, right) => ordinalCompare(left.path, right.path));
+    const structuralClaims = active.filter((entry) => entry.classification !== "invalid" &&
+        entry.classification !== "artifact-bearing");
+    const resumable = active.filter((entry) => entry.classification === "resumable");
+    const blockers = active.filter((entry) => entry.classification !== "resumable");
+    const canonicalKey = discoveryComparablePath(inventory.canonical_target.worktree_path);
+    const canonicalClaimed = active.some((entry) => entry.worktree_path !== null &&
+        discoveryComparablePath(entry.worktree_path) === canonicalKey);
+    const canonicalBlocked = inventory.canonical_target.parent_status === "invalid" ||
+        (inventory.canonical_target.status !== "absent" && !canonicalClaimed) ||
+        (inventory.canonical_target.registered && !canonicalClaimed);
+    let disposition;
+    let resume = null;
+    let cleanup = null;
+    if (invalid.length > 0 ||
+        active.some((entry) => entry.classification === "invalid")) {
+        disposition = "invalid";
+    }
+    else if (structuralClaims.length > 1) {
+        disposition = "ambiguous";
+    }
+    else if (blockers.length > 0 || canonicalBlocked) {
+        disposition = "cleanup-required";
+        const selected = blockers[0];
+        cleanup =
+            selected === undefined
+                ? {
+                    lease_file: null,
+                    worktree_path: inventory.canonical_target.worktree_path,
+                    reason: inventory.canonical_target.registered
+                        ? "canonical-target-registered"
+                        : "canonical-target-occupied",
+                }
+                : {
+                    lease_file: selected.lease_file,
+                    worktree_path: selected.worktree_path ??
+                        inventory.canonical_target.worktree_path,
+                    reason: selected.reason,
+                };
+    }
+    else if (resumable.length === 1) {
+        disposition = "resume";
+        resume = {
+            lease_file: resumable[0].lease_file,
+            worktree_path: resumable[0].worktree_path ?? "",
+        };
+    }
+    else {
+        disposition = "create";
+    }
+    return {
+        schema: "pr-review/discovery/v1",
+        ...inventory,
+        registrations: ordinalSort(inventory.registrations),
+        active,
+        archived,
+        invalid,
+        disposition,
+        resume,
+        cleanup,
+    };
+}
+async function discoverReviewSession() {
+    const repository = requiredEnv("REPOSITORY");
+    if (!/^[^/\s]+\/[^/\s]+$/u.test(repository)) {
+        throw new PrReviewLeaseError("REPOSITORY must use owner/name form");
+    }
+    const prNumber = parsePositiveInteger("PR_NUMBER", requiredEnv("PR_NUMBER"));
+    const requestedRoot = discoveryFilesystemPath(requiredEnv("PRIMARY_REPOSITORY_ROOT"));
+    const primaryRoot = await realpath(requestedRoot);
+    const gitEnv = discoveryGitEnvironment();
+    await assertDiscoveryPrimaryRoot(primaryRoot, gitEnv);
+    const registrations = await readDiscoveryWorktreeRegistrations(primaryRoot, gitEnv);
+    const registrationKeys = new Set(registrations.map((entry) => discoveryComparablePath(entry)));
+    const canonicalPath = path.join(primaryRoot, ".worktrees", `pr-${prNumber}-review`);
+    const parentObservation = await observeStableDiscoveryPath(path.dirname(canonicalPath), true);
+    const targetObservation = parentObservation === "directory"
+        ? await observeStableDiscoveryPath(canonicalPath, true)
+        : "absent";
+    const canonicalTarget = {
+        worktree_path: canonicalPath,
+        status: targetObservation === "absent"
+            ? "absent"
+            : targetObservation === "directory"
+                ? "directory"
+                : "invalid",
+        registered: registrationKeys.has(discoveryComparablePath(canonicalPath)),
+        parent_status: parentObservation === "absent"
+            ? "absent"
+            : parentObservation === "directory"
+                ? "directory"
+                : "invalid",
+    };
+    const active = [];
+    const archived = [];
+    const invalid = [];
+    if (canonicalTarget.parent_status === "invalid" ||
+        canonicalTarget.status === "invalid") {
+        invalid.push({
+            path: canonicalPath,
+            reason: "invalid-canonical-target",
+        });
+    }
+    const ephemeralPath = path.join(primaryRoot, ".ephemeral");
+    let entries = [];
+    let ephemeralSnapshot = null;
+    try {
+        ephemeralSnapshot = await readStableDiscoveryDirectory(ephemeralPath);
+        entries = ephemeralSnapshot?.entries ?? [];
+    }
+    catch {
+        invalid.push({
+            path: ".ephemeral",
+            reason: "invalid-discovery-directory",
+        });
+    }
+    const activeName = new RegExp(`^pr-${prNumber}-[0-9a-f]{64}-lease\\.json$`, "u");
+    const archiveName = new RegExp(`^pr-${prNumber}-[0-9a-f]{64}-([0-9]{8}T[0-9]{6})-(posted|aborted)-archived-lease\\.json$`, "u");
+    const prPrefix = `pr-${prNumber}-`;
+    for (const entry of entries) {
+        if (!entry.startsWith(prPrefix))
+            continue;
+        const relativePath = `.ephemeral/${entry}`;
+        const absolutePath = path.join(ephemeralPath, entry);
+        const archiveMatch = entry.match(archiveName);
+        if (archiveMatch !== null && isValidCompactUtcTimestamp(archiveMatch[1])) {
+            if ((await observeStableDiscoveryPath(absolutePath, false)) === "file") {
+                archived.push(relativePath);
+            }
+            else {
+                invalid.push({ path: relativePath, reason: "invalid-archived-entry" });
+            }
+            continue;
+        }
+        if (activeName.test(entry)) {
+            active.push(await inspectDiscoveryLease({
+                primaryRoot,
+                relativePath,
+                repository,
+                prNumber,
+                registrationKeys,
+                gitEnv,
+            }));
+            continue;
+        }
+        if (entry.endsWith("-lease.json")) {
+            invalid.push({ path: relativePath, reason: "invalid-lease-name" });
+        }
+    }
+    try {
+        if (ephemeralSnapshot === null) {
+            if ((await observeStableDiscoveryPath(ephemeralPath, true)) !== "absent") {
+                throw new PrReviewLeaseError("discovery directory appeared during inspection");
+            }
+        }
+        else {
+            await assertSameDiscoveryDirectory(ephemeralPath, ephemeralSnapshot.identity);
+        }
+    }
+    catch {
+        if (!invalid.some((entry) => entry.path === ".ephemeral")) {
+            invalid.push({
+                path: ".ephemeral",
+                reason: "invalid-discovery-directory",
+            });
+        }
+    }
+    const finalParent = await observeStableDiscoveryPath(path.dirname(canonicalPath), true);
+    const finalTarget = finalParent === "directory"
+        ? await observeStableDiscoveryPath(canonicalPath, true)
+        : "absent";
+    if (finalParent !== parentObservation || finalTarget !== targetObservation) {
+        invalid.push({
+            path: canonicalPath,
+            reason: "canonical-target-changed",
+        });
+    }
+    return reducePrReviewDiscovery({
+        repository,
+        pr_number: prNumber,
+        primary_repository_root: primaryRoot,
+        canonical_target: canonicalTarget,
+        registrations,
+        active,
+        archived,
+        invalid,
+    });
+}
+function isValidCompactUtcTimestamp(value) {
+    const match = value.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})$/u);
+    if (match === null)
+        return false;
+    const [, year, month, day, hour, minute, second] = match;
+    const date = new Date(`${year}-${month}-${day}T${hour}:${minute}:${second}Z`);
+    return (!Number.isNaN(date.valueOf()) &&
+        date.toISOString().replace(/[-:]/gu, "").slice(0, 15) === value);
+}
+async function inspectDiscoveryLease({ primaryRoot, relativePath, repository, prNumber, registrationKeys, gitEnv, }) {
+    const invalid = (reason, lease) => ({
+        lease_file: relativePath,
+        worktree_path: lease?.worktree_path ?? null,
+        state: lease?.state ?? null,
+        classification: "invalid",
+        reason,
+    });
+    let lease;
+    let leaseSnapshot;
+    const leasePath = path.join(primaryRoot, relativePath);
+    try {
+        leaseSnapshot = await readStableDiscoveryFile(leasePath);
+        lease = parseDiscoveryLease(JSON.parse(leaseSnapshot.contents));
+    }
+    catch {
+        return invalid("invalid-lease");
+    }
+    const finalize = async (entry) => {
+        try {
+            await assertSameDiscoveryFile(leasePath, leaseSnapshot.identity);
+            return entry;
+        }
+        catch {
+            return invalid("lease-replaced", lease);
+        }
+    };
+    const expectedLeaseFile = `.ephemeral/pr-${prNumber}-${lease.worktree_digest}-lease.json`;
+    if (lease.repository !== repository ||
+        lease.pr_number !== prNumber ||
+        lease.lease_file !== relativePath ||
+        lease.lease_file !== expectedLeaseFile) {
+        return finalize(invalid("lease-identity-mismatch", lease));
+    }
+    const filesystemPath = discoveryFilesystemPath(lease.worktree_path);
+    let before;
+    try {
+        before = await lstat(filesystemPath);
+    }
+    catch (err) {
+        if (err.code === "ENOENT") {
+            return finalize(discoveryEntry(lease, "missing", "worktree-missing"));
+        }
+        return finalize(invalid("worktree-inspection-failed", lease));
+    }
+    if (before.isSymbolicLink() || !before.isDirectory()) {
+        return finalize(invalid("invalid-worktree-entry", lease));
+    }
+    let ephemeralSnapshot;
+    try {
+        ephemeralSnapshot = await readStableDiscoveryDirectory(path.join(filesystemPath, ".ephemeral"));
+        await assertSameDiscoveryDirectory(filesystemPath, before);
+    }
+    catch {
+        return finalize(invalid("invalid-ephemeral-directory", lease));
+    }
+    const verifyCandidateSnapshot = async () => {
+        await assertSameDiscoveryDirectory(filesystemPath, before);
+        const candidateEphemeral = path.join(filesystemPath, ".ephemeral");
+        if (ephemeralSnapshot === null) {
+            if ((await observeStableDiscoveryPath(candidateEphemeral, true)) !==
+                "absent") {
+                throw new PrReviewLeaseError("candidate ephemeral directory appeared during inspection");
+            }
+        }
+        else {
+            await assertSameDiscoveryDirectory(candidateEphemeral, ephemeralSnapshot.identity);
+        }
+    };
+    if (!registrationKeys.has(discoveryComparablePath(lease.worktree_path))) {
+        try {
+            await verifyCandidateSnapshot();
+        }
+        catch {
+            return finalize(invalid("worktree-replaced", lease));
+        }
+        return finalize(discoveryEntry(lease, "unregistered", "worktree-unregistered"));
+    }
+    if (Object.values(lease.artifacts).some((artifactPath) => artifactPath !== null)) {
+        try {
+            await verifyCandidateSnapshot();
+        }
+        catch {
+            return finalize(invalid("worktree-replaced", lease));
+        }
+        return finalize(discoveryEntry(lease, "artifact-bearing", "artifact-authority-required"));
+    }
+    if ((ephemeralSnapshot?.entries ?? []).length > 0) {
+        try {
+            await verifyCandidateSnapshot();
+        }
+        catch {
+            return finalize(invalid("worktree-replaced", lease));
+        }
+        return finalize(discoveryEntry(lease, "unmanaged", "unmanaged-ephemeral-artifacts"));
+    }
+    let dirty;
+    try {
+        dirty = await discoveryWorktreeDirty(filesystemPath, gitEnv);
+    }
+    catch {
+        try {
+            await verifyCandidateSnapshot();
+        }
+        catch {
+            return finalize(invalid("worktree-replaced", lease));
+        }
+        return finalize(discoveryEntry(lease, "status-inspection-failed", "status-inspection-failed"));
+    }
+    try {
+        await verifyCandidateSnapshot();
+    }
+    catch {
+        return finalize(invalid("worktree-replaced", lease));
+    }
+    if (dirty) {
+        return finalize(discoveryEntry(lease, "dirty", "worktree-dirty"));
+    }
+    if (lease.state === "posted" || lease.state === "aborted") {
+        return finalize(discoveryEntry(lease, "terminal", "terminal-lease"));
+    }
+    if (lease.state !== "created") {
+        return finalize(discoveryEntry(lease, "unsupported", "unsupported-lease-state"));
+    }
+    return finalize(discoveryEntry(lease, "resumable", "resumable"));
+}
+function discoveryEntry(lease, classification, reason) {
+    return {
+        lease_file: lease.lease_file,
+        worktree_path: lease.worktree_path,
+        state: lease.state,
+        classification,
+        reason,
+    };
+}
+export function parseDiscoveryLease(value) {
+    assertClosedLeasePrimitiveShape(value);
+    validateLeaseShape(value);
+    return value;
+}
+function assertClosedLeasePrimitiveShape(value) {
+    if (!isObject(value))
+        throw new PrReviewLeaseError("lease schema mismatch");
+    assertExactKeys(value, [
+        "schema",
+        "repository",
+        "pr_number",
+        "state",
+        "base_ref",
+        "head_ref",
+        "worktree_path",
+        "worktree_digest",
+        "lease_file",
+        "created_at",
+        "updated_at",
+        "artifacts",
+        "validation",
+        "presentation",
+        "terminal",
+        "failure",
+        "github",
+    ], ["cleanup"]);
+    const lease = value;
+    if (lease.schema !== "pr-review/lease/v1" ||
+        typeof lease.repository !== "string" ||
+        !/^[^/\s]+\/[^/\s]+$/u.test(lease.repository) ||
+        !Number.isSafeInteger(lease.pr_number) ||
+        lease.pr_number <= 0 ||
+        typeof lease.base_ref !== "string" ||
+        lease.base_ref.length === 0 ||
+        typeof lease.head_ref !== "string" ||
+        lease.head_ref.length === 0 ||
+        typeof lease.worktree_path !== "string" ||
+        !isAbsoluteLeasePath(lease.worktree_path) ||
+        typeof lease.worktree_digest !== "string" ||
+        !SHA256_RE.test(lease.worktree_digest) ||
+        typeof lease.lease_file !== "string" ||
+        typeof lease.created_at !== "string" ||
+        typeof lease.updated_at !== "string") {
+        throw new PrReviewLeaseError("lease schema mismatch");
+    }
+    validateKnownLeaseState(lease.state);
+    assertExactObject(lease.artifacts, [
+        "handoff_file",
+        "result_file",
+        "approved_review_file",
+        "validated_payload_file",
+    ]);
+    for (const value of Object.values(lease.artifacts)) {
+        if (value !== null && typeof value !== "string") {
+            throw new PrReviewLeaseError("lease schema mismatch");
+        }
+    }
+    assertExactObject(lease.validation, ["result_manifest"]);
+    assertExactObject(lease.validation.result_manifest, [
+        "status",
+        "validated_at",
+        "sha256",
+    ]);
+    if ((lease.validation.result_manifest.status !== null &&
+        lease.validation.result_manifest.status !== "valid") ||
+        !nullableString(lease.validation.result_manifest.validated_at) ||
+        !nullableString(lease.validation.result_manifest.sha256)) {
+        throw new PrReviewLeaseError("lease schema mismatch");
+    }
+    assertExactObject(lease.presentation, ["presented_at", "status"]);
+    if (!nullableString(lease.presentation.presented_at) ||
+        (lease.presentation.status !== null &&
+            lease.presentation.status !== "preview-current" &&
+            lease.presentation.status !== "edited")) {
+        throw new PrReviewLeaseError("lease schema mismatch");
+    }
+    assertExactObject(lease.terminal, ["finished_at", "reason"]);
+    if (!nullableString(lease.terminal.finished_at) ||
+        !nullableString(lease.terminal.reason)) {
+        throw new PrReviewLeaseError("lease schema mismatch");
+    }
+    assertExactObject(lease.failure, ["phase", "reason", "recoverability"]);
+    if ((lease.failure.phase !== null &&
+        ![
+            "handoff-validation",
+            "review",
+            "result-validation",
+            "preview-render",
+            "approval-freeze",
+            "stale-head",
+            "github-post",
+        ].includes(lease.failure.phase)) ||
+        !nullableString(lease.failure.reason) ||
+        (lease.failure.recoverability !== null &&
+            !["recoverable", "unrecoverable", "unknown"].includes(lease.failure.recoverability))) {
+        throw new PrReviewLeaseError("lease schema mismatch");
+    }
+    assertExactObject(lease.github, [
+        "github_post_attempted",
+        "github_post_result",
+        "github_posted_at",
+    ]);
+    if (typeof lease.github.github_post_attempted !== "boolean" ||
+        !["succeeded", "failed", "not-attempted"].includes(lease.github.github_post_result) ||
+        !nullableString(lease.github.github_posted_at)) {
+        throw new PrReviewLeaseError("lease schema mismatch");
+    }
+    if (lease.cleanup !== undefined) {
+        assertExactKeys(lease.cleanup, ["last_outcome", "last_checked_at"], ["removed_at"]);
+        if ((lease.cleanup.last_outcome !== null &&
+            !["removed", "retained", "skipped", "failed"].includes(lease.cleanup.last_outcome)) ||
+            !nullableString(lease.cleanup.last_checked_at) ||
+            !nullableString(lease.cleanup.removed_at ?? null)) {
+            throw new PrReviewLeaseError("lease schema mismatch");
+        }
+    }
+}
+function assertExactObject(value, required) {
+    if (!isObject(value))
+        throw new PrReviewLeaseError("lease schema mismatch");
+    assertExactKeys(value, required);
+}
+function assertExactKeys(value, required, optional = []) {
+    const actual = Object.keys(value).sort(ordinalCompare);
+    const allowed = new Set([...required, ...optional]);
+    if (required.some((key) => !(key in value)) ||
+        actual.some((key) => !allowed.has(key))) {
+        throw new PrReviewLeaseError("lease schema mismatch");
+    }
+}
+function nullableString(value) {
+    return value === null || typeof value === "string";
+}
+function isAbsoluteLeasePath(value) {
+    if (/^\/[A-Za-z]\//u.test(value) && process.platform === "win32") {
+        return false;
+    }
+    return (path.isAbsolute(value) ||
+        /^[A-Za-z]:[\\/]/u.test(value) ||
+        /^\\\\[^\\]+\\[^\\]+/u.test(value) ||
+        /^\/\/[^/]+\/[^/]+/u.test(value));
+}
+async function readStableDiscoveryFile(file) {
+    const before = await lstat(file);
+    if (before.isSymbolicLink() || !before.isFile()) {
+        throw new PrReviewLeaseError("discovery lease is not a real file");
+    }
+    const handle = await open(file, constants.O_RDONLY);
+    try {
+        const opened = await handle.stat();
+        if (!sameDiscoveryIdentity(before, opened) || !opened.isFile()) {
+            throw new PrReviewLeaseError("discovery lease changed during open");
+        }
+        const contents = await handle.readFile({ encoding: "utf8" });
+        const after = await lstat(file);
+        if (!sameDiscoveryIdentity(before, after) || after.isSymbolicLink()) {
+            throw new PrReviewLeaseError("discovery lease changed during read");
+        }
+        return { contents, identity: before };
+    }
+    finally {
+        await handle.close();
+    }
+}
+async function assertSameDiscoveryFile(file, expected) {
+    const actual = await lstat(file);
+    if (actual.isSymbolicLink() ||
+        !actual.isFile() ||
+        !sameDiscoveryIdentity(expected, actual)) {
+        throw new PrReviewLeaseError("discovery lease changed during inspection");
+    }
+}
+async function readStableDiscoveryDirectory(directory) {
+    let before;
+    try {
+        before = await lstat(directory);
+    }
+    catch (err) {
+        if (err.code === "ENOENT")
+            return null;
+        throw err;
+    }
+    if (before.isSymbolicLink() || !before.isDirectory()) {
+        throw new PrReviewLeaseError("discovery directory is not a real directory");
+    }
+    const entries = await readdir(directory);
+    const after = await lstat(directory);
+    if (after.isSymbolicLink() ||
+        !after.isDirectory() ||
+        !sameDiscoveryIdentity(before, after)) {
+        throw new PrReviewLeaseError("discovery directory changed during inspection");
+    }
+    return { entries: ordinalSort(entries), identity: before };
+}
+async function assertSameDiscoveryDirectory(directory, expected) {
+    const actual = await lstat(directory);
+    if (actual.isSymbolicLink() ||
+        !actual.isDirectory() ||
+        !sameDiscoveryIdentity(expected, actual)) {
+        throw new PrReviewLeaseError("discovery worktree changed during inspection");
+    }
+}
+function sameDiscoveryIdentity(left, right) {
+    if (left.dev !== 0 || left.ino !== 0 || right.dev !== 0 || right.ino !== 0) {
+        return left.dev === right.dev && left.ino === right.ino;
+    }
+    return left.mode === right.mode && left.birthtimeMs === right.birthtimeMs;
+}
+async function observeStableDiscoveryPath(target, directory) {
+    let before;
+    try {
+        before = await lstat(target);
+    }
+    catch (err) {
+        if (err.code === "ENOENT")
+            return "absent";
+        return "invalid";
+    }
+    if (before.isSymbolicLink() ||
+        (directory ? !before.isDirectory() : !before.isFile())) {
+        return "invalid";
+    }
+    try {
+        const after = await lstat(target);
+        if (!sameDiscoveryIdentity(before, after) || after.isSymbolicLink()) {
+            return "invalid";
+        }
+    }
+    catch {
+        return "invalid";
+    }
+    return directory ? "directory" : "file";
+}
+async function assertDiscoveryPrimaryRoot(primaryRoot, env) {
+    const before = await lstat(primaryRoot);
+    if (before.isSymbolicLink() || !before.isDirectory()) {
+        throw new PrReviewLeaseError("PRIMARY_REPOSITORY_ROOT must be a real directory");
+    }
+    try {
+        const topLevel = (await runDiscoveryGit(primaryRoot, ["rev-parse", "--show-toplevel"], env)).trim();
+        const gitDirectory = (await runDiscoveryGit(primaryRoot, ["rev-parse", "--absolute-git-dir"], env)).trim();
+        const commonDirectoryRaw = (await runDiscoveryGit(primaryRoot, ["rev-parse", "--git-common-dir"], env)).trim();
+        const commonDirectory = path.isAbsolute(commonDirectoryRaw)
+            ? commonDirectoryRaw
+            : path.resolve(primaryRoot, commonDirectoryRaw);
+        if (discoveryComparablePath(await realpath(topLevel)) !==
+            discoveryComparablePath(primaryRoot) ||
+            discoveryComparablePath(await realpath(gitDirectory)) !==
+                discoveryComparablePath(await realpath(commonDirectory))) {
+            throw new PrReviewLeaseError("PRIMARY_REPOSITORY_ROOT must be the primary Git worktree");
+        }
+        await assertSameDiscoveryDirectory(primaryRoot, before);
+    }
+    catch (err) {
+        if (err instanceof PrReviewLeaseError)
+            throw err;
+        throw new PrReviewLeaseError("PRIMARY_REPOSITORY_ROOT must be the primary Git worktree");
+    }
+}
+async function readDiscoveryWorktreeRegistrations(primaryRoot, env) {
+    const stdout = await runDiscoveryGit(primaryRoot, ["worktree", "list", "--porcelain", "-z"], env);
+    return stdout
+        .split("\0")
+        .filter((entry) => entry.startsWith("worktree "))
+        .map((entry) => entry.slice(9));
+}
+async function discoveryWorktreeDirty(worktreePath, env) {
+    const stdout = await runDiscoveryGit(worktreePath, ["status", "--porcelain", "--untracked-files=all"], env);
+    return stdout.length > 0;
+}
+async function runDiscoveryGit(root, args, env) {
+    const nullDevice = process.platform === "win32" ? "NUL" : "/dev/null";
+    const { stdout } = await execFileAsync("git", [
+        "--no-optional-locks",
+        "-c",
+        "core.fsmonitor=false",
+        "-c",
+        `core.hooksPath=${nullDevice}`,
+        "-c",
+        "maintenance.auto=false",
+        "-c",
+        "gc.auto=0",
+        "-C",
+        root,
+        ...args,
+    ], { env, maxBuffer: 1024 * 1024 });
+    return stdout;
+}
+export function discoveryGitEnvironment() {
+    const env = {};
+    for (const key of [
+        "PATH",
+        "HOME",
+        "USERPROFILE",
+        "SystemRoot",
+        "ComSpec",
+        "PATHEXT",
+        "TMPDIR",
+        "TEMP",
+        "TMP",
+    ]) {
+        const match = Object.entries(process.env).find(([candidate]) => candidate.toUpperCase() === key.toUpperCase());
+        if (match?.[1] !== undefined)
+            env[key] = match[1];
+    }
+    const nullDevice = process.platform === "win32" ? "NUL" : "/dev/null";
+    env.GIT_CONFIG_NOSYSTEM = "1";
+    env.GIT_CONFIG_GLOBAL = nullDevice;
+    env.GIT_OPTIONAL_LOCKS = "0";
+    env.GIT_TERMINAL_PROMPT = "0";
+    env.LC_ALL = "C";
+    env.LANG = "C";
+    return env;
+}
+export function discoveryFilesystemPath(value, platform = process.platform) {
+    if (platform !== "win32")
+        return value;
+    const msys = value.match(/^\/([A-Za-z])(?:\/(.*))?$/u);
+    if (msys !== null) {
+        return `${msys[1].toLowerCase()}:/${msys[2] ?? ""}`;
+    }
+    return value;
+}
+function discoveryComparablePath(value) {
+    const normalized = value.replace(/\\/gu, "/");
+    return process.platform === "win32" ||
+        /^[A-Za-z]:\//u.test(normalized) ||
+        /^\/\/[^/]+\/[^/]+/u.test(normalized)
+        ? normalized.toLowerCase()
+        : normalized;
+}
+function ordinalCompare(left, right) {
+    return left < right ? -1 : left > right ? 1 : 0;
+}
+function ordinalSort(values) {
+    return [...values].sort(ordinalCompare);
 }
 export function reducePrReviewLease(previous, identity, inputs, options = {}) {
     const previousState = previous?.state ?? "none";
@@ -951,6 +1626,7 @@ function preservesGatePresentation(policy, lease) {
 }
 function validateLeaseShape(lease, options = {}) {
     assertLeaseObjectShape(lease);
+    assertClosedLeasePrimitiveShape(lease);
     if (lease.schema !== "pr-review/lease/v1") {
         throw new PrReviewLeaseError("lease schema mismatch");
     }

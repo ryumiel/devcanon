@@ -2,12 +2,14 @@ import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
   chmod,
+  lstat,
   mkdir,
   mkdtemp,
   readFile,
   readdir,
   realpath,
   rm,
+  symlink,
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -17,6 +19,9 @@ import { afterEach, describe, expect, it } from "vitest";
 import { runPlayReviewSharedContextCommand } from "./play-review-shared-context.js";
 import {
   type PrReviewLease,
+  discoveryFilesystemPath,
+  discoveryGitEnvironment,
+  parseDiscoveryLease,
   reducePrReviewLease,
   runPrReviewLeasesCommand,
 } from "./pr-review-leases.js";
@@ -3939,6 +3944,695 @@ function abortedCommandLease(
     },
   };
 }
+
+const discoveryTempRoots: string[] = [];
+
+afterEach(async () => {
+  await Promise.all(
+    discoveryTempRoots.splice(0).map(async (root) => {
+      await rm(root, { recursive: true, force: true });
+    }),
+  );
+  Reflect.deleteProperty(process.env, "Git_Dir");
+  Reflect.deleteProperty(process.env, "git_dir");
+  Reflect.deleteProperty(process.env, "Git_Trace2_Event");
+});
+
+async function createDiscoveryRepository(): Promise<string> {
+  const root = await mkdtemp(path.join(tmpdir(), "pr-review-discovery-"));
+  discoveryTempRoots.push(root);
+  await execFileAsync("git", ["init", "-b", "main", root]);
+  await execFileAsync("git", ["-C", root, "config", "user.name", "Test"]);
+  await execFileAsync("git", [
+    "-C",
+    root,
+    "config",
+    "user.email",
+    "test@example.com",
+  ]);
+  await writeFile(path.join(root, "README.md"), "fixture\n");
+  await execFileAsync("git", ["-C", root, "add", "README.md"]);
+  await execFileAsync("git", ["-C", root, "commit", "-m", "fixture"]);
+  await mkdir(path.join(root, ".ephemeral"));
+  return realpath(root);
+}
+
+async function createDiscoveryWorktree(
+  root: string,
+  leaf: string,
+): Promise<string> {
+  const worktree = path.join(root, ".worktrees", leaf);
+  await mkdir(path.dirname(worktree), { recursive: true });
+  await execFileAsync("git", [
+    "-C",
+    root,
+    "worktree",
+    "add",
+    "-b",
+    `test-${leaf}`,
+    worktree,
+  ]);
+  return realpath(worktree);
+}
+
+function discoveryDigest(value: string): string {
+  const normalized = value.replace(/\\/gu, "/");
+  const comparable = /^[A-Za-z]:\//u.test(normalized)
+    ? normalized.toLowerCase()
+    : normalized;
+  return createHash("sha256").update(comparable).digest("hex");
+}
+
+function discoveryLease(worktreePath: string, prNumber = 432): PrReviewLease {
+  const worktreeDigest = discoveryDigest(worktreePath);
+  return {
+    schema: "pr-review/lease/v1",
+    repository: "owner/repo",
+    pr_number: prNumber,
+    state: "created",
+    base_ref: "main",
+    head_ref: "topic",
+    worktree_path: worktreePath,
+    worktree_digest: worktreeDigest,
+    lease_file: `.ephemeral/pr-${prNumber}-${worktreeDigest}-lease.json`,
+    created_at: "2026-06-11T00:00:00Z",
+    updated_at: "2026-06-11T00:00:00Z",
+    artifacts: {
+      handoff_file: null,
+      result_file: null,
+      approved_review_file: null,
+      validated_payload_file: null,
+    },
+    validation: {
+      result_manifest: {
+        status: null,
+        validated_at: null,
+        sha256: null,
+      },
+    },
+    presentation: { presented_at: null, status: null },
+    terminal: { finished_at: null, reason: null },
+    failure: { phase: null, reason: null, recoverability: null },
+    github: {
+      github_post_attempted: false,
+      github_post_result: "not-attempted",
+      github_posted_at: null,
+    },
+  };
+}
+
+async function writeDiscoveryLease(
+  root: string,
+  lease: PrReviewLease,
+): Promise<void> {
+  await writeFile(
+    path.join(root, lease.lease_file),
+    `${JSON.stringify(lease, null, 2)}\n`,
+  );
+}
+
+async function runDiscovery(root: string, prNumber = 432) {
+  const before = process.cwd();
+  process.chdir(root);
+  process.env.REPOSITORY = "owner/repo";
+  process.env.PR_NUMBER = String(prNumber);
+  process.env.PRIMARY_REPOSITORY_ROOT = root;
+  try {
+    const outcome = await runPrReviewLeasesCommand(["discover"]);
+    expect(outcome.exitCode).toBe(0);
+    return JSON.parse(outcome.stdout) as {
+      disposition: string;
+      resume: { lease_file: string; worktree_path: string } | null;
+      cleanup: {
+        lease_file: string | null;
+        worktree_path: string;
+        reason: string;
+      } | null;
+      active: Array<{
+        lease_file: string;
+        classification: string;
+        reason: string;
+      }>;
+      archived: string[];
+      invalid: Array<{ path: string; reason: string }>;
+      registrations: string[];
+    };
+  } finally {
+    process.chdir(before);
+  }
+}
+
+describe("read-only PR review discovery planner", () => {
+  it("resumes one canonical or alternate clean artifact-free created lease", async () => {
+    for (const leaf of ["pr-432-review", "alternate-432"]) {
+      const root = await createDiscoveryRepository();
+      const worktree = await createDiscoveryWorktree(root, leaf);
+      const lease = discoveryLease(worktree);
+      await writeDiscoveryLease(root, lease);
+      const result = await runDiscovery(root);
+      expect(result.disposition).toBe("resume");
+      expect(result.resume).toEqual({
+        lease_file: lease.lease_file,
+        worktree_path: worktree,
+      });
+    }
+  });
+
+  it("gives ambiguity precedence across clean and operationally blocked claims", async () => {
+    const root = await createDiscoveryRepository();
+    const clean = await createDiscoveryWorktree(root, "alternate-clean");
+    const dirty = await createDiscoveryWorktree(root, "alternate-dirty");
+    await writeDiscoveryLease(root, discoveryLease(clean));
+    await writeDiscoveryLease(root, discoveryLease(dirty));
+    await writeFile(path.join(dirty, "untracked.txt"), "dirty\n");
+    const result = await runDiscovery(root);
+    expect(result.disposition).toBe("ambiguous");
+    expect(result.active.map((entry) => entry.classification).sort()).toEqual([
+      "dirty",
+      "resumable",
+    ]);
+  });
+
+  it("stops for artifact-bearing, terminal, and unsupported leases without reading artifacts", async () => {
+    for (const kind of ["artifact", "terminal", "unsupported"] as const) {
+      const root = await createDiscoveryRepository();
+      const worktree = await createDiscoveryWorktree(root, `case-${kind}`);
+      const lease = discoveryLease(worktree);
+      if (kind === "artifact") {
+        lease.artifacts.handoff_file = ".ephemeral/missing-handoff.json";
+      } else if (kind === "terminal") {
+        lease.state = "aborted";
+        lease.terminal = {
+          finished_at: "2026-06-11T00:01:00Z",
+          reason: "operator-aborted",
+        };
+      } else {
+        lease.state = "failed";
+        lease.terminal.finished_at = "2026-06-11T00:01:00Z";
+        lease.failure = {
+          phase: "review",
+          reason: "review failed",
+          recoverability: "recoverable",
+        };
+      }
+      await writeDiscoveryLease(root, lease);
+      const result = await runDiscovery(root);
+      expect(result.disposition).toBe("cleanup-required");
+      expect(result.cleanup?.lease_file).toBe(lease.lease_file);
+      expect(result.active[0].classification).toBe(
+        kind === "artifact"
+          ? "artifact-bearing"
+          : kind === "terminal"
+            ? "terminal"
+            : "unsupported",
+      );
+    }
+  });
+
+  it("classifies missing, unregistered, dirty, and unmanaged candidates", async () => {
+    const cases = [
+      {
+        name: "missing",
+        prepare: async (root: string) =>
+          path.join(root, ".worktrees", "missing"),
+        expected: "missing",
+      },
+      {
+        name: "unregistered",
+        prepare: async (root: string) => {
+          const candidate = path.join(root, "unregistered");
+          await mkdir(candidate);
+          return candidate;
+        },
+        expected: "unregistered",
+      },
+      {
+        name: "dirty",
+        prepare: async (root: string) => {
+          const candidate = await createDiscoveryWorktree(root, "dirty");
+          await writeFile(path.join(candidate, "untracked.txt"), "dirty\n");
+          return candidate;
+        },
+        expected: "dirty",
+      },
+      {
+        name: "unmanaged",
+        prepare: async (root: string) => {
+          const candidate = await createDiscoveryWorktree(root, "unmanaged");
+          await mkdir(path.join(candidate, ".ephemeral"));
+          await writeFile(
+            path.join(candidate, ".ephemeral", "unowned.json"),
+            "{}\n",
+          );
+          return candidate;
+        },
+        expected: "unmanaged",
+      },
+    ] as const;
+    for (const fixture of cases) {
+      const root = await createDiscoveryRepository();
+      const worktree = await fixture.prepare(root);
+      await writeDiscoveryLease(root, discoveryLease(worktree));
+      const result = await runDiscovery(root);
+      expect(result.disposition, fixture.name).toBe("cleanup-required");
+      expect(result.active[0].classification, fixture.name).toBe(
+        fixture.expected,
+      );
+    }
+  });
+
+  it("honors untracked files even when repository config hides them", async () => {
+    const root = await createDiscoveryRepository();
+    const worktree = await createDiscoveryWorktree(root, "hidden-untracked");
+    await writeDiscoveryLease(root, discoveryLease(worktree));
+    await execFileAsync("git", [
+      "-C",
+      worktree,
+      "config",
+      "status.showUntrackedFiles",
+      "no",
+    ]);
+    await writeFile(path.join(worktree, "hidden.txt"), "dirty\n");
+    const result = await runDiscovery(root);
+    expect(result.disposition).toBe("cleanup-required");
+    expect(result.active[0].classification).toBe("dirty");
+  });
+
+  it("reports status inspection failure as a cleanup blocker", async () => {
+    const root = await createDiscoveryRepository();
+    const worktree = await createDiscoveryWorktree(root, "status-failure");
+    await writeDiscoveryLease(root, discoveryLease(worktree));
+    const wrapperDir = await mkdtemp(path.join(tmpdir(), "git-status-fail-"));
+    discoveryTempRoots.push(wrapperDir);
+    const realGit = (
+      await execFileAsync("sh", ["-c", "command -v git"])
+    ).stdout.trim();
+    const wrapper = path.join(wrapperDir, "git");
+    await writeFile(
+      wrapper,
+      [
+        "#!/bin/sh",
+        'case " $* " in',
+        '  *" status "*) exit 2 ;;',
+        "esac",
+        `exec '${realGit}' "$@"`,
+        "",
+      ].join("\n"),
+    );
+    await chmod(wrapper, 0o755);
+    const oldPath = process.env.PATH;
+    process.env.PATH = `${wrapperDir}:${oldPath ?? ""}`;
+    try {
+      const result = await runDiscovery(root);
+      expect(result.disposition).toBe("cleanup-required");
+      expect(result.active[0].classification).toBe("status-inspection-failed");
+    } finally {
+      process.env.PATH = oldPath;
+    }
+  });
+
+  it("returns structured invalid results for malformed leases and unsafe ephemeral directories", async () => {
+    const root = await createDiscoveryRepository();
+    const worktree = await createDiscoveryWorktree(root, "malformed");
+    const lease = discoveryLease(worktree);
+    await writeFile(
+      path.join(root, lease.lease_file),
+      `${JSON.stringify({ ...lease, worktree_path: null })}\n`,
+    );
+    let result = await runDiscovery(root);
+    expect(result.disposition).toBe("invalid");
+    expect(result.active[0].classification).toBe("invalid");
+
+    await rm(path.join(root, lease.lease_file));
+    await rm(path.join(root, ".ephemeral"), { recursive: true });
+    const external = await mkdtemp(path.join(tmpdir(), "outside-ephemeral-"));
+    discoveryTempRoots.push(external);
+    await symlink(external, path.join(root, ".ephemeral"), "dir");
+    result = await runDiscovery(root);
+    expect(result.disposition).toBe("invalid");
+    expect(result.invalid).toContainEqual({
+      path: ".ephemeral",
+      reason: "invalid-discovery-directory",
+    });
+  });
+
+  it("rejects a candidate ephemeral symlink and leaves its target untouched", async () => {
+    const root = await createDiscoveryRepository();
+    const worktree = await createDiscoveryWorktree(root, "symlinked");
+    const lease = discoveryLease(worktree);
+    await writeDiscoveryLease(root, lease);
+    const external = await mkdtemp(path.join(tmpdir(), "outside-candidate-"));
+    discoveryTempRoots.push(external);
+    await symlink(external, path.join(worktree, ".ephemeral"), "dir");
+    const result = await runDiscovery(root);
+    expect(result.disposition).toBe("invalid");
+    expect(result.active[0].classification).toBe("invalid");
+    expect(await readdir(external)).toEqual([]);
+  });
+
+  it("fails closed when the candidate directory is replaced during status", async () => {
+    const root = await createDiscoveryRepository();
+    const worktree = await createDiscoveryWorktree(
+      root,
+      "replace-during-status",
+    );
+    await writeDiscoveryLease(root, discoveryLease(worktree));
+    const replacement = await createDiscoveryRepository();
+    const wrapperDir = await mkdtemp(path.join(tmpdir(), "git-wrapper-"));
+    discoveryTempRoots.push(wrapperDir);
+    const realGit = (
+      await execFileAsync("sh", ["-c", "command -v git"])
+    ).stdout.trim();
+    const wrapper = path.join(wrapperDir, "git");
+    await writeFile(
+      wrapper,
+      [
+        "#!/bin/sh",
+        'case " $* " in',
+        '  *" status "*)',
+        `    mv '${worktree}' '${worktree}.original'`,
+        `    ln -s '${replacement}' '${worktree}'`,
+        "    ;;",
+        "esac",
+        `exec '${realGit}' "$@"`,
+        "",
+      ].join("\n"),
+    );
+    await chmod(wrapper, 0o755);
+    const oldPath = process.env.PATH;
+    process.env.PATH = `${wrapperDir}:${oldPath ?? ""}`;
+    try {
+      const result = await runDiscovery(root);
+      expect(result.disposition).toBe("invalid");
+      expect(result.active[0]).toMatchObject({
+        classification: "invalid",
+        reason: "worktree-replaced",
+      });
+    } finally {
+      process.env.PATH = oldPath;
+    }
+  });
+
+  it("fails closed when the validated lease file is replaced during status", async () => {
+    const root = await createDiscoveryRepository();
+    const worktree = await createDiscoveryWorktree(root, "replace-lease");
+    const lease = discoveryLease(worktree);
+    await writeDiscoveryLease(root, lease);
+    const leasePath = path.join(root, lease.lease_file);
+    const wrapperDir = await mkdtemp(path.join(tmpdir(), "git-wrapper-"));
+    discoveryTempRoots.push(wrapperDir);
+    const realGit = (
+      await execFileAsync("sh", ["-c", "command -v git"])
+    ).stdout.trim();
+    const wrapper = path.join(wrapperDir, "git");
+    await writeFile(
+      wrapper,
+      [
+        "#!/bin/sh",
+        'case " $* " in',
+        '  *" status "*)',
+        `    cp '${leasePath}' '${leasePath}.replacement'`,
+        `    mv '${leasePath}.replacement' '${leasePath}'`,
+        "    ;;",
+        "esac",
+        `exec '${realGit}' "$@"`,
+        "",
+      ].join("\n"),
+    );
+    await chmod(wrapper, 0o755);
+    const oldPath = process.env.PATH;
+    process.env.PATH = `${wrapperDir}:${oldPath ?? ""}`;
+    try {
+      const result = await runDiscovery(root);
+      expect(result.disposition).toBe("invalid");
+      expect(result.active[0]).toMatchObject({
+        classification: "invalid",
+        reason: "lease-replaced",
+      });
+    } finally {
+      process.env.PATH = oldPath;
+    }
+  });
+
+  it("reports only canonical archive names and invalidates malformed suffixes", async () => {
+    const root = await createDiscoveryRepository();
+    const valid =
+      ".ephemeral/pr-432-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-20260611T010203-posted-archived-lease.json";
+    await writeFile(path.join(root, valid), "{}\n");
+    let result = await runDiscovery(root);
+    expect(result.disposition).toBe("create");
+    expect(result.archived).toEqual([valid]);
+
+    await writeFile(
+      path.join(root, ".ephemeral/pr-432-A-archived-lease.json"),
+      "{}\n",
+    );
+    await writeFile(
+      path.join(
+        root,
+        `.ephemeral/pr-432-${"b".repeat(64)}-20261399T999999-posted-archived-lease.json`,
+      ),
+      "{}\n",
+    );
+    result = await runDiscovery(root);
+    expect(result.disposition).toBe("invalid");
+    expect(result.invalid).toHaveLength(2);
+    expect(
+      result.invalid.every((entry) => entry.reason === "invalid-lease-name"),
+    ).toBe(true);
+  });
+
+  it("uses a null-lease manual stop for an occupied unleased canonical target", async () => {
+    const root = await createDiscoveryRepository();
+    await mkdir(path.join(root, ".worktrees", "pr-432-review"), {
+      recursive: true,
+    });
+    const result = await runDiscovery(root);
+    expect(result.disposition).toBe("cleanup-required");
+    expect(result.cleanup).toMatchObject({
+      lease_file: null,
+      reason: "canonical-target-occupied",
+    });
+  });
+
+  it("allows an absent canonical parent but invalidates a symlink parent", async () => {
+    const root = await createDiscoveryRepository();
+    let result = await runDiscovery(root);
+    expect(result.disposition).toBe("create");
+
+    const external = await mkdtemp(path.join(tmpdir(), "outside-worktrees-"));
+    discoveryTempRoots.push(external);
+    await symlink(external, path.join(root, ".worktrees"), "dir");
+    result = await runDiscovery(root);
+    expect(result.disposition).toBe("invalid");
+    expect(result.invalid[0].reason).toBe("invalid-canonical-target");
+  });
+
+  it("isolates other PR leases and orders output ordinally", async () => {
+    const root = await createDiscoveryRepository();
+    const other = discoveryLease(path.join(root, ".worktrees", "other"), 433);
+    await writeDiscoveryLease(root, other);
+    for (const suffix of ["_", "A", "ä"]) {
+      await writeFile(
+        path.join(
+          root,
+          `.ephemeral/pr-432-${"a".repeat(63)}${suffix}-lease.json`,
+        ),
+        "{}\n",
+      );
+    }
+    const result = await runDiscovery(root);
+    expect(result.invalid.map((entry) => entry.path)).toEqual([
+      `.ephemeral/pr-432-${"a".repeat(63)}A-lease.json`,
+      `.ephemeral/pr-432-${"a".repeat(63)}_-lease.json`,
+      `.ephemeral/pr-432-${"a".repeat(63)}ä-lease.json`,
+    ]);
+    expect(
+      result.active.some((entry) => entry.lease_file === other.lease_file),
+    ).toBe(false);
+  });
+
+  it("uses a minimal Git environment and normalizes MSYS only at Windows I/O", () => {
+    process.env.Git_Dir = "/tmp/poison";
+    process.env.git_dir = "/tmp/poison-lower";
+    process.env.Git_Trace2_Event = "/tmp/trace";
+    const env = discoveryGitEnvironment();
+    expect(
+      Object.keys(env).some((key) => key.toUpperCase() === "GIT_DIR"),
+    ).toBe(false);
+    expect(
+      Object.keys(env).some((key) => key.toUpperCase() === "GIT_TRACE2_EVENT"),
+    ).toBe(false);
+    expect(env.GIT_CONFIG_NOSYSTEM).toBe("1");
+    expect(discoveryFilesystemPath("/C/a/b", "win32")).toBe("c:/a/b");
+    expect(discoveryFilesystemPath("/C/a/b", "linux")).toBe("/C/a/b");
+    expect(discoveryFilesystemPath("\\\\server\\share\\a", "win32")).toBe(
+      "\\\\server\\share\\a",
+    );
+  });
+
+  it("accepts native Windows producer spellings in the closed lease parser", () => {
+    for (const worktreePath of [
+      "C:\\Repo\\Worktree",
+      "\\\\Server\\Share\\Worktree",
+    ]) {
+      const lease = discoveryLease(worktreePath);
+      expect(parseDiscoveryLease(lease).worktree_path).toBe(worktreePath);
+    }
+  });
+
+  it("rejects unknown keys and malformed primitive fields without throwing from discover", async () => {
+    const root = await createDiscoveryRepository();
+    const worktree = await createDiscoveryWorktree(root, "closed-schema");
+    const lease = discoveryLease(worktree) as PrReviewLease & {
+      unexpected?: boolean;
+    };
+    lease.unexpected = true;
+    await writeDiscoveryLease(root, lease);
+    const result = await runDiscovery(root);
+    expect(result.disposition).toBe("invalid");
+    expect(result.active[0].reason).toBe("invalid-lease");
+  });
+
+  it("does not mutate filesystem contents or Git registrations", async () => {
+    const root = await createDiscoveryRepository();
+    const worktree = await createDiscoveryWorktree(root, "readonly");
+    await writeDiscoveryLease(root, discoveryLease(worktree));
+    const beforeFiles = await readdir(path.join(root, ".ephemeral"));
+    const beforeRegistrations = (
+      await execFileAsync("git", [
+        "-C",
+        root,
+        "worktree",
+        "list",
+        "--porcelain",
+        "-z",
+      ])
+    ).stdout;
+    const beforeStat = await lstat(path.join(root, ".ephemeral"));
+    await runDiscovery(root);
+    expect(await readdir(path.join(root, ".ephemeral"))).toEqual(beforeFiles);
+    expect(
+      (
+        await execFileAsync("git", [
+          "-C",
+          root,
+          "worktree",
+          "list",
+          "--porcelain",
+          "-z",
+        ])
+      ).stdout,
+    ).toBe(beforeRegistrations);
+    expect((await lstat(path.join(root, ".ephemeral"))).ino).toBe(
+      beforeStat.ino,
+    );
+  });
+});
+
+describe("pr-review discovery wrapper resolution", () => {
+  it("accepts only a contained packaged runtime directory override", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "lease-wrapper-runtime-"));
+    discoveryTempRoots.push(root);
+    const runtimeDir = path.join(root, "devcanon-runtime");
+    const script = path.join(runtimeDir, "scripts", "devcanon-runtime.sh");
+    await mkdir(path.dirname(script), { recursive: true });
+    await writeFile(script, '#!/usr/bin/env bash\nprintf "%s\\n" "$*"\n');
+    await chmod(script, 0o755);
+
+    const { stdout } = await execFileAsync(
+      "bash",
+      ["skills/pr-review/scripts/review-leases.sh", "discover"],
+      {
+        cwd: originalCwd,
+        env: { ...process.env, DEVCANON_RUNTIME_DIR: runtimeDir },
+      },
+    );
+
+    expect(stdout.trim()).toBe("runtime pr-review-leases discover");
+  });
+
+  it("rejects direct-file and symlink runtime overrides", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "lease-wrapper-unsafe-"));
+    discoveryTempRoots.push(root);
+    const direct = path.join(root, "runtime.sh");
+    await writeFile(direct, "#!/usr/bin/env bash\nexit 0\n");
+    await chmod(direct, 0o755);
+    const linked = path.join(root, "linked-runtime");
+    await symlink(path.resolve("skills/devcanon-runtime"), linked, "dir");
+
+    for (const override of [direct, linked]) {
+      await expect(
+        execFileAsync(
+          "bash",
+          ["skills/pr-review/scripts/review-leases.sh", "discover"],
+          {
+            cwd: originalCwd,
+            env: { ...process.env, DEVCANON_RUNTIME_DIR: override },
+          },
+        ),
+      ).rejects.toMatchObject({ code: 1 });
+    }
+  });
+
+  it("rejects a symlinked packaged sibling runtime", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "lease-wrapper-sibling-"));
+    discoveryTempRoots.push(root);
+    const copiedWrapper = path.join(
+      root,
+      "skills",
+      "pr-review",
+      "scripts",
+      "review-leases.sh",
+    );
+    await mkdir(path.dirname(copiedWrapper), { recursive: true });
+    await writeFile(
+      copiedWrapper,
+      await readFile(
+        path.resolve("skills/pr-review/scripts/review-leases.sh"),
+        "utf8",
+      ),
+    );
+    await chmod(copiedWrapper, 0o755);
+    await symlink(
+      path.resolve("skills/devcanon-runtime"),
+      path.join(root, "skills", "devcanon-runtime"),
+      "dir",
+    );
+
+    await expect(
+      execFileAsync("bash", [copiedWrapper, "discover"]),
+    ).rejects.toMatchObject({ code: 1 });
+  });
+
+  it("does not select an ambient PATH runtime", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "lease-wrapper-path-"));
+    discoveryTempRoots.push(root);
+    const marker = path.join(root, "executed");
+    const fake = path.join(root, "devcanon-runtime.sh");
+    await writeFile(
+      fake,
+      `#!/usr/bin/env bash\nprintf used >"${marker}"\nexit 0\n`,
+    );
+    await chmod(fake, 0o755);
+
+    await expect(
+      execFileAsync(
+        "bash",
+        ["skills/pr-review/scripts/review-leases.sh", "discover"],
+        {
+          cwd: originalCwd,
+          env: {
+            ...process.env,
+            PATH: `${root}:${process.env.PATH ?? ""}`,
+            REPOSITORY: "",
+          },
+        },
+      ),
+    ).rejects.toBeDefined();
+    await expect(lstat(marker)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+});
 
 function postedCommandLease({
   leaseFile,
