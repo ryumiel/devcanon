@@ -9,28 +9,20 @@ fail() {
 }
 
 resolve_runtime() {
-  local runtime_dir resolver physical_runtime_dir physical_resolver
+  local script_path="${BASH_SOURCE[0]}"
+  local skills_root
+  skills_root="$(cd "$(dirname "$script_path")/../.." && pwd)"
+  local runtime_resolver="$skills_root/devcanon-runtime/scripts/devcanon-runtime.sh"
   if [ -n "${DEVCANON_RUNTIME_DIR:-}" ]; then
-    runtime_dir="$DEVCANON_RUNTIME_DIR"
-  else
-    runtime_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)/devcanon-runtime"
+    [ -d "$DEVCANON_RUNTIME_DIR" ] && [ ! -L "$DEVCANON_RUNTIME_DIR" ] ||
+      fail "DEVCANON_RUNTIME_DIR must name a packaged runtime directory"
+    runtime_resolver="$DEVCANON_RUNTIME_DIR/scripts/devcanon-runtime.sh"
   fi
-
-  [ -d "$runtime_dir" ] && [ ! -L "$runtime_dir" ] ||
-    fail "devcanon-runtime directory missing or unsafe for pr-review leases"
-  physical_runtime_dir="$(cd "$runtime_dir" && pwd -P)"
-  resolver="$physical_runtime_dir/scripts/devcanon-runtime.sh"
-  [ -f "$resolver" ] && [ -x "$resolver" ] && [ ! -L "$resolver" ] ||
-    fail "devcanon-runtime entrypoint missing or unsafe for pr-review leases"
-  physical_resolver="$(cd "$(dirname "$resolver")" && pwd -P)/$(basename "$resolver")"
-  case "$physical_resolver" in
-    "$physical_runtime_dir"/*) ;;
-    *) fail "devcanon-runtime entrypoint escapes packaged runtime directory" ;;
-  esac
-  if [ "$physical_resolver" != "$resolver" ]; then
-    fail "devcanon-runtime entrypoint identity mismatch"
-  fi
-  printf '%s\n' "$resolver"
+  [ -x "$runtime_resolver" ] ||
+    fail "devcanon-runtime resolver missing for pr-review leases"
+  "$runtime_resolver" resolve-entrypoint \
+    --from "$script_path" \
+    --entrypoint "scripts/devcanon-runtime.sh"
 }
 
 case "$command_name" in

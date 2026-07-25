@@ -210,12 +210,24 @@ interface PrReviewDiscoveryResult extends PrReviewDiscoveryInventory {
 
 interface StableDiscoveryDirectory {
   entries: string[];
+  entry_kinds: string[];
   identity: Awaited<ReturnType<typeof lstat>>;
 }
 
 interface StableDiscoveryFile {
   contents: string;
+  sha256: string;
   identity: Awaited<ReturnType<typeof lstat>>;
+}
+
+interface StableDiscoveryPath {
+  status: "absent" | "directory" | "file" | "invalid";
+  identity: Awaited<ReturnType<typeof lstat>> | null;
+}
+
+interface DiscoveryLeaseInspection {
+  entry: DiscoveryActiveLease;
+  verifyFinal: () => Promise<DiscoveryActiveLease>;
 }
 
 const SHA_RE = /^[0-9a-f]{40}$/u;
@@ -383,14 +395,16 @@ async function discoverReviewSession(): Promise<PrReviewDiscoveryResult> {
     ".worktrees",
     `pr-${prNumber}-review`,
   );
-  const parentObservation = await observeStableDiscoveryPath(
+  const parentSnapshot = await observeStableDiscoveryPathSnapshot(
     path.dirname(canonicalPath),
     true,
   );
-  const targetObservation =
+  const parentObservation = parentSnapshot.status;
+  const targetSnapshot =
     parentObservation === "directory"
-      ? await observeStableDiscoveryPath(canonicalPath, true)
-      : "absent";
+      ? await observeStableDiscoveryPathSnapshot(canonicalPath, true)
+      : { status: "absent" as const, identity: null };
+  const targetObservation = targetSnapshot.status;
   const canonicalTarget: DiscoveryCanonicalTarget = {
     worktree_path: canonicalPath,
     status:
@@ -411,6 +425,7 @@ async function discoverReviewSession(): Promise<PrReviewDiscoveryResult> {
   };
 
   const active: DiscoveryActiveLease[] = [];
+  const activeInspections: DiscoveryLeaseInspection[] = [];
   const archived: string[] = [];
   const invalid: DiscoveryInvalidEntry[] = [];
   if (
@@ -459,16 +474,16 @@ async function discoverReviewSession(): Promise<PrReviewDiscoveryResult> {
       continue;
     }
     if (activeName.test(entry)) {
-      active.push(
-        await inspectDiscoveryLease({
-          primaryRoot,
-          relativePath,
-          repository,
-          prNumber,
-          registrationKeys,
-          gitEnv,
-        }),
-      );
+      const inspection = await inspectDiscoveryLease({
+        primaryRoot,
+        relativePath,
+        repository,
+        prNumber,
+        registrationKeys,
+        gitEnv,
+      });
+      active.push(inspection.entry);
+      activeInspections.push(inspection);
       continue;
     }
     if (entry.endsWith("-lease.json")) {
@@ -496,21 +511,6 @@ async function discoverReviewSession(): Promise<PrReviewDiscoveryResult> {
     }
   }
 
-  const finalParent = await observeStableDiscoveryPath(
-    path.dirname(canonicalPath),
-    true,
-  );
-  const finalTarget =
-    finalParent === "directory"
-      ? await observeStableDiscoveryPath(canonicalPath, true)
-      : "absent";
-  if (finalParent !== parentObservation || finalTarget !== targetObservation) {
-    invalid.push({
-      path: canonicalPath,
-      reason: "canonical-target-changed",
-    });
-  }
-
   let registrationsChanged = false;
   try {
     const finalRegistrations = await readDiscoveryWorktreeRegistrations(
@@ -536,6 +536,49 @@ async function discoverReviewSession(): Promise<PrReviewDiscoveryResult> {
       path: ".git/worktrees",
       reason: "worktree-registrations-changed",
     });
+  }
+
+  try {
+    if (ephemeralSnapshot === null) {
+      if (
+        (await observeStableDiscoveryPath(ephemeralPath, true)) !== "absent"
+      ) {
+        throw new PrReviewLeaseError(
+          "discovery directory appeared during final inspection",
+        );
+      }
+    } else {
+      await assertSameDiscoveryDirectory(ephemeralPath, ephemeralSnapshot);
+    }
+  } catch {
+    if (!invalid.some((entry) => entry.path === ".ephemeral")) {
+      invalid.push({
+        path: ".ephemeral",
+        reason: "invalid-discovery-directory",
+      });
+    }
+  }
+
+  const finalParentSnapshot = await observeStableDiscoveryPathSnapshot(
+    path.dirname(canonicalPath),
+    true,
+  );
+  const finalTargetSnapshot =
+    finalParentSnapshot.status === "directory"
+      ? await observeStableDiscoveryPathSnapshot(canonicalPath, true)
+      : { status: "absent" as const, identity: null };
+  if (
+    !sameStableDiscoveryPath(parentSnapshot, finalParentSnapshot) ||
+    !sameStableDiscoveryPath(targetSnapshot, finalTargetSnapshot)
+  ) {
+    invalid.push({
+      path: canonicalPath,
+      reason: "canonical-target-changed",
+    });
+  }
+
+  for (let index = 0; index < activeInspections.length; index += 1) {
+    active[index] = await activeInspections[index].verifyFinal();
   }
 
   return reducePrReviewDiscovery({
@@ -576,7 +619,7 @@ async function inspectDiscoveryLease({
   prNumber: number;
   registrationKeys: ReadonlySet<string>;
   gitEnv: NodeJS.ProcessEnv;
-}): Promise<DiscoveryActiveLease> {
+}): Promise<DiscoveryLeaseInspection> {
   const invalid = (
     reason: string,
     lease?: PrReviewLease,
@@ -587,24 +630,53 @@ async function inspectDiscoveryLease({
     classification: "invalid",
     reason,
   });
+  const fixed = (entry: DiscoveryActiveLease): DiscoveryLeaseInspection => ({
+    entry,
+    verifyFinal: async () => entry,
+  });
   let lease: PrReviewLease;
   let leaseSnapshot: StableDiscoveryFile;
   const leasePath = path.join(primaryRoot, relativePath);
   try {
     leaseSnapshot = await readStableDiscoveryFile(leasePath);
+  } catch {
+    return fixed(invalid("invalid-lease"));
+  }
+  try {
     lease = parseDiscoveryLease(JSON.parse(leaseSnapshot.contents));
   } catch {
-    return invalid("invalid-lease");
+    const entry = invalid("invalid-lease");
+    return {
+      entry,
+      verifyFinal: async () => {
+        try {
+          await assertSameDiscoveryFile(leasePath, leaseSnapshot);
+          return entry;
+        } catch {
+          return invalid("lease-replaced");
+        }
+      },
+    };
   }
+  let verifyCandidateFinal = async (): Promise<void> => {};
   const finalize = async (
     entry: DiscoveryActiveLease,
-  ): Promise<DiscoveryActiveLease> => {
-    try {
-      await assertSameDiscoveryFile(leasePath, leaseSnapshot.identity);
+  ): Promise<DiscoveryLeaseInspection> => {
+    const verifyFinal = async (): Promise<DiscoveryActiveLease> => {
+      try {
+        await assertSameDiscoveryFile(leasePath, leaseSnapshot);
+      } catch {
+        return invalid("lease-replaced", lease);
+      }
+      try {
+        await verifyCandidateFinal();
+      } catch {
+        return invalid("worktree-replaced", lease);
+      }
       return entry;
-    } catch {
-      return invalid("lease-replaced", lease);
-    }
+    };
+    const verified = await verifyFinal();
+    return verified === entry ? { entry, verifyFinal } : fixed(verified);
   };
 
   const expectedLeaseFile = `.ephemeral/pr-${prNumber}-${lease.worktree_digest}-lease.json`;
@@ -623,6 +695,15 @@ async function inspectDiscoveryLease({
     before = await lstat(filesystemPath);
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+      verifyCandidateFinal = async () => {
+        if (
+          (await observeStableDiscoveryPath(filesystemPath, true)) !== "absent"
+        ) {
+          throw new PrReviewLeaseError(
+            "candidate worktree appeared during inspection",
+          );
+        }
+      };
       return finalize(discoveryEntry(lease, "missing", "worktree-missing"));
     }
     return finalize(invalid("worktree-inspection-failed", lease));
@@ -653,8 +734,20 @@ async function inspectDiscoveryLease({
   } catch {
     return finalize(invalid("invalid-ephemeral-directory", lease));
   }
-  const verifyCandidateSnapshot = async (): Promise<void> => {
+  verifyCandidateFinal = async (): Promise<void> => {
     await assertSameDiscoveryDirectoryIdentity(filesystemPath, before);
+    const finalPhysicalWorktree = await realpath(filesystemPath);
+    if (
+      discoveryComparablePath(finalPhysicalWorktree, process.platform) !==
+        discoveryComparablePath(physicalWorktree, process.platform) ||
+      discoveryComparablePath(finalPhysicalWorktree, process.platform) !==
+        discoveryComparablePath(lease.worktree_path, process.platform) ||
+      digestPath(finalPhysicalWorktree) !== lease.worktree_digest
+    ) {
+      throw new PrReviewLeaseError(
+        "candidate worktree identity changed during inspection",
+      );
+    }
     const candidateEphemeral = path.join(filesystemPath, ".ephemeral");
     if (ephemeralSnapshot === null) {
       if (
@@ -669,6 +762,7 @@ async function inspectDiscoveryLease({
       await assertSameDiscoveryDirectory(candidateEphemeral, ephemeralSnapshot);
     }
   };
+  const verifyCandidateSnapshot = verifyCandidateFinal;
   if (
     !registrationKeys.has(
       discoveryComparablePath(lease.worktree_path, process.platform),
@@ -962,7 +1056,11 @@ async function readStableDiscoveryFile(
     if (!sameDiscoveryIdentity(before, after) || after.isSymbolicLink()) {
       throw new PrReviewLeaseError("discovery lease changed during read");
     }
-    return { contents, identity: before };
+    return {
+      contents,
+      sha256: createHash("sha256").update(contents).digest("hex"),
+      identity: before,
+    };
   } finally {
     await handle.close();
   }
@@ -970,13 +1068,13 @@ async function readStableDiscoveryFile(
 
 async function assertSameDiscoveryFile(
   file: string,
-  expected: Awaited<ReturnType<typeof lstat>>,
+  expected: StableDiscoveryFile,
 ): Promise<void> {
-  const actual = await lstat(file);
+  const actual = await readStableDiscoveryFile(file);
   if (
-    actual.isSymbolicLink() ||
-    !actual.isFile() ||
-    !sameDiscoveryIdentity(expected, actual)
+    !sameDiscoveryFileIdentity(expected.identity, actual.identity) ||
+    expected.sha256 !== actual.sha256 ||
+    expected.contents !== actual.contents
   ) {
     throw new PrReviewLeaseError("discovery lease changed during inspection");
   }
@@ -995,18 +1093,21 @@ async function readStableDiscoveryDirectory(
   if (before.isSymbolicLink() || !before.isDirectory()) {
     throw new PrReviewLeaseError("discovery directory is not a real directory");
   }
-  const entries = await readdir(directory);
+  const entries = ordinalSort(await readdir(directory));
+  const entryKinds = await readDiscoveryEntryKinds(directory, entries);
   const after = await lstat(directory);
+  const finalEntries = ordinalSort(await readdir(directory));
   if (
     after.isSymbolicLink() ||
     !after.isDirectory() ||
-    !sameDiscoveryIdentity(before, after)
+    !sameDiscoveryIdentity(before, after) ||
+    !sameOrdinalStringArray(entries, finalEntries)
   ) {
     throw new PrReviewLeaseError(
       "discovery directory changed during inspection",
     );
   }
-  return { entries: ordinalSort(entries), identity: before };
+  return { entries, entry_kinds: entryKinds, identity: before };
 }
 
 async function assertSameDiscoveryDirectory(
@@ -1024,11 +1125,40 @@ async function assertSameDiscoveryDirectory(
     );
   }
   const entries = ordinalSort(await readdir(directory));
-  if (!sameOrdinalStringArray(expected.entries, entries)) {
+  const entryKinds = await readDiscoveryEntryKinds(directory, entries);
+  const after = await lstat(directory);
+  const finalEntries = ordinalSort(await readdir(directory));
+  if (
+    after.isSymbolicLink() ||
+    !after.isDirectory() ||
+    !sameDiscoveryIdentity(expected.identity, after) ||
+    !sameOrdinalStringArray(expected.entries, entries) ||
+    !sameOrdinalStringArray(expected.entry_kinds, entryKinds) ||
+    !sameOrdinalStringArray(entries, finalEntries)
+  ) {
     throw new PrReviewLeaseError(
       "discovery directory entries changed during inspection",
     );
   }
+}
+
+async function readDiscoveryEntryKinds(
+  directory: string,
+  entries: readonly string[],
+): Promise<string[]> {
+  const kinds: string[] = [];
+  for (const entry of entries) {
+    const stat = await lstat(path.join(directory, entry));
+    const kind = stat.isSymbolicLink()
+      ? "symlink"
+      : stat.isFile()
+        ? "file"
+        : stat.isDirectory()
+          ? "directory"
+          : "other";
+    kinds.push(`${entry}\u0000${kind}`);
+  }
+  return kinds;
 }
 
 async function assertSameDiscoveryDirectoryIdentity(
@@ -1057,32 +1187,68 @@ function sameDiscoveryIdentity(
   return left.mode === right.mode && left.birthtimeMs === right.birthtimeMs;
 }
 
-async function observeStableDiscoveryPath(
+function sameDiscoveryFileIdentity(
+  left: Awaited<ReturnType<typeof lstat>>,
+  right: Awaited<ReturnType<typeof lstat>>,
+): boolean {
+  return (
+    sameDiscoveryIdentity(left, right) &&
+    left.mode === right.mode &&
+    left.size === right.size &&
+    left.mtimeMs === right.mtimeMs &&
+    left.ctimeMs === right.ctimeMs
+  );
+}
+
+async function observeStableDiscoveryPathSnapshot(
   target: string,
   directory: boolean,
-): Promise<"absent" | "directory" | "file" | "invalid"> {
+): Promise<StableDiscoveryPath> {
   let before: Awaited<ReturnType<typeof lstat>>;
   try {
     before = await lstat(target);
   } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === "ENOENT") return "absent";
-    return "invalid";
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+      return { status: "absent", identity: null };
+    }
+    return { status: "invalid", identity: null };
   }
   if (
     before.isSymbolicLink() ||
     (directory ? !before.isDirectory() : !before.isFile())
   ) {
-    return "invalid";
+    return { status: "invalid", identity: before };
   }
   try {
     const after = await lstat(target);
     if (!sameDiscoveryIdentity(before, after) || after.isSymbolicLink()) {
-      return "invalid";
+      return { status: "invalid", identity: after };
     }
   } catch {
-    return "invalid";
+    return { status: "invalid", identity: null };
   }
-  return directory ? "directory" : "file";
+  return {
+    status: directory ? "directory" : "file",
+    identity: before,
+  };
+}
+
+function sameStableDiscoveryPath(
+  left: StableDiscoveryPath,
+  right: StableDiscoveryPath,
+): boolean {
+  if (left.status !== right.status) return false;
+  if (left.identity === null || right.identity === null) {
+    return left.identity === right.identity;
+  }
+  return sameDiscoveryIdentity(left.identity, right.identity);
+}
+
+async function observeStableDiscoveryPath(
+  target: string,
+  directory: boolean,
+): Promise<"absent" | "directory" | "file" | "invalid"> {
+  return (await observeStableDiscoveryPathSnapshot(target, directory)).status;
 }
 
 async function assertDiscoveryPrimaryRoot(

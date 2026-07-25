@@ -144,10 +144,13 @@ leases are blockers. Symlinks, non-files/directories, malformed names or
 leases, and unverifiable replacement are invalid. Archived names use the
 closed digest, compact UTC timestamp, terminal-state filename grammar; other
 PR-matching lease names are invalid and are never hidden as history.
-Directory entry sets and normalized Git registration sets are captured and
-rechecked as one coherent inventory snapshot. Any addition, removal,
-replacement, or registration drift during collection makes the result
-`invalid`.
+At the final barrier after the second normalized Git-registration snapshot,
+the planner rechecks every retained lease's exact bytes and file identity,
+each candidate worktree's directory identity, real path, path digest, and
+`.ephemeral` entry names and kinds, the primary active-entry set, and the
+canonical target observation. Any in-place lease rewrite, addition, removal,
+replacement, candidate drift, or registration drift during collection makes
+the result `invalid`.
 
 The deterministic precedence is:
 

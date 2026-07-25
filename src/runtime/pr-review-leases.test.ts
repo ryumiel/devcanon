@@ -4510,6 +4510,105 @@ describe("read-only PR review discovery planner", () => {
     }
   });
 
+  it("fails closed when a lease is rewritten in place during the final registration snapshot", async () => {
+    const root = await createDiscoveryRepository();
+    const worktree = await createDiscoveryWorktree(root, "late-lease-rewrite");
+    const lease = discoveryLease(worktree);
+    await writeDiscoveryLease(root, lease);
+    const leasePath = path.join(root, lease.lease_file);
+    const rewritten = `${JSON.stringify(
+      { ...lease, updated_at: "2026-06-11T00:00:01Z" },
+      null,
+      2,
+    )}\n`;
+    const wrapperDir = await mkdtemp(path.join(tmpdir(), "git-wrapper-"));
+    discoveryTempRoots.push(wrapperDir);
+    const counter = path.join(wrapperDir, "count");
+    const realGit = (
+      await execFileAsync("sh", ["-c", "command -v git"])
+    ).stdout.trim();
+    const wrapper = path.join(wrapperDir, "git");
+    await writeFile(
+      wrapper,
+      [
+        "#!/bin/sh",
+        'case " $* " in',
+        '  *" worktree list --porcelain -z "*)',
+        `    count=$(cat '${counter}' 2>/dev/null || printf 0)`,
+        `    next=$((count + 1)); printf '%s' "$next" >'${counter}'`,
+        `    '${realGit}' "$@" || exit $?`,
+        `    [ "$next" -lt 2 ] || printf '%s' '${rewritten}' >'${leasePath}'`,
+        "    exit 0",
+        "    ;;",
+        "esac",
+        `exec '${realGit}' "$@"`,
+        "",
+      ].join("\n"),
+    );
+    await chmod(wrapper, 0o755);
+    const oldPath = process.env.PATH;
+    process.env.PATH = `${wrapperDir}:${oldPath ?? ""}`;
+    try {
+      const result = await runDiscovery(root);
+      expect(result.disposition).toBe("invalid");
+      expect(result.active[0]).toMatchObject({
+        classification: "invalid",
+        reason: "lease-replaced",
+      });
+    } finally {
+      process.env.PATH = oldPath;
+    }
+  });
+
+  it("fails closed when a candidate is replaced during the final registration snapshot", async () => {
+    const root = await createDiscoveryRepository();
+    const worktree = await createDiscoveryWorktree(
+      root,
+      "late-candidate-replacement",
+    );
+    await writeDiscoveryLease(root, discoveryLease(worktree));
+    const wrapperDir = await mkdtemp(path.join(tmpdir(), "git-wrapper-"));
+    discoveryTempRoots.push(wrapperDir);
+    const counter = path.join(wrapperDir, "count");
+    const realGit = (
+      await execFileAsync("sh", ["-c", "command -v git"])
+    ).stdout.trim();
+    const wrapper = path.join(wrapperDir, "git");
+    await writeFile(
+      wrapper,
+      [
+        "#!/bin/sh",
+        'case " $* " in',
+        '  *" worktree list --porcelain -z "*)',
+        `    count=$(cat '${counter}' 2>/dev/null || printf 0)`,
+        `    next=$((count + 1)); printf '%s' "$next" >'${counter}'`,
+        `    '${realGit}' "$@" || exit $?`,
+        '    if [ "$next" -ge 2 ]; then',
+        `      mv '${worktree}' '${worktree}.original'`,
+        `      mkdir '${worktree}'`,
+        "    fi",
+        "    exit 0",
+        "    ;;",
+        "esac",
+        `exec '${realGit}' "$@"`,
+        "",
+      ].join("\n"),
+    );
+    await chmod(wrapper, 0o755);
+    const oldPath = process.env.PATH;
+    process.env.PATH = `${wrapperDir}:${oldPath ?? ""}`;
+    try {
+      const result = await runDiscovery(root);
+      expect(result.disposition).toBe("invalid");
+      expect(result.active[0]).toMatchObject({
+        classification: "invalid",
+        reason: "worktree-replaced",
+      });
+    } finally {
+      process.env.PATH = oldPath;
+    }
+  });
+
   it("reduces deterministically under an explicit comparison policy and selects active cleanup first", () => {
     const inventory = {
       repository: "owner/repo",
@@ -4708,7 +4807,18 @@ describe("pr-review discovery wrapper resolution", () => {
     const runtimeDir = path.join(root, "devcanon-runtime");
     const script = path.join(runtimeDir, "scripts", "devcanon-runtime.sh");
     await mkdir(path.dirname(script), { recursive: true });
-    await writeFile(script, '#!/usr/bin/env bash\nprintf "%s\\n" "$*"\n');
+    await writeFile(
+      script,
+      [
+        "#!/usr/bin/env bash",
+        'if [ "${1:-}" = "resolve-entrypoint" ]; then',
+        `  printf '%s\\n' '${script}'`,
+        "  exit 0",
+        "fi",
+        'printf "%s\\n" "$*"',
+        "",
+      ].join("\n"),
+    );
     await chmod(script, 0o755);
 
     const { stdout } = await execFileAsync(
@@ -4746,34 +4856,55 @@ describe("pr-review discovery wrapper resolution", () => {
     }
   });
 
-  it("rejects a symlinked packaged sibling runtime", async () => {
+  it("resolves the managed sibling symlink layout for discovery and existing commands", async () => {
     const root = await mkdtemp(path.join(tmpdir(), "lease-wrapper-sibling-"));
     discoveryTempRoots.push(root);
-    const copiedWrapper = path.join(
-      root,
-      "skills",
+    const skillsRoot = path.join(root, "skills");
+    await mkdir(skillsRoot);
+    await symlink(
+      path.resolve("skills/pr-review"),
+      path.join(skillsRoot, "pr-review"),
+      "dir",
+    );
+    await symlink(
+      path.resolve("skills/devcanon-runtime"),
+      path.join(skillsRoot, "devcanon-runtime"),
+      "dir",
+    );
+    const installedWrapper = path.join(
+      skillsRoot,
       "pr-review",
       "scripts",
       "review-leases.sh",
     );
-    await mkdir(path.dirname(copiedWrapper), { recursive: true });
-    await writeFile(
-      copiedWrapper,
-      await readFile(
-        path.resolve("skills/pr-review/scripts/review-leases.sh"),
-        "utf8",
-      ),
+    const repositoryRoot = await createDiscoveryRepository();
+    const worktree = await createDiscoveryWorktree(
+      repositoryRoot,
+      "installed-wrapper",
     );
-    await chmod(copiedWrapper, 0o755);
-    await symlink(
-      path.resolve("skills/devcanon-runtime"),
-      path.join(root, "skills", "devcanon-runtime"),
-      "dir",
+    const env = {
+      ...process.env,
+      DEVCANON_RUNTIME_DIR: undefined,
+      REPOSITORY: "owner/repo",
+      PR_NUMBER: "432",
+      PRIMARY_REPOSITORY_ROOT: repositoryRoot,
+      WORKTREE_PATH: worktree,
+    };
+    const discovery = await execFileAsync(
+      "bash",
+      [installedWrapper, "discover"],
+      { cwd: repositoryRoot, env },
     );
-
-    await expect(
-      execFileAsync("bash", [copiedWrapper, "discover"]),
-    ).rejects.toMatchObject({ code: 1 });
+    expect(JSON.parse(discovery.stdout)).toMatchObject({
+      schema: "pr-review/discovery/v1",
+      disposition: "create",
+    });
+    const derived = await execFileAsync(
+      "bash",
+      [installedWrapper, "derive-path"],
+      { cwd: repositoryRoot, env },
+    );
+    expect(derived.stdout.trim()).toBe(discoveryLease(worktree).lease_file);
   });
 
   it("does not select an ambient PATH runtime", async () => {
@@ -4808,24 +4939,26 @@ describe("pr-review discovery wrapper resolution", () => {
 describe("pr-review discovery operator contract", () => {
   it("binds repository authority before discovery and rejects failed or malformed provider output", async () => {
     const skill = await readFile("skills/pr-review/SKILL.md", "utf8");
-    const assignment =
-      "REPOSITORY=\"$({{tool:github-cli}} repo view --json nameWithOwner --jq '.nameWithOwner')\" || exit 1";
+    const providerAssignment =
+      'PR_JSON="$({{tool:github-cli}} pr view <N-or-URL> --json number,title,body,baseRefName,baseRefOid,baseRepository,headRefName,headRefOid,commits,files,reviews,comments,url)" || exit 1';
     const validationMatch = skill.match(
-      /```bash\n(case "\$REPOSITORY"[\s\S]*?esac)\n```/u,
+      /```bash\n(PR_NUMBER="\$\(printf[\s\S]*?case "\$PR_URL"[\s\S]*?esac)\n```/u,
     );
-    expect(skill).toContain(`\`${assignment}\``);
+    expect(skill).toContain(`\`${providerAssignment}\``);
     expect(validationMatch).not.toBeNull();
     const validationBlock = validationMatch?.[1] ?? "";
     expect(validationBlock).not.toContain("{{tool:github-cli}}");
-    expect(skill.indexOf(assignment)).toBeLessThan(
+    expect(skill.indexOf(providerAssignment)).toBeLessThan(
       skill.indexOf("DISCOVERY_JSON=$("),
     );
     expect(skill.indexOf(validationBlock)).toBeLessThan(
       skill.indexOf("DISCOVERY_JSON=$("),
     );
+    expect(skill).not.toMatch(/^\s*REPOSITORY="<owner\/repo>" \\/mu);
 
     const root = await mkdtemp(path.join(tmpdir(), "provider-binding-"));
     discoveryTempRoots.push(root);
+    await execFileAsync("git", ["init", "-b", "main", root]);
     const provider = path.join(root, "provider");
     const execute = async (providerBody: string) => {
       await writeFile(provider, `#!/bin/sh\n${providerBody}\n`);
@@ -4834,24 +4967,41 @@ describe("pr-review discovery operator contract", () => {
         "bash",
         [
           "-c",
-          `${assignment.replace("{{tool:github-cli}}", `'${provider}'`)}\n${validationBlock}\nprintf '%s' "$REPOSITORY"`,
+          `${providerAssignment
+            .replace("{{tool:github-cli}}", `'${provider}'`)
+            .replace(
+              "<N-or-URL>",
+              "432",
+            )}\n${validationBlock}\nprintf '%s %s' "$PR_NUMBER" "$REPOSITORY"`,
         ],
         {
+          cwd: root,
           env: { ...process.env, REPOSITORY: "ambient/poison" },
         },
       );
     };
 
-    await expect(execute("printf '%s\\n' owner/repo")).resolves.toMatchObject({
-      stdout: "owner/repo",
+    const response = (repository: string, urlRepository = repository) =>
+      JSON.stringify({
+        number: 432,
+        baseRepository: { nameWithOwner: repository },
+        url: `https://github.com/${urlRepository}/pull/432`,
+      });
+    await expect(
+      execute(`printf '%s\\n' '${response("target/repo")}'`),
+    ).resolves.toMatchObject({
+      stdout: "432 target/repo",
     });
     await expect(execute("exit 9")).rejects.toMatchObject({ code: 1 });
-    await expect(execute("printf '%s\\n' malformed")).rejects.toMatchObject({
+    await expect(
+      execute(`printf '%s\\n' '${response("malformed")}'`),
+    ).rejects.toMatchObject({ code: 1 });
+    await expect(
+      execute(`printf '%s\\n' '${response("target/repo", "other/repo")}'`),
+    ).rejects.toMatchObject({ code: 1 });
+    await expect(execute("printf '%s\\n' '{}'")).rejects.toMatchObject({
       code: 1,
     });
-    await expect(
-      execute("printf '%s\\n' owner/repo/extra"),
-    ).rejects.toMatchObject({ code: 1 });
   });
 
   it("documents created-only resume and excludes semantic artifact consumption", async () => {

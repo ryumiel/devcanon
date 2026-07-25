@@ -2211,7 +2211,7 @@ None
     expect(normalizedPrReview).toContain(
       'REVIEW_GATE_FINISHED_AT="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"',
     );
-    expect(normalizedPrReview).toContain('REPOSITORY="<owner/repo>"');
+    expect(normalizedPrReview).toContain('REPOSITORY="$REPOSITORY"');
     expect(normalizedPrReview).toContain(
       'PRIMARY_REPOSITORY_ROOT="$REVIEW_CALLER_DIR"',
     );
@@ -2251,13 +2251,13 @@ None
       ': "${REVIEW_HEAD_SHA:?Phase 5 trusted review head missing}"',
     );
     expect(normalizedPrReview).toContain(
-      'PR_NUMBER="$PR_NUMBER" HEAD_SHA="$REVIEW_HEAD_SHA" REPOSITORY="<owner/repo>" RESULT_FILE="$REVIEW_RESULT_FILE"',
+      'PR_NUMBER="$PR_NUMBER" HEAD_SHA="$REVIEW_HEAD_SHA" REPOSITORY="$REPOSITORY" RESULT_FILE="$REVIEW_RESULT_FILE"',
     );
     expect(normalizedPrReview).toContain(
       'REVIEW_HANDOFF_FILE="$(jq -r \'.artifacts.handoff_file\' "$RESULT_JSON")"',
     );
     expect(normalizedPrReview).toContain(
-      'PR_NUMBER="$PR_NUMBER" \\ HEAD_SHA="$REVIEW_HEAD_SHA" \\ REPOSITORY="<owner/repo>" \\ HANDOFF_FILE="$REVIEW_HANDOFF_FILE" \\ bash "$PR_REVIEW_MANIFEST_HELPER" validate-handoff >/dev/null',
+      'PR_NUMBER="$PR_NUMBER" \\ HEAD_SHA="$REVIEW_HEAD_SHA" \\ REPOSITORY="$REPOSITORY" \\ HANDOFF_FILE="$REVIEW_HANDOFF_FILE" \\ bash "$PR_REVIEW_MANIFEST_HELPER" validate-handoff >/dev/null',
     );
     expect(normalizedPrReview).toContain(
       'REVIEW_HEAD_REF="$(jq -r \'.head_ref\' "$REVIEW_HANDOFF_FILE")"',

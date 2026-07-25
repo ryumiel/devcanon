@@ -38,11 +38,35 @@ digraph pr_review {
 
 ## Phase 1: Gather
 
-Run in parallel:
+Fetch the target PR response first and stop if the provider command fails:
+`PR_JSON="$({{tool:github-cli}} pr view <N-or-URL> --json number,title,body,baseRefName,baseRefOid,baseRepository,headRefName,headRefOid,commits,files,reviews,comments,url)" || exit 1`.
 
-- `{{tool:github-cli}} pr view <N> --json title,body,baseRefName,baseRefOid,headRefName,headRefOid,commits,files,reviews,comments,url`
-- `{{tool:github-cli}} api repos/{owner}/{repo}/pulls/<N>/comments` — inline review threads
-- `{{tool:github-cli}} api repos/{owner}/{repo}/pulls/<N>/reviews` — review states
+Bind the PR number and exact base repository identity from that same response,
+not from the caller repository or an ambient `REPOSITORY`, and reconcile the
+reported PR URL before any repository-scoped provider call:
+
+```bash
+PR_NUMBER="$(printf '%s' "$PR_JSON" | jq -er '.number | select(type == "number" and floor == . and . > 0)')" ||
+  exit 1
+REPOSITORY="$(printf '%s' "$PR_JSON" | jq -er '.baseRepository.nameWithOwner')" ||
+  exit 1
+PR_URL="$(printf '%s' "$PR_JSON" | jq -er '.url')" || exit 1
+case "$REPOSITORY" in
+  */*) [ -n "${REPOSITORY%%/*}" ] && [ -n "${REPOSITORY#*/}" ] &&
+    [ "${REPOSITORY#*/}" = "${REPOSITORY##*/}" ] || exit 1 ;;
+  *) exit 1 ;;
+esac
+case "$PR_URL" in
+  https://*/"$REPOSITORY"/pull/"$PR_NUMBER") ;;
+  *) exit 1 ;;
+esac
+```
+
+Then gather the remaining repository-scoped evidence, which may run in
+parallel:
+
+- `{{tool:github-cli}} api repos/$REPOSITORY/pulls/$PR_NUMBER/comments` — inline review threads
+- `{{tool:github-cli}} api repos/$REPOSITORY/pulls/$PR_NUMBER/reviews` — review states
 
 Phase 1 must fetch and record provider `baseRefOid` and `headRefOid`, but
 provider `baseRefOid` is metadata, not proof that the base branch ref is the PR
@@ -62,18 +86,11 @@ Detect mode:
 - **Initial:** No prior review from the current user on this PR.
 - **Follow-up:** Prior review exists. Find the last reviewed commit from the prior review's `commit_id`. Set `last_reviewed_sha` to that value.
 
-Bind the repository identity from the authoritative provider response before
-Phase 2. Do not inherit or reuse an ambient `REPOSITORY` value. Run
-`REPOSITORY="$({{tool:github-cli}} repo view --json nameWithOwner --jq '.nameWithOwner')" || exit 1`
-and stop if the provider command fails. Then validate the bound value:
-
-```bash
-case "$REPOSITORY" in
-  */*) [ -n "${REPOSITORY%%/*}" ] && [ -n "${REPOSITORY#*/}" ] &&
-    [ "${REPOSITORY#*/}" = "${REPOSITORY##*/}" ] || exit 1 ;;
-  *) exit 1 ;;
-esac
-```
+The validated `$REPOSITORY` above is the single repository identity for every
+subsequent discovery, manifest, lease, and provider-evidence operation in this
+review. Do not reconstruct that identity later with the illustrative
+`REPOSITORY="<owner/repo>"` placeholder; same-PR helper invocations must reuse
+the validated variable.
 
 ## Phase 2: Worktree setup
 
@@ -417,7 +434,7 @@ write_pr_review_handoff_manifest() {
   REVIEW_HANDOFF_FILE=$(
     PR_NUMBER="$PR_NUMBER" \
     HEAD_SHA="$REVIEW_HEAD_SHA" \
-    REPOSITORY="<owner/repo>" \
+    REPOSITORY="$REPOSITORY" \
     EXECUTION_WORKING_DIRECTORY="$WORKING_DIRECTORY" \
     BASE_REF="$PR_BASE_REF" \
     HEAD_REF="<head-ref>" \
@@ -433,7 +450,7 @@ write_pr_review_handoff_manifest() {
     PRIOR_THREADS_FILE="${PRIOR_THREADS_FILE:-}" \
       bash "$PR_REVIEW_MANIFEST_HELPER" write-handoff || return 1
   ) || return 1
-  PR_NUMBER="$PR_NUMBER" HEAD_SHA="$REVIEW_HEAD_SHA" REPOSITORY="<owner/repo>" HANDOFF_FILE="$REVIEW_HANDOFF_FILE" \
+  PR_NUMBER="$PR_NUMBER" HEAD_SHA="$REVIEW_HEAD_SHA" REPOSITORY="$REPOSITORY" HANDOFF_FILE="$REVIEW_HANDOFF_FILE" \
     bash "$PR_REVIEW_MANIFEST_HELPER" validate-handoff || return 1
   printf 'PR review handoff manifest written to %s.\n' "$REVIEW_HANDOFF_FILE"
 }
@@ -466,7 +483,7 @@ approval state, no lease state, and no GitHub review payload.
 (
   cd "$WORKING_DIRECTORY" || exit 1
   : "${REVIEW_HANDOFF_FILE:?Phase 3 handoff manifest path missing}"
-  PR_NUMBER="$PR_NUMBER" HEAD_SHA="$REVIEW_HEAD_SHA" REPOSITORY="<owner/repo>" HANDOFF_FILE="$REVIEW_HANDOFF_FILE" \
+  PR_NUMBER="$PR_NUMBER" HEAD_SHA="$REVIEW_HEAD_SHA" REPOSITORY="$REPOSITORY" HANDOFF_FILE="$REVIEW_HANDOFF_FILE" \
     bash "$PR_REVIEW_MANIFEST_HELPER" validate-handoff || exit 1
   CURRENT_WORKTREE_HEAD="$(git rev-parse HEAD)" || exit 1
   [ "$CURRENT_WORKTREE_HEAD" = "$REVIEW_HEAD_SHA" ] || {
@@ -520,14 +537,14 @@ write_initial_pr_review_result_manifest() {
   REVIEW_RESULT_FILE=$(
     PR_NUMBER="$PR_NUMBER" \
     HEAD_SHA="$REVIEW_HEAD_SHA" \
-    REPOSITORY="<owner/repo>" \
+    REPOSITORY="$REPOSITORY" \
     FINDINGS_FILE="$REVIEW_FINDINGS_FILE" \
     SCOPE_DECISION_FILE="$REVIEW_SCOPE_DECISION_FILE" \
     PRIOR_THREADS_FILE="${PRIOR_THREADS_FILE:-}" \
     PRESENTATION_STATUS="not-presented" \
       bash "$PR_REVIEW_MANIFEST_HELPER" write-result || return 1
   ) || return 1
-  PR_NUMBER="$PR_NUMBER" HEAD_SHA="$REVIEW_HEAD_SHA" REPOSITORY="<owner/repo>" RESULT_FILE="$REVIEW_RESULT_FILE" \
+  PR_NUMBER="$PR_NUMBER" HEAD_SHA="$REVIEW_HEAD_SHA" REPOSITORY="$REPOSITORY" RESULT_FILE="$REVIEW_RESULT_FILE" \
     bash "$PR_REVIEW_MANIFEST_HELPER" validate-result || return 1
   printf 'PR review result manifest written to %s.\n' "$REVIEW_RESULT_FILE"
 }
@@ -569,7 +586,7 @@ read_pr_review_result_manifest_for_preview() {
   : "${REVIEW_HEAD_SHA:?Phase 5 trusted review head missing}"
   PR_NUMBER="$PR_NUMBER" \
   HEAD_SHA="$REVIEW_HEAD_SHA" \
-  REPOSITORY="<owner/repo>" \
+  REPOSITORY="$REPOSITORY" \
   RESULT_FILE="$REVIEW_RESULT_FILE" \
     bash "$PR_REVIEW_MANIFEST_HELPER" validate-result >/dev/null || return 1
   RESULT_JSON=$(mktemp) || return 1
@@ -579,7 +596,7 @@ read_pr_review_result_manifest_for_preview() {
   REVIEW_HANDOFF_FILE="$(jq -r '.artifacts.handoff_file' "$RESULT_JSON")" || return 1
   PR_NUMBER="$PR_NUMBER" \
   HEAD_SHA="$REVIEW_HEAD_SHA" \
-  REPOSITORY="<owner/repo>" \
+  REPOSITORY="$REPOSITORY" \
   HANDOFF_FILE="$REVIEW_HANDOFF_FILE" \
     bash "$PR_REVIEW_MANIFEST_HELPER" validate-handoff >/dev/null || return 1
   REVIEW_HEAD_REF="$(jq -r '.head_ref' "$REVIEW_HANDOFF_FILE")" || return 1
@@ -673,7 +690,7 @@ update_pr_review_result_manifest() {
   REVIEW_RESULT_FILE=$(
     PR_NUMBER="$PR_NUMBER" \
     HEAD_SHA="$REVIEW_HEAD_SHA" \
-    REPOSITORY="<owner/repo>" \
+    REPOSITORY="$REPOSITORY" \
     FINDINGS_FILE="$REVIEW_FINDINGS_FILE" \
     REVIEW_BODY_FILE="$REVIEW_BODY_FILE" \
     SCOPE_DECISION_FILE="$REVIEW_SCOPE_DECISION_FILE" \
@@ -682,7 +699,7 @@ update_pr_review_result_manifest() {
     PRESENTATION_STATUS="preview-current" \
       bash "$PR_REVIEW_MANIFEST_HELPER" write-result || return 1
   ) || return 1
-  PR_NUMBER="$PR_NUMBER" HEAD_SHA="$REVIEW_HEAD_SHA" REPOSITORY="<owner/repo>" RESULT_FILE="$REVIEW_RESULT_FILE" \
+  PR_NUMBER="$PR_NUMBER" HEAD_SHA="$REVIEW_HEAD_SHA" REPOSITORY="$REPOSITORY" RESULT_FILE="$REVIEW_RESULT_FILE" \
     bash "$PR_REVIEW_MANIFEST_HELPER" validate-result || return 1
   printf 'PR review result manifest updated at %s.\n' "$REVIEW_RESULT_FILE"
 }
@@ -708,7 +725,7 @@ from that validated manifest plus the current read-only lease/worktree status:
 ```bash
 PHASE5_AUDIT_STATUS=0
 PHASE5_AUDIT_SUMMARY=$(
-  REPOSITORY="<owner/repo>" \
+  REPOSITORY="$REPOSITORY" \
   PR_NUMBER="$PR_NUMBER" \
   HEAD_SHA="$REVIEW_HEAD_SHA" \
   RESULT_FILE="$REVIEW_RESULT_FILE" \
@@ -721,7 +738,7 @@ if [ "$PHASE5_AUDIT_STATUS" -ne 0 ]; then
   REVIEW_GATE_FINISHED_AT="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
   (
     cd "$REVIEW_CALLER_DIR" || exit 1
-    REPOSITORY="<owner/repo>" \
+    REPOSITORY="$REPOSITORY" \
     PR_NUMBER="$PR_NUMBER" \
     PRIMARY_REPOSITORY_ROOT="$REVIEW_CALLER_DIR" \
     LEASE_FILE="$LEASE_FILE" \
