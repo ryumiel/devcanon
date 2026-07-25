@@ -357,7 +357,7 @@ async function inspectDiscoveryLease({ primaryRoot, relativePath, repository, pr
                     await verifyCandidateRepositoryFinal();
                 }
                 catch {
-                    return invalid("worktree-repository-mismatch", lease);
+                    return invalid("repository-identity-changed", lease);
                 }
                 let finalDirty;
                 try {
@@ -382,7 +382,7 @@ async function inspectDiscoveryLease({ primaryRoot, relativePath, repository, pr
                     await verifyCandidateRepositoryFinal();
                 }
                 catch {
-                    return invalid("worktree-repository-mismatch", lease);
+                    return invalid("repository-identity-changed", lease);
                 }
                 if (finalDirty) {
                     return invalid("worktree-dirty-after-snapshot", lease);
@@ -525,12 +525,17 @@ async function inspectDiscoveryLease({ primaryRoot, relativePath, repository, pr
         return finalize(invalid("worktree-repository-mismatch", lease));
     }
     verifyCandidateRepositoryFinal = async () => {
+        const currentPrimary = await readDiscoveryRepositoryIdentity(primaryRoot, gitEnv);
+        if (!sameDiscoveryRepositoryIdentity(currentPrimary, primaryRepository) ||
+            discoveryComparablePath(currentPrimary.top_level, process.platform) !==
+                discoveryComparablePath(primaryRoot, process.platform)) {
+            throw new PrReviewLeaseError("primary repository identity changed during inspection");
+        }
         const current = await readDiscoveryRepositoryIdentity(filesystemPath, gitEnv);
-        assertDiscoveryCandidateRepository(current, physicalWorktree, primaryRepository);
-        if (discoveryComparablePath(current.top_level, process.platform) !==
-            discoveryComparablePath(candidateRepository.top_level, process.platform) ||
+        assertDiscoveryCandidateRepository(current, physicalWorktree, currentPrimary);
+        if (!sameDiscoveryRepositoryIdentity(current, candidateRepository) ||
             discoveryComparablePath(current.common_directory, process.platform) !==
-                discoveryComparablePath(candidateRepository.common_directory, process.platform)) {
+                discoveryComparablePath(primaryRepository.common_directory, process.platform)) {
             throw new PrReviewLeaseError("candidate repository identity changed during inspection");
         }
     };
@@ -891,6 +896,12 @@ function assertDiscoveryCandidateRepository(candidate, physicalWorktree, primary
             discoveryComparablePath(primary.common_directory, process.platform)) {
         throw new PrReviewLeaseError("candidate worktree does not belong to the primary repository");
     }
+}
+function sameDiscoveryRepositoryIdentity(left, right) {
+    return (discoveryComparablePath(left.top_level, process.platform) ===
+        discoveryComparablePath(right.top_level, process.platform) &&
+        discoveryComparablePath(left.common_directory, process.platform) ===
+            discoveryComparablePath(right.common_directory, process.platform));
 }
 async function readDiscoveryWorktreeRegistrations(primaryRoot, env) {
     const stdout = await runDiscoveryGit(primaryRoot, ["worktree", "list", "--porcelain", "-z"], env);
