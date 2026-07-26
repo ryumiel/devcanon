@@ -126,9 +126,9 @@ lease transition, cleanup, rollback, or artifact-semantic read.
 This revision does **not** invoke or route those commands from the active
 review flow. In particular, `create` is selection evidence only and must not
 authorize the existing raw worktree or LC-01 creation steps. Activation remains
-blocked on the transactional session-creation owner described by issue #571.
-Until that owner is available and separately integrated, current Phase 2
-behavior below is unchanged.
+blocked on the transactional session-creation owner. Until that owner is
+available and separately integrated, current Phase 2 behavior below is
+unchanged.
 
 The substrate's closed result, created-only artifact-free resume eligibility,
 optimistic repeated-observation model, and immediate read-only resume
@@ -137,8 +137,9 @@ acceptance boundary are owned by
 and the
 [lease lifecycle contract](references/review-lease-lifecycle-contract.md).
 The latter documents the closed `pr-review/resume-acceptance/v1` projection
-consumed only by the future #571 owner after it re-observes the exact validated
-tuple; the projection remains read-only and grants no mutation authority.
+consumed only by the future transactional session-creation owner after it
+re-observes the exact validated tuple; the projection remains read-only and
+grants no mutation authority.
 
 Helper command surface:
 

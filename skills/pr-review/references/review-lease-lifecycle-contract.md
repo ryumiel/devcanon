@@ -199,8 +199,8 @@ the result is still the unique, byte-identical `resume` tuple. It emits
 `pr-review/resume-acceptance/v1` with exactly `schema`, `repository`,
 `pr_number`, `primary_repository_root`, `lease_file`, and `worktree_path`.
 Failure emits no routing output and never authorizes mutation. This is
-read-only revalidation evidence for #571's future transaction owner, not an
-activation or transaction surface in this revision.
+read-only revalidation evidence for the future transactional session-creation
+owner, not an activation or transaction surface in this revision.
 
 Top-level invalid inventory reasons are closed to
 `discovery-snapshot-changed`, `invalid-canonical-target`,

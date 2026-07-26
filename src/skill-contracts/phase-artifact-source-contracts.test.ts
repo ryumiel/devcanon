@@ -2147,7 +2147,7 @@ None
       "This revision does **not** invoke or route those commands",
     );
     expect(prReview).toContain(
-      "blocked on the transactional session-creation owner described by issue #571",
+      "blocked on the transactional session-creation owner",
     );
     expect(prReview).not.toContain('"$PR_REVIEW_LEASE_HELPER" discover');
     expect(prReview).not.toContain(

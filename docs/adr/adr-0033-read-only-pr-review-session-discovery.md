@@ -66,10 +66,10 @@ normalized only at filesystem and comparison boundaries; stored lease identity
 remains governed by the lifecycle contract.
 
 The substrate remains inactive until the transactional session-creation owner
-defined by issue #571 is available. `create` is selection evidence only and
-must stop; it cannot authorize raw fetch, worktree creation, LC-01 writes,
-rollback, or cleanup. Activation must retain immediate owner-side revalidation
-and conflict handling.
+is implemented and integrated. `create` is selection evidence only and must
+stop; it cannot authorize raw fetch, worktree creation, LC-01 writes, rollback,
+or cleanup. Activation must retain immediate owner-side revalidation and
+conflict handling.
 
 That future owner may use the helper's closed
 `validate-discovery --resume-acceptance` mode immediately before mutation. Its
