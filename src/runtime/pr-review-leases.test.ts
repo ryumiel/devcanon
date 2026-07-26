@@ -86,7 +86,11 @@ public static class DevCanonDiscoveryGitLauncher
                 "GIT_NO_LAZY_FETCH",
                 "GIT_CONFIG_NOSYSTEM",
                 "GIT_CONFIG_GLOBAL",
-                "GIT_ATTR_NOSYSTEM"
+                "GIT_ATTR_NOSYSTEM",
+                "GIT_OPTIONAL_LOCKS",
+                "GIT_TERMINAL_PROMPT",
+                "LC_ALL",
+                "LANG"
             })
             {
                 WriteField(log, "ENV");
@@ -4088,7 +4092,7 @@ beforeAll(async () => {
       "-NonInteractive",
       "-Command",
       [
-        "$ErrorActionPreference = 'Stop'",
+        "$ErrorActionPreference = 'Stop';",
         "Add-Type",
         "-TypeDefinition $env:DEVCANON_TEST_LAUNCHER_SOURCE",
         "-Language CSharp",
@@ -4104,6 +4108,7 @@ beforeAll(async () => {
       },
     },
   );
+  expect((await lstat(discoveryGitWindowsLauncher)).isFile()).toBe(true);
 });
 
 afterAll(async () => {
@@ -4139,7 +4144,7 @@ async function makeDiscoveryGitWrapperExecutable(
       `log='${activeDiscoveryGitAdapterLog}'`,
       "{",
       "  printf 'ENTRY\\0'",
-      "  for key in GIT_NO_LAZY_FETCH GIT_CONFIG_NOSYSTEM GIT_CONFIG_GLOBAL GIT_ATTR_NOSYSTEM; do",
+      "  for key in GIT_NO_LAZY_FETCH GIT_CONFIG_NOSYSTEM GIT_CONFIG_GLOBAL GIT_ATTR_NOSYSTEM GIT_OPTIONAL_LOCKS GIT_TERMINAL_PROMPT LC_ALL LANG; do",
       '    eval "value=\\${$key-}"',
       '    printf \'ENV\\0%s\\0%s\\0\' "$key" "$value"',
       "  done",
@@ -4222,20 +4227,50 @@ async function discoveryGitAdapterEntryCount(): Promise<number> {
 }
 
 async function expectDiscoveryGitAdapterEntry(
+  root: string,
   expectedArguments: readonly string[],
 ): Promise<DiscoveryGitAdapterEntry> {
+  const nullDevice = process.platform === "win32" ? "NUL" : "/dev/null";
+  const completeExpectedArguments = [
+    "--no-optional-locks",
+    "-c",
+    "core.fsmonitor=false",
+    "-c",
+    `core.hooksPath=${nullDevice}`,
+    "-c",
+    `core.attributesFile=${nullDevice}`,
+    "-c",
+    `core.excludesFile=${nullDevice}`,
+    "-c",
+    "maintenance.auto=false",
+    "-c",
+    "gc.auto=0",
+    "-C",
+    root,
+    ...expectedArguments,
+  ];
   const entries = await readDiscoveryGitAdapterEntries();
-  const entry = entries.find(({ args }) =>
-    expectedArguments.every((argument) => args.includes(argument)),
+  const entry = entries.find(
+    ({ args }) =>
+      args.length === completeExpectedArguments.length &&
+      args.every(
+        (argument, index) => argument === completeExpectedArguments[index],
+      ),
   );
   expect(
     entry,
-    `adapter entry containing ${expectedArguments.join(" ")}`,
+    `adapter entry matching ${completeExpectedArguments.join(" ")}`,
   ).toBeDefined();
-  expect(entry?.environment).toMatchObject({
+  expect(entry?.args).toEqual(completeExpectedArguments);
+  expect(entry?.environment).toEqual({
     GIT_ATTR_NOSYSTEM: "1",
+    GIT_CONFIG_GLOBAL: nullDevice,
     GIT_CONFIG_NOSYSTEM: "1",
     GIT_NO_LAZY_FETCH: "1",
+    GIT_OPTIONAL_LOCKS: "0",
+    GIT_TERMINAL_PROMPT: "0",
+    LANG: "C",
+    LC_ALL: "C",
   });
   return entry as DiscoveryGitAdapterEntry;
 }
@@ -4502,7 +4537,7 @@ describe("read-only PR review discovery planner", () => {
       process.env.PATH = prependDiscoveryGitWrapper(wrapperDir, oldPath);
       try {
         const outcome = await runPrReviewLeasesCommand(args);
-        await expectDiscoveryGitAdapterEntry([
+        await expectDiscoveryGitAdapterEntry(root, [
           "worktree",
           "list",
           "--porcelain",
@@ -5235,7 +5270,7 @@ describe("read-only PR review discovery planner", () => {
     process.env.PATH = prependDiscoveryGitWrapper(wrapperDir, oldPath);
     try {
       const result = await runDiscovery(root);
-      await expectDiscoveryGitAdapterEntry([
+      await expectDiscoveryGitAdapterEntry(worktree, [
         "status",
         "--porcelain=v1",
         "--untracked-files=all",
@@ -6649,7 +6684,7 @@ describe("read-only PR review discovery planner", () => {
       process.env.PATH = prependDiscoveryGitWrapper(wrapperDir, oldPath);
       try {
         const result = await runDiscovery(root);
-        await expectDiscoveryGitAdapterEntry([
+        await expectDiscoveryGitAdapterEntry(root, [
           "worktree",
           "list",
           "--porcelain",
