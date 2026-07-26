@@ -765,6 +765,16 @@ describe("rendered phase artifact smoke coverage", () => {
     expect(prReview).toContain('REVIEW_SURFACE="pr-review"');
     expect(prReview).toContain("PR_REVIEW_MANIFEST_HELPER");
     expect(prReview).toContain("PR_REVIEW_LEASE_HELPER");
+    expect(prReview).toContain("### Inactive read-only discovery substrate");
+    expect(prReview).toContain("`review-leases.sh discover`");
+    expect(prReview).toContain("`review-leases.sh validate-discovery`");
+    expect(prReview).toContain(
+      "This revision does **not** invoke or route those commands",
+    );
+    expect(prReview).not.toContain('"$PR_REVIEW_LEASE_HELPER" discover');
+    expect(prReview).not.toContain(
+      '"$PR_REVIEW_LEASE_HELPER" validate-discovery',
+    );
     expect(prReview).toContain("REVIEW_BODY_FILE");
     expect(prReview).toContain("review body parent must be .ephemeral");
     expect(prReview).toContain("REVIEW_PAYLOAD_FILE");

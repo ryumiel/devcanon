@@ -121,6 +121,96 @@ cleanup evidence only when the helper validates the complete approved-review
 artifact, its canonical paths and digests, and the pointer is derived from the
 PR number and review head.
 
+## Read-Only Session Discovery
+
+`review-leases.sh discover` is an inactive selection substrate, not lifecycle
+authority. It takes exactly `REPOSITORY`, `PR_NUMBER`, and
+`PRIMARY_REPOSITORY_ROOT`, runs from the proven primary Git worktree, and
+performs no write, checkout, worktree creation, rollback, transition, cleanup,
+artifact hashing, or artifact-content validation. It hashes raw lease bytes
+only to prove coherent repeated observations and recomputes the established
+canonical physical worktree-path identity digest; it never hashes referenced
+artifact content. The durable authority split and disposition policy are
+recorded in
+[ADR-0033](../../../docs/adr/adr-0033-read-only-pr-review-session-discovery.md).
+
+The planner inventories direct-child active lease names for the selected PR,
+separately named canonical terminal archives, the canonical
+`.worktrees/pr-<N>-review` target, and Git worktree registrations. It validates
+the closed primitive-complete `pr-review/lease/v1` shape and lease identity,
+but never opens declared handoff, result, approved-review, or validated-payload
+content. Any such declared pointer is a cleanup-required stop.
+
+Only one clean, registered, artifact-free `created` lease may be reported as
+`resume`; its schema-bound worktree may be canonical or alternate. Missing,
+unregistered, dirty, unmanaged, terminal, unsupported, or artifact-bearing
+leases are blockers. Symlinks, non-files/directories, malformed names or
+leases, and unverifiable replacement are invalid. Archived names use the
+closed digest, compact UTC timestamp, terminal-state filename grammar; other
+PR-matching lease names are invalid and are never hidden as history.
+
+The planner performs two complete collections of every filesystem and Git
+authority used by reduction and accepts only exact equality. Every observed
+lease-byte rewrite, addition, removal, replacement, candidate drift,
+registration drift, malformed result, or command failure makes the result
+`invalid`; pure reduction performs no further authority read. This is
+optimistic repeated-observation evidence, not an atomic snapshot or
+transaction. A concurrent change that is not observed may linearize before or
+after discovery only when the returned combined state is non-contradictory.
+Discovery does not promise to detect every direct or untrusted mutation or ABA
+change. Lifecycle, creation, and cleanup owners must revalidate their own
+authority immediately before mutation and retain their existing transaction
+and conflict handling.
+
+The deterministic precedence is:
+
+1. `invalid`
+2. `ambiguous` when more than one structurally valid artifact-free lease claims
+   the session, before operational eligibility is considered
+3. `cleanup-required`
+4. `resume`
+5. `create`
+
+`create` requires no active claim or blocker, a safe absent canonical leaf, and
+no canonical registration. Both `create` and `cleanup-required` are inactive
+planner stops in the current workflow. They never authorize creation or
+cleanup. A future transactional creation owner may consume `create` only after
+revalidating its own authority; operational cleanup remains owned by the
+existing lease-gated cleanup path. Artifact-authority and unsupported-state
+reasons delegate the exact lease and worktree tuple to their existing lifecycle
+owner without invoking cleanup or opening artifact content. A null-lease
+cleanup tuple is an explicit manual stop for unleased canonical occupancy or
+registration. Discovery output itself never authorizes removal or mutation.
+
+Every non-`invalid` active classification has a non-null schema-bound
+`worktree_path`. Only an invalid or unparseable active entry may use null.
+Selected `resume` and lease-bearing `cleanup`/delegation tuples match the
+selected active entry's `lease_file`, `worktree_path`, and `reason`
+byte-for-byte; there is no canonical-path fallback. The canonical collision
+manual stop remains the sole null-lease tuple.
+
+Top-level invalid inventory reasons are closed to
+`discovery-snapshot-changed`, `invalid-canonical-target`,
+`invalid-discovery-directory`, `invalid-archived-entry`,
+`invalid-lease-name`, `worktree-registrations-changed`,
+`primary-repository-identity-changed`, and `canonical-target-changed`.
+Active-invalid reasons are closed to `invalid-lease`, `lease-replaced`,
+`worktree-replaced`, `repository-identity-changed`,
+`status-inspection-failed`, `worktree-dirty-after-snapshot`,
+`lease-identity-mismatch`, `worktree-inspection-failed`,
+`invalid-worktree-entry`, `worktree-identity-unverifiable`,
+`worktree-digest-mismatch`, `invalid-ephemeral-directory`,
+`worktree-repository-mismatch`, and `resumable-worktree-path-missing`.
+Unknown reasons fail closed.
+
+When multiple cleanup blockers remain after precedence is applied, select the
+Unicode-code-point-ordinal-first active lease blocker. Prefixes sort before
+otherwise-equal longer values. This ordering is shared by producer and
+validator. An active blocker takes cleanup-tuple priority over a simultaneous
+unleased canonical collision; the collision still prevents `resume` or
+`create`. Emit the canonical null-lease tuple only when no active blocker is
+available.
+
 ## Read-Only Status
 
 `review-leases.sh read-status` delegates to `devcanon-runtime runtime

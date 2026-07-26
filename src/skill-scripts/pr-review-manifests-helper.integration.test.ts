@@ -520,6 +520,10 @@ async function copyWrapperWithRecordingRuntime(
     [
       "#!/usr/bin/env bash",
       "set -euo pipefail",
+      'if [ "${1:-}" = "resolve-entrypoint" ]; then',
+      '  printf "%s\\n" "$0"',
+      "  exit 0",
+      "fi",
       "printf '%s\\n' \"$*\"",
       "",
     ].join("\n"),
@@ -888,6 +892,46 @@ describe("pr-review manifest helper", () => {
         runHelper(installed, "read-status", {}, script),
       ).resolves.toMatchObject({
         stdout: "runtime pr-review-leases read-status\n",
+      });
+    } finally {
+      await cleanupTempDir(installed);
+    }
+  });
+
+  it("delegates inactive discovery commands through the copied packaged runtime", async () => {
+    const installed = await mkdtemp(
+      path.join(os.tmpdir(), "devcanon-pr-wrapper-"),
+    );
+    try {
+      const script = await copyWrapperWithRecordingRuntime(
+        installed,
+        leaseHelperScript,
+        "pr-review/scripts/review-leases.sh",
+      );
+
+      await expect(
+        runHelper(installed, "discover", {}, script),
+      ).resolves.toMatchObject({
+        stdout: "runtime pr-review-leases discover\n",
+      });
+      await expect(
+        execFileAsync(
+          "bash",
+          [
+            script,
+            "validate-discovery",
+            "--repository",
+            "owner/repo",
+            "--pr-number",
+            "432",
+            "--primary-root",
+            "/repo with spaces",
+          ],
+          { cwd: installed, env: process.env },
+        ),
+      ).resolves.toMatchObject({
+        stdout:
+          "runtime pr-review-leases validate-discovery --repository owner/repo --pr-number 432 --primary-root /repo with spaces\n",
       });
     } finally {
       await cleanupTempDir(installed);

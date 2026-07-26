@@ -97,6 +97,8 @@ Quick navigation index for the DevCanon repository.
   [`docs/adr/adr-0023-play-planning-implementer-executability-gate.md`](docs/adr/adr-0023-play-planning-implementer-executability-gate.md)
 - Where is the shared support skill runtime decision recorded? ->
   [`docs/adr/adr-0024-shared-support-skill-runtime.md`](docs/adr/adr-0024-shared-support-skill-runtime.md)
+- Where is inactive read-only PR-review session discovery authority recorded? ->
+  [`docs/adr/adr-0033-read-only-pr-review-session-discovery.md`](docs/adr/adr-0033-read-only-pr-review-session-discovery.md)
 - Where is the historical Codex model tier selection evidence recorded? ->
   [`docs/adr/adr-0025-codex-model-tier-selection.md`](docs/adr/adr-0025-codex-model-tier-selection.md)
 - Where is the current capability profile decision recorded? ->

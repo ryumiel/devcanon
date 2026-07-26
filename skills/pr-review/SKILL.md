@@ -114,9 +114,34 @@ does not store approval intent, review payload JSON, inline comments, findings
 content, or thread-resolution decisions. The lease helper never posts to GitHub
 and never constructs GitHub review payloads.
 
+### Inactive read-only discovery substrate
+
+The installed runtime also exposes `review-leases.sh discover` and
+`review-leases.sh validate-discovery` as a future session-selection substrate.
+It accepts only `REPOSITORY`, `PR_NUMBER`, and `PRIMARY_REPOSITORY_ROOT`,
+returns one of `invalid`, `ambiguous`, `cleanup-required`, `resume`, or
+`create`, and performs no provider call, fetch, checkout, worktree creation,
+lease transition, cleanup, rollback, or artifact-semantic read.
+
+This revision does **not** invoke or route those commands from the active
+review flow. In particular, `create` is selection evidence only and must not
+authorize the existing raw worktree or LC-01 creation steps. Activation remains
+blocked on the transactional session-creation owner described by issue #571.
+Until that owner is available and separately integrated, current Phase 2
+behavior below is unchanged.
+
+The substrate's closed result, created-only artifact-free resume eligibility,
+optimistic repeated-observation model, and immediate read-only resume
+acceptance boundary are owned by
+[ADR-0033](../../docs/adr/adr-0033-read-only-pr-review-session-discovery.md)
+and the
+[lease lifecycle contract](references/review-lease-lifecycle-contract.md).
+
 Helper command surface:
 
 - `derive-path`
+- `discover`
+- `validate-discovery`
 - `write`
 - `validate`
 - `inspect-worktree`

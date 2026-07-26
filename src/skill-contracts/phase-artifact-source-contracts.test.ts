@@ -2057,6 +2057,10 @@ None
     const leaseLifecycleReference = await readRepoFile(
       "skills/pr-review/references/review-lease-lifecycle-contract.md",
     );
+    const discoveryAdr = await readRepoFile(
+      "docs/adr/adr-0033-read-only-pr-review-session-discovery.md",
+    );
+    const repositoryMap = await readRepoFile("MAP.md");
     const manifestRuntime = await readRepoFile(
       "src/runtime/pr-review-manifests.ts",
     );
@@ -2131,7 +2135,41 @@ None
     expect(leaseHelper).toContain("read-status");
     expect(leaseHelper).toContain("record-audit-failure");
     expect(leaseHelper).toContain(
-      'exec "$runtime" runtime pr-review-leases "$command_name"',
+      'exec "$runtime" runtime pr-review-leases "$command_name" "$@"',
+    );
+    expect(leaseHelper).toContain(
+      "derive-path | discover | validate-discovery | write",
+    );
+    expect(leaseRuntime).toContain('case "discover"');
+    expect(leaseRuntime).toContain('case "validate-discovery"');
+    expect(prReview).toContain("### Inactive read-only discovery substrate");
+    expect(prReview).toContain(
+      "This revision does **not** invoke or route those commands",
+    );
+    expect(prReview).toContain(
+      "blocked on the transactional session-creation owner described by issue #571",
+    );
+    expect(prReview).not.toContain('"$PR_REVIEW_LEASE_HELPER" discover');
+    expect(prReview).not.toContain(
+      '"$PR_REVIEW_LEASE_HELPER" validate-discovery',
+    );
+    expect(normalizedLeaseLifecycleReference).toContain(
+      "`review-leases.sh discover` is an inactive selection substrate, not lifecycle authority",
+    );
+    expect(normalizedLeaseLifecycleReference).toContain(
+      "optimistic repeated-observation evidence, not an atomic snapshot or transaction",
+    );
+    expect(discoveryAdr).toContain(
+      "# ADR-0033: Read-Only PR-Review Session Discovery",
+    );
+    expect(discoveryAdr).toContain(
+      "The substrate remains inactive until the transactional session-creation owner",
+    );
+    expect(discoveryAdr).toContain(
+      "Shipping the inactive substrate does not change the current PR-review",
+    );
+    expect(repositoryMap).toContain(
+      "[`docs/adr/adr-0033-read-only-pr-review-session-discovery.md`](docs/adr/adr-0033-read-only-pr-review-session-discovery.md)",
     );
     expect(prReview).toContain("- `record-audit-failure`");
 
