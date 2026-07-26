@@ -48,6 +48,18 @@ import {
 
 const execFileAsync = promisify(execFile);
 
+const discoveryGitlinkSelectedPathMaxBytes = 64 * 1024;
+const discoveryGitlinkSelectedRecordMaxCount = 4096;
+const discoveryGitlinkSelectedAggregateMaxBytes = 1024 * 1024;
+
+function discoveryGitlinkRecord(pathBytes: Buffer | string): Buffer {
+  return Buffer.concat([
+    Buffer.from(`160000 ${"a".repeat(40)} 0\t`, "ascii"),
+    typeof pathBytes === "string" ? Buffer.from(pathBytes) : pathBytes,
+    Buffer.from([0]),
+  ]);
+}
+
 const discoveryGitAdapterLogName = "git-adapter.log";
 let discoveryGitWindowsLauncherRoot: string | undefined;
 let discoveryGitWindowsLauncher: string | undefined;
@@ -5709,6 +5721,117 @@ describe("read-only PR review discovery planner", () => {
     }
   });
 
+  it.each([
+    [
+      "one selected path",
+      () =>
+        discoveryGitlinkRecord(
+          Buffer.alloc(discoveryGitlinkSelectedPathMaxBytes + 1, 0x61),
+        ),
+    ],
+    [
+      "selected record count",
+      () =>
+        Buffer.concat([
+          ...Array.from(
+            { length: discoveryGitlinkSelectedRecordMaxCount },
+            () => discoveryGitlinkRecord("p"),
+          ),
+          Buffer.from(`160000 ${"a".repeat(40)} 0\t`, "ascii"),
+          Buffer.alloc(256 * 1024, 0x78),
+          Buffer.from([0]),
+        ]),
+    ],
+    [
+      "aggregate selected paths",
+      () =>
+        Buffer.concat([
+          ...Array.from(
+            {
+              length:
+                discoveryGitlinkSelectedAggregateMaxBytes /
+                discoveryGitlinkSelectedPathMaxBytes,
+            },
+            () =>
+              discoveryGitlinkRecord(
+                Buffer.alloc(discoveryGitlinkSelectedPathMaxBytes, 0x61),
+              ),
+          ),
+          Buffer.from(`160000 ${"a".repeat(40)} 0\t`, "ascii"),
+          Buffer.alloc(256 * 1024, 0x78),
+          Buffer.from([0]),
+        ]),
+    ],
+  ])(
+    "drains streamed gitlink overflow for %s before failing closed",
+    async (_fixture, inventoryFactory) => {
+      const root = await createDiscoveryRepository();
+      const worktree = await createDiscoveryWorktree(
+        root,
+        "bounded-gitlink-inventory",
+      );
+      await writeDiscoveryLease(root, discoveryLease(worktree));
+      const wrapperDir = await mkdtemp(path.join(tmpdir(), "git-wrapper-"));
+      discoveryTempRoots.push(wrapperDir);
+      const inventory = path.join(wrapperDir, "overflow-inventory");
+      const postTailMarker = path.join(wrapperDir, "post-tail-reached");
+      const statusMarker = path.join(wrapperDir, "status-intercepted");
+      let inventoryBytes = inventoryFactory();
+      if (_fixture === "one selected path") {
+        inventoryBytes = Buffer.concat([
+          inventoryBytes.subarray(0, -1),
+          Buffer.alloc(256 * 1024, 0x78),
+          Buffer.from([0]),
+        ]);
+      }
+      await writeFile(inventory, inventoryBytes);
+      const inventoryPath = await toGitBashPath(inventory);
+      const postTailMarkerPath = await toGitBashPath(postTailMarker);
+      const statusMarkerPath = await toGitBashPath(statusMarker);
+      const realGit = (
+        await execFileAsync("sh", ["-c", "command -v git"])
+      ).stdout.trim();
+      const wrapper = path.join(wrapperDir, "git");
+      await writeFile(
+        wrapper,
+        [
+          "#!/bin/sh",
+          'case " $* " in',
+          '  *" ls-files --stage -z "*)',
+          `    cat '${inventoryPath}'`,
+          `    printf reached >'${postTailMarkerPath}'`,
+          "    exit 0",
+          "    ;;",
+          '  *" status --porcelain=v1 "*)',
+          `    printf reached >'${statusMarkerPath}'`,
+          "    ;;",
+          "esac",
+          `exec '${realGit}' "$@"`,
+          "",
+        ].join("\n"),
+      );
+      await makeDiscoveryGitWrapperExecutable(wrapper);
+      const oldPath = process.env.PATH;
+      process.env.PATH = prependDiscoveryGitWrapper(wrapperDir, oldPath);
+      try {
+        const result = await runDiscovery(root);
+        expect(result.disposition).toBe("invalid");
+        expect(result.resume).toBeNull();
+        expect(result.cleanup).toBeNull();
+        expect(result.active[0]).toMatchObject({
+          classification: "invalid",
+          reason: "status-inspection-failed",
+        });
+        expect(await readFile(postTailMarker, "utf8")).toBe("reached");
+        await expect(lstat(statusMarker)).rejects.toMatchObject({
+          code: "ENOENT",
+        });
+      } finally {
+        process.env.PATH = oldPath;
+      }
+    },
+  );
+
   it("drains dirty status output larger than one MiB", async () => {
     const root = await createDiscoveryRepository();
     const worktree = await createDiscoveryWorktree(root, "large-status");
@@ -7687,6 +7810,103 @@ describe("read-only PR review discovery planner", () => {
         "discovery gitlink inventory record is malformed",
       );
     }
+  });
+
+  it("bounds retained gitlink paths, records, and aggregate bytes", () => {
+    for (const pathBytes of [
+      discoveryGitlinkSelectedPathMaxBytes - 1,
+      discoveryGitlinkSelectedPathMaxBytes,
+    ]) {
+      const parsed = parseDiscoveryGitlinkRecords(
+        discoveryGitlinkRecord(Buffer.alloc(pathBytes, 0x61)),
+      );
+      expect(parsed).toHaveLength(1);
+      expect(Buffer.byteLength(parsed[0])).toBe(pathBytes);
+    }
+    expect(() =>
+      parseDiscoveryGitlinkRecords(
+        discoveryGitlinkRecord(
+          Buffer.alloc(discoveryGitlinkSelectedPathMaxBytes + 1, 0x61),
+        ),
+      ),
+    ).toThrow("discovery gitlink inventory exceeds retained limits");
+
+    const exactMultibytePath = Buffer.concat([
+      Buffer.alloc(discoveryGitlinkSelectedPathMaxBytes - 3, 0x61),
+      Buffer.from("한"),
+    ]);
+    expect(
+      Buffer.byteLength(
+        parseDiscoveryGitlinkRecords(
+          discoveryGitlinkRecord(exactMultibytePath),
+        )[0],
+      ),
+    ).toBe(discoveryGitlinkSelectedPathMaxBytes);
+    expect(() =>
+      parseDiscoveryGitlinkRecords(
+        discoveryGitlinkRecord(
+          Buffer.concat([exactMultibytePath, Buffer.from("a")]),
+        ),
+      ),
+    ).toThrow("discovery gitlink inventory exceeds retained limits");
+
+    const selectedRecord = discoveryGitlinkRecord("p");
+    expect(
+      parseDiscoveryGitlinkRecords(
+        Buffer.concat(
+          Array.from(
+            { length: discoveryGitlinkSelectedRecordMaxCount },
+            () => selectedRecord,
+          ),
+        ),
+      ),
+    ).toHaveLength(discoveryGitlinkSelectedRecordMaxCount);
+    expect(() =>
+      parseDiscoveryGitlinkRecords(
+        Buffer.concat(
+          Array.from(
+            { length: discoveryGitlinkSelectedRecordMaxCount + 1 },
+            () => selectedRecord,
+          ),
+        ),
+      ),
+    ).toThrow("discovery gitlink inventory exceeds retained limits");
+
+    const aggregateRecord = discoveryGitlinkRecord(
+      Buffer.alloc(discoveryGitlinkSelectedPathMaxBytes, 0x61),
+    );
+    const aggregateRecordCount =
+      discoveryGitlinkSelectedAggregateMaxBytes /
+      discoveryGitlinkSelectedPathMaxBytes;
+    expect(
+      parseDiscoveryGitlinkRecords(
+        Buffer.concat(
+          Array.from({ length: aggregateRecordCount }, () => aggregateRecord),
+        ),
+      ),
+    ).toHaveLength(aggregateRecordCount);
+    expect(() =>
+      parseDiscoveryGitlinkRecords(
+        Buffer.concat([
+          ...Array.from(
+            { length: aggregateRecordCount },
+            () => aggregateRecord,
+          ),
+          discoveryGitlinkRecord("x"),
+        ]),
+      ),
+    ).toThrow("discovery gitlink inventory exceeds retained limits");
+
+    expect(
+      parseDiscoveryGitlinkRecords(
+        Buffer.concat([
+          Buffer.from(`100644 ${"a".repeat(40)} 0\t`, "ascii"),
+          Buffer.alloc(discoveryGitlinkSelectedAggregateMaxBytes + 1, 0x6f),
+          Buffer.from([0]),
+          discoveryGitlinkRecord("selected"),
+        ]),
+      ),
+    ).toEqual(["selected"]);
   });
 
   it("accepts native Windows producer spellings in the closed lease parser", () => {

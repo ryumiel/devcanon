@@ -2023,16 +2023,24 @@ export function parseDiscoveryGitlinkRecords(output) {
     parser.consume(output);
     return parser.finish();
 }
+const discoveryGitlinkSelectedPathMaxBytes = 64 * 1024;
+const discoveryGitlinkSelectedRecordMaxCount = 4096;
+const discoveryGitlinkSelectedAggregateMaxBytes = 1024 * 1024;
 class DiscoveryGitlinkStreamParser {
     #paths = [];
     #metadata = [];
     #selectedPath = [];
+    #selectedRecordCount = 0;
+    #selectedAggregateBytes = 0;
+    #retentionError;
     #recordStarted = false;
     #metadataComplete = false;
     #pathStarted = false;
     #selected = false;
     consume(chunk) {
         for (const byte of chunk) {
+            if (this.#retentionError !== undefined)
+                continue;
             if (byte === 0) {
                 this.#finishRecord();
                 continue;
@@ -2056,6 +2064,12 @@ class DiscoveryGitlinkStreamParser {
                         if (!/^160000 [0-9a-f]{40} [0-3]$/u.test(metadata.toString("latin1"))) {
                             throw new PrReviewLeaseError("discovery gitlink inventory record is malformed");
                         }
+                        if (this.#selectedRecordCount >=
+                            discoveryGitlinkSelectedRecordMaxCount) {
+                            this.#latchRetentionError();
+                            continue;
+                        }
+                        this.#selectedRecordCount += 1;
                     }
                     continue;
                 }
@@ -2067,11 +2081,21 @@ class DiscoveryGitlinkStreamParser {
             }
             this.#pathStarted = true;
             if (this.#selected) {
+                if (this.#selectedPath.length >= discoveryGitlinkSelectedPathMaxBytes ||
+                    this.#selectedAggregateBytes >=
+                        discoveryGitlinkSelectedAggregateMaxBytes) {
+                    this.#latchRetentionError();
+                    continue;
+                }
                 this.#selectedPath.push(byte);
+                this.#selectedAggregateBytes += 1;
             }
         }
     }
     finish() {
+        if (this.#retentionError !== undefined) {
+            throw this.#retentionError;
+        }
         if (this.#recordStarted) {
             throw new PrReviewLeaseError("discovery gitlink inventory is not NUL-terminated");
         }
@@ -2095,6 +2119,9 @@ class DiscoveryGitlinkStreamParser {
         this.#metadataComplete = false;
         this.#pathStarted = false;
         this.#selected = false;
+    }
+    #latchRetentionError() {
+        this.#retentionError ??= new PrReviewLeaseError("discovery gitlink inventory exceeds retained limits");
     }
 }
 async function readDiscoveryRepositoryBinding(primaryRoot, repositoryIdentity, env, expectedRepository) {
