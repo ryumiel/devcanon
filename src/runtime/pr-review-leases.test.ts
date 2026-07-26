@@ -4199,6 +4199,45 @@ describe("read-only PR review discovery planner", () => {
       });
     });
 
+    it("rejects normalized duplicate registrations before accepting a resume tuple", async () => {
+      const wrapperDir = await mkdtemp(path.join(tmpdir(), "git-wrapper-"));
+      discoveryTempRoots.push(wrapperDir);
+      const realGit = (
+        await execFileAsync("sh", ["-c", "command -v git"])
+      ).stdout.trim();
+      const wrapper = path.join(wrapperDir, "git");
+      const marker = path.join(wrapperDir, "duplicate-fired");
+      await writeFile(
+        wrapper,
+        [
+          "#!/bin/sh",
+          `'${realGit}' "$@" || exit $?`,
+          'case " $* " in',
+          '  *"worktree list --porcelain -z"*)',
+          `    printf fired >'${marker}'`,
+          `    printf 'worktree %s\\0' '${worktree}/.'`,
+          "    ;;",
+          "esac",
+          "",
+        ].join("\n"),
+      );
+      await makeDiscoveryGitWrapperExecutable(wrapper);
+      const oldPath = process.env.PATH;
+      process.env.PATH = prependDiscoveryGitWrapper(wrapperDir, oldPath);
+      try {
+        await expect(runPrReviewLeasesCommand(args)).resolves.toMatchObject({
+          exitCode: 1,
+          stdout: "",
+          stderr: expect.stringContaining(
+            "discovery registration correlation mismatch",
+          ),
+        });
+        expect(await readFile(marker, "utf8")).toBe("fired");
+      } finally {
+        process.env.PATH = oldPath;
+      }
+    });
+
     it.each([
       ["win32", "/C/Repo/.worktrees/pr-432-review"],
       ["linux", "/repo/.worktrees/./pr-432-review"],

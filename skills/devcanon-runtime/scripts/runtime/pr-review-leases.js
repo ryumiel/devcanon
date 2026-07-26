@@ -113,6 +113,7 @@ function parseResumeAcceptanceArgs(args) {
 }
 async function validateResumeAcceptance(identity) {
     const observed = await discoverReviewSession(identity);
+    validatePrReviewDiscoveryJson(Buffer.from(JSON.stringify(observed)), identity);
     if (observed.disposition !== "resume" ||
         observed.resume === null ||
         observed.resume.lease_file !== identity.leaseFile ||

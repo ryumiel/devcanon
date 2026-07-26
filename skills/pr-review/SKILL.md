@@ -136,9 +136,9 @@ acceptance boundary are owned by
 [ADR-0033](../../docs/adr/adr-0033-read-only-pr-review-session-discovery.md)
 and the
 [lease lifecycle contract](references/review-lease-lifecycle-contract.md).
-The latter is the closed `pr-review/resume-acceptance/v1` projection consumed
-only by the future #571 owner after it re-observes the exact validated tuple;
-it remains read-only and grants no mutation authority.
+The latter documents the closed `pr-review/resume-acceptance/v1` projection
+consumed only by the future #571 owner after it re-observes the exact validated
+tuple; the projection remains read-only and grants no mutation authority.
 
 Helper command surface:
 

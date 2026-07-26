@@ -413,6 +413,10 @@ async function validateResumeAcceptance(
   identity: ResumeAcceptanceIdentity,
 ): Promise<string> {
   const observed = await discoverReviewSession(identity);
+  validatePrReviewDiscoveryJson(
+    Buffer.from(JSON.stringify(observed)),
+    identity,
+  );
   if (
     observed.disposition !== "resume" ||
     observed.resume === null ||
