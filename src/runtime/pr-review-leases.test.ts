@@ -4591,6 +4591,99 @@ describe("read-only PR review discovery planner", () => {
     expect(result.active[0].classification).toBe("dirty");
   });
 
+  it("neutralizes user-global ignore files for discovery and resume acceptance", async () => {
+    const root = await createDiscoveryRepository();
+    const worktree = await createDiscoveryWorktree(root, "global-ignore");
+    const lease = discoveryLease(worktree);
+    await writeDiscoveryLease(root, lease);
+    const poisonRoot = await mkdtemp(path.join(tmpdir(), "git-poison-ignore-"));
+    discoveryTempRoots.push(poisonRoot);
+    const xdgRoot = path.join(poisonRoot, ".config");
+    await mkdir(path.join(xdgRoot, "git"), { recursive: true });
+    await writeFile(
+      path.join(xdgRoot, "git", "ignore"),
+      "globally-hidden.txt\n",
+    );
+    await writeFile(path.join(worktree, "globally-hidden.txt"), "dirty\n");
+    const oldHome = process.env.HOME;
+    const oldXdgConfigHome = process.env.XDG_CONFIG_HOME;
+    process.env.HOME = poisonRoot;
+    process.env.XDG_CONFIG_HOME = xdgRoot;
+    try {
+      const result = await runDiscovery(root);
+      expect(result.disposition).toBe("cleanup-required");
+      expect(result.active[0].classification).toBe("dirty");
+      await expect(
+        runPrReviewLeasesCommand([
+          "validate-discovery",
+          "--resume-acceptance",
+          "--repository",
+          "owner/repo",
+          "--pr-number",
+          "432",
+          "--primary-root",
+          root,
+          "--lease-file",
+          lease.lease_file,
+          "--worktree-path",
+          worktree,
+        ]),
+      ).resolves.toMatchObject({
+        exitCode: 1,
+        stdout: "",
+        stderr: expect.stringContaining(
+          "resume acceptance changed; stop before lifecycle mutation",
+        ),
+      });
+    } finally {
+      if (oldHome === undefined) {
+        Reflect.deleteProperty(process.env, "HOME");
+      } else {
+        process.env.HOME = oldHome;
+      }
+      if (oldXdgConfigHome === undefined) {
+        Reflect.deleteProperty(process.env, "XDG_CONFIG_HOME");
+      } else {
+        process.env.XDG_CONFIG_HOME = oldXdgConfigHome;
+      }
+    }
+  });
+
+  it.each(["repository .gitignore", "repository info/exclude"] as const)(
+    "honors %s while neutralizing user-global ignore policy",
+    async (ignoreAuthority) => {
+      const root = await createDiscoveryRepository();
+      if (ignoreAuthority === "repository .gitignore") {
+        await writeFile(path.join(root, ".gitignore"), "owned-ignore.txt\n");
+        await execFileAsync("git", ["-C", root, "add", ".gitignore"]);
+        await execFileAsync("git", [
+          "-C",
+          root,
+          "commit",
+          "-m",
+          "ignore policy",
+        ]);
+      } else {
+        await writeFile(
+          path.join(root, ".git", "info", "exclude"),
+          "owned-ignore.txt\n",
+        );
+      }
+      const worktree = await createDiscoveryWorktree(
+        root,
+        ignoreAuthority === "repository .gitignore"
+          ? "repository-ignore"
+          : "repository-info-exclude",
+      );
+      await writeDiscoveryLease(root, discoveryLease(worktree));
+      await writeFile(path.join(worktree, "owned-ignore.txt"), "ignored\n");
+
+      const result = await runDiscovery(root);
+      expect(result.disposition).toBe("resume");
+      expect(result.active[0].classification).toBe("resumable");
+    },
+  );
+
   it("ignores hostile global and system filter policy without executing it", async () => {
     const root = await createDiscoveryRepository();
     const worktree = await createDiscoveryWorktree(root, "poisoned-config");

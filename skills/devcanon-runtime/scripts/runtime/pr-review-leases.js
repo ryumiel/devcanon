@@ -2224,6 +2224,8 @@ function discoveryGitArguments(root, args) {
         "-c",
         `core.attributesFile=${nullDevice}`,
         "-c",
+        `core.excludesFile=${nullDevice}`,
+        "-c",
         "maintenance.auto=false",
         "-c",
         "gc.auto=0",
