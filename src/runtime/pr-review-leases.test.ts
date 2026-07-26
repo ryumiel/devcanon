@@ -4427,6 +4427,50 @@ async function runDiscovery(root: string, prNumber = 432) {
 }
 
 describe("read-only PR review discovery planner", () => {
+  it("accepts discover with no positional arguments", async () => {
+    const root = await createDiscoveryRepository();
+    const result = await runDiscovery(root);
+    expect(result.disposition).toBe("create");
+    expect(result.resume).toBeNull();
+  });
+
+  it.each([["unexpected"], ["unexpected", "second"]])(
+    "rejects unexpected discover positional arguments before reading discovery identity: %j",
+    async (...unexpectedArguments) => {
+      const previousRepository = process.env.REPOSITORY;
+      const previousPrNumber = process.env.PR_NUMBER;
+      const previousPrimaryRoot = process.env.PRIMARY_REPOSITORY_ROOT;
+      Reflect.deleteProperty(process.env, "REPOSITORY");
+      Reflect.deleteProperty(process.env, "PR_NUMBER");
+      Reflect.deleteProperty(process.env, "PRIMARY_REPOSITORY_ROOT");
+      try {
+        await expect(
+          runPrReviewLeasesCommand(["discover", ...unexpectedArguments]),
+        ).resolves.toEqual({
+          exitCode: 1,
+          stdout: "",
+          stderr: "discover does not accept positional arguments\n",
+        });
+      } finally {
+        if (previousRepository === undefined) {
+          Reflect.deleteProperty(process.env, "REPOSITORY");
+        } else {
+          process.env.REPOSITORY = previousRepository;
+        }
+        if (previousPrNumber === undefined) {
+          Reflect.deleteProperty(process.env, "PR_NUMBER");
+        } else {
+          process.env.PR_NUMBER = previousPrNumber;
+        }
+        if (previousPrimaryRoot === undefined) {
+          Reflect.deleteProperty(process.env, "PRIMARY_REPOSITORY_ROOT");
+        } else {
+          process.env.PRIMARY_REPOSITORY_ROOT = previousPrimaryRoot;
+        }
+      }
+    },
+  );
+
   it.each(["pr-432-review", "alternate-432"])(
     "resumes one canonical or alternate clean artifact-free created lease: %s",
     async (leaf) => {
@@ -7235,6 +7279,51 @@ describe("read-only PR review discovery planner", () => {
 });
 
 describe("pr-review discovery wrapper resolution", () => {
+  it.each([["unexpected"], ["unexpected", "second"]])(
+    "forwards and rejects unexpected discover positional arguments: %j",
+    async (...unexpectedArguments) => {
+      const outcome = await new Promise<{
+        exitCode: number;
+        stdout: string;
+        stderr: string;
+      }>((resolve) => {
+        execFile(
+          "bash",
+          [
+            "skills/pr-review/scripts/review-leases.sh",
+            "discover",
+            ...unexpectedArguments,
+          ],
+          {
+            cwd: originalCwd,
+            env: {
+              ...process.env,
+              DEVCANON_RUNTIME_DIR: path.resolve("skills/devcanon-runtime"),
+            },
+          },
+          (error, stdout, stderr) => {
+            resolve({
+              exitCode:
+                error === null
+                  ? 0
+                  : typeof error.code === "number"
+                    ? error.code
+                    : 1,
+              stdout,
+              stderr,
+            });
+          },
+        );
+      });
+
+      expect(outcome).toEqual({
+        exitCode: 1,
+        stdout: "",
+        stderr: "discover does not accept positional arguments\n",
+      });
+    },
+  );
+
   it("accepts only a contained packaged runtime directory override", async () => {
     const root = await mkdtemp(path.join(tmpdir(), "lease-wrapper-runtime-"));
     discoveryTempRoots.push(root);

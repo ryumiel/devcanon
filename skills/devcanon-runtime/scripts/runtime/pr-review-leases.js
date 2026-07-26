@@ -52,6 +52,9 @@ export async function runPrReviewLeasesCommand(args, stdinInput) {
             case "derive-path":
                 return ok(`${(await readIdentity(false)).leaseFile}\n`);
             case "discover":
+                if (commandArgs.length !== 0) {
+                    throw new PrReviewLeaseError("discover does not accept positional arguments");
+                }
                 return ok(`${JSON.stringify(await discoverReviewSession())}\n`);
             case "validate-discovery":
                 return ok(`${await runValidateDiscoveryCommand(stdinInput ??
