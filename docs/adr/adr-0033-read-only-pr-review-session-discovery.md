@@ -71,6 +71,14 @@ must stop; it cannot authorize raw fetch, worktree creation, LC-01 writes,
 rollback, or cleanup. Activation must retain immediate owner-side revalidation
 and conflict handling.
 
+That future owner may use the helper's closed
+`validate-discovery --resume-acceptance` mode immediately before mutation. Its
+inputs are the three discovery identity fields plus the previously validated
+lease file and worktree path. It reruns read-only discovery and emits only a
+`pr-review/resume-acceptance/v1` identity projection when the same tuple
+remains the unique `resume` result; otherwise it fails without routing output.
+This evidence neither activates the substrate nor grants mutation authority.
+
 ## Consequences
 
 - Worktree selection is deterministic without granting mutation authority to

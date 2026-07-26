@@ -127,7 +127,8 @@ PR number and review head.
 authority. It takes exactly `REPOSITORY`, `PR_NUMBER`, and
 `PRIMARY_REPOSITORY_ROOT`, runs from the proven primary Git worktree, and
 performs no write, checkout, worktree creation, rollback, transition, cleanup,
-artifact hashing, or artifact-content validation. It hashes raw lease bytes
+referenced-artifact hashing, or artifact-content validation. It hashes raw lease
+bytes
 only to prove coherent repeated observations and recomputes the established
 canonical physical worktree-path identity digest; it never hashes referenced
 artifact content. The durable authority split and disposition policy are
@@ -184,10 +185,22 @@ registration. Discovery output itself never authorizes removal or mutation.
 
 Every non-`invalid` active classification has a non-null schema-bound
 `worktree_path`. Only an invalid or unparseable active entry may use null.
-Selected `resume` and lease-bearing `cleanup`/delegation tuples match the
-selected active entry's `lease_file`, `worktree_path`, and `reason`
-byte-for-byte; there is no canonical-path fallback. The canonical collision
-manual stop remains the sole null-lease tuple.
+Selected `resume` tuples match the selected active entry's `lease_file` and
+`worktree_path` byte-for-byte. Lease-bearing `cleanup`/delegation tuples also
+match its `reason` byte-for-byte. There is no canonical-path fallback. The
+canonical collision manual stop remains the sole null-lease tuple.
+
+The future activation owner may invoke the same helper as
+`validate-discovery --resume-acceptance` immediately before any mutation. The
+closed input is the discovery identity (`--repository`, `--pr-number`, and
+`--primary-root`) plus the previously validated `--lease-file` and
+`--worktree-path`. The helper reruns read-only discovery and succeeds only when
+the result is still the unique, byte-identical `resume` tuple. It emits
+`pr-review/resume-acceptance/v1` with exactly `schema`, `repository`,
+`pr_number`, `primary_repository_root`, `lease_file`, and `worktree_path`.
+Failure emits no routing output and never authorizes mutation. This is
+read-only revalidation evidence for #571's future transaction owner, not an
+activation or transaction surface in this revision.
 
 Top-level invalid inventory reasons are closed to
 `discovery-snapshot-changed`, `invalid-canonical-target`,

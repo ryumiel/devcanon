@@ -4188,6 +4188,7 @@ describe("read-only PR review discovery planner", () => {
       await expect(runPrReviewLeasesCommand(args)).resolves.toEqual({
         exitCode: 0,
         stdout: `${JSON.stringify({
+          schema: "pr-review/resume-acceptance/v1",
           repository: "owner/repo",
           pr_number: 432,
           primary_repository_root: root,
@@ -4197,6 +4198,41 @@ describe("read-only PR review discovery planner", () => {
         stderr: "",
       });
     });
+
+    it.each([
+      ["win32", "/C/Repo/.worktrees/pr-432-review"],
+      ["linux", "/repo/.worktrees/./pr-432-review"],
+      ["linux", ".worktrees/pr-432-review"],
+    ] as const)(
+      "rejects or correlates canonical registration aliases on %s: %s",
+      (platform, registration) => {
+        const primaryRoot = platform === "win32" ? "C:/Repo" : "/repo";
+        const result = reducePrReviewDiscovery({
+          repository: "owner/repo",
+          pr_number: 432,
+          primary_repository_root: primaryRoot,
+          canonical_target: {
+            worktree_path: `${primaryRoot}/.worktrees/pr-432-review`,
+            status: "absent",
+            registered: false,
+            parent_status: "directory",
+          },
+          registrations: [registration],
+          active: [],
+          archived: [],
+          invalid: [],
+          comparison_platform: platform,
+        });
+        expect(() =>
+          validatePrReviewDiscoveryJson(Buffer.from(JSON.stringify(result)), {
+            repository: "owner/repo",
+            prNumber: 432,
+            primaryRoot,
+            platform,
+          }),
+        ).toThrow();
+      },
+    );
 
     it("rejects late dirt", async () => {
       await writeFile(path.join(worktree, "late-dirt.txt"), "changed\n");

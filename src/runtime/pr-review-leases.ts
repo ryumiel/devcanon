@@ -424,6 +424,7 @@ async function validateResumeAcceptance(
     );
   }
   return JSON.stringify({
+    schema: "pr-review/resume-acceptance/v1",
     repository: observed.repository,
     pr_number: observed.pr_number,
     primary_repository_root: observed.primary_repository_root,
@@ -504,14 +505,14 @@ export function validatePrReviewDiscoveryJson(
     throw new PrReviewLeaseError("discovery canonical target mismatch");
   }
   const registrationKeys = result.registrations.map((entry) =>
-    discoveryComparablePath(entry, platform),
+    discoveryRegistrationComparablePath(entry, platform),
   );
   if (
     new Set(registrationKeys).size !== registrationKeys.length ||
     registrationKeys.filter(
       (entry) =>
         entry ===
-        discoveryComparablePath(
+        discoveryRegistrationComparablePath(
           result.canonical_target.worktree_path,
           platform,
         ),
@@ -538,7 +539,10 @@ export function validatePrReviewDiscoveryJson(
     registrationKeys.filter(
       (entry) =>
         entry ===
-        discoveryComparablePath(result.resume?.worktree_path ?? "", platform),
+        discoveryRegistrationComparablePath(
+          result.resume?.worktree_path ?? "",
+          platform,
+        ),
     ).length !== 1
   ) {
     throw new PrReviewLeaseError("discovery resume registration mismatch");
@@ -556,7 +560,10 @@ export function validatePrReviewDiscoveryJson(
     registrationKeys.filter(
       (entry) =>
         entry ===
-        discoveryComparablePath(result.cleanup?.worktree_path ?? "", platform),
+        discoveryRegistrationComparablePath(
+          result.cleanup?.worktree_path ?? "",
+          platform,
+        ),
     ).length !== 1
   ) {
     throw new PrReviewLeaseError("discovery cleanup registration mismatch");
@@ -570,7 +577,10 @@ export function validatePrReviewDiscoveryJson(
     registrationKeys.filter(
       (entry) =>
         entry ===
-        discoveryComparablePath(result.cleanup?.worktree_path ?? "", platform),
+        discoveryRegistrationComparablePath(
+          result.cleanup?.worktree_path ?? "",
+          platform,
+        ),
     ).length !== 0
   ) {
     throw new PrReviewLeaseError("discovery cleanup registration mismatch");
@@ -1434,7 +1444,7 @@ async function collectDiscoverySession({
   });
   const registrationKeys = new Set(
     registrations.map((entry) =>
-      discoveryComparablePath(entry, process.platform),
+      discoveryRegistrationComparablePath(entry, process.platform),
     ),
   );
   const canonicalPath = path.join(
@@ -1471,7 +1481,7 @@ async function collectDiscoverySession({
           ? "directory"
           : "invalid",
     registered: registrationKeys.has(
-      discoveryComparablePath(canonicalPath, process.platform),
+      discoveryRegistrationComparablePath(canonicalPath, process.platform),
     ),
     parent_status:
       parentObservation === "absent"
@@ -3177,6 +3187,33 @@ function discoveryComparablePath(
     : normalized;
 }
 
+function discoveryRegistrationComparablePath(
+  value: string,
+  platform: NodeJS.Platform,
+): string {
+  const filesystemPath = discoveryFilesystemPath(value, platform);
+  if (platform === "win32") {
+    if (!path.win32.isAbsolute(filesystemPath)) {
+      throw new PrReviewLeaseError(
+        "discovery registration path must be absolute",
+      );
+    }
+    return discoveryComparablePath(
+      path.win32.normalize(filesystemPath),
+      platform,
+    );
+  }
+  if (!path.posix.isAbsolute(filesystemPath)) {
+    throw new PrReviewLeaseError(
+      "discovery registration path must be absolute",
+    );
+  }
+  return discoveryComparablePath(
+    path.posix.normalize(filesystemPath),
+    platform,
+  );
+}
+
 function sameOrdinalStringArray(
   left: readonly string[],
   right: readonly string[],
@@ -3192,7 +3229,9 @@ function discoveryRegistrationSnapshot(
   platform: NodeJS.Platform,
 ): string[] {
   return ordinalSort(
-    registrations.map((entry) => discoveryComparablePath(entry, platform)),
+    registrations.map((entry) =>
+      discoveryRegistrationComparablePath(entry, platform),
+    ),
   );
 }
 

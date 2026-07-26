@@ -120,6 +120,7 @@ async function validateResumeAcceptance(identity) {
         throw new PrReviewLeaseError("resume acceptance changed; stop before lifecycle mutation");
     }
     return JSON.stringify({
+        schema: "pr-review/resume-acceptance/v1",
         repository: observed.repository,
         pr_number: observed.pr_number,
         primary_repository_root: observed.primary_repository_root,
@@ -173,10 +174,10 @@ export function validatePrReviewDiscoveryJson(contents, identity) {
         discoveryComparablePath(canonicalExpected, platform)) {
         throw new PrReviewLeaseError("discovery canonical target mismatch");
     }
-    const registrationKeys = result.registrations.map((entry) => discoveryComparablePath(entry, platform));
+    const registrationKeys = result.registrations.map((entry) => discoveryRegistrationComparablePath(entry, platform));
     if (new Set(registrationKeys).size !== registrationKeys.length ||
         registrationKeys.filter((entry) => entry ===
-            discoveryComparablePath(result.canonical_target.worktree_path, platform)).length !== (result.canonical_target.registered ? 1 : 0)) {
+            discoveryRegistrationComparablePath(result.canonical_target.worktree_path, platform)).length !== (result.canonical_target.registered ? 1 : 0)) {
         throw new PrReviewLeaseError("discovery registration correlation mismatch");
     }
     const expected = reducePrReviewDiscovery({
@@ -195,7 +196,7 @@ export function validatePrReviewDiscoveryJson(contents, identity) {
     }
     if (result.resume !== null &&
         registrationKeys.filter((entry) => entry ===
-            discoveryComparablePath(result.resume?.worktree_path ?? "", platform)).length !== 1) {
+            discoveryRegistrationComparablePath(result.resume?.worktree_path ?? "", platform)).length !== 1) {
         throw new PrReviewLeaseError("discovery resume registration mismatch");
     }
     if (result.cleanup !== null &&
@@ -208,14 +209,14 @@ export function validatePrReviewDiscoveryJson(contents, identity) {
             "unmanaged-ephemeral-artifacts",
         ].includes(result.cleanup.reason) &&
         registrationKeys.filter((entry) => entry ===
-            discoveryComparablePath(result.cleanup?.worktree_path ?? "", platform)).length !== 1) {
+            discoveryRegistrationComparablePath(result.cleanup?.worktree_path ?? "", platform)).length !== 1) {
         throw new PrReviewLeaseError("discovery cleanup registration mismatch");
     }
     if (result.cleanup !== null &&
         result.cleanup.lease_file !== null &&
         ["worktree-missing", "worktree-unregistered"].includes(result.cleanup.reason) &&
         registrationKeys.filter((entry) => entry ===
-            discoveryComparablePath(result.cleanup?.worktree_path ?? "", platform)).length !== 0) {
+            discoveryRegistrationComparablePath(result.cleanup?.worktree_path ?? "", platform)).length !== 0) {
         throw new PrReviewLeaseError("discovery cleanup registration mismatch");
     }
     return JSON.stringify(result);
@@ -832,7 +833,7 @@ async function collectDiscoverySession({ repository, prNumber, primaryRoot, gitE
         key: "registrations",
         value: JSON.stringify(discoveryRegistrationSnapshot(registrations, process.platform)),
     });
-    const registrationKeys = new Set(registrations.map((entry) => discoveryComparablePath(entry, process.platform)));
+    const registrationKeys = new Set(registrations.map((entry) => discoveryRegistrationComparablePath(entry, process.platform)));
     const canonicalPath = path.join(primaryRoot, ".worktrees", `pr-${prNumber}-review`);
     const parentSnapshot = await observeStableDiscoveryPathSnapshot(path.dirname(canonicalPath), true);
     const parentObservation = parentSnapshot.status;
@@ -854,7 +855,7 @@ async function collectDiscoverySession({ repository, prNumber, primaryRoot, gitE
             : targetObservation === "directory"
                 ? "directory"
                 : "invalid",
-        registered: registrationKeys.has(discoveryComparablePath(canonicalPath, process.platform)),
+        registered: registrationKeys.has(discoveryRegistrationComparablePath(canonicalPath, process.platform)),
         parent_status: parentObservation === "absent"
             ? "absent"
             : parentObservation === "directory"
@@ -2152,12 +2153,25 @@ function discoveryComparablePath(value, platform) {
         ? normalized.toLowerCase()
         : normalized;
 }
+function discoveryRegistrationComparablePath(value, platform) {
+    const filesystemPath = discoveryFilesystemPath(value, platform);
+    if (platform === "win32") {
+        if (!path.win32.isAbsolute(filesystemPath)) {
+            throw new PrReviewLeaseError("discovery registration path must be absolute");
+        }
+        return discoveryComparablePath(path.win32.normalize(filesystemPath), platform);
+    }
+    if (!path.posix.isAbsolute(filesystemPath)) {
+        throw new PrReviewLeaseError("discovery registration path must be absolute");
+    }
+    return discoveryComparablePath(path.posix.normalize(filesystemPath), platform);
+}
 function sameOrdinalStringArray(left, right) {
     return (left.length === right.length &&
         left.every((value, index) => value === right[index]));
 }
 function discoveryRegistrationSnapshot(registrations, platform) {
-    return ordinalSort(registrations.map((entry) => discoveryComparablePath(entry, platform)));
+    return ordinalSort(registrations.map((entry) => discoveryRegistrationComparablePath(entry, platform)));
 }
 function ordinalCompare(left, right) {
     const leftCodePoints = Array.from(left, (value) => value.codePointAt(0) ?? 0);
