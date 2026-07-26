@@ -269,6 +269,7 @@ function parseDiscoveryResult(value, platform) {
     ]);
     const result = value;
     if (result.schema !== "pr-review/discovery/v1" ||
+        typeof result.repository !== "string" ||
         !isSafeGitHubRepository(result.repository) ||
         !Number.isSafeInteger(result.pr_number) ||
         result.pr_number <= 0 ||
@@ -1925,6 +1926,30 @@ export function parseDiscoveryGitPathRecord(output, label = "discovery Git path"
     }
     return value;
 }
+export function parseDiscoveryGitlinkRecords(output) {
+    if (output.length === 0) {
+        return [];
+    }
+    if (!output.endsWith("\0")) {
+        throw new PrReviewLeaseError("discovery gitlink inventory is not NUL-terminated");
+    }
+    const gitlinkPaths = [];
+    for (const record of output.slice(0, -1).split("\0")) {
+        const separator = record.indexOf("\t");
+        if (separator < 0 || separator === record.length - 1) {
+            throw new PrReviewLeaseError("discovery gitlink inventory record is malformed");
+        }
+        const metadata = record.slice(0, separator);
+        if (!metadata.startsWith("160000 ")) {
+            continue;
+        }
+        if (!/^160000 [0-9a-f]{40} [0-3]$/u.test(metadata)) {
+            throw new PrReviewLeaseError("discovery gitlink inventory record is malformed");
+        }
+        gitlinkPaths.push(record.slice(separator + 1));
+    }
+    return gitlinkPaths;
+}
 async function readDiscoveryRepositoryBinding(primaryRoot, repositoryIdentity, env, expectedRepository) {
     const configPath = path.join(repositoryIdentity.common_directory, "config");
     const snapshot = await readStableDiscoveryFile(configPath);
@@ -2051,17 +2076,7 @@ async function assertDiscoveryStatusAuthoritySafe(worktreePath, env, visited = n
     }
     const gitlinks = await runDiscoveryGit(worktreePath, ["ls-files", "--stage", "-z"], env);
     const submoduleAuthorities = [];
-    for (const entry of gitlinks.split("\0")) {
-        const separator = entry.indexOf("\t");
-        if (separator < 0)
-            continue;
-        const metadata = entry.slice(0, separator);
-        if (!/^160000 [0-9a-f]{40} [0-3]$/u.test(metadata))
-            continue;
-        const gitlinkPath = entry.slice(separator + 1);
-        if (gitlinkPath.length === 0) {
-            throw new PrReviewLeaseError("initialized submodule path is empty");
-        }
+    for (const gitlinkPath of parseDiscoveryGitlinkRecords(gitlinks)) {
         const submodulePath = path.join(worktreePath, gitlinkPath);
         let stat;
         try {

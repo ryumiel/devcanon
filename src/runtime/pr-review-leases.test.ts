@@ -23,6 +23,7 @@ import {
   discoveryGitEnvironment,
   invalidateDuplicateDiscoveryWorktreeClaims,
   parseDiscoveryGitPathRecord,
+  parseDiscoveryGitlinkRecords,
   parseDiscoveryLease,
   reducePrReviewDiscovery,
   reducePrReviewLease,
@@ -4444,11 +4445,21 @@ describe("read-only PR review discovery planner", () => {
     ).not.toThrow();
   });
 
-  it.each(["./repo", "../repo", "-owner/repo", "owner/-repo", "owner/repo$"])(
+  it.each([
+    "./repo",
+    "../repo",
+    "-owner/repo",
+    "owner/-repo",
+    "owner/repo$",
+    null,
+    123,
+    ["owner", "repo"],
+    { owner: "owner", repo: "repo" },
+  ])(
     "rejects unsafe repository identity %s at the exported discovery validator boundary",
     (repository) => {
       const result = reducePrReviewDiscovery({
-        repository,
+        repository: repository as string,
         pr_number: 432,
         primary_repository_root: "/repo",
         canonical_target: {
@@ -4466,7 +4477,7 @@ describe("read-only PR review discovery planner", () => {
 
       expect(() =>
         validatePrReviewDiscoveryJson(Buffer.from(JSON.stringify(result)), {
-          repository,
+          repository: repository as string,
           prNumber: 432,
           primaryRoot: "/repo",
           platform: "linux",
@@ -6147,6 +6158,22 @@ describe("read-only PR review discovery planner", () => {
     expect(discoveryFilesystemPath("\\\\server\\share\\a", "win32")).toBe(
       "\\\\server\\share\\a",
     );
+  });
+
+  it("parses NUL-delimited gitlink records without splitting newline paths", () => {
+    const oid = "a".repeat(40);
+    expect(
+      parseDiscoveryGitlinkRecords(
+        `100644 ${oid} 0\tREADME.md\0` + `160000 ${oid} 0\tnested\nmodule\0`,
+      ),
+    ).toEqual(["nested\nmodule"]);
+    expect(parseDiscoveryGitlinkRecords("")).toEqual([]);
+    expect(() =>
+      parseDiscoveryGitlinkRecords(`160000 ${oid} 0\tnested\nmodule`),
+    ).toThrow("discovery gitlink inventory is not NUL-terminated");
+    expect(() =>
+      parseDiscoveryGitlinkRecords("160000 invalid 0\tnested\nmodule\0"),
+    ).toThrow("discovery gitlink inventory record is malformed");
   });
 
   it("accepts native Windows producer spellings in the closed lease parser", () => {
