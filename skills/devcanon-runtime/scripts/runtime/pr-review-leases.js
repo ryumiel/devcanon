@@ -545,9 +545,12 @@ function assertDiscoveryCanonicalTargetCorrelation(result, platform) {
                 target.parent_status === "directory" &&
                 !target.registered
             : canonicalActive.classification === "artifact-bearing"
-                ? target.parent_status === "directory" &&
-                    ((target.status === "absent" && !target.registered) ||
-                        target.status === "directory")
+                ? (target.status === "absent" &&
+                    !target.registered &&
+                    (target.parent_status === "absent" ||
+                        target.parent_status === "directory")) ||
+                    (target.status === "directory" &&
+                        target.parent_status === "directory")
                 : target.status === "directory" &&
                     target.parent_status === "directory" &&
                     target.registered;

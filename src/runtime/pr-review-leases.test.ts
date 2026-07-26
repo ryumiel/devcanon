@@ -4635,6 +4635,12 @@ async function runDiscovery(root: string, prNumber = 432) {
   expect(outcome.exitCode).toBe(0);
   return JSON.parse(outcome.stdout) as {
     disposition: string;
+    canonical_target: {
+      worktree_path: string;
+      status: string;
+      registered: boolean;
+      parent_status: string;
+    };
     resume: { lease_file: string; worktree_path: string } | null;
     cleanup: {
       lease_file: string | null;
@@ -5552,6 +5558,35 @@ describe("read-only PR review discovery planner", () => {
       ).not.toThrow();
     },
   );
+
+  it("validates a pointer-bearing canonical lease with no worktree parent", async () => {
+    const root = await createDiscoveryRepository();
+    const worktree = path.join(root, ".worktrees", "pr-432-review");
+    const artifactLease = discoveryLease(worktree);
+    artifactLease.artifacts.handoff_file = ".ephemeral/missing-handoff.json";
+    await writeDiscoveryLease(root, artifactLease);
+
+    const result = await runDiscovery(root);
+    expect(result.disposition).toBe("cleanup-required");
+    expect(result.canonical_target).toEqual({
+      worktree_path: worktree,
+      status: "absent",
+      registered: false,
+      parent_status: "absent",
+    });
+    expect(result.cleanup).toMatchObject({
+      lease_file: artifactLease.lease_file,
+      worktree_path: worktree,
+      reason: "artifact-authority-required",
+    });
+    expect(() =>
+      validatePrReviewDiscoveryJson(Buffer.from(JSON.stringify(result)), {
+        repository: "owner/repo",
+        prNumber: 432,
+        primaryRoot: root,
+      }),
+    ).not.toThrow();
+  });
 
   it("rejects duplicate and contradictory artifact-bearing registrations", () => {
     const worktree = "/repo/alternate";
@@ -8643,6 +8678,41 @@ describe("pr-review discovery wrapper resolution", () => {
     }
   });
 
+  it.skipIf(process.platform === "win32")(
+    "preserves a newline-terminated packaged runtime directory",
+    async () => {
+      const root = await mkdtemp(path.join(tmpdir(), "lease-wrapper-newline-"));
+      discoveryTempRoots.push(root);
+      const runtimeDir = path.join(root, "devcanon-runtime\n");
+      const script = path.join(runtimeDir, "scripts", "devcanon-runtime.sh");
+      await mkdir(path.dirname(script), { recursive: true });
+      await writeFile(
+        script,
+        [
+          "#!/usr/bin/env bash",
+          'if [ "${1:-}" = "resolve-entrypoint" ]; then',
+          '  printf "%s\\n" "$0"',
+          "  exit 0",
+          "fi",
+          'printf "%s\\n" "$*"',
+          "",
+        ].join("\n"),
+      );
+      await chmod(script, 0o755);
+
+      const { stdout } = await execFileAsync(
+        "bash",
+        ["skills/pr-review/scripts/review-leases.sh", "discover"],
+        {
+          cwd: originalCwd,
+          env: { ...process.env, DEVCANON_RUNTIME_DIR: runtimeDir },
+        },
+      );
+
+      expect(stdout.trim()).toBe("runtime pr-review-leases discover");
+    },
+  );
+
   it("transports validate-discovery stdin and arguments without reconstruction", async () => {
     const root = await mkdtemp(path.join(tmpdir(), "lease-wrapper-transport-"));
     discoveryTempRoots.push(root);
@@ -8711,7 +8781,13 @@ describe("pr-review discovery wrapper resolution", () => {
     const linked = path.join(root, "linked-runtime");
     await symlink(path.resolve("skills/devcanon-runtime"), linked, "dir");
 
-    for (const override of [direct, linked, `${linked}/`, `${linked}/.`]) {
+    for (const override of [
+      direct,
+      linked,
+      `${linked}/`,
+      `${linked}/.`,
+      `${linked}/scripts/..`,
+    ]) {
       await expect(
         execFileAsync(
           "bash",
@@ -8724,6 +8800,31 @@ describe("pr-review discovery wrapper resolution", () => {
       ).rejects.toMatchObject({ code: 1 });
     }
   });
+
+  it.skipIf(process.platform === "win32")(
+    "rejects newline-terminated symlink runtime overrides",
+    async () => {
+      const root = await mkdtemp(
+        path.join(tmpdir(), "lease-wrapper-newline-link-"),
+      );
+      discoveryTempRoots.push(root);
+      const linked = path.join(root, "linked-runtime\n");
+      await symlink(path.resolve("skills/devcanon-runtime"), linked, "dir");
+
+      for (const override of [linked, `${linked}/`, `${linked}/.`]) {
+        await expect(
+          execFileAsync(
+            "bash",
+            ["skills/pr-review/scripts/review-leases.sh", "discover"],
+            {
+              cwd: originalCwd,
+              env: { ...process.env, DEVCANON_RUNTIME_DIR: override },
+            },
+          ),
+        ).rejects.toMatchObject({ code: 1 });
+      }
+    },
+  );
 
   describe("managed sibling symlink layout", () => {
     let bashInstalledWrapper: string;
