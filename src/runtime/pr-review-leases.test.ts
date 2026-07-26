@@ -61,6 +61,51 @@ using System.Text;
 
 public static class DevCanonDiscoveryGitLauncher
 {
+    private static string QuoteWindowsArgument(string value)
+    {
+        if (value.Length > 0 &&
+            value.IndexOfAny(new char[] { ' ', '\t', '"' }) < 0)
+        {
+            return value;
+        }
+
+        StringBuilder quoted = new StringBuilder();
+        quoted.Append('"');
+        int backslashes = 0;
+        foreach (char character in value)
+        {
+            if (character == '\\')
+            {
+                backslashes++;
+                continue;
+            }
+            if (character == '"')
+            {
+                quoted.Append('\\', backslashes * 2 + 1);
+                quoted.Append('"');
+                backslashes = 0;
+                continue;
+            }
+            quoted.Append('\\', backslashes);
+            backslashes = 0;
+            quoted.Append(character);
+        }
+        quoted.Append('\\', backslashes * 2);
+        quoted.Append('"');
+        return quoted.ToString();
+    }
+
+    private static void AppendWindowsArgument(
+        StringBuilder commandLine,
+        string value)
+    {
+        if (commandLine.Length > 0)
+        {
+            commandLine.Append(' ');
+        }
+        commandLine.Append(QuoteWindowsArgument(value));
+    }
+
     private static void WriteField(Stream stream, string value)
     {
         byte[] bytes = new UTF8Encoding(false, true).GetBytes(value);
@@ -109,16 +154,19 @@ public static class DevCanonDiscoveryGitLauncher
         start.FileName = "bash.exe";
         start.UseShellExecute = false;
         start.CreateNoWindow = true;
-        start.Environment["DEVCANON_TEST_NATIVE_PATH"] = implementation;
-        start.ArgumentList.Add("-lc");
-        start.ArgumentList.Add(
+        start.EnvironmentVariables["DEVCANON_TEST_NATIVE_PATH"] = implementation;
+        StringBuilder commandLine = new StringBuilder();
+        AppendWindowsArgument(commandLine, "-lc");
+        AppendWindowsArgument(
+            commandLine,
             "adapter=$(cygpath -u -- \"$DEVCANON_TEST_NATIVE_PATH\") || exit $?; exec \"$adapter\" \"$@\""
         );
-        start.ArgumentList.Add("bash");
+        AppendWindowsArgument(commandLine, "bash");
         foreach (string argument in args)
         {
-            start.ArgumentList.Add(argument);
+            AppendWindowsArgument(commandLine, argument);
         }
+        start.Arguments = commandLine.ToString();
 
         using (Process child = Process.Start(start))
         {
@@ -4458,7 +4506,76 @@ describe("read-only PR review discovery planner", () => {
       "-Command",
       "$ErrorActionPreference = 'Stop'; Add-Type -TypeDefinition $env:DEVCANON_TEST_LAUNCHER_SOURCE -Language CSharp -OutputType ConsoleApplication -OutputAssembly $env:DEVCANON_TEST_LAUNCHER_OUTPUT",
     ]);
+    expect(discoveryGitWindowsLauncherSource).toContain(
+      'start.EnvironmentVariables["DEVCANON_TEST_NATIVE_PATH"] = implementation;',
+    );
+    expect(discoveryGitWindowsLauncherSource).toContain(
+      "start.Arguments = commandLine.ToString();",
+    );
+    expect(discoveryGitWindowsLauncherSource).not.toContain(
+      "start.Environment[",
+    );
+    expect(discoveryGitWindowsLauncherSource).not.toContain("ArgumentList");
   });
+
+  it.runIf(process.platform === "win32")(
+    "round-trips adversarial native launcher arguments and environment exactly",
+    async () => {
+      if (discoveryGitWindowsLauncher === undefined) {
+        throw new Error("native discovery Git launcher is unavailable");
+      }
+      const fixtureRoot = await mkdtemp(
+        path.join(tmpdir(), "discovery-git-launcher-roundtrip-"),
+      );
+      discoveryTempRoots.push(fixtureRoot);
+      const launcher = path.join(fixtureRoot, "git.exe");
+      const implementation = path.join(fixtureRoot, "git.impl");
+      const recording = `${implementation}.argv`;
+      await copyFile(discoveryGitWindowsLauncher, launcher);
+      await writeFile(
+        implementation,
+        [
+          "#!/usr/bin/env bash",
+          "set -euo pipefail",
+          `recording='${await toGitBashPath(recording)}'`,
+          "{",
+          "  printf 'ENV\\0%s\\0ARGS\\0' \"$DEVCANON_TEST_NATIVE_PATH\"",
+          "  for argument do printf '%s\\0' \"$argument\"; done",
+          "  printf 'END\\0'",
+          '} >"$recording"',
+          "",
+        ].join("\n"),
+      );
+      await chmod(implementation, 0o755);
+      const argumentsToRoundTrip = [
+        "",
+        "space value",
+        "tab\tvalue",
+        'embedded"quote',
+        'backslashes\\\\before"quote',
+        "trailing\\",
+        "--no-optional-locks",
+        "-c",
+        "core.excludesFile=NUL",
+        "-C",
+        "C:\\repository path",
+        "status",
+        "--porcelain=v1",
+      ];
+
+      await execFileAsync(launcher, argumentsToRoundTrip);
+
+      const fields = (await readFile(recording, "utf8")).split("\0");
+      expect(fields).toEqual([
+        "ENV",
+        implementation,
+        "ARGS",
+        ...argumentsToRoundTrip,
+        "END",
+        "",
+      ]);
+    },
+  );
 
   it("accepts discover with no positional arguments", async () => {
     const root = await createDiscoveryRepository();
