@@ -129,6 +129,41 @@ public static class DevCanonDiscoveryGitLauncher
 }
 `;
 
+const discoveryGitWindowsPowerShellArguments = [
+  "-NoLogo",
+  "-NoProfile",
+  "-NonInteractive",
+  "-Command",
+  [
+    "$ErrorActionPreference = 'Stop';",
+    "Add-Type",
+    "-TypeDefinition $env:DEVCANON_TEST_LAUNCHER_SOURCE",
+    "-Language CSharp",
+    "-OutputType ConsoleApplication",
+    "-OutputAssembly $env:DEVCANON_TEST_LAUNCHER_OUTPUT",
+  ].join(" "),
+] as const;
+
+async function resolveInboxWindowsPowerShell(): Promise<string> {
+  const systemRoot = process.env.SystemRoot;
+  if (systemRoot === undefined || !path.win32.isAbsolute(systemRoot)) {
+    throw new Error(
+      "SystemRoot is unavailable; cannot resolve inbox Windows PowerShell",
+    );
+  }
+  const powershell = path.win32.join(
+    systemRoot,
+    "System32",
+    "WindowsPowerShell",
+    "v1.0",
+    "powershell.exe",
+  );
+  if (!(await lstat(powershell)).isFile()) {
+    throw new Error(`inbox Windows PowerShell is unavailable: ${powershell}`);
+  }
+  return powershell;
+}
+
 async function toGitBashPath(nativePath: string): Promise<string> {
   if (process.platform !== "win32") {
     return nativePath;
@@ -4084,22 +4119,10 @@ beforeAll(async () => {
     discoveryGitWindowsLauncherRoot,
     "git.exe",
   );
+  const windowsPowerShell = await resolveInboxWindowsPowerShell();
   await execFileAsync(
-    "pwsh",
-    [
-      "-NoLogo",
-      "-NoProfile",
-      "-NonInteractive",
-      "-Command",
-      [
-        "$ErrorActionPreference = 'Stop';",
-        "Add-Type",
-        "-TypeDefinition $env:DEVCANON_TEST_LAUNCHER_SOURCE",
-        "-Language CSharp",
-        "-OutputType ConsoleApplication",
-        "-OutputAssembly $env:DEVCANON_TEST_LAUNCHER_OUTPUT",
-      ].join(" "),
-    ],
+    windowsPowerShell,
+    [...discoveryGitWindowsPowerShellArguments],
     {
       env: {
         ...process.env,
@@ -4427,6 +4450,16 @@ async function runDiscovery(root: string, prNumber = 432) {
 }
 
 describe("read-only PR review discovery planner", () => {
+  it("constructs the exact inbox Windows PowerShell launcher build command", () => {
+    expect(discoveryGitWindowsPowerShellArguments).toEqual([
+      "-NoLogo",
+      "-NoProfile",
+      "-NonInteractive",
+      "-Command",
+      "$ErrorActionPreference = 'Stop'; Add-Type -TypeDefinition $env:DEVCANON_TEST_LAUNCHER_SOURCE -Language CSharp -OutputType ConsoleApplication -OutputAssembly $env:DEVCANON_TEST_LAUNCHER_OUTPUT",
+    ]);
+  });
+
   it("accepts discover with no positional arguments", async () => {
     const root = await createDiscoveryRepository();
     const result = await runDiscovery(root);
