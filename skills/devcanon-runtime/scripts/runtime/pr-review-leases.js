@@ -2076,7 +2076,12 @@ class DiscoveryGitlinkStreamParser {
 async function readDiscoveryRepositoryBinding(primaryRoot, repositoryIdentity, env, expectedRepository) {
     const configPath = path.join(repositoryIdentity.common_directory, "config");
     const snapshot = await readStableDiscoveryFile(configPath);
+    const worktreeConfigPath = path.join(repositoryIdentity.git_directory, "config.worktree");
+    const worktreeSnapshot = await readOptionalStableDiscoveryFile(worktreeConfigPath);
     await assertNoDiscoveryConfigIncludes(primaryRoot, configPath, env);
+    if (worktreeSnapshot !== null) {
+        await assertNoDiscoveryConfigIncludes(primaryRoot, worktreeConfigPath, env);
+    }
     const output = await runDiscoveryGit(primaryRoot, [
         "config",
         "--null",
@@ -2087,6 +2092,14 @@ async function readDiscoveryRepositoryBinding(primaryRoot, repositoryIdentity, e
         "remote.origin.url",
     ], env);
     await assertSameDiscoveryFile(configPath, snapshot);
+    if (worktreeSnapshot === null) {
+        if ((await observeStableDiscoveryPath(worktreeConfigPath, false)) !== "absent") {
+            throw new PrReviewLeaseError("primary repository worktree config appeared during inspection");
+        }
+    }
+    else {
+        await assertSameDiscoveryFile(worktreeConfigPath, worktreeSnapshot);
+    }
     const values = output.endsWith("\0") ? output.slice(0, -1).split("\0") : [];
     if (values.length !== 1 || values[0].length === 0) {
         throw new PrReviewLeaseError("primary repository must define exactly one local origin URL");
@@ -2097,7 +2110,12 @@ async function readDiscoveryRepositoryBinding(primaryRoot, repositoryIdentity, e
     }
     return {
         repository: repository.toLowerCase(),
-        config_fingerprint: stableDiscoveryFileFingerprint(snapshot),
+        config_fingerprint: JSON.stringify({
+            common: stableDiscoveryFileFingerprint(snapshot),
+            worktree: worktreeSnapshot === null
+                ? "absent"
+                : stableDiscoveryFileFingerprint(worktreeSnapshot),
+        }),
     };
 }
 async function assertNoDiscoveryConfigIncludes(root, configPath, env) {
@@ -2234,21 +2252,13 @@ async function assertDiscoveryStatusAuthoritySafe(worktreePath, env, visited = n
     }
     const gitlinks = await readDiscoveryGitlinkInventory(worktreePath, env);
     const submoduleAuthorities = [];
+    const gitlinkPathAuthorities = [];
     for (const gitlinkPath of gitlinks.paths) {
-        const submodulePath = path.join(worktreePath, gitlinkPath);
-        let stat;
-        try {
-            stat = await lstat(submodulePath);
-        }
-        catch (err) {
-            if (err.code === "ENOENT")
-                continue;
-            throw err;
-        }
-        if (stat.isSymbolicLink() || !stat.isDirectory()) {
-            throw new PrReviewLeaseError("initialized submodule path is unsafe");
-        }
-        submoduleAuthorities.push(await assertDiscoveryStatusAuthoritySafe(submodulePath, env, visited));
+        const pathAuthority = await inspectDiscoveryGitlinkPath(worktreePath, gitlinkPath, env);
+        gitlinkPathAuthorities.push(pathAuthority);
+        if (pathAuthority.physical_path === null)
+            continue;
+        submoduleAuthorities.push(await assertDiscoveryStatusAuthoritySafe(pathAuthority.physical_path, env, visited));
     }
     return {
         fingerprint: JSON.stringify({
@@ -2259,6 +2269,7 @@ async function assertDiscoveryStatusAuthoritySafe(worktreePath, env, visited = n
             ]),
             absent: absentAuthorityFiles,
             gitlinks: gitlinks.fingerprint,
+            gitlink_paths: gitlinkPathAuthorities.map((authority) => authority.fingerprint),
             submodules: submoduleAuthorities.map((authority) => authority.fingerprint),
         }),
         verify: async () => {
@@ -2274,11 +2285,132 @@ async function assertDiscoveryStatusAuthoritySafe(worktreePath, env, visited = n
             if (currentGitlinks.fingerprint !== gitlinks.fingerprint) {
                 throw new PrReviewLeaseError("repository submodule inventory changed during status");
             }
+            for (const authority of gitlinkPathAuthorities) {
+                await authority.verify();
+            }
             for (const authority of submoduleAuthorities) {
                 await authority.verify();
             }
         },
     };
+}
+async function inspectDiscoveryGitlinkPath(candidateRoot, gitlinkPath, env) {
+    const components = validateDiscoveryGitlinkPath(gitlinkPath);
+    const componentSnapshots = [];
+    let current = candidateRoot;
+    for (let index = 0; index < components.length; index += 1) {
+        current = path.join(current, components[index]);
+        let stat;
+        try {
+            stat = await lstat(current);
+        }
+        catch (err) {
+            if (err.code !== "ENOENT")
+                throw err;
+            const missingPath = current;
+            return {
+                physical_path: null,
+                fingerprint: JSON.stringify({
+                    path: gitlinkPath,
+                    components: componentSnapshots.map(([component, snapshot]) => [
+                        component,
+                        discoveryStatFingerprint(snapshot),
+                    ]),
+                    missing: missingPath,
+                }),
+                verify: async () => {
+                    await verifyDiscoveryGitlinkComponents(componentSnapshots);
+                    if ((await observeStableDiscoveryPath(missingPath, false)) !== "absent") {
+                        throw new PrReviewLeaseError("uninitialized submodule path changed during inspection");
+                    }
+                },
+            };
+        }
+        if (stat.isSymbolicLink() || !stat.isDirectory()) {
+            throw new PrReviewLeaseError("initialized submodule path is unsafe");
+        }
+        componentSnapshots.push([current, stat]);
+    }
+    const physicalPath = await realpath(current);
+    if (!isStrictDiscoveryDescendant(candidateRoot, physicalPath)) {
+        throw new PrReviewLeaseError("initialized submodule path escapes worktree");
+    }
+    const repository = await readDiscoveryRepositoryIdentity(physicalPath, env);
+    if (discoveryComparablePath(repository.top_level, process.platform) !==
+        discoveryComparablePath(physicalPath, process.platform)) {
+        throw new PrReviewLeaseError("initialized submodule repository identity mismatch");
+    }
+    return {
+        physical_path: physicalPath,
+        fingerprint: JSON.stringify({
+            path: gitlinkPath,
+            components: componentSnapshots.map(([component, snapshot]) => [
+                component,
+                discoveryStatFingerprint(snapshot),
+            ]),
+            physical: discoveryComparablePath(physicalPath, process.platform),
+            repository: discoveryRepositoryIdentityFingerprint(repository),
+        }),
+        verify: async () => {
+            await verifyDiscoveryGitlinkComponents(componentSnapshots);
+            const currentPhysicalPath = await realpath(current);
+            if (discoveryComparablePath(currentPhysicalPath, process.platform) !==
+                discoveryComparablePath(physicalPath, process.platform) ||
+                !isStrictDiscoveryDescendant(candidateRoot, currentPhysicalPath)) {
+                throw new PrReviewLeaseError("initialized submodule path changed during inspection");
+            }
+            const currentRepository = await readDiscoveryRepositoryIdentity(currentPhysicalPath, env);
+            if (!sameDiscoveryRepositoryIdentity(currentRepository, repository) ||
+                discoveryComparablePath(currentRepository.top_level, process.platform) !== discoveryComparablePath(currentPhysicalPath, process.platform)) {
+                throw new PrReviewLeaseError("initialized submodule repository changed during inspection");
+            }
+        },
+    };
+}
+function validateDiscoveryGitlinkPath(gitlinkPath) {
+    if (gitlinkPath.length === 0 ||
+        gitlinkPath.includes("\\") ||
+        path.posix.isAbsolute(gitlinkPath) ||
+        path.win32.isAbsolute(gitlinkPath) ||
+        /^[A-Za-z]:/u.test(gitlinkPath) ||
+        /^[/\\]{2}/u.test(gitlinkPath) ||
+        hasDiscoveryGitlinkControlCharacter(gitlinkPath)) {
+        throw new PrReviewLeaseError("gitlink path is not repository-relative");
+    }
+    const components = gitlinkPath.split("/");
+    if (components.some((component) => component.length === 0 || component === "." || component === "..")) {
+        throw new PrReviewLeaseError("gitlink path is not repository-relative");
+    }
+    return components;
+}
+function hasDiscoveryGitlinkControlCharacter(gitlinkPath) {
+    for (const character of gitlinkPath) {
+        const codePoint = character.codePointAt(0);
+        if (codePoint !== undefined &&
+            ((codePoint >= 0 && codePoint <= 9) ||
+                (codePoint >= 11 && codePoint <= 31) ||
+                codePoint === 127)) {
+            return true;
+        }
+    }
+    return false;
+}
+async function verifyDiscoveryGitlinkComponents(components) {
+    for (const [component, expected] of components) {
+        const current = await lstat(component);
+        if (current.isSymbolicLink() ||
+            !current.isDirectory() ||
+            !sameDiscoveryIdentity(expected, current)) {
+            throw new PrReviewLeaseError("initialized submodule path changed during inspection");
+        }
+    }
+}
+function isStrictDiscoveryDescendant(root, target) {
+    const relative = path.relative(root, target);
+    return (relative.length > 0 &&
+        relative !== ".." &&
+        !relative.startsWith(`..${path.sep}`) &&
+        !path.isAbsolute(relative));
 }
 async function readDiscoveryGitlinkInventory(root, env) {
     const parser = new DiscoveryGitlinkStreamParser();
