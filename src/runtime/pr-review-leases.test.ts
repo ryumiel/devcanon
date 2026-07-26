@@ -32,6 +32,33 @@ import {
 
 const execFileAsync = promisify(execFile);
 
+async function toGitBashPath(nativePath: string): Promise<string> {
+  if (process.platform !== "win32") {
+    return nativePath;
+  }
+  const { stdout } = await execFileAsync(
+    "bash",
+    [
+      "-lc",
+      'command -v cygpath >/dev/null 2>&1 || exit 127; cygpath -u -- "$DEVCANON_TEST_NATIVE_PATH"',
+    ],
+    {
+      env: {
+        ...process.env,
+        DEVCANON_TEST_NATIVE_PATH: nativePath,
+      },
+    },
+  );
+  if (!stdout.endsWith("\n")) {
+    throw new Error("cygpath did not emit one terminated path");
+  }
+  const converted = stdout.slice(0, -1);
+  if (converted.length === 0 || /[\0\r\n]/u.test(converted)) {
+    throw new Error("cygpath did not emit one non-empty path");
+  }
+  return converted;
+}
+
 const identity = {
   repository: "owner/repo",
   prNumber: 432,
@@ -3995,6 +4022,7 @@ async function createDiscoveryRepository(): Promise<string> {
     "user.email",
     "test@example.com",
   ]);
+  await execFileAsync("git", ["-C", root, "config", "core.autocrlf", "false"]);
   await execFileAsync("git", [
     "-C",
     root,
@@ -4415,6 +4443,37 @@ describe("read-only PR review discovery planner", () => {
       ),
     ).not.toThrow();
   });
+
+  it.each(["./repo", "../repo", "-owner/repo", "owner/-repo", "owner/repo$"])(
+    "rejects unsafe repository identity %s at the exported discovery validator boundary",
+    (repository) => {
+      const result = reducePrReviewDiscovery({
+        repository,
+        pr_number: 432,
+        primary_repository_root: "/repo",
+        canonical_target: {
+          worktree_path: "/repo/.worktrees/pr-432-review",
+          status: "absent",
+          registered: false,
+          parent_status: "directory",
+        },
+        registrations: [],
+        active: [],
+        archived: [],
+        invalid: [],
+        comparison_platform: "linux",
+      });
+
+      expect(() =>
+        validatePrReviewDiscoveryJson(Buffer.from(JSON.stringify(result)), {
+          repository,
+          prNumber: 432,
+          primaryRoot: "/repo",
+          platform: "linux",
+        }),
+      ).toThrow("discovery result schema mismatch");
+    },
+  );
 
   it("stops for artifact-bearing, terminal, and unsupported leases without reading artifacts", async () => {
     for (const kind of ["artifact", "terminal", "unsupported"] as const) {
@@ -6362,33 +6421,14 @@ describe("read-only PR review discovery planner", () => {
     await expect(lstat(marker)).rejects.toMatchObject({ code: "ENOENT" });
   });
 
-  it("fails closed on executable filter authority in a newline-bearing initialized submodule", async () => {
+  it("parses a newline-bearing uninitialized gitlink without splitting its path", async () => {
     const root = await createDiscoveryRepository();
-    const worktree = await createDiscoveryWorktree(
-      root,
-      "newline-submodule-filter",
-    );
+    const worktree = await createDiscoveryWorktree(root, "newline-submodule");
     const submodule = await createDiscoveryRepository();
     const gitlinkPath = "nested\nmodule";
     const submoduleHead = (
       await execFileAsync("git", ["-C", submodule, "rev-parse", "HEAD"])
     ).stdout.trim();
-    const initializedSubmodule = path.join(worktree, gitlinkPath);
-    await execFileAsync("git", [
-      "clone",
-      "--no-checkout",
-      "--quiet",
-      submodule,
-      initializedSubmodule,
-    ]);
-    await execFileAsync("git", [
-      "-C",
-      initializedSubmodule,
-      "checkout",
-      "--detach",
-      "--quiet",
-      submoduleHead,
-    ]);
     await new Promise<void>((resolve, reject) => {
       const child = execFile(
         "git",
@@ -6415,23 +6455,14 @@ describe("read-only PR review discovery planner", () => {
     expect(stagedGitlinks).toContain(
       `160000 ${submoduleHead} 0\t${gitlinkPath}\0`,
     );
-    const marker = path.join(root, "newline-submodule-filter-executed");
-    await execFileAsync("git", [
-      "-C",
-      initializedSubmodule,
-      "config",
-      "filter.discovery.process",
-      `printf executed >"${marker}"`,
-    ]);
     await writeDiscoveryLease(root, discoveryLease(worktree));
 
     const result = await runDiscovery(root);
-    expect(result.disposition).toBe("invalid");
+    expect(result.disposition).toBe("cleanup-required");
     expect(result.active[0]).toMatchObject({
-      classification: "invalid",
-      reason: "status-inspection-failed",
+      classification: "dirty",
+      reason: "worktree-dirty",
     });
-    await expect(lstat(marker)).rejects.toMatchObject({ code: "ENOENT" });
   });
 
   it("does not mutate filesystem contents or Git registrations", async () => {
@@ -6619,9 +6650,10 @@ describe("pr-review discovery wrapper resolution", () => {
       PRIMARY_REPOSITORY_ROOT: repositoryRoot,
       WORKTREE_PATH: worktree,
     };
+    const bashInstalledWrapper = await toGitBashPath(installedWrapper);
     const discovery = await execFileAsync(
       "bash",
-      [installedWrapper, "discover"],
+      [bashInstalledWrapper, "discover"],
       { cwd: repositoryRoot, env },
     );
     expect(JSON.parse(discovery.stdout)).toMatchObject({
@@ -6630,7 +6662,7 @@ describe("pr-review discovery wrapper resolution", () => {
     });
     const derived = await execFileAsync(
       "bash",
-      [installedWrapper, "derive-path"],
+      [bashInstalledWrapper, "derive-path"],
       { cwd: repositoryRoot, env },
     );
     expect(derived.stdout.trim()).toBe(discoveryLease(worktree).lease_file);

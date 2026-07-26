@@ -269,7 +269,7 @@ function parseDiscoveryResult(value, platform) {
     ]);
     const result = value;
     if (result.schema !== "pr-review/discovery/v1" ||
-        !/^[^/\s]+\/[^/\s]+$/u.test(result.repository) ||
+        !isSafeGitHubRepository(result.repository) ||
         !Number.isSafeInteger(result.pr_number) ||
         result.pr_number <= 0 ||
         typeof result.primary_repository_root !== "string" ||
