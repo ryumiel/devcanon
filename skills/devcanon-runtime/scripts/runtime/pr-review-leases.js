@@ -1883,7 +1883,7 @@ async function assertDiscoveryPrimaryRoot(primaryRoot, env) {
     }
     try {
         const repository = await readDiscoveryRepositoryIdentity(primaryRoot, env);
-        const gitDirectory = parseDiscoveryGitPathRecord(await runDiscoveryGit(primaryRoot, ["rev-parse", "--absolute-git-dir"], env), "PRIMARY_REPOSITORY_ROOT Git directory");
+        const gitDirectory = parseDiscoveryGitPathBufferRecord(await runDiscoveryGitBuffer(primaryRoot, ["rev-parse", "--absolute-git-dir"], env), "PRIMARY_REPOSITORY_ROOT Git directory");
         if (discoveryComparablePath(repository.top_level, process.platform) !==
             discoveryComparablePath(primaryRoot, process.platform) ||
             discoveryComparablePath(await realpath(discoveryFilesystemPath(gitDirectory)), process.platform) !==
@@ -1900,9 +1900,9 @@ async function assertDiscoveryPrimaryRoot(primaryRoot, env) {
     }
 }
 async function readDiscoveryRepositoryIdentity(root, env) {
-    const topLevelRaw = parseDiscoveryGitPathRecord(await runDiscoveryGit(root, ["rev-parse", "--show-toplevel"], env), "discovery repository top-level");
-    const commonDirectoryRaw = parseDiscoveryGitPathRecord(await runDiscoveryGit(root, ["rev-parse", "--git-common-dir"], env), "discovery repository common directory");
-    const gitDirectoryRaw = parseDiscoveryGitPathRecord(await runDiscoveryGit(root, ["rev-parse", "--absolute-git-dir"], env), "discovery repository Git directory");
+    const topLevelRaw = parseDiscoveryGitPathBufferRecord(await runDiscoveryGitBuffer(root, ["rev-parse", "--show-toplevel"], env), "discovery repository top-level");
+    const commonDirectoryRaw = parseDiscoveryGitPathBufferRecord(await runDiscoveryGitBuffer(root, ["rev-parse", "--git-common-dir"], env), "discovery repository common directory");
+    const gitDirectoryRaw = parseDiscoveryGitPathBufferRecord(await runDiscoveryGitBuffer(root, ["rev-parse", "--absolute-git-dir"], env), "discovery repository Git directory");
     const topLevelPath = discoveryFilesystemPath(topLevelRaw);
     const commonDirectoryPath = discoveryFilesystemPath(commonDirectoryRaw);
     const gitDirectoryPath = discoveryFilesystemPath(gitDirectoryRaw);
@@ -1927,6 +1927,70 @@ export function parseDiscoveryGitPathRecord(output, label = "discovery Git path"
     return value;
 }
 const discoveryFatalUtf8Decoder = new TextDecoder("utf-8", { fatal: true });
+function fatalDecodeDiscoveryGitPath(output, label) {
+    if (output.includes(0)) {
+        throw new PrReviewLeaseError(`${label} contains a NUL byte`);
+    }
+    try {
+        return discoveryFatalUtf8Decoder.decode(output);
+    }
+    catch {
+        throw new PrReviewLeaseError(`${label} is not valid UTF-8`);
+    }
+}
+function parseDiscoveryGitPathBufferRecord(output, label = "discovery Git path") {
+    if (output.length === 0 || output[output.length - 1] !== 0x0a) {
+        throw new PrReviewLeaseError(`${label} is not LF-terminated`);
+    }
+    const value = output.subarray(0, -1);
+    if (value.length === 0) {
+        throw new PrReviewLeaseError(`${label} is empty`);
+    }
+    return fatalDecodeDiscoveryGitPath(value, label);
+}
+function parseDiscoveryWorktreeRegistrationRecords(output) {
+    if (output.length === 0) {
+        throw new PrReviewLeaseError("discovery worktree inventory is empty");
+    }
+    if (output[output.length - 1] !== 0) {
+        throw new PrReviewLeaseError("discovery worktree inventory is not NUL-terminated");
+    }
+    const registrations = [];
+    const prefix = Buffer.from("worktree ", "ascii");
+    let recordStart = 0;
+    while (recordStart < output.length) {
+        let blockFieldCount = 0;
+        let worktreePath = null;
+        for (;;) {
+            const recordEnd = output.indexOf(0, recordStart);
+            if (recordEnd < 0) {
+                throw new PrReviewLeaseError("discovery worktree inventory block is not NUL-terminated");
+            }
+            if (recordEnd === recordStart) {
+                if (blockFieldCount === 0) {
+                    throw new PrReviewLeaseError("discovery worktree inventory block separator is malformed");
+                }
+                recordStart = recordEnd + 1;
+                break;
+            }
+            const record = output.subarray(recordStart, recordEnd);
+            recordStart = recordEnd + 1;
+            blockFieldCount += 1;
+            if (!record.subarray(0, prefix.length).equals(prefix)) {
+                continue;
+            }
+            if (worktreePath !== null || record.length === prefix.length) {
+                throw new PrReviewLeaseError("discovery worktree inventory worktree field is malformed");
+            }
+            worktreePath = fatalDecodeDiscoveryGitPath(record.subarray(prefix.length), "discovery worktree registration path");
+        }
+        if (worktreePath === null) {
+            throw new PrReviewLeaseError("discovery worktree inventory worktree field is missing");
+        }
+        registrations.push(worktreePath);
+    }
+    return registrations;
+}
 export function parseDiscoveryGitlinkRecords(output) {
     if (output.length === 0) {
         return [];
@@ -2030,11 +2094,8 @@ function sameDiscoveryRepositoryIdentity(left, right) {
             discoveryComparablePath(right.git_directory, process.platform));
 }
 async function readDiscoveryWorktreeRegistrations(primaryRoot, env) {
-    const stdout = await runDiscoveryGit(primaryRoot, ["worktree", "list", "--porcelain", "-z"], env);
-    return stdout
-        .split("\0")
-        .filter((entry) => entry.startsWith("worktree "))
-        .map((entry) => entry.slice(9));
+    const stdout = await runDiscoveryGitBuffer(primaryRoot, ["worktree", "list", "--porcelain", "-z"], env);
+    return parseDiscoveryWorktreeRegistrationRecords(stdout);
 }
 async function discoveryWorktreeDirty(worktreePath, env) {
     const statusAuthority = await assertDiscoveryStatusAuthoritySafe(worktreePath, env);
@@ -2208,6 +2269,7 @@ export function discoveryGitEnvironment() {
     env.GIT_CONFIG_GLOBAL = nullDevice;
     env.GIT_ATTR_NOSYSTEM = "1";
     env.GIT_OPTIONAL_LOCKS = "0";
+    env.GIT_NO_LAZY_FETCH = "1";
     env.GIT_TERMINAL_PROMPT = "0";
     env.LC_ALL = "C";
     env.LANG = "C";

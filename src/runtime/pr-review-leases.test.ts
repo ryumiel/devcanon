@@ -4244,7 +4244,7 @@ describe("read-only PR review discovery planner", () => {
           'case " $* " in',
           '  *"worktree list --porcelain -z"*)',
           `    printf fired >'${marker}'`,
-          `    printf 'worktree %s\\0' '${worktree}/.'`,
+          `    printf 'worktree %s\\0\\0' '${worktree}/.'`,
           "    ;;",
           "esac",
           "",
@@ -5469,7 +5469,7 @@ describe("read-only PR review discovery planner", () => {
           `    [ "$next" -lt 3 ] || { ${lateAction}; }`,
           ...(authority === "registration"
             ? [
-                `    [ "$next" -lt 3 ] || printf 'worktree /late-registration\\0'`,
+                `    [ "$next" -lt 3 ] || printf 'worktree /late-registration\\0\\0'`,
               ]
             : []),
           "    exit 0",
@@ -6153,11 +6153,187 @@ describe("read-only PR review discovery planner", () => {
       Object.keys(env).some((key) => key.toUpperCase() === "GIT_TRACE2_EVENT"),
     ).toBe(false);
     expect(env.GIT_CONFIG_NOSYSTEM).toBe("1");
+    expect(env.GIT_NO_LAZY_FETCH).toBe("1");
     expect(discoveryFilesystemPath("/C/a/b", "win32")).toBe("c:/a/b");
     expect(discoveryFilesystemPath("/C/a/b", "linux")).toBe("/C/a/b");
     expect(discoveryFilesystemPath("\\\\server\\share\\a", "win32")).toBe(
       "\\\\server\\share\\a",
     );
+  });
+
+  it("propagates the no-lazy-fetch refusal guard to every discovery Git child", async () => {
+    const root = await createDiscoveryRepository();
+    const worktree = await createDiscoveryWorktree(root, "no-lazy-fetch-guard");
+    await writeDiscoveryLease(root, discoveryLease(worktree));
+    const wrapperDir = await mkdtemp(path.join(tmpdir(), "git-wrapper-"));
+    discoveryTempRoots.push(wrapperDir);
+    const missingGuardMarker = path.join(wrapperDir, "missing-guard");
+    const realGit = (
+      await execFileAsync("sh", ["-c", "command -v git"])
+    ).stdout.trim();
+    const wrapper = path.join(wrapperDir, "git");
+    await writeFile(
+      wrapper,
+      [
+        "#!/bin/sh",
+        `if [ "\${GIT_NO_LAZY_FETCH:-}" != 1 ]; then printf missing >'${missingGuardMarker}'; exit 91; fi`,
+        `exec '${realGit}' "$@"`,
+        "",
+      ].join("\n"),
+    );
+    await makeDiscoveryGitWrapperExecutable(wrapper);
+    const oldPath = process.env.PATH;
+    const oldNoLazyFetch = process.env.GIT_NO_LAZY_FETCH;
+    process.env.PATH = prependDiscoveryGitWrapper(wrapperDir, oldPath);
+    process.env.GIT_NO_LAZY_FETCH = "0";
+    try {
+      const result = await runDiscovery(root);
+      expect(result.disposition).toBe("resume");
+      expect(result.resume?.worktree_path).toBe(worktree);
+      await expect(lstat(missingGuardMarker)).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+    } finally {
+      process.env.PATH = oldPath;
+      if (oldNoLazyFetch === undefined) {
+        Reflect.deleteProperty(process.env, "GIT_NO_LAZY_FETCH");
+      } else {
+        process.env.GIT_NO_LAZY_FETCH = oldNoLazyFetch;
+      }
+    }
+  });
+
+  it.skipIf(process.platform === "win32")(
+    "preserves valid Unicode and newline bytes in path-bearing Git output",
+    async () => {
+      const root = await createDiscoveryRepository();
+      const worktree = path.join(root, ".worktrees", "unicode-한글\nworktree");
+      await mkdir(path.dirname(worktree), { recursive: true });
+      await execFileAsync("git", [
+        "-C",
+        root,
+        "worktree",
+        "add",
+        "-b",
+        "test-unicode-newline-output",
+        worktree,
+      ]);
+      const physicalWorktree = await realpath(worktree);
+      const lease = discoveryLease(physicalWorktree);
+      await writeDiscoveryLease(root, lease);
+
+      const result = await runDiscovery(root);
+      expect(result.disposition).toBe("resume");
+      expect(result.registrations).toContain(physicalWorktree);
+      expect(result.resume).toEqual({
+        lease_file: lease.lease_file,
+        worktree_path: physicalWorktree,
+      });
+    },
+  );
+
+  it.each([
+    ["invalid UTF-8", "printf 'worktree invalid-\\377\\000\\000'"],
+    ["zero bytes", ":"],
+    ["a lone leading separator", "printf '\\000'"],
+    [
+      "a missing block separator",
+      "printf 'worktree /tmp/path\\000HEAD abc\\000'",
+    ],
+    ["a missing worktree field", "printf 'HEAD abc\\000\\000'"],
+    [
+      "a duplicate worktree field",
+      "printf 'worktree /tmp/a\\000worktree /tmp/b\\000\\000'",
+    ],
+    [
+      "an additional empty separator between blocks",
+      "printf 'worktree /tmp/a\\000\\000\\000worktree /tmp/b\\000\\000'",
+    ],
+    ["an extra trailing NUL", "git \"$@\"; printf '\\000'"],
+  ])(
+    "fails closed when worktree registration output contains %s",
+    async (_scenario, emitOutput) => {
+      const root = await createDiscoveryRepository();
+      const wrapperDir = await mkdtemp(path.join(tmpdir(), "git-wrapper-"));
+      discoveryTempRoots.push(wrapperDir);
+      const fired = path.join(wrapperDir, "registration-output-fired");
+      const realGit = (
+        await execFileAsync("sh", ["-c", "command -v git"])
+      ).stdout.trim();
+      const wrapper = path.join(wrapperDir, "git");
+      await writeFile(
+        wrapper,
+        [
+          "#!/bin/sh",
+          'case " $* " in',
+          '  *" worktree list --porcelain -z "*)',
+          `    printf fired >'${fired}'`,
+          `    ${emitOutput.replace('git "$@"', `'${realGit}' "$@"`)}`,
+          "    exit 0",
+          "    ;;",
+          "esac",
+          `exec '${realGit}' "$@"`,
+          "",
+        ].join("\n"),
+      );
+      await makeDiscoveryGitWrapperExecutable(wrapper);
+      const oldPath = process.env.PATH;
+      process.env.PATH = prependDiscoveryGitWrapper(wrapperDir, oldPath);
+      try {
+        const result = await runDiscovery(root);
+        expect(result.disposition).toBe("invalid");
+        expect(result.resume).toBeNull();
+        expect(await readFile(fired, "utf8")).toBe("fired");
+      } finally {
+        process.env.PATH = oldPath;
+      }
+    },
+  );
+
+  it("fails closed on invalid UTF-8 in a candidate rev-parse path identity", async () => {
+    const root = await createDiscoveryRepository();
+    const worktree = await createDiscoveryWorktree(
+      root,
+      "invalid-rev-parse-path",
+    );
+    await writeDiscoveryLease(root, discoveryLease(worktree));
+    const wrapperDir = await mkdtemp(path.join(tmpdir(), "git-wrapper-"));
+    discoveryTempRoots.push(wrapperDir);
+    const fired = path.join(wrapperDir, "rev-parse-output-fired");
+    const realGit = (
+      await execFileAsync("sh", ["-c", "command -v git"])
+    ).stdout.trim();
+    const wrapper = path.join(wrapperDir, "git");
+    await writeFile(
+      wrapper,
+      [
+        "#!/bin/sh",
+        'case " $* " in',
+        `  *" -C ${worktree} rev-parse --show-toplevel "*)`,
+        `    printf fired >'${fired}'`,
+        "    printf 'invalid-\\377\\n'",
+        "    exit 0",
+        "    ;;",
+        "esac",
+        `exec '${realGit}' "$@"`,
+        "",
+      ].join("\n"),
+    );
+    await makeDiscoveryGitWrapperExecutable(wrapper);
+    const oldPath = process.env.PATH;
+    process.env.PATH = prependDiscoveryGitWrapper(wrapperDir, oldPath);
+    try {
+      const result = await runDiscovery(root);
+      expect(result.disposition).toBe("invalid");
+      expect(result.resume).toBeNull();
+      expect(result.active[0]).toMatchObject({
+        classification: "invalid",
+        reason: "worktree-repository-mismatch",
+      });
+      expect(await readFile(fired, "utf8")).toBe("fired");
+    } finally {
+      process.env.PATH = oldPath;
+    }
   });
 
   it("parses raw NUL-delimited gitlink records without changing path bytes", () => {
