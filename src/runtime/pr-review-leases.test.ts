@@ -51,6 +51,7 @@ const execFileAsync = promisify(execFile);
 const discoveryGitAdapterLogName = "git-adapter.log";
 let discoveryGitWindowsLauncherRoot: string | undefined;
 let discoveryGitWindowsLauncher: string | undefined;
+let discoveryGitWindowsBash: string | undefined;
 let activeDiscoveryGitAdapterLog: string | undefined;
 
 const discoveryGitWindowsLauncherSource = String.raw`
@@ -119,6 +120,54 @@ public static class DevCanonDiscoveryGitLauncher
         string adapterDirectory = Path.GetDirectoryName(executable);
         string implementation = Path.Combine(adapterDirectory, "git.impl");
         string logPath = Path.Combine(adapterDirectory, "git-adapter.log");
+        string bashPath = File.ReadAllText(
+            Path.Combine(adapterDirectory, "git-bash.path"),
+            new UTF8Encoding(false, true)
+        ).TrimEnd('\r', '\n');
+        if (!Path.IsPathRooted(bashPath) || !File.Exists(bashPath))
+        {
+            throw new InvalidOperationException(
+                "Git-for-Windows Bash path is unavailable"
+            );
+        }
+
+        ProcessStartInfo start = new ProcessStartInfo();
+        start.FileName = bashPath;
+        start.UseShellExecute = false;
+        start.CreateNoWindow = true;
+        start.RedirectStandardError = true;
+        start.EnvironmentVariables["DEVCANON_TEST_NATIVE_PATH"] = implementation;
+        StringBuilder commandLine = new StringBuilder();
+        AppendWindowsArgument(commandLine, "-lc");
+        AppendWindowsArgument(
+            commandLine,
+            "adapter=$(cygpath -u -- \"$DEVCANON_TEST_NATIVE_PATH\") || exit $?; exec \"$adapter\" \"$@\""
+        );
+        AppendWindowsArgument(commandLine, "bash");
+        foreach (string argument in args)
+        {
+            AppendWindowsArgument(commandLine, argument);
+        }
+        start.Arguments = commandLine.ToString();
+
+        int childExit;
+        StringBuilder childStderr = new StringBuilder();
+        using (Process child = Process.Start(start))
+        {
+            char[] buffer = new char[4096];
+            int count;
+            while ((count = child.StandardError.Read(buffer, 0, buffer.Length)) > 0)
+            {
+                int remaining = 65536 - childStderr.Length;
+                if (remaining > 0)
+                {
+                    childStderr.Append(buffer, 0, Math.Min(count, remaining));
+                }
+            }
+            child.WaitForExit();
+            childExit = child.ExitCode;
+        }
+        Console.Error.Write(childStderr.ToString());
 
         using (FileStream log = new FileStream(
             logPath,
@@ -142,37 +191,20 @@ public static class DevCanonDiscoveryGitLauncher
                 WriteField(log, key);
                 WriteField(log, Environment.GetEnvironmentVariable(key) ?? "");
             }
+            WriteField(log, "HOST");
+            WriteField(log, bashPath);
             WriteField(log, "ARGS");
             foreach (string argument in args)
             {
                 WriteField(log, argument);
             }
+            WriteField(log, "CHILD_EXIT");
+            WriteField(log, childExit.ToString());
+            WriteField(log, "CHILD_STDERR");
+            WriteField(log, childStderr.ToString());
             WriteField(log, "END");
         }
-
-        ProcessStartInfo start = new ProcessStartInfo();
-        start.FileName = "bash.exe";
-        start.UseShellExecute = false;
-        start.CreateNoWindow = true;
-        start.EnvironmentVariables["DEVCANON_TEST_NATIVE_PATH"] = implementation;
-        StringBuilder commandLine = new StringBuilder();
-        AppendWindowsArgument(commandLine, "-lc");
-        AppendWindowsArgument(
-            commandLine,
-            "adapter=$(cygpath -u -- \"$DEVCANON_TEST_NATIVE_PATH\") || exit $?; exec \"$adapter\" \"$@\""
-        );
-        AppendWindowsArgument(commandLine, "bash");
-        foreach (string argument in args)
-        {
-            AppendWindowsArgument(commandLine, argument);
-        }
-        start.Arguments = commandLine.ToString();
-
-        using (Process child = Process.Start(start))
-        {
-            child.WaitForExit();
-            return child.ExitCode;
-        }
+        return childExit;
     }
 }
 `;
@@ -210,6 +242,40 @@ async function resolveInboxWindowsPowerShell(): Promise<string> {
     throw new Error(`inbox Windows PowerShell is unavailable: ${powershell}`);
   }
   return powershell;
+}
+
+async function resolveGitForWindowsBash(): Promise<string> {
+  const { stdout } = await execFileAsync("where.exe", ["git.exe"]);
+  const gitExecutables = stdout
+    .split(/\r?\n/gu)
+    .filter((entry) => path.win32.isAbsolute(entry));
+  const candidates = new Set<string>();
+  for (const gitExecutable of gitExecutables) {
+    const gitDirectory = path.win32.dirname(gitExecutable);
+    candidates.add(path.win32.resolve(gitDirectory, "..", "bin", "bash.exe"));
+    candidates.add(
+      path.win32.resolve(gitDirectory, "..", "usr", "bin", "bash.exe"),
+    );
+  }
+  const bashLookup = await execFileAsync("where.exe", ["bash.exe"]).catch(
+    () => ({ stdout: "" }),
+  );
+  for (const candidate of bashLookup.stdout
+    .split(/\r?\n/gu)
+    .filter((entry) => path.win32.isAbsolute(entry))) {
+    candidates.add(candidate);
+  }
+  for (const candidate of candidates) {
+    try {
+      if (!(await lstat(candidate)).isFile()) continue;
+      await execFileAsync(candidate, [
+        "-lc",
+        "command -v cygpath >/dev/null 2>&1 && git --version >/dev/null 2>&1",
+      ]);
+      return realpath(candidate);
+    } catch {}
+  }
+  throw new Error("Git-for-Windows Bash is unavailable");
 }
 
 async function toGitBashPath(nativePath: string): Promise<string> {
@@ -4160,6 +4226,7 @@ const discoveryTempRoots: string[] = [];
 
 beforeAll(async () => {
   if (process.platform !== "win32") return;
+  discoveryGitWindowsBash = await resolveGitForWindowsBash();
   discoveryGitWindowsLauncherRoot = await mkdtemp(
     path.join(tmpdir(), "discovery-git-launcher-"),
   );
@@ -4202,10 +4269,17 @@ async function makeDiscoveryGitWrapperExecutable(
     discoveryGitAdapterLogName,
   );
   if (process.platform === "win32") {
-    if (discoveryGitWindowsLauncher === undefined) {
+    if (
+      discoveryGitWindowsLauncher === undefined ||
+      discoveryGitWindowsBash === undefined
+    ) {
       throw new Error("native discovery Git launcher is unavailable");
     }
     await copyFile(discoveryGitWindowsLauncher, `${wrapper}.exe`);
+    await writeFile(
+      path.join(path.dirname(wrapper), "git-bash.path"),
+      discoveryGitWindowsBash,
+    );
     return;
   }
   await writeFile(
@@ -4219,6 +4293,7 @@ async function makeDiscoveryGitWrapperExecutable(
       '    eval "value=\\${$key-}"',
       '    printf \'ENV\\0%s\\0%s\\0\' "$key" "$value"',
       "  done",
+      "  printf 'HOST\\0\\0'",
       "  printf 'ARGS\\0'",
       "  for argument do printf '%s\\0' \"$argument\"; done",
       "  printf 'END\\0'",
@@ -4239,7 +4314,10 @@ function prependDiscoveryGitWrapper(
 
 interface DiscoveryGitAdapterEntry {
   args: string[];
+  childExit: number;
+  childStderr: string;
   environment: Record<string, string>;
+  host: string;
 }
 
 async function readDiscoveryGitAdapterEntries(): Promise<
@@ -4270,19 +4348,54 @@ async function readDiscoveryGitAdapterEntries(): Promise<
       }
       environment[key] = value;
     }
+    if (fields[offset++] !== "HOST") {
+      throw new Error("discovery Git adapter host is missing");
+    }
+    const host = fields[offset++];
+    if (host === undefined) {
+      throw new Error("discovery Git adapter host is truncated");
+    }
     if (fields[offset++] !== "ARGS") {
       throw new Error("discovery Git adapter arguments are missing");
     }
     const args: string[] = [];
-    while (fields[offset] !== "END") {
+    while (fields[offset] !== "CHILD_EXIT" && fields[offset] !== "END") {
       const argument = fields[offset++];
       if (argument === undefined) {
         throw new Error("discovery Git adapter arguments are truncated");
       }
       args.push(argument);
     }
-    offset += 1;
-    entries.push({ args, environment });
+    let childExit = 0;
+    let childStderr = "";
+    if (fields[offset] === "CHILD_EXIT") {
+      offset += 1;
+      const childExitText = fields[offset++];
+      if (childExitText === undefined || !/^\d+$/u.test(childExitText)) {
+        throw new Error("discovery Git adapter child exit is malformed");
+      }
+      childExit = Number(childExitText);
+      if (fields[offset++] !== "CHILD_STDERR") {
+        throw new Error("discovery Git adapter child stderr is missing");
+      }
+      const capturedStderr = fields[offset++];
+      if (capturedStderr === undefined) {
+        throw new Error(
+          "discovery Git adapter child diagnostics are truncated",
+        );
+      }
+      childStderr = capturedStderr;
+    }
+    if (fields[offset++] !== "END") {
+      throw new Error("discovery Git adapter entry is unterminated");
+    }
+    entries.push({
+      args,
+      childExit,
+      childStderr,
+      environment,
+      host,
+    });
   }
   return entries;
 }
@@ -4300,6 +4413,7 @@ async function discoveryGitAdapterEntryCount(): Promise<number> {
 async function expectDiscoveryGitAdapterEntry(
   root: string,
   expectedArguments: readonly string[],
+  expectedChildExit = 0,
 ): Promise<DiscoveryGitAdapterEntry> {
   const nullDevice = process.platform === "win32" ? "NUL" : "/dev/null";
   const completeExpectedArguments = [
@@ -4343,6 +4457,13 @@ async function expectDiscoveryGitAdapterEntry(
     LANG: "C",
     LC_ALL: "C",
   });
+  expect(entry?.childExit).toBe(expectedChildExit);
+  expect(entry?.childStderr).toBe("");
+  if (process.platform === "win32") {
+    expect(entry?.host).toBe(discoveryGitWindowsBash);
+  } else {
+    expect(entry?.host).toBe("");
+  }
   return entry as DiscoveryGitAdapterEntry;
 }
 
@@ -4460,7 +4581,7 @@ async function writeDiscoveryLease(
   );
 }
 
-async function runDiscovery(root: string, prNumber = 432) {
+async function runDiscoveryCommand(root: string, prNumber = 432) {
   const before = process.cwd();
   const adapterEntryCountBefore = await discoveryGitAdapterEntryCount();
   process.chdir(root);
@@ -4474,27 +4595,32 @@ async function runDiscovery(root: string, prNumber = 432) {
         adapterEntryCountBefore,
       );
     }
-    expect(outcome.exitCode).toBe(0);
-    return JSON.parse(outcome.stdout) as {
-      disposition: string;
-      resume: { lease_file: string; worktree_path: string } | null;
-      cleanup: {
-        lease_file: string | null;
-        worktree_path: string;
-        reason: string;
-      } | null;
-      active: Array<{
-        lease_file: string;
-        classification: string;
-        reason: string;
-      }>;
-      archived: string[];
-      invalid: Array<{ path: string; reason: string }>;
-      registrations: string[];
-    };
+    return outcome;
   } finally {
     process.chdir(before);
   }
+}
+
+async function runDiscovery(root: string, prNumber = 432) {
+  const outcome = await runDiscoveryCommand(root, prNumber);
+  expect(outcome.exitCode).toBe(0);
+  return JSON.parse(outcome.stdout) as {
+    disposition: string;
+    resume: { lease_file: string; worktree_path: string } | null;
+    cleanup: {
+      lease_file: string | null;
+      worktree_path: string;
+      reason: string;
+    } | null;
+    active: Array<{
+      lease_file: string;
+      classification: string;
+      reason: string;
+    }>;
+    archived: string[];
+    invalid: Array<{ path: string; reason: string }>;
+    registrations: string[];
+  };
 }
 
 describe("read-only PR review discovery planner", () => {
@@ -4524,6 +4650,9 @@ describe("read-only PR review discovery planner", () => {
       if (discoveryGitWindowsLauncher === undefined) {
         throw new Error("native discovery Git launcher is unavailable");
       }
+      if (discoveryGitWindowsBash === undefined) {
+        throw new Error("Git-for-Windows Bash is unavailable");
+      }
       const fixtureRoot = await mkdtemp(
         path.join(tmpdir(), "discovery-git-launcher-roundtrip-"),
       );
@@ -4532,6 +4661,10 @@ describe("read-only PR review discovery planner", () => {
       const implementation = path.join(fixtureRoot, "git.impl");
       const recording = `${implementation}.argv`;
       await copyFile(discoveryGitWindowsLauncher, launcher);
+      await writeFile(
+        path.join(fixtureRoot, "git-bash.path"),
+        discoveryGitWindowsBash,
+      );
       await writeFile(
         implementation,
         [
@@ -4583,6 +4716,78 @@ describe("read-only PR review discovery planner", () => {
     const result = await runDiscovery(root);
     expect(result.disposition).toBe("create");
     expect(result.resume).toBeNull();
+  });
+
+  it.each(["include.path", "includeIf.gitdir:/**.path"])(
+    "rejects primary %s authority before a no-active create result",
+    async (configKey) => {
+      const root = await createDiscoveryRepository();
+      const marker = path.join(root, "primary-include-executed");
+      const included = path.join(root, "primary-included.gitconfig");
+      await writeFile(
+        included,
+        `[filter "discovery"]\n\tprocess = printf executed >"${marker}"\n`,
+      );
+      await execFileAsync("git", ["-C", root, "config", configKey, included]);
+
+      const outcome = await runDiscoveryCommand(root);
+      expect(outcome).toEqual({
+        exitCode: 1,
+        stdout: "",
+        stderr: "primary repository config contains include authority\n",
+      });
+      await expect(lstat(marker)).rejects.toMatchObject({ code: "ENOENT" });
+    },
+  );
+
+  it("fails closed when primary include authority appears between complete collections", async () => {
+    const root = await createDiscoveryRepository();
+    const wrapperDir = await mkdtemp(path.join(tmpdir(), "git-wrapper-"));
+    discoveryTempRoots.push(wrapperDir);
+    const count = path.join(wrapperDir, "primary-config-count");
+    const fired = path.join(wrapperDir, "primary-include-fired");
+    const included = path.join(root, "late-primary-included.gitconfig");
+    await writeFile(included, "[core]\n\tfilemode = false\n");
+    const realGit = (
+      await execFileAsync("sh", ["-c", "command -v git"])
+    ).stdout.trim();
+    const wrapper = path.join(wrapperDir, "git");
+    await writeFile(
+      wrapper,
+      [
+        "#!/bin/sh",
+        'case " $* " in',
+        '  *" config --null --name-only --list --no-includes --file "*)',
+        `    '${realGit}' "$@"`,
+        "    status=$?",
+        `    current=$(cat '${await toGitBashPath(count)}' 2>/dev/null || printf 0)`,
+        "    current=$((current + 1))",
+        `    printf '%s' "$current" >'${await toGitBashPath(count)}'`,
+        '    if [ "$current" -eq 2 ]; then',
+        `      '${realGit}' -C '${await toGitBashPath(root)}' config include.path '${await toGitBashPath(included)}'`,
+        `      printf fired >'${await toGitBashPath(fired)}'`,
+        "    fi",
+        '    exit "$status"',
+        "    ;;",
+        "esac",
+        `exec '${realGit}' "$@"`,
+        "",
+      ].join("\n"),
+    );
+    await makeDiscoveryGitWrapperExecutable(wrapper);
+    const oldPath = process.env.PATH;
+    process.env.PATH = prependDiscoveryGitWrapper(wrapperDir, oldPath);
+    try {
+      const result = await runDiscovery(root);
+      expect(await readFile(fired, "utf8")).toBe("fired");
+      expect(result.disposition).toBe("invalid");
+      expect(result.invalid).toContainEqual({
+        path: ".",
+        reason: "discovery-snapshot-changed",
+      });
+    } finally {
+      process.env.PATH = oldPath;
+    }
   });
 
   it.each([["unexpected"], ["unexpected", "second"]])(
@@ -5015,57 +5220,41 @@ describe("read-only PR review discovery planner", () => {
     },
   );
 
-  it("classifies missing, unregistered, dirty, and unmanaged candidates", async () => {
-    const cases = [
-      {
-        name: "missing",
-        prepare: async (root: string) =>
-          path.join(root, ".worktrees", "missing"),
-        expected: "missing",
-      },
-      {
-        name: "unregistered",
-        prepare: async (root: string) => {
-          const candidate = path.join(root, "unregistered");
-          await mkdir(candidate);
-          return candidate;
-        },
-        expected: "unregistered",
-      },
-      {
-        name: "dirty",
-        prepare: async (root: string) => {
-          const candidate = await createDiscoveryWorktree(root, "dirty");
-          await writeFile(path.join(candidate, "untracked.txt"), "dirty\n");
-          return candidate;
-        },
-        expected: "dirty",
-      },
-      {
-        name: "unmanaged",
-        prepare: async (root: string) => {
-          const candidate = await createDiscoveryWorktree(root, "unmanaged");
-          await mkdir(path.join(candidate, ".ephemeral"));
-          await writeFile(
-            path.join(candidate, ".ephemeral", "unowned.json"),
-            "{}\n",
-          );
-          return candidate;
-        },
-        expected: "unmanaged",
-      },
-    ] as const;
-    for (const fixture of cases) {
-      const root = await createDiscoveryRepository();
-      const worktree = await fixture.prepare(root);
-      await writeDiscoveryLease(root, discoveryLease(worktree));
-      const result = await runDiscovery(root);
-      expect(result.disposition, fixture.name).toBe("cleanup-required");
-      expect(result.active[0].classification, fixture.name).toBe(
-        fixture.expected,
-      );
-    }
-  });
+  describe.each(["missing", "unregistered", "dirty", "unmanaged"] as const)(
+    "%s candidate classification",
+    (classification) => {
+      let root: string;
+
+      beforeEach(async () => {
+        root = await createDiscoveryRepository();
+        let worktree: string;
+        if (classification === "missing") {
+          worktree = path.join(root, ".worktrees", "missing");
+        } else if (classification === "unregistered") {
+          worktree = path.join(root, "unregistered");
+          await mkdir(worktree);
+        } else {
+          worktree = await createDiscoveryWorktree(root, classification);
+          if (classification === "dirty") {
+            await writeFile(path.join(worktree, "untracked.txt"), "dirty\n");
+          } else {
+            await mkdir(path.join(worktree, ".ephemeral"));
+            await writeFile(
+              path.join(worktree, ".ephemeral", "unowned.json"),
+              "{}\n",
+            );
+          }
+        }
+        await writeDiscoveryLease(root, discoveryLease(worktree));
+      });
+
+      it("returns the matching cleanup-required classification", async () => {
+        const result = await runDiscovery(root);
+        expect(result.disposition).toBe("cleanup-required");
+        expect(result.active[0].classification).toBe(classification);
+      });
+    },
+  );
 
   it("honors untracked files even when repository config hides them", async () => {
     const root = await createDiscoveryRepository();
@@ -5082,6 +5271,99 @@ describe("read-only PR review discovery planner", () => {
     const result = await runDiscovery(root);
     expect(result.disposition).toBe("cleanup-required");
     expect(result.active[0].classification).toBe("dirty");
+  });
+
+  it("streams a valid non-gitlink inventory larger than one MiB", async () => {
+    const root = await createDiscoveryRepository();
+    const worktree = await createDiscoveryWorktree(root, "large-inventory");
+    await writeDiscoveryLease(root, discoveryLease(worktree));
+    const wrapperDir = await mkdtemp(path.join(tmpdir(), "git-wrapper-"));
+    discoveryTempRoots.push(wrapperDir);
+    const inventory = path.join(wrapperDir, "large-inventory");
+    const records: Buffer[] = [];
+    for (let index = 0; index < 18_000; index += 1) {
+      records.push(
+        Buffer.from(
+          `100644 ${"a".repeat(40)} 0\tordinary-${index
+            .toString()
+            .padStart(5, "0")}\0`,
+        ),
+      );
+    }
+    const inventoryBytes = Buffer.concat(records);
+    expect(inventoryBytes.length).toBeGreaterThan(1024 * 1024);
+    await writeFile(inventory, inventoryBytes);
+    const realGit = (
+      await execFileAsync("sh", ["-c", "command -v git"])
+    ).stdout.trim();
+    const wrapper = path.join(wrapperDir, "git");
+    await writeFile(
+      wrapper,
+      [
+        "#!/bin/sh",
+        'case " $* " in',
+        '  *" ls-files --stage -z "*)',
+        `    cat '${await toGitBashPath(inventory)}'`,
+        "    exit 0",
+        "    ;;",
+        "esac",
+        `exec '${realGit}' "$@"`,
+        "",
+      ].join("\n"),
+    );
+    await makeDiscoveryGitWrapperExecutable(wrapper);
+    const oldPath = process.env.PATH;
+    process.env.PATH = prependDiscoveryGitWrapper(wrapperDir, oldPath);
+    try {
+      const result = await runDiscovery(root);
+      expect(result.disposition).toBe("resume");
+      expect(result.resume?.worktree_path).toBe(worktree);
+    } finally {
+      process.env.PATH = oldPath;
+    }
+  });
+
+  it("drains dirty status output larger than one MiB", async () => {
+    const root = await createDiscoveryRepository();
+    const worktree = await createDiscoveryWorktree(root, "large-status");
+    await writeDiscoveryLease(root, discoveryLease(worktree));
+    const wrapperDir = await mkdtemp(path.join(tmpdir(), "git-wrapper-"));
+    discoveryTempRoots.push(wrapperDir);
+    const statusOutput = path.join(wrapperDir, "large-status");
+    const statusBytes = Buffer.alloc(1024 * 1024 + 1, 0x78);
+    expect(statusBytes.length).toBeGreaterThan(1024 * 1024);
+    await writeFile(statusOutput, statusBytes);
+    const realGit = (
+      await execFileAsync("sh", ["-c", "command -v git"])
+    ).stdout.trim();
+    const wrapper = path.join(wrapperDir, "git");
+    await writeFile(
+      wrapper,
+      [
+        "#!/bin/sh",
+        'case " $* " in',
+        '  *" status --porcelain=v1 --untracked-files=all --ignore-submodules=none "*)',
+        `    cat '${await toGitBashPath(statusOutput)}'`,
+        "    exit 0",
+        "    ;;",
+        "esac",
+        `exec '${realGit}' "$@"`,
+        "",
+      ].join("\n"),
+    );
+    await makeDiscoveryGitWrapperExecutable(wrapper);
+    const oldPath = process.env.PATH;
+    process.env.PATH = prependDiscoveryGitWrapper(wrapperDir, oldPath);
+    try {
+      const result = await runDiscovery(root);
+      expect(result.disposition).toBe("cleanup-required");
+      expect(result.active[0]).toMatchObject({
+        classification: "dirty",
+        reason: "worktree-dirty",
+      });
+    } finally {
+      process.env.PATH = oldPath;
+    }
   });
 
   it("neutralizes user-global ignore files for discovery and resume acceptance", async () => {
@@ -5465,12 +5747,16 @@ describe("read-only PR review discovery planner", () => {
     process.env.PATH = prependDiscoveryGitWrapper(wrapperDir, oldPath);
     try {
       const result = await runDiscovery(root);
-      await expectDiscoveryGitAdapterEntry(worktree, [
-        "status",
-        "--porcelain=v1",
-        "--untracked-files=all",
-        "--ignore-submodules=none",
-      ]);
+      await expectDiscoveryGitAdapterEntry(
+        worktree,
+        [
+          "status",
+          "--porcelain=v1",
+          "--untracked-files=all",
+          "--ignore-submodules=none",
+        ],
+        process.platform === "win32" ? 2 : 0,
+      );
       expect(await readFile(marker, "utf8")).toBe("reached");
       expect(result.disposition).toBe("invalid");
       expect(result.active[0]).toMatchObject({
@@ -7275,8 +7561,16 @@ describe("read-only PR review discovery planner", () => {
           );
           await execFileAsync("git", [
             "-C",
+            root,
+            "config",
+            "extensions.worktreeConfig",
+            "true",
+          ]);
+          await execFileAsync("git", [
+            "-C",
             worktree,
             "config",
+            "--worktree",
             "include.path",
             included,
           ]);
@@ -7350,11 +7644,12 @@ describe("read-only PR review discovery planner", () => {
     await expect(lstat(marker)).rejects.toMatchObject({ code: "ENOENT" });
   });
 
-  it("parses a newline-bearing uninitialized gitlink without splitting its path", async () => {
+  it("reaches production dirtiness with a platform-realizable unusual gitlink path", async () => {
     const root = await createDiscoveryRepository();
     const worktree = await createDiscoveryWorktree(root, "newline-submodule");
     const submodule = await createDiscoveryRepository();
-    const gitlinkPath = "nested\nmodule";
+    const gitlinkPath =
+      process.platform === "win32" ? "nested-모듈" : "nested\nmodule";
     const submoduleHead = (
       await execFileAsync("git", ["-C", submodule, "rev-parse", "HEAD"])
     ).stdout.trim();

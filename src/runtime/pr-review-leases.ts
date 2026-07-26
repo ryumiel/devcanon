@@ -1,4 +1,4 @@
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { constants, readFileSync } from "node:fs";
 import {
@@ -275,6 +275,11 @@ interface DiscoveryStatusObservation {
 interface DiscoveryStatusAuthority {
   verify: () => Promise<void>;
   fingerprint: string;
+}
+
+interface DiscoveryGitlinkInventory {
+  fingerprint: string;
+  paths: string[];
 }
 
 interface DiscoveryLeaseInspection {
@@ -2962,62 +2967,105 @@ function parseDiscoveryWorktreeRegistrationRecords(output: Buffer): string[] {
 }
 
 export function parseDiscoveryGitlinkRecords(output: Buffer): string[] {
-  if (output.length === 0) {
-    return [];
+  const parser = new DiscoveryGitlinkStreamParser();
+  parser.consume(output);
+  return parser.finish();
+}
+
+class DiscoveryGitlinkStreamParser {
+  readonly #paths: string[] = [];
+  readonly #metadata: number[] = [];
+  readonly #selectedPath: number[] = [];
+  #recordStarted = false;
+  #metadataComplete = false;
+  #selected = false;
+
+  consume(chunk: Buffer): void {
+    for (const byte of chunk) {
+      if (byte === 0) {
+        this.#finishRecord();
+        continue;
+      }
+      this.#recordStarted = true;
+      if (!this.#metadataComplete) {
+        if (byte > 0x7f) {
+          throw new PrReviewLeaseError(
+            "discovery gitlink inventory record is malformed",
+          );
+        }
+        if (byte === 9) {
+          if (this.#metadata.length === 0) {
+            throw new PrReviewLeaseError(
+              "discovery gitlink inventory record is malformed",
+            );
+          }
+          this.#metadataComplete = true;
+          const metadata = Buffer.from(this.#metadata);
+          const gitlinkPrefix = Buffer.from("160000 ", "ascii");
+          this.#selected =
+            metadata.length >= gitlinkPrefix.length &&
+            metadata.subarray(0, gitlinkPrefix.length).equals(gitlinkPrefix);
+          if (this.#selected) {
+            if (
+              !/^160000 [0-9a-f]{40} [0-3]$/u.test(metadata.toString("latin1"))
+            ) {
+              throw new PrReviewLeaseError(
+                "discovery gitlink inventory record is malformed",
+              );
+            }
+          }
+          continue;
+        }
+        if (this.#metadata.length >= 256) {
+          throw new PrReviewLeaseError(
+            "discovery gitlink inventory record is malformed",
+          );
+        }
+        this.#metadata.push(byte);
+        continue;
+      }
+      if (this.#selected) {
+        this.#selectedPath.push(byte);
+      }
+    }
   }
-  if (output[output.length - 1] !== 0) {
-    throw new PrReviewLeaseError(
-      "discovery gitlink inventory is not NUL-terminated",
-    );
-  }
-  const gitlinkPaths: string[] = [];
-  let recordStart = 0;
-  while (recordStart < output.length) {
-    const recordEnd = output.indexOf(0, recordStart);
-    if (recordEnd < 0) {
+
+  finish(): string[] {
+    if (this.#recordStarted) {
       throw new PrReviewLeaseError(
         "discovery gitlink inventory is not NUL-terminated",
       );
     }
-    if (recordEnd === recordStart) {
-      throw new PrReviewLeaseError(
-        "discovery gitlink inventory record is malformed",
-      );
-    }
-    const record = output.subarray(recordStart, recordEnd);
-    recordStart = recordEnd + 1;
-    const separator = record.indexOf(9);
-    if (separator < 0 || separator === record.length - 1) {
-      throw new PrReviewLeaseError(
-        "discovery gitlink inventory record is malformed",
-      );
-    }
-    const metadata = record.subarray(0, separator);
-    if (metadata.some((byte) => byte > 0x7f)) {
-      throw new PrReviewLeaseError(
-        "discovery gitlink inventory record is malformed",
-      );
-    }
-    const metadataText = metadata.toString("latin1");
-    if (!metadataText.startsWith("160000 ")) {
-      continue;
-    }
-    if (!/^160000 [0-9a-f]{40} [0-3]$/u.test(metadataText)) {
-      throw new PrReviewLeaseError(
-        "discovery gitlink inventory record is malformed",
-      );
-    }
-    try {
-      gitlinkPaths.push(
-        discoveryFatalUtf8Decoder.decode(record.subarray(separator + 1)),
-      );
-    } catch {
-      throw new PrReviewLeaseError(
-        "discovery gitlink inventory path is not valid UTF-8",
-      );
-    }
+    return this.#paths;
   }
-  return gitlinkPaths;
+
+  #finishRecord(): void {
+    if (
+      !this.#recordStarted ||
+      !this.#metadataComplete ||
+      (this.#selected && this.#selectedPath.length === 0)
+    ) {
+      throw new PrReviewLeaseError(
+        "discovery gitlink inventory record is malformed",
+      );
+    }
+    if (this.#selected) {
+      try {
+        this.#paths.push(
+          discoveryFatalUtf8Decoder.decode(Buffer.from(this.#selectedPath)),
+        );
+      } catch {
+        throw new PrReviewLeaseError(
+          "discovery gitlink inventory path is not valid UTF-8",
+        );
+      }
+    }
+    this.#metadata.length = 0;
+    this.#selectedPath.length = 0;
+    this.#recordStarted = false;
+    this.#metadataComplete = false;
+    this.#selected = false;
+  }
 }
 
 async function readDiscoveryRepositoryBinding(
@@ -3028,6 +3076,7 @@ async function readDiscoveryRepositoryBinding(
 ): Promise<DiscoveryRepositoryBinding> {
   const configPath = path.join(repositoryIdentity.common_directory, "config");
   const snapshot = await readStableDiscoveryFile(configPath);
+  await assertNoDiscoveryConfigIncludes(primaryRoot, configPath, env);
   const output = await runDiscoveryGit(
     primaryRoot,
     [
@@ -3058,6 +3107,57 @@ async function readDiscoveryRepositoryBinding(
     repository: repository.toLowerCase(),
     config_fingerprint: stableDiscoveryFileFingerprint(snapshot),
   };
+}
+
+async function assertNoDiscoveryConfigIncludes(
+  root: string,
+  configPath: string,
+  env: NodeJS.ProcessEnv,
+): Promise<void> {
+  let record: number[] = [];
+  await runDiscoveryGitStreaming(
+    root,
+    [
+      "config",
+      "--null",
+      "--name-only",
+      "--list",
+      "--no-includes",
+      "--file",
+      configPath,
+    ],
+    env,
+    (chunk) => {
+      for (const byte of chunk) {
+        if (byte !== 0) {
+          if (record.length >= 4096) {
+            throw new PrReviewLeaseError(
+              "primary repository config key is malformed",
+            );
+          }
+          record.push(byte);
+          continue;
+        }
+        if (record.length === 0) {
+          throw new PrReviewLeaseError(
+            "primary repository config key is malformed",
+          );
+        }
+        const name = Buffer.from(record).toString("utf8");
+        record = [];
+        if (/^include(?:if\..+)?\.path$/iu.test(name)) {
+          throw new PrReviewLeaseError(
+            "primary repository config contains include authority",
+          );
+        }
+      }
+    },
+  );
+  if (record.length !== 0) {
+    throw new PrReviewLeaseError(
+      "primary repository config key inventory is not NUL-terminated",
+    );
+  }
 }
 
 function normalizeDiscoveryGitHubRepository(value: string): string {
@@ -3131,7 +3231,8 @@ async function discoveryWorktreeDirty(
     worktreePath,
     env,
   );
-  const stdout = await runDiscoveryGit(
+  let dirty = false;
+  await runDiscoveryGitStreaming(
     worktreePath,
     [
       "status",
@@ -3140,10 +3241,13 @@ async function discoveryWorktreeDirty(
       "--ignore-submodules=none",
     ],
     env,
+    (chunk) => {
+      if (chunk.length > 0) dirty = true;
+    },
   );
   await statusAuthority.verify();
   return {
-    dirty: stdout.length > 0,
+    dirty,
     authority: statusAuthority.fingerprint,
   };
 }
@@ -3209,13 +3313,9 @@ async function assertDiscoveryStatusAuthoritySafe(
     await assertSameDiscoveryFile(authorityFile, snapshot);
   }
 
-  const gitlinks = await runDiscoveryGitBuffer(
-    worktreePath,
-    ["ls-files", "--stage", "-z"],
-    env,
-  );
+  const gitlinks = await readDiscoveryGitlinkInventory(worktreePath, env);
   const submoduleAuthorities: DiscoveryStatusAuthority[] = [];
-  for (const gitlinkPath of parseDiscoveryGitlinkRecords(gitlinks)) {
+  for (const gitlinkPath of gitlinks.paths) {
     const submodulePath = path.join(worktreePath, gitlinkPath);
     let stat: Awaited<ReturnType<typeof lstat>>;
     try {
@@ -3239,7 +3339,7 @@ async function assertDiscoveryStatusAuthoritySafe(
         stableDiscoveryFileFingerprint(snapshot),
       ]),
       absent: absentAuthorityFiles,
-      gitlinks: gitlinks.toString("base64"),
+      gitlinks: gitlinks.fingerprint,
       submodules: submoduleAuthorities.map(
         (authority) => authority.fingerprint,
       ),
@@ -3257,12 +3357,11 @@ async function assertDiscoveryStatusAuthoritySafe(
           );
         }
       }
-      const currentGitlinks = await runDiscoveryGitBuffer(
+      const currentGitlinks = await readDiscoveryGitlinkInventory(
         worktreePath,
-        ["ls-files", "--stage", "-z"],
         env,
       );
-      if (!currentGitlinks.equals(gitlinks)) {
+      if (currentGitlinks.fingerprint !== gitlinks.fingerprint) {
         throw new PrReviewLeaseError(
           "repository submodule inventory changed during status",
         );
@@ -3271,6 +3370,27 @@ async function assertDiscoveryStatusAuthoritySafe(
         await authority.verify();
       }
     },
+  };
+}
+
+async function readDiscoveryGitlinkInventory(
+  root: string,
+  env: NodeJS.ProcessEnv,
+): Promise<DiscoveryGitlinkInventory> {
+  const parser = new DiscoveryGitlinkStreamParser();
+  const fingerprint = createHash("sha256");
+  await runDiscoveryGitStreaming(
+    root,
+    ["ls-files", "--stage", "-z"],
+    env,
+    (chunk) => {
+      fingerprint.update(chunk);
+      parser.consume(chunk);
+    },
+  );
+  return {
+    fingerprint: fingerprint.digest("hex"),
+    paths: parser.finish(),
   };
 }
 
@@ -3341,6 +3461,62 @@ async function runDiscoveryGitBuffer(
         resolve(stdout);
       },
     );
+  });
+}
+
+async function runDiscoveryGitStreaming(
+  root: string,
+  args: readonly string[],
+  env: NodeJS.ProcessEnv,
+  consumeStdout: (chunk: Buffer) => void,
+): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    const child = spawn("git", discoveryGitArguments(root, args), {
+      env,
+      stdio: ["ignore", "pipe", "pipe"],
+      windowsHide: true,
+    });
+    const diagnosticChunks: Buffer[] = [];
+    let diagnosticBytes = 0;
+    let streamError: unknown;
+    let spawnError: unknown;
+    child.once("error", (error) => {
+      spawnError = error;
+    });
+    child.stdout.on("data", (chunk: Buffer) => {
+      if (streamError !== undefined) return;
+      try {
+        consumeStdout(chunk);
+      } catch (error) {
+        streamError = error;
+      }
+    });
+    child.stderr.on("data", (chunk: Buffer) => {
+      if (diagnosticBytes >= 64 * 1024) return;
+      const retained = chunk.subarray(0, 64 * 1024 - diagnosticBytes);
+      diagnosticChunks.push(retained);
+      diagnosticBytes += retained.length;
+    });
+    child.once("close", (code, signal) => {
+      if (spawnError !== undefined) {
+        reject(spawnError);
+        return;
+      }
+      if (code !== 0) {
+        const diagnostic = Buffer.concat(diagnosticChunks).toString("utf8");
+        reject(
+          new PrReviewLeaseError(
+            `discovery Git command failed (${code ?? signal ?? "unknown"}): ${diagnostic}`,
+          ),
+        );
+        return;
+      }
+      if (streamError !== undefined) {
+        reject(streamError);
+        return;
+      }
+      resolve();
+    });
   });
 }
 
