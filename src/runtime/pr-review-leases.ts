@@ -2978,6 +2978,7 @@ class DiscoveryGitlinkStreamParser {
   readonly #selectedPath: number[] = [];
   #recordStarted = false;
   #metadataComplete = false;
+  #pathStarted = false;
   #selected = false;
 
   consume(chunk: Buffer): void {
@@ -3024,6 +3025,7 @@ class DiscoveryGitlinkStreamParser {
         this.#metadata.push(byte);
         continue;
       }
+      this.#pathStarted = true;
       if (this.#selected) {
         this.#selectedPath.push(byte);
       }
@@ -3040,11 +3042,7 @@ class DiscoveryGitlinkStreamParser {
   }
 
   #finishRecord(): void {
-    if (
-      !this.#recordStarted ||
-      !this.#metadataComplete ||
-      (this.#selected && this.#selectedPath.length === 0)
-    ) {
+    if (!this.#recordStarted || !this.#metadataComplete || !this.#pathStarted) {
       throw new PrReviewLeaseError(
         "discovery gitlink inventory record is malformed",
       );
@@ -3064,6 +3062,7 @@ class DiscoveryGitlinkStreamParser {
     this.#selectedPath.length = 0;
     this.#recordStarted = false;
     this.#metadataComplete = false;
+    this.#pathStarted = false;
     this.#selected = false;
   }
 }

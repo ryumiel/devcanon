@@ -7271,6 +7271,9 @@ describe("read-only PR review discovery planner", () => {
       parseDiscoveryGitlinkRecords(Buffer.from(`160000 ${oid} 0\t\0`)),
     ).toThrow("discovery gitlink inventory record is malformed");
     expect(() =>
+      parseDiscoveryGitlinkRecords(Buffer.from(`100644 ${oid} 0\t\0`)),
+    ).toThrow("discovery gitlink inventory record is malformed");
+    expect(() =>
       parseDiscoveryGitlinkRecords(
         Buffer.concat([
           Buffer.from(`160000 ${oid} 0\tinvalid-`),
@@ -7526,6 +7529,62 @@ describe("read-only PR review discovery planner", () => {
       for (const marker of [statusMarker, recursiveMarker]) {
         await expect(lstat(marker)).rejects.toMatchObject({ code: "ENOENT" });
       }
+    } finally {
+      process.env.PATH = oldPath;
+    }
+  });
+
+  it("fails closed on an empty streamed non-gitlink path before status inspection", async () => {
+    const root = await createDiscoveryRepository();
+    const worktree = await createDiscoveryWorktree(
+      root,
+      "empty-non-gitlink-path",
+    );
+    await writeDiscoveryLease(root, discoveryLease(worktree));
+    const wrapperDir = await mkdtemp(path.join(tmpdir(), "git-wrapper-"));
+    discoveryTempRoots.push(wrapperDir);
+    const inventoryMarker = path.join(wrapperDir, "inventory-intercepted");
+    const statusMarker = path.join(wrapperDir, "status-intercepted");
+    const realGit = (
+      await execFileAsync("sh", ["-c", "command -v git"])
+    ).stdout.trim();
+    const wrapper = path.join(wrapperDir, "git");
+    await writeFile(
+      wrapper,
+      [
+        "#!/bin/sh",
+        `if [ -f '${inventoryMarker}' ]; then`,
+        '  case " $* " in',
+        '    *" status --porcelain=v1 "*)',
+        `      printf reached >'${statusMarker}'`,
+        "      ;;",
+        "  esac",
+        "fi",
+        'case " $* " in',
+        '  *" ls-files --stage -z "*)',
+        `    printf reached >'${inventoryMarker}'`,
+        `    printf '100644 ${"a".repeat(40)} 0\\t\\0'`,
+        "    exit 0",
+        "    ;;",
+        "esac",
+        `exec '${realGit}' "$@"`,
+        "",
+      ].join("\n"),
+    );
+    await makeDiscoveryGitWrapperExecutable(wrapper);
+    const oldPath = process.env.PATH;
+    process.env.PATH = prependDiscoveryGitWrapper(wrapperDir, oldPath);
+    try {
+      const result = await runDiscovery(root);
+      expect(result.disposition).toBe("invalid");
+      expect(result.active[0]).toMatchObject({
+        classification: "invalid",
+        reason: "status-inspection-failed",
+      });
+      expect(await readFile(inventoryMarker, "utf8")).toBe("reached");
+      await expect(lstat(statusMarker)).rejects.toMatchObject({
+        code: "ENOENT",
+      });
     } finally {
       process.env.PATH = oldPath;
     }
