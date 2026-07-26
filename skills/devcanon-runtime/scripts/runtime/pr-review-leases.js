@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { constants, readFileSync } from "node:fs";
 import { access, lstat, mkdir, open, readFile, readdir, realpath, rename, } from "node:fs/promises";
 import path from "node:path";
-import { promisify } from "node:util";
+import { TextDecoder, promisify } from "node:util";
 import { writeTextAtomically } from "./artifacts.js";
 import { requireDirectEphemeralChild } from "./paths.js";
 import { validateSharedContextFamilyBinding } from "./play-review-shared-context.js";
@@ -1926,27 +1926,44 @@ export function parseDiscoveryGitPathRecord(output, label = "discovery Git path"
     }
     return value;
 }
+const discoveryFatalUtf8Decoder = new TextDecoder("utf-8", { fatal: true });
+const discoveryGitlinkModePrefix = Buffer.from("160000 ", "ascii");
 export function parseDiscoveryGitlinkRecords(output) {
     if (output.length === 0) {
         return [];
     }
-    if (!output.endsWith("\0")) {
+    if (output[output.length - 1] !== 0) {
         throw new PrReviewLeaseError("discovery gitlink inventory is not NUL-terminated");
     }
     const gitlinkPaths = [];
-    for (const record of output.slice(0, -1).split("\0")) {
-        const separator = record.indexOf("\t");
+    let recordStart = 0;
+    while (recordStart < output.length - 1) {
+        const recordEnd = output.indexOf(0, recordStart);
+        if (recordEnd < 0) {
+            throw new PrReviewLeaseError("discovery gitlink inventory is not NUL-terminated");
+        }
+        const record = output.subarray(recordStart, recordEnd);
+        recordStart = recordEnd + 1;
+        if (record.length < discoveryGitlinkModePrefix.length ||
+            !record
+                .subarray(0, discoveryGitlinkModePrefix.length)
+                .equals(discoveryGitlinkModePrefix)) {
+            continue;
+        }
+        const separator = record.indexOf(9);
         if (separator < 0 || separator === record.length - 1) {
             throw new PrReviewLeaseError("discovery gitlink inventory record is malformed");
         }
-        const metadata = record.slice(0, separator);
-        if (!metadata.startsWith("160000 ")) {
-            continue;
-        }
-        if (!/^160000 [0-9a-f]{40} [0-3]$/u.test(metadata)) {
+        const metadata = record.subarray(0, separator);
+        if (!/^160000 [0-9a-f]{40} [0-3]$/u.test(metadata.toString("ascii"))) {
             throw new PrReviewLeaseError("discovery gitlink inventory record is malformed");
         }
-        gitlinkPaths.push(record.slice(separator + 1));
+        try {
+            gitlinkPaths.push(discoveryFatalUtf8Decoder.decode(record.subarray(separator + 1)));
+        }
+        catch {
+            throw new PrReviewLeaseError("discovery gitlink inventory path is not valid UTF-8");
+        }
     }
     return gitlinkPaths;
 }
@@ -2074,7 +2091,7 @@ async function assertDiscoveryStatusAuthoritySafe(worktreePath, env, visited = n
         }
         await assertSameDiscoveryFile(authorityFile, snapshot);
     }
-    const gitlinks = await runDiscoveryGit(worktreePath, ["ls-files", "--stage", "-z"], env);
+    const gitlinks = await runDiscoveryGitBuffer(worktreePath, ["ls-files", "--stage", "-z"], env);
     const submoduleAuthorities = [];
     for (const gitlinkPath of parseDiscoveryGitlinkRecords(gitlinks)) {
         const submodulePath = path.join(worktreePath, gitlinkPath);
@@ -2100,7 +2117,7 @@ async function assertDiscoveryStatusAuthoritySafe(worktreePath, env, visited = n
                 stableDiscoveryFileFingerprint(snapshot),
             ]),
             absent: absentAuthorityFiles,
-            gitlinks: Buffer.from(gitlinks).toString("base64"),
+            gitlinks: gitlinks.toString("base64"),
             submodules: submoduleAuthorities.map((authority) => authority.fingerprint),
         }),
         verify: async () => {
@@ -2112,8 +2129,8 @@ async function assertDiscoveryStatusAuthoritySafe(worktreePath, env, visited = n
                     throw new PrReviewLeaseError("repository status authority appeared during inspection");
                 }
             }
-            const currentGitlinks = await runDiscoveryGit(worktreePath, ["ls-files", "--stage", "-z"], env);
-            if (currentGitlinks !== gitlinks) {
+            const currentGitlinks = await runDiscoveryGitBuffer(worktreePath, ["ls-files", "--stage", "-z"], env);
+            if (!currentGitlinks.equals(gitlinks)) {
                 throw new PrReviewLeaseError("repository submodule inventory changed during status");
             }
             for (const authority of submoduleAuthorities) {
@@ -2132,9 +2149,9 @@ async function readOptionalStableDiscoveryFile(file) {
         throw err;
     }
 }
-async function runDiscoveryGit(root, args, env) {
+function discoveryGitArguments(root, args) {
     const nullDevice = process.platform === "win32" ? "NUL" : "/dev/null";
-    const { stdout } = await execFileAsync("git", [
+    return [
         "--no-optional-locks",
         "-c",
         "core.fsmonitor=false",
@@ -2149,8 +2166,22 @@ async function runDiscoveryGit(root, args, env) {
         "-C",
         root,
         ...args,
-    ], { env, maxBuffer: 1024 * 1024 });
+    ];
+}
+async function runDiscoveryGit(root, args, env) {
+    const { stdout } = await execFileAsync("git", discoveryGitArguments(root, args), { env, maxBuffer: 1024 * 1024 });
     return stdout;
+}
+async function runDiscoveryGitBuffer(root, args, env) {
+    return await new Promise((resolve, reject) => {
+        execFile("git", discoveryGitArguments(root, args), { env, maxBuffer: 1024 * 1024, encoding: "buffer" }, (error, stdout) => {
+            if (error) {
+                reject(error);
+                return;
+            }
+            resolve(stdout);
+        });
+    });
 }
 export function discoveryGitEnvironment() {
     const env = {};

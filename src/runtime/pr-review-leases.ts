@@ -12,7 +12,7 @@ import {
   rename,
 } from "node:fs/promises";
 import path from "node:path";
-import { promisify } from "node:util";
+import { TextDecoder, promisify } from "node:util";
 import { writeTextAtomically } from "./artifacts.js";
 import { requireDirectEphemeralChild } from "./paths.js";
 import { validateSharedContextFamilyBinding } from "./play-review-shared-context.js";
@@ -2872,33 +2872,58 @@ export function parseDiscoveryGitPathRecord(
   return value;
 }
 
-export function parseDiscoveryGitlinkRecords(output: string): string[] {
+const discoveryFatalUtf8Decoder = new TextDecoder("utf-8", { fatal: true });
+const discoveryGitlinkModePrefix = Buffer.from("160000 ", "ascii");
+
+export function parseDiscoveryGitlinkRecords(output: Buffer): string[] {
   if (output.length === 0) {
     return [];
   }
-  if (!output.endsWith("\0")) {
+  if (output[output.length - 1] !== 0) {
     throw new PrReviewLeaseError(
       "discovery gitlink inventory is not NUL-terminated",
     );
   }
   const gitlinkPaths: string[] = [];
-  for (const record of output.slice(0, -1).split("\0")) {
-    const separator = record.indexOf("\t");
+  let recordStart = 0;
+  while (recordStart < output.length - 1) {
+    const recordEnd = output.indexOf(0, recordStart);
+    if (recordEnd < 0) {
+      throw new PrReviewLeaseError(
+        "discovery gitlink inventory is not NUL-terminated",
+      );
+    }
+    const record = output.subarray(recordStart, recordEnd);
+    recordStart = recordEnd + 1;
+    if (
+      record.length < discoveryGitlinkModePrefix.length ||
+      !record
+        .subarray(0, discoveryGitlinkModePrefix.length)
+        .equals(discoveryGitlinkModePrefix)
+    ) {
+      continue;
+    }
+    const separator = record.indexOf(9);
     if (separator < 0 || separator === record.length - 1) {
       throw new PrReviewLeaseError(
         "discovery gitlink inventory record is malformed",
       );
     }
-    const metadata = record.slice(0, separator);
-    if (!metadata.startsWith("160000 ")) {
-      continue;
-    }
-    if (!/^160000 [0-9a-f]{40} [0-3]$/u.test(metadata)) {
+    const metadata = record.subarray(0, separator);
+    if (!/^160000 [0-9a-f]{40} [0-3]$/u.test(metadata.toString("ascii"))) {
       throw new PrReviewLeaseError(
         "discovery gitlink inventory record is malformed",
       );
     }
-    gitlinkPaths.push(record.slice(separator + 1));
+    try {
+      gitlinkPaths.push(
+        discoveryFatalUtf8Decoder.decode(record.subarray(separator + 1)),
+      );
+    } catch {
+      throw new PrReviewLeaseError(
+        "discovery gitlink inventory path is not valid UTF-8",
+      );
+    }
   }
   return gitlinkPaths;
 }
@@ -3095,7 +3120,7 @@ async function assertDiscoveryStatusAuthoritySafe(
     await assertSameDiscoveryFile(authorityFile, snapshot);
   }
 
-  const gitlinks = await runDiscoveryGit(
+  const gitlinks = await runDiscoveryGitBuffer(
     worktreePath,
     ["ls-files", "--stage", "-z"],
     env,
@@ -3125,7 +3150,7 @@ async function assertDiscoveryStatusAuthoritySafe(
         stableDiscoveryFileFingerprint(snapshot),
       ]),
       absent: absentAuthorityFiles,
-      gitlinks: Buffer.from(gitlinks).toString("base64"),
+      gitlinks: gitlinks.toString("base64"),
       submodules: submoduleAuthorities.map(
         (authority) => authority.fingerprint,
       ),
@@ -3143,12 +3168,12 @@ async function assertDiscoveryStatusAuthoritySafe(
           );
         }
       }
-      const currentGitlinks = await runDiscoveryGit(
+      const currentGitlinks = await runDiscoveryGitBuffer(
         worktreePath,
         ["ls-files", "--stage", "-z"],
         env,
       );
-      if (currentGitlinks !== gitlinks) {
+      if (!currentGitlinks.equals(gitlinks)) {
         throw new PrReviewLeaseError(
           "repository submodule inventory changed during status",
         );
@@ -3171,33 +3196,61 @@ async function readOptionalStableDiscoveryFile(
   }
 }
 
+function discoveryGitArguments(
+  root: string,
+  args: readonly string[],
+): string[] {
+  const nullDevice = process.platform === "win32" ? "NUL" : "/dev/null";
+  return [
+    "--no-optional-locks",
+    "-c",
+    "core.fsmonitor=false",
+    "-c",
+    `core.hooksPath=${nullDevice}`,
+    "-c",
+    `core.attributesFile=${nullDevice}`,
+    "-c",
+    "maintenance.auto=false",
+    "-c",
+    "gc.auto=0",
+    "-C",
+    root,
+    ...args,
+  ];
+}
+
 async function runDiscoveryGit(
   root: string,
   args: readonly string[],
   env: NodeJS.ProcessEnv,
 ): Promise<string> {
-  const nullDevice = process.platform === "win32" ? "NUL" : "/dev/null";
   const { stdout } = await execFileAsync(
     "git",
-    [
-      "--no-optional-locks",
-      "-c",
-      "core.fsmonitor=false",
-      "-c",
-      `core.hooksPath=${nullDevice}`,
-      "-c",
-      `core.attributesFile=${nullDevice}`,
-      "-c",
-      "maintenance.auto=false",
-      "-c",
-      "gc.auto=0",
-      "-C",
-      root,
-      ...args,
-    ],
+    discoveryGitArguments(root, args),
     { env, maxBuffer: 1024 * 1024 },
   );
   return stdout;
+}
+
+async function runDiscoveryGitBuffer(
+  root: string,
+  args: readonly string[],
+  env: NodeJS.ProcessEnv,
+): Promise<Buffer> {
+  return await new Promise<Buffer>((resolve, reject) => {
+    execFile(
+      "git",
+      discoveryGitArguments(root, args),
+      { env, maxBuffer: 1024 * 1024, encoding: "buffer" },
+      (error, stdout) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        resolve(stdout);
+      },
+    );
+  });
 }
 
 export function discoveryGitEnvironment(): NodeJS.ProcessEnv {

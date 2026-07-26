@@ -6160,20 +6160,46 @@ describe("read-only PR review discovery planner", () => {
     );
   });
 
-  it("parses NUL-delimited gitlink records without splitting newline paths", () => {
+  it("parses raw NUL-delimited gitlink records without changing path bytes", () => {
     const oid = "a".repeat(40);
     expect(
       parseDiscoveryGitlinkRecords(
-        `100644 ${oid} 0\tREADME.md\0` + `160000 ${oid} 0\tnested\nmodule\0`,
+        Buffer.from(
+          `100644 ${oid} 0\tREADME.md\0` +
+            `160000 ${oid} 0\tascii\0` +
+            `160000 ${oid} 0\t한글\0` +
+            `160000 ${oid} 0\tnested\nmodule\0` +
+            `160000 ${oid} 0\ttab\tmodule\0`,
+        ),
       ),
-    ).toEqual(["nested\nmodule"]);
-    expect(parseDiscoveryGitlinkRecords("")).toEqual([]);
+    ).toEqual(["ascii", "한글", "nested\nmodule", "tab\tmodule"]);
+    expect(parseDiscoveryGitlinkRecords(Buffer.alloc(0))).toEqual([]);
     expect(() =>
-      parseDiscoveryGitlinkRecords(`160000 ${oid} 0\tnested\nmodule`),
+      parseDiscoveryGitlinkRecords(
+        Buffer.from(`160000 ${oid} 0\tnested\nmodule`),
+      ),
     ).toThrow("discovery gitlink inventory is not NUL-terminated");
     expect(() =>
-      parseDiscoveryGitlinkRecords("160000 invalid 0\tnested\nmodule\0"),
+      parseDiscoveryGitlinkRecords(
+        Buffer.from("160000 invalid 0\tnested\nmodule\0"),
+      ),
     ).toThrow("discovery gitlink inventory record is malformed");
+    expect(() =>
+      parseDiscoveryGitlinkRecords(
+        Buffer.from(`160000 ${oid} 0 missing-tab\0`),
+      ),
+    ).toThrow("discovery gitlink inventory record is malformed");
+    expect(() =>
+      parseDiscoveryGitlinkRecords(Buffer.from(`160000 ${oid} 0\t\0`)),
+    ).toThrow("discovery gitlink inventory record is malformed");
+    expect(() =>
+      parseDiscoveryGitlinkRecords(
+        Buffer.concat([
+          Buffer.from(`160000 ${oid} 0\tinvalid-`),
+          Buffer.from([0xff, 0]),
+        ]),
+      ),
+    ).toThrow("discovery gitlink inventory path is not valid UTF-8");
   });
 
   it("accepts native Windows producer spellings in the closed lease parser", () => {
@@ -6343,6 +6369,67 @@ describe("read-only PR review discovery planner", () => {
         classification: "invalid",
         reason: "invalid-lease",
       });
+    }
+  });
+
+  it("fails closed on invalid UTF-8 gitlink bytes before status inspection", async () => {
+    const root = await createDiscoveryRepository();
+    const worktree = await createDiscoveryWorktree(
+      root,
+      "invalid-gitlink-utf8",
+    );
+    await writeDiscoveryLease(root, discoveryLease(worktree));
+    const wrapperDir = await mkdtemp(path.join(tmpdir(), "git-wrapper-"));
+    discoveryTempRoots.push(wrapperDir);
+    const inventoryMarker = path.join(wrapperDir, "inventory-intercepted");
+    const statusMarker = path.join(wrapperDir, "status-intercepted");
+    const recursiveMarker = path.join(wrapperDir, "recursive-intercepted");
+    const realGit = (
+      await execFileAsync("sh", ["-c", "command -v git"])
+    ).stdout.trim();
+    const wrapper = path.join(wrapperDir, "git");
+    await writeFile(
+      wrapper,
+      [
+        "#!/bin/sh",
+        `if [ -f '${inventoryMarker}' ]; then`,
+        '  case " $* " in',
+        '    *" status --porcelain=v1 "*)',
+        `      printf reached >'${statusMarker}'`,
+        "      ;;",
+        `    *" -C ${worktree}/invalid-"*)`,
+        `      printf reached >'${recursiveMarker}'`,
+        "      ;;",
+        "  esac",
+        "fi",
+        'case " $* " in',
+        '  *" ls-files --stage -z "*)',
+        `    printf reached >'${inventoryMarker}'`,
+        `    printf '160000 ${"a".repeat(40)} 0\\tinvalid-'`,
+        "    printf '\\377\\0'",
+        "    exit 0",
+        "    ;;",
+        "esac",
+        `exec '${realGit}' "$@"`,
+        "",
+      ].join("\n"),
+    );
+    await makeDiscoveryGitWrapperExecutable(wrapper);
+    const oldPath = process.env.PATH;
+    process.env.PATH = prependDiscoveryGitWrapper(wrapperDir, oldPath);
+    try {
+      const result = await runDiscovery(root);
+      expect(result.disposition).toBe("invalid");
+      expect(result.active[0]).toMatchObject({
+        classification: "invalid",
+        reason: "status-inspection-failed",
+      });
+      expect(await readFile(inventoryMarker, "utf8")).toBe("reached");
+      for (const marker of [statusMarker, recursiveMarker]) {
+        await expect(lstat(marker)).rejects.toMatchObject({ code: "ENOENT" });
+      }
+    } finally {
+      process.env.PATH = oldPath;
     }
   });
 
