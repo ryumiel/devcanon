@@ -14,7 +14,15 @@ fail() {
 runtime_override_inspection_path() {
   local output_variable="$1"
   local inspected="$2"
-  local remaining="$inspected"
+  local scan="$inspected"
+  local windows_separators=
+  case "${OSTYPE:-}" in
+    msys* | mingw*)
+      windows_separators=1
+      scan="${scan//\\//}"
+      ;;
+  esac
+  local remaining="$scan"
   while :; do
     local component="${remaining%%/*}"
     [ "$component" != ".." ] || return 1
@@ -24,6 +32,24 @@ runtime_override_inspection_path() {
     remaining="${remaining#*/}"
   done
   while :; do
+    if [ -n "$windows_separators" ]; then
+      local root_scan="${inspected//\\//}"
+      case "$root_scan" in
+        [A-Za-z]:/ | [A-Za-z]:/. | //\?/[A-Za-z]:/ | //\?/[A-Za-z]:/.)
+          break
+          ;;
+      esac
+      case "$inspected" in
+        *\\)
+          inspected="${inspected%\\}"
+          continue
+          ;;
+        *\\.)
+          inspected="${inspected%\\.}"
+          continue
+          ;;
+      esac
+    fi
     case "$inspected" in
       /) break ;;
       */) inspected="${inspected%/}" ;;

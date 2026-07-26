@@ -8818,6 +8818,47 @@ describe("read-only PR review discovery planner", () => {
   });
 });
 
+function reviewLeaseWrapperBash(): string {
+  if (process.platform !== "win32") return "bash";
+  if (discoveryGitWindowsBash === undefined) {
+    throw new Error("Git-for-Windows Bash is unavailable");
+  }
+  return discoveryGitWindowsBash;
+}
+
+async function runReviewLeaseWrapper(
+  override: string,
+): Promise<{ exitCode: number; stdout: string; stderr: string }> {
+  return new Promise((resolve) => {
+    execFile(
+      reviewLeaseWrapperBash(),
+      ["skills/pr-review/scripts/review-leases.sh", "discover"],
+      {
+        cwd: originalCwd,
+        env: { ...process.env, DEVCANON_RUNTIME_DIR: override },
+      },
+      (error, stdout, stderr) => {
+        resolve({
+          exitCode:
+            error === null
+              ? 0
+              : typeof error.code === "number"
+                ? error.code
+                : 1,
+          stdout,
+          stderr,
+        });
+      },
+    );
+  });
+}
+
+function localWindowsPathToUnc(nativePath: string): string | undefined {
+  const match = /^([A-Za-z]):\\(.*)$/u.exec(nativePath);
+  if (match === null) return undefined;
+  return `\\\\localhost\\${match[1]}$\\${match[2]}`;
+}
+
 describe("pr-review discovery wrapper resolution", () => {
   it.each([["unexpected"], ["unexpected", "second"]])(
     "forwards and rejects unexpected discover positional arguments: %j",
@@ -8897,6 +8938,167 @@ describe("pr-review discovery wrapper resolution", () => {
       expect(stdout.trim()).toBe("runtime pr-review-leases discover");
     }
   });
+
+  it.skipIf(process.platform === "win32")(
+    "preserves literal backslashes and parent-like text in POSIX path bytes",
+    async () => {
+      const root = await mkdtemp(
+        path.join(tmpdir(), "lease-wrapper-backslash-"),
+      );
+      discoveryTempRoots.push(root);
+      const runtimeDir = path.join(root, "runtime\\..\\literal");
+      const script = path.join(runtimeDir, "scripts", "devcanon-runtime.sh");
+      await mkdir(path.dirname(script), { recursive: true });
+      await writeFile(
+        script,
+        [
+          "#!/usr/bin/env bash",
+          'if [ "${1:-}" = "resolve-entrypoint" ]; then',
+          '  printf "%s\\n" "$0"',
+          "  exit 0",
+          "fi",
+          'printf "%s\\n" "$*"',
+          "",
+        ].join("\n"),
+      );
+      await chmod(script, 0o755);
+
+      expect(await runReviewLeaseWrapper(runtimeDir)).toEqual({
+        exitCode: 0,
+        stdout: "runtime pr-review-leases discover\n",
+        stderr: "",
+      });
+    },
+  );
+
+  it.runIf(process.platform === "win32")(
+    "uses authentic Windows separators for runtime containment",
+    async () => {
+      const bash = reviewLeaseWrapperBash();
+      const host = await execFileAsync(bash, [
+        "-lc",
+        'printf "%s\\n" "${OSTYPE:-}"',
+      ]);
+      expect(host.stdout.trim()).toMatch(/^(mingw|msys)/u);
+
+      const root = await mkdtemp(path.join(tmpdir(), "lease-wrapper-windows-"));
+      discoveryTempRoots.push(root);
+      const runtimeDir = path.join(root, "devcanon-runtime");
+      const script = path.join(runtimeDir, "scripts", "devcanon-runtime.sh");
+      const sentinel = path.join(root, "resolver-executed");
+      const bashSentinel = await toGitBashPath(sentinel);
+      await mkdir(path.dirname(script), { recursive: true });
+      await writeFile(
+        script,
+        [
+          "#!/usr/bin/env bash",
+          `printf reached >'${bashSentinel}'`,
+          'if [ "${1:-}" = "resolve-entrypoint" ]; then',
+          '  printf "%s\\n" "$0"',
+          "  exit 0",
+          "fi",
+          'printf "%s\\n" "$*"',
+          "",
+        ].join("\n"),
+      );
+      await chmod(script, 0o755);
+
+      for (const override of [runtimeDir, runtimeDir.concat("\\.")]) {
+        await rm(sentinel, { force: true });
+        expect(await runReviewLeaseWrapper(override)).toEqual({
+          exitCode: 0,
+          stdout: "runtime pr-review-leases discover\n",
+          stderr: "",
+        });
+        expect((await readFile(sentinel, "utf8")).trim()).toBe("reached");
+      }
+
+      const linked = path.join(root, "linked-runtime");
+      await symlink(runtimeDir, linked, "junction");
+      for (const override of [
+        linked,
+        linked.concat("\\"),
+        linked.concat("\\."),
+        linked.concat("\\scripts\\.."),
+        linked.concat("\\scripts/.."),
+      ]) {
+        await rm(sentinel, { force: true });
+        expect(await runReviewLeaseWrapper(override)).toEqual({
+          exitCode: 1,
+          stdout: "",
+          stderr:
+            "DEVCANON_RUNTIME_DIR must name a packaged runtime directory\n",
+        });
+        await expect(lstat(sentinel)).rejects.toMatchObject({ code: "ENOENT" });
+      }
+
+      const uncRuntime = localWindowsPathToUnc(runtimeDir);
+      const uncLinked = localWindowsPathToUnc(linked);
+      let uncAvailable = uncRuntime !== undefined && uncLinked !== undefined;
+      if (uncAvailable) {
+        uncAvailable = await execFileAsync(
+          bash,
+          ["-lc", '[ -d "$DEVCANON_TEST_UNC_PATH" ]'],
+          {
+            env: {
+              ...process.env,
+              DEVCANON_TEST_UNC_PATH: uncRuntime,
+            },
+          },
+        )
+          .then(() => true)
+          .catch(() => false);
+      }
+
+      if (uncAvailable && uncRuntime !== undefined && uncLinked !== undefined) {
+        await rm(sentinel, { force: true });
+        expect(await runReviewLeaseWrapper(uncRuntime)).toEqual({
+          exitCode: 0,
+          stdout: "runtime pr-review-leases discover\n",
+          stderr: "",
+        });
+        expect((await readFile(sentinel, "utf8")).trim()).toBe("reached");
+        await rm(sentinel, { force: true });
+        expect(
+          await runReviewLeaseWrapper(uncLinked.concat("\\scripts\\..")),
+        ).toEqual({
+          exitCode: 1,
+          stdout: "",
+          stderr:
+            "DEVCANON_RUNTIME_DIR must name a packaged runtime directory\n",
+        });
+        await expect(lstat(sentinel)).rejects.toMatchObject({ code: "ENOENT" });
+      } else {
+        const forced = await execFileAsync(
+          bash,
+          [
+            "-lc",
+            [
+              'eval "$(awk \'/^resolve_runtime\\(\\)/ { exit } { print }\' "$DEVCANON_TEST_WRAPPER")"',
+              "OSTYPE=mingw64",
+              "inspection=",
+              'if runtime_override_inspection_path inspection "$DEVCANON_TEST_UNC_PATH"; then',
+              '  printf "accepted:%s\\n" "$inspection"',
+              "else",
+              '  printf "rejected\\n"',
+              "fi",
+            ].join("\n"),
+          ],
+          {
+            env: {
+              ...process.env,
+              DEVCANON_TEST_UNC_PATH:
+                "\\\\server\\share\\linked-runtime\\scripts\\..",
+              DEVCANON_TEST_WRAPPER: path.resolve(
+                "skills/pr-review/scripts/review-leases.sh",
+              ),
+            },
+          },
+        );
+        expect(forced.stdout).toBe("rejected\n");
+      }
+    },
+  );
 
   it.skipIf(process.platform === "win32")(
     "preserves a newline-terminated packaged runtime directory",
