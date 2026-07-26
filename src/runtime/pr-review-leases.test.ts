@@ -6162,6 +6162,8 @@ describe("read-only PR review discovery planner", () => {
 
   it("parses raw NUL-delimited gitlink records without changing path bytes", () => {
     const oid = "a".repeat(40);
+    const singleRecord = Buffer.from(`160000 ${oid} 0\tascii\0`);
+    expect(parseDiscoveryGitlinkRecords(singleRecord)).toEqual(["ascii"]);
     expect(
       parseDiscoveryGitlinkRecords(
         Buffer.from(
@@ -6174,6 +6176,16 @@ describe("read-only PR review discovery planner", () => {
       ),
     ).toEqual(["ascii", "한글", "nested\nmodule", "tab\tmodule"]);
     expect(parseDiscoveryGitlinkRecords(Buffer.alloc(0))).toEqual([]);
+    for (const malformed of [
+      Buffer.from([0]),
+      Buffer.concat([Buffer.from([0]), singleRecord]),
+      Buffer.concat([singleRecord, Buffer.from([0]), singleRecord]),
+      Buffer.concat([singleRecord, Buffer.from([0])]),
+    ]) {
+      expect(() => parseDiscoveryGitlinkRecords(malformed)).toThrow(
+        "discovery gitlink inventory record is malformed",
+      );
+    }
     expect(() =>
       parseDiscoveryGitlinkRecords(
         Buffer.from(`160000 ${oid} 0\tnested\nmodule`),
@@ -6200,6 +6212,26 @@ describe("read-only PR review discovery planner", () => {
         ]),
       ),
     ).toThrow("discovery gitlink inventory path is not valid UTF-8");
+    for (const metadata of [
+      Buffer.concat([
+        Buffer.from([0xb1]),
+        Buffer.from(`60000 ${oid} 0\tpath\0`),
+      ]),
+      Buffer.concat([
+        Buffer.from("160000 "),
+        Buffer.alloc(40, 0xe1),
+        Buffer.from(" 0\tpath\0"),
+      ]),
+      Buffer.concat([
+        Buffer.from(`160000 ${oid} `),
+        Buffer.from([0xb0]),
+        Buffer.from("\tpath\0"),
+      ]),
+    ]) {
+      expect(() => parseDiscoveryGitlinkRecords(metadata)).toThrow(
+        "discovery gitlink inventory record is malformed",
+      );
+    }
   });
 
   it("accepts native Windows producer spellings in the closed lease parser", () => {

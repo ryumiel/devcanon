@@ -1927,7 +1927,6 @@ export function parseDiscoveryGitPathRecord(output, label = "discovery Git path"
     return value;
 }
 const discoveryFatalUtf8Decoder = new TextDecoder("utf-8", { fatal: true });
-const discoveryGitlinkModePrefix = Buffer.from("160000 ", "ascii");
 export function parseDiscoveryGitlinkRecords(output) {
     if (output.length === 0) {
         return [];
@@ -1937,25 +1936,29 @@ export function parseDiscoveryGitlinkRecords(output) {
     }
     const gitlinkPaths = [];
     let recordStart = 0;
-    while (recordStart < output.length - 1) {
+    while (recordStart < output.length) {
         const recordEnd = output.indexOf(0, recordStart);
         if (recordEnd < 0) {
             throw new PrReviewLeaseError("discovery gitlink inventory is not NUL-terminated");
         }
+        if (recordEnd === recordStart) {
+            throw new PrReviewLeaseError("discovery gitlink inventory record is malformed");
+        }
         const record = output.subarray(recordStart, recordEnd);
         recordStart = recordEnd + 1;
-        if (record.length < discoveryGitlinkModePrefix.length ||
-            !record
-                .subarray(0, discoveryGitlinkModePrefix.length)
-                .equals(discoveryGitlinkModePrefix)) {
-            continue;
-        }
         const separator = record.indexOf(9);
         if (separator < 0 || separator === record.length - 1) {
             throw new PrReviewLeaseError("discovery gitlink inventory record is malformed");
         }
         const metadata = record.subarray(0, separator);
-        if (!/^160000 [0-9a-f]{40} [0-3]$/u.test(metadata.toString("ascii"))) {
+        if (metadata.some((byte) => byte > 0x7f)) {
+            throw new PrReviewLeaseError("discovery gitlink inventory record is malformed");
+        }
+        const metadataText = metadata.toString("latin1");
+        if (!metadataText.startsWith("160000 ")) {
+            continue;
+        }
+        if (!/^160000 [0-9a-f]{40} [0-3]$/u.test(metadataText)) {
             throw new PrReviewLeaseError("discovery gitlink inventory record is malformed");
         }
         try {
