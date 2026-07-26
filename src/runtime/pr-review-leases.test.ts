@@ -4367,6 +4367,55 @@ describe("read-only PR review discovery planner", () => {
     ]);
   });
 
+  it("requires registrations for every active claim before validating ambiguity", () => {
+    const worktrees = ["/repo/.worktrees/one", "/repo/.worktrees/two"];
+    const active = worktrees.map((worktreePath) => ({
+      lease_file: `.ephemeral/pr-432-${discoveryDigest(worktreePath)}-lease.json`,
+      worktree_path: worktreePath,
+      state: "created" as const,
+      classification: "resumable" as const,
+      reason: "resumable",
+    }));
+    const result = reducePrReviewDiscovery({
+      repository: "owner/repo",
+      pr_number: 432,
+      primary_repository_root: "/repo",
+      canonical_target: {
+        worktree_path: "/repo/.worktrees/pr-432-review",
+        status: "absent",
+        registered: false,
+        parent_status: "directory",
+      },
+      registrations: [],
+      active,
+      archived: [],
+      invalid: [],
+      comparison_platform: "linux",
+    });
+
+    expect(result.disposition).toBe("ambiguous");
+    expect(() =>
+      validatePrReviewDiscoveryJson(Buffer.from(JSON.stringify(result)), {
+        repository: "owner/repo",
+        prNumber: 432,
+        primaryRoot: "/repo",
+        platform: "linux",
+      }),
+    ).toThrow("discovery active registration correlation mismatch");
+
+    expect(() =>
+      validatePrReviewDiscoveryJson(
+        Buffer.from(JSON.stringify({ ...result, registrations: worktrees })),
+        {
+          repository: "owner/repo",
+          prNumber: 432,
+          primaryRoot: "/repo",
+          platform: "linux",
+        },
+      ),
+    ).not.toThrow();
+  });
+
   it("stops for artifact-bearing, terminal, and unsupported leases without reading artifacts", async () => {
     for (const kind of ["artifact", "terminal", "unsupported"] as const) {
       const root = await createDiscoveryRepository();
@@ -6060,6 +6109,101 @@ describe("read-only PR review discovery planner", () => {
     expect(() => parseDiscoveryLease(inheritedRepository)).toThrow(
       "lease schema mismatch",
     );
+  });
+
+  it.each([
+    [
+      "presentation",
+      (lease: PrReviewLease) => {
+        lease.presentation = {
+          presented_at: "2026-06-11T00:01:00Z",
+          status: "preview-current",
+        };
+      },
+    ],
+    [
+      "terminal",
+      (lease: PrReviewLease) => {
+        lease.terminal = {
+          finished_at: "2026-06-11T00:01:00Z",
+          reason: "impossible-created-terminal",
+        };
+      },
+    ],
+    [
+      "failure",
+      (lease: PrReviewLease) => {
+        lease.failure = {
+          phase: "review",
+          reason: "impossible-created-failure",
+          recoverability: "recoverable",
+        };
+      },
+    ],
+    [
+      "GitHub post",
+      (lease: PrReviewLease) => {
+        lease.github = {
+          github_post_attempted: true,
+          github_post_result: "succeeded",
+          github_posted_at: "2026-06-11T00:01:00Z",
+        };
+      },
+    ],
+  ] as const)(
+    "rejects impossible created-state %s metadata before resumable classification",
+    async (label, mutate) => {
+      const root = await createDiscoveryRepository();
+      const worktree = await createDiscoveryWorktree(
+        root,
+        `invalid-created-${label.replaceAll(" ", "-")}`,
+      );
+      const lease = discoveryLease(worktree);
+      mutate(lease);
+      await writeDiscoveryLease(root, lease);
+
+      const result = await runDiscovery(root);
+      expect(result).toMatchObject({
+        disposition: "invalid",
+        resume: null,
+        cleanup: null,
+        active: [
+          {
+            lease_file: lease.lease_file,
+            worktree_path: null,
+            state: null,
+            classification: "invalid",
+            reason: "invalid-lease",
+          },
+        ],
+      });
+    },
+  );
+
+  it("keeps a created handoff pointer structurally valid but non-resumable", async () => {
+    const root = await createDiscoveryRepository();
+    const worktree = await createDiscoveryWorktree(
+      root,
+      "created-handoff-pointer",
+    );
+    const lease = discoveryLease(worktree);
+    lease.artifacts.handoff_file = ".ephemeral/review-handoff.json";
+    await writeDiscoveryLease(root, lease);
+
+    const result = await runDiscovery(root);
+    expect(result).toMatchObject({
+      disposition: "cleanup-required",
+      resume: null,
+      active: [
+        {
+          lease_file: lease.lease_file,
+          worktree_path: worktree,
+          state: "created",
+          classification: "artifact-bearing",
+          reason: "artifact-authority-required",
+        },
+      ],
+    });
   });
 
   it("rejects unknown keys and malformed primitive fields without throwing from discover", async () => {

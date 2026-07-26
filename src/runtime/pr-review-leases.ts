@@ -524,6 +524,29 @@ export function validatePrReviewDiscoveryJson(
   ) {
     throw new PrReviewLeaseError("discovery registration correlation mismatch");
   }
+  for (const entry of result.active) {
+    if (entry.classification === "invalid" || entry.worktree_path === null) {
+      continue;
+    }
+    const registrationCount = registrationKeys.filter(
+      (registration) =>
+        registration ===
+        discoveryRegistrationComparablePath(
+          entry.worktree_path ?? "",
+          platform,
+        ),
+    ).length;
+    const expectedRegistrationCount =
+      entry.classification === "missing" ||
+      entry.classification === "unregistered"
+        ? 0
+        : 1;
+    if (registrationCount !== expectedRegistrationCount) {
+      throw new PrReviewLeaseError(
+        "discovery active registration correlation mismatch",
+      );
+    }
+  }
   const expected = reducePrReviewDiscovery({
     repository: result.repository,
     pr_number: result.pr_number,
@@ -2181,6 +2204,21 @@ function discoveryEntry(
 export function parseDiscoveryLease(value: unknown): PrReviewLease {
   assertClosedLeasePrimitiveShape(value);
   validateLeaseShape(value);
+  if (
+    value.state === "created" &&
+    (value.presentation.presented_at !== null ||
+      value.presentation.status !== null ||
+      value.terminal.finished_at !== null ||
+      value.terminal.reason !== null ||
+      value.failure.phase !== null ||
+      value.failure.reason !== null ||
+      value.failure.recoverability !== null ||
+      value.github.github_post_attempted ||
+      value.github.github_post_result !== "not-attempted" ||
+      value.github.github_posted_at !== null)
+  ) {
+    throw new PrReviewLeaseError("lease schema mismatch");
+  }
   return value;
 }
 
