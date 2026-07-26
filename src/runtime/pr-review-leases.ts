@@ -552,12 +552,14 @@ export function validatePrReviewDiscoveryJson(
           platform,
         ),
     ).length;
-    const expectedRegistrationCount =
-      entry.classification === "missing" ||
-      entry.classification === "unregistered"
-        ? 0
-        : 1;
-    if (registrationCount !== expectedRegistrationCount) {
+    const registrationCountValid =
+      entry.classification === "artifact-bearing"
+        ? registrationCount === 0 || registrationCount === 1
+        : entry.classification === "missing" ||
+            entry.classification === "unregistered"
+          ? registrationCount === 0
+          : registrationCount === 1;
+    if (!registrationCountValid) {
       throw new PrReviewLeaseError(
         "discovery active registration correlation mismatch",
       );
@@ -594,7 +596,6 @@ export function validatePrReviewDiscoveryJson(
     result.cleanup !== null &&
     result.cleanup.lease_file !== null &&
     [
-      "artifact-authority-required",
       "unsupported-lease-state",
       "terminal-lease",
       "worktree-dirty",
@@ -610,6 +611,23 @@ export function validatePrReviewDiscoveryJson(
     ).length !== 1
   ) {
     throw new PrReviewLeaseError("discovery cleanup registration mismatch");
+  }
+  if (
+    result.cleanup !== null &&
+    result.cleanup.lease_file !== null &&
+    result.cleanup.reason === "artifact-authority-required"
+  ) {
+    const registrationCount = registrationKeys.filter(
+      (entry) =>
+        entry ===
+        discoveryRegistrationComparablePath(
+          result.cleanup?.worktree_path ?? "",
+          platform,
+        ),
+    ).length;
+    if (registrationCount !== 0 && registrationCount !== 1) {
+      throw new PrReviewLeaseError("discovery cleanup registration mismatch");
+    }
   }
   if (
     result.cleanup !== null &&
@@ -1028,9 +1046,13 @@ function assertDiscoveryCanonicalTargetCorrelation(
         ? target.status === "directory" &&
           target.parent_status === "directory" &&
           !target.registered
-        : target.status === "directory" &&
-          target.parent_status === "directory" &&
-          target.registered;
+        : canonicalActive.classification === "artifact-bearing"
+          ? target.parent_status === "directory" &&
+            ((target.status === "absent" && !target.registered) ||
+              target.status === "directory")
+          : target.status === "directory" &&
+            target.parent_status === "directory" &&
+            target.registered;
   if (!coherent) {
     throw new PrReviewLeaseError(
       "discovery canonical target correlation mismatch",

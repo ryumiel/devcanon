@@ -5491,17 +5491,28 @@ describe("read-only PR review discovery planner", () => {
     },
   );
 
-  it.each(["missing", "unregistered"] as const)(
-    "keeps a pointer-bearing %s lease out of artifact-free ambiguity",
-    async (classification) => {
+  it.each(
+    (["alternate", "canonical"] as const).flatMap((placement) =>
+      (["missing", "unregistered"] as const).map(
+        (classification) => [placement, classification] as const,
+      ),
+    ),
+  )(
+    "keeps a pointer-bearing %s %s lease out of artifact-free ambiguity",
+    async (placement, classification) => {
       const root = await createDiscoveryRepository();
-      const resumable = await createDiscoveryWorktree(root, "clean-claim");
+      const resumable = await createDiscoveryWorktree(
+        root,
+        placement === "canonical" ? "clean-alternate" : "clean-claim",
+      );
       await writeDiscoveryLease(root, discoveryLease(resumable));
 
       const blocked =
-        classification === "missing"
-          ? path.join(root, ".worktrees", "missing-artifact")
-          : path.join(root, "unregistered-artifact");
+        placement === "canonical"
+          ? path.join(root, ".worktrees", "pr-432-review")
+          : classification === "missing"
+            ? path.join(root, ".worktrees", "missing-artifact")
+            : path.join(root, "unregistered-artifact");
       if (classification === "unregistered") {
         await mkdir(blocked);
       }
@@ -5532,8 +5543,69 @@ describe("read-only PR review discovery planner", () => {
           reason: "resumable",
         }),
       );
+      expect(() =>
+        validatePrReviewDiscoveryJson(Buffer.from(JSON.stringify(result)), {
+          repository: "owner/repo",
+          prNumber: 432,
+          primaryRoot: root,
+        }),
+      ).not.toThrow();
     },
   );
+
+  it("rejects duplicate and contradictory artifact-bearing registrations", () => {
+    const worktree = "/repo/alternate";
+    const inventory = {
+      repository: "owner/repo",
+      pr_number: 432,
+      primary_repository_root: "/repo",
+      canonical_target: {
+        worktree_path: "/repo/.worktrees/pr-432-review",
+        status: "absent" as const,
+        registered: false,
+        parent_status: "directory" as const,
+      },
+      registrations: [] as string[],
+      active: [
+        {
+          lease_file: `.ephemeral/pr-432-${discoveryDigest(worktree)}-lease.json`,
+          worktree_path: worktree,
+          state: "created" as const,
+          classification: "artifact-bearing" as const,
+          reason: "artifact-authority-required",
+        },
+      ],
+      archived: [],
+      invalid: [],
+      comparison_platform: "linux" as const,
+    };
+    const result = reducePrReviewDiscovery(inventory);
+    expect(() =>
+      validatePrReviewDiscoveryJson(Buffer.from(JSON.stringify(result)), {
+        repository: "owner/repo",
+        prNumber: 432,
+        primaryRoot: "/repo",
+        platform: "linux",
+      }),
+    ).not.toThrow();
+
+    for (const registrations of [
+      [worktree, `${worktree}/.`],
+      ["/repo/.worktrees/pr-432-review"],
+    ]) {
+      expect(() =>
+        validatePrReviewDiscoveryJson(
+          Buffer.from(JSON.stringify({ ...result, registrations })),
+          {
+            repository: "owner/repo",
+            prNumber: 432,
+            primaryRoot: "/repo",
+            platform: "linux",
+          },
+        ),
+      ).toThrow();
+    }
+  });
 
   it("honors untracked files even when repository config hides them", async () => {
     const root = await createDiscoveryRepository();
@@ -7696,6 +7768,13 @@ describe("read-only PR review discovery planner", () => {
         },
       ],
     });
+    expect(() =>
+      validatePrReviewDiscoveryJson(Buffer.from(JSON.stringify(result)), {
+        repository: "owner/repo",
+        prNumber: 432,
+        primaryRoot: root,
+      }),
+    ).not.toThrow();
   });
 
   it("rejects unknown keys and malformed primitive fields without throwing from discover", async () => {
@@ -8550,16 +8629,18 @@ describe("pr-review discovery wrapper resolution", () => {
     );
     await chmod(script, 0o755);
 
-    const { stdout } = await execFileAsync(
-      "bash",
-      ["skills/pr-review/scripts/review-leases.sh", "discover"],
-      {
-        cwd: originalCwd,
-        env: { ...process.env, DEVCANON_RUNTIME_DIR: runtimeDir },
-      },
-    );
+    for (const override of [runtimeDir, `${runtimeDir}/.`]) {
+      const { stdout } = await execFileAsync(
+        "bash",
+        ["skills/pr-review/scripts/review-leases.sh", "discover"],
+        {
+          cwd: originalCwd,
+          env: { ...process.env, DEVCANON_RUNTIME_DIR: override },
+        },
+      );
 
-    expect(stdout.trim()).toBe("runtime pr-review-leases discover");
+      expect(stdout.trim()).toBe("runtime pr-review-leases discover");
+    }
   });
 
   it("transports validate-discovery stdin and arguments without reconstruction", async () => {
@@ -8630,7 +8711,7 @@ describe("pr-review discovery wrapper resolution", () => {
     const linked = path.join(root, "linked-runtime");
     await symlink(path.resolve("skills/devcanon-runtime"), linked, "dir");
 
-    for (const override of [direct, linked, `${linked}/`]) {
+    for (const override of [direct, linked, `${linked}/`, `${linked}/.`]) {
       await expect(
         execFileAsync(
           "bash",

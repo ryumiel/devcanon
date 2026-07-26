@@ -11,16 +11,28 @@ fail() {
   exit 1
 }
 
+runtime_override_inspection_path() {
+  local inspected="$1"
+  while :; do
+    case "$inspected" in
+      /) break ;;
+      */) inspected="${inspected%/}" ;;
+      */.) inspected="${inspected%/.}" ;;
+      *) break ;;
+    esac
+  done
+  printf '%s\n' "$inspected"
+}
+
 resolve_runtime() {
   local script_source="${BASH_SOURCE[0]}"
   local script_name
   script_name="$(basename "$script_source")"
   if [ -n "${DEVCANON_RUNTIME_DIR:-}" ]; then
-    local override_inspection="$DEVCANON_RUNTIME_DIR"
-    while [ "$override_inspection" != "/" ] &&
-      [ "${override_inspection%/}" != "$override_inspection" ]; do
-      override_inspection="${override_inspection%/}"
-    done
+    local override_inspection
+    override_inspection="$(
+      runtime_override_inspection_path "$DEVCANON_RUNTIME_DIR"
+    )"
     [ -d "$DEVCANON_RUNTIME_DIR" ] && [ ! -L "$override_inspection" ] ||
       fail "DEVCANON_RUNTIME_DIR must name a packaged runtime directory"
     local override_resolver="$DEVCANON_RUNTIME_DIR/scripts/devcanon-runtime.sh"
