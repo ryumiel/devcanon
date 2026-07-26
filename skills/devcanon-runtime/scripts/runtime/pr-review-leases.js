@@ -2142,7 +2142,7 @@ async function assertNoDiscoveryConfigIncludes(root, configPath, env) {
             }
             const name = Buffer.from(record).toString("utf8");
             record = [];
-            if (/^include(?:if\..+)?\.path$/iu.test(name)) {
+            if (isDiscoveryIncludeAuthorityKey(name)) {
                 throw new PrReviewLeaseError("primary repository config contains include authority");
             }
         }
@@ -2150,6 +2150,17 @@ async function assertNoDiscoveryConfigIncludes(root, configPath, env) {
     if (record.length !== 0) {
         throw new PrReviewLeaseError("primary repository config key inventory is not NUL-terminated");
     }
+}
+function isDiscoveryIncludeAuthorityKey(name) {
+    const normalized = name.toLowerCase();
+    if (normalized === "include.path") {
+        return true;
+    }
+    const prefix = "includeif.";
+    const suffix = ".path";
+    return (normalized.startsWith(prefix) &&
+        normalized.endsWith(suffix) &&
+        normalized.length > prefix.length + suffix.length);
 }
 function normalizeDiscoveryGitHubRepository(value) {
     const patterns = [
@@ -2242,7 +2253,7 @@ async function assertDiscoveryStatusAuthoritySafe(worktreePath, env, visited = n
                 authorityFile,
             ], env);
             for (const name of names.split("\0").filter(Boolean)) {
-                if (/^include(?:if\..+)?\.path$/iu.test(name) ||
+                if (isDiscoveryIncludeAuthorityKey(name) ||
                     /^filter\..+\.(?:clean|process)$/iu.test(name)) {
                     throw new PrReviewLeaseError("repository config contains executable status authority");
                 }

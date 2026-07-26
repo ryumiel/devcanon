@@ -4769,6 +4769,34 @@ describe("read-only PR review discovery planner", () => {
     },
   );
 
+  it.each(["\u2028", "\u2029"])(
+    "rejects primary includeIf authority containing %j before a no-active create result",
+    async (separator) => {
+      const root = await createDiscoveryRepository();
+      const marker = path.join(root, "primary-separator-include-executed");
+      const included = path.join(root, "primary-separator-included.gitconfig");
+      await writeFile(
+        included,
+        `[filter "discovery"]\n\tprocess = printf executed >"${marker}"\n`,
+      );
+      await execFileAsync("git", [
+        "-C",
+        root,
+        "config",
+        `includeIf.gitdir:**[!${separator}]**.path`,
+        included,
+      ]);
+
+      const outcome = await runDiscoveryCommand(root);
+      expect(outcome).toEqual({
+        exitCode: 1,
+        stdout: "",
+        stderr: "primary repository config contains include authority\n",
+      });
+      await expect(lstat(marker)).rejects.toMatchObject({ code: "ENOENT" });
+    },
+  );
+
   it.each(["include.path", "includeIf.gitdir:/**.path"])(
     "rejects primary worktree-config %s authority before a no-active create result",
     async (configKey) => {
@@ -4792,6 +4820,48 @@ describe("read-only PR review discovery planner", () => {
         "config",
         "--worktree",
         configKey,
+        included,
+      ]);
+
+      const outcome = await runDiscoveryCommand(root);
+      expect(outcome).toEqual({
+        exitCode: 1,
+        stdout: "",
+        stderr: "primary repository config contains include authority\n",
+      });
+      await expect(lstat(marker)).rejects.toMatchObject({ code: "ENOENT" });
+    },
+  );
+
+  it.each(["\u2028", "\u2029"])(
+    "rejects primary worktree-config includeIf authority containing %j",
+    async (separator) => {
+      const root = await createDiscoveryRepository();
+      const marker = path.join(
+        root,
+        "primary-worktree-separator-include-executed",
+      );
+      const included = path.join(
+        root,
+        "primary-worktree-separator-included.gitconfig",
+      );
+      await writeFile(
+        included,
+        `[filter "discovery"]\n\tprocess = printf executed >"${marker}"\n`,
+      );
+      await execFileAsync("git", [
+        "-C",
+        root,
+        "config",
+        "extensions.worktreeConfig",
+        "true",
+      ]);
+      await execFileAsync("git", [
+        "-C",
+        root,
+        "config",
+        "--worktree",
+        `includeIf.gitdir:**[!${separator}]**.path`,
         included,
       ]);
 
@@ -8042,6 +8112,98 @@ describe("read-only PR review discovery planner", () => {
           code: "ENOENT",
         });
       });
+    },
+  );
+
+  it.each(["\u2028", "\u2029"])(
+    "rejects candidate includeIf authority containing %j before status",
+    async (separator) => {
+      const root = await createDiscoveryRepository();
+      const worktree = await createDiscoveryWorktree(
+        root,
+        "candidate-separator-include",
+      );
+      const marker = path.join(root, "candidate-separator-include-executed");
+      const included = path.join(
+        root,
+        "candidate-separator-included.gitconfig",
+      );
+      await writeFile(
+        included,
+        `[filter "discovery"]\n\tprocess = printf executed >"${marker}"\n`,
+      );
+      await execFileAsync("git", [
+        "-C",
+        root,
+        "config",
+        "extensions.worktreeConfig",
+        "true",
+      ]);
+      await execFileAsync("git", [
+        "-C",
+        worktree,
+        "config",
+        "--worktree",
+        `includeIf.gitdir:**[!${separator}]**.path`,
+        included,
+      ]);
+      await writeDiscoveryLease(root, discoveryLease(worktree));
+
+      const result = await runDiscovery(root);
+      expect(result.disposition).toBe("invalid");
+      expect(result.active[0]).toMatchObject({
+        classification: "invalid",
+        reason: "status-inspection-failed",
+      });
+      await expect(lstat(marker)).rejects.toMatchObject({ code: "ENOENT" });
+    },
+  );
+
+  it.each(["\u2028", "\u2029"])(
+    "rejects initialized-submodule includeIf authority containing %j before status",
+    async (separator) => {
+      const root = await createDiscoveryRepository();
+      const worktree = await createDiscoveryWorktree(
+        root,
+        "submodule-separator-include",
+      );
+      const submodule = await createDiscoveryRepository();
+      await execFileAsync("git", [
+        "-C",
+        worktree,
+        "-c",
+        "protocol.file.allow=always",
+        "submodule",
+        "add",
+        submodule,
+        "nested",
+      ]);
+      await execFileAsync("git", ["-C", worktree, "commit", "-m", "submodule"]);
+      const marker = path.join(root, "submodule-separator-include-executed");
+      const included = path.join(
+        root,
+        "submodule-separator-included.gitconfig",
+      );
+      await writeFile(
+        included,
+        `[filter "discovery"]\n\tprocess = printf executed >"${marker}"\n`,
+      );
+      await execFileAsync("git", [
+        "-C",
+        path.join(worktree, "nested"),
+        "config",
+        `includeIf.gitdir:**[!${separator}]**.path`,
+        included,
+      ]);
+      await writeDiscoveryLease(root, discoveryLease(worktree));
+
+      const result = await runDiscovery(root);
+      expect(result.disposition).toBe("invalid");
+      expect(result.active[0]).toMatchObject({
+        classification: "invalid",
+        reason: "status-inspection-failed",
+      });
+      await expect(lstat(marker)).rejects.toMatchObject({ code: "ENOENT" });
     },
   );
 
