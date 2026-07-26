@@ -1965,6 +1965,9 @@ async function inspectDiscoveryLease({
   ) {
     return finalize(invalid("lease-identity-mismatch", lease));
   }
+  const hasDeclaredArtifacts = Object.values(lease.artifacts).some(
+    (artifactPath) => artifactPath !== null,
+  );
 
   const filesystemPath = discoveryFilesystemPath(lease.worktree_path);
   let before: Awaited<ReturnType<typeof lstat>>;
@@ -1988,6 +1991,15 @@ async function inspectDiscoveryLease({
         )
       ) {
         return finalize(invalid("worktree-inspection-failed", lease));
+      }
+      if (hasDeclaredArtifacts) {
+        return finalize(
+          discoveryEntry(
+            lease,
+            "artifact-bearing",
+            "artifact-authority-required",
+          ),
+        );
       }
       return finalize(discoveryEntry(lease, "missing", "worktree-missing"));
     }
@@ -2078,6 +2090,15 @@ async function inspectDiscoveryLease({
     } catch {
       return finalize(invalid("worktree-replaced", lease));
     }
+    if (hasDeclaredArtifacts) {
+      return finalize(
+        discoveryEntry(
+          lease,
+          "artifact-bearing",
+          "artifact-authority-required",
+        ),
+      );
+    }
     return finalize(
       discoveryEntry(lease, "unregistered", "worktree-unregistered"),
     );
@@ -2141,9 +2162,7 @@ async function inspectDiscoveryLease({
     }
   };
   candidateRepositoryBound = true;
-  if (
-    Object.values(lease.artifacts).some((artifactPath) => artifactPath !== null)
-  ) {
+  if (hasDeclaredArtifacts) {
     try {
       await verifyCandidateSnapshot();
     } catch {
@@ -3205,6 +3224,21 @@ function isDiscoveryIncludeAuthorityKey(name: string): boolean {
   );
 }
 
+function isDiscoveryExecutableFilterAuthorityKey(name: string): boolean {
+  const normalized = name.toLowerCase();
+  const prefix = "filter.";
+  for (const suffix of [".clean", ".process"]) {
+    if (
+      normalized.startsWith(prefix) &&
+      normalized.endsWith(suffix) &&
+      normalized.length > prefix.length + suffix.length
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
 function normalizeDiscoveryGitHubRepository(value: string): string {
   const patterns = [
     /^https:\/\/github\.com\/([^/?#\s]+)\/([^/?#\s]+?)(?:\.git)?\/?$/iu,
@@ -3347,7 +3381,7 @@ async function assertDiscoveryStatusAuthoritySafe(
       for (const name of names.split("\0").filter(Boolean)) {
         if (
           isDiscoveryIncludeAuthorityKey(name) ||
-          /^filter\..+\.(?:clean|process)$/iu.test(name)
+          isDiscoveryExecutableFilterAuthorityKey(name)
         ) {
           throw new PrReviewLeaseError(
             "repository config contains executable status authority",

@@ -16,7 +16,12 @@ resolve_runtime() {
   local script_name
   script_name="$(basename "$script_source")"
   if [ -n "${DEVCANON_RUNTIME_DIR:-}" ]; then
-    [ -d "$DEVCANON_RUNTIME_DIR" ] && [ ! -L "$DEVCANON_RUNTIME_DIR" ] ||
+    local override_inspection="$DEVCANON_RUNTIME_DIR"
+    while [ "$override_inspection" != "/" ] &&
+      [ "${override_inspection%/}" != "$override_inspection" ]; do
+      override_inspection="${override_inspection%/}"
+    done
+    [ -d "$DEVCANON_RUNTIME_DIR" ] && [ ! -L "$override_inspection" ] ||
       fail "DEVCANON_RUNTIME_DIR must name a packaged runtime directory"
     local override_resolver="$DEVCANON_RUNTIME_DIR/scripts/devcanon-runtime.sh"
     [ -x "$override_resolver" ] ||

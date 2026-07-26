@@ -1228,6 +1228,7 @@ async function inspectDiscoveryLease({ primaryRoot, relativePath, repository, pr
         lease.lease_file !== expectedLeaseFile) {
         return finalize(invalid("lease-identity-mismatch", lease));
     }
+    const hasDeclaredArtifacts = Object.values(lease.artifacts).some((artifactPath) => artifactPath !== null);
     const filesystemPath = discoveryFilesystemPath(lease.worktree_path);
     let before;
     try {
@@ -1243,6 +1244,9 @@ async function inspectDiscoveryLease({ primaryRoot, relativePath, repository, pr
             };
             if (registrationKeys.has(discoveryComparablePath(lease.worktree_path, process.platform))) {
                 return finalize(invalid("worktree-inspection-failed", lease));
+            }
+            if (hasDeclaredArtifacts) {
+                return finalize(discoveryEntry(lease, "artifact-bearing", "artifact-authority-required"));
             }
             return finalize(discoveryEntry(lease, "missing", "worktree-missing"));
         }
@@ -1320,6 +1324,9 @@ async function inspectDiscoveryLease({ primaryRoot, relativePath, repository, pr
         catch {
             return finalize(invalid("worktree-replaced", lease));
         }
+        if (hasDeclaredArtifacts) {
+            return finalize(discoveryEntry(lease, "artifact-bearing", "artifact-authority-required"));
+        }
         return finalize(discoveryEntry(lease, "unregistered", "worktree-unregistered"));
     }
     let candidateRepository;
@@ -1354,7 +1361,7 @@ async function inspectDiscoveryLease({ primaryRoot, relativePath, repository, pr
         }
     };
     candidateRepositoryBound = true;
-    if (Object.values(lease.artifacts).some((artifactPath) => artifactPath !== null)) {
+    if (hasDeclaredArtifacts) {
         try {
             await verifyCandidateSnapshot();
         }
@@ -2162,6 +2169,18 @@ function isDiscoveryIncludeAuthorityKey(name) {
         normalized.endsWith(suffix) &&
         normalized.length > prefix.length + suffix.length);
 }
+function isDiscoveryExecutableFilterAuthorityKey(name) {
+    const normalized = name.toLowerCase();
+    const prefix = "filter.";
+    for (const suffix of [".clean", ".process"]) {
+        if (normalized.startsWith(prefix) &&
+            normalized.endsWith(suffix) &&
+            normalized.length > prefix.length + suffix.length) {
+            return true;
+        }
+    }
+    return false;
+}
 function normalizeDiscoveryGitHubRepository(value) {
     const patterns = [
         /^https:\/\/github\.com\/([^/?#\s]+)\/([^/?#\s]+?)(?:\.git)?\/?$/iu,
@@ -2254,7 +2273,7 @@ async function assertDiscoveryStatusAuthoritySafe(worktreePath, env, visited = n
             ], env);
             for (const name of names.split("\0").filter(Boolean)) {
                 if (isDiscoveryIncludeAuthorityKey(name) ||
-                    /^filter\..+\.(?:clean|process)$/iu.test(name)) {
+                    isDiscoveryExecutableFilterAuthorityKey(name)) {
                     throw new PrReviewLeaseError("repository config contains executable status authority");
                 }
             }

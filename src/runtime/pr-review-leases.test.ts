@@ -5491,6 +5491,50 @@ describe("read-only PR review discovery planner", () => {
     },
   );
 
+  it.each(["missing", "unregistered"] as const)(
+    "keeps a pointer-bearing %s lease out of artifact-free ambiguity",
+    async (classification) => {
+      const root = await createDiscoveryRepository();
+      const resumable = await createDiscoveryWorktree(root, "clean-claim");
+      await writeDiscoveryLease(root, discoveryLease(resumable));
+
+      const blocked =
+        classification === "missing"
+          ? path.join(root, ".worktrees", "missing-artifact")
+          : path.join(root, "unregistered-artifact");
+      if (classification === "unregistered") {
+        await mkdir(blocked);
+      }
+      const artifactLease = discoveryLease(blocked);
+      artifactLease.artifacts.handoff_file = ".ephemeral/missing-handoff.json";
+      await writeDiscoveryLease(root, artifactLease);
+
+      const result = await runDiscovery(root);
+      expect(result.disposition).toBe("cleanup-required");
+      expect(result.cleanup).toMatchObject({
+        lease_file: artifactLease.lease_file,
+        worktree_path: blocked,
+        reason: "artifact-authority-required",
+      });
+      expect(result.active).toContainEqual(
+        expect.objectContaining({
+          lease_file: artifactLease.lease_file,
+          worktree_path: blocked,
+          classification: "artifact-bearing",
+          reason: "artifact-authority-required",
+        }),
+      );
+      expect(result.active).toContainEqual(
+        expect.objectContaining({
+          lease_file: discoveryLease(resumable).lease_file,
+          worktree_path: resumable,
+          classification: "resumable",
+          reason: "resumable",
+        }),
+      );
+    },
+  );
+
   it("honors untracked files even when repository config hides them", async () => {
     const root = await createDiscoveryRepository();
     const worktree = await createDiscoveryWorktree(root, "hidden-untracked");
@@ -8207,6 +8251,125 @@ describe("read-only PR review discovery planner", () => {
     },
   );
 
+  it.each(
+    ["\u2028", "\u2029"].flatMap((separator) =>
+      (["clean", "process"] as const).map(
+        (filterKind) => [separator, filterKind] as const,
+      ),
+    ),
+  )(
+    "rejects candidate filter authority containing %j for %s before status",
+    async (separator, filterKind) => {
+      const root = await createDiscoveryRepository();
+      const worktree = await createDiscoveryWorktree(
+        root,
+        `candidate-separator-${filterKind}`,
+      );
+      const driver = `discovery${separator}driver`;
+      await writeFile(
+        path.join(worktree, ".gitattributes"),
+        `README.md filter=${driver}\n`,
+      );
+      await execFileAsync("git", ["-C", worktree, "add", ".gitattributes"]);
+      await execFileAsync("git", [
+        "-C",
+        worktree,
+        "commit",
+        "-m",
+        "attributes",
+      ]);
+      const marker = path.join(
+        root,
+        `candidate-separator-${filterKind}-executed`,
+      );
+      await execFileAsync("git", [
+        "-C",
+        worktree,
+        "config",
+        `filter.${driver}.${filterKind}`,
+        `printf executed >"${marker}"`,
+      ]);
+      await writeDiscoveryLease(root, discoveryLease(worktree));
+
+      const result = await runDiscovery(root);
+      expect(result.disposition).toBe("invalid");
+      expect(result.active[0]).toMatchObject({
+        classification: "invalid",
+        reason: "status-inspection-failed",
+      });
+      await expect(lstat(marker)).rejects.toMatchObject({ code: "ENOENT" });
+    },
+  );
+
+  it.each(
+    ["\u2028", "\u2029"].flatMap((separator) =>
+      (["clean", "process"] as const).map(
+        (filterKind) => [separator, filterKind] as const,
+      ),
+    ),
+  )(
+    "rejects initialized-submodule filter authority containing %j for %s before status",
+    async (separator, filterKind) => {
+      const root = await createDiscoveryRepository();
+      const worktree = await createDiscoveryWorktree(
+        root,
+        `submodule-separator-${filterKind}`,
+      );
+      const submodule = await createDiscoveryRepository();
+      await execFileAsync("git", [
+        "-C",
+        worktree,
+        "-c",
+        "protocol.file.allow=always",
+        "submodule",
+        "add",
+        submodule,
+        "nested",
+      ]);
+      const initializedSubmodule = path.join(worktree, "nested");
+      const driver = `discovery${separator}driver`;
+      await writeFile(
+        path.join(initializedSubmodule, ".gitattributes"),
+        `README.md filter=${driver}\n`,
+      );
+      await execFileAsync("git", [
+        "-C",
+        initializedSubmodule,
+        "add",
+        ".gitattributes",
+      ]);
+      await execFileAsync("git", [
+        "-C",
+        initializedSubmodule,
+        "commit",
+        "-m",
+        "attributes",
+      ]);
+      await execFileAsync("git", ["-C", worktree, "add", "nested"]);
+      await execFileAsync("git", ["-C", worktree, "commit", "-m", "submodule"]);
+      const marker = path.join(
+        root,
+        `submodule-separator-${filterKind}-executed`,
+      );
+      await execFileAsync("git", [
+        "-C",
+        initializedSubmodule,
+        "config",
+        `filter.${driver}.${filterKind}`,
+        `printf executed >"${marker}"`,
+      ]);
+      await writeDiscoveryLease(root, discoveryLease(worktree));
+
+      const result = await runDiscovery(root);
+      expect(result.disposition).toBe("invalid");
+      expect(result.active[0]).toMatchObject({
+        classification: "invalid",
+        reason: "status-inspection-failed",
+      });
+      await expect(lstat(marker)).rejects.toMatchObject({ code: "ENOENT" });
+    },
+  );
+
   it("fails closed on executable filter authority in an initialized submodule", async () => {
     const root = await createDiscoveryRepository();
     const worktree = await createDiscoveryWorktree(root, "submodule-filter");
@@ -8467,7 +8630,7 @@ describe("pr-review discovery wrapper resolution", () => {
     const linked = path.join(root, "linked-runtime");
     await symlink(path.resolve("skills/devcanon-runtime"), linked, "dir");
 
-    for (const override of [direct, linked]) {
+    for (const override of [direct, linked, `${linked}/`]) {
       await expect(
         execFileAsync(
           "bash",
