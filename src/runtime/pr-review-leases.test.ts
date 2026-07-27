@@ -7376,14 +7376,18 @@ describe("read-only PR review discovery planner", () => {
         if (preservedRoot === undefined || preservedWrapper === undefined) {
           throw new Error("ordinary discovery retained roots are incomplete");
         }
-        discoveryTempRoots.push(preservedWrapper);
         const followingRootStart = discoveryTempRoots.length;
-        discoveryTempRoots.push(preservedRoot);
-        retainedRoots = [];
+        const followingRoot = await createDiscoveryRepository();
         followingScenario = await bindOrdinaryDiscoveryLifecycleScenario(
-          preservedRoot,
+          followingRoot,
           followingRootStart,
         );
+        const followingOwnedRoots = [...followingScenario.ownedRoots];
+        expect(
+          followingOwnedRoots.every(
+            (ownedRoot) => !retainedRoots.includes(ownedRoot),
+          ),
+        ).toBe(true);
         followingScenario.task = execFileAsync("git", ["--version"], {
           env: process.env,
         }).then(() => undefined);
@@ -7400,8 +7404,17 @@ describe("read-only PR review discovery planner", () => {
         expect(activeDiscoveryGitNativeOwnerExpectedOperation).toBe(
           originalNativeOwnerExpectedOperation,
         );
+        expect(activeFollowingScenario.shutdownAttempted).toBe(true);
+        expect(activeFollowingScenario.shutdownFailed).toBe(false);
+        for (const followingOwnedRoot of followingOwnedRoots) {
+          await expect(lstat(followingOwnedRoot)).rejects.toMatchObject({
+            code: "ENOENT",
+          });
+        }
+        for (const retainedRoot of retainedRoots) {
+          expect((await lstat(retainedRoot)).isDirectory()).toBe(true);
+        }
       } finally {
-        discoveryTempRoots.push(...retainedRoots);
         if (
           followingScenario !== undefined &&
           !followingScenario.shutdownAttempted
@@ -7413,6 +7426,9 @@ describe("read-only PR review discovery planner", () => {
           !failingScenario.shutdownAttempted
         ) {
           await shutdownOrdinaryDiscoveryLifecycleScenario(failingScenario);
+        }
+        for (const retainedRoot of retainedRoots) {
+          await rm(retainedRoot, { recursive: true, force: true });
         }
       }
     },
