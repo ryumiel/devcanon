@@ -12,6 +12,7 @@ Usage:
   devcanon-runtime.sh contract
   devcanon-runtime.sh runtime <typed-command> [args...]
   devcanon-runtime.sh resolve-entrypoint --from <adapter-path> [--entrypoint <relative-path>]
+  devcanon-runtime.sh bootstrap --runtime-dir <path> -- <runtime-command> [args...]
 EOF
 }
 
@@ -124,7 +125,16 @@ run_typed_runtime() {
   local js_entrypoint="$script_dir/runtime/cli.js"
   [ -f "$js_entrypoint" ] || runtime_error "devcanon-runtime JS entrypoint missing: $js_entrypoint"
   command -v node >/dev/null 2>&1 || runtime_error "node is required for devcanon-runtime typed helpers"
-  node "$js_entrypoint" "$@"
+  exec node "$js_entrypoint" "$@"
+}
+
+run_bootstrap() {
+  local script_dir
+  script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+  local js_entrypoint="$script_dir/runtime/bootstrap-cli.js"
+  [ -f "$js_entrypoint" ] || runtime_error "devcanon-runtime bootstrap entrypoint missing: $js_entrypoint"
+  command -v node >/dev/null 2>&1 || runtime_error "node is required for devcanon-runtime bootstrap"
+  exec node "$js_entrypoint" "$@"
 }
 
 main() {
@@ -142,6 +152,10 @@ main() {
     runtime)
       shift
       run_typed_runtime "$@"
+      ;;
+    bootstrap)
+      shift
+      run_bootstrap "$@"
       ;;
     -h | --help | help)
       usage

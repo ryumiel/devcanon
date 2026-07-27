@@ -81,6 +81,37 @@ then may try the physical resolved sibling path for symlink install modes. If
 no compatible runtime exists, the adapter fails before performing validation or
 state mutation.
 
+For adapters deliberately migrated to the trusted bootstrap, the adapter must
+first locate the fixed sibling `devcanon-runtime` bootstrap without consulting
+`DEVCANON_RUNTIME_DIR`. `skills/pr-review/scripts/review-leases.sh` is the
+current migrated consumer; it requires the fixed sibling support skill to be
+present in isolated fixtures before it can use an override. The thin shell
+adapter owns only its closed command selection, sibling bootstrap location, and
+exact argument forwarding. The packaged Node bootstrap owns platform-specific
+path grammar, raw traversal rejection, final-component `lstat`, physical
+`realpath` containment, and child dispatch. In particular, it rejects an exact
+raw `..` component before path normalization and rejects a final symlink,
+junction, or reparse point before dereference. It then proves the real runtime
+entrypoint is within the real runtime directory using relative-path semantics,
+not a string prefix.
+
+The override is therefore inert test, diagnostic, and packaging input until
+the fixed bootstrap has structurally validated it. It must never be used to
+find or load the bootstrap that validates it. Fixtures that exercise this
+override must package the fixed support skill as a sibling, just as source,
+rendered, copied, managed, and symlink-installed layouts do. The dispatcher
+keeps the original override value in the child environment and launches the
+validated child itself; it does not return an override path through shell
+command substitution. The shell and typed executable entrypoints are
+independently validated; the bootstrap dispatches the platform-appropriate
+validated target without ambient shell lookup.
+
+Other runtime-backed helpers do not migrate automatically: until deliberately
+converted, they retain their existing override-resolution contracts. This
+decision records the trusted-bootstrap contract for migrated adapters only.
+The `review-leases.sh` migration is an inactive packaging and diagnostic
+prerequisite; it does not activate discovery, Phase 2, or any review workflow.
+
 The runtime is distributed with rendered and installed skill bundles. Runtime
 files participate in render hashing, generated previews, sync planning, and
 managed install manifests like other mirrored skill support files. Consumers

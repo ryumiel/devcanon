@@ -8,25 +8,26 @@ fail() {
   exit 1
 }
 
-resolve_runtime() {
-  local resolver
-  resolver="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../devcanon-runtime/scripts" && pwd)/devcanon-runtime.sh"
-  if [ -x "$resolver" ]; then
-    printf '%s\n' "$resolver"
-    return
-  fi
-  if command -v devcanon-runtime.sh >/dev/null 2>&1; then
-    command -v devcanon-runtime.sh
-    return
-  fi
+runtime_script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+logical_runtime="$runtime_script_dir/../../devcanon-runtime/scripts/devcanon-runtime.sh"
+physical_runtime="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/../../devcanon-runtime/scripts/devcanon-runtime.sh"
+
+if [ -x "$logical_runtime" ]; then
+  trusted_runtime=$logical_runtime
+elif [ -x "$physical_runtime" ]; then
+  trusted_runtime=$physical_runtime
+else
   fail "devcanon-runtime entrypoint missing for pr-review leases"
-}
+fi
 
 case "$command_name" in
   derive-path | write | record-audit-failure | validate | read-status | inspect-worktree | cleanup-worktree)
-    runtime="$(resolve_runtime)"
+    if [ -n "${DEVCANON_RUNTIME_DIR:-}" ]; then
+      PR_REVIEW_LEASE_HELPER_SCRIPT="${BASH_SOURCE[0]}" \
+        exec "$trusted_runtime" bootstrap --runtime-dir "$DEVCANON_RUNTIME_DIR" -- pr-review-leases "$command_name"
+    fi
     PR_REVIEW_LEASE_HELPER_SCRIPT="${BASH_SOURCE[0]}" \
-      exec "$runtime" runtime pr-review-leases "$command_name"
+      exec "$trusted_runtime" runtime pr-review-leases "$command_name"
     ;;
   *)
     fail "usage: review-leases.sh derive-path|write|record-audit-failure|validate|read-status|inspect-worktree|cleanup-worktree"

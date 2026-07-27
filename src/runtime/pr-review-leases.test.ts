@@ -2,16 +2,19 @@ import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
   chmod,
+  lstat,
   mkdir,
   mkdtemp,
   readFile,
   readdir,
   realpath,
   rm,
+  symlink,
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
 import { runPlayReviewSharedContextCommand } from "./play-review-shared-context.js";
@@ -22,6 +25,31 @@ import {
 } from "./pr-review-leases.js";
 
 const execFileAsync = promisify(execFile);
+
+async function resolveGitForWindowsBash(): Promise<string> {
+  const { stdout } = await execFileAsync("where.exe", ["git.exe"]);
+  const candidates = new Set<string>();
+  for (const gitExecutable of stdout
+    .split(/\r?\n/gu)
+    .filter((entry) => path.win32.isAbsolute(entry))) {
+    const gitDirectory = path.win32.dirname(gitExecutable);
+    candidates.add(path.win32.resolve(gitDirectory, "..", "bin", "bash.exe"));
+    candidates.add(
+      path.win32.resolve(gitDirectory, "..", "usr", "bin", "bash.exe"),
+    );
+  }
+  for (const candidate of candidates) {
+    try {
+      if (!(await lstat(candidate)).isFile()) continue;
+      await execFileAsync(candidate, [
+        "-lc",
+        "builtin pwd -W >/dev/null 2>&1 && command -v cygpath >/dev/null 2>&1",
+      ]);
+      return await realpath(candidate);
+    } catch {}
+  }
+  throw new Error("Git-for-Windows Bash is unavailable");
+}
 
 const identity = {
   repository: "owner/repo",
@@ -4439,3 +4467,433 @@ function gatedCommandLease({
     },
   };
 }
+
+describe("pr-review lease wrapper trusted runtime bootstrap", () => {
+  const wrapper = path.resolve("skills/pr-review/scripts/review-leases.sh");
+
+  async function writeRuntime(
+    root: string,
+    directoryName: string,
+  ): Promise<{
+    runtimeDir: string;
+    resolverSentinel: string;
+    typedSentinel: string;
+  }> {
+    const runtimeDir = path.join(root, directoryName);
+    const scriptsDir = path.join(runtimeDir, "scripts");
+    const typedRuntimeDir = path.join(scriptsDir, "runtime");
+    const resolverSentinel = path.join(
+      root,
+      `${directoryName.length}-resolver-executed`,
+    );
+    const typedSentinel = path.join(
+      root,
+      `${directoryName.length}-typed-executed`,
+    );
+    await mkdir(typedRuntimeDir, { recursive: true });
+    const resolver = path.join(scriptsDir, "devcanon-runtime.sh");
+    await writeFile(
+      resolver,
+      [
+        "#!/usr/bin/env bash",
+        "set -euo pipefail",
+        'case "${1:-}" in',
+        "  runtime)",
+        "    printf 'executed\\n' >\"$DEVCANON_TEST_RESOLVER_SENTINEL\"",
+        "    printf 'runtime-ok\\n'",
+        "    ;;",
+        "  *) exit 64 ;;",
+        "esac",
+        "",
+      ].join("\n"),
+    );
+    await chmod(resolver, 0o755);
+    await writeFile(
+      path.join(typedRuntimeDir, "cli.js"),
+      [
+        'import { writeFileSync } from "node:fs";',
+        'writeFileSync(process.env.DEVCANON_TEST_TYPED_SENTINEL, "executed\\n");',
+        'process.stdout.write("runtime-ok\\n");',
+        "",
+      ].join("\n"),
+    );
+    return { runtimeDir, resolverSentinel, typedSentinel };
+  }
+
+  async function runWrapper(
+    runtimeDir: string,
+    resolverSentinel: string,
+    typedSentinel: string,
+    bashExecutable = "bash",
+  ): Promise<{ exitCode: number; stdout: string; stderr: string }> {
+    return await new Promise((resolve) => {
+      execFile(
+        bashExecutable,
+        [wrapper, "derive-path"],
+        {
+          env: {
+            ...process.env,
+            DEVCANON_RUNTIME_DIR: runtimeDir,
+            DEVCANON_TEST_RESOLVER_SENTINEL: resolverSentinel,
+            DEVCANON_TEST_TYPED_SENTINEL: typedSentinel,
+          },
+          encoding: "utf8",
+        },
+        (error, stdout, stderr) => {
+          resolve({
+            exitCode:
+              error === null
+                ? 0
+                : typeof error.code === "number"
+                  ? error.code
+                  : 1,
+            stdout,
+            stderr,
+          });
+        },
+      );
+    });
+  }
+
+  async function expectAccepted(
+    runtimeDir: string,
+    resolverSentinel: string,
+    typedSentinel: string,
+    bashExecutable = "bash",
+  ): Promise<void> {
+    const result = await runWrapper(
+      runtimeDir,
+      resolverSentinel,
+      typedSentinel,
+      bashExecutable,
+    );
+    expect(result).toEqual({
+      exitCode: 0,
+      stdout: "runtime-ok\n",
+      stderr: "",
+    });
+    const executedSentinel =
+      process.platform === "win32" ? typedSentinel : resolverSentinel;
+    const idleSentinel =
+      process.platform === "win32" ? resolverSentinel : typedSentinel;
+    expect(await readFile(executedSentinel, "utf8")).toBe("executed\n");
+    await expect(readFile(idleSentinel, "utf8")).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+    await rm(executedSentinel);
+  }
+
+  async function expectRejected(
+    runtimeDir: string,
+    resolverSentinel: string,
+    typedSentinel: string,
+    expectedStderr: string,
+    bashExecutable = "bash",
+  ): Promise<void> {
+    const result = await runWrapper(
+      runtimeDir,
+      resolverSentinel,
+      typedSentinel,
+      bashExecutable,
+    );
+    expect(result).toEqual({
+      exitCode: 1,
+      stdout: "",
+      stderr: `${expectedStderr}\n`,
+    });
+    for (const sentinel of [resolverSentinel, typedSentinel]) {
+      await expect(readFile(sentinel, "utf8")).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+    }
+  }
+
+  it.runIf(process.platform !== "win32")(
+    "preserves POSIX backslashes, line feeds, and valid dot aliases despite a poisoned OSTYPE",
+    async () => {
+      const root = await mkdtemp(path.join(tmpdir(), "review-leases-posix-"));
+      try {
+        const ordinary = await writeRuntime(root, "ordinary-runtime");
+        await expectAccepted(
+          ordinary.runtimeDir,
+          ordinary.resolverSentinel,
+          ordinary.typedSentinel,
+        );
+        await expectAccepted(
+          `${ordinary.runtimeDir}/.`,
+          ordinary.resolverSentinel,
+          ordinary.typedSentinel,
+        );
+
+        const literalBackslashes = await writeRuntime(
+          root,
+          "literal\\..\\runtime",
+        );
+        await expectAccepted(
+          literalBackslashes.runtimeDir,
+          literalBackslashes.resolverSentinel,
+          literalBackslashes.typedSentinel,
+        );
+
+        const lineFeed = await writeRuntime(root, "line-feed-runtime\n");
+        await expectAccepted(
+          lineFeed.runtimeDir,
+          lineFeed.resolverSentinel,
+          lineFeed.typedSentinel,
+        );
+      } finally {
+        await rm(root, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it.runIf(process.platform !== "win32")(
+    "rejects POSIX traversal and final symlink aliases before resolver execution",
+    async () => {
+      const root = await mkdtemp(path.join(tmpdir(), "review-leases-link-"));
+      try {
+        const target = await writeRuntime(root, "target-runtime");
+        const linkedRuntime = path.join(root, "linked-runtime");
+        await symlink(target.runtimeDir, linkedRuntime);
+        const containmentError =
+          "DEVCANON_RUNTIME_DIR must name a non-symlink packaged runtime directory";
+        for (const spelling of [
+          linkedRuntime,
+          `${linkedRuntime}/`,
+          `${linkedRuntime}/.`,
+        ]) {
+          await expectRejected(
+            spelling,
+            target.resolverSentinel,
+            target.typedSentinel,
+            containmentError,
+          );
+        }
+        await expectRejected(
+          `${linkedRuntime}/scripts/..`,
+          target.resolverSentinel,
+          target.typedSentinel,
+          "DEVCANON_RUNTIME_DIR must not contain a parent-directory component",
+        );
+      } finally {
+        await rm(root, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it.runIf(process.platform === "darwin")(
+    "preserves the logical macOS /var ancestor alias",
+    async () => {
+      const root = await mkdtemp(path.join(tmpdir(), "review-leases-alias-"));
+      try {
+        const fixture = await writeRuntime(root, "runtime");
+        const logicalRoot = root.startsWith("/private/var/")
+          ? root.replace(/^\/private\/var\//u, "/var/")
+          : root;
+        const logicalRuntime = path.join(logicalRoot, "runtime");
+        await expectAccepted(
+          logicalRuntime,
+          fixture.resolverSentinel,
+          fixture.typedSentinel,
+        );
+      } finally {
+        await rm(root, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it.runIf(process.platform === "win32")(
+    "uses Git-for-Windows Bash capability for native and mixed-separator containment",
+    async () => {
+      const bashExecutable = await resolveGitForWindowsBash();
+      const { stdout: windowsPwd } = await execFileAsync(bashExecutable, [
+        "-lc",
+        "builtin pwd -W",
+      ]);
+      expect(Buffer.byteLength(windowsPwd, "utf8")).toBeLessThanOrEqual(65_536);
+      const windowsPwdRecord = /^([^\r\n]+)\r?\n$/u.exec(windowsPwd);
+      expect(windowsPwdRecord).not.toBeNull();
+      const reportedWindowsCwd = windowsPwdRecord?.[1] ?? "";
+      expect(path.win32.isAbsolute(reportedWindowsCwd)).toBe(true);
+      expect(path.win32.normalize(reportedWindowsCwd).toLowerCase()).toBe(
+        path.win32.normalize(process.cwd()).toLowerCase(),
+      );
+
+      const root = await mkdtemp(path.join(tmpdir(), "review-leases-windows-"));
+      try {
+        const fixture = await writeRuntime(root, "runtime");
+        const { stdout: nativeRuntime } = await execFileAsync(
+          bashExecutable as string,
+          ["-lc", 'cygpath -w "$DEVCANON_TEST_PATH"'],
+          {
+            env: {
+              ...process.env,
+              DEVCANON_TEST_PATH: fixture.runtimeDir,
+            },
+          },
+        );
+        const native = nativeRuntime.trim();
+        await expectAccepted(
+          native,
+          fixture.resolverSentinel,
+          fixture.typedSentinel,
+          bashExecutable,
+        );
+        await expectAccepted(
+          `${native}\\.`,
+          fixture.resolverSentinel,
+          fixture.typedSentinel,
+          bashExecutable,
+        );
+
+        const linkedRuntime = path.join(root, "linked-runtime");
+        await symlink(fixture.runtimeDir, linkedRuntime, "junction");
+        const { stdout: nativeLinkOutput } = await execFileAsync(
+          bashExecutable as string,
+          ["-lc", 'cygpath -w "$DEVCANON_TEST_PATH"'],
+          {
+            env: {
+              ...process.env,
+              DEVCANON_TEST_PATH: linkedRuntime,
+            },
+          },
+        );
+        const nativeLink = nativeLinkOutput.trim();
+        const containmentError =
+          "DEVCANON_RUNTIME_DIR must name a non-symlink packaged runtime directory";
+        for (const spelling of [
+          nativeLink,
+          `${nativeLink}\\`,
+          `${nativeLink}\\.`,
+          `${nativeLink.replace(/\\/gu, "/")}\\`,
+        ]) {
+          await expectRejected(
+            spelling,
+            fixture.resolverSentinel,
+            fixture.typedSentinel,
+            containmentError,
+            bashExecutable,
+          );
+        }
+        await expectRejected(
+          `${nativeLink}\\scripts/..`,
+          fixture.resolverSentinel,
+          fixture.typedSentinel,
+          "DEVCANON_RUNTIME_DIR must not contain a parent-directory component",
+          bashExecutable,
+        );
+        await expectRejected(
+          "\\\\?\\UNC\\localhost\\unavailable\\linked\\scripts\\..",
+          fixture.resolverSentinel,
+          fixture.typedSentinel,
+          "DEVCANON_RUNTIME_DIR must not contain a parent-directory component",
+          bashExecutable,
+        );
+      } finally {
+        await rm(root, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it.runIf(process.platform === "win32")(
+    "runs URL-representable real UNC runtime containment or reports the unavailable capability",
+    async ({ skip }) => {
+      const bashExecutable = await resolveGitForWindowsBash();
+      const root = await mkdtemp(
+        path.join(tmpdir(), "review-leases-windows-unc-"),
+      );
+      try {
+        const fixture = await writeRuntime(root, "runtime");
+        const { stdout: nativeRuntime } = await execFileAsync(
+          bashExecutable as string,
+          ["-lc", 'cygpath -w "$DEVCANON_TEST_PATH"'],
+          {
+            env: {
+              ...process.env,
+              DEVCANON_TEST_PATH: fixture.runtimeDir,
+            },
+          },
+        );
+        const native = nativeRuntime.trim();
+        const drive = native.slice(0, 1);
+        const computerName = process.env.COMPUTERNAME?.trim() ?? "";
+        if (
+          computerName.length === 0 ||
+          computerName.toLowerCase() === "localhost"
+        ) {
+          skip(
+            "UNC runtime integration unavailable: COMPUTERNAME does not provide a non-special host",
+          );
+        }
+        const uncRuntime = `\\\\${computerName}\\${drive}$${native.slice(2)}`;
+        try {
+          await realpath(uncRuntime);
+        } catch {
+          skip(
+            "UNC runtime integration unavailable: machine-name administrative drive share is not accessible",
+          );
+        }
+        const physicalTypedEntrypoint = await realpath(
+          path.win32.join(uncRuntime, "scripts", "runtime", "cli.js"),
+        );
+        const typedEntrypointUrl = pathToFileURL(physicalTypedEntrypoint);
+        expect(typedEntrypointUrl.hostname.toLowerCase()).toBe(
+          computerName.toLowerCase(),
+        );
+        expect(
+          path.win32.normalize(fileURLToPath(typedEntrypointUrl)).toLowerCase(),
+        ).toBe(path.win32.normalize(physicalTypedEntrypoint).toLowerCase());
+        await expectAccepted(
+          uncRuntime,
+          fixture.resolverSentinel,
+          fixture.typedSentinel,
+          bashExecutable,
+        );
+      } finally {
+        await rm(root, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it.runIf(process.platform === "win32")(
+    "rejects an accessible localhost UNC runtime before resolver or typed entrypoint execution",
+    async ({ skip }) => {
+      const bashExecutable = await resolveGitForWindowsBash();
+      const root = await mkdtemp(
+        path.join(tmpdir(), "review-leases-windows-localhost-unc-"),
+      );
+      try {
+        const fixture = await writeRuntime(root, "runtime");
+        const { stdout: nativeRuntime } = await execFileAsync(
+          bashExecutable as string,
+          ["-lc", 'cygpath -w "$DEVCANON_TEST_PATH"'],
+          {
+            env: {
+              ...process.env,
+              DEVCANON_TEST_PATH: fixture.runtimeDir,
+            },
+          },
+        );
+        const native = nativeRuntime.trim();
+        const drive = native.slice(0, 1);
+        const localhostUncRuntime = `\\\\localhost\\${drive}$${native.slice(2)}`;
+        try {
+          await realpath(localhostUncRuntime);
+        } catch {
+          skip(
+            "localhost UNC rejection unavailable: localhost administrative drive share is not accessible",
+          );
+        }
+        await expectRejected(
+          localhostUncRuntime,
+          fixture.resolverSentinel,
+          fixture.typedSentinel,
+          "devcanon-runtime typed entrypoint is not representable as a Windows file URL",
+          bashExecutable,
+        );
+      } finally {
+        await rm(root, { recursive: true, force: true });
+      }
+    },
+  );
+});
