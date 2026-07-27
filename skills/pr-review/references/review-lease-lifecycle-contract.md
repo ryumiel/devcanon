@@ -150,6 +150,17 @@ leases, and unverifiable replacement are invalid. Archived names use the
 closed digest, compact UTC timestamp, terminal-state filename grammar; other
 PR-matching lease names are invalid and are never hidden as history.
 
+The physical primary worktree is categorically ineligible for every
+non-`invalid` active classification, `resume` tuple, and lease-bearing or
+null-lease `cleanup`/delegation tuple. This exclusion covers exact spelling,
+lexical dot or ancestor aliases, case or separator aliases, final symlinks,
+junctions or reparse points, and any other spelling that resolves to the
+physical primary worktree. Registration, lease, cleanliness, and artifact
+evidence cannot turn the primary worktree or one of its aliases into review
+worktree authority. The producer and ordinary direct validator enforce the
+same exclusion, and resume-acceptance and cleanup owners independently retain
+their own physical-identity checks.
+
 Discovery has a prerequisite and preflight boundary before a routing result
 exists. Failure to bind the primary repository, root, or configuration
 authority, or any other pre-collection prerequisite failure, exits nonzero,

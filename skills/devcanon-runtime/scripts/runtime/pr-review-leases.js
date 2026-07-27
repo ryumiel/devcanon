@@ -267,11 +267,45 @@ async function validatePrReviewDiscoveryCommand(contents, identity) {
     const gitEnv = discoveryGitEnvironment();
     const primaryRepository = await assertDiscoveryPrimaryRoot(primaryRoot, gitEnv);
     await readDiscoveryRepositoryBinding(primaryRoot, primaryRepository, gitEnv, identity.repository);
-    return validatePrReviewDiscoveryJson(contents, {
+    const validated = validatePrReviewDiscoveryJson(contents, {
         ...identity,
         primaryRoot,
         platform,
     });
+    await assertDiscoveryRoutedWorktreesExcludePrimary(JSON.parse(validated), primaryRoot, platform);
+    return validated;
+}
+async function assertDiscoveryRoutedWorktreesExcludePrimary(result, primaryRoot, platform) {
+    const routedPaths = [
+        ...result.active
+            .filter((entry) => entry.classification !== "invalid" && entry.worktree_path !== null)
+            .map((entry) => entry.worktree_path),
+        ...(result.resume === null ? [] : [result.resume.worktree_path]),
+        ...(result.cleanup === null ? [] : [result.cleanup.worktree_path]),
+    ];
+    const primaryAuthority = discoveryWorktreeAuthorityComparablePath(primaryRoot, platform);
+    const inspected = new Set();
+    for (const routedPath of routedPaths) {
+        const requestedPath = discoveryFilesystemPath(routedPath, platform);
+        const lexicalAuthority = discoveryWorktreeAuthorityComparablePath(requestedPath, platform);
+        if (inspected.has(lexicalAuthority))
+            continue;
+        inspected.add(lexicalAuthority);
+        let physicalPath;
+        try {
+            physicalPath = await realpath(requestedPath);
+        }
+        catch (err) {
+            const code = err.code;
+            if (code === "ENOENT" || code === "ENOTDIR")
+                continue;
+            throw new PrReviewLeaseError("discovery worktree authority inspection failed");
+        }
+        if (discoveryWorktreeAuthorityComparablePath(physicalPath, platform) ===
+            primaryAuthority) {
+            throw new PrReviewLeaseError("discovery primary worktree authority mismatch");
+        }
+    }
 }
 function parseDiscoveryResult(value, platform) {
     if (!isObject(value)) {

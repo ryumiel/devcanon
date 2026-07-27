@@ -2179,8 +2179,17 @@ None
     expect(normalizedLeaseLifecycleReference).toContain(
       "optimistic repeated-observation evidence, not an atomic snapshot or transaction",
     );
+    expect(normalizedLeaseLifecycleReference).toContain(
+      "The physical primary worktree is categorically ineligible for every non-`invalid` active classification, `resume` tuple, and lease-bearing or null-lease `cleanup`/delegation tuple",
+    );
+    expect(normalizedLeaseLifecycleReference).toContain(
+      "The producer and ordinary direct validator enforce the same exclusion, and resume-acceptance and cleanup owners independently retain their own physical-identity checks",
+    );
     expect(discoveryAdr).toContain(
       "# ADR-0033: Read-Only PR-Review Session Discovery",
+    );
+    expect(discoveryAdr.replace(/\s+/g, " ")).toContain(
+      "The physical primary worktree is never eligible for a non-`invalid` active classification, `resume`, or `cleanup`/delegation tuple",
     );
     expect(discoveryAdr).toContain(
       "The substrate remains inactive until the transactional session-creation owner",

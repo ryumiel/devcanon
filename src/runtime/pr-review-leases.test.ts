@@ -7804,6 +7804,118 @@ describe("read-only PR review discovery planner", () => {
     });
   });
 
+  it.each(["exact", "final", "ancestor"] as const)(
+    "rejects crafted %s physical aliases to the primary root through direct and wrapper validation",
+    async (aliasKind) => {
+      const root = await createDiscoveryRepository();
+      const aliasRoot = path.join(
+        path.dirname(root),
+        `${path.basename(root)}-${aliasKind}-alias`,
+      );
+      const alias =
+        aliasKind === "exact"
+          ? root
+          : aliasKind === "final"
+            ? aliasRoot
+            : path.join(aliasRoot, path.basename(root));
+      if (aliasKind !== "exact") {
+        discoveryTempRoots.push(aliasRoot);
+        await symlink(
+          aliasKind === "final" ? root : path.dirname(root),
+          aliasRoot,
+          process.platform === "win32" ? "junction" : "dir",
+        );
+      }
+      const leaseFile = `.ephemeral/pr-432-${discoveryDigest(alias)}-lease.json`;
+      const canonicalTarget = {
+        worktree_path: path.join(root, ".worktrees", "pr-432-review"),
+        status: "absent" as const,
+        registered: false,
+        parent_status: "directory" as const,
+      };
+      const resume = reducePrReviewDiscovery({
+        repository: "owner/repo",
+        pr_number: 432,
+        primary_repository_root: root,
+        canonical_target: canonicalTarget,
+        registrations: [alias],
+        active: [
+          {
+            lease_file: leaseFile,
+            worktree_path: alias,
+            state: "created",
+            classification: "resumable",
+            reason: "resumable",
+          },
+        ],
+        archived: [],
+        invalid: [],
+        comparison_platform: process.platform,
+      });
+      const cleanup = reducePrReviewDiscovery({
+        ...resume,
+        active: [
+          {
+            lease_file: leaseFile,
+            worktree_path: alias,
+            state: "created",
+            classification: "dirty",
+            reason: "worktree-dirty",
+          },
+        ],
+        comparison_platform: process.platform,
+      });
+      const args = [
+        "validate-discovery",
+        "--repository",
+        "owner/repo",
+        "--pr-number",
+        "432",
+        "--primary-root",
+        root,
+      ];
+      for (const result of [resume, cleanup]) {
+        const input = JSON.stringify(result);
+        const expected = {
+          exitCode: 1,
+          stdout: "",
+          stderr: "discovery primary worktree authority mismatch\n",
+        };
+        await expect(
+          runPrReviewLeasesCommand(args, Buffer.from(input)),
+        ).resolves.toEqual(expected);
+        await expect(
+          runPrReviewLeasesWrapper(args, process.env, input),
+        ).resolves.toEqual(expected);
+      }
+    },
+  );
+
+  it("directly validates an ordinary physical candidate worktree", async () => {
+    const root = await createDiscoveryRepository();
+    const worktree = await createDiscoveryWorktree(
+      root,
+      "physical-validator-positive",
+    );
+    await writeDiscoveryLease(root, discoveryLease(worktree));
+    const discovery = await runDiscoveryCommand(root);
+    expect(discovery.exitCode, discovery.stderr).toBe(0);
+    await expect(
+      runPrReviewLeasesCommand(
+        [
+          "validate-discovery",
+          "--repository",
+          "owner/repo",
+          "--pr-number",
+          "432",
+          "--primary-root",
+          root,
+        ],
+        Buffer.from(discovery.stdout),
+      ),
+    ).resolves.toMatchObject({ exitCode: 0, stderr: "" });
+  });
+
   it.each(["pr-432-review", "alternate-432"])(
     "resumes one canonical or alternate clean artifact-free created lease: %s",
     async (leaf) => {

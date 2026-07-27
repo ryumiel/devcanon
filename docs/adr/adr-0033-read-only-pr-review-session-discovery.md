@@ -45,6 +45,16 @@ existing lifecycle or artifact owner. Discovery does not consume those
 artifacts and does not authorize cleanup. A null-lease canonical collision is
 a manual stop.
 
+The physical primary worktree is never eligible for a non-`invalid` active
+classification, `resume`, or `cleanup`/delegation tuple. Exact, lexical,
+case/separator, symlink, junction/reparse, ancestor, and other resolved aliases
+of the primary worktree are excluded even when registration, lease,
+cleanliness, artifact, and tuple-correlation evidence would otherwise look
+valid. Producer discovery and ordinary direct validation enforce the same
+physical exclusion; immediate resume acceptance and cleanup retain their own
+independent revalidation. This does not activate discovery or grant any new
+mutation authority.
+
 The producer and direct consumer use a closed, identity-bound discovery object.
 Before routing, validation checks repository and pull-request identity,
 normalized primary-root identity, canonical-target observations, finite

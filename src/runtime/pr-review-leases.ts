@@ -689,11 +689,66 @@ async function validatePrReviewDiscoveryCommand(
     gitEnv,
     identity.repository,
   );
-  return validatePrReviewDiscoveryJson(contents, {
+  const validated = validatePrReviewDiscoveryJson(contents, {
     ...identity,
     primaryRoot,
     platform,
   });
+  await assertDiscoveryRoutedWorktreesExcludePrimary(
+    JSON.parse(validated) as PrReviewDiscoveryResult,
+    primaryRoot,
+    platform,
+  );
+  return validated;
+}
+
+async function assertDiscoveryRoutedWorktreesExcludePrimary(
+  result: PrReviewDiscoveryResult,
+  primaryRoot: string,
+  platform: NodeJS.Platform,
+): Promise<void> {
+  const routedPaths = [
+    ...result.active
+      .filter(
+        (entry) =>
+          entry.classification !== "invalid" && entry.worktree_path !== null,
+      )
+      .map((entry) => entry.worktree_path as string),
+    ...(result.resume === null ? [] : [result.resume.worktree_path]),
+    ...(result.cleanup === null ? [] : [result.cleanup.worktree_path]),
+  ];
+  const primaryAuthority = discoveryWorktreeAuthorityComparablePath(
+    primaryRoot,
+    platform,
+  );
+  const inspected = new Set<string>();
+  for (const routedPath of routedPaths) {
+    const requestedPath = discoveryFilesystemPath(routedPath, platform);
+    const lexicalAuthority = discoveryWorktreeAuthorityComparablePath(
+      requestedPath,
+      platform,
+    );
+    if (inspected.has(lexicalAuthority)) continue;
+    inspected.add(lexicalAuthority);
+    let physicalPath: string;
+    try {
+      physicalPath = await realpath(requestedPath);
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException).code;
+      if (code === "ENOENT" || code === "ENOTDIR") continue;
+      throw new PrReviewLeaseError(
+        "discovery worktree authority inspection failed",
+      );
+    }
+    if (
+      discoveryWorktreeAuthorityComparablePath(physicalPath, platform) ===
+      primaryAuthority
+    ) {
+      throw new PrReviewLeaseError(
+        "discovery primary worktree authority mismatch",
+      );
+    }
+  }
 }
 
 function parseDiscoveryResult(
