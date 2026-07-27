@@ -2135,7 +2135,13 @@ None
     expect(leaseHelper).toContain("read-status");
     expect(leaseHelper).toContain("record-audit-failure");
     expect(leaseHelper).toContain(
-      'exec "$runtime" runtime pr-review-leases "$command_name" "$@"',
+      'exec "$trusted_runtime" bootstrap --runtime-dir "$DEVCANON_RUNTIME_DIR" -- pr-review-leases "$command_name" "$@"',
+    );
+    expect(leaseHelper).toContain(
+      'exec "$trusted_runtime" runtime pr-review-leases "$command_name" "$@"',
+    );
+    expect(leaseHelper).not.toContain(
+      '"$DEVCANON_RUNTIME_DIR/scripts/devcanon-runtime.sh"',
     );
     expect(leaseHelper).toContain(
       "derive-path | discover | validate-discovery | write",

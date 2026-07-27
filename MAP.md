@@ -224,8 +224,12 @@ Quick navigation index for the DevCanon repository.
 - Where are shared runtime artifact write utilities? -> [`src/runtime/artifacts.ts`](src/runtime/artifacts.ts)
 - Where are shared runtime schema utilities? -> [`src/runtime/schema.ts`](src/runtime/schema.ts)
 - Where are shared runtime command helpers? -> [`src/runtime/command.ts`](src/runtime/command.ts)
+- Where is the authoritative trusted runtime bootstrap? ->
+  [`src/runtime/bootstrap.ts`](src/runtime/bootstrap.ts)
 - Where is the packaged runtime JavaScript entrypoint? ->
   [`skills/devcanon-runtime/scripts/runtime/cli.js`](skills/devcanon-runtime/scripts/runtime/cli.js)
+- Where is the packaged trusted bootstrap entrypoint? ->
+  [`skills/devcanon-runtime/scripts/runtime/bootstrap-cli.js`](skills/devcanon-runtime/scripts/runtime/bootstrap-cli.js)
 
 ---
 
