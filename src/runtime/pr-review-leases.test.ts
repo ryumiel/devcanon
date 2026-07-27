@@ -1,4 +1,4 @@
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
   chmod,
@@ -62,6 +62,9 @@ function discoveryGitlinkRecord(pathBytes: Buffer | string, tag = "H"): Buffer {
 }
 
 const discoveryGitAdapterLogName = "git-adapter.log";
+const discoveryGitNativeOwnerLogName = "git-native-owner.log";
+const discoveryGitNativeOwnerShutdownName = "git-native-owner.shutdown";
+const discoveryGitNativeOwnerLogMaxBytes = 4 * 1024 * 1024;
 let discoveryGitWindowsLauncherRoot: string | undefined;
 let discoveryGitWindowsLauncher: string | undefined;
 let discoveryGitWindowsBash: string | undefined;
@@ -71,10 +74,15 @@ const discoveryGitWindowsLauncherSource = String.raw`
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Security.Cryptography;
 using System.Text;
+using System.Threading;
 
 public static class DevCanonDiscoveryGitLauncher
 {
+    private const int NativeOwnerRecordMaxBytes = 65536;
+    private const int NativeOwnerLogMaxBytes = 4 * 1024 * 1024;
+
     private static string QuoteWindowsArgument(string value)
     {
         if (value.Length > 0 &&
@@ -127,10 +135,267 @@ public static class DevCanonDiscoveryGitLauncher
         stream.WriteByte(0);
     }
 
+    private static string ReadUtf8File(string path)
+    {
+        return File.ReadAllText(path, new UTF8Encoding(false, true));
+    }
+
+    private static string NativeCommandIdentity(
+        string operation,
+        string[] args)
+    {
+        using (SHA256 sha256 = SHA256.Create())
+        using (MemoryStream input = new MemoryStream())
+        {
+            WriteField(input, operation);
+            foreach (string argument in args)
+            {
+                WriteField(input, argument);
+            }
+            byte[] digest = sha256.ComputeHash(input.ToArray());
+            StringBuilder identity = new StringBuilder(digest.Length * 2);
+            foreach (byte value in digest)
+            {
+                identity.Append(value.ToString("x2"));
+            }
+            return identity.ToString();
+        }
+    }
+
+    private static void AppendNativeOwnerRecord(
+        string logPath,
+        params string[] fields)
+    {
+        byte[] record;
+        using (MemoryStream encoded = new MemoryStream())
+        {
+            foreach (string field in fields)
+            {
+                WriteField(encoded, field);
+            }
+            record = encoded.ToArray();
+        }
+        if (record.Length > NativeOwnerRecordMaxBytes)
+        {
+            throw new InvalidOperationException(
+                "native owner record exceeds its bound"
+            );
+        }
+
+        for (int attempt = 0; attempt < 200; attempt++)
+        {
+            try
+            {
+                using (FileStream log = new FileStream(
+                    logPath,
+                    FileMode.OpenOrCreate,
+                    FileAccess.Write,
+                    FileShare.Read))
+                {
+                    if (log.Length + record.Length > NativeOwnerLogMaxBytes)
+                    {
+                        throw new InvalidOperationException(
+                            "native owner log exceeds its bound"
+                        );
+                    }
+                    log.Seek(0, SeekOrigin.End);
+                    log.Write(record, 0, record.Length);
+                    log.Flush();
+                    return;
+                }
+            }
+            catch (IOException)
+            {
+                if (attempt == 199)
+                {
+                    throw;
+                }
+                Thread.Sleep(5);
+            }
+        }
+    }
+
+    private static bool ContainsOrderedArguments(
+        string[] args,
+        params string[] expected)
+    {
+        int matched = 0;
+        foreach (string argument in args)
+        {
+            if (argument == expected[matched])
+            {
+                matched++;
+                if (matched == expected.Length)
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static int RunNativeOwnedGit(
+        string nativeGit,
+        string ownerLog,
+        string shutdownLatch,
+        string operation,
+        string[] args)
+    {
+        int ownerPid = Process.GetCurrentProcess().Id;
+        string identity = NativeCommandIdentity(operation, args);
+        if (File.Exists(shutdownLatch))
+        {
+            AppendNativeOwnerRecord(
+                ownerLog,
+                "REJECT",
+                operation,
+                identity,
+                ownerPid.ToString(),
+                "125");
+            return 125;
+        }
+
+        ProcessStartInfo start = new ProcessStartInfo();
+        start.FileName = nativeGit;
+        start.UseShellExecute = false;
+        start.CreateNoWindow = true;
+        StringBuilder commandLine = new StringBuilder();
+        foreach (string argument in args)
+        {
+            AppendWindowsArgument(commandLine, argument);
+        }
+        start.Arguments = commandLine.ToString();
+
+        using (Process child = Process.Start(start))
+        {
+            string[] begin = new string[7 + args.Length];
+            begin[0] = "BEGIN";
+            begin[1] = operation;
+            begin[2] = identity;
+            begin[3] = ownerPid.ToString();
+            begin[4] = child.Id.ToString();
+            begin[5] = args.Length.ToString();
+            for (int index = 0; index < args.Length; index++)
+            {
+                begin[6 + index] = args[index];
+            }
+            begin[6 + args.Length] = "BEGIN_END";
+            AppendNativeOwnerRecord(ownerLog, begin);
+            child.WaitForExit();
+            int childExit = child.ExitCode;
+            AppendNativeOwnerRecord(
+                ownerLog,
+                "END",
+                operation,
+                identity,
+                ownerPid.ToString(),
+                childExit.ToString());
+            return childExit;
+        }
+    }
+
+    private static int RunNativeOwner(
+        string adapterDirectory,
+        string[] args)
+    {
+        string nativeGit = ReadUtf8File(
+            Path.Combine(adapterDirectory, "git-native.path")
+        ).TrimEnd('\r', '\n');
+        string scenarioKind = ReadUtf8File(
+            Path.Combine(adapterDirectory, "git-native-owner.kind")
+        ).TrimEnd('\r', '\n');
+        string mutationRoot = ReadUtf8File(
+            Path.Combine(adapterDirectory, "git-native-owner.root")
+        );
+        string marker = ReadUtf8File(
+            Path.Combine(adapterDirectory, "git-native-owner.marker")
+        );
+        string ownerLog = Path.Combine(
+            adapterDirectory,
+            "git-native-owner.log");
+        string shutdownLatch = Path.Combine(
+            adapterDirectory,
+            "git-native-owner.shutdown");
+        if (!Path.IsPathRooted(nativeGit) || !File.Exists(nativeGit))
+        {
+            throw new InvalidOperationException(
+                "native Git implementation is unavailable"
+            );
+        }
+
+        bool targeted =
+            scenarioKind == "primary" &&
+            ContainsOrderedArguments(
+                args,
+                "worktree",
+                "list",
+                "--porcelain",
+                "-z") ||
+            scenarioKind == "candidate" &&
+            ContainsOrderedArguments(args, "status", "--porcelain=v1");
+        int commandExit = RunNativeOwnedGit(
+            nativeGit,
+            ownerLog,
+            shutdownLatch,
+            targeted ? scenarioKind + "-target" : "pass-through",
+            args);
+        if (commandExit != 0 || !targeted || File.Exists(marker))
+        {
+            return commandExit;
+        }
+        if (File.Exists(shutdownLatch))
+        {
+            return 125;
+        }
+
+        int resetExit = RunNativeOwnedGit(
+            nativeGit,
+            ownerLog,
+            shutdownLatch,
+            "mutation-reset",
+            new[] {
+                "-C",
+                mutationRoot,
+                "config",
+                "--worktree",
+                "--replace-all",
+                "remote.origin.url",
+                ""
+            });
+        if (resetExit != 0)
+        {
+            return resetExit;
+        }
+        int addExit = RunNativeOwnedGit(
+            nativeGit,
+            ownerLog,
+            shutdownLatch,
+            "mutation-add",
+            new[] {
+                "-C",
+                mutationRoot,
+                "config",
+                "--worktree",
+                "--add",
+                "remote.origin.url",
+                "https://github.com/foreign/repo.git"
+            });
+        if (addExit != 0)
+        {
+            return addExit;
+        }
+        File.WriteAllText(marker, "fired", new UTF8Encoding(false, true));
+        return 0;
+    }
+
     public static int Main(string[] args)
     {
         string executable = Process.GetCurrentProcess().MainModule.FileName;
         string adapterDirectory = Path.GetDirectoryName(executable);
+        if (File.Exists(Path.Combine(adapterDirectory, "git-native.path")))
+        {
+            return RunNativeOwner(adapterDirectory, args);
+        }
         string implementation = Path.Combine(adapterDirectory, "git.impl");
         string logPath = Path.Combine(adapterDirectory, "git-adapter.log");
         string bashPath = File.ReadAllText(
@@ -281,6 +546,38 @@ async function resolveGitForWindowsBash(): Promise<string> {
     } catch {}
   }
   throw new Error("Git-for-Windows Bash is unavailable");
+}
+
+async function resolveCanonicalPhysicalGit(): Promise<string> {
+  if (process.platform !== "win32") {
+    const { stdout } = await execFileAsync("sh", ["-c", "command -v git"]);
+    const resolved = stdout.trim();
+    if (resolved.length === 0) {
+      throw new Error("physical Git implementation is unavailable");
+    }
+    return await realpath(resolved);
+  }
+  const { stdout } = await execFileAsync("where.exe", ["git.exe"]);
+  for (const candidate of stdout.split(/\r?\n/gu)) {
+    if (!path.win32.isAbsolute(candidate)) continue;
+    try {
+      if (!(await lstat(candidate)).isFile()) continue;
+      return await realpath(candidate);
+    } catch {}
+  }
+  throw new Error("physical Git implementation is unavailable");
+}
+
+async function resolveInboxWindowsTaskkill(): Promise<string> {
+  const systemRoot = process.env.SystemRoot;
+  if (systemRoot === undefined || !path.win32.isAbsolute(systemRoot)) {
+    throw new Error("SystemRoot is unavailable; cannot resolve taskkill.exe");
+  }
+  const taskkill = path.win32.join(systemRoot, "System32", "taskkill.exe");
+  if (!(await lstat(taskkill)).isFile()) {
+    throw new Error(`inbox taskkill.exe is unavailable: ${taskkill}`);
+  }
+  return taskkill;
 }
 
 async function toGitBashPath(nativePath: string): Promise<string> {
@@ -4438,6 +4735,172 @@ async function discoveryGitAdapterEntryCount(): Promise<number> {
   }
 }
 
+interface DiscoveryGitNativeOwnerBegin {
+  args: string[];
+  childPid: number;
+  commandIdentity: string;
+  operation: string;
+  ownerPid: number;
+  type: "BEGIN";
+}
+
+interface DiscoveryGitNativeOwnerEnd {
+  childExit: number;
+  commandIdentity: string;
+  operation: string;
+  ownerPid: number;
+  type: "END";
+}
+
+interface DiscoveryGitNativeOwnerReject {
+  childExit: number;
+  commandIdentity: string;
+  operation: string;
+  ownerPid: number;
+  type: "REJECT";
+}
+
+type DiscoveryGitNativeOwnerRecord =
+  | DiscoveryGitNativeOwnerBegin
+  | DiscoveryGitNativeOwnerEnd
+  | DiscoveryGitNativeOwnerReject;
+
+function parseDiscoveryGitNativeOwnerInteger(
+  value: string | undefined,
+  field: string,
+): number {
+  if (value === undefined || !/^-?(?:0|[1-9]\d*)$/u.test(value)) {
+    throw new Error(`native owner ${field} is malformed`);
+  }
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed)) {
+    throw new Error(`native owner ${field} is outside its safe domain`);
+  }
+  return parsed;
+}
+
+async function readDiscoveryGitNativeOwnerRecords(
+  ownerLog: string,
+): Promise<DiscoveryGitNativeOwnerRecord[]> {
+  let raw: Buffer;
+  try {
+    raw = await readFile(ownerLog);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+    throw error;
+  }
+  if (raw.byteLength > discoveryGitNativeOwnerLogMaxBytes) {
+    throw new Error("native owner log exceeds its bound");
+  }
+  const fields = raw.toString("utf8").split("\0");
+  if (fields.pop() !== "") {
+    throw new Error("native owner log is not NUL terminated");
+  }
+  const records: DiscoveryGitNativeOwnerRecord[] = [];
+  let offset = 0;
+  while (offset < fields.length) {
+    const type = fields[offset++];
+    const operation = fields[offset++];
+    const commandIdentity = fields[offset++];
+    const ownerPid = parseDiscoveryGitNativeOwnerInteger(
+      fields[offset++],
+      "owner PID",
+    );
+    if (
+      operation === undefined ||
+      operation.length === 0 ||
+      commandIdentity === undefined ||
+      !/^[0-9a-f]{64}$/u.test(commandIdentity)
+    ) {
+      throw new Error("native owner command identity is malformed");
+    }
+    if (ownerPid <= 0) {
+      throw new Error("native owner PID is outside its positive domain");
+    }
+    if (type === "BEGIN") {
+      const childPid = parseDiscoveryGitNativeOwnerInteger(
+        fields[offset++],
+        "child PID",
+      );
+      const argumentCount = parseDiscoveryGitNativeOwnerInteger(
+        fields[offset++],
+        "argument count",
+      );
+      if (childPid <= 0 || argumentCount < 0) {
+        throw new Error("native owner BEGIN integers are outside their domain");
+      }
+      const args = fields.slice(offset, offset + argumentCount);
+      if (
+        args.length !== argumentCount ||
+        fields[offset + argumentCount] !== "BEGIN_END"
+      ) {
+        throw new Error("native owner BEGIN record is truncated");
+      }
+      offset += argumentCount + 1;
+      records.push({
+        args,
+        childPid,
+        commandIdentity,
+        operation,
+        ownerPid,
+        type,
+      });
+      continue;
+    }
+    if (type === "END" || type === "REJECT") {
+      const childExit = parseDiscoveryGitNativeOwnerInteger(
+        fields[offset++],
+        "terminal status",
+      );
+      records.push({
+        childExit,
+        commandIdentity,
+        operation,
+        ownerPid,
+        type,
+      });
+      continue;
+    }
+    throw new Error("native owner record type is malformed");
+  }
+  return records;
+}
+
+function discoveryGitNativeOwnerActiveChildren(
+  records: readonly DiscoveryGitNativeOwnerRecord[],
+): DiscoveryGitNativeOwnerBegin[] {
+  const active = new Map<string, DiscoveryGitNativeOwnerBegin>();
+  for (const record of records) {
+    const key = `${record.ownerPid}:${record.commandIdentity}`;
+    if (record.type === "BEGIN") {
+      if (active.has(key)) {
+        throw new Error("native owner command identity was reused");
+      }
+      active.set(key, record);
+      continue;
+    }
+    if (record.type === "END") {
+      if (!active.delete(key)) {
+        throw new Error("native owner END has no matching BEGIN");
+      }
+    }
+  }
+  return [...active.values()];
+}
+
+async function waitForDiscoveryGitNativeOwnerBegin(
+  ownerLog: string,
+): Promise<DiscoveryGitNativeOwnerBegin> {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const active = discoveryGitNativeOwnerActiveChildren(
+      await readDiscoveryGitNativeOwnerRecords(ownerLog),
+    );
+    if (active.length > 0) return active[0];
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  throw new Error("native owner did not record an active child");
+}
+
 async function expectDiscoveryGitAdapterEntry(
   root: string,
   expectedArguments: readonly string[],
@@ -4948,6 +5411,76 @@ describe("read-only PR review discovery planner", () => {
       "start.Environment[",
     );
     expect(discoveryGitWindowsLauncherSource).not.toContain("ArgumentList");
+    expect(discoveryGitWindowsLauncherSource).toContain(
+      "start.FileName = nativeGit;",
+    );
+    expect(discoveryGitWindowsLauncherSource).toContain(
+      '"git-native-owner.shutdown"',
+    );
+    expect(discoveryGitWindowsLauncherSource).toContain('begin[0] = "BEGIN";');
+    expect(discoveryGitWindowsLauncherSource).toContain('"REJECT",');
+    expect(discoveryGitWindowsLauncherSource).toContain(
+      "AppendNativeOwnerRecord(ownerLog, begin);",
+    );
+  });
+
+  it("parses bounded native owner lifecycle records", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "native-owner-log-"));
+    discoveryTempRoots.push(root);
+    const ownerLog = path.join(root, discoveryGitNativeOwnerLogName);
+    const identityValue = "a".repeat(64);
+    await writeFile(
+      ownerLog,
+      [
+        "BEGIN",
+        "pass-through",
+        identityValue,
+        "101",
+        "202",
+        "2",
+        "status",
+        "--porcelain=v1",
+        "BEGIN_END",
+        "END",
+        "pass-through",
+        identityValue,
+        "101",
+        "0",
+        "REJECT",
+        "pass-through",
+        "b".repeat(64),
+        "303",
+        "125",
+        "",
+      ].join("\0"),
+    );
+
+    const records = await readDiscoveryGitNativeOwnerRecords(ownerLog);
+    expect(records).toEqual([
+      {
+        args: ["status", "--porcelain=v1"],
+        childPid: 202,
+        commandIdentity: identityValue,
+        operation: "pass-through",
+        ownerPid: 101,
+        type: "BEGIN",
+      },
+      {
+        childExit: 0,
+        commandIdentity: identityValue,
+        operation: "pass-through",
+        ownerPid: 101,
+        type: "END",
+      },
+      {
+        childExit: 125,
+        commandIdentity: "b".repeat(64),
+        operation: "pass-through",
+        ownerPid: 303,
+        type: "REJECT",
+      },
+    ]);
+    expect(discoveryGitNativeOwnerActiveChildren(records)).toEqual([]);
   });
 
   it.runIf(process.platform === "win32")(
@@ -5648,11 +6181,15 @@ describe("read-only PR review discovery planner", () => {
     interface OriginDriftScenario {
       lease: PrReviewLease | null;
       marker: string;
+      nativeOwnerLog: string;
       ownedRoots: string[];
       previousAdapterLog: string | undefined;
       previousPath: string | undefined;
       root: string;
+      shutdownLatch: string;
       task: Promise<void> | null;
+      taskkill: string | null;
+      wrapperDir: string;
     }
 
     let scenario: OriginDriftScenario | undefined;
@@ -5680,13 +6217,11 @@ describe("read-only PR review discovery planner", () => {
       ]);
       const wrapperDir = await mkdtemp(path.join(tmpdir(), "git-wrapper-"));
       discoveryTempRoots.push(wrapperDir);
+      const physicalGit = await resolveCanonicalPhysicalGit();
       const marker = path.join(
         wrapperDir,
         `${kind === "primary" ? "primary" : "candidate"}-origin-mutated`,
       );
-      const realGit = (
-        await execFileAsync("sh", ["-c", "command -v git"])
-      ).stdout.trim();
       const wrapper = path.join(wrapperDir, "git");
       const gitMutationRoot = await toGitBashPath(mutationRoot);
       const commandPattern =
@@ -5699,21 +6234,42 @@ describe("read-only PR review discovery planner", () => {
           "#!/bin/sh",
           'case " $* " in',
           commandPattern,
-          `    '${realGit}' "$@"`,
+          `    '${physicalGit}' "$@"`,
           "    status=$?",
           `    if [ ! -f '${await toGitBashPath(marker)}' ]; then`,
-          `      '${realGit}' -C '${gitMutationRoot}' config --worktree --replace-all remote.origin.url ''`,
-          `      '${realGit}' -C '${gitMutationRoot}' config --worktree --add remote.origin.url https://github.com/foreign/repo.git`,
+          `      '${physicalGit}' -C '${gitMutationRoot}' config --worktree --replace-all remote.origin.url ''`,
+          `      '${physicalGit}' -C '${gitMutationRoot}' config --worktree --add remote.origin.url https://github.com/foreign/repo.git`,
           `      printf fired >'${await toGitBashPath(marker)}'`,
           "    fi",
           '    exit "$status"',
           "    ;;",
           "esac",
-          `exec '${realGit}' "$@"`,
+          `exec '${physicalGit}' "$@"`,
           "",
         ].join("\n"),
       );
       await makeDiscoveryGitWrapperExecutable(wrapper);
+      const nativeOwnerLog = path.join(
+        wrapperDir,
+        discoveryGitNativeOwnerLogName,
+      );
+      const shutdownLatch = path.join(
+        wrapperDir,
+        discoveryGitNativeOwnerShutdownName,
+      );
+      let taskkill: string | null = null;
+      if (process.platform === "win32") {
+        taskkill = await resolveInboxWindowsTaskkill();
+        await Promise.all([
+          writeFile(path.join(wrapperDir, "git-native.path"), physicalGit),
+          writeFile(path.join(wrapperDir, "git-native-owner.kind"), kind),
+          writeFile(
+            path.join(wrapperDir, "git-native-owner.root"),
+            mutationRoot,
+          ),
+          writeFile(path.join(wrapperDir, "git-native-owner.marker"), marker),
+        ]);
+      }
       const ownedRoots = discoveryTempRoots.splice(ownedRootStart);
       if (ownedRoots.length !== 2) {
         throw new Error("discovery fixture root ownership is ambiguous");
@@ -5722,28 +6278,113 @@ describe("read-only PR review discovery planner", () => {
       return {
         lease,
         marker,
+        nativeOwnerLog,
         ownedRoots,
         previousAdapterLog,
         previousPath,
         root,
+        shutdownLatch,
         task: null,
+        taskkill,
+        wrapperDir,
       };
+    };
+
+    const shutdownScenario = async (
+      activeScenario: OriginDriftScenario,
+      options: { proveLatchRejection?: boolean } = {},
+    ): Promise<DiscoveryGitNativeOwnerRecord[]> => {
+      await writeFile(activeScenario.shutdownLatch, "shutdown");
+      if (
+        process.platform === "win32" &&
+        options.proveLatchRejection === true
+      ) {
+        await expect(
+          execFileAsync("git", ["--version"], { env: process.env }),
+        ).rejects.toMatchObject({
+          code: 125,
+          stdout: "",
+        });
+      }
+      let taskSettled = activeScenario.task === null;
+      const taskSettlement =
+        activeScenario.task?.then(
+          () => {
+            taskSettled = true;
+          },
+          () => {
+            taskSettled = true;
+          },
+        ) ?? Promise.resolve();
+      if (process.platform === "win32") {
+        if (activeScenario.taskkill === null) {
+          throw new Error("native process-tree terminator is unavailable");
+        }
+        for (let attempt = 0; attempt < 200 && !taskSettled; attempt += 1) {
+          const activeChildren = discoveryGitNativeOwnerActiveChildren(
+            await readDiscoveryGitNativeOwnerRecords(
+              activeScenario.nativeOwnerLog,
+            ),
+          );
+          await Promise.all(
+            activeChildren.map(async ({ childPid }) => {
+              try {
+                await execFileAsync(activeScenario.taskkill as string, [
+                  "/PID",
+                  String(childPid),
+                  "/T",
+                  "/F",
+                ]);
+              } catch (error) {
+                const exitCode = (
+                  error as NodeJS.ErrnoException & {
+                    code?: number;
+                  }
+                ).code;
+                if (exitCode !== 128) throw error;
+              }
+            }),
+          );
+          if (taskSettled) break;
+          await Promise.race([
+            taskSettlement,
+            new Promise((resolve) => setTimeout(resolve, 25)),
+          ]);
+        }
+        if (!taskSettled) {
+          throw new Error(
+            "native owner task did not settle after process-tree termination",
+          );
+        }
+      }
+      await taskSettlement;
+      const ownerRecords =
+        process.platform === "win32"
+          ? await readDiscoveryGitNativeOwnerRecords(
+              activeScenario.nativeOwnerLog,
+            )
+          : [];
+      if (
+        process.platform === "win32" &&
+        discoveryGitNativeOwnerActiveChildren(ownerRecords).length > 0
+      ) {
+        throw new Error("native owner retained an active child after shutdown");
+      }
+      if (activeScenario.previousPath === undefined) {
+        Reflect.deleteProperty(process.env, "PATH");
+      } else {
+        process.env.PATH = activeScenario.previousPath;
+      }
+      activeDiscoveryGitAdapterLog = activeScenario.previousAdapterLog;
+      for (const ownedRoot of activeScenario.ownedRoots) {
+        await rm(ownedRoot, { recursive: true, force: true });
+      }
+      return ownerRecords;
     };
 
     afterEach(async () => {
       if (scenario === undefined) return;
-      if (scenario.task !== null) {
-        await scenario.task.catch(() => undefined);
-      }
-      if (scenario.previousPath === undefined) {
-        Reflect.deleteProperty(process.env, "PATH");
-      } else {
-        process.env.PATH = scenario.previousPath;
-      }
-      activeDiscoveryGitAdapterLog = scenario.previousAdapterLog;
-      for (const ownedRoot of scenario.ownedRoots) {
-        await rm(ownedRoot, { recursive: true, force: true });
-      }
+      await shutdownScenario(scenario);
       scenario = undefined;
     });
 
@@ -5759,12 +6400,25 @@ describe("read-only PR review discovery planner", () => {
           const result = await runDiscovery(activeScenario.root);
           expect(await readFile(activeScenario.marker, "utf8")).toBe("fired");
           expect(result.disposition).toBe("invalid");
+          expect(result.resume).toBeNull();
           expect(result.invalid).toContainEqual({
             path: ".",
             reason: "discovery-snapshot-changed",
           });
         })();
         await activeScenario.task;
+        if (process.platform === "win32") {
+          const records = await readDiscoveryGitNativeOwnerRecords(
+            activeScenario.nativeOwnerLog,
+          );
+          expect(records).toContainEqual(
+            expect.objectContaining({
+              operation: "primary-target",
+              type: "BEGIN",
+            }),
+          );
+          expect(discoveryGitNativeOwnerActiveChildren(records)).toEqual([]);
+        }
       });
     });
 
@@ -5783,6 +6437,7 @@ describe("read-only PR review discovery planner", () => {
           const result = await runDiscovery(activeScenario.root);
           expect(await readFile(activeScenario.marker, "utf8")).toBe("fired");
           expect(result.disposition).toBe("invalid");
+          expect(result.resume).toBeNull();
           expect(result.active).toContainEqual(
             expect.objectContaining({
               lease_file: leaseFile,
@@ -5792,8 +6447,87 @@ describe("read-only PR review discovery planner", () => {
           );
         })();
         await activeScenario.task;
+        if (process.platform === "win32") {
+          const records = await readDiscoveryGitNativeOwnerRecords(
+            activeScenario.nativeOwnerLog,
+          );
+          expect(records).toContainEqual(
+            expect.objectContaining({
+              operation: "candidate-target",
+              type: "BEGIN",
+            }),
+          );
+          expect(discoveryGitNativeOwnerActiveChildren(records)).toEqual([]);
+        }
       });
     });
+
+    it.runIf(process.platform === "win32")(
+      "terminates pending native ownership before the following scenario",
+      async () => {
+        scenario = await setupScenario("primary");
+        const pendingScenario = scenario;
+        const pendingGit = spawn(
+          "git",
+          ["-C", pendingScenario.root, "cat-file", "--batch"],
+          {
+            env: process.env,
+            stdio: ["pipe", "pipe", "pipe"],
+          },
+        );
+        pendingScenario.task = new Promise<void>((resolve, reject) => {
+          pendingGit.once("error", reject);
+          pendingGit.once("close", (exitCode) => {
+            if (exitCode === 0) {
+              reject(new Error("pending native Git unexpectedly succeeded"));
+              return;
+            }
+            resolve();
+          });
+        });
+        const activeChild = await waitForDiscoveryGitNativeOwnerBegin(
+          pendingScenario.nativeOwnerLog,
+        );
+        expect(activeChild.operation).toBe("pass-through");
+        const terminatedRecords = await shutdownScenario(pendingScenario, {
+          proveLatchRejection: true,
+        });
+        expect(terminatedRecords).toContainEqual(
+          expect.objectContaining({
+            commandIdentity: activeChild.commandIdentity,
+            operation: activeChild.operation,
+            ownerPid: activeChild.ownerPid,
+            type: "END",
+          }),
+        );
+        expect(terminatedRecords).toContainEqual(
+          expect.objectContaining({
+            childExit: 125,
+            operation: "pass-through",
+            type: "REJECT",
+          }),
+        );
+        await expect(lstat(pendingScenario.wrapperDir)).rejects.toMatchObject({
+          code: "ENOENT",
+        });
+        scenario = undefined;
+        scenario = await setupScenario("primary");
+        const followingScenario = scenario;
+        followingScenario.task = (async () => {
+          const result = await runDiscovery(followingScenario.root);
+          expect(await readFile(followingScenario.marker, "utf8")).toBe(
+            "fired",
+          );
+          expect(result.disposition).toBe("invalid");
+          expect(result.resume).toBeNull();
+          expect(result.invalid).toContainEqual({
+            path: ".",
+            reason: "discovery-snapshot-changed",
+          });
+        })();
+        await followingScenario.task;
+      },
+    );
   });
 
   it.each(["appearance", "disappearance", "bytes"] as const)(
