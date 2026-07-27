@@ -71,6 +71,19 @@ const discoveryGitNativeOwnerDiagnosticMaxBytes = 256 * 1024;
 const discoveryGitNativeOwnerDiagnosticMaxRecords = 16;
 const discoveryGitNativeOwnerDiagnosticMaxArguments = 32;
 const discoveryGitNativeOwnerDiagnosticMaxArgumentCharacters = 256;
+const ordinaryDiscoveryWorkerSource = String.raw`
+const runtimeUrl = process.env.DEVCANON_TEST_DISCOVERY_RUNTIME_URL;
+const repositoryRoot = process.env.PRIMARY_REPOSITORY_ROOT;
+if (runtimeUrl === undefined || repositoryRoot === undefined) {
+  throw new Error("ordinary discovery worker authority is unavailable");
+}
+const { runPrReviewLeasesCommand } = await import(runtimeUrl);
+process.chdir(repositoryRoot);
+const outcome = await runPrReviewLeasesCommand(["discover"]);
+if (outcome.stdout.length > 0) process.stdout.write(outcome.stdout);
+if (outcome.stderr.length > 0) process.stderr.write(outcome.stderr);
+process.exitCode = outcome.exitCode;
+`;
 let discoveryGitWindowsLauncherRoot: string | undefined;
 let discoveryGitWindowsLauncher: string | undefined;
 let discoveryGitWindowsBash: string | undefined;
@@ -718,12 +731,18 @@ public static class DevCanonDiscoveryGitLauncher
                 "--list",
                 "--no-includes",
                 "--file");
+        string operation =
+            scenarioKind == "ordinary-resume-evidence"
+                ? "ordinary-discovery-worker"
+                : targeted
+                    ? scenarioKind + "-target"
+                    : "pass-through";
         int commandExit = RunNativeOwnedGit(
             nativeGit,
             ownerLog,
             shutdownLatch,
             scenarioKind,
-            targeted ? scenarioKind + "-target" : "pass-through",
+            operation,
             args);
         if (commandExit != 0 || !targeted || File.Exists(marker))
         {
@@ -5607,6 +5626,7 @@ interface OrdinaryDiscoveryLifecycleScenario {
   diagnostics: DiscoveryGitNativeOwnerDiagnostic[];
   enabled: boolean;
   nativeOwnerLog: string;
+  ownerLauncher: string;
   ownedRoots: string[];
   previousAdapterLog: string | undefined;
   previousCwd: string;
@@ -5618,6 +5638,7 @@ interface OrdinaryDiscoveryLifecycleScenario {
   shutdownFailed: boolean;
   shutdownLatch: string;
   task: Promise<void> | null;
+  workerPath: string | undefined;
   wrapperDir: string;
 }
 
@@ -5763,6 +5784,7 @@ async function bindOrdinaryDiscoveryLifecycleScenario(
       diagnostics: [],
       enabled: false,
       nativeOwnerLog: "",
+      ownerLauncher: "",
       ownedRoots: [],
       previousAdapterLog,
       previousCwd,
@@ -5774,6 +5796,7 @@ async function bindOrdinaryDiscoveryLifecycleScenario(
       shutdownFailed: false,
       shutdownLatch: "",
       task: null,
+      workerPath: previousPath,
       wrapperDir: "",
     };
   }
@@ -5794,7 +5817,7 @@ async function bindOrdinaryDiscoveryLifecycleScenario(
     await writeFile(wrapper, "#!/bin/sh\nexit 127\n");
     await makeDiscoveryGitWrapperExecutable(wrapper);
     await Promise.all([
-      writeFile(path.join(wrapperDir, "git-native.path"), physicalGit),
+      writeFile(path.join(wrapperDir, "git-native.path"), process.execPath),
       writeFile(
         path.join(wrapperDir, "git-native-owner.kind"),
         "ordinary-resume-evidence",
@@ -5808,12 +5831,13 @@ async function bindOrdinaryDiscoveryLifecycleScenario(
     }
     const ownedRoots = discoveryTempRoots.splice(ownedRootStart);
     activeDiscoveryGitNativeOwnerLog = nativeOwnerLog;
-    activeDiscoveryGitNativeOwnerExpectedOperation = "pass-through";
-    process.env.PATH = prependDiscoveryGitWrapper(wrapperDir, previousPath);
+    activeDiscoveryGitNativeOwnerExpectedOperation =
+      "ordinary-discovery-worker";
     return {
       diagnostics: [],
       enabled: true,
       nativeOwnerLog,
+      ownerLauncher: `${wrapper}.exe`,
       ownedRoots,
       previousAdapterLog,
       previousCwd,
@@ -5825,6 +5849,10 @@ async function bindOrdinaryDiscoveryLifecycleScenario(
       shutdownFailed: false,
       shutdownLatch,
       task: null,
+      workerPath: prependDiscoveryGitWrapper(
+        path.dirname(physicalGit),
+        previousPath,
+      ),
       wrapperDir,
     };
   } catch (error) {
@@ -5843,6 +5871,114 @@ async function bindOrdinaryDiscoveryLifecycleScenario(
     }
     throw error;
   }
+}
+
+async function runOrdinaryDiscoveryLifecycleDiscovery(
+  scenario: OrdinaryDiscoveryLifecycleScenario,
+  root: string,
+  prNumber = 432,
+) {
+  const nativeOwnerEntryCountBefore = scenario.enabled
+    ? discoveryGitNativeOwnerEntryCount(
+        await readDiscoveryGitNativeOwnerRecords(scenario.nativeOwnerLog),
+      )
+    : 0;
+  const { stderr, stdout } = await execFileAsync(
+    scenario.enabled ? scenario.ownerLauncher : process.execPath,
+    ["--input-type=module", "--eval", ordinaryDiscoveryWorkerSource],
+    {
+      cwd: root,
+      env: {
+        ...process.env,
+        DEVCANON_TEST_DISCOVERY_RUNTIME_URL: pathToFileURL(
+          path.resolve(
+            "skills/devcanon-runtime/scripts/runtime/pr-review-leases.js",
+          ),
+        ).href,
+        PATH: scenario.workerPath,
+        PRIMARY_REPOSITORY_ROOT: root,
+        PR_NUMBER: String(prNumber),
+        REPOSITORY: "owner/repo",
+      },
+    },
+  );
+  expect(stderr).toBe("");
+  if (scenario.enabled) {
+    const nativeOwnerRecords = await readDiscoveryGitNativeOwnerRecords(
+      scenario.nativeOwnerLog,
+    );
+    const nativeOwnerBegins = nativeOwnerRecords.filter(
+      (record): record is DiscoveryGitNativeOwnerBegin =>
+        record.type === "BEGIN",
+    );
+    expect(nativeOwnerBegins.slice(nativeOwnerEntryCountBefore)).toEqual([
+      expect.objectContaining({
+        operation: "ordinary-discovery-worker",
+        scenario: "ordinary-resume-evidence",
+        type: "BEGIN",
+      }),
+    ]);
+    expect(discoveryGitNativeOwnerActiveChildren(nativeOwnerRecords)).toEqual(
+      [],
+    );
+  }
+  return JSON.parse(stdout) as {
+    repository: string;
+    disposition: string;
+    canonical_target: {
+      worktree_path: string;
+      status: string;
+      registered: boolean;
+    };
+    resume: null | { worktree_path: string };
+  };
+}
+
+function spawnPendingOrdinaryDiscoveryOwnedWorker(
+  scenario: OrdinaryDiscoveryLifecycleScenario,
+) {
+  return spawn(
+    scenario.ownerLauncher,
+    [
+      "--input-type=module",
+      "--eval",
+      String.raw`
+import { spawn } from "node:child_process";
+const child = spawn(
+  "git",
+  ["-C", process.env.PRIMARY_REPOSITORY_ROOT, "cat-file", "--batch"],
+  { stdio: "inherit" },
+);
+child.once("error", (error) => {
+  throw error;
+});
+child.once("close", (exitCode) => {
+  process.exitCode = exitCode ?? 1;
+});
+`,
+    ],
+    {
+      cwd: scenario.root,
+      env: {
+        ...process.env,
+        PATH: scenario.workerPath,
+        PRIMARY_REPOSITORY_ROOT: scenario.root,
+      },
+      stdio: ["pipe", "pipe", "pipe"],
+    },
+  );
+}
+
+async function runOrdinaryDiscoveryOwnedWorkerProbe(
+  scenario: OrdinaryDiscoveryLifecycleScenario,
+): Promise<void> {
+  await execFileAsync(scenario.ownerLauncher, ["--version"], {
+    cwd: scenario.root,
+    env: {
+      ...process.env,
+      PATH: scenario.workerPath,
+    },
+  });
 }
 
 async function shutdownOrdinaryDiscoveryLifecycleScenario(
@@ -6699,7 +6835,20 @@ describe("read-only PR review discovery planner", () => {
       "TerminateJobObject(job, 125)",
     );
     expect(discoveryGitWindowsLauncherSource).toContain('"ACK",');
+    expect(discoveryGitWindowsLauncherSource).toContain(
+      'scenarioKind == "ordinary-resume-evidence"',
+    );
+    expect(discoveryGitWindowsLauncherSource).toContain(
+      '"ordinary-discovery-worker"',
+    );
     expect(discoveryGitWindowsLauncherSource).not.toContain("taskkill");
+    expect(ordinaryDiscoveryWorkerSource).toContain("await import(runtimeUrl)");
+    expect(ordinaryDiscoveryWorkerSource).toContain(
+      'runPrReviewLeasesCommand(["discover"])',
+    );
+    expect(ordinaryDiscoveryWorkerSource).toContain(
+      "process.exitCode = outcome.exitCode;",
+    );
   });
 
   it("parses bounded native owner lifecycle records", async () => {
@@ -7121,6 +7270,7 @@ describe("read-only PR review discovery planner", () => {
       diagnostics: [],
       enabled: true,
       nativeOwnerLog: ownerLog,
+      ownerLauncher: path.join(root, "unavailable-owner.exe"),
       ownedRoots: [root],
       previousAdapterLog: originalAdapterLog,
       previousCwd: originalCwd,
@@ -7135,6 +7285,7 @@ describe("read-only PR review discovery planner", () => {
       task: Promise.resolve().then(() => {
         taskSettled = true;
       }),
+      workerPath: originalPath,
       wrapperDir: root,
     };
     const stderrChunks: string[] = [];
@@ -7208,6 +7359,7 @@ describe("read-only PR review discovery planner", () => {
       diagnostics: [],
       enabled: true,
       nativeOwnerLog: path.join(root, discoveryGitNativeOwnerLogName),
+      ownerLauncher: path.join(root, "unavailable-owner.exe"),
       ownedRoots: [root],
       previousAdapterLog: originalAdapterLog,
       previousCwd: originalCwd,
@@ -7220,6 +7372,7 @@ describe("read-only PR review discovery planner", () => {
       shutdownFailed: false,
       shutdownLatch: path.join(root, discoveryGitNativeOwnerShutdownName),
       task: Promise.resolve(),
+      workerPath: originalPath,
       wrapperDir: root,
     });
     const failingScenario = scenario(retainedRoots[0] as string);
@@ -7346,14 +7499,8 @@ describe("read-only PR review discovery planner", () => {
           firstRoot,
           firstRootStart,
         );
-        const pendingGit = spawn(
-          "git",
-          ["-C", firstScenario.root, "cat-file", "--batch"],
-          {
-            env: process.env,
-            stdio: ["pipe", "pipe", "pipe"],
-          },
-        );
+        const pendingGit =
+          spawnPendingOrdinaryDiscoveryOwnedWorker(firstScenario);
         firstScenario.task = new Promise<void>((resolve, reject) => {
           pendingGit.once("error", reject);
           pendingGit.once("close", (exitCode) => {
@@ -7378,7 +7525,7 @@ describe("read-only PR review discovery planner", () => {
             expect.objectContaining({
               child_pid: activeChild.childPid,
               command_identity: activeChild.commandIdentity,
-              operation: "pass-through",
+              operation: "ordinary-discovery-worker",
               stage: "spawned",
               type: "BEGIN",
             }),
@@ -7425,9 +7572,8 @@ describe("read-only PR review discovery planner", () => {
           secondRoot,
           secondRootStart,
         );
-        secondScenario.task = execFileAsync("git", ["--version"], {
-          env: process.env,
-        }).then(() => undefined);
+        secondScenario.task =
+          runOrdinaryDiscoveryOwnedWorkerProbe(secondScenario);
         await secondScenario.task;
         const secondOwnedRoots = [...secondScenario.ownedRoots];
         const activeSecondScenario = secondScenario;
@@ -7441,7 +7587,7 @@ describe("read-only PR review discovery planner", () => {
           phase: "pre-shutdown",
           records: expect.arrayContaining([
             expect.objectContaining({
-              operation: "pass-through",
+              operation: "ordinary-discovery-worker",
               stage: "terminal",
               type: "END",
             }),
@@ -7490,14 +7636,8 @@ describe("read-only PR review discovery planner", () => {
           root,
           rootStart,
         );
-        const pendingGit = spawn(
-          "git",
-          ["-C", failingScenario.root, "cat-file", "--batch"],
-          {
-            env: process.env,
-            stdio: ["pipe", "pipe", "pipe"],
-          },
-        );
+        const pendingGit =
+          spawnPendingOrdinaryDiscoveryOwnedWorker(failingScenario);
         let taskSettled = false;
         failingScenario.task = new Promise<void>((resolve, reject) => {
           pendingGit.once("error", reject);
@@ -7598,9 +7738,8 @@ describe("read-only PR review discovery planner", () => {
             (ownedRoot) => !retainedRoots.includes(ownedRoot),
           ),
         ).toBe(true);
-        followingScenario.task = execFileAsync("git", ["--version"], {
-          env: process.env,
-        }).then(() => undefined);
+        followingScenario.task =
+          runOrdinaryDiscoveryOwnedWorkerProbe(followingScenario);
         await followingScenario.task;
         const activeFollowingScenario = followingScenario;
         await shutdownOrdinaryDiscoveryLifecycleScenario(
@@ -8125,7 +8264,10 @@ describe("read-only PR review discovery planner", () => {
         if (scenario === undefined) throw new Error("scenario is unavailable");
         const activeScenario = scenario;
         activeScenario.task = (async () => {
-          const result = await runDiscovery(root);
+          const result = await runOrdinaryDiscoveryLifecycleDiscovery(
+            activeScenario,
+            root,
+          );
           expect(result.disposition).toBe("resume");
           expect(result.resume?.worktree_path).toBe(worktree);
         })();
