@@ -5580,11 +5580,11 @@ describe("read-only PR review discovery planner", () => {
     interface OriginDriftScenario {
       lease: PrReviewLease | null;
       marker: string;
-      operation: Promise<Awaited<ReturnType<typeof runDiscovery>>> | null;
       ownedRoots: string[];
       previousAdapterLog: string | undefined;
       previousPath: string | undefined;
       root: string;
+      task: Promise<void> | null;
     }
 
     let scenario: OriginDriftScenario | undefined;
@@ -5654,18 +5654,18 @@ describe("read-only PR review discovery planner", () => {
       return {
         lease,
         marker,
-        operation: null,
         ownedRoots,
         previousAdapterLog,
         previousPath,
         root,
+        task: null,
       };
     };
 
     afterEach(async () => {
       if (scenario === undefined) return;
-      if (scenario.operation !== null) {
-        await scenario.operation.catch(() => undefined);
+      if (scenario.task !== null) {
+        await scenario.task.catch(() => undefined);
       }
       if (scenario.previousPath === undefined) {
         Reflect.deleteProperty(process.env, "PATH");
@@ -5686,14 +5686,17 @@ describe("read-only PR review discovery planner", () => {
 
       it("fails closed when authority drifts between collections", async () => {
         if (scenario === undefined) throw new Error("scenario is unavailable");
-        scenario.operation = runDiscovery(scenario.root);
-        const result = await scenario.operation;
-        expect(await readFile(scenario.marker, "utf8")).toBe("fired");
-        expect(result.disposition).toBe("invalid");
-        expect(result.invalid).toContainEqual({
-          path: ".",
-          reason: "discovery-snapshot-changed",
-        });
+        const activeScenario = scenario;
+        activeScenario.task = (async () => {
+          const result = await runDiscovery(activeScenario.root);
+          expect(await readFile(activeScenario.marker, "utf8")).toBe("fired");
+          expect(result.disposition).toBe("invalid");
+          expect(result.invalid).toContainEqual({
+            path: ".",
+            reason: "discovery-snapshot-changed",
+          });
+        })();
+        await activeScenario.task;
       });
     });
 
@@ -5706,17 +5709,21 @@ describe("read-only PR review discovery planner", () => {
         if (scenario === undefined || scenario.lease === null) {
           throw new Error("candidate scenario is unavailable");
         }
-        scenario.operation = runDiscovery(scenario.root);
-        const result = await scenario.operation;
-        expect(await readFile(scenario.marker, "utf8")).toBe("fired");
-        expect(result.disposition).toBe("invalid");
-        expect(result.active).toContainEqual(
-          expect.objectContaining({
-            lease_file: scenario.lease.lease_file,
-            classification: "invalid",
-            reason: "repository-identity-changed",
-          }),
-        );
+        const leaseFile = scenario.lease.lease_file;
+        const activeScenario = scenario;
+        activeScenario.task = (async () => {
+          const result = await runDiscovery(activeScenario.root);
+          expect(await readFile(activeScenario.marker, "utf8")).toBe("fired");
+          expect(result.disposition).toBe("invalid");
+          expect(result.active).toContainEqual(
+            expect.objectContaining({
+              lease_file: leaseFile,
+              classification: "invalid",
+              reason: "repository-identity-changed",
+            }),
+          );
+        })();
+        await activeScenario.task;
       });
     });
   });
