@@ -7568,6 +7568,180 @@ describe("read-only PR review discovery planner", () => {
     });
   });
 
+  describe("correlates canonical target and parent observations", () => {
+    const validationArgs = (root: string) => [
+      "validate-discovery",
+      "--repository",
+      "owner/repo",
+      "--pr-number",
+      "432",
+      "--primary-root",
+      root,
+    ];
+    const discoveryResult = (
+      root: string,
+      status: "absent" | "directory",
+      parentStatus: "absent" | "directory" | "invalid",
+    ) =>
+      reducePrReviewDiscovery({
+        repository: "owner/repo",
+        pr_number: 432,
+        primary_repository_root: root,
+        canonical_target: {
+          worktree_path: path.join(root, ".worktrees", "pr-432-review"),
+          status,
+          registered: false,
+          parent_status: parentStatus,
+        },
+        registrations: [],
+        active: [],
+        archived: [],
+        invalid: [],
+        comparison_platform: process.platform,
+      });
+
+    describe.each([
+      {
+        status: "absent",
+        parentStatus: "absent",
+        disposition: "create",
+      },
+      {
+        status: "absent",
+        parentStatus: "directory",
+        disposition: "create",
+      },
+      {
+        status: "directory",
+        parentStatus: "directory",
+        disposition: "cleanup-required",
+      },
+    ] as const)(
+      "accepts $status/$parentStatus observations",
+      ({ status, parentStatus, disposition }) => {
+        let input: string;
+        let root: string;
+
+        beforeEach(async () => {
+          root = await createDiscoveryRepository();
+          const result = discoveryResult(root, status, parentStatus);
+          expect(result.disposition).toBe(disposition);
+          input = JSON.stringify(result);
+        });
+
+        it("through the direct runtime validator", async () => {
+          await expect(
+            runPrReviewLeasesCommand(validationArgs(root), Buffer.from(input)),
+          ).resolves.toEqual({
+            exitCode: 0,
+            stdout: `${input}\n`,
+            stderr: "",
+          });
+        });
+
+        it("through the real wrapper validator", async () => {
+          await expect(
+            runPrReviewLeasesWrapper(validationArgs(root), process.env, input),
+          ).resolves.toEqual({
+            exitCode: 0,
+            stdout: `${input}\n`,
+            stderr: "",
+          });
+        });
+      },
+    );
+
+    describe.each([
+      { status: "directory", parentStatus: "absent" },
+      { status: "directory", parentStatus: "invalid" },
+    ] as const)(
+      "rejects $status/$parentStatus observations",
+      ({ status, parentStatus }) => {
+        let input: string;
+        let root: string;
+
+        beforeEach(async () => {
+          root = await createDiscoveryRepository();
+          input = JSON.stringify(discoveryResult(root, status, parentStatus));
+        });
+
+        it("at the exported parser boundary", () => {
+          expect(() =>
+            validatePrReviewDiscoveryJson(Buffer.from(input), {
+              repository: "owner/repo",
+              prNumber: 432,
+              primaryRoot: root,
+            }),
+          ).toThrow("discovery canonical target correlation mismatch");
+        });
+
+        it("through the direct runtime validator", async () => {
+          await expect(
+            runPrReviewLeasesCommand(validationArgs(root), Buffer.from(input)),
+          ).resolves.toEqual({
+            exitCode: 1,
+            stdout: "",
+            stderr: "discovery canonical target correlation mismatch\n",
+          });
+        });
+
+        it("through the real wrapper validator", async () => {
+          await expect(
+            runPrReviewLeasesWrapper(validationArgs(root), process.env, input),
+          ).resolves.toEqual({
+            exitCode: 1,
+            stdout: "",
+            stderr: "discovery canonical target correlation mismatch\n",
+          });
+        });
+      },
+    );
+
+    describe.each([
+      {
+        status: "absent",
+        parentStatus: "absent",
+        createParent: false,
+        createTarget: false,
+      },
+      {
+        status: "absent",
+        parentStatus: "directory",
+        createParent: true,
+        createTarget: false,
+      },
+      {
+        status: "directory",
+        parentStatus: "directory",
+        createParent: true,
+        createTarget: true,
+      },
+    ] as const)(
+      "produces $status/$parentStatus observations",
+      ({ status, parentStatus, createParent, createTarget }) => {
+        let root: string;
+
+        beforeEach(async () => {
+          root = await createDiscoveryRepository();
+          if (createParent) {
+            const target = path.join(root, ".worktrees", "pr-432-review");
+            await mkdir(createTarget ? target : path.dirname(target), {
+              recursive: true,
+            });
+          }
+        });
+
+        it("with correlated filesystem evidence", async () => {
+          const result = await runDiscovery(root);
+          expect(result.canonical_target).toMatchObject({
+            status,
+            parent_status: parentStatus,
+          });
+        });
+      },
+    );
+  });
+
   describe("excludes the primary worktree from candidate authority", () => {
     let lease: PrReviewLease;
     let root: string;

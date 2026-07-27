@@ -348,6 +348,10 @@ function parseDiscoveryResult(value, platform) {
         typeof result.canonical_target.registered !== "boolean") {
         throw new PrReviewLeaseError("discovery result schema mismatch");
     }
+    if (result.canonical_target.status === "directory" &&
+        result.canonical_target.parent_status !== "directory") {
+        throw new PrReviewLeaseError("discovery canonical target correlation mismatch");
+    }
     assertDiscoveryStringArray(result.registrations);
     assertDiscoveryStringArray(result.archived);
     if (!Array.isArray(result.active) || !Array.isArray(result.invalid)) {
