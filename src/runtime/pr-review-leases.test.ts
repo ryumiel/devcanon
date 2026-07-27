@@ -89,7 +89,12 @@ public static class DevCanonDiscoveryGitLauncher
     private const int JobObjectExtendedLimitInformation = 9;
     private const uint CreateNoWindow = 0x08000000;
     private const uint CreateSuspended = 0x00000004;
+    private const uint DuplicateSameAccess = 0x00000002;
     private const uint Infinite = 0xffffffff;
+    private const int StandardErrorHandle = -12;
+    private const int StandardInputHandle = -10;
+    private const int StandardOutputHandle = -11;
+    private const uint StartupInfoUseStdHandles = 0x00000100;
     private const uint WaitObject0 = 0x00000000;
     private const uint WaitTimeout = 0x00000102;
 
@@ -177,6 +182,22 @@ public static class DevCanonDiscoveryGitLauncher
         ref StartupInfo startupInfo,
         out ProcessInformation processInformation);
 
+    [DllImport("kernel32.dll")]
+    private static extern IntPtr GetCurrentProcess();
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern IntPtr GetStdHandle(int standardHandle);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool DuplicateHandle(
+        IntPtr sourceProcess,
+        IntPtr sourceHandle,
+        IntPtr targetProcess,
+        out IntPtr targetHandle,
+        uint desiredAccess,
+        bool inheritHandle,
+        uint options);
+
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
     private static extern IntPtr CreateJobObject(
         IntPtr jobAttributes,
@@ -246,6 +267,34 @@ public static class DevCanonDiscoveryGitLauncher
             );
         }
         return job;
+    }
+
+    private static IntPtr DuplicateInheritedStandardHandle(
+        int standardHandle)
+    {
+        IntPtr source = GetStdHandle(standardHandle);
+        if (source == IntPtr.Zero || source == new IntPtr(-1))
+        {
+            throw new InvalidOperationException(
+                "native owner standard handle is unavailable"
+            );
+        }
+        IntPtr process = GetCurrentProcess();
+        IntPtr inherited;
+        if (!DuplicateHandle(
+            process,
+            source,
+            process,
+            out inherited,
+            0,
+            true,
+            DuplicateSameAccess))
+        {
+            throw new InvalidOperationException(
+                "native owner could not duplicate an inheritable standard handle"
+            );
+        }
+        return inherited;
     }
 
     private static string QuoteWindowsArgument(string value)
@@ -429,10 +478,23 @@ public static class DevCanonDiscoveryGitLauncher
 
         IntPtr job = CreateOwnedJob();
         ProcessInformation child = new ProcessInformation();
+        IntPtr standardError = IntPtr.Zero;
+        IntPtr standardInput = IntPtr.Zero;
+        IntPtr standardOutput = IntPtr.Zero;
         try
         {
             StartupInfo startup = new StartupInfo();
             startup.Size = (uint)Marshal.SizeOf(startup);
+            standardInput =
+                DuplicateInheritedStandardHandle(StandardInputHandle);
+            standardOutput =
+                DuplicateInheritedStandardHandle(StandardOutputHandle);
+            standardError =
+                DuplicateInheritedStandardHandle(StandardErrorHandle);
+            startup.Flags = StartupInfoUseStdHandles;
+            startup.StandardInput = standardInput;
+            startup.StandardOutput = standardOutput;
+            startup.StandardError = standardError;
             if (!CreateProcess(
                 nativeGit,
                 commandLine,
@@ -544,6 +606,18 @@ public static class DevCanonDiscoveryGitLauncher
             if (child.Process != IntPtr.Zero)
             {
                 CloseHandle(child.Process);
+            }
+            if (standardError != IntPtr.Zero)
+            {
+                CloseHandle(standardError);
+            }
+            if (standardOutput != IntPtr.Zero)
+            {
+                CloseHandle(standardOutput);
+            }
+            if (standardInput != IntPtr.Zero)
+            {
+                CloseHandle(standardInput);
             }
             CloseHandle(job);
         }
@@ -5707,6 +5781,27 @@ describe("read-only PR review discovery planner", () => {
       "CreateNoWindow | CreateSuspended",
     );
     expect(discoveryGitWindowsLauncherSource).toContain(
+      "DuplicateInheritedStandardHandle(StandardInputHandle)",
+    );
+    expect(discoveryGitWindowsLauncherSource).toContain(
+      "DuplicateInheritedStandardHandle(StandardOutputHandle)",
+    );
+    expect(discoveryGitWindowsLauncherSource).toContain(
+      "DuplicateInheritedStandardHandle(StandardErrorHandle)",
+    );
+    expect(discoveryGitWindowsLauncherSource).toContain(
+      "startup.Flags = StartupInfoUseStdHandles;",
+    );
+    expect(discoveryGitWindowsLauncherSource).toContain(
+      "startup.StandardInput = standardInput;",
+    );
+    expect(discoveryGitWindowsLauncherSource).toContain(
+      "startup.StandardOutput = standardOutput;",
+    );
+    expect(discoveryGitWindowsLauncherSource).toContain(
+      "startup.StandardError = standardError;",
+    );
+    expect(discoveryGitWindowsLauncherSource).toContain(
       '"git-native-owner.shutdown"',
     );
     expect(discoveryGitWindowsLauncherSource).toContain('begin[0] = "BEGIN";');
@@ -5863,6 +5958,147 @@ describe("read-only PR review discovery planner", () => {
         "END",
         "",
       ]);
+    },
+  );
+
+  describe.runIf(process.platform === "win32")(
+    "preserves native-owner standard transport",
+    () => {
+      let nativeOwnerLog: string;
+      let previousNativeOwnerLog: string | undefined;
+      let previousPath: string | undefined;
+      let wrapperDir: string;
+
+      beforeEach(async () => {
+        if (discoveryGitWindowsLauncher === undefined) {
+          throw new Error("native discovery Git launcher is unavailable");
+        }
+        wrapperDir = await mkdtemp(
+          path.join(tmpdir(), "discovery-native-owner-transport-"),
+        );
+        discoveryTempRoots.push(wrapperDir);
+        const launcher = path.join(wrapperDir, "git.exe");
+        await copyFile(discoveryGitWindowsLauncher, launcher);
+        const physicalGit = await resolveCanonicalPhysicalGit();
+        await Promise.all([
+          writeFile(path.join(wrapperDir, "git-native.path"), physicalGit),
+          writeFile(
+            path.join(wrapperDir, "git-native-owner.kind"),
+            "transport",
+          ),
+          writeFile(path.join(wrapperDir, "git-native-owner.root"), wrapperDir),
+          writeFile(
+            path.join(wrapperDir, "git-native-owner.marker"),
+            path.join(wrapperDir, "unused-marker"),
+          ),
+        ]);
+        nativeOwnerLog = path.join(wrapperDir, discoveryGitNativeOwnerLogName);
+        previousNativeOwnerLog = activeDiscoveryGitNativeOwnerLog;
+        previousPath = process.env.PATH;
+        activeDiscoveryGitNativeOwnerLog = nativeOwnerLog;
+        process.env.PATH = prependDiscoveryGitWrapper(wrapperDir, previousPath);
+      });
+
+      afterEach(() => {
+        if (previousPath === undefined) {
+          Reflect.deleteProperty(process.env, "PATH");
+        } else {
+          process.env.PATH = previousPath;
+        }
+        activeDiscoveryGitNativeOwnerLog = previousNativeOwnerLog;
+      });
+
+      const expectTerminalTransport = async (
+        args: readonly string[],
+        childExit: number,
+      ): Promise<void> => {
+        const records =
+          await readDiscoveryGitNativeOwnerRecords(nativeOwnerLog);
+        const begin = records.find(
+          (record) =>
+            record.type === "BEGIN" &&
+            record.operation === "pass-through" &&
+            record.args.length === args.length &&
+            record.args.every((argument, index) => argument === args[index]),
+        );
+        expect(begin).toBeDefined();
+        expect(records).toContainEqual({
+          childExit,
+          commandIdentity: begin?.commandIdentity,
+          operation: "pass-through",
+          ownerPid: begin?.ownerPid,
+          type: "END",
+        });
+        expect(discoveryGitNativeOwnerActiveChildren(records)).toEqual([]);
+        expect((await lstat(nativeOwnerLog)).size).toBeLessThanOrEqual(
+          discoveryGitNativeOwnerLogMaxBytes,
+        );
+      };
+
+      it("preserves string stdout and empty stderr", async () => {
+        const args = ["--version"];
+        const outcome = await execFileAsync("git", args, {
+          env: process.env,
+        });
+        expect(outcome.stdout).toMatch(/^git version /u);
+        expect(outcome.stderr).toBe("");
+        await expectTerminalTransport(args, 0);
+      });
+
+      it("preserves Buffer stdout and empty stderr", async () => {
+        const args = ["--version"];
+        const outcome = (await execFileAsync("git", args, {
+          encoding: "buffer",
+          env: process.env,
+        })) as unknown as { stderr: Buffer; stdout: Buffer };
+        expect(outcome.stdout).toBeInstanceOf(Buffer);
+        expect(outcome.stdout.toString("utf8")).toMatch(/^git version /u);
+        expect(outcome.stderr).toEqual(Buffer.alloc(0));
+        await expectTerminalTransport(args, 0);
+      });
+
+      it("preserves streaming stdin, stdout, stderr, and terminal success", async () => {
+        const args = ["hash-object", "--stdin"];
+        const child = spawn("git", args, {
+          env: process.env,
+          stdio: ["pipe", "pipe", "pipe"],
+        });
+        const stdout: Buffer[] = [];
+        const stderr: Buffer[] = [];
+        child.stdout.on("data", (chunk: Buffer) => stdout.push(chunk));
+        child.stderr.on("data", (chunk: Buffer) => stderr.push(chunk));
+        child.stdin.end("native-owner-stream\n");
+        const exitCode = await new Promise<number | null>((resolve, reject) => {
+          child.once("error", reject);
+          child.once("close", resolve);
+        });
+        expect(exitCode).toBe(0);
+        expect(Buffer.concat(stdout).toString("utf8")).toMatch(
+          /^[0-9a-f]{40}\n$/u,
+        );
+        expect(Buffer.concat(stderr)).toEqual(Buffer.alloc(0));
+        await expectTerminalTransport(args, 0);
+      });
+
+      it("preserves child stderr and nonzero exit", async () => {
+        const args = ["devcanon-command-that-does-not-exist"];
+        let failure:
+          | (Error & {
+              code?: number | string;
+              stderr?: string;
+              stdout?: string;
+            })
+          | undefined;
+        try {
+          await execFileAsync("git", args, { env: process.env });
+        } catch (error) {
+          failure = error as typeof failure;
+        }
+        expect(failure?.code).toBe(1);
+        expect(failure?.stdout).toBe("");
+        expect(failure?.stderr).toContain("is not a git command");
+        await expectTerminalTransport(args, 1);
+      });
     },
   );
 
@@ -6884,74 +7120,182 @@ describe("read-only PR review discovery planner", () => {
     );
   });
 
-  it.each(["appearance", "disappearance", "bytes"] as const)(
-    "fails closed when primary config.worktree changes between complete collections: %s",
-    async (fixture) => {
-      const root = await createDiscoveryRepository();
-      await execFileAsync("git", [
-        "-C",
-        root,
-        "config",
-        "extensions.worktreeConfig",
-        "true",
-      ]);
-      const configWorktree = path.join(root, ".git", "config.worktree");
-      if (fixture !== "appearance") {
-        await execFileAsync("git", [
-          "-C",
-          root,
-          "config",
-          "--worktree",
-          "core.filemode",
-          "true",
-        ]);
+  describe.each(["appearance", "disappearance", "bytes"] as const)(
+    "isolates primary config.worktree %s drift",
+    (fixture) => {
+      interface ConfigWorktreeDriftScenario {
+        marker: string;
+        ownedRoots: string[];
+        previousAdapterLog: string | undefined;
+        previousPath: string | undefined;
+        root: string;
+        shutdownLatch: string;
+        task: Promise<void> | null;
       }
-      const wrapperDir = await mkdtemp(path.join(tmpdir(), "git-wrapper-"));
-      discoveryTempRoots.push(wrapperDir);
-      const marker = path.join(wrapperDir, "config-worktree-mutated");
-      const realGit = (
-        await execFileAsync("sh", ["-c", "command -v git"])
-      ).stdout.trim();
-      const wrapper = path.join(wrapperDir, "git");
-      const mutation =
-        fixture === "appearance"
-          ? `'${realGit}' -C '${await toGitBashPath(root)}' config --worktree core.filemode false`
-          : fixture === "disappearance"
-            ? `rm -f '${await toGitBashPath(configWorktree)}'`
-            : `'${realGit}' -C '${await toGitBashPath(root)}' config --worktree core.filemode false`;
-      await writeFile(
-        wrapper,
-        [
-          "#!/bin/sh",
-          'case " $* " in',
-          '  *" worktree list --porcelain -z "*)',
-          `    '${realGit}' "$@"`,
-          "    status=$?",
-          `    if [ ! -f '${await toGitBashPath(marker)}' ]; then`,
-          `      ${mutation}`,
-          `      printf fired >'${await toGitBashPath(marker)}'`,
-          "    fi",
-          '    exit "$status"',
-          "    ;;",
-          "esac",
-          `exec '${realGit}' "$@"`,
-          "",
-        ].join("\n"),
-      );
-      await makeDiscoveryGitWrapperExecutable(wrapper);
-      const oldPath = process.env.PATH;
-      process.env.PATH = prependDiscoveryGitWrapper(wrapperDir, oldPath);
-      try {
-        const result = await runDiscovery(root);
-        expect(await readFile(marker, "utf8")).toBe("fired");
-        expect(result.disposition).toBe("invalid");
-        expect(result.invalid).toContainEqual({
-          path: ".",
-          reason: "discovery-snapshot-changed",
-        });
-      } finally {
-        process.env.PATH = oldPath;
-      }
+
+      let scenario: ConfigWorktreeDriftScenario | undefined;
+
+      beforeEach(async () => {
+        const previousAdapterLog = activeDiscoveryGitAdapterLog;
+        const previousPath = process.env.PATH;
+        const ownedRootStart = discoveryTempRoots.length;
+        try {
+          const root = await createDiscoveryRepository();
+          await execFileAsync("git", [
+            "-C",
+            root,
+            "config",
+            "extensions.worktreeConfig",
+            "true",
+          ]);
+          const configWorktree = path.join(root, ".git", "config.worktree");
+          if (fixture !== "appearance") {
+            await execFileAsync("git", [
+              "-C",
+              root,
+              "config",
+              "--worktree",
+              "core.filemode",
+              "true",
+            ]);
+          }
+          const wrapperDir = await mkdtemp(path.join(tmpdir(), "git-wrapper-"));
+          discoveryTempRoots.push(wrapperDir);
+          const marker = path.join(wrapperDir, "config-worktree-mutated");
+          const shutdownLatch = path.join(
+            wrapperDir,
+            "config-worktree.shutdown",
+          );
+          const realGit = await resolveCanonicalPhysicalGit();
+          const wrapper = path.join(wrapperDir, "git");
+          const mutation =
+            fixture === "appearance"
+              ? `'${realGit}' -C '${await toGitBashPath(root)}' config --worktree core.filemode false`
+              : fixture === "disappearance"
+                ? `rm -f '${await toGitBashPath(configWorktree)}'`
+                : `'${realGit}' -C '${await toGitBashPath(root)}' config --worktree core.filemode false`;
+          await writeFile(
+            wrapper,
+            [
+              "#!/bin/sh",
+              `[ ! -f '${await toGitBashPath(shutdownLatch)}' ] || exit 125`,
+              'case " $* " in',
+              '  *" worktree list --porcelain -z "*)',
+              `    '${realGit}' "$@"`,
+              "    status=$?",
+              `    [ ! -f '${await toGitBashPath(shutdownLatch)}' ] || exit 125`,
+              `    if [ ! -f '${await toGitBashPath(marker)}' ]; then`,
+              `      ${mutation}`,
+              `      printf fired >'${await toGitBashPath(marker)}'`,
+              "    fi",
+              '    exit "$status"',
+              "    ;;",
+              "esac",
+              `exec '${realGit}' "$@"`,
+              "",
+            ].join("\n"),
+          );
+          await makeDiscoveryGitWrapperExecutable(wrapper);
+          if (discoveryTempRoots.length - ownedRootStart !== 2) {
+            throw new Error("config.worktree fixture ownership is ambiguous");
+          }
+          const ownedRoots = discoveryTempRoots.splice(ownedRootStart);
+          process.env.PATH = prependDiscoveryGitWrapper(
+            wrapperDir,
+            previousPath,
+          );
+          scenario = {
+            marker,
+            ownedRoots,
+            previousAdapterLog,
+            previousPath,
+            root,
+            shutdownLatch,
+            task: null,
+          };
+        } catch (error) {
+          if (previousPath === undefined) {
+            Reflect.deleteProperty(process.env, "PATH");
+          } else {
+            process.env.PATH = previousPath;
+          }
+          activeDiscoveryGitAdapterLog = previousAdapterLog;
+          const abandonedRoots = discoveryTempRoots.splice(ownedRootStart);
+          for (const abandonedRoot of abandonedRoots) {
+            await rm(abandonedRoot, { recursive: true, force: true });
+          }
+          throw error;
+        }
+      });
+
+      afterEach(async () => {
+        if (scenario === undefined) return;
+        const activeScenario = scenario;
+        scenario = undefined;
+        let settled = false;
+        let settlementFailure: unknown;
+        await writeFile(activeScenario.shutdownLatch, "shutdown");
+        try {
+          let settlementTimeout: ReturnType<typeof setTimeout> | undefined;
+          try {
+            const settlement = await Promise.race([
+              (activeScenario.task ?? Promise.resolve()).then(
+                () => ({ error: undefined }),
+                (error: unknown) => ({ error }),
+              ),
+              new Promise<never>((_resolve, reject) => {
+                settlementTimeout = setTimeout(
+                  () =>
+                    reject(
+                      new Error(
+                        "config.worktree scenario did not settle after shutdown",
+                      ),
+                    ),
+                  5_000,
+                );
+              }),
+            ]);
+            settled = true;
+            settlementFailure = settlement.error;
+          } catch (error) {
+            settlementFailure = error;
+          } finally {
+            if (settlementTimeout !== undefined) {
+              clearTimeout(settlementTimeout);
+            }
+          }
+        } finally {
+          if (activeScenario.previousPath === undefined) {
+            Reflect.deleteProperty(process.env, "PATH");
+          } else {
+            process.env.PATH = activeScenario.previousPath;
+          }
+          activeDiscoveryGitAdapterLog = activeScenario.previousAdapterLog;
+          if (settled) {
+            for (const ownedRoot of activeScenario.ownedRoots) {
+              await rm(ownedRoot, { recursive: true, force: true });
+            }
+          }
+        }
+        if (settlementFailure !== undefined) {
+          throw settlementFailure;
+        }
+      });
+
+      it("fails closed after one real discovery", async () => {
+        if (scenario === undefined) throw new Error("scenario is unavailable");
+        const activeScenario = scenario;
+        activeScenario.task = (async () => {
+          const result = await runDiscovery(activeScenario.root);
+          expect(await readFile(activeScenario.marker, "utf8")).toBe("fired");
+          expect(result.disposition).toBe("invalid");
+          expect(result.invalid).toContainEqual({
+            path: ".",
+            reason: "discovery-snapshot-changed",
+          });
+        })();
+        await activeScenario.task;
+      });
     },
   );
 
