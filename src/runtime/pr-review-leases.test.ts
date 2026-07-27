@@ -64,6 +64,8 @@ function discoveryGitlinkRecord(pathBytes: Buffer | string, tag = "H"): Buffer {
 const discoveryGitAdapterLogName = "git-adapter.log";
 const discoveryGitNativeOwnerLogName = "git-native-owner.log";
 const discoveryGitNativeOwnerShutdownName = "git-native-owner.shutdown";
+const discoveryGitNativeOwnerRecordMaxBytes = 64 * 1024;
+const discoveryGitNativeOwnerRecordMaxFields = 4096;
 const discoveryGitNativeOwnerLogMaxBytes = 4 * 1024 * 1024;
 let discoveryGitWindowsLauncherRoot: string | undefined;
 let discoveryGitWindowsLauncher: string | undefined;
@@ -84,6 +86,7 @@ using System.Threading;
 public static class DevCanonDiscoveryGitLauncher
 {
     private const int NativeOwnerRecordMaxBytes = 65536;
+    private const int NativeOwnerRecordMaxFields = 4096;
     private const int NativeOwnerLogMaxBytes = 4 * 1024 * 1024;
     private const uint JobObjectLimitKillOnJobClose = 0x00002000;
     private const int JobObjectExtendedLimitInformation = 9;
@@ -380,6 +383,12 @@ public static class DevCanonDiscoveryGitLauncher
         string logPath,
         params string[] fields)
     {
+        if (fields.Length > NativeOwnerRecordMaxFields)
+        {
+            throw new InvalidOperationException(
+                "native owner record exceeds its field bound"
+            );
+        }
         byte[] record;
         using (MemoryStream encoded = new MemoryStream())
         {
@@ -523,6 +532,12 @@ public static class DevCanonDiscoveryGitLauncher
                     "native owner could not claim its child process"
                 );
             }
+            if (args.Length > NativeOwnerRecordMaxFields - 10)
+            {
+                throw new InvalidOperationException(
+                    "native owner arguments exceed their field bound"
+                );
+            }
             string[] begin = new string[10 + args.Length];
             begin[0] = "BEGIN";
             begin[1] = scenario;
@@ -530,8 +545,8 @@ public static class DevCanonDiscoveryGitLauncher
             begin[3] = operation;
             begin[4] = identity;
             begin[5] = ownerPid.ToString();
-            begin[6] = child.ProcessId.ToString();
-            begin[7] = Stopwatch.GetTimestamp().ToString();
+            begin[6] = Stopwatch.GetTimestamp().ToString();
+            begin[7] = child.ProcessId.ToString();
             begin[8] = args.Length.ToString();
             for (int index = 0; index < args.Length; index++)
             {
@@ -5220,6 +5235,7 @@ async function readDiscoveryGitNativeOwnerRecords(
   ownerLog: string,
   options: { allowIncompleteTail?: boolean } = {},
 ): Promise<DiscoveryGitNativeOwnerRecord[]> {
+  const allowIncompleteTail = options.allowIncompleteTail === true;
   let raw: Buffer;
   try {
     raw = await readFile(ownerLog);
@@ -5230,11 +5246,14 @@ async function readDiscoveryGitNativeOwnerRecords(
   if (raw.byteLength > discoveryGitNativeOwnerLogMaxBytes) {
     throw new Error("native owner log exceeds its bound");
   }
+  let incompleteTailBytes = 0;
   if (raw.length > 0 && raw[raw.length - 1] !== 0) {
-    if (options.allowIncompleteTail !== true) {
+    if (!allowIncompleteTail) {
       throw new Error("native owner log is not NUL terminated");
     }
     const lastTerminator = raw.lastIndexOf(0);
+    incompleteTailBytes =
+      lastTerminator === -1 ? raw.length : raw.length - lastTerminator - 1;
     raw =
       lastTerminator === -1
         ? Buffer.alloc(0)
@@ -5248,47 +5267,161 @@ async function readDiscoveryGitNativeOwnerRecords(
   }
   const records: DiscoveryGitNativeOwnerRecord[] = [];
   let offset = 0;
-  while (offset < fields.length) {
-    const type = fields[offset++];
-    const scenario = fields[offset++];
-    const stage = fields[offset++];
-    const operation = fields[offset++];
-    const commandIdentity = fields[offset++];
-    const ownerPid = parseDiscoveryGitNativeOwnerInteger(
-      fields[offset++],
-      "owner PID",
-    );
-    const monotonicTicks = parseDiscoveryGitNativeOwnerInteger(
-      fields[offset++],
-      "monotonic ticks",
-    );
+  const recordByteLength = (start: number, end: number): number =>
+    fields
+      .slice(start, end)
+      .reduce((total, field) => total + Buffer.byteLength(field) + 1, 0);
+  const assertRecordBounds = (
+    start: number,
+    end: number,
+    trailingBytes = 0,
+  ): void => {
+    const fieldCount = end - start + (trailingBytes > 0 ? 1 : 0);
+    if (fieldCount > discoveryGitNativeOwnerRecordMaxFields) {
+      throw new Error("native owner record exceeds its field bound");
+    }
     if (
-      scenario === undefined ||
-      scenario.length === 0 ||
-      operation === undefined ||
-      operation.length === 0 ||
-      commandIdentity === undefined ||
-      !/^[0-9a-f]{64}$/u.test(commandIdentity)
+      recordByteLength(start, end) + trailingBytes >
+      discoveryGitNativeOwnerRecordMaxBytes
     ) {
+      throw new Error("native owner record exceeds its bound");
+    }
+  };
+  const incompleteRecord = (start: number, message: string): false => {
+    assertRecordBounds(start, fields.length, incompleteTailBytes);
+    if (allowIncompleteTail) return false;
+    throw new Error(message);
+  };
+  while (offset < fields.length) {
+    const recordStart = offset;
+    const type = fields[offset++];
+    if (
+      type !== "BEGIN" &&
+      type !== "ACK" &&
+      type !== "END" &&
+      type !== "REJECT"
+    ) {
+      throw new Error("native owner record type is malformed");
+    }
+    const scenario = fields[offset++];
+    if (scenario === undefined) {
+      if (!incompleteRecord(recordStart, "native owner record is truncated")) {
+        break;
+      }
+    }
+    if (scenario.length === 0) {
       throw new Error("native owner command identity is malformed");
     }
+    const stage = fields[offset++];
+    if (stage === undefined) {
+      if (!incompleteRecord(recordStart, "native owner record is truncated")) {
+        break;
+      }
+    }
+    const expectedStage =
+      type === "BEGIN"
+        ? "spawned"
+        : type === "ACK"
+          ? "shutdown"
+          : type === "END"
+            ? "terminal"
+            : "entry";
+    if (stage !== expectedStage) {
+      throw new Error(
+        type === "BEGIN"
+          ? "native owner BEGIN stage is malformed"
+          : "native owner terminal stage is malformed",
+      );
+    }
+    const operation = fields[offset++];
+    if (operation === undefined) {
+      if (!incompleteRecord(recordStart, "native owner record is truncated")) {
+        break;
+      }
+    }
+    if (operation.length === 0) {
+      throw new Error("native owner command identity is malformed");
+    }
+    const commandIdentity = fields[offset++];
+    if (commandIdentity === undefined) {
+      if (!incompleteRecord(recordStart, "native owner record is truncated")) {
+        break;
+      }
+    }
+    if (!/^[0-9a-f]{64}$/u.test(commandIdentity)) {
+      throw new Error("native owner command identity is malformed");
+    }
+    const ownerPidField = fields[offset++];
+    if (ownerPidField === undefined) {
+      if (!incompleteRecord(recordStart, "native owner record is truncated")) {
+        break;
+      }
+    }
+    const ownerPid = parseDiscoveryGitNativeOwnerInteger(
+      ownerPidField,
+      "owner PID",
+    );
+    const monotonicTicksField = fields[offset++];
+    if (monotonicTicksField === undefined) {
+      if (!incompleteRecord(recordStart, "native owner record is truncated")) {
+        break;
+      }
+    }
+    const monotonicTicks = parseDiscoveryGitNativeOwnerInteger(
+      monotonicTicksField,
+      "monotonic ticks",
+    );
     if (ownerPid <= 0 || monotonicTicks < 0) {
       throw new Error("native owner identity is outside its positive domain");
     }
     if (type === "BEGIN") {
-      if (stage !== "spawned") {
-        throw new Error("native owner BEGIN stage is malformed");
+      const childPidField = fields[offset++];
+      if (childPidField === undefined) {
+        if (
+          !incompleteRecord(
+            recordStart,
+            "native owner BEGIN record is truncated",
+          )
+        ) {
+          break;
+        }
       }
       const childPid = parseDiscoveryGitNativeOwnerInteger(
-        fields[offset++],
+        childPidField,
         "child PID",
       );
+      const argumentCountField = fields[offset++];
+      if (argumentCountField === undefined) {
+        if (
+          !incompleteRecord(
+            recordStart,
+            "native owner BEGIN record is truncated",
+          )
+        ) {
+          break;
+        }
+      }
       const argumentCount = parseDiscoveryGitNativeOwnerInteger(
-        fields[offset++],
+        argumentCountField,
         "argument count",
       );
-      if (childPid <= 0 || argumentCount < 0) {
+      if (
+        childPid <= 0 ||
+        argumentCount < 0 ||
+        argumentCount > discoveryGitNativeOwnerRecordMaxFields - 10
+      ) {
         throw new Error("native owner BEGIN integers are outside their domain");
+      }
+      const recordEnd = offset + argumentCount + 1;
+      if (recordEnd > fields.length) {
+        if (
+          !incompleteRecord(
+            recordStart,
+            "native owner BEGIN record is truncated",
+          )
+        ) {
+          break;
+        }
       }
       const args = fields.slice(offset, offset + argumentCount);
       if (
@@ -5297,7 +5430,8 @@ async function readDiscoveryGitNativeOwnerRecords(
       ) {
         throw new Error("native owner BEGIN record is truncated");
       }
-      offset += argumentCount + 1;
+      offset = recordEnd;
+      assertRecordBounds(recordStart, offset);
       records.push({
         args,
         childPid,
@@ -5306,47 +5440,53 @@ async function readDiscoveryGitNativeOwnerRecords(
         operation,
         ownerPid,
         scenario,
-        stage,
-        type,
+        stage: "spawned",
+        type: "BEGIN",
       });
       continue;
     }
-    if (type === "ACK" || type === "END" || type === "REJECT") {
-      const expectedStage =
-        type === "ACK" ? "shutdown" : type === "END" ? "terminal" : "entry";
-      if (stage !== expectedStage) {
-        throw new Error("native owner terminal stage is malformed");
+    const childExitField = fields[offset++];
+    if (childExitField === undefined) {
+      if (
+        !incompleteRecord(
+          recordStart,
+          "native owner terminal record is truncated",
+        )
+      ) {
+        break;
       }
-      const childExit = parseDiscoveryGitNativeOwnerInteger(
-        fields[offset++],
-        "terminal status",
-      );
-      if (type === "REJECT") {
-        records.push({
-          childExit,
-          commandIdentity,
-          monotonicTicks,
-          operation,
-          ownerPid,
-          scenario,
-          stage: "entry",
-          type,
-        });
-      } else {
-        records.push({
-          childExit,
-          commandIdentity,
-          monotonicTicks,
-          operation,
-          ownerPid,
-          scenario,
-          stage: type === "ACK" ? "shutdown" : "terminal",
-          type,
-        });
-      }
-      continue;
     }
-    throw new Error("native owner record type is malformed");
+    const childExit = parseDiscoveryGitNativeOwnerInteger(
+      childExitField,
+      "terminal status",
+    );
+    assertRecordBounds(recordStart, offset);
+    if (type === "REJECT") {
+      records.push({
+        childExit,
+        commandIdentity,
+        monotonicTicks,
+        operation,
+        ownerPid,
+        scenario,
+        stage: "entry",
+        type,
+      });
+    } else {
+      records.push({
+        childExit,
+        commandIdentity,
+        monotonicTicks,
+        operation,
+        ownerPid,
+        scenario,
+        stage: type === "ACK" ? "shutdown" : "terminal",
+        type,
+      });
+    }
+  }
+  if (incompleteTailBytes > 0) {
+    assertRecordBounds(fields.length, fields.length, incompleteTailBytes);
   }
   return records;
 }
@@ -5978,6 +6118,12 @@ describe("read-only PR review discovery planner", () => {
     expect(discoveryGitWindowsLauncherSource).toContain(
       "Stopwatch.GetTimestamp().ToString()",
     );
+    expect(discoveryGitWindowsLauncherSource).toContain(
+      "begin[6] = Stopwatch.GetTimestamp().ToString();",
+    );
+    expect(discoveryGitWindowsLauncherSource).toContain(
+      "begin[7] = child.ProcessId.ToString();",
+    );
     expect(discoveryGitWindowsLauncherSource).toContain("begin[1] = scenario;");
     expect(discoveryGitWindowsLauncherSource).toContain(
       'begin[2] = "spawned";',
@@ -6104,6 +6250,224 @@ describe("read-only PR review discovery planner", () => {
         allowIncompleteTail: true,
       }),
     ).resolves.toEqual(records);
+  });
+
+  it("assigns the canonical native BEGIN transport fields semantically", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "native-owner-begin-"));
+    discoveryTempRoots.push(root);
+    const ownerLog = path.join(root, discoveryGitNativeOwnerLogName);
+    const commandIdentity = "c".repeat(64);
+    await writeFile(
+      ownerLog,
+      Buffer.from(
+        [
+          "BEGIN",
+          "literal-native-order",
+          "spawned",
+          "pass-through",
+          commandIdentity,
+          "101",
+          "9876543210",
+          "202",
+          "1",
+          "status",
+          "BEGIN_END",
+          "",
+        ].join("\0"),
+      ),
+    );
+
+    await expect(readDiscoveryGitNativeOwnerRecords(ownerLog)).resolves.toEqual(
+      [
+        {
+          args: ["status"],
+          childPid: 202,
+          commandIdentity,
+          monotonicTicks: 9876543210,
+          operation: "pass-through",
+          ownerPid: 101,
+          scenario: "literal-native-order",
+          stage: "spawned",
+          type: "BEGIN",
+        },
+      ],
+    );
+  });
+
+  it("polls only complete native lifecycle records across append boundaries", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "native-owner-framing-"));
+    discoveryTempRoots.push(root);
+    const ownerLog = path.join(root, discoveryGitNativeOwnerLogName);
+    const commandIdentity = "d".repeat(64);
+    const recordFields = [
+      [
+        "BEGIN",
+        "framing",
+        "spawned",
+        "pass-through",
+        commandIdentity,
+        "101",
+        "1000",
+        "202",
+        "2",
+        "status",
+        "--porcelain=v1",
+        "BEGIN_END",
+      ],
+      [
+        "ACK",
+        "framing",
+        "shutdown",
+        "pass-through",
+        commandIdentity,
+        "101",
+        "1001",
+        "125",
+      ],
+      [
+        "END",
+        "framing",
+        "terminal",
+        "pass-through",
+        commandIdentity,
+        "101",
+        "1002",
+        "125",
+      ],
+      [
+        "REJECT",
+        "framing",
+        "entry",
+        "pass-through",
+        "e".repeat(64),
+        "303",
+        "1003",
+        "125",
+      ],
+    ] as const;
+    for (const fields of recordFields) {
+      const encoded = Buffer.from([...fields, ""].join("\0"));
+      const fieldBoundaries = [...encoded.entries()]
+        .filter(([, byte]) => byte === 0)
+        .map(([index]) => index + 1);
+      for (const boundary of fieldBoundaries.slice(0, -1)) {
+        await writeFile(ownerLog, encoded.subarray(0, boundary));
+        await expect(
+          readDiscoveryGitNativeOwnerRecords(ownerLog, {
+            allowIncompleteTail: true,
+          }),
+        ).resolves.toEqual([]);
+        await expect(
+          readDiscoveryGitNativeOwnerRecords(ownerLog),
+        ).rejects.toThrow(/native owner .*truncated/u);
+      }
+    }
+
+    await writeFile(ownerLog, Buffer.from("BEG", "utf8"));
+    await expect(
+      readDiscoveryGitNativeOwnerRecords(ownerLog, {
+        allowIncompleteTail: true,
+      }),
+    ).resolves.toEqual([]);
+    await expect(readDiscoveryGitNativeOwnerRecords(ownerLog)).rejects.toThrow(
+      "native owner log is not NUL terminated",
+    );
+
+    await writeFile(
+      ownerLog,
+      Buffer.from(
+        [
+          "BEGIN",
+          "framing",
+          "terminal",
+          "pass-through",
+          commandIdentity,
+          "101",
+          "1000",
+          "202",
+          "0",
+          "BEGIN_END",
+          "",
+        ].join("\0"),
+      ),
+    );
+    await expect(
+      readDiscoveryGitNativeOwnerRecords(ownerLog, {
+        allowIncompleteTail: true,
+      }),
+    ).rejects.toThrow("native owner BEGIN stage is malformed");
+
+    await writeFile(
+      ownerLog,
+      Buffer.from(
+        [
+          "BEGIN",
+          "framing",
+          "spawned",
+          "pass-through",
+          commandIdentity,
+          "101",
+          "1000",
+          "202",
+          "0",
+          "NOT_BEGIN_END",
+          "",
+        ].join("\0"),
+      ),
+    );
+    await expect(
+      readDiscoveryGitNativeOwnerRecords(ownerLog, {
+        allowIncompleteTail: true,
+      }),
+    ).rejects.toThrow("native owner BEGIN record is truncated");
+  });
+
+  it("enforces native lifecycle record byte and field bounds", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "native-owner-bounds-"));
+    discoveryTempRoots.push(root);
+    const ownerLog = path.join(root, discoveryGitNativeOwnerLogName);
+    const commandIdentity = "f".repeat(64);
+    await writeFile(
+      ownerLog,
+      Buffer.from(
+        [
+          "END",
+          "x".repeat(discoveryGitNativeOwnerRecordMaxBytes),
+          "terminal",
+          "pass-through",
+          commandIdentity,
+          "101",
+          "1000",
+          "0",
+          "",
+        ].join("\0"),
+      ),
+    );
+    await expect(readDiscoveryGitNativeOwnerRecords(ownerLog)).rejects.toThrow(
+      "native owner record exceeds its bound",
+    );
+
+    await writeFile(
+      ownerLog,
+      Buffer.from(
+        [
+          "BEGIN",
+          "bounds",
+          "spawned",
+          "pass-through",
+          commandIdentity,
+          "101",
+          "1000",
+          "202",
+          String(discoveryGitNativeOwnerRecordMaxFields),
+          "BEGIN_END",
+          "",
+        ].join("\0"),
+      ),
+    );
+    await expect(readDiscoveryGitNativeOwnerRecords(ownerLog)).rejects.toThrow(
+      "native owner BEGIN integers are outside their domain",
+    );
   });
 
   it.runIf(process.platform === "win32")(
@@ -8669,11 +9033,16 @@ describe("read-only PR review discovery planner", () => {
         const component = path.join(collisionRoot, leaf);
         const rawPath =
           process.platform === "win32"
-            ? component
+            ? leaf === "CANDIDATE"
+              ? `${component}${path.win32.sep}`
+              : component
             : `${component}${path.sep}..`;
         const leaseFile = `.ephemeral/pr-432-${discoveryDigest(rawPath)}-lease.json`;
         return { component, leaseFile, rawPath };
       });
+      expect(
+        new Set(collisionEntries.map((entry) => entry.leaseFile)).size,
+      ).toBe(2);
       const sortedEntries = [...collisionEntries].sort((left, right) =>
         left.leaseFile < right.leaseFile
           ? -1
@@ -8774,6 +9143,16 @@ describe("read-only PR review discovery planner", () => {
         root,
       ];
       const input = JSON.stringify(result);
+      expect(
+        JSON.parse(
+          validatePrReviewDiscoveryJson(Buffer.from(input), {
+            repository: "owner/repo",
+            prNumber: 432,
+            primaryRoot: root,
+            platform: process.platform,
+          }),
+        ),
+      ).toEqual(result);
       const expected = {
         exitCode: 1,
         stdout: "",
