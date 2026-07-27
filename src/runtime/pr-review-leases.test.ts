@@ -6029,6 +6029,80 @@ async function shutdownOrdinaryDiscoveryLifecycleScenario(
   return scenario.diagnostics;
 }
 
+async function finalizeOrdinaryDiscoveryLifecycleScenarios({
+  originalError,
+  removeRetainedRoot = async (retainedRoot: string) => {
+    await rm(retainedRoot, { recursive: true, force: true });
+  },
+  retainedRoots,
+  scenarios,
+  shutdownScenario = shutdownOrdinaryDiscoveryLifecycleScenario,
+}: {
+  originalError?: unknown;
+  removeRetainedRoot?: (retainedRoot: string) => Promise<void>;
+  retainedRoots: readonly string[];
+  scenarios: ReadonlyArray<{
+    label: string;
+    scenario: OrdinaryDiscoveryLifecycleScenario | undefined;
+  }>;
+  shutdownScenario?: (
+    scenario: OrdinaryDiscoveryLifecycleScenario,
+  ) => Promise<unknown>;
+}): Promise<void> {
+  const cleanupErrors: Error[] = [];
+  const finalRetainedRoots = new Set(retainedRoots);
+  const cleanupError = (label: string, error: unknown): Error =>
+    new Error(
+      `${label}: ${
+        error instanceof Error
+          ? error.message
+          : "cleanup failed with a non-error value"
+      }`,
+    );
+  for (const { label, scenario } of scenarios) {
+    if (scenario === undefined) continue;
+    if (scenario.shutdownAttempted) {
+      if (scenario.shutdownFailed) {
+        for (const ownedRoot of scenario.ownedRoots) {
+          finalRetainedRoots.add(ownedRoot);
+        }
+      }
+      continue;
+    }
+    try {
+      const shutdownTask = shutdownScenario(scenario);
+      if (!scenario.shutdownAttempted) {
+        throw new Error("shutdown was not marked attempted before awaiting");
+      }
+      await shutdownTask;
+    } catch (error) {
+      cleanupErrors.push(cleanupError(`${label} shutdown failed`, error));
+      for (const ownedRoot of scenario.ownedRoots) {
+        finalRetainedRoots.add(ownedRoot);
+      }
+    }
+  }
+  for (const retainedRoot of finalRetainedRoots) {
+    try {
+      await removeRetainedRoot(retainedRoot);
+    } catch (error) {
+      cleanupErrors.push(
+        cleanupError(`retained root cleanup failed for ${retainedRoot}`, error),
+      );
+    }
+  }
+  if (originalError === undefined && cleanupErrors.length === 0) return;
+  if (originalError !== undefined && cleanupErrors.length === 0) {
+    throw originalError;
+  }
+  throw new AggregateError(
+    originalError === undefined
+      ? cleanupErrors
+      : [originalError, ...cleanupErrors],
+    "ordinary discovery scenario finalization failed",
+  );
+}
+
 async function expectDiscoveryGitAdapterEntry(
   root: string,
   expectedArguments: readonly string[],
@@ -7119,6 +7193,141 @@ describe("read-only PR review discovery planner", () => {
     }
   });
 
+  it("preserves the original failure while final cleanup attempts every owned action once", async () => {
+    const originalPath = process.env.PATH;
+    const originalCwd = process.cwd();
+    const originalAdapterLog = activeDiscoveryGitAdapterLog;
+    const originalNativeOwnerLog = activeDiscoveryGitNativeOwnerLog;
+    const originalNativeOwnerExpectedOperation =
+      activeDiscoveryGitNativeOwnerExpectedOperation;
+    const retainedRoots = await Promise.all([
+      mkdtemp(path.join(tmpdir(), "ordinary-finalizer-failing-")),
+      mkdtemp(path.join(tmpdir(), "ordinary-finalizer-following-")),
+    ]);
+    const scenario = (root: string): OrdinaryDiscoveryLifecycleScenario => ({
+      diagnostics: [],
+      enabled: true,
+      nativeOwnerLog: path.join(root, discoveryGitNativeOwnerLogName),
+      ownedRoots: [root],
+      previousAdapterLog: originalAdapterLog,
+      previousCwd: originalCwd,
+      previousNativeOwnerExpectedOperation:
+        originalNativeOwnerExpectedOperation,
+      previousNativeOwnerLog: originalNativeOwnerLog,
+      previousPath: originalPath,
+      root,
+      shutdownAttempted: false,
+      shutdownFailed: false,
+      shutdownLatch: path.join(root, discoveryGitNativeOwnerShutdownName),
+      task: Promise.resolve(),
+      wrapperDir: root,
+    });
+    const failingScenario = scenario(retainedRoots[0] as string);
+    const followingScenario = scenario(retainedRoots[1] as string);
+    const shutdownCounts = new Map<
+      OrdinaryDiscoveryLifecycleScenario,
+      number
+    >();
+    const rootCleanupCounts = new Map<string, number>();
+    const originalFailure = new Error("original test body failure");
+    process.chdir(followingScenario.root);
+    process.env.PATH = "ordinary-finalizer-temporary-path";
+    activeDiscoveryGitAdapterLog = "ordinary-finalizer-temporary-adapter";
+    activeDiscoveryGitNativeOwnerLog = followingScenario.nativeOwnerLog;
+    activeDiscoveryGitNativeOwnerExpectedOperation = "pass-through";
+    let finalizationError: unknown;
+    try {
+      await finalizeOrdinaryDiscoveryLifecycleScenarios({
+        originalError: originalFailure,
+        removeRetainedRoot: async (retainedRoot) => {
+          rootCleanupCounts.set(
+            retainedRoot,
+            (rootCleanupCounts.get(retainedRoot) ?? 0) + 1,
+          );
+          await rm(retainedRoot, { recursive: true, force: true });
+          if (retainedRoot === retainedRoots[1]) {
+            throw new Error("synthetic retained root cleanup evidence");
+          }
+        },
+        retainedRoots,
+        scenarios: [
+          { label: "following scenario", scenario: followingScenario },
+          { label: "failing scenario", scenario: failingScenario },
+        ],
+        shutdownScenario: async (ownedScenario) => {
+          ownedScenario.shutdownAttempted = true;
+          shutdownCounts.set(
+            ownedScenario,
+            (shutdownCounts.get(ownedScenario) ?? 0) + 1,
+          );
+          process.chdir(ownedScenario.previousCwd);
+          if (ownedScenario.previousPath === undefined) {
+            Reflect.deleteProperty(process.env, "PATH");
+          } else {
+            process.env.PATH = ownedScenario.previousPath;
+          }
+          activeDiscoveryGitAdapterLog = ownedScenario.previousAdapterLog;
+          activeDiscoveryGitNativeOwnerLog =
+            ownedScenario.previousNativeOwnerLog;
+          activeDiscoveryGitNativeOwnerExpectedOperation =
+            ownedScenario.previousNativeOwnerExpectedOperation;
+          throw new Error(`synthetic shutdown for ${ownedScenario.root}`);
+        },
+      });
+    } catch (error) {
+      finalizationError = error;
+    } finally {
+      process.chdir(originalCwd);
+      if (originalPath === undefined) {
+        Reflect.deleteProperty(process.env, "PATH");
+      } else {
+        process.env.PATH = originalPath;
+      }
+      activeDiscoveryGitAdapterLog = originalAdapterLog;
+      activeDiscoveryGitNativeOwnerLog = originalNativeOwnerLog;
+      activeDiscoveryGitNativeOwnerExpectedOperation =
+        originalNativeOwnerExpectedOperation;
+    }
+
+    expect(finalizationError).toBeInstanceOf(AggregateError);
+    const errors = (finalizationError as AggregateError).errors;
+    expect(errors[0]).toBe(originalFailure);
+    expect(errors.slice(1).map((error) => (error as Error).message)).toEqual([
+      expect.stringContaining("following scenario shutdown failed"),
+      expect.stringContaining("failing scenario shutdown failed"),
+      expect.stringContaining("retained root cleanup failed"),
+    ]);
+    expect(shutdownCounts.get(followingScenario)).toBe(1);
+    expect(shutdownCounts.get(failingScenario)).toBe(1);
+    expect(followingScenario.shutdownAttempted).toBe(true);
+    expect(failingScenario.shutdownAttempted).toBe(true);
+    for (const retainedRoot of retainedRoots) {
+      expect(rootCleanupCounts.get(retainedRoot)).toBe(1);
+      await expect(lstat(retainedRoot)).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+    }
+    expect(process.env.PATH).toBe(originalPath);
+    expect(process.cwd()).toBe(originalCwd);
+    expect(activeDiscoveryGitAdapterLog).toBe(originalAdapterLog);
+    expect(activeDiscoveryGitNativeOwnerLog).toBe(originalNativeOwnerLog);
+    expect(activeDiscoveryGitNativeOwnerExpectedOperation).toBe(
+      originalNativeOwnerExpectedOperation,
+    );
+    await finalizeOrdinaryDiscoveryLifecycleScenarios({
+      retainedRoots: [],
+      scenarios: [
+        { label: "following scenario", scenario: followingScenario },
+        { label: "failing scenario", scenario: failingScenario },
+      ],
+      shutdownScenario: async () => {
+        throw new Error("attempted shutdown was retried");
+      },
+    });
+    expect(shutdownCounts.get(followingScenario)).toBe(1);
+    expect(shutdownCounts.get(failingScenario)).toBe(1);
+  });
+
   it.runIf(process.platform === "win32")(
     "preserves ordinary lifecycle evidence across forced shutdown and starts the next scenario cleanly",
     async () => {
@@ -7273,6 +7482,7 @@ describe("read-only PR review discovery planner", () => {
       let failingScenario: OrdinaryDiscoveryLifecycleScenario | undefined;
       let followingScenario: OrdinaryDiscoveryLifecycleScenario | undefined;
       let retainedRoots: string[] = [];
+      let originalError: unknown;
       try {
         const rootStart = discoveryTempRoots.length;
         const root = await createDiscoveryRepository();
@@ -7393,10 +7603,10 @@ describe("read-only PR review discovery planner", () => {
         }).then(() => undefined);
         await followingScenario.task;
         const activeFollowingScenario = followingScenario;
-        followingScenario = undefined;
         await shutdownOrdinaryDiscoveryLifecycleScenario(
           activeFollowingScenario,
         );
+        followingScenario = undefined;
         expect(process.env.PATH).toBe(originalPath);
         expect(process.cwd()).toBe(originalCwd);
         expect(activeDiscoveryGitAdapterLog).toBe(originalAdapterLog);
@@ -7414,22 +7624,24 @@ describe("read-only PR review discovery planner", () => {
         for (const retainedRoot of retainedRoots) {
           expect((await lstat(retainedRoot)).isDirectory()).toBe(true);
         }
+      } catch (error) {
+        originalError = error;
       } finally {
-        if (
-          followingScenario !== undefined &&
-          !followingScenario.shutdownAttempted
-        ) {
-          await shutdownOrdinaryDiscoveryLifecycleScenario(followingScenario);
-        }
-        if (
-          failingScenario !== undefined &&
-          !failingScenario.shutdownAttempted
-        ) {
-          await shutdownOrdinaryDiscoveryLifecycleScenario(failingScenario);
-        }
-        for (const retainedRoot of retainedRoots) {
-          await rm(retainedRoot, { recursive: true, force: true });
-        }
+        const detachedFollowingScenario = followingScenario;
+        const detachedFailingScenario = failingScenario;
+        followingScenario = undefined;
+        failingScenario = undefined;
+        await finalizeOrdinaryDiscoveryLifecycleScenarios({
+          originalError,
+          retainedRoots,
+          scenarios: [
+            {
+              label: "following scenario",
+              scenario: detachedFollowingScenario,
+            },
+            { label: "failing scenario", scenario: detachedFailingScenario },
+          ],
+        });
       }
     },
   );
