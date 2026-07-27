@@ -10,6 +10,7 @@ import {
   RuntimePathError,
   assertNoSymlinkOrReparsePoint,
   normalizeRuntimePath,
+  parseRuntimeDirectoryPath,
   requireAbsoluteRuntimePath,
   requireDirectEphemeralChild,
 } from "./paths.js";
@@ -24,6 +25,14 @@ describe("runtime path utilities", () => {
       segments: ["var", "x"],
       isAbsolute: true,
       comparable: "/var/x",
+    });
+  });
+
+  it("preserves literal backslashes in normalized POSIX path segments", () => {
+    expect(
+      normalizeRuntimePath("/tmp/literal\\backslash/component", "posix"),
+    ).toMatchObject({
+      segments: ["tmp", "literal\\backslash", "component"],
     });
   });
 
@@ -43,6 +52,62 @@ describe("runtime path utilities", () => {
     expect(() => requireAbsoluteRuntimePath("relative/path", "posix")).toThrow(
       RuntimePathError,
     );
+  });
+
+  it("parses runtime directories with raw POSIX traversal authority", () => {
+    expect(
+      parseRuntimeDirectoryPath("/tmp/runtime\\..\\literal", "posix"),
+    ).toMatchObject({
+      original: "/tmp/runtime\\..\\literal",
+      rawSegments: ["tmp", "runtime\\..\\literal"],
+      inspectionPath: "/tmp/runtime\\..\\literal",
+    });
+    expect(() =>
+      parseRuntimeDirectoryPath("/tmp/runtime/scripts/..", "posix"),
+    ).toThrow("runtime path must not contain a parent-directory component");
+    expect(
+      parseRuntimeDirectoryPath("/tmp/..runtime", "posix").rawSegments,
+    ).toContain("..runtime");
+  });
+
+  it("parses Win32 drive, UNC, and extended UNC spellings before normalization", () => {
+    for (const input of [
+      "D:/runtime/mixed\\segments",
+      "D:\\runtime/mixed\\segments",
+      "\\\\server\\share\\runtime",
+      "\\\\?\\UNC\\server\\share\\runtime",
+    ]) {
+      expect(parseRuntimeDirectoryPath(input, "win32")).toMatchObject({
+        original: input,
+        platform: "win32",
+        isAbsolute: true,
+      });
+    }
+    expect(() =>
+      parseRuntimeDirectoryPath("D:\\runtime/mixed\\..", "win32"),
+    ).toThrow("runtime path must not contain a parent-directory component");
+    expect(
+      parseRuntimeDirectoryPath("D:\\runtime\\..name", "win32").rawSegments,
+    ).toContain("..name");
+  });
+
+  it("derives final-component inspection spellings without changing execution input", () => {
+    expect(parseRuntimeDirectoryPath("/tmp/runtime/.", "posix")).toMatchObject({
+      original: "/tmp/runtime/.",
+      inspectionPath: "/tmp/runtime",
+    });
+    expect(
+      parseRuntimeDirectoryPath("D:\\runtime\\.\\", "win32"),
+    ).toMatchObject({
+      original: "D:\\runtime\\.\\",
+      inspectionPath: "D:\\runtime",
+    });
+    expect(
+      parseRuntimeDirectoryPath("relative/runtime", "posix"),
+    ).toMatchObject({
+      original: "relative/runtime",
+      isAbsolute: false,
+    });
   });
 
   it("accepts only direct .ephemeral child paths", () => {

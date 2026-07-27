@@ -13,6 +13,16 @@ export interface NormalizedRuntimePath {
   comparable: string;
 }
 
+/**
+ * A runtime-directory path before it is allowed to select executable code.
+ * `inspectionPath` deliberately retains an unambiguous spelling of the final
+ * component so lstat can inspect it without dereferencing a final `/.` alias.
+ */
+export interface RuntimeDirectoryPath extends NormalizedRuntimePath {
+  rawSegments: string[];
+  inspectionPath: string;
+}
+
 export interface DirectEphemeralChild {
   ok: true;
   path: string;
@@ -53,7 +63,7 @@ export function normalizeRuntimePath(
   const parsed = pathApi.parse(normalized);
   const segments = normalized
     .slice(parsed.root.length)
-    .split(/[\\/]+/u)
+    .split(platform === "win32" ? /[\\/]+/u : /\/+/u)
     .filter(Boolean);
   const comparable =
     platform === "win32"
@@ -80,6 +90,63 @@ export function requireAbsoluteRuntimePath(
     throw new RuntimePathError("relative-path", "path must be absolute");
   }
   return normalized;
+}
+
+export function parseRuntimeDirectoryPath(
+  input: string,
+  platform: RuntimePathPlatform = process.platform === "win32"
+    ? "win32"
+    : "posix",
+): RuntimeDirectoryPath {
+  if (input.length === 0) {
+    throw new RuntimePathError("empty-path", "path must not be empty");
+  }
+
+  const rawSegments = splitRawRuntimePath(input, platform);
+  if (rawSegments.includes("..")) {
+    throw new RuntimePathError(
+      "path-traversal",
+      "runtime path must not contain a parent-directory component",
+    );
+  }
+
+  const normalized = normalizeRuntimePath(input, platform);
+  return {
+    ...normalized,
+    rawSegments,
+    inspectionPath: runtimeDirectoryInspectionPath(input, platform),
+  };
+}
+
+function splitRawRuntimePath(
+  input: string,
+  platform: RuntimePathPlatform,
+): string[] {
+  return input.split(platform === "win32" ? /[\\/]/u : /\//u).filter(Boolean);
+}
+
+function runtimeDirectoryInspectionPath(
+  input: string,
+  platform: RuntimePathPlatform,
+): string {
+  const pathApi = platform === "win32" ? path.win32 : path.posix;
+  const separatorPattern = platform === "win32" ? /[\\/]+$/u : /\/+$/u;
+  const separatorBeforeFinal = platform === "win32" ? /[\\/]+\.$/u : /\/+\.$/u;
+  let candidate = input;
+
+  while (candidate !== pathApi.parse(candidate).root) {
+    if (separatorBeforeFinal.test(candidate)) {
+      candidate = candidate.replace(separatorBeforeFinal, "");
+      continue;
+    }
+    const withoutTrailingSeparators = candidate.replace(separatorPattern, "");
+    if (withoutTrailingSeparators === candidate) {
+      break;
+    }
+    candidate = withoutTrailingSeparators || pathApi.parse(candidate).root;
+  }
+
+  return candidate;
 }
 
 export function requireDirectEphemeralChild(

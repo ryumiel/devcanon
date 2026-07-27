@@ -4467,7 +4467,7 @@ function gatedCommandLease({
   };
 }
 
-describe("pr-review lease wrapper runtime override containment", () => {
+describe("pr-review lease wrapper trusted runtime bootstrap", () => {
   const wrapper = path.resolve("skills/pr-review/scripts/review-leases.sh");
 
   async function writeRuntime(
@@ -4484,11 +4484,7 @@ describe("pr-review lease wrapper runtime override containment", () => {
       [
         "#!/usr/bin/env bash",
         "set -euo pipefail",
-        "printf 'entered\\n' >\"$DEVCANON_TEST_RESOLVER_SENTINEL\"",
         'case "${1:-}" in',
-        "  resolve-entrypoint)",
-        "    printf '%s\\n' \"$DEVCANON_RUNTIME_DIR/scripts/devcanon-runtime.sh\"",
-        "    ;;",
         "  runtime)",
         "    printf 'executed\\n' >\"$DEVCANON_TEST_SENTINEL\"",
         "    printf 'runtime-ok\\n'",
@@ -4516,8 +4512,6 @@ describe("pr-review lease wrapper runtime override containment", () => {
             ...process.env,
             DEVCANON_RUNTIME_DIR: runtimeDir,
             DEVCANON_TEST_SENTINEL: sentinel,
-            DEVCANON_TEST_RESOLVER_SENTINEL: `${sentinel}-resolver`,
-            OSTYPE: process.platform === "win32" ? "linux-gnu" : "msys",
           },
           encoding: "utf8",
         },
@@ -4548,9 +4542,7 @@ describe("pr-review lease wrapper runtime override containment", () => {
       stdout: "runtime-ok\n",
       stderr: "",
     });
-    expect(await readFile(`${sentinel}-resolver`, "utf8")).toBe("entered\n");
     expect(await readFile(sentinel, "utf8")).toBe("executed\n");
-    await rm(`${sentinel}-resolver`);
     await rm(sentinel);
   }
 
@@ -4567,11 +4559,6 @@ describe("pr-review lease wrapper runtime override containment", () => {
       stderr: `${expectedStderr}\n`,
     });
     await expect(readFile(sentinel, "utf8")).rejects.toMatchObject({
-      code: "ENOENT",
-    });
-    await expect(
-      readFile(`${sentinel}-resolver`, "utf8"),
-    ).rejects.toMatchObject({
       code: "ENOENT",
     });
   }

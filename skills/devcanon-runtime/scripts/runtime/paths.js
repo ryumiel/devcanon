@@ -19,7 +19,7 @@ export function normalizeRuntimePath(input, platform = process.platform === "win
     const parsed = pathApi.parse(normalized);
     const segments = normalized
         .slice(parsed.root.length)
-        .split(/[\\/]+/u)
+        .split(platform === "win32" ? /[\\/]+/u : /\/+/u)
         .filter(Boolean);
     const comparable = platform === "win32"
         ? normalized.replace(/\\/gu, "/").toLowerCase()
@@ -40,6 +40,44 @@ export function requireAbsoluteRuntimePath(input, platform) {
         throw new RuntimePathError("relative-path", "path must be absolute");
     }
     return normalized;
+}
+export function parseRuntimeDirectoryPath(input, platform = process.platform === "win32"
+    ? "win32"
+    : "posix") {
+    if (input.length === 0) {
+        throw new RuntimePathError("empty-path", "path must not be empty");
+    }
+    const rawSegments = splitRawRuntimePath(input, platform);
+    if (rawSegments.includes("..")) {
+        throw new RuntimePathError("path-traversal", "runtime path must not contain a parent-directory component");
+    }
+    const normalized = normalizeRuntimePath(input, platform);
+    return {
+        ...normalized,
+        rawSegments,
+        inspectionPath: runtimeDirectoryInspectionPath(input, platform),
+    };
+}
+function splitRawRuntimePath(input, platform) {
+    return input.split(platform === "win32" ? /[\\/]/u : /\//u).filter(Boolean);
+}
+function runtimeDirectoryInspectionPath(input, platform) {
+    const pathApi = platform === "win32" ? path.win32 : path.posix;
+    const separatorPattern = platform === "win32" ? /[\\/]+$/u : /\/+$/u;
+    const separatorBeforeFinal = platform === "win32" ? /[\\/]+\.$/u : /\/+\.$/u;
+    let candidate = input;
+    while (candidate !== pathApi.parse(candidate).root) {
+        if (separatorBeforeFinal.test(candidate)) {
+            candidate = candidate.replace(separatorBeforeFinal, "");
+            continue;
+        }
+        const withoutTrailingSeparators = candidate.replace(separatorPattern, "");
+        if (withoutTrailingSeparators === candidate) {
+            break;
+        }
+        candidate = withoutTrailingSeparators || pathApi.parse(candidate).root;
+    }
+    return candidate;
 }
 export function requireDirectEphemeralChild(input) {
     if (input.includes("\\")) {

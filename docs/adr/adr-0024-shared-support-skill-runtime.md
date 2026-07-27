@@ -81,6 +81,26 @@ then may try the physical resolved sibling path for symlink install modes. If
 no compatible runtime exists, the adapter fails before performing validation or
 state mutation.
 
+When an adapter uses `DEVCANON_RUNTIME_DIR` to select a runtime for execution,
+it must first locate the fixed sibling `devcanon-runtime` bootstrap without
+consulting that override. The thin shell adapter owns only its closed command
+selection, sibling bootstrap location, and exact argument forwarding. The
+packaged Node bootstrap owns platform-specific path grammar, raw traversal
+rejection, final-component `lstat`, physical `realpath` containment, and child
+dispatch. In particular, it rejects an exact raw `..` component before path
+normalization and rejects a final symlink, junction, or reparse point before
+dereference. It then proves the real runtime entrypoint is within the real
+runtime directory using relative-path semantics, not a string prefix.
+
+The override is therefore inert test, diagnostic, and packaging input until
+the fixed bootstrap has structurally validated it. It must never be used to
+find or load the bootstrap that validates it. Fixtures that exercise this
+override must package the fixed support skill as a sibling, just as source,
+rendered, copied, managed, and symlink-installed layouts do. The dispatcher
+keeps the original override value in the child environment and launches the
+validated child itself; it does not return an override path through shell
+command substitution.
+
 The runtime is distributed with rendered and installed skill bundles. Runtime
 files participate in render hashing, generated previews, sync planning, and
 managed install manifests like other mirrored skill support files. Consumers

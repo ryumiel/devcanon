@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { chmod, cp, mkdir, symlink } from "node:fs/promises";
+import { chmod, cp, mkdir, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -32,10 +32,56 @@ async function prepareRuntimeResolutionFixture(
   await copyRuntimeFixture(config.library.skillsDir);
   await createSkillFixture(
     config.library.skillsDir,
+    "pr-review",
+    "---\nname: pr-review\ndescription: A trusted-bootstrap fixture.\n---\n\n# Review\n",
+    ["scripts"],
+  );
+  const wrapper = path.join(
+    config.library.skillsDir,
+    "pr-review",
+    "scripts",
+    "review-leases.sh",
+  );
+  await cp(path.resolve("skills/pr-review/scripts/review-leases.sh"), wrapper);
+  await chmod(wrapper, 0o755);
+  await createSkillFixture(
+    config.library.skillsDir,
     "consumer-skill",
     "---\nname: consumer-skill\ndescription: A runtime-backed consumer fixture.\n---\n\n# Consumer\n",
     ["scripts"],
   );
+}
+
+async function writeRuntimeOverride(root: string): Promise<string> {
+  const runtime = path.join(root, "override-runtime");
+  const scripts = path.join(runtime, "scripts");
+  await mkdir(scripts, { recursive: true });
+  const entrypoint = path.join(scripts, "devcanon-runtime.sh");
+  await writeFile(
+    entrypoint,
+    [
+      "#!/usr/bin/env bash",
+      'printf \'%s|%s|%s|%s\\n\' "$1" "$2" "$3" "$DEVCANON_RUNTIME_DIR"',
+      "",
+    ].join("\n"),
+  );
+  await chmod(entrypoint, 0o755);
+  return runtime;
+}
+
+async function runTrustedWrapper(
+  wrapper: string,
+  runtimeOverride: string,
+): Promise<string> {
+  const { stdout, stderr } = await execFileAsync(
+    "bash",
+    [await toBashPath(wrapper), "derive-path"],
+    {
+      env: { ...process.env, DEVCANON_RUNTIME_DIR: runtimeOverride },
+    },
+  );
+  expect(stderr).toBe("");
+  return stdout;
 }
 
 describe("devcanon-runtime resolver", () => {
@@ -159,6 +205,58 @@ describe("devcanon-runtime resolver", () => {
     );
   });
 
+  it("uses the fixed sibling bootstrap before an override in source, rendered, and copy-installed layouts", async () => {
+    await prepareRuntimeResolutionFixture(config);
+    const runtimeOverride = await writeRuntimeOverride(tempDir);
+    const expected = `runtime|pr-review-leases|derive-path|${runtimeOverride}\n`;
+
+    expect(
+      await runTrustedWrapper(
+        path.join(
+          config.library.skillsDir,
+          "pr-review",
+          "scripts",
+          "review-leases.sh",
+        ),
+        runtimeOverride,
+      ),
+    ).toBe(expected);
+
+    await renderAll(config, true);
+    expect(
+      await runTrustedWrapper(
+        path.join(
+          config.library.generatedDir,
+          "codex",
+          "skills",
+          "pr-review",
+          "scripts",
+          "review-leases.sh",
+        ),
+        runtimeOverride,
+      ),
+    ).toBe(expected);
+
+    const result = await sync(config, {
+      dryRun: false,
+      force: false,
+      strict: false,
+      mode: "copy",
+    });
+    expect(result.errors).toEqual([]);
+    expect(
+      await runTrustedWrapper(
+        path.join(
+          config.targets.codex.skillsHome,
+          "pr-review",
+          "scripts",
+          "review-leases.sh",
+        ),
+        runtimeOverride,
+      ),
+    ).toBe(expected);
+  });
+
   it.skipIf(!symlinkAvailable)(
     "resolves runtime entrypoints from symlink-installed sibling layouts",
     async () => {
@@ -200,6 +298,38 @@ describe("devcanon-runtime resolver", () => {
           "devcanon-runtime.sh",
         ),
       );
+    },
+  );
+
+  it.skipIf(!symlinkAvailable)(
+    "uses the physical sibling bootstrap from a symlink-installed layout",
+    async () => {
+      config = makeResolvedConfig(tempDir, {
+        claude: { installMode: "symlink" },
+        codex: { installMode: "symlink" },
+        defaults: { installMode: "symlink" },
+      });
+      await prepareRuntimeResolutionFixture(config);
+      const runtimeOverride = await writeRuntimeOverride(tempDir);
+      const result = await sync(config, {
+        dryRun: false,
+        force: false,
+        strict: false,
+        mode: "symlink",
+      });
+      expect(result.errors).toEqual([]);
+
+      expect(
+        await runTrustedWrapper(
+          path.join(
+            config.targets.codex.skillsHome,
+            "pr-review",
+            "scripts",
+            "review-leases.sh",
+          ),
+          runtimeOverride,
+        ),
+      ).toBe(`runtime|pr-review-leases|derive-path|${runtimeOverride}\n`);
     },
   );
 
