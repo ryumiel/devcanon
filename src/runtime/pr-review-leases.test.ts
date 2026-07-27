@@ -5235,21 +5235,34 @@ function parseDiscoveryGitNativeOwnerInteger(
   return parsed;
 }
 
-async function readDiscoveryGitNativeOwnerRecords(
+interface DiscoveryGitNativeOwnerReadResult {
+  incompleteRecord: boolean;
+  incompleteRecordBytes: number;
+  records: DiscoveryGitNativeOwnerRecord[];
+}
+
+async function readDiscoveryGitNativeOwnerRecordSnapshot(
   ownerLog: string,
   options: { allowIncompleteTail?: boolean } = {},
-): Promise<DiscoveryGitNativeOwnerRecord[]> {
+): Promise<DiscoveryGitNativeOwnerReadResult> {
   const allowIncompleteTail = options.allowIncompleteTail === true;
   let raw: Buffer;
   try {
     raw = await readFile(ownerLog);
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return {
+        incompleteRecord: false,
+        incompleteRecordBytes: 0,
+        records: [],
+      };
+    }
     throw error;
   }
   if (raw.byteLength > discoveryGitNativeOwnerLogMaxBytes) {
     throw new Error("native owner log exceeds its bound");
   }
+  const rawByteLength = raw.length;
   let incompleteTailBytes = 0;
   if (raw.length > 0 && raw[raw.length - 1] !== 0) {
     if (!allowIncompleteTail) {
@@ -5270,6 +5283,8 @@ async function readDiscoveryGitNativeOwnerRecords(
     throw new Error("native owner log is not NUL terminated");
   }
   const records: DiscoveryGitNativeOwnerRecord[] = [];
+  let completedBytes = 0;
+  let incompleteRecordPresent = false;
   let offset = 0;
   const recordByteLength = (start: number, end: number): number =>
     fields
@@ -5293,7 +5308,10 @@ async function readDiscoveryGitNativeOwnerRecords(
   };
   const incompleteRecord = (start: number, message: string): false => {
     assertRecordBounds(start, fields.length, incompleteTailBytes);
-    if (allowIncompleteTail) return false;
+    if (allowIncompleteTail) {
+      incompleteRecordPresent = true;
+      return false;
+    }
     throw new Error(message);
   };
   while (offset < fields.length) {
@@ -5447,6 +5465,7 @@ async function readDiscoveryGitNativeOwnerRecords(
         stage: "spawned",
         type: "BEGIN",
       });
+      completedBytes = recordByteLength(0, offset);
       continue;
     }
     const childExitField = fields[offset++];
@@ -5488,11 +5507,27 @@ async function readDiscoveryGitNativeOwnerRecords(
         type,
       });
     }
+    completedBytes = recordByteLength(0, offset);
   }
   if (incompleteTailBytes > 0) {
     assertRecordBounds(fields.length, fields.length, incompleteTailBytes);
+    incompleteRecordPresent = true;
   }
-  return records;
+  return {
+    incompleteRecord: incompleteRecordPresent,
+    incompleteRecordBytes: incompleteRecordPresent
+      ? rawByteLength - completedBytes
+      : 0,
+    records,
+  };
+}
+
+async function readDiscoveryGitNativeOwnerRecords(
+  ownerLog: string,
+  options: { allowIncompleteTail?: boolean } = {},
+): Promise<DiscoveryGitNativeOwnerRecord[]> {
+  return (await readDiscoveryGitNativeOwnerRecordSnapshot(ownerLog, options))
+    .records;
 }
 
 function discoveryGitNativeOwnerActiveChildren(
@@ -5536,11 +5571,14 @@ async function waitForDiscoveryGitNativeOwnerBegin(
   ownerLog: string,
 ): Promise<DiscoveryGitNativeOwnerBegin> {
   for (let attempt = 0; attempt < 100; attempt += 1) {
-    const active = discoveryGitNativeOwnerActiveChildren(
-      await readDiscoveryGitNativeOwnerRecords(ownerLog, {
-        allowIncompleteTail: true,
-      }),
-    );
+    const snapshot = await readDiscoveryGitNativeOwnerRecordSnapshot(ownerLog, {
+      allowIncompleteTail: true,
+    });
+    if (snapshot.incompleteRecord) {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      continue;
+    }
+    const active = discoveryGitNativeOwnerActiveChildren(snapshot.records);
     if (active.length > 0) return active[0];
     await new Promise((resolve) => setTimeout(resolve, 20));
   }
@@ -5549,6 +5587,7 @@ async function waitForDiscoveryGitNativeOwnerBegin(
 
 interface DiscoveryGitNativeOwnerDiagnostic {
   active: ReturnType<typeof discoveryGitNativeOwnerDiagnosticRecord>[];
+  incomplete_record: boolean;
   incomplete_tail_bytes: number;
   omitted_records: number;
   phase: "pre-shutdown" | "terminal";
@@ -5575,6 +5614,8 @@ interface OrdinaryDiscoveryLifecycleScenario {
   previousNativeOwnerLog: string | undefined;
   previousPath: string | undefined;
   root: string;
+  shutdownAttempted: boolean;
+  shutdownFailed: boolean;
   shutdownLatch: string;
   task: Promise<void> | null;
   wrapperDir: string;
@@ -5641,26 +5682,24 @@ async function snapshotDiscoveryGitNativeOwnerDiagnostic(
   }
   const snapshotPath = `${ownerLog}.${phase}.snapshot`;
   await writeFile(snapshotPath, raw);
-  const records = await readDiscoveryGitNativeOwnerRecords(snapshotPath, {
-    allowIncompleteTail: true,
-  });
+  const recordSnapshot = await readDiscoveryGitNativeOwnerRecordSnapshot(
+    snapshotPath,
+    {
+      allowIncompleteTail: true,
+    },
+  );
+  const { records } = recordSnapshot;
   if (records.some((record) => record.scenario !== scenario)) {
     throw new Error("native owner diagnostic contains a foreign scenario");
   }
-  const lastTerminator = raw.lastIndexOf(0);
-  const incompleteTailBytes =
-    raw.length === 0 || raw[raw.length - 1] === 0
-      ? 0
-      : lastTerminator === -1
-        ? raw.length
-        : raw.length - lastTerminator - 1;
   const selectedRecords = records.slice(
     -discoveryGitNativeOwnerDiagnosticMaxRecords,
   );
   const active = discoveryGitNativeOwnerActiveChildren(records);
   const diagnostic: DiscoveryGitNativeOwnerDiagnostic = {
     active: active.map(discoveryGitNativeOwnerDiagnosticRecord),
-    incomplete_tail_bytes: incompleteTailBytes,
+    incomplete_record: recordSnapshot.incompleteRecord,
+    incomplete_tail_bytes: recordSnapshot.incompleteRecordBytes,
     omitted_records: Math.max(0, records.length - selectedRecords.length),
     phase,
     raw_bytes: raw.length,
@@ -5688,7 +5727,7 @@ async function captureDiscoveryGitNativeOwnerDiagnostic(
   );
   for (
     let attempt = 0;
-    snapshot.diagnostic.incomplete_tail_bytes > 0 && attempt < 25;
+    snapshot.diagnostic.incomplete_record && attempt < 25;
     attempt += 1
   ) {
     await new Promise((resolve) => setTimeout(resolve, 20));
@@ -5703,7 +5742,7 @@ async function captureDiscoveryGitNativeOwnerDiagnostic(
       snapshot.diagnostic,
     )}\n`,
   );
-  if (snapshot.diagnostic.incomplete_tail_bytes > 0) {
+  if (snapshot.diagnostic.incomplete_record) {
     throw new Error("native owner diagnostic retained an incomplete record");
   }
   return snapshot;
@@ -5731,6 +5770,8 @@ async function bindOrdinaryDiscoveryLifecycleScenario(
       previousNativeOwnerLog,
       previousPath,
       root,
+      shutdownAttempted: false,
+      shutdownFailed: false,
       shutdownLatch: "",
       task: null,
       wrapperDir: "",
@@ -5780,6 +5821,8 @@ async function bindOrdinaryDiscoveryLifecycleScenario(
       previousNativeOwnerLog,
       previousPath,
       root,
+      shutdownAttempted: false,
+      shutdownFailed: false,
       shutdownLatch,
       task: null,
       wrapperDir,
@@ -5806,16 +5849,47 @@ async function shutdownOrdinaryDiscoveryLifecycleScenario(
   scenario: OrdinaryDiscoveryLifecycleScenario,
 ): Promise<DiscoveryGitNativeOwnerDiagnostic[]> {
   if (!scenario.enabled) return [];
+  if (scenario.shutdownAttempted) {
+    if (scenario.shutdownFailed) {
+      process.stderr.write(
+        `DEVCANON_DISCOVERY_NATIVE_ROOT_PRESERVED ${JSON.stringify(
+          scenario.ownedRoots,
+        )}\n`,
+      );
+    }
+    throw new Error("ordinary discovery shutdown was already attempted");
+  }
+  scenario.shutdownAttempted = true;
   let cleanupAuthorized = false;
-  let shutdownFailure: unknown;
+  let preShutdown: DiscoveryGitNativeOwnerDiagnosticSnapshot | undefined;
+  let terminal: DiscoveryGitNativeOwnerDiagnosticSnapshot | undefined;
+  const shutdownFailures: Array<{ error: string; phase: string }> = [];
+  const recordShutdownFailure = (phase: string, error: unknown): void => {
+    const message =
+      error instanceof Error
+        ? error.message
+        : "ordinary discovery shutdown failed with a non-error value";
+    shutdownFailures.push({
+      error: discoveryGitNativeOwnerDiagnosticArgument(message),
+      phase,
+    });
+  };
   try {
-    const preShutdown = await captureDiscoveryGitNativeOwnerDiagnostic(
-      scenario.nativeOwnerLog,
-      "ordinary-resume-evidence",
-      "pre-shutdown",
-    );
-    scenario.diagnostics.push(preShutdown.diagnostic);
-    await writeFile(scenario.shutdownLatch, "shutdown");
+    try {
+      preShutdown = await captureDiscoveryGitNativeOwnerDiagnostic(
+        scenario.nativeOwnerLog,
+        "ordinary-resume-evidence",
+        "pre-shutdown",
+      );
+      scenario.diagnostics.push(preShutdown.diagnostic);
+    } catch (error) {
+      recordShutdownFailure("pre-shutdown-capture", error);
+    }
+    try {
+      await writeFile(scenario.shutdownLatch, "shutdown");
+    } catch (error) {
+      recordShutdownFailure("shutdown-latch", error);
+    }
     let settlementTimeout: ReturnType<typeof setTimeout> | undefined;
     try {
       await Promise.race([
@@ -5835,55 +5909,77 @@ async function shutdownOrdinaryDiscoveryLifecycleScenario(
           );
         }),
       ]);
+    } catch (error) {
+      recordShutdownFailure("task-settlement", error);
     } finally {
       if (settlementTimeout !== undefined) clearTimeout(settlementTimeout);
     }
-    const terminal = await captureDiscoveryGitNativeOwnerDiagnostic(
-      scenario.nativeOwnerLog,
-      "ordinary-resume-evidence",
-      "terminal",
-    );
-    scenario.diagnostics.push(terminal.diagnostic);
-    if (discoveryGitNativeOwnerActiveChildren(terminal.records).length > 0) {
-      throw new Error(
-        "ordinary discovery native owner retained an active child",
+    try {
+      terminal = await captureDiscoveryGitNativeOwnerDiagnostic(
+        scenario.nativeOwnerLog,
+        "ordinary-resume-evidence",
+        "terminal",
       );
+      scenario.diagnostics.push(terminal.diagnostic);
+    } catch (error) {
+      recordShutdownFailure("terminal-capture", error);
     }
-    for (const activeRecord of discoveryGitNativeOwnerActiveChildren(
-      preShutdown.records,
-    )) {
-      const terminalRecord = terminal.records.find(
-        (record) =>
-          record.type === "END" &&
-          record.commandIdentity === activeRecord.commandIdentity &&
-          record.ownerPid === activeRecord.ownerPid,
-      );
-      if (terminalRecord === undefined || terminalRecord.type !== "END") {
-        throw new Error("ordinary discovery active child has no terminal END");
-      }
-      if (
-        terminalRecord.childExit === 125 &&
-        !terminal.records.some(
-          (record) =>
-            record.type === "ACK" &&
-            record.commandIdentity === activeRecord.commandIdentity &&
-            record.ownerPid === activeRecord.ownerPid &&
-            record.childExit === 125,
-        )
-      ) {
-        throw new Error(
-          "ordinary discovery terminated child has no shutdown ACK",
-        );
+    if (preShutdown !== undefined && terminal !== undefined) {
+      try {
+        if (
+          preShutdown.diagnostic.incomplete_record ||
+          terminal.diagnostic.incomplete_record
+        ) {
+          throw new Error(
+            "ordinary discovery cleanup retained incomplete lifecycle evidence",
+          );
+        }
+        if (
+          discoveryGitNativeOwnerActiveChildren(terminal.records).length > 0
+        ) {
+          throw new Error(
+            "ordinary discovery native owner retained an active child",
+          );
+        }
+        for (const activeRecord of discoveryGitNativeOwnerActiveChildren(
+          preShutdown.records,
+        )) {
+          const terminalRecord = terminal.records.find(
+            (record) =>
+              record.type === "END" &&
+              record.commandIdentity === activeRecord.commandIdentity &&
+              record.ownerPid === activeRecord.ownerPid,
+          );
+          if (terminalRecord === undefined || terminalRecord.type !== "END") {
+            throw new Error(
+              "ordinary discovery active child has no terminal END",
+            );
+          }
+          if (
+            terminalRecord.childExit === 125 &&
+            !terminal.records.some(
+              (record) =>
+                record.type === "ACK" &&
+                record.commandIdentity === activeRecord.commandIdentity &&
+                record.ownerPid === activeRecord.ownerPid &&
+                record.childExit === 125,
+            )
+          ) {
+            throw new Error(
+              "ordinary discovery terminated child has no shutdown ACK",
+            );
+          }
+        }
+      } catch (error) {
+        recordShutdownFailure("terminal-validation", error);
       }
     }
-    cleanupAuthorized = true;
-  } catch (error) {
-    shutdownFailure = error;
+    cleanupAuthorized = shutdownFailures.length === 0;
   } finally {
     try {
       process.chdir(scenario.previousCwd);
     } catch (error) {
-      shutdownFailure ??= error;
+      recordShutdownFailure("cwd-restoration", error);
     }
     if (scenario.previousPath === undefined) {
       Reflect.deleteProperty(process.env, "PATH");
@@ -5894,15 +5990,28 @@ async function shutdownOrdinaryDiscoveryLifecycleScenario(
     activeDiscoveryGitNativeOwnerLog = scenario.previousNativeOwnerLog;
     activeDiscoveryGitNativeOwnerExpectedOperation =
       scenario.previousNativeOwnerExpectedOperation;
-    if (cleanupAuthorized) {
+    if (shutdownFailures.length > 0) {
+      cleanupAuthorized = false;
+      scenario.shutdownFailed = true;
+    }
+    if (cleanupAuthorized && !scenario.shutdownFailed) {
       try {
         for (const ownedRoot of scenario.ownedRoots) {
           await rm(ownedRoot, { recursive: true, force: true });
         }
       } catch (error) {
-        shutdownFailure ??= error;
+        recordShutdownFailure("root-cleanup", error);
+        scenario.shutdownFailed = true;
       }
-    } else {
+    }
+    if (shutdownFailures.length > 0) {
+      process.stderr.write(
+        `DEVCANON_DISCOVERY_NATIVE_LIFECYCLE_FAILURE ${JSON.stringify(
+          shutdownFailures,
+        )}\n`,
+      );
+    }
+    if (!cleanupAuthorized || scenario.shutdownFailed) {
       process.stderr.write(
         `DEVCANON_DISCOVERY_NATIVE_ROOT_PRESERVED ${JSON.stringify(
           scenario.ownedRoots,
@@ -5910,7 +6019,13 @@ async function shutdownOrdinaryDiscoveryLifecycleScenario(
       );
     }
   }
-  if (shutdownFailure !== undefined) throw shutdownFailure;
+  if (shutdownFailures.length > 0) {
+    throw new Error(
+      `ordinary discovery lifecycle shutdown failed: ${shutdownFailures
+        .map(({ error, phase }) => `${phase}: ${error}`)
+        .join("; ")}`,
+    );
+  }
   return scenario.diagnostics;
 }
 
@@ -6724,10 +6839,14 @@ describe("read-only PR review discovery planner", () => {
       for (const boundary of fieldBoundaries.slice(0, -1)) {
         await writeFile(ownerLog, encoded.subarray(0, boundary));
         await expect(
-          readDiscoveryGitNativeOwnerRecords(ownerLog, {
+          readDiscoveryGitNativeOwnerRecordSnapshot(ownerLog, {
             allowIncompleteTail: true,
           }),
-        ).resolves.toEqual([]);
+        ).resolves.toEqual({
+          incompleteRecord: true,
+          incompleteRecordBytes: boundary,
+          records: [],
+        });
         await expect(
           readDiscoveryGitNativeOwnerRecords(ownerLog),
         ).rejects.toThrow(/native owner .*truncated/u);
@@ -6736,10 +6855,14 @@ describe("read-only PR review discovery planner", () => {
 
     await writeFile(ownerLog, Buffer.from("BEG", "utf8"));
     await expect(
-      readDiscoveryGitNativeOwnerRecords(ownerLog, {
+      readDiscoveryGitNativeOwnerRecordSnapshot(ownerLog, {
         allowIncompleteTail: true,
       }),
-    ).resolves.toEqual([]);
+    ).resolves.toEqual({
+      incompleteRecord: true,
+      incompleteRecordBytes: 3,
+      records: [],
+    });
     await expect(readDiscoveryGitNativeOwnerRecords(ownerLog)).rejects.toThrow(
       "native owner log is not NUL terminated",
     );
@@ -6846,6 +6969,7 @@ describe("read-only PR review discovery planner", () => {
     discoveryTempRoots.push(root);
     const ownerLog = path.join(root, discoveryGitNativeOwnerLogName);
     const commandIdentity = "1".repeat(64);
+    const incompleteRecord = "END\0ordinary-resume-evidence\0terminal";
     await writeFile(
       ownerLog,
       Buffer.from(
@@ -6863,7 +6987,7 @@ describe("read-only PR review discovery planner", () => {
           "--porcelain=v1",
           "BEGIN_END",
           "",
-        ].join("\0")}END\0ordinary-resume-evidence\0terminal`,
+        ].join("\0")}${incompleteRecord}`,
       ),
     );
 
@@ -6873,7 +6997,8 @@ describe("read-only PR review discovery planner", () => {
       "pre-shutdown",
     );
     expect(snapshot.diagnostic).toMatchObject({
-      incomplete_tail_bytes: Buffer.byteLength("terminal"),
+      incomplete_record: true,
+      incomplete_tail_bytes: Buffer.byteLength(incompleteRecord),
       omitted_records: 0,
       phase: "pre-shutdown",
       raw_bytes: expect.any(Number),
@@ -6899,6 +7024,101 @@ describe("read-only PR review discovery planner", () => {
     ).toBeLessThanOrEqual(discoveryGitNativeOwnerDiagnosticMaxBytes);
   });
 
+  it("fails closed and restores globals when ordinary lifecycle capture is malformed", async () => {
+    const originalPath = process.env.PATH;
+    const originalCwd = process.cwd();
+    const originalAdapterLog = activeDiscoveryGitAdapterLog;
+    const originalNativeOwnerLog = activeDiscoveryGitNativeOwnerLog;
+    const originalNativeOwnerExpectedOperation =
+      activeDiscoveryGitNativeOwnerExpectedOperation;
+    const root = await mkdtemp(
+      path.join(tmpdir(), "ordinary-lifecycle-failure-"),
+    );
+    const ownerLog = path.join(root, discoveryGitNativeOwnerLogName);
+    const shutdownLatch = path.join(root, discoveryGitNativeOwnerShutdownName);
+    await writeFile(ownerLog, Buffer.from("MALFORMED\0", "utf8"));
+    process.chdir(root);
+    process.env.PATH = "ordinary-lifecycle-temporary-path";
+    activeDiscoveryGitAdapterLog = "ordinary-lifecycle-temporary-adapter";
+    activeDiscoveryGitNativeOwnerLog = ownerLog;
+    activeDiscoveryGitNativeOwnerExpectedOperation = "pass-through";
+    let taskSettled = false;
+    const scenario: OrdinaryDiscoveryLifecycleScenario = {
+      diagnostics: [],
+      enabled: true,
+      nativeOwnerLog: ownerLog,
+      ownedRoots: [root],
+      previousAdapterLog: originalAdapterLog,
+      previousCwd: originalCwd,
+      previousNativeOwnerExpectedOperation:
+        originalNativeOwnerExpectedOperation,
+      previousNativeOwnerLog: originalNativeOwnerLog,
+      previousPath: originalPath,
+      root,
+      shutdownAttempted: false,
+      shutdownFailed: false,
+      shutdownLatch,
+      task: Promise.resolve().then(() => {
+        taskSettled = true;
+      }),
+      wrapperDir: root,
+    };
+    const stderrChunks: string[] = [];
+    const originalStderrWrite = process.stderr.write;
+    process.stderr.write = ((chunk: string | Uint8Array) => {
+      stderrChunks.push(
+        typeof chunk === "string" ? chunk : Buffer.from(chunk).toString(),
+      );
+      return true;
+    }) as typeof process.stderr.write;
+    try {
+      await expect(
+        shutdownOrdinaryDiscoveryLifecycleScenario(scenario),
+      ).rejects.toThrow(
+        "pre-shutdown-capture: native owner record type is malformed",
+      );
+    } finally {
+      process.stderr.write = originalStderrWrite;
+    }
+
+    try {
+      expect(taskSettled).toBe(true);
+      expect(await readFile(shutdownLatch, "utf8")).toBe("shutdown");
+      expect(scenario.shutdownAttempted).toBe(true);
+      expect(scenario.shutdownFailed).toBe(true);
+      const stderr = stderrChunks.join("");
+      expect(stderr).toContain("DEVCANON_DISCOVERY_NATIVE_LIFECYCLE_FAILURE ");
+      expect(stderr).toContain("DEVCANON_DISCOVERY_NATIVE_ROOT_PRESERVED ");
+      expect(stderr.indexOf("LIFECYCLE_FAILURE")).toBeLessThan(
+        stderr.indexOf("ROOT_PRESERVED"),
+      );
+      expect((await lstat(root)).isDirectory()).toBe(true);
+      expect(process.env.PATH).toBe(originalPath);
+      expect(process.cwd()).toBe(originalCwd);
+      expect(activeDiscoveryGitAdapterLog).toBe(originalAdapterLog);
+      expect(activeDiscoveryGitNativeOwnerLog).toBe(originalNativeOwnerLog);
+      expect(activeDiscoveryGitNativeOwnerExpectedOperation).toBe(
+        originalNativeOwnerExpectedOperation,
+      );
+      await expect(
+        shutdownOrdinaryDiscoveryLifecycleScenario(scenario),
+      ).rejects.toThrow("ordinary discovery shutdown was already attempted");
+      expect((await lstat(root)).isDirectory()).toBe(true);
+    } finally {
+      process.chdir(originalCwd);
+      if (originalPath === undefined) {
+        Reflect.deleteProperty(process.env, "PATH");
+      } else {
+        process.env.PATH = originalPath;
+      }
+      activeDiscoveryGitAdapterLog = originalAdapterLog;
+      activeDiscoveryGitNativeOwnerLog = originalNativeOwnerLog;
+      activeDiscoveryGitNativeOwnerExpectedOperation =
+        originalNativeOwnerExpectedOperation;
+      discoveryTempRoots.push(root);
+    }
+  });
+
   it.runIf(process.platform === "win32")(
     "preserves ordinary lifecycle evidence across forced shutdown and starts the next scenario cleanly",
     async () => {
@@ -6906,6 +7126,8 @@ describe("read-only PR review discovery planner", () => {
       const originalCwd = process.cwd();
       const originalAdapterLog = activeDiscoveryGitAdapterLog;
       const originalNativeOwnerLog = activeDiscoveryGitNativeOwnerLog;
+      const originalNativeOwnerExpectedOperation =
+        activeDiscoveryGitNativeOwnerExpectedOperation;
       let firstScenario: OrdinaryDiscoveryLifecycleScenario | undefined;
       let secondScenario: OrdinaryDiscoveryLifecycleScenario | undefined;
       try {
@@ -6938,9 +7160,10 @@ describe("read-only PR review discovery planner", () => {
         );
         const firstWrapperDir = firstScenario.wrapperDir;
         const firstOwnedRoots = [...firstScenario.ownedRoots];
-        const firstDiagnostics =
-          await shutdownOrdinaryDiscoveryLifecycleScenario(firstScenario);
+        const activeFirstScenario = firstScenario;
         firstScenario = undefined;
+        const firstDiagnostics =
+          await shutdownOrdinaryDiscoveryLifecycleScenario(activeFirstScenario);
         expect(firstDiagnostics[0]).toMatchObject({
           active: [
             expect.objectContaining({
@@ -6975,6 +7198,9 @@ describe("read-only PR review discovery planner", () => {
         expect(process.cwd()).toBe(originalCwd);
         expect(activeDiscoveryGitAdapterLog).toBe(originalAdapterLog);
         expect(activeDiscoveryGitNativeOwnerLog).toBe(originalNativeOwnerLog);
+        expect(activeDiscoveryGitNativeOwnerExpectedOperation).toBe(
+          originalNativeOwnerExpectedOperation,
+        );
         for (const ownedRoot of firstOwnedRoots) {
           await expect(lstat(ownedRoot)).rejects.toMatchObject({
             code: "ENOENT",
@@ -6995,9 +7221,12 @@ describe("read-only PR review discovery planner", () => {
         }).then(() => undefined);
         await secondScenario.task;
         const secondOwnedRoots = [...secondScenario.ownedRoots];
-        const secondDiagnostics =
-          await shutdownOrdinaryDiscoveryLifecycleScenario(secondScenario);
+        const activeSecondScenario = secondScenario;
         secondScenario = undefined;
+        const secondDiagnostics =
+          await shutdownOrdinaryDiscoveryLifecycleScenario(
+            activeSecondScenario,
+          );
         expect(secondDiagnostics[0]).toMatchObject({
           active: [],
           phase: "pre-shutdown",
@@ -7013,6 +7242,9 @@ describe("read-only PR review discovery planner", () => {
         expect(process.cwd()).toBe(originalCwd);
         expect(activeDiscoveryGitAdapterLog).toBe(originalAdapterLog);
         expect(activeDiscoveryGitNativeOwnerLog).toBe(originalNativeOwnerLog);
+        expect(activeDiscoveryGitNativeOwnerExpectedOperation).toBe(
+          originalNativeOwnerExpectedOperation,
+        );
         for (const ownedRoot of secondOwnedRoots) {
           await expect(lstat(ownedRoot)).rejects.toMatchObject({
             code: "ENOENT",
@@ -7024,6 +7256,163 @@ describe("read-only PR review discovery planner", () => {
         }
         if (firstScenario !== undefined) {
           await shutdownOrdinaryDiscoveryLifecycleScenario(firstScenario);
+        }
+      }
+    },
+  );
+
+  it.runIf(process.platform === "win32")(
+    "fails closed after ordinary lifecycle evidence failure without contaminating the next scenario",
+    async () => {
+      const originalPath = process.env.PATH;
+      const originalCwd = process.cwd();
+      const originalAdapterLog = activeDiscoveryGitAdapterLog;
+      const originalNativeOwnerLog = activeDiscoveryGitNativeOwnerLog;
+      const originalNativeOwnerExpectedOperation =
+        activeDiscoveryGitNativeOwnerExpectedOperation;
+      let failingScenario: OrdinaryDiscoveryLifecycleScenario | undefined;
+      let followingScenario: OrdinaryDiscoveryLifecycleScenario | undefined;
+      let retainedRoots: string[] = [];
+      try {
+        const rootStart = discoveryTempRoots.length;
+        const root = await createDiscoveryRepository();
+        failingScenario = await bindOrdinaryDiscoveryLifecycleScenario(
+          root,
+          rootStart,
+        );
+        const pendingGit = spawn(
+          "git",
+          ["-C", failingScenario.root, "cat-file", "--batch"],
+          {
+            env: process.env,
+            stdio: ["pipe", "pipe", "pipe"],
+          },
+        );
+        let taskSettled = false;
+        failingScenario.task = new Promise<void>((resolve, reject) => {
+          pendingGit.once("error", reject);
+          pendingGit.once("close", (exitCode) => {
+            if (exitCode === 0) {
+              reject(new Error("pending ordinary Git unexpectedly succeeded"));
+              return;
+            }
+            resolve();
+          });
+        }).finally(() => {
+          taskSettled = true;
+        });
+        await waitForDiscoveryGitNativeOwnerBegin(
+          failingScenario.nativeOwnerLog,
+        );
+        retainedRoots = [...failingScenario.ownedRoots];
+        await writeFile(
+          failingScenario.nativeOwnerLog,
+          Buffer.from("MALFORMED\0", "utf8"),
+        );
+
+        const activeFailingScenario = failingScenario;
+        failingScenario = undefined;
+        const stderrChunks: string[] = [];
+        const originalStderrWrite = process.stderr.write;
+        process.stderr.write = ((chunk: string | Uint8Array) => {
+          stderrChunks.push(
+            typeof chunk === "string" ? chunk : Buffer.from(chunk).toString(),
+          );
+          return true;
+        }) as typeof process.stderr.write;
+        let shutdownError: unknown;
+        try {
+          await shutdownOrdinaryDiscoveryLifecycleScenario(
+            activeFailingScenario,
+          );
+        } catch (error) {
+          shutdownError = error;
+        } finally {
+          process.stderr.write = originalStderrWrite;
+        }
+
+        expect(shutdownError).toBeInstanceOf(Error);
+        expect((shutdownError as Error).message).toContain(
+          "pre-shutdown-capture: native owner record type is malformed",
+        );
+        expect((shutdownError as Error).message).toContain(
+          "terminal-capture: native owner record type is malformed",
+        );
+        expect(
+          await readFile(activeFailingScenario.shutdownLatch, "utf8"),
+        ).toBe("shutdown");
+        await activeFailingScenario.task;
+        expect(taskSettled).toBe(true);
+        expect(activeFailingScenario.shutdownAttempted).toBe(true);
+        expect(activeFailingScenario.shutdownFailed).toBe(true);
+        const stderr = stderrChunks.join("");
+        const failureOffset = stderr.indexOf(
+          "DEVCANON_DISCOVERY_NATIVE_LIFECYCLE_FAILURE ",
+        );
+        const preservedOffset = stderr.indexOf(
+          "DEVCANON_DISCOVERY_NATIVE_ROOT_PRESERVED ",
+        );
+        expect(failureOffset).toBeGreaterThanOrEqual(0);
+        expect(preservedOffset).toBeGreaterThan(failureOffset);
+        expect(process.env.PATH).toBe(originalPath);
+        expect(process.cwd()).toBe(originalCwd);
+        expect(activeDiscoveryGitAdapterLog).toBe(originalAdapterLog);
+        expect(activeDiscoveryGitNativeOwnerLog).toBe(originalNativeOwnerLog);
+        expect(activeDiscoveryGitNativeOwnerExpectedOperation).toBe(
+          originalNativeOwnerExpectedOperation,
+        );
+        for (const retainedRoot of retainedRoots) {
+          expect((await lstat(retainedRoot)).isDirectory()).toBe(true);
+        }
+
+        await expect(
+          shutdownOrdinaryDiscoveryLifecycleScenario(activeFailingScenario),
+        ).rejects.toThrow("ordinary discovery shutdown was already attempted");
+        for (const retainedRoot of retainedRoots) {
+          expect((await lstat(retainedRoot)).isDirectory()).toBe(true);
+        }
+
+        const [preservedRoot, preservedWrapper] = retainedRoots;
+        if (preservedRoot === undefined || preservedWrapper === undefined) {
+          throw new Error("ordinary discovery retained roots are incomplete");
+        }
+        discoveryTempRoots.push(preservedWrapper);
+        const followingRootStart = discoveryTempRoots.length;
+        discoveryTempRoots.push(preservedRoot);
+        retainedRoots = [];
+        followingScenario = await bindOrdinaryDiscoveryLifecycleScenario(
+          preservedRoot,
+          followingRootStart,
+        );
+        followingScenario.task = execFileAsync("git", ["--version"], {
+          env: process.env,
+        }).then(() => undefined);
+        await followingScenario.task;
+        const activeFollowingScenario = followingScenario;
+        followingScenario = undefined;
+        await shutdownOrdinaryDiscoveryLifecycleScenario(
+          activeFollowingScenario,
+        );
+        expect(process.env.PATH).toBe(originalPath);
+        expect(process.cwd()).toBe(originalCwd);
+        expect(activeDiscoveryGitAdapterLog).toBe(originalAdapterLog);
+        expect(activeDiscoveryGitNativeOwnerLog).toBe(originalNativeOwnerLog);
+        expect(activeDiscoveryGitNativeOwnerExpectedOperation).toBe(
+          originalNativeOwnerExpectedOperation,
+        );
+      } finally {
+        discoveryTempRoots.push(...retainedRoots);
+        if (
+          followingScenario !== undefined &&
+          !followingScenario.shutdownAttempted
+        ) {
+          await shutdownOrdinaryDiscoveryLifecycleScenario(followingScenario);
+        }
+        if (
+          failingScenario !== undefined &&
+          !failingScenario.shutdownAttempted
+        ) {
+          await shutdownOrdinaryDiscoveryLifecycleScenario(failingScenario);
         }
       }
     },
