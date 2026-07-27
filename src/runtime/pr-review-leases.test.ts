@@ -69,11 +69,14 @@ let discoveryGitWindowsLauncherRoot: string | undefined;
 let discoveryGitWindowsLauncher: string | undefined;
 let discoveryGitWindowsBash: string | undefined;
 let activeDiscoveryGitAdapterLog: string | undefined;
+let activeDiscoveryGitNativeOwnerLog: string | undefined;
+let activeDiscoveryGitNativeOwnerExpectedOperation: string | undefined;
 
 const discoveryGitWindowsLauncherSource = String.raw`
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
@@ -82,6 +85,168 @@ public static class DevCanonDiscoveryGitLauncher
 {
     private const int NativeOwnerRecordMaxBytes = 65536;
     private const int NativeOwnerLogMaxBytes = 4 * 1024 * 1024;
+    private const uint JobObjectLimitKillOnJobClose = 0x00002000;
+    private const int JobObjectExtendedLimitInformation = 9;
+    private const uint CreateNoWindow = 0x08000000;
+    private const uint CreateSuspended = 0x00000004;
+    private const uint Infinite = 0xffffffff;
+    private const uint WaitObject0 = 0x00000000;
+    private const uint WaitTimeout = 0x00000102;
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct JobObjectBasicLimitInformation
+    {
+        public long PerProcessUserTimeLimit;
+        public long PerJobUserTimeLimit;
+        public uint LimitFlags;
+        public UIntPtr MinimumWorkingSetSize;
+        public UIntPtr MaximumWorkingSetSize;
+        public uint ActiveProcessLimit;
+        public UIntPtr Affinity;
+        public uint PriorityClass;
+        public uint SchedulingClass;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct IoCounters
+    {
+        public ulong ReadOperationCount;
+        public ulong WriteOperationCount;
+        public ulong OtherOperationCount;
+        public ulong ReadTransferCount;
+        public ulong WriteTransferCount;
+        public ulong OtherTransferCount;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct JobObjectExtendedLimitInformationValue
+    {
+        public JobObjectBasicLimitInformation BasicLimitInformation;
+        public IoCounters IoInfo;
+        public UIntPtr ProcessMemoryLimit;
+        public UIntPtr JobMemoryLimit;
+        public UIntPtr PeakProcessMemoryUsed;
+        public UIntPtr PeakJobMemoryUsed;
+    }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct StartupInfo
+    {
+        public uint Size;
+        public string Reserved;
+        public string Desktop;
+        public string Title;
+        public uint X;
+        public uint Y;
+        public uint XSize;
+        public uint YSize;
+        public uint XCountChars;
+        public uint YCountChars;
+        public uint FillAttribute;
+        public uint Flags;
+        public ushort ShowWindow;
+        public ushort ReservedSize;
+        public IntPtr ReservedPointer;
+        public IntPtr StandardInput;
+        public IntPtr StandardOutput;
+        public IntPtr StandardError;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct ProcessInformation
+    {
+        public IntPtr Process;
+        public IntPtr Thread;
+        public uint ProcessId;
+        public uint ThreadId;
+    }
+
+    [DllImport(
+        "kernel32.dll",
+        CharSet = CharSet.Unicode,
+        SetLastError = true)]
+    private static extern bool CreateProcess(
+        string applicationName,
+        StringBuilder commandLine,
+        IntPtr processAttributes,
+        IntPtr threadAttributes,
+        bool inheritHandles,
+        uint creationFlags,
+        IntPtr environment,
+        string currentDirectory,
+        ref StartupInfo startupInfo,
+        out ProcessInformation processInformation);
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
+    private static extern IntPtr CreateJobObject(
+        IntPtr jobAttributes,
+        string name);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool SetInformationJobObject(
+        IntPtr job,
+        int informationClass,
+        ref JobObjectExtendedLimitInformationValue information,
+        uint informationLength);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool AssignProcessToJobObject(
+        IntPtr job,
+        IntPtr process);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool TerminateJobObject(
+        IntPtr job,
+        uint exitCode);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool TerminateProcess(
+        IntPtr process,
+        uint exitCode);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern uint ResumeThread(IntPtr thread);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern uint WaitForSingleObject(
+        IntPtr handle,
+        uint milliseconds);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool GetExitCodeProcess(
+        IntPtr process,
+        out uint exitCode);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool CloseHandle(IntPtr handle);
+
+    private static IntPtr CreateOwnedJob()
+    {
+        IntPtr job = CreateJobObject(IntPtr.Zero, null);
+        if (job == IntPtr.Zero)
+        {
+            throw new InvalidOperationException(
+                "native owner could not create its process job"
+            );
+        }
+        JobObjectExtendedLimitInformationValue information =
+            new JobObjectExtendedLimitInformationValue();
+        information.BasicLimitInformation.LimitFlags =
+            JobObjectLimitKillOnJobClose;
+        uint informationLength = (uint)Marshal.SizeOf(information);
+        if (!SetInformationJobObject(
+            job,
+            JobObjectExtendedLimitInformation,
+            ref information,
+            informationLength))
+        {
+            CloseHandle(job);
+            throw new InvalidOperationException(
+                "native owner could not configure its process job"
+            );
+        }
+        return job;
+    }
 
     private static string QuoteWindowsArgument(string value)
     {
@@ -255,25 +420,49 @@ public static class DevCanonDiscoveryGitLauncher
             return 125;
         }
 
-        ProcessStartInfo start = new ProcessStartInfo();
-        start.FileName = nativeGit;
-        start.UseShellExecute = false;
-        start.CreateNoWindow = true;
         StringBuilder commandLine = new StringBuilder();
+        AppendWindowsArgument(commandLine, nativeGit);
         foreach (string argument in args)
         {
             AppendWindowsArgument(commandLine, argument);
         }
-        start.Arguments = commandLine.ToString();
 
-        using (Process child = Process.Start(start))
+        IntPtr job = CreateOwnedJob();
+        ProcessInformation child = new ProcessInformation();
+        try
         {
+            StartupInfo startup = new StartupInfo();
+            startup.Size = (uint)Marshal.SizeOf(startup);
+            if (!CreateProcess(
+                nativeGit,
+                commandLine,
+                IntPtr.Zero,
+                IntPtr.Zero,
+                true,
+                CreateNoWindow | CreateSuspended,
+                IntPtr.Zero,
+                null,
+                ref startup,
+                out child))
+            {
+                throw new InvalidOperationException(
+                    "native owner could not create its child process"
+                );
+            }
+            if (!AssignProcessToJobObject(job, child.Process))
+            {
+                TerminateProcess(child.Process, 125);
+                WaitForSingleObject(child.Process, Infinite);
+                throw new InvalidOperationException(
+                    "native owner could not claim its child process"
+                );
+            }
             string[] begin = new string[7 + args.Length];
             begin[0] = "BEGIN";
             begin[1] = operation;
             begin[2] = identity;
             begin[3] = ownerPid.ToString();
-            begin[4] = child.Id.ToString();
+            begin[4] = child.ProcessId.ToString();
             begin[5] = args.Length.ToString();
             for (int index = 0; index < args.Length; index++)
             {
@@ -281,8 +470,53 @@ public static class DevCanonDiscoveryGitLauncher
             }
             begin[6 + args.Length] = "BEGIN_END";
             AppendNativeOwnerRecord(ownerLog, begin);
-            child.WaitForExit();
-            int childExit = child.ExitCode;
+            if (ResumeThread(child.Thread) == uint.MaxValue)
+            {
+                throw new InvalidOperationException(
+                    "native owner could not resume its child process"
+                );
+            }
+            bool shutdownObserved = false;
+            uint waitResult = WaitForSingleObject(child.Process, 20);
+            while (waitResult == WaitTimeout)
+            {
+                if (File.Exists(shutdownLatch))
+                {
+                    if (!TerminateJobObject(job, 125))
+                    {
+                        throw new InvalidOperationException(
+                            "native owner could not terminate its process job"
+                        );
+                    }
+                    shutdownObserved = true;
+                    waitResult = WaitForSingleObject(child.Process, Infinite);
+                    break;
+                }
+                waitResult = WaitForSingleObject(child.Process, 20);
+            }
+            if (waitResult != WaitObject0)
+            {
+                throw new InvalidOperationException(
+                    "native owner could not observe child termination"
+                );
+            }
+            uint childExit;
+            if (!GetExitCodeProcess(child.Process, out childExit))
+            {
+                throw new InvalidOperationException(
+                    "native owner could not read child terminal status"
+                );
+            }
+            if (shutdownObserved)
+            {
+                AppendNativeOwnerRecord(
+                    ownerLog,
+                    "ACK",
+                    operation,
+                    identity,
+                    ownerPid.ToString(),
+                    childExit.ToString());
+            }
             AppendNativeOwnerRecord(
                 ownerLog,
                 "END",
@@ -290,7 +524,28 @@ public static class DevCanonDiscoveryGitLauncher
                 identity,
                 ownerPid.ToString(),
                 childExit.ToString());
-            return childExit;
+            return unchecked((int)childExit);
+        }
+        catch
+        {
+            if (child.Process != IntPtr.Zero)
+            {
+                TerminateJobObject(job, 125);
+                WaitForSingleObject(child.Process, Infinite);
+            }
+            throw;
+        }
+        finally
+        {
+            if (child.Thread != IntPtr.Zero)
+            {
+                CloseHandle(child.Thread);
+            }
+            if (child.Process != IntPtr.Zero)
+            {
+                CloseHandle(child.Process);
+            }
+            CloseHandle(job);
         }
     }
 
@@ -566,18 +821,6 @@ async function resolveCanonicalPhysicalGit(): Promise<string> {
     } catch {}
   }
   throw new Error("physical Git implementation is unavailable");
-}
-
-async function resolveInboxWindowsTaskkill(): Promise<string> {
-  const systemRoot = process.env.SystemRoot;
-  if (systemRoot === undefined || !path.win32.isAbsolute(systemRoot)) {
-    throw new Error("SystemRoot is unavailable; cannot resolve taskkill.exe");
-  }
-  const taskkill = path.win32.join(systemRoot, "System32", "taskkill.exe");
-  if (!(await lstat(taskkill)).isFile()) {
-    throw new Error(`inbox taskkill.exe is unavailable: ${taskkill}`);
-  }
-  return taskkill;
 }
 
 async function toGitBashPath(nativePath: string): Promise<string> {
@@ -4749,7 +4992,7 @@ interface DiscoveryGitNativeOwnerEnd {
   commandIdentity: string;
   operation: string;
   ownerPid: number;
-  type: "END";
+  type: "ACK" | "END";
 }
 
 interface DiscoveryGitNativeOwnerReject {
@@ -4847,7 +5090,7 @@ async function readDiscoveryGitNativeOwnerRecords(
       });
       continue;
     }
-    if (type === "END" || type === "REJECT") {
+    if (type === "ACK" || type === "END" || type === "REJECT") {
       const childExit = parseDiscoveryGitNativeOwnerInteger(
         fields[offset++],
         "terminal status",
@@ -4870,6 +5113,7 @@ function discoveryGitNativeOwnerActiveChildren(
   records: readonly DiscoveryGitNativeOwnerRecord[],
 ): DiscoveryGitNativeOwnerBegin[] {
   const active = new Map<string, DiscoveryGitNativeOwnerBegin>();
+  const acknowledged = new Set<string>();
   for (const record of records) {
     const key = `${record.ownerPid}:${record.commandIdentity}`;
     if (record.type === "BEGIN") {
@@ -4879,13 +5123,27 @@ function discoveryGitNativeOwnerActiveChildren(
       active.set(key, record);
       continue;
     }
+    if (record.type === "ACK") {
+      if (!active.has(key) || acknowledged.has(key)) {
+        throw new Error("native owner ACK has no unique matching BEGIN");
+      }
+      acknowledged.add(key);
+      continue;
+    }
     if (record.type === "END") {
       if (!active.delete(key)) {
         throw new Error("native owner END has no matching BEGIN");
       }
+      acknowledged.delete(key);
     }
   }
   return [...active.values()];
+}
+
+function discoveryGitNativeOwnerEntryCount(
+  records: readonly DiscoveryGitNativeOwnerRecord[],
+): number {
+  return records.filter((record) => record.type === "BEGIN").length;
 }
 
 async function waitForDiscoveryGitNativeOwnerBegin(
@@ -5261,13 +5519,46 @@ async function injectDiscoveryWorktreeConfigAuthorityAfterOriginBinding(
 async function runDiscoveryCommand(root: string, prNumber = 432) {
   const before = process.cwd();
   const adapterEntryCountBefore = await discoveryGitAdapterEntryCount();
+  const nativeOwnerEntryCountBefore =
+    activeDiscoveryGitNativeOwnerLog === undefined
+      ? 0
+      : discoveryGitNativeOwnerEntryCount(
+          await readDiscoveryGitNativeOwnerRecords(
+            activeDiscoveryGitNativeOwnerLog,
+          ),
+        );
   process.chdir(root);
   process.env.REPOSITORY = "owner/repo";
   process.env.PR_NUMBER = String(prNumber);
   process.env.PRIMARY_REPOSITORY_ROOT = root;
   try {
     const outcome = await runPrReviewLeasesCommand(["discover"]);
-    if (activeDiscoveryGitAdapterLog !== undefined) {
+    if (activeDiscoveryGitNativeOwnerLog !== undefined) {
+      const nativeOwnerRecords = await readDiscoveryGitNativeOwnerRecords(
+        activeDiscoveryGitNativeOwnerLog,
+      );
+      const nativeOwnerBegins = nativeOwnerRecords.filter(
+        (record): record is DiscoveryGitNativeOwnerBegin =>
+          record.type === "BEGIN",
+      );
+      expect(nativeOwnerBegins.length).toBeGreaterThan(
+        nativeOwnerEntryCountBefore,
+      );
+      if (activeDiscoveryGitNativeOwnerExpectedOperation !== undefined) {
+        expect(
+          nativeOwnerBegins
+            .slice(nativeOwnerEntryCountBefore)
+            .some(
+              (record) =>
+                record.operation ===
+                activeDiscoveryGitNativeOwnerExpectedOperation,
+            ),
+        ).toBe(true);
+      }
+      expect(discoveryGitNativeOwnerActiveChildren(nativeOwnerRecords)).toEqual(
+        [],
+      );
+    } else if (activeDiscoveryGitAdapterLog !== undefined) {
       expect(await discoveryGitAdapterEntryCount()).toBeGreaterThan(
         adapterEntryCountBefore,
       );
@@ -5411,8 +5702,9 @@ describe("read-only PR review discovery planner", () => {
       "start.Environment[",
     );
     expect(discoveryGitWindowsLauncherSource).not.toContain("ArgumentList");
+    expect(discoveryGitWindowsLauncherSource).toContain("CreateProcess(");
     expect(discoveryGitWindowsLauncherSource).toContain(
-      "start.FileName = nativeGit;",
+      "CreateNoWindow | CreateSuspended",
     );
     expect(discoveryGitWindowsLauncherSource).toContain(
       '"git-native-owner.shutdown"',
@@ -5422,6 +5714,14 @@ describe("read-only PR review discovery planner", () => {
     expect(discoveryGitWindowsLauncherSource).toContain(
       "AppendNativeOwnerRecord(ownerLog, begin);",
     );
+    expect(discoveryGitWindowsLauncherSource).toContain(
+      "AssignProcessToJobObject(job, child.Process)",
+    );
+    expect(discoveryGitWindowsLauncherSource).toContain(
+      "TerminateJobObject(job, 125)",
+    );
+    expect(discoveryGitWindowsLauncherSource).toContain('"ACK",');
+    expect(discoveryGitWindowsLauncherSource).not.toContain("taskkill");
   });
 
   it("parses bounded native owner lifecycle records", async () => {
@@ -5441,11 +5741,16 @@ describe("read-only PR review discovery planner", () => {
         "status",
         "--porcelain=v1",
         "BEGIN_END",
+        "ACK",
+        "pass-through",
+        identityValue,
+        "101",
+        "125",
         "END",
         "pass-through",
         identityValue,
         "101",
-        "0",
+        "125",
         "REJECT",
         "pass-through",
         "b".repeat(64),
@@ -5466,7 +5771,14 @@ describe("read-only PR review discovery planner", () => {
         type: "BEGIN",
       },
       {
-        childExit: 0,
+        childExit: 125,
+        commandIdentity: identityValue,
+        operation: "pass-through",
+        ownerPid: 101,
+        type: "ACK",
+      },
+      {
+        childExit: 125,
         commandIdentity: identityValue,
         operation: "pass-through",
         ownerPid: 101,
@@ -6184,11 +6496,12 @@ describe("read-only PR review discovery planner", () => {
       nativeOwnerLog: string;
       ownedRoots: string[];
       previousAdapterLog: string | undefined;
+      previousNativeOwnerExpectedOperation: string | undefined;
+      previousNativeOwnerLog: string | undefined;
       previousPath: string | undefined;
       root: string;
       shutdownLatch: string;
       task: Promise<void> | null;
-      taskkill: string | null;
       wrapperDir: string;
     }
 
@@ -6198,194 +6511,215 @@ describe("read-only PR review discovery planner", () => {
       kind: "candidate" | "primary",
     ): Promise<OriginDriftScenario> => {
       const previousAdapterLog = activeDiscoveryGitAdapterLog;
+      const previousNativeOwnerExpectedOperation =
+        activeDiscoveryGitNativeOwnerExpectedOperation;
+      const previousNativeOwnerLog = activeDiscoveryGitNativeOwnerLog;
       const previousPath = process.env.PATH;
       const ownedRootStart = discoveryTempRoots.length;
-      const root = await createDiscoveryRepository();
-      let lease: PrReviewLease | null = null;
-      let mutationRoot = root;
-      if (kind === "candidate") {
-        mutationRoot = await createDiscoveryWorktree(
-          root,
-          "candidate-origin-drift",
-        );
-        lease = discoveryLease(mutationRoot);
-        await writeDiscoveryLease(root, lease);
-      }
-      await replaceDiscoveryWorktreeOrigin(mutationRoot, [
-        "",
-        "https://github.com/owner/repo.git",
-      ]);
-      const wrapperDir = await mkdtemp(path.join(tmpdir(), "git-wrapper-"));
-      discoveryTempRoots.push(wrapperDir);
-      const physicalGit = await resolveCanonicalPhysicalGit();
-      const marker = path.join(
-        wrapperDir,
-        `${kind === "primary" ? "primary" : "candidate"}-origin-mutated`,
-      );
-      const wrapper = path.join(wrapperDir, "git");
-      const gitMutationRoot = await toGitBashPath(mutationRoot);
-      const commandPattern =
-        kind === "primary"
-          ? '  *" worktree list --porcelain -z "*)'
-          : '  *" status --porcelain=v1 "*)';
-      await writeFile(
-        wrapper,
-        [
-          "#!/bin/sh",
-          'case " $* " in',
-          commandPattern,
-          `    '${physicalGit}' "$@"`,
-          "    status=$?",
-          `    if [ ! -f '${await toGitBashPath(marker)}' ]; then`,
-          `      '${physicalGit}' -C '${gitMutationRoot}' config --worktree --replace-all remote.origin.url ''`,
-          `      '${physicalGit}' -C '${gitMutationRoot}' config --worktree --add remote.origin.url https://github.com/foreign/repo.git`,
-          `      printf fired >'${await toGitBashPath(marker)}'`,
-          "    fi",
-          '    exit "$status"',
-          "    ;;",
-          "esac",
-          `exec '${physicalGit}' "$@"`,
+      try {
+        const root = await createDiscoveryRepository();
+        let lease: PrReviewLease | null = null;
+        let mutationRoot = root;
+        if (kind === "candidate") {
+          mutationRoot = await createDiscoveryWorktree(
+            root,
+            "candidate-origin-drift",
+          );
+          lease = discoveryLease(mutationRoot);
+          await writeDiscoveryLease(root, lease);
+        }
+        await replaceDiscoveryWorktreeOrigin(mutationRoot, [
           "",
-        ].join("\n"),
-      );
-      await makeDiscoveryGitWrapperExecutable(wrapper);
-      const nativeOwnerLog = path.join(
-        wrapperDir,
-        discoveryGitNativeOwnerLogName,
-      );
-      const shutdownLatch = path.join(
-        wrapperDir,
-        discoveryGitNativeOwnerShutdownName,
-      );
-      let taskkill: string | null = null;
-      if (process.platform === "win32") {
-        taskkill = await resolveInboxWindowsTaskkill();
-        await Promise.all([
-          writeFile(path.join(wrapperDir, "git-native.path"), physicalGit),
-          writeFile(path.join(wrapperDir, "git-native-owner.kind"), kind),
-          writeFile(
-            path.join(wrapperDir, "git-native-owner.root"),
-            mutationRoot,
-          ),
-          writeFile(path.join(wrapperDir, "git-native-owner.marker"), marker),
+          "https://github.com/owner/repo.git",
         ]);
+        const wrapperDir = await mkdtemp(path.join(tmpdir(), "git-wrapper-"));
+        discoveryTempRoots.push(wrapperDir);
+        const physicalGit = await resolveCanonicalPhysicalGit();
+        const marker = path.join(
+          wrapperDir,
+          `${kind === "primary" ? "primary" : "candidate"}-origin-mutated`,
+        );
+        const wrapper = path.join(wrapperDir, "git");
+        const gitMutationRoot = await toGitBashPath(mutationRoot);
+        const commandPattern =
+          kind === "primary"
+            ? '  *" worktree list --porcelain -z "*)'
+            : '  *" status --porcelain=v1 "*)';
+        await writeFile(
+          wrapper,
+          [
+            "#!/bin/sh",
+            'case " $* " in',
+            commandPattern,
+            `    '${physicalGit}' "$@"`,
+            "    status=$?",
+            `    if [ ! -f '${await toGitBashPath(marker)}' ]; then`,
+            `      '${physicalGit}' -C '${gitMutationRoot}' config --worktree --replace-all remote.origin.url ''`,
+            `      '${physicalGit}' -C '${gitMutationRoot}' config --worktree --add remote.origin.url https://github.com/foreign/repo.git`,
+            `      printf fired >'${await toGitBashPath(marker)}'`,
+            "    fi",
+            '    exit "$status"',
+            "    ;;",
+            "esac",
+            `exec '${physicalGit}' "$@"`,
+            "",
+          ].join("\n"),
+        );
+        await makeDiscoveryGitWrapperExecutable(wrapper);
+        const nativeOwnerLog = path.join(
+          wrapperDir,
+          discoveryGitNativeOwnerLogName,
+        );
+        const shutdownLatch = path.join(
+          wrapperDir,
+          discoveryGitNativeOwnerShutdownName,
+        );
+        if (process.platform === "win32") {
+          await Promise.all([
+            writeFile(path.join(wrapperDir, "git-native.path"), physicalGit),
+            writeFile(path.join(wrapperDir, "git-native-owner.kind"), kind),
+            writeFile(
+              path.join(wrapperDir, "git-native-owner.root"),
+              mutationRoot,
+            ),
+            writeFile(path.join(wrapperDir, "git-native-owner.marker"), marker),
+          ]);
+        }
+        if (discoveryTempRoots.length - ownedRootStart !== 2) {
+          throw new Error("discovery fixture root ownership is ambiguous");
+        }
+        const ownedRoots = discoveryTempRoots.splice(ownedRootStart);
+        if (process.platform === "win32") {
+          activeDiscoveryGitNativeOwnerLog = nativeOwnerLog;
+          activeDiscoveryGitNativeOwnerExpectedOperation = `${kind}-target`;
+        }
+        process.env.PATH = prependDiscoveryGitWrapper(wrapperDir, previousPath);
+        return {
+          lease,
+          marker,
+          nativeOwnerLog,
+          ownedRoots,
+          previousAdapterLog,
+          previousNativeOwnerExpectedOperation,
+          previousNativeOwnerLog,
+          previousPath,
+          root,
+          shutdownLatch,
+          task: null,
+          wrapperDir,
+        };
+      } catch (error) {
+        if (previousPath === undefined) {
+          Reflect.deleteProperty(process.env, "PATH");
+        } else {
+          process.env.PATH = previousPath;
+        }
+        activeDiscoveryGitAdapterLog = previousAdapterLog;
+        activeDiscoveryGitNativeOwnerLog = previousNativeOwnerLog;
+        activeDiscoveryGitNativeOwnerExpectedOperation =
+          previousNativeOwnerExpectedOperation;
+        const abandonedRoots = discoveryTempRoots.splice(ownedRootStart);
+        for (const abandonedRoot of abandonedRoots) {
+          await rm(abandonedRoot, { recursive: true, force: true });
+        }
+        throw error;
       }
-      const ownedRoots = discoveryTempRoots.splice(ownedRootStart);
-      if (ownedRoots.length !== 2) {
-        throw new Error("discovery fixture root ownership is ambiguous");
-      }
-      process.env.PATH = prependDiscoveryGitWrapper(wrapperDir, previousPath);
-      return {
-        lease,
-        marker,
-        nativeOwnerLog,
-        ownedRoots,
-        previousAdapterLog,
-        previousPath,
-        root,
-        shutdownLatch,
-        task: null,
-        taskkill,
-        wrapperDir,
-      };
     };
 
     const shutdownScenario = async (
       activeScenario: OriginDriftScenario,
       options: { proveLatchRejection?: boolean } = {},
     ): Promise<DiscoveryGitNativeOwnerRecord[]> => {
-      await writeFile(activeScenario.shutdownLatch, "shutdown");
-      if (
-        process.platform === "win32" &&
-        options.proveLatchRejection === true
-      ) {
-        await expect(
-          execFileAsync("git", ["--version"], { env: process.env }),
-        ).rejects.toMatchObject({
-          code: 125,
-          stdout: "",
-        });
-      }
-      let taskSettled = activeScenario.task === null;
-      const taskSettlement =
-        activeScenario.task?.then(
-          () => {
-            taskSettled = true;
-          },
-          () => {
-            taskSettled = true;
-          },
-        ) ?? Promise.resolve();
-      if (process.platform === "win32") {
-        if (activeScenario.taskkill === null) {
-          throw new Error("native process-tree terminator is unavailable");
+      let cleanupAuthorized = false;
+      let ownerRecords: DiscoveryGitNativeOwnerRecord[] = [];
+      let shutdownFailure: unknown;
+      try {
+        await writeFile(activeScenario.shutdownLatch, "shutdown");
+        if (
+          process.platform === "win32" &&
+          options.proveLatchRejection === true
+        ) {
+          await expect(
+            execFileAsync("git", ["--version"], { env: process.env }),
+          ).rejects.toMatchObject({
+            code: 125,
+            stdout: "",
+          });
         }
-        for (let attempt = 0; attempt < 200 && !taskSettled; attempt += 1) {
-          const activeChildren = discoveryGitNativeOwnerActiveChildren(
-            await readDiscoveryGitNativeOwnerRecords(
-              activeScenario.nativeOwnerLog,
-            ),
-          );
-          await Promise.all(
-            activeChildren.map(async ({ childPid }) => {
-              try {
-                await execFileAsync(activeScenario.taskkill as string, [
-                  "/PID",
-                  String(childPid),
-                  "/T",
-                  "/F",
-                ]);
-              } catch (error) {
-                const exitCode = (
-                  error as NodeJS.ErrnoException & {
-                    code?: number;
-                  }
-                ).code;
-                if (exitCode !== 128) throw error;
-              }
-            }),
-          );
-          if (taskSettled) break;
+        let settlementTimeout: ReturnType<typeof setTimeout> | undefined;
+        try {
           await Promise.race([
-            taskSettlement,
-            new Promise((resolve) => setTimeout(resolve, 25)),
+            activeScenario.task ?? Promise.resolve(),
+            new Promise<never>((_resolve, reject) => {
+              settlementTimeout = setTimeout(
+                () =>
+                  reject(
+                    new Error(
+                      "native owner task did not settle after shutdown",
+                    ),
+                  ),
+                5_000,
+              );
+            }),
           ]);
+        } finally {
+          if (settlementTimeout !== undefined) {
+            clearTimeout(settlementTimeout);
+          }
         }
-        if (!taskSettled) {
-          throw new Error(
-            "native owner task did not settle after process-tree termination",
+        if (process.platform === "win32") {
+          ownerRecords = await readDiscoveryGitNativeOwnerRecords(
+            activeScenario.nativeOwnerLog,
           );
+          if (discoveryGitNativeOwnerActiveChildren(ownerRecords).length > 0) {
+            throw new Error(
+              "native owner retained an active child after shutdown",
+            );
+          }
+          if (
+            options.proveLatchRejection === true &&
+            !ownerRecords.some((record) => record.type === "ACK")
+          ) {
+            throw new Error(
+              "native owner did not acknowledge retained shutdown authority",
+            );
+          }
+        }
+        cleanupAuthorized = true;
+      } catch (error) {
+        shutdownFailure = error;
+      } finally {
+        if (activeScenario.previousPath === undefined) {
+          Reflect.deleteProperty(process.env, "PATH");
+        } else {
+          process.env.PATH = activeScenario.previousPath;
+        }
+        activeDiscoveryGitAdapterLog = activeScenario.previousAdapterLog;
+        activeDiscoveryGitNativeOwnerLog =
+          activeScenario.previousNativeOwnerLog;
+        activeDiscoveryGitNativeOwnerExpectedOperation =
+          activeScenario.previousNativeOwnerExpectedOperation;
+        if (cleanupAuthorized) {
+          try {
+            for (const ownedRoot of activeScenario.ownedRoots) {
+              await rm(ownedRoot, { recursive: true, force: true });
+            }
+          } catch (error) {
+            shutdownFailure ??= error;
+          }
         }
       }
-      await taskSettlement;
-      const ownerRecords =
-        process.platform === "win32"
-          ? await readDiscoveryGitNativeOwnerRecords(
-              activeScenario.nativeOwnerLog,
-            )
-          : [];
-      if (
-        process.platform === "win32" &&
-        discoveryGitNativeOwnerActiveChildren(ownerRecords).length > 0
-      ) {
-        throw new Error("native owner retained an active child after shutdown");
-      }
-      if (activeScenario.previousPath === undefined) {
-        Reflect.deleteProperty(process.env, "PATH");
-      } else {
-        process.env.PATH = activeScenario.previousPath;
-      }
-      activeDiscoveryGitAdapterLog = activeScenario.previousAdapterLog;
-      for (const ownedRoot of activeScenario.ownedRoots) {
-        await rm(ownedRoot, { recursive: true, force: true });
+      if (shutdownFailure !== undefined) {
+        throw shutdownFailure;
       }
       return ownerRecords;
     };
 
     afterEach(async () => {
       if (scenario === undefined) return;
-      await shutdownScenario(scenario);
+      const activeScenario = scenario;
       scenario = undefined;
+      await shutdownScenario(activeScenario);
     });
 
     describe("for the primary worktree origin", () => {
@@ -6494,6 +6828,16 @@ describe("read-only PR review discovery planner", () => {
         });
         expect(terminatedRecords).toContainEqual(
           expect.objectContaining({
+            childExit: 125,
+            commandIdentity: activeChild.commandIdentity,
+            operation: activeChild.operation,
+            ownerPid: activeChild.ownerPid,
+            type: "ACK",
+          }),
+        );
+        expect(terminatedRecords).toContainEqual(
+          expect.objectContaining({
+            childExit: 125,
             commandIdentity: activeChild.commandIdentity,
             operation: activeChild.operation,
             ownerPid: activeChild.ownerPid,
@@ -6510,6 +6854,16 @@ describe("read-only PR review discovery planner", () => {
         await expect(lstat(pendingScenario.wrapperDir)).rejects.toMatchObject({
           code: "ENOENT",
         });
+        expect(process.env.PATH).toBe(pendingScenario.previousPath);
+        expect(activeDiscoveryGitAdapterLog).toBe(
+          pendingScenario.previousAdapterLog,
+        );
+        expect(activeDiscoveryGitNativeOwnerLog).toBe(
+          pendingScenario.previousNativeOwnerLog,
+        );
+        expect(activeDiscoveryGitNativeOwnerExpectedOperation).toBe(
+          pendingScenario.previousNativeOwnerExpectedOperation,
+        );
         scenario = undefined;
         scenario = await setupScenario("primary");
         const followingScenario = scenario;
