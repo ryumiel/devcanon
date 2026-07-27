@@ -452,6 +452,7 @@ public static class DevCanonDiscoveryGitLauncher
         string nativeGit,
         string ownerLog,
         string shutdownLatch,
+        string scenario,
         string operation,
         string[] args)
     {
@@ -462,9 +463,12 @@ public static class DevCanonDiscoveryGitLauncher
             AppendNativeOwnerRecord(
                 ownerLog,
                 "REJECT",
+                scenario,
+                "entry",
                 operation,
                 identity,
                 ownerPid.ToString(),
+                Stopwatch.GetTimestamp().ToString(),
                 "125");
             return 125;
         }
@@ -519,18 +523,21 @@ public static class DevCanonDiscoveryGitLauncher
                     "native owner could not claim its child process"
                 );
             }
-            string[] begin = new string[7 + args.Length];
+            string[] begin = new string[10 + args.Length];
             begin[0] = "BEGIN";
-            begin[1] = operation;
-            begin[2] = identity;
-            begin[3] = ownerPid.ToString();
-            begin[4] = child.ProcessId.ToString();
-            begin[5] = args.Length.ToString();
+            begin[1] = scenario;
+            begin[2] = "spawned";
+            begin[3] = operation;
+            begin[4] = identity;
+            begin[5] = ownerPid.ToString();
+            begin[6] = child.ProcessId.ToString();
+            begin[7] = Stopwatch.GetTimestamp().ToString();
+            begin[8] = args.Length.ToString();
             for (int index = 0; index < args.Length; index++)
             {
-                begin[6 + index] = args[index];
+                begin[9 + index] = args[index];
             }
-            begin[6 + args.Length] = "BEGIN_END";
+            begin[9 + args.Length] = "BEGIN_END";
             AppendNativeOwnerRecord(ownerLog, begin);
             if (ResumeThread(child.Thread) == uint.MaxValue)
             {
@@ -574,17 +581,23 @@ public static class DevCanonDiscoveryGitLauncher
                 AppendNativeOwnerRecord(
                     ownerLog,
                     "ACK",
+                    scenario,
+                    "shutdown",
                     operation,
                     identity,
                     ownerPid.ToString(),
+                    Stopwatch.GetTimestamp().ToString(),
                     childExit.ToString());
             }
             AppendNativeOwnerRecord(
                 ownerLog,
                 "END",
+                scenario,
+                "terminal",
                 operation,
                 identity,
                 ownerPid.ToString(),
+                Stopwatch.GetTimestamp().ToString(),
                 childExit.ToString());
             return unchecked((int)childExit);
         }
@@ -636,6 +649,12 @@ public static class DevCanonDiscoveryGitLauncher
         string mutationRoot = ReadUtf8File(
             Path.Combine(adapterDirectory, "git-native-owner.root")
         );
+        string payloadPath = Path.Combine(
+            adapterDirectory,
+            "git-native-owner.payload");
+        string mutationPayload = File.Exists(payloadPath)
+            ? ReadUtf8File(payloadPath)
+            : "";
         string marker = ReadUtf8File(
             Path.Combine(adapterDirectory, "git-native-owner.marker")
         );
@@ -661,11 +680,30 @@ public static class DevCanonDiscoveryGitLauncher
                 "--porcelain",
                 "-z") ||
             scenarioKind == "candidate" &&
-            ContainsOrderedArguments(args, "status", "--porcelain=v1");
+            ContainsOrderedArguments(args, "status", "--porcelain=v1") ||
+            scenarioKind.StartsWith(
+                "config-worktree-",
+                StringComparison.Ordinal) &&
+            ContainsOrderedArguments(
+                args,
+                "worktree",
+                "list",
+                "--porcelain",
+                "-z") ||
+            scenarioKind == "primary-include" &&
+            ContainsOrderedArguments(
+                args,
+                "config",
+                "--null",
+                "--name-only",
+                "--list",
+                "--no-includes",
+                "--file");
         int commandExit = RunNativeOwnedGit(
             nativeGit,
             ownerLog,
             shutdownLatch,
+            scenarioKind,
             targeted ? scenarioKind + "-target" : "pass-through",
             args);
         if (commandExit != 0 || !targeted || File.Exists(marker))
@@ -677,10 +715,82 @@ public static class DevCanonDiscoveryGitLauncher
             return 125;
         }
 
+        if (scenarioKind.StartsWith(
+            "config-worktree-",
+            StringComparison.Ordinal))
+        {
+            if (scenarioKind == "config-worktree-disappearance")
+            {
+                File.Delete(mutationPayload);
+            }
+            else
+            {
+                int configExit = RunNativeOwnedGit(
+                    nativeGit,
+                    ownerLog,
+                    shutdownLatch,
+                    scenarioKind,
+                    "mutation-config",
+                    new[] {
+                        "-C",
+                        mutationRoot,
+                        "config",
+                        "--worktree",
+                        "core.filemode",
+                        "false"
+                    });
+                if (configExit != 0)
+                {
+                    return configExit;
+                }
+            }
+            File.WriteAllText(marker, "fired", new UTF8Encoding(false, true));
+            return 0;
+        }
+
+        if (scenarioKind == "primary-include")
+        {
+            string countPath = Path.Combine(
+                adapterDirectory,
+                "git-native-owner.count");
+            int count = File.Exists(countPath)
+                ? Int32.Parse(ReadUtf8File(countPath))
+                : 0;
+            count++;
+            File.WriteAllText(
+                countPath,
+                count.ToString(),
+                new UTF8Encoding(false, true));
+            if (count != 2)
+            {
+                return 0;
+            }
+            int includeExit = RunNativeOwnedGit(
+                nativeGit,
+                ownerLog,
+                shutdownLatch,
+                scenarioKind,
+                "mutation-include",
+                new[] {
+                    "-C",
+                    mutationRoot,
+                    "config",
+                    "include.path",
+                    mutationPayload
+                });
+            if (includeExit != 0)
+            {
+                return includeExit;
+            }
+            File.WriteAllText(marker, "fired", new UTF8Encoding(false, true));
+            return 0;
+        }
+
         int resetExit = RunNativeOwnedGit(
             nativeGit,
             ownerLog,
             shutdownLatch,
+            scenarioKind,
             "mutation-reset",
             new[] {
                 "-C",
@@ -699,6 +809,7 @@ public static class DevCanonDiscoveryGitLauncher
             nativeGit,
             ownerLog,
             shutdownLatch,
+            scenarioKind,
             "mutation-add",
             new[] {
                 "-C",
@@ -5056,24 +5167,33 @@ interface DiscoveryGitNativeOwnerBegin {
   args: string[];
   childPid: number;
   commandIdentity: string;
+  monotonicTicks: number;
   operation: string;
   ownerPid: number;
+  scenario: string;
+  stage: "spawned";
   type: "BEGIN";
 }
 
 interface DiscoveryGitNativeOwnerEnd {
   childExit: number;
   commandIdentity: string;
+  monotonicTicks: number;
   operation: string;
   ownerPid: number;
+  scenario: string;
+  stage: "shutdown" | "terminal";
   type: "ACK" | "END";
 }
 
 interface DiscoveryGitNativeOwnerReject {
   childExit: number;
   commandIdentity: string;
+  monotonicTicks: number;
   operation: string;
   ownerPid: number;
+  scenario: string;
+  stage: "entry";
   type: "REJECT";
 }
 
@@ -5098,6 +5218,7 @@ function parseDiscoveryGitNativeOwnerInteger(
 
 async function readDiscoveryGitNativeOwnerRecords(
   ownerLog: string,
+  options: { allowIncompleteTail?: boolean } = {},
 ): Promise<DiscoveryGitNativeOwnerRecord[]> {
   let raw: Buffer;
   try {
@@ -5109,7 +5230,19 @@ async function readDiscoveryGitNativeOwnerRecords(
   if (raw.byteLength > discoveryGitNativeOwnerLogMaxBytes) {
     throw new Error("native owner log exceeds its bound");
   }
-  const fields = raw.toString("utf8").split("\0");
+  if (raw.length > 0 && raw[raw.length - 1] !== 0) {
+    if (options.allowIncompleteTail !== true) {
+      throw new Error("native owner log is not NUL terminated");
+    }
+    const lastTerminator = raw.lastIndexOf(0);
+    raw =
+      lastTerminator === -1
+        ? Buffer.alloc(0)
+        : raw.subarray(0, lastTerminator + 1);
+  }
+  const fields = new TextDecoder("utf-8", { fatal: true })
+    .decode(raw)
+    .split("\0");
   if (fields.pop() !== "") {
     throw new Error("native owner log is not NUL terminated");
   }
@@ -5117,13 +5250,21 @@ async function readDiscoveryGitNativeOwnerRecords(
   let offset = 0;
   while (offset < fields.length) {
     const type = fields[offset++];
+    const scenario = fields[offset++];
+    const stage = fields[offset++];
     const operation = fields[offset++];
     const commandIdentity = fields[offset++];
     const ownerPid = parseDiscoveryGitNativeOwnerInteger(
       fields[offset++],
       "owner PID",
     );
+    const monotonicTicks = parseDiscoveryGitNativeOwnerInteger(
+      fields[offset++],
+      "monotonic ticks",
+    );
     if (
+      scenario === undefined ||
+      scenario.length === 0 ||
       operation === undefined ||
       operation.length === 0 ||
       commandIdentity === undefined ||
@@ -5131,10 +5272,13 @@ async function readDiscoveryGitNativeOwnerRecords(
     ) {
       throw new Error("native owner command identity is malformed");
     }
-    if (ownerPid <= 0) {
-      throw new Error("native owner PID is outside its positive domain");
+    if (ownerPid <= 0 || monotonicTicks < 0) {
+      throw new Error("native owner identity is outside its positive domain");
     }
     if (type === "BEGIN") {
+      if (stage !== "spawned") {
+        throw new Error("native owner BEGIN stage is malformed");
+      }
       const childPid = parseDiscoveryGitNativeOwnerInteger(
         fields[offset++],
         "child PID",
@@ -5158,24 +5302,48 @@ async function readDiscoveryGitNativeOwnerRecords(
         args,
         childPid,
         commandIdentity,
+        monotonicTicks,
         operation,
         ownerPid,
+        scenario,
+        stage,
         type,
       });
       continue;
     }
     if (type === "ACK" || type === "END" || type === "REJECT") {
+      const expectedStage =
+        type === "ACK" ? "shutdown" : type === "END" ? "terminal" : "entry";
+      if (stage !== expectedStage) {
+        throw new Error("native owner terminal stage is malformed");
+      }
       const childExit = parseDiscoveryGitNativeOwnerInteger(
         fields[offset++],
         "terminal status",
       );
-      records.push({
-        childExit,
-        commandIdentity,
-        operation,
-        ownerPid,
-        type,
-      });
+      if (type === "REJECT") {
+        records.push({
+          childExit,
+          commandIdentity,
+          monotonicTicks,
+          operation,
+          ownerPid,
+          scenario,
+          stage: "entry",
+          type,
+        });
+      } else {
+        records.push({
+          childExit,
+          commandIdentity,
+          monotonicTicks,
+          operation,
+          ownerPid,
+          scenario,
+          stage: type === "ACK" ? "shutdown" : "terminal",
+          type,
+        });
+      }
       continue;
     }
     throw new Error("native owner record type is malformed");
@@ -5225,7 +5393,9 @@ async function waitForDiscoveryGitNativeOwnerBegin(
 ): Promise<DiscoveryGitNativeOwnerBegin> {
   for (let attempt = 0; attempt < 100; attempt += 1) {
     const active = discoveryGitNativeOwnerActiveChildren(
-      await readDiscoveryGitNativeOwnerRecords(ownerLog),
+      await readDiscoveryGitNativeOwnerRecords(ownerLog, {
+        allowIncompleteTail: true,
+      }),
     );
     if (active.length > 0) return active[0];
     await new Promise((resolve) => setTimeout(resolve, 20));
@@ -5805,6 +5975,13 @@ describe("read-only PR review discovery planner", () => {
       '"git-native-owner.shutdown"',
     );
     expect(discoveryGitWindowsLauncherSource).toContain('begin[0] = "BEGIN";');
+    expect(discoveryGitWindowsLauncherSource).toContain(
+      "Stopwatch.GetTimestamp().ToString()",
+    );
+    expect(discoveryGitWindowsLauncherSource).toContain("begin[1] = scenario;");
+    expect(discoveryGitWindowsLauncherSource).toContain(
+      'begin[2] = "spawned";',
+    );
     expect(discoveryGitWindowsLauncherSource).toContain('"REJECT",');
     expect(discoveryGitWindowsLauncherSource).toContain(
       "AppendNativeOwnerRecord(ownerLog, begin);",
@@ -5828,28 +6005,40 @@ describe("read-only PR review discovery planner", () => {
       ownerLog,
       [
         "BEGIN",
+        "transport",
+        "spawned",
         "pass-through",
         identityValue,
         "101",
+        "1000",
         "202",
         "2",
         "status",
         "--porcelain=v1",
         "BEGIN_END",
         "ACK",
+        "transport",
+        "shutdown",
         "pass-through",
         identityValue,
         "101",
+        "1001",
         "125",
         "END",
+        "transport",
+        "terminal",
         "pass-through",
         identityValue,
         "101",
+        "1002",
         "125",
         "REJECT",
+        "transport",
+        "entry",
         "pass-through",
         "b".repeat(64),
         "303",
+        "1003",
         "125",
         "",
       ].join("\0"),
@@ -5861,33 +6050,60 @@ describe("read-only PR review discovery planner", () => {
         args: ["status", "--porcelain=v1"],
         childPid: 202,
         commandIdentity: identityValue,
+        monotonicTicks: 1000,
         operation: "pass-through",
         ownerPid: 101,
+        scenario: "transport",
+        stage: "spawned",
         type: "BEGIN",
       },
       {
         childExit: 125,
         commandIdentity: identityValue,
+        monotonicTicks: 1001,
         operation: "pass-through",
         ownerPid: 101,
+        scenario: "transport",
+        stage: "shutdown",
         type: "ACK",
       },
       {
         childExit: 125,
         commandIdentity: identityValue,
+        monotonicTicks: 1002,
         operation: "pass-through",
         ownerPid: 101,
+        scenario: "transport",
+        stage: "terminal",
         type: "END",
       },
       {
         childExit: 125,
         commandIdentity: "b".repeat(64),
+        monotonicTicks: 1003,
         operation: "pass-through",
         ownerPid: 303,
+        scenario: "transport",
+        stage: "entry",
         type: "REJECT",
       },
     ]);
     expect(discoveryGitNativeOwnerActiveChildren(records)).toEqual([]);
+    await writeFile(
+      ownerLog,
+      Buffer.concat([
+        await readFile(ownerLog),
+        Buffer.from("partial-record", "utf8"),
+      ]),
+    );
+    await expect(readDiscoveryGitNativeOwnerRecords(ownerLog)).rejects.toThrow(
+      "native owner log is not NUL terminated",
+    );
+    await expect(
+      readDiscoveryGitNativeOwnerRecords(ownerLog, {
+        allowIncompleteTail: true,
+      }),
+    ).resolves.toEqual(records);
   });
 
   it.runIf(process.platform === "win32")(
@@ -6022,13 +6238,17 @@ describe("read-only PR review discovery planner", () => {
             record.args.every((argument, index) => argument === args[index]),
         );
         expect(begin).toBeDefined();
-        expect(records).toContainEqual({
-          childExit,
-          commandIdentity: begin?.commandIdentity,
-          operation: "pass-through",
-          ownerPid: begin?.ownerPid,
-          type: "END",
-        });
+        expect(records).toContainEqual(
+          expect.objectContaining({
+            childExit,
+            commandIdentity: begin?.commandIdentity,
+            operation: "pass-through",
+            ownerPid: begin?.ownerPid,
+            scenario: "transport",
+            stage: "terminal",
+            type: "END",
+          }),
+        );
         expect(discoveryGitNativeOwnerActiveChildren(records)).toEqual([]);
         expect((await lstat(nativeOwnerLog)).size).toBeLessThanOrEqual(
           discoveryGitNativeOwnerLogMaxBytes,
@@ -6727,6 +6947,7 @@ describe("read-only PR review discovery planner", () => {
 
   describe("isolates effective-origin drift fixture ownership", () => {
     interface OriginDriftScenario {
+      evidenceSnapshot: Buffer | null;
       lease: PrReviewLease | null;
       marker: string;
       nativeOwnerLog: string;
@@ -6830,7 +7051,16 @@ describe("read-only PR review discovery planner", () => {
           activeDiscoveryGitNativeOwnerExpectedOperation = `${kind}-target`;
         }
         process.env.PATH = prependDiscoveryGitWrapper(wrapperDir, previousPath);
+        if (process.platform === "win32") {
+          await execFileAsync("git", ["--version"], { env: process.env });
+          await execFileAsync("git", ["--version"], {
+            encoding: "buffer",
+            env: process.env,
+          });
+          await writeFile(nativeOwnerLog, Buffer.alloc(0));
+        }
         return {
+          evidenceSnapshot: null,
           lease,
           marker,
           nativeOwnerLog,
@@ -6904,6 +7134,9 @@ describe("read-only PR review discovery planner", () => {
           }
         }
         if (process.platform === "win32") {
+          activeScenario.evidenceSnapshot = await readFile(
+            activeScenario.nativeOwnerLog,
+          );
           ownerRecords = await readDiscoveryGitNativeOwnerRecords(
             activeScenario.nativeOwnerLog,
           );
@@ -6925,6 +7158,18 @@ describe("read-only PR review discovery planner", () => {
       } catch (error) {
         shutdownFailure = error;
       } finally {
+        if (
+          process.platform === "win32" &&
+          activeScenario.evidenceSnapshot === null
+        ) {
+          try {
+            activeScenario.evidenceSnapshot = await readFile(
+              activeScenario.nativeOwnerLog,
+            );
+          } catch (error) {
+            shutdownFailure ??= error;
+          }
+        }
         if (activeScenario.previousPath === undefined) {
           Reflect.deleteProperty(process.env, "PATH");
         } else {
@@ -7032,90 +7277,155 @@ describe("read-only PR review discovery planner", () => {
       });
     });
 
-    it.runIf(process.platform === "win32")(
-      "terminates pending native ownership before the following scenario",
-      async () => {
-        scenario = await setupScenario("primary");
-        const pendingScenario = scenario;
-        const pendingGit = spawn(
-          "git",
-          ["-C", pendingScenario.root, "cat-file", "--batch"],
-          {
-            env: process.env,
-            stdio: ["pipe", "pipe", "pipe"],
-          },
-        );
-        pendingScenario.task = new Promise<void>((resolve, reject) => {
-          pendingGit.once("error", reject);
-          pendingGit.once("close", (exitCode) => {
-            if (exitCode === 0) {
-              reject(new Error("pending native Git unexpectedly succeeded"));
-              return;
-            }
-            resolve();
-          });
-        });
-        const activeChild = await waitForDiscoveryGitNativeOwnerBegin(
-          pendingScenario.nativeOwnerLog,
-        );
-        expect(activeChild.operation).toBe("pass-through");
-        const terminatedRecords = await shutdownScenario(pendingScenario, {
-          proveLatchRejection: true,
-        });
-        expect(terminatedRecords).toContainEqual(
-          expect.objectContaining({
-            childExit: 125,
-            commandIdentity: activeChild.commandIdentity,
-            operation: activeChild.operation,
-            ownerPid: activeChild.ownerPid,
-            type: "ACK",
-          }),
-        );
-        expect(terminatedRecords).toContainEqual(
-          expect.objectContaining({
-            childExit: 125,
-            commandIdentity: activeChild.commandIdentity,
-            operation: activeChild.operation,
-            ownerPid: activeChild.ownerPid,
-            type: "END",
-          }),
-        );
-        expect(terminatedRecords).toContainEqual(
-          expect.objectContaining({
-            childExit: 125,
-            operation: "pass-through",
-            type: "REJECT",
-          }),
-        );
-        await expect(lstat(pendingScenario.wrapperDir)).rejects.toMatchObject({
-          code: "ENOENT",
-        });
-        expect(process.env.PATH).toBe(pendingScenario.previousPath);
-        expect(activeDiscoveryGitAdapterLog).toBe(
-          pendingScenario.previousAdapterLog,
-        );
-        expect(activeDiscoveryGitNativeOwnerLog).toBe(
-          pendingScenario.previousNativeOwnerLog,
-        );
-        expect(activeDiscoveryGitNativeOwnerExpectedOperation).toBe(
-          pendingScenario.previousNativeOwnerExpectedOperation,
-        );
-        scenario = undefined;
-        scenario = await setupScenario("primary");
-        const followingScenario = scenario;
-        followingScenario.task = (async () => {
-          const result = await runDiscovery(followingScenario.root);
-          expect(await readFile(followingScenario.marker, "utf8")).toBe(
-            "fired",
+    describe.runIf(process.platform === "win32")(
+      "isolates forced shutdown from the following native scenario",
+      () => {
+        let activeChild: DiscoveryGitNativeOwnerBegin | undefined;
+
+        beforeEach(async ({ task }) => {
+          scenario = await setupScenario("primary");
+          activeChild = undefined;
+          if (
+            task.name !== "terminates and acknowledges only its retained child"
+          ) {
+            return;
+          }
+          const pendingScenario = scenario;
+          const pendingGit = spawn(
+            "git",
+            ["-C", pendingScenario.root, "cat-file", "--batch"],
+            {
+              env: process.env,
+              stdio: ["pipe", "pipe", "pipe"],
+            },
           );
-          expect(result.disposition).toBe("invalid");
-          expect(result.resume).toBeNull();
-          expect(result.invalid).toContainEqual({
-            path: ".",
-            reason: "discovery-snapshot-changed",
+          pendingScenario.task = new Promise<void>((resolve, reject) => {
+            pendingGit.once("error", reject);
+            pendingGit.once("close", (exitCode) => {
+              if (exitCode === 0) {
+                reject(new Error("pending native Git unexpectedly succeeded"));
+                return;
+              }
+              resolve();
+            });
           });
-        })();
-        await followingScenario.task;
+          activeChild = await waitForDiscoveryGitNativeOwnerBegin(
+            pendingScenario.nativeOwnerLog,
+          );
+        });
+
+        it("terminates and acknowledges only its retained child", async () => {
+          if (scenario === undefined || activeChild === undefined) {
+            throw new Error("pending scenario is unavailable");
+          }
+          const pendingScenario = scenario;
+          expect(activeChild.operation).toBe("pass-through");
+          const terminatedRecords = await shutdownScenario(pendingScenario, {
+            proveLatchRejection: true,
+          });
+          scenario = undefined;
+          expect(terminatedRecords).toContainEqual(
+            expect.objectContaining({
+              childExit: 125,
+              commandIdentity: activeChild.commandIdentity,
+              operation: activeChild.operation,
+              ownerPid: activeChild.ownerPid,
+              scenario: "primary",
+              stage: "shutdown",
+              type: "ACK",
+            }),
+          );
+          expect(terminatedRecords).toContainEqual(
+            expect.objectContaining({
+              childExit: 125,
+              commandIdentity: activeChild.commandIdentity,
+              operation: activeChild.operation,
+              ownerPid: activeChild.ownerPid,
+              scenario: "primary",
+              stage: "terminal",
+              type: "END",
+            }),
+          );
+          expect(terminatedRecords).toContainEqual(
+            expect.objectContaining({
+              childExit: 125,
+              operation: "pass-through",
+              scenario: "primary",
+              stage: "entry",
+              type: "REJECT",
+            }),
+          );
+          expect(pendingScenario.evidenceSnapshot?.byteLength).toBeGreaterThan(
+            0,
+          );
+          await expect(lstat(pendingScenario.wrapperDir)).rejects.toMatchObject(
+            {
+              code: "ENOENT",
+            },
+          );
+          expect(process.env.PATH).toBe(pendingScenario.previousPath);
+          expect(activeDiscoveryGitAdapterLog).toBe(
+            pendingScenario.previousAdapterLog,
+          );
+          expect(activeDiscoveryGitNativeOwnerLog).toBe(
+            pendingScenario.previousNativeOwnerLog,
+          );
+          expect(activeDiscoveryGitNativeOwnerExpectedOperation).toBe(
+            pendingScenario.previousNativeOwnerExpectedOperation,
+          );
+        });
+
+        it("preserves diagnostics and restores globals after evidence failure", async () => {
+          if (scenario === undefined) {
+            throw new Error("failure scenario is unavailable");
+          }
+          const failingScenario = scenario;
+          await writeFile(
+            failingScenario.nativeOwnerLog,
+            Buffer.from("partial-record", "utf8"),
+          );
+          await expect(shutdownScenario(failingScenario)).rejects.toThrow(
+            "native owner log is not NUL terminated",
+          );
+          scenario = undefined;
+          expect(failingScenario.evidenceSnapshot).toEqual(
+            Buffer.from("partial-record", "utf8"),
+          );
+          expect((await lstat(failingScenario.wrapperDir)).isDirectory()).toBe(
+            true,
+          );
+          expect(process.env.PATH).toBe(failingScenario.previousPath);
+          expect(activeDiscoveryGitAdapterLog).toBe(
+            failingScenario.previousAdapterLog,
+          );
+          expect(activeDiscoveryGitNativeOwnerLog).toBe(
+            failingScenario.previousNativeOwnerLog,
+          );
+          expect(activeDiscoveryGitNativeOwnerExpectedOperation).toBe(
+            failingScenario.previousNativeOwnerExpectedOperation,
+          );
+          discoveryTempRoots.push(...failingScenario.ownedRoots);
+        });
+
+        it("runs one independent discovery with restored ownership", async () => {
+          if (scenario === undefined) {
+            throw new Error("following scenario is unavailable");
+          }
+          const followingScenario = scenario;
+          followingScenario.task = (async () => {
+            const result = await runDiscovery(followingScenario.root);
+            expect(await readFile(followingScenario.marker, "utf8")).toBe(
+              "fired",
+            );
+            expect(result.disposition).toBe("invalid");
+            expect(result.resume).toBeNull();
+            expect(result.invalid).toContainEqual({
+              path: ".",
+              reason: "discovery-snapshot-changed",
+            });
+          })();
+          await followingScenario.task;
+        });
       },
     );
   });
@@ -7124,19 +7434,27 @@ describe("read-only PR review discovery planner", () => {
     "isolates primary config.worktree %s drift",
     (fixture) => {
       interface ConfigWorktreeDriftScenario {
+        evidenceSnapshot: Buffer | null;
         marker: string;
+        nativeOwnerLog: string;
         ownedRoots: string[];
         previousAdapterLog: string | undefined;
+        previousNativeOwnerExpectedOperation: string | undefined;
+        previousNativeOwnerLog: string | undefined;
         previousPath: string | undefined;
         root: string;
         shutdownLatch: string;
         task: Promise<void> | null;
+        wrapperDir: string;
       }
 
       let scenario: ConfigWorktreeDriftScenario | undefined;
 
       beforeEach(async () => {
         const previousAdapterLog = activeDiscoveryGitAdapterLog;
+        const previousNativeOwnerExpectedOperation =
+          activeDiscoveryGitNativeOwnerExpectedOperation;
+        const previousNativeOwnerLog = activeDiscoveryGitNativeOwnerLog;
         const previousPath = process.env.PATH;
         const ownedRootStart = discoveryTempRoots.length;
         try {
@@ -7164,54 +7482,97 @@ describe("read-only PR review discovery planner", () => {
           const marker = path.join(wrapperDir, "config-worktree-mutated");
           const shutdownLatch = path.join(
             wrapperDir,
-            "config-worktree.shutdown",
+            discoveryGitNativeOwnerShutdownName,
           );
-          const realGit = await resolveCanonicalPhysicalGit();
+          const physicalGit = await resolveCanonicalPhysicalGit();
           const wrapper = path.join(wrapperDir, "git");
-          const mutation =
-            fixture === "appearance"
-              ? `'${realGit}' -C '${await toGitBashPath(root)}' config --worktree core.filemode false`
-              : fixture === "disappearance"
-                ? `rm -f '${await toGitBashPath(configWorktree)}'`
-                : `'${realGit}' -C '${await toGitBashPath(root)}' config --worktree core.filemode false`;
-          await writeFile(
-            wrapper,
-            [
-              "#!/bin/sh",
-              `[ ! -f '${await toGitBashPath(shutdownLatch)}' ] || exit 125`,
-              'case " $* " in',
-              '  *" worktree list --porcelain -z "*)',
-              `    '${realGit}' "$@"`,
-              "    status=$?",
-              `    [ ! -f '${await toGitBashPath(shutdownLatch)}' ] || exit 125`,
-              `    if [ ! -f '${await toGitBashPath(marker)}' ]; then`,
-              `      ${mutation}`,
-              `      printf fired >'${await toGitBashPath(marker)}'`,
-              "    fi",
-              '    exit "$status"',
-              "    ;;",
-              "esac",
-              `exec '${realGit}' "$@"`,
-              "",
-            ].join("\n"),
-          );
+          if (process.platform === "win32") {
+            await writeFile(wrapper, "#!/bin/sh\nexit 127\n");
+          } else {
+            const mutation =
+              fixture === "appearance"
+                ? `'${physicalGit}' -C '${root}' config --worktree core.filemode false`
+                : fixture === "disappearance"
+                  ? `rm -f '${configWorktree}'`
+                  : `'${physicalGit}' -C '${root}' config --worktree core.filemode false`;
+            await writeFile(
+              wrapper,
+              [
+                "#!/bin/sh",
+                `[ ! -f '${shutdownLatch}' ] || exit 125`,
+                'case " $* " in',
+                '  *" worktree list --porcelain -z "*)',
+                `    '${physicalGit}' "$@"`,
+                "    status=$?",
+                `    [ ! -f '${shutdownLatch}' ] || exit 125`,
+                `    if [ ! -f '${marker}' ]; then`,
+                `      ${mutation}`,
+                `      printf fired >'${marker}'`,
+                "    fi",
+                '    exit "$status"',
+                "    ;;",
+                "esac",
+                `exec '${physicalGit}' "$@"`,
+                "",
+              ].join("\n"),
+            );
+          }
           await makeDiscoveryGitWrapperExecutable(wrapper);
+          const nativeOwnerLog = path.join(
+            wrapperDir,
+            discoveryGitNativeOwnerLogName,
+          );
+          if (process.platform === "win32") {
+            await Promise.all([
+              writeFile(path.join(wrapperDir, "git-native.path"), physicalGit),
+              writeFile(
+                path.join(wrapperDir, "git-native-owner.kind"),
+                `config-worktree-${fixture}`,
+              ),
+              writeFile(path.join(wrapperDir, "git-native-owner.root"), root),
+              writeFile(
+                path.join(wrapperDir, "git-native-owner.marker"),
+                marker,
+              ),
+              writeFile(
+                path.join(wrapperDir, "git-native-owner.payload"),
+                configWorktree,
+              ),
+            ]);
+          }
           if (discoveryTempRoots.length - ownedRootStart !== 2) {
             throw new Error("config.worktree fixture ownership is ambiguous");
           }
           const ownedRoots = discoveryTempRoots.splice(ownedRootStart);
+          if (process.platform === "win32") {
+            activeDiscoveryGitNativeOwnerLog = nativeOwnerLog;
+            activeDiscoveryGitNativeOwnerExpectedOperation = `config-worktree-${fixture}-target`;
+          }
           process.env.PATH = prependDiscoveryGitWrapper(
             wrapperDir,
             previousPath,
           );
+          if (process.platform === "win32") {
+            await execFileAsync("git", ["--version"], { env: process.env });
+            await execFileAsync("git", ["--version"], {
+              encoding: "buffer",
+              env: process.env,
+            });
+            await writeFile(nativeOwnerLog, Buffer.alloc(0));
+          }
           scenario = {
+            evidenceSnapshot: null,
             marker,
+            nativeOwnerLog,
             ownedRoots,
             previousAdapterLog,
+            previousNativeOwnerExpectedOperation,
+            previousNativeOwnerLog,
             previousPath,
             root,
             shutdownLatch,
             task: null,
+            wrapperDir,
           };
         } catch (error) {
           if (previousPath === undefined) {
@@ -7220,6 +7581,9 @@ describe("read-only PR review discovery planner", () => {
             process.env.PATH = previousPath;
           }
           activeDiscoveryGitAdapterLog = previousAdapterLog;
+          activeDiscoveryGitNativeOwnerLog = previousNativeOwnerLog;
+          activeDiscoveryGitNativeOwnerExpectedOperation =
+            previousNativeOwnerExpectedOperation;
           const abandonedRoots = discoveryTempRoots.splice(ownedRootStart);
           for (const abandonedRoot of abandonedRoots) {
             await rm(abandonedRoot, { recursive: true, force: true });
@@ -7232,10 +7596,10 @@ describe("read-only PR review discovery planner", () => {
         if (scenario === undefined) return;
         const activeScenario = scenario;
         scenario = undefined;
-        let settled = false;
-        let settlementFailure: unknown;
-        await writeFile(activeScenario.shutdownLatch, "shutdown");
+        let cleanupAuthorized = false;
+        let shutdownFailure: unknown;
         try {
+          await writeFile(activeScenario.shutdownLatch, "shutdown");
           let settlementTimeout: ReturnType<typeof setTimeout> | undefined;
           try {
             const settlement = await Promise.race([
@@ -7255,30 +7619,61 @@ describe("read-only PR review discovery planner", () => {
                 );
               }),
             ]);
-            settled = true;
-            settlementFailure = settlement.error;
-          } catch (error) {
-            settlementFailure = error;
+            if (settlement.error !== undefined) throw settlement.error;
           } finally {
             if (settlementTimeout !== undefined) {
               clearTimeout(settlementTimeout);
             }
           }
+          if (process.platform === "win32") {
+            activeScenario.evidenceSnapshot = await readFile(
+              activeScenario.nativeOwnerLog,
+            );
+            const ownerRecords = await readDiscoveryGitNativeOwnerRecords(
+              activeScenario.nativeOwnerLog,
+            );
+            expect(discoveryGitNativeOwnerActiveChildren(ownerRecords)).toEqual(
+              [],
+            );
+          }
+          cleanupAuthorized = true;
+        } catch (error) {
+          shutdownFailure = error;
         } finally {
+          if (
+            process.platform === "win32" &&
+            activeScenario.evidenceSnapshot === null
+          ) {
+            try {
+              activeScenario.evidenceSnapshot = await readFile(
+                activeScenario.nativeOwnerLog,
+              );
+            } catch (error) {
+              shutdownFailure ??= error;
+            }
+          }
           if (activeScenario.previousPath === undefined) {
             Reflect.deleteProperty(process.env, "PATH");
           } else {
             process.env.PATH = activeScenario.previousPath;
           }
           activeDiscoveryGitAdapterLog = activeScenario.previousAdapterLog;
-          if (settled) {
-            for (const ownedRoot of activeScenario.ownedRoots) {
-              await rm(ownedRoot, { recursive: true, force: true });
+          activeDiscoveryGitNativeOwnerLog =
+            activeScenario.previousNativeOwnerLog;
+          activeDiscoveryGitNativeOwnerExpectedOperation =
+            activeScenario.previousNativeOwnerExpectedOperation;
+          if (cleanupAuthorized) {
+            try {
+              for (const ownedRoot of activeScenario.ownedRoots) {
+                await rm(ownedRoot, { recursive: true, force: true });
+              }
+            } catch (error) {
+              shutdownFailure ??= error;
             }
           }
         }
-        if (settlementFailure !== undefined) {
-          throw settlementFailure;
+        if (shutdownFailure !== undefined) {
+          throw shutdownFailure;
         }
       });
 
@@ -7299,54 +7694,237 @@ describe("read-only PR review discovery planner", () => {
     },
   );
 
-  it("fails closed when primary include authority appears between complete collections", async () => {
-    const root = await createDiscoveryRepository();
-    const wrapperDir = await mkdtemp(path.join(tmpdir(), "git-wrapper-"));
-    discoveryTempRoots.push(wrapperDir);
-    const count = path.join(wrapperDir, "primary-config-count");
-    const fired = path.join(wrapperDir, "primary-include-fired");
-    const included = path.join(root, "late-primary-included.gitconfig");
-    await writeFile(included, "[core]\n\tfilemode = false\n");
-    const realGit = (
-      await execFileAsync("sh", ["-c", "command -v git"])
-    ).stdout.trim();
-    const wrapper = path.join(wrapperDir, "git");
-    await writeFile(
-      wrapper,
-      [
-        "#!/bin/sh",
-        'case " $* " in',
-        '  *" config --null --name-only --list --no-includes --file "*)',
-        `    '${realGit}' "$@"`,
-        "    status=$?",
-        `    current=$(cat '${await toGitBashPath(count)}' 2>/dev/null || printf 0)`,
-        "    current=$((current + 1))",
-        `    printf '%s' "$current" >'${await toGitBashPath(count)}'`,
-        '    if [ "$current" -eq 2 ]; then',
-        `      '${realGit}' -C '${await toGitBashPath(root)}' config include.path '${await toGitBashPath(included)}'`,
-        `      printf fired >'${await toGitBashPath(fired)}'`,
-        "    fi",
-        '    exit "$status"',
-        "    ;;",
-        "esac",
-        `exec '${realGit}' "$@"`,
-        "",
-      ].join("\n"),
-    );
-    await makeDiscoveryGitWrapperExecutable(wrapper);
-    const oldPath = process.env.PATH;
-    process.env.PATH = prependDiscoveryGitWrapper(wrapperDir, oldPath);
-    try {
-      const result = await runDiscovery(root);
-      expect(await readFile(fired, "utf8")).toBe("fired");
-      expect(result.disposition).toBe("invalid");
-      expect(result.invalid).toContainEqual({
-        path: ".",
-        reason: "discovery-snapshot-changed",
-      });
-    } finally {
-      process.env.PATH = oldPath;
+  describe("isolates primary include authority appearance", () => {
+    interface PrimaryIncludeScenario {
+      evidenceSnapshot: Buffer | null;
+      marker: string;
+      nativeOwnerLog: string;
+      ownedRoots: string[];
+      previousAdapterLog: string | undefined;
+      previousNativeOwnerExpectedOperation: string | undefined;
+      previousNativeOwnerLog: string | undefined;
+      previousPath: string | undefined;
+      root: string;
+      shutdownLatch: string;
+      task: Promise<void> | null;
     }
+
+    let scenario: PrimaryIncludeScenario | undefined;
+
+    beforeEach(async () => {
+      const previousAdapterLog = activeDiscoveryGitAdapterLog;
+      const previousNativeOwnerExpectedOperation =
+        activeDiscoveryGitNativeOwnerExpectedOperation;
+      const previousNativeOwnerLog = activeDiscoveryGitNativeOwnerLog;
+      const previousPath = process.env.PATH;
+      const ownedRootStart = discoveryTempRoots.length;
+      try {
+        const root = await createDiscoveryRepository();
+        const wrapperDir = await mkdtemp(path.join(tmpdir(), "git-wrapper-"));
+        discoveryTempRoots.push(wrapperDir);
+        const count = path.join(wrapperDir, "primary-config-count");
+        const marker = path.join(wrapperDir, "primary-include-fired");
+        const included = path.join(root, "late-primary-included.gitconfig");
+        const shutdownLatch = path.join(
+          wrapperDir,
+          discoveryGitNativeOwnerShutdownName,
+        );
+        await writeFile(included, "[core]\n\tfilemode = false\n");
+        const physicalGit = await resolveCanonicalPhysicalGit();
+        const wrapper = path.join(wrapperDir, "git");
+        if (process.platform === "win32") {
+          await writeFile(wrapper, "#!/bin/sh\nexit 127\n");
+        } else {
+          await writeFile(
+            wrapper,
+            [
+              "#!/bin/sh",
+              `[ ! -f '${shutdownLatch}' ] || exit 125`,
+              'case " $* " in',
+              '  *" config --null --name-only --list --no-includes --file "*)',
+              `    '${physicalGit}' "$@"`,
+              "    status=$?",
+              `    current=$(cat '${count}' 2>/dev/null || printf 0)`,
+              "    current=$((current + 1))",
+              `    printf '%s' "$current" >'${count}'`,
+              '    if [ "$current" -eq 2 ]; then',
+              `      '${physicalGit}' -C '${root}' config include.path '${included}'`,
+              `      printf fired >'${marker}'`,
+              "    fi",
+              '    exit "$status"',
+              "    ;;",
+              "esac",
+              `exec '${physicalGit}' "$@"`,
+              "",
+            ].join("\n"),
+          );
+        }
+        await makeDiscoveryGitWrapperExecutable(wrapper);
+        const nativeOwnerLog = path.join(
+          wrapperDir,
+          discoveryGitNativeOwnerLogName,
+        );
+        if (process.platform === "win32") {
+          await Promise.all([
+            writeFile(path.join(wrapperDir, "git-native.path"), physicalGit),
+            writeFile(
+              path.join(wrapperDir, "git-native-owner.kind"),
+              "primary-include",
+            ),
+            writeFile(path.join(wrapperDir, "git-native-owner.root"), root),
+            writeFile(path.join(wrapperDir, "git-native-owner.marker"), marker),
+            writeFile(
+              path.join(wrapperDir, "git-native-owner.payload"),
+              included,
+            ),
+          ]);
+        }
+        if (discoveryTempRoots.length - ownedRootStart !== 2) {
+          throw new Error("primary include fixture ownership is ambiguous");
+        }
+        const ownedRoots = discoveryTempRoots.splice(ownedRootStart);
+        if (process.platform === "win32") {
+          activeDiscoveryGitNativeOwnerLog = nativeOwnerLog;
+          activeDiscoveryGitNativeOwnerExpectedOperation =
+            "primary-include-target";
+        }
+        process.env.PATH = prependDiscoveryGitWrapper(wrapperDir, previousPath);
+        if (process.platform === "win32") {
+          await execFileAsync("git", ["--version"], { env: process.env });
+          await execFileAsync("git", ["--version"], {
+            encoding: "buffer",
+            env: process.env,
+          });
+          await writeFile(nativeOwnerLog, Buffer.alloc(0));
+        }
+        scenario = {
+          evidenceSnapshot: null,
+          marker,
+          nativeOwnerLog,
+          ownedRoots,
+          previousAdapterLog,
+          previousNativeOwnerExpectedOperation,
+          previousNativeOwnerLog,
+          previousPath,
+          root,
+          shutdownLatch,
+          task: null,
+        };
+      } catch (error) {
+        if (previousPath === undefined) {
+          Reflect.deleteProperty(process.env, "PATH");
+        } else {
+          process.env.PATH = previousPath;
+        }
+        activeDiscoveryGitAdapterLog = previousAdapterLog;
+        activeDiscoveryGitNativeOwnerLog = previousNativeOwnerLog;
+        activeDiscoveryGitNativeOwnerExpectedOperation =
+          previousNativeOwnerExpectedOperation;
+        const abandonedRoots = discoveryTempRoots.splice(ownedRootStart);
+        for (const abandonedRoot of abandonedRoots) {
+          await rm(abandonedRoot, { recursive: true, force: true });
+        }
+        throw error;
+      }
+    });
+
+    afterEach(async () => {
+      if (scenario === undefined) return;
+      const activeScenario = scenario;
+      scenario = undefined;
+      let cleanupAuthorized = false;
+      let shutdownFailure: unknown;
+      try {
+        await writeFile(activeScenario.shutdownLatch, "shutdown");
+        let settlementTimeout: ReturnType<typeof setTimeout> | undefined;
+        try {
+          const settlement = await Promise.race([
+            (activeScenario.task ?? Promise.resolve()).then(
+              () => ({ error: undefined }),
+              (error: unknown) => ({ error }),
+            ),
+            new Promise<never>((_resolve, reject) => {
+              settlementTimeout = setTimeout(
+                () =>
+                  reject(
+                    new Error(
+                      "primary include scenario did not settle after shutdown",
+                    ),
+                  ),
+                5_000,
+              );
+            }),
+          ]);
+          if (settlement.error !== undefined) throw settlement.error;
+        } finally {
+          if (settlementTimeout !== undefined) {
+            clearTimeout(settlementTimeout);
+          }
+        }
+        if (process.platform === "win32") {
+          activeScenario.evidenceSnapshot = await readFile(
+            activeScenario.nativeOwnerLog,
+          );
+          const records = await readDiscoveryGitNativeOwnerRecords(
+            activeScenario.nativeOwnerLog,
+          );
+          expect(discoveryGitNativeOwnerActiveChildren(records)).toEqual([]);
+        }
+        cleanupAuthorized = true;
+      } catch (error) {
+        shutdownFailure = error;
+      } finally {
+        if (
+          process.platform === "win32" &&
+          activeScenario.evidenceSnapshot === null
+        ) {
+          try {
+            activeScenario.evidenceSnapshot = await readFile(
+              activeScenario.nativeOwnerLog,
+            );
+          } catch (error) {
+            shutdownFailure ??= error;
+          }
+        }
+        if (activeScenario.previousPath === undefined) {
+          Reflect.deleteProperty(process.env, "PATH");
+        } else {
+          process.env.PATH = activeScenario.previousPath;
+        }
+        activeDiscoveryGitAdapterLog = activeScenario.previousAdapterLog;
+        activeDiscoveryGitNativeOwnerLog =
+          activeScenario.previousNativeOwnerLog;
+        activeDiscoveryGitNativeOwnerExpectedOperation =
+          activeScenario.previousNativeOwnerExpectedOperation;
+        if (cleanupAuthorized) {
+          try {
+            for (const ownedRoot of activeScenario.ownedRoots) {
+              await rm(ownedRoot, { recursive: true, force: true });
+            }
+          } catch (error) {
+            shutdownFailure ??= error;
+          }
+        }
+      }
+      if (shutdownFailure !== undefined) throw shutdownFailure;
+    });
+
+    it("fails closed when authority appears between collections", async () => {
+      if (scenario === undefined) {
+        throw new Error("primary include scenario is unavailable");
+      }
+      const activeScenario = scenario;
+      activeScenario.task = (async () => {
+        const result = await runDiscovery(activeScenario.root);
+        expect(await readFile(activeScenario.marker, "utf8")).toBe("fired");
+        expect(result.disposition).toBe("invalid");
+        expect(result.invalid).toContainEqual({
+          path: ".",
+          reason: "discovery-snapshot-changed",
+        });
+      })();
+      await activeScenario.task;
+    });
   });
 
   it.each([["unexpected"], ["unexpected", "second"]])(
@@ -8075,15 +8653,24 @@ describe("read-only PR review discovery planner", () => {
         path.join(tmpdir(), "discovery-physical-collision-"),
       );
       discoveryTempRoots.push(collisionRoot);
-      const collisionEntries = ["left", "right"].map((leaf, index) => {
+      if (process.platform === "win32") {
+        await execFileAsync("fsutil.exe", [
+          "file",
+          "setCaseSensitiveInfo",
+          collisionRoot,
+          "enable",
+        ]);
+      }
+      const collisionLeaves =
+        process.platform === "win32"
+          ? (["candidate", "CANDIDATE"] as const)
+          : (["left", "right"] as const);
+      const collisionEntries = collisionLeaves.map((leaf) => {
         const component = path.join(collisionRoot, leaf);
-        const nativeRawPath = `${component}${path.sep}..`;
         const rawPath =
-          process.platform === "win32" && index === 1
-            ? nativeRawPath
-                .replace(/\\/gu, "/")
-                .replace(/^([A-Z]):/u, (drive) => drive.toLowerCase())
-            : nativeRawPath;
+          process.platform === "win32"
+            ? component
+            : `${component}${path.sep}..`;
         const leaseFile = `.ephemeral/pr-432-${discoveryDigest(rawPath)}-lease.json`;
         return { component, leaseFile, rawPath };
       });
@@ -8101,7 +8688,7 @@ describe("read-only PR review discovery planner", () => {
       for (const entry of collisionEntries) {
         if (entry === primaryEntry) {
           await symlink(
-            primaryChild,
+            process.platform === "win32" ? root : primaryChild,
             entry.component,
             process.platform === "win32" ? "junction" : "dir",
           );
@@ -8109,10 +8696,43 @@ describe("read-only PR review discovery planner", () => {
           await mkdir(entry.component);
         }
       }
-      await expect(realpath(primaryEntry.rawPath)).resolves.toBe(root);
-      await expect(realpath(ordinaryEntry.rawPath)).resolves.toBe(
-        await realpath(collisionRoot),
-      );
+      if (process.platform === "win32") {
+        const comparablePaths = collisionEntries.map((entry) =>
+          path.win32
+            .normalize(entry.rawPath)
+            .replace(/\\/gu, "/")
+            .toLowerCase(),
+        );
+        expect(new Set(comparablePaths).size).toBe(1);
+        await expect(lstat(primaryEntry.rawPath)).resolves.toMatchObject({});
+        await expect(lstat(ordinaryEntry.rawPath)).resolves.toMatchObject({});
+        await expect(
+          realpath(primaryEntry.rawPath).then((value) =>
+            path.win32.normalize(value).toLowerCase(),
+          ),
+        ).resolves.toBe(
+          path.win32.normalize(await realpath(root)).toLowerCase(),
+        );
+        await expect(
+          realpath(ordinaryEntry.rawPath).then((value) =>
+            path.win32.normalize(value).toLowerCase(),
+          ),
+        ).resolves.toBe(
+          path.win32
+            .normalize(await realpath(ordinaryEntry.component))
+            .toLowerCase(),
+        );
+        expect(
+          path.win32
+            .normalize(await realpath(ordinaryEntry.rawPath))
+            .toLowerCase(),
+        ).not.toBe(path.win32.normalize(await realpath(root)).toLowerCase());
+      } else {
+        await expect(realpath(primaryEntry.rawPath)).resolves.toBe(root);
+        await expect(realpath(ordinaryEntry.rawPath)).resolves.toBe(
+          await realpath(collisionRoot),
+        );
+      }
 
       const result = reducePrReviewDiscovery({
         repository: "owner/repo",
