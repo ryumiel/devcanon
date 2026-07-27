@@ -3917,6 +3917,7 @@ async function discoveryWorktreeDirty(
     (chunk) => {
       if (chunk.length > 0) dirty = true;
     },
+    true,
   );
   await statusAuthority.verify();
   return {
@@ -4323,6 +4324,7 @@ async function runDiscoveryGitStreaming(
   args: readonly string[],
   env: NodeJS.ProcessEnv,
   consumeStdout: (chunk: Buffer) => void,
+  rejectSuccessfulStderr = false,
 ): Promise<void> {
   await new Promise<void>((resolve, reject) => {
     const child = spawn("git", discoveryGitArguments(root, args), {
@@ -4367,6 +4369,15 @@ async function runDiscoveryGitStreaming(
       }
       if (streamError !== undefined) {
         reject(streamError);
+        return;
+      }
+      if (rejectSuccessfulStderr && diagnosticBytes > 0) {
+        const diagnostic = Buffer.concat(diagnosticChunks).toString("utf8");
+        reject(
+          new PrReviewLeaseError(
+            `discovery Git command produced diagnostics: ${diagnostic}`,
+          ),
+        );
         return;
       }
       resolve();
@@ -5112,11 +5123,16 @@ async function classifyCleanup(
 
 async function isWorktreeDirty(worktreePath: string): Promise<boolean> {
   try {
-    const { stdout } = await execFileAsync(
+    const { stderr, stdout } = await execFileAsync(
       "git",
       ["--no-optional-locks", "-C", worktreePath, "status", "--porcelain"],
       { maxBuffer: 1024 * 1024 },
     );
+    if (stderr.length > 0) {
+      throw new PrReviewLeaseError(
+        "git status produced diagnostics for worktree",
+      );
+    }
     return stdout.length > 0;
   } catch {
     throw new PrReviewLeaseError("git status inspection failed for worktree");

@@ -2568,7 +2568,7 @@ async function discoveryWorktreeDirty(worktreePath, env) {
     ], env, (chunk) => {
         if (chunk.length > 0)
             dirty = true;
-    });
+    }, true);
     await statusAuthority.verify();
     return {
         dirty,
@@ -2843,7 +2843,7 @@ async function runDiscoveryGitBuffer(root, args, env) {
         });
     });
 }
-async function runDiscoveryGitStreaming(root, args, env, consumeStdout) {
+async function runDiscoveryGitStreaming(root, args, env, consumeStdout, rejectSuccessfulStderr = false) {
     await new Promise((resolve, reject) => {
         const child = spawn("git", discoveryGitArguments(root, args), {
             env,
@@ -2886,6 +2886,11 @@ async function runDiscoveryGitStreaming(root, args, env, consumeStdout) {
             }
             if (streamError !== undefined) {
                 reject(streamError);
+                return;
+            }
+            if (rejectSuccessfulStderr && diagnosticBytes > 0) {
+                const diagnostic = Buffer.concat(diagnosticChunks).toString("utf8");
+                reject(new PrReviewLeaseError(`discovery Git command produced diagnostics: ${diagnostic}`));
                 return;
             }
             resolve();
@@ -3420,7 +3425,10 @@ async function classifyCleanup(identity) {
 }
 async function isWorktreeDirty(worktreePath) {
     try {
-        const { stdout } = await execFileAsync("git", ["--no-optional-locks", "-C", worktreePath, "status", "--porcelain"], { maxBuffer: 1024 * 1024 });
+        const { stderr, stdout } = await execFileAsync("git", ["--no-optional-locks", "-C", worktreePath, "status", "--porcelain"], { maxBuffer: 1024 * 1024 });
+        if (stderr.length > 0) {
+            throw new PrReviewLeaseError("git status produced diagnostics for worktree");
+        }
         return stdout.length > 0;
     }
     catch {
