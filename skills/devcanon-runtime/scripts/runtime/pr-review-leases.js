@@ -2045,19 +2045,22 @@ function parseDiscoveryWorktreeRegistrationRecords(output) {
 export function parseDiscoveryGitlinkRecords(output) {
     const parser = new DiscoveryGitlinkStreamParser();
     parser.consume(output);
-    return parser.finish();
+    return parser.finish().paths;
 }
 const discoveryGitlinkSelectedPathMaxBytes = 64 * 1024;
 const discoveryGitlinkSelectedRecordMaxCount = 4096;
 const discoveryGitlinkSelectedAggregateMaxBytes = 1024 * 1024;
 class DiscoveryGitlinkStreamParser {
     #paths = [];
+    #unsafeIndexFlags = false;
     #metadata = [];
     #selectedPath = [];
     #selectedRecordCount = 0;
     #selectedAggregateBytes = 0;
     #retentionError;
     #recordStarted = false;
+    #tag;
+    #tagComplete = false;
     #metadataComplete = false;
     #pathStarted = false;
     #selected = false;
@@ -2070,6 +2073,23 @@ class DiscoveryGitlinkStreamParser {
                 continue;
             }
             this.#recordStarted = true;
+            if (!this.#tagComplete) {
+                if (this.#tag === undefined) {
+                    if (!isDiscoveryGitIndexTag(byte)) {
+                        throw new PrReviewLeaseError("discovery gitlink inventory record is malformed");
+                    }
+                    this.#tag = byte;
+                    continue;
+                }
+                if (byte !== 0x20) {
+                    throw new PrReviewLeaseError("discovery gitlink inventory record is malformed");
+                }
+                this.#tagComplete = true;
+                if (isDiscoveryUnsafeIndexTag(this.#tag)) {
+                    this.#unsafeIndexFlags = true;
+                }
+                continue;
+            }
             if (!this.#metadataComplete) {
                 if (byte > 0x7f) {
                     throw new PrReviewLeaseError("discovery gitlink inventory record is malformed");
@@ -2123,10 +2143,16 @@ class DiscoveryGitlinkStreamParser {
         if (this.#recordStarted) {
             throw new PrReviewLeaseError("discovery gitlink inventory is not NUL-terminated");
         }
-        return this.#paths;
+        return {
+            paths: this.#paths,
+            unsafe_index_flags: this.#unsafeIndexFlags,
+        };
     }
     #finishRecord() {
-        if (!this.#recordStarted || !this.#metadataComplete || !this.#pathStarted) {
+        if (!this.#recordStarted ||
+            !this.#tagComplete ||
+            !this.#metadataComplete ||
+            !this.#pathStarted) {
             throw new PrReviewLeaseError("discovery gitlink inventory record is malformed");
         }
         if (this.#selected) {
@@ -2140,6 +2166,8 @@ class DiscoveryGitlinkStreamParser {
         this.#metadata.length = 0;
         this.#selectedPath.length = 0;
         this.#recordStarted = false;
+        this.#tag = undefined;
+        this.#tagComplete = false;
         this.#metadataComplete = false;
         this.#pathStarted = false;
         this.#selected = false;
@@ -2147,6 +2175,27 @@ class DiscoveryGitlinkStreamParser {
     #latchRetentionError() {
         this.#retentionError ??= new PrReviewLeaseError("discovery gitlink inventory exceeds retained limits");
     }
+}
+function isDiscoveryGitIndexTag(byte) {
+    return (byte === 0x3f || // ?
+        byte === 0x43 || // C
+        byte === 0x48 || // H
+        byte === 0x4b || // K
+        byte === 0x4d || // M
+        byte === 0x52 || // R
+        byte === 0x53 || // S
+        byte === 0x63 || // c
+        byte === 0x68 || // h
+        byte === 0x6b || // k
+        byte === 0x6d || // m
+        byte === 0x72 || // r
+        byte === 0x73 // s
+    );
+}
+function isDiscoveryUnsafeIndexTag(tag) {
+    // Git reports assume-unchanged as h, skip-worktree as S, and their
+    // combination as s when ls-files -v is used.
+    return tag === 0x68 || tag === 0x53 || tag === 0x73;
 }
 async function readDiscoveryRepositoryBinding(primaryRoot, repositoryIdentity, env, expectedRepository) {
     const configPath = path.join(repositoryIdentity.common_directory, "config");
@@ -2381,7 +2430,7 @@ async function readDiscoveryWorktreeRegistrations(primaryRoot, env) {
 }
 async function discoveryWorktreeDirty(worktreePath, env) {
     const statusAuthority = await assertDiscoveryStatusAuthoritySafe(worktreePath, env);
-    let dirty = false;
+    let dirty = statusAuthority.dirty;
     await runDiscoveryGitStreaming(worktreePath, [
         "status",
         "--porcelain=v1",
@@ -2402,6 +2451,7 @@ async function assertDiscoveryStatusAuthoritySafe(worktreePath, env, visited = n
     const identityKey = discoveryComparablePath(repository.git_directory, process.platform);
     if (visited.has(identityKey)) {
         return {
+            dirty: false,
             verify: async () => { },
             fingerprint: `visited:${identityKey}`,
         };
@@ -2452,6 +2502,8 @@ async function assertDiscoveryStatusAuthoritySafe(worktreePath, env, visited = n
         submoduleAuthorities.push(await assertDiscoveryStatusAuthoritySafe(pathAuthority.physical_path, env, visited));
     }
     return {
+        dirty: gitlinks.unsafe_index_flags ||
+            submoduleAuthorities.some((authority) => authority.dirty),
         fingerprint: JSON.stringify({
             repository: discoveryRepositoryIdentityFingerprint(repository),
             files: authoritySnapshots.map(([authorityFile, snapshot]) => [
@@ -2606,13 +2658,14 @@ function isStrictDiscoveryDescendant(root, target) {
 async function readDiscoveryGitlinkInventory(root, env) {
     const parser = new DiscoveryGitlinkStreamParser();
     const fingerprint = createHash("sha256");
-    await runDiscoveryGitStreaming(root, ["ls-files", "--stage", "-z"], env, (chunk) => {
+    await runDiscoveryGitStreaming(root, ["ls-files", "--stage", "-v", "-z"], env, (chunk) => {
         fingerprint.update(chunk);
         parser.consume(chunk);
     });
+    const parsed = parser.finish();
     return {
         fingerprint: fingerprint.digest("hex"),
-        paths: parser.finish(),
+        ...parsed,
     };
 }
 async function readOptionalStableDiscoveryFile(file) {

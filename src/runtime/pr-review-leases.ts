@@ -278,6 +278,7 @@ interface DiscoveryStatusObservation {
 }
 
 interface DiscoveryStatusAuthority {
+  dirty: boolean;
   verify: () => Promise<void>;
   fingerprint: string;
 }
@@ -285,6 +286,7 @@ interface DiscoveryStatusAuthority {
 interface DiscoveryGitlinkInventory {
   fingerprint: string;
   paths: string[];
+  unsafe_index_flags: boolean;
 }
 
 interface DiscoveryGitlinkPathAuthority {
@@ -3065,7 +3067,7 @@ function parseDiscoveryWorktreeRegistrationRecords(output: Buffer): string[] {
 export function parseDiscoveryGitlinkRecords(output: Buffer): string[] {
   const parser = new DiscoveryGitlinkStreamParser();
   parser.consume(output);
-  return parser.finish();
+  return parser.finish().paths;
 }
 
 const discoveryGitlinkSelectedPathMaxBytes = 64 * 1024;
@@ -3074,12 +3076,15 @@ const discoveryGitlinkSelectedAggregateMaxBytes = 1024 * 1024;
 
 class DiscoveryGitlinkStreamParser {
   readonly #paths: string[] = [];
+  #unsafeIndexFlags = false;
   readonly #metadata: number[] = [];
   readonly #selectedPath: number[] = [];
   #selectedRecordCount = 0;
   #selectedAggregateBytes = 0;
   #retentionError: PrReviewLeaseError | undefined;
   #recordStarted = false;
+  #tag: number | undefined;
+  #tagComplete = false;
   #metadataComplete = false;
   #pathStarted = false;
   #selected = false;
@@ -3092,6 +3097,27 @@ class DiscoveryGitlinkStreamParser {
         continue;
       }
       this.#recordStarted = true;
+      if (!this.#tagComplete) {
+        if (this.#tag === undefined) {
+          if (!isDiscoveryGitIndexTag(byte)) {
+            throw new PrReviewLeaseError(
+              "discovery gitlink inventory record is malformed",
+            );
+          }
+          this.#tag = byte;
+          continue;
+        }
+        if (byte !== 0x20) {
+          throw new PrReviewLeaseError(
+            "discovery gitlink inventory record is malformed",
+          );
+        }
+        this.#tagComplete = true;
+        if (isDiscoveryUnsafeIndexTag(this.#tag)) {
+          this.#unsafeIndexFlags = true;
+        }
+        continue;
+      }
       if (!this.#metadataComplete) {
         if (byte > 0x7f) {
           throw new PrReviewLeaseError(
@@ -3153,7 +3179,10 @@ class DiscoveryGitlinkStreamParser {
     }
   }
 
-  finish(): string[] {
+  finish(): {
+    paths: string[];
+    unsafe_index_flags: boolean;
+  } {
     if (this.#retentionError !== undefined) {
       throw this.#retentionError;
     }
@@ -3162,11 +3191,19 @@ class DiscoveryGitlinkStreamParser {
         "discovery gitlink inventory is not NUL-terminated",
       );
     }
-    return this.#paths;
+    return {
+      paths: this.#paths,
+      unsafe_index_flags: this.#unsafeIndexFlags,
+    };
   }
 
   #finishRecord(): void {
-    if (!this.#recordStarted || !this.#metadataComplete || !this.#pathStarted) {
+    if (
+      !this.#recordStarted ||
+      !this.#tagComplete ||
+      !this.#metadataComplete ||
+      !this.#pathStarted
+    ) {
       throw new PrReviewLeaseError(
         "discovery gitlink inventory record is malformed",
       );
@@ -3185,6 +3222,8 @@ class DiscoveryGitlinkStreamParser {
     this.#metadata.length = 0;
     this.#selectedPath.length = 0;
     this.#recordStarted = false;
+    this.#tag = undefined;
+    this.#tagComplete = false;
     this.#metadataComplete = false;
     this.#pathStarted = false;
     this.#selected = false;
@@ -3195,6 +3234,30 @@ class DiscoveryGitlinkStreamParser {
       "discovery gitlink inventory exceeds retained limits",
     );
   }
+}
+
+function isDiscoveryGitIndexTag(byte: number): boolean {
+  return (
+    byte === 0x3f || // ?
+    byte === 0x43 || // C
+    byte === 0x48 || // H
+    byte === 0x4b || // K
+    byte === 0x4d || // M
+    byte === 0x52 || // R
+    byte === 0x53 || // S
+    byte === 0x63 || // c
+    byte === 0x68 || // h
+    byte === 0x6b || // k
+    byte === 0x6d || // m
+    byte === 0x72 || // r
+    byte === 0x73 // s
+  );
+}
+
+function isDiscoveryUnsafeIndexTag(tag: number): boolean {
+  // Git reports assume-unchanged as h, skip-worktree as S, and their
+  // combination as s when ls-files -v is used.
+  return tag === 0x68 || tag === 0x53 || tag === 0x73;
 }
 
 async function readDiscoveryRepositoryBinding(
@@ -3576,7 +3639,7 @@ async function discoveryWorktreeDirty(
     worktreePath,
     env,
   );
-  let dirty = false;
+  let dirty = statusAuthority.dirty;
   await runDiscoveryGitStreaming(
     worktreePath,
     [
@@ -3609,6 +3672,7 @@ async function assertDiscoveryStatusAuthoritySafe(
   );
   if (visited.has(identityKey)) {
     return {
+      dirty: false,
       verify: async () => {},
       fingerprint: `visited:${identityKey}`,
     };
@@ -3678,6 +3742,9 @@ async function assertDiscoveryStatusAuthoritySafe(
     );
   }
   return {
+    dirty:
+      gitlinks.unsafe_index_flags ||
+      submoduleAuthorities.some((authority) => authority.dirty),
     fingerprint: JSON.stringify({
       repository: discoveryRepositoryIdentityFingerprint(repository),
       files: authoritySnapshots.map(([authorityFile, snapshot]) => [
@@ -3902,16 +3969,17 @@ async function readDiscoveryGitlinkInventory(
   const fingerprint = createHash("sha256");
   await runDiscoveryGitStreaming(
     root,
-    ["ls-files", "--stage", "-z"],
+    ["ls-files", "--stage", "-v", "-z"],
     env,
     (chunk) => {
       fingerprint.update(chunk);
       parser.consume(chunk);
     },
   );
+  const parsed = parser.finish();
   return {
     fingerprint: fingerprint.digest("hex"),
-    paths: parser.finish(),
+    ...parsed,
   };
 }
 

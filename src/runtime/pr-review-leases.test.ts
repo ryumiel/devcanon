@@ -53,9 +53,9 @@ const discoveryGitlinkSelectedPathMaxBytes = 64 * 1024;
 const discoveryGitlinkSelectedRecordMaxCount = 4096;
 const discoveryGitlinkSelectedAggregateMaxBytes = 1024 * 1024;
 
-function discoveryGitlinkRecord(pathBytes: Buffer | string): Buffer {
+function discoveryGitlinkRecord(pathBytes: Buffer | string, tag = "H"): Buffer {
   return Buffer.concat([
-    Buffer.from(`160000 ${"a".repeat(40)} 0\t`, "ascii"),
+    Buffer.from(`${tag} 160000 ${"a".repeat(40)} 0\t`, "ascii"),
     typeof pathBytes === "string" ? Buffer.from(pathBytes) : pathBytes,
     Buffer.from([0]),
   ]);
@@ -5028,6 +5028,19 @@ describe("read-only PR review discovery planner", () => {
     expect(result.resume).toBeNull();
   });
 
+  it("keeps primary create routing independent of primary index flags", async () => {
+    const root = await createDiscoveryRepository();
+    await execFileAsync("git", [
+      "-C",
+      root,
+      "update-index",
+      "--assume-unchanged",
+      "--skip-worktree",
+      "README.md",
+    ]);
+    expect((await runDiscovery(root)).disposition).toBe("create");
+  });
+
   it("preserves adversarial marker bytes through Git config and filter execution", async () => {
     const root = await createDiscoveryRepository();
     const rawConfig = path.join(root, "adversarial-marker.gitconfig");
@@ -6460,6 +6473,87 @@ describe("read-only PR review discovery planner", () => {
       },
     );
 
+    it.each([
+      ["unsafe flag appears", "H", "h"],
+      ["unsafe flag disappears", "h", "H"],
+    ])(
+      "fails closed when an index %s across status inspection",
+      async (_fixture, beforeTag, afterTag) => {
+        const wrapperDir = await mkdtemp(path.join(tmpdir(), "git-wrapper-"));
+        discoveryTempRoots.push(wrapperDir);
+        const staged = Buffer.from(
+          (
+            await execFileAsync("git", [
+              "-C",
+              worktree,
+              "ls-files",
+              "--stage",
+              "-v",
+              "-z",
+            ])
+          ).stdout,
+        );
+        const beforeInventory = Buffer.from(staged);
+        const afterInventory = Buffer.from(staged);
+        beforeInventory[0] = beforeTag.charCodeAt(0);
+        afterInventory[0] = afterTag.charCodeAt(0);
+        const beforePath = path.join(wrapperDir, "before-inventory");
+        const afterPath = path.join(wrapperDir, "after-inventory");
+        const counter = path.join(wrapperDir, "inventory-count");
+        const statusMarker = path.join(wrapperDir, "status-observed");
+        const trace = path.join(wrapperDir, "inspection-trace");
+        await Promise.all([
+          writeFile(beforePath, beforeInventory),
+          writeFile(afterPath, afterInventory),
+        ]);
+        const realGit = (
+          await execFileAsync("sh", ["-c", "command -v git"])
+        ).stdout.trim();
+        const wrapper = path.join(wrapperDir, "git");
+        await writeFile(
+          wrapper,
+          [
+            "#!/bin/sh",
+            'case " $* " in',
+            '  *" ls-files --stage -v -z "*)',
+            `    count=$(cat '${await toGitBashPath(counter)}' 2>/dev/null || printf 0)`,
+            "    count=$((count + 1))",
+            `    printf '%s\\n' "$count" >'${await toGitBashPath(counter)}'`,
+            `    printf 'I%s\\n' "$count" >>'${await toGitBashPath(trace)}'`,
+            '    if [ "$count" -eq 1 ]; then',
+            `      cat '${await toGitBashPath(beforePath)}'`,
+            "    else",
+            `      cat '${await toGitBashPath(afterPath)}'`,
+            "    fi",
+            "    exit 0",
+            "    ;;",
+            '  *" status --porcelain=v1 --untracked-files=all --ignore-submodules=none "*)',
+            `    printf reached >'${await toGitBashPath(statusMarker)}'`,
+            `    printf 'S\\n' >>'${await toGitBashPath(trace)}'`,
+            "    ;;",
+            "esac",
+            `exec '${realGit}' "$@"`,
+            "",
+          ].join("\n"),
+        );
+        await makeDiscoveryGitWrapperExecutable(wrapper);
+        const oldPath = process.env.PATH;
+        process.env.PATH = prependDiscoveryGitWrapper(wrapperDir, oldPath);
+        try {
+          const observed = await runDiscovery(root);
+          expect(observed.disposition).toBe("invalid");
+          expect(observed.active[0]).toMatchObject({
+            classification: "invalid",
+            reason: "status-inspection-failed",
+          });
+          expect(await readFile(statusMarker, "utf8")).toBe("reached");
+          expect(await readFile(trace, "utf8")).toContain("I1\nS\nI2\n");
+        } finally {
+          process.env.PATH = oldPath;
+        }
+      },
+    );
+
     it("rejects late dirt", async () => {
       await writeFile(path.join(worktree, "late-dirt.txt"), "changed\n");
       await expect(runPrReviewLeasesCommand(args)).resolves.toMatchObject({
@@ -6467,6 +6561,65 @@ describe("read-only PR review discovery planner", () => {
         stdout: "",
       });
     });
+
+    it.each([
+      ["assume-unchanged", ["--assume-unchanged", "README.md"]],
+      ["skip-worktree", ["--skip-worktree", "README.md"]],
+      [
+        "assume-unchanged and skip-worktree",
+        ["--assume-unchanged", "--skip-worktree", "README.md"],
+      ],
+    ])(
+      "does not authorize direct or wrapper resume acceptance for stable or modified %s index entries",
+      async (_fixture, updateIndexArgs) => {
+        await execFileAsync("git", [
+          "-C",
+          worktree,
+          "update-index",
+          ...updateIndexArgs,
+        ]);
+
+        const observed = await runDiscovery(root);
+        expect(observed.disposition).toBe("cleanup-required");
+        expect(observed.active[0]).toMatchObject({
+          classification: "dirty",
+          reason: "worktree-dirty",
+        });
+        await expect(runPrReviewLeasesCommand(args)).resolves.toMatchObject({
+          exitCode: 1,
+          stdout: "",
+        });
+        const wrapperEnvironment = {
+          ...process.env,
+          REPOSITORY: "owner/repo",
+          PR_NUMBER: "432",
+          PRIMARY_REPOSITORY_ROOT: root,
+        };
+        const wrappedDiscovery = await runPrReviewLeasesWrapper(
+          ["discover"],
+          wrapperEnvironment,
+        );
+        expect(wrappedDiscovery.exitCode).toBe(0);
+        expect(JSON.parse(wrappedDiscovery.stdout)).toMatchObject({
+          disposition: "cleanup-required",
+          active: [
+            {
+              classification: "dirty",
+              reason: "worktree-dirty",
+            },
+          ],
+        });
+        await expect(
+          runPrReviewLeasesWrapper(args, wrapperEnvironment),
+        ).resolves.toMatchObject({ exitCode: 1, stdout: "" });
+
+        await writeFile(
+          path.join(worktree, "README.md"),
+          "modified despite index flag\n",
+        );
+        expect((await runDiscovery(root)).disposition).toBe("cleanup-required");
+      },
+    );
 
     it("rejects artifact appearance", async () => {
       await writeDiscoveryLease(root, {
@@ -6887,6 +7040,31 @@ describe("read-only PR review discovery planner", () => {
     expect(result.active[0].classification).toBe("dirty");
   });
 
+  it.each([
+    ["unstaged", false],
+    ["staged", true],
+  ])(
+    "preserves ordinary %s tracked-change detection with normal H tags",
+    async (_fixture, stage) => {
+      const root = await createDiscoveryRepository();
+      const worktree = await createDiscoveryWorktree(
+        root,
+        `ordinary-${_fixture}`,
+      );
+      await writeDiscoveryLease(root, discoveryLease(worktree));
+      await writeFile(path.join(worktree, "README.md"), `${_fixture}\n`);
+      if (stage) {
+        await execFileAsync("git", ["-C", worktree, "add", "README.md"]);
+      }
+      const result = await runDiscovery(root);
+      expect(result.disposition).toBe("cleanup-required");
+      expect(result.active[0]).toMatchObject({
+        classification: "dirty",
+        reason: "worktree-dirty",
+      });
+    },
+  );
+
   it("streams a valid non-gitlink inventory larger than one MiB", async () => {
     const root = await createDiscoveryRepository();
     const worktree = await createDiscoveryWorktree(root, "large-inventory");
@@ -6898,7 +7076,7 @@ describe("read-only PR review discovery planner", () => {
     for (let index = 0; index < 18_000; index += 1) {
       records.push(
         Buffer.from(
-          `100644 ${"a".repeat(40)} 0\tordinary-${index
+          `H 100644 ${"a".repeat(40)} 0\tordinary-${index
             .toString()
             .padStart(5, "0")}\0`,
         ),
@@ -6916,7 +7094,7 @@ describe("read-only PR review discovery planner", () => {
       [
         "#!/bin/sh",
         'case " $* " in',
-        '  *" ls-files --stage -z "*)',
+        '  *" ls-files --stage -v -z "*)',
         `    cat '${await toGitBashPath(inventory)}'`,
         "    exit 0",
         "    ;;",
@@ -7013,7 +7191,7 @@ describe("read-only PR review discovery planner", () => {
         [
           "#!/bin/sh",
           'case " $* " in',
-          '  *" ls-files --stage -z "*)',
+          '  *" ls-files --stage -v -z "*)',
           `    cat '${inventoryPath}'`,
           `    printf reached >'${postTailMarkerPath}'`,
           "    exit 0",
@@ -8961,16 +9139,16 @@ describe("read-only PR review discovery planner", () => {
 
   it("parses raw NUL-delimited gitlink records without changing path bytes", () => {
     const oid = "a".repeat(40);
-    const singleRecord = Buffer.from(`160000 ${oid} 0\tascii\0`);
+    const singleRecord = Buffer.from(`H 160000 ${oid} 0\tascii\0`);
     expect(parseDiscoveryGitlinkRecords(singleRecord)).toEqual(["ascii"]);
     expect(
       parseDiscoveryGitlinkRecords(
         Buffer.from(
-          `100644 ${oid} 0\tREADME.md\0` +
-            `160000 ${oid} 0\tascii\0` +
-            `160000 ${oid} 0\t한글\0` +
-            `160000 ${oid} 0\tnested\nmodule\0` +
-            `160000 ${oid} 0\ttab\tmodule\0`,
+          `H 100644 ${oid} 0\tREADME.md\0` +
+            `H 160000 ${oid} 0\tascii\0` +
+            `h 160000 ${oid} 0\t한글\0` +
+            `S 160000 ${oid} 0\tnested\nmodule\0` +
+            `s 160000 ${oid} 0\ttab\tmodule\0`,
         ),
       ),
     ).toEqual(["ascii", "한글", "nested\nmodule", "tab\tmodule"]);
@@ -8987,29 +9165,29 @@ describe("read-only PR review discovery planner", () => {
     }
     expect(() =>
       parseDiscoveryGitlinkRecords(
-        Buffer.from(`160000 ${oid} 0\tnested\nmodule`),
+        Buffer.from(`H 160000 ${oid} 0\tnested\nmodule`),
       ),
     ).toThrow("discovery gitlink inventory is not NUL-terminated");
     expect(() =>
       parseDiscoveryGitlinkRecords(
-        Buffer.from("160000 invalid 0\tnested\nmodule\0"),
+        Buffer.from("H 160000 invalid 0\tnested\nmodule\0"),
       ),
     ).toThrow("discovery gitlink inventory record is malformed");
     expect(() =>
       parseDiscoveryGitlinkRecords(
-        Buffer.from(`160000 ${oid} 0 missing-tab\0`),
+        Buffer.from(`H 160000 ${oid} 0 missing-tab\0`),
       ),
     ).toThrow("discovery gitlink inventory record is malformed");
     expect(() =>
-      parseDiscoveryGitlinkRecords(Buffer.from(`160000 ${oid} 0\t\0`)),
+      parseDiscoveryGitlinkRecords(Buffer.from(`H 160000 ${oid} 0\t\0`)),
     ).toThrow("discovery gitlink inventory record is malformed");
     expect(() =>
-      parseDiscoveryGitlinkRecords(Buffer.from(`100644 ${oid} 0\t\0`)),
+      parseDiscoveryGitlinkRecords(Buffer.from(`H 100644 ${oid} 0\t\0`)),
     ).toThrow("discovery gitlink inventory record is malformed");
     expect(() =>
       parseDiscoveryGitlinkRecords(
         Buffer.concat([
-          Buffer.from(`160000 ${oid} 0\tinvalid-`),
+          Buffer.from(`H 160000 ${oid} 0\tinvalid-`),
           Buffer.from([0xff, 0]),
         ]),
       ),
@@ -9025,7 +9203,7 @@ describe("read-only PR review discovery planner", () => {
         Buffer.from(" 0\tpath\0"),
       ]),
       Buffer.concat([
-        Buffer.from(`160000 ${oid} `),
+        Buffer.from(`H 160000 ${oid} `),
         Buffer.from([0xb0]),
         Buffer.from("\tpath\0"),
       ]),
@@ -9124,7 +9302,7 @@ describe("read-only PR review discovery planner", () => {
     expect(
       parseDiscoveryGitlinkRecords(
         Buffer.concat([
-          Buffer.from(`100644 ${"a".repeat(40)} 0\t`, "ascii"),
+          Buffer.from(`H 100644 ${"a".repeat(40)} 0\t`, "ascii"),
           Buffer.alloc(discoveryGitlinkSelectedAggregateMaxBytes + 1, 0x6f),
           Buffer.from([0]),
           discoveryGitlinkRecord("selected"),
@@ -9341,9 +9519,9 @@ describe("read-only PR review discovery planner", () => {
         "  esac",
         "fi",
         'case " $* " in',
-        '  *" ls-files --stage -z "*)',
+        '  *" ls-files --stage -v -z "*)',
         `    printf reached >'${inventoryMarker}'`,
-        `    printf '160000 ${"a".repeat(40)} 0\\tinvalid-'`,
+        `    printf 'H 160000 ${"a".repeat(40)} 0\\tinvalid-'`,
         "    printf '\\377\\0'",
         "    exit 0",
         "    ;;",
@@ -9398,9 +9576,9 @@ describe("read-only PR review discovery planner", () => {
         "  esac",
         "fi",
         'case " $* " in',
-        '  *" ls-files --stage -z "*)',
+        '  *" ls-files --stage -v -z "*)',
         `    printf reached >'${inventoryMarker}'`,
-        `    printf '100644 ${"a".repeat(40)} 0\\t\\0'`,
+        `    printf 'H 100644 ${"a".repeat(40)} 0\\t\\0'`,
         "    exit 0",
         "    ;;",
         "esac",
@@ -9451,7 +9629,7 @@ describe("read-only PR review discovery planner", () => {
       const statusMarker = path.join(wrapperDir, "status-intercepted");
       await writeFile(
         inventory,
-        Buffer.from(`160000 ${"a".repeat(40)} 0\t${gitlinkPath}\0`, "utf8"),
+        Buffer.from(`H 160000 ${"a".repeat(40)} 0\t${gitlinkPath}\0`, "utf8"),
       );
       const realGit = (
         await execFileAsync("sh", ["-c", "command -v git"])
@@ -9465,7 +9643,7 @@ describe("read-only PR review discovery planner", () => {
           '  *" status --porcelain=v1 "*)',
           `    printf reached >'${await toGitBashPath(statusMarker)}'`,
           "    ;;",
-          '  *" ls-files --stage -z "*)',
+          '  *" ls-files --stage -v -z "*)',
           `    cat '${await toGitBashPath(inventory)}'`,
           "    exit 0",
           "    ;;",
