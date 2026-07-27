@@ -309,6 +309,11 @@ async function toGitBashPath(nativePath: string): Promise<string> {
   }
   return converted;
 }
+
+async function discoveryMarkerCommand(marker: string): Promise<string> {
+  return `printf executed >"${await toGitBashPath(marker)}"`;
+}
+
 const identity = {
   repository: "owner/repo",
   prNumber: 432,
@@ -4927,9 +4932,13 @@ describe("read-only PR review discovery planner", () => {
       await execFileAsync(launcher, argumentsToRoundTrip);
 
       const fields = (await readFile(recording, "utf8")).split("\0");
-      expect(fields).toEqual([
-        "ENV",
-        implementation,
+      expect(fields[0]).toBe("ENV");
+      expect(
+        path.win32.normalize(await realpath(fields[1])).toLowerCase(),
+      ).toBe(
+        path.win32.normalize(await realpath(implementation)).toLowerCase(),
+      );
+      expect(fields.slice(2)).toEqual([
         "ARGS",
         ...argumentsToRoundTrip,
         "END",
@@ -4953,7 +4962,7 @@ describe("read-only PR review discovery planner", () => {
       const included = path.join(root, "primary-included.gitconfig");
       await writeFile(
         included,
-        `[filter "discovery"]\n\tprocess = printf executed >"${marker}"\n`,
+        `[filter "discovery"]\n\tprocess = ${await discoveryMarkerCommand(marker)}\n`,
       );
       await execFileAsync("git", ["-C", root, "config", configKey, included]);
 
@@ -4975,7 +4984,7 @@ describe("read-only PR review discovery planner", () => {
       const included = path.join(root, "primary-separator-included.gitconfig");
       await writeFile(
         included,
-        `[filter "discovery"]\n\tprocess = printf executed >"${marker}"\n`,
+        `[filter "discovery"]\n\tprocess = ${await discoveryMarkerCommand(marker)}\n`,
       );
       await execFileAsync("git", [
         "-C",
@@ -5003,7 +5012,7 @@ describe("read-only PR review discovery planner", () => {
       const included = path.join(root, "primary-worktree-included.gitconfig");
       await writeFile(
         included,
-        `[filter "discovery"]\n\tprocess = printf executed >"${marker}"\n`,
+        `[filter "discovery"]\n\tprocess = ${await discoveryMarkerCommand(marker)}\n`,
       );
       await execFileAsync("git", [
         "-C",
@@ -5045,7 +5054,7 @@ describe("read-only PR review discovery planner", () => {
       );
       await writeFile(
         included,
-        `[filter "discovery"]\n\tprocess = printf executed >"${marker}"\n`,
+        `[filter "discovery"]\n\tprocess = ${await discoveryMarkerCommand(marker)}\n`,
       );
       await execFileAsync("git", [
         "-C",
@@ -5073,33 +5082,58 @@ describe("read-only PR review discovery planner", () => {
     },
   );
 
-  it("accepts stable include-free primary worktree config for create and resume", async () => {
-    const root = await createDiscoveryRepository();
-    await execFileAsync("git", [
-      "-C",
-      root,
-      "config",
-      "extensions.worktreeConfig",
-      "true",
-    ]);
-    await execFileAsync("git", [
-      "-C",
-      root,
-      "config",
-      "--worktree",
-      "core.filemode",
-      "false",
-    ]);
-    expect((await runDiscovery(root)).disposition).toBe("create");
+  describe("accepts stable include-free primary worktree config", () => {
+    const createFixture = async (): Promise<string> => {
+      const root = await createDiscoveryRepository();
+      await execFileAsync("git", [
+        "-C",
+        root,
+        "config",
+        "extensions.worktreeConfig",
+        "true",
+      ]);
+      await execFileAsync("git", [
+        "-C",
+        root,
+        "config",
+        "--worktree",
+        "core.filemode",
+        "false",
+      ]);
+      return root;
+    };
 
-    const worktree = await createDiscoveryWorktree(
-      root,
-      "worktree-config-resume",
-    );
-    await writeDiscoveryLease(root, discoveryLease(worktree));
-    const result = await runDiscovery(root);
-    expect(result.disposition).toBe("resume");
-    expect(result.resume?.worktree_path).toBe(worktree);
+    describe("for create", () => {
+      let root: string;
+
+      beforeEach(async () => {
+        root = await createFixture();
+      });
+
+      it("returns create after one real discovery", async () => {
+        expect((await runDiscovery(root)).disposition).toBe("create");
+      });
+    });
+
+    describe("for resume", () => {
+      let root: string;
+      let worktree: string;
+
+      beforeEach(async () => {
+        root = await createFixture();
+        worktree = await createDiscoveryWorktree(
+          root,
+          "worktree-config-resume",
+        );
+        await writeDiscoveryLease(root, discoveryLease(worktree));
+      });
+
+      it("returns resume after one real discovery", async () => {
+        const result = await runDiscovery(root);
+        expect(result.disposition).toBe("resume");
+        expect(result.resume?.worktree_path).toBe(worktree);
+      });
+    });
   });
 
   it.each([
@@ -9247,7 +9281,7 @@ describe("read-only PR review discovery planner", () => {
           const included = path.join(root, "included.gitconfig");
           await writeFile(
             included,
-            `[filter "discovery"]\n\tprocess = printf executed >"${marker}"\n`,
+            `[filter "discovery"]\n\tprocess = ${await discoveryMarkerCommand(marker)}\n`,
           );
           lateConfigAuthority = "include.path";
         } else {
@@ -9319,7 +9353,7 @@ describe("read-only PR review discovery planner", () => {
         );
         await writeFile(
           included,
-          `[filter "discovery"]\n\tprocess = printf executed >"${marker}"\n`,
+          `[filter "discovery"]\n\tprocess = ${await discoveryMarkerCommand(marker)}\n`,
         );
         await writeDiscoveryLease(root, discoveryLease(worktree));
         restorePath =
@@ -9373,7 +9407,7 @@ describe("read-only PR review discovery planner", () => {
       );
       await writeFile(
         included,
-        `[filter "discovery"]\n\tprocess = printf executed >"${marker}"\n`,
+        `[filter "discovery"]\n\tprocess = ${await discoveryMarkerCommand(marker)}\n`,
       );
       await execFileAsync("git", [
         "-C",
@@ -9480,6 +9514,20 @@ describe("read-only PR review discovery planner", () => {
         initializedSubmodule,
         "add",
         ".gitattributes",
+      ]);
+      await execFileAsync("git", [
+        "-C",
+        initializedSubmodule,
+        "config",
+        "user.name",
+        "Test",
+      ]);
+      await execFileAsync("git", [
+        "-C",
+        initializedSubmodule,
+        "config",
+        "user.email",
+        "test@example.com",
       ]);
       await execFileAsync("git", [
         "-C",
