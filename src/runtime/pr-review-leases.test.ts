@@ -9034,7 +9034,7 @@ describe("read-only PR review discovery planner", () => {
         const rawPath =
           process.platform === "win32"
             ? leaf === "CANDIDATE"
-              ? `${component}${path.win32.sep}`
+              ? `${component}${path.win32.sep}.`
               : component
             : `${component}${path.sep}..`;
         const leaseFile = `.ephemeral/pr-432-${discoveryDigest(rawPath)}-lease.json`;
