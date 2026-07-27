@@ -310,8 +310,27 @@ async function toGitBashPath(nativePath: string): Promise<string> {
   return converted;
 }
 
+function discoveryShellWord(value: string): string {
+  return `'${value.replaceAll("'", "'\\''")}'`;
+}
+
+function discoveryGitConfigValue(value: string): string {
+  return `"${value
+    .replaceAll("\\", "\\\\")
+    .replaceAll('"', '\\"')
+    .replaceAll("\n", "\\n")
+    .replaceAll("\t", "\\t")
+    .replaceAll("\b", "\\b")}"`;
+}
+
+function discoveryMarkerCommandForShellPath(marker: string): string {
+  return discoveryGitConfigValue(
+    `printf executed >${discoveryShellWord(marker)}`,
+  );
+}
+
 async function discoveryMarkerCommand(marker: string): Promise<string> {
-  return `printf executed >"${await toGitBashPath(marker)}"`;
+  return discoveryMarkerCommandForShellPath(await toGitBashPath(marker));
 }
 
 const identity = {
@@ -4954,6 +4973,58 @@ describe("read-only PR review discovery planner", () => {
     expect(result.resume).toBeNull();
   });
 
+  it("preserves adversarial marker bytes through Git config and filter execution", async () => {
+    const root = await createDiscoveryRepository();
+    const rawConfig = path.join(root, "adversarial-marker.gitconfig");
+    const syntheticMarker = "/owned/marker space ' \" \\\\ $ ; ` \u2028 \u2029";
+    await writeFile(
+      rawConfig,
+      `[filter "synthetic"]\n\tclean = ${discoveryMarkerCommandForShellPath(syntheticMarker)}\n`,
+    );
+    const parsedSynthetic = await execFileAsync("git", [
+      "config",
+      "--file",
+      rawConfig,
+      "--get",
+      "filter.synthetic.clean",
+    ]);
+    expect(parsedSynthetic.stdout).toBe(
+      `printf executed >${discoveryShellWord(syntheticMarker)}\n`,
+    );
+
+    const markerLeaf =
+      process.platform === "win32"
+        ? "marker space ' $ ; ` \u2028 \u2029"
+        : "marker space ' \" \\\\ $ ; ` \u2028 \u2029";
+    const marker = path.join(root, markerLeaf);
+    const included = path.join(root, "executable-marker.gitconfig");
+    await writeFile(
+      included,
+      `[filter "discovery"]\n\tclean = ${await discoveryMarkerCommand(marker)}\n`,
+    );
+    await writeFile(
+      path.join(root, ".gitattributes"),
+      "probe filter=discovery\n",
+    );
+    await writeFile(path.join(root, "probe"), "payload\n");
+    const beforeEntries = (await readdir(root)).sort();
+
+    await execFileAsync("git", [
+      "-C",
+      root,
+      "-c",
+      `include.path=${included}`,
+      "hash-object",
+      "--path=probe",
+      "probe",
+    ]);
+
+    expect(await readFile(marker, "utf8")).toBe("executed");
+    expect((await readdir(root)).sort()).toEqual(
+      [...beforeEntries, markerLeaf].sort(),
+    );
+  });
+
   it.each(["include.path", "includeIf.gitdir:/**.path"])(
     "rejects primary %s authority before a no-active create result",
     async (configKey) => {
@@ -5836,6 +5907,40 @@ describe("read-only PR review discovery planner", () => {
       }
     },
   );
+
+  it("correlates a stale dot-segment registration alias before missing cleanup", async () => {
+    const root = await createDiscoveryRepository();
+    const registered = await createDiscoveryWorktree(
+      root,
+      "stale-normalized-registration",
+    );
+    const alias = `${path.dirname(registered)}${path.sep}alias${path.sep}..${path.sep}${path.basename(registered)}`;
+    expect(alias).toContain(`${path.sep}alias${path.sep}..${path.sep}`);
+    await writeDiscoveryLease(root, discoveryLease(alias));
+    await rm(registered, { recursive: true, force: true });
+
+    const result = await runDiscovery(root);
+    expect(result).toMatchObject({
+      disposition: "invalid",
+      cleanup: null,
+      resume: null,
+      active: [
+        {
+          worktree_path: alias,
+          classification: "invalid",
+          reason: "worktree-inspection-failed",
+        },
+      ],
+    });
+    expect(() =>
+      validatePrReviewDiscoveryJson(Buffer.from(JSON.stringify(result)), {
+        repository: "owner/repo",
+        prNumber: 432,
+        primaryRoot: root,
+        platform: process.platform,
+      }),
+    ).not.toThrow();
+  });
 
   it.each([
     {

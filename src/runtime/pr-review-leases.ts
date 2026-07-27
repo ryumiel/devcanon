@@ -2036,7 +2036,10 @@ async function inspectDiscoveryLease({
       };
       if (
         registrationKeys.has(
-          discoveryComparablePath(lease.worktree_path, process.platform),
+          discoveryRegistrationComparablePath(
+            lease.worktree_path,
+            process.platform,
+          ),
         )
       ) {
         return finalize(invalid("worktree-inspection-failed", lease));
@@ -2131,7 +2134,10 @@ async function inspectDiscoveryLease({
   const verifyCandidateSnapshot = verifyCandidateFinal;
   if (
     !registrationKeys.has(
-      discoveryComparablePath(lease.worktree_path, process.platform),
+      discoveryRegistrationComparablePath(
+        lease.worktree_path,
+        process.platform,
+      ),
     )
   ) {
     try {

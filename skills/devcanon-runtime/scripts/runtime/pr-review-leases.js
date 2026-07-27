@@ -1277,7 +1277,7 @@ async function inspectDiscoveryLease({ primaryRoot, relativePath, repository, pr
                     throw new PrReviewLeaseError("candidate worktree appeared during inspection");
                 }
             };
-            if (registrationKeys.has(discoveryComparablePath(lease.worktree_path, process.platform))) {
+            if (registrationKeys.has(discoveryRegistrationComparablePath(lease.worktree_path, process.platform))) {
                 return finalize(invalid("worktree-inspection-failed", lease));
             }
             if (hasDeclaredArtifacts) {
@@ -1352,7 +1352,7 @@ async function inspectDiscoveryLease({ primaryRoot, relativePath, repository, pr
         }
     };
     const verifyCandidateSnapshot = verifyCandidateFinal;
-    if (!registrationKeys.has(discoveryComparablePath(lease.worktree_path, process.platform))) {
+    if (!registrationKeys.has(discoveryRegistrationComparablePath(lease.worktree_path, process.platform))) {
         try {
             await verifyCandidateSnapshot();
         }
