@@ -85,7 +85,7 @@ export async function dispatchRuntimeOverride(rawPath, childArguments) {
         const signalHandlers = new Map();
         for (const signal of forwardedSignals) {
             const handler = () => {
-                child.kill(signal);
+                forwardSignalToChild(child, signal);
             };
             signalHandlers.set(signal, handler);
             process.on(signal, handler);
@@ -104,6 +104,23 @@ export async function dispatchRuntimeOverride(rawPath, childArguments) {
             resolve({ exitCode, signal });
         });
     });
+}
+function forwardSignalToChild(child, signal) {
+    try {
+        if (process.platform === "win32") {
+            child.kill(signal);
+            return;
+        }
+        if (child.pid === undefined) {
+            throw new Error("child process did not provide a process id");
+        }
+        process.kill(-child.pid, signal);
+    }
+    catch (error) {
+        if (error.code === "ESRCH")
+            return;
+        throw error;
+    }
 }
 async function validateTypedEntrypoint(runtimeDirectory, physicalRuntimeDirectory) {
     const lexicalEntrypoint = path.join(runtimeDirectory, ...typedEntrypointRelativePath);

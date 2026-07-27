@@ -137,7 +137,7 @@ export async function dispatchRuntimeOverride(
     const signalHandlers = new Map<NodeJS.Signals, () => void>();
     for (const signal of forwardedSignals) {
       const handler = () => {
-        child.kill(signal);
+        forwardSignalToChild(child, signal);
       };
       signalHandlers.set(signal, handler);
       process.on(signal, handler);
@@ -156,6 +156,25 @@ export async function dispatchRuntimeOverride(
       resolve({ exitCode, signal });
     });
   });
+}
+
+function forwardSignalToChild(
+  child: ReturnType<typeof spawn>,
+  signal: NodeJS.Signals,
+): void {
+  try {
+    if (process.platform === "win32") {
+      child.kill(signal);
+      return;
+    }
+    if (child.pid === undefined) {
+      throw new Error("child process did not provide a process id");
+    }
+    process.kill(-child.pid, signal);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ESRCH") return;
+    throw error;
+  }
 }
 
 async function validateTypedEntrypoint(

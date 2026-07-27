@@ -134,7 +134,11 @@ describe("trusted runtime bootstrap", () => {
           dispatchRuntimeOverride(rawOverride, ["derive-path", "two words"]),
         ).resolves.toEqual({ exitCode: 23, signal: null });
         expect(await readFile(process.env.DEVCANON_TEST_ARGUMENTS)).toEqual(
-          Buffer.from("runtime\0derive-path\0two words\0"),
+          Buffer.from(
+            process.platform === "win32"
+              ? "derive-path\0two words\0"
+              : "runtime\0derive-path\0two words\0",
+          ),
         );
         expect(await readFile(process.env.DEVCANON_TEST_OVERRIDE, "utf8")).toBe(
           rawOverride,
@@ -384,19 +388,28 @@ describe("trusted runtime bootstrap", () => {
     "forwards a bootstrap-group signal to the detached child exactly once",
     async () => {
       const root = await createTempDir();
+      let childGroupPid: number | undefined;
       try {
         const runtime = await writeRuntime(root);
         const entrypoint = path.join(runtime, "scripts", "devcanon-runtime.sh");
         const ready = path.join(root, "ready");
         const forwarded = path.join(root, "forwarded");
+        const descendantForwarded = path.join(root, "descendant-forwarded");
+        const childPid = path.join(root, "child-pid");
         await writeFile(
           entrypoint,
           [
             "#!/bin/bash",
             "count=0",
-            'trap \'count=$((count + 1)); printf "%s" "$count" > "$DEVCANON_TEST_FORWARDED"; if [ "$count" -eq 1 ]; then (sleep 0.2; kill -USR1 $$) & else trap - TERM; kill -TERM $$; fi\' TERM',
-            "trap 'exit 0' USR1",
+            "(",
+            "  descendant_count=0",
+            '  trap \'descendant_count=$((descendant_count + 1)); printf "%s" "$descendant_count" > "$DEVCANON_TEST_DESCENDANT_FORWARDED"; exit 0\' TERM',
+            "  while true; do sleep 1; done",
+            ") &",
+            "descendant=$!",
+            'trap \'count=$((count + 1)); printf "%s" "$count" > "$DEVCANON_TEST_FORWARDED"; wait "$descendant"; exit 0\' TERM',
             'printf ready > "$DEVCANON_TEST_READY"',
+            'printf "%s" "$$" > "$DEVCANON_TEST_CHILD_PID"',
             "while true; do sleep 1; done",
             "",
           ].join("\n"),
@@ -418,6 +431,8 @@ describe("trusted runtime bootstrap", () => {
             env: {
               ...process.env,
               DEVCANON_RUNTIME_DIR: runtime,
+              DEVCANON_TEST_CHILD_PID: childPid,
+              DEVCANON_TEST_DESCENDANT_FORWARDED: descendantForwarded,
               DEVCANON_TEST_FORWARDED: forwarded,
               DEVCANON_TEST_READY: ready,
             },
@@ -425,6 +440,7 @@ describe("trusted runtime bootstrap", () => {
           },
         );
         await waitForFile(ready);
+        childGroupPid = Number(await readFile(childPid, "utf8"));
         if (bootstrap.pid === undefined) {
           throw new Error("bootstrap did not provide a process id");
         }
@@ -434,7 +450,13 @@ describe("trusted runtime bootstrap", () => {
           signal: null,
         });
         expect(await readFile(forwarded, "utf8")).toBe("1");
+        expect(await readFile(descendantForwarded, "utf8")).toBe("1");
       } finally {
+        if (childGroupPid !== undefined) {
+          try {
+            process.kill(-childGroupPid, "SIGKILL");
+          } catch {}
+        }
         await cleanupTempDir(root);
       }
     },
