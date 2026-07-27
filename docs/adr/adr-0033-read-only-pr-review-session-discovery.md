@@ -56,14 +56,16 @@ Git inspection is side-effect-free and hermetic: routing, trace, prompt,
 executable filter, include, hook, background maintenance, and optional-lock
 authority are excluded or rejected. Discovery performs two complete
 collections of the same filesystem and Git authorities and accepts a result
-only when those observations are exactly equal. The returned evidence is an
-optimistic, linearizable observation, not an atomic snapshot or transaction:
-a concurrent change that is not observed may linearize before or after
-discovery only when the returned combined state is non-contradictory.
-Discovery does not promise to detect every direct or untrusted filesystem
-mutation, ABA change, or mutation concurrent with a read. Platform spelling is
-normalized only at filesystem and comparison boundaries; stored lease identity
-remains governed by the lifecycle contract.
+only when those observations are exactly equal. The returned result is
+optimistic repeated-observation evidence, not an atomic snapshot or
+transaction, and does not establish a linearization point. Equal observations
+do not prove that the combined state existed at one instant. Discovery does
+not promise to detect every direct or untrusted filesystem mutation, ABA
+change, or mutation concurrent with a read. Lifecycle, creation, and cleanup
+owners must revalidate their own authority immediately before mutation and
+retain their transaction and conflict handling. Platform spelling is normalized
+only at filesystem and comparison boundaries; stored lease identity remains
+governed by the lifecycle contract.
 
 The substrate remains inactive until the transactional session-creation owner
 is implemented and integrated. `create` is selection evidence only and must

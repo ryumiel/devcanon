@@ -150,18 +150,25 @@ leases, and unverifiable replacement are invalid. Archived names use the
 closed digest, compact UTC timestamp, terminal-state filename grammar; other
 PR-matching lease names are invalid and are never hidden as history.
 
+Discovery has a prerequisite and preflight boundary before a routing result
+exists. Failure to bind the primary repository, root, or configuration
+authority, or any other pre-collection prerequisite failure, exits nonzero,
+emits empty stdout, and emits a deterministic diagnostic on stderr. Only after
+preflight succeeds may discovery emit the closed five-disposition JSON result.
+A nonzero preflight failure carries no routing authority.
+
 The planner performs two complete collections of every filesystem and Git
 authority used by reduction and accepts only exact equality. Every observed
 lease-byte rewrite, addition, removal, replacement, candidate drift,
 registration drift, malformed result, or command failure makes the result
 `invalid`; pure reduction performs no further authority read. This is
 optimistic repeated-observation evidence, not an atomic snapshot or
-transaction. A concurrent change that is not observed may linearize before or
-after discovery only when the returned combined state is non-contradictory.
-Discovery does not promise to detect every direct or untrusted mutation or ABA
-change. Lifecycle, creation, and cleanup owners must revalidate their own
-authority immediately before mutation and retain their existing transaction
-and conflict handling.
+transaction, and does not establish a linearization point. Equal observations
+do not prove that the combined state existed at one instant. Discovery does
+not promise to detect every direct or untrusted mutation, mutation concurrent
+with a read, or ABA change. Lifecycle, creation, and cleanup owners must
+revalidate their own authority immediately before mutation and retain their
+existing transaction and conflict handling.
 
 The deterministic precedence is:
 
