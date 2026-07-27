@@ -118,10 +118,16 @@ and never constructs GitHub review payloads.
 
 The installed runtime also exposes `review-leases.sh discover` and
 `review-leases.sh validate-discovery` as a future session-selection substrate.
-It accepts only `REPOSITORY`, `PR_NUMBER`, and `PRIMARY_REPOSITORY_ROOT`,
-returns one of `invalid`, `ambiguous`, `cleanup-required`, `resume`, or
-`create`, and performs no provider call, fetch, checkout, worktree creation,
-lease transition, cleanup, rollback, or artifact-semantic read.
+`discover` accepts only `REPOSITORY`, `PR_NUMBER`, and
+`PRIMARY_REPOSITORY_ROOT` from the environment and returns one of `invalid`,
+`ambiguous`, `cleanup-required`, `resume`, or `create`. Ordinary
+`validate-discovery` reads the discovery JSON from stdin and requires
+`--repository`, `--pr-number`, and `--primary-root`.
+`validate-discovery --resume-acceptance` instead requires those three identity
+flags plus `--lease-file` and `--worktree-path`; it re-observes that exact tuple
+and does not consume routing JSON from stdin. These commands perform no provider
+call, fetch, checkout, worktree creation, lease transition, cleanup, rollback,
+or artifact-semantic read.
 
 This revision does **not** invoke or route those commands from the active
 review flow. In particular, `create` is selection evidence only and must not

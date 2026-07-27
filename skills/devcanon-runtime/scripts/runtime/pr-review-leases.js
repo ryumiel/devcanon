@@ -1347,12 +1347,14 @@ async function inspectDiscoveryLease({ primaryRoot, relativePath, repository, pr
         return finalize(discoveryEntry(lease, "unregistered", "worktree-unregistered"));
     }
     let candidateRepository;
+    let candidateRepositoryBinding;
     try {
         candidateRepository = await readDiscoveryRepositoryIdentity(filesystemPath, gitEnv);
         assertDiscoveryCandidateRepository(candidateRepository, physicalWorktree, primaryRepository);
+        candidateRepositoryBinding = await readDiscoveryRepositoryBinding(filesystemPath, candidateRepository, gitEnv, repository);
         authority.push({
             key: `candidate-repository:${relativePath}`,
-            value: discoveryRepositoryIdentityFingerprint(candidateRepository),
+            value: `${discoveryRepositoryIdentityFingerprint(candidateRepository)}\0${candidateRepositoryBinding.repository}\0${candidateRepositoryBinding.config_fingerprint}`,
         });
     }
     catch {
@@ -1371,9 +1373,13 @@ async function inspectDiscoveryLease({ primaryRoot, relativePath, repository, pr
         }
         const current = await readDiscoveryRepositoryIdentity(filesystemPath, gitEnv);
         assertDiscoveryCandidateRepository(current, physicalWorktree, currentPrimary);
+        const currentBinding = await readDiscoveryRepositoryBinding(filesystemPath, current, gitEnv, repository);
         if (!sameDiscoveryRepositoryIdentity(current, candidateRepository) ||
             discoveryComparablePath(current.common_directory, process.platform) !==
-                discoveryComparablePath(primaryRepository.common_directory, process.platform)) {
+                discoveryComparablePath(primaryRepository.common_directory, process.platform) ||
+            currentBinding.repository !== candidateRepositoryBinding.repository ||
+            currentBinding.config_fingerprint !==
+                candidateRepositoryBinding.config_fingerprint) {
             throw new PrReviewLeaseError("candidate repository identity changed during inspection");
         }
     };
@@ -2129,19 +2135,14 @@ async function readDiscoveryRepositoryBinding(primaryRoot, repositoryIdentity, e
     const snapshot = await readStableDiscoveryFile(configPath);
     const worktreeConfigPath = path.join(repositoryIdentity.git_directory, "config.worktree");
     const worktreeSnapshot = await readOptionalStableDiscoveryFile(worktreeConfigPath);
-    await assertNoDiscoveryConfigIncludes(primaryRoot, configPath, env);
-    if (worktreeSnapshot !== null) {
-        await assertNoDiscoveryConfigIncludes(primaryRoot, worktreeConfigPath, env);
-    }
-    const output = await runDiscoveryGit(primaryRoot, [
-        "config",
-        "--null",
-        "--get-all",
-        "--no-includes",
-        "--file",
-        configPath,
-        "remote.origin.url",
-    ], env);
+    const commonDefinesOrigin = await assertNoDiscoveryConfigIncludes(primaryRoot, configPath, env);
+    const worktreeDefinesOrigin = worktreeSnapshot === null
+        ? false
+        : await assertNoDiscoveryConfigIncludes(primaryRoot, worktreeConfigPath, env);
+    const commonValues = await readDiscoveryConfigOriginValues(primaryRoot, configPath, commonDefinesOrigin, env);
+    const worktreeValues = worktreeSnapshot === null
+        ? []
+        : await readDiscoveryConfigOriginValues(primaryRoot, worktreeConfigPath, worktreeDefinesOrigin, env);
     await assertSameDiscoveryFile(configPath, snapshot);
     if (worktreeSnapshot === null) {
         if ((await observeStableDiscoveryPath(worktreeConfigPath, false)) !== "absent") {
@@ -2151,11 +2152,11 @@ async function readDiscoveryRepositoryBinding(primaryRoot, repositoryIdentity, e
     else {
         await assertSameDiscoveryFile(worktreeConfigPath, worktreeSnapshot);
     }
-    const values = output.endsWith("\0") ? output.slice(0, -1).split("\0") : [];
-    if (values.length !== 1 || values[0].length === 0) {
-        throw new PrReviewLeaseError("primary repository must define exactly one local origin URL");
+    const effectiveValues = resolveDiscoveryEffectiveOriginValues(commonValues, worktreeValues);
+    if (effectiveValues.length !== 1) {
+        throw new PrReviewLeaseError("primary repository must define exactly one effective local origin URL");
     }
-    const repository = normalizeDiscoveryGitHubRepository(values[0]);
+    const repository = normalizeDiscoveryGitHubRepository(effectiveValues[0]);
     if (repository.toLowerCase() !== expectedRepository.toLowerCase()) {
         throw new PrReviewLeaseError("primary repository origin does not match REPOSITORY");
     }
@@ -2169,8 +2170,38 @@ async function readDiscoveryRepositoryBinding(primaryRoot, repositoryIdentity, e
         }),
     };
 }
+function resolveDiscoveryEffectiveOriginValues(commonValues, worktreeValues) {
+    const effectiveValues = [];
+    for (const value of [...commonValues, ...worktreeValues]) {
+        if (value.length === 0) {
+            effectiveValues.length = 0;
+        }
+        else {
+            effectiveValues.push(value);
+        }
+    }
+    return effectiveValues;
+}
+async function readDiscoveryConfigOriginValues(root, configPath, definesOrigin, env) {
+    if (!definesOrigin)
+        return [];
+    const output = await runDiscoveryGit(root, [
+        "config",
+        "--null",
+        "--get-all",
+        "--no-includes",
+        "--file",
+        configPath,
+        "remote.origin.url",
+    ], env);
+    if (!output.endsWith("\0")) {
+        throw new PrReviewLeaseError("primary repository origin inventory is not NUL-terminated");
+    }
+    return output.slice(0, -1).split("\0");
+}
 async function assertNoDiscoveryConfigIncludes(root, configPath, env) {
     let record = [];
+    let definesOrigin = false;
     await runDiscoveryGitStreaming(root, [
         "config",
         "--null",
@@ -2193,6 +2224,9 @@ async function assertNoDiscoveryConfigIncludes(root, configPath, env) {
             }
             const name = Buffer.from(record).toString("utf8");
             record = [];
+            if (name.toLowerCase() === "remote.origin.url") {
+                definesOrigin = true;
+            }
             if (isDiscoveryIncludeAuthorityKey(name)) {
                 throw new PrReviewLeaseError("primary repository config contains include authority");
             }
@@ -2201,6 +2235,7 @@ async function assertNoDiscoveryConfigIncludes(root, configPath, env) {
     if (record.length !== 0) {
         throw new PrReviewLeaseError("primary repository config key inventory is not NUL-terminated");
     }
+    return definesOrigin;
 }
 function isDiscoveryIncludeAuthorityKey(name) {
     const normalized = name.toLowerCase();

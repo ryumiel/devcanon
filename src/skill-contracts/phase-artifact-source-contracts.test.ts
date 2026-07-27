@@ -2150,6 +2150,20 @@ None
     expect(leaseRuntime).toContain('case "validate-discovery"');
     expect(prReview).toContain("### Inactive read-only discovery substrate");
     expect(prReview).toContain(
+      "`discover` accepts only `REPOSITORY`, `PR_NUMBER`, and",
+    );
+    expect(prReview).toContain(
+      "`PRIMARY_REPOSITORY_ROOT` from the environment",
+    );
+    const normalizedPrReviewDiscovery = prReview.replace(/\s+/g, " ");
+    expect(normalizedPrReviewDiscovery).toContain(
+      "Ordinary `validate-discovery` reads the discovery JSON from stdin and requires `--repository`, `--pr-number`, and `--primary-root`",
+    );
+    expect(normalizedPrReviewDiscovery).toContain(
+      "`validate-discovery --resume-acceptance` instead requires those three identity flags plus `--lease-file` and `--worktree-path`",
+    );
+    expect(prReview).toContain("does not consume routing JSON from stdin");
+    expect(prReview).toContain(
       "This revision does **not** invoke or route those commands",
     );
     expect(prReview).toContain(

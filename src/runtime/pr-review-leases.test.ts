@@ -4614,6 +4614,87 @@ async function writeDiscoveryLease(
   );
 }
 
+async function replaceDiscoveryWorktreeOrigin(
+  root: string,
+  values: readonly string[],
+): Promise<void> {
+  await execFileAsync("git", [
+    "-C",
+    root,
+    "config",
+    "extensions.worktreeConfig",
+    "true",
+  ]);
+  await execFileAsync("git", [
+    "-C",
+    root,
+    "config",
+    "--worktree",
+    "--unset-all",
+    "remote.origin.url",
+  ]).catch(() => undefined);
+  for (const value of values) {
+    await execFileAsync("git", [
+      "-C",
+      root,
+      "config",
+      "--worktree",
+      "--add",
+      "remote.origin.url",
+      value,
+    ]);
+  }
+}
+
+async function injectDiscoveryWorktreeConfigAuthorityAfterOriginBinding(
+  worktree: string,
+  authorityKey: string,
+): Promise<() => void> {
+  await replaceDiscoveryWorktreeOrigin(worktree, [
+    "",
+    "https://github.com/owner/repo.git",
+  ]);
+  const wrapperDir = await mkdtemp(path.join(tmpdir(), "git-wrapper-"));
+  discoveryTempRoots.push(wrapperDir);
+  const counter = path.join(wrapperDir, "worktree-config-name-scans");
+  const realGit = (
+    await execFileAsync("sh", ["-c", "command -v git"])
+  ).stdout.trim();
+  const wrapper = path.join(wrapperDir, "git");
+  await writeFile(
+    wrapper,
+    [
+      "#!/bin/sh",
+      "name_scan=0",
+      "worktree_config=0",
+      "for argument do",
+      '  [ "$argument" = "--name-only" ] && name_scan=1',
+      '  case "$argument" in *config.worktree) worktree_config=1 ;; esac',
+      "done",
+      'if [ "$name_scan" -eq 1 ] && [ "$worktree_config" -eq 1 ]; then',
+      "  count=0",
+      `  [ ! -f '${counter}' ] || count=$(cat '${counter}')`,
+      "  count=$((count + 1))",
+      `  printf '%s\\n' "$count" >'${counter}'`,
+      '  if [ "$count" -eq 2 ]; then',
+      `    '${realGit}' "$@"`,
+      "    status=$?",
+      `    [ "$status" -ne 0 ] || printf '%s\\0' '${authorityKey}'`,
+      '    exit "$status"',
+      "  fi",
+      "fi",
+      `exec '${realGit}' "$@"`,
+      "",
+    ].join("\n"),
+  );
+  await makeDiscoveryGitWrapperExecutable(wrapper);
+  const oldPath = process.env.PATH;
+  process.env.PATH = prependDiscoveryGitWrapper(wrapperDir, oldPath);
+  return () => {
+    process.env.PATH = oldPath;
+  };
+}
+
 async function runDiscoveryCommand(root: string, prNumber = 432) {
   const before = process.cwd();
   const adapterEntryCountBefore = await discoveryGitAdapterEntryCount();
@@ -4912,6 +4993,277 @@ describe("read-only PR review discovery planner", () => {
     const result = await runDiscovery(root);
     expect(result.disposition).toBe("resume");
     expect(result.resume?.worktree_path).toBe(worktree);
+  });
+
+  it.each([
+    {
+      name: "empty reset followed by the same HTTPS repository",
+      values: ["", "https://github.com/OWNER/REPO.git"],
+      stderr: "",
+    },
+    {
+      name: "empty reset followed by the same SSH repository",
+      values: ["", "git@github.com:owner/repo.git"],
+      stderr: "",
+    },
+    {
+      name: "an empty reset with no later URL",
+      values: [""],
+      stderr:
+        "primary repository must define exactly one effective local origin URL\n",
+    },
+    {
+      name: "a later foreign URL without a reset",
+      values: ["https://github.com/foreign/repo.git"],
+      stderr:
+        "primary repository must define exactly one effective local origin URL\n",
+    },
+    {
+      name: "an empty reset followed by a foreign URL",
+      values: ["", "https://github.com/foreign/repo.git"],
+      stderr: "primary repository origin does not match REPOSITORY\n",
+    },
+    {
+      name: "an empty reset followed by a malformed URL",
+      values: ["", "file:///tmp/foreign"],
+      stderr:
+        "primary repository origin must be a supported GitHub repository URL\n",
+    },
+    {
+      name: "an empty reset followed by multiple URLs",
+      values: [
+        "",
+        "https://github.com/owner/repo.git",
+        "git@github.com:owner/repo.git",
+      ],
+      stderr:
+        "primary repository must define exactly one effective local origin URL\n",
+    },
+  ])(
+    "folds primary worktree origin authority in Git order: $name",
+    async ({ values, stderr }) => {
+      const root = await createDiscoveryRepository();
+      await replaceDiscoveryWorktreeOrigin(root, values);
+
+      const outcome = await runDiscoveryCommand(root);
+      if (stderr.length === 0) {
+        expect(outcome.exitCode, outcome.stderr).toBe(0);
+        expect(JSON.parse(outcome.stdout)).toMatchObject({
+          repository: "owner/repo",
+          disposition: "create",
+        });
+      } else {
+        expect(outcome).toEqual({ exitCode: 1, stdout: "", stderr });
+      }
+    },
+  );
+
+  describe("binds the effective candidate origin for resume and immediate acceptance", () => {
+    let lease: PrReviewLease;
+    let root: string;
+    let worktree: string;
+
+    beforeEach(async () => {
+      root = await createDiscoveryRepository();
+      worktree = await createDiscoveryWorktree(root, "effective-origin-resume");
+      lease = discoveryLease(worktree);
+      await writeDiscoveryLease(root, lease);
+      await replaceDiscoveryWorktreeOrigin(worktree, [
+        "",
+        "ssh://git@github.com/OWNER/REPO.git",
+      ]);
+    });
+
+    it("produces the exact resume tuple", async () => {
+      const result = await runDiscovery(root);
+      expect(result.disposition).toBe("resume");
+      expect(result.resume).toEqual({
+        lease_file: lease.lease_file,
+        worktree_path: worktree,
+      });
+    });
+
+    it("accepts the exact tuple immediately", async () => {
+      await expect(
+        runPrReviewLeasesCommand([
+          "validate-discovery",
+          "--resume-acceptance",
+          "--repository",
+          "owner/repo",
+          "--pr-number",
+          "432",
+          "--primary-root",
+          root,
+          "--lease-file",
+          lease.lease_file,
+          "--worktree-path",
+          worktree,
+        ]),
+      ).resolves.toMatchObject({ exitCode: 0, stderr: "" });
+    });
+  });
+
+  it.each([
+    {
+      name: "common-plus-foreign multiplicity",
+      values: ["https://github.com/foreign/repo.git"],
+    },
+    {
+      name: "empty-reset-plus-foreign replacement",
+      values: ["", "https://github.com/foreign/repo.git"],
+    },
+  ])(
+    "rejects candidate effective origin authority before resume: $name",
+    async ({ values }) => {
+      const root = await createDiscoveryRepository();
+      const worktree = await createDiscoveryWorktree(
+        root,
+        `effective-origin-${values.length}`,
+      );
+      const lease = discoveryLease(worktree);
+      await writeDiscoveryLease(root, lease);
+      await replaceDiscoveryWorktreeOrigin(worktree, values);
+
+      const result = await runDiscovery(root);
+      expect(result.disposition).toBe("invalid");
+      expect(result.resume).toBeNull();
+      expect(result.active).toContainEqual(
+        expect.objectContaining({
+          lease_file: lease.lease_file,
+          classification: "invalid",
+          reason: "worktree-repository-mismatch",
+        }),
+      );
+      await expect(
+        runPrReviewLeasesCommand([
+          "validate-discovery",
+          "--resume-acceptance",
+          "--repository",
+          "owner/repo",
+          "--pr-number",
+          "432",
+          "--primary-root",
+          root,
+          "--lease-file",
+          lease.lease_file,
+          "--worktree-path",
+          worktree,
+        ]),
+      ).resolves.toMatchObject({
+        exitCode: 1,
+        stdout: "",
+        stderr: "resume acceptance changed; stop before lifecycle mutation\n",
+      });
+    },
+  );
+
+  it("fails closed when primary worktree origin authority drifts between collections", async () => {
+    const root = await createDiscoveryRepository();
+    await replaceDiscoveryWorktreeOrigin(root, [
+      "",
+      "https://github.com/owner/repo.git",
+    ]);
+    const wrapperDir = await mkdtemp(path.join(tmpdir(), "git-wrapper-"));
+    discoveryTempRoots.push(wrapperDir);
+    const marker = path.join(wrapperDir, "primary-origin-mutated");
+    const realGit = (
+      await execFileAsync("sh", ["-c", "command -v git"])
+    ).stdout.trim();
+    const wrapper = path.join(wrapperDir, "git");
+    const gitRoot = await toGitBashPath(root);
+    await writeFile(
+      wrapper,
+      [
+        "#!/bin/sh",
+        'case " $* " in',
+        '  *" worktree list --porcelain -z "*)',
+        `    '${realGit}' "$@"`,
+        "    status=$?",
+        `    if [ ! -f '${await toGitBashPath(marker)}' ]; then`,
+        `      '${realGit}' -C '${gitRoot}' config --worktree --replace-all remote.origin.url ''`,
+        `      '${realGit}' -C '${gitRoot}' config --worktree --add remote.origin.url https://github.com/foreign/repo.git`,
+        `      printf fired >'${await toGitBashPath(marker)}'`,
+        "    fi",
+        '    exit "$status"',
+        "    ;;",
+        "esac",
+        `exec '${realGit}' "$@"`,
+        "",
+      ].join("\n"),
+    );
+    await makeDiscoveryGitWrapperExecutable(wrapper);
+    const oldPath = process.env.PATH;
+    process.env.PATH = prependDiscoveryGitWrapper(wrapperDir, oldPath);
+    try {
+      const result = await runDiscovery(root);
+      expect(await readFile(marker, "utf8")).toBe("fired");
+      expect(result.disposition).toBe("invalid");
+      expect(result.invalid).toContainEqual({
+        path: ".",
+        reason: "discovery-snapshot-changed",
+      });
+    } finally {
+      process.env.PATH = oldPath;
+    }
+  });
+
+  it("fails closed when candidate effective origin authority drifts during status", async () => {
+    const root = await createDiscoveryRepository();
+    const worktree = await createDiscoveryWorktree(
+      root,
+      "candidate-origin-drift",
+    );
+    const lease = discoveryLease(worktree);
+    await writeDiscoveryLease(root, lease);
+    await replaceDiscoveryWorktreeOrigin(worktree, [
+      "",
+      "https://github.com/owner/repo.git",
+    ]);
+    const wrapperDir = await mkdtemp(path.join(tmpdir(), "git-wrapper-"));
+    discoveryTempRoots.push(wrapperDir);
+    const marker = path.join(wrapperDir, "candidate-origin-mutated");
+    const realGit = (
+      await execFileAsync("sh", ["-c", "command -v git"])
+    ).stdout.trim();
+    const wrapper = path.join(wrapperDir, "git");
+    const gitWorktree = await toGitBashPath(worktree);
+    await writeFile(
+      wrapper,
+      [
+        "#!/bin/sh",
+        'case " $* " in',
+        '  *" status --porcelain=v1 "*)',
+        `    '${realGit}' "$@"`,
+        "    status=$?",
+        `    if [ ! -f '${await toGitBashPath(marker)}' ]; then`,
+        `      '${realGit}' -C '${gitWorktree}' config --worktree --replace-all remote.origin.url ''`,
+        `      '${realGit}' -C '${gitWorktree}' config --worktree --add remote.origin.url https://github.com/foreign/repo.git`,
+        `      printf fired >'${await toGitBashPath(marker)}'`,
+        "    fi",
+        '    exit "$status"',
+        "    ;;",
+        "esac",
+        `exec '${realGit}' "$@"`,
+        "",
+      ].join("\n"),
+    );
+    await makeDiscoveryGitWrapperExecutable(wrapper);
+    const oldPath = process.env.PATH;
+    process.env.PATH = prependDiscoveryGitWrapper(wrapperDir, oldPath);
+    try {
+      const result = await runDiscovery(root);
+      expect(await readFile(marker, "utf8")).toBe("fired");
+      expect(result.disposition).toBe("invalid");
+      expect(result.active).toContainEqual(
+        expect.objectContaining({
+          lease_file: lease.lease_file,
+          classification: "invalid",
+          reason: "repository-identity-changed",
+        }),
+      );
+    } finally {
+      process.env.PATH = oldPath;
+    }
   });
 
   it.each(["appearance", "disappearance", "bytes"] as const)(
@@ -7194,7 +7546,15 @@ describe("read-only PR review discovery planner", () => {
       const result = await runDiscovery(root);
       expect(result.disposition).toBe("resume");
       const commands = (await readFile(commandLog, "utf8")).trim().split("\n");
-      expect(commands.at(-1)).toContain("rev-parse --absolute-git-dir");
+      const finalIdentityCommand = commands
+        .map((command) => command.includes("rev-parse --absolute-git-dir"))
+        .lastIndexOf(true);
+      expect(finalIdentityCommand).toBeGreaterThanOrEqual(0);
+      expect(finalIdentityCommand).toBeLessThan(commands.length - 1);
+      expect(commands.at(-1)).toContain(
+        `-C ${worktree} config --null --get-all --no-includes --file `,
+      );
+      expect(commands.at(-1)).toContain("remote.origin.url");
       expect(result.resume?.worktree_path).toBe(worktree);
     } finally {
       process.env.PATH = oldPath;
@@ -8409,15 +8769,17 @@ describe("read-only PR review discovery planner", () => {
   describe.each(["clean", "process", "include", "attributes"] as const)(
     "executable %s authority",
     (fixture) => {
+      let lateConfigAuthority: string | undefined;
       let marker: string;
+      let restorePath: () => void;
       let root: string;
+      let worktree: string;
 
       beforeEach(async () => {
+        lateConfigAuthority = undefined;
+        restorePath = () => {};
         root = await createDiscoveryRepository();
-        const worktree = await createDiscoveryWorktree(
-          root,
-          `authority-${fixture}`,
-        );
+        worktree = await createDiscoveryWorktree(root, `authority-${fixture}`);
         await writeDiscoveryLease(root, discoveryLease(worktree));
         marker = path.join(root, `${fixture}-executed`);
         if (fixture === "clean" || fixture === "process") {
@@ -8434,21 +8796,7 @@ describe("read-only PR review discovery planner", () => {
             included,
             `[filter "discovery"]\n\tprocess = printf executed >"${marker}"\n`,
           );
-          await execFileAsync("git", [
-            "-C",
-            root,
-            "config",
-            "extensions.worktreeConfig",
-            "true",
-          ]);
-          await execFileAsync("git", [
-            "-C",
-            worktree,
-            "config",
-            "--worktree",
-            "include.path",
-            included,
-          ]);
+          lateConfigAuthority = "include.path";
         } else {
           const identity = (
             await execFileAsync("git", [
@@ -8469,6 +8817,17 @@ describe("read-only PR review discovery planner", () => {
             path.join(commonDirectory, "info", "attributes"),
           );
         }
+        if (lateConfigAuthority !== undefined) {
+          restorePath =
+            await injectDiscoveryWorktreeConfigAuthorityAfterOriginBinding(
+              worktree,
+              lateConfigAuthority,
+            );
+        }
+      });
+
+      afterEach(() => {
+        restorePath();
       });
 
       it("fails closed before it can run", async () => {
@@ -8478,6 +8837,7 @@ describe("read-only PR review discovery planner", () => {
           classification: "invalid",
           reason: "status-inspection-failed",
         });
+        expect(result.resume).toBeNull();
         await expect(lstat(marker), fixture).rejects.toMatchObject({
           code: "ENOENT",
         });
@@ -8485,47 +8845,51 @@ describe("read-only PR review discovery planner", () => {
     },
   );
 
-  it.each(["\u2028", "\u2029"])(
+  describe.each(["\u2028", "\u2029"])(
     "rejects candidate includeIf authority containing %j before status",
-    async (separator) => {
-      const root = await createDiscoveryRepository();
-      const worktree = await createDiscoveryWorktree(
-        root,
-        "candidate-separator-include",
-      );
-      const marker = path.join(root, "candidate-separator-include-executed");
-      const included = path.join(
-        root,
-        "candidate-separator-included.gitconfig",
-      );
-      await writeFile(
-        included,
-        `[filter "discovery"]\n\tprocess = printf executed >"${marker}"\n`,
-      );
-      await execFileAsync("git", [
-        "-C",
-        root,
-        "config",
-        "extensions.worktreeConfig",
-        "true",
-      ]);
-      await execFileAsync("git", [
-        "-C",
-        worktree,
-        "config",
-        "--worktree",
-        `includeIf.gitdir:**[!${separator}]**.path`,
-        included,
-      ]);
-      await writeDiscoveryLease(root, discoveryLease(worktree));
+    (separator) => {
+      let marker: string;
+      let restorePath: () => void;
+      let root: string;
 
-      const result = await runDiscovery(root);
-      expect(result.disposition).toBe("invalid");
-      expect(result.active[0]).toMatchObject({
-        classification: "invalid",
-        reason: "status-inspection-failed",
+      beforeEach(async () => {
+        restorePath = () => {};
+        root = await createDiscoveryRepository();
+        const worktree = await createDiscoveryWorktree(
+          root,
+          "candidate-separator-include",
+        );
+        marker = path.join(root, "candidate-separator-include-executed");
+        const included = path.join(
+          root,
+          "candidate-separator-included.gitconfig",
+        );
+        await writeFile(
+          included,
+          `[filter "discovery"]\n\tprocess = printf executed >"${marker}"\n`,
+        );
+        await writeDiscoveryLease(root, discoveryLease(worktree));
+        restorePath =
+          await injectDiscoveryWorktreeConfigAuthorityAfterOriginBinding(
+            worktree,
+            `includeIf.gitdir:**[!${separator}]**.path`,
+          );
       });
-      await expect(lstat(marker)).rejects.toMatchObject({ code: "ENOENT" });
+
+      afterEach(() => {
+        restorePath();
+      });
+
+      it("fails closed before it can run", async () => {
+        const result = await runDiscovery(root);
+        expect(result.disposition).toBe("invalid");
+        expect(result.active[0]).toMatchObject({
+          classification: "invalid",
+          reason: "status-inspection-failed",
+        });
+        expect(result.resume).toBeNull();
+        await expect(lstat(marker)).rejects.toMatchObject({ code: "ENOENT" });
+      });
     },
   );
 
