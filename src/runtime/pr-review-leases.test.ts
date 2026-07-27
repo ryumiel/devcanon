@@ -4467,26 +4467,46 @@ describe("pr-review lease Git cleanup safety", () => {
           2,
         )}\n`,
       );
-      await rm(path.join(worktree, ".git"), {
-        recursive: true,
-        force: true,
-      });
+      const wrapperDir = path.join(tempRoot, "status-wrapper");
+      await mkdir(wrapperDir);
+      const realGit = (
+        await execFileAsync("sh", ["-c", "command -v git"])
+      ).stdout.trim();
+      const wrapper = path.join(wrapperDir, "git");
+      await writeFile(
+        wrapper,
+        [
+          "#!/bin/sh",
+          'case " $* " in',
+          '  *" status --porcelain "*) exit 2 ;;',
+          "esac",
+          `exec '${realGit}' "$@"`,
+          "",
+        ].join("\n"),
+      );
+      await makeDiscoveryGitWrapperExecutable(wrapper);
+      const oldPath = process.env.PATH;
+      process.env.PATH = prependDiscoveryGitWrapper(wrapperDir, oldPath);
 
       process.env.LEASE_FILE = leaseFile;
-      let result = await runPrReviewLeasesCommand(["inspect-worktree"]);
-      expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain(
-        "REFUSAL_REASON=status-inspection-failed",
-      );
-      expect(result.stdout).toContain("OUTCOME=inspect");
+      try {
+        let result = await runPrReviewLeasesCommand(["inspect-worktree"]);
+        expect(result.exitCode).toBe(0);
+        expect(result.stdout).toContain(
+          "REFUSAL_REASON=status-inspection-failed",
+        );
+        expect(result.stdout).toContain("OUTCOME=inspect");
 
-      result = await runPrReviewLeasesCommand(["cleanup-worktree"]);
-      expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain("OUTCOME=retained");
-      expect(result.stdout).toContain(
-        "REFUSAL_REASON=status-inspection-failed",
-      );
-      expect(result.stdout).toContain("METADATA_OUTCOME=retained");
+        result = await runPrReviewLeasesCommand(["cleanup-worktree"]);
+        expect(result.exitCode).toBe(0);
+        expect(result.stdout).toContain("OUTCOME=retained");
+        expect(result.stdout).toContain(
+          "REFUSAL_REASON=status-inspection-failed",
+        );
+        expect(result.stdout).toContain("METADATA_OUTCOME=retained");
+      } finally {
+        process.env.PATH = oldPath;
+      }
     } finally {
       process.chdir(originalCwd);
       await rm(tempRoot, { recursive: true, force: true });
@@ -11925,6 +11945,238 @@ describe("read-only PR review discovery planner", () => {
     expect(result.active[0]).toMatchObject({
       classification: "dirty",
       reason: "worktree-dirty",
+    });
+  });
+
+  describe("binds candidates to reciprocal worktree administration entries", () => {
+    const validationArgsFor = (root: string): string[] => [
+      "validate-discovery",
+      "--repository",
+      "owner/repo",
+      "--pr-number",
+      "432",
+      "--primary-root",
+      root,
+    ];
+
+    it("preserves a stable linked-worktree authority through producer and consumer paths", async () => {
+      const root = await createDiscoveryRepository();
+      const worktree = await createDiscoveryWorktree(root, "gitdir-stable");
+      const lease = discoveryLease(worktree);
+      await writeDiscoveryLease(root, lease);
+
+      const discovery = await runDiscoveryCommand(root);
+      expect(discovery.exitCode, discovery.stderr).toBe(0);
+      expect(JSON.parse(discovery.stdout)).toMatchObject({
+        disposition: "resume",
+        resume: {
+          lease_file: lease.lease_file,
+          worktree_path: worktree,
+        },
+      });
+      const args = validationArgsFor(root);
+      await expect(
+        runPrReviewLeasesCommand(args, Buffer.from(discovery.stdout)),
+      ).resolves.toMatchObject({ exitCode: 0, stderr: "" });
+      await expect(
+        runPrReviewLeasesWrapper(args, process.env, discovery.stdout),
+      ).resolves.toMatchObject({ exitCode: 0, stderr: "" });
+      await expect(
+        runPrReviewLeasesCommand([
+          "validate-discovery",
+          "--resume-acceptance",
+          "--repository",
+          "owner/repo",
+          "--pr-number",
+          "432",
+          "--primary-root",
+          root,
+          "--lease-file",
+          lease.lease_file,
+          "--worktree-path",
+          worktree,
+        ]),
+      ).resolves.toMatchObject({ exitCode: 0, stderr: "" });
+    });
+
+    it.each(["primary", "foreign"] as const)(
+      "rejects a candidate Git file redirected to the %s administration entry",
+      async (targetKind) => {
+        const root = await createDiscoveryRepository();
+        const worktree = await createDiscoveryWorktree(
+          root,
+          `gitdir-${targetKind}`,
+        );
+        const foreign = await createDiscoveryWorktree(
+          root,
+          `gitdir-${targetKind}-foreign`,
+        );
+        const lease = discoveryLease(worktree);
+        await writeDiscoveryLease(root, lease);
+        const valid = await runDiscoveryCommand(root);
+        expect(valid.exitCode, valid.stderr).toBe(0);
+        const targetRoot = targetKind === "primary" ? root : foreign;
+        const targetGitDirectory = (
+          await execFileAsync("git", [
+            "-C",
+            targetRoot,
+            "rev-parse",
+            "--absolute-git-dir",
+          ])
+        ).stdout.trim();
+        await writeFile(
+          path.join(worktree, ".git"),
+          `gitdir: ${targetGitDirectory}\n`,
+        );
+
+        const result = await runDiscovery(root);
+        expect(result).toMatchObject({
+          disposition: "invalid",
+          resume: null,
+          active: [
+            {
+              lease_file: lease.lease_file,
+              classification: "invalid",
+              reason: "worktree-repository-mismatch",
+            },
+          ],
+        });
+        const expected = {
+          exitCode: 1,
+          stdout: "",
+          stderr: "discovery candidate repository authority mismatch\n",
+        };
+        await expect(
+          runPrReviewLeasesCommand(
+            validationArgsFor(root),
+            Buffer.from(valid.stdout),
+          ),
+        ).resolves.toEqual(expected);
+        await expect(
+          runPrReviewLeasesWrapper(
+            validationArgsFor(root),
+            process.env,
+            valid.stdout,
+          ),
+        ).resolves.toEqual(expected);
+        await expect(
+          runPrReviewLeasesCommand([
+            "validate-discovery",
+            "--resume-acceptance",
+            "--repository",
+            "owner/repo",
+            "--pr-number",
+            "432",
+            "--primary-root",
+            root,
+            "--lease-file",
+            lease.lease_file,
+            "--worktree-path",
+            worktree,
+          ]),
+        ).resolves.toMatchObject({
+          exitCode: 1,
+          stdout: "",
+          stderr: "resume acceptance changed; stop before lifecycle mutation\n",
+        });
+
+        const before = process.cwd();
+        process.chdir(root);
+        setLeaseCommandEnv(root, worktree);
+        process.env.LEASE_FILE = lease.lease_file;
+        try {
+          const cleanup = await runPrReviewLeasesCommand(["inspect-worktree"]);
+          expect(cleanup.exitCode, cleanup.stderr).toBe(0);
+          expect(cleanup.stdout).toContain("REFUSAL_REASON=invalid-lease");
+        } finally {
+          process.chdir(before);
+        }
+      },
+    );
+
+    it("rejects a nonreciprocal worktree administration entry", async () => {
+      const root = await createDiscoveryRepository();
+      const worktree = await createDiscoveryWorktree(
+        root,
+        "gitdir-nonreciprocal",
+      );
+      const lease = discoveryLease(worktree);
+      await writeDiscoveryLease(root, lease);
+      const valid = await runDiscoveryCommand(root);
+      expect(valid.exitCode, valid.stderr).toBe(0);
+      const adminDirectory = (
+        await execFileAsync("git", [
+          "-C",
+          worktree,
+          "rev-parse",
+          "--absolute-git-dir",
+        ])
+      ).stdout.trim();
+      await writeFile(path.join(adminDirectory, "gitdir"), `${root}/.git\n`);
+
+      const result = await runDiscovery(root);
+      expect(result.disposition).toBe("invalid");
+      expect(result.resume).toBeNull();
+      await expect(
+        runPrReviewLeasesCommand(
+          validationArgsFor(root),
+          Buffer.from(valid.stdout),
+        ),
+      ).resolves.toEqual({
+        exitCode: 1,
+        stdout: "",
+        stderr: "discovery candidate repository authority mismatch\n",
+      });
+    });
+
+    it("fails closed when reciprocal administration changes during status", async () => {
+      const root = await createDiscoveryRepository();
+      const worktree = await createDiscoveryWorktree(root, "gitdir-race");
+      await writeDiscoveryLease(root, discoveryLease(worktree));
+      const wrapperDir = await mkdtemp(path.join(tmpdir(), "git-wrapper-"));
+      discoveryTempRoots.push(wrapperDir);
+      const marker = path.join(wrapperDir, "gitdir-replaced");
+      const realGit = (
+        await execFileAsync("sh", ["-c", "command -v git"])
+      ).stdout.trim();
+      const wrapper = path.join(wrapperDir, "git");
+      await writeFile(
+        wrapper,
+        [
+          "#!/bin/sh",
+          'case " $* " in',
+          '  *" status --porcelain=v1 "*)',
+          `    '${realGit}' "$@" || exit $?`,
+          `    if [ ! -f '${await toGitBashPath(marker)}' ]; then`,
+          `      printf 'gitdir: %s\\n' '${await toGitBashPath(path.join(root, ".git"))}' >'${await toGitBashPath(path.join(worktree, ".git"))}'`,
+          `      printf reached >'${await toGitBashPath(marker)}'`,
+          "    fi",
+          "    exit 0",
+          "    ;;",
+          "esac",
+          `exec '${realGit}' "$@"`,
+          "",
+        ].join("\n"),
+      );
+      await makeDiscoveryGitWrapperExecutable(wrapper);
+      const oldPath = process.env.PATH;
+      process.env.PATH = prependDiscoveryGitWrapper(wrapperDir, oldPath);
+      try {
+        const result = await runDiscovery(root);
+        expect(await readFile(marker, "utf8")).toBe("reached");
+        expect(result).toMatchObject({
+          disposition: "invalid",
+          resume: null,
+          active: [
+            {
+              classification: "invalid",
+              reason: "repository-identity-changed",
+            },
+          ],
+        });
+      } finally {
+        process.env.PATH = oldPath;
+      }
     });
   });
 

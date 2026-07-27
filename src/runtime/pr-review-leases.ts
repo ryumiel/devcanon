@@ -262,6 +262,14 @@ interface DiscoveryRepositoryIdentity {
   git_directory: string;
 }
 
+interface DiscoveryCandidateRepositoryAuthority {
+  admin_gitdir: StableDiscoveryFile;
+  admin_gitdir_path: string;
+  candidate_gitfile: StableDiscoveryFile;
+  candidate_gitfile_path: string;
+  fingerprint: string;
+}
+
 interface DiscoveryRepositoryBinding {
   repository: string;
   config_fingerprint: string;
@@ -697,6 +705,8 @@ async function validatePrReviewDiscoveryCommand(
   await assertDiscoveryRoutedWorktreesExcludePrimary(
     JSON.parse(validated) as PrReviewDiscoveryResult,
     primaryRoot,
+    primaryRepository,
+    gitEnv,
     platform,
   );
   return validated;
@@ -705,6 +715,8 @@ async function validatePrReviewDiscoveryCommand(
 async function assertDiscoveryRoutedWorktreesExcludePrimary(
   result: PrReviewDiscoveryResult,
   primaryRoot: string,
+  primaryRepository: DiscoveryRepositoryIdentity,
+  gitEnv: NodeJS.ProcessEnv,
   platform: NodeJS.Platform,
 ): Promise<void> {
   const routedPaths = [
@@ -722,6 +734,11 @@ async function assertDiscoveryRoutedWorktreesExcludePrimary(
     platform,
   );
   const inspectedRawPaths = new Set<string>();
+  const inspectedPaths: Array<{
+    physicalPath: string;
+    requestedPath: string;
+    routedPath: string;
+  }> = [];
   for (const routedPath of routedPaths) {
     if (inspectedRawPaths.has(routedPath)) continue;
     inspectedRawPaths.add(routedPath);
@@ -742,6 +759,42 @@ async function assertDiscoveryRoutedWorktreesExcludePrimary(
     ) {
       throw new PrReviewLeaseError(
         "discovery primary worktree authority mismatch",
+      );
+    }
+    inspectedPaths.push({ physicalPath, requestedPath, routedPath });
+  }
+  for (const { physicalPath, requestedPath, routedPath } of inspectedPaths) {
+    const registrationKey = discoveryRegistrationComparablePath(
+      routedPath,
+      platform,
+    );
+    if (
+      !result.registrations.some(
+        (registration) =>
+          discoveryRegistrationComparablePath(registration, platform) ===
+          registrationKey,
+      )
+    ) {
+      continue;
+    }
+    try {
+      const repository = await readDiscoveryRepositoryIdentity(
+        requestedPath,
+        gitEnv,
+      );
+      assertDiscoveryCandidateRepository(
+        repository,
+        physicalPath,
+        primaryRepository,
+      );
+      await readDiscoveryCandidateRepositoryAuthority(
+        physicalPath,
+        repository,
+        primaryRepository,
+      );
+    } catch {
+      throw new PrReviewLeaseError(
+        "discovery candidate repository authority mismatch",
       );
     }
   }
@@ -2257,6 +2310,7 @@ async function inspectDiscoveryLease({
     );
   }
   let candidateRepository: DiscoveryRepositoryIdentity;
+  let candidateRepositoryAuthority: DiscoveryCandidateRepositoryAuthority;
   let candidateRepositoryBinding: DiscoveryRepositoryBinding;
   try {
     candidateRepository = await readDiscoveryRepositoryIdentity(
@@ -2268,6 +2322,12 @@ async function inspectDiscoveryLease({
       physicalWorktree,
       primaryRepository,
     );
+    candidateRepositoryAuthority =
+      await readDiscoveryCandidateRepositoryAuthority(
+        physicalWorktree,
+        candidateRepository,
+        primaryRepository,
+      );
     candidateRepositoryBinding = await readDiscoveryRepositoryBinding(
       filesystemPath,
       candidateRepository,
@@ -2276,7 +2336,7 @@ async function inspectDiscoveryLease({
     );
     authority.push({
       key: `candidate-repository:${relativePath}`,
-      value: `${discoveryRepositoryIdentityFingerprint(candidateRepository)}\0${candidateRepositoryBinding.repository}\0${candidateRepositoryBinding.config_fingerprint}`,
+      value: `${discoveryRepositoryIdentityFingerprint(candidateRepository)}\0${candidateRepositoryAuthority.fingerprint}\0${candidateRepositoryBinding.repository}\0${candidateRepositoryBinding.config_fingerprint}`,
     });
   } catch {
     authority.push({
@@ -2308,6 +2368,11 @@ async function inspectDiscoveryLease({
       physicalWorktree,
       currentPrimary,
     );
+    const currentAuthority = await readDiscoveryCandidateRepositoryAuthority(
+      physicalWorktree,
+      current,
+      currentPrimary,
+    );
     const currentBinding = await readDiscoveryRepositoryBinding(
       filesystemPath,
       current,
@@ -2316,6 +2381,8 @@ async function inspectDiscoveryLease({
     );
     if (
       !sameDiscoveryRepositoryIdentity(current, candidateRepository) ||
+      currentAuthority.fingerprint !==
+        candidateRepositoryAuthority.fingerprint ||
       discoveryComparablePath(current.common_directory, process.platform) !==
         discoveryComparablePath(
           primaryRepository.common_directory,
@@ -3709,6 +3776,100 @@ function assertDiscoveryCandidateRepository(
   }
 }
 
+async function readDiscoveryCandidateRepositoryAuthority(
+  physicalWorktree: string,
+  candidate: DiscoveryRepositoryIdentity,
+  primary: DiscoveryRepositoryIdentity,
+): Promise<DiscoveryCandidateRepositoryAuthority> {
+  const worktreesDirectory = path.join(primary.common_directory, "worktrees");
+  const worktreesIdentity = await lstat(worktreesDirectory);
+  if (worktreesIdentity.isSymbolicLink() || !worktreesIdentity.isDirectory()) {
+    throw new PrReviewLeaseError(
+      "candidate worktree administration is not a real directory",
+    );
+  }
+  const physicalWorktreesDirectory = await realpath(worktreesDirectory);
+  if (
+    discoveryComparablePath(
+      path.dirname(candidate.git_directory),
+      process.platform,
+    ) !== discoveryComparablePath(physicalWorktreesDirectory, process.platform)
+  ) {
+    throw new PrReviewLeaseError(
+      "candidate Git directory is not a worktree administration entry",
+    );
+  }
+  const adminIdentity = await lstat(candidate.git_directory);
+  if (adminIdentity.isSymbolicLink() || !adminIdentity.isDirectory()) {
+    throw new PrReviewLeaseError(
+      "candidate worktree administration entry is not a real directory",
+    );
+  }
+
+  const candidateGitfilePath = path.join(physicalWorktree, ".git");
+  const candidateGitfile = await readStableDiscoveryFile(candidateGitfilePath);
+  const candidatePrefix = Buffer.from("gitdir: ", "ascii");
+  if (
+    !candidateGitfile.contents
+      .subarray(0, candidatePrefix.length)
+      .equals(candidatePrefix)
+  ) {
+    throw new PrReviewLeaseError("candidate Git file is malformed");
+  }
+  const candidateAdminValue = parseDiscoveryGitPathBufferRecord(
+    candidateGitfile.contents.subarray(candidatePrefix.length),
+    "candidate Git file",
+  );
+  const candidateAdminPath = discoveryFilesystemPath(candidateAdminValue);
+  const physicalCandidateAdmin = await realpath(
+    path.isAbsolute(candidateAdminPath)
+      ? candidateAdminPath
+      : path.resolve(physicalWorktree, candidateAdminPath),
+  );
+  if (
+    discoveryComparablePath(physicalCandidateAdmin, process.platform) !==
+    discoveryComparablePath(candidate.git_directory, process.platform)
+  ) {
+    throw new PrReviewLeaseError(
+      "candidate Git file does not name its repository administration entry",
+    );
+  }
+
+  const adminGitdirPath = path.join(candidate.git_directory, "gitdir");
+  const adminGitdir = await readStableDiscoveryFile(adminGitdirPath);
+  const adminCandidateValue = parseDiscoveryGitPathBufferRecord(
+    adminGitdir.contents,
+    "candidate worktree administration gitdir",
+  );
+  const adminCandidatePath = discoveryFilesystemPath(adminCandidateValue);
+  const physicalAdminCandidate = await realpath(
+    path.isAbsolute(adminCandidatePath)
+      ? adminCandidatePath
+      : path.resolve(candidate.git_directory, adminCandidatePath),
+  );
+  const physicalCandidateGitfile = await realpath(candidateGitfilePath);
+  if (
+    discoveryComparablePath(physicalAdminCandidate, process.platform) !==
+    discoveryComparablePath(physicalCandidateGitfile, process.platform)
+  ) {
+    throw new PrReviewLeaseError(
+      "candidate worktree administration entry is not reciprocal",
+    );
+  }
+
+  return {
+    admin_gitdir: adminGitdir,
+    admin_gitdir_path: adminGitdirPath,
+    candidate_gitfile: candidateGitfile,
+    candidate_gitfile_path: candidateGitfilePath,
+    fingerprint: [
+      discoveryComparablePath(candidate.git_directory, process.platform),
+      stableDiscoveryFileFingerprint(candidateGitfile),
+      stableDiscoveryFileFingerprint(adminGitdir),
+    ].join("\0"),
+  };
+}
+
 function sameDiscoveryRepositoryIdentity(
   left: DiscoveryRepositoryIdentity,
   right: DiscoveryRepositoryIdentity,
@@ -4870,6 +5031,27 @@ async function classifyCleanup(
         message: "worktree path is not registered for the primary repository",
       };
     }
+    const gitEnv = discoveryGitEnvironment();
+    const primaryRoot = await realpath(identity.primaryRoot);
+    const primaryRepository = await assertDiscoveryPrimaryRoot(
+      primaryRoot,
+      gitEnv,
+    );
+    const physicalWorktree = await realpath(identity.worktreePath);
+    const candidateRepository = await readDiscoveryRepositoryIdentity(
+      physicalWorktree,
+      gitEnv,
+    );
+    assertDiscoveryCandidateRepository(
+      candidateRepository,
+      physicalWorktree,
+      primaryRepository,
+    );
+    await readDiscoveryCandidateRepositoryAuthority(
+      physicalWorktree,
+      candidateRepository,
+      primaryRepository,
+    );
     await validateReferencedArtifacts(lease, identity.worktreePath, {
       validateResultAuthority: true,
       policy: "validate-stored-lease",
