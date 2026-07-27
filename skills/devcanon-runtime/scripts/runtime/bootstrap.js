@@ -9,6 +9,7 @@ const forwardedSignals = [
     "SIGINT",
     "SIGTERM",
     "SIGHUP",
+    ...(process.platform === "win32" ? [] : ["SIGQUIT"]),
 ];
 export class RuntimeBootstrapError extends Error {
     constructor(message) {

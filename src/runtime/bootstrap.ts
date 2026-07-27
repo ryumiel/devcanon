@@ -14,6 +14,7 @@ const forwardedSignals: readonly NodeJS.Signals[] = [
   "SIGINT",
   "SIGTERM",
   "SIGHUP",
+  ...(process.platform === "win32" ? [] : ["SIGQUIT" as const]),
 ];
 
 export class RuntimeBootstrapError extends Error {

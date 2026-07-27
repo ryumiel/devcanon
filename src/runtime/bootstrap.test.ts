@@ -82,6 +82,98 @@ async function waitForChildExit(child: ReturnType<typeof spawnChild>): Promise<{
   });
 }
 
+function expectProcessGroupGone(processGroupId: number): void {
+  try {
+    process.kill(-processGroupId, 0);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ESRCH") return;
+    throw error;
+  }
+  throw new Error(`process group ${processGroupId} still exists`);
+}
+
+function terminateProcessGroupIfPresent(processGroupId: number): void {
+  try {
+    process.kill(-processGroupId, "SIGKILL");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error;
+  }
+}
+
+async function writeSigquitRuntime(root: string): Promise<{
+  runtime: string;
+  ready: string;
+  forwarded: string;
+  descendantForwarded: string;
+  descendantReady: string;
+  childPid: string;
+}> {
+  const runtime = await writeRuntime(root);
+  const ready = path.join(root, "ready");
+  const forwarded = path.join(root, "forwarded");
+  const descendantForwarded = path.join(root, "descendant-forwarded");
+  const descendantReady = path.join(root, "descendant-ready");
+  const childPid = path.join(root, "child-pid");
+  const entrypoint = path.join(runtime, "scripts", "devcanon-runtime.sh");
+  const runtimeProgram = path.join(runtime, "scripts", "sigquit-runtime.cjs");
+  const descendantProgram = [
+    'const { writeFileSync } = require("node:fs");',
+    "let count = 0;",
+    'process.on("SIGQUIT", () => {',
+    "  count += 1;",
+    "  writeFileSync(process.env.DEVCANON_TEST_DESCENDANT_FORWARDED, String(count));",
+    "  process.exit(0);",
+    "});",
+    'writeFileSync(process.env.DEVCANON_TEST_DESCENDANT_READY, "ready");',
+    "setInterval(() => {}, 1_000);",
+    "",
+  ].join("\n");
+  await writeFile(
+    runtimeProgram,
+    [
+      'const { spawn } = require("node:child_process");',
+      'const { existsSync, writeFileSync } = require("node:fs");',
+      `const descendant = spawn(process.execPath, ["-e", ${JSON.stringify(descendantProgram)}], {`,
+      "  env: process.env,",
+      '  stdio: "ignore",',
+      "});",
+      "let count = 0;",
+      'process.on("SIGQUIT", () => {',
+      "  count += 1;",
+      "  writeFileSync(process.env.DEVCANON_TEST_FORWARDED, String(count));",
+      '  descendant.once("close", () => process.exit(0));',
+      "});",
+      "function announceReady() {",
+      "  if (!existsSync(process.env.DEVCANON_TEST_DESCENDANT_READY)) {",
+      "    setTimeout(announceReady, 5);",
+      "    return;",
+      "  }",
+      '  writeFileSync(process.env.DEVCANON_TEST_READY, "ready");',
+      "  writeFileSync(process.env.DEVCANON_TEST_CHILD_PID, String(process.pid));",
+      "}",
+      "announceReady();",
+      "",
+    ].join("\n"),
+  );
+  await writeFile(
+    entrypoint,
+    [
+      "#!/bin/bash",
+      `exec ${JSON.stringify(process.execPath)} ${JSON.stringify(runtimeProgram)}`,
+      "",
+    ].join("\n"),
+  );
+  await chmod(entrypoint, 0o755);
+  return {
+    runtime,
+    ready,
+    forwarded,
+    descendantForwarded,
+    descendantReady,
+    childPid,
+  };
+}
+
 async function writeExecutionSentinels(
   runtime: string,
   root: string,
@@ -456,6 +548,110 @@ describe("trusted runtime bootstrap", () => {
           try {
             process.kill(-childGroupPid, "SIGKILL");
           } catch {}
+        }
+        await cleanupTempDir(root);
+      }
+    },
+  );
+
+  it.runIf(process.platform !== "win32")(
+    "forwards SIGQUIT received by the bootstrap PID to its detached runtime group",
+    async () => {
+      const root = await createTempDir();
+      let childGroupPid: number | undefined;
+      try {
+        const fixture = await writeSigquitRuntime(root);
+        const bootstrap = spawnChild(
+          process.execPath,
+          [
+            path.resolve(
+              "skills/devcanon-runtime/scripts/runtime/bootstrap-cli.js",
+            ),
+            "--runtime-dir",
+            fixture.runtime,
+            "--",
+            "derive-path",
+          ],
+          {
+            env: {
+              ...process.env,
+              DEVCANON_RUNTIME_DIR: fixture.runtime,
+              DEVCANON_TEST_CHILD_PID: fixture.childPid,
+              DEVCANON_TEST_DESCENDANT_FORWARDED: fixture.descendantForwarded,
+              DEVCANON_TEST_DESCENDANT_READY: fixture.descendantReady,
+              DEVCANON_TEST_FORWARDED: fixture.forwarded,
+              DEVCANON_TEST_READY: fixture.ready,
+            },
+            stdio: "ignore",
+          },
+        );
+        await waitForFile(fixture.ready);
+        childGroupPid = Number(await readFile(fixture.childPid, "utf8"));
+        expect(bootstrap.kill("SIGQUIT")).toBe(true);
+        expect(await waitForChildExit(bootstrap)).toEqual({
+          exitCode: 0,
+          signal: null,
+        });
+        expect(await readFile(fixture.forwarded, "utf8")).toBe("1");
+        expect(await readFile(fixture.descendantForwarded, "utf8")).toBe("1");
+        expectProcessGroupGone(childGroupPid);
+      } finally {
+        if (childGroupPid !== undefined) {
+          terminateProcessGroupIfPresent(childGroupPid);
+        }
+        await cleanupTempDir(root);
+      }
+    },
+  );
+
+  it.runIf(process.platform !== "win32")(
+    "forwards SIGQUIT from an isolated bootstrap group to its detached runtime group",
+    async () => {
+      const root = await createTempDir();
+      let childGroupPid: number | undefined;
+      try {
+        const fixture = await writeSigquitRuntime(root);
+        const bootstrap = spawnChild(
+          process.execPath,
+          [
+            path.resolve(
+              "skills/devcanon-runtime/scripts/runtime/bootstrap-cli.js",
+            ),
+            "--runtime-dir",
+            fixture.runtime,
+            "--",
+            "derive-path",
+          ],
+          {
+            detached: true,
+            env: {
+              ...process.env,
+              DEVCANON_RUNTIME_DIR: fixture.runtime,
+              DEVCANON_TEST_CHILD_PID: fixture.childPid,
+              DEVCANON_TEST_DESCENDANT_FORWARDED: fixture.descendantForwarded,
+              DEVCANON_TEST_DESCENDANT_READY: fixture.descendantReady,
+              DEVCANON_TEST_FORWARDED: fixture.forwarded,
+              DEVCANON_TEST_READY: fixture.ready,
+            },
+            stdio: "ignore",
+          },
+        );
+        await waitForFile(fixture.ready);
+        childGroupPid = Number(await readFile(fixture.childPid, "utf8"));
+        if (bootstrap.pid === undefined) {
+          throw new Error("bootstrap did not provide a process id");
+        }
+        process.kill(-bootstrap.pid, "SIGQUIT");
+        expect(await waitForChildExit(bootstrap)).toEqual({
+          exitCode: 0,
+          signal: null,
+        });
+        expect(await readFile(fixture.forwarded, "utf8")).toBe("1");
+        expect(await readFile(fixture.descendantForwarded, "utf8")).toBe("1");
+        expectProcessGroupGone(childGroupPid);
+      } finally {
+        if (childGroupPid !== undefined) {
+          terminateProcessGroupIfPresent(childGroupPid);
         }
         await cleanupTempDir(root);
       }
