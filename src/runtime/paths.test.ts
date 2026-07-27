@@ -92,6 +92,10 @@ describe("runtime path utilities", () => {
   });
 
   it("derives final-component inspection spellings without changing execution input", () => {
+    expect(parseRuntimeDirectoryPath("/.", "posix")).toMatchObject({
+      original: "/.",
+      inspectionPath: "/",
+    });
     expect(parseRuntimeDirectoryPath("/tmp/runtime/.", "posix")).toMatchObject({
       original: "/tmp/runtime/.",
       inspectionPath: "/tmp/runtime",
@@ -101,6 +105,10 @@ describe("runtime path utilities", () => {
     ).toMatchObject({
       original: "D:\\runtime\\.\\",
       inspectionPath: "D:\\runtime",
+    });
+    expect(parseRuntimeDirectoryPath("C:\\.", "win32")).toMatchObject({
+      original: "C:\\.",
+      inspectionPath: "C:\\",
     });
     expect(
       parseRuntimeDirectoryPath("relative/runtime", "posix"),

@@ -19,5 +19,8 @@ function parseBootstrapArguments(args) {
     if (args[0] !== "--runtime-dir" || args.length < 4 || args[2] !== "--") {
         throw new Error("bootstrap usage: --runtime-dir <path> -- <runtime-command> [args...]");
     }
-    return { runtimeDirectory: args[1], childArguments: args.slice(3) };
+    return {
+        runtimeDirectory: args[1],
+        childArguments: args.slice(3),
+    };
 }

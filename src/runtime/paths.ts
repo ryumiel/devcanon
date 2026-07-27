@@ -136,7 +136,11 @@ function runtimeDirectoryInspectionPath(
 
   while (candidate !== pathApi.parse(candidate).root) {
     if (separatorBeforeFinal.test(candidate)) {
-      candidate = candidate.replace(separatorBeforeFinal, "");
+      const root = pathApi.parse(candidate).root;
+      candidate =
+        pathApi.normalize(candidate) === root
+          ? root
+          : candidate.replace(separatorBeforeFinal, "") || root;
       continue;
     }
     const withoutTrailingSeparators = candidate.replace(separatorPattern, "");

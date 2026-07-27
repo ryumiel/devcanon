@@ -1,5 +1,7 @@
+import { spawn as spawnChild } from "node:child_process";
 import {
   chmod,
+  cp,
   mkdir,
   readFile,
   rm,
@@ -17,12 +19,13 @@ import {
 async function writeRuntime(root: string, name = "runtime"): Promise<string> {
   const runtime = path.join(root, name);
   const scripts = path.join(runtime, "scripts");
-  await mkdir(scripts, { recursive: true });
+  const typedRuntime = path.join(scripts, "runtime");
+  await mkdir(typedRuntime, { recursive: true });
   const entrypoint = path.join(scripts, "devcanon-runtime.sh");
   await writeFile(
     entrypoint,
     [
-      "#!/usr/bin/env bash",
+      "#!/bin/bash",
       'printf \'%s\\0\' "$@" >"$DEVCANON_TEST_ARGUMENTS"',
       'printf \'%s\' "$DEVCANON_RUNTIME_DIR" >"$DEVCANON_TEST_OVERRIDE"',
       "exit 23",
@@ -30,6 +33,16 @@ async function writeRuntime(root: string, name = "runtime"): Promise<string> {
     ].join("\n"),
   );
   await chmod(entrypoint, 0o755);
+  await writeFile(
+    path.join(typedRuntime, "cli.js"),
+    [
+      'import { writeFileSync } from "node:fs";',
+      'writeFileSync(process.env.DEVCANON_TEST_ARGUMENTS, process.argv.slice(2).join("\\0") + "\\0");',
+      "writeFileSync(process.env.DEVCANON_TEST_OVERRIDE, process.env.DEVCANON_RUNTIME_DIR);",
+      "process.exit(23);",
+      "",
+    ].join("\n"),
+  );
   return runtime;
 }
 
@@ -43,6 +56,30 @@ async function waitForFile(filePath: string): Promise<void> {
     }
   }
   throw new Error(`timed out waiting for ${filePath}`);
+}
+
+async function waitForContents(
+  filePath: string,
+  contents: string,
+): Promise<void> {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    try {
+      if ((await readFile(filePath, "utf8")) === contents) return;
+    } catch {}
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error(`timed out waiting for ${contents} in ${filePath}`);
+}
+
+async function waitForChildExit(child: ReturnType<typeof spawnChild>): Promise<{
+  exitCode: number | null;
+  signal: NodeJS.Signals | null;
+}> {
+  return new Promise((resolve) => {
+    child.once("close", (exitCode, signal) => {
+      resolve({ exitCode, signal });
+    });
+  });
 }
 
 describe("trusted runtime bootstrap", () => {
@@ -73,13 +110,13 @@ describe("trusted runtime bootstrap", () => {
         );
       } finally {
         if (originalOverride === undefined)
-          process.env.DEVCANON_RUNTIME_DIR = undefined;
+          Reflect.deleteProperty(process.env, "DEVCANON_RUNTIME_DIR");
         else process.env.DEVCANON_RUNTIME_DIR = originalOverride;
         if (originalArguments === undefined)
-          process.env.DEVCANON_TEST_ARGUMENTS = undefined;
+          Reflect.deleteProperty(process.env, "DEVCANON_TEST_ARGUMENTS");
         else process.env.DEVCANON_TEST_ARGUMENTS = originalArguments;
         if (originalOverrideCapture === undefined) {
-          process.env.DEVCANON_TEST_OVERRIDE = undefined;
+          Reflect.deleteProperty(process.env, "DEVCANON_TEST_OVERRIDE");
         } else process.env.DEVCANON_TEST_OVERRIDE = originalOverrideCapture;
       }
     } finally {
@@ -191,7 +228,7 @@ describe("trusted runtime bootstrap", () => {
   });
 
   it.runIf(process.platform !== "win32")(
-    "forwards termination to the child and preserves the child's signal",
+    "forwards repeated termination signals and preserves the child's signal",
     async () => {
       const root = await createTempDir();
       try {
@@ -199,12 +236,15 @@ describe("trusted runtime bootstrap", () => {
         const entrypoint = path.join(runtime, "scripts", "devcanon-runtime.sh");
         const ready = path.join(root, "ready");
         const forwarded = path.join(root, "forwarded");
+        const childPid = path.join(root, "child-pid");
         await writeFile(
           entrypoint,
           [
-            "#!/usr/bin/env bash",
-            "trap 'printf forwarded > \"$DEVCANON_TEST_FORWARDED\"; trap - TERM; kill -TERM $$' TERM",
+            "#!/bin/bash",
+            "count=0",
+            'trap \'count=$((count + 1)); printf "%s" "$count" > "$DEVCANON_TEST_FORWARDED"; if [ "$count" -eq 2 ]; then trap - TERM; kill -TERM $$; fi\' TERM',
             'printf ready > "$DEVCANON_TEST_READY"',
+            'printf "%s" "$$" > "$DEVCANON_TEST_CHILD_PID"',
             "while true; do sleep 1; done",
             "",
           ].join("\n"),
@@ -227,27 +267,148 @@ describe("trusted runtime bootstrap", () => {
               DEVCANON_RUNTIME_DIR: runtime,
               DEVCANON_TEST_FORWARDED: forwarded,
               DEVCANON_TEST_READY: ready,
+              DEVCANON_TEST_CHILD_PID: childPid,
             },
             stdio: "ignore",
           },
         );
         await waitForFile(ready);
         expect(bootstrap.kill("SIGTERM")).toBe(true);
-        const result = await new Promise<{
-          exitCode: number | null;
-          signal: NodeJS.Signals | null;
-        }>((resolve) => {
-          bootstrap.once("close", (exitCode, signal) => {
-            resolve({ exitCode, signal });
-          });
-        });
+        await waitForContents(forwarded, "1");
+        expect(bootstrap.kill("SIGTERM")).toBe(true);
+        const result = await waitForChildExit(bootstrap);
 
-        expect(await readFile(forwarded, "utf8")).toBe("forwarded");
+        expect(await readFile(forwarded, "utf8")).toBe("2");
         expect(result).toEqual({ exitCode: null, signal: "SIGTERM" });
       } finally {
         await cleanupTempDir(root);
       }
     },
   );
+
+  it.runIf(process.platform !== "win32")(
+    "uses the shipped runtime command without ambient Bash lookup",
+    async () => {
+      const root = await createTempDir();
+      try {
+        const packagedRuntime = path.join(root, "packaged-runtime");
+        const commandBin = path.join(root, "command-bin");
+        await cp(path.resolve("skills/devcanon-runtime"), packagedRuntime, {
+          recursive: true,
+        });
+        await mkdir(commandBin);
+        await symlink(process.execPath, path.join(commandBin, "node"));
+        await symlink("/usr/bin/dirname", path.join(commandBin, "dirname"));
+        const ready = path.join(root, "ready");
+        const forwarded = path.join(root, "forwarded");
+        const runtimeCli = path.join(
+          packagedRuntime,
+          "scripts",
+          "runtime",
+          "cli.js",
+        );
+        await writeFile(
+          runtimeCli,
+          [
+            'import { writeFileSync } from "node:fs";',
+            'writeFileSync(process.env.DEVCANON_TEST_READY, "ready");',
+            'process.on("SIGTERM", () => {',
+            '  writeFileSync(process.env.DEVCANON_TEST_FORWARDED, "forwarded");',
+            '  process.removeAllListeners("SIGTERM");',
+            '  process.kill(process.pid, "SIGTERM");',
+            "});",
+            "setInterval(() => {}, 1000);",
+            "",
+          ].join("\n"),
+        );
+        const runtime = spawnChild(
+          "/bin/bash",
+          [
+            path.join(packagedRuntime, "scripts", "devcanon-runtime.sh"),
+            "runtime",
+            "signal-fixture",
+          ],
+          {
+            env: {
+              ...process.env,
+              BASH: "/poisoned/bash",
+              SHELL: "/poisoned/shell",
+              PATH: commandBin,
+              DEVCANON_TEST_FORWARDED: forwarded,
+              DEVCANON_TEST_READY: ready,
+            },
+            stdio: "ignore",
+          },
+        );
+        await waitForFile(ready);
+        expect(runtime.kill("SIGTERM")).toBe(true);
+        expect(await waitForChildExit(runtime)).toEqual({
+          exitCode: null,
+          signal: "SIGTERM",
+        });
+        expect(await readFile(forwarded, "utf8")).toBe("forwarded");
+      } finally {
+        await cleanupTempDir(root);
+      }
+    },
+  );
+
+  it.runIf(process.platform !== "win32")(
+    "runs bootstrap without ambient Bash lookup despite poisoned values",
+    async () => {
+      const root = await createTempDir();
+      try {
+        const packagedRuntime = path.join(root, "packaged-runtime");
+        const override = path.join(root, "override");
+        const commandBin = path.join(root, "command-bin");
+        await cp(path.resolve("skills/devcanon-runtime"), packagedRuntime, {
+          recursive: true,
+        });
+        await mkdir(path.join(override, "scripts", "runtime"), {
+          recursive: true,
+        });
+        await mkdir(commandBin);
+        await symlink(process.execPath, path.join(commandBin, "node"));
+        await symlink("/usr/bin/dirname", path.join(commandBin, "dirname"));
+        const entrypoint = path.join(
+          override,
+          "scripts",
+          "devcanon-runtime.sh",
+        );
+        await writeFile(entrypoint, "#!/bin/bash\nexit 0\n");
+        await chmod(entrypoint, 0o755);
+        await writeFile(
+          path.join(override, "scripts", "runtime", "cli.js"),
+          "process.exit(0);\n",
+        );
+        const bootstrap = spawnChild(
+          "/bin/bash",
+          [
+            path.join(packagedRuntime, "scripts", "devcanon-runtime.sh"),
+            "bootstrap",
+            "--runtime-dir",
+            override,
+            "--",
+            "derive-path",
+          ],
+          {
+            env: {
+              ...process.env,
+              BASH: "/poisoned/bash",
+              SHELL: "/poisoned/shell",
+              PATH: commandBin,
+              DEVCANON_RUNTIME_DIR: override,
+            },
+            stdio: "ignore",
+          },
+        );
+        expect(await waitForChildExit(bootstrap)).toEqual({
+          exitCode: 0,
+          signal: null,
+        });
+      } finally {
+        await cleanupTempDir(root);
+      }
+    },
+  );
 });
-import { spawn as spawnChild } from "node:child_process";

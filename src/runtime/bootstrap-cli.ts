@@ -28,5 +28,8 @@ function parseBootstrapArguments(args: readonly string[]): {
       "bootstrap usage: --runtime-dir <path> -- <runtime-command> [args...]",
     );
   }
-  return { runtimeDirectory: args[1], childArguments: args.slice(3) };
+  return {
+    runtimeDirectory: args[1],
+    childArguments: args.slice(3),
+  };
 }

@@ -4476,8 +4476,9 @@ describe("pr-review lease wrapper trusted runtime bootstrap", () => {
   ): Promise<{ runtimeDir: string; sentinel: string }> {
     const runtimeDir = path.join(root, directoryName);
     const scriptsDir = path.join(runtimeDir, "scripts");
+    const typedRuntimeDir = path.join(scriptsDir, "runtime");
     const sentinel = path.join(root, `${directoryName.length}-executed`);
-    await mkdir(scriptsDir, { recursive: true });
+    await mkdir(typedRuntimeDir, { recursive: true });
     const resolver = path.join(scriptsDir, "devcanon-runtime.sh");
     await writeFile(
       resolver,
@@ -4495,6 +4496,15 @@ describe("pr-review lease wrapper trusted runtime bootstrap", () => {
       ].join("\n"),
     );
     await chmod(resolver, 0o755);
+    await writeFile(
+      path.join(typedRuntimeDir, "cli.js"),
+      [
+        'import { writeFileSync } from "node:fs";',
+        'writeFileSync(process.env.DEVCANON_TEST_SENTINEL, "executed\\n");',
+        'process.stdout.write("runtime-ok\\n");',
+        "",
+      ].join("\n"),
+    );
     return { runtimeDir, sentinel };
   }
 

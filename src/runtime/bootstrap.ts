@@ -9,6 +9,7 @@ import {
 } from "./paths.js";
 
 const runtimeEntrypointRelativePath = ["scripts", "devcanon-runtime.sh"];
+const typedEntrypointRelativePath = ["scripts", "runtime", "cli.js"];
 const forwardedSignals: readonly NodeJS.Signals[] = [
   "SIGINT",
   "SIGTERM",
@@ -27,6 +28,7 @@ export interface ValidatedRuntimeOverride {
   inspectionPath: string;
   runtimeDirectory: string;
   entrypoint: string;
+  typedEntrypoint: string;
 }
 
 export interface RuntimeDispatchResult {
@@ -100,12 +102,17 @@ export async function validateRuntimeOverride(
       "devcanon-runtime entrypoint resolves outside DEVCANON_RUNTIME_DIR",
     );
   }
+  const typedEntrypoint = await validateTypedEntrypoint(
+    parsed.inspectionPath,
+    runtimeDirectory,
+  );
 
   return {
     rawPath,
     inspectionPath: parsed.inspectionPath,
     runtimeDirectory,
     entrypoint,
+    typedEntrypoint,
   };
 }
 
@@ -116,19 +123,19 @@ export async function dispatchRuntimeOverride(
   const runtime = await validateRuntimeOverride(rawPath);
   return new Promise((resolve, reject) => {
     const command =
-      process.platform === "win32" ? runtimeShell() : runtime.entrypoint;
+      process.platform === "win32" ? process.execPath : runtime.entrypoint;
     const args =
       process.platform === "win32"
-        ? [runtime.entrypoint, "runtime", ...childArguments]
+        ? [runtime.typedEntrypoint, ...childArguments]
         : ["runtime", ...childArguments];
     const child = spawn(command, args, { env: process.env, stdio: "inherit" });
     const signalHandlers = new Map<NodeJS.Signals, () => void>();
     for (const signal of forwardedSignals) {
       const handler = () => {
-        if (!child.killed) child.kill(signal);
+        child.kill(signal);
       };
       signalHandlers.set(signal, handler);
-      process.once(signal, handler);
+      process.on(signal, handler);
     }
     const cleanupSignalHandlers = () => {
       for (const [signal, handler] of signalHandlers) {
@@ -144,6 +151,40 @@ export async function dispatchRuntimeOverride(
       resolve({ exitCode, signal });
     });
   });
+}
+
+async function validateTypedEntrypoint(
+  runtimeDirectory: string,
+  physicalRuntimeDirectory: string,
+): Promise<string> {
+  const lexicalEntrypoint = path.join(
+    runtimeDirectory,
+    ...typedEntrypointRelativePath,
+  );
+  await assertNoSymlinkedEntrypointComponent(
+    runtimeDirectory,
+    typedEntrypointRelativePath,
+  );
+  let stat: Stats;
+  try {
+    stat = await lstat(lexicalEntrypoint);
+  } catch {
+    throw new RuntimeBootstrapError(
+      "devcanon-runtime typed entrypoint must be a non-symlink file",
+    );
+  }
+  if (!stat.isFile() || stat.isSymbolicLink()) {
+    throw new RuntimeBootstrapError(
+      "devcanon-runtime typed entrypoint must be a non-symlink file",
+    );
+  }
+  const typedEntrypoint = await realpath(lexicalEntrypoint);
+  if (isOutsideDirectory(physicalRuntimeDirectory, typedEntrypoint)) {
+    throw new RuntimeBootstrapError(
+      "devcanon-runtime typed entrypoint resolves outside DEVCANON_RUNTIME_DIR",
+    );
+  }
+  return typedEntrypoint;
 }
 
 async function assertNoSymlinkedEntrypointComponent(
@@ -167,10 +208,6 @@ async function assertNoSymlinkedEntrypointComponent(
       );
     }
   }
-}
-
-function runtimeShell(): string {
-  return process.env.BASH ?? process.env.SHELL ?? "bash";
 }
 
 function isOutsideDirectory(root: string, candidate: string): boolean {

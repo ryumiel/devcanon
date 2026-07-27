@@ -4,6 +4,7 @@ import { access, lstat, realpath } from "node:fs/promises";
 import path from "node:path";
 import { RuntimePathError, parseRuntimeDirectoryPath, } from "./paths.js";
 const runtimeEntrypointRelativePath = ["scripts", "devcanon-runtime.sh"];
+const typedEntrypointRelativePath = ["scripts", "runtime", "cli.js"];
 const forwardedSignals = [
     "SIGINT",
     "SIGTERM",
@@ -60,29 +61,30 @@ export async function validateRuntimeOverride(rawPath) {
     if (isOutsideDirectory(runtimeDirectory, entrypoint)) {
         throw new RuntimeBootstrapError("devcanon-runtime entrypoint resolves outside DEVCANON_RUNTIME_DIR");
     }
+    const typedEntrypoint = await validateTypedEntrypoint(parsed.inspectionPath, runtimeDirectory);
     return {
         rawPath,
         inspectionPath: parsed.inspectionPath,
         runtimeDirectory,
         entrypoint,
+        typedEntrypoint,
     };
 }
 export async function dispatchRuntimeOverride(rawPath, childArguments) {
     const runtime = await validateRuntimeOverride(rawPath);
     return new Promise((resolve, reject) => {
-        const command = process.platform === "win32" ? runtimeShell() : runtime.entrypoint;
+        const command = process.platform === "win32" ? process.execPath : runtime.entrypoint;
         const args = process.platform === "win32"
-            ? [runtime.entrypoint, "runtime", ...childArguments]
+            ? [runtime.typedEntrypoint, ...childArguments]
             : ["runtime", ...childArguments];
         const child = spawn(command, args, { env: process.env, stdio: "inherit" });
         const signalHandlers = new Map();
         for (const signal of forwardedSignals) {
             const handler = () => {
-                if (!child.killed)
-                    child.kill(signal);
+                child.kill(signal);
             };
             signalHandlers.set(signal, handler);
-            process.once(signal, handler);
+            process.on(signal, handler);
         }
         const cleanupSignalHandlers = () => {
             for (const [signal, handler] of signalHandlers) {
@@ -99,6 +101,25 @@ export async function dispatchRuntimeOverride(rawPath, childArguments) {
         });
     });
 }
+async function validateTypedEntrypoint(runtimeDirectory, physicalRuntimeDirectory) {
+    const lexicalEntrypoint = path.join(runtimeDirectory, ...typedEntrypointRelativePath);
+    await assertNoSymlinkedEntrypointComponent(runtimeDirectory, typedEntrypointRelativePath);
+    let stat;
+    try {
+        stat = await lstat(lexicalEntrypoint);
+    }
+    catch {
+        throw new RuntimeBootstrapError("devcanon-runtime typed entrypoint must be a non-symlink file");
+    }
+    if (!stat.isFile() || stat.isSymbolicLink()) {
+        throw new RuntimeBootstrapError("devcanon-runtime typed entrypoint must be a non-symlink file");
+    }
+    const typedEntrypoint = await realpath(lexicalEntrypoint);
+    if (isOutsideDirectory(physicalRuntimeDirectory, typedEntrypoint)) {
+        throw new RuntimeBootstrapError("devcanon-runtime typed entrypoint resolves outside DEVCANON_RUNTIME_DIR");
+    }
+    return typedEntrypoint;
+}
 async function assertNoSymlinkedEntrypointComponent(runtimeDirectory, components) {
     let cursor = runtimeDirectory;
     for (const component of components) {
@@ -114,9 +135,6 @@ async function assertNoSymlinkedEntrypointComponent(runtimeDirectory, components
             throw new RuntimeBootstrapError("devcanon-runtime entrypoint must not contain a symlink or reparse-point component");
         }
     }
-}
-function runtimeShell() {
-    return process.env.BASH ?? process.env.SHELL ?? "bash";
 }
 function isOutsideDirectory(root, candidate) {
     const relative = path.relative(root, candidate);

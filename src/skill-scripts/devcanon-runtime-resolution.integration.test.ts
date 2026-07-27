@@ -55,7 +55,8 @@ async function prepareRuntimeResolutionFixture(
 async function writeRuntimeOverride(root: string): Promise<string> {
   const runtime = path.join(root, "override-runtime");
   const scripts = path.join(runtime, "scripts");
-  await mkdir(scripts, { recursive: true });
+  const typedRuntime = path.join(scripts, "runtime");
+  await mkdir(typedRuntime, { recursive: true });
   const entrypoint = path.join(scripts, "devcanon-runtime.sh");
   await writeFile(
     entrypoint,
@@ -66,6 +67,14 @@ async function writeRuntimeOverride(root: string): Promise<string> {
     ].join("\n"),
   );
   await chmod(entrypoint, 0o755);
+  await writeFile(
+    path.join(typedRuntime, "cli.js"),
+    [
+      "const [command, argument] = process.argv.slice(2);",
+      "process.stdout.write(`runtime|${command}|${argument}|${process.env.DEVCANON_RUNTIME_DIR}\\n`);",
+      "",
+    ].join("\n"),
+  );
   return runtime;
 }
 
