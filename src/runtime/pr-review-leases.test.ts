@@ -5576,113 +5576,149 @@ describe("read-only PR review discovery planner", () => {
     },
   );
 
-  it("fails closed when primary worktree origin authority drifts between collections", async () => {
-    const root = await createDiscoveryRepository();
-    await replaceDiscoveryWorktreeOrigin(root, [
-      "",
-      "https://github.com/owner/repo.git",
-    ]);
-    const wrapperDir = await mkdtemp(path.join(tmpdir(), "git-wrapper-"));
-    discoveryTempRoots.push(wrapperDir);
-    const marker = path.join(wrapperDir, "primary-origin-mutated");
-    const realGit = (
-      await execFileAsync("sh", ["-c", "command -v git"])
-    ).stdout.trim();
-    const wrapper = path.join(wrapperDir, "git");
-    const gitRoot = await toGitBashPath(root);
-    await writeFile(
-      wrapper,
-      [
-        "#!/bin/sh",
-        'case " $* " in',
-        '  *" worktree list --porcelain -z "*)',
-        `    '${realGit}' "$@"`,
-        "    status=$?",
-        `    if [ ! -f '${await toGitBashPath(marker)}' ]; then`,
-        `      '${realGit}' -C '${gitRoot}' config --worktree --replace-all remote.origin.url ''`,
-        `      '${realGit}' -C '${gitRoot}' config --worktree --add remote.origin.url https://github.com/foreign/repo.git`,
-        `      printf fired >'${await toGitBashPath(marker)}'`,
-        "    fi",
-        '    exit "$status"',
-        "    ;;",
-        "esac",
-        `exec '${realGit}' "$@"`,
-        "",
-      ].join("\n"),
-    );
-    await makeDiscoveryGitWrapperExecutable(wrapper);
-    const oldPath = process.env.PATH;
-    process.env.PATH = prependDiscoveryGitWrapper(wrapperDir, oldPath);
-    try {
-      const result = await runDiscovery(root);
-      expect(await readFile(marker, "utf8")).toBe("fired");
-      expect(result.disposition).toBe("invalid");
-      expect(result.invalid).toContainEqual({
-        path: ".",
-        reason: "discovery-snapshot-changed",
-      });
-    } finally {
-      process.env.PATH = oldPath;
+  describe("isolates effective-origin drift fixture ownership", () => {
+    interface OriginDriftScenario {
+      lease: PrReviewLease | null;
+      marker: string;
+      operation: Promise<Awaited<ReturnType<typeof runDiscovery>>> | null;
+      ownedRoots: string[];
+      previousAdapterLog: string | undefined;
+      previousPath: string | undefined;
+      root: string;
     }
-  });
 
-  it("fails closed when candidate effective origin authority drifts during status", async () => {
-    const root = await createDiscoveryRepository();
-    const worktree = await createDiscoveryWorktree(
-      root,
-      "candidate-origin-drift",
-    );
-    const lease = discoveryLease(worktree);
-    await writeDiscoveryLease(root, lease);
-    await replaceDiscoveryWorktreeOrigin(worktree, [
-      "",
-      "https://github.com/owner/repo.git",
-    ]);
-    const wrapperDir = await mkdtemp(path.join(tmpdir(), "git-wrapper-"));
-    discoveryTempRoots.push(wrapperDir);
-    const marker = path.join(wrapperDir, "candidate-origin-mutated");
-    const realGit = (
-      await execFileAsync("sh", ["-c", "command -v git"])
-    ).stdout.trim();
-    const wrapper = path.join(wrapperDir, "git");
-    const gitWorktree = await toGitBashPath(worktree);
-    await writeFile(
-      wrapper,
-      [
-        "#!/bin/sh",
-        'case " $* " in',
-        '  *" status --porcelain=v1 "*)',
-        `    '${realGit}' "$@"`,
-        "    status=$?",
-        `    if [ ! -f '${await toGitBashPath(marker)}' ]; then`,
-        `      '${realGit}' -C '${gitWorktree}' config --worktree --replace-all remote.origin.url ''`,
-        `      '${realGit}' -C '${gitWorktree}' config --worktree --add remote.origin.url https://github.com/foreign/repo.git`,
-        `      printf fired >'${await toGitBashPath(marker)}'`,
-        "    fi",
-        '    exit "$status"',
-        "    ;;",
-        "esac",
-        `exec '${realGit}' "$@"`,
+    let scenario: OriginDriftScenario | undefined;
+
+    const setupScenario = async (
+      kind: "candidate" | "primary",
+    ): Promise<OriginDriftScenario> => {
+      const previousAdapterLog = activeDiscoveryGitAdapterLog;
+      const previousPath = process.env.PATH;
+      const ownedRootStart = discoveryTempRoots.length;
+      const root = await createDiscoveryRepository();
+      let lease: PrReviewLease | null = null;
+      let mutationRoot = root;
+      if (kind === "candidate") {
+        mutationRoot = await createDiscoveryWorktree(
+          root,
+          "candidate-origin-drift",
+        );
+        lease = discoveryLease(mutationRoot);
+        await writeDiscoveryLease(root, lease);
+      }
+      await replaceDiscoveryWorktreeOrigin(mutationRoot, [
         "",
-      ].join("\n"),
-    );
-    await makeDiscoveryGitWrapperExecutable(wrapper);
-    const oldPath = process.env.PATH;
-    process.env.PATH = prependDiscoveryGitWrapper(wrapperDir, oldPath);
-    try {
-      const result = await runDiscovery(root);
-      expect(await readFile(marker, "utf8")).toBe("fired");
-      expect(result.disposition).toBe("invalid");
-      expect(result.active).toContainEqual(
-        expect.objectContaining({
-          lease_file: lease.lease_file,
-          classification: "invalid",
-          reason: "repository-identity-changed",
-        }),
+        "https://github.com/owner/repo.git",
+      ]);
+      const wrapperDir = await mkdtemp(path.join(tmpdir(), "git-wrapper-"));
+      discoveryTempRoots.push(wrapperDir);
+      const marker = path.join(
+        wrapperDir,
+        `${kind === "primary" ? "primary" : "candidate"}-origin-mutated`,
       );
-    } finally {
-      process.env.PATH = oldPath;
-    }
+      const realGit = (
+        await execFileAsync("sh", ["-c", "command -v git"])
+      ).stdout.trim();
+      const wrapper = path.join(wrapperDir, "git");
+      const gitMutationRoot = await toGitBashPath(mutationRoot);
+      const commandPattern =
+        kind === "primary"
+          ? '  *" worktree list --porcelain -z "*)'
+          : '  *" status --porcelain=v1 "*)';
+      await writeFile(
+        wrapper,
+        [
+          "#!/bin/sh",
+          'case " $* " in',
+          commandPattern,
+          `    '${realGit}' "$@"`,
+          "    status=$?",
+          `    if [ ! -f '${await toGitBashPath(marker)}' ]; then`,
+          `      '${realGit}' -C '${gitMutationRoot}' config --worktree --replace-all remote.origin.url ''`,
+          `      '${realGit}' -C '${gitMutationRoot}' config --worktree --add remote.origin.url https://github.com/foreign/repo.git`,
+          `      printf fired >'${await toGitBashPath(marker)}'`,
+          "    fi",
+          '    exit "$status"',
+          "    ;;",
+          "esac",
+          `exec '${realGit}' "$@"`,
+          "",
+        ].join("\n"),
+      );
+      await makeDiscoveryGitWrapperExecutable(wrapper);
+      const ownedRoots = discoveryTempRoots.splice(ownedRootStart);
+      if (ownedRoots.length !== 2) {
+        throw new Error("discovery fixture root ownership is ambiguous");
+      }
+      process.env.PATH = prependDiscoveryGitWrapper(wrapperDir, previousPath);
+      return {
+        lease,
+        marker,
+        operation: null,
+        ownedRoots,
+        previousAdapterLog,
+        previousPath,
+        root,
+      };
+    };
+
+    afterEach(async () => {
+      if (scenario === undefined) return;
+      if (scenario.operation !== null) {
+        await scenario.operation.catch(() => undefined);
+      }
+      if (scenario.previousPath === undefined) {
+        Reflect.deleteProperty(process.env, "PATH");
+      } else {
+        process.env.PATH = scenario.previousPath;
+      }
+      activeDiscoveryGitAdapterLog = scenario.previousAdapterLog;
+      for (const ownedRoot of scenario.ownedRoots) {
+        await rm(ownedRoot, { recursive: true, force: true });
+      }
+      scenario = undefined;
+    });
+
+    describe("for the primary worktree origin", () => {
+      beforeEach(async () => {
+        scenario = await setupScenario("primary");
+      });
+
+      it("fails closed when authority drifts between collections", async () => {
+        if (scenario === undefined) throw new Error("scenario is unavailable");
+        scenario.operation = runDiscovery(scenario.root);
+        const result = await scenario.operation;
+        expect(await readFile(scenario.marker, "utf8")).toBe("fired");
+        expect(result.disposition).toBe("invalid");
+        expect(result.invalid).toContainEqual({
+          path: ".",
+          reason: "discovery-snapshot-changed",
+        });
+      });
+    });
+
+    describe("for the candidate effective origin", () => {
+      beforeEach(async () => {
+        scenario = await setupScenario("candidate");
+      });
+
+      it("fails closed when authority drifts during status", async () => {
+        if (scenario === undefined || scenario.lease === null) {
+          throw new Error("candidate scenario is unavailable");
+        }
+        scenario.operation = runDiscovery(scenario.root);
+        const result = await scenario.operation;
+        expect(await readFile(scenario.marker, "utf8")).toBe("fired");
+        expect(result.disposition).toBe("invalid");
+        expect(result.active).toContainEqual(
+          expect.objectContaining({
+            lease_file: scenario.lease.lease_file,
+            classification: "invalid",
+            reason: "repository-identity-changed",
+          }),
+        );
+      });
+    });
   });
 
   it.each(["appearance", "disappearance", "bytes"] as const)(
