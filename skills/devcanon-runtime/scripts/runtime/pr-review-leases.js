@@ -284,13 +284,12 @@ async function assertDiscoveryRoutedWorktreesExcludePrimary(result, primaryRoot,
         ...(result.cleanup === null ? [] : [result.cleanup.worktree_path]),
     ];
     const primaryAuthority = discoveryWorktreeAuthorityComparablePath(primaryRoot, platform);
-    const inspected = new Set();
+    const inspectedRawPaths = new Set();
     for (const routedPath of routedPaths) {
-        const requestedPath = discoveryFilesystemPath(routedPath, platform);
-        const lexicalAuthority = discoveryWorktreeAuthorityComparablePath(requestedPath, platform);
-        if (inspected.has(lexicalAuthority))
+        if (inspectedRawPaths.has(routedPath))
             continue;
-        inspected.add(lexicalAuthority);
+        inspectedRawPaths.add(routedPath);
+        const requestedPath = discoveryFilesystemPath(routedPath, platform);
         let physicalPath;
         try {
             physicalPath = await realpath(requestedPath);

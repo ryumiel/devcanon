@@ -7891,6 +7891,109 @@ describe("read-only PR review discovery planner", () => {
     },
   );
 
+  it.each(["first", "second"] as const)(
+    "rejects lexical collisions when the physical-primary spelling sorts %s",
+    async (primaryPosition) => {
+      const root = await createDiscoveryRepository();
+      const primaryChild = path.join(root, "physical-collision-child");
+      await mkdir(primaryChild);
+      const collisionRoot = await mkdtemp(
+        path.join(tmpdir(), "discovery-physical-collision-"),
+      );
+      discoveryTempRoots.push(collisionRoot);
+      const collisionEntries = ["left", "right"].map((leaf, index) => {
+        const component = path.join(collisionRoot, leaf);
+        const nativeRawPath = `${component}${path.sep}..`;
+        const rawPath =
+          process.platform === "win32" && index === 1
+            ? nativeRawPath
+                .replace(/\\/gu, "/")
+                .replace(/^([A-Z]):/u, (drive) => drive.toLowerCase())
+            : nativeRawPath;
+        const leaseFile = `.ephemeral/pr-432-${discoveryDigest(rawPath)}-lease.json`;
+        return { component, leaseFile, rawPath };
+      });
+      const sortedEntries = [...collisionEntries].sort((left, right) =>
+        left.leaseFile < right.leaseFile
+          ? -1
+          : left.leaseFile > right.leaseFile
+            ? 1
+            : 0,
+      );
+      const primaryEntry =
+        primaryPosition === "first" ? sortedEntries[0] : sortedEntries[1];
+      const ordinaryEntry =
+        primaryPosition === "first" ? sortedEntries[1] : sortedEntries[0];
+      for (const entry of collisionEntries) {
+        if (entry === primaryEntry) {
+          await symlink(
+            primaryChild,
+            entry.component,
+            process.platform === "win32" ? "junction" : "dir",
+          );
+        } else {
+          await mkdir(entry.component);
+        }
+      }
+      await expect(realpath(primaryEntry.rawPath)).resolves.toBe(root);
+      await expect(realpath(ordinaryEntry.rawPath)).resolves.toBe(
+        await realpath(collisionRoot),
+      );
+
+      const result = reducePrReviewDiscovery({
+        repository: "owner/repo",
+        pr_number: 432,
+        primary_repository_root: root,
+        canonical_target: {
+          worktree_path: path.join(root, ".worktrees", "pr-432-review"),
+          status: "absent",
+          registered: false,
+          parent_status: "directory",
+        },
+        registrations: [ordinaryEntry.rawPath],
+        active: collisionEntries.map((entry) => ({
+          lease_file: entry.leaseFile,
+          worktree_path: entry.rawPath,
+          state: "created" as const,
+          classification: "resumable" as const,
+          reason: "resumable",
+        })),
+        archived: [],
+        invalid: [],
+        comparison_platform: process.platform,
+      });
+      expect(result.disposition).toBe("ambiguous");
+      expect(result.active.map((entry) => entry.worktree_path)).toEqual(
+        sortedEntries.map((entry) => entry.rawPath),
+      );
+      expect(result.active[primaryPosition === "first" ? 0 : 1]).toMatchObject({
+        worktree_path: primaryEntry.rawPath,
+      });
+
+      const args = [
+        "validate-discovery",
+        "--repository",
+        "owner/repo",
+        "--pr-number",
+        "432",
+        "--primary-root",
+        root,
+      ];
+      const input = JSON.stringify(result);
+      const expected = {
+        exitCode: 1,
+        stdout: "",
+        stderr: "discovery primary worktree authority mismatch\n",
+      };
+      await expect(
+        runPrReviewLeasesCommand(args, Buffer.from(input)),
+      ).resolves.toEqual(expected);
+      await expect(
+        runPrReviewLeasesWrapper(args, process.env, input),
+      ).resolves.toEqual(expected);
+    },
+  );
+
   it("directly validates an ordinary physical candidate worktree", async () => {
     const root = await createDiscoveryRepository();
     const worktree = await createDiscoveryWorktree(
