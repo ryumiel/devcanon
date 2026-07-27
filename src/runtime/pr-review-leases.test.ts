@@ -4484,6 +4484,7 @@ describe("pr-review lease wrapper runtime override containment", () => {
       [
         "#!/usr/bin/env bash",
         "set -euo pipefail",
+        "printf 'entered\\n' >\"$DEVCANON_TEST_RESOLVER_SENTINEL\"",
         'case "${1:-}" in',
         "  resolve-entrypoint)",
         "    printf '%s\\n' \"$DEVCANON_RUNTIME_DIR/scripts/devcanon-runtime.sh\"",
@@ -4515,6 +4516,7 @@ describe("pr-review lease wrapper runtime override containment", () => {
             ...process.env,
             DEVCANON_RUNTIME_DIR: runtimeDir,
             DEVCANON_TEST_SENTINEL: sentinel,
+            DEVCANON_TEST_RESOLVER_SENTINEL: `${sentinel}-resolver`,
             OSTYPE: process.platform === "win32" ? "linux-gnu" : "msys",
           },
           encoding: "utf8",
@@ -4546,7 +4548,9 @@ describe("pr-review lease wrapper runtime override containment", () => {
       stdout: "runtime-ok\n",
       stderr: "",
     });
+    expect(await readFile(`${sentinel}-resolver`, "utf8")).toBe("entered\n");
     expect(await readFile(sentinel, "utf8")).toBe("executed\n");
+    await rm(`${sentinel}-resolver`);
     await rm(sentinel);
   }
 
@@ -4563,6 +4567,11 @@ describe("pr-review lease wrapper runtime override containment", () => {
       stderr: `${expectedStderr}\n`,
     });
     await expect(readFile(sentinel, "utf8")).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+    await expect(
+      readFile(`${sentinel}-resolver`, "utf8"),
+    ).rejects.toMatchObject({
       code: "ENOENT",
     });
   }
@@ -4705,15 +4714,42 @@ describe("pr-review lease wrapper runtime override containment", () => {
           "DEVCANON_RUNTIME_DIR must not contain a parent-directory component",
           bashExecutable,
         );
+      } finally {
+        await rm(root, { recursive: true, force: true });
+      }
+    },
+  );
 
+  it.runIf(process.platform === "win32")(
+    "runs real UNC runtime containment or reports the unavailable capability",
+    async ({ skip }) => {
+      const bashExecutable = await resolveGitForWindowsBash();
+      const root = await mkdtemp(
+        path.join(tmpdir(), "review-leases-windows-unc-"),
+      );
+      try {
+        const fixture = await writeRuntime(root, "runtime");
+        const { stdout: nativeRuntime } = await execFileAsync(
+          bashExecutable as string,
+          ["-lc", 'cygpath -w "$DEVCANON_TEST_PATH"'],
+          {
+            env: {
+              ...process.env,
+              DEVCANON_TEST_PATH: fixture.runtimeDir,
+            },
+          },
+        );
+        const native = nativeRuntime.trim();
         const drive = native.slice(0, 1);
         const uncRuntime = `\\\\localhost\\${drive}$${native.slice(2)}`;
-        const uncAccessible = await realpath(uncRuntime)
-          .then(() => true)
-          .catch(() => false);
-        if (uncAccessible) {
-          await expectAccepted(uncRuntime, fixture.sentinel, bashExecutable);
+        try {
+          await realpath(uncRuntime);
+        } catch {
+          skip(
+            "UNC runtime integration unavailable: localhost administrative drive share is not accessible",
+          );
         }
+        await expectAccepted(uncRuntime, fixture.sentinel, bashExecutable);
       } finally {
         await rm(root, { recursive: true, force: true });
       }
