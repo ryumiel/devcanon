@@ -385,6 +385,18 @@ function parseDiscoveryResult(value, platform) {
             throw new PrReviewLeaseError("discovery result schema mismatch");
         }
     }
+    if (result.active.some((entry) => entry.classification !== "invalid" &&
+        entry.worktree_path !== null &&
+        discoveryWorktreeAuthorityComparablePath(entry.worktree_path, platform) ===
+            discoveryWorktreeAuthorityComparablePath(result.primary_repository_root, platform)) ||
+        (result.resume !== null &&
+            discoveryWorktreeAuthorityComparablePath(result.resume.worktree_path, platform) ===
+                discoveryWorktreeAuthorityComparablePath(result.primary_repository_root, platform)) ||
+        (result.cleanup !== null &&
+            discoveryWorktreeAuthorityComparablePath(result.cleanup.worktree_path, platform) ===
+                discoveryWorktreeAuthorityComparablePath(result.primary_repository_root, platform))) {
+        throw new PrReviewLeaseError("discovery primary worktree authority mismatch");
+    }
     return result;
 }
 function hasValidDiscoveryWorktreeClaimGroups(active, platform) {
@@ -2409,8 +2421,10 @@ function normalizeDiscoveryGitHubRepository(value) {
     throw new PrReviewLeaseError("primary repository origin must be a supported GitHub repository URL");
 }
 function assertDiscoveryCandidateRepository(candidate, physicalWorktree, primary) {
-    if (discoveryComparablePath(candidate.top_level, process.platform) !==
-        discoveryComparablePath(physicalWorktree, process.platform) ||
+    if (discoveryWorktreeAuthorityComparablePath(candidate.top_level, process.platform) ===
+        discoveryWorktreeAuthorityComparablePath(primary.top_level, process.platform) ||
+        discoveryComparablePath(candidate.top_level, process.platform) !==
+            discoveryComparablePath(physicalWorktree, process.platform) ||
         discoveryComparablePath(candidate.common_directory, process.platform) !==
             discoveryComparablePath(primary.common_directory, process.platform)) {
         throw new PrReviewLeaseError("candidate worktree does not belong to the primary repository");
@@ -2820,6 +2834,13 @@ function discoveryRegistrationComparablePath(value, platform) {
         throw new PrReviewLeaseError("discovery registration path must be absolute");
     }
     return discoveryComparablePath(path.posix.normalize(filesystemPath), platform);
+}
+function discoveryWorktreeAuthorityComparablePath(value, platform) {
+    const comparable = discoveryRegistrationComparablePath(value, platform);
+    if (comparable === "/" || /^[a-z]:\/$/u.test(comparable)) {
+        return comparable;
+    }
+    return comparable.replace(/\/+$/u, "");
 }
 function sameOrdinalStringArray(left, right) {
     return (left.length === right.length &&

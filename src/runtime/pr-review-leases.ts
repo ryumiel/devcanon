@@ -837,6 +837,43 @@ function parseDiscoveryResult(
       throw new PrReviewLeaseError("discovery result schema mismatch");
     }
   }
+  if (
+    result.active.some(
+      (entry) =>
+        entry.classification !== "invalid" &&
+        entry.worktree_path !== null &&
+        discoveryWorktreeAuthorityComparablePath(
+          entry.worktree_path,
+          platform,
+        ) ===
+          discoveryWorktreeAuthorityComparablePath(
+            result.primary_repository_root,
+            platform,
+          ),
+    ) ||
+    (result.resume !== null &&
+      discoveryWorktreeAuthorityComparablePath(
+        result.resume.worktree_path,
+        platform,
+      ) ===
+        discoveryWorktreeAuthorityComparablePath(
+          result.primary_repository_root,
+          platform,
+        )) ||
+    (result.cleanup !== null &&
+      discoveryWorktreeAuthorityComparablePath(
+        result.cleanup.worktree_path,
+        platform,
+      ) ===
+        discoveryWorktreeAuthorityComparablePath(
+          result.primary_repository_root,
+          platform,
+        ))
+  ) {
+    throw new PrReviewLeaseError(
+      "discovery primary worktree authority mismatch",
+    );
+  }
   return result;
 }
 
@@ -3594,6 +3631,14 @@ function assertDiscoveryCandidateRepository(
   primary: DiscoveryRepositoryIdentity,
 ): void {
   if (
+    discoveryWorktreeAuthorityComparablePath(
+      candidate.top_level,
+      process.platform,
+    ) ===
+      discoveryWorktreeAuthorityComparablePath(
+        primary.top_level,
+        process.platform,
+      ) ||
     discoveryComparablePath(candidate.top_level, process.platform) !==
       discoveryComparablePath(physicalWorktree, process.platform) ||
     discoveryComparablePath(candidate.common_directory, process.platform) !==
@@ -4188,6 +4233,17 @@ function discoveryRegistrationComparablePath(
     path.posix.normalize(filesystemPath),
     platform,
   );
+}
+
+function discoveryWorktreeAuthorityComparablePath(
+  value: string,
+  platform: NodeJS.Platform,
+): string {
+  const comparable = discoveryRegistrationComparablePath(value, platform);
+  if (comparable === "/" || /^[a-z]:\/$/u.test(comparable)) {
+    return comparable;
+  }
+  return comparable.replace(/\/+$/u, "");
 }
 
 function sameOrdinalStringArray(
