@@ -3,11 +3,13 @@ import { createHash } from "node:crypto";
 import {
   chmod,
   copyFile,
+  link,
   lstat,
   mkdir,
   mkdtemp,
   readFile,
   readdir,
+  readlink,
   realpath,
   rename,
   rm,
@@ -6380,6 +6382,26 @@ async function createDiscoveryWorktree(
   return realpath(worktree);
 }
 
+async function cloneDiscoveryDirectoryWithHardlinks(
+  source: string,
+  target: string,
+): Promise<void> {
+  await mkdir(target);
+  for (const entry of await readdir(source, { withFileTypes: true })) {
+    const sourcePath = path.join(source, entry.name);
+    const targetPath = path.join(target, entry.name);
+    if (entry.isDirectory()) {
+      await cloneDiscoveryDirectoryWithHardlinks(sourcePath, targetPath);
+    } else if (entry.isFile()) {
+      await link(sourcePath, targetPath);
+    } else if (entry.isSymbolicLink()) {
+      await symlink(await readlink(sourcePath), targetPath);
+    } else {
+      throw new Error("unsupported worktree administration entry");
+    }
+  }
+}
+
 async function addDiscoveryGitlink(
   worktree: string,
   sourceRepository: string,
@@ -12004,6 +12026,184 @@ describe("read-only PR review discovery planner", () => {
         ]),
       ).resolves.toMatchObject({ exitCode: 0, stderr: "" });
     });
+
+    describe.each([
+      { directory: "worktrees", statusOrdinal: 1 },
+      { directory: "worktrees", statusOrdinal: 2 },
+      { directory: "admin", statusOrdinal: 1 },
+      { directory: "admin", statusOrdinal: 2 },
+    ] as const)(
+      "when the $directory directory is replaced during status collection $statusOrdinal",
+      ({ directory, statusOrdinal }) => {
+        let adminGitdirPath: string;
+        let beforeAdminGitdirIdentity: Awaited<ReturnType<typeof lstat>>;
+        let beforeCandidateGitfileIdentity: Awaited<ReturnType<typeof lstat>>;
+        let beforeTargetIdentity: Awaited<ReturnType<typeof lstat>>;
+        let candidateGitfilePath: string;
+        let marker: string;
+        let previousPath: string | undefined;
+        let root: string;
+        let targetPath: string;
+        let worktree: string;
+
+        beforeEach(async () => {
+          root = await createDiscoveryRepository();
+          worktree = await createDiscoveryWorktree(
+            root,
+            `gitdir-${directory}-${statusOrdinal}`,
+          );
+          await writeDiscoveryLease(root, discoveryLease(worktree));
+          const adminDirectory = (
+            await execFileAsync("git", [
+              "-C",
+              worktree,
+              "rev-parse",
+              "--absolute-git-dir",
+            ])
+          ).stdout.trim();
+          const worktreesDirectory = path.dirname(adminDirectory);
+          const commonDirectory = path.dirname(worktreesDirectory);
+          candidateGitfilePath = path.join(worktree, ".git");
+          adminGitdirPath = path.join(adminDirectory, "gitdir");
+          const replacement = path.join(
+            commonDirectory,
+            `replacement-${directory}-${statusOrdinal}`,
+          );
+          const replaced = path.join(
+            commonDirectory,
+            `replaced-${directory}-${statusOrdinal}`,
+          );
+          targetPath =
+            directory === "worktrees" ? worktreesDirectory : adminDirectory;
+          if (directory === "worktrees") {
+            await mkdir(replacement);
+          } else {
+            await cloneDiscoveryDirectoryWithHardlinks(
+              adminDirectory,
+              replacement,
+            );
+          }
+          const stable = await runDiscovery(root);
+          expect(stable).toMatchObject({
+            disposition: "resume",
+            resume: { worktree_path: worktree },
+          });
+          beforeTargetIdentity = await lstat(targetPath);
+          beforeCandidateGitfileIdentity = await lstat(candidateGitfilePath);
+          beforeAdminGitdirIdentity = await lstat(adminGitdirPath);
+
+          const wrapperDir = await mkdtemp(path.join(tmpdir(), "git-wrapper-"));
+          discoveryTempRoots.push(wrapperDir);
+          marker = path.join(wrapperDir, "directory-replaced");
+          const counter = path.join(wrapperDir, "status-count");
+          const realGit = (
+            await execFileAsync("sh", ["-c", "command -v git"])
+          ).stdout.trim();
+          const wrapper = path.join(wrapperDir, "git");
+          const mutation =
+            directory === "worktrees"
+              ? [
+                  `      mv '${await toGitBashPath(worktreesDirectory)}' '${await toGitBashPath(replaced)}' || exit $?`,
+                  `      mv '${await toGitBashPath(replacement)}' '${await toGitBashPath(worktreesDirectory)}' || exit $?`,
+                  `      mv '${await toGitBashPath(path.join(replaced, path.basename(adminDirectory)))}' '${await toGitBashPath(adminDirectory)}' || exit $?`,
+                  `      rmdir '${await toGitBashPath(replaced)}' || exit $?`,
+                ]
+              : [
+                  `      mv '${await toGitBashPath(adminDirectory)}' '${await toGitBashPath(replaced)}' || exit $?`,
+                  `      mv '${await toGitBashPath(replacement)}' '${await toGitBashPath(adminDirectory)}' || exit $?`,
+                ];
+          await writeFile(
+            wrapper,
+            [
+              "#!/bin/sh",
+              'case " $* " in',
+              '  *" status --porcelain=v1 "*)',
+              `    '${realGit}' "$@" || exit $?`,
+              `    count=$(cat '${await toGitBashPath(counter)}' 2>/dev/null || printf 0)`,
+              "    count=$((count + 1))",
+              `    printf '%s\\n' "$count" >'${await toGitBashPath(counter)}'`,
+              `    if [ "$count" -eq ${statusOrdinal} ]; then`,
+              ...mutation,
+              `      printf reached >'${await toGitBashPath(marker)}'`,
+              "    fi",
+              "    exit 0",
+              "    ;;",
+              "esac",
+              `exec '${realGit}' "$@"`,
+              "",
+            ].join("\n"),
+          );
+          await makeDiscoveryGitWrapperExecutable(wrapper);
+          previousPath = process.env.PATH;
+          process.env.PATH = prependDiscoveryGitWrapper(
+            wrapperDir,
+            previousPath,
+          );
+        });
+
+        afterEach(() => {
+          if (previousPath === undefined) {
+            Reflect.deleteProperty(process.env, "PATH");
+          } else {
+            process.env.PATH = previousPath;
+          }
+        });
+
+        it("fails closed while preserving reciprocal file identities", async () => {
+          const result = await runDiscovery(root);
+          expect(await readFile(marker, "utf8")).toBe("reached");
+          const afterTargetIdentity = await lstat(targetPath);
+          expect([
+            afterTargetIdentity.dev,
+            afterTargetIdentity.ino,
+            afterTargetIdentity.birthtimeMs,
+          ]).not.toEqual([
+            beforeTargetIdentity.dev,
+            beforeTargetIdentity.ino,
+            beforeTargetIdentity.birthtimeMs,
+          ]);
+          const afterCandidateGitfileIdentity =
+            await lstat(candidateGitfilePath);
+          const afterAdminGitdirIdentity = await lstat(adminGitdirPath);
+          expect([
+            afterCandidateGitfileIdentity.dev,
+            afterCandidateGitfileIdentity.ino,
+            afterCandidateGitfileIdentity.size,
+            afterCandidateGitfileIdentity.mtimeMs,
+            afterCandidateGitfileIdentity.ctimeMs,
+          ]).toEqual([
+            beforeCandidateGitfileIdentity.dev,
+            beforeCandidateGitfileIdentity.ino,
+            beforeCandidateGitfileIdentity.size,
+            beforeCandidateGitfileIdentity.mtimeMs,
+            beforeCandidateGitfileIdentity.ctimeMs,
+          ]);
+          expect([
+            afterAdminGitdirIdentity.dev,
+            afterAdminGitdirIdentity.ino,
+            afterAdminGitdirIdentity.size,
+            afterAdminGitdirIdentity.mtimeMs,
+            afterAdminGitdirIdentity.ctimeMs,
+          ]).toEqual([
+            beforeAdminGitdirIdentity.dev,
+            beforeAdminGitdirIdentity.ino,
+            beforeAdminGitdirIdentity.size,
+            beforeAdminGitdirIdentity.mtimeMs,
+            beforeAdminGitdirIdentity.ctimeMs,
+          ]);
+          expect(result).toMatchObject({
+            disposition: "invalid",
+            resume: null,
+            active: [
+              {
+                classification: "invalid",
+                reason: "repository-identity-changed",
+              },
+            ],
+          });
+        });
+      },
+    );
 
     it.each(["primary", "foreign"] as const)(
       "rejects a candidate Git file redirected to the %s administration entry",

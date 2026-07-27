@@ -2497,7 +2497,8 @@ async function readDiscoveryCandidateRepositoryAuthority(physicalWorktree, candi
         throw new PrReviewLeaseError("candidate worktree administration is not a real directory");
     }
     const physicalWorktreesDirectory = await realpath(worktreesDirectory);
-    if (discoveryComparablePath(path.dirname(candidate.git_directory), process.platform) !== discoveryComparablePath(physicalWorktreesDirectory, process.platform)) {
+    const physicalAdminDirectory = await realpath(candidate.git_directory);
+    if (discoveryComparablePath(path.dirname(physicalAdminDirectory), process.platform) !== discoveryComparablePath(physicalWorktreesDirectory, process.platform)) {
         throw new PrReviewLeaseError("candidate Git directory is not a worktree administration entry");
     }
     const adminIdentity = await lstat(candidate.git_directory);
@@ -2533,13 +2534,30 @@ async function readDiscoveryCandidateRepositoryAuthority(physicalWorktree, candi
         discoveryComparablePath(physicalCandidateGitfile, process.platform)) {
         throw new PrReviewLeaseError("candidate worktree administration entry is not reciprocal");
     }
+    const currentWorktreesIdentity = await lstat(worktreesDirectory);
+    const currentAdminIdentity = await lstat(candidate.git_directory);
+    const currentPhysicalWorktreesDirectory = await realpath(worktreesDirectory);
+    const currentPhysicalAdminDirectory = await realpath(candidate.git_directory);
+    if (discoveryStatFingerprint(currentWorktreesIdentity) !==
+        discoveryStatFingerprint(worktreesIdentity) ||
+        discoveryStatFingerprint(currentAdminIdentity) !==
+            discoveryStatFingerprint(adminIdentity) ||
+        discoveryComparablePath(currentPhysicalWorktreesDirectory, process.platform) !==
+            discoveryComparablePath(physicalWorktreesDirectory, process.platform) ||
+        discoveryComparablePath(currentPhysicalAdminDirectory, process.platform) !==
+            discoveryComparablePath(physicalAdminDirectory, process.platform)) {
+        throw new PrReviewLeaseError("candidate worktree administration changed during inspection");
+    }
     return {
         admin_gitdir: adminGitdir,
         admin_gitdir_path: adminGitdirPath,
         candidate_gitfile: candidateGitfile,
         candidate_gitfile_path: candidateGitfilePath,
         fingerprint: [
-            discoveryComparablePath(candidate.git_directory, process.platform),
+            discoveryComparablePath(physicalWorktreesDirectory, process.platform),
+            discoveryStatFingerprint(worktreesIdentity),
+            discoveryComparablePath(physicalAdminDirectory, process.platform),
+            discoveryStatFingerprint(adminIdentity),
             stableDiscoveryFileFingerprint(candidateGitfile),
             stableDiscoveryFileFingerprint(adminGitdir),
         ].join("\0"),
