@@ -4646,6 +4646,82 @@ async function replaceDiscoveryWorktreeOrigin(
   }
 }
 
+async function discoveryRepositoryConfigPaths(root: string): Promise<{
+  common: string;
+  worktree: string;
+}> {
+  const [commonDirectory, gitDirectory] = await Promise.all([
+    execFileAsync("git", ["-C", root, "rev-parse", "--git-common-dir"]),
+    execFileAsync("git", ["-C", root, "rev-parse", "--git-dir"]),
+  ]);
+  const resolveGitPath = (value: string) => path.resolve(root, value.trimEnd());
+  return {
+    common: path.join(resolveGitPath(commonDirectory.stdout), "config"),
+    worktree: path.join(resolveGitPath(gitDirectory.stdout), "config.worktree"),
+  };
+}
+
+async function writeDiscoveryRawWorktreeOrigin(
+  root: string,
+  values: readonly (string | null)[],
+): Promise<void> {
+  const configPath = (await discoveryRepositoryConfigPaths(root)).worktree;
+  await writeFile(
+    configPath,
+    [
+      '[remote "origin"]',
+      ...values.map((value) => (value === null ? "\turl" : `\turl = ${value}`)),
+      "",
+    ].join("\n"),
+  );
+}
+
+async function replaceDiscoveryWorktreeConfigExtension(
+  root: string,
+  values: readonly string[],
+): Promise<void> {
+  await execFileAsync("git", [
+    "-C",
+    root,
+    "config",
+    "--unset-all",
+    "extensions.worktreeConfig",
+  ]).catch(() => undefined);
+  for (const value of values) {
+    await execFileAsync("git", [
+      "-C",
+      root,
+      "config",
+      "--add",
+      "extensions.worktreeConfig",
+      value,
+    ]);
+  }
+}
+
+async function replaceDiscoveryCommonOriginWithRawValues(
+  root: string,
+  values: readonly (string | null)[],
+): Promise<void> {
+  await execFileAsync("git", [
+    "-C",
+    root,
+    "config",
+    "--unset-all",
+    "remote.origin.url",
+  ]);
+  const configPath = (await discoveryRepositoryConfigPaths(root)).common;
+  await writeFile(
+    configPath,
+    [
+      await readFile(configPath, "utf8"),
+      '[remote "origin"]',
+      ...values.map((value) => (value === null ? "\turl" : `\turl = ${value}`)),
+      "",
+    ].join("\n"),
+  );
+}
+
 async function injectDiscoveryWorktreeConfigAuthorityAfterOriginBinding(
   worktree: string,
   authorityKey: string,
@@ -4719,6 +4795,7 @@ async function runDiscovery(root: string, prNumber = 432) {
   const outcome = await runDiscoveryCommand(root, prNumber);
   expect(outcome.exitCode).toBe(0);
   return JSON.parse(outcome.stdout) as {
+    repository: string;
     disposition: string;
     canonical_target: {
       worktree_path: string;
@@ -5057,6 +5134,213 @@ describe("read-only PR review discovery planner", () => {
       }
     },
   );
+
+  it("rejects a bare valueless common origin instead of treating it as an empty reset", async () => {
+    const root = await createDiscoveryRepository();
+    await replaceDiscoveryCommonOriginWithRawValues(root, [
+      null,
+      "https://github.com/owner/repo.git",
+    ]);
+
+    await expect(runDiscoveryCommand(root)).resolves.toEqual({
+      exitCode: 1,
+      stdout: "",
+      stderr: "primary repository origin contains a valueless URL\n",
+    });
+  });
+
+  it.each([
+    { name: "absent", values: [] },
+    { name: "false", values: ["false"] },
+  ])(
+    "ignores foreign config.worktree origin authority when extensions.worktreeConfig is $name",
+    async ({ values }) => {
+      const root = await createDiscoveryRepository();
+      await replaceDiscoveryWorktreeConfigExtension(root, values);
+      await writeDiscoveryRawWorktreeOrigin(root, [
+        "",
+        "https://github.com/foreign/repo.git",
+      ]);
+
+      const result = await runDiscovery(root);
+      expect(result.repository).toBe("owner/repo");
+      expect(result.disposition).toBe("create");
+    },
+  );
+
+  it.each([
+    { name: "absent", values: [] },
+    { name: "false", values: ["false"] },
+  ])(
+    "does not let ignored matching config.worktree authority replace a foreign common origin when the extension is $name",
+    async ({ values }) => {
+      const root = await createDiscoveryRepository();
+      await execFileAsync("git", [
+        "-C",
+        root,
+        "config",
+        "--replace-all",
+        "remote.origin.url",
+        "https://github.com/foreign/repo.git",
+      ]);
+      await replaceDiscoveryWorktreeConfigExtension(root, values);
+      await writeDiscoveryRawWorktreeOrigin(root, [
+        "",
+        "https://github.com/owner/repo.git",
+      ]);
+
+      await expect(runDiscoveryCommand(root)).resolves.toEqual({
+        exitCode: 1,
+        stdout: "",
+        stderr: "primary repository origin does not match REPOSITORY\n",
+      });
+    },
+  );
+
+  it("applies an enabled config.worktree empty reset before its matching origin", async () => {
+    const root = await createDiscoveryRepository();
+    await execFileAsync("git", [
+      "-C",
+      root,
+      "config",
+      "--replace-all",
+      "remote.origin.url",
+      "https://github.com/foreign/repo.git",
+    ]);
+    await replaceDiscoveryWorktreeConfigExtension(root, ["true"]);
+    await writeDiscoveryRawWorktreeOrigin(root, [
+      "",
+      "https://github.com/owner/repo.git",
+    ]);
+
+    const result = await runDiscovery(root);
+    expect(result.repository).toBe("owner/repo");
+    expect(result.disposition).toBe("create");
+  });
+
+  it.each([
+    {
+      name: "malformed",
+      values: ["sometimes"],
+      stderr: "PRIMARY_REPOSITORY_ROOT must be the primary Git worktree\n",
+    },
+    {
+      name: "ambiguous",
+      values: ["false", "true"],
+      stderr: "primary repository worktree config extension is ambiguous\n",
+    },
+  ])(
+    "rejects $name extensions.worktreeConfig authority",
+    async ({ values, stderr }) => {
+      const root = await createDiscoveryRepository();
+      await writeDiscoveryRawWorktreeOrigin(root, [
+        "",
+        "https://github.com/owner/repo.git",
+      ]);
+      await replaceDiscoveryWorktreeConfigExtension(root, values);
+
+      await expect(runDiscoveryCommand(root)).resolves.toEqual({
+        exitCode: 1,
+        stdout: "",
+        stderr,
+      });
+    },
+  );
+
+  describe("ignores candidate config.worktree origin authority when the extension is false", () => {
+    let lease: PrReviewLease;
+    let root: string;
+    let worktree: string;
+
+    beforeEach(async () => {
+      root = await createDiscoveryRepository();
+      worktree = await createDiscoveryWorktree(
+        root,
+        "disabled-effective-origin",
+      );
+      lease = discoveryLease(worktree);
+      await writeDiscoveryLease(root, lease);
+      await replaceDiscoveryWorktreeConfigExtension(root, ["false"]);
+      await writeDiscoveryRawWorktreeOrigin(worktree, [
+        "",
+        "https://github.com/foreign/repo.git",
+      ]);
+    });
+
+    it("produces the common-config resume tuple", async () => {
+      const result = await runDiscovery(root);
+      expect(result.disposition).toBe("resume");
+      expect(result.resume).toEqual({
+        lease_file: lease.lease_file,
+        worktree_path: worktree,
+      });
+    });
+
+    it("accepts the common-config tuple immediately", async () => {
+      await expect(
+        runPrReviewLeasesCommand([
+          "validate-discovery",
+          "--resume-acceptance",
+          "--repository",
+          "owner/repo",
+          "--pr-number",
+          "432",
+          "--primary-root",
+          root,
+          "--lease-file",
+          lease.lease_file,
+          "--worktree-path",
+          worktree,
+        ]),
+      ).resolves.toMatchObject({ exitCode: 0, stderr: "" });
+    });
+  });
+
+  it("rejects a candidate bare valueless origin before resume and immediate acceptance", async () => {
+    const root = await createDiscoveryRepository();
+    const worktree = await createDiscoveryWorktree(
+      root,
+      "bare-effective-origin",
+    );
+    const lease = discoveryLease(worktree);
+    await writeDiscoveryLease(root, lease);
+    await replaceDiscoveryWorktreeConfigExtension(root, ["true"]);
+    await writeDiscoveryRawWorktreeOrigin(worktree, [
+      null,
+      "https://github.com/owner/repo.git",
+    ]);
+
+    const result = await runDiscovery(root);
+    expect(result.disposition).toBe("invalid");
+    expect(result.resume).toBeNull();
+    expect(result.active).toContainEqual(
+      expect.objectContaining({
+        lease_file: lease.lease_file,
+        classification: "invalid",
+        reason: "worktree-repository-mismatch",
+      }),
+    );
+    await expect(
+      runPrReviewLeasesCommand([
+        "validate-discovery",
+        "--resume-acceptance",
+        "--repository",
+        "owner/repo",
+        "--pr-number",
+        "432",
+        "--primary-root",
+        root,
+        "--lease-file",
+        lease.lease_file,
+        "--worktree-path",
+        worktree,
+      ]),
+    ).resolves.toMatchObject({
+      exitCode: 1,
+      stdout: "",
+      stderr: "resume acceptance changed; stop before lifecycle mutation\n",
+    });
+  });
 
   describe("binds the effective candidate origin for resume and immediate acceptance", () => {
     let lease: PrReviewLease;
@@ -7552,7 +7836,7 @@ describe("read-only PR review discovery planner", () => {
       expect(finalIdentityCommand).toBeGreaterThanOrEqual(0);
       expect(finalIdentityCommand).toBeLessThan(commands.length - 1);
       expect(commands.at(-1)).toContain(
-        `-C ${worktree} config --null --get-all --no-includes --file `,
+        `-C ${worktree} config --null --type=bool-or-str --get-all --no-includes --file `,
       );
       expect(commands.at(-1)).toContain("remote.origin.url");
       expect(result.resume?.worktree_path).toBe(worktree);

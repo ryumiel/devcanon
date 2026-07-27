@@ -267,6 +267,11 @@ interface DiscoveryRepositoryBinding {
   config_fingerprint: string;
 }
 
+interface DiscoveryConfigAuthorityKeys {
+  defines_origin: boolean;
+  defines_worktree_config: boolean;
+}
+
 interface DiscoveryStatusObservation {
   dirty: boolean;
   authority: string;
@@ -3181,32 +3186,42 @@ async function readDiscoveryRepositoryBinding(
   );
   const worktreeSnapshot =
     await readOptionalStableDiscoveryFile(worktreeConfigPath);
-  const commonDefinesOrigin = await assertNoDiscoveryConfigIncludes(
+  const commonAuthorityKeys = await assertNoDiscoveryConfigIncludes(
     primaryRoot,
     configPath,
     env,
   );
-  const worktreeDefinesOrigin =
+  const worktreeAuthorityKeys =
     worktreeSnapshot === null
-      ? false
+      ? {
+          defines_origin: false,
+          defines_worktree_config: false,
+        }
       : await assertNoDiscoveryConfigIncludes(
           primaryRoot,
           worktreeConfigPath,
           env,
         );
+  const worktreeConfigEnabled =
+    await readDiscoveryWorktreeConfigExtensionAuthority(
+      primaryRoot,
+      configPath,
+      commonAuthorityKeys.defines_worktree_config,
+      env,
+    );
   const commonValues = await readDiscoveryConfigOriginValues(
     primaryRoot,
     configPath,
-    commonDefinesOrigin,
+    commonAuthorityKeys.defines_origin,
     env,
   );
   const worktreeValues =
-    worktreeSnapshot === null
+    worktreeSnapshot === null || !worktreeConfigEnabled
       ? []
       : await readDiscoveryConfigOriginValues(
           primaryRoot,
           worktreeConfigPath,
-          worktreeDefinesOrigin,
+          worktreeAuthorityKeys.defines_origin,
           env,
         );
   await assertSameDiscoveryFile(configPath, snapshot);
@@ -3270,7 +3285,7 @@ async function readDiscoveryConfigOriginValues(
   env: NodeJS.ProcessEnv,
 ): Promise<string[]> {
   if (!definesOrigin) return [];
-  const output = await runDiscoveryGit(
+  const rawOutput = await runDiscoveryGit(
     root,
     [
       "config",
@@ -3283,10 +3298,92 @@ async function readDiscoveryConfigOriginValues(
     ],
     env,
   );
-  if (!output.endsWith("\0")) {
+  const typedOutput = await runDiscoveryGit(
+    root,
+    [
+      "config",
+      "--null",
+      "--type=bool-or-str",
+      "--get-all",
+      "--no-includes",
+      "--file",
+      configPath,
+      "remote.origin.url",
+    ],
+    env,
+  );
+  const rawValues = parseDiscoveryConfigValueInventory(
+    rawOutput,
+    "primary repository origin inventory",
+  );
+  const typedValues = parseDiscoveryConfigValueInventory(
+    typedOutput,
+    "primary repository typed origin inventory",
+  );
+  if (rawValues.length !== typedValues.length) {
     throw new PrReviewLeaseError(
-      "primary repository origin inventory is not NUL-terminated",
+      "primary repository origin inventory changed during inspection",
     );
+  }
+  return rawValues.map((value, index) => {
+    if (value.length !== 0) return value;
+    if (typedValues[index] === "false") return "";
+    throw new PrReviewLeaseError(
+      "primary repository origin contains a valueless URL",
+    );
+  });
+}
+
+async function readDiscoveryWorktreeConfigExtensionAuthority(
+  root: string,
+  configPath: string,
+  definesWorktreeConfig: boolean,
+  env: NodeJS.ProcessEnv,
+): Promise<boolean> {
+  if (!definesWorktreeConfig) return false;
+  let output: string;
+  try {
+    output = await runDiscoveryGit(
+      root,
+      [
+        "config",
+        "--null",
+        "--type=bool",
+        "--get-all",
+        "--no-includes",
+        "--file",
+        configPath,
+        "extensions.worktreeConfig",
+      ],
+      env,
+    );
+  } catch {
+    throw new PrReviewLeaseError(
+      "primary repository worktree config extension is malformed",
+    );
+  }
+  const values = parseDiscoveryConfigValueInventory(
+    output,
+    "primary repository worktree config extension inventory",
+  );
+  if (values.length !== 1) {
+    throw new PrReviewLeaseError(
+      "primary repository worktree config extension is ambiguous",
+    );
+  }
+  if (values[0] === "true") return true;
+  if (values[0] === "false") return false;
+  throw new PrReviewLeaseError(
+    "primary repository worktree config extension is malformed",
+  );
+}
+
+function parseDiscoveryConfigValueInventory(
+  output: string,
+  label: string,
+): string[] {
+  if (!output.endsWith("\0")) {
+    throw new PrReviewLeaseError(`${label} is not NUL-terminated`);
   }
   return output.slice(0, -1).split("\0");
 }
@@ -3295,9 +3392,10 @@ async function assertNoDiscoveryConfigIncludes(
   root: string,
   configPath: string,
   env: NodeJS.ProcessEnv,
-): Promise<boolean> {
+): Promise<DiscoveryConfigAuthorityKeys> {
   let record: number[] = [];
   let definesOrigin = false;
+  let definesWorktreeConfig = false;
   await runDiscoveryGitStreaming(
     root,
     [
@@ -3331,6 +3429,9 @@ async function assertNoDiscoveryConfigIncludes(
         if (name.toLowerCase() === "remote.origin.url") {
           definesOrigin = true;
         }
+        if (name.toLowerCase() === "extensions.worktreeconfig") {
+          definesWorktreeConfig = true;
+        }
         if (isDiscoveryIncludeAuthorityKey(name)) {
           throw new PrReviewLeaseError(
             "primary repository config contains include authority",
@@ -3344,7 +3445,10 @@ async function assertNoDiscoveryConfigIncludes(
       "primary repository config key inventory is not NUL-terminated",
     );
   }
-  return definesOrigin;
+  return {
+    defines_origin: definesOrigin,
+    defines_worktree_config: definesWorktreeConfig,
+  };
 }
 
 function isDiscoveryIncludeAuthorityKey(name: string): boolean {
