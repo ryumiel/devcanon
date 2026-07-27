@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { constants } from "node:fs";
 import { access, lstat, realpath } from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { RuntimePathError, parseRuntimeDirectoryPath, } from "./paths.js";
 const runtimeEntrypointRelativePath = ["scripts", "devcanon-runtime.sh"];
 const typedEntrypointRelativePath = ["scripts", "runtime", "cli.js"];
@@ -63,6 +64,9 @@ export async function validateRuntimeOverride(rawPath) {
         throw new RuntimeBootstrapError("devcanon-runtime entrypoint resolves outside DEVCANON_RUNTIME_DIR");
     }
     const typedEntrypoint = await validateTypedEntrypoint(parsed.inspectionPath, runtimeDirectory);
+    if (process.platform === "win32") {
+        assertWindowsTypedEntrypointDispatchable(typedEntrypoint);
+    }
     return {
         rawPath,
         inspectionPath: parsed.inspectionPath,
@@ -163,6 +167,19 @@ function isOutsideDirectory(root, candidate) {
     return (relative === ".." ||
         relative.startsWith(`..${path.sep}`) ||
         path.isAbsolute(relative));
+}
+function assertWindowsTypedEntrypointDispatchable(typedEntrypoint) {
+    let roundTripPath;
+    try {
+        roundTripPath = fileURLToPath(pathToFileURL(typedEntrypoint));
+    }
+    catch {
+        throw new RuntimeBootstrapError("devcanon-runtime typed entrypoint is not representable as a Windows file URL");
+    }
+    const normalizeIdentity = (value) => path.win32.normalize(value).toLowerCase();
+    if (normalizeIdentity(roundTripPath) !== normalizeIdentity(typedEntrypoint)) {
+        throw new RuntimeBootstrapError("devcanon-runtime typed entrypoint is not representable as a Windows file URL");
+    }
 }
 export function formatBootstrapError(error) {
     if (error instanceof RuntimePathError ||

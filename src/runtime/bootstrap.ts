@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { constants, type Stats } from "node:fs";
 import { access, lstat, realpath } from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   type RuntimeDirectoryPath,
   RuntimePathError,
@@ -108,6 +109,9 @@ export async function validateRuntimeOverride(
     parsed.inspectionPath,
     runtimeDirectory,
   );
+  if (process.platform === "win32") {
+    assertWindowsTypedEntrypointDispatchable(typedEntrypoint);
+  }
 
   return {
     rawPath,
@@ -244,6 +248,26 @@ function isOutsideDirectory(root: string, candidate: string): boolean {
     relative.startsWith(`..${path.sep}`) ||
     path.isAbsolute(relative)
   );
+}
+
+function assertWindowsTypedEntrypointDispatchable(
+  typedEntrypoint: string,
+): void {
+  let roundTripPath: string;
+  try {
+    roundTripPath = fileURLToPath(pathToFileURL(typedEntrypoint));
+  } catch {
+    throw new RuntimeBootstrapError(
+      "devcanon-runtime typed entrypoint is not representable as a Windows file URL",
+    );
+  }
+  const normalizeIdentity = (value: string) =>
+    path.win32.normalize(value).toLowerCase();
+  if (normalizeIdentity(roundTripPath) !== normalizeIdentity(typedEntrypoint)) {
+    throw new RuntimeBootstrapError(
+      "devcanon-runtime typed entrypoint is not representable as a Windows file URL",
+    );
+  }
 }
 
 export function formatBootstrapError(error: unknown): string {
