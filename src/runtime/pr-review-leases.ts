@@ -6652,7 +6652,11 @@ function parsePositiveInteger(name: string, value: string): number {
   if (!/^[1-9][0-9]*$/u.test(value)) {
     throw new PrReviewLeaseError(`${name} must be a positive integer`);
   }
-  return Number(value);
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed)) {
+    throw new PrReviewLeaseError(`${name} must be a safe positive integer`);
+  }
+  return parsed;
 }
 
 function validateTimestamp(label: string, value: string): void {

@@ -4844,6 +4844,61 @@ async function runDiscovery(root: string, prNumber = 432) {
   };
 }
 
+async function runPrReviewLeasesWrapper(
+  args: readonly string[],
+  env: NodeJS.ProcessEnv,
+  stdinInput = "",
+): Promise<{ exitCode: number; stdout: string; stderr: string }> {
+  return await new Promise((resolve) => {
+    const child = execFile(
+      "bash",
+      ["skills/pr-review/scripts/review-leases.sh", ...args],
+      { cwd: originalCwd, env },
+      (error, stdout, stderr) => {
+        resolve({
+          exitCode:
+            error === null
+              ? 0
+              : typeof error.code === "number"
+                ? error.code
+                : 1,
+          stdout,
+          stderr,
+        });
+      },
+    );
+    child.stdin?.end(stdinInput);
+  });
+}
+
+async function withDiscoveryGitInspectionMarker(
+  run: (marker: string) => Promise<void>,
+): Promise<void> {
+  const wrapperDir = await mkdtemp(path.join(tmpdir(), "git-wrapper-"));
+  discoveryTempRoots.push(wrapperDir);
+  const marker = path.join(wrapperDir, "git-inspection-entered");
+  const wrapper = path.join(wrapperDir, "git");
+  await writeFile(
+    wrapper,
+    [
+      "#!/bin/sh",
+      `printf fired >'${await toGitBashPath(marker)}'`,
+      "exit 97",
+      "",
+    ].join("\n"),
+  );
+  const previousAdapterLog = activeDiscoveryGitAdapterLog;
+  await makeDiscoveryGitWrapperExecutable(wrapper);
+  const previousPath = process.env.PATH;
+  process.env.PATH = prependDiscoveryGitWrapper(wrapperDir, previousPath);
+  try {
+    await run(marker);
+  } finally {
+    process.env.PATH = previousPath;
+    activeDiscoveryGitAdapterLog = previousAdapterLog;
+  }
+}
+
 async function injectDuplicateDiscoveryRegistration(
   duplicatePath: string,
 ): Promise<() => void> {
@@ -5885,6 +5940,188 @@ describe("read-only PR review discovery planner", () => {
       }
     },
   );
+
+  describe("binds discovery PR numbers to safe positive integers", () => {
+    const invalidPrNumbers = [
+      ["0", "PR_NUMBER must be a positive integer\n"],
+      ["-1", "PR_NUMBER must be a positive integer\n"],
+      ["+1", "PR_NUMBER must be a positive integer\n"],
+      ["01", "PR_NUMBER must be a positive integer\n"],
+      ["1e3", "PR_NUMBER must be a positive integer\n"],
+      [
+        String(Number.MAX_SAFE_INTEGER + 1),
+        "PR_NUMBER must be a safe positive integer\n",
+      ],
+      ["9".repeat(400), "PR_NUMBER must be a safe positive integer\n"],
+    ] as const;
+
+    it.each(invalidPrNumbers)(
+      "rejects %s before direct or wrapper inspection",
+      async (prNumber, expectedStderr) => {
+        await withDiscoveryGitInspectionMarker(async (marker) => {
+          const previousRepository = process.env.REPOSITORY;
+          const previousPrNumber = process.env.PR_NUMBER;
+          const previousPrimaryRoot = process.env.PRIMARY_REPOSITORY_ROOT;
+          process.env.REPOSITORY = "owner/repo";
+          process.env.PR_NUMBER = prNumber;
+          process.env.PRIMARY_REPOSITORY_ROOT = marker;
+          const expected = {
+            exitCode: 1,
+            stdout: "",
+            stderr: expectedStderr,
+          };
+          const validationArgs = [
+            "validate-discovery",
+            "--repository",
+            "owner/repo",
+            "--pr-number",
+            prNumber,
+            "--primary-root",
+            marker,
+          ];
+          const acceptanceArgs = [
+            "validate-discovery",
+            "--resume-acceptance",
+            "--repository",
+            "owner/repo",
+            "--pr-number",
+            prNumber,
+            "--primary-root",
+            marker,
+            "--lease-file",
+            ".ephemeral/lease.json",
+            "--worktree-path",
+            marker,
+          ];
+          try {
+            await expect(
+              runPrReviewLeasesCommand(["discover"]),
+            ).resolves.toEqual(expected);
+            await expect(
+              runPrReviewLeasesCommand(validationArgs, Buffer.from("{}")),
+            ).resolves.toEqual(expected);
+            await expect(
+              runPrReviewLeasesCommand(acceptanceArgs),
+            ).resolves.toEqual(expected);
+            await expect(
+              runPrReviewLeasesWrapper(["discover"], process.env),
+            ).resolves.toEqual(expected);
+            await expect(
+              runPrReviewLeasesWrapper(validationArgs, process.env, "{}"),
+            ).resolves.toEqual(expected);
+            await expect(
+              runPrReviewLeasesWrapper(acceptanceArgs, process.env),
+            ).resolves.toEqual(expected);
+            await expect(lstat(marker)).rejects.toMatchObject({
+              code: "ENOENT",
+            });
+          } finally {
+            if (previousRepository === undefined) {
+              Reflect.deleteProperty(process.env, "REPOSITORY");
+            } else {
+              process.env.REPOSITORY = previousRepository;
+            }
+            if (previousPrNumber === undefined) {
+              Reflect.deleteProperty(process.env, "PR_NUMBER");
+            } else {
+              process.env.PR_NUMBER = previousPrNumber;
+            }
+            if (previousPrimaryRoot === undefined) {
+              Reflect.deleteProperty(process.env, "PRIMARY_REPOSITORY_ROOT");
+            } else {
+              process.env.PRIMARY_REPOSITORY_ROOT = previousPrimaryRoot;
+            }
+          }
+        });
+      },
+    );
+
+    describe("at Number.MAX_SAFE_INTEGER", () => {
+      let root: string;
+
+      beforeEach(async () => {
+        root = await createDiscoveryRepository();
+      });
+
+      it("produces and directly validates the exact identity", async () => {
+        const prNumber = Number.MAX_SAFE_INTEGER;
+        const outcome = await runDiscoveryCommand(root, prNumber);
+        expect(outcome.exitCode).toBe(0);
+        const result = JSON.parse(outcome.stdout);
+        expect(result.pr_number).toBe(prNumber);
+        expect(result.canonical_target.worktree_path).toBe(
+          path.join(root, ".worktrees", `pr-${prNumber}-review`),
+        );
+        await expect(
+          runPrReviewLeasesCommand(
+            [
+              "validate-discovery",
+              "--repository",
+              "owner/repo",
+              "--pr-number",
+              String(prNumber),
+              "--primary-root",
+              root,
+            ],
+            Buffer.from(outcome.stdout),
+          ),
+        ).resolves.toMatchObject({ exitCode: 0, stderr: "" });
+      });
+
+      it("preserves the exact identity through the wrapper", async () => {
+        const prNumber = Number.MAX_SAFE_INTEGER;
+        const env = {
+          ...process.env,
+          REPOSITORY: "owner/repo",
+          PR_NUMBER: String(prNumber),
+          PRIMARY_REPOSITORY_ROOT: root,
+        };
+        const outcome = await runPrReviewLeasesWrapper(["discover"], env);
+        expect(outcome.exitCode).toBe(0);
+        const result = JSON.parse(outcome.stdout);
+        expect(result.pr_number).toBe(prNumber);
+        await expect(
+          runPrReviewLeasesWrapper(
+            [
+              "validate-discovery",
+              "--repository",
+              "owner/repo",
+              "--pr-number",
+              String(prNumber),
+              "--primary-root",
+              root,
+            ],
+            env,
+            outcome.stdout,
+          ),
+        ).resolves.toMatchObject({ exitCode: 0, stderr: "" });
+      });
+
+      it("reaches resume correlation instead of rejecting the number", async () => {
+        const prNumber = Number.MAX_SAFE_INTEGER;
+        await expect(
+          runPrReviewLeasesCommand([
+            "validate-discovery",
+            "--resume-acceptance",
+            "--repository",
+            "owner/repo",
+            "--pr-number",
+            String(prNumber),
+            "--primary-root",
+            root,
+            "--lease-file",
+            ".ephemeral/lease.json",
+            "--worktree-path",
+            path.join(root, ".worktrees", `pr-${prNumber}-review`),
+          ]),
+        ).resolves.toEqual({
+          exitCode: 1,
+          stdout: "",
+          stderr: "resume acceptance changed; stop before lifecycle mutation\n",
+        });
+      });
+    });
+  });
 
   it.each(["pr-432-review", "alternate-432"])(
     "resumes one canonical or alternate clean artifact-free created lease: %s",
