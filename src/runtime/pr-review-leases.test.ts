@@ -4820,6 +4820,36 @@ async function runDiscovery(root: string, prNumber = 432) {
   };
 }
 
+async function injectDuplicateDiscoveryRegistration(
+  duplicatePath: string,
+): Promise<() => void> {
+  const wrapperDir = await mkdtemp(path.join(tmpdir(), "git-wrapper-"));
+  discoveryTempRoots.push(wrapperDir);
+  const realGit = (
+    await execFileAsync("sh", ["-c", "command -v git"])
+  ).stdout.trim();
+  const wrapper = path.join(wrapperDir, "git");
+  await writeFile(
+    wrapper,
+    [
+      "#!/bin/sh",
+      `'${realGit}' "$@" || exit $?`,
+      'case " $* " in',
+      '  *"worktree list --porcelain -z"*)',
+      `    printf 'worktree %s\\0\\0' '${duplicatePath}/.'`,
+      "    ;;",
+      "esac",
+      "",
+    ].join("\n"),
+  );
+  await makeDiscoveryGitWrapperExecutable(wrapper);
+  const oldPath = process.env.PATH;
+  process.env.PATH = prependDiscoveryGitWrapper(wrapperDir, oldPath);
+  return () => {
+    process.env.PATH = oldPath;
+  };
+}
+
 describe("read-only PR review discovery planner", () => {
   it("constructs the exact inbox Windows PowerShell launcher build command", () => {
     expect(discoveryGitWindowsPowerShellArguments).toEqual([
@@ -5724,6 +5754,145 @@ describe("read-only PR review discovery planner", () => {
     },
   );
 
+  it.each(["create", "resume"] as const)(
+    "returns a validator-accepted invalid result for normalized duplicate registrations before %s routing",
+    async (scenario) => {
+      const root = await createDiscoveryRepository();
+      let duplicatePath = root;
+      if (scenario === "resume") {
+        const worktree = await createDiscoveryWorktree(
+          root,
+          "duplicate-registration",
+        );
+        await writeDiscoveryLease(root, discoveryLease(worktree));
+        duplicatePath = worktree;
+      }
+      const restorePath =
+        await injectDuplicateDiscoveryRegistration(duplicatePath);
+      try {
+        const result = await runDiscovery(root);
+        expect(result).toMatchObject({
+          disposition: "invalid",
+          resume: null,
+          cleanup: null,
+          invalid: [
+            {
+              path: ".git/worktrees",
+              reason: "worktree-registrations-changed",
+            },
+          ],
+        });
+        expect(result.registrations).toHaveLength(
+          new Set(
+            result.registrations.map((entry) =>
+              path.normalize(entry).toLowerCase(),
+            ),
+          ).size + 1,
+        );
+        expect(() =>
+          validatePrReviewDiscoveryJson(Buffer.from(JSON.stringify(result)), {
+            repository: "owner/repo",
+            prNumber: 432,
+            primaryRoot: root,
+            platform: process.platform,
+          }),
+        ).not.toThrow();
+      } finally {
+        restorePath();
+      }
+    },
+  );
+
+  it.each([
+    {
+      platform: "linux" as const,
+      registrations: ["/repo/worktree", "/repo/./worktree"],
+      distinct: ["/repo/worktree", "/repo/other"],
+    },
+    {
+      platform: "win32" as const,
+      registrations: ["C:\\Repo\\Worktree", "c:/repo/worktree/."],
+      distinct: ["C:\\Repo\\Worktree", "C:\\Repo\\Other"],
+    },
+  ])(
+    "correlates normalized duplicate registration evidence on $platform",
+    ({ platform, registrations, distinct }) => {
+      const invalidResult = reducePrReviewDiscovery({
+        repository: "owner/repo",
+        pr_number: 432,
+        primary_repository_root: platform === "win32" ? "C:\\Repo" : "/repo",
+        canonical_target: {
+          worktree_path:
+            platform === "win32"
+              ? "C:\\Repo\\.worktrees\\pr-432-review"
+              : "/repo/.worktrees/pr-432-review",
+          status: "absent",
+          registered: false,
+          parent_status: "directory",
+        },
+        registrations,
+        active: [],
+        archived: [],
+        invalid: [
+          {
+            path: ".git/worktrees",
+            reason: "worktree-registrations-changed",
+          },
+        ],
+        comparison_platform: platform,
+      });
+      expect(invalidResult.disposition).toBe("invalid");
+      expect(() =>
+        validatePrReviewDiscoveryJson(
+          Buffer.from(JSON.stringify(invalidResult)),
+          {
+            repository: "owner/repo",
+            prNumber: 432,
+            primaryRoot: platform === "win32" ? "C:\\Repo" : "/repo",
+            platform,
+          },
+        ),
+      ).not.toThrow();
+
+      const routableDuplicate = reducePrReviewDiscovery({
+        ...invalidResult,
+        invalid: [],
+        comparison_platform: platform,
+      });
+      expect(routableDuplicate.disposition).toBe("create");
+      expect(() =>
+        validatePrReviewDiscoveryJson(
+          Buffer.from(JSON.stringify(routableDuplicate)),
+          {
+            repository: "owner/repo",
+            prNumber: 432,
+            primaryRoot: platform === "win32" ? "C:\\Repo" : "/repo",
+            platform,
+          },
+        ),
+      ).toThrow("discovery registration correlation mismatch");
+
+      const distinctResult = reducePrReviewDiscovery({
+        ...invalidResult,
+        registrations: distinct,
+        invalid: [],
+        comparison_platform: platform,
+      });
+      expect(distinctResult.disposition).toBe("create");
+      expect(() =>
+        validatePrReviewDiscoveryJson(
+          Buffer.from(JSON.stringify(distinctResult)),
+          {
+            repository: "owner/repo",
+            prNumber: 432,
+            primaryRoot: platform === "win32" ? "C:\\Repo" : "/repo",
+            platform,
+          },
+        ),
+      ).not.toThrow();
+    },
+  );
+
   it("linearizes an unobserved post-collection change after discovery and requires owner revalidation", async () => {
     const root = await createDiscoveryRepository();
     const worktree = await createDiscoveryWorktree(root, "linearized-after");
@@ -5829,7 +5998,7 @@ describe("read-only PR review discovery planner", () => {
           exitCode: 1,
           stdout: "",
           stderr: expect.stringContaining(
-            "discovery registration correlation mismatch",
+            "resume acceptance changed; stop before lifecycle mutation",
           ),
         });
       } finally {

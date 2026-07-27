@@ -179,9 +179,15 @@ export function validatePrReviewDiscoveryJson(contents, identity) {
         throw new PrReviewLeaseError("discovery canonical target mismatch");
     }
     const registrationKeys = result.registrations.map((entry) => discoveryRegistrationComparablePath(entry, platform));
-    if (new Set(registrationKeys).size !== registrationKeys.length ||
-        registrationKeys.filter((entry) => entry ===
-            discoveryRegistrationComparablePath(result.canonical_target.worktree_path, platform)).length !== (result.canonical_target.registered ? 1 : 0)) {
+    const duplicateRegistrationKeys = new Set(registrationKeys).size !== registrationKeys.length;
+    const invalidRegistrationAuthority = result.invalid.some((entry) => entry.path === ".git/worktrees" &&
+        entry.reason === "worktree-registrations-changed");
+    const canonicalRegistrationCount = registrationKeys.filter((entry) => entry ===
+        discoveryRegistrationComparablePath(result.canonical_target.worktree_path, platform)).length;
+    if ((duplicateRegistrationKeys && !invalidRegistrationAuthority) ||
+        (result.canonical_target.registered
+            ? canonicalRegistrationCount < 1
+            : canonicalRegistrationCount !== 0)) {
         throw new PrReviewLeaseError("discovery registration correlation mismatch");
     }
     for (const entry of result.active) {
@@ -191,11 +197,16 @@ export function validatePrReviewDiscoveryJson(contents, identity) {
         const registrationCount = registrationKeys.filter((registration) => registration ===
             discoveryRegistrationComparablePath(entry.worktree_path ?? "", platform)).length;
         const registrationCountValid = entry.classification === "artifact-bearing"
-            ? registrationCount === 0 || registrationCount === 1
+            ? registrationCount === 0 ||
+                registrationCount === 1 ||
+                (duplicateRegistrationKeys && invalidRegistrationAuthority)
             : entry.classification === "missing" ||
                 entry.classification === "unregistered"
                 ? registrationCount === 0
-                : registrationCount === 1;
+                : registrationCount === 1 ||
+                    (registrationCount > 1 &&
+                        duplicateRegistrationKeys &&
+                        invalidRegistrationAuthority);
         if (!registrationCountValid) {
             throw new PrReviewLeaseError("discovery active registration correlation mismatch");
         }
@@ -865,11 +876,12 @@ async function collectDiscoverySession({ repository, prNumber, primaryRoot, gitE
         value: `${collectedRepositoryBinding.repository}\0${collectedRepositoryBinding.config_fingerprint}`,
     });
     const registrations = await readDiscoveryWorktreeRegistrations(primaryRoot, gitEnv);
+    const registrationSnapshot = discoveryRegistrationSnapshot(registrations, process.platform);
     authority.push({
         key: "registrations",
-        value: JSON.stringify(discoveryRegistrationSnapshot(registrations, process.platform)),
+        value: JSON.stringify(registrationSnapshot),
     });
-    const registrationKeys = new Set(registrations.map((entry) => discoveryRegistrationComparablePath(entry, process.platform)));
+    const registrationKeys = new Set(registrationSnapshot);
     const canonicalPath = path.join(primaryRoot, ".worktrees", `pr-${prNumber}-review`);
     const parentSnapshot = await observeStableDiscoveryPathSnapshot(path.dirname(canonicalPath), true);
     const parentObservation = parentSnapshot.status;
@@ -902,6 +914,12 @@ async function collectDiscoverySession({ repository, prNumber, primaryRoot, gitE
     const activeInspections = [];
     const archived = [];
     const invalid = [];
+    if (registrationKeys.size !== registrationSnapshot.length) {
+        invalid.push({
+            path: ".git/worktrees",
+            reason: "worktree-registrations-changed",
+        });
+    }
     if (canonicalTarget.parent_status === "invalid" ||
         canonicalTarget.status === "invalid") {
         invalid.push({

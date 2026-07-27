@@ -532,16 +532,26 @@ export function validatePrReviewDiscoveryJson(
   const registrationKeys = result.registrations.map((entry) =>
     discoveryRegistrationComparablePath(entry, platform),
   );
+  const duplicateRegistrationKeys =
+    new Set(registrationKeys).size !== registrationKeys.length;
+  const invalidRegistrationAuthority = result.invalid.some(
+    (entry) =>
+      entry.path === ".git/worktrees" &&
+      entry.reason === "worktree-registrations-changed",
+  );
+  const canonicalRegistrationCount = registrationKeys.filter(
+    (entry) =>
+      entry ===
+      discoveryRegistrationComparablePath(
+        result.canonical_target.worktree_path,
+        platform,
+      ),
+  ).length;
   if (
-    new Set(registrationKeys).size !== registrationKeys.length ||
-    registrationKeys.filter(
-      (entry) =>
-        entry ===
-        discoveryRegistrationComparablePath(
-          result.canonical_target.worktree_path,
-          platform,
-        ),
-    ).length !== (result.canonical_target.registered ? 1 : 0)
+    (duplicateRegistrationKeys && !invalidRegistrationAuthority) ||
+    (result.canonical_target.registered
+      ? canonicalRegistrationCount < 1
+      : canonicalRegistrationCount !== 0)
   ) {
     throw new PrReviewLeaseError("discovery registration correlation mismatch");
   }
@@ -559,11 +569,16 @@ export function validatePrReviewDiscoveryJson(
     ).length;
     const registrationCountValid =
       entry.classification === "artifact-bearing"
-        ? registrationCount === 0 || registrationCount === 1
+        ? registrationCount === 0 ||
+          registrationCount === 1 ||
+          (duplicateRegistrationKeys && invalidRegistrationAuthority)
         : entry.classification === "missing" ||
             entry.classification === "unregistered"
           ? registrationCount === 0
-          : registrationCount === 1;
+          : registrationCount === 1 ||
+            (registrationCount > 1 &&
+              duplicateRegistrationKeys &&
+              invalidRegistrationAuthority);
     if (!registrationCountValid) {
       throw new PrReviewLeaseError(
         "discovery active registration correlation mismatch",
@@ -1510,17 +1525,15 @@ async function collectDiscoverySession({
     primaryRoot,
     gitEnv,
   );
+  const registrationSnapshot = discoveryRegistrationSnapshot(
+    registrations,
+    process.platform,
+  );
   authority.push({
     key: "registrations",
-    value: JSON.stringify(
-      discoveryRegistrationSnapshot(registrations, process.platform),
-    ),
+    value: JSON.stringify(registrationSnapshot),
   });
-  const registrationKeys = new Set(
-    registrations.map((entry) =>
-      discoveryRegistrationComparablePath(entry, process.platform),
-    ),
-  );
+  const registrationKeys = new Set(registrationSnapshot);
   const canonicalPath = path.join(
     primaryRoot,
     ".worktrees",
@@ -1569,6 +1582,12 @@ async function collectDiscoverySession({
   const activeInspections: DiscoveryLeaseInspection[] = [];
   const archived: string[] = [];
   const invalid: DiscoveryInvalidEntry[] = [];
+  if (registrationKeys.size !== registrationSnapshot.length) {
+    invalid.push({
+      path: ".git/worktrees",
+      reason: "worktree-registrations-changed",
+    });
+  }
   if (
     canonicalTarget.parent_status === "invalid" ||
     canonicalTarget.status === "invalid"
