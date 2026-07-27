@@ -102,7 +102,9 @@ override must package the fixed support skill as a sibling, just as source,
 rendered, copied, managed, and symlink-installed layouts do. The dispatcher
 keeps the original override value in the child environment and launches the
 validated child itself; it does not return an override path through shell
-command substitution.
+command substitution. The shell and typed executable entrypoints are
+independently validated; the bootstrap dispatches the platform-appropriate
+validated target without ambient shell lookup.
 
 Other runtime-backed helpers do not migrate automatically: until deliberately
 converted, they retain their existing override-resolution contracts. This

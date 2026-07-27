@@ -82,6 +82,37 @@ async function waitForChildExit(child: ReturnType<typeof spawnChild>): Promise<{
   });
 }
 
+async function writeExecutionSentinels(
+  runtime: string,
+  root: string,
+): Promise<{ shell: string; typed: string }> {
+  const shell = path.join(root, "shell-executed");
+  const typed = path.join(root, "typed-executed");
+  const shellEntrypoint = path.join(runtime, "scripts", "devcanon-runtime.sh");
+  await writeFile(
+    shellEntrypoint,
+    `#!/bin/bash\nprintf shell >${JSON.stringify(shell)}\n`,
+  );
+  await chmod(shellEntrypoint, 0o755);
+  await writeFile(
+    path.join(runtime, "scripts", "runtime", "cli.js"),
+    `import { writeFileSync } from "node:fs";\nwriteFileSync(${JSON.stringify(typed)}, "typed");\n`,
+  );
+  return { shell, typed };
+}
+
+async function expectNoExecution(sentinels: {
+  shell: string;
+  typed: string;
+}): Promise<void> {
+  await expect(readFile(sentinels.shell, "utf8")).rejects.toMatchObject({
+    code: "ENOENT",
+  });
+  await expect(readFile(sentinels.typed, "utf8")).rejects.toMatchObject({
+    code: "ENOENT",
+  });
+}
+
 describe("trusted runtime bootstrap", () => {
   it("validates a real runtime and dispatches exact child arguments with the raw override", async () => {
     const root = await createTempDir();
@@ -227,6 +258,69 @@ describe("trusted runtime bootstrap", () => {
     }
   });
 
+  it("rejects an internal symlinked typed-runtime directory before execution", async () => {
+    const root = await createTempDir();
+    try {
+      const runtime = await writeRuntime(root);
+      const internalTypedRuntime = path.join(
+        runtime,
+        "scripts",
+        "internal-runtime",
+      );
+      await mkdir(internalTypedRuntime);
+      await writeFile(
+        path.join(internalTypedRuntime, "cli.js"),
+        "process.exit(0);\n",
+      );
+      await rm(path.join(runtime, "scripts", "runtime"), {
+        recursive: true,
+      });
+      await symlink(
+        internalTypedRuntime,
+        path.join(runtime, "scripts", "runtime"),
+      );
+      const sentinels = await writeExecutionSentinels(runtime, root);
+
+      await expect(
+        dispatchRuntimeOverride(runtime, ["derive-path"]),
+      ).rejects.toThrow(
+        "devcanon-runtime typed entrypoint must not contain a symlink or reparse-point component",
+      );
+      await expectNoExecution(sentinels);
+    } finally {
+      await cleanupTempDir(root);
+    }
+  });
+
+  it("rejects an externally resolving typed CLI symlink before execution", async () => {
+    const root = await createTempDir();
+    try {
+      const runtime = await writeRuntime(root);
+      const externalCli = path.join(root, "external-cli.js");
+      await writeFile(externalCli, "process.exit(0);\n");
+      await rm(path.join(runtime, "scripts", "runtime", "cli.js"));
+      await symlink(
+        externalCli,
+        path.join(runtime, "scripts", "runtime", "cli.js"),
+      );
+      const sentinels = await writeExecutionSentinels(runtime, root);
+      await rm(path.join(runtime, "scripts", "runtime", "cli.js"));
+      await symlink(
+        externalCli,
+        path.join(runtime, "scripts", "runtime", "cli.js"),
+      );
+
+      await expect(
+        dispatchRuntimeOverride(runtime, ["derive-path"]),
+      ).rejects.toThrow(
+        "devcanon-runtime typed entrypoint must not contain a symlink or reparse-point component",
+      );
+      await expectNoExecution(sentinels);
+    } finally {
+      await cleanupTempDir(root);
+    }
+  });
+
   it.runIf(process.platform !== "win32")(
     "forwards repeated termination signals and preserves the child's signal",
     async () => {
@@ -280,6 +374,66 @@ describe("trusted runtime bootstrap", () => {
 
         expect(await readFile(forwarded, "utf8")).toBe("2");
         expect(result).toEqual({ exitCode: null, signal: "SIGTERM" });
+      } finally {
+        await cleanupTempDir(root);
+      }
+    },
+  );
+
+  it.runIf(process.platform !== "win32")(
+    "forwards a bootstrap-group signal to the detached child exactly once",
+    async () => {
+      const root = await createTempDir();
+      try {
+        const runtime = await writeRuntime(root);
+        const entrypoint = path.join(runtime, "scripts", "devcanon-runtime.sh");
+        const ready = path.join(root, "ready");
+        const forwarded = path.join(root, "forwarded");
+        await writeFile(
+          entrypoint,
+          [
+            "#!/bin/bash",
+            "count=0",
+            'trap \'count=$((count + 1)); printf "%s" "$count" > "$DEVCANON_TEST_FORWARDED"; if [ "$count" -eq 1 ]; then (sleep 0.2; kill -USR1 $$) & else trap - TERM; kill -TERM $$; fi\' TERM',
+            "trap 'exit 0' USR1",
+            'printf ready > "$DEVCANON_TEST_READY"',
+            "while true; do sleep 1; done",
+            "",
+          ].join("\n"),
+        );
+        await chmod(entrypoint, 0o755);
+        const bootstrap = spawnChild(
+          process.execPath,
+          [
+            path.resolve(
+              "skills/devcanon-runtime/scripts/runtime/bootstrap-cli.js",
+            ),
+            "--runtime-dir",
+            runtime,
+            "--",
+            "derive-path",
+          ],
+          {
+            detached: true,
+            env: {
+              ...process.env,
+              DEVCANON_RUNTIME_DIR: runtime,
+              DEVCANON_TEST_FORWARDED: forwarded,
+              DEVCANON_TEST_READY: ready,
+            },
+            stdio: "ignore",
+          },
+        );
+        await waitForFile(ready);
+        if (bootstrap.pid === undefined) {
+          throw new Error("bootstrap did not provide a process id");
+        }
+        process.kill(-bootstrap.pid, "SIGTERM");
+        expect(await waitForChildExit(bootstrap)).toEqual({
+          exitCode: 0,
+          signal: null,
+        });
+        expect(await readFile(forwarded, "utf8")).toBe("1");
       } finally {
         await cleanupTempDir(root);
       }

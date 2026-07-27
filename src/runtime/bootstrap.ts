@@ -79,6 +79,7 @@ export async function validateRuntimeOverride(
   await assertNoSymlinkedEntrypointComponent(
     parsed.inspectionPath,
     runtimeEntrypointRelativePath,
+    "devcanon-runtime entrypoint",
   );
   let entrypointStat: Stats;
   try {
@@ -128,7 +129,11 @@ export async function dispatchRuntimeOverride(
       process.platform === "win32"
         ? [runtime.typedEntrypoint, ...childArguments]
         : ["runtime", ...childArguments];
-    const child = spawn(command, args, { env: process.env, stdio: "inherit" });
+    const child = spawn(command, args, {
+      detached: process.platform !== "win32",
+      env: process.env,
+      stdio: "inherit",
+    });
     const signalHandlers = new Map<NodeJS.Signals, () => void>();
     for (const signal of forwardedSignals) {
       const handler = () => {
@@ -164,6 +169,7 @@ async function validateTypedEntrypoint(
   await assertNoSymlinkedEntrypointComponent(
     runtimeDirectory,
     typedEntrypointRelativePath,
+    "devcanon-runtime typed entrypoint",
   );
   let stat: Stats;
   try {
@@ -190,6 +196,7 @@ async function validateTypedEntrypoint(
 async function assertNoSymlinkedEntrypointComponent(
   runtimeDirectory: string,
   components: readonly string[],
+  entrypointName: string,
 ): Promise<void> {
   let cursor = runtimeDirectory;
   for (const component of components) {
@@ -199,12 +206,12 @@ async function assertNoSymlinkedEntrypointComponent(
       stat = await lstat(cursor);
     } catch {
       throw new RuntimeBootstrapError(
-        "devcanon-runtime entrypoint must be an executable non-symlink file",
+        `${entrypointName} must be a non-symlink file`,
       );
     }
     if (stat.isSymbolicLink()) {
       throw new RuntimeBootstrapError(
-        "devcanon-runtime entrypoint must not contain a symlink or reparse-point component",
+        `${entrypointName} must not contain a symlink or reparse-point component`,
       );
     }
   }

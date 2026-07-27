@@ -71,11 +71,17 @@ async function writeRuntimeOverride(root: string): Promise<string> {
     path.join(typedRuntime, "cli.js"),
     [
       "const [command, argument] = process.argv.slice(2);",
-      "process.stdout.write(`runtime|${command}|${argument}|${process.env.DEVCANON_RUNTIME_DIR}\\n`);",
+      "process.stdout.write(`${command}|${argument}|${process.env.DEVCANON_RUNTIME_DIR}\\n`);",
       "",
     ].join("\n"),
   );
   return runtime;
+}
+
+function expectedOverrideInvocation(runtimeOverride: string): string {
+  return process.platform === "win32"
+    ? `pr-review-leases|derive-path|${runtimeOverride}\n`
+    : `runtime|pr-review-leases|derive-path|${runtimeOverride}\n`;
 }
 
 async function runTrustedWrapper(
@@ -217,7 +223,7 @@ describe("devcanon-runtime resolver", () => {
   it("uses the fixed sibling bootstrap before an override in source, rendered, and copy-installed layouts", async () => {
     await prepareRuntimeResolutionFixture(config);
     const runtimeOverride = await writeRuntimeOverride(tempDir);
-    const expected = `runtime|pr-review-leases|derive-path|${runtimeOverride}\n`;
+    const expected = expectedOverrideInvocation(runtimeOverride);
 
     expect(
       await runTrustedWrapper(
@@ -338,7 +344,7 @@ describe("devcanon-runtime resolver", () => {
           ),
           runtimeOverride,
         ),
-      ).toBe(`runtime|pr-review-leases|derive-path|${runtimeOverride}\n`);
+      ).toBe(expectedOverrideInvocation(runtimeOverride));
     },
   );
 
