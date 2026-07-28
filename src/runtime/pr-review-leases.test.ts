@@ -12729,6 +12729,9 @@ describe("read-only PR review discovery planner", () => {
     ] as const)("with %s index flags", (_fixture, updateIndexArgs) => {
       interface IndexFlagResumeAcceptanceScenario {
         child: ReturnType<typeof spawn> | undefined;
+        childClose: Promise<void> | undefined;
+        childClosed: boolean;
+        childExited: boolean;
         ownedRoots: string[];
         previousAdapterLog: string | undefined;
         previousCwd: string;
@@ -12738,15 +12741,30 @@ describe("read-only PR review discovery planner", () => {
         shutdownLatch: string | undefined;
         task: Promise<void> | undefined;
         taskSettled: boolean;
+        terminalAcknowledgement: string | undefined;
+        terminalAcknowledged: boolean;
       }
 
       const expectedPath = process.env.PATH;
       let ownedScenario: IndexFlagResumeAcceptanceScenario | undefined;
       let wrapperEnvironment: NodeJS.ProcessEnv;
+      let forcedScenarioEvidence:
+        | {
+            childClosed: boolean;
+            childExited: boolean;
+            roots: string[];
+            rootsRetainedUntilTerminal: boolean;
+            taskSettled: boolean;
+            terminalAcknowledged: boolean;
+          }
+        | undefined;
 
       const retainTask = <T>(
         task: Promise<T>,
-        child?: ReturnType<typeof spawn>,
+        options: {
+          child?: ReturnType<typeof spawn>;
+          childClose?: Promise<void>;
+        } = {},
       ): Promise<T> => {
         if (ownedScenario === undefined) {
           throw new Error("index-flag scenario ownership is unavailable");
@@ -12755,7 +12773,8 @@ describe("read-only PR review discovery planner", () => {
           throw new Error("index-flag scenario already owns a task");
         }
         const scenario = ownedScenario;
-        scenario.child = child;
+        scenario.child = options.child;
+        scenario.childClose = options.childClose;
         scenario.task = task.then(
           () => {
             scenario.taskSettled = true;
@@ -12771,6 +12790,10 @@ describe("read-only PR review discovery planner", () => {
         wrapperArgs: readonly string[],
         env: NodeJS.ProcessEnv,
       ): Promise<{ exitCode: number; stdout: string; stderr: string }> => {
+        if (ownedScenario === undefined) {
+          throw new Error("index-flag wrapper ownership is unavailable");
+        }
+        const scenario = ownedScenario;
         const child = spawn(
           "bash",
           ["skills/pr-review/scripts/review-leases.sh", ...wrapperArgs],
@@ -12786,16 +12809,45 @@ describe("read-only PR review discovery planner", () => {
         child.stderr?.on("data", (chunk: string) => {
           stderr += chunk;
         });
+        child.once("exit", () => {
+          scenario.childExited = true;
+        });
         child.stdin?.end();
+        let resolveChildClose: (() => void) | undefined;
+        const childClose = new Promise<void>((resolve) => {
+          resolveChildClose = resolve;
+        });
         return retainTask(
           new Promise((resolve, reject) => {
             child.once("error", reject);
             child.once("close", (exitCode) => {
+              scenario.childClosed = true;
+              resolveChildClose?.();
               resolve({ exitCode: exitCode ?? 1, stderr, stdout });
             });
           }),
-          child,
+          { child, childClose },
         );
+      };
+
+      const awaitIndexFlagSettlement = async (
+        work: Promise<void>,
+        failureMessage: string,
+      ): Promise<void> => {
+        let timeout: ReturnType<typeof setTimeout> | undefined;
+        try {
+          await Promise.race([
+            work,
+            new Promise<never>((_resolve, reject) => {
+              timeout = setTimeout(
+                () => reject(new Error(failureMessage)),
+                5_000,
+              );
+            }),
+          ]);
+        } finally {
+          if (timeout !== undefined) clearTimeout(timeout);
+        }
       };
 
       beforeEach(async () => {
@@ -12820,6 +12872,9 @@ describe("read-only PR review discovery planner", () => {
         }
         ownedScenario = {
           child: undefined,
+          childClose: undefined,
+          childClosed: false,
+          childExited: false,
           ownedRoots: discoveryTempRoots.splice(rootIndex, 1),
           previousAdapterLog: activeDiscoveryGitAdapterLog,
           previousCwd: process.cwd(),
@@ -12830,6 +12885,8 @@ describe("read-only PR review discovery planner", () => {
           shutdownLatch: undefined,
           task: undefined,
           taskSettled: false,
+          terminalAcknowledgement: undefined,
+          terminalAcknowledged: false,
         };
         try {
           await execFileAsync("git", [
@@ -12862,27 +12919,50 @@ describe("read-only PR review discovery planner", () => {
         if (scenario === undefined) return;
 
         const shutdownFailures: unknown[] = [];
+        let cleanupAuthorized = false;
         try {
           if (scenario.shutdownLatch !== undefined) {
             await writeFile(scenario.shutdownLatch, "shutdown");
           }
           if (!scenario.taskSettled && scenario.task !== undefined) {
-            if (scenario.child === undefined) {
-              await scenario.task;
-            } else if (scenario.child.exitCode !== null) {
-              shutdownFailures.push(
-                new Error(
-                  "index-flag scenario retained an unsettled task after child exit",
-                ),
+            await awaitIndexFlagSettlement(
+              scenario.task,
+              "index-flag scenario task did not settle after shutdown",
+            );
+          }
+          if (scenario.childClose !== undefined) {
+            await awaitIndexFlagSettlement(
+              scenario.childClose,
+              "index-flag scenario child did not close after shutdown",
+            );
+            if (!scenario.childClosed) {
+              throw new Error(
+                "index-flag scenario child close was not acknowledged",
               );
-            } else if (!scenario.child.kill("SIGTERM")) {
-              shutdownFailures.push(
-                new Error("index-flag scenario child could not be terminated"),
+            }
+            if (!scenario.childExited) {
+              throw new Error(
+                "index-flag scenario child exit was not observed",
               );
-            } else {
-              await scenario.task;
             }
           }
+          if (scenario.terminalAcknowledgement !== undefined) {
+            const acknowledgement = await readFile(
+              scenario.terminalAcknowledgement,
+              "utf8",
+            );
+            if (acknowledgement !== "terminal") {
+              throw new Error(
+                "index-flag scenario descendant terminal acknowledgement is invalid",
+              );
+            }
+            scenario.terminalAcknowledged = true;
+          }
+          cleanupAuthorized =
+            (scenario.task === undefined || scenario.taskSettled) &&
+            (scenario.childClose === undefined || scenario.childClosed) &&
+            (scenario.terminalAcknowledgement === undefined ||
+              scenario.terminalAcknowledged);
         } catch (error) {
           shutdownFailures.push(error);
         } finally {
@@ -12902,12 +12982,33 @@ describe("read-only PR review discovery planner", () => {
             scenario.previousNativeOwnerExpectedOperation;
         }
 
-        if (
-          (scenario.task === undefined || scenario.taskSettled) &&
-          shutdownFailures.length === 0
-        ) {
-          for (const ownedRoot of scenario.ownedRoots) {
-            await rm(ownedRoot, { recursive: true, force: true });
+        if (cleanupAuthorized && shutdownFailures.length === 0) {
+          try {
+            const rootsRetainedUntilTerminal = await Promise.all(
+              scenario.ownedRoots.map(async (ownedRoot) =>
+                (await lstat(ownedRoot)).isDirectory(),
+              ),
+            );
+            if (!rootsRetainedUntilTerminal.every(Boolean)) {
+              throw new Error(
+                "index-flag scenario root disappeared before terminal acknowledgement",
+              );
+            }
+            if (scenario.terminalAcknowledgement !== undefined) {
+              forcedScenarioEvidence = {
+                childClosed: scenario.childClosed,
+                childExited: scenario.childExited,
+                roots: [...scenario.ownedRoots],
+                rootsRetainedUntilTerminal: true,
+                taskSettled: scenario.taskSettled,
+                terminalAcknowledged: scenario.terminalAcknowledged,
+              };
+            }
+            for (const ownedRoot of scenario.ownedRoots) {
+              await rm(ownedRoot, { recursive: true, force: true });
+            }
+          } catch (error) {
+            shutdownFailures.push(error);
           }
         }
         if (shutdownFailures.length > 0) {
@@ -12996,6 +13097,10 @@ describe("read-only PR review discovery planner", () => {
           wrapperDir,
           "index-flag-resume-acceptance.shutdown",
         );
+        const terminalAcknowledgement = path.join(
+          wrapperDir,
+          "index-flag-resume-acceptance.terminal",
+        );
         const physicalGit = await resolveCanonicalPhysicalGit();
         const wrapper = path.join(wrapperDir, "git");
         await writeFile(
@@ -13006,6 +13111,7 @@ describe("read-only PR review discovery planner", () => {
             '  *" status --porcelain=v1 "*)',
             `    printf entered >'${await toGitBashPath(marker)}'`,
             `    while [ ! -f '${await toGitBashPath(shutdownLatch)}' ]; do sleep 0.01; done`,
+            `    printf terminal >'${await toGitBashPath(terminalAcknowledgement)}'`,
             "    exit 125",
             "    ;;",
             "esac",
@@ -13015,6 +13121,7 @@ describe("read-only PR review discovery planner", () => {
         );
         await makeDiscoveryGitWrapperExecutable(wrapper);
         activeScenario.shutdownLatch = shutdownLatch;
+        activeScenario.terminalAcknowledgement = terminalAcknowledgement;
         process.env.PATH = prependDiscoveryGitWrapper(
           wrapperDir,
           activeScenario.previousPath,
@@ -13048,6 +13155,21 @@ describe("read-only PR review discovery planner", () => {
       }, 5_000);
 
       it("does not contaminate the following scenario", async () => {
+        if (forcedScenarioEvidence === undefined) {
+          throw new Error("forced index-flag scenario evidence is unavailable");
+        }
+        expect(forcedScenarioEvidence).toMatchObject({
+          childClosed: true,
+          childExited: true,
+          rootsRetainedUntilTerminal: true,
+          taskSettled: true,
+          terminalAcknowledged: true,
+        });
+        for (const forcedRoot of forcedScenarioEvidence.roots) {
+          await expect(lstat(forcedRoot)).rejects.toMatchObject({
+            code: "ENOENT",
+          });
+        }
         expect(process.cwd()).toBe(originalCwd);
         expect(process.env.PATH).toBe(expectedPath);
         expect(activeDiscoveryGitAdapterLog).toBeUndefined();
