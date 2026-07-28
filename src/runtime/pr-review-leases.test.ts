@@ -73,6 +73,8 @@ const discoveryGitNativeOwnerDiagnosticMaxBytes = 256 * 1024;
 const discoveryGitNativeOwnerDiagnosticMaxRecords = 16;
 const discoveryGitNativeOwnerDiagnosticMaxArguments = 32;
 const discoveryGitNativeOwnerDiagnosticMaxArgumentCharacters = 256;
+const candidateOriginLifecycleEvidenceMaxBytes = 64 * 1024;
+const candidateOriginLifecycleEvidenceMaxRecords = 64;
 const ordinaryDiscoveryWorkerSource = String.raw`
 const runtimeUrl = process.env.DEVCANON_TEST_DISCOVERY_RUNTIME_URL;
 const repositoryRoot = process.env.PRIMARY_REPOSITORY_ROOT;
@@ -733,12 +735,70 @@ public static class DevCanonDiscoveryGitLauncher
                 "--list",
                 "--no-includes",
                 "--file");
-        string operation =
-            scenarioKind == "ordinary-resume-evidence"
-                ? "ordinary-discovery-worker"
-                : targeted
-                    ? scenarioKind + "-target"
-                    : "pass-through";
+        string operation;
+        if (scenarioKind == "ordinary-resume-evidence")
+        {
+            operation = "ordinary-discovery-worker";
+        }
+        else if (targeted)
+        {
+            operation = scenarioKind + "-target";
+        }
+        else if (scenarioKind == "candidate" && File.Exists(marker))
+        {
+            if (ContainsOrderedArguments(
+                args,
+                "rev-parse",
+                "--show-toplevel"))
+            {
+                operation = "candidate-revalidation-top-level";
+            }
+            else if (ContainsOrderedArguments(
+                args,
+                "rev-parse",
+                "--git-common-dir"))
+            {
+                operation = "candidate-revalidation-common-dir";
+            }
+            else if (ContainsOrderedArguments(
+                args,
+                "rev-parse",
+                "--absolute-git-dir"))
+            {
+                operation = "candidate-revalidation-admin-dir";
+            }
+            else if (ContainsOrderedArguments(
+                args,
+                "config",
+                "--null",
+                "--type=bool-or-str",
+                "--get-all",
+                "--no-includes",
+                "--file") &&
+                ContainsOrderedArguments(args, "remote.origin.url"))
+            {
+                operation = "candidate-revalidation-origin-typed";
+            }
+            else if (ContainsOrderedArguments(
+                args,
+                "config",
+                "--null",
+                "--get-all",
+                "--no-includes",
+                "--file") &&
+                ContainsOrderedArguments(args, "remote.origin.url"))
+            {
+                operation = "candidate-revalidation-origin-raw";
+            }
+            else
+            {
+                operation = "pass-through";
+            }
+        }
+        else
+        {
+            operation = "pass-through";
+        }
         int commandExit = RunNativeOwnedGit(
             nativeGit,
             ownerLog,
@@ -5268,6 +5328,197 @@ type DiscoveryGitNativeOwnerRecord =
   | DiscoveryGitNativeOwnerEnd
   | DiscoveryGitNativeOwnerReject;
 
+const candidateOriginLifecycleStages = [
+  "setup-complete",
+  "body-start",
+  "discovery-returned",
+  "marker-asserted",
+  "disposition-asserted",
+  "resume-asserted",
+  "reason-asserted",
+  "task-settled",
+  "forced-timeout",
+  "shutdown-latched",
+  "shutdown-settled",
+  "globals-restored",
+] as const;
+
+type CandidateOriginLifecycleStage =
+  (typeof candidateOriginLifecycleStages)[number];
+
+interface CandidateOriginLifecycleRecord {
+  monotonicTicks: string;
+  stage: CandidateOriginLifecycleStage;
+}
+
+interface CandidateOriginLifecycleReadResult {
+  incompleteRecord: boolean;
+  incompleteRecordBytes: number;
+  records: CandidateOriginLifecycleRecord[];
+}
+
+interface CandidateOriginLifecycleDiagnostic {
+  assertion_reachability: CandidateOriginLifecycleStage[];
+  cleanup_authorized: boolean;
+  evidence_incomplete_record: boolean;
+  evidence_incomplete_record_bytes: number;
+  evidence_record_count: number;
+  final_repository_binding_revalidation: boolean;
+  globals_restored: boolean;
+  marker_complete: boolean;
+  native_active: ReturnType<typeof discoveryGitNativeOwnerDiagnosticRecord>[];
+  native_incomplete_record: boolean;
+  native_incomplete_record_bytes: number;
+  native_key_records: ReturnType<
+    typeof discoveryGitNativeOwnerDiagnosticRecord
+  >[];
+  native_record_count: number;
+  native_tail_records: ReturnType<
+    typeof discoveryGitNativeOwnerDiagnosticRecord
+  >[];
+  phase: "pre-shutdown" | "terminal";
+  roots_preserved: boolean;
+  scenario: "candidate";
+  schema: "devcanon/test-candidate-origin-lifecycle/v1";
+  status_authority_and_snapshot_verified: boolean;
+  task_settled: boolean;
+}
+
+function candidateOriginLifecycleRecordBuffer(
+  stage: CandidateOriginLifecycleStage,
+): Buffer {
+  const monotonicTicks = process.hrtime.bigint().toString();
+  return Buffer.from(
+    `CANDIDATE_PHASE\0${stage}\0${monotonicTicks}\0PHASE_END\0`,
+    "utf8",
+  );
+}
+
+async function appendCandidateOriginLifecycleRecord(
+  evidenceLog: string,
+  stage: CandidateOriginLifecycleStage,
+): Promise<void> {
+  const record = candidateOriginLifecycleRecordBuffer(stage);
+  if (record.byteLength > discoveryGitNativeOwnerRecordMaxBytes) {
+    throw new Error("candidate origin lifecycle record exceeds its bound");
+  }
+  let current: Buffer;
+  try {
+    current = await readFile(evidenceLog);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    current = Buffer.alloc(0);
+  }
+  if (
+    current.byteLength + record.byteLength >
+    candidateOriginLifecycleEvidenceMaxBytes
+  ) {
+    throw new Error("candidate origin lifecycle evidence exceeds its bound");
+  }
+  await writeFile(evidenceLog, record, { flag: "a" });
+}
+
+async function readCandidateOriginLifecycleRecords(
+  evidenceLog: string,
+  options: { allowIncompleteTail?: boolean } = {},
+): Promise<CandidateOriginLifecycleReadResult> {
+  const allowIncompleteTail = options.allowIncompleteTail === true;
+  let raw: Buffer;
+  try {
+    raw = await readFile(evidenceLog);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    raw = Buffer.alloc(0);
+  }
+  if (raw.byteLength > candidateOriginLifecycleEvidenceMaxBytes) {
+    throw new Error("candidate origin lifecycle evidence exceeds its bound");
+  }
+  const rawByteLength = raw.byteLength;
+  let incompleteRecordBytes = 0;
+  if (raw.length > 0 && raw[raw.length - 1] !== 0) {
+    if (!allowIncompleteTail) {
+      throw new Error(
+        "candidate origin lifecycle evidence is not NUL terminated",
+      );
+    }
+    const lastTerminator = raw.lastIndexOf(0);
+    incompleteRecordBytes =
+      lastTerminator === -1 ? raw.length : raw.length - lastTerminator - 1;
+    raw =
+      lastTerminator === -1
+        ? Buffer.alloc(0)
+        : raw.subarray(0, lastTerminator + 1);
+  }
+  const fields = new TextDecoder("utf-8", { fatal: true })
+    .decode(raw)
+    .split("\0");
+  if (fields.pop() !== "") {
+    throw new Error(
+      "candidate origin lifecycle evidence is not NUL terminated",
+    );
+  }
+  const records: CandidateOriginLifecycleRecord[] = [];
+  let offset = 0;
+  let completedBytes = 0;
+  let incompleteRecord = incompleteRecordBytes > 0;
+  const recordByteLength = (start: number, end: number): number =>
+    fields
+      .slice(start, end)
+      .reduce((total, field) => total + Buffer.byteLength(field) + 1, 0);
+  while (offset < fields.length) {
+    const start = offset;
+    if (fields.length - start < 4) {
+      if (!allowIncompleteTail) {
+        throw new Error("candidate origin lifecycle record is truncated");
+      }
+      incompleteRecord = true;
+      incompleteRecordBytes += recordByteLength(start, fields.length);
+      break;
+    }
+    if (fields[offset++] !== "CANDIDATE_PHASE") {
+      throw new Error("candidate origin lifecycle record type is malformed");
+    }
+    const stage = fields[offset++];
+    if (
+      !candidateOriginLifecycleStages.includes(
+        stage as CandidateOriginLifecycleStage,
+      )
+    ) {
+      throw new Error("candidate origin lifecycle stage is malformed");
+    }
+    const monotonicTicks = fields[offset++];
+    if (!/^\d+$/u.test(monotonicTicks)) {
+      throw new Error(
+        "candidate origin lifecycle monotonic ticks are malformed",
+      );
+    }
+    if (fields[offset++] !== "PHASE_END") {
+      throw new Error("candidate origin lifecycle record is unterminated");
+    }
+    const byteLength = recordByteLength(start, offset);
+    if (byteLength > discoveryGitNativeOwnerRecordMaxBytes) {
+      throw new Error("candidate origin lifecycle record exceeds its bound");
+    }
+    records.push({
+      monotonicTicks,
+      stage: stage as CandidateOriginLifecycleStage,
+    });
+    completedBytes += byteLength;
+    if (records.length > candidateOriginLifecycleEvidenceMaxRecords) {
+      throw new Error(
+        "candidate origin lifecycle record count exceeds its bound",
+      );
+    }
+  }
+  return {
+    incompleteRecord,
+    incompleteRecordBytes: incompleteRecord
+      ? Math.max(incompleteRecordBytes, rawByteLength - completedBytes)
+      : 0,
+    records,
+  };
+}
+
 function parseDiscoveryGitNativeOwnerInteger(
   value: string | undefined,
   field: string,
@@ -5715,6 +5966,152 @@ function discoveryGitNativeOwnerDiagnosticRecord(
     ),
     child_pid: record.childPid,
   };
+}
+
+const candidateOriginLifecycleKeyOperations = new Set([
+  "candidate-target",
+  "mutation-reset",
+  "mutation-add",
+  "candidate-revalidation-top-level",
+  "candidate-revalidation-common-dir",
+  "candidate-revalidation-admin-dir",
+  "candidate-revalidation-origin-raw",
+  "candidate-revalidation-origin-typed",
+]);
+
+async function snapshotCandidateOriginLifecycleDiagnostic({
+  cleanupAuthorized,
+  evidenceLog,
+  globalsRestored,
+  marker,
+  nativeOwnerLog,
+  phase,
+  rootsPreserved,
+  taskSettled,
+}: {
+  cleanupAuthorized: boolean;
+  evidenceLog: string;
+  globalsRestored: boolean;
+  marker: string;
+  nativeOwnerLog: string;
+  phase: CandidateOriginLifecycleDiagnostic["phase"];
+  rootsPreserved: boolean;
+  taskSettled: boolean;
+}): Promise<CandidateOriginLifecycleDiagnostic> {
+  let evidenceRaw: Buffer;
+  let nativeRaw: Buffer;
+  try {
+    evidenceRaw = await readFile(evidenceLog);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    evidenceRaw = Buffer.alloc(0);
+  }
+  try {
+    nativeRaw = await readFile(nativeOwnerLog);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    nativeRaw = Buffer.alloc(0);
+  }
+  await Promise.all([
+    writeFile(`${evidenceLog}.${phase}.snapshot`, evidenceRaw),
+    writeFile(`${nativeOwnerLog}.candidate-${phase}.snapshot`, nativeRaw),
+  ]);
+  const [evidence, native] = await Promise.all([
+    readCandidateOriginLifecycleRecords(`${evidenceLog}.${phase}.snapshot`, {
+      allowIncompleteTail: true,
+    }),
+    readDiscoveryGitNativeOwnerRecordSnapshot(
+      `${nativeOwnerLog}.candidate-${phase}.snapshot`,
+      {
+        allowIncompleteTail: true,
+      },
+    ),
+  ]);
+  if (native.records.some((record) => record.scenario !== "candidate")) {
+    throw new Error(
+      "candidate origin lifecycle contains a foreign native scenario",
+    );
+  }
+  const nativeKeyRecords = native.records.filter((record) =>
+    candidateOriginLifecycleKeyOperations.has(record.operation),
+  );
+  const nativeTailRecords = native.records.slice(
+    -discoveryGitNativeOwnerDiagnosticMaxRecords,
+  );
+  const eventStages = evidence.records.map(({ stage }) => stage);
+  const statusAuthorityAndSnapshotVerified =
+    eventStages.includes("discovery-returned") ||
+    native.records.some((record) =>
+      record.operation.startsWith("candidate-revalidation-"),
+    );
+  const diagnostic: CandidateOriginLifecycleDiagnostic = {
+    assertion_reachability: eventStages.filter((stage) =>
+      stage.endsWith("-asserted"),
+    ),
+    cleanup_authorized: cleanupAuthorized,
+    evidence_incomplete_record: evidence.incompleteRecord,
+    evidence_incomplete_record_bytes: evidence.incompleteRecordBytes,
+    evidence_record_count: evidence.records.length,
+    final_repository_binding_revalidation:
+      eventStages.includes("discovery-returned"),
+    globals_restored: globalsRestored,
+    marker_complete: await lstat(marker).then(
+      () => true,
+      (error: NodeJS.ErrnoException) => {
+        if (error.code === "ENOENT") return false;
+        throw error;
+      },
+    ),
+    native_active: discoveryGitNativeOwnerActiveChildren(native.records).map(
+      discoveryGitNativeOwnerDiagnosticRecord,
+    ),
+    native_incomplete_record: native.incompleteRecord,
+    native_incomplete_record_bytes: native.incompleteRecordBytes,
+    native_key_records: nativeKeyRecords.map(
+      discoveryGitNativeOwnerDiagnosticRecord,
+    ),
+    native_record_count: native.records.length,
+    native_tail_records: nativeTailRecords.map(
+      discoveryGitNativeOwnerDiagnosticRecord,
+    ),
+    phase,
+    roots_preserved: rootsPreserved,
+    scenario: "candidate",
+    schema: "devcanon/test-candidate-origin-lifecycle/v1",
+    status_authority_and_snapshot_verified: statusAuthorityAndSnapshotVerified,
+    task_settled: taskSettled,
+  };
+  const payload = JSON.stringify(diagnostic);
+  if (Buffer.byteLength(payload) > discoveryGitNativeOwnerDiagnosticMaxBytes) {
+    throw new Error("candidate origin lifecycle diagnostic exceeds its bound");
+  }
+  return diagnostic;
+}
+
+async function captureCandidateOriginLifecycleDiagnostic(
+  options: Parameters<typeof snapshotCandidateOriginLifecycleDiagnostic>[0],
+): Promise<CandidateOriginLifecycleDiagnostic> {
+  let diagnostic = await snapshotCandidateOriginLifecycleDiagnostic(options);
+  for (
+    let attempt = 0;
+    (diagnostic.evidence_incomplete_record ||
+      diagnostic.native_incomplete_record) &&
+    attempt < 25;
+    attempt += 1
+  ) {
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    diagnostic = await snapshotCandidateOriginLifecycleDiagnostic(options);
+  }
+  process.stderr.write(
+    `DEVCANON_CANDIDATE_ORIGIN_LIFECYCLE ${JSON.stringify(diagnostic)}\n`,
+  );
+  if (
+    diagnostic.evidence_incomplete_record ||
+    diagnostic.native_incomplete_record
+  ) {
+    throw new Error("candidate origin lifecycle retained incomplete evidence");
+  }
+  return diagnostic;
 }
 
 async function snapshotDiscoveryGitNativeOwnerDiagnostic(
@@ -6889,6 +7286,15 @@ describe("read-only PR review discovery planner", () => {
     expect(discoveryGitWindowsLauncherSource).toContain(
       '"ordinary-discovery-worker"',
     );
+    for (const operation of [
+      "candidate-revalidation-top-level",
+      "candidate-revalidation-common-dir",
+      "candidate-revalidation-admin-dir",
+      "candidate-revalidation-origin-raw",
+      "candidate-revalidation-origin-typed",
+    ]) {
+      expect(discoveryGitWindowsLauncherSource).toContain(`"${operation}"`);
+    }
     expect(discoveryGitWindowsLauncherSource).not.toContain("taskkill");
     expect(ordinaryDiscoveryWorkerSource).toContain("await import(runtimeUrl)");
     expect(ordinaryDiscoveryWorkerSource).toContain(
@@ -7007,6 +7413,64 @@ describe("read-only PR review discovery planner", () => {
         allowIncompleteTail: true,
       }),
     ).resolves.toEqual(records);
+  });
+
+  it("parses bounded candidate-origin stages and exposes partial records", async () => {
+    const root = await mkdtemp(
+      path.join(tmpdir(), "candidate-origin-evidence-"),
+    );
+    discoveryTempRoots.push(root);
+    const evidenceLog = path.join(root, "candidate-origin-lifecycle.log");
+    await writeFile(evidenceLog, Buffer.alloc(0));
+    await appendCandidateOriginLifecycleRecord(evidenceLog, "setup-complete");
+    await appendCandidateOriginLifecycleRecord(evidenceLog, "body-start");
+
+    const complete = await readCandidateOriginLifecycleRecords(evidenceLog);
+    expect(complete.incompleteRecord).toBe(false);
+    expect(complete.records.map(({ stage }) => stage)).toEqual([
+      "setup-complete",
+      "body-start",
+    ]);
+
+    const partial = candidateOriginLifecycleRecordBuffer("discovery-returned");
+    const internalBoundary = partial.indexOf(0) + 1;
+    await writeFile(
+      evidenceLog,
+      Buffer.concat([
+        await readFile(evidenceLog),
+        partial.subarray(0, internalBoundary),
+      ]),
+    );
+    await expect(
+      readCandidateOriginLifecycleRecords(evidenceLog),
+    ).rejects.toThrow("candidate origin lifecycle record is truncated");
+    await expect(
+      readCandidateOriginLifecycleRecords(evidenceLog, {
+        allowIncompleteTail: true,
+      }),
+    ).resolves.toMatchObject({
+      incompleteRecord: true,
+      records: complete.records,
+    });
+  });
+
+  it("rejects malformed candidate-origin lifecycle evidence", async () => {
+    const root = await mkdtemp(
+      path.join(tmpdir(), "candidate-origin-malformed-"),
+    );
+    discoveryTempRoots.push(root);
+    const evidenceLog = path.join(root, "candidate-origin-lifecycle.log");
+    await writeFile(
+      evidenceLog,
+      Buffer.from(
+        ["CANDIDATE_PHASE", "unknown-stage", "100", "PHASE_END", ""].join("\0"),
+        "utf8",
+      ),
+    );
+
+    await expect(
+      readCandidateOriginLifecycleRecords(evidenceLog),
+    ).rejects.toThrow("candidate origin lifecycle stage is malformed");
   });
 
   it("assigns the canonical native BEGIN transport fields semantically", async () => {
@@ -8695,7 +9159,11 @@ describe("read-only PR review discovery planner", () => {
 
   describe("isolates effective-origin drift fixture ownership", () => {
     interface OriginDriftScenario {
+      diagnostics: CandidateOriginLifecycleDiagnostic[];
+      evidenceLog: string;
       evidenceSnapshot: Buffer | null;
+      evidenceWrite: Promise<void>;
+      kind: "candidate" | "primary";
       lease: PrReviewLease | null;
       marker: string;
       nativeOwnerLog: string;
@@ -8705,12 +9173,25 @@ describe("read-only PR review discovery planner", () => {
       previousNativeOwnerLog: string | undefined;
       previousPath: string | undefined;
       root: string;
+      shutdownAttempted: boolean;
+      shutdownFailed: boolean;
       shutdownLatch: string;
       task: Promise<void> | null;
+      taskSettled: boolean;
       wrapperDir: string;
     }
 
     let scenario: OriginDriftScenario | undefined;
+
+    const recordCandidateOriginLifecycleStage = (
+      activeScenario: OriginDriftScenario,
+      stage: CandidateOriginLifecycleStage,
+    ): Promise<void> => {
+      activeScenario.evidenceWrite = activeScenario.evidenceWrite.then(() =>
+        appendCandidateOriginLifecycleRecord(activeScenario.evidenceLog, stage),
+      );
+      return activeScenario.evidenceWrite;
+    };
 
     const setupScenario = async (
       kind: "candidate" | "primary",
@@ -8775,6 +9256,10 @@ describe("read-only PR review discovery planner", () => {
           wrapperDir,
           discoveryGitNativeOwnerLogName,
         );
+        const evidenceLog = path.join(
+          wrapperDir,
+          "candidate-origin-lifecycle.log",
+        );
         const shutdownLatch = path.join(
           wrapperDir,
           discoveryGitNativeOwnerShutdownName,
@@ -8789,6 +9274,9 @@ describe("read-only PR review discovery planner", () => {
             ),
             writeFile(path.join(wrapperDir, "git-native-owner.marker"), marker),
           ]);
+        }
+        if (kind === "candidate") {
+          await writeFile(evidenceLog, Buffer.alloc(0));
         }
         if (discoveryTempRoots.length - ownedRootStart !== 2) {
           throw new Error("discovery fixture root ownership is ambiguous");
@@ -8807,8 +9295,18 @@ describe("read-only PR review discovery planner", () => {
           });
           await writeFile(nativeOwnerLog, Buffer.alloc(0));
         }
+        if (kind === "candidate") {
+          await appendCandidateOriginLifecycleRecord(
+            evidenceLog,
+            "setup-complete",
+          );
+        }
         return {
+          diagnostics: [],
+          evidenceLog,
           evidenceSnapshot: null,
+          evidenceWrite: Promise.resolve(),
+          kind,
           lease,
           marker,
           nativeOwnerLog,
@@ -8818,8 +9316,11 @@ describe("read-only PR review discovery planner", () => {
           previousNativeOwnerLog,
           previousPath,
           root,
+          shutdownAttempted: false,
+          shutdownFailed: false,
           shutdownLatch,
           task: null,
+          taskSettled: false,
           wrapperDir,
         };
       } catch (error) {
@@ -8840,10 +9341,247 @@ describe("read-only PR review discovery planner", () => {
       }
     };
 
+    const shutdownCandidateScenario = async (
+      activeScenario: OriginDriftScenario,
+      options: { proveLatchRejection?: boolean } = {},
+    ): Promise<DiscoveryGitNativeOwnerRecord[]> => {
+      if (activeScenario.shutdownAttempted) {
+        if (activeScenario.shutdownFailed) {
+          process.stderr.write(
+            `DEVCANON_CANDIDATE_ORIGIN_ROOT_PRESERVED ${JSON.stringify(
+              activeScenario.ownedRoots,
+            )}\n`,
+          );
+        }
+        throw new Error("candidate origin shutdown was already attempted");
+      }
+      activeScenario.shutdownAttempted = true;
+      let cleanupAuthorized = false;
+      let ownerRecords: DiscoveryGitNativeOwnerRecord[] = [];
+      let preShutdown: CandidateOriginLifecycleDiagnostic | undefined;
+      const shutdownFailures: Array<{ error: string; phase: string }> = [];
+      const recordShutdownFailure = (phase: string, error: unknown): void => {
+        shutdownFailures.push({
+          error: discoveryGitNativeOwnerDiagnosticArgument(
+            error instanceof Error
+              ? error.message
+              : "candidate origin shutdown failed with a non-error value",
+          ),
+          phase,
+        });
+      };
+      try {
+        try {
+          preShutdown = await captureCandidateOriginLifecycleDiagnostic({
+            cleanupAuthorized: false,
+            evidenceLog: activeScenario.evidenceLog,
+            globalsRestored: false,
+            marker: activeScenario.marker,
+            nativeOwnerLog: activeScenario.nativeOwnerLog,
+            phase: "pre-shutdown",
+            rootsPreserved: false,
+            taskSettled: activeScenario.taskSettled,
+          });
+          activeScenario.diagnostics.push(preShutdown);
+        } catch (error) {
+          recordShutdownFailure("pre-shutdown-capture", error);
+        }
+        try {
+          await writeFile(activeScenario.shutdownLatch, "shutdown");
+          await recordCandidateOriginLifecycleStage(
+            activeScenario,
+            "shutdown-latched",
+          );
+        } catch (error) {
+          recordShutdownFailure("shutdown-latch", error);
+        }
+        if (
+          process.platform === "win32" &&
+          options.proveLatchRejection === true
+        ) {
+          try {
+            await expect(
+              execFileAsync("git", ["--version"], { env: process.env }),
+            ).rejects.toMatchObject({
+              code: 125,
+              stdout: "",
+            });
+          } catch (error) {
+            recordShutdownFailure("post-latch-rejection", error);
+          }
+        }
+        let settlementTimeout: ReturnType<typeof setTimeout> | undefined;
+        try {
+          await Promise.race([
+            (activeScenario.task ?? Promise.resolve()).then(
+              () => undefined,
+              () => undefined,
+            ),
+            new Promise<never>((_resolve, reject) => {
+              settlementTimeout = setTimeout(
+                () =>
+                  reject(
+                    new Error(
+                      "candidate origin task did not settle after shutdown",
+                    ),
+                  ),
+                5_000,
+              );
+            }),
+          ]);
+          activeScenario.taskSettled = true;
+          await recordCandidateOriginLifecycleStage(
+            activeScenario,
+            "shutdown-settled",
+          );
+        } catch (error) {
+          recordShutdownFailure("task-settlement", error);
+        } finally {
+          if (settlementTimeout !== undefined) clearTimeout(settlementTimeout);
+        }
+        try {
+          const terminalNative =
+            await readDiscoveryGitNativeOwnerRecordSnapshot(
+              activeScenario.nativeOwnerLog,
+            );
+          ownerRecords = terminalNative.records;
+          if (terminalNative.incompleteRecord) {
+            throw new Error(
+              "candidate origin native owner retained incomplete evidence",
+            );
+          }
+          if (discoveryGitNativeOwnerActiveChildren(ownerRecords).length > 0) {
+            throw new Error(
+              "candidate origin native owner retained an active child",
+            );
+          }
+          if (preShutdown !== undefined) {
+            for (const activeRecord of preShutdown.native_active) {
+              const terminalRecord = ownerRecords.find(
+                (record) =>
+                  record.type === "END" &&
+                  record.commandIdentity === activeRecord.command_identity &&
+                  record.ownerPid === activeRecord.owner_pid,
+              );
+              if (
+                terminalRecord === undefined ||
+                terminalRecord.type !== "END"
+              ) {
+                throw new Error(
+                  "candidate origin active child has no terminal END",
+                );
+              }
+              if (
+                terminalRecord.childExit === 125 &&
+                !ownerRecords.some(
+                  (record) =>
+                    record.type === "ACK" &&
+                    record.commandIdentity === activeRecord.command_identity &&
+                    record.ownerPid === activeRecord.owner_pid &&
+                    record.childExit === 125,
+                )
+              ) {
+                throw new Error(
+                  "candidate origin terminated child has no shutdown ACK",
+                );
+              }
+            }
+          }
+        } catch (error) {
+          recordShutdownFailure("terminal-native-validation", error);
+        }
+      } finally {
+        if (activeScenario.previousPath === undefined) {
+          Reflect.deleteProperty(process.env, "PATH");
+        } else {
+          process.env.PATH = activeScenario.previousPath;
+        }
+        activeDiscoveryGitAdapterLog = activeScenario.previousAdapterLog;
+        activeDiscoveryGitNativeOwnerLog =
+          activeScenario.previousNativeOwnerLog;
+        activeDiscoveryGitNativeOwnerExpectedOperation =
+          activeScenario.previousNativeOwnerExpectedOperation;
+        const globalsRestored =
+          process.env.PATH === activeScenario.previousPath &&
+          activeDiscoveryGitAdapterLog === activeScenario.previousAdapterLog &&
+          activeDiscoveryGitNativeOwnerLog ===
+            activeScenario.previousNativeOwnerLog &&
+          activeDiscoveryGitNativeOwnerExpectedOperation ===
+            activeScenario.previousNativeOwnerExpectedOperation;
+        if (!globalsRestored) {
+          recordShutdownFailure(
+            "global-restoration",
+            new Error("candidate origin globals were not restored"),
+          );
+        }
+        try {
+          await recordCandidateOriginLifecycleStage(
+            activeScenario,
+            "globals-restored",
+          );
+        } catch (error) {
+          recordShutdownFailure("restoration-evidence", error);
+        }
+        cleanupAuthorized = shutdownFailures.length === 0;
+        try {
+          const terminal = await captureCandidateOriginLifecycleDiagnostic({
+            cleanupAuthorized,
+            evidenceLog: activeScenario.evidenceLog,
+            globalsRestored,
+            marker: activeScenario.marker,
+            nativeOwnerLog: activeScenario.nativeOwnerLog,
+            phase: "terminal",
+            rootsPreserved: !cleanupAuthorized,
+            taskSettled: activeScenario.taskSettled,
+          });
+          activeScenario.diagnostics.push(terminal);
+        } catch (error) {
+          recordShutdownFailure("terminal-capture", error);
+          cleanupAuthorized = false;
+        }
+        if (cleanupAuthorized) {
+          try {
+            for (const ownedRoot of activeScenario.ownedRoots) {
+              await rm(ownedRoot, { recursive: true, force: true });
+            }
+          } catch (error) {
+            recordShutdownFailure("root-cleanup", error);
+            activeScenario.shutdownFailed = true;
+          }
+        }
+        if (shutdownFailures.length > 0) {
+          activeScenario.shutdownFailed = true;
+          process.stderr.write(
+            `DEVCANON_CANDIDATE_ORIGIN_LIFECYCLE_FAILURE ${JSON.stringify(
+              shutdownFailures,
+            )}\n`,
+          );
+        }
+        if (!cleanupAuthorized || activeScenario.shutdownFailed) {
+          process.stderr.write(
+            `DEVCANON_CANDIDATE_ORIGIN_ROOT_PRESERVED ${JSON.stringify(
+              activeScenario.ownedRoots,
+            )}\n`,
+          );
+        }
+      }
+      if (shutdownFailures.length > 0) {
+        throw new Error(
+          `candidate origin lifecycle shutdown failed: ${shutdownFailures
+            .map(({ error, phase }) => `${phase}: ${error}`)
+            .join("; ")}`,
+        );
+      }
+      return ownerRecords;
+    };
+
     const shutdownScenario = async (
       activeScenario: OriginDriftScenario,
       options: { proveLatchRejection?: boolean } = {},
     ): Promise<DiscoveryGitNativeOwnerRecord[]> => {
+      if (activeScenario.kind === "candidate") {
+        return shutdownCandidateScenario(activeScenario, options);
+      }
       let cleanupAuthorized = false;
       let ownerRecords: DiscoveryGitNativeOwnerRecord[] = [];
       let shutdownFailure: unknown;
@@ -8997,26 +9735,77 @@ describe("read-only PR review discovery planner", () => {
         const leaseFile = scenario.lease.lease_file;
         const activeScenario = scenario;
         activeScenario.task = (async () => {
-          const result = await runDiscovery(activeScenario.root);
-          expect(await readFile(activeScenario.marker, "utf8")).toBe("fired");
-          expect(result.disposition).toBe("invalid");
-          expect(result.resume).toBeNull();
-          expect(result.active).toContainEqual(
-            expect.objectContaining({
-              lease_file: leaseFile,
-              classification: "invalid",
-              reason: "repository-identity-changed",
-            }),
+          await recordCandidateOriginLifecycleStage(
+            activeScenario,
+            "body-start",
           );
+          try {
+            const result = await runDiscovery(activeScenario.root);
+            await recordCandidateOriginLifecycleStage(
+              activeScenario,
+              "discovery-returned",
+            );
+            expect(await readFile(activeScenario.marker, "utf8")).toBe("fired");
+            await recordCandidateOriginLifecycleStage(
+              activeScenario,
+              "marker-asserted",
+            );
+            expect(result.disposition).toBe("invalid");
+            await recordCandidateOriginLifecycleStage(
+              activeScenario,
+              "disposition-asserted",
+            );
+            expect(result.resume).toBeNull();
+            await recordCandidateOriginLifecycleStage(
+              activeScenario,
+              "resume-asserted",
+            );
+            expect(result.active).toContainEqual(
+              expect.objectContaining({
+                lease_file: leaseFile,
+                classification: "invalid",
+                reason: "repository-identity-changed",
+              }),
+            );
+            await recordCandidateOriginLifecycleStage(
+              activeScenario,
+              "reason-asserted",
+            );
+          } finally {
+            activeScenario.taskSettled = true;
+            await recordCandidateOriginLifecycleStage(
+              activeScenario,
+              "task-settled",
+            );
+          }
         })();
         await activeScenario.task;
         if (process.platform === "win32") {
           const records = await readDiscoveryGitNativeOwnerRecords(
             activeScenario.nativeOwnerLog,
           );
+          for (const operation of [
+            "candidate-target",
+            "mutation-reset",
+            "mutation-add",
+          ]) {
+            expect(records).toContainEqual(
+              expect.objectContaining({
+                operation,
+                type: "BEGIN",
+              }),
+            );
+            expect(records).toContainEqual(
+              expect.objectContaining({
+                childExit: 0,
+                operation,
+                type: "END",
+              }),
+            );
+          }
           expect(records).toContainEqual(
             expect.objectContaining({
-              operation: "candidate-target",
+              operation: "candidate-revalidation-top-level",
               type: "BEGIN",
             }),
           );
@@ -9024,6 +9813,153 @@ describe("read-only PR review discovery planner", () => {
         }
       });
     });
+
+    describe.runIf(process.platform === "win32")(
+      "preserves candidate-target evidence through forced shutdown",
+      () => {
+        it("prints bounded timeout evidence and restores owned state", async () => {
+          scenario = await setupScenario("candidate");
+          if (scenario === undefined) {
+            throw new Error("candidate timeout scenario is unavailable");
+          }
+          const activeScenario = scenario;
+          const pendingGit = spawn(
+            "git",
+            ["-C", activeScenario.root, "cat-file", "--batch"],
+            {
+              env: process.env,
+              stdio: ["pipe", "pipe", "pipe"],
+            },
+          );
+          activeScenario.task = new Promise<void>((resolve, reject) => {
+            pendingGit.once("error", reject);
+            pendingGit.once("close", (exitCode) => {
+              if (exitCode === 0) {
+                reject(new Error("pending native Git unexpectedly succeeded"));
+                return;
+              }
+              resolve();
+            });
+          });
+          const activeChild = await waitForDiscoveryGitNativeOwnerBegin(
+            activeScenario.nativeOwnerLog,
+          );
+          await recordCandidateOriginLifecycleStage(
+            activeScenario,
+            "forced-timeout",
+          );
+
+          const records = await shutdownScenario(activeScenario, {
+            proveLatchRejection: true,
+          });
+          scenario = undefined;
+          expect(activeChild.operation).toBe("pass-through");
+          expect(records).toContainEqual(
+            expect.objectContaining({
+              childExit: 125,
+              commandIdentity: activeChild.commandIdentity,
+              operation: activeChild.operation,
+              ownerPid: activeChild.ownerPid,
+              scenario: "candidate",
+              stage: "shutdown",
+              type: "ACK",
+            }),
+          );
+          expect(records).toContainEqual(
+            expect.objectContaining({
+              childExit: 125,
+              commandIdentity: activeChild.commandIdentity,
+              operation: activeChild.operation,
+              ownerPid: activeChild.ownerPid,
+              scenario: "candidate",
+              stage: "terminal",
+              type: "END",
+            }),
+          );
+          expect(activeScenario.diagnostics).toHaveLength(2);
+          expect(activeScenario.diagnostics[0]).toMatchObject({
+            cleanup_authorized: false,
+            globals_restored: false,
+            roots_preserved: false,
+            task_settled: false,
+          });
+          expect(activeScenario.diagnostics[1]).toMatchObject({
+            cleanup_authorized: true,
+            globals_restored: true,
+            roots_preserved: false,
+            task_settled: true,
+          });
+          expect(process.env.PATH).toBe(activeScenario.previousPath);
+          expect(activeDiscoveryGitAdapterLog).toBe(
+            activeScenario.previousAdapterLog,
+          );
+          expect(activeDiscoveryGitNativeOwnerLog).toBe(
+            activeScenario.previousNativeOwnerLog,
+          );
+          expect(activeDiscoveryGitNativeOwnerExpectedOperation).toBe(
+            activeScenario.previousNativeOwnerExpectedOperation,
+          );
+          await expect(lstat(activeScenario.wrapperDir)).rejects.toMatchObject({
+            code: "ENOENT",
+          });
+        });
+
+        it("preserves roots and restores globals after malformed evidence", async () => {
+          scenario = await setupScenario("candidate");
+          if (scenario === undefined) {
+            throw new Error("candidate malformed scenario is unavailable");
+          }
+          const activeScenario = scenario;
+          await writeFile(
+            activeScenario.evidenceLog,
+            Buffer.from("partial-record", "utf8"),
+          );
+          await expect(shutdownScenario(activeScenario)).rejects.toThrow(
+            "candidate origin lifecycle shutdown failed",
+          );
+          scenario = undefined;
+          expect(
+            await readFile(
+              `${activeScenario.evidenceLog}.pre-shutdown.snapshot`,
+            ),
+          ).toEqual(Buffer.from("partial-record", "utf8"));
+          for (const ownedRoot of activeScenario.ownedRoots) {
+            expect((await lstat(ownedRoot)).isDirectory()).toBe(true);
+          }
+          expect(process.env.PATH).toBe(activeScenario.previousPath);
+          expect(activeDiscoveryGitAdapterLog).toBe(
+            activeScenario.previousAdapterLog,
+          );
+          expect(activeDiscoveryGitNativeOwnerLog).toBe(
+            activeScenario.previousNativeOwnerLog,
+          );
+          expect(activeDiscoveryGitNativeOwnerExpectedOperation).toBe(
+            activeScenario.previousNativeOwnerExpectedOperation,
+          );
+          discoveryTempRoots.push(...activeScenario.ownedRoots);
+        });
+
+        it("starts a fresh native scenario after restored ownership", async () => {
+          scenario = await setupScenario("candidate");
+          if (scenario === undefined) {
+            throw new Error("following candidate scenario is unavailable");
+          }
+          const followingScenario = scenario;
+          await execFileAsync("git", ["--version"], { env: process.env });
+          const records = await readDiscoveryGitNativeOwnerRecords(
+            followingScenario.nativeOwnerLog,
+          );
+          expect(records).toContainEqual(
+            expect.objectContaining({
+              operation: "pass-through",
+              scenario: "candidate",
+              type: "BEGIN",
+            }),
+          );
+          expect(discoveryGitNativeOwnerActiveChildren(records)).toEqual([]);
+        });
+      },
+    );
 
     describe.runIf(process.platform === "win32")(
       "isolates forced shutdown from the following native scenario",
