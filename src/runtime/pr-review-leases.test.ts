@@ -12840,6 +12840,7 @@ describe("read-only PR review discovery planner", () => {
       const awaitIndexFlagSettlement = async (
         work: Promise<void>,
         failureMessage: string,
+        timeoutMs = 5_000,
       ): Promise<void> => {
         let timeout: ReturnType<typeof setTimeout> | undefined;
         try {
@@ -12848,7 +12849,7 @@ describe("read-only PR review discovery planner", () => {
             new Promise<never>((_resolve, reject) => {
               timeout = setTimeout(
                 () => reject(new Error(failureMessage)),
-                5_000,
+                timeoutMs,
               );
             }),
           ]);
@@ -12885,6 +12886,176 @@ describe("read-only PR review discovery planner", () => {
           ) {
             throw error;
           }
+        }
+      };
+
+      const shutdownIndexFlagScenario = async (
+        scenario: IndexFlagResumeAcceptanceScenario,
+        cooperativeSettlementBudgetMs = 5_000,
+      ): Promise<void> => {
+        const shutdownFailures: unknown[] = [];
+        let cleanupAuthorized = false;
+        let cooperativeSettlementFailed = false;
+        try {
+          if (scenario.shutdownLatch !== undefined) {
+            try {
+              await writeFile(scenario.shutdownLatch, "shutdown");
+            } catch (error) {
+              cooperativeSettlementFailed = true;
+              shutdownFailures.push(error);
+            }
+          }
+          if (
+            scenario.shutdownLatch !== undefined &&
+            scenario.childClose !== undefined &&
+            !scenario.childClosed &&
+            !cooperativeSettlementFailed
+          ) {
+            try {
+              await awaitIndexFlagSettlement(
+                scenario.childClose,
+                "index-flag scenario child did not close after cooperative shutdown",
+                cooperativeSettlementBudgetMs,
+              );
+            } catch (error) {
+              cooperativeSettlementFailed = true;
+              shutdownFailures.push(error);
+            }
+          }
+          if (
+            !scenario.taskSettled &&
+            scenario.child !== undefined &&
+            scenario.child.exitCode === null &&
+            (scenario.shutdownLatch === undefined ||
+              cooperativeSettlementFailed)
+          ) {
+            scenario.terminationRequested = true;
+            try {
+              await awaitIndexFlagSettlement(
+                terminateOwnedWrapperTree(scenario.child),
+                "index-flag scenario child tree termination timed out",
+              );
+            } catch (error) {
+              shutdownFailures.push(error);
+            }
+          }
+          if (scenario.childClose !== undefined) {
+            try {
+              await awaitIndexFlagSettlement(
+                scenario.childClose,
+                "index-flag scenario child did not close after shutdown",
+              );
+            } catch (error) {
+              shutdownFailures.push(error);
+            }
+            if (!scenario.childClosed) {
+              shutdownFailures.push(
+                new Error(
+                  "index-flag scenario child close was not acknowledged",
+                ),
+              );
+            }
+            if (!scenario.childExited) {
+              shutdownFailures.push(
+                new Error("index-flag scenario child exit was not observed"),
+              );
+            }
+            if (
+              scenario.terminationRequested &&
+              scenario.childClosed &&
+              scenario.childExited
+            ) {
+              scenario.terminalAcknowledged = true;
+            }
+          }
+          if (!scenario.taskSettled && scenario.task !== undefined) {
+            try {
+              await awaitIndexFlagSettlement(
+                scenario.task,
+                "index-flag scenario task did not settle after shutdown",
+              );
+            } catch (error) {
+              shutdownFailures.push(error);
+            }
+          }
+          if (scenario.terminalAcknowledgement !== undefined) {
+            try {
+              const acknowledgement = await readFile(
+                scenario.terminalAcknowledgement,
+                "utf8",
+              );
+              if (acknowledgement !== "terminal") {
+                throw new Error(
+                  "index-flag scenario descendant terminal acknowledgement is invalid",
+                );
+              }
+              scenario.terminalAcknowledged = true;
+            } catch (error) {
+              shutdownFailures.push(error);
+            }
+          }
+          cleanupAuthorized =
+            shutdownFailures.length === 0 &&
+            (scenario.task === undefined || scenario.taskSettled) &&
+            (scenario.childClose === undefined || scenario.childClosed) &&
+            (!scenario.terminationRequested || scenario.terminalAcknowledged) &&
+            (scenario.terminalAcknowledgement === undefined ||
+              scenario.terminalAcknowledged);
+        } finally {
+          try {
+            process.chdir(scenario.previousCwd);
+          } catch (error) {
+            shutdownFailures.push(error);
+          }
+          if (scenario.previousPath === undefined) {
+            Reflect.deleteProperty(process.env, "PATH");
+          } else {
+            process.env.PATH = scenario.previousPath;
+          }
+          activeDiscoveryGitAdapterLog = scenario.previousAdapterLog;
+          activeDiscoveryGitNativeOwnerLog = scenario.previousNativeOwnerLog;
+          activeDiscoveryGitNativeOwnerExpectedOperation =
+            scenario.previousNativeOwnerExpectedOperation;
+        }
+
+        if (cleanupAuthorized && shutdownFailures.length === 0) {
+          try {
+            const rootsRetainedUntilTerminal = await Promise.all(
+              scenario.ownedRoots.map(async (ownedRoot) =>
+                (await lstat(ownedRoot)).isDirectory(),
+              ),
+            );
+            if (!rootsRetainedUntilTerminal.every(Boolean)) {
+              throw new Error(
+                "index-flag scenario root disappeared before terminal acknowledgement",
+              );
+            }
+            if (
+              scenario.terminalAcknowledgement !== undefined ||
+              scenario.terminationRequested
+            ) {
+              forcedScenarioEvidence = {
+                childClosed: scenario.childClosed,
+                childExited: scenario.childExited,
+                roots: [...scenario.ownedRoots],
+                rootsRetainedUntilTerminal: true,
+                taskSettled: scenario.taskSettled,
+                terminationRequested: scenario.terminationRequested,
+                terminalAcknowledged: scenario.terminalAcknowledged,
+              };
+            }
+            for (const ownedRoot of scenario.ownedRoots) {
+              await rm(ownedRoot, { recursive: true, force: true });
+            }
+          } catch (error) {
+            shutdownFailures.push(error);
+          }
+        }
+        if (shutdownFailures.length > 0) {
+          throw new AggregateError(
+            shutdownFailures,
+            "index-flag scenario teardown failed",
+          );
         }
       };
 
@@ -12956,126 +13127,7 @@ describe("read-only PR review discovery planner", () => {
         const scenario = ownedScenario;
         ownedScenario = undefined;
         if (scenario === undefined) return;
-
-        const shutdownFailures: unknown[] = [];
-        let cleanupAuthorized = false;
-        try {
-          if (scenario.shutdownLatch !== undefined) {
-            await writeFile(scenario.shutdownLatch, "shutdown");
-          }
-          if (
-            !scenario.taskSettled &&
-            scenario.shutdownLatch === undefined &&
-            scenario.child !== undefined &&
-            scenario.child.exitCode === null
-          ) {
-            scenario.terminationRequested = true;
-            await awaitIndexFlagSettlement(
-              terminateOwnedWrapperTree(scenario.child),
-              "index-flag scenario child tree termination timed out",
-            );
-          }
-          if (scenario.childClose !== undefined) {
-            await awaitIndexFlagSettlement(
-              scenario.childClose,
-              "index-flag scenario child did not close after shutdown",
-            );
-            if (!scenario.childClosed) {
-              throw new Error(
-                "index-flag scenario child close was not acknowledged",
-              );
-            }
-            if (!scenario.childExited) {
-              throw new Error(
-                "index-flag scenario child exit was not observed",
-              );
-            }
-            if (scenario.terminationRequested) {
-              scenario.terminalAcknowledged = true;
-            }
-          }
-          if (!scenario.taskSettled && scenario.task !== undefined) {
-            await awaitIndexFlagSettlement(
-              scenario.task,
-              "index-flag scenario task did not settle after shutdown",
-            );
-          }
-          if (scenario.terminalAcknowledgement !== undefined) {
-            const acknowledgement = await readFile(
-              scenario.terminalAcknowledgement,
-              "utf8",
-            );
-            if (acknowledgement !== "terminal") {
-              throw new Error(
-                "index-flag scenario descendant terminal acknowledgement is invalid",
-              );
-            }
-            scenario.terminalAcknowledged = true;
-          }
-          cleanupAuthorized =
-            (scenario.task === undefined || scenario.taskSettled) &&
-            (scenario.childClose === undefined || scenario.childClosed) &&
-            (!scenario.terminationRequested || scenario.terminalAcknowledged) &&
-            (scenario.terminalAcknowledgement === undefined ||
-              scenario.terminalAcknowledged);
-        } catch (error) {
-          shutdownFailures.push(error);
-        } finally {
-          try {
-            process.chdir(scenario.previousCwd);
-          } catch (error) {
-            shutdownFailures.push(error);
-          }
-          if (scenario.previousPath === undefined) {
-            Reflect.deleteProperty(process.env, "PATH");
-          } else {
-            process.env.PATH = scenario.previousPath;
-          }
-          activeDiscoveryGitAdapterLog = scenario.previousAdapterLog;
-          activeDiscoveryGitNativeOwnerLog = scenario.previousNativeOwnerLog;
-          activeDiscoveryGitNativeOwnerExpectedOperation =
-            scenario.previousNativeOwnerExpectedOperation;
-        }
-
-        if (cleanupAuthorized && shutdownFailures.length === 0) {
-          try {
-            const rootsRetainedUntilTerminal = await Promise.all(
-              scenario.ownedRoots.map(async (ownedRoot) =>
-                (await lstat(ownedRoot)).isDirectory(),
-              ),
-            );
-            if (!rootsRetainedUntilTerminal.every(Boolean)) {
-              throw new Error(
-                "index-flag scenario root disappeared before terminal acknowledgement",
-              );
-            }
-            if (
-              scenario.terminalAcknowledgement !== undefined ||
-              scenario.terminationRequested
-            ) {
-              forcedScenarioEvidence = {
-                childClosed: scenario.childClosed,
-                childExited: scenario.childExited,
-                roots: [...scenario.ownedRoots],
-                rootsRetainedUntilTerminal: true,
-                taskSettled: scenario.taskSettled,
-                terminationRequested: scenario.terminationRequested,
-                terminalAcknowledged: scenario.terminalAcknowledged,
-              };
-            }
-            for (const ownedRoot of scenario.ownedRoots) {
-              await rm(ownedRoot, { recursive: true, force: true });
-            }
-          } catch (error) {
-            shutdownFailures.push(error);
-          }
-        }
-        if (shutdownFailures.length > 0) {
-          throw new AggregateError(
-            shutdownFailures,
-            "index-flag scenario teardown failed",
-          );
-        }
+        await shutdownIndexFlagScenario(scenario);
       });
 
       describe.each([
@@ -13151,31 +13203,56 @@ describe("read-only PR review discovery planner", () => {
         const activeScenario = ownedScenario;
         const wrapperDir = await mkdtemp(path.join(tmpdir(), "git-wrapper-"));
         activeScenario.ownedRoots.push(wrapperDir);
-        const marker = path.join(wrapperDir, "status-entered");
+        const quotedFixtureDir = path.join(wrapperDir, "quoted'paths");
+        await mkdir(quotedFixtureDir);
+        const marker = path.join(quotedFixtureDir, "status-entered");
+        const passThroughMarker = path.join(
+          quotedFixtureDir,
+          "physical-git-entered",
+        );
         const shutdownLatch = path.join(
-          wrapperDir,
+          quotedFixtureDir,
           "index-flag-resume-acceptance.shutdown",
         );
         const terminalAcknowledgement = path.join(
-          wrapperDir,
+          quotedFixtureDir,
           "index-flag-resume-acceptance.terminal",
         );
         const physicalGit = await resolveCanonicalPhysicalGit();
-        const physicalGitBash = await toGitBashPath(physicalGit);
+        const physicalGitShim = path.join(quotedFixtureDir, "physical-git");
+        await writeFile(
+          physicalGitShim,
+          [
+            "#!/bin/sh",
+            `printf entered >${discoveryShellWord(await toGitBashPath(passThroughMarker))}`,
+            `exec ${discoveryShellWord(await toGitBashPath(physicalGit))} "$@"`,
+            "",
+          ].join("\n"),
+        );
+        const physicalGitBash = discoveryShellWord(
+          await toGitBashPath(physicalGitShim),
+        );
         const wrapper = path.join(wrapperDir, "git");
+        const markerBash = discoveryShellWord(await toGitBashPath(marker));
+        const shutdownLatchBash = discoveryShellWord(
+          await toGitBashPath(shutdownLatch),
+        );
+        const terminalAcknowledgementBash = discoveryShellWord(
+          await toGitBashPath(terminalAcknowledgement),
+        );
         await writeFile(
           wrapper,
           [
             "#!/bin/sh",
             'case " $* " in',
             '  *" status --porcelain=v1 "*)',
-            `    printf entered >'${await toGitBashPath(marker)}'`,
-            `    while [ ! -f '${await toGitBashPath(shutdownLatch)}' ]; do sleep 0.01; done`,
-            `    printf terminal >'${await toGitBashPath(terminalAcknowledgement)}'`,
+            `    printf entered >${markerBash}`,
+            `    while [ ! -f ${shutdownLatchBash} ]; do sleep 0.01; done`,
+            `    printf terminal >${terminalAcknowledgementBash}`,
             "    exit 125",
             "    ;;",
             "esac",
-            `exec '${physicalGitBash}' "$@"`,
+            `exec /bin/sh ${physicalGitBash} "$@"`,
             "",
           ].join("\n"),
         );
@@ -13199,6 +13276,7 @@ describe("read-only PR review discovery planner", () => {
           await new Promise((resolve) => setTimeout(resolve, 20));
         }
         expect(await readFile(marker, "utf8")).toBe("entered");
+        expect(await readFile(passThroughMarker, "utf8")).toBe("entered");
         await expect(
           Promise.race([
             timeoutTask.then(() => {
@@ -13226,17 +13304,18 @@ describe("read-only PR review discovery planner", () => {
           await resolveCanonicalPhysicalGit(),
         );
         const wrapper = path.join(wrapperDir, "git");
+        const markerBash = discoveryShellWord(await toGitBashPath(marker));
         await writeFile(
           wrapper,
           [
             "#!/bin/sh",
             'case " $* " in',
             '  *" status --porcelain=v1 "*)',
-            `    printf entered >'${await toGitBashPath(marker)}'`,
+            `    printf entered >${markerBash}`,
             "    while :; do sleep 1; done",
             "    ;;",
             "esac",
-            `exec '${physicalGitBash}' "$@"`,
+            `exec ${discoveryShellWord(physicalGitBash)} "$@"`,
             "",
           ].join("\n"),
         );
@@ -13271,6 +13350,91 @@ describe("read-only PR review discovery planner", () => {
             }),
           ]),
         ).rejects.toThrow("stalled wrapper task timeout");
+      }, 5_000);
+
+      it("terminates a stalled real-wrapper tree after cooperative shutdown fails", async () => {
+        if (ownedScenario === undefined) {
+          throw new Error("index-flag timeout scenario is unavailable");
+        }
+        const activeScenario = ownedScenario;
+        const wrapperDir = await mkdtemp(path.join(tmpdir(), "git-wrapper-"));
+        activeScenario.ownedRoots.push(wrapperDir);
+        const marker = path.join(wrapperDir, "status-entered");
+        const shutdownLatch = path.join(wrapperDir, "ignored.shutdown");
+        const wrapper = path.join(wrapperDir, "git");
+        const markerBash = discoveryShellWord(await toGitBashPath(marker));
+        const physicalGitBash = discoveryShellWord(
+          await toGitBashPath(await resolveCanonicalPhysicalGit()),
+        );
+        await writeFile(
+          wrapper,
+          [
+            "#!/bin/sh",
+            'case " $* " in',
+            '  *" status --porcelain=v1 "*)',
+            `    printf entered >${markerBash}`,
+            "    while :; do sleep 1; done",
+            "    ;;",
+            "esac",
+            `exec ${physicalGitBash} "$@"`,
+            "",
+          ].join("\n"),
+        );
+        await makeDiscoveryGitWrapperExecutable(wrapper);
+        activeScenario.shutdownLatch = shutdownLatch;
+        process.env.PATH = prependDiscoveryGitWrapper(
+          wrapperDir,
+          activeScenario.previousPath,
+        );
+        const timeoutTask = runOwnedWrapper(["discover"], {
+          ...wrapperEnvironment,
+          PATH: process.env.PATH,
+        });
+        for (let attempt = 0; attempt < 100; attempt += 1) {
+          try {
+            if ((await readFile(marker, "utf8")) === "entered") break;
+          } catch (error) {
+            if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+          }
+          await new Promise((resolve) => setTimeout(resolve, 20));
+        }
+        expect(await readFile(marker, "utf8")).toBe("entered");
+        await expect(
+          Promise.race([
+            timeoutTask.then(() => {
+              throw new Error("stalled wrapper task settled before timeout");
+            }),
+            new Promise<never>((_resolve, reject) => {
+              setTimeout(
+                () => reject(new Error("stalled wrapper task timeout")),
+                100,
+              );
+            }),
+          ]),
+        ).rejects.toThrow("stalled wrapper task timeout");
+
+        ownedScenario = undefined;
+        await expect(
+          shutdownIndexFlagScenario(activeScenario, 100),
+        ).rejects.toThrow("index-flag scenario teardown failed");
+        expect(activeScenario).toMatchObject({
+          childClosed: true,
+          childExited: true,
+          taskSettled: true,
+          terminationRequested: true,
+          terminalAcknowledged: true,
+        });
+        for (const ownedRoot of activeScenario.ownedRoots) {
+          await expect(lstat(ownedRoot)).resolves.toBeDefined();
+        }
+        expect(process.cwd()).toBe(originalCwd);
+        expect(process.env.PATH).toBe(expectedPath);
+        expect(activeDiscoveryGitAdapterLog).toBeUndefined();
+        expect(activeDiscoveryGitNativeOwnerLog).toBeUndefined();
+        expect(activeDiscoveryGitNativeOwnerExpectedOperation).toBeUndefined();
+        for (const ownedRoot of activeScenario.ownedRoots) {
+          await rm(ownedRoot, { recursive: true, force: true });
+        }
       }, 5_000);
 
       it("does not contaminate the following scenario", async () => {
