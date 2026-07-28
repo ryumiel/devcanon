@@ -12741,6 +12741,7 @@ describe("read-only PR review discovery planner", () => {
         shutdownLatch: string | undefined;
         task: Promise<void> | undefined;
         taskSettled: boolean;
+        terminationRequested: boolean;
         terminalAcknowledgement: string | undefined;
         terminalAcknowledged: boolean;
       }
@@ -12755,6 +12756,7 @@ describe("read-only PR review discovery planner", () => {
             roots: string[];
             rootsRetainedUntilTerminal: boolean;
             taskSettled: boolean;
+            terminationRequested: boolean;
             terminalAcknowledged: boolean;
           }
         | undefined;
@@ -12797,7 +12799,12 @@ describe("read-only PR review discovery planner", () => {
         const child = spawn(
           "bash",
           ["skills/pr-review/scripts/review-leases.sh", ...wrapperArgs],
-          { cwd: originalCwd, env, stdio: ["pipe", "pipe", "pipe"] },
+          {
+            cwd: originalCwd,
+            detached: process.platform !== "win32",
+            env,
+            stdio: ["pipe", "pipe", "pipe"],
+          },
         );
         let stdout = "";
         let stderr = "";
@@ -12850,6 +12857,37 @@ describe("read-only PR review discovery planner", () => {
         }
       };
 
+      const terminateOwnedWrapperTree = async (
+        child: ReturnType<typeof spawn>,
+      ): Promise<void> => {
+        if (child.exitCode !== null) return;
+        if (child.pid === undefined) {
+          throw new Error("index-flag scenario child PID is unavailable");
+        }
+        if (process.platform === "win32") {
+          try {
+            await execFileAsync(
+              "taskkill",
+              ["/PID", String(child.pid), "/T", "/F"],
+              { windowsHide: true },
+            );
+          } catch (error) {
+            if (child.exitCode === null) throw error;
+          }
+          return;
+        }
+        try {
+          process.kill(-child.pid, "SIGTERM");
+        } catch (error) {
+          if (
+            (error as NodeJS.ErrnoException).code !== "ESRCH" ||
+            child.exitCode === null
+          ) {
+            throw error;
+          }
+        }
+      };
+
       beforeEach(async () => {
         let rootIndex = -1;
         for (
@@ -12885,6 +12923,7 @@ describe("read-only PR review discovery planner", () => {
           shutdownLatch: undefined,
           task: undefined,
           taskSettled: false,
+          terminationRequested: false,
           terminalAcknowledgement: undefined,
           terminalAcknowledged: false,
         };
@@ -12924,10 +12963,16 @@ describe("read-only PR review discovery planner", () => {
           if (scenario.shutdownLatch !== undefined) {
             await writeFile(scenario.shutdownLatch, "shutdown");
           }
-          if (!scenario.taskSettled && scenario.task !== undefined) {
+          if (
+            !scenario.taskSettled &&
+            scenario.shutdownLatch === undefined &&
+            scenario.child !== undefined &&
+            scenario.child.exitCode === null
+          ) {
+            scenario.terminationRequested = true;
             await awaitIndexFlagSettlement(
-              scenario.task,
-              "index-flag scenario task did not settle after shutdown",
+              terminateOwnedWrapperTree(scenario.child),
+              "index-flag scenario child tree termination timed out",
             );
           }
           if (scenario.childClose !== undefined) {
@@ -12945,6 +12990,15 @@ describe("read-only PR review discovery planner", () => {
                 "index-flag scenario child exit was not observed",
               );
             }
+            if (scenario.terminationRequested) {
+              scenario.terminalAcknowledged = true;
+            }
+          }
+          if (!scenario.taskSettled && scenario.task !== undefined) {
+            await awaitIndexFlagSettlement(
+              scenario.task,
+              "index-flag scenario task did not settle after shutdown",
+            );
           }
           if (scenario.terminalAcknowledgement !== undefined) {
             const acknowledgement = await readFile(
@@ -12961,6 +13015,7 @@ describe("read-only PR review discovery planner", () => {
           cleanupAuthorized =
             (scenario.task === undefined || scenario.taskSettled) &&
             (scenario.childClose === undefined || scenario.childClosed) &&
+            (!scenario.terminationRequested || scenario.terminalAcknowledged) &&
             (scenario.terminalAcknowledgement === undefined ||
               scenario.terminalAcknowledged);
         } catch (error) {
@@ -12994,13 +13049,17 @@ describe("read-only PR review discovery planner", () => {
                 "index-flag scenario root disappeared before terminal acknowledgement",
               );
             }
-            if (scenario.terminalAcknowledgement !== undefined) {
+            if (
+              scenario.terminalAcknowledgement !== undefined ||
+              scenario.terminationRequested
+            ) {
               forcedScenarioEvidence = {
                 childClosed: scenario.childClosed,
                 childExited: scenario.childExited,
                 roots: [...scenario.ownedRoots],
                 rootsRetainedUntilTerminal: true,
                 taskSettled: scenario.taskSettled,
+                terminationRequested: scenario.terminationRequested,
                 terminalAcknowledged: scenario.terminalAcknowledged,
               };
             }
@@ -13102,6 +13161,7 @@ describe("read-only PR review discovery planner", () => {
           "index-flag-resume-acceptance.terminal",
         );
         const physicalGit = await resolveCanonicalPhysicalGit();
+        const physicalGitBash = await toGitBashPath(physicalGit);
         const wrapper = path.join(wrapperDir, "git");
         await writeFile(
           wrapper,
@@ -13115,7 +13175,7 @@ describe("read-only PR review discovery planner", () => {
             "    exit 125",
             "    ;;",
             "esac",
-            `exec '${physicalGit}' "$@"`,
+            `exec '${physicalGitBash}' "$@"`,
             "",
           ].join("\n"),
         );
@@ -13154,6 +13214,65 @@ describe("read-only PR review discovery planner", () => {
         ).rejects.toThrow("forced wrapper task timeout");
       }, 5_000);
 
+      it("terminates a stalled real-wrapper tree without a shutdown latch", async () => {
+        if (ownedScenario === undefined) {
+          throw new Error("index-flag timeout scenario is unavailable");
+        }
+        const activeScenario = ownedScenario;
+        const wrapperDir = await mkdtemp(path.join(tmpdir(), "git-wrapper-"));
+        activeScenario.ownedRoots.push(wrapperDir);
+        const marker = path.join(wrapperDir, "status-entered");
+        const physicalGitBash = await toGitBashPath(
+          await resolveCanonicalPhysicalGit(),
+        );
+        const wrapper = path.join(wrapperDir, "git");
+        await writeFile(
+          wrapper,
+          [
+            "#!/bin/sh",
+            'case " $* " in',
+            '  *" status --porcelain=v1 "*)',
+            `    printf entered >'${await toGitBashPath(marker)}'`,
+            "    while :; do sleep 1; done",
+            "    ;;",
+            "esac",
+            `exec '${physicalGitBash}' "$@"`,
+            "",
+          ].join("\n"),
+        );
+        await makeDiscoveryGitWrapperExecutable(wrapper);
+        process.env.PATH = prependDiscoveryGitWrapper(
+          wrapperDir,
+          activeScenario.previousPath,
+        );
+        const timeoutTask = runOwnedWrapper(["discover"], {
+          ...wrapperEnvironment,
+          PATH: process.env.PATH,
+        });
+        for (let attempt = 0; attempt < 100; attempt += 1) {
+          try {
+            if ((await readFile(marker, "utf8")) === "entered") break;
+          } catch (error) {
+            if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+          }
+          await new Promise((resolve) => setTimeout(resolve, 20));
+        }
+        expect(await readFile(marker, "utf8")).toBe("entered");
+        await expect(
+          Promise.race([
+            timeoutTask.then(() => {
+              throw new Error("stalled wrapper task settled before timeout");
+            }),
+            new Promise<never>((_resolve, reject) => {
+              setTimeout(
+                () => reject(new Error("stalled wrapper task timeout")),
+                100,
+              );
+            }),
+          ]),
+        ).rejects.toThrow("stalled wrapper task timeout");
+      }, 5_000);
+
       it("does not contaminate the following scenario", async () => {
         if (forcedScenarioEvidence === undefined) {
           throw new Error("forced index-flag scenario evidence is unavailable");
@@ -13163,6 +13282,7 @@ describe("read-only PR review discovery planner", () => {
           childExited: true,
           rootsRetainedUntilTerminal: true,
           taskSettled: true,
+          terminationRequested: true,
           terminalAcknowledged: true,
         });
         for (const forcedRoot of forcedScenarioEvidence.roots) {
