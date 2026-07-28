@@ -71,7 +71,6 @@ const discoveryGitNativeOwnerRecordMaxFields = 4096;
 const discoveryGitNativeOwnerLogMaxBytes = 4 * 1024 * 1024;
 const discoveryGitNativeOwnerDiagnosticMaxBytes = 256 * 1024;
 const discoveryGitNativeOwnerDiagnosticMaxRecords = 16;
-const discoveryGitNativeOwnerDiagnosticMaxArguments = 32;
 const discoveryGitNativeOwnerDiagnosticMaxArgumentCharacters = 256;
 const candidateOriginLifecycleEvidenceMaxBytes = 64 * 1024;
 const candidateOriginLifecycleEvidenceMaxRecords = 64;
@@ -6212,6 +6211,31 @@ function discoveryGitNativeOwnerDiagnosticArgument(value: string): string {
   }]`;
 }
 
+function discoveryDiagnosticText(
+  value: unknown,
+  ownedRoots: readonly string[] = [],
+): string {
+  const original =
+    value instanceof Error
+      ? value.message
+      : typeof value === "string"
+        ? value
+        : "diagnostic failure with a non-error value";
+  let redacted = original;
+  for (const [index, ownedRoot] of ownedRoots.entries()) {
+    redacted = redacted.split(ownedRoot).join(`<owned-root-${index + 1}>`);
+  }
+  redacted = redacted.replace(
+    /(?:[A-Za-z]:[\\/]|\\\\|\/)[^,\r\n;)\]}]*/gu,
+    "<absolute-path>",
+  );
+  const bounded = discoveryGitNativeOwnerDiagnosticArgument(redacted);
+  if (bounded === original) return bounded;
+  return `${bounded} [sha256:${createHash("sha256")
+    .update(original)
+    .digest("hex")}]`;
+}
+
 function discoveryGitNativeOwnerDiagnosticRecord(
   record: DiscoveryGitNativeOwnerRecord,
 ) {
@@ -6236,13 +6260,6 @@ function discoveryGitNativeOwnerDiagnosticRecord(
     ...common,
     argument_count: record.args.length,
     argument_digest: argumentsDigest.digest("hex"),
-    arguments: record.args
-      .slice(0, discoveryGitNativeOwnerDiagnosticMaxArguments)
-      .map(discoveryGitNativeOwnerDiagnosticArgument),
-    arguments_omitted: Math.max(
-      0,
-      record.args.length - discoveryGitNativeOwnerDiagnosticMaxArguments,
-    ),
     child_pid: record.childPid,
   };
 }
@@ -6310,14 +6327,7 @@ function candidateOriginDiagnosticText(
   value: unknown,
   ownedRoots: readonly string[],
 ): string {
-  let message =
-    value instanceof Error
-      ? value.message
-      : "candidate origin shutdown failed with a non-error value";
-  for (const [index, ownedRoot] of ownedRoots.entries()) {
-    message = message.split(ownedRoot).join(`<owned-root-${index + 1}>`);
-  }
-  return discoveryGitNativeOwnerDiagnosticArgument(message);
+  return discoveryDiagnosticText(value, ownedRoots);
 }
 
 async function existingCandidateOriginRoots(
@@ -6349,7 +6359,14 @@ function candidateOriginPreservedRootReport(
   ownedRoots: readonly string[],
   preservedRoots: readonly string[],
 ): string {
-  return JSON.stringify(candidateOriginRootLabels(ownedRoots, preservedRoots));
+  const roots = candidateOriginRootLabels(ownedRoots, preservedRoots).map(
+    (identity) => ({ identity, status: "preserved" as const }),
+  );
+  return JSON.stringify({
+    preserved_count: roots.length,
+    roots,
+    schema: "devcanon/test-owned-root-preservation/v1",
+  });
 }
 
 async function removeCandidateOriginOwnedRoots(
@@ -6821,9 +6838,13 @@ async function shutdownOrdinaryDiscoveryLifecycleScenario(
   if (!scenario.enabled) return [];
   if (scenario.shutdownAttempted) {
     if (scenario.shutdownFailed) {
+      const preservedRoots = await existingCandidateOriginRoots(
+        scenario.ownedRoots,
+      );
       process.stderr.write(
-        `DEVCANON_DISCOVERY_NATIVE_ROOT_PRESERVED ${JSON.stringify(
+        `DEVCANON_DISCOVERY_NATIVE_ROOT_PRESERVED ${candidateOriginPreservedRootReport(
           scenario.ownedRoots,
+          preservedRoots,
         )}\n`,
       );
     }
@@ -6835,12 +6856,8 @@ async function shutdownOrdinaryDiscoveryLifecycleScenario(
   let terminal: DiscoveryGitNativeOwnerDiagnosticSnapshot | undefined;
   const shutdownFailures: Array<{ error: string; phase: string }> = [];
   const recordShutdownFailure = (phase: string, error: unknown): void => {
-    const message =
-      error instanceof Error
-        ? error.message
-        : "ordinary discovery shutdown failed with a non-error value";
     shutdownFailures.push({
-      error: discoveryGitNativeOwnerDiagnosticArgument(message),
+      error: discoveryDiagnosticText(error, scenario.ownedRoots),
       phase,
     });
   };
@@ -6981,10 +6998,14 @@ async function shutdownOrdinaryDiscoveryLifecycleScenario(
         )}\n`,
       );
     }
-    if (!cleanupAuthorized || scenario.shutdownFailed) {
+    const preservedRoots = await existingCandidateOriginRoots(
+      scenario.ownedRoots,
+    );
+    if (preservedRoots.length > 0) {
       process.stderr.write(
-        `DEVCANON_DISCOVERY_NATIVE_ROOT_PRESERVED ${JSON.stringify(
+        `DEVCANON_DISCOVERY_NATIVE_ROOT_PRESERVED ${candidateOriginPreservedRootReport(
           scenario.ownedRoots,
+          preservedRoots,
         )}\n`,
       );
     }
@@ -7021,14 +7042,14 @@ async function finalizeOrdinaryDiscoveryLifecycleScenarios({
 }): Promise<void> {
   const cleanupErrors: Error[] = [];
   const finalRetainedRoots = new Set(retainedRoots);
+  const diagnosticRoots = [
+    ...new Set([
+      ...retainedRoots,
+      ...scenarios.flatMap(({ scenario }) => scenario?.ownedRoots ?? []),
+    ]),
+  ];
   const cleanupError = (label: string, error: unknown): Error =>
-    new Error(
-      `${label}: ${
-        error instanceof Error
-          ? error.message
-          : "cleanup failed with a non-error value"
-      }`,
-    );
+    new Error(`${label}: ${discoveryDiagnosticText(error, diagnosticRoots)}`);
   for (const { label, scenario } of scenarios) {
     if (scenario === undefined) continue;
     if (scenario.shutdownAttempted) {
@@ -7056,19 +7077,35 @@ async function finalizeOrdinaryDiscoveryLifecycleScenarios({
     try {
       await removeRetainedRoot(retainedRoot);
     } catch (error) {
+      const rootIdentity =
+        candidateOriginRootLabels(diagnosticRoots, [retainedRoot])[0] ??
+        "unbound-owned-root";
       cleanupErrors.push(
-        cleanupError(`retained root cleanup failed for ${retainedRoot}`, error),
+        cleanupError(`retained root cleanup failed for ${rootIdentity}`, error),
       );
     }
   }
+  const reportedOriginalError =
+    originalError instanceof Error &&
+    discoveryDiagnosticText(originalError, diagnosticRoots) ===
+      originalError.message
+      ? originalError
+      : originalError === undefined
+        ? undefined
+        : new Error(
+            `original failure: ${discoveryDiagnosticText(
+              originalError,
+              diagnosticRoots,
+            )}`,
+          );
   if (originalError === undefined && cleanupErrors.length === 0) return;
   if (originalError !== undefined && cleanupErrors.length === 0) {
-    throw originalError;
+    throw reportedOriginalError;
   }
   throw new AggregateError(
-    originalError === undefined
+    reportedOriginalError === undefined
       ? cleanupErrors
-      : [originalError, ...cleanupErrors],
+      : [reportedOriginalError, ...cleanupErrors],
     "ordinary discovery scenario finalization failed",
   );
 }
@@ -7949,6 +7986,33 @@ describe("read-only PR review discovery planner", () => {
     ).toBe(false);
   });
 
+  it("redacts adversarial local paths from public lifecycle failure evidence", () => {
+    const ownedRoot = "/Users/DISTINCTIVE USER/.private/devcanon-root";
+    const windowsPath = "C:\\Users\\DISTINCTIVE USER\\Temp\\owner.log";
+    const uncPath = "\\\\server\\share\\DISTINCTIVE\\owner.log";
+    const unrelatedPosixPath = "/private/tmp/DISTINCTIVE OTHER/owner log.txt";
+    const diagnostic = discoveryDiagnosticText(
+      new Error(
+        `capture failed at ${ownedRoot}/native.log, ${windowsPath}, ${uncPath}, and ${unrelatedPosixPath}`,
+      ),
+      [ownedRoot],
+    );
+
+    expect(diagnostic).toContain("<owned-root-1>");
+    expect(diagnostic).toContain("<absolute-path>");
+    expect(diagnostic).toMatch(/\[sha256:[0-9a-f]{64}\]$/u);
+    for (const privateValue of [
+      ownedRoot,
+      "DISTINCTIVE USER",
+      windowsPath,
+      uncPath,
+      unrelatedPosixPath,
+      "DISTINCTIVE OTHER",
+    ]) {
+      expect(diagnostic).not.toContain(privateValue);
+    }
+  });
+
   it("derives candidate-origin verification only from exact successful terminal records", async () => {
     const root = await mkdtemp(
       path.join(tmpdir(), "candidate-origin-terminal-evidence-"),
@@ -8063,13 +8127,16 @@ describe("read-only PR review discovery planner", () => {
         [firstRoot, secondRoot],
         cleanup.preservedRoots,
       ),
-    ).toBe('["owned-root-2"]');
-    expect(
-      candidateOriginDiagnosticText(cleanup.failures[0]?.error, [
-        firstRoot,
-        secondRoot,
-      ]),
-    ).toBe("retained <owned-root-2>");
+    ).toBe(
+      '{"preserved_count":1,"roots":[{"identity":"owned-root-2","status":"preserved"}],"schema":"devcanon/test-owned-root-preservation/v1"}',
+    );
+    const diagnosticText = candidateOriginDiagnosticText(
+      cleanup.failures[0]?.error,
+      [firstRoot, secondRoot],
+    );
+    expect(diagnosticText).toContain("retained <owned-root-2>");
+    expect(diagnosticText).toMatch(/\[sha256:[0-9a-f]{64}\]$/u);
+    expect(diagnosticText).not.toContain(secondRoot);
     await expect(lstat(firstRoot)).rejects.toMatchObject({ code: "ENOENT" });
     expect((await lstat(secondRoot)).isDirectory()).toBe(true);
   });
@@ -8305,6 +8372,7 @@ describe("read-only PR review discovery planner", () => {
     discoveryTempRoots.push(root);
     const ownerLog = path.join(root, discoveryGitNativeOwnerLogName);
     const commandIdentity = "1".repeat(64);
+    const distinctiveLocalPath = path.join(root, "DISTINCTIVE-USER-PATH-BYTES");
     const incompleteRecord = "END\0ordinary-resume-evidence\0terminal";
     await writeFile(
       ownerLog,
@@ -8319,8 +8387,8 @@ describe("read-only PR review discovery planner", () => {
           "1000",
           "202",
           "2",
-          "status",
-          "--porcelain=v1",
+          "-C",
+          distinctiveLocalPath,
           "BEGIN_END",
           "",
         ].join("\0")}${incompleteRecord}`,
@@ -8346,7 +8414,6 @@ describe("read-only PR review discovery planner", () => {
       expect.objectContaining({
         argument_count: 2,
         argument_digest: expect.stringMatching(/^[0-9a-f]{64}$/u),
-        arguments: ["status", "--porcelain=v1"],
         child_pid: 202,
         command_identity: commandIdentity,
         operation: "pass-through",
@@ -8358,6 +8425,9 @@ describe("read-only PR review discovery planner", () => {
     expect(
       Buffer.byteLength(JSON.stringify(snapshot.diagnostic)),
     ).toBeLessThanOrEqual(discoveryGitNativeOwnerDiagnosticMaxBytes);
+    expect(JSON.stringify(snapshot.diagnostic)).not.toContain(
+      distinctiveLocalPath,
+    );
   });
 
   it("fails closed and restores globals when ordinary lifecycle capture is malformed", async () => {
@@ -8427,6 +8497,9 @@ describe("read-only PR review discovery planner", () => {
       const stderr = stderrChunks.join("");
       expect(stderr).toContain("DEVCANON_DISCOVERY_NATIVE_LIFECYCLE_FAILURE ");
       expect(stderr).toContain("DEVCANON_DISCOVERY_NATIVE_ROOT_PRESERVED ");
+      expect(stderr).not.toContain(root);
+      expect(stderr).toContain('"identity":"owned-root-1"');
+      expect(stderr).toContain('"preserved_count":1');
       expect(stderr.indexOf("LIFECYCLE_FAILURE")).toBeLessThan(
         stderr.indexOf("ROOT_PRESERVED"),
       );
@@ -8495,7 +8568,9 @@ describe("read-only PR review discovery planner", () => {
       number
     >();
     const rootCleanupCounts = new Map<string, number>();
-    const originalFailure = new Error("original test body failure");
+    const originalFailure = new Error(
+      `original test body failure at ${retainedRoots[0]}`,
+    );
     process.chdir(followingScenario.root);
     process.env.PATH = "ordinary-finalizer-temporary-path";
     activeDiscoveryGitAdapterLog = "ordinary-finalizer-temporary-adapter";
@@ -8557,12 +8632,24 @@ describe("read-only PR review discovery planner", () => {
 
     expect(finalizationError).toBeInstanceOf(AggregateError);
     const errors = (finalizationError as AggregateError).errors;
-    expect(errors[0]).toBe(originalFailure);
+    expect(errors[0]).not.toBe(originalFailure);
+    expect((errors[0] as Error).message).toContain(
+      "original test body failure at <owned-root-1>",
+    );
+    expect((errors[0] as Error).message).toMatch(/\[sha256:[0-9a-f]{64}\]$/u);
     expect(errors.slice(1).map((error) => (error as Error).message)).toEqual([
       expect.stringContaining("following scenario shutdown failed"),
       expect.stringContaining("failing scenario shutdown failed"),
       expect.stringContaining("retained root cleanup failed"),
     ]);
+    const reportedErrors = errors
+      .map((error) => (error as Error).message)
+      .join("\n");
+    for (const retainedRoot of retainedRoots) {
+      expect(reportedErrors).not.toContain(retainedRoot);
+    }
+    expect(reportedErrors).toContain("<owned-root-1>");
+    expect(reportedErrors).toContain("<owned-root-2>");
     expect(shutdownCounts.get(followingScenario)).toBe(1);
     expect(shutdownCounts.get(failingScenario)).toBe(1);
     expect(followingScenario.shutdownAttempted).toBe(true);
@@ -10617,7 +10704,7 @@ describe("read-only PR review discovery planner", () => {
           scenario = undefined;
           const stderr = stderrChunks.join("");
           expect(stderr).toContain(
-            'DEVCANON_CANDIDATE_ORIGIN_ROOT_PRESERVED ["owned-root-2"]',
+            'DEVCANON_CANDIDATE_ORIGIN_ROOT_PRESERVED {"preserved_count":1,"roots":[{"identity":"owned-root-2","status":"preserved"}],"schema":"devcanon/test-owned-root-preservation/v1"}',
           );
           expect(stderr).not.toContain(retainedRoot);
           expect(
