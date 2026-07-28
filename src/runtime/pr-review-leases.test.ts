@@ -5645,15 +5645,15 @@ interface CandidateOriginLifecycleDiagnostic {
   final_repository_binding_revalidation: boolean;
   globals_restored: boolean;
   marker_complete: boolean;
-  native_active: ReturnType<typeof discoveryGitNativeOwnerDiagnosticRecord>[];
+  native_active: ReturnType<typeof candidateOriginNativeDiagnosticRecord>[];
   native_incomplete_record: boolean;
   native_incomplete_record_bytes: number;
   native_key_records: ReturnType<
-    typeof discoveryGitNativeOwnerDiagnosticRecord
+    typeof candidateOriginNativeDiagnosticRecord
   >[];
   native_record_count: number;
   native_tail_records: ReturnType<
-    typeof discoveryGitNativeOwnerDiagnosticRecord
+    typeof candidateOriginNativeDiagnosticRecord
   >[];
   phase: "pre-shutdown" | "terminal";
   roots_preserved: boolean;
@@ -6247,6 +6247,34 @@ function discoveryGitNativeOwnerDiagnosticRecord(
   };
 }
 
+function candidateOriginNativeDiagnosticRecord(
+  record: DiscoveryGitNativeOwnerRecord,
+) {
+  const common = {
+    command_identity: record.commandIdentity,
+    monotonic_ticks: record.monotonicTicks,
+    operation: record.operation,
+    owner_pid: record.ownerPid,
+    scenario: record.scenario,
+    stage: record.stage,
+    type: record.type,
+  };
+  if (record.type !== "BEGIN") {
+    return { ...common, child_exit: record.childExit };
+  }
+  const argumentsDigest = createHash("sha256");
+  for (const argument of record.args) {
+    argumentsDigest.update(argument);
+    argumentsDigest.update("\0");
+  }
+  return {
+    ...common,
+    argument_count: record.args.length,
+    argument_digest: argumentsDigest.digest("hex"),
+    child_pid: record.childPid,
+  };
+}
+
 const candidateOriginLifecycleKeyOperations = new Set([
   "candidate-target",
   "mutation-reset",
@@ -6257,6 +6285,95 @@ const candidateOriginLifecycleKeyOperations = new Set([
   "candidate-revalidation-origin-raw",
   "candidate-revalidation-origin-typed",
 ]);
+
+function candidateOriginOperationSucceeded(
+  records: readonly DiscoveryGitNativeOwnerRecord[],
+  operation: string,
+): boolean {
+  return records.some(
+    (begin): begin is DiscoveryGitNativeOwnerBegin =>
+      begin.type === "BEGIN" &&
+      begin.operation === operation &&
+      records.some(
+        (terminal) =>
+          terminal.type === "END" &&
+          terminal.childExit === 0 &&
+          terminal.commandIdentity === begin.commandIdentity &&
+          terminal.ownerPid === begin.ownerPid &&
+          terminal.operation === begin.operation &&
+          terminal.scenario === begin.scenario,
+      ),
+  );
+}
+
+function candidateOriginDiagnosticText(
+  value: unknown,
+  ownedRoots: readonly string[],
+): string {
+  let message =
+    value instanceof Error
+      ? value.message
+      : "candidate origin shutdown failed with a non-error value";
+  for (const [index, ownedRoot] of ownedRoots.entries()) {
+    message = message.split(ownedRoot).join(`<owned-root-${index + 1}>`);
+  }
+  return discoveryGitNativeOwnerDiagnosticArgument(message);
+}
+
+async function existingCandidateOriginRoots(
+  ownedRoots: readonly string[],
+): Promise<string[]> {
+  const existing: string[] = [];
+  for (const ownedRoot of ownedRoots) {
+    try {
+      await lstat(ownedRoot);
+      existing.push(ownedRoot);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    }
+  }
+  return existing;
+}
+
+function candidateOriginRootLabels(
+  ownedRoots: readonly string[],
+  preservedRoots: readonly string[],
+): string[] {
+  const preserved = new Set(preservedRoots);
+  return ownedRoots.flatMap((ownedRoot, index) =>
+    preserved.has(ownedRoot) ? [`owned-root-${index + 1}`] : [],
+  );
+}
+
+function candidateOriginPreservedRootReport(
+  ownedRoots: readonly string[],
+  preservedRoots: readonly string[],
+): string {
+  return JSON.stringify(candidateOriginRootLabels(ownedRoots, preservedRoots));
+}
+
+async function removeCandidateOriginOwnedRoots(
+  ownedRoots: readonly string[],
+  removeRoot: (ownedRoot: string) => Promise<void> = async (ownedRoot) => {
+    await rm(ownedRoot, { recursive: true, force: true });
+  },
+): Promise<{
+  failures: Array<{ error: unknown; root: string }>;
+  preservedRoots: string[];
+}> {
+  const failures: Array<{ error: unknown; root: string }> = [];
+  for (const ownedRoot of ownedRoots) {
+    try {
+      await removeRoot(ownedRoot);
+    } catch (error) {
+      failures.push({ error, root: ownedRoot });
+    }
+  }
+  return {
+    failures,
+    preservedRoots: await existingCandidateOriginRoots(ownedRoots),
+  };
+}
 
 async function snapshotCandidateOriginLifecycleDiagnostic({
   cleanupAuthorized,
@@ -6318,11 +6435,22 @@ async function snapshotCandidateOriginLifecycleDiagnostic({
     -discoveryGitNativeOwnerDiagnosticMaxRecords,
   );
   const eventStages = evidence.records.map(({ stage }) => stage);
-  const statusAuthorityAndSnapshotVerified =
-    eventStages.includes("discovery-returned") ||
-    native.records.some((record) =>
-      record.operation.startsWith("candidate-revalidation-"),
-    );
+  const statusAuthorityAndSnapshotVerified = [
+    "candidate-target",
+    "mutation-reset",
+    "mutation-add",
+  ].every((operation) =>
+    candidateOriginOperationSucceeded(native.records, operation),
+  );
+  const finalRepositoryBindingRevalidation = [
+    "candidate-revalidation-top-level",
+    "candidate-revalidation-common-dir",
+    "candidate-revalidation-admin-dir",
+    "candidate-revalidation-origin-raw",
+    "candidate-revalidation-origin-typed",
+  ].every((operation) =>
+    candidateOriginOperationSucceeded(native.records, operation),
+  );
   const diagnostic: CandidateOriginLifecycleDiagnostic = {
     assertion_reachability: eventStages.filter((stage) =>
       stage.endsWith("-asserted"),
@@ -6331,8 +6459,7 @@ async function snapshotCandidateOriginLifecycleDiagnostic({
     evidence_incomplete_record: evidence.incompleteRecord,
     evidence_incomplete_record_bytes: evidence.incompleteRecordBytes,
     evidence_record_count: evidence.records.length,
-    final_repository_binding_revalidation:
-      eventStages.includes("discovery-returned"),
+    final_repository_binding_revalidation: finalRepositoryBindingRevalidation,
     globals_restored: globalsRestored,
     marker_complete: await lstat(marker).then(
       () => true,
@@ -6342,16 +6469,16 @@ async function snapshotCandidateOriginLifecycleDiagnostic({
       },
     ),
     native_active: discoveryGitNativeOwnerActiveChildren(native.records).map(
-      discoveryGitNativeOwnerDiagnosticRecord,
+      candidateOriginNativeDiagnosticRecord,
     ),
     native_incomplete_record: native.incompleteRecord,
     native_incomplete_record_bytes: native.incompleteRecordBytes,
     native_key_records: nativeKeyRecords.map(
-      discoveryGitNativeOwnerDiagnosticRecord,
+      candidateOriginNativeDiagnosticRecord,
     ),
     native_record_count: native.records.length,
     native_tail_records: nativeTailRecords.map(
-      discoveryGitNativeOwnerDiagnosticRecord,
+      candidateOriginNativeDiagnosticRecord,
     ),
     phase,
     roots_preserved: rootsPreserved,
@@ -6369,6 +6496,7 @@ async function snapshotCandidateOriginLifecycleDiagnostic({
 
 async function captureCandidateOriginLifecycleDiagnostic(
   options: Parameters<typeof snapshotCandidateOriginLifecycleDiagnostic>[0],
+  emit = true,
 ): Promise<CandidateOriginLifecycleDiagnostic> {
   let diagnostic = await snapshotCandidateOriginLifecycleDiagnostic(options);
   for (
@@ -6381,9 +6509,11 @@ async function captureCandidateOriginLifecycleDiagnostic(
     await new Promise((resolve) => setTimeout(resolve, 20));
     diagnostic = await snapshotCandidateOriginLifecycleDiagnostic(options);
   }
-  process.stderr.write(
-    `DEVCANON_CANDIDATE_ORIGIN_LIFECYCLE ${JSON.stringify(diagnostic)}\n`,
-  );
+  if (emit) {
+    process.stderr.write(
+      `DEVCANON_CANDIDATE_ORIGIN_LIFECYCLE ${JSON.stringify(diagnostic)}\n`,
+    );
+  }
   if (
     diagnostic.evidence_incomplete_record ||
     diagnostic.native_incomplete_record
@@ -7750,6 +7880,198 @@ describe("read-only PR review discovery planner", () => {
     await expect(
       readCandidateOriginLifecycleRecords(evidenceLog),
     ).rejects.toThrow("candidate origin lifecycle stage is malformed");
+  });
+
+  it("redacts candidate-origin argv while requiring exact successful terminal operations", () => {
+    const localPath = path.join(
+      tmpdir(),
+      "machine-local",
+      "candidate-worktree",
+    );
+    const commandIdentity = "d".repeat(64);
+    const records: DiscoveryGitNativeOwnerRecord[] = [
+      {
+        args: ["-C", localPath, "status", "--porcelain=v1"],
+        childPid: 202,
+        commandIdentity,
+        monotonicTicks: 1000,
+        operation: "candidate-target",
+        ownerPid: 101,
+        scenario: "candidate",
+        stage: "spawned",
+        type: "BEGIN",
+      },
+      {
+        childExit: 0,
+        commandIdentity,
+        monotonicTicks: 1001,
+        operation: "candidate-target",
+        ownerPid: 101,
+        scenario: "candidate",
+        stage: "terminal",
+        type: "END",
+      },
+    ];
+    const diagnosticRecord = candidateOriginNativeDiagnosticRecord(records[0]);
+    expect(JSON.stringify(diagnosticRecord)).not.toContain(localPath);
+    expect(diagnosticRecord).toMatchObject({
+      argument_count: 4,
+      argument_digest: expect.stringMatching(/^[0-9a-f]{64}$/u),
+      operation: "candidate-target",
+      type: "BEGIN",
+    });
+    expect(candidateOriginOperationSucceeded(records, "candidate-target")).toBe(
+      true,
+    );
+    expect(
+      candidateOriginOperationSucceeded(
+        [
+          records[0],
+          {
+            ...(records[1] as DiscoveryGitNativeOwnerEnd),
+            operation: "candidate-target-prefix",
+          },
+        ],
+        "candidate-target",
+      ),
+    ).toBe(false);
+    expect(
+      candidateOriginOperationSucceeded(
+        [
+          records[0],
+          {
+            ...(records[1] as DiscoveryGitNativeOwnerEnd),
+            childExit: 1,
+          },
+        ],
+        "candidate-target",
+      ),
+    ).toBe(false);
+  });
+
+  it("derives candidate-origin verification only from exact successful terminal records", async () => {
+    const root = await mkdtemp(
+      path.join(tmpdir(), "candidate-origin-terminal-evidence-"),
+    );
+    discoveryTempRoots.push(root);
+    const evidenceLog = path.join(root, "candidate-origin-lifecycle.log");
+    const nativeOwnerLog = path.join(root, discoveryGitNativeOwnerLogName);
+    const marker = path.join(root, "marker");
+    const localArgument = path.join(root, "candidate-worktree");
+    await Promise.all([
+      writeFile(evidenceLog, Buffer.alloc(0)),
+      writeFile(nativeOwnerLog, Buffer.alloc(0)),
+      writeFile(marker, "fired"),
+    ]);
+    await appendCandidateOriginLifecycleRecord(
+      evidenceLog,
+      "discovery-returned",
+    );
+    const prefixOnly = await snapshotCandidateOriginLifecycleDiagnostic({
+      cleanupAuthorized: false,
+      evidenceLog,
+      globalsRestored: false,
+      marker,
+      nativeOwnerLog,
+      phase: "pre-shutdown",
+      rootsPreserved: false,
+      taskSettled: false,
+    });
+    expect(prefixOnly).toMatchObject({
+      final_repository_binding_revalidation: false,
+      status_authority_and_snapshot_verified: false,
+    });
+
+    const operations = [
+      "candidate-target",
+      "mutation-reset",
+      "mutation-add",
+      "candidate-revalidation-top-level",
+      "candidate-revalidation-common-dir",
+      "candidate-revalidation-admin-dir",
+      "candidate-revalidation-origin-raw",
+      "candidate-revalidation-origin-typed",
+    ];
+    const fields: string[] = [];
+    for (const [index, operation] of operations.entries()) {
+      const commandIdentity = createHash("sha256")
+        .update(operation)
+        .digest("hex");
+      fields.push(
+        "BEGIN",
+        "candidate",
+        "spawned",
+        operation,
+        commandIdentity,
+        String(100 + index),
+        String(1_000 + index * 2),
+        String(200 + index),
+        "2",
+        "-C",
+        localArgument,
+        "BEGIN_END",
+        "END",
+        "candidate",
+        "terminal",
+        operation,
+        commandIdentity,
+        String(100 + index),
+        String(1_001 + index * 2),
+        "0",
+      );
+    }
+    fields.push("");
+    await writeFile(nativeOwnerLog, Buffer.from(fields.join("\0"), "utf8"));
+    const verified = await snapshotCandidateOriginLifecycleDiagnostic({
+      cleanupAuthorized: false,
+      evidenceLog,
+      globalsRestored: false,
+      marker,
+      nativeOwnerLog,
+      phase: "pre-shutdown",
+      rootsPreserved: false,
+      taskSettled: false,
+    });
+    expect(verified).toMatchObject({
+      final_repository_binding_revalidation: true,
+      status_authority_and_snapshot_verified: true,
+    });
+    expect(JSON.stringify(verified)).not.toContain(localArgument);
+  });
+
+  it("reports only roots left after independent candidate-origin cleanup attempts", async () => {
+    const firstRoot = await mkdtemp(
+      path.join(tmpdir(), "candidate-origin-cleanup-first-"),
+    );
+    const secondRoot = await mkdtemp(
+      path.join(tmpdir(), "candidate-origin-cleanup-second-"),
+    );
+    discoveryTempRoots.push(firstRoot, secondRoot);
+    const cleanup = await removeCandidateOriginOwnedRoots(
+      [firstRoot, secondRoot],
+      async (ownedRoot) => {
+        if (ownedRoot === secondRoot) {
+          throw new Error(`retained ${ownedRoot}`);
+        }
+        await rm(ownedRoot, { recursive: true, force: true });
+      },
+    );
+
+    expect(cleanup.preservedRoots).toEqual([secondRoot]);
+    expect(
+      candidateOriginPreservedRootReport(
+        [firstRoot, secondRoot],
+        cleanup.preservedRoots,
+      ),
+    ).toBe('["owned-root-2"]');
+    expect(
+      candidateOriginDiagnosticText(cleanup.failures[0]?.error, [
+        firstRoot,
+        secondRoot,
+      ]),
+    ).toBe("retained <owned-root-2>");
+    await expect(lstat(firstRoot)).rejects.toMatchObject({ code: "ENOENT" });
+    expect((await lstat(secondRoot)).isDirectory()).toBe(true);
   });
 
   it("assigns the canonical native BEGIN transport fields semantically", async () => {
@@ -9622,13 +9944,20 @@ describe("read-only PR review discovery planner", () => {
 
     const shutdownCandidateScenario = async (
       activeScenario: OriginDriftScenario,
-      options: { proveLatchRejection?: boolean } = {},
+      options: {
+        proveLatchRejection?: boolean;
+        removeRoot?: (ownedRoot: string) => Promise<void>;
+      } = {},
     ): Promise<DiscoveryGitNativeOwnerRecord[]> => {
       if (activeScenario.shutdownAttempted) {
         if (activeScenario.shutdownFailed) {
+          const preservedRoots = await existingCandidateOriginRoots(
+            activeScenario.ownedRoots,
+          );
           process.stderr.write(
-            `DEVCANON_CANDIDATE_ORIGIN_ROOT_PRESERVED ${JSON.stringify(
+            `DEVCANON_CANDIDATE_ORIGIN_ROOT_PRESERVED ${candidateOriginPreservedRootReport(
               activeScenario.ownedRoots,
+              preservedRoots,
             )}\n`,
           );
         }
@@ -9641,10 +9970,9 @@ describe("read-only PR review discovery planner", () => {
       const shutdownFailures: Array<{ error: string; phase: string }> = [];
       const recordShutdownFailure = (phase: string, error: unknown): void => {
         shutdownFailures.push({
-          error: discoveryGitNativeOwnerDiagnosticArgument(
-            error instanceof Error
-              ? error.message
-              : "candidate origin shutdown failed with a non-error value",
+          error: candidateOriginDiagnosticText(
+            error,
+            activeScenario.ownedRoots,
           ),
           phase,
         });
@@ -9802,31 +10130,47 @@ describe("read-only PR review discovery planner", () => {
           recordShutdownFailure("restoration-evidence", error);
         }
         cleanupAuthorized = shutdownFailures.length === 0;
+        let preservedRoots = await existingCandidateOriginRoots(
+          activeScenario.ownedRoots,
+        );
+        let terminal: CandidateOriginLifecycleDiagnostic | undefined;
         try {
-          const terminal = await captureCandidateOriginLifecycleDiagnostic({
-            cleanupAuthorized,
-            evidenceLog: activeScenario.evidenceLog,
-            globalsRestored,
-            marker: activeScenario.marker,
-            nativeOwnerLog: activeScenario.nativeOwnerLog,
-            phase: "terminal",
-            rootsPreserved: !cleanupAuthorized,
-            taskSettled: activeScenario.taskSettled,
-          });
-          activeScenario.diagnostics.push(terminal);
+          terminal = await captureCandidateOriginLifecycleDiagnostic(
+            {
+              cleanupAuthorized: false,
+              evidenceLog: activeScenario.evidenceLog,
+              globalsRestored,
+              marker: activeScenario.marker,
+              nativeOwnerLog: activeScenario.nativeOwnerLog,
+              phase: "terminal",
+              rootsPreserved: false,
+              taskSettled: activeScenario.taskSettled,
+            },
+            false,
+          );
         } catch (error) {
           recordShutdownFailure("terminal-capture", error);
           cleanupAuthorized = false;
         }
         if (cleanupAuthorized) {
-          try {
-            for (const ownedRoot of activeScenario.ownedRoots) {
-              await rm(ownedRoot, { recursive: true, force: true });
-            }
-          } catch (error) {
-            recordShutdownFailure("root-cleanup", error);
-            activeScenario.shutdownFailed = true;
+          const cleanup = await removeCandidateOriginOwnedRoots(
+            activeScenario.ownedRoots,
+            options.removeRoot,
+          );
+          preservedRoots = cleanup.preservedRoots;
+          for (const [index, failure] of cleanup.failures.entries()) {
+            recordShutdownFailure(`root-cleanup-${index + 1}`, failure.error);
           }
+          cleanupAuthorized =
+            cleanup.failures.length === 0 && preservedRoots.length === 0;
+        }
+        if (terminal !== undefined) {
+          terminal.cleanup_authorized = cleanupAuthorized;
+          terminal.roots_preserved = preservedRoots.length > 0;
+          activeScenario.diagnostics.push(terminal);
+          process.stderr.write(
+            `DEVCANON_CANDIDATE_ORIGIN_LIFECYCLE ${JSON.stringify(terminal)}\n`,
+          );
         }
         if (shutdownFailures.length > 0) {
           activeScenario.shutdownFailed = true;
@@ -9836,10 +10180,11 @@ describe("read-only PR review discovery planner", () => {
             )}\n`,
           );
         }
-        if (!cleanupAuthorized || activeScenario.shutdownFailed) {
+        if (preservedRoots.length > 0) {
           process.stderr.write(
-            `DEVCANON_CANDIDATE_ORIGIN_ROOT_PRESERVED ${JSON.stringify(
+            `DEVCANON_CANDIDATE_ORIGIN_ROOT_PRESERVED ${candidateOriginPreservedRootReport(
               activeScenario.ownedRoots,
+              preservedRoots,
             )}\n`,
           );
         }
@@ -10082,19 +10427,34 @@ describe("read-only PR review discovery planner", () => {
               }),
             );
           }
-          expect(records).toContainEqual(
-            expect.objectContaining({
-              operation: "candidate-revalidation-top-level",
-              type: "BEGIN",
-            }),
-          );
+          for (const operation of [
+            "candidate-revalidation-top-level",
+            "candidate-revalidation-common-dir",
+            "candidate-revalidation-admin-dir",
+            "candidate-revalidation-origin-raw",
+            "candidate-revalidation-origin-typed",
+          ]) {
+            expect(records).toContainEqual(
+              expect.objectContaining({
+                operation,
+                type: "BEGIN",
+              }),
+            );
+            expect(records).toContainEqual(
+              expect.objectContaining({
+                childExit: 0,
+                operation,
+                type: "END",
+              }),
+            );
+          }
           expect(discoveryGitNativeOwnerActiveChildren(records)).toEqual([]);
         }
       });
     });
 
     describe.runIf(process.platform === "win32")(
-      "preserves candidate-target evidence through forced shutdown",
+      "preserves candidate native-child evidence through forced shutdown",
       () => {
         it("prints bounded timeout evidence and restores owned state", async () => {
           scenario = await setupScenario("candidate");
@@ -10216,6 +10576,61 @@ describe("read-only PR review discovery planner", () => {
             activeScenario.previousNativeOwnerExpectedOperation,
           );
           discoveryTempRoots.push(...activeScenario.ownedRoots);
+        });
+
+        it("reports only roots retained after partial cleanup failure", async () => {
+          scenario = await setupScenario("candidate");
+          if (scenario === undefined) {
+            throw new Error(
+              "candidate partial-cleanup scenario is unavailable",
+            );
+          }
+          const activeScenario = scenario;
+          const retainedRoot = activeScenario.ownedRoots[1];
+          if (retainedRoot === undefined) {
+            throw new Error("candidate partial-cleanup root is unavailable");
+          }
+          activeScenario.task = Promise.resolve();
+          activeScenario.taskSettled = true;
+          const stderrChunks: string[] = [];
+          const originalStderrWrite = process.stderr.write;
+          process.stderr.write = ((chunk: string | Uint8Array) => {
+            stderrChunks.push(
+              typeof chunk === "string" ? chunk : Buffer.from(chunk).toString(),
+            );
+            return true;
+          }) as typeof process.stderr.write;
+          try {
+            await expect(
+              shutdownCandidateScenario(activeScenario, {
+                removeRoot: async (ownedRoot) => {
+                  if (ownedRoot === retainedRoot) {
+                    throw new Error(`cannot remove ${ownedRoot}`);
+                  }
+                  await rm(ownedRoot, { recursive: true, force: true });
+                },
+              }),
+            ).rejects.toThrow("candidate origin lifecycle shutdown failed");
+          } finally {
+            process.stderr.write = originalStderrWrite;
+          }
+          scenario = undefined;
+          const stderr = stderrChunks.join("");
+          expect(stderr).toContain(
+            'DEVCANON_CANDIDATE_ORIGIN_ROOT_PRESERVED ["owned-root-2"]',
+          );
+          expect(stderr).not.toContain(retainedRoot);
+          expect(
+            activeScenario.diagnostics[activeScenario.diagnostics.length - 1],
+          ).toMatchObject({
+            cleanup_authorized: false,
+            roots_preserved: true,
+          });
+          await expect(
+            lstat(activeScenario.ownedRoots[0] ?? ""),
+          ).rejects.toMatchObject({ code: "ENOENT" });
+          expect((await lstat(retainedRoot)).isDirectory()).toBe(true);
+          discoveryTempRoots.push(retainedRoot);
         });
 
         it("starts a fresh native scenario after restored ownership", async () => {
