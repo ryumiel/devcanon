@@ -3298,6 +3298,35 @@ async function cleanupWorktree() {
         }
         return cleanupOutput(outcome, decision);
     }
+    if (decision.verifyBeforeRemove === null) {
+        return cleanupOutput("retained", {
+            ...decision,
+            canRemove: false,
+            refusalReason: "cleanup-authority-changed",
+            message: "cleanup authority changed; preserving worktree",
+        });
+    }
+    try {
+        await decision.verifyBeforeRemove();
+        if (await isWorktreeDirty(identity.worktreePath)) {
+            return cleanupOutput("retained", {
+                ...decision,
+                canRemove: false,
+                dirty: true,
+                refusalReason: "dirty",
+                message: "worktree has local changes",
+            });
+        }
+        await decision.verifyBeforeRemove();
+    }
+    catch {
+        return cleanupOutput("retained", {
+            ...decision,
+            canRemove: false,
+            refusalReason: "cleanup-authority-changed",
+            message: "cleanup authority changed; preserving worktree",
+        });
+    }
     const args = ["-C", identity.primaryRoot, "worktree", "remove"];
     if (decision.forceRemoveAllowed) {
         args.push("-f");
@@ -3346,8 +3375,10 @@ async function classifyCleanup(identity) {
         metadataOutcome: "",
         forceRemoveAllowed: false,
         message: "worktree retained",
+        verifyBeforeRemove: null,
     };
     let lease;
+    let verifyBeforeRemove = null;
     try {
         lease = await readRequiredJson(identity.primaryRoot, identity.leaseFile, "lease file");
         validateLeaseShape(lease);
@@ -3387,7 +3418,35 @@ async function classifyCleanup(identity) {
         const physicalWorktree = await realpath(identity.worktreePath);
         const candidateRepository = await readDiscoveryRepositoryIdentity(physicalWorktree, gitEnv);
         assertDiscoveryCandidateRepository(candidateRepository, physicalWorktree, primaryRepository);
-        await readDiscoveryCandidateRepositoryAuthority(physicalWorktree, candidateRepository, primaryRepository);
+        const candidateRepositoryAuthority = await readDiscoveryCandidateRepositoryAuthority(physicalWorktree, candidateRepository, primaryRepository);
+        verifyBeforeRemove = async () => {
+            const currentPrimaryRoot = await realpath(identity.primaryRoot);
+            const currentPrimaryRepository = await assertDiscoveryPrimaryRoot(currentPrimaryRoot, gitEnv);
+            const currentPhysicalWorktree = await realpath(identity.worktreePath);
+            if (discoveryComparablePath(currentPrimaryRoot, process.platform) !==
+                discoveryComparablePath(primaryRoot, process.platform) ||
+                !sameDiscoveryRepositoryIdentity(currentPrimaryRepository, primaryRepository) ||
+                discoveryComparablePath(currentPhysicalWorktree, process.platform) !==
+                    discoveryComparablePath(physicalWorktree, process.platform) ||
+                digestPath(currentPhysicalWorktree) !== identity.worktreeDigest) {
+                throw new PrReviewLeaseError("cleanup repository identity changed before removal");
+            }
+            const currentCandidateRepository = await readDiscoveryRepositoryIdentity(currentPhysicalWorktree, gitEnv);
+            assertDiscoveryCandidateRepository(currentCandidateRepository, currentPhysicalWorktree, currentPrimaryRepository);
+            const currentCandidateAuthority = await readDiscoveryCandidateRepositoryAuthority(currentPhysicalWorktree, currentCandidateRepository, currentPrimaryRepository);
+            if (!sameDiscoveryRepositoryIdentity(currentCandidateRepository, candidateRepository) ||
+                currentCandidateAuthority.fingerprint !==
+                    candidateRepositoryAuthority.fingerprint ||
+                !(await isRegisteredWorktree(currentPrimaryRoot, currentPhysicalWorktree))) {
+                throw new PrReviewLeaseError("cleanup candidate authority changed before removal");
+            }
+            const currentLease = await readRequiredJson(currentPrimaryRoot, identity.leaseFile, "lease file");
+            validateLeaseShape(currentLease);
+            assertExistingLeaseIdentity(currentLease, identity);
+            if (currentLease.state !== lease.state) {
+                throw new PrReviewLeaseError("cleanup lease authority changed before removal");
+            }
+        };
         await validateReferencedArtifacts(lease, identity.worktreePath, {
             validateResultAuthority: true,
             policy: "validate-stored-lease",
@@ -3439,6 +3498,7 @@ async function classifyCleanup(identity) {
         canRemove: true,
         forceRemoveAllowed: true,
         message: "worktree can be removed",
+        verifyBeforeRemove,
     };
 }
 async function isWorktreeDirty(worktreePath) {

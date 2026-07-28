@@ -4313,6 +4313,97 @@ describe("pr-review lease Git cleanup safety", () => {
     }
   });
 
+  it("removes a stable terminal worktree through the real wrapper", async () => {
+    const workspace = await makeCleanupRevalidationWorkspace(
+      "pr-review-stable-wrapper-cleanup-",
+      "reciprocal-file",
+    );
+
+    try {
+      process.chdir(workspace.physicalPrimary);
+      setLeaseCommandEnv(workspace.physicalPrimary, workspace.physicalWorktree);
+      process.env.LEASE_FILE = workspace.leaseFile;
+      const { stdout, stderr } = await execFileAsync(
+        "bash",
+        [
+          path.join(originalCwd, "skills/pr-review/scripts/review-leases.sh"),
+          "cleanup-worktree",
+        ],
+        {
+          cwd: workspace.physicalPrimary,
+          env: {
+            ...process.env,
+            DEVCANON_RUNTIME_DIR: path.join(
+              originalCwd,
+              "skills/devcanon-runtime",
+            ),
+          },
+        },
+      );
+      expect(stderr).toBe("");
+      expect(stdout).toContain("OUTCOME=removed");
+      await expect(lstat(workspace.physicalWorktree)).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it.each(["direct", "wrapper"] as const)(
+    "fails closed through %s cleanup when status races repository authority",
+    async (transport) => {
+      for (const mutation of [
+        "gitfile-redirect",
+        "admin-directory",
+        "reciprocal-file",
+      ] as const) {
+        const workspace = await makeCleanupRevalidationWorkspace(
+          `pr-review-${transport}-${mutation}-cleanup-race-`,
+          mutation,
+        );
+        const previousPath = process.env.PATH;
+
+        try {
+          process.chdir(workspace.physicalPrimary);
+          setLeaseCommandEnv(
+            workspace.physicalPrimary,
+            workspace.physicalWorktree,
+          );
+          process.env.LEASE_FILE = workspace.leaseFile;
+          process.env.PATH = prependDiscoveryGitWrapper(
+            workspace.wrapperDirectory,
+            previousPath,
+          );
+
+          const result =
+            transport === "direct"
+              ? await runPrReviewLeasesCommand(["cleanup-worktree"])
+              : await runCleanupWorktreeWrapper(workspace.physicalPrimary);
+          const commandLog = await readFile(workspace.commandLog, "utf8");
+          const caseEvidence = `${transport}:${mutation}:${commandLog}`;
+          expect(result.exitCode, `${caseEvidence}:${result.stderr}`).toBe(0);
+          expect(result.stdout, caseEvidence).toContain("OUTCOME=retained");
+          expect(result.stdout, caseEvidence).toContain(
+            "REFUSAL_REASON=cleanup-authority-changed",
+          );
+          expect(result.stdout, caseEvidence).toContain("METADATA_OUTCOME=");
+          expect(await readFile(workspace.mutationMarker, "utf8")).toBe(
+            mutation,
+          );
+          expect((await lstat(workspace.physicalWorktree)).isDirectory()).toBe(
+            true,
+          );
+        } finally {
+          process.env.PATH = previousPath;
+          process.chdir(originalCwd);
+          await rm(workspace.tempRoot, { recursive: true, force: true });
+        }
+      }
+    },
+  );
+
   it("keeps legacy removed cleanup observations under strict archive validation", async () => {
     const workspace = await makeGatedStatusWorkspace(
       "pr-review-legacy-cleanup-authority-",
@@ -5041,6 +5132,194 @@ async function makeRegisteredWorkspace(prefix: string): Promise<{
     physicalPrimary: await realpath(primary),
     physicalWorktree: await realpath(worktree),
   };
+}
+
+type CleanupRevalidationMutation =
+  | "gitfile-redirect"
+  | "admin-directory"
+  | "reciprocal-file";
+
+async function makeCleanupRevalidationWorkspace(
+  prefix: string,
+  mutation: CleanupRevalidationMutation,
+): Promise<
+  Awaited<ReturnType<typeof makeRegisteredWorkspace>> & {
+    adminDirectory: string;
+    commandLog: string;
+    leaseFile: string;
+    mutationMarker: string;
+    mutator: string;
+    physicalPrimaryGit: string;
+    statusCounter: string;
+    wrapperDirectory: string;
+  }
+> {
+  const workspace = await makeRegisteredWorkspace(prefix);
+  await writeFile(
+    path.join(workspace.primary, ".git", "info", "exclude"),
+    ".ephemeral/\n",
+  );
+  process.chdir(workspace.physicalPrimary);
+  setLeaseCommandEnv(workspace.physicalPrimary, workspace.physicalWorktree);
+  const pathResult = await runPrReviewLeasesCommand(["derive-path"]);
+  expect(pathResult.exitCode, pathResult.stderr).toBe(0);
+  const leaseFile = pathResult.stdout.trim();
+  const dynamicIdentity = identityFromLeaseFile(
+    leaseFile,
+    workspace.physicalWorktree,
+  );
+  await writeFile(
+    path.join(workspace.primary, leaseFile),
+    `${JSON.stringify(
+      abortedCommandLease(
+        leaseFile,
+        workspace.physicalWorktree,
+        dynamicIdentity.worktreeDigest,
+      ),
+      null,
+      2,
+    )}\n`,
+  );
+  const { stdout: adminOutput } = await execFileAsync(
+    "git",
+    ["-C", workspace.physicalWorktree, "rev-parse", "--absolute-git-dir"],
+    { cwd: workspace.physicalPrimary },
+  );
+  const adminDirectory = await realpath(adminOutput.trim());
+  const physicalPrimaryGit = await realpath(
+    path.join(workspace.physicalPrimary, ".git"),
+  );
+  const wrapperDirectory = path.join(workspace.tempRoot, "cleanup-wrapper");
+  await mkdir(wrapperDirectory);
+  const mutationMarker = path.join(
+    wrapperDirectory,
+    `cleanup-${mutation}.marker`,
+  );
+  const statusCounter = path.join(wrapperDirectory, "status-counter");
+  const commandLog = path.join(wrapperDirectory, "commands.log");
+  const mutator = path.join(wrapperDirectory, "cleanup-mutator.mjs");
+  await writeFile(
+    mutator,
+    [
+      'import { cp, readFile, rename, rm, writeFile } from "node:fs/promises";',
+      'import path from "node:path";',
+      "",
+      "const [mutation, worktree, primaryGit, admin, marker] = process.argv.slice(2);",
+      "if (!mutation || !worktree || !primaryGit || !admin || !marker) {",
+      '  throw new Error("cleanup mutation authority is incomplete");',
+      "}",
+      'if (mutation === "gitfile-redirect") {',
+      '  await writeFile(path.join(worktree, ".git"), `gitdir: ${primaryGit}\\n`);',
+      '} else if (mutation === "admin-directory") {',
+      "  const retained = `${admin}.retained`;",
+      "  await rename(admin, retained);",
+      "  await cp(retained, admin, { recursive: true });",
+      '} else if (mutation === "reciprocal-file") {',
+      '  const gitdir = path.join(admin, "gitdir");',
+      "  const replacement = `${gitdir}.replacement`;",
+      "  await writeFile(replacement, await readFile(gitdir));",
+      "  await rm(gitdir);",
+      "  await rename(replacement, gitdir);",
+      "} else {",
+      "  throw new Error(`unsupported cleanup mutation: ${mutation}`);",
+      "}",
+      "await writeFile(marker, mutation);",
+      "",
+    ].join("\n"),
+  );
+  const physicalGit = await toGitBashPath(await resolveCanonicalPhysicalGit());
+  const node = await toGitBashPath(process.execPath);
+  const bashMutator = await toGitBashPath(mutator);
+  const bashWorktree = await toGitBashPath(workspace.physicalWorktree);
+  const bashPrimaryGit = await toGitBashPath(physicalPrimaryGit);
+  const bashAdmin = await toGitBashPath(adminDirectory);
+  const bashMarker = await toGitBashPath(mutationMarker);
+  const bashCounter = await toGitBashPath(statusCounter);
+  const bashCommandLog = await toGitBashPath(commandLog);
+  const wrapper = path.join(wrapperDirectory, "git");
+  await writeFile(
+    wrapper,
+    [
+      "#!/bin/sh",
+      `physical_git=${shellSingleQuote(physicalGit)}`,
+      `node=${shellSingleQuote(node)}`,
+      `mutator=${shellSingleQuote(bashMutator)}`,
+      `mutation=${shellSingleQuote(mutation)}`,
+      `worktree=${shellSingleQuote(bashWorktree)}`,
+      `primary_git=${shellSingleQuote(bashPrimaryGit)}`,
+      `admin=${shellSingleQuote(bashAdmin)}`,
+      `marker=${shellSingleQuote(bashMarker)}`,
+      `status_counter=${shellSingleQuote(bashCounter)}`,
+      `command_log=${shellSingleQuote(bashCommandLog)}`,
+      'printf "%s\\n" "$*" >>"$command_log"',
+      '"$physical_git" "$@"',
+      "status=$?",
+      'case " $* " in',
+      '  *" status --porcelain "*)',
+      '    count="$(cat "$status_counter" 2>/dev/null || printf 0)"',
+      "    count=$((count + 1))",
+      '    printf "%s" "$count" >"$status_counter"',
+      '    if [ "$count" -ge 2 ] && [ ! -e "$marker" ]; then',
+      '      "$node" "$mutator" "$mutation" "$worktree" "$primary_git" "$admin" "$marker" || exit $?',
+      "    fi",
+      "    ;;",
+      "esac",
+      "exit $status",
+      "",
+    ].join("\n"),
+  );
+  await makeDiscoveryGitWrapperExecutable(wrapper);
+  return {
+    ...workspace,
+    adminDirectory,
+    commandLog,
+    leaseFile,
+    mutationMarker,
+    mutator,
+    physicalPrimaryGit,
+    statusCounter,
+    wrapperDirectory,
+  };
+}
+
+function shellSingleQuote(value: string): string {
+  return `'${value.split("'").join("'\"'\"'")}'`;
+}
+
+async function runCleanupWorktreeWrapper(
+  primaryRoot: string,
+): Promise<{ exitCode: number; stdout: string; stderr: string }> {
+  return await new Promise((resolve) => {
+    execFile(
+      "bash",
+      [
+        path.join(originalCwd, "skills/pr-review/scripts/review-leases.sh"),
+        "cleanup-worktree",
+      ],
+      {
+        cwd: primaryRoot,
+        env: {
+          ...process.env,
+          DEVCANON_RUNTIME_DIR: path.join(
+            originalCwd,
+            "skills/devcanon-runtime",
+          ),
+        },
+      },
+      (error, stdout, stderr) => {
+        resolve({
+          exitCode:
+            error === null
+              ? 0
+              : typeof error.code === "number"
+                ? error.code
+                : 1,
+          stdout,
+          stderr,
+        });
+      },
+    );
+  });
 }
 
 function identityFromLeaseFile(
