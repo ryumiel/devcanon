@@ -12727,16 +12727,111 @@ describe("read-only PR review discovery planner", () => {
         ["--assume-unchanged", "--skip-worktree", "README.md"],
       ],
     ] as const)("with %s index flags", (_fixture, updateIndexArgs) => {
-      describe.each([
-        ["direct discovery", false],
-        ["direct resume acceptance", false],
-        ["real-wrapper discovery", false],
-        ["real-wrapper resume acceptance", false],
-        ["discovery after hidden content mutation", true],
-      ] as const)("%s", (scenario, mutateContent) => {
-        let wrapperEnvironment: NodeJS.ProcessEnv;
+      interface IndexFlagResumeAcceptanceScenario {
+        child: ReturnType<typeof spawn> | undefined;
+        ownedRoots: string[];
+        previousAdapterLog: string | undefined;
+        previousCwd: string;
+        previousNativeOwnerExpectedOperation: string | undefined;
+        previousNativeOwnerLog: string | undefined;
+        previousPath: string | undefined;
+        shutdownLatch: string | undefined;
+        task: Promise<void> | undefined;
+        taskSettled: boolean;
+      }
 
-        beforeEach(async () => {
+      const expectedPath = process.env.PATH;
+      let ownedScenario: IndexFlagResumeAcceptanceScenario | undefined;
+      let wrapperEnvironment: NodeJS.ProcessEnv;
+
+      const retainTask = <T>(
+        task: Promise<T>,
+        child?: ReturnType<typeof spawn>,
+      ): Promise<T> => {
+        if (ownedScenario === undefined) {
+          throw new Error("index-flag scenario ownership is unavailable");
+        }
+        if (ownedScenario.task !== undefined) {
+          throw new Error("index-flag scenario already owns a task");
+        }
+        const scenario = ownedScenario;
+        scenario.child = child;
+        scenario.task = task.then(
+          () => {
+            scenario.taskSettled = true;
+          },
+          () => {
+            scenario.taskSettled = true;
+          },
+        );
+        return task;
+      };
+
+      const runOwnedWrapper = (
+        wrapperArgs: readonly string[],
+        env: NodeJS.ProcessEnv,
+      ): Promise<{ exitCode: number; stdout: string; stderr: string }> => {
+        const child = spawn(
+          "bash",
+          ["skills/pr-review/scripts/review-leases.sh", ...wrapperArgs],
+          { cwd: originalCwd, env, stdio: ["pipe", "pipe", "pipe"] },
+        );
+        let stdout = "";
+        let stderr = "";
+        child.stdout?.setEncoding("utf8");
+        child.stderr?.setEncoding("utf8");
+        child.stdout?.on("data", (chunk: string) => {
+          stdout += chunk;
+        });
+        child.stderr?.on("data", (chunk: string) => {
+          stderr += chunk;
+        });
+        child.stdin?.end();
+        return retainTask(
+          new Promise((resolve, reject) => {
+            child.once("error", reject);
+            child.once("close", (exitCode) => {
+              resolve({ exitCode: exitCode ?? 1, stderr, stdout });
+            });
+          }),
+          child,
+        );
+      };
+
+      beforeEach(async () => {
+        let rootIndex = -1;
+        for (
+          let index = discoveryTempRoots.length - 1;
+          index >= 0;
+          index -= 1
+        ) {
+          const registeredRoot = discoveryTempRoots[index];
+          if (
+            registeredRoot === root ||
+            (registeredRoot !== undefined &&
+              (await realpath(registeredRoot)) === root)
+          ) {
+            rootIndex = index;
+            break;
+          }
+        }
+        if (rootIndex === -1) {
+          throw new Error("index-flag scenario root is not registered");
+        }
+        ownedScenario = {
+          child: undefined,
+          ownedRoots: discoveryTempRoots.splice(rootIndex, 1),
+          previousAdapterLog: activeDiscoveryGitAdapterLog,
+          previousCwd: process.cwd(),
+          previousNativeOwnerExpectedOperation:
+            activeDiscoveryGitNativeOwnerExpectedOperation,
+          previousNativeOwnerLog: activeDiscoveryGitNativeOwnerLog,
+          previousPath: process.env.PATH,
+          shutdownLatch: undefined,
+          task: undefined,
+          taskSettled: false,
+        };
+        try {
           await execFileAsync("git", [
             "-C",
             worktree,
@@ -12749,6 +12844,88 @@ describe("read-only PR review discovery planner", () => {
             PR_NUMBER: "432",
             PRIMARY_REPOSITORY_ROOT: root,
           };
+        } catch (error) {
+          const abandonedScenario = ownedScenario;
+          ownedScenario = undefined;
+          if (abandonedScenario !== undefined) {
+            for (const ownedRoot of abandonedScenario.ownedRoots) {
+              await rm(ownedRoot, { recursive: true, force: true });
+            }
+          }
+          throw error;
+        }
+      });
+
+      afterEach(async () => {
+        const scenario = ownedScenario;
+        ownedScenario = undefined;
+        if (scenario === undefined) return;
+
+        const shutdownFailures: unknown[] = [];
+        try {
+          if (scenario.shutdownLatch !== undefined) {
+            await writeFile(scenario.shutdownLatch, "shutdown");
+          }
+          if (!scenario.taskSettled && scenario.task !== undefined) {
+            if (scenario.child === undefined) {
+              await scenario.task;
+            } else if (scenario.child.exitCode !== null) {
+              shutdownFailures.push(
+                new Error(
+                  "index-flag scenario retained an unsettled task after child exit",
+                ),
+              );
+            } else if (!scenario.child.kill("SIGTERM")) {
+              shutdownFailures.push(
+                new Error("index-flag scenario child could not be terminated"),
+              );
+            } else {
+              await scenario.task;
+            }
+          }
+        } catch (error) {
+          shutdownFailures.push(error);
+        } finally {
+          try {
+            process.chdir(scenario.previousCwd);
+          } catch (error) {
+            shutdownFailures.push(error);
+          }
+          if (scenario.previousPath === undefined) {
+            Reflect.deleteProperty(process.env, "PATH");
+          } else {
+            process.env.PATH = scenario.previousPath;
+          }
+          activeDiscoveryGitAdapterLog = scenario.previousAdapterLog;
+          activeDiscoveryGitNativeOwnerLog = scenario.previousNativeOwnerLog;
+          activeDiscoveryGitNativeOwnerExpectedOperation =
+            scenario.previousNativeOwnerExpectedOperation;
+        }
+
+        if (
+          (scenario.task === undefined || scenario.taskSettled) &&
+          shutdownFailures.length === 0
+        ) {
+          for (const ownedRoot of scenario.ownedRoots) {
+            await rm(ownedRoot, { recursive: true, force: true });
+          }
+        }
+        if (shutdownFailures.length > 0) {
+          throw new AggregateError(
+            shutdownFailures,
+            "index-flag scenario teardown failed",
+          );
+        }
+      });
+
+      describe.each([
+        ["direct discovery", false],
+        ["direct resume acceptance", false],
+        ["real-wrapper discovery", false],
+        ["real-wrapper resume acceptance", false],
+        ["discovery after hidden content mutation", true],
+      ] as const)("%s", (scenario, mutateContent) => {
+        beforeEach(async () => {
           if (mutateContent) {
             await writeFile(
               path.join(worktree, "README.md"),
@@ -12760,7 +12937,7 @@ describe("read-only PR review discovery planner", () => {
         it("does not authorize resume acceptance", async () => {
           switch (scenario) {
             case "direct discovery": {
-              const observed = await runDiscovery(root);
+              const observed = await retainTask(runDiscovery(root));
               expect(observed.disposition).toBe("cleanup-required");
               expect(observed.active[0]).toMatchObject({
                 classification: "dirty",
@@ -12770,14 +12947,14 @@ describe("read-only PR review discovery planner", () => {
             }
             case "direct resume acceptance":
               await expect(
-                runPrReviewLeasesCommand(args),
+                retainTask(runPrReviewLeasesCommand(args)),
               ).resolves.toMatchObject({
                 exitCode: 1,
                 stdout: "",
               });
               break;
             case "real-wrapper discovery": {
-              const observed = await runPrReviewLeasesWrapper(
+              const observed = await runOwnedWrapper(
                 ["discover"],
                 wrapperEnvironment,
               );
@@ -12795,17 +12972,90 @@ describe("read-only PR review discovery planner", () => {
             }
             case "real-wrapper resume acceptance":
               await expect(
-                runPrReviewLeasesWrapper(args, wrapperEnvironment),
+                runOwnedWrapper(args, wrapperEnvironment),
               ).resolves.toMatchObject({ exitCode: 1, stdout: "" });
               break;
             case "discovery after hidden content mutation": {
-              const observed = await runDiscovery(root);
+              const observed = await retainTask(runDiscovery(root));
               expect(observed.disposition).toBe("cleanup-required");
               break;
             }
           }
         }, 5_000);
       });
+
+      it("settles a forced real-wrapper timeout failure", async () => {
+        if (ownedScenario === undefined) {
+          throw new Error("index-flag timeout scenario is unavailable");
+        }
+        const activeScenario = ownedScenario;
+        const wrapperDir = await mkdtemp(path.join(tmpdir(), "git-wrapper-"));
+        activeScenario.ownedRoots.push(wrapperDir);
+        const marker = path.join(wrapperDir, "status-entered");
+        const shutdownLatch = path.join(
+          wrapperDir,
+          "index-flag-resume-acceptance.shutdown",
+        );
+        const physicalGit = await resolveCanonicalPhysicalGit();
+        const wrapper = path.join(wrapperDir, "git");
+        await writeFile(
+          wrapper,
+          [
+            "#!/bin/sh",
+            'case " $* " in',
+            '  *" status --porcelain=v1 "*)',
+            `    printf entered >'${await toGitBashPath(marker)}'`,
+            `    while [ ! -f '${await toGitBashPath(shutdownLatch)}' ]; do sleep 0.01; done`,
+            "    exit 125",
+            "    ;;",
+            "esac",
+            `exec '${physicalGit}' "$@"`,
+            "",
+          ].join("\n"),
+        );
+        await makeDiscoveryGitWrapperExecutable(wrapper);
+        activeScenario.shutdownLatch = shutdownLatch;
+        process.env.PATH = prependDiscoveryGitWrapper(
+          wrapperDir,
+          activeScenario.previousPath,
+        );
+        const timeoutTask = runOwnedWrapper(["discover"], {
+          ...wrapperEnvironment,
+          PATH: process.env.PATH,
+        });
+        for (let attempt = 0; attempt < 100; attempt += 1) {
+          try {
+            if ((await readFile(marker, "utf8")) === "entered") break;
+          } catch (error) {
+            if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+          }
+          await new Promise((resolve) => setTimeout(resolve, 20));
+        }
+        expect(await readFile(marker, "utf8")).toBe("entered");
+        await expect(
+          Promise.race([
+            timeoutTask.then(() => {
+              throw new Error("forced wrapper task settled before timeout");
+            }),
+            new Promise<never>((_resolve, reject) => {
+              setTimeout(
+                () => reject(new Error("forced wrapper task timeout")),
+                100,
+              );
+            }),
+          ]),
+        ).rejects.toThrow("forced wrapper task timeout");
+      }, 5_000);
+
+      it("does not contaminate the following scenario", async () => {
+        expect(process.cwd()).toBe(originalCwd);
+        expect(process.env.PATH).toBe(expectedPath);
+        expect(activeDiscoveryGitAdapterLog).toBeUndefined();
+        expect(activeDiscoveryGitNativeOwnerLog).toBeUndefined();
+        expect(activeDiscoveryGitNativeOwnerExpectedOperation).toBeUndefined();
+        const observed = await retainTask(runDiscovery(root));
+        expect(observed.disposition).toBe("cleanup-required");
+      }, 5_000);
     });
 
     it("rejects artifact appearance", async () => {
