@@ -12746,20 +12746,19 @@ describe("read-only PR review discovery planner", () => {
         terminalAcknowledged: boolean;
       }
 
+      interface ForcedIndexFlagScenarioEvidence {
+        childClosed: boolean;
+        childExited: boolean;
+        roots: string[];
+        rootsRetainedUntilTerminal: boolean;
+        taskSettled: boolean;
+        terminationRequested: boolean;
+        terminalAcknowledged: boolean;
+      }
+
       const expectedPath = process.env.PATH;
       let ownedScenario: IndexFlagResumeAcceptanceScenario | undefined;
       let wrapperEnvironment: NodeJS.ProcessEnv;
-      let forcedScenarioEvidence:
-        | {
-            childClosed: boolean;
-            childExited: boolean;
-            roots: string[];
-            rootsRetainedUntilTerminal: boolean;
-            taskSettled: boolean;
-            terminationRequested: boolean;
-            terminalAcknowledged: boolean;
-          }
-        | undefined;
 
       const retainTask = <T>(
         task: Promise<T>,
@@ -12892,10 +12891,11 @@ describe("read-only PR review discovery planner", () => {
       const shutdownIndexFlagScenario = async (
         scenario: IndexFlagResumeAcceptanceScenario,
         cooperativeSettlementBudgetMs = 5_000,
-      ): Promise<void> => {
+      ): Promise<ForcedIndexFlagScenarioEvidence | undefined> => {
         const shutdownFailures: unknown[] = [];
         let cleanupAuthorized = false;
         let cooperativeSettlementFailed = false;
+        let forcedEvidence: ForcedIndexFlagScenarioEvidence | undefined;
         try {
           if (scenario.shutdownLatch !== undefined) {
             try {
@@ -13034,7 +13034,7 @@ describe("read-only PR review discovery planner", () => {
               scenario.terminalAcknowledgement !== undefined ||
               scenario.terminationRequested
             ) {
-              forcedScenarioEvidence = {
+              forcedEvidence = {
                 childClosed: scenario.childClosed,
                 childExited: scenario.childExited,
                 roots: [...scenario.ownedRoots],
@@ -13057,9 +13057,10 @@ describe("read-only PR review discovery planner", () => {
             "index-flag scenario teardown failed",
           );
         }
+        return forcedEvidence;
       };
 
-      beforeEach(async () => {
+      const initializeOwnedIndexFlagScenario = async (): Promise<void> => {
         let rootIndex = -1;
         for (
           let index = discoveryTempRoots.length - 1;
@@ -13121,7 +13122,9 @@ describe("read-only PR review discovery planner", () => {
           }
           throw error;
         }
-      });
+      };
+
+      beforeEach(initializeOwnedIndexFlagScenario);
 
       afterEach(async () => {
         const scenario = ownedScenario;
@@ -13196,7 +13199,9 @@ describe("read-only PR review discovery planner", () => {
         }, 5_000);
       });
 
-      it("settles a forced real-wrapper timeout failure", async () => {
+      const startCooperativeForcedTimeout = async (): Promise<{
+        task: Promise<{ exitCode: number; stdout: string; stderr: string }>;
+      }> => {
         if (ownedScenario === undefined) {
           throw new Error("index-flag timeout scenario is unavailable");
         }
@@ -13277,6 +13282,12 @@ describe("read-only PR review discovery planner", () => {
         }
         expect(await readFile(marker, "utf8")).toBe("entered");
         expect(await readFile(passThroughMarker, "utf8")).toBe("entered");
+        return { task: timeoutTask };
+      };
+
+      const expectForcedTimeout = async (
+        timeoutTask: Promise<unknown>,
+      ): Promise<void> => {
         await expect(
           Promise.race([
             timeoutTask.then(() => {
@@ -13290,6 +13301,11 @@ describe("read-only PR review discovery planner", () => {
             }),
           ]),
         ).rejects.toThrow("forced wrapper task timeout");
+      };
+
+      it("settles a forced real-wrapper timeout failure", async () => {
+        const { task } = await startCooperativeForcedTimeout();
+        await expectForcedTimeout(task);
       }, 5_000);
 
       it("terminates a stalled real-wrapper tree without a shutdown latch", async () => {
@@ -13437,31 +13453,72 @@ describe("read-only PR review discovery planner", () => {
         }
       }, 5_000);
 
-      it("does not contaminate the following scenario", async () => {
-        if (forcedScenarioEvidence === undefined) {
-          throw new Error("forced index-flag scenario evidence is unavailable");
-        }
-        expect(forcedScenarioEvidence).toMatchObject({
-          childClosed: true,
-          childExited: true,
-          rootsRetainedUntilTerminal: true,
-          taskSettled: true,
-          terminationRequested: true,
-          terminalAcknowledged: true,
+      describe("following-scenario isolation", () => {
+        let forcedEvidence: ForcedIndexFlagScenarioEvidence;
+
+        beforeEach(async () => {
+          if (ownedScenario === undefined) {
+            throw new Error("index-flag timeout scenario is unavailable");
+          }
+          const forcedScenario = ownedScenario;
+          const { task } = await startCooperativeForcedTimeout();
+          await expectForcedTimeout(task);
+          ownedScenario = undefined;
+          const observedEvidence =
+            await shutdownIndexFlagScenario(forcedScenario);
+          if (observedEvidence === undefined) {
+            throw new Error(
+              "fresh forced index-flag scenario evidence is unavailable",
+            );
+          }
+          forcedEvidence = observedEvidence;
+
+          root = await createDiscoveryRepository();
+          worktree = await createDiscoveryWorktree(root, "resume-acceptance");
+          lease = discoveryLease(worktree);
+          await writeDiscoveryLease(root, lease);
+          args = [
+            "validate-discovery",
+            "--resume-acceptance",
+            "--repository",
+            "owner/repo",
+            "--pr-number",
+            "432",
+            "--primary-root",
+            root,
+            "--lease-file",
+            lease.lease_file,
+            "--worktree-path",
+            worktree,
+          ];
+          await initializeOwnedIndexFlagScenario();
         });
-        for (const forcedRoot of forcedScenarioEvidence.roots) {
-          await expect(lstat(forcedRoot)).rejects.toMatchObject({
-            code: "ENOENT",
+
+        it("does not contaminate the following scenario", async () => {
+          expect(forcedEvidence).toMatchObject({
+            childClosed: true,
+            childExited: true,
+            rootsRetainedUntilTerminal: true,
+            taskSettled: true,
+            terminationRequested: false,
+            terminalAcknowledged: true,
           });
-        }
-        expect(process.cwd()).toBe(originalCwd);
-        expect(process.env.PATH).toBe(expectedPath);
-        expect(activeDiscoveryGitAdapterLog).toBeUndefined();
-        expect(activeDiscoveryGitNativeOwnerLog).toBeUndefined();
-        expect(activeDiscoveryGitNativeOwnerExpectedOperation).toBeUndefined();
-        const observed = await retainTask(runDiscovery(root));
-        expect(observed.disposition).toBe("cleanup-required");
-      }, 5_000);
+          for (const forcedRoot of forcedEvidence.roots) {
+            await expect(lstat(forcedRoot)).rejects.toMatchObject({
+              code: "ENOENT",
+            });
+          }
+          expect(process.cwd()).toBe(originalCwd);
+          expect(process.env.PATH).toBe(expectedPath);
+          expect(activeDiscoveryGitAdapterLog).toBeUndefined();
+          expect(activeDiscoveryGitNativeOwnerLog).toBeUndefined();
+          expect(
+            activeDiscoveryGitNativeOwnerExpectedOperation,
+          ).toBeUndefined();
+          const observed = await retainTask(runDiscovery(root));
+          expect(observed.disposition).toBe("cleanup-required");
+        }, 5_000);
+      });
     });
 
     it("rejects artifact appearance", async () => {
