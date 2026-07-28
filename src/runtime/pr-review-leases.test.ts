@@ -12719,64 +12719,94 @@ describe("read-only PR review discovery planner", () => {
       });
     });
 
-    it.each([
+    describe.each([
       ["assume-unchanged", ["--assume-unchanged", "README.md"]],
       ["skip-worktree", ["--skip-worktree", "README.md"]],
       [
         "assume-unchanged and skip-worktree",
         ["--assume-unchanged", "--skip-worktree", "README.md"],
       ],
-    ])(
-      "does not authorize direct or wrapper resume acceptance for stable or modified %s index entries",
-      async (_fixture, updateIndexArgs) => {
-        await execFileAsync("git", [
-          "-C",
-          worktree,
-          "update-index",
-          ...updateIndexArgs,
-        ]);
+    ] as const)("with %s index flags", (_fixture, updateIndexArgs) => {
+      describe.each([
+        ["direct discovery", false],
+        ["direct resume acceptance", false],
+        ["real-wrapper discovery", false],
+        ["real-wrapper resume acceptance", false],
+        ["discovery after hidden content mutation", true],
+      ] as const)("%s", (scenario, mutateContent) => {
+        let wrapperEnvironment: NodeJS.ProcessEnv;
 
-        const observed = await runDiscovery(root);
-        expect(observed.disposition).toBe("cleanup-required");
-        expect(observed.active[0]).toMatchObject({
-          classification: "dirty",
-          reason: "worktree-dirty",
+        beforeEach(async () => {
+          await execFileAsync("git", [
+            "-C",
+            worktree,
+            "update-index",
+            ...updateIndexArgs,
+          ]);
+          wrapperEnvironment = {
+            ...process.env,
+            REPOSITORY: "owner/repo",
+            PR_NUMBER: "432",
+            PRIMARY_REPOSITORY_ROOT: root,
+          };
+          if (mutateContent) {
+            await writeFile(
+              path.join(worktree, "README.md"),
+              "modified despite index flag\n",
+            );
+          }
         });
-        await expect(runPrReviewLeasesCommand(args)).resolves.toMatchObject({
-          exitCode: 1,
-          stdout: "",
-        });
-        const wrapperEnvironment = {
-          ...process.env,
-          REPOSITORY: "owner/repo",
-          PR_NUMBER: "432",
-          PRIMARY_REPOSITORY_ROOT: root,
-        };
-        const wrappedDiscovery = await runPrReviewLeasesWrapper(
-          ["discover"],
-          wrapperEnvironment,
-        );
-        expect(wrappedDiscovery.exitCode).toBe(0);
-        expect(JSON.parse(wrappedDiscovery.stdout)).toMatchObject({
-          disposition: "cleanup-required",
-          active: [
-            {
-              classification: "dirty",
-              reason: "worktree-dirty",
-            },
-          ],
-        });
-        await expect(
-          runPrReviewLeasesWrapper(args, wrapperEnvironment),
-        ).resolves.toMatchObject({ exitCode: 1, stdout: "" });
 
-        await writeFile(
-          path.join(worktree, "README.md"),
-          "modified despite index flag\n",
-        );
-        expect((await runDiscovery(root)).disposition).toBe("cleanup-required");
-      },
-    );
+        it("does not authorize resume acceptance", async () => {
+          switch (scenario) {
+            case "direct discovery": {
+              const observed = await runDiscovery(root);
+              expect(observed.disposition).toBe("cleanup-required");
+              expect(observed.active[0]).toMatchObject({
+                classification: "dirty",
+                reason: "worktree-dirty",
+              });
+              break;
+            }
+            case "direct resume acceptance":
+              await expect(
+                runPrReviewLeasesCommand(args),
+              ).resolves.toMatchObject({
+                exitCode: 1,
+                stdout: "",
+              });
+              break;
+            case "real-wrapper discovery": {
+              const observed = await runPrReviewLeasesWrapper(
+                ["discover"],
+                wrapperEnvironment,
+              );
+              expect(observed.exitCode).toBe(0);
+              expect(JSON.parse(observed.stdout)).toMatchObject({
+                disposition: "cleanup-required",
+                active: [
+                  {
+                    classification: "dirty",
+                    reason: "worktree-dirty",
+                  },
+                ],
+              });
+              break;
+            }
+            case "real-wrapper resume acceptance":
+              await expect(
+                runPrReviewLeasesWrapper(args, wrapperEnvironment),
+              ).resolves.toMatchObject({ exitCode: 1, stdout: "" });
+              break;
+            case "discovery after hidden content mutation": {
+              const observed = await runDiscovery(root);
+              expect(observed.disposition).toBe("cleanup-required");
+              break;
+            }
+          }
+        }, 5_000);
+      });
+    });
 
     it("rejects artifact appearance", async () => {
       await writeDiscoveryLease(root, {
