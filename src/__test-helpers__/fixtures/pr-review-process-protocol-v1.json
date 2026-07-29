@@ -1,0 +1,19 @@
+{
+  "valid": [
+    { "type": "ready", "version": 1, "descendantPolicy": "none" },
+    { "type": "ready", "version": 1, "descendantPolicy": "cooperative" },
+    { "type": "done", "version": 1 },
+    { "type": "cancel", "version": 1 },
+    { "type": "descendants_stopped", "version": 1 },
+    { "type": "diagnostic", "version": 1, "code": "fixture_note" }
+  ],
+  "malformed": [
+    { "type": "ready", "version": 1 },
+    { "type": "ready", "version": 2, "descendantPolicy": "none" },
+    { "type": "done", "version": 1, "extra": true },
+    { "type": "diagnostic", "version": 1, "code": "unknown" },
+    { "type": "cancel", "version": 1, "descendantPolicy": "none" }
+  ],
+  "truncatedFrame": [0, 0, 0, 4, 123, 125],
+  "overflowFrame": [0, 1, 0, 1]
+}
