@@ -363,7 +363,7 @@ async function inspectDiscoveryCandidate(
     ) {
       return discoveryInvalidCandidate(leaseFile);
     }
-    const resolvedWorktree = await resolveWorktreePathForCleanup(
+    const resolvedWorktree = await resolveDiscoveryWorktreePath(
       lease.worktree_path,
     );
     if (
@@ -1306,7 +1306,7 @@ async function readCleanupIdentity(): Promise<CleanupIdentity> {
       "PRIMARY_REPOSITORY_ROOT must match the primary repository root",
     );
   }
-  const resolvedWorktree = await resolveWorktreePathForCleanup(
+  const resolvedWorktree = await resolveCleanupWorktreePath(
     requiredEnv("WORKTREE_PATH"),
   );
   if (resolvedWorktree.path === primaryRoot) {
@@ -1332,7 +1332,21 @@ async function readCleanupIdentity(): Promise<CleanupIdentity> {
   };
 }
 
-async function resolveWorktreePathForCleanup(
+async function resolveCleanupWorktreePath(
+  worktreePath: string,
+): Promise<{ path: string; exists: boolean }> {
+  try {
+    return { path: await realpath(worktreePath), exists: true };
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code !== "ENOENT" && code !== "ENOTDIR") {
+      throw err;
+    }
+    return { path: path.resolve(worktreePath), exists: false };
+  }
+}
+
+async function resolveDiscoveryWorktreePath(
   worktreePath: string,
 ): Promise<{ path: string; exists: boolean }> {
   try {

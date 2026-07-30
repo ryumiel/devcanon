@@ -4418,6 +4418,45 @@ describe("pr-review lease Git cleanup safety", () => {
     }
   });
 
+  it("classifies ENOTDIR worktree paths as skipped non-worktrees", async () => {
+    const { tempRoot, primary, physicalPrimary } =
+      await makeRegisteredWorkspace("pr-review-enotdir-worktree-");
+
+    try {
+      const fileAncestor = path.join(tempRoot, "not-a-directory");
+      const nonWorktreePath = path.join(fileAncestor, "child");
+      await writeFile(fileAncestor, "not a directory\n");
+      process.chdir(physicalPrimary);
+      setLeaseCommandEnv(physicalPrimary, nonWorktreePath);
+      const worktreeDigest = discoveryWorktreeDigest(nonWorktreePath);
+      const leaseFile = `.ephemeral/pr-432-${worktreeDigest}-lease.json`;
+      await writeFile(
+        path.join(primary, leaseFile),
+        `${JSON.stringify(
+          abortedCommandLease(leaseFile, nonWorktreePath, worktreeDigest),
+          null,
+          2,
+        )}\n`,
+      );
+
+      process.env.LEASE_FILE = leaseFile;
+      const inspection = await runPrReviewLeasesCommand(["inspect-worktree"]);
+      expect(inspection.exitCode).toBe(0);
+      expect(inspection.stdout).toContain("OUTCOME=inspect");
+      expect(inspection.stdout).toContain("REFUSAL_REASON=missing-worktree");
+      expect(inspection.stdout).toContain("METADATA_OUTCOME=skipped");
+
+      const cleanup = await runPrReviewLeasesCommand(["cleanup-worktree"]);
+      expect(cleanup.exitCode).toBe(0);
+      expect(cleanup.stdout).toContain("OUTCOME=skipped");
+      expect(cleanup.stdout).toContain("REFUSAL_REASON=missing-worktree");
+      expect(cleanup.stdout).toContain("METADATA_OUTCOME=skipped");
+    } finally {
+      process.chdir(originalCwd);
+      await rm(tempRoot, { recursive: true, force: true });
+    }
+  });
+
   it("records skipped cleanup metadata for missing terminal worktrees with historical result pointers", async () => {
     const workspace = await makeGatedStatusWorkspace(
       "pr-review-missing-terminal-result-cleanup-",

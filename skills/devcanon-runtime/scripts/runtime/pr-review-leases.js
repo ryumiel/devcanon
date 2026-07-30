@@ -136,7 +136,7 @@ async function inspectDiscoveryCandidate(identity, leaseFileName, registrations)
             normalizeComparablePath(lease.worktree_path)) {
             return discoveryInvalidCandidate(leaseFile);
         }
-        const resolvedWorktree = await resolveWorktreePathForCleanup(lease.worktree_path);
+        const resolvedWorktree = await resolveDiscoveryWorktreePath(lease.worktree_path);
         if (normalizeComparablePath(resolvedWorktree.path) !==
             normalizeComparablePath(lease.worktree_path)) {
             return discoveryInvalidCandidate(leaseFile);
@@ -853,7 +853,7 @@ async function readCleanupIdentity() {
     if (primaryRoot !== cwd) {
         throw new PrReviewLeaseError("PRIMARY_REPOSITORY_ROOT must match the primary repository root");
     }
-    const resolvedWorktree = await resolveWorktreePathForCleanup(requiredEnv("WORKTREE_PATH"));
+    const resolvedWorktree = await resolveCleanupWorktreePath(requiredEnv("WORKTREE_PATH"));
     if (resolvedWorktree.path === primaryRoot) {
         throw new PrReviewLeaseError("WORKTREE_PATH must be a review worktree, not the primary repository root");
     }
@@ -874,7 +874,19 @@ async function readCleanupIdentity() {
         worktreeExists: resolvedWorktree.exists,
     };
 }
-async function resolveWorktreePathForCleanup(worktreePath) {
+async function resolveCleanupWorktreePath(worktreePath) {
+    try {
+        return { path: await realpath(worktreePath), exists: true };
+    }
+    catch (err) {
+        const code = err.code;
+        if (code !== "ENOENT" && code !== "ENOTDIR") {
+            throw err;
+        }
+        return { path: path.resolve(worktreePath), exists: false };
+    }
+}
+async function resolveDiscoveryWorktreePath(worktreePath) {
     try {
         return { path: await realpath(worktreePath), exists: true };
     }
