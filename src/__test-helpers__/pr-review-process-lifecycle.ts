@@ -117,6 +117,49 @@ export interface PrReviewProcessLifecycle {
   }): Promise<PrReviewProcessLifecycleResult>;
 }
 
+export class PrReviewProcessFailureEvidence {
+  readonly #values: string[] = [];
+
+  constructor(private readonly redactions: readonly string[]) {}
+
+  record(value: string): void {
+    if (this.#values.length >= MAX_FAILURE_EVIDENCE) return;
+    this.#values.push(
+      truncateUtf8(
+        redactText(value, this.redactions),
+        MAX_FAILURE_EVIDENCE_BYTES,
+      ),
+    );
+  }
+
+  snapshot(): readonly string[] {
+    return Object.freeze([...this.#values]);
+  }
+}
+
+export class PrReviewProcessObservationGate {
+  #frozen = false;
+
+  observe(update: () => void): void {
+    if (!this.#frozen) update();
+  }
+
+  freeze(): void {
+    this.#frozen = true;
+  }
+
+  get frozen(): boolean {
+    return this.#frozen;
+  }
+}
+
+export function assertPrReviewProcessFinalReceiptBytes(
+  serializedReceipt: string,
+): void {
+  if (Buffer.byteLength(serializedReceipt, "utf8") > MAX_FINAL_RECEIPT_BYTES)
+    throw new LifecycleError("final receipt exceeded its bounded size");
+}
+
 type RootIdentity = PathIdentity & { type: "directory" };
 type GeneratedRootEnrollment = {
   readonly root: RootIdentity;
@@ -246,6 +289,8 @@ export async function launchPrReviewProcessLifecycle(
   const initialCwdPhysical = await realpath(initialCwd);
   let child: ChildProcess;
   try {
+    if (deadline - performance.now() <= 0)
+      throw new LifecycleError("deadline expired before spawn");
     child = spawn(executable.identity.physical, frozen.args, {
       cwd: cwd.identity.physical,
       env: frozen.environment,
@@ -253,6 +298,7 @@ export async function launchPrReviewProcessLifecycle(
       stdio: ["ignore", "pipe", "pipe", "pipe"],
     });
   } catch (error) {
+    if (error instanceof LifecycleError) throw error;
     throw new LifecycleError(`spawn threw: ${errorName(error)}`);
   }
   return new RootLifecycle(
@@ -270,7 +316,8 @@ class RootLifecycle implements PrReviewProcessLifecycle {
   readonly #stderr: BoundedOutput;
   readonly #decoder = new ProtocolDecoder();
   readonly #close: Promise<void>;
-  readonly #evidence: string[] = [];
+  readonly #evidence: PrReviewProcessFailureEvidence;
+  readonly #observations = new PrReviewProcessObservationGate();
   #spawned = false;
   #exitObserved = false;
   #closeObserved = false;
@@ -292,21 +339,28 @@ class RootLifecycle implements PrReviewProcessLifecycle {
   ) {
     this.#stdout = new BoundedOutput(request.outputLimitBytes, request.redact);
     this.#stderr = new BoundedOutput(request.outputLimitBytes, request.redact);
+    this.#evidence = new PrReviewProcessFailureEvidence(request.redact);
     this.#close = new Promise((resolve) => {
       child.once("close", () => {
-        this.#closeObserved = true;
+        this.#observations.observe(() => {
+          this.#closeObserved = true;
+        });
         resolve();
       });
       child.once("error", () => resolve());
     });
     child.once("spawn", () => {
-      this.#spawned = true;
+      this.#observations.observe(() => {
+        this.#spawned = true;
+      });
     });
     child.once("error", (error) => this.#record(`spawn:${errorName(error)}`));
     child.once("exit", (exitCode, signal) => {
-      this.#exitObserved = true;
-      this.#exitCode = exitCode;
-      this.#signal = signal;
+      this.#observations.observe(() => {
+        this.#exitObserved = true;
+        this.#exitCode = exitCode;
+        this.#signal = signal;
+      });
     });
     this.#watchOutput(child.stdout, this.#stdout, "stdout", () => {
       this.#stdoutClosed = true;
@@ -320,10 +374,12 @@ class RootLifecycle implements PrReviewProcessLifecycle {
       this.#record(`control:${errorName(error)}`),
     );
     control?.once("end", () => {
-      this.#controlClosed = true;
-      const decoded = this.#decoder.finish();
-      if (decoded.status === "fatal")
-        this.#record(`protocol:${errorName(decoded.error)}`);
+      this.#observations.observe(() => {
+        this.#controlClosed = true;
+        const decoded = this.#decoder.finish();
+        if (decoded.status === "fatal")
+          this.#record(`protocol:${errorName(decoded.error)}`);
+      });
     });
   }
 
@@ -338,7 +394,6 @@ class RootLifecycle implements PrReviewProcessLifecycle {
     options: Readonly<{ cancel: boolean; cooperativeGraceMs: number }>,
   ): Promise<PrReviewProcessLifecycleResult> {
     let requested = false;
-    let restoration: "restored" | "failed" = "restored";
     let forceTermination: "not-needed" | "attempted" | "failed" = "not-needed";
     try {
       if (options.cancel) {
@@ -362,43 +417,31 @@ class RootLifecycle implements PrReviewProcessLifecycle {
       await this.#waitForClose(this.#remaining());
     } catch (error) {
       this.#record(`finalize:${errorName(error)}`);
-    } finally {
-      try {
-        if (process.cwd() !== this.initialCwd) process.chdir(this.initialCwd);
-        if ((await realpath(process.cwd())) !== this.initialCwdPhysical) {
-          restoration = "failed";
-          this.#record("restore:identity-mismatch");
-        }
-      } catch (error) {
+    }
+    const observations = this.#freezeObservations();
+    let restoration: "restored" | "failed" = "restored";
+    try {
+      if (process.cwd() !== this.initialCwd) process.chdir(this.initialCwd);
+      if ((await realpath(process.cwd())) !== this.initialCwdPhysical) {
         restoration = "failed";
-        this.#record(`restore:${errorName(error)}`);
+        this.#recordDisposition("restore:identity-mismatch");
       }
+    } catch (error) {
+      restoration = "failed";
+      this.#recordDisposition(`restore:${errorName(error)}`);
     }
     const rootDisposition =
       await this.#removeGeneratedRootWhenSafe(restoration);
     return freezeResult({
-      rootProcess: {
-        spawned: this.#spawned,
-        exitObserved: this.#exitObserved,
-        closeObserved: this.#closeObserved,
-        signal: this.#signal,
-        exitCode: this.#exitCode,
-      },
-      channels: {
-        stdoutClosed: this.#stdoutClosed,
-        stderrClosed: this.#stderrClosed,
-        controlClosed: this.#controlClosed,
-      },
-      output: {
-        stdout: this.#stdout.snapshot(),
-        stderr: this.#stderr.snapshot(),
-      },
+      rootProcess: observations.rootProcess,
+      channels: observations.channels,
+      output: observations.output,
       cooperative: {
         requested,
-        descendantsAcknowledged: this.#descendantsAcknowledged || "unknown",
+        descendantsAcknowledged: observations.descendantsAcknowledged,
       },
       cleanup: { forceTermination },
-      evidence: Object.freeze([...this.#evidence]),
+      evidence: this.#evidence.snapshot(),
       restoration,
       generatedRoot: rootDisposition,
     });
@@ -410,11 +453,15 @@ class RootLifecycle implements PrReviewProcessLifecycle {
     name: "stdout" | "stderr",
     closed: () => void,
   ): void {
-    stream?.on("data", (chunk: Buffer) => output.push(Buffer.from(chunk)));
+    stream?.on("data", (chunk: Buffer) => {
+      this.#observations.observe(() => output.push(Buffer.from(chunk)));
+    });
     stream?.once("error", (error) =>
       this.#record(`${name}:${errorName(error)}`),
     );
-    stream?.once("end", closed);
+    stream?.once("end", () => {
+      this.#observations.observe(closed);
+    });
   }
 
   #requestCooperation(): boolean {
@@ -443,12 +490,14 @@ class RootLifecycle implements PrReviewProcessLifecycle {
   }
 
   #readControl(chunk: Buffer): void {
-    const decoded = this.#decoder.push(chunk);
-    for (const message of decoded.messages)
-      if (message.type === "descendants_stopped")
-        this.#descendantsAcknowledged = true;
-    if (decoded.status === "fatal")
-      this.#record(`protocol:${errorName(decoded.error)}`);
+    this.#observations.observe(() => {
+      const decoded = this.#decoder.push(chunk);
+      for (const message of decoded.messages)
+        if (message.type === "descendants_stopped")
+          this.#descendantsAcknowledged = true;
+      if (decoded.status === "fatal")
+        this.#record(`protocol:${errorName(decoded.error)}`);
+    });
   }
 
   async #waitForClose(waitMs: number): Promise<void> {
@@ -471,61 +520,87 @@ class RootLifecycle implements PrReviewProcessLifecycle {
   }
 
   #record(value: string): void {
-    if (this.#evidence.length >= MAX_FAILURE_EVIDENCE) return;
-    this.#evidence.push(
-      truncateUtf8(
-        redactText(value, this.request.redact),
-        MAX_FAILURE_EVIDENCE_BYTES,
-      ),
-    );
+    this.#observations.observe(() => this.#evidence.record(value));
+  }
+
+  #recordDisposition(value: string): void {
+    this.#evidence.record(value);
+  }
+
+  #freezeObservations(): Readonly<{
+    rootProcess: PrReviewProcessLifecycleResult["rootProcess"];
+    channels: PrReviewProcessLifecycleResult["channels"];
+    output: PrReviewProcessLifecycleResult["output"];
+    descendantsAcknowledged: boolean | "unknown";
+  }> {
+    this.#observations.freeze();
+    return Object.freeze({
+      rootProcess: Object.freeze({
+        spawned: this.#spawned,
+        exitObserved: this.#exitObserved,
+        closeObserved: this.#closeObserved,
+        signal: this.#signal,
+        exitCode: this.#exitCode,
+      }),
+      channels: Object.freeze({
+        stdoutClosed: this.#stdoutClosed,
+        stderrClosed: this.#stderrClosed,
+        controlClosed: this.#controlClosed,
+      }),
+      output: Object.freeze({
+        stdout: this.#stdout.snapshot(),
+        stderr: this.#stderr.snapshot(),
+      }),
+      descendantsAcknowledged: this.#descendantsAcknowledged ? true : "unknown",
+    });
   }
 
   async #removeGeneratedRootWhenSafe(
     restoration: "restored" | "failed",
   ): Promise<"removed" | "preserved_unsafe"> {
     if (restoration !== "restored") {
-      this.#record("rm:restoration-failed");
+      this.#recordDisposition("rm:restoration-failed");
       return "preserved_unsafe";
     }
     if (!this.#spawned) {
-      this.#record("rm:spawn-not-observed");
+      this.#recordDisposition("rm:spawn-not-observed");
       return "preserved_unsafe";
     }
     if (!this.#closeObserved) {
-      this.#record("rm:close-not-observed");
+      this.#recordDisposition("rm:close-not-observed");
       return "preserved_unsafe";
     }
     if (this.#remaining() <= 0) {
-      this.#record("rm:deadline");
+      this.#recordDisposition("rm:deadline");
       return "preserved_unsafe";
     }
     if (
       isControllerCwdOrAncestor(this.generatedRoot.physical, this.initialCwd)
     ) {
-      this.#record("rm:controller-cwd-or-ancestor");
+      this.#recordDisposition("rm:controller-cwd-or-ancestor");
       return "preserved_unsafe";
     }
     try {
       const liveCwd = await realpath(process.cwd());
       if (isControllerCwdOrAncestor(this.generatedRoot.physical, liveCwd)) {
-        this.#record("rm:live-cwd-or-ancestor");
+        this.#recordDisposition("rm:live-cwd-or-ancestor");
         return "preserved_unsafe";
       }
       const current = await readGeneratedRootEvidence(
         this.request.generatedRoot,
       );
       if (!sameIdentity(this.generatedRoot, current)) {
-        this.#record("rm:identity-mismatch");
+        this.#recordDisposition("rm:identity-mismatch");
         return "preserved_unsafe";
       }
       if (this.#remaining() <= 0) {
-        this.#record("rm:deadline-after-revalidation");
+        this.#recordDisposition("rm:deadline-after-revalidation");
         return "preserved_unsafe";
       }
       await rm(this.generatedRoot.logical, { force: false, recursive: true });
       return "removed";
     } catch (error) {
-      this.#record(`rm:${errorName(error)}`);
+      this.#recordDisposition(`rm:${errorName(error)}`);
       return "preserved_unsafe";
     }
   }
@@ -721,9 +796,6 @@ function freezeResult(
     cleanup: Object.freeze(result.cleanup),
     evidence: Object.freeze([...result.evidence]),
   });
-  if (
-    Buffer.byteLength(JSON.stringify(frozen), "utf8") > MAX_FINAL_RECEIPT_BYTES
-  )
-    throw new LifecycleError("final receipt exceeded its bounded size");
+  assertPrReviewProcessFinalReceiptBytes(JSON.stringify(frozen));
   return frozen;
 }

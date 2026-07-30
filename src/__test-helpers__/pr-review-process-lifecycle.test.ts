@@ -5,7 +5,10 @@ import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   PR_REVIEW_PROCESS_LIFECYCLE_LIMITS,
+  PrReviewProcessFailureEvidence,
   type PrReviewProcessGeneratedRoot,
+  PrReviewProcessObservationGate,
+  assertPrReviewProcessFinalReceiptBytes,
   createPrReviewProcessGeneratedRoot,
   launchPrReviewProcessLifecycle,
 } from "./pr-review-process-lifecycle.js";
@@ -114,6 +117,17 @@ describe("pr-review process lifecycle", () => {
     expect(result.rootProcess.closeObserved).toBe(false);
     expect(result.cooperative.descendantsAcknowledged).toBe("unknown");
     expect(result).not.toHaveProperty("descendantsAbsent");
+    const observationGate = new PrReviewProcessObservationGate();
+    let observation = "deadline-phase";
+    observationGate.observe(() => {
+      observation = "observed";
+    });
+    observationGate.freeze();
+    observationGate.observe(() => {
+      observation = "late-upgrade";
+    });
+    expect(observation).toBe("observed");
+    expect(observationGate.frozen).toBe(true);
   });
 
   it("caps and redacts incremental output overflow evidence", async () => {
@@ -318,20 +332,19 @@ describe("pr-review process lifecycle", () => {
     expect(result.generatedRoot).toBe("removed");
     const failedRoot = await generatedRoot();
     const originalCwd = process.cwd();
-    const removedControllerCwd = await mkdtemp(
-      path.join(os.tmpdir(), "dc-process-lifecycle-controller-"),
-    );
-    process.chdir(removedControllerCwd);
+    const failedLifecycle = await lifecycle(failedRoot, "process.exit(0);");
+    process.chdir(failedRoot.path);
+    const chdir = vi.spyOn(process, "chdir").mockImplementation(() => {
+      throw new Error("injected restoration failure");
+    });
     try {
-      const failedLifecycle = await lifecycle(failedRoot, "process.exit(0);");
-      await rm(removedControllerCwd, { recursive: true });
-
       const failed = await failedLifecycle.finish();
 
       expect(failed.restoration).toBe("failed");
       expect(failed.generatedRoot).toBe("preserved_unsafe");
       await expect(access(failedRoot.path)).resolves.toBeUndefined();
     } finally {
+      chdir.mockRestore();
       process.chdir(originalCwd);
     }
   });
@@ -494,6 +507,19 @@ describe("pr-review process lifecycle", () => {
         `rejects below-minimum ${name}`,
       ).rejects.toThrow();
     }
+    const expiredBeforeSpawnRoot = await generatedRoot();
+    const beforeSpawnClock = vi
+      .spyOn(performance, "now")
+      .mockReturnValueOnce(0)
+      .mockReturnValueOnce(0)
+      .mockReturnValueOnce(251);
+    try {
+      await expect(
+        lifecycle(expiredBeforeSpawnRoot, "process.exit(0);"),
+      ).rejects.toThrow("deadline expired before spawn");
+    } finally {
+      beforeSpawnClock.mockRestore();
+    }
 
     const zeroRoot = await generatedRoot();
     const zero = await lifecycle(zeroRoot, "process.exit(0);");
@@ -542,15 +568,51 @@ describe("pr-review process lifecycle", () => {
       overflowed: true,
       text: "x".repeat(32),
     });
+    const exactEvidence = new PrReviewProcessFailureEvidence([]);
+    for (
+      let index = 0;
+      index < PR_REVIEW_PROCESS_LIFECYCLE_LIMITS.maxFailureEvidence;
+      index += 1
+    )
+      exactEvidence.record(`failure-${index}`);
+    expect(exactEvidence.snapshot()).toHaveLength(
+      PR_REVIEW_PROCESS_LIFECYCLE_LIMITS.maxFailureEvidence,
+    );
+    exactEvidence.record("failure-plus-one");
+    expect(exactEvidence.snapshot()).toHaveLength(
+      PR_REVIEW_PROCESS_LIFECYCLE_LIMITS.maxFailureEvidence,
+    );
+    const exactEvidenceBytes = new PrReviewProcessFailureEvidence([]);
+    exactEvidenceBytes.record(
+      "x".repeat(PR_REVIEW_PROCESS_LIFECYCLE_LIMITS.maxFailureEvidenceBytes),
+    );
+    expect(
+      Buffer.byteLength(exactEvidenceBytes.snapshot()[0] ?? "", "utf8"),
+    ).toBe(PR_REVIEW_PROCESS_LIFECYCLE_LIMITS.maxFailureEvidenceBytes);
+    const plusOneEvidenceBytes = new PrReviewProcessFailureEvidence([]);
+    plusOneEvidenceBytes.record(
+      "x".repeat(
+        PR_REVIEW_PROCESS_LIFECYCLE_LIMITS.maxFailureEvidenceBytes + 1,
+      ),
+    );
+    expect(
+      Buffer.byteLength(plusOneEvidenceBytes.snapshot()[0] ?? "", "utf8"),
+    ).toBe(PR_REVIEW_PROCESS_LIFECYCLE_LIMITS.maxFailureEvidenceBytes);
+    expect(() =>
+      assertPrReviewProcessFinalReceiptBytes(
+        "x".repeat(PR_REVIEW_PROCESS_LIFECYCLE_LIMITS.maxFinalReceiptBytes),
+      ),
+    ).not.toThrow();
+    expect(() =>
+      assertPrReviewProcessFinalReceiptBytes(
+        "x".repeat(PR_REVIEW_PROCESS_LIFECYCLE_LIMITS.maxFinalReceiptBytes + 1),
+      ),
+    ).toThrow("final receipt exceeded");
     const receiptRoot = await generatedRoot();
     const receiptSource = [
-      'const fs = require("node:fs");',
-      "for (let index = 0; index < 32; index += 1) {",
-      "  setTimeout(() => fs.writeSync(3, Buffer.from([0, 0, 0, 1, 255])), index * 3);",
-      "}",
       `process.stdout.write(Buffer.alloc(${PR_REVIEW_PROCESS_LIFECYCLE_LIMITS.maxOutputLimitBytes + 1}));`,
       `process.stderr.write(Buffer.alloc(${PR_REVIEW_PROCESS_LIFECYCLE_LIMITS.maxOutputLimitBytes + 1}));`,
-      "setTimeout(() => process.exit(0), 120);",
+      "setTimeout(() => process.exit(0), 30);",
     ].join("\n");
     const receiptLifecycle = await lifecycle(receiptRoot, receiptSource, {
       deadlineMs: 1_000,
@@ -559,9 +621,6 @@ describe("pr-review process lifecycle", () => {
 
     const receipt = await receiptLifecycle.finish();
 
-    expect(receipt.evidence).toHaveLength(
-      PR_REVIEW_PROCESS_LIFECYCLE_LIMITS.maxFailureEvidence,
-    );
     expect(receipt.output.stdout.overflowed).toBe(true);
     expect(receipt.output.stderr.overflowed).toBe(true);
     expect(
