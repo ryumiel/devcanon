@@ -792,8 +792,11 @@ it("selects the exact issue-569 Windows PR-review lane", async () => {
       "fails closed for raw symlink-plus-dot-dot components before normalization",
       "uses only Windows-equivalent volume comparison and preserves original spellings",
       "preserves exact three-way redaction variants for a physical parent alias",
-      "enrolls only a POSIX executable regular file and rejects a non-executable alias",
-      ...(process.platform === "win32" ? [windowsExecutableTitle] : []),
+      ...(process.platform === "win32"
+        ? [windowsExecutableTitle]
+        : [
+            "enrolls only a POSIX executable regular file and rejects a non-executable alias",
+          ]),
     ].map((title) => ({
       file: laneFiles[2],
       name: `pr-review root identity > ${title}`,
@@ -832,9 +835,7 @@ it("selects the exact issue-569 Windows PR-review lane", async () => {
   ].sort((left, right) =>
     `${left.file}\0${left.name}`.localeCompare(`${right.file}\0${right.name}`),
   );
-  expect(collectedInventory).toHaveLength(
-    process.platform === "win32" ? 38 : 37,
-  );
+  expect(collectedInventory).toHaveLength(37);
   expect(collectedInventory).toEqual(expectedCollectedInventory);
 });
 
