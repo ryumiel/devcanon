@@ -299,7 +299,12 @@ export async function launchPrReviewProcessLifecycle(
     });
   } catch (error) {
     if (error instanceof LifecycleError) throw error;
-    throw new LifecycleError(`spawn threw: ${errorName(error)}`);
+    return new FailedLaunchLifecycle(
+      error,
+      frozen,
+      initialCwd,
+      initialCwdPhysical,
+    );
   }
   return new RootLifecycle(
     child,
@@ -309,6 +314,76 @@ export async function launchPrReviewProcessLifecycle(
     initialCwd,
     initialCwdPhysical,
   );
+}
+
+class FailedLaunchLifecycle implements PrReviewProcessLifecycle {
+  #finishing: Promise<PrReviewProcessLifecycleResult> | undefined;
+
+  constructor(
+    private readonly error: unknown,
+    private readonly request: FrozenRequest,
+    private readonly initialCwd: string,
+    private readonly initialCwdPhysical: string,
+  ) {}
+
+  finish(
+    options: { cancel?: boolean; cooperativeGraceMs?: number } = {},
+  ): Promise<PrReviewProcessLifecycleResult> {
+    snapshotFinishOptions(options);
+    this.#finishing ??= this.#finalize();
+    return this.#finishing;
+  }
+
+  async #finalize(): Promise<PrReviewProcessLifecycleResult> {
+    const evidence = new PrReviewProcessFailureEvidence(this.request.redact);
+    evidence.record(`spawn:${errorName(this.error)}`);
+    let restoration: "restored" | "failed" = "restored";
+    try {
+      if (process.cwd() !== this.initialCwd) process.chdir(this.initialCwd);
+      if ((await realpath(process.cwd())) !== this.initialCwdPhysical) {
+        restoration = "failed";
+        evidence.record("restore:identity-mismatch");
+      }
+    } catch (error) {
+      restoration = "failed";
+      evidence.record(`restore:${errorName(error)}`);
+    }
+    evidence.record("rm:spawn-not-observed");
+    const stdout = new BoundedOutput(
+      this.request.outputLimitBytes,
+      this.request.redact,
+    );
+    const stderr = new BoundedOutput(
+      this.request.outputLimitBytes,
+      this.request.redact,
+    );
+    return freezeResult({
+      rootProcess: {
+        spawned: false,
+        exitObserved: false,
+        closeObserved: false,
+        signal: null,
+        exitCode: null,
+      },
+      channels: {
+        stdoutClosed: false,
+        stderrClosed: false,
+        controlClosed: false,
+      },
+      output: {
+        stdout: stdout.snapshot(),
+        stderr: stderr.snapshot(),
+      },
+      cooperative: {
+        requested: false,
+        descendantsAcknowledged: "unknown",
+      },
+      cleanup: { forceTermination: "not-needed" },
+      evidence: evidence.snapshot(),
+      restoration,
+      generatedRoot: "preserved_unsafe",
+    });
+  }
 }
 
 class RootLifecycle implements PrReviewProcessLifecycle {
