@@ -1390,6 +1390,50 @@ describe("pr-review lease command validation", () => {
     }
   });
 
+  it("allows only helper-recorded removed terminal leases to reenter through LC-18", async () => {
+    const workspace = await makeRegisteredWorkspace("pr-review-discovery-");
+    try {
+      process.chdir(workspace.physicalPrimary);
+      setLeaseCommandEnv(workspace.physicalPrimary, workspace.physicalWorktree);
+      const pathResult = await runPrReviewLeasesCommand(["derive-path"]);
+      expect(pathResult.exitCode, pathResult.stderr).toBe(0);
+      const leaseFile = pathResult.stdout.trim();
+      const dynamic = identityFromLeaseFile(
+        leaseFile,
+        workspace.physicalWorktree,
+      );
+      const terminal = abortedCommandLease(
+        leaseFile,
+        workspace.physicalWorktree,
+        dynamic.worktreeDigest,
+      );
+      terminal.cleanup = {
+        last_outcome: "removed",
+        last_checked_at: "2026-07-30T00:01:00Z",
+        removed_at: "2026-07-30T00:01:00Z",
+      };
+      await writeFile(
+        path.join(workspace.physicalPrimary, leaseFile),
+        `${JSON.stringify(terminal)}\n`,
+      );
+      await execFileAsync("git", [
+        "-C",
+        workspace.physicalPrimary,
+        "worktree",
+        "remove",
+        "-f",
+        workspace.physicalWorktree,
+      ]);
+      expect(await discoverPrReviewSession()).toMatchObject({
+        disposition: "create",
+        resume: null,
+      });
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
+    }
+  });
+
   it("writes result sha256 and same-cycle validation timestamps for every preview presentation", async () => {
     const {
       tempRoot,
