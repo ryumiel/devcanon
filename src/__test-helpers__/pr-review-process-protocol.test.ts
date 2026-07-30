@@ -31,6 +31,20 @@ type ProtocolVectors = {
     overflowHeader: number[];
     exactLimitMessage: unknown;
   };
+  construction: {
+    oversizedRejection: { byteLength: number };
+    coalescedFrames: { messages: unknown[] };
+    malformedSuffix: { prefix: unknown; payload: string };
+    forgedProxyAdmission: {
+      message: unknown;
+      offsetPrefix: number[];
+      rejectedKinds: ("shared-array-buffer" | "proxy")[];
+    };
+    partitions: {
+      exactLimitThenFollowing: string[][];
+      validThenMalformed: string[][];
+    };
+  };
 };
 
 const fixturePath = path.join(
@@ -71,6 +85,20 @@ function exactLimitPayload(message: unknown): Uint8Array {
   const prefix = new TextDecoder().decode(rawMessage(message));
   return encoder.encode(
     `${prefix}${" ".repeat(MAX_PROTOCOL_MESSAGE_BYTES - encoder.encode(prefix).length)}`,
+  );
+}
+
+function resolvePartitions(
+  anchors: Readonly<Record<string, number>>,
+  recipes: readonly (readonly string[])[],
+): number[][] {
+  return recipes.map((recipe) =>
+    recipe.map((name) => {
+      const end = anchors[name];
+      if (end === undefined)
+        throw new Error(`unknown partition anchor: ${name}`);
+      return end;
+    }),
   );
 }
 
@@ -133,9 +161,12 @@ describe("pr-review process protocol", () => {
   test("enforces the exact byte boundary before copying sender payload bytes", async () => {
     const vectors = await readVectors();
     const exact = exactLimitPayload(vectors.raw.exactLimitMessage);
-    const oversized = new Uint8Array(MAX_PROTOCOL_MESSAGE_BYTES + 1);
+    const oversized = new Uint8Array(
+      vectors.construction.oversizedRejection.byteLength,
+    );
 
     expect(exact).toHaveLength(MAX_PROTOCOL_MESSAGE_BYTES);
+    expect(oversized).toHaveLength(MAX_PROTOCOL_MESSAGE_BYTES + 1);
     expect(decodeProtocolMessage(exact)).toEqual(vectors.raw.exactLimitMessage);
     expect(frameProtocolMessage(exact)).toHaveLength(
       MAX_PROTOCOL_MESSAGE_BYTES + 4,
@@ -144,19 +175,25 @@ describe("pr-review process protocol", () => {
     expect(() => decodeProtocolMessage(oversized)).toThrow(/65,536|protocol/i);
   });
 
-  test("uses intrinsic byte-view metadata and rejects non-ArrayBuffer and Proxy views", () => {
-    const done = rawMessage({ type: "done", version: 1 });
+  test("uses intrinsic byte-view metadata and rejects non-ArrayBuffer and Proxy views", async () => {
+    const vectors = await readVectors();
+    const admission = vectors.construction.forgedProxyAdmission;
+    const done = rawMessage(admission.message);
     const framedDone = frameProtocolMessage(done);
+    let forgedByteLengthGetterCalls = 0;
+    let forgedBufferGetterCalls = 0;
     let typedArrayConstructorTrapCalls = 0;
     let typedArraySpeciesTrapCalls = 0;
     let arrayBufferConstructorTrapCalls = 0;
     let arrayBufferSpeciesTrapCalls = 0;
     class ForgedBytes extends Uint8Array {
       get byteLength(): number {
+        forgedByteLengthGetterCalls += 1;
         return done.byteLength;
       }
 
       get buffer(): ArrayBuffer {
+        forgedBufferGetterCalls += 1;
         return done.buffer as ArrayBuffer;
       }
     }
@@ -179,10 +216,19 @@ describe("pr-review process protocol", () => {
     const backing = new ForgedBacking(done.length);
     const forged = new ForgedBytes(backing);
     forged.set(done);
-    const offsetBacking = new ArrayBuffer(done.length + 1);
-    new Uint8Array(offsetBacking).set(done, 1);
-    const forgedOffset = new ForgedOffsetBytes(offsetBacking, 1, done.length);
-    const forgedTransport = new ForgedTransport(MAX_PROTOCOL_MESSAGE_BYTES + 1);
+    const offsetPrefix = Uint8Array.from(admission.offsetPrefix);
+    const offsetBacking = new ArrayBuffer(done.length + offsetPrefix.length);
+    const offsetBytes = new Uint8Array(offsetBacking);
+    offsetBytes.set(offsetPrefix);
+    offsetBytes.set(done, offsetPrefix.length);
+    const forgedOffset = new ForgedOffsetBytes(
+      offsetBacking,
+      offsetPrefix.length,
+      done.length,
+    );
+    const forgedTransport = new ForgedTransport(
+      vectors.construction.oversizedRejection.byteLength,
+    );
 
     Object.defineProperty(ForgedBytes.prototype, "constructor", {
       get(): typeof ForgedBytes {
@@ -228,18 +274,22 @@ describe("pr-review process protocol", () => {
     const shared = new Uint8Array(new SharedArrayBuffer(done.length));
     shared.set(done);
     const proxy = new Proxy(done, {}) as unknown as Uint8Array;
+    const rejectedInputs = admission.rejectedKinds.map((kind) => {
+      if (kind === "shared-array-buffer") return shared;
+      if (kind === "proxy") return proxy;
+      throw new Error(`unknown forged admission kind: ${kind}`);
+    });
 
     expect(encodeProtocolMessage(forged)).toEqual(done);
     expect(frameProtocolMessage(forged)).toEqual(framedDone);
-    expect(decodeProtocolMessage(forged)).toEqual({ type: "done", version: 1 });
+    expect(forgedByteLengthGetterCalls).toBe(0);
+    expect(forgedBufferGetterCalls).toBe(0);
+    expect(decodeProtocolMessage(forged)).toEqual(admission.message);
     expect(encodeProtocolMessage(forgedOffset)).toEqual(done);
     expect(frameProtocolMessage(forgedOffset)).toEqual(framedDone);
-    expect(decodeProtocolMessage(forgedOffset)).toEqual({
-      type: "done",
-      version: 1,
-    });
-    expect(decodeProtocolMessage(offset)).toEqual({ type: "done", version: 1 });
-    for (const input of [shared, proxy]) {
+    expect(decodeProtocolMessage(forgedOffset)).toEqual(admission.message);
+    expect(decodeProtocolMessage(offset)).toEqual(admission.message);
+    for (const input of rejectedInputs) {
       expect(() => decodeProtocolMessage(input)).toThrow(
         /ArrayBuffer|protocol/i,
       );
@@ -252,7 +302,9 @@ describe("pr-review process protocol", () => {
       });
     }
 
-    const forgedOversized = new ForgedBytes(MAX_PROTOCOL_MESSAGE_BYTES + 1);
+    const forgedOversized = new ForgedBytes(
+      vectors.construction.oversizedRejection.byteLength,
+    );
     const oversizedDiagnostic = new ProcessProtocolError(
       "message exceeds 65,536 bytes",
     ).message;
@@ -275,21 +327,20 @@ describe("pr-review process protocol", () => {
     expect(typedArraySpeciesTrapCalls).toBe(0);
     expect(arrayBufferConstructorTrapCalls).toBe(0);
     expect(arrayBufferSpeciesTrapCalls).toBe(0);
+    expect(forgedByteLengthGetterCalls).toBe(0);
+    expect(forgedBufferGetterCalls).toBe(0);
   });
 
   test("is invariant to coalescing and commits an accepted prefix exactly once", async () => {
     const vectors = await readVectors();
-    const done = frameProtocolMessage(rawMessage({ type: "done", version: 1 }));
-    const cancel = frameProtocolMessage(
-      rawMessage({ type: "cancel", version: 1 }),
-    );
+    const [doneMessage, cancelMessage] =
+      vectors.construction.coalescedFrames.messages;
+    const done = frameProtocolMessage(rawMessage(doneMessage));
+    const cancel = frameProtocolMessage(rawMessage(cancelMessage));
     const coalesced = new ProtocolDecoder().push(join(done, cancel));
     expect(coalesced).toEqual({
       status: "ok",
-      messages: [
-        { type: "done", version: 1 },
-        { type: "cancel", version: 1 },
-      ],
+      messages: [doneMessage, cancelMessage],
     });
 
     const suffix = Uint8Array.from(vectors.raw.overflowHeader);
@@ -297,13 +348,13 @@ describe("pr-review process protocol", () => {
     const togetherResult = together.push(join(done, suffix));
     expect(togetherResult).toMatchObject({
       status: "fatal",
-      messages: [{ type: "done", version: 1 }],
+      messages: [doneMessage],
     });
 
     const partitioned = new ProtocolDecoder();
     expect(partitioned.push(done)).toEqual({
       status: "ok",
-      messages: [{ type: "done", version: 1 }],
+      messages: [doneMessage],
     });
     const partitionedFailure = partitioned.push(suffix);
     expect(partitionedFailure).toMatchObject({ status: "fatal", messages: [] });
@@ -318,34 +369,52 @@ describe("pr-review process protocol", () => {
     );
   });
 
-  test("keeps exact-limit and malformed-suffix outcomes invariant across frame partitions", () => {
-    const done = { type: "done", version: 1 };
+  test("keeps exact-limit and malformed-suffix outcomes invariant across frame partitions", async () => {
+    const vectors = await readVectors();
+    const done = vectors.raw.exactLimitMessage;
     const exact = frameProtocolMessage(exactLimitPayload(done));
     const following = frameProtocolMessage(rawMessage(done));
     const joinedExact = join(exact, following);
-    for (const ends of [
-      [],
-      [2, 4],
-      [4, exact.length - 1, exact.length],
-      [exact.length + 2],
-    ]) {
+    const exactPartitions = resolvePartitions(
+      {
+        headerStart: 2,
+        headerEnd: 4,
+        exactBeforeEnd: exact.length - 1,
+        exactEnd: exact.length,
+        followingHeaderStart: exact.length + 2,
+      },
+      vectors.construction.partitions.exactLimitThenFollowing,
+    );
+    for (const ends of exactPartitions) {
       expect(decodePartitions(joinedExact, ends)).toEqual({
         messages: [done, done],
         error: undefined,
       });
     }
 
-    const malformed = frameRawPayload(encoder.encode("{"));
-    const joinedMalformed = join(following, malformed);
+    const malformedPrefix = vectors.construction.malformedSuffix.prefix;
+    const malformedFollowing = frameProtocolMessage(
+      rawMessage(malformedPrefix),
+    );
+    const malformed = frameRawPayload(
+      encoder.encode(vectors.construction.malformedSuffix.payload),
+    );
+    const joinedMalformed = join(malformedFollowing, malformed);
     let expectedError: string | undefined;
-    for (const ends of [
-      [],
-      [2, 4],
-      [following.length - 1, following.length],
-      [following.length + 2, joinedMalformed.length - 1],
-    ]) {
+    const malformedPartitions = resolvePartitions(
+      {
+        headerStart: 2,
+        headerEnd: 4,
+        validBeforeEnd: malformedFollowing.length - 1,
+        validEnd: malformedFollowing.length,
+        malformedHeaderStart: malformedFollowing.length + 2,
+        joinedBeforeEnd: joinedMalformed.length - 1,
+      },
+      vectors.construction.partitions.validThenMalformed,
+    );
+    for (const ends of malformedPartitions) {
       const result = decodePartitions(joinedMalformed, ends);
-      expect(result.messages).toEqual([done]);
+      expect(result.messages).toEqual([malformedPrefix]);
       expect(result.error?.message).toMatch(/UTF-8 JSON|protocol/i);
       expectedError ??= result.error?.message;
       expect(result.error?.message).toBe(expectedError);
