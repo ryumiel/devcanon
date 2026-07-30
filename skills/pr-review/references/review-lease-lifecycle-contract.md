@@ -130,9 +130,10 @@ are present or still registered require an existing lifecycle or cleanup owner.
 Stored active-lease `worktree_path` values must already be absolute physical
 paths: relative paths, lexical aliases, and resolvable aliases are malformed
 and `invalid`. For a missing path, discovery physicalizes the deepest existing
-ancestor before that identity comparison, so a lexical or symlink-parent alias
-is invalid before missing or LC-18 reentry; a physical missing canonical or
-alternate path retains its normal missing classification.
+physical directory before that identity comparison. An `ENOTDIR` ancestor or
+dangling-symlink ancestor is invalid before missing or LC-18 reentry, as is a
+lexical or symlink-parent alias; a physical missing canonical or alternate path
+retains its normal missing classification.
 Malformed active lease evidence is `invalid`. The planner does not inspect or
 repair arbitrary historical paths, infer cleanup authority, or mutate any
 lifecycle state. Cleanup remains exclusively lease-gated.
@@ -143,7 +144,9 @@ its missing worktree is eligible for the existing LC-18 archive-and-create
 reentry only after discovery reads that lease's exact deterministic archive:
 an absent archive or byte-equal archive permits reentry, a divergent archive
 remains `missing` and therefore `cleanup-required`, and an unreadable archive
-fails closed as `invalid`. If a fresh LC-18 lease write is interrupted after that archive snapshot
+fails closed as `invalid`. Discovery establishes absence from that direct entry
+before reading it, so a present dangling entry is unreadable rather than
+absent. If a fresh LC-18 lease write is interrupted after that archive snapshot
 and the canonical worktree has already been recreated, the same authority-valid,
 clean, managed, registered canonical candidate is also `reentry`; `create`
 reuses that worktree and retries only the fresh lease write. Later cleanup

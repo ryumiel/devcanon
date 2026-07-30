@@ -1598,10 +1598,20 @@ describe("pr-review lease command validation", () => {
       const physicalRoot = await realpath(workspace.tempRoot);
       const linkedParent = path.join(physicalRoot, "linked-parent");
       await symlink(physicalRoot, linkedParent, "dir");
+      const danglingParent = path.join(physicalRoot, "dangling-parent");
+      await symlink(
+        path.join(physicalRoot, "missing-target"),
+        danglingParent,
+        "dir",
+      );
+      const regularParent = path.join(physicalRoot, "not-a-directory");
+      await writeFile(regularParent, "not a directory\n");
       const storedPaths = [
         path.join(physicalRoot, "physical-missing"),
         `${path.join(physicalRoot, "lexical-parent")}${path.sep}..${path.sep}lexical-missing`,
         path.join(linkedParent, "symlink-parent-missing"),
+        path.join(danglingParent, "missing"),
+        path.join(regularParent, "missing"),
       ];
       for (const storedPath of storedPaths) {
         const worktreeDigest = discoveryWorktreeDigest(storedPath);
@@ -1620,7 +1630,7 @@ describe("pr-review lease command validation", () => {
       expect(discovery).toMatchObject({ disposition: "invalid", resume: null });
       expect(
         discovery.active.map((entry) => entry.classification).sort(),
-      ).toEqual(["invalid", "invalid", "missing"]);
+      ).toEqual(["invalid", "invalid", "invalid", "invalid", "missing"]);
       expect(
         discovery.active.find((entry) => entry.classification === "missing"),
       ).toMatchObject({
@@ -1754,9 +1764,10 @@ describe("pr-review lease command validation", () => {
         last_checked_at: "2026-07-30T00:01:00Z",
         removed_at: "2026-07-30T00:01:00Z",
       };
+      const terminalContent = `${JSON.stringify(terminal)}\n`;
       await writeFile(
         path.join(workspace.physicalPrimary, leaseFile),
-        `${JSON.stringify(terminal)}\n`,
+        terminalContent,
       );
       await execFileAsync("git", [
         "-C",
@@ -1781,16 +1792,40 @@ describe("pr-review lease command validation", () => {
       });
 
       const archiveFile = `.ephemeral/pr-432-${dynamic.worktreeDigest}-20260611T000100-aborted-archived-lease.json`;
-      await writeFile(
-        path.join(workspace.physicalPrimary, archiveFile),
-        '{"divergent":true}\n',
-      );
+      const archivePath = path.join(workspace.physicalPrimary, archiveFile);
+      await writeFile(archivePath, terminalContent);
+      expect(await discoverPrReviewSession()).toMatchObject({
+        disposition: "create",
+        active: [
+          {
+            lease_file: leaseFile,
+            classification: "reentry",
+          },
+        ],
+        resume: null,
+      });
+      await writeFile(archivePath, '{"divergent":true}\n');
       expect(await discoverPrReviewSession()).toMatchObject({
         disposition: "cleanup-required",
         active: [
           {
             lease_file: leaseFile,
             classification: "missing",
+          },
+        ],
+        resume: null,
+      });
+      await removePath(archivePath);
+      await symlink(
+        path.join(workspace.tempRoot, "missing-archive"),
+        archivePath,
+      );
+      expect(await discoverPrReviewSession()).toMatchObject({
+        disposition: "invalid",
+        active: [
+          {
+            lease_file: leaseFile,
+            classification: "invalid",
           },
         ],
         resume: null,

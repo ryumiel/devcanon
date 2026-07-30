@@ -733,20 +733,19 @@ async function inspectTerminalArchive(
   identity: DiscoveryIdentity,
   leaseFile: string,
 ): Promise<"absent" | "equal" | "divergent"> {
-  let archive: Buffer;
+  const archivePath = path.join(
+    identity.primaryRoot,
+    terminalArchivePath(lease, identity.prNumber),
+  );
   try {
-    archive = await readFile(
-      path.join(
-        identity.primaryRoot,
-        terminalArchivePath(lease, identity.prNumber),
-      ),
-    );
+    await lstat(archivePath);
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === "ENOENT") {
       return "absent";
     }
     throw err;
   }
+  const archive = await readFile(archivePath);
   const active = await readFile(path.join(identity.primaryRoot, leaseFile));
   return archive.equals(active) ? "equal" : "divergent";
 }
@@ -1339,29 +1338,35 @@ async function resolveWorktreePathForCleanup(
     return { path: await realpath(worktreePath), exists: true };
   } catch (err) {
     const code = (err as NodeJS.ErrnoException).code;
-    if (code !== "ENOENT" && code !== "ENOTDIR") {
+    if (code !== "ENOENT") {
       throw err;
     }
     const lexicalPath = path.resolve(worktreePath);
     const missingSegments: string[] = [];
     let existingAncestor = lexicalPath;
     while (true) {
-      missingSegments.unshift(path.basename(existingAncestor));
-      const parent = path.dirname(existingAncestor);
-      if (parent === existingAncestor) {
-        throw err;
-      }
-      existingAncestor = parent;
       try {
+        const ancestorStat = await lstat(existingAncestor);
+        if (!ancestorStat.isDirectory()) {
+          throw new PrReviewLeaseError(
+            "missing worktree path has no physical directory ancestor",
+          );
+        }
         return {
           path: path.join(await realpath(existingAncestor), ...missingSegments),
           exists: false,
         };
       } catch (ancestorError) {
         const ancestorCode = (ancestorError as NodeJS.ErrnoException).code;
-        if (ancestorCode !== "ENOENT" && ancestorCode !== "ENOTDIR") {
+        if (ancestorCode !== "ENOENT") {
           throw ancestorError;
         }
+        missingSegments.unshift(path.basename(existingAncestor));
+        const parent = path.dirname(existingAncestor);
+        if (parent === existingAncestor) {
+          throw err;
+        }
+        existingAncestor = parent;
       }
     }
   }
