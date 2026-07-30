@@ -1,55 +1,66 @@
-import { execFile, spawnSync } from "node:child_process";
 import {
   appendFile,
   chmod,
   lstat,
   mkdir,
-  mkdtemp,
   readFile,
   readdir,
   rm,
   symlink,
   writeFile,
 } from "node:fs/promises";
-import os from "node:os";
 import path from "node:path";
-import { promisify } from "node:util";
-import { afterEach, describe, expect, it } from "vitest";
-import { runSourceImmutabilityCommand } from "./source-immutability.js";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+} from "vitest";
+import { PrReviewCommandHarness } from "../__test-helpers__/pr-review-command-harness.js";
+import { runSourceImmutabilityCommand as runSourceImmutabilityRuntimeCommand } from "./source-immutability.js";
 
-const execFileAsync = promisify(execFile);
-const tempDirs: string[] = [];
+const commandHarness = new PrReviewCommandHarness({
+  envKeys: ["GIT_CONFIG_COUNT", "GIT_CONFIG_KEY_0", "GIT_CONFIG_VALUE_0"],
+  seed: "source",
+});
+
+beforeAll(async () => {
+  await commandHarness.setup();
+});
+
+beforeEach(() => {
+  commandHarness.beginTest();
+});
 
 afterEach(async () => {
-  await Promise.all(
-    tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })),
-  );
+  await commandHarness.endTest();
+});
+
+afterAll(async () => {
+  await commandHarness.dispose();
 });
 
 async function git(cwd: string, ...args: string[]): Promise<string> {
-  return (await execFileAsync("git", args, { cwd })).stdout;
+  return (await commandHarness.run("git", args, { cwd })).stdout;
 }
 
 async function fixture(
   options: { ephemeral?: boolean; commit?: boolean } = {},
 ) {
-  const cwd = await mkdtemp(path.join(os.tmpdir(), "devcanon-source-guard-"));
-  tempDirs.push(cwd);
-  await git(cwd, "init", "--initial-branch=main");
-  await git(cwd, "config", "user.name", "Test User");
-  await git(cwd, "config", "user.email", "test@example.com");
-  await writeFile(path.join(cwd, ".gitignore"), ".ephemeral/\nignored/\n");
-  await writeFile(path.join(cwd, "tracked.txt"), "baseline\n");
-  await writeFile(path.join(cwd, "mode.sh"), "#!/bin/sh\n");
-  await chmod(path.join(cwd, "mode.sh"), 0o644);
-  if (options.commit !== false) {
-    await git(cwd, "add", ".gitignore", "tracked.txt", "mode.sh");
-    await git(cwd, "commit", "-m", "chore: baseline");
-  }
-  if (options.ephemeral !== false) {
-    await mkdir(path.join(cwd, ".ephemeral"));
-  }
-  return cwd;
+  return commandHarness.createSourceWorkspace(options);
+}
+
+function runSourceImmutabilityCommand(
+  args: readonly string[],
+  cwd: string,
+): ReturnType<typeof runSourceImmutabilityRuntimeCommand> {
+  return commandHarness.trackOuter(
+    runSourceImmutabilityRuntimeCommand(args, cwd),
+    `source-immutability ${args.join(" ")}`,
+  );
 }
 
 async function capture(cwd: string, handoff?: string): Promise<string> {
@@ -305,12 +316,15 @@ describe("source-immutability runtime", () => {
       "",
     ].join("\n");
 
-    const result = spawnSync("git", ["update-index", "--index-info"], {
-      cwd,
-      encoding: "utf8",
-      input: indexInfo,
-    });
-    expect(result.status, result.stderr).toBe(0);
+    const result = await commandHarness.run(
+      "git",
+      ["update-index", "--index-info"],
+      {
+        cwd,
+        input: indexInfo,
+      },
+    );
+    expect(result.exitCode, result.stderr).toBe(0);
     expect(await readFile(path.join(cwd, "tracked.txt"))).toEqual(
       beforeContent,
     );
