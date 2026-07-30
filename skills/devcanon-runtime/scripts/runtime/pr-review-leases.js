@@ -66,8 +66,10 @@ async function discoverReviewSession() {
     active.sort((left, right) => compareDiscoveryEntries(left.lease_file, right.lease_file));
     const invalid = active.some((candidate) => candidate.classification === "invalid");
     const resumable = active.filter((candidate) => candidate.classification === "resumable");
-    const blocked = active.some((candidate) => candidate.classification !== "resumable" &&
-        candidate.classification !== "reentry");
+    const blocked = active.some((candidate) => (candidate.classification !== "resumable" &&
+        candidate.classification !== "reentry") ||
+        candidate.worktree_dirty === true ||
+        candidate.unmanaged_ephemeral_artifacts === true);
     const selectedResumable = resumable.length === 1 ? resumable[0] : undefined;
     const canonicalConflictsWithResume = (canonicalWorktreePresent || canonicalWorktreeRegistered) &&
         (selectedResumable?.worktree_path === undefined ||
@@ -132,6 +134,8 @@ async function inspectDiscoveryCandidate(identity, leaseFileName, registrations)
                     worktree_path: lease.worktree_path,
                     state: lease.state,
                     classification: "reentry",
+                    worktree_dirty: null,
+                    unmanaged_ephemeral_artifacts: null,
                 };
             }
             return {
@@ -139,6 +143,8 @@ async function inspectDiscoveryCandidate(identity, leaseFileName, registrations)
                 worktree_path: lease.worktree_path,
                 state: lease.state,
                 classification: "missing",
+                worktree_dirty: null,
+                unmanaged_ephemeral_artifacts: null,
             };
         }
         if (worktreePath === identity.primaryRoot) {
@@ -151,8 +157,14 @@ async function inspectDiscoveryCandidate(identity, leaseFileName, registrations)
                 worktree_path: worktreePath,
                 state: lease.state,
                 classification: "unregistered",
+                worktree_dirty: null,
+                unmanaged_ephemeral_artifacts: null,
             };
         }
+        const [worktreeDirty, unmanagedArtifacts] = await Promise.all([
+            isWorktreeDirty(worktreePath),
+            findUnmanagedEphemeralArtifacts(lease, worktreePath),
+        ]);
         return {
             lease_file: leaseFile,
             worktree_path: worktreePath,
@@ -160,6 +172,8 @@ async function inspectDiscoveryCandidate(identity, leaseFileName, registrations)
             classification: ["created", "reviewed", "gated", "failed"].includes(lease.state)
                 ? "resumable"
                 : "terminal",
+            worktree_dirty: worktreeDirty,
+            unmanaged_ephemeral_artifacts: unmanagedArtifacts.length > 0,
         };
     }
     catch {
@@ -172,6 +186,8 @@ function discoveryInvalidCandidate(leaseFile) {
         worktree_path: null,
         state: null,
         classification: "invalid",
+        worktree_dirty: null,
+        unmanaged_ephemeral_artifacts: null,
     };
 }
 async function readDiscoveryDirectory(primaryRoot) {

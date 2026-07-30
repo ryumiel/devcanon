@@ -82,6 +82,8 @@ interface DiscoveryCandidate {
   worktree_path: string | null;
   state: LeaseState | null;
   classification: DiscoveryClassification;
+  worktree_dirty: boolean | null;
+  unmanaged_ephemeral_artifacts: boolean | null;
 }
 
 interface PrReviewSessionDiscovery {
@@ -277,8 +279,10 @@ async function discoverReviewSession(): Promise<PrReviewSessionDiscovery> {
   );
   const blocked = active.some(
     (candidate) =>
-      candidate.classification !== "resumable" &&
-      candidate.classification !== "reentry",
+      (candidate.classification !== "resumable" &&
+        candidate.classification !== "reentry") ||
+      candidate.worktree_dirty === true ||
+      candidate.unmanaged_ephemeral_artifacts === true,
   );
   const selectedResumable = resumable.length === 1 ? resumable[0] : undefined;
   const canonicalConflictsWithResume =
@@ -355,6 +359,8 @@ async function inspectDiscoveryCandidate(
           worktree_path: lease.worktree_path,
           state: lease.state,
           classification: "reentry",
+          worktree_dirty: null,
+          unmanaged_ephemeral_artifacts: null,
         };
       }
       return {
@@ -362,6 +368,8 @@ async function inspectDiscoveryCandidate(
         worktree_path: lease.worktree_path,
         state: lease.state,
         classification: "missing",
+        worktree_dirty: null,
+        unmanaged_ephemeral_artifacts: null,
       };
     }
     if (worktreePath === identity.primaryRoot) {
@@ -379,8 +387,14 @@ async function inspectDiscoveryCandidate(
         worktree_path: worktreePath,
         state: lease.state,
         classification: "unregistered",
+        worktree_dirty: null,
+        unmanaged_ephemeral_artifacts: null,
       };
     }
+    const [worktreeDirty, unmanagedArtifacts] = await Promise.all([
+      isWorktreeDirty(worktreePath),
+      findUnmanagedEphemeralArtifacts(lease, worktreePath),
+    ]);
     return {
       lease_file: leaseFile,
       worktree_path: worktreePath,
@@ -390,6 +404,8 @@ async function inspectDiscoveryCandidate(
       )
         ? "resumable"
         : "terminal",
+      worktree_dirty: worktreeDirty,
+      unmanaged_ephemeral_artifacts: unmanagedArtifacts.length > 0,
     };
   } catch {
     return discoveryInvalidCandidate(leaseFile);
@@ -402,6 +418,8 @@ function discoveryInvalidCandidate(leaseFile: string): DiscoveryCandidate {
     worktree_path: null,
     state: null,
     classification: "invalid",
+    worktree_dirty: null,
+    unmanaged_ephemeral_artifacts: null,
   };
 }
 
