@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import { constants } from "node:fs";
-import { access, lstat, mkdir, readFile, readdir, realpath, rename, } from "node:fs/promises";
+import { access, copyFile, lstat, mkdir, readFile, readdir, realpath, } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import { writeTextAtomically } from "./artifacts.js";
@@ -360,7 +360,7 @@ async function writeLease() {
     const content = `${JSON.stringify(reduced, null, 2)}\n`;
     if (archive !== null) {
         await assertWritableDirectChild(identity.primaryRoot, archive, "archived lease");
-        await rename(target, path.join(identity.primaryRoot, archive));
+        await copyFile(target, path.join(identity.primaryRoot, archive));
     }
     await writeTextAtomically(target, content);
     return identity.leaseFile;

@@ -3,12 +3,12 @@ import { createHash } from "node:crypto";
 import { constants } from "node:fs";
 import {
   access,
+  copyFile,
   lstat,
   mkdir,
   readFile,
   readdir,
   realpath,
-  rename,
 } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -651,7 +651,7 @@ async function writeLease(): Promise<string> {
       archive,
       "archived lease",
     );
-    await rename(target, path.join(identity.primaryRoot, archive));
+    await copyFile(target, path.join(identity.primaryRoot, archive));
   }
   await writeTextAtomically(target, content);
   return identity.leaseFile;

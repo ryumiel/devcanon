@@ -21,8 +21,10 @@ import {
   describe,
   expect,
   it,
+  vi,
 } from "vitest";
 import { PrReviewCommandHarness } from "../__test-helpers__/pr-review-command-harness.js";
+import * as artifacts from "./artifacts.js";
 import { runPlayReviewSharedContextCommand as runPlayReviewSharedContextRuntimeCommand } from "./play-review-shared-context.js";
 import {
   type PrReviewLease,
@@ -4131,7 +4133,7 @@ describe("pr-review lease Git cleanup safety", () => {
     }
   });
 
-  it("archives helper-recorded removed terminal leases before fresh creation", async () => {
+  it("retries helper-recorded terminal archival after fresh creation is interrupted", async () => {
     for (const state of ["posted", "aborted"] as const) {
       const workspace = await makeGatedStatusWorkspace(
         `pr-review-${state}-archive-after-cleanup-`,
@@ -4220,6 +4222,38 @@ describe("pr-review lease Git cleanup safety", () => {
         process.env.HEAD_REF = "topic";
         process.env.CREATED_AT = "2026-06-11T00:04:00Z";
         process.env.UPDATED_AT = "2026-06-11T00:04:00Z";
+
+        const before = await readFile(
+          path.join(workspace.primary, workspace.leaseFile),
+          "utf8",
+        );
+        const writeSpy = vi
+          .spyOn(artifacts, "writeTextAtomically")
+          .mockRejectedValueOnce(new Error("interrupted fresh lease write"));
+        const interrupted = await runPrReviewLeasesCommand(["write"]);
+        expect(interrupted.exitCode).toBe(1);
+        expect(interrupted.stderr).toContain("interrupted fresh lease write");
+        await expect(
+          readFile(path.join(workspace.primary, workspace.leaseFile), "utf8"),
+        ).resolves.toBe(before);
+        const interruptedEntries = await readdir(
+          path.join(workspace.primary, ".ephemeral"),
+        );
+        const interruptedArchive = interruptedEntries.find((entry) =>
+          entry.includes(`-${state}-archived-lease.json`),
+        );
+        expect(interruptedArchive).toBeDefined();
+        await expect(
+          readFile(
+            path.join(
+              workspace.primary,
+              ".ephemeral",
+              interruptedArchive ?? "",
+            ),
+            "utf8",
+          ),
+        ).resolves.toBe(before);
+        writeSpy.mockRestore();
 
         const result = await runPrReviewLeasesCommand(["write"]);
         expect(result.exitCode, state).toBe(0);

@@ -222,11 +222,16 @@ metadata never adds or refreshes artifact authority.
 
 LC-18 is the only transition that replaces a terminal active lease with a fresh
 `created` lease. The helper first validates the existing terminal lease for
-archive, then moves it to:
+archive, snapshots it to:
 
 ```text
 .ephemeral/pr-${PR_NUMBER}-${WORKTREE_DIGEST}-${YYYYMMDDTHHMMSS}-${STATE}-archived-lease.json
 ```
+
+The helper retains the valid terminal lease until the fresh `created` lease is
+atomically installed. If that fresh write is interrupted after the archive
+snapshot, a retry can use the still-active terminal lease and preserve the
+archived historical evidence.
 
 For a `posted` or `aborted` lease whose cleanup helper has recorded a closed
 `cleanup` observation with a valid non-null `removed_at` timestamp and whose
