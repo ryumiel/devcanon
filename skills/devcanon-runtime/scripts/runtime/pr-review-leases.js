@@ -64,7 +64,8 @@ async function discoverReviewSession() {
     active.sort((left, right) => compareDiscoveryEntries(left.lease_file, right.lease_file));
     const invalid = active.some((candidate) => candidate.classification === "invalid");
     const resumable = active.filter((candidate) => candidate.classification === "resumable");
-    const blocked = active.some((candidate) => candidate.classification !== "resumable");
+    const blocked = active.some((candidate) => candidate.classification !== "resumable" &&
+        candidate.classification !== "reentry");
     const selectedResumable = resumable.length === 1 ? resumable[0] : undefined;
     const canonicalConflictsWithResume = canonicalWorktreePresent &&
         (selectedResumable?.worktree_path === undefined ||
@@ -123,6 +124,16 @@ async function inspectDiscoveryCandidate(identity, leaseFileName, registrations)
             worktreePath = await realpath(lease.worktree_path);
         }
         catch {
+            if (["posted", "aborted"].includes(lease.state) &&
+                lease.cleanup?.last_outcome === "removed" &&
+                lease.cleanup.removed_at !== null) {
+                return {
+                    lease_file: leaseFile,
+                    worktree_path: lease.worktree_path,
+                    state: lease.state,
+                    classification: "reentry",
+                };
+            }
             return {
                 lease_file: leaseFile,
                 worktree_path: lease.worktree_path,

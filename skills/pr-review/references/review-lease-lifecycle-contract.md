@@ -89,6 +89,11 @@ Malformed active lease evidence is `invalid`. The planner does not inspect or
 repair arbitrary historical paths, infer cleanup authority, or mutate any
 lifecycle state. Cleanup remains exclusively lease-gated.
 
+When a `posted` or `aborted` lease has the existing helper-recorded
+`cleanup.last_outcome=removed` observation and `cleanup.removed_at`, its missing
+worktree is eligible for the existing LC-18 archive-and-create reentry. Other
+terminal, missing, or unregistered leases remain cleanup-required.
+
 ## Field Contract
 
 `UPDATED_AT` is required on every write. `created_at`, `base_ref`, `head_ref`,

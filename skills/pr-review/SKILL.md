@@ -454,7 +454,9 @@ approval state, no lease state, and no GitHub review payload.
 
 Hand off to `play-review` with these manifest-backed inputs:
 
-- `working_directory` = absolute path to `.worktrees/pr-<N>-review`
+- `working_directory` = the Phase 2 selected physical worktree path: canonical
+  `.worktrees/pr-<N>-review` for `create`, or `resume.worktree_path` for
+  `resume`
 - `base_ref` = the PR's base ref name (e.g., `main`)
 - `active_diff_range` = computed in Phase 3
 - `full_pr_diff_range` = `"<provider_pr_diff_base_sha>..<headRefOid>"` from explicit provider scope evidence (always)
