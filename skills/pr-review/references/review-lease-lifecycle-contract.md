@@ -122,11 +122,17 @@ LC-18 reentry classification. A true dirty or unmanaged observation selects
 `cleanup-required` with `resume: null`; it grants no cleanup authority.
 
 `resume` is emitted only for one registered, schema-valid nonterminal lease.
-More than one resumable lease is `ambiguous`; terminal, missing, unregistered,
-or unleased canonical paths that are present or still registered require an
-existing lifecycle or cleanup owner.
+Invalid evidence wins first, then dirty or unmanaged observations select
+`cleanup-required`. More than one clean resumable lease is `ambiguous`, even
+when one is canonical; canonical-path conflict handling applies only after that
+selection. Terminal, missing, unregistered, or unleased canonical paths that
+are present or still registered require an existing lifecycle or cleanup owner.
 Stored active-lease `worktree_path` values must already be absolute physical
-paths: relative paths and resolvable aliases are malformed and `invalid`.
+paths: relative paths, lexical aliases, and resolvable aliases are malformed
+and `invalid`. For a missing path, discovery physicalizes the deepest existing
+ancestor before that identity comparison, so a lexical or symlink-parent alias
+is invalid before missing or LC-18 reentry; a physical missing canonical or
+alternate path retains its normal missing classification.
 Malformed active lease evidence is `invalid`. The planner does not inspect or
 repair arbitrary historical paths, infer cleanup authority, or mutate any
 lifecycle state. Cleanup remains exclusively lease-gated.
@@ -134,7 +140,10 @@ lifecycle state. Cleanup remains exclusively lease-gated.
 When a `posted` or `aborted` lease has a valid helper-recorded
 `cleanup.removed_at` marker and its stored physical worktree path is canonical,
 its missing worktree is eligible for the existing LC-18 archive-and-create
-reentry. If a fresh LC-18 lease write is interrupted after that archive snapshot
+reentry only after discovery reads that lease's exact deterministic archive:
+an absent archive or byte-equal archive permits reentry, a divergent archive
+remains `missing` and therefore `cleanup-required`, and an unreadable archive
+fails closed as `invalid`. If a fresh LC-18 lease write is interrupted after that archive snapshot
 and the canonical worktree has already been recreated, the same authority-valid,
 clean, managed, registered canonical candidate is also `reentry`; `create`
 reuses that worktree and retries only the fresh lease write. Later cleanup
@@ -278,6 +287,9 @@ archive may be reused only when its bytes exactly equal the active terminal
 lease; divergent bytes fail closed without overwriting either lease. If that
 fresh write is interrupted after the archive snapshot, a retry can use the
 still-active terminal lease and preserve the archived historical evidence.
+Before discovery admits a missing canonical LC-18 reentry, it reads only this
+exact archive: absent or byte-equal content permits the existing reentry/create
+flow, while divergent or unreadable content never permits `create`.
 
 For a `posted` or `aborted` lease whose cleanup helper has recorded a closed
 `cleanup` observation with a valid non-null `removed_at` timestamp and whose
