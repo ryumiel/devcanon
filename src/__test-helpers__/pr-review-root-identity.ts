@@ -25,6 +25,12 @@ export type EnrolledWorkingDirectory = {
   redactionVariants: readonly Uint8Array[];
 };
 
+export type WindowsPresentation = {
+  readonly original: string;
+  readonly volumeKey: string;
+  readonly components: readonly string[];
+};
+
 export class RootIdentityError extends Error {
   constructor(message: string) {
     super(`Invalid cooperative command root identity: ${message}`);
@@ -116,7 +122,7 @@ function findContainingRootVariant(
   candidate: string,
 ): string {
   for (const variant of [root.logical, root.normalized, root.physical]) {
-    if (isComponentContained(variant, candidate)) return variant;
+    if (isRawComponentContained(variant, candidate)) return variant;
   }
   throw new RootIdentityError(
     "working directory spelling is not component-contained by root",
@@ -127,8 +133,7 @@ async function assertDirectoryWalk(
   root: string,
   candidate: string,
 ): Promise<void> {
-  const relative = path.relative(root, candidate);
-  const components = relative === "" ? [] : relative.split(path.sep);
+  const components = rawContainedComponents(root, candidate);
   let current = root;
   await assertDirectoryNotLink(current);
   for (const component of components) {
@@ -138,6 +143,51 @@ async function assertDirectoryWalk(
     current = path.join(current, component);
     await assertDirectoryNotLink(current);
   }
+}
+
+/**
+ * Returns a presentation-only key for Windows textual preflight. It preserves
+ * the original spelling; only the drive letter or UNC server/share volume key
+ * uses Windows-equivalent case comparison. It is never physical authority.
+ */
+export function parseWindowsPresentation(value: string): WindowsPresentation {
+  const original = value;
+  let presentation = value;
+  if (presentation.startsWith("\\\\?\\")) {
+    const extended = presentation.slice(4);
+    if (/^UNC[\\/]/i.test(extended)) {
+      presentation = `\\\\${extended.slice(4)}`;
+    } else if (
+      /^(?:GLOBALROOT|Volume\{|\\|\.)/i.test(extended) ||
+      !/^[A-Za-z]:[\\/]/.test(extended)
+    ) {
+      throw new RootIdentityError("Windows path has an unsupported namespace");
+    } else {
+      presentation = extended;
+    }
+  }
+  if (presentation.startsWith("\\\\.\\")) {
+    throw new RootIdentityError("Windows path has an unsupported namespace");
+  }
+
+  const drive = /^([A-Za-z]):[\\/](.*)$/.exec(presentation);
+  if (drive) {
+    return {
+      original,
+      volumeKey: `drive:${drive[1].toLowerCase()}`,
+      components: splitRawWindowsComponents(drive[2]),
+    };
+  }
+
+  const unc = /^\\\\([^\\/]+)[\\/]([^\\/]+)(?:[\\/](.*))?$/.exec(presentation);
+  if (unc) {
+    return {
+      original,
+      volumeKey: `unc:${unc[1].toLowerCase()}/${unc[2].toLowerCase()}`,
+      components: splitRawWindowsComponents(unc[3] ?? ""),
+    };
+  }
+  throw new RootIdentityError("Windows path has an unsupported presentation");
 }
 
 async function assertPhysicalAncestry(
@@ -226,6 +276,50 @@ function isComponentContained(root: string, candidate: string): boolean {
       relative !== ".." &&
       !path.isAbsolute(relative))
   );
+}
+
+function isRawComponentContained(root: string, candidate: string): boolean {
+  try {
+    rawContainedComponents(root, candidate);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function rawContainedComponents(root: string, candidate: string): string[] {
+  if (process.platform === "win32") {
+    const rootPresentation = parseWindowsPresentation(root);
+    const candidatePresentation = parseWindowsPresentation(candidate);
+    if (
+      rootPresentation.volumeKey !== candidatePresentation.volumeKey ||
+      rootPresentation.components.length >
+        candidatePresentation.components.length ||
+      rootPresentation.components.some(
+        (component, index) =>
+          component !== candidatePresentation.components[index],
+      )
+    ) {
+      throw new RootIdentityError(
+        "working directory spelling is not component-contained by root",
+      );
+    }
+    return candidatePresentation.components.slice(
+      rootPresentation.components.length,
+    );
+  }
+
+  if (candidate === root) return [];
+  if (!candidate.startsWith(`${root}${path.sep}`)) {
+    throw new RootIdentityError(
+      "working directory spelling is not component-contained by root",
+    );
+  }
+  return candidate.slice(root.length + 1).split(path.sep);
+}
+
+function splitRawWindowsComponents(value: string): string[] {
+  return value === "" ? [] : value.split(/[\\/]/);
 }
 
 function encodeVariants(identity: PathIdentity): Uint8Array[] {
