@@ -1,0 +1,62 @@
+{
+  "valid": [
+    { "type": "ready", "version": 1, "descendantPolicy": "none" },
+    { "type": "ready", "version": 1, "descendantPolicy": "cooperative" },
+    { "type": "done", "version": 1 },
+    { "type": "cancel", "version": 1 },
+    { "type": "descendants_stopped", "version": 1 },
+    { "type": "diagnostic", "version": 1, "code": "fixture_note" },
+    {
+      "type": "diagnostic",
+      "version": 1,
+      "code": "descendant_evidence_contradictory"
+    }
+  ],
+  "malformed": [
+    { "type": "ready", "version": 1 },
+    { "type": "ready", "version": 2, "descendantPolicy": "none" },
+    { "type": "done", "version": 1, "extra": true },
+    { "type": "diagnostic", "version": 1, "code": "unknown" },
+    { "type": "cancel", "version": 1, "descendantPolicy": "none" }
+  ],
+  "raw": {
+    "invalidUtf8": [195, 40],
+    "invalidJson": "{",
+    "truncatedHeader": [0, 0],
+    "truncatedPayload": [0, 0, 0, 4, 123, 125],
+    "overflowHeader": [0, 1, 0, 1],
+    "exactLimitMessage": { "type": "done", "version": 1 }
+  },
+  "construction": {
+    "oversizedRejection": { "byteLength": 65537 },
+    "coalescedFrames": {
+      "messages": [
+        { "type": "done", "version": 1 },
+        { "type": "cancel", "version": 1 }
+      ]
+    },
+    "malformedSuffix": {
+      "prefix": { "type": "done", "version": 1 },
+      "payload": "{"
+    },
+    "forgedProxyAdmission": {
+      "message": { "type": "done", "version": 1 },
+      "offsetPrefix": [0],
+      "rejectedKinds": ["shared-array-buffer", "proxy"]
+    },
+    "partitions": {
+      "exactLimitThenFollowing": [
+        [],
+        ["headerStart", "headerEnd"],
+        ["headerEnd", "exactBeforeEnd", "exactEnd"],
+        ["followingHeaderStart"]
+      ],
+      "validThenMalformed": [
+        [],
+        ["headerStart", "headerEnd"],
+        ["validBeforeEnd", "validEnd"],
+        ["malformedHeaderStart", "joinedBeforeEnd"]
+      ]
+    }
+  }
+}
