@@ -1,30 +1,33 @@
-import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
   chmod,
   lstat,
   mkdir,
-  mkdtemp,
   readFile,
   readdir,
   realpath,
-  rm,
+  rm as removePath,
   symlink,
   writeFile,
 } from "node:fs/promises";
-import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { promisify } from "node:util";
-import { afterEach, describe, expect, it } from "vitest";
-import { runPlayReviewSharedContextCommand } from "./play-review-shared-context.js";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+} from "vitest";
+import { PrReviewCommandHarness } from "../__test-helpers__/pr-review-command-harness.js";
+import { runPlayReviewSharedContextCommand as runPlayReviewSharedContextRuntimeCommand } from "./play-review-shared-context.js";
 import {
   type PrReviewLease,
   reducePrReviewLease,
-  runPrReviewLeasesCommand,
+  runPrReviewLeasesCommand as runPrReviewLeasesRuntimeCommand,
 } from "./pr-review-leases.js";
-
-const execFileAsync = promisify(execFile);
 
 async function resolveGitForWindowsBash(): Promise<string> {
   const { stdout } = await execFileAsync("where.exe", ["git.exe"]);
@@ -108,12 +111,71 @@ const managedEnvKeys = [
   "GIT_INDEX_FILE",
 ] as const;
 
-afterEach(() => {
-  process.chdir(originalCwd);
-  for (const key of managedEnvKeys) {
-    delete process.env[key];
-  }
+const commandHarness = new PrReviewCommandHarness({
+  envKeys: managedEnvKeys,
+  seed: "review",
 });
+let sharedReviewHelpers: Awaited<
+  ReturnType<typeof writeReviewHelperScripts>
+> | null = null;
+
+beforeAll(async () => {
+  await commandHarness.setup();
+  sharedReviewHelpers = await writeReviewHelperScripts(
+    path.join(commandHarness.suiteRoot, "h"),
+  );
+});
+
+beforeEach(() => {
+  commandHarness.beginTest();
+});
+
+afterEach(async () => {
+  await commandHarness.endTest();
+});
+
+afterAll(async () => {
+  await commandHarness.dispose();
+});
+
+async function execFileAsync(
+  command: string,
+  args: readonly string[],
+  options: { cwd?: string; env?: NodeJS.ProcessEnv } = {},
+) {
+  return commandHarness.run(command, args, options);
+}
+
+function rm(
+  ...args: Parameters<typeof removePath>
+): ReturnType<typeof removePath> {
+  const [target] = args;
+  if (
+    typeof target === "string" &&
+    commandHarness.ownsCaseRoot(path.resolve(target))
+  ) {
+    return Promise.resolve();
+  }
+  return removePath(...args);
+}
+
+function runPrReviewLeasesCommand(
+  args: readonly string[],
+): ReturnType<typeof runPrReviewLeasesRuntimeCommand> {
+  return commandHarness.trackOuter(
+    runPrReviewLeasesRuntimeCommand(args),
+    `pr-review-leases ${args.join(" ")}`,
+  );
+}
+
+function runPlayReviewSharedContextCommand(
+  args: readonly string[],
+): ReturnType<typeof runPlayReviewSharedContextRuntimeCommand> {
+  return commandHarness.trackOuter(
+    runPlayReviewSharedContextRuntimeCommand(args),
+    `play-review-shared-context ${args.join(" ")}`,
+  );
+}
 
 function createLease(): PrReviewLease {
   return reducePrReviewLease(null, identity, {
@@ -1488,7 +1550,7 @@ describe("pr-review lease command validation", () => {
   });
 
   it("fails closed instead of overwriting malformed existing leases", async () => {
-    const tempRoot = await mkdtemp(path.join(tmpdir(), "pr-review-lease-"));
+    const tempRoot = await commandHarness.createScratchRoot();
     const primary = path.join(tempRoot, "primary");
     const worktree = path.join(tempRoot, "worktree");
     await mkdir(path.join(primary, ".ephemeral"), { recursive: true });
@@ -1523,7 +1585,7 @@ describe("pr-review lease command validation", () => {
   });
 
   it("rejects legacy reviewed lease/v1 result pointers without validation metadata", async () => {
-    const tempRoot = await mkdtemp(path.join(tmpdir(), "pr-review-legacy-"));
+    const tempRoot = await commandHarness.createScratchRoot();
     const primary = path.join(tempRoot, "primary");
     const worktree = path.join(tempRoot, "worktree");
     await mkdir(path.join(primary, ".ephemeral"), { recursive: true });
@@ -2010,7 +2072,7 @@ describe("pr-review lease read-status", () => {
     }
   });
 
-  it("fails closed for missing, unregistered, unreadable where the platform enforces chmod permissions, and identity-mismatched worktrees", async () => {
+  it("fails closed for missing worktrees", async () => {
     const missing = await makeGatedStatusWorkspace("pr-review-status-missing-");
     try {
       process.chdir(missing.physicalPrimary);
@@ -2022,7 +2084,9 @@ describe("pr-review lease read-status", () => {
       process.chdir(originalCwd);
       await rm(missing.tempRoot, { recursive: true, force: true });
     }
+  });
 
+  it("fails closed for unregistered worktrees", async () => {
     const unregisteredBase = await makeRegisteredWorkspace(
       "pr-review-status-unregistered-",
     );
@@ -2072,8 +2136,11 @@ describe("pr-review lease read-status", () => {
       process.chdir(originalCwd);
       await rm(unregisteredBase.tempRoot, { recursive: true, force: true });
     }
+  });
 
-    if (process.platform !== "win32") {
+  it.runIf(process.platform !== "win32")(
+    "fails closed for unreadable worktrees where chmod permissions are enforced",
+    async () => {
       const unreadable = await makeGatedStatusWorkspace(
         "pr-review-status-unreadable-",
       );
@@ -2088,8 +2155,10 @@ describe("pr-review lease read-status", () => {
         process.chdir(originalCwd);
         await rm(unreadable.tempRoot, { recursive: true, force: true });
       }
-    }
+    },
+  );
 
+  it("fails closed for identity-mismatched worktrees", async () => {
     const mismatch = await makeGatedStatusWorkspace(
       "pr-review-status-mismatch-",
     );
@@ -2547,7 +2616,7 @@ describe("pr-review lease read-status", () => {
       unsetEnv("WORKTREE_PATH");
       await execFileAsync(
         "git",
-        ["worktree", "remove", "--force", "worktree"],
+        ["worktree", "remove", "--force", workspace.worktree],
         {
           cwd: workspace.primary,
         },
@@ -2685,7 +2754,7 @@ describe("pr-review lease read-status", () => {
     try {
       await execFileAsync(
         "git",
-        ["worktree", "remove", "--force", "worktree"],
+        ["worktree", "remove", "--force", workspace.worktree],
         {
           cwd: workspace.primary,
         },
@@ -3365,7 +3434,7 @@ describe("pr-review lease Git cleanup safety", () => {
       );
       await execFileAsync(
         "git",
-        ["worktree", "remove", "--force", "worktree"],
+        ["worktree", "remove", "--force", workspace.worktree],
         { cwd: workspace.primary },
       );
       await mkdir(path.join(workspace.worktree, ".ephemeral"), {
@@ -3692,7 +3761,7 @@ async function makeGatedStatusWorkspace(
     "HEAD",
   ]);
   const reviewHead = reviewHeadOutput.trim();
-  const helpers = await writeReviewHelperScripts(workspace.tempRoot);
+  const helpers = requireSharedReviewHelpers();
   const resultFile = `.ephemeral/pr-432-${reviewHead}-result.json`;
   const { findingsFile } = await writeResultArtifact(
     workspace.worktree,
@@ -3825,25 +3894,14 @@ async function mutateNestedFindingsWithoutUpdatingResult(
   );
 }
 
-async function makeLeaseWorkspace(prefix: string): Promise<{
+async function makeLeaseWorkspace(_prefix: string): Promise<{
   tempRoot: string;
   primary: string;
   worktree: string;
   physicalPrimary: string;
   physicalWorktree: string;
 }> {
-  const tempRoot = await mkdtemp(path.join(tmpdir(), prefix));
-  const primary = path.join(tempRoot, "primary");
-  const worktree = path.join(tempRoot, "worktree");
-  await mkdir(path.join(primary, ".ephemeral"), { recursive: true });
-  await mkdir(path.join(worktree, ".ephemeral"), { recursive: true });
-  return {
-    tempRoot,
-    primary,
-    worktree,
-    physicalPrimary: await realpath(primary),
-    physicalWorktree: await realpath(worktree),
-  };
+  return commandHarness.createPlainReviewWorkspace();
 }
 
 async function makeResultAuthorityWorkspace(prefix: string): Promise<
@@ -3865,7 +3923,7 @@ async function makeResultAuthorityWorkspace(prefix: string): Promise<
   return {
     ...workspace,
     reviewHead: stdout.trim(),
-    ...(await writeReviewHelperScripts(workspace.tempRoot)),
+    ...requireSharedReviewHelpers(),
   };
 }
 
@@ -3876,38 +3934,15 @@ async function makeRegisteredWorkspace(prefix: string): Promise<{
   physicalPrimary: string;
   physicalWorktree: string;
 }> {
-  const tempRoot = await mkdtemp(path.join(tmpdir(), prefix));
-  const primary = path.join(tempRoot, "primary");
-  const worktree = path.join(tempRoot, "worktree");
-  await mkdir(primary, { recursive: true });
-  await execFileAsync("git", ["init", "--initial-branch=main"], {
-    cwd: primary,
-  });
-  await execFileAsync("git", ["config", "user.name", "Test User"], {
-    cwd: primary,
-  });
-  await execFileAsync("git", ["config", "user.email", "test@example.com"], {
-    cwd: primary,
-  });
-  await writeFile(path.join(primary, "README.md"), "baseline\n");
-  await execFileAsync("git", ["add", "README.md"], { cwd: primary });
-  await execFileAsync("git", ["commit", "-m", "chore: baseline"], {
-    cwd: primary,
-  });
-  await execFileAsync(
-    "git",
-    ["worktree", "add", "-b", "review-topic", worktree],
-    { cwd: primary },
-  );
-  await mkdir(path.join(primary, ".ephemeral"), { recursive: true });
-  await mkdir(path.join(worktree, ".ephemeral"), { recursive: true });
-  return {
-    tempRoot,
-    primary,
-    worktree,
-    physicalPrimary: await realpath(primary),
-    physicalWorktree: await realpath(worktree),
-  };
+  void prefix;
+  return commandHarness.createRegisteredReviewWorkspace("review-topic");
+}
+
+function requireSharedReviewHelpers(): NonNullable<typeof sharedReviewHelpers> {
+  if (sharedReviewHelpers === null) {
+    throw new Error("shared PR-review helpers are not initialized");
+  }
+  return sharedReviewHelpers;
 }
 
 function identityFromLeaseFile(
@@ -4526,33 +4561,20 @@ describe("pr-review lease wrapper trusted runtime bootstrap", () => {
     typedSentinel: string,
     bashExecutable = "bash",
   ): Promise<{ exitCode: number; stdout: string; stderr: string }> {
-    return await new Promise((resolve) => {
-      execFile(
-        bashExecutable,
-        [wrapper, "derive-path"],
-        {
-          env: {
-            ...process.env,
-            DEVCANON_RUNTIME_DIR: runtimeDir,
-            DEVCANON_TEST_RESOLVER_SENTINEL: resolverSentinel,
-            DEVCANON_TEST_TYPED_SENTINEL: typedSentinel,
-          },
-          encoding: "utf8",
+    const { exitCode, stdout, stderr } = await commandHarness.run(
+      bashExecutable,
+      [wrapper, "derive-path"],
+      {
+        env: {
+          ...process.env,
+          DEVCANON_RUNTIME_DIR: runtimeDir,
+          DEVCANON_TEST_RESOLVER_SENTINEL: resolverSentinel,
+          DEVCANON_TEST_TYPED_SENTINEL: typedSentinel,
         },
-        (error, stdout, stderr) => {
-          resolve({
-            exitCode:
-              error === null
-                ? 0
-                : typeof error.code === "number"
-                  ? error.code
-                  : 1,
-            stdout,
-            stderr,
-          });
-        },
-      );
-    });
+        acceptedExitCodes: [0, 1],
+      },
+    );
+    return { exitCode, stdout, stderr };
   }
 
   async function expectAccepted(
@@ -4611,7 +4633,7 @@ describe("pr-review lease wrapper trusted runtime bootstrap", () => {
   it.runIf(process.platform !== "win32")(
     "preserves POSIX backslashes, line feeds, and valid dot aliases despite a poisoned OSTYPE",
     async () => {
-      const root = await mkdtemp(path.join(tmpdir(), "review-leases-posix-"));
+      const root = await commandHarness.createScratchRoot();
       try {
         const ordinary = await writeRuntime(root, "ordinary-runtime");
         await expectAccepted(
@@ -4650,7 +4672,7 @@ describe("pr-review lease wrapper trusted runtime bootstrap", () => {
   it.runIf(process.platform !== "win32")(
     "rejects POSIX traversal and final symlink aliases before resolver execution",
     async () => {
-      const root = await mkdtemp(path.join(tmpdir(), "review-leases-link-"));
+      const root = await commandHarness.createScratchRoot();
       try {
         const target = await writeRuntime(root, "target-runtime");
         const linkedRuntime = path.join(root, "linked-runtime");
@@ -4684,7 +4706,7 @@ describe("pr-review lease wrapper trusted runtime bootstrap", () => {
   it.runIf(process.platform === "darwin")(
     "preserves the logical macOS /var ancestor alias",
     async () => {
-      const root = await mkdtemp(path.join(tmpdir(), "review-leases-alias-"));
+      const root = await commandHarness.createScratchRoot();
       try {
         const fixture = await writeRuntime(root, "runtime");
         const logicalRoot = root.startsWith("/private/var/")
@@ -4719,7 +4741,7 @@ describe("pr-review lease wrapper trusted runtime bootstrap", () => {
         path.win32.normalize(process.cwd()).toLowerCase(),
       );
 
-      const root = await mkdtemp(path.join(tmpdir(), "review-leases-windows-"));
+      const root = await commandHarness.createScratchRoot();
       try {
         const fixture = await writeRuntime(root, "runtime");
         const { stdout: nativeRuntime } = await execFileAsync(
@@ -4799,9 +4821,7 @@ describe("pr-review lease wrapper trusted runtime bootstrap", () => {
     "runs URL-representable real UNC runtime containment or reports the unavailable capability",
     async ({ skip }) => {
       const bashExecutable = await resolveGitForWindowsBash();
-      const root = await mkdtemp(
-        path.join(tmpdir(), "review-leases-windows-unc-"),
-      );
+      const root = await commandHarness.createScratchRoot();
       try {
         const fixture = await writeRuntime(root, "runtime");
         const { stdout: nativeRuntime } = await execFileAsync(
@@ -4859,9 +4879,7 @@ describe("pr-review lease wrapper trusted runtime bootstrap", () => {
     "rejects an accessible localhost UNC runtime before resolver or typed entrypoint execution",
     async ({ skip }) => {
       const bashExecutable = await resolveGitForWindowsBash();
-      const root = await mkdtemp(
-        path.join(tmpdir(), "review-leases-windows-localhost-unc-"),
-      );
+      const root = await commandHarness.createScratchRoot();
       try {
         const fixture = await writeRuntime(root, "runtime");
         const { stdout: nativeRuntime } = await execFileAsync(
