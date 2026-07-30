@@ -4109,6 +4109,7 @@ describe("pr-review lease Git cleanup safety", () => {
     for (const state of ["posted", "aborted"] as const) {
       const workspace = await makeGatedStatusWorkspace(
         `pr-review-${state}-archive-after-cleanup-`,
+        true,
       );
 
       try {
@@ -4219,6 +4220,72 @@ describe("pr-review lease Git cleanup safety", () => {
         process.chdir(originalCwd);
         await rm(workspace.tempRoot, { recursive: true, force: true });
       }
+    }
+  });
+
+  it("keeps noncanonical helper-recorded removed terminal leases under strict archive validation", async () => {
+    const workspace = await makeGatedStatusWorkspace(
+      "pr-review-noncanonical-archive-after-cleanup-",
+    );
+
+    try {
+      const prior = postedCommandLease({
+        leaseFile: workspace.leaseFile,
+        worktreePath: workspace.physicalWorktree,
+        worktreeDigest: workspace.worktreeDigest,
+        resultFile: workspace.resultFile,
+        resultSha256: workspace.resultSha256,
+        approvedReviewFile: `.ephemeral/topic-${workspace.reviewHead}-approved-review.json`,
+        validatedPayloadFile: `.ephemeral/pr-432-${workspace.reviewHead}-validated-review-payload.json`,
+      });
+      await writeApprovedReviewArtifact(
+        workspace.worktree,
+        prior.artifacts.approved_review_file ?? "",
+        workspace.reviewHead,
+      );
+      await writeValidatedPayloadArtifact(
+        workspace.worktree,
+        workspace.reviewHead,
+      );
+      await writeFile(
+        path.join(workspace.primary, workspace.leaseFile),
+        `${JSON.stringify(prior, null, 2)}\n`,
+      );
+      await writeFile(
+        path.join(workspace.primary, ".git", "info", "exclude"),
+        ".ephemeral/\n",
+      );
+      process.chdir(workspace.physicalPrimary);
+      setReadStatusEnv(workspace);
+      const cleanup = await runPrReviewLeasesCommand(["cleanup-worktree"]);
+      expect(cleanup.exitCode, cleanup.stderr).toBe(0);
+      expect(cleanup.stdout).toContain("OUTCOME=removed");
+
+      await execFileAsync(
+        "git",
+        ["worktree", "add", workspace.worktree, "review-topic"],
+        { cwd: workspace.primary },
+      );
+      process.chdir(workspace.physicalPrimary);
+      setLeaseCommandEnv(workspace.physicalPrimary, workspace.physicalWorktree);
+      process.env.LEASE_FILE = workspace.leaseFile;
+      process.env.STATE = "created";
+      process.env.BASE_REF = "main";
+      process.env.HEAD_REF = "topic";
+      process.env.CREATED_AT = "2026-06-11T00:04:00Z";
+      process.env.UPDATED_AT = "2026-06-11T00:04:00Z";
+
+      const result = await runPrReviewLeasesCommand(["write"]);
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain(
+        "result file missing or not a regular file",
+      );
+      expect(
+        await readdir(path.join(workspace.primary, ".ephemeral")),
+      ).not.toContain(expect.stringContaining("-posted-archived-lease.json"));
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
     }
   });
 
@@ -4699,8 +4766,12 @@ type GatedStatusWorkspace = Awaited<
 
 async function makeGatedStatusWorkspace(
   prefix: string,
+  canonicalWorktree = false,
 ): Promise<GatedStatusWorkspace> {
-  const workspace = await makeRegisteredWorkspace(prefix);
+  const registeredWorkspace = await makeRegisteredWorkspace(prefix);
+  const workspace = canonicalWorktree
+    ? await moveWorkspaceToCanonicalPath(registeredWorkspace)
+    : registeredWorkspace;
   const { stdout: reviewHeadOutput } = await execFileAsync("git", [
     "-C",
     workspace.worktree,
@@ -4753,6 +4824,34 @@ async function makeGatedStatusWorkspace(
     reviewHead,
     findingsFile,
     ...helpers,
+  };
+}
+
+async function moveWorkspaceToCanonicalPath<
+  T extends {
+    physicalPrimary: string;
+    physicalWorktree: string;
+    worktree: string;
+  },
+>(workspace: T): Promise<T> {
+  const canonicalWorktree = path.join(
+    workspace.physicalPrimary,
+    ".worktrees",
+    "pr-432-review",
+  );
+  await mkdir(path.dirname(canonicalWorktree), { recursive: true });
+  await execFileAsync("git", [
+    "-C",
+    workspace.physicalPrimary,
+    "worktree",
+    "move",
+    workspace.physicalWorktree,
+    canonicalWorktree,
+  ]);
+  return {
+    ...workspace,
+    worktree: canonicalWorktree,
+    physicalWorktree: await realpath(canonicalWorktree),
   };
 }
 

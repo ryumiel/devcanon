@@ -124,10 +124,7 @@ async function inspectDiscoveryCandidate(identity, leaseFileName, registrations)
             worktreePath = await realpath(lease.worktree_path);
         }
         catch {
-            const canonicalWorktreePath = path.join(identity.primaryRoot, ".worktrees", `pr-${identity.prNumber}-review`);
-            if (hasPostCleanupArchiveAuthority(lease) &&
-                normalizeComparablePath(lease.worktree_path) ===
-                    normalizeComparablePath(canonicalWorktreePath)) {
+            if (hasPostCleanupArchiveAuthority(lease, identity)) {
                 return {
                     lease_file: leaseFile,
                     worktree_path: lease.worktree_path,
@@ -343,7 +340,8 @@ async function writeLease() {
             validateResultAuthority: true,
             policy: policyForLifecycleWrite(row),
         });
-        if (archive !== null && !hasPostCleanupArchiveAuthority(previous)) {
+        if (archive !== null &&
+            !hasPostCleanupArchiveAuthority(previous, identity)) {
             if (previous === null) {
                 throw new PrReviewLeaseError("archived lease missing");
             }
@@ -1852,10 +1850,13 @@ function validateCleanupMetadata(cleanup) {
         validateTimestamp("cleanup.removed_at", cleanup.removed_at);
     }
 }
-function hasPostCleanupArchiveAuthority(previous) {
+function hasPostCleanupArchiveAuthority(previous, identity) {
+    const canonicalWorktreePath = path.join(identity.primaryRoot, ".worktrees", `pr-${identity.prNumber}-review`);
     return (previous !== null &&
         (previous.state === "posted" || previous.state === "aborted") &&
-        typeof previous.cleanup?.removed_at === "string");
+        typeof previous.cleanup?.removed_at === "string" &&
+        normalizeComparablePath(previous.worktree_path) ===
+            normalizeComparablePath(canonicalWorktreePath));
 }
 function assertExistingLeaseIdentity(lease, identity) {
     if (lease === null) {

@@ -344,16 +344,7 @@ async function inspectDiscoveryCandidate(
     try {
       worktreePath = await realpath(lease.worktree_path);
     } catch {
-      const canonicalWorktreePath = path.join(
-        identity.primaryRoot,
-        ".worktrees",
-        `pr-${identity.prNumber}-review`,
-      );
-      if (
-        hasPostCleanupArchiveAuthority(lease) &&
-        normalizeComparablePath(lease.worktree_path) ===
-          normalizeComparablePath(canonicalWorktreePath)
-      ) {
+      if (hasPostCleanupArchiveAuthority(lease, identity)) {
         return {
           lease_file: leaseFile,
           worktree_path: lease.worktree_path,
@@ -626,7 +617,10 @@ async function writeLease(): Promise<string> {
       validateResultAuthority: true,
       policy: policyForLifecycleWrite(row),
     });
-    if (archive !== null && !hasPostCleanupArchiveAuthority(previous)) {
+    if (
+      archive !== null &&
+      !hasPostCleanupArchiveAuthority(previous, identity)
+    ) {
       if (previous === null) {
         throw new PrReviewLeaseError("archived lease missing");
       }
@@ -2718,11 +2712,19 @@ function validateCleanupMetadata(cleanup: PrReviewLease["cleanup"]): void {
 
 function hasPostCleanupArchiveAuthority(
   previous: PrReviewLease | null,
+  identity: Pick<LeaseIdentity, "primaryRoot" | "prNumber">,
 ): boolean {
+  const canonicalWorktreePath = path.join(
+    identity.primaryRoot,
+    ".worktrees",
+    `pr-${identity.prNumber}-review`,
+  );
   return (
     previous !== null &&
     (previous.state === "posted" || previous.state === "aborted") &&
-    typeof previous.cleanup?.removed_at === "string"
+    typeof previous.cleanup?.removed_at === "string" &&
+    normalizeComparablePath(previous.worktree_path) ===
+      normalizeComparablePath(canonicalWorktreePath)
   );
 }
 
