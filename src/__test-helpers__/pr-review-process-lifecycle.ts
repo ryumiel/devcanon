@@ -37,6 +37,10 @@ const MAX_REDACTION_VALUES = 16;
 const MAX_REDACTION_VALUE_BYTES = 4_096;
 const MAX_FAILURE_EVIDENCE = 16;
 const MAX_FAILURE_EVIDENCE_BYTES = 128;
+const MAX_FINAL_RECEIPT_BYTES =
+  MAX_OUTPUT_LIMIT_BYTES * 12 +
+  MAX_FAILURE_EVIDENCE * MAX_FAILURE_EVIDENCE_BYTES +
+  16_384;
 
 export const PR_REVIEW_PROCESS_LIFECYCLE_LIMITS = Object.freeze({
   minDeadlineMs: MIN_DEADLINE_MS,
@@ -52,6 +56,7 @@ export const PR_REVIEW_PROCESS_LIFECYCLE_LIMITS = Object.freeze({
   maxRedactionValueBytes: MAX_REDACTION_VALUE_BYTES,
   maxFailureEvidence: MAX_FAILURE_EVIDENCE,
   maxFailureEvidenceBytes: MAX_FAILURE_EVIDENCE_BYTES,
+  maxFinalReceiptBytes: MAX_FINAL_RECEIPT_BYTES,
 });
 
 export interface PrReviewProcessGeneratedRoot {
@@ -101,7 +106,7 @@ export interface PrReviewProcessLifecycleResult {
     readonly forceTermination: "not-needed" | "attempted" | "failed";
   };
   readonly evidence: readonly string[];
-  readonly restoration: "restored";
+  readonly restoration: "restored" | "failed";
   readonly generatedRoot: "removed" | "preserved_unsafe";
 }
 
@@ -164,7 +169,9 @@ class BoundedOutput {
     private readonly limit: number,
     redactions: readonly string[],
   ) {
-    this.#redactions = redactions.map((value) => Buffer.from(value, "utf8"));
+    this.#redactions = redactions
+      .map((value) => Buffer.from(value, "utf8"))
+      .sort((left, right) => right.length - left.length);
   }
 
   push(chunk: Buffer): void {
@@ -189,6 +196,17 @@ class BoundedOutput {
 
   #drain(final: boolean): void {
     while (this.#pending.length > 0) {
+      const unfinished = this.#redactions.some(
+        (value) =>
+          this.#pending.length < value.length &&
+          value.subarray(0, this.#pending.length).equals(this.#pending),
+      );
+      if (unfinished) {
+        if (!final) return;
+        this.#append(Buffer.from("[REDACTED]"));
+        this.#pending = Buffer.alloc(0);
+        continue;
+      }
       const match = this.#redactions.find((value) =>
         this.#pending.subarray(0, value.length).equals(value),
       );
@@ -197,13 +215,6 @@ class BoundedOutput {
         this.#pending = this.#pending.subarray(match.length);
         continue;
       }
-      if (
-        !final &&
-        this.#redactions.some((value) =>
-          value.subarray(0, this.#pending.length).equals(this.#pending),
-        )
-      )
-        return;
       this.#append(this.#pending.subarray(0, 1));
       this.#pending = this.#pending.subarray(1);
     }
@@ -232,6 +243,7 @@ export async function launchPrReviewProcessLifecycle(
   if (deadline - performance.now() <= 0)
     throw new LifecycleError("deadline expired during root preflight");
   const initialCwd = process.cwd();
+  const initialCwdPhysical = await realpath(initialCwd);
   let child: ChildProcess;
   try {
     child = spawn(executable.identity.physical, frozen.args, {
@@ -243,7 +255,14 @@ export async function launchPrReviewProcessLifecycle(
   } catch (error) {
     throw new LifecycleError(`spawn threw: ${errorName(error)}`);
   }
-  return new RootLifecycle(child, deadline, frozen, initialRoot, initialCwd);
+  return new RootLifecycle(
+    child,
+    deadline,
+    frozen,
+    initialRoot,
+    initialCwd,
+    initialCwdPhysical,
+  );
 }
 
 class RootLifecycle implements PrReviewProcessLifecycle {
@@ -269,6 +288,7 @@ class RootLifecycle implements PrReviewProcessLifecycle {
     private readonly request: FrozenRequest,
     private readonly generatedRoot: RootIdentity,
     private readonly initialCwd: string,
+    private readonly initialCwdPhysical: string,
   ) {
     this.#stdout = new BoundedOutput(request.outputLimitBytes, request.redact);
     this.#stderr = new BoundedOutput(request.outputLimitBytes, request.redact);
@@ -318,6 +338,7 @@ class RootLifecycle implements PrReviewProcessLifecycle {
     options: Readonly<{ cancel: boolean; cooperativeGraceMs: number }>,
   ): Promise<PrReviewProcessLifecycleResult> {
     let requested = false;
+    let restoration: "restored" | "failed" = "restored";
     let forceTermination: "not-needed" | "attempted" | "failed" = "not-needed";
     try {
       if (options.cancel) {
@@ -344,11 +365,17 @@ class RootLifecycle implements PrReviewProcessLifecycle {
     } finally {
       try {
         if (process.cwd() !== this.initialCwd) process.chdir(this.initialCwd);
+        if ((await realpath(process.cwd())) !== this.initialCwdPhysical) {
+          restoration = "failed";
+          this.#record("restore:identity-mismatch");
+        }
       } catch (error) {
+        restoration = "failed";
         this.#record(`restore:${errorName(error)}`);
       }
     }
-    const rootDisposition = await this.#removeGeneratedRootWhenSafe();
+    const rootDisposition =
+      await this.#removeGeneratedRootWhenSafe(restoration);
     return freezeResult({
       rootProcess: {
         spawned: this.#spawned,
@@ -372,7 +399,7 @@ class RootLifecycle implements PrReviewProcessLifecycle {
       },
       cleanup: { forceTermination },
       evidence: Object.freeze([...this.#evidence]),
-      restoration: "restored",
+      restoration,
       generatedRoot: rootDisposition,
     });
   }
@@ -446,15 +473,24 @@ class RootLifecycle implements PrReviewProcessLifecycle {
   #record(value: string): void {
     if (this.#evidence.length >= MAX_FAILURE_EVIDENCE) return;
     this.#evidence.push(
-      Buffer.from(value, "utf8")
-        .subarray(0, MAX_FAILURE_EVIDENCE_BYTES)
-        .toString("utf8"),
+      truncateUtf8(
+        redactText(value, this.request.redact),
+        MAX_FAILURE_EVIDENCE_BYTES,
+      ),
     );
   }
 
-  async #removeGeneratedRootWhenSafe(): Promise<
-    "removed" | "preserved_unsafe"
-  > {
+  async #removeGeneratedRootWhenSafe(
+    restoration: "restored" | "failed",
+  ): Promise<"removed" | "preserved_unsafe"> {
+    if (restoration !== "restored") {
+      this.#record("rm:restoration-failed");
+      return "preserved_unsafe";
+    }
+    if (!this.#spawned) {
+      this.#record("rm:spawn-not-observed");
+      return "preserved_unsafe";
+    }
     if (!this.#closeObserved) {
       this.#record("rm:close-not-observed");
       return "preserved_unsafe";
@@ -470,6 +506,11 @@ class RootLifecycle implements PrReviewProcessLifecycle {
       return "preserved_unsafe";
     }
     try {
+      const liveCwd = await realpath(process.cwd());
+      if (isControllerCwdOrAncestor(this.generatedRoot.physical, liveCwd)) {
+        this.#record("rm:live-cwd-or-ancestor");
+        return "preserved_unsafe";
+      }
       const current = await readGeneratedRootEvidence(
         this.request.generatedRoot,
       );
@@ -629,10 +670,49 @@ function isControllerCwdOrAncestor(
 function errorName(error: unknown): string {
   return error instanceof Error && error.name ? error.name : "unknown";
 }
+function redactText(value: string, enrolled: readonly string[]): string {
+  const redactions = [...enrolled].sort(
+    (left, right) =>
+      Buffer.byteLength(right, "utf8") - Buffer.byteLength(left, "utf8"),
+  );
+  let result = "";
+  for (let offset = 0; offset < value.length; ) {
+    const match = redactions.find((redaction) =>
+      value.startsWith(redaction, offset),
+    );
+    if (match) {
+      result += "[REDACTED]";
+      offset += match.length;
+      continue;
+    }
+    const suffix = value.slice(offset);
+    if (redactions.some((redaction) => redaction.startsWith(suffix))) {
+      result += "[REDACTED]";
+      break;
+    }
+    const codePoint = value.codePointAt(offset);
+    if (codePoint === undefined) break;
+    const character = String.fromCodePoint(codePoint);
+    result += character;
+    offset += character.length;
+  }
+  return result;
+}
+function truncateUtf8(value: string, limit: number): string {
+  let result = "";
+  let bytes = 0;
+  for (const character of value) {
+    const next = Buffer.byteLength(character, "utf8");
+    if (bytes + next > limit) break;
+    result += character;
+    bytes += next;
+  }
+  return result;
+}
 function freezeResult(
   result: PrReviewProcessLifecycleResult,
 ): PrReviewProcessLifecycleResult {
-  return Object.freeze({
+  const frozen = Object.freeze({
     ...result,
     rootProcess: Object.freeze(result.rootProcess),
     channels: Object.freeze(result.channels),
@@ -641,4 +721,9 @@ function freezeResult(
     cleanup: Object.freeze(result.cleanup),
     evidence: Object.freeze([...result.evidence]),
   });
+  if (
+    Buffer.byteLength(JSON.stringify(frozen), "utf8") > MAX_FINAL_RECEIPT_BYTES
+  )
+    throw new LifecycleError("final receipt exceeded its bounded size");
+  return frozen;
 }

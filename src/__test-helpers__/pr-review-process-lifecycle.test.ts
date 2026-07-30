@@ -1,8 +1,10 @@
+import { ChildProcess } from "node:child_process";
 import { access, chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  PR_REVIEW_PROCESS_LIFECYCLE_LIMITS,
   type PrReviewProcessGeneratedRoot,
   createPrReviewProcessGeneratedRoot,
   launchPrReviewProcessLifecycle,
@@ -158,6 +160,24 @@ describe("pr-review process lifecycle", () => {
     expect(
       Buffer.byteLength(result.output.stdout.text, "utf8"),
     ).toBeLessThanOrEqual(4);
+    const completeRoot = await generatedRoot();
+    const completeLifecycle = await lifecycle(
+      completeRoot,
+      'process.stdout.write("TOKEN"); setTimeout(() => process.stdout.write("-LONG"), 1);',
+      { redact: ["TOKEN", "TOKEN-LONG"] },
+    );
+    const incompleteRoot = await generatedRoot();
+    const incompleteLifecycle = await lifecycle(
+      incompleteRoot,
+      'process.stdout.write("TOKEN-");',
+      { redact: ["TOKEN-LONG"] },
+    );
+
+    const complete = await completeLifecycle.finish();
+    const incomplete = await incompleteLifecycle.finish();
+
+    expect(complete.output.stdout.text).toBe("[REDACTED]");
+    expect(incomplete.output.stdout.text).toBe("[REDACTED]");
   });
 
   it("uses a synchronous request snapshot after launch begins", async () => {
@@ -220,7 +240,7 @@ describe("pr-review process lifecycle", () => {
     const result = await processLifecycle.finish();
 
     expect(result.rootProcess.spawned).toBe(false);
-    expect(result.rootProcess.closeObserved).toBe(false);
+    expect(result.rootProcess.exitObserved).toBe(false);
     expect(result.evidence.some((entry) => entry.startsWith("spawn:"))).toBe(
       true,
     );
@@ -249,6 +269,40 @@ describe("pr-review process lifecycle", () => {
     expect(result.evidence.some((entry) => entry.startsWith("protocol:"))).toBe(
       true,
     );
+    const failureRoot = await generatedRoot();
+    const secret = "PRIVATE_FAILURE";
+    const errorName = `${secret}${"é".repeat(100)}`;
+    const kill = vi
+      .spyOn(ChildProcess.prototype, "kill")
+      .mockImplementation(() => {
+        const error = new Error("bounded failure");
+        error.name = errorName;
+        throw error;
+      });
+    try {
+      const processLifecycle = await lifecycle(
+        failureRoot,
+        "setTimeout(() => process.exit(0), 150);",
+        { deadlineMs: 100, redact: [secret] },
+      );
+
+      const result = await processLifecycle.finish({
+        cancel: true,
+        cooperativeGraceMs: 0,
+      });
+      const failure = result.evidence.find((entry) =>
+        entry.startsWith("kill:"),
+      );
+
+      expect(failure).toBeDefined();
+      expect(failure).not.toContain(secret);
+      expect(Buffer.byteLength(failure ?? "", "utf8")).toBeLessThanOrEqual(
+        PR_REVIEW_PROCESS_LIFECYCLE_LIMITS.maxFailureEvidenceBytes,
+      );
+      expect(Buffer.from(failure ?? "", "utf8").toString("utf8")).toBe(failure);
+    } finally {
+      kill.mockRestore();
+    }
   });
 
   it("restores controller cwd before generated-root disposition", async () => {
@@ -262,6 +316,24 @@ describe("pr-review process lifecycle", () => {
     expect(process.cwd()).toBe(beforeCwd);
     expect(result.restoration).toBe("restored");
     expect(result.generatedRoot).toBe("removed");
+    const failedRoot = await generatedRoot();
+    const originalCwd = process.cwd();
+    const removedControllerCwd = await mkdtemp(
+      path.join(os.tmpdir(), "dc-process-lifecycle-controller-"),
+    );
+    process.chdir(removedControllerCwd);
+    try {
+      const failedLifecycle = await lifecycle(failedRoot, "process.exit(0);");
+      await rm(removedControllerCwd, { recursive: true });
+
+      const failed = await failedLifecycle.finish();
+
+      expect(failed.restoration).toBe("failed");
+      expect(failed.generatedRoot).toBe("preserved_unsafe");
+      await expect(access(failedRoot.path)).resolves.toBeUndefined();
+    } finally {
+      process.chdir(originalCwd);
+    }
   });
 
   it("enforces every finite request boundary with exact and plus-one cases", async () => {
@@ -382,6 +454,121 @@ describe("pr-review process lifecycle", () => {
         `rejects ${boundaryCase.name} plus one`,
       ).rejects.toThrow();
     }
+    for (const [name, key] of [
+      ["deadline", "deadlineMs"],
+      ["output", "outputLimitBytes"],
+    ] as const) {
+      const exactRoot = await generatedRoot();
+      const now =
+        key === "deadlineMs"
+          ? vi.spyOn(performance, "now").mockReturnValue(0)
+          : undefined;
+      let exactLifecycle:
+        | Awaited<ReturnType<typeof launchPrReviewProcessLifecycle>>
+        | undefined;
+      try {
+        exactLifecycle = await launchPrReviewProcessLifecycle({
+          executable: process.execPath,
+          args: ["-e", "process.exit(0);"],
+          cwd: exactRoot.path,
+          generatedRoot: exactRoot,
+          deadlineMs: key === "deadlineMs" ? 1 : 250,
+          outputLimitBytes: key === "outputLimitBytes" ? 1 : 128,
+          environment: {},
+        });
+      } finally {
+        now?.mockRestore();
+      }
+      expect(exactLifecycle, `accepts minimum ${name}`).toBeDefined();
+      const belowRoot = await generatedRoot();
+      await expect(
+        launchPrReviewProcessLifecycle({
+          executable: process.execPath,
+          args: ["-e", "process.exit(0);"],
+          cwd: belowRoot.path,
+          generatedRoot: belowRoot,
+          deadlineMs: key === "deadlineMs" ? 0 : 250,
+          outputLimitBytes: key === "outputLimitBytes" ? 0 : 128,
+          environment: {},
+        }),
+        `rejects below-minimum ${name}`,
+      ).rejects.toThrow();
+    }
+
+    const zeroRoot = await generatedRoot();
+    const zero = await lifecycle(zeroRoot, "process.exit(0);");
+    await expect(
+      zero.finish({ cancel: true, cooperativeGraceMs: 0 }),
+    ).resolves.toBeDefined();
+    const upperRoot = await generatedRoot();
+    const upper = await lifecycle(upperRoot, "process.exit(0);");
+    await expect(
+      upper.finish({
+        cancel: true,
+        cooperativeGraceMs: PR_REVIEW_PROCESS_LIFECYCLE_LIMITS.maxDeadlineMs,
+      }),
+    ).resolves.toBeDefined();
+    const plusOneRoot = await generatedRoot();
+    const plusOne = await lifecycle(plusOneRoot, "process.exit(0);");
+    expect(() =>
+      plusOne.finish({
+        cooperativeGraceMs:
+          PR_REVIEW_PROCESS_LIFECYCLE_LIMITS.maxDeadlineMs + 1,
+      }),
+    ).toThrow("cooperative grace");
+    const retainedExactRoot = await generatedRoot();
+    const retainedExactLifecycle = await lifecycle(
+      retainedExactRoot,
+      'process.stdout.write("x".repeat(32));',
+      { outputLimitBytes: 32 },
+    );
+    const retainedPlusOneRoot = await generatedRoot();
+    const retainedPlusOneLifecycle = await lifecycle(
+      retainedPlusOneRoot,
+      'process.stdout.write("x".repeat(33));',
+      { outputLimitBytes: 32 },
+    );
+
+    const retainedExact = await retainedExactLifecycle.finish();
+    const retainedPlusOne = await retainedPlusOneLifecycle.finish();
+
+    expect(retainedExact.output.stdout).toMatchObject({
+      bytes: 32,
+      overflowed: false,
+      text: "x".repeat(32),
+    });
+    expect(retainedPlusOne.output.stdout).toMatchObject({
+      bytes: 33,
+      overflowed: true,
+      text: "x".repeat(32),
+    });
+    const receiptRoot = await generatedRoot();
+    const receiptSource = [
+      'const fs = require("node:fs");',
+      "for (let index = 0; index < 32; index += 1) {",
+      "  setTimeout(() => fs.writeSync(3, Buffer.from([0, 0, 0, 1, 255])), index * 3);",
+      "}",
+      `process.stdout.write(Buffer.alloc(${PR_REVIEW_PROCESS_LIFECYCLE_LIMITS.maxOutputLimitBytes + 1}));`,
+      `process.stderr.write(Buffer.alloc(${PR_REVIEW_PROCESS_LIFECYCLE_LIMITS.maxOutputLimitBytes + 1}));`,
+      "setTimeout(() => process.exit(0), 120);",
+    ].join("\n");
+    const receiptLifecycle = await lifecycle(receiptRoot, receiptSource, {
+      deadlineMs: 1_000,
+      outputLimitBytes: PR_REVIEW_PROCESS_LIFECYCLE_LIMITS.maxOutputLimitBytes,
+    });
+
+    const receipt = await receiptLifecycle.finish();
+
+    expect(receipt.evidence).toHaveLength(
+      PR_REVIEW_PROCESS_LIFECYCLE_LIMITS.maxFailureEvidence,
+    );
+    expect(receipt.output.stdout.overflowed).toBe(true);
+    expect(receipt.output.stderr.overflowed).toBe(true);
+    expect(
+      Buffer.byteLength(JSON.stringify(receipt), "utf8"),
+    ).toBeLessThanOrEqual(
+      PR_REVIEW_PROCESS_LIFECYCLE_LIMITS.maxFinalReceiptBytes,
+    );
   });
 
   it("restores harness-owned global state", async () => {
