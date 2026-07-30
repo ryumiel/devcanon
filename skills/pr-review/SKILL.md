@@ -67,6 +67,7 @@ Detect mode:
 Bind the lease helper before selecting a worktree path:
 
 ```bash
+PR_REVIEW_DIR="<installed-pr-review-skill-bundle>"
 PR_REVIEW_LEASE_HELPER="$PR_REVIEW_DIR/scripts/review-leases.sh"
 ```
 
@@ -100,10 +101,12 @@ the `<base-ref>` fetch.
 Use the repo root as the base for `.worktrees/` to avoid cwd issues across bash
 calls.
 
-`working_directory` for the play-review handoff = the physical absolute path to
-`.worktrees/pr-<N>-review`, for example
-`WORKING_DIRECTORY="$(cd ".worktrees/pr-<N>-review" && pwd -P)"`. Manifest
-validation rejects subdirectories, `.` aliases, and symlinked aliases.
+For `create`, `working_directory` for the play-review handoff is the physical
+absolute canonical path, for example
+`WORKING_DIRECTORY="$(cd ".worktrees/pr-<N>-review" && pwd -P)"`. For
+`resume`, use the planner's selected `resume.worktree_path` and
+`resume.lease_file` instead. Manifest validation rejects subdirectories, `.`
+aliases, and symlinked aliases.
 
 ## Lease Lifecycle
 

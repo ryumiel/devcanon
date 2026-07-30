@@ -65,16 +65,22 @@ async function discoverReviewSession() {
     const invalid = active.some((candidate) => candidate.classification === "invalid");
     const resumable = active.filter((candidate) => candidate.classification === "resumable");
     const blocked = active.some((candidate) => candidate.classification !== "resumable");
+    const selectedResumable = resumable.length === 1 ? resumable[0] : undefined;
+    const canonicalConflictsWithResume = canonicalWorktreePresent &&
+        (selectedResumable?.worktree_path === undefined ||
+            selectedResumable.worktree_path === null ||
+            normalizeComparablePath(selectedResumable.worktree_path) !==
+                normalizeComparablePath(canonicalWorktreePath));
     const disposition = invalid
         ? "invalid"
         : resumable.length > 1
             ? "ambiguous"
-            : blocked || canonicalWorktreePresent
+            : blocked || canonicalConflictsWithResume
                 ? "cleanup-required"
                 : resumable.length === 1
                     ? "resume"
                     : "create";
-    const selected = disposition === "resume" ? resumable[0] : undefined;
+    const selected = disposition === "resume" ? selectedResumable : undefined;
     return {
         schema: "pr-review/session-discovery/v1",
         repository: identity.repository,
@@ -107,6 +113,8 @@ async function inspectDiscoveryCandidate(identity, leaseFileName, registrations)
         if (lease.repository !== identity.repository ||
             lease.pr_number !== identity.prNumber ||
             lease.lease_file !== leaseFile ||
+            leaseFile !==
+                `.ephemeral/pr-${identity.prNumber}-${lease.worktree_digest}-lease.json` ||
             lease.worktree_digest !== digestPath(lease.worktree_path)) {
             return discoveryInvalidCandidate(leaseFile);
         }
