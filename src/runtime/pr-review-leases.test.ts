@@ -1,30 +1,34 @@
-import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
   chmod,
   lstat,
   mkdir,
-  mkdtemp,
   readFile,
   readdir,
   realpath,
-  rm,
+  rm as removePath,
   symlink,
   writeFile,
 } from "node:fs/promises";
-import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { promisify } from "node:util";
-import { afterEach, describe, expect, it } from "vitest";
-import { runPlayReviewSharedContextCommand } from "./play-review-shared-context.js";
+import ts from "typescript";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+} from "vitest";
+import { PrReviewCommandHarness } from "../__test-helpers__/pr-review-command-harness.js";
+import { runPlayReviewSharedContextCommand as runPlayReviewSharedContextRuntimeCommand } from "./play-review-shared-context.js";
 import {
   type PrReviewLease,
   reducePrReviewLease,
-  runPrReviewLeasesCommand,
+  runPrReviewLeasesCommand as runPrReviewLeasesRuntimeCommand,
 } from "./pr-review-leases.js";
-
-const execFileAsync = promisify(execFile);
 
 async function resolveGitForWindowsBash(): Promise<string> {
   const { stdout } = await execFileAsync("where.exe", ["git.exe"]);
@@ -108,11 +112,660 @@ const managedEnvKeys = [
   "GIT_INDEX_FILE",
 ] as const;
 
-afterEach(() => {
-  process.chdir(originalCwd);
-  for (const key of managedEnvKeys) {
-    delete process.env[key];
+const commandHarness = new PrReviewCommandHarness({
+  envKeys: managedEnvKeys,
+  seed: "review",
+});
+let sharedReviewHelpers: Awaited<
+  ReturnType<typeof writeReviewHelperScripts>
+> | null = null;
+
+beforeAll(async () => {
+  await commandHarness.setup();
+  sharedReviewHelpers = await writeReviewHelperScripts(
+    path.join(commandHarness.suiteRoot, "h"),
+  );
+});
+
+beforeEach(() => {
+  commandHarness.beginTest();
+});
+
+afterEach(async () => {
+  await commandHarness.endTest();
+});
+
+afterAll(async () => {
+  await commandHarness.dispose();
+});
+
+async function execFileAsync(
+  command: string,
+  args: readonly string[],
+  options: { cwd?: string; env?: NodeJS.ProcessEnv } = {},
+) {
+  return commandHarness.run(command, args, options);
+}
+
+function rm(
+  ...args: Parameters<typeof removePath>
+): ReturnType<typeof removePath> {
+  const [target] = args;
+  if (
+    typeof target === "string" &&
+    commandHarness.ownsCaseRoot(path.resolve(target))
+  ) {
+    return Promise.resolve();
   }
+  return removePath(...args);
+}
+
+function runPrReviewLeasesCommand(
+  args: readonly string[],
+): ReturnType<typeof runPrReviewLeasesRuntimeCommand> {
+  return commandHarness.trackOuter(
+    runPrReviewLeasesRuntimeCommand(args),
+    `pr-review-leases ${args.join(" ")}`,
+  );
+}
+
+function runPlayReviewSharedContextCommand(
+  args: readonly string[],
+): ReturnType<typeof runPlayReviewSharedContextRuntimeCommand> {
+  return commandHarness.trackOuter(
+    runPlayReviewSharedContextRuntimeCommand(args),
+    `play-review-shared-context ${args.join(" ")}`,
+  );
+}
+
+it("selects the exact issue-569 Windows PR-review lane", async () => {
+  const repositoryRoot = path.resolve(
+    path.dirname(fileURLToPath(import.meta.url)),
+    "../..",
+  );
+  const [
+    packageSource,
+    harnessSource,
+    leaseSource,
+    manifestSource,
+    sourceImmutabilitySource,
+  ] = await Promise.all([
+    readFile(path.join(repositoryRoot, "package.json"), "utf8"),
+    readFile(
+      path.join(
+        repositoryRoot,
+        "src/__test-helpers__/pr-review-command-harness.test.ts",
+      ),
+      "utf8",
+    ),
+    readFile(
+      path.join(repositoryRoot, "src/runtime/pr-review-leases.test.ts"),
+      "utf8",
+    ),
+    readFile(
+      path.join(repositoryRoot, "src/runtime/pr-review-manifests.test.ts"),
+      "utf8",
+    ),
+    readFile(
+      path.join(repositoryRoot, "src/runtime/source-immutability.test.ts"),
+      "utf8",
+    ),
+  ]);
+  const packageJson = JSON.parse(packageSource) as {
+    scripts?: Record<string, string>;
+  };
+  const command = packageJson.scripts?.["test:ci:windows:pr-review"];
+  const commandPrefix = [
+    "vitest run --project unit --no-file-parallelism",
+    "src/__test-helpers__/pr-review-command-harness.test.ts",
+    "src/runtime/pr-review-leases.test.ts",
+    "src/runtime/pr-review-manifests.test.ts",
+    "src/runtime/source-immutability.test.ts",
+  ].join(" ");
+  expect(command).toBeTypeOf("string");
+  const selectorRecord = new RegExp(
+    `^${commandPrefix.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")} --testNamePattern "([^"]+)"$`,
+    "u",
+  ).exec(command ?? "");
+  expect(selectorRecord).not.toBeNull();
+  const selector = new RegExp(selectorRecord?.[1] ?? "(?!)", "u");
+  const literalTestTitles = (source: string, fileName: string): string[] => {
+    const sourceFile = ts.createSourceFile(
+      fileName,
+      source,
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.TS,
+    );
+    const registrars = new Set<string>();
+    const unsupported: string[] = [];
+    for (const statement of sourceFile.statements) {
+      if (
+        !ts.isImportDeclaration(statement) ||
+        !ts.isStringLiteral(statement.moduleSpecifier) ||
+        statement.moduleSpecifier.text !== "vitest"
+      ) {
+        continue;
+      }
+      const bindings = statement.importClause?.namedBindings;
+      if (bindings === undefined) continue;
+      if (!ts.isNamedImports(bindings)) {
+        unsupported.push(bindings.getText(sourceFile));
+        continue;
+      }
+      for (const element of bindings.elements) {
+        const imported = element.propertyName?.text ?? element.name.text;
+        if (imported === "it" || imported === "test") {
+          registrars.add(element.name.text);
+        }
+      }
+    }
+    const titles: string[] = [];
+    const visit = (node: ts.Node): void => {
+      if (
+        ts.isIdentifier(node) &&
+        registrars.has(node.text) &&
+        !(
+          ts.isImportSpecifier(node.parent) &&
+          (node.parent.name === node || node.parent.propertyName === node)
+        ) &&
+        !(ts.isCallExpression(node.parent) && node.parent.expression === node)
+      ) {
+        unsupported.push(node.parent.getText(sourceFile));
+      }
+      if (
+        ts.isCallExpression(node) &&
+        ts.isIdentifier(node.expression) &&
+        registrars.has(node.expression.text)
+      ) {
+        const title = node.arguments[0];
+        if (
+          title !== undefined &&
+          (ts.isStringLiteral(title) ||
+            ts.isNoSubstitutionTemplateLiteral(title))
+        ) {
+          titles.push(title.text);
+        }
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(sourceFile);
+    return titles;
+  };
+  const strictHarnessRegistrations = (
+    source: string,
+    fileName: string,
+  ): Array<{ fullTitle: string; title: string }> => {
+    const sourceFile = ts.createSourceFile(
+      fileName,
+      source,
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.TS,
+    );
+    const registrars = new Set<string>();
+    const unsupported: string[] = [];
+    let vitestImportCount = 0;
+    for (const statement of sourceFile.statements) {
+      if (
+        !ts.isImportDeclaration(statement) ||
+        !ts.isStringLiteral(statement.moduleSpecifier) ||
+        statement.moduleSpecifier.text !== "vitest"
+      ) {
+        continue;
+      }
+      vitestImportCount += 1;
+      const bindings = statement.importClause?.namedBindings;
+      if (bindings === undefined || !ts.isNamedImports(bindings)) {
+        unsupported.push(statement.getText(sourceFile));
+        continue;
+      }
+      for (const element of bindings.elements) {
+        const imported = element.propertyName?.text ?? element.name.text;
+        if (imported === "test") {
+          unsupported.push(element.getText(sourceFile));
+        }
+        if (imported !== "describe" && imported !== "it") continue;
+        if (element.name.text !== imported) {
+          unsupported.push(element.getText(sourceFile));
+          continue;
+        }
+        registrars.add(imported);
+      }
+    }
+
+    const literalTitle = (node: ts.Node | undefined): string | undefined =>
+      node !== undefined &&
+      (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node))
+        ? node.text
+        : undefined;
+    const registrations: Array<{ fullTitle: string; title: string }> = [];
+    const suiteForTest = (
+      call: ts.CallExpression,
+    ): ts.CallExpression | undefined => {
+      const statement = call.parent;
+      const block = statement.parent;
+      const callback = block.parent;
+      const suiteCall = callback.parent;
+      if (
+        !ts.isExpressionStatement(statement) ||
+        !ts.isBlock(block) ||
+        !(ts.isArrowFunction(callback) || ts.isFunctionExpression(callback)) ||
+        !ts.isCallExpression(suiteCall) ||
+        suiteCall.arguments[1] !== callback ||
+        !ts.isIdentifier(suiteCall.expression) ||
+        suiteCall.expression.text !== "describe" ||
+        !ts.isExpressionStatement(suiteCall.parent) ||
+        !ts.isSourceFile(suiteCall.parent.parent)
+      ) {
+        return undefined;
+      }
+      return suiteCall;
+    };
+    const visit = (node: ts.Node): void => {
+      if (
+        ts.isCallExpression(node) &&
+        (node.expression.kind === ts.SyntaxKind.ImportKeyword ||
+          (ts.isIdentifier(node.expression) &&
+            node.expression.text === "require"))
+      ) {
+        unsupported.push(node.getText(sourceFile));
+      }
+      if (
+        ts.isIdentifier(node) &&
+        registrars.has(node.text) &&
+        !(
+          ts.isImportSpecifier(node.parent) &&
+          (node.parent.name === node || node.parent.propertyName === node)
+        ) &&
+        !(ts.isCallExpression(node.parent) && node.parent.expression === node)
+      ) {
+        unsupported.push(node.parent.getText(sourceFile));
+      }
+      if (
+        ts.isCallExpression(node) &&
+        ts.isIdentifier(node.expression) &&
+        node.expression.text === "describe"
+      ) {
+        const callback = node.arguments[1];
+        if (
+          literalTitle(node.arguments[0]) === undefined ||
+          !(
+            callback !== undefined &&
+            (ts.isArrowFunction(callback) ||
+              ts.isFunctionExpression(callback)) &&
+            ts.isBlock(callback.body)
+          ) ||
+          !ts.isExpressionStatement(node.parent) ||
+          !ts.isSourceFile(node.parent.parent)
+        ) {
+          unsupported.push(node.getText(sourceFile));
+        }
+      }
+      if (
+        ts.isCallExpression(node) &&
+        ts.isIdentifier(node.expression) &&
+        node.expression.text === "it"
+      ) {
+        const title = literalTitle(node.arguments[0]);
+        const suiteCall = suiteForTest(node);
+        const suiteTitle = literalTitle(suiteCall?.arguments[0]);
+        if (
+          title === undefined ||
+          suiteCall === undefined ||
+          suiteTitle === undefined
+        ) {
+          unsupported.push(node.getText(sourceFile));
+        } else {
+          registrations.push({
+            fullTitle: `${suiteTitle} > ${title}`,
+            title,
+          });
+        }
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(sourceFile);
+    expect(vitestImportCount).toBe(1);
+    expect([...registrars]).toEqual(["describe", "it"]);
+    expect(unsupported).toEqual([]);
+    return registrations;
+  };
+  const assertNoModifiedRegistrationSurfaces = (
+    source: string,
+    fileName: string,
+    selectedMarkers: readonly string[],
+  ): void => {
+    const sourceFile = ts.createSourceFile(
+      fileName,
+      source,
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.TS,
+    );
+    const unsupported: string[] = [];
+    const registrationRoot = (node: ts.Expression): string | undefined => {
+      if (ts.isIdentifier(node)) return node.text;
+      if (ts.isCallExpression(node)) return registrationRoot(node.expression);
+      if (ts.isPropertyAccessExpression(node)) {
+        return registrationRoot(node.expression);
+      }
+      if (ts.isElementAccessExpression(node)) {
+        return registrationRoot(node.expression);
+      }
+      return undefined;
+    };
+    const visit = (node: ts.Node): void => {
+      if (
+        ts.isImportDeclaration(node) &&
+        ts.isStringLiteral(node.moduleSpecifier) &&
+        node.moduleSpecifier.text === "vitest" &&
+        node.importClause?.namedBindings !== undefined &&
+        ts.isNamedImports(node.importClause.namedBindings)
+      ) {
+        for (const element of node.importClause.namedBindings.elements) {
+          const imported = element.propertyName?.text ?? element.name.text;
+          if (
+            (imported === "describe" ||
+              imported === "it" ||
+              imported === "test") &&
+            element.name.text !== imported
+          ) {
+            unsupported.push(element.getText(sourceFile));
+          }
+        }
+      }
+      if (
+        (ts.isPropertyAccessExpression(node) ||
+          ts.isElementAccessExpression(node)) &&
+        ["describe", "it", "test"].includes(
+          registrationRoot(node.expression) ?? "",
+        )
+      ) {
+        const property = ts.isPropertyAccessExpression(node)
+          ? node.name.text
+          : undefined;
+        const root = registrationRoot(node.expression);
+        let registrationSurface: ts.Node = node;
+        while (
+          ts.isCallExpression(registrationSurface.parent) &&
+          (registrationSurface.parent.expression === registrationSurface ||
+            registrationSurface.parent.arguments.includes(
+              registrationSurface as ts.Expression,
+            ))
+        ) {
+          registrationSurface = registrationSurface.parent;
+        }
+        if (
+          root === "describe" ||
+          (property !== "each" &&
+            selectedMarkers.some((marker) =>
+              registrationSurface.getText(sourceFile).includes(marker),
+            ))
+        ) {
+          unsupported.push(node.getText(sourceFile));
+        }
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(sourceFile);
+    expect(unsupported).toEqual([]);
+  };
+
+  const expectedHarnessTitles = [
+    "copies immutable history into independent short registered worktrees",
+    "removes a healthy registered worktree before its case root",
+    "prunes a registered worktree whose directory is missing",
+    "prunes a registered worktree whose .git marker is missing",
+    "skips Git removal for an already-unregistered worktree",
+    "skips Git removal for an unregistered worktree with a stale regular .git marker",
+    "surfaces Git cleanup failures after removing the case root",
+    "tracks outer work and restores exact cwd and environment state",
+    "fails fast when a generated suffix exceeds the path budget",
+    "provides committed, unborn, and no-ephemeral independent copies",
+    "reports bounded taskkill diagnostics after a simulated Windows direct-child fallback",
+    "preserves output overflow when simulated Windows cleanup also fails",
+    "preserves output overflow when delayed Windows cleanup crosses the deadline",
+    "reports a failed Windows fallback before a non-closing child is released",
+    "retains a late outer-operation rejection until drain",
+    "does not report an outer rejection already delivered before its deadline",
+    "terminates an over-deadline child and drains it through close",
+    "terminates a child whose output exceeds the bounded buffer",
+  ];
+  for (const unsupportedRegistration of [
+    'import { describe, it as caseIt } from "vitest"; describe("suite", () => { caseIt("case", () => {}); });',
+    'import { describe, it } from "vitest"; describe.skip("suite", () => { it("case", () => {}); });',
+    'import { describe, it } from "vitest"; describe("suite", () => { for (const value of [1, 2]) { it("case", () => value); } });',
+    'import { describe, it } from "vitest"; void import("vitest"); describe("suite", () => { it("case", () => {}); });',
+  ]) {
+    expect(() =>
+      strictHarnessRegistrations(
+        unsupportedRegistration,
+        "unsupported-registration.test.ts",
+      ),
+    ).toThrow();
+  }
+  const harnessRegistrations = strictHarnessRegistrations(
+    harnessSource,
+    "pr-review-command-harness.test.ts",
+  );
+  const harnessTitles = harnessRegistrations.map(({ title }) => title);
+  expect(harnessTitles).toEqual(expectedHarnessTitles);
+  expect(harnessSource).not.toMatch(/descendant/iu);
+  expect(
+    harnessRegistrations.filter(({ fullTitle }) => selector.test(fullTitle)),
+  ).toHaveLength(18);
+
+  const leaseTemplate =
+    /it\(`rejects stale or mismatched gated result evidence: \$\{testCase\.name\}`/gu;
+  const leaseTemplateRecords = [...leaseSource.matchAll(leaseTemplate)];
+  expect(leaseTemplateRecords).toHaveLength(1);
+  const leaseTemplateOffset = leaseTemplateRecords[0]?.index ?? -1;
+  const leaseCasesStart = leaseSource.lastIndexOf(
+    "for (const testCase of [",
+    leaseTemplateOffset,
+  );
+  const leaseCasesEnd = leaseSource.indexOf("] as const) {", leaseCasesStart);
+  expect(leaseCasesStart).toBeGreaterThanOrEqual(0);
+  expect(leaseCasesEnd).toBeGreaterThan(leaseCasesStart);
+  expect(leaseCasesEnd).toBeLessThan(leaseTemplateOffset);
+  const leaseCaseNames = [
+    ...leaseSource
+      .slice(leaseCasesStart, leaseCasesEnd)
+      .matchAll(/^\s*name: "([^"]+)",$/gmu),
+  ].map((match) => match[1]);
+  expect(leaseCaseNames).toEqual([
+    "wrong-result-file",
+    "stale-digest",
+    "stale-timestamp",
+    "presentation-mismatch",
+    "null-presented-at",
+    "missing-digest",
+    "wrong-review-head",
+  ]);
+  const renderedLeaseTitles = leaseCaseNames.map(
+    (name) => `rejects stale or mismatched gated result evidence: ${name}`,
+  );
+
+  const retainedTemplate =
+    /\]\)\(\s*"rejects noncanonical retained fingerprint path %s before verify or cleanup deletion"/gu;
+  const retainedTemplateRecords = [
+    ...sourceImmutabilitySource.matchAll(retainedTemplate),
+  ];
+  expect(retainedTemplateRecords).toHaveLength(1);
+  const retainedTemplateOffset = retainedTemplateRecords[0]?.index ?? -1;
+  const retainedCasesStart = sourceImmutabilitySource.lastIndexOf(
+    "it.each([",
+    retainedTemplateOffset,
+  );
+  const retainedCasesEnd = sourceImmutabilitySource.indexOf(
+    "])(",
+    retainedCasesStart,
+  );
+  expect(retainedCasesStart).toBeGreaterThanOrEqual(0);
+  expect(retainedCasesEnd).toBeGreaterThan(retainedCasesStart);
+  expect(retainedCasesEnd).toBe(retainedTemplateOffset);
+  const retainedCases = [
+    ...sourceImmutabilitySource
+      .slice(retainedCasesStart, retainedCasesEnd)
+      .matchAll(/^\s*"([^"]+)",$/gmu),
+  ].map((match) => match[1]);
+  expect(retainedCases).toEqual([
+    "../outside",
+    "/absolute",
+    "nested/./file",
+    "nested/../file",
+    "nested//file",
+    "nested/file/",
+  ]);
+  const renderedRetainedTitles = retainedCases.map((invalidPath) =>
+    "rejects noncanonical retained fingerprint path %s before verify or cleanup deletion".replace(
+      "%s",
+      invalidPath,
+    ),
+  );
+
+  const manifestTitle =
+    "requires explicit provider evidence input for adapter scope validation";
+  const manifestTitles = literalTestTitles(
+    manifestSource,
+    "pr-review-manifests.test.ts",
+  );
+  expect(
+    manifestTitles.filter((title) => title === manifestTitle),
+  ).toHaveLength(1);
+
+  const contractTitle = [
+    "selects the exact issue-569 Windows PR-review",
+    "lane",
+  ].join(" ");
+  const leaseLiteralTitles = literalTestTitles(
+    leaseSource,
+    "pr-review-leases.test.ts",
+  );
+  expect(
+    leaseLiteralTitles.filter((title) => title === contractTitle),
+  ).toHaveLength(1);
+  expect(selector.test(contractTitle)).toBe(true);
+
+  const runtimeInventory = [
+    ...leaseLiteralTitles,
+    ...renderedLeaseTitles,
+    ...manifestTitles,
+    ...literalTestTitles(
+      sourceImmutabilitySource,
+      "source-immutability.test.ts",
+    ),
+    ...renderedRetainedTitles,
+  ];
+  const selectedRuntimeTitles = runtimeInventory.filter((title) =>
+    selector.test(`runtime suite ${title}`),
+  );
+  expect(selectedRuntimeTitles).toEqual([
+    contractTitle,
+    "rejects stale or mismatched gated result evidence: stale-timestamp",
+    "rejects stale or mismatched gated result evidence: presentation-mismatch",
+    manifestTitle,
+    "rejects noncanonical retained fingerprint path ../outside before verify or cleanup deletion",
+    "rejects noncanonical retained fingerprint path /absolute before verify or cleanup deletion",
+  ]);
+
+  for (const [fileName, source, selectedMarkers] of [
+    ["pr-review-command-harness.test.ts", harnessSource, []],
+    [
+      "pr-review-leases.test.ts",
+      leaseSource,
+      [contractTitle, "rejects stale or mismatched gated result evidence:"],
+    ],
+    ["pr-review-manifests.test.ts", manifestSource, [manifestTitle]],
+    [
+      "source-immutability.test.ts",
+      sourceImmutabilitySource,
+      [
+        "rejects noncanonical retained fingerprint path %s before verify or cleanup deletion",
+      ],
+    ],
+  ] as const) {
+    assertNoModifiedRegistrationSurfaces(source, fileName, selectedMarkers);
+  }
+  const laneFiles = [
+    "src/__test-helpers__/pr-review-command-harness.test.ts",
+    "src/runtime/pr-review-leases.test.ts",
+    "src/runtime/pr-review-manifests.test.ts",
+    "src/runtime/source-immutability.test.ts",
+  ];
+  const collection = await execFileAsync(
+    process.execPath,
+    [
+      path.join(repositoryRoot, "node_modules/vitest/vitest.mjs"),
+      "list",
+      "--project",
+      "unit",
+      "--json",
+      "--no-file-parallelism",
+      ...laneFiles,
+      "--testNamePattern",
+      selectorRecord?.[1] ?? "(?!)",
+    ],
+    { cwd: repositoryRoot },
+  );
+  expect(collection.exitCode).toBe(0);
+  const collectedTests = JSON.parse(collection.stdout) as Array<{
+    file: string;
+    name: string;
+    projectName: string;
+  }>;
+  const collectedInventory = collectedTests
+    .map(({ file, name, projectName }) => ({
+      file: path.relative(repositoryRoot, file).split(path.sep).join("/"),
+      name,
+      projectName,
+    }))
+    .sort((left, right) =>
+      `${left.file}\0${left.name}`.localeCompare(
+        `${right.file}\0${right.name}`,
+      ),
+    );
+  const expectedCollectedInventory = [
+    ...harnessRegistrations.map(({ fullTitle }) => ({
+      file: laneFiles[0],
+      name: fullTitle,
+      projectName: "unit",
+    })),
+    {
+      file: laneFiles[1],
+      name: contractTitle,
+      projectName: "unit",
+    },
+    {
+      file: laneFiles[1],
+      name: "pr-review lease read-status > rejects stale or mismatched gated result evidence: stale-timestamp",
+      projectName: "unit",
+    },
+    {
+      file: laneFiles[1],
+      name: "pr-review lease read-status > rejects stale or mismatched gated result evidence: presentation-mismatch",
+      projectName: "unit",
+    },
+    {
+      file: laneFiles[2],
+      name: `pr-review Phase 5 audit summary renderer > ${manifestTitle}`,
+      projectName: "unit",
+    },
+    {
+      file: laneFiles[3],
+      name: "source-immutability runtime > rejects noncanonical retained fingerprint path ../outside before verify or cleanup deletion",
+      projectName: "unit",
+    },
+    {
+      file: laneFiles[3],
+      name: "source-immutability runtime > rejects noncanonical retained fingerprint path /absolute before verify or cleanup deletion",
+      projectName: "unit",
+    },
+  ].sort((left, right) =>
+    `${left.file}\0${left.name}`.localeCompare(`${right.file}\0${right.name}`),
+  );
+  expect(collectedInventory).toEqual(expectedCollectedInventory);
 });
 
 function createLease(): PrReviewLease {
@@ -1488,7 +2141,7 @@ describe("pr-review lease command validation", () => {
   });
 
   it("fails closed instead of overwriting malformed existing leases", async () => {
-    const tempRoot = await mkdtemp(path.join(tmpdir(), "pr-review-lease-"));
+    const tempRoot = await commandHarness.createScratchRoot();
     const primary = path.join(tempRoot, "primary");
     const worktree = path.join(tempRoot, "worktree");
     await mkdir(path.join(primary, ".ephemeral"), { recursive: true });
@@ -1523,7 +2176,7 @@ describe("pr-review lease command validation", () => {
   });
 
   it("rejects legacy reviewed lease/v1 result pointers without validation metadata", async () => {
-    const tempRoot = await mkdtemp(path.join(tmpdir(), "pr-review-legacy-"));
+    const tempRoot = await commandHarness.createScratchRoot();
     const primary = path.join(tempRoot, "primary");
     const worktree = path.join(tempRoot, "worktree");
     await mkdir(path.join(primary, ".ephemeral"), { recursive: true });
@@ -2010,7 +2663,7 @@ describe("pr-review lease read-status", () => {
     }
   });
 
-  it("fails closed for missing, unregistered, unreadable where the platform enforces chmod permissions, and identity-mismatched worktrees", async () => {
+  it("fails closed for missing worktrees", async () => {
     const missing = await makeGatedStatusWorkspace("pr-review-status-missing-");
     try {
       process.chdir(missing.physicalPrimary);
@@ -2022,7 +2675,9 @@ describe("pr-review lease read-status", () => {
       process.chdir(originalCwd);
       await rm(missing.tempRoot, { recursive: true, force: true });
     }
+  });
 
+  it("fails closed for unregistered worktrees", async () => {
     const unregisteredBase = await makeRegisteredWorkspace(
       "pr-review-status-unregistered-",
     );
@@ -2072,8 +2727,11 @@ describe("pr-review lease read-status", () => {
       process.chdir(originalCwd);
       await rm(unregisteredBase.tempRoot, { recursive: true, force: true });
     }
+  });
 
-    if (process.platform !== "win32") {
+  it.runIf(process.platform !== "win32")(
+    "fails closed for unreadable worktrees where chmod permissions are enforced",
+    async () => {
       const unreadable = await makeGatedStatusWorkspace(
         "pr-review-status-unreadable-",
       );
@@ -2088,8 +2746,10 @@ describe("pr-review lease read-status", () => {
         process.chdir(originalCwd);
         await rm(unreadable.tempRoot, { recursive: true, force: true });
       }
-    }
+    },
+  );
 
+  it("fails closed for identity-mismatched worktrees", async () => {
     const mismatch = await makeGatedStatusWorkspace(
       "pr-review-status-mismatch-",
     );
@@ -2547,7 +3207,7 @@ describe("pr-review lease read-status", () => {
       unsetEnv("WORKTREE_PATH");
       await execFileAsync(
         "git",
-        ["worktree", "remove", "--force", "worktree"],
+        ["worktree", "remove", "--force", workspace.worktree],
         {
           cwd: workspace.primary,
         },
@@ -2685,7 +3345,7 @@ describe("pr-review lease read-status", () => {
     try {
       await execFileAsync(
         "git",
-        ["worktree", "remove", "--force", "worktree"],
+        ["worktree", "remove", "--force", workspace.worktree],
         {
           cwd: workspace.primary,
         },
@@ -3365,7 +4025,7 @@ describe("pr-review lease Git cleanup safety", () => {
       );
       await execFileAsync(
         "git",
-        ["worktree", "remove", "--force", "worktree"],
+        ["worktree", "remove", "--force", workspace.worktree],
         { cwd: workspace.primary },
       );
       await mkdir(path.join(workspace.worktree, ".ephemeral"), {
@@ -3692,7 +4352,7 @@ async function makeGatedStatusWorkspace(
     "HEAD",
   ]);
   const reviewHead = reviewHeadOutput.trim();
-  const helpers = await writeReviewHelperScripts(workspace.tempRoot);
+  const helpers = requireSharedReviewHelpers();
   const resultFile = `.ephemeral/pr-432-${reviewHead}-result.json`;
   const { findingsFile } = await writeResultArtifact(
     workspace.worktree,
@@ -3825,25 +4485,14 @@ async function mutateNestedFindingsWithoutUpdatingResult(
   );
 }
 
-async function makeLeaseWorkspace(prefix: string): Promise<{
+async function makeLeaseWorkspace(_prefix: string): Promise<{
   tempRoot: string;
   primary: string;
   worktree: string;
   physicalPrimary: string;
   physicalWorktree: string;
 }> {
-  const tempRoot = await mkdtemp(path.join(tmpdir(), prefix));
-  const primary = path.join(tempRoot, "primary");
-  const worktree = path.join(tempRoot, "worktree");
-  await mkdir(path.join(primary, ".ephemeral"), { recursive: true });
-  await mkdir(path.join(worktree, ".ephemeral"), { recursive: true });
-  return {
-    tempRoot,
-    primary,
-    worktree,
-    physicalPrimary: await realpath(primary),
-    physicalWorktree: await realpath(worktree),
-  };
+  return commandHarness.createPlainReviewWorkspace();
 }
 
 async function makeResultAuthorityWorkspace(prefix: string): Promise<
@@ -3865,7 +4514,7 @@ async function makeResultAuthorityWorkspace(prefix: string): Promise<
   return {
     ...workspace,
     reviewHead: stdout.trim(),
-    ...(await writeReviewHelperScripts(workspace.tempRoot)),
+    ...requireSharedReviewHelpers(),
   };
 }
 
@@ -3876,38 +4525,15 @@ async function makeRegisteredWorkspace(prefix: string): Promise<{
   physicalPrimary: string;
   physicalWorktree: string;
 }> {
-  const tempRoot = await mkdtemp(path.join(tmpdir(), prefix));
-  const primary = path.join(tempRoot, "primary");
-  const worktree = path.join(tempRoot, "worktree");
-  await mkdir(primary, { recursive: true });
-  await execFileAsync("git", ["init", "--initial-branch=main"], {
-    cwd: primary,
-  });
-  await execFileAsync("git", ["config", "user.name", "Test User"], {
-    cwd: primary,
-  });
-  await execFileAsync("git", ["config", "user.email", "test@example.com"], {
-    cwd: primary,
-  });
-  await writeFile(path.join(primary, "README.md"), "baseline\n");
-  await execFileAsync("git", ["add", "README.md"], { cwd: primary });
-  await execFileAsync("git", ["commit", "-m", "chore: baseline"], {
-    cwd: primary,
-  });
-  await execFileAsync(
-    "git",
-    ["worktree", "add", "-b", "review-topic", worktree],
-    { cwd: primary },
-  );
-  await mkdir(path.join(primary, ".ephemeral"), { recursive: true });
-  await mkdir(path.join(worktree, ".ephemeral"), { recursive: true });
-  return {
-    tempRoot,
-    primary,
-    worktree,
-    physicalPrimary: await realpath(primary),
-    physicalWorktree: await realpath(worktree),
-  };
+  void prefix;
+  return commandHarness.createRegisteredReviewWorkspace("review-topic");
+}
+
+function requireSharedReviewHelpers(): NonNullable<typeof sharedReviewHelpers> {
+  if (sharedReviewHelpers === null) {
+    throw new Error("shared PR-review helpers are not initialized");
+  }
+  return sharedReviewHelpers;
 }
 
 function identityFromLeaseFile(
@@ -4526,33 +5152,20 @@ describe("pr-review lease wrapper trusted runtime bootstrap", () => {
     typedSentinel: string,
     bashExecutable = "bash",
   ): Promise<{ exitCode: number; stdout: string; stderr: string }> {
-    return await new Promise((resolve) => {
-      execFile(
-        bashExecutable,
-        [wrapper, "derive-path"],
-        {
-          env: {
-            ...process.env,
-            DEVCANON_RUNTIME_DIR: runtimeDir,
-            DEVCANON_TEST_RESOLVER_SENTINEL: resolverSentinel,
-            DEVCANON_TEST_TYPED_SENTINEL: typedSentinel,
-          },
-          encoding: "utf8",
+    const { exitCode, stdout, stderr } = await commandHarness.run(
+      bashExecutable,
+      [wrapper, "derive-path"],
+      {
+        env: {
+          ...process.env,
+          DEVCANON_RUNTIME_DIR: runtimeDir,
+          DEVCANON_TEST_RESOLVER_SENTINEL: resolverSentinel,
+          DEVCANON_TEST_TYPED_SENTINEL: typedSentinel,
         },
-        (error, stdout, stderr) => {
-          resolve({
-            exitCode:
-              error === null
-                ? 0
-                : typeof error.code === "number"
-                  ? error.code
-                  : 1,
-            stdout,
-            stderr,
-          });
-        },
-      );
-    });
+        acceptedExitCodes: [0, 1],
+      },
+    );
+    return { exitCode, stdout, stderr };
   }
 
   async function expectAccepted(
@@ -4611,7 +5224,7 @@ describe("pr-review lease wrapper trusted runtime bootstrap", () => {
   it.runIf(process.platform !== "win32")(
     "preserves POSIX backslashes, line feeds, and valid dot aliases despite a poisoned OSTYPE",
     async () => {
-      const root = await mkdtemp(path.join(tmpdir(), "review-leases-posix-"));
+      const root = await commandHarness.createScratchRoot();
       try {
         const ordinary = await writeRuntime(root, "ordinary-runtime");
         await expectAccepted(
@@ -4650,7 +5263,7 @@ describe("pr-review lease wrapper trusted runtime bootstrap", () => {
   it.runIf(process.platform !== "win32")(
     "rejects POSIX traversal and final symlink aliases before resolver execution",
     async () => {
-      const root = await mkdtemp(path.join(tmpdir(), "review-leases-link-"));
+      const root = await commandHarness.createScratchRoot();
       try {
         const target = await writeRuntime(root, "target-runtime");
         const linkedRuntime = path.join(root, "linked-runtime");
@@ -4684,7 +5297,7 @@ describe("pr-review lease wrapper trusted runtime bootstrap", () => {
   it.runIf(process.platform === "darwin")(
     "preserves the logical macOS /var ancestor alias",
     async () => {
-      const root = await mkdtemp(path.join(tmpdir(), "review-leases-alias-"));
+      const root = await commandHarness.createScratchRoot();
       try {
         const fixture = await writeRuntime(root, "runtime");
         const logicalRoot = root.startsWith("/private/var/")
@@ -4719,7 +5332,7 @@ describe("pr-review lease wrapper trusted runtime bootstrap", () => {
         path.win32.normalize(process.cwd()).toLowerCase(),
       );
 
-      const root = await mkdtemp(path.join(tmpdir(), "review-leases-windows-"));
+      const root = await commandHarness.createScratchRoot();
       try {
         const fixture = await writeRuntime(root, "runtime");
         const { stdout: nativeRuntime } = await execFileAsync(
@@ -4799,9 +5412,7 @@ describe("pr-review lease wrapper trusted runtime bootstrap", () => {
     "runs URL-representable real UNC runtime containment or reports the unavailable capability",
     async ({ skip }) => {
       const bashExecutable = await resolveGitForWindowsBash();
-      const root = await mkdtemp(
-        path.join(tmpdir(), "review-leases-windows-unc-"),
-      );
+      const root = await commandHarness.createScratchRoot();
       try {
         const fixture = await writeRuntime(root, "runtime");
         const { stdout: nativeRuntime } = await execFileAsync(
@@ -4859,9 +5470,7 @@ describe("pr-review lease wrapper trusted runtime bootstrap", () => {
     "rejects an accessible localhost UNC runtime before resolver or typed entrypoint execution",
     async ({ skip }) => {
       const bashExecutable = await resolveGitForWindowsBash();
-      const root = await mkdtemp(
-        path.join(tmpdir(), "review-leases-windows-localhost-unc-"),
-      );
+      const root = await commandHarness.createScratchRoot();
       try {
         const fixture = await writeRuntime(root, "runtime");
         const { stdout: nativeRuntime } = await execFileAsync(

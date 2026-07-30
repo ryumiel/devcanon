@@ -1,29 +1,19 @@
-import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
-import {
-  chmod,
-  mkdir,
-  mkdtemp,
-  readFile,
-  realpath,
-  rm,
-  writeFile,
-} from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { promisify } from "node:util";
-import { afterEach, describe, expect, it, vi } from "vitest";
-
-const execFileAsync = promisify(execFile);
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
+import { PrReviewCommandHarness } from "../__test-helpers__/pr-review-command-harness.js";
 
 const originalCwd = process.cwd();
-const tempRoots: string[] = [];
-const rmTempRootOptions = {
-  recursive: true,
-  force: true,
-  maxRetries: 5,
-  retryDelay: 100,
-} as const;
 const managedEnvKeys = [
   "REPOSITORY",
   "PR_NUMBER",
@@ -35,6 +25,29 @@ const managedEnvKeys = [
   "PR_REVIEW_DIR",
   "PLAY_REVIEW_HELPER",
 ] as const;
+const commandHarness = new PrReviewCommandHarness({
+  envKeys: managedEnvKeys,
+  seed: "review",
+});
+let sharedPrReviewDir = "";
+let sharedPlayReviewHelper = "";
+
+beforeAll(async () => {
+  await commandHarness.setup();
+  const helperRoot = path.join(commandHarness.suiteRoot, "h");
+  commandHarness.assertOwnedPath(
+    path.join(helperRoot, "pr-review", "scripts", "prior-thread-artifacts.sh"),
+  );
+  sharedPrReviewDir = await writePrReviewHelper(helperRoot);
+  sharedPlayReviewHelper = await writeExecutable(
+    path.join(helperRoot, "play-review-helper.sh"),
+    ["#!/usr/bin/env bash", "set -euo pipefail", "exit 0", ""].join("\n"),
+  );
+});
+
+beforeEach(() => {
+  commandHarness.beginTest();
+});
 
 type RuntimeCommandOutcome =
   | { exitCode: 0; stdout: string; stderr: string }
@@ -60,15 +73,13 @@ interface ManifestWorkspace {
 }
 
 afterEach(async () => {
-  process.chdir(originalCwd);
-  for (const key of managedEnvKeys) {
-    delete process.env[key];
-  }
+  await commandHarness.endTest();
   vi.doUnmock("./pr-review-leases.js");
   vi.resetModules();
-  for (const tempRoot of tempRoots.splice(0)) {
-    await rm(tempRoot, rmTempRootOptions);
-  }
+});
+
+afterAll(async () => {
+  await commandHarness.dispose();
 });
 
 describe("pr-review Phase 5 audit summary renderer", () => {
@@ -152,65 +163,64 @@ describe("pr-review Phase 5 audit summary renderer", () => {
     await expect(readFile(bodyPath, "utf8")).resolves.toBe(before.body);
   });
 
-  it("fails closed for malformed or inconsistent read-status output", async () => {
-    const cases: Array<{
-      name: string;
-      stdout?: (workspace: ManifestWorkspace) => string;
-      stderr?: string;
-      expectStderr: string;
-    }> = [
-      {
-        name: "non-json",
-        stdout: () => "not json\n",
-        expectStderr: "single JSON object",
+  it.each([
+    {
+      name: "non-json",
+      stdout: () => "not json\n",
+      expectStderr: "single JSON object",
+    },
+    {
+      name: "missing-field",
+      stdout: (workspace: ManifestWorkspace) => {
+        const { presented_at: _presentedAt, ...status } =
+          validStatus(workspace);
+        return `${JSON.stringify(status)}\n`;
       },
-      {
-        name: "missing-field",
-        stdout: (workspace) => {
-          const { presented_at: _presentedAt, ...status } =
-            validStatus(workspace);
-          return `${JSON.stringify(status)}\n`;
-        },
-        expectStderr: "schema mismatch",
-      },
-      {
-        name: "unknown-field",
-        stdout: (workspace) =>
-          `${JSON.stringify({ ...validStatus(workspace), can_remove: true })}\n`,
-        expectStderr: "schema mismatch",
-      },
-      {
-        name: "invalid-domain",
-        stdout: (workspace) =>
-          `${JSON.stringify({ ...validStatus(workspace), lease_state: "reviewed" })}\n`,
-        expectStderr: "lease state must be gated",
-      },
-      {
-        name: "digest-mismatch",
-        stdout: (workspace) =>
-          `${JSON.stringify({ ...validStatus(workspace), result_sha256: "0".repeat(64) })}\n`,
-        expectStderr: "result digest mismatch",
-      },
-      {
-        name: "stale-status",
-        stdout: (workspace) =>
-          `${JSON.stringify({ ...validStatus(workspace), result_validated_at: "2026-06-11T00:01:00Z" })}\n`,
-        expectStderr: "validation timestamp is stale",
-      },
-      {
-        name: "presentation-mismatch",
-        stdout: (workspace) =>
-          `${JSON.stringify({ ...validStatus(workspace), presentation_status: "edited" })}\n`,
-        expectStderr: "presentation status mismatch",
-      },
-      {
-        name: "status-diagnostic",
-        stderr: "result manifest digest mismatch\n",
-        expectStderr: "read-status failed",
-      },
-    ];
-
-    for (const testCase of cases) {
+      expectStderr: "schema mismatch",
+    },
+    {
+      name: "unknown-field",
+      stdout: (workspace: ManifestWorkspace) =>
+        `${JSON.stringify({ ...validStatus(workspace), can_remove: true })}\n`,
+      expectStderr: "schema mismatch",
+    },
+    {
+      name: "invalid-domain",
+      stdout: (workspace: ManifestWorkspace) =>
+        `${JSON.stringify({ ...validStatus(workspace), lease_state: "reviewed" })}\n`,
+      expectStderr: "lease state must be gated",
+    },
+    {
+      name: "digest-mismatch",
+      stdout: (workspace: ManifestWorkspace) =>
+        `${JSON.stringify({ ...validStatus(workspace), result_sha256: "0".repeat(64) })}\n`,
+      expectStderr: "result digest mismatch",
+    },
+    {
+      name: "stale-status",
+      stdout: (workspace: ManifestWorkspace) =>
+        `${JSON.stringify({ ...validStatus(workspace), result_validated_at: "2026-06-11T00:01:00Z" })}\n`,
+      expectStderr: "validation timestamp is stale",
+    },
+    {
+      name: "presentation-mismatch",
+      stdout: (workspace: ManifestWorkspace) =>
+        `${JSON.stringify({ ...validStatus(workspace), presentation_status: "edited" })}\n`,
+      expectStderr: "presentation status mismatch",
+    },
+    {
+      name: "status-diagnostic",
+      stderr: "result manifest digest mismatch\n",
+      expectStderr: "read-status failed",
+    },
+  ] satisfies Array<{
+    name: string;
+    stdout?: (workspace: ManifestWorkspace) => string;
+    stderr?: string;
+    expectStderr: string;
+  }>)(
+    "fails closed for malformed or inconsistent read-status output: $name",
+    async (testCase) => {
       const workspace = await makeManifestWorkspace(
         `pr-review-summary-${testCase.name}-`,
       );
@@ -235,43 +245,43 @@ describe("pr-review Phase 5 audit summary renderer", () => {
         vi.doUnmock("./pr-review-leases.js");
         vi.resetModules();
       }
-    }
-  }, 30_000);
+    },
+  );
 
-  it("reports dirty-but-valid worktree status and fails closed for false status booleans", async () => {
+  it("reports dirty-but-valid worktree status", async () => {
     const dirty = await makeManifestWorkspace("pr-review-summary-dirty-");
     setSummaryEnv(dirty);
-    let result = await runManifestCommand(["render-phase5-audit-summary"]);
+    const result = await runManifestCommand(["render-phase5-audit-summary"]);
     expect(result.exitCode, result.stderr).toBe(0);
     expect(result.stdout).toContain("dirty `true`");
+  });
 
+  it.each([
+    ["worktree_exists", "worktree does not exist"],
+    ["worktree_registered", "worktree is not registered"],
+    ["identity_match", "identity mismatch"],
+  ] as const)("fails closed when %s is false", async (field, expected) => {
     const falseStatusWorkspace = await makeManifestWorkspace(
       "pr-review-summary-false-status-",
     );
-    for (const [field, expected] of [
-      ["worktree_exists", "worktree does not exist"],
-      ["worktree_registered", "worktree is not registered"],
-      ["identity_match", "identity mismatch"],
-    ] as const) {
-      setSummaryEnv(falseStatusWorkspace);
+    setSummaryEnv(falseStatusWorkspace);
+    vi.resetModules();
+    vi.doMock("./pr-review-leases.js", () => ({
+      runPrReviewLeasesCommand: vi.fn(async () => ({
+        exitCode: 0,
+        stdout: `${JSON.stringify({ ...validStatus(falseStatusWorkspace), [field]: false })}\n`,
+        stderr: "",
+      })),
+    }));
+
+    try {
+      const result = await runManifestCommand(["render-phase5-audit-summary"]);
+
+      expect(result.exitCode, field).toBe(1);
+      expect(result.stderr, field).toContain(expected);
+    } finally {
+      vi.doUnmock("./pr-review-leases.js");
       vi.resetModules();
-      vi.doMock("./pr-review-leases.js", () => ({
-        runPrReviewLeasesCommand: vi.fn(async () => ({
-          exitCode: 0,
-          stdout: `${JSON.stringify({ ...validStatus(falseStatusWorkspace), [field]: false })}\n`,
-          stderr: "",
-        })),
-      }));
-
-      try {
-        result = await runManifestCommand(["render-phase5-audit-summary"]);
-
-        expect(result.exitCode, field).toBe(1);
-        expect(result.stderr, field).toContain(expected);
-      } finally {
-        vi.doUnmock("./pr-review-leases.js");
-        vi.resetModules();
-      }
     }
   });
 
@@ -528,9 +538,12 @@ describe("pr-review Phase 5 audit summary renderer", () => {
   );
 
   it("requires explicit provider evidence input for adapter scope validation", async () => {
-    const workspace = await makeManifestWorkspace(
-      "pr-review-explicit-provider-input-",
-    );
+    const workspace = await commandHarness.createReviewRepository();
+    const headSha = (
+      await commandHarness.run("git", ["rev-parse", "HEAD"], {
+        cwd: workspace.repository,
+      })
+    ).stdout.trim();
     const helper = await writeExecutable(
       path.join(workspace.tempRoot, "pass-validator.sh"),
       ["#!/usr/bin/env bash", "set -euo pipefail", "exit 0", ""].join("\n"),
@@ -541,13 +554,13 @@ describe("pr-review Phase 5 audit summary renderer", () => {
     );
 
     await expect(
-      execFileAsync("bash", [adapter, "validate-scope-decision"], {
-        cwd: workspace.worktree,
+      commandHarness.run("bash", [adapter, "validate-scope-decision"], {
+        cwd: workspace.repository,
         env: {
           ...process.env,
-          HEAD_SHA: workspace.headSha,
-          BASE_REF: workspace.baseSha,
-          SCOPE_DECISION_FILE: `.ephemeral/topic-${workspace.headSha}-scope-decision.json`,
+          HEAD_SHA: headSha,
+          BASE_REF: headSha,
+          SCOPE_DECISION_FILE: `.ephemeral/main-${headSha}-scope-decision.json`,
           PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT: helper,
         },
       }),
@@ -565,47 +578,25 @@ async function runManifestCommand(
   const { runPrReviewManifestsCommand } = await import(
     "./pr-review-manifests.js"
   );
-  return runPrReviewManifestsCommand(args);
+  return commandHarness.trackOuter(
+    runPrReviewManifestsCommand(args),
+    `pr-review-manifests ${args.join(" ")}`,
+  );
 }
 
 async function makeManifestWorkspace(
-  prefix: string,
+  _prefix: string,
 ): Promise<ManifestWorkspace> {
-  const tempRoot = await mkdtemp(path.join(tmpdir(), prefix));
-  tempRoots.push(tempRoot);
-  const primary = path.join(tempRoot, "primary");
-  const worktree = path.join(tempRoot, "review-worktree");
-  await mkdir(primary, { recursive: true });
-  await execFileAsync("git", ["init", "--initial-branch=main"], {
-    cwd: primary,
-  });
-  await execFileAsync("git", ["config", "user.name", "Test User"], {
-    cwd: primary,
-  });
-  await execFileAsync("git", ["config", "user.email", "test@example.com"], {
-    cwd: primary,
-  });
-  await writeFile(path.join(primary, "README.md"), "baseline\n");
-  await execFileAsync("git", ["add", "README.md"], { cwd: primary });
-  await execFileAsync("git", ["commit", "-m", "chore: baseline"], {
-    cwd: primary,
-  });
+  const { tempRoot, primary, worktree, physicalPrimary, physicalWorktree } =
+    await commandHarness.createRegisteredReviewWorkspace();
   const baseSha = (
-    await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: primary })
+    await commandHarness.run("git", ["rev-parse", "HEAD"], { cwd: primary })
   ).stdout.trim();
-  await execFileAsync("git", ["worktree", "add", "-b", "topic", worktree], {
-    cwd: primary,
-  });
-  const physicalPrimary = await realpath(primary);
-  const physicalWorktree = await realpath(worktree);
   const headSha = (
-    await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: worktree })
+    await commandHarness.run("git", ["rev-parse", "HEAD"], { cwd: worktree })
   ).stdout.trim();
-  const prReviewDir = await writePrReviewHelper(tempRoot);
-  const playReviewHelper = await writeExecutable(
-    path.join(tempRoot, "play-review-helper.sh"),
-    ["#!/usr/bin/env bash", "set -euo pipefail", "exit 0", ""].join("\n"),
-  );
+  const prReviewDir = sharedPrReviewDir;
+  const playReviewHelper = sharedPlayReviewHelper;
 
   await mkdir(path.join(primary, ".ephemeral"), { recursive: true });
   await mkdir(path.join(worktree, ".ephemeral"), { recursive: true });
