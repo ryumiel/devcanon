@@ -84,7 +84,8 @@ repository's registered worktrees. It returns exactly one disposition:
 
 `resume` is emitted only for one registered, schema-valid nonterminal lease.
 More than one resumable lease is `ambiguous`; terminal, missing, unregistered,
-or unleased canonical worktrees require an existing lifecycle or cleanup owner.
+or unleased canonical paths that are present or still registered require an
+existing lifecycle or cleanup owner.
 Malformed active lease evidence is `invalid`. The planner does not inspect or
 repair arbitrary historical paths, infer cleanup authority, or mutate any
 lifecycle state. Cleanup remains exclusively lease-gated.

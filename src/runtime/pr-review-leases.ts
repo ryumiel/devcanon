@@ -255,6 +255,11 @@ async function discoverReviewSession(): Promise<PrReviewSessionDiscovery> {
     ).test(entry),
   );
   const registrations = await listRegisteredWorktrees(identity.primaryRoot);
+  const canonicalWorktreeRegistered = registrations.some(
+    (entry) =>
+      normalizeComparablePath(entry) ===
+      normalizeComparablePath(canonicalWorktreePath),
+  );
   const active = await Promise.all(
     activeLeaseFiles.map((leaseFile) =>
       inspectDiscoveryCandidate(identity, leaseFile, registrations),
@@ -277,7 +282,7 @@ async function discoverReviewSession(): Promise<PrReviewSessionDiscovery> {
   );
   const selectedResumable = resumable.length === 1 ? resumable[0] : undefined;
   const canonicalConflictsWithResume =
-    canonicalWorktreePresent &&
+    (canonicalWorktreePresent || canonicalWorktreeRegistered) &&
     (selectedResumable?.worktree_path === undefined ||
       selectedResumable.worktree_path === null ||
       normalizeComparablePath(selectedResumable.worktree_path) !==

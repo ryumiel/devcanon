@@ -60,6 +60,8 @@ async function discoverReviewSession() {
     const activeLeaseFiles = entries.filter((entry) => new RegExp(`^pr-${identity.prNumber}-[0-9a-f]{64}-lease\\.json$`, "u").test(entry));
     const archivedLeaseFiles = entries.filter((entry) => new RegExp(`^pr-${identity.prNumber}-[0-9a-f]{64}-.*-archived-lease\\.json$`, "u").test(entry));
     const registrations = await listRegisteredWorktrees(identity.primaryRoot);
+    const canonicalWorktreeRegistered = registrations.some((entry) => normalizeComparablePath(entry) ===
+        normalizeComparablePath(canonicalWorktreePath));
     const active = await Promise.all(activeLeaseFiles.map((leaseFile) => inspectDiscoveryCandidate(identity, leaseFile, registrations)));
     active.sort((left, right) => compareDiscoveryEntries(left.lease_file, right.lease_file));
     const invalid = active.some((candidate) => candidate.classification === "invalid");
@@ -67,7 +69,7 @@ async function discoverReviewSession() {
     const blocked = active.some((candidate) => candidate.classification !== "resumable" &&
         candidate.classification !== "reentry");
     const selectedResumable = resumable.length === 1 ? resumable[0] : undefined;
-    const canonicalConflictsWithResume = canonicalWorktreePresent &&
+    const canonicalConflictsWithResume = (canonicalWorktreePresent || canonicalWorktreeRegistered) &&
         (selectedResumable?.worktree_path === undefined ||
             selectedResumable.worktree_path === null ||
             normalizeComparablePath(selectedResumable.worktree_path) !==

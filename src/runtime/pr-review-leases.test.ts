@@ -1336,6 +1336,32 @@ describe("pr-review lease command validation", () => {
         active: [],
         resume: null,
       });
+
+      const canonicalWorktree = path.join(
+        workspace.physicalPrimary,
+        ".worktrees",
+        "pr-432-review",
+      );
+      await removePath(canonicalWorktree, { recursive: true, force: true });
+      await execFileAsync("git", [
+        "-C",
+        workspace.physicalPrimary,
+        "worktree",
+        "add",
+        "-b",
+        "canonical-missing",
+        canonicalWorktree,
+        "HEAD",
+      ]);
+      await removePath(canonicalWorktree, { recursive: true, force: true });
+
+      const registeredMissingCanonical = await discoverPrReviewSession();
+      expect(registeredMissingCanonical).toMatchObject({
+        disposition: "cleanup-required",
+        canonical_worktree_present: false,
+        active: [],
+        resume: null,
+      });
     } finally {
       process.chdir(originalCwd);
       await rm(workspace.tempRoot, { recursive: true, force: true });
