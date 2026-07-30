@@ -1,5 +1,12 @@
 import { ChildProcess } from "node:child_process";
-import { access, chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
+import {
+  access,
+  chmod,
+  mkdtemp,
+  readFile,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -36,6 +43,47 @@ async function lifecycle(
     environment: {},
     ...options,
   });
+}
+
+function errorCode(error: unknown): unknown {
+  return typeof error === "object" && error !== null && "code" in error
+    ? error.code
+    : undefined;
+}
+
+async function waitForRootPid(
+  pidFile: string,
+  timeoutMs: number,
+): Promise<number> {
+  const deadline = performance.now() + timeoutMs;
+  while (performance.now() < deadline) {
+    try {
+      const pid = Number.parseInt(await readFile(pidFile, "utf8"), 10);
+      if (Number.isSafeInteger(pid) && pid > 0) return pid;
+      throw new Error("root PID evidence is invalid");
+    } catch (error) {
+      if (errorCode(error) !== "ENOENT") throw error;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+  throw new Error("root PID evidence was not published before the deadline");
+}
+
+async function waitForRootPidAbsent(
+  pid: number,
+  timeoutMs: number,
+): Promise<void> {
+  const deadline = performance.now() + timeoutMs;
+  while (performance.now() < deadline) {
+    try {
+      process.kill(pid, 0);
+    } catch (error) {
+      if (errorCode(error) === "ESRCH") return;
+      throw error;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+  throw new Error(`root PID ${pid} remained live after its deadline`);
 }
 
 afterEach(async () => {
@@ -274,14 +322,24 @@ describe("pr-review process lifecycle", () => {
 
   it("records protocol failure and a false root kill without overstating cleanup", async () => {
     const root = await generatedRoot();
+    const stateDirectory = await mkdtemp(
+      path.join(os.tmpdir(), "dc-process-lifecycle-state-"),
+    );
+    roots.push(stateDirectory);
+    const pidFile = path.join(stateDirectory, "root.pid");
     const source = [
+      'require("node:fs").writeFileSync(process.argv[1], String(process.pid));',
       'require("node:child_process").spawn(process.execPath, ["-e", "setTimeout(() => {}, 500)"], { cwd: require("node:os").tmpdir(), stdio: ["ignore", "inherit", "inherit"] });',
       'process.stdout.write("ready");',
       'require("node:fs").writeSync(3, Buffer.from([0, 0, 0, 1, 0xff]));',
       "process.exit(0);",
     ].join("\n");
-    const processLifecycle = await lifecycle(root, source, { deadlineMs: 200 });
-    await new Promise((resolve) => setTimeout(resolve, 80));
+    const processLifecycle = await lifecycle(root, source, {
+      args: ["-e", source, pidFile],
+      deadlineMs: 200,
+    });
+    const rootPid = await waitForRootPid(pidFile, 1_000);
+    await waitForRootPidAbsent(rootPid, 1_000);
 
     const result = await processLifecycle.finish({
       cancel: true,
@@ -292,15 +350,14 @@ describe("pr-review process lifecycle", () => {
     if (result.rootProcess.closeObserved) {
       expect(result.cleanup.forceTermination).toBe("not-needed");
       expect(killReturnedFalse).toBe(false);
-    } else if (killReturnedFalse) {
-      expect(result.cleanup.forceTermination).toBe("failed");
     } else {
-      expect(result.cleanup.forceTermination).toBe("attempted");
+      expect(result.cleanup.forceTermination).toBe("failed");
+      expect(killReturnedFalse).toBe(true);
     }
     expect(result.evidence.some((entry) => entry.startsWith("protocol:"))).toBe(
       true,
     );
-    await new Promise((resolve) => setTimeout(resolve, 350));
+    await new Promise((resolve) => setTimeout(resolve, 600));
     const failureRoot = await generatedRoot();
     const secret = "PRIVATE_FAILURE";
     const errorName = `${secret}${"é".repeat(100)}`;
@@ -314,7 +371,7 @@ describe("pr-review process lifecycle", () => {
     try {
       const processLifecycle = await lifecycle(
         failureRoot,
-        "setTimeout(() => process.exit(0), 150);",
+        'process.chdir(require("node:os").tmpdir()); setTimeout(() => process.exit(0), 150);',
         { deadlineMs: 100, redact: [secret] },
       );
 
@@ -335,6 +392,7 @@ describe("pr-review process lifecycle", () => {
     } finally {
       kill.mockRestore();
     }
+    await new Promise((resolve) => setTimeout(resolve, 200));
   });
 
   it("restores controller cwd before generated-root disposition", async () => {
