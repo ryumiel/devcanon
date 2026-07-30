@@ -418,7 +418,7 @@ it("selects the exact issue-569 Windows PR-review lane", async () => {
           unsupported.push(node.getText(sourceFile));
         } else {
           registrations.push({
-            fullTitle: `${suiteTitle} ${title}`,
+            fullTitle: `${suiteTitle} > ${title}`,
             title,
           });
         }
@@ -430,6 +430,86 @@ it("selects the exact issue-569 Windows PR-review lane", async () => {
     expect([...registrars]).toEqual(["describe", "it"]);
     expect(unsupported).toEqual([]);
     return registrations;
+  };
+  const assertNoModifiedRegistrationSurfaces = (
+    source: string,
+    fileName: string,
+    selectedMarkers: readonly string[],
+  ): void => {
+    const sourceFile = ts.createSourceFile(
+      fileName,
+      source,
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.TS,
+    );
+    const unsupported: string[] = [];
+    const registrationRoot = (node: ts.Expression): string | undefined => {
+      if (ts.isIdentifier(node)) return node.text;
+      if (ts.isCallExpression(node)) return registrationRoot(node.expression);
+      if (ts.isPropertyAccessExpression(node)) {
+        return registrationRoot(node.expression);
+      }
+      if (ts.isElementAccessExpression(node)) {
+        return registrationRoot(node.expression);
+      }
+      return undefined;
+    };
+    const visit = (node: ts.Node): void => {
+      if (
+        ts.isImportDeclaration(node) &&
+        ts.isStringLiteral(node.moduleSpecifier) &&
+        node.moduleSpecifier.text === "vitest" &&
+        node.importClause?.namedBindings !== undefined &&
+        ts.isNamedImports(node.importClause.namedBindings)
+      ) {
+        for (const element of node.importClause.namedBindings.elements) {
+          const imported = element.propertyName?.text ?? element.name.text;
+          if (
+            (imported === "describe" ||
+              imported === "it" ||
+              imported === "test") &&
+            element.name.text !== imported
+          ) {
+            unsupported.push(element.getText(sourceFile));
+          }
+        }
+      }
+      if (
+        (ts.isPropertyAccessExpression(node) ||
+          ts.isElementAccessExpression(node)) &&
+        ["describe", "it", "test"].includes(
+          registrationRoot(node.expression) ?? "",
+        )
+      ) {
+        const property = ts.isPropertyAccessExpression(node)
+          ? node.name.text
+          : undefined;
+        const root = registrationRoot(node.expression);
+        let registrationSurface: ts.Node = node;
+        while (
+          ts.isCallExpression(registrationSurface.parent) &&
+          (registrationSurface.parent.expression === registrationSurface ||
+            registrationSurface.parent.arguments.includes(
+              registrationSurface as ts.Expression,
+            ))
+        ) {
+          registrationSurface = registrationSurface.parent;
+        }
+        if (
+          root === "describe" ||
+          (property !== "each" &&
+            selectedMarkers.some((marker) =>
+              registrationSurface.getText(sourceFile).includes(marker),
+            ))
+        ) {
+          unsupported.push(node.getText(sourceFile));
+        }
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(sourceFile);
+    expect(unsupported).toEqual([]);
   };
 
   const expectedHarnessTitles = [
@@ -589,6 +669,103 @@ it("selects the exact issue-569 Windows PR-review lane", async () => {
     "rejects noncanonical retained fingerprint path ../outside before verify or cleanup deletion",
     "rejects noncanonical retained fingerprint path /absolute before verify or cleanup deletion",
   ]);
+
+  for (const [fileName, source, selectedMarkers] of [
+    ["pr-review-command-harness.test.ts", harnessSource, []],
+    [
+      "pr-review-leases.test.ts",
+      leaseSource,
+      [contractTitle, "rejects stale or mismatched gated result evidence:"],
+    ],
+    ["pr-review-manifests.test.ts", manifestSource, [manifestTitle]],
+    [
+      "source-immutability.test.ts",
+      sourceImmutabilitySource,
+      [
+        "rejects noncanonical retained fingerprint path %s before verify or cleanup deletion",
+      ],
+    ],
+  ] as const) {
+    assertNoModifiedRegistrationSurfaces(source, fileName, selectedMarkers);
+  }
+  const laneFiles = [
+    "src/__test-helpers__/pr-review-command-harness.test.ts",
+    "src/runtime/pr-review-leases.test.ts",
+    "src/runtime/pr-review-manifests.test.ts",
+    "src/runtime/source-immutability.test.ts",
+  ];
+  const collection = await execFileAsync(
+    process.execPath,
+    [
+      path.join(repositoryRoot, "node_modules/vitest/vitest.mjs"),
+      "list",
+      "--project",
+      "unit",
+      "--json",
+      "--no-file-parallelism",
+      ...laneFiles,
+      "--testNamePattern",
+      selectorRecord?.[1] ?? "(?!)",
+    ],
+    { cwd: repositoryRoot },
+  );
+  expect(collection.exitCode).toBe(0);
+  const collectedTests = JSON.parse(collection.stdout) as Array<{
+    file: string;
+    name: string;
+    projectName: string;
+  }>;
+  const collectedInventory = collectedTests
+    .map(({ file, name, projectName }) => ({
+      file: path.relative(repositoryRoot, file),
+      name,
+      projectName,
+    }))
+    .sort((left, right) =>
+      `${left.file}\0${left.name}`.localeCompare(
+        `${right.file}\0${right.name}`,
+      ),
+    );
+  const expectedCollectedInventory = [
+    ...harnessRegistrations.map(({ fullTitle }) => ({
+      file: laneFiles[0],
+      name: fullTitle,
+      projectName: "unit",
+    })),
+    {
+      file: laneFiles[1],
+      name: contractTitle,
+      projectName: "unit",
+    },
+    {
+      file: laneFiles[1],
+      name: "pr-review lease read-status > rejects stale or mismatched gated result evidence: stale-timestamp",
+      projectName: "unit",
+    },
+    {
+      file: laneFiles[1],
+      name: "pr-review lease read-status > rejects stale or mismatched gated result evidence: presentation-mismatch",
+      projectName: "unit",
+    },
+    {
+      file: laneFiles[2],
+      name: `pr-review Phase 5 audit summary renderer > ${manifestTitle}`,
+      projectName: "unit",
+    },
+    {
+      file: laneFiles[3],
+      name: "source-immutability runtime > rejects noncanonical retained fingerprint path ../outside before verify or cleanup deletion",
+      projectName: "unit",
+    },
+    {
+      file: laneFiles[3],
+      name: "source-immutability runtime > rejects noncanonical retained fingerprint path /absolute before verify or cleanup deletion",
+      projectName: "unit",
+    },
+  ].sort((left, right) =>
+    `${left.file}\0${left.name}`.localeCompare(`${right.file}\0${right.name}`),
+  );
+  expect(collectedInventory).toEqual(expectedCollectedInventory);
 });
 
 function createLease(): PrReviewLease {
