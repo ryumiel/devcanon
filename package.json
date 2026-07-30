@@ -25,6 +25,7 @@
     "test:integration:render-install": "vitest run --project integration-render-install",
     "test:integration:windows": "vitest run --project integration-windows-helper",
     "test:ci:ubuntu": "pnpm run test",
+    "test:ci:windows:pr-review": "vitest run --project unit --no-file-parallelism src/__test-helpers__/pr-review-command-harness.test.ts src/runtime/pr-review-leases.test.ts src/runtime/pr-review-manifests.test.ts src/runtime/source-immutability.test.ts",
     "test:ci:windows": "pnpm run test:unit:windows && pnpm run test:integration:render-install && pnpm run test:integration:windows",
     "test:unit:windows": "vitest run --project unit --no-file-parallelism",
     "test:watch": "vitest",
