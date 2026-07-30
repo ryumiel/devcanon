@@ -188,6 +188,7 @@ it("selects the exact issue-569 Windows PR-review lane", async () => {
     harnessSource,
     leaseSource,
     manifestSource,
+    rootIdentitySource,
     sourceImmutabilitySource,
   ] = await Promise.all([
     readFile(path.join(repositoryRoot, "package.json"), "utf8"),
@@ -207,6 +208,13 @@ it("selects the exact issue-569 Windows PR-review lane", async () => {
       "utf8",
     ),
     readFile(
+      path.join(
+        repositoryRoot,
+        "src/__test-helpers__/pr-review-root-identity.test.ts",
+      ),
+      "utf8",
+    ),
+    readFile(
       path.join(repositoryRoot, "src/runtime/source-immutability.test.ts"),
       "utf8",
     ),
@@ -215,12 +223,17 @@ it("selects the exact issue-569 Windows PR-review lane", async () => {
     scripts?: Record<string, string>;
   };
   const command = packageJson.scripts?.["test:ci:windows:pr-review"];
-  const commandPrefix = [
-    "vitest run --project unit --no-file-parallelism",
+  const laneFiles = [
     "src/__test-helpers__/pr-review-command-harness.test.ts",
+    "src/__test-helpers__/pr-review-process-protocol.test.ts",
+    "src/__test-helpers__/pr-review-root-identity.test.ts",
     "src/runtime/pr-review-leases.test.ts",
     "src/runtime/pr-review-manifests.test.ts",
     "src/runtime/source-immutability.test.ts",
+  ];
+  const commandPrefix = [
+    "vitest run --project unit --no-file-parallelism",
+    ...laneFiles,
   ].join(" ");
   expect(command).toBeTypeOf("string");
   const selectorRecord = new RegExp(
@@ -229,6 +242,40 @@ it("selects the exact issue-569 Windows PR-review lane", async () => {
   ).exec(command ?? "");
   expect(selectorRecord).not.toBeNull();
   const selector = new RegExp(selectorRecord?.[1] ?? "(?!)", "u");
+  const windowsExecutableTitle =
+    "enrolls a real Windows executable and rejects a wrong extension";
+  const rootIdentitySourceFile = ts.createSourceFile(
+    "pr-review-root-identity.test.ts",
+    rootIdentitySource,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  );
+  const windowsExecutableRegistrations: string[] = [];
+  const visitRootIdentity = (node: ts.Node): void => {
+    if (
+      ts.isCallExpression(node) &&
+      ts.isCallExpression(node.expression) &&
+      ts.isPropertyAccessExpression(node.expression.expression) &&
+      ts.isIdentifier(node.expression.expression.expression) &&
+      node.expression.expression.expression.text === "test" &&
+      node.expression.expression.name.text === "runIf" &&
+      node.expression.arguments[0]?.getText(rootIdentitySourceFile) ===
+        'process.platform === "win32"'
+    ) {
+      const title = node.arguments[0];
+      windowsExecutableRegistrations.push(
+        title !== undefined &&
+          (ts.isStringLiteral(title) ||
+            ts.isNoSubstitutionTemplateLiteral(title))
+          ? title.text
+          : "<nonliteral>",
+      );
+    }
+    ts.forEachChild(node, visitRootIdentity);
+  };
+  visitRootIdentity(rootIdentitySourceFile);
+  expect(windowsExecutableRegistrations).toEqual([windowsExecutableTitle]);
   const literalTestTitles = (source: string, fileName: string): string[] => {
     const sourceFile = ts.createSourceFile(
       fileName,
@@ -688,12 +735,6 @@ it("selects the exact issue-569 Windows PR-review lane", async () => {
   ] as const) {
     assertNoModifiedRegistrationSurfaces(source, fileName, selectedMarkers);
   }
-  const laneFiles = [
-    "src/__test-helpers__/pr-review-command-harness.test.ts",
-    "src/runtime/pr-review-leases.test.ts",
-    "src/runtime/pr-review-manifests.test.ts",
-    "src/runtime/source-immutability.test.ts",
-  ];
   const collection = await execFileAsync(
     process.execPath,
     [
@@ -732,38 +773,67 @@ it("selects the exact issue-569 Windows PR-review lane", async () => {
       name: fullTitle,
       projectName: "unit",
     })),
-    {
+    ...[
+      "round trips each checked-in closed V1 message through raw-byte framing",
+      "rejects malformed JSON messages before framing them as lifecycle evidence",
+      "enforces the exact byte boundary before copying sender payload bytes",
+      "uses intrinsic byte-view metadata and rejects non-ArrayBuffer and Proxy views",
+      "is invariant to coalescing and commits an accepted prefix exactly once",
+      "keeps exact-limit and malformed-suffix outcomes invariant across frame partitions",
+      "fails closed at EOF and checks terminal state before inspecting later input",
+    ].map((title) => ({
       file: laneFiles[1],
+      name: `pr-review process protocol > ${title}`,
+      projectName: "unit",
+    })),
+    ...[
+      "enrolls distinct logical, normalized, physical, and stable directory identity",
+      "accepts only a component-contained generated-root working directory and detects replacement",
+      "fails closed for raw symlink-plus-dot-dot components before normalization",
+      "uses only Windows-equivalent volume comparison and preserves original spellings",
+      "preserves exact three-way redaction variants for a physical parent alias",
+      "enrolls only a POSIX executable regular file and rejects a non-executable alias",
+      ...(process.platform === "win32" ? [windowsExecutableTitle] : []),
+    ].map((title) => ({
+      file: laneFiles[2],
+      name: `pr-review root identity > ${title}`,
+      projectName: "unit",
+    })),
+    {
+      file: laneFiles[3],
       name: contractTitle,
       projectName: "unit",
     },
     {
-      file: laneFiles[1],
+      file: laneFiles[3],
       name: "pr-review lease read-status > rejects stale or mismatched gated result evidence: stale-timestamp",
       projectName: "unit",
     },
     {
-      file: laneFiles[1],
+      file: laneFiles[3],
       name: "pr-review lease read-status > rejects stale or mismatched gated result evidence: presentation-mismatch",
       projectName: "unit",
     },
     {
-      file: laneFiles[2],
+      file: laneFiles[4],
       name: `pr-review Phase 5 audit summary renderer > ${manifestTitle}`,
       projectName: "unit",
     },
     {
-      file: laneFiles[3],
+      file: laneFiles[5],
       name: "source-immutability runtime > rejects noncanonical retained fingerprint path ../outside before verify or cleanup deletion",
       projectName: "unit",
     },
     {
-      file: laneFiles[3],
+      file: laneFiles[5],
       name: "source-immutability runtime > rejects noncanonical retained fingerprint path /absolute before verify or cleanup deletion",
       projectName: "unit",
     },
   ].sort((left, right) =>
     `${left.file}\0${left.name}`.localeCompare(`${right.file}\0${right.name}`),
+  );
+  expect(collectedInventory).toHaveLength(
+    process.platform === "win32" ? 38 : 37,
   );
   expect(collectedInventory).toEqual(expectedCollectedInventory);
 });
