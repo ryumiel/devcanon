@@ -310,7 +310,11 @@ describe("pr-review process lifecycle", () => {
       environment: {},
     });
 
-    const result = await processLifecycle.finish();
+    const firstFinish = processLifecycle.finish();
+    expect(processLifecycle.finish({ cooperativeGraceMs: -1 })).toBe(
+      firstFinish,
+    );
+    const result = await firstFinish;
 
     expect(result.rootProcess.spawned).toBe(false);
     expect(result.rootProcess.exitObserved).toBe(false);

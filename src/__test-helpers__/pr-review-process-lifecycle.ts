@@ -329,8 +329,10 @@ class FailedLaunchLifecycle implements PrReviewProcessLifecycle {
   finish(
     options: { cancel?: boolean; cooperativeGraceMs?: number } = {},
   ): Promise<PrReviewProcessLifecycleResult> {
-    snapshotFinishOptions(options);
-    this.#finishing ??= this.#finalize();
+    if (!this.#finishing) {
+      snapshotFinishOptions(options);
+      this.#finishing = this.#finalize();
+    }
     return this.#finishing;
   }
 
