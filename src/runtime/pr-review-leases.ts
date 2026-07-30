@@ -288,7 +288,8 @@ async function discoverReviewSession(): Promise<PrReviewSessionDiscovery> {
     reentry.length === 1 && resumable.length === 0 ? reentry[0] : undefined;
   const canonicalConflictsWithResume =
     (canonicalWorktreePresent || canonicalWorktreeRegistered) &&
-    selectedReentry === undefined &&
+    (selectedReentry === undefined ||
+      (!canonicalWorktreePresent && canonicalWorktreeRegistered)) &&
     (selectedResumable?.worktree_path === undefined ||
       selectedResumable.worktree_path === null ||
       normalizeComparablePath(selectedResumable.worktree_path) !==

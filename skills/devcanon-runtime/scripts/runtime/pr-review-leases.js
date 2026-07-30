@@ -74,7 +74,8 @@ async function discoverReviewSession() {
     const selectedResumable = resumable.length === 1 ? resumable[0] : undefined;
     const selectedReentry = reentry.length === 1 && resumable.length === 0 ? reentry[0] : undefined;
     const canonicalConflictsWithResume = (canonicalWorktreePresent || canonicalWorktreeRegistered) &&
-        selectedReentry === undefined &&
+        (selectedReentry === undefined ||
+            (!canonicalWorktreePresent && canonicalWorktreeRegistered)) &&
         (selectedResumable?.worktree_path === undefined ||
             selectedResumable.worktree_path === null ||
             normalizeComparablePath(selectedResumable.worktree_path) !==

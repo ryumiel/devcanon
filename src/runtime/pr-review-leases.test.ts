@@ -1836,6 +1836,70 @@ describe("pr-review lease command validation", () => {
     }
   });
 
+  it("blocks a registered missing canonical terminal lease before LC-18 reentry", async () => {
+    const workspace = await makeRegisteredWorkspace("pr-review-discovery-");
+    try {
+      const canonicalWorktree = path.join(
+        workspace.physicalPrimary,
+        ".worktrees",
+        "pr-432-review",
+      );
+      await mkdir(path.dirname(canonicalWorktree), { recursive: true });
+      await execFileAsync("git", [
+        "-C",
+        workspace.physicalPrimary,
+        "worktree",
+        "move",
+        workspace.physicalWorktree,
+        canonicalWorktree,
+      ]);
+      const physicalCanonicalWorktree = await realpath(canonicalWorktree);
+      process.chdir(workspace.physicalPrimary);
+      setLeaseCommandEnv(workspace.physicalPrimary, physicalCanonicalWorktree);
+      const pathResult = await runPrReviewLeasesCommand(["derive-path"]);
+      expect(pathResult.exitCode, pathResult.stderr).toBe(0);
+      const leaseFile = pathResult.stdout.trim();
+      const dynamic = identityFromLeaseFile(
+        leaseFile,
+        physicalCanonicalWorktree,
+      );
+      const terminal = abortedCommandLease(
+        leaseFile,
+        physicalCanonicalWorktree,
+        dynamic.worktreeDigest,
+      );
+      terminal.cleanup = {
+        last_outcome: "removed",
+        last_checked_at: "2026-07-30T00:01:00Z",
+        removed_at: "2026-07-30T00:01:00Z",
+      };
+      await writeFile(
+        path.join(workspace.physicalPrimary, leaseFile),
+        `${JSON.stringify(terminal)}\n`,
+      );
+      await removePath(physicalCanonicalWorktree, {
+        recursive: true,
+        force: true,
+      });
+
+      expect(await discoverPrReviewSession()).toMatchObject({
+        disposition: "cleanup-required",
+        canonical_worktree_path: physicalCanonicalWorktree,
+        canonical_worktree_present: false,
+        active: [
+          {
+            lease_file: leaseFile,
+            classification: "reentry",
+          },
+        ],
+        resume: null,
+      });
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
+    }
+  });
+
   it("blocks a noncanonical helper-recorded removed terminal lease", async () => {
     const workspace = await makeRegisteredWorkspace("pr-review-discovery-");
     try {

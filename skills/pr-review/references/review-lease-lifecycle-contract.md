@@ -140,8 +140,9 @@ lifecycle state. Cleanup remains exclusively lease-gated.
 
 When a `posted` or `aborted` lease has a valid helper-recorded
 `cleanup.removed_at` marker and its stored physical worktree path is canonical,
-its missing worktree is eligible for the existing LC-18 archive-and-create
-reentry only after discovery reads that lease's exact deterministic archive:
+its missing, unregistered worktree is eligible for the existing LC-18
+archive-and-create reentry only after discovery reads that lease's exact
+deterministic archive:
 an absent archive or byte-equal archive permits reentry, a divergent archive
 remains `missing` and therefore `cleanup-required`, and an unreadable archive
 fails closed as `invalid`. Discovery establishes absence from that direct entry
