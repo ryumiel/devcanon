@@ -147,14 +147,11 @@ describe("pr-review process protocol", () => {
   test("uses intrinsic byte-view metadata and rejects non-ArrayBuffer and Proxy views", () => {
     const done = rawMessage({ type: "done", version: 1 });
     const framedDone = frameProtocolMessage(done);
-    let constructorTrapCalls = 0;
-    let speciesTrapCalls = 0;
+    let typedArrayConstructorTrapCalls = 0;
+    let typedArraySpeciesTrapCalls = 0;
+    let arrayBufferConstructorTrapCalls = 0;
+    let arrayBufferSpeciesTrapCalls = 0;
     class ForgedBytes extends Uint8Array {
-      static get [Symbol.species](): Uint8ArrayConstructor {
-        speciesTrapCalls += 1;
-        throw new Error("copy must not access Symbol.species");
-      }
-
       get byteLength(): number {
         return done.byteLength;
       }
@@ -163,18 +160,12 @@ describe("pr-review process protocol", () => {
         return done.buffer as ArrayBuffer;
       }
     }
-    Object.defineProperty(ForgedBytes.prototype, "constructor", {
-      get(): never {
-        constructorTrapCalls += 1;
-        throw new Error("copy must not access constructor");
-      },
-    });
-    class ForgedTransport extends Uint8Array {
-      static get [Symbol.species](): Uint8ArrayConstructor {
-        speciesTrapCalls += 1;
-        throw new Error("copy must not access Symbol.species");
+    class ForgedOffsetBytes extends Uint8Array {
+      get byteOffset(): number {
+        return 0;
       }
-
+    }
+    class ForgedTransport extends Uint8Array {
       get byteLength(): number {
         return framedDone.byteLength;
       }
@@ -183,13 +174,53 @@ describe("pr-review process protocol", () => {
         return framedDone.buffer as ArrayBuffer;
       }
     }
-    Object.defineProperty(ForgedTransport.prototype, "constructor", {
-      get(): never {
-        constructorTrapCalls += 1;
-        throw new Error("copy must not access constructor");
+    class ForgedBacking extends ArrayBuffer {}
+
+    const backing = new ForgedBacking(done.length);
+    const forged = new ForgedBytes(backing);
+    forged.set(done);
+    const offsetBacking = new ArrayBuffer(done.length + 1);
+    new Uint8Array(offsetBacking).set(done, 1);
+    const forgedOffset = new ForgedOffsetBytes(offsetBacking, 1, done.length);
+    const forgedTransport = new ForgedTransport(MAX_PROTOCOL_MESSAGE_BYTES + 1);
+
+    Object.defineProperty(ForgedBytes.prototype, "constructor", {
+      get(): typeof ForgedBytes {
+        typedArrayConstructorTrapCalls += 1;
+        return ForgedBytes;
       },
     });
-    const forged = new ForgedBytes(done);
+    Object.defineProperty(ForgedBytes, Symbol.species, {
+      get(): Uint8ArrayConstructor {
+        typedArraySpeciesTrapCalls += 1;
+        throw new Error("copy must not access Symbol.species");
+      },
+    });
+    Object.defineProperty(backing, "constructor", {
+      get(): typeof ForgedBacking {
+        arrayBufferConstructorTrapCalls += 1;
+        return ForgedBacking;
+      },
+    });
+    Object.defineProperty(ForgedBacking, Symbol.species, {
+      get(): ArrayBufferConstructor {
+        arrayBufferSpeciesTrapCalls += 1;
+        throw new Error("copy must not access backing Symbol.species");
+      },
+    });
+    Object.defineProperty(ForgedTransport.prototype, "constructor", {
+      get(): typeof ForgedTransport {
+        typedArrayConstructorTrapCalls += 1;
+        return ForgedTransport;
+      },
+    });
+    Object.defineProperty(ForgedTransport, Symbol.species, {
+      get(): Uint8ArrayConstructor {
+        typedArraySpeciesTrapCalls += 1;
+        throw new Error("copy must not access Symbol.species");
+      },
+    });
+
     const offset = Buffer.concat([
       Buffer.from([0]),
       Buffer.from(done),
@@ -198,7 +229,15 @@ describe("pr-review process protocol", () => {
     shared.set(done);
     const proxy = new Proxy(done, {}) as unknown as Uint8Array;
 
+    expect(encodeProtocolMessage(forged)).toEqual(done);
+    expect(frameProtocolMessage(forged)).toEqual(framedDone);
     expect(decodeProtocolMessage(forged)).toEqual({ type: "done", version: 1 });
+    expect(encodeProtocolMessage(forgedOffset)).toEqual(done);
+    expect(frameProtocolMessage(forgedOffset)).toEqual(framedDone);
+    expect(decodeProtocolMessage(forgedOffset)).toEqual({
+      type: "done",
+      version: 1,
+    });
     expect(decodeProtocolMessage(offset)).toEqual({ type: "done", version: 1 });
     for (const input of [shared, proxy]) {
       expect(() => decodeProtocolMessage(input)).toThrow(
@@ -224,7 +263,6 @@ describe("pr-review process protocol", () => {
     ]) {
       expect(admit).toThrowError(oversizedDiagnostic);
     }
-    const forgedTransport = new ForgedTransport(MAX_PROTOCOL_MESSAGE_BYTES + 1);
     const transportDiagnostic = new ProcessProtocolError(
       "message is not fatal UTF-8 JSON",
     ).message;
@@ -233,8 +271,10 @@ describe("pr-review process protocol", () => {
       messages: [],
       error: { message: transportDiagnostic },
     });
-    expect(constructorTrapCalls).toBe(0);
-    expect(speciesTrapCalls).toBe(0);
+    expect(typedArrayConstructorTrapCalls).toBe(0);
+    expect(typedArraySpeciesTrapCalls).toBe(0);
+    expect(arrayBufferConstructorTrapCalls).toBe(0);
+    expect(arrayBufferSpeciesTrapCalls).toBe(0);
   });
 
   test("is invariant to coalescing and commits an accepted prefix exactly once", async () => {
