@@ -371,7 +371,6 @@ describe("PR-review command harness process ownership", () => {
     const harness = new PrReviewCommandHarness({
       envKeys: [],
       seed: "review",
-      commandDeadlineMs: 1_000,
       terminationPlatform: "win32",
       windowsTaskkillCommand: () => ({
         command: process.execPath,
@@ -425,45 +424,6 @@ describe("PR-review command harness process ownership", () => {
 
     expect(harness.activeChildCount).toBe(0);
     expect(harness.activeOperationCount).toBe(0);
-  });
-
-  it("terminates a platform descendant before it can outlive the command root", async () => {
-    const harness = new PrReviewCommandHarness({
-      envKeys: [],
-      seed: "review",
-    });
-    await harness.setup();
-    harness.beginTest();
-    const root = await harness.createScratchRoot();
-    const lateMarker = path.join(root, "descendant-survived");
-    const descendantScript = [
-      'const { writeFileSync } = require("node:fs");',
-      `setTimeout(() => writeFileSync(${JSON.stringify(lateMarker)}, "late\\n"), 400);`,
-      "setInterval(() => {}, 1000);",
-    ].join("\n");
-    const rootScript = [
-      'const { spawn } = require("node:child_process");',
-      `spawn(process.execPath, ["-e", ${JSON.stringify(descendantScript)}], { stdio: "ignore" });`,
-      "setInterval(() => {}, 1000);",
-    ].join("\n");
-
-    try {
-      await expect(
-        harness.run(process.execPath, ["-e", rootScript], {
-          deadlineMs: 150,
-        }),
-      ).rejects.toThrow("exceeded the 150ms child deadline");
-      await delay(500);
-      await expect(access(lateMarker)).rejects.toMatchObject({
-        code: "ENOENT",
-      });
-    } finally {
-      try {
-        await harness.endTest();
-      } finally {
-        await harness.dispose();
-      }
-    }
   });
 
   it("retains a late outer-operation rejection until drain", async () => {

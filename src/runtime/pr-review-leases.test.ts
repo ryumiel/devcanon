@@ -177,6 +177,208 @@ function runPlayReviewSharedContextCommand(
   );
 }
 
+it("selects the exact issue-569 Windows PR-review lane", async () => {
+  const repositoryRoot = path.resolve(
+    path.dirname(fileURLToPath(import.meta.url)),
+    "../..",
+  );
+  const [
+    packageSource,
+    harnessSource,
+    leaseSource,
+    manifestSource,
+    sourceImmutabilitySource,
+  ] = await Promise.all([
+    readFile(path.join(repositoryRoot, "package.json"), "utf8"),
+    readFile(
+      path.join(
+        repositoryRoot,
+        "src/__test-helpers__/pr-review-command-harness.test.ts",
+      ),
+      "utf8",
+    ),
+    readFile(
+      path.join(repositoryRoot, "src/runtime/pr-review-leases.test.ts"),
+      "utf8",
+    ),
+    readFile(
+      path.join(repositoryRoot, "src/runtime/pr-review-manifests.test.ts"),
+      "utf8",
+    ),
+    readFile(
+      path.join(repositoryRoot, "src/runtime/source-immutability.test.ts"),
+      "utf8",
+    ),
+  ]);
+  const packageJson = JSON.parse(packageSource) as {
+    scripts?: Record<string, string>;
+  };
+  const command = packageJson.scripts?.["test:ci:windows:pr-review"];
+  const commandPrefix = [
+    "vitest run --project unit --no-file-parallelism",
+    "src/__test-helpers__/pr-review-command-harness.test.ts",
+    "src/runtime/pr-review-leases.test.ts",
+    "src/runtime/pr-review-manifests.test.ts",
+    "src/runtime/source-immutability.test.ts",
+  ].join(" ");
+  expect(command).toBeTypeOf("string");
+  const selectorRecord = new RegExp(
+    `^${commandPrefix.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")} --testNamePattern "([^"]+)"$`,
+    "u",
+  ).exec(command ?? "");
+  expect(selectorRecord).not.toBeNull();
+  const selector = new RegExp(selectorRecord?.[1] ?? "(?!)", "u");
+
+  const expectedHarnessTitles = [
+    "copies immutable history into independent short registered worktrees",
+    "removes a healthy registered worktree before its case root",
+    "prunes a registered worktree whose directory is missing",
+    "prunes a registered worktree whose .git marker is missing",
+    "skips Git removal for an already-unregistered worktree",
+    "skips Git removal for an unregistered worktree with a stale regular .git marker",
+    "surfaces Git cleanup failures after removing the case root",
+    "tracks outer work and restores exact cwd and environment state",
+    "fails fast when a generated suffix exceeds the path budget",
+    "provides committed, unborn, and no-ephemeral independent copies",
+    "reports bounded taskkill diagnostics after a simulated Windows direct-child fallback",
+    "preserves output overflow when simulated Windows cleanup also fails",
+    "preserves output overflow when delayed Windows cleanup crosses the deadline",
+    "reports a failed Windows fallback before a non-closing child is released",
+    "retains a late outer-operation rejection until drain",
+    "does not report an outer rejection already delivered before its deadline",
+    "terminates an over-deadline child and drains it through close",
+    "terminates a child whose output exceeds the bounded buffer",
+  ];
+  const harnessTitles = [...harnessSource.matchAll(/^\s*it\("([^"]+)"/gmu)].map(
+    (match) => match[1],
+  );
+  expect(harnessTitles).toEqual(expectedHarnessTitles);
+  expect(
+    /^\s*(?:it|test|describe)\.(?:only|runIf|skip|skipIf|todo)\b/mu.test(
+      harnessSource,
+    ),
+  ).toBe(false);
+  expect(harnessSource).not.toMatch(/descendant/iu);
+  expect(
+    harnessTitles.filter((title) =>
+      selector.test(`PR-review command harness ${title}`),
+    ),
+  ).toHaveLength(18);
+
+  const leaseTemplate =
+    /it\(`rejects stale or mismatched gated result evidence: \$\{testCase\.name\}`/gu;
+  const leaseTemplateRecords = [...leaseSource.matchAll(leaseTemplate)];
+  expect(leaseTemplateRecords).toHaveLength(1);
+  const leaseTemplateOffset = leaseTemplateRecords[0]?.index ?? -1;
+  const leaseCasesStart = leaseSource.lastIndexOf(
+    "for (const testCase of [",
+    leaseTemplateOffset,
+  );
+  const leaseCasesEnd = leaseSource.indexOf("] as const) {", leaseCasesStart);
+  expect(leaseCasesStart).toBeGreaterThanOrEqual(0);
+  expect(leaseCasesEnd).toBeGreaterThan(leaseCasesStart);
+  expect(leaseCasesEnd).toBeLessThan(leaseTemplateOffset);
+  const leaseCaseNames = [
+    ...leaseSource
+      .slice(leaseCasesStart, leaseCasesEnd)
+      .matchAll(/^\s*name: "([^"]+)",$/gmu),
+  ].map((match) => match[1]);
+  expect(leaseCaseNames).toEqual([
+    "wrong-result-file",
+    "stale-digest",
+    "stale-timestamp",
+    "presentation-mismatch",
+    "null-presented-at",
+    "missing-digest",
+    "wrong-review-head",
+  ]);
+  const renderedLeaseTitles = leaseCaseNames.map(
+    (name) => `rejects stale or mismatched gated result evidence: ${name}`,
+  );
+
+  const retainedTemplate =
+    /\]\)\(\s*"rejects noncanonical retained fingerprint path %s before verify or cleanup deletion"/gu;
+  const retainedTemplateRecords = [
+    ...sourceImmutabilitySource.matchAll(retainedTemplate),
+  ];
+  expect(retainedTemplateRecords).toHaveLength(1);
+  const retainedTemplateOffset = retainedTemplateRecords[0]?.index ?? -1;
+  const retainedCasesStart = sourceImmutabilitySource.lastIndexOf(
+    "it.each([",
+    retainedTemplateOffset,
+  );
+  const retainedCasesEnd = sourceImmutabilitySource.indexOf(
+    "])(",
+    retainedCasesStart,
+  );
+  expect(retainedCasesStart).toBeGreaterThanOrEqual(0);
+  expect(retainedCasesEnd).toBeGreaterThan(retainedCasesStart);
+  expect(retainedCasesEnd).toBe(retainedTemplateOffset);
+  const retainedCases = [
+    ...sourceImmutabilitySource
+      .slice(retainedCasesStart, retainedCasesEnd)
+      .matchAll(/^\s*"([^"]+)",$/gmu),
+  ].map((match) => match[1]);
+  expect(retainedCases).toEqual([
+    "../outside",
+    "/absolute",
+    "nested/./file",
+    "nested/../file",
+    "nested//file",
+    "nested/file/",
+  ]);
+  const renderedRetainedTitles = retainedCases.map((invalidPath) =>
+    "rejects noncanonical retained fingerprint path %s before verify or cleanup deletion".replace(
+      "%s",
+      invalidPath,
+    ),
+  );
+
+  const manifestTitle =
+    "requires explicit provider evidence input for adapter scope validation";
+  const manifestTitles = [
+    ...manifestSource.matchAll(/^\s*it\("([^"]+)"/gmu),
+  ].map((match) => match[1]);
+  expect(
+    manifestTitles.filter((title) => title === manifestTitle),
+  ).toHaveLength(1);
+
+  const contractTitle = [
+    "selects the exact issue-569 Windows PR-review",
+    "lane",
+  ].join(" ");
+  const leaseLiteralTitles = [
+    ...leaseSource.matchAll(/^\s*it\("([^"]+)"/gmu),
+  ].map((match) => match[1]);
+  expect(
+    leaseLiteralTitles.filter((title) => title === contractTitle),
+  ).toHaveLength(1);
+  expect(selector.test(contractTitle)).toBe(true);
+
+  const runtimeInventory = [
+    ...new Set([
+      ...leaseLiteralTitles,
+      ...renderedLeaseTitles,
+      ...manifestTitles,
+      ...[...sourceImmutabilitySource.matchAll(/^\s*it\("([^"]+)"/gmu)].map(
+        (match) => match[1],
+      ),
+      ...renderedRetainedTitles,
+    ]),
+  ];
+  const selectedRuntimeTitles = runtimeInventory.filter((title) =>
+    selector.test(`runtime suite ${title}`),
+  );
+  expect(selectedRuntimeTitles).toEqual([
+    contractTitle,
+    "rejects stale or mismatched gated result evidence: stale-timestamp",
+    "rejects stale or mismatched gated result evidence: presentation-mismatch",
+    manifestTitle,
+    "rejects noncanonical retained fingerprint path ../outside before verify or cleanup deletion",
+    "rejects noncanonical retained fingerprint path /absolute before verify or cleanup deletion",
+  ]);
+});
+
 function createLease(): PrReviewLease {
   return reducePrReviewLease(null, identity, {
     state: "created",

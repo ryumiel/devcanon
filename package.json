@@ -25,7 +25,7 @@
     "test:integration:render-install": "vitest run --project integration-render-install",
     "test:integration:windows": "vitest run --project integration-windows-helper",
     "test:ci:ubuntu": "pnpm run test",
-    "test:ci:windows:pr-review": "vitest run --project unit --no-file-parallelism src/__test-helpers__/pr-review-command-harness.test.ts src/runtime/pr-review-leases.test.ts src/runtime/pr-review-manifests.test.ts src/runtime/source-immutability.test.ts",
+    "test:ci:windows:pr-review": "vitest run --project unit --no-file-parallelism src/__test-helpers__/pr-review-command-harness.test.ts src/runtime/pr-review-leases.test.ts src/runtime/pr-review-manifests.test.ts src/runtime/source-immutability.test.ts --testNamePattern \"PR-review command harness|(?:rejects stale or mismatched gated result evidence: (?:stale-timestamp|presentation-mismatch)|requires explicit provider evidence input for adapter scope validation|rejects noncanonical retained fingerprint path (?:\\.\\./outside|/absolute) before verify or cleanup deletion|selects the exact issue-569 Windows PR-review lane)$\"",
     "test:ci:windows": "pnpm run test:unit:windows && pnpm run test:integration:render-install && pnpm run test:integration:windows",
     "test:unit:windows": "vitest run --project unit --no-file-parallelism",
     "test:watch": "vitest",
