@@ -229,11 +229,7 @@ it("selects the exact issue-569 Windows PR-review lane", async () => {
   ).exec(command ?? "");
   expect(selectorRecord).not.toBeNull();
   const selector = new RegExp(selectorRecord?.[1] ?? "(?!)", "u");
-  const literalTestTitles = (
-    source: string,
-    fileName: string,
-    strictRegistrations = false,
-  ): string[] => {
+  const literalTestTitles = (source: string, fileName: string): string[] => {
     const sourceFile = ts.createSourceFile(
       fileName,
       source,
@@ -289,15 +285,151 @@ it("selects the exact issue-569 Windows PR-review lane", async () => {
             ts.isNoSubstitutionTemplateLiteral(title))
         ) {
           titles.push(title.text);
-        } else if (strictRegistrations) {
-          unsupported.push(node.getText(sourceFile));
         }
       }
       ts.forEachChild(node, visit);
     };
     visit(sourceFile);
-    if (strictRegistrations) expect(unsupported).toEqual([]);
     return titles;
+  };
+  const strictHarnessRegistrations = (
+    source: string,
+    fileName: string,
+  ): Array<{ fullTitle: string; title: string }> => {
+    const sourceFile = ts.createSourceFile(
+      fileName,
+      source,
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.TS,
+    );
+    const registrars = new Set<string>();
+    const unsupported: string[] = [];
+    let vitestImportCount = 0;
+    for (const statement of sourceFile.statements) {
+      if (
+        !ts.isImportDeclaration(statement) ||
+        !ts.isStringLiteral(statement.moduleSpecifier) ||
+        statement.moduleSpecifier.text !== "vitest"
+      ) {
+        continue;
+      }
+      vitestImportCount += 1;
+      const bindings = statement.importClause?.namedBindings;
+      if (bindings === undefined || !ts.isNamedImports(bindings)) {
+        unsupported.push(statement.getText(sourceFile));
+        continue;
+      }
+      for (const element of bindings.elements) {
+        const imported = element.propertyName?.text ?? element.name.text;
+        if (imported === "test") {
+          unsupported.push(element.getText(sourceFile));
+        }
+        if (imported !== "describe" && imported !== "it") continue;
+        if (element.name.text !== imported) {
+          unsupported.push(element.getText(sourceFile));
+          continue;
+        }
+        registrars.add(imported);
+      }
+    }
+
+    const literalTitle = (node: ts.Node | undefined): string | undefined =>
+      node !== undefined &&
+      (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node))
+        ? node.text
+        : undefined;
+    const registrations: Array<{ fullTitle: string; title: string }> = [];
+    const suiteForTest = (
+      call: ts.CallExpression,
+    ): ts.CallExpression | undefined => {
+      const statement = call.parent;
+      const block = statement.parent;
+      const callback = block.parent;
+      const suiteCall = callback.parent;
+      if (
+        !ts.isExpressionStatement(statement) ||
+        !ts.isBlock(block) ||
+        !(ts.isArrowFunction(callback) || ts.isFunctionExpression(callback)) ||
+        !ts.isCallExpression(suiteCall) ||
+        suiteCall.arguments[1] !== callback ||
+        !ts.isIdentifier(suiteCall.expression) ||
+        suiteCall.expression.text !== "describe" ||
+        !ts.isExpressionStatement(suiteCall.parent) ||
+        !ts.isSourceFile(suiteCall.parent.parent)
+      ) {
+        return undefined;
+      }
+      return suiteCall;
+    };
+    const visit = (node: ts.Node): void => {
+      if (
+        ts.isCallExpression(node) &&
+        (node.expression.kind === ts.SyntaxKind.ImportKeyword ||
+          (ts.isIdentifier(node.expression) &&
+            node.expression.text === "require"))
+      ) {
+        unsupported.push(node.getText(sourceFile));
+      }
+      if (
+        ts.isIdentifier(node) &&
+        registrars.has(node.text) &&
+        !(
+          ts.isImportSpecifier(node.parent) &&
+          (node.parent.name === node || node.parent.propertyName === node)
+        ) &&
+        !(ts.isCallExpression(node.parent) && node.parent.expression === node)
+      ) {
+        unsupported.push(node.parent.getText(sourceFile));
+      }
+      if (
+        ts.isCallExpression(node) &&
+        ts.isIdentifier(node.expression) &&
+        node.expression.text === "describe"
+      ) {
+        const callback = node.arguments[1];
+        if (
+          literalTitle(node.arguments[0]) === undefined ||
+          !(
+            callback !== undefined &&
+            (ts.isArrowFunction(callback) ||
+              ts.isFunctionExpression(callback)) &&
+            ts.isBlock(callback.body)
+          ) ||
+          !ts.isExpressionStatement(node.parent) ||
+          !ts.isSourceFile(node.parent.parent)
+        ) {
+          unsupported.push(node.getText(sourceFile));
+        }
+      }
+      if (
+        ts.isCallExpression(node) &&
+        ts.isIdentifier(node.expression) &&
+        node.expression.text === "it"
+      ) {
+        const title = literalTitle(node.arguments[0]);
+        const suiteCall = suiteForTest(node);
+        const suiteTitle = literalTitle(suiteCall?.arguments[0]);
+        if (
+          title === undefined ||
+          suiteCall === undefined ||
+          suiteTitle === undefined
+        ) {
+          unsupported.push(node.getText(sourceFile));
+        } else {
+          registrations.push({
+            fullTitle: `${suiteTitle} ${title}`,
+            title,
+          });
+        }
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(sourceFile);
+    expect(vitestImportCount).toBe(1);
+    expect([...registrars]).toEqual(["describe", "it"]);
+    expect(unsupported).toEqual([]);
+    return registrations;
   };
 
   const expectedHarnessTitles = [
@@ -320,17 +452,28 @@ it("selects the exact issue-569 Windows PR-review lane", async () => {
     "terminates an over-deadline child and drains it through close",
     "terminates a child whose output exceeds the bounded buffer",
   ];
-  const harnessTitles = literalTestTitles(
+  for (const unsupportedRegistration of [
+    'import { describe, it as caseIt } from "vitest"; describe("suite", () => { caseIt("case", () => {}); });',
+    'import { describe, it } from "vitest"; describe.skip("suite", () => { it("case", () => {}); });',
+    'import { describe, it } from "vitest"; describe("suite", () => { for (const value of [1, 2]) { it("case", () => value); } });',
+    'import { describe, it } from "vitest"; void import("vitest"); describe("suite", () => { it("case", () => {}); });',
+  ]) {
+    expect(() =>
+      strictHarnessRegistrations(
+        unsupportedRegistration,
+        "unsupported-registration.test.ts",
+      ),
+    ).toThrow();
+  }
+  const harnessRegistrations = strictHarnessRegistrations(
     harnessSource,
     "pr-review-command-harness.test.ts",
-    true,
   );
+  const harnessTitles = harnessRegistrations.map(({ title }) => title);
   expect(harnessTitles).toEqual(expectedHarnessTitles);
   expect(harnessSource).not.toMatch(/descendant/iu);
   expect(
-    harnessTitles.filter((title) =>
-      selector.test(`PR-review command harness ${title}`),
-    ),
+    harnessRegistrations.filter(({ fullTitle }) => selector.test(fullTitle)),
   ).toHaveLength(18);
 
   const leaseTemplate =
