@@ -9,7 +9,11 @@ import {
   encodeProtocolMessage,
   frameProtocolMessage,
 } from "./pr-review-process-protocol.js";
-import type { ProtocolDecodeResult } from "./pr-review-process-protocol.js";
+import type {
+  ProcessProtocolError,
+  ProcessProtocolMessage,
+  ProtocolDecodeResult,
+} from "./pr-review-process-protocol.js";
 
 type FatalProtocolDecodeResult = Extract<
   ProtocolDecodeResult,
@@ -56,6 +60,44 @@ function join(...values: Uint8Array[]): Uint8Array {
   return result;
 }
 
+function frameRawPayload(payload: Uint8Array): Uint8Array {
+  const framed = new Uint8Array(payload.length + 4);
+  new DataView(framed.buffer).setUint32(0, payload.length, false);
+  framed.set(payload, 4);
+  return framed;
+}
+
+function exactLimitPayload(message: unknown): Uint8Array {
+  const prefix = new TextDecoder().decode(rawMessage(message));
+  return encoder.encode(
+    `${prefix}${" ".repeat(MAX_PROTOCOL_MESSAGE_BYTES - encoder.encode(prefix).length)}`,
+  );
+}
+
+function decodePartitions(
+  framed: Uint8Array,
+  ends: readonly number[],
+): {
+  messages: ProcessProtocolMessage[];
+  error: ProcessProtocolError | undefined;
+} {
+  const decoder = new ProtocolDecoder();
+  const messages: ProcessProtocolMessage[] = [];
+  let error: ProcessProtocolError | undefined;
+  let start = 0;
+  for (const end of [...ends, framed.length]) {
+    if (end === start) continue;
+    const result = decoder.push(framed.subarray(start, end));
+    messages.push(...result.messages);
+    if (result.status === "fatal") {
+      error = result.error;
+      break;
+    }
+    start = end;
+  }
+  return { messages, error };
+}
+
 describe("pr-review process protocol", () => {
   test("round trips each checked-in closed V1 message through raw-byte framing", async () => {
     const vectors = await readVectors();
@@ -90,12 +132,7 @@ describe("pr-review process protocol", () => {
 
   test("enforces the exact byte boundary before copying sender payload bytes", async () => {
     const vectors = await readVectors();
-    const prefix = new TextDecoder().decode(
-      rawMessage(vectors.raw.exactLimitMessage),
-    );
-    const exact = encoder.encode(
-      `${prefix}${" ".repeat(MAX_PROTOCOL_MESSAGE_BYTES - encoder.encode(prefix).length)}`,
-    );
+    const exact = exactLimitPayload(vectors.raw.exactLimitMessage);
     const oversized = new Uint8Array(MAX_PROTOCOL_MESSAGE_BYTES + 1);
 
     expect(exact).toHaveLength(MAX_PROTOCOL_MESSAGE_BYTES);
@@ -141,6 +178,19 @@ describe("pr-review process protocol", () => {
         messages: [],
       });
     }
+
+    const forgedOversized = new ForgedBytes(MAX_PROTOCOL_MESSAGE_BYTES + 1);
+    for (const admit of [
+      () => encodeProtocolMessage(forgedOversized),
+      () => frameProtocolMessage(forgedOversized),
+      () => decodeProtocolMessage(forgedOversized),
+    ]) {
+      expect(admit).toThrow(/65,536|protocol/i);
+    }
+    expect(new ProtocolDecoder().push(forgedOversized)).toMatchObject({
+      status: "fatal",
+      messages: [],
+    });
   });
 
   test("is invariant to coalescing and commits an accepted prefix exactly once", async () => {
@@ -182,6 +232,40 @@ describe("pr-review process protocol", () => {
     expect((later as FatalProtocolDecodeResult).error).toBe(
       (togetherResult as FatalProtocolDecodeResult).error,
     );
+  });
+
+  test("keeps exact-limit and malformed-suffix outcomes invariant across frame partitions", () => {
+    const done = { type: "done", version: 1 };
+    const exact = frameProtocolMessage(exactLimitPayload(done));
+    const following = frameProtocolMessage(rawMessage(done));
+    const joinedExact = join(exact, following);
+    for (const ends of [
+      [],
+      [2, 4],
+      [4, exact.length - 1, exact.length],
+      [exact.length + 2],
+    ]) {
+      expect(decodePartitions(joinedExact, ends)).toEqual({
+        messages: [done, done],
+        error: undefined,
+      });
+    }
+
+    const malformed = frameRawPayload(encoder.encode("{"));
+    const joinedMalformed = join(following, malformed);
+    let expectedError: string | undefined;
+    for (const ends of [
+      [],
+      [2, 4],
+      [following.length - 1, following.length],
+      [following.length + 2, joinedMalformed.length - 1],
+    ]) {
+      const result = decodePartitions(joinedMalformed, ends);
+      expect(result.messages).toEqual([done]);
+      expect(result.error?.message).toMatch(/UTF-8 JSON|protocol/i);
+      expectedError ??= result.error?.message;
+      expect(result.error?.message).toBe(expectedError);
+    }
   });
 
   test("fails closed at EOF and checks terminal state before inspecting later input", async () => {

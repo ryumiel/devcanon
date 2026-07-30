@@ -151,6 +151,16 @@ async function assertDirectoryWalk(
  * uses Windows-equivalent case comparison. It is never physical authority.
  */
 export function parseWindowsPresentation(value: string): WindowsPresentation {
+  if (
+    typeof value !== "string" ||
+    value.length === 0 ||
+    value.includes("\0") ||
+    Buffer.byteLength(value, "utf8") > MAX_PATH_BYTES
+  ) {
+    throw new RootIdentityError(
+      "Windows presentation must be a bounded NUL-free string",
+    );
+  }
   const original = value;
   let presentation = value;
   if (presentation.startsWith("\\\\?\\")) {
@@ -166,7 +176,7 @@ export function parseWindowsPresentation(value: string): WindowsPresentation {
       presentation = extended;
     }
   }
-  if (presentation.startsWith("\\\\.\\")) {
+  if (/^[\\/]{2}[?.][\\/]/.test(presentation)) {
     throw new RootIdentityError("Windows path has an unsupported namespace");
   }
 
@@ -179,7 +189,9 @@ export function parseWindowsPresentation(value: string): WindowsPresentation {
     };
   }
 
-  const unc = /^\\\\([^\\/]+)[\\/]([^\\/]+)(?:[\\/](.*))?$/.exec(presentation);
+  const unc = /^[\\/]{2}([^\\/]+)[\\/]([^\\/]+)(?:[\\/](.*))?$/.exec(
+    presentation,
+  );
   if (unc) {
     return {
       original,

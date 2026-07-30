@@ -1,5 +1,6 @@
 import {
   chmod,
+  copyFile,
   mkdir,
   mkdtemp,
   realpath,
@@ -77,21 +78,32 @@ describe("pr-review root identity", () => {
     const child = path.join(root, "child");
     const link = path.join(root, "link");
     await Promise.all([mkdir(child, { recursive: true }), mkdir(outside)]);
-    await symlink(child, link, "dir");
+    const linkKind = process.platform === "win32" ? "junction" : "dir";
+    await symlink(child, link, linkKind);
 
     try {
       const enrolledRoot = await enrollPathIdentity(root, "directory");
-      const inside = `${link}${path.sep}..${path.sep}child`;
-      await expect(
-        enrollWorkingDirectory(enrolledRoot, inside),
-      ).rejects.toThrow(/symbolic|link|component/i);
+      const spellings =
+        process.platform === "win32"
+          ? [
+              `${link}\\..\\child`,
+              `${link.replaceAll("\\", "/")}/../child`,
+              `${link.replaceAll("\\", "/")}\\..\\child`,
+            ]
+          : [`${link}${path.sep}..${path.sep}child`];
+      for (const inside of spellings) {
+        await expect(
+          enrollWorkingDirectory(enrolledRoot, inside),
+        ).rejects.toThrow(/symbolic|link|component/i);
+      }
 
       await rm(link);
-      await symlink(outside, link, "dir");
-      const outsideSpelling = `${link}${path.sep}..${path.sep}child`;
-      await expect(
-        enrollWorkingDirectory(enrolledRoot, outsideSpelling),
-      ).rejects.toThrow(/symbolic|link|component/i);
+      await symlink(outside, link, linkKind);
+      for (const outsideSpelling of spellings) {
+        await expect(
+          enrollWorkingDirectory(enrolledRoot, outsideSpelling),
+        ).rejects.toThrow(/symbolic|link|component/i);
+      }
     } finally {
       await rm(parent, { recursive: true, force: true });
     }
@@ -102,6 +114,8 @@ describe("pr-review root identity", () => {
     const driveAlias = parseWindowsPresentation("\\\\?\\c:/Root/Child");
     const unc = parseWindowsPresentation("\\\\Server\\Share\\Root");
     const uncAlias = parseWindowsPresentation("\\\\?\\UNC\\server/share/Root");
+    const forwardUnc = parseWindowsPresentation("//server/share/Root");
+    const mixedUnc = parseWindowsPresentation("/\\server/share/Root");
     const componentCase = parseWindowsPresentation("c:\\root\\Child");
 
     expect(drive.original).toBe("C:\\Root\\Child");
@@ -111,6 +125,8 @@ describe("pr-review root identity", () => {
     expect(unc.volumeKey).toBe(uncAlias.volumeKey);
     expect(unc.components).toEqual(["Root"]);
     expect(uncAlias.components).toEqual(["Root"]);
+    expect(forwardUnc.volumeKey).toBe(unc.volumeKey);
+    expect(mixedUnc.volumeKey).toBe(unc.volumeKey);
     expect(componentCase.components).not.toEqual(drive.components);
 
     for (const value of [
@@ -118,18 +134,41 @@ describe("pr-review root identity", () => {
       "\\\\?\\GLOBALROOT\\Device\\HarddiskVolume1",
       "\\\\?\\Volume{01234567-89ab-cdef-0123-456789abcdef}\\Root",
       "\\\\?\\Device\\NamedPipe\\x",
+      "//?/C:/Root",
+      "//server/",
+      "///share/Root",
     ]) {
       expect(() => parseWindowsPresentation(value)).toThrow(
         /namespace|presentation/i,
       );
     }
+    for (const value of [
+      "",
+      "C:\\Root\0Child",
+      `C:\\${"x".repeat(8 * 1024)}`,
+      null,
+    ]) {
+      expect(() => parseWindowsPresentation(value as string)).toThrow(
+        /bounded|NUL-free/i,
+      );
+    }
   });
 
-  test("preserves all unique redaction variants for a logical alias", async () => {
-    const parent = await mkdtemp(path.join(os.tmpdir(), "devcanon-redaction-"));
+  test("preserves exact three-way redaction variants for a physical parent alias", async () => {
+    const container = await mkdtemp(
+      path.join(os.tmpdir(), "devcanon-redaction-"),
+    );
+    const parent = path.join(container, "physical-parent");
+    const aliasParent = path.join(container, "alias-parent");
     const root = path.join(parent, "root");
-    await mkdir(root);
-    const logical = `${root}${path.sep}.`;
+    await mkdir(root, { recursive: true });
+    await symlink(
+      parent,
+      aliasParent,
+      process.platform === "win32" ? "junction" : "dir",
+    );
+    const normalized = path.join(aliasParent, "root");
+    const logical = `${normalized}${path.sep}.`;
 
     try {
       const enrolled = await enrollPathIdentity(logical, "directory");
@@ -138,11 +177,14 @@ describe("pr-review root identity", () => {
         new TextDecoder().decode(value),
       );
 
-      expect(values).toContain(logical);
-      expect(values).toContain(root);
-      expect(new Set(values).size).toBe(values.length);
+      expect(enrolled.logical).toBe(logical);
+      expect(enrolled.normalized).toBe(normalized);
+      expect(enrolled.physical).toBe(await realpath(root));
+      expect(new Set(values)).toEqual(
+        new Set([logical, normalized, await realpath(root)]),
+      );
     } finally {
-      await rm(parent, { recursive: true, force: true });
+      await rm(container, { recursive: true, force: true });
     }
   });
 
@@ -152,19 +194,30 @@ describe("pr-review root identity", () => {
       const parent = await mkdtemp(
         path.join(os.tmpdir(), "devcanon-executable-"),
       );
+      const aliasParent = `${parent}-alias`;
       const executable = path.join(parent, "fixture-command");
-      const logical = `${parent}${path.sep}.${path.sep}fixture-command`;
+      await symlink(parent, aliasParent, "dir");
+      const normalized = path.join(aliasParent, "fixture-command");
+      const logical = `${aliasParent}${path.sep}.${path.sep}fixture-command`;
       await writeFile(executable, "#!/bin/sh\nexit 0\n");
 
       try {
         await chmod(executable, 0o755);
         const enrolled = await enrollExecutable(logical);
         expect(enrolled.identity.logical).toBe(logical);
+        expect(enrolled.identity.normalized).toBe(normalized);
+        expect(enrolled.identity.physical).toBe(await realpath(executable));
         expect(
           enrolled.redactionVariants.map((value) =>
             new TextDecoder().decode(value),
           ),
-        ).toContain(logical);
+        ).toEqual(
+          expect.arrayContaining([
+            logical,
+            normalized,
+            await realpath(executable),
+          ]),
+        );
         await chmod(executable, 0o644);
         await expect(enrollExecutable(executable)).rejects.toThrow(/execute/i);
       } finally {
@@ -179,7 +232,9 @@ describe("pr-review root identity", () => {
       const parent = await mkdtemp(
         path.join(os.tmpdir(), "devcanon-windows-executable-"),
       );
+      const comExecutable = path.join(parent, "fixture.com");
       const wrongExtension = path.join(parent, "fixture.cmd");
+      await copyFile(process.execPath, comExecutable);
       await writeFile(wrongExtension, "not an executable");
 
       try {
@@ -188,6 +243,9 @@ describe("pr-review root identity", () => {
             identity: { type: "file" },
           },
         );
+        await expect(enrollExecutable(comExecutable)).resolves.toMatchObject({
+          identity: { physical: await realpath(comExecutable), type: "file" },
+        });
         await expect(enrollExecutable(wrongExtension)).rejects.toThrow(
           /\.exe|\.com/i,
         );
