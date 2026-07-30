@@ -269,6 +269,67 @@ describe("PR-review command harness process ownership", () => {
     expect(harness.activeOperationCount).toBe(0);
   });
 
+  it("reports a failed Windows fallback before a non-closing child is released", async () => {
+    const harness = new PrReviewCommandHarness({
+      envKeys: [],
+      seed: "review",
+      commandDeadlineMs: 1_000,
+      terminationPlatform: "win32",
+      windowsTaskkillCommand: () => ({
+        command: process.execPath,
+        args: ["-e", "process.exit(7)"],
+      }),
+      directChildKill: () => undefined,
+    });
+    await harness.setup();
+    harness.beginTest();
+    const root = await harness.createScratchRoot();
+    const release = path.join(root, "release-child");
+    const childScript = [
+      'const { existsSync } = require("node:fs");',
+      `const release = ${JSON.stringify(release)};`,
+      "const timer = setInterval(() => {",
+      "  if (!existsSync(release)) return;",
+      "  clearInterval(timer);",
+      "  process.exit(0);",
+      "}, 10);",
+    ].join("\n");
+
+    try {
+      const failure = await boundedFailure(
+        harness.run(process.execPath, ["-e", childScript], {
+          deadlineMs: 100,
+        }),
+        1_000,
+      );
+
+      expect(failure).toBeInstanceOf(AggregateError);
+      const errors =
+        failure instanceof AggregateError ? failure.errors : [failure];
+      expect(errors).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ message: "taskkill exited 7" }),
+          expect.objectContaining({
+            message:
+              "direct child did not close within 250ms after taskkill failure",
+          }),
+        ]),
+      );
+      expect(harness.activeChildCount).toBe(1);
+    } finally {
+      await writeFile(release, "release\n");
+      await waitFor(() => harness.activeChildCount === 0);
+      try {
+        await harness.endTest();
+      } finally {
+        await harness.dispose();
+      }
+    }
+
+    expect(harness.activeChildCount).toBe(0);
+    expect(harness.activeOperationCount).toBe(0);
+  });
+
   it("terminates a platform descendant before it can outlive the command root", async () => {
     const harness = new PrReviewCommandHarness({
       envKeys: [],
@@ -402,4 +463,40 @@ describe("PR-review command harness process ownership", () => {
 
 async function delay(milliseconds: number): Promise<void> {
   await new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
+}
+
+async function boundedFailure(
+  operation: Promise<unknown>,
+  deadlineMs: number,
+): Promise<unknown> {
+  let timer: NodeJS.Timeout | null = null;
+  try {
+    return await Promise.race([
+      operation.then(
+        () => new Error("operation unexpectedly resolved"),
+        (error) => error,
+      ),
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(
+          () => reject(new Error(`operation exceeded ${deadlineMs}ms`)),
+          deadlineMs,
+        );
+      }),
+    ]);
+  } finally {
+    if (timer !== null) clearTimeout(timer);
+  }
+}
+
+async function waitFor(
+  condition: () => boolean,
+  deadlineMs = 1_000,
+): Promise<void> {
+  const start = Date.now();
+  while (!condition()) {
+    if (Date.now() - start >= deadlineMs) {
+      throw new Error(`condition not met within ${deadlineMs}ms`);
+    }
+    await delay(10);
+  }
 }

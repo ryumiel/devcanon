@@ -64,6 +64,7 @@ interface HarnessOptions {
   commandDeadlineMs?: number;
   terminationPlatform?: NodeJS.Platform;
   windowsTaskkillCommand?: (pid: number) => CommandInvocation;
+  directChildKill?: (child: ChildProcess) => void;
 }
 
 interface CommandInvocation {
@@ -142,6 +143,7 @@ export class PrReviewCommandHarness {
   private readonly commandDeadlineMs: number;
   private readonly terminationPlatform: NodeJS.Platform;
   private readonly windowsTaskkillCommand: (pid: number) => CommandInvocation;
+  private readonly directChildKill: (child: ChildProcess) => void;
   private readonly observedErrors: unknown[] = [];
   private root: string | null = null;
   private snapshot: GlobalStateSnapshot | null = null;
@@ -155,6 +157,11 @@ export class PrReviewCommandHarness {
     this.terminationPlatform = options.terminationPlatform ?? process.platform;
     this.windowsTaskkillCommand =
       options.windowsTaskkillCommand ?? defaultWindowsTaskkillCommand;
+    this.directChildKill =
+      options.directChildKill ??
+      ((child) => {
+        child.kill();
+      });
     if (
       this.commandDeadlineMs <= 0 ||
       this.commandDeadlineMs >= DEFAULT_COMMAND_DEADLINE_MS + 1_000
@@ -266,6 +273,24 @@ export class PrReviewCommandHarness {
       let spawnError: Error | null = null;
       let terminalError: Error | null = null;
       let termination: Promise<void> | null = null;
+      let operationSettled = false;
+      const rejectOperation = (error: unknown): void => {
+        if (operationSettled) return;
+        operationSettled = true;
+        reject(error);
+      };
+      const resolveOperation = (result: HarnessCommandResult): void => {
+        if (operationSettled) return;
+        operationSettled = true;
+        resolve(result);
+      };
+      const startTermination = (): Promise<void> => {
+        if (termination === null) {
+          termination = this.terminateTree(child);
+          void termination.catch(rejectOperation);
+        }
+        return termination;
+      };
 
       const append = (stream: "stdout" | "stderr", chunk: Buffer): void => {
         if (terminalError !== null) return;
@@ -275,7 +300,7 @@ export class PrReviewCommandHarness {
           terminalError = new Error(
             `${command} ${stream} exceeded ${outputLimitBytes} bytes`,
           );
-          termination ??= this.terminateTree(child);
+          startTermination();
           return;
         }
         if (stream === "stdout") {
@@ -299,7 +324,7 @@ export class PrReviewCommandHarness {
         terminalError = new Error(
           `${command} exceeded the ${deadlineMs}ms child deadline`,
         );
-        termination ??= this.terminateTree(child);
+        startTermination();
       }, deadlineMs);
 
       child.once("close", async (code, signal) => {
@@ -308,11 +333,11 @@ export class PrReviewCommandHarness {
         try {
           await termination;
           if (spawnError !== null) {
-            reject(spawnError);
+            rejectOperation(spawnError);
             return;
           }
           if (terminalError !== null) {
-            reject(terminalError);
+            rejectOperation(terminalError);
             return;
           }
           const exitCode = code ?? 1;
@@ -323,12 +348,12 @@ export class PrReviewCommandHarness {
             stderr: stderr.toString("utf8"),
           };
           if (!acceptedExitCodes.includes(exitCode)) {
-            reject(commandFailure(command, args, result));
+            rejectOperation(commandFailure(command, args, result));
             return;
           }
-          resolve(result);
+          resolveOperation(result);
         } catch (error) {
-          reject(error);
+          rejectOperation(error);
         }
       });
     });
@@ -735,7 +760,7 @@ export class PrReviewCommandHarness {
         );
       }, DIRECT_CHILD_CLOSE_DEADLINE_MS);
       child.once("close", onClose);
-      child.kill();
+      this.directChildKill(child);
     });
   }
 
