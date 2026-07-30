@@ -178,7 +178,7 @@ function runPlayReviewSharedContextCommand(
   );
 }
 
-it("selects the exact issue-569 Windows PR-review lane", async () => {
+it("selects the exact issue-578 Windows PR-review lane", async () => {
   const repositoryRoot = path.resolve(
     path.dirname(fileURLToPath(import.meta.url)),
     "../..",
@@ -186,6 +186,7 @@ it("selects the exact issue-569 Windows PR-review lane", async () => {
   const [
     packageSource,
     harnessSource,
+    lifecycleSource,
     leaseSource,
     manifestSource,
     rootIdentitySource,
@@ -196,6 +197,13 @@ it("selects the exact issue-569 Windows PR-review lane", async () => {
       path.join(
         repositoryRoot,
         "src/__test-helpers__/pr-review-command-harness.test.ts",
+      ),
+      "utf8",
+    ),
+    readFile(
+      path.join(
+        repositoryRoot,
+        "src/__test-helpers__/pr-review-process-lifecycle.test.ts",
       ),
       "utf8",
     ),
@@ -227,6 +235,7 @@ it("selects the exact issue-569 Windows PR-review lane", async () => {
     "src/__test-helpers__/pr-review-command-harness.test.ts",
     "src/__test-helpers__/pr-review-process-protocol.test.ts",
     "src/__test-helpers__/pr-review-root-identity.test.ts",
+    "src/__test-helpers__/pr-review-process-lifecycle.test.ts",
     "src/runtime/pr-review-leases.test.ts",
     "src/runtime/pr-review-manifests.test.ts",
     "src/runtime/source-immutability.test.ts",
@@ -602,6 +611,24 @@ it("selects the exact issue-569 Windows PR-review lane", async () => {
   expect(
     harnessRegistrations.filter(({ fullTitle }) => selector.test(fullTitle)),
   ).toHaveLength(18);
+  const lifecycleRegistrations = strictHarnessRegistrations(
+    lifecycleSource,
+    "pr-review-process-lifecycle.test.ts",
+  );
+  const lifecycleTitles = lifecycleRegistrations.map(({ title }) => title);
+  expect(lifecycleTitles).toEqual([
+    "observes a normal root-process exit",
+    "records cooperative cancellation acknowledgement",
+    "attempts root termination after the shared deadline phase",
+    "reports an incomplete root observation without claiming descendant absence",
+    "caps and redacts incremental output overflow evidence",
+    "restores harness-owned global state",
+    "removes a safe helper-created generated root after root close",
+    "preserves a changed, aliased, or unsafe generated root",
+  ]);
+  expect(
+    lifecycleRegistrations.filter(({ fullTitle }) => selector.test(fullTitle)),
+  ).toHaveLength(8);
 
   const leaseTemplate =
     /it\(`rejects stale or mismatched gated result evidence: \$\{testCase\.name\}`/gu;
@@ -683,7 +710,7 @@ it("selects the exact issue-569 Windows PR-review lane", async () => {
   ).toHaveLength(1);
 
   const contractTitle = [
-    "selects the exact issue-569 Windows PR-review",
+    "selects the exact issue-578 Windows PR-review",
     "lane",
   ].join(" ");
   const leaseLiteralTitles = literalTestTitles(
@@ -719,6 +746,7 @@ it("selects the exact issue-569 Windows PR-review lane", async () => {
 
   for (const [fileName, source, selectedMarkers] of [
     ["pr-review-command-harness.test.ts", harnessSource, []],
+    ["pr-review-process-lifecycle.test.ts", lifecycleSource, []],
     [
       "pr-review-leases.test.ts",
       leaseSource,
@@ -802,40 +830,45 @@ it("selects the exact issue-569 Windows PR-review lane", async () => {
       name: `pr-review root identity > ${title}`,
       projectName: "unit",
     })),
-    {
+    ...lifecycleRegistrations.map(({ fullTitle }) => ({
       file: laneFiles[3],
+      name: fullTitle,
+      projectName: "unit",
+    })),
+    {
+      file: laneFiles[4],
       name: contractTitle,
       projectName: "unit",
     },
     {
-      file: laneFiles[3],
+      file: laneFiles[4],
       name: "pr-review lease read-status > rejects stale or mismatched gated result evidence: stale-timestamp",
       projectName: "unit",
     },
     {
-      file: laneFiles[3],
+      file: laneFiles[4],
       name: "pr-review lease read-status > rejects stale or mismatched gated result evidence: presentation-mismatch",
       projectName: "unit",
     },
     {
-      file: laneFiles[4],
+      file: laneFiles[5],
       name: `pr-review Phase 5 audit summary renderer > ${manifestTitle}`,
       projectName: "unit",
     },
     {
-      file: laneFiles[5],
+      file: laneFiles[6],
       name: "source-immutability runtime > rejects noncanonical retained fingerprint path ../outside before verify or cleanup deletion",
       projectName: "unit",
     },
     {
-      file: laneFiles[5],
+      file: laneFiles[6],
       name: "source-immutability runtime > rejects noncanonical retained fingerprint path /absolute before verify or cleanup deletion",
       projectName: "unit",
     },
   ].sort((left, right) =>
     `${left.file}\0${left.name}`.localeCompare(`${right.file}\0${right.name}`),
   );
-  expect(collectedInventory).toHaveLength(37);
+  expect(collectedInventory).toHaveLength(45);
   expect(collectedInventory).toEqual(expectedCollectedInventory);
 });
 
