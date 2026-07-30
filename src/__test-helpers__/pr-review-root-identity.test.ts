@@ -194,14 +194,14 @@ describe("pr-review root identity", () => {
       const parent = await mkdtemp(
         path.join(os.tmpdir(), "devcanon-executable-"),
       );
-      const aliasParent = `${parent}-alias`;
+      const aliasParent = path.join(parent, "alias-parent");
       const executable = path.join(parent, "fixture-command");
-      await symlink(parent, aliasParent, "dir");
       const normalized = path.join(aliasParent, "fixture-command");
       const logical = `${aliasParent}${path.sep}.${path.sep}fixture-command`;
-      await writeFile(executable, "#!/bin/sh\nexit 0\n");
 
       try {
+        await symlink(parent, aliasParent, "dir");
+        await writeFile(executable, "#!/bin/sh\nexit 0\n");
         await chmod(executable, 0o755);
         const enrolled = await enrollExecutable(logical);
         expect(enrolled.identity.logical).toBe(logical);
