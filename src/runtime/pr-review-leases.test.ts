@@ -12,6 +12,7 @@ import {
 } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import ts from "typescript";
 import {
   afterAll,
   afterEach,
@@ -228,6 +229,76 @@ it("selects the exact issue-569 Windows PR-review lane", async () => {
   ).exec(command ?? "");
   expect(selectorRecord).not.toBeNull();
   const selector = new RegExp(selectorRecord?.[1] ?? "(?!)", "u");
+  const literalTestTitles = (
+    source: string,
+    fileName: string,
+    strictRegistrations = false,
+  ): string[] => {
+    const sourceFile = ts.createSourceFile(
+      fileName,
+      source,
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.TS,
+    );
+    const registrars = new Set<string>();
+    const unsupported: string[] = [];
+    for (const statement of sourceFile.statements) {
+      if (
+        !ts.isImportDeclaration(statement) ||
+        !ts.isStringLiteral(statement.moduleSpecifier) ||
+        statement.moduleSpecifier.text !== "vitest"
+      ) {
+        continue;
+      }
+      const bindings = statement.importClause?.namedBindings;
+      if (bindings === undefined) continue;
+      if (!ts.isNamedImports(bindings)) {
+        unsupported.push(bindings.getText(sourceFile));
+        continue;
+      }
+      for (const element of bindings.elements) {
+        const imported = element.propertyName?.text ?? element.name.text;
+        if (imported === "it" || imported === "test") {
+          registrars.add(element.name.text);
+        }
+      }
+    }
+    const titles: string[] = [];
+    const visit = (node: ts.Node): void => {
+      if (
+        ts.isIdentifier(node) &&
+        registrars.has(node.text) &&
+        !(
+          ts.isImportSpecifier(node.parent) &&
+          (node.parent.name === node || node.parent.propertyName === node)
+        ) &&
+        !(ts.isCallExpression(node.parent) && node.parent.expression === node)
+      ) {
+        unsupported.push(node.parent.getText(sourceFile));
+      }
+      if (
+        ts.isCallExpression(node) &&
+        ts.isIdentifier(node.expression) &&
+        registrars.has(node.expression.text)
+      ) {
+        const title = node.arguments[0];
+        if (
+          title !== undefined &&
+          (ts.isStringLiteral(title) ||
+            ts.isNoSubstitutionTemplateLiteral(title))
+        ) {
+          titles.push(title.text);
+        } else if (strictRegistrations) {
+          unsupported.push(node.getText(sourceFile));
+        }
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(sourceFile);
+    if (strictRegistrations) expect(unsupported).toEqual([]);
+    return titles;
+  };
 
   const expectedHarnessTitles = [
     "copies immutable history into independent short registered worktrees",
@@ -249,15 +320,12 @@ it("selects the exact issue-569 Windows PR-review lane", async () => {
     "terminates an over-deadline child and drains it through close",
     "terminates a child whose output exceeds the bounded buffer",
   ];
-  const harnessTitles = [...harnessSource.matchAll(/^\s*it\("([^"]+)"/gmu)].map(
-    (match) => match[1],
+  const harnessTitles = literalTestTitles(
+    harnessSource,
+    "pr-review-command-harness.test.ts",
+    true,
   );
   expect(harnessTitles).toEqual(expectedHarnessTitles);
-  expect(
-    /^\s*(?:it|test|describe)\.(?:only|runIf|skip|skipIf|todo)\b/mu.test(
-      harnessSource,
-    ),
-  ).toBe(false);
   expect(harnessSource).not.toMatch(/descendant/iu);
   expect(
     harnessTitles.filter((title) =>
@@ -336,9 +404,10 @@ it("selects the exact issue-569 Windows PR-review lane", async () => {
 
   const manifestTitle =
     "requires explicit provider evidence input for adapter scope validation";
-  const manifestTitles = [
-    ...manifestSource.matchAll(/^\s*it\("([^"]+)"/gmu),
-  ].map((match) => match[1]);
+  const manifestTitles = literalTestTitles(
+    manifestSource,
+    "pr-review-manifests.test.ts",
+  );
   expect(
     manifestTitles.filter((title) => title === manifestTitle),
   ).toHaveLength(1);
@@ -347,24 +416,24 @@ it("selects the exact issue-569 Windows PR-review lane", async () => {
     "selects the exact issue-569 Windows PR-review",
     "lane",
   ].join(" ");
-  const leaseLiteralTitles = [
-    ...leaseSource.matchAll(/^\s*it\("([^"]+)"/gmu),
-  ].map((match) => match[1]);
+  const leaseLiteralTitles = literalTestTitles(
+    leaseSource,
+    "pr-review-leases.test.ts",
+  );
   expect(
     leaseLiteralTitles.filter((title) => title === contractTitle),
   ).toHaveLength(1);
   expect(selector.test(contractTitle)).toBe(true);
 
   const runtimeInventory = [
-    ...new Set([
-      ...leaseLiteralTitles,
-      ...renderedLeaseTitles,
-      ...manifestTitles,
-      ...[...sourceImmutabilitySource.matchAll(/^\s*it\("([^"]+)"/gmu)].map(
-        (match) => match[1],
-      ),
-      ...renderedRetainedTitles,
-    ]),
+    ...leaseLiteralTitles,
+    ...renderedLeaseTitles,
+    ...manifestTitles,
+    ...literalTestTitles(
+      sourceImmutabilitySource,
+      "source-immutability.test.ts",
+    ),
+    ...renderedRetainedTitles,
   ];
   const selectedRuntimeTitles = runtimeInventory.filter((title) =>
     selector.test(`runtime suite ${title}`),
