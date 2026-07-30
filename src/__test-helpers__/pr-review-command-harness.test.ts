@@ -320,6 +320,53 @@ describe("PR-review command harness process ownership", () => {
     expect(harness.activeOperationCount).toBe(0);
   });
 
+  it("preserves output overflow when delayed Windows cleanup crosses the deadline", async () => {
+    const harness = new PrReviewCommandHarness({
+      envKeys: [],
+      seed: "review",
+      commandDeadlineMs: 2_000,
+      terminationPlatform: "win32",
+      windowsTaskkillCommand: () => ({
+        command: process.execPath,
+        args: [
+          "-e",
+          'setTimeout(() => process.stderr.write("delayed process not found", () => process.exit(128)), 750)',
+        ],
+      }),
+    });
+    harness.beginTest();
+
+    const failure = await boundedFailure(
+      harness.run(
+        process.execPath,
+        [
+          "-e",
+          "process.stdout.write('x'.repeat(4096)); setInterval(() => {}, 1000)",
+        ],
+        { deadlineMs: 500, outputLimitBytes: 64 },
+      ),
+      3_000,
+    );
+
+    expect(failure).toBeInstanceOf(AggregateError);
+    expect(failure).toMatchObject({
+      message: `${process.execPath} stdout exceeded 64 bytes`,
+    });
+    const messages = flattenedErrorMessages(failure);
+    expect(messages).toEqual(
+      expect.arrayContaining([
+        `${process.execPath} stdout exceeded 64 bytes`,
+        "taskkill exited 128: delayed process not found",
+      ]),
+    );
+    expect(messages.some((message) => message.includes("child deadline"))).toBe(
+      false,
+    );
+    expect(harness.activeChildCount).toBe(0);
+    await harness.endTest();
+    expect(harness.activeOperationCount).toBe(0);
+  });
+
   it("reports a failed Windows fallback before a non-closing child is released", async () => {
     const harness = new PrReviewCommandHarness({
       envKeys: [],

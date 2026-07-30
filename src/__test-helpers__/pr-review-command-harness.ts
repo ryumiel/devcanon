@@ -334,7 +334,7 @@ export class PrReviewCommandHarness {
       child.stdin.end(options.input);
 
       const timer = setTimeout(() => {
-        terminalError = new Error(
+        terminalError ??= new Error(
           `${command} exceeded the ${deadlineMs}ms child deadline`,
         );
         startTermination();
