@@ -1390,7 +1390,74 @@ describe("pr-review lease command validation", () => {
     }
   });
 
-  it("allows only helper-recorded removed terminal leases to reenter through LC-18", async () => {
+  it("allows a canonical helper-recorded removed terminal lease to reenter through LC-18", async () => {
+    const workspace = await makeRegisteredWorkspace("pr-review-discovery-");
+    try {
+      const canonicalWorktree = path.join(
+        workspace.physicalPrimary,
+        ".worktrees",
+        "pr-432-review",
+      );
+      await mkdir(path.dirname(canonicalWorktree), { recursive: true });
+      await execFileAsync("git", [
+        "-C",
+        workspace.physicalPrimary,
+        "worktree",
+        "move",
+        workspace.physicalWorktree,
+        canonicalWorktree,
+      ]);
+      const physicalCanonicalWorktree = await realpath(canonicalWorktree);
+      process.chdir(workspace.physicalPrimary);
+      setLeaseCommandEnv(workspace.physicalPrimary, physicalCanonicalWorktree);
+      const pathResult = await runPrReviewLeasesCommand(["derive-path"]);
+      expect(pathResult.exitCode, pathResult.stderr).toBe(0);
+      const leaseFile = pathResult.stdout.trim();
+      const dynamic = identityFromLeaseFile(
+        leaseFile,
+        physicalCanonicalWorktree,
+      );
+      const terminal = abortedCommandLease(
+        leaseFile,
+        physicalCanonicalWorktree,
+        dynamic.worktreeDigest,
+      );
+      terminal.cleanup = {
+        last_outcome: "skipped",
+        last_checked_at: "2026-07-30T00:01:00Z",
+        removed_at: "2026-07-30T00:01:00Z",
+      };
+      await writeFile(
+        path.join(workspace.physicalPrimary, leaseFile),
+        `${JSON.stringify(terminal)}\n`,
+      );
+      await execFileAsync("git", [
+        "-C",
+        workspace.physicalPrimary,
+        "worktree",
+        "remove",
+        "-f",
+        physicalCanonicalWorktree,
+      ]);
+      expect(await discoverPrReviewSession()).toMatchObject({
+        disposition: "create",
+        active: [
+          {
+            lease_file: leaseFile,
+            worktree_path: physicalCanonicalWorktree,
+            state: "aborted",
+            classification: "reentry",
+          },
+        ],
+        resume: null,
+      });
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("blocks a noncanonical helper-recorded removed terminal lease", async () => {
     const workspace = await makeRegisteredWorkspace("pr-review-discovery-");
     try {
       process.chdir(workspace.physicalPrimary);
@@ -1425,7 +1492,15 @@ describe("pr-review lease command validation", () => {
         workspace.physicalWorktree,
       ]);
       expect(await discoverPrReviewSession()).toMatchObject({
-        disposition: "create",
+        disposition: "cleanup-required",
+        active: [
+          {
+            lease_file: leaseFile,
+            worktree_path: workspace.physicalWorktree,
+            state: "aborted",
+            classification: "missing",
+          },
+        ],
         resume: null,
       });
     } finally {

@@ -124,9 +124,10 @@ async function inspectDiscoveryCandidate(identity, leaseFileName, registrations)
             worktreePath = await realpath(lease.worktree_path);
         }
         catch {
-            if (["posted", "aborted"].includes(lease.state) &&
-                lease.cleanup?.last_outcome === "removed" &&
-                lease.cleanup.removed_at !== null) {
+            const canonicalWorktreePath = path.join(identity.primaryRoot, ".worktrees", `pr-${identity.prNumber}-review`);
+            if (hasPostCleanupArchiveAuthority(lease) &&
+                normalizeComparablePath(lease.worktree_path) ===
+                    normalizeComparablePath(canonicalWorktreePath)) {
                 return {
                     lease_file: leaseFile,
                     worktree_path: lease.worktree_path,

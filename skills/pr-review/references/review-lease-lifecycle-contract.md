@@ -226,12 +226,14 @@ archive, then moves it to:
 ```
 
 For a `posted` or `aborted` lease whose cleanup helper has recorded a closed
-`cleanup` observation with a valid non-null `removed_at` timestamp, LC-18 may
-archive after recreating the canonical worktree path without revalidating
-historical artifacts in that new checkout. The helper writes `removed_at` only
-after `git worktree remove` succeeds; a legacy `last_outcome: "removed"`
-observation without that marker remains subject to strict historical-artifact
-validation. That observation is narrowly scoped archive authority; it does not
+`cleanup` observation with a valid non-null `removed_at` timestamp and whose
+recorded physical worktree path is the canonical path, LC-18 may archive after
+recreating that path without revalidating historical artifacts in the new
+checkout. The helper writes `removed_at` only after `git worktree remove`
+succeeds; a legacy `last_outcome: "removed"` observation without that marker
+remains subject to strict historical-artifact validation. Later cleanup retries
+may change `last_outcome` while `removed_at` remains the archive-authority
+marker. That observation is narrowly scoped archive authority; it does not
 refresh or create artifact authority. In every other case, LC-18 keeps strict
 historical artifact validation before archive. A fresh `created` lease carries
 none of the terminal lease's artifact, validation, presentation, terminal,
