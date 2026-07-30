@@ -284,10 +284,23 @@ export class PrReviewCommandHarness {
         operationSettled = true;
         resolve(result);
       };
+      const rejectTermination = (terminationError: unknown): void => {
+        const primaryError = terminalError ?? spawnError;
+        if (primaryError === null) {
+          rejectOperation(terminationError);
+          return;
+        }
+        rejectOperation(
+          new AggregateError(
+            [primaryError, terminationError],
+            primaryError.message,
+          ),
+        );
+      };
       const startTermination = (): Promise<void> => {
         if (termination === null) {
           termination = this.terminateTree(child);
-          void termination.catch(rejectOperation);
+          void termination.catch(rejectTermination);
         }
         return termination;
       };

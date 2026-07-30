@@ -237,7 +237,7 @@ describe("PR-review command harness process ownership", () => {
     const harness = new PrReviewCommandHarness({
       envKeys: [],
       seed: "review",
-      commandDeadlineMs: 250,
+      commandDeadlineMs: 1_000,
       terminationPlatform: "win32",
       windowsTaskkillCommand: () => ({
         command: process.execPath,
@@ -249,21 +249,72 @@ describe("PR-review command harness process ownership", () => {
     });
     harness.beginTest();
 
-    let failure: unknown;
-    try {
-      await harness.run(
-        process.execPath,
-        ["-e", "setInterval(() => {}, 1000)"],
-        { deadlineMs: 50 },
-      );
-    } catch (error) {
-      failure = error;
-    }
+    const failure = await boundedFailure(
+      harness.run(process.execPath, ["-e", "setInterval(() => {}, 1000)"], {
+        deadlineMs: 100,
+      }),
+      2_000,
+    );
 
-    expect(failure).toBeInstanceOf(Error);
-    const message = failure instanceof Error ? failure.message : "";
-    expect(message).toContain("taskkill exited 7: denied");
-    expect(Buffer.byteLength(message, "utf8")).toBeLessThanOrEqual(16_450);
+    expect(failure).toBeInstanceOf(AggregateError);
+    expect(failure).toMatchObject({
+      message: expect.stringContaining("exceeded the 100ms child deadline"),
+    });
+    const messages = flattenedErrorMessages(failure);
+    expect(messages).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("exceeded the 100ms child deadline"),
+        expect.stringContaining("taskkill exited 7: denied"),
+      ]),
+    );
+    const taskkillDiagnostic =
+      messages.find((message) => message.startsWith("taskkill exited 7")) ?? "";
+    expect(Buffer.byteLength(taskkillDiagnostic, "utf8")).toBeLessThanOrEqual(
+      16_450,
+    );
+    expect(harness.activeChildCount).toBe(0);
+    await harness.endTest();
+    expect(harness.activeOperationCount).toBe(0);
+  });
+
+  it("preserves output overflow when simulated Windows cleanup also fails", async () => {
+    const harness = new PrReviewCommandHarness({
+      envKeys: [],
+      seed: "review",
+      commandDeadlineMs: 1_000,
+      terminationPlatform: "win32",
+      windowsTaskkillCommand: () => ({
+        command: process.execPath,
+        args: [
+          "-e",
+          'process.stderr.write("process not found", () => process.exit(128))',
+        ],
+      }),
+    });
+    harness.beginTest();
+
+    const failure = await boundedFailure(
+      harness.run(
+        process.execPath,
+        [
+          "-e",
+          "process.stdout.write('x'.repeat(4096)); setInterval(() => {}, 1000)",
+        ],
+        { outputLimitBytes: 64 },
+      ),
+      2_000,
+    );
+
+    expect(failure).toBeInstanceOf(AggregateError);
+    expect(failure).toMatchObject({
+      message: expect.stringContaining("stdout exceeded 64 bytes"),
+    });
+    expect(flattenedErrorMessages(failure)).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("stdout exceeded 64 bytes"),
+        "taskkill exited 128: process not found",
+      ]),
+    );
     expect(harness.activeChildCount).toBe(0);
     await harness.endTest();
     expect(harness.activeOperationCount).toBe(0);
@@ -304,15 +355,14 @@ describe("PR-review command harness process ownership", () => {
       );
 
       expect(failure).toBeInstanceOf(AggregateError);
-      const errors =
-        failure instanceof AggregateError ? failure.errors : [failure];
-      expect(errors).toEqual(
+      expect(failure).toMatchObject({
+        message: expect.stringContaining("exceeded the 100ms child deadline"),
+      });
+      expect(flattenedErrorMessages(failure)).toEqual(
         expect.arrayContaining([
-          expect.objectContaining({ message: "taskkill exited 7" }),
-          expect.objectContaining({
-            message:
-              "direct child did not close within 250ms after taskkill failure",
-          }),
+          expect.stringContaining("exceeded the 100ms child deadline"),
+          "taskkill exited 7",
+          "direct child did not close within 250ms after taskkill failure",
         ]),
       );
       expect(harness.activeChildCount).toBe(1);
@@ -499,4 +549,11 @@ async function waitFor(
     }
     await delay(10);
   }
+}
+
+function flattenedErrorMessages(error: unknown): string[] {
+  if (error instanceof AggregateError) {
+    return error.errors.flatMap(flattenedErrorMessages);
+  }
+  return [error instanceof Error ? error.message : String(error)];
 }
