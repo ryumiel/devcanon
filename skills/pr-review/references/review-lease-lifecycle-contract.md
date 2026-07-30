@@ -73,6 +73,22 @@ All other transitions are forbidden. `stale-head` is a valid failure phase for
 post-freeze refusal, but it is not eligible for LC-17 retry-to-post; it must
 return through review discovery or a fresh approval path before posting.
 
+## Session Discovery
+
+`review-leases.sh discover` is a read-only preflight for one repository and PR.
+It inventories only direct-child active lease names for that PR, separately
+reports archived lease names, observes the canonical
+`.worktrees/pr-<N>-review` path, and compares lease worktree paths with the
+repository's registered worktrees. It returns exactly one disposition:
+`create`, `resume`, `cleanup-required`, `ambiguous`, or `invalid`.
+
+`resume` is emitted only for one registered, schema-valid nonterminal lease.
+More than one resumable lease is `ambiguous`; terminal, missing, unregistered,
+or unleased canonical worktrees require an existing lifecycle or cleanup owner.
+Malformed active lease evidence is `invalid`. The planner does not inspect or
+repair arbitrary historical paths, infer cleanup authority, or mutate any
+lifecycle state. Cleanup remains exclusively lease-gated.
+
 ## Field Contract
 
 `UPDATED_AT` is required on every write. `created_at`, `base_ref`, `head_ref`,

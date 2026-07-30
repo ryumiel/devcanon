@@ -178,6 +178,24 @@ function runPlayReviewSharedContextCommand(
   );
 }
 
+interface DiscoveryResult {
+  disposition: string;
+  canonical_worktree_present: boolean;
+  active: Array<{
+    lease_file: string;
+    worktree_path: string | null;
+    state: string | null;
+    classification: string;
+  }>;
+  resume: { lease_file: string; worktree_path: string } | null;
+}
+
+async function discoverPrReviewSession(): Promise<DiscoveryResult> {
+  const result = await runPrReviewLeasesCommand(["discover"]);
+  expect(result.exitCode, result.stderr).toBe(0);
+  return JSON.parse(result.stdout) as DiscoveryResult;
+}
+
 it("selects the exact issue-578 Windows PR-review lane", async () => {
   const repositoryRoot = path.resolve(
     path.dirname(fileURLToPath(import.meta.url)),
@@ -1264,6 +1282,114 @@ describe("pr-review lease reducer", () => {
 });
 
 describe("pr-review lease command validation", () => {
+  it("plans create, resume, and unleased-canonical cleanup without mutation", async () => {
+    const workspace = await makeRegisteredWorkspace("pr-review-discovery-");
+
+    try {
+      process.chdir(workspace.physicalPrimary);
+      setLeaseCommandEnv(workspace.physicalPrimary, workspace.physicalWorktree);
+
+      const create = await discoverPrReviewSession();
+      expect(create).toMatchObject({
+        disposition: "create",
+        active: [],
+        resume: null,
+      });
+
+      const pathResult = await runPrReviewLeasesCommand(["derive-path"]);
+      expect(pathResult.exitCode, pathResult.stderr).toBe(0);
+      process.env.LEASE_FILE = pathResult.stdout.trim();
+      await writeLeaseCommandState({
+        state: "created",
+        updatedAt: "2026-07-30T00:00:00Z",
+      });
+
+      const resume = await discoverPrReviewSession();
+      expect(resume).toMatchObject({
+        disposition: "resume",
+        active: [
+          {
+            lease_file: process.env.LEASE_FILE,
+            worktree_path: workspace.physicalWorktree,
+            state: "created",
+            classification: "resumable",
+          },
+        ],
+        resume: {
+          lease_file: process.env.LEASE_FILE,
+          worktree_path: workspace.physicalWorktree,
+        },
+      });
+
+      await removePath(
+        path.join(workspace.physicalPrimary, process.env.LEASE_FILE ?? ""),
+      );
+      await mkdir(
+        path.join(workspace.physicalPrimary, ".worktrees", "pr-432-review"),
+        { recursive: true },
+      );
+
+      const cleanup = await discoverPrReviewSession();
+      expect(cleanup).toMatchObject({
+        disposition: "cleanup-required",
+        canonical_worktree_present: true,
+        active: [],
+        resume: null,
+      });
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("stops as ambiguous when two registered active leases are resumable", async () => {
+    const workspace = await makeRegisteredWorkspace("pr-review-discovery-");
+    const secondWorktree = path.join(workspace.tempRoot, "review-second");
+
+    try {
+      await execFileAsync("git", [
+        "-C",
+        workspace.physicalPrimary,
+        "worktree",
+        "add",
+        "-b",
+        "review-second",
+        secondWorktree,
+      ]);
+      const physicalSecondWorktree = await realpath(secondWorktree);
+      process.chdir(workspace.physicalPrimary);
+
+      for (const worktreePath of [
+        workspace.physicalWorktree,
+        physicalSecondWorktree,
+      ]) {
+        setLeaseCommandEnv(workspace.physicalPrimary, worktreePath);
+        const pathResult = await runPrReviewLeasesCommand(["derive-path"]);
+        expect(pathResult.exitCode, pathResult.stderr).toBe(0);
+        process.env.LEASE_FILE = pathResult.stdout.trim();
+        await writeLeaseCommandState({
+          state: "created",
+          updatedAt: "2026-07-30T00:00:00Z",
+        });
+      }
+
+      setLeaseCommandEnv(workspace.physicalPrimary, workspace.physicalWorktree);
+      const discovery = await discoverPrReviewSession();
+      expect(discovery).toMatchObject({
+        disposition: "ambiguous",
+        resume: null,
+      });
+      expect(discovery.active).toHaveLength(2);
+      expect(discovery.active.map((entry) => entry.classification)).toEqual([
+        "resumable",
+        "resumable",
+      ]);
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
+    }
+  });
+
   it("writes result sha256 and same-cycle validation timestamps for every preview presentation", async () => {
     const {
       tempRoot,

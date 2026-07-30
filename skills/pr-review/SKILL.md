@@ -64,6 +64,27 @@ Detect mode:
 
 ## Phase 2: Worktree setup
 
+Bind the lease helper before selecting a worktree path:
+
+```bash
+PR_REVIEW_LEASE_HELPER="$PR_REVIEW_DIR/scripts/review-leases.sh"
+```
+
+Before `git worktree add`, run the read-only session planner from the primary
+repository root with `REPOSITORY`, `PR_NUMBER`, and
+`PRIMARY_REPOSITORY_ROOT` set:
+
+```bash
+bash "$PR_REVIEW_LEASE_HELPER" discover
+```
+
+The planner emits one closed selection result. Only `create` permits the new
+canonical worktree command below. `resume` identifies the already registered
+worktree and lease to validate through the existing lifecycle flow;
+`cleanup-required`, `ambiguous`, and `invalid` stop for the existing cleanup
+or lifecycle owner. Discovery is read-only: it never creates, removes, or
+updates worktrees, leases, or artifacts.
+
 ```sh
 git fetch origin <base-ref>
 git fetch origin <head-ref>
@@ -83,12 +104,6 @@ calls.
 `.worktrees/pr-<N>-review`, for example
 `WORKING_DIRECTORY="$(cd ".worktrees/pr-<N>-review" && pwd -P)"`. Manifest
 validation rejects subdirectories, `.` aliases, and symlinked aliases.
-
-Bind the lease helper after `PR_REVIEW_DIR` is known:
-
-```bash
-PR_REVIEW_LEASE_HELPER="$PR_REVIEW_DIR/scripts/review-leases.sh"
-```
 
 ## Lease Lifecycle
 
@@ -117,6 +132,7 @@ and never constructs GitHub review payloads.
 Helper command surface:
 
 - `derive-path`
+- `discover`
 - `write`
 - `validate`
 - `inspect-worktree`
