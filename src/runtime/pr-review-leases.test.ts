@@ -1319,6 +1319,12 @@ describe("pr-review lease command validation", () => {
         state: "created",
         updatedAt: "2026-07-30T00:00:00Z",
       });
+      const archivedLeaseFile =
+        ".ephemeral/pr-432-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-posted-archived-lease.json";
+      await writeFile(
+        path.join(workspace.physicalPrimary, archivedLeaseFile),
+        "{}\n",
+      );
 
       const leaseBeforeDiscovery = await readFile(
         path.join(workspace.physicalPrimary, process.env.LEASE_FILE ?? ""),
@@ -1327,6 +1333,7 @@ describe("pr-review lease command validation", () => {
       const resume = await discoverPrReviewSession();
       expect(resume).toMatchObject({
         disposition: "resume",
+        archived_lease_files: [archivedLeaseFile],
         active: [
           {
             lease_file: process.env.LEASE_FILE,
@@ -1506,6 +1513,43 @@ describe("pr-review lease command validation", () => {
     }
   });
 
+  it("fails closed when a lease worktree path cannot be resolved", async () => {
+    const workspace = await makeRegisteredWorkspace(
+      "pr-review-discovery-loop-",
+    );
+    try {
+      const loopPath = path.join(workspace.tempRoot, "worktree-loop");
+      await symlink(loopPath, loopPath, "dir");
+      const worktreeDigest = createHash("sha256")
+        .update(loopPath)
+        .digest("hex");
+      const leaseFile = `.ephemeral/pr-432-${worktreeDigest}-lease.json`;
+      const lease = abortedCommandLease(leaseFile, loopPath, worktreeDigest);
+      await writeFile(
+        path.join(workspace.physicalPrimary, leaseFile),
+        `${JSON.stringify(lease)}\n`,
+      );
+      process.chdir(workspace.physicalPrimary);
+      setLeaseCommandEnv(workspace.physicalPrimary, workspace.physicalWorktree);
+      process.env.LEASE_FILE = leaseFile;
+
+      expect(await discoverPrReviewSession()).toMatchObject({
+        disposition: "invalid",
+        resume: null,
+        active: [
+          {
+            lease_file: leaseFile,
+            classification: "invalid",
+            worktree_path: null,
+          },
+        ],
+      });
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
+    }
+  });
+
   it("stops as ambiguous when two registered active leases are resumable", async () => {
     const workspace = await makeRegisteredWorkspace("pr-review-discovery-");
     const secondWorktree = path.join(workspace.tempRoot, "review-second");
@@ -1548,6 +1592,26 @@ describe("pr-review lease command validation", () => {
         "resumable",
         "resumable",
       ]);
+
+      await writeFile(
+        path.join(workspace.physicalWorktree, "uncommitted.txt"),
+        "dirty\n",
+      );
+      expect(await discoverPrReviewSession()).toMatchObject({
+        disposition: "cleanup-required",
+        resume: null,
+      });
+      await removePath(
+        path.join(workspace.physicalWorktree, "uncommitted.txt"),
+      );
+      await mkdir(
+        path.join(workspace.physicalPrimary, ".worktrees", "pr-432-review"),
+        { recursive: true },
+      );
+      expect(await discoverPrReviewSession()).toMatchObject({
+        disposition: "cleanup-required",
+        resume: null,
+      });
     } finally {
       process.chdir(originalCwd);
       await rm(workspace.tempRoot, { recursive: true, force: true });
@@ -1557,12 +1621,20 @@ describe("pr-review lease command validation", () => {
   it("allows a canonical helper-recorded removed terminal lease to reenter through LC-18", async () => {
     const workspace = await makeRegisteredWorkspace("pr-review-discovery-");
     try {
-      const canonicalWorktree = path.join(
+      const physicalCanonicalParent = path.join(
+        workspace.tempRoot,
+        "canonical-parent",
+      );
+      const linkedCanonicalParent = path.join(
         workspace.physicalPrimary,
         ".worktrees",
+      );
+      await mkdir(physicalCanonicalParent, { recursive: true });
+      await symlink(physicalCanonicalParent, linkedCanonicalParent, "dir");
+      const canonicalWorktree = path.join(
+        linkedCanonicalParent,
         "pr-432-review",
       );
-      await mkdir(path.dirname(canonicalWorktree), { recursive: true });
       await execFileAsync("git", [
         "-C",
         workspace.physicalPrimary,
@@ -1605,6 +1677,7 @@ describe("pr-review lease command validation", () => {
       ]);
       expect(await discoverPrReviewSession()).toMatchObject({
         disposition: "create",
+        canonical_worktree_path: physicalCanonicalWorktree,
         active: [
           {
             lease_file: leaseFile,

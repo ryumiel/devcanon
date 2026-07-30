@@ -93,11 +93,14 @@ order and these values:
 3. `pr_number`: the requested positive integer.
 4. `primary_repository_root`: the physical absolute primary repository path.
 5. `canonical_worktree_path`: the physical absolute
-   `.worktrees/pr-<N>-review` path under that root.
+   `.worktrees/pr-<N>-review` path under that root; discovery resolves an
+   existing canonical path, or its existing `.worktrees` parent, before using
+   it for registration and LC-18 comparison.
 6. `canonical_worktree_present`: whether that canonical path is present on
    disk.
 7. `active`: active candidates sorted lexically by direct-child `lease_file`.
-8. `archived_lease_files`: archived direct-child lease paths sorted lexically.
+8. `archived_lease_files`: archived `.ephemeral/<name>` direct-child lease
+   paths sorted lexically.
 9. `disposition`: one of the five values above.
 10. `resume`: `null`, or an object with `lease_file` and physical absolute
     `worktree_path`; it is non-null only for `resume`.
@@ -114,7 +117,8 @@ They never expose dirty file names or unmanaged artifact paths.
 For an eligible candidate, discovery reuses the existing read-only dirty and
 owned-artifact inspections without calling `inspect-worktree` or recording
 cleanup metadata. An inspection or ownership failure is `invalid`, not a
-guessed `false`. A true dirty or unmanaged observation selects
+guessed `false`; only missing worktree paths retain the documented missing or
+LC-18 reentry classification. A true dirty or unmanaged observation selects
 `cleanup-required` with `resume: null`; it grants no cleanup authority.
 
 `resume` is emitted only for one registered, schema-valid nonterminal lease.

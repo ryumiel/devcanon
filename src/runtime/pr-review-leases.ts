@@ -238,11 +238,7 @@ export async function runPrReviewLeasesCommand(
 
 async function discoverReviewSession(): Promise<PrReviewSessionDiscovery> {
   const identity = await readDiscoveryIdentity();
-  const canonicalWorktreePath = path.join(
-    identity.primaryRoot,
-    ".worktrees",
-    `pr-${identity.prNumber}-review`,
-  );
+  const canonicalWorktreePath = await canonicalPrReviewWorktreePath(identity);
   const canonicalWorktreePresent = await pathExists(canonicalWorktreePath);
   const entries = await readDiscoveryDirectory(identity.primaryRoot);
   const activeLeaseFiles = entries.filter((entry) =>
@@ -293,10 +289,10 @@ async function discoverReviewSession(): Promise<PrReviewSessionDiscovery> {
         normalizeComparablePath(canonicalWorktreePath));
   const disposition: DiscoveryDisposition = invalid
     ? "invalid"
-    : resumable.length > 1
-      ? "ambiguous"
-      : blocked || canonicalConflictsWithResume
-        ? "cleanup-required"
+    : blocked || canonicalConflictsWithResume
+      ? "cleanup-required"
+      : resumable.length > 1
+        ? "ambiguous"
         : resumable.length === 1
           ? "resume"
           : "create";
@@ -310,7 +306,9 @@ async function discoverReviewSession(): Promise<PrReviewSessionDiscovery> {
     canonical_worktree_path: canonicalWorktreePath,
     canonical_worktree_present: canonicalWorktreePresent,
     active,
-    archived_lease_files: archivedLeaseFiles.sort(compareDiscoveryEntries),
+    archived_lease_files: archivedLeaseFiles
+      .map((entry) => `.ephemeral/${entry}`)
+      .sort(compareDiscoveryEntries),
     disposition,
     resume:
       selected?.worktree_path === null
@@ -349,11 +347,11 @@ async function inspectDiscoveryCandidate(
     ) {
       return discoveryInvalidCandidate(leaseFile);
     }
-    let worktreePath: string;
-    try {
-      worktreePath = await realpath(lease.worktree_path);
-    } catch {
-      if (hasPostCleanupArchiveAuthority(lease, identity)) {
+    const resolvedWorktree = await resolveWorktreePathForCleanup(
+      lease.worktree_path,
+    );
+    if (!resolvedWorktree.exists) {
+      if (await hasPostCleanupArchiveAuthority(lease, identity)) {
         return {
           lease_file: leaseFile,
           worktree_path: lease.worktree_path,
@@ -372,6 +370,7 @@ async function inspectDiscoveryCandidate(
         unmanaged_ephemeral_artifacts: null,
       };
     }
+    const worktreePath = resolvedWorktree.path;
     if (worktreePath === identity.primaryRoot) {
       return discoveryInvalidCandidate(leaseFile);
     }
@@ -642,7 +641,7 @@ async function writeLease(): Promise<string> {
     });
     if (
       archive !== null &&
-      !hasPostCleanupArchiveAuthority(previous, identity)
+      !(await hasPostCleanupArchiveAuthority(previous, identity))
     ) {
       if (previous === null) {
         throw new PrReviewLeaseError("archived lease missing");
@@ -2733,15 +2732,41 @@ function validateCleanupMetadata(cleanup: PrReviewLease["cleanup"]): void {
   }
 }
 
-function hasPostCleanupArchiveAuthority(
-  previous: PrReviewLease | null,
+async function canonicalPrReviewWorktreePath(
   identity: Pick<LeaseIdentity, "primaryRoot" | "prNumber">,
-): boolean {
-  const canonicalWorktreePath = path.join(
+): Promise<string> {
+  const lexicalPath = path.join(
     identity.primaryRoot,
     ".worktrees",
     `pr-${identity.prNumber}-review`,
   );
+  try {
+    return await realpath(lexicalPath);
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code !== "ENOENT" && code !== "ENOTDIR") {
+      throw err;
+    }
+  }
+  try {
+    return path.join(
+      await realpath(path.dirname(lexicalPath)),
+      path.basename(lexicalPath),
+    );
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code !== "ENOENT" && code !== "ENOTDIR") {
+      throw err;
+    }
+    return lexicalPath;
+  }
+}
+
+async function hasPostCleanupArchiveAuthority(
+  previous: PrReviewLease | null,
+  identity: Pick<LeaseIdentity, "primaryRoot" | "prNumber">,
+): Promise<boolean> {
+  const canonicalWorktreePath = await canonicalPrReviewWorktreePath(identity);
   return (
     previous !== null &&
     (previous.state === "posted" || previous.state === "aborted") &&
