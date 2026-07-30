@@ -1550,6 +1550,46 @@ describe("pr-review lease command validation", () => {
     }
   });
 
+  it("invalidates relative and physical-alias stored worktree paths", async () => {
+    const workspace = await makeRegisteredWorkspace(
+      "pr-review-discovery-alias-",
+    );
+    try {
+      const aliasPath = path.join(workspace.tempRoot, "worktree-alias");
+      await symlink(workspace.physicalWorktree, aliasPath, "dir");
+      const storedPaths = [
+        path.relative(workspace.physicalPrimary, workspace.physicalWorktree),
+        aliasPath,
+      ];
+      for (const storedPath of storedPaths) {
+        const worktreeDigest = discoveryWorktreeDigest(storedPath);
+        const leaseFile = `.ephemeral/pr-432-${worktreeDigest}-lease.json`;
+        await writeFile(
+          path.join(workspace.physicalPrimary, leaseFile),
+          `${JSON.stringify(
+            abortedCommandLease(leaseFile, storedPath, worktreeDigest),
+          )}\n`,
+        );
+      }
+      process.chdir(workspace.physicalPrimary);
+      setLeaseCommandEnv(workspace.physicalPrimary, workspace.physicalWorktree);
+
+      const discovery = await discoverPrReviewSession();
+      expect(discovery).toMatchObject({
+        disposition: "invalid",
+        resume: null,
+      });
+      expect(discovery.active).toHaveLength(2);
+      expect(discovery.active.map((entry) => entry.classification)).toEqual([
+        "invalid",
+        "invalid",
+      ]);
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
+    }
+  });
+
   it("stops as ambiguous when two registered active leases are resumable", async () => {
     const workspace = await makeRegisteredWorkspace("pr-review-discovery-");
     const secondWorktree = path.join(workspace.tempRoot, "review-second");
@@ -4464,6 +4504,38 @@ describe("pr-review lease Git cleanup safety", () => {
         ).resolves.toBe(before);
         writeSpy.mockRestore();
 
+        expect(await discoverPrReviewSession()).toMatchObject({
+          disposition: "create",
+          canonical_worktree_present: true,
+          active: [
+            {
+              lease_file: workspace.leaseFile,
+              state,
+              classification: "reentry",
+              worktree_dirty: false,
+              unmanaged_ephemeral_artifacts: false,
+            },
+          ],
+          resume: null,
+        });
+
+        const archivePath = path.join(
+          workspace.primary,
+          ".ephemeral",
+          interruptedArchive ?? "",
+        );
+        await writeFile(archivePath, '{"collision":true}\n');
+        const collision = await runPrReviewLeasesCommand(["write"]);
+        expect(collision.exitCode, state).toBe(1);
+        expect(collision.stderr, state).toContain("archived lease collision");
+        await expect(
+          readFile(path.join(workspace.primary, workspace.leaseFile), "utf8"),
+        ).resolves.toBe(before);
+        await expect(readFile(archivePath, "utf8")).resolves.toBe(
+          '{"collision":true}\n',
+        );
+        await writeFile(archivePath, before);
+
         const result = await runPrReviewLeasesCommand(["write"]);
         expect(result.exitCode, state).toBe(0);
         const fresh = await readLease(workspace.primary, workspace.leaseFile);
@@ -5276,6 +5348,14 @@ function identityFromLeaseFile(
     worktreeDigest: match[1],
     leaseFile,
   };
+}
+
+function discoveryWorktreeDigest(worktreePath: string): string {
+  const normalized = worktreePath.replace(/\\/gu, "/");
+  const comparable = /^[A-Za-z]:\//u.test(normalized)
+    ? normalized.toLowerCase()
+    : normalized;
+  return createHash("sha256").update(comparable).digest("hex");
 }
 
 function abortedCommandLease(

@@ -125,6 +125,8 @@ LC-18 reentry classification. A true dirty or unmanaged observation selects
 More than one resumable lease is `ambiguous`; terminal, missing, unregistered,
 or unleased canonical paths that are present or still registered require an
 existing lifecycle or cleanup owner.
+Stored active-lease `worktree_path` values must already be absolute physical
+paths: relative paths and resolvable aliases are malformed and `invalid`.
 Malformed active lease evidence is `invalid`. The planner does not inspect or
 repair arbitrary historical paths, infer cleanup authority, or mutate any
 lifecycle state. Cleanup remains exclusively lease-gated.
@@ -132,9 +134,12 @@ lifecycle state. Cleanup remains exclusively lease-gated.
 When a `posted` or `aborted` lease has a valid helper-recorded
 `cleanup.removed_at` marker and its stored physical worktree path is canonical,
 its missing worktree is eligible for the existing LC-18 archive-and-create
-reentry. Later cleanup observations may change `last_outcome` without revoking
-that marker. Other terminal, missing, or unregistered leases remain
-cleanup-required.
+reentry. If a fresh LC-18 lease write is interrupted after that archive snapshot
+and the canonical worktree has already been recreated, the same authority-valid,
+clean, managed, registered canonical candidate is also `reentry`; `create`
+reuses that worktree and retries only the fresh lease write. Later cleanup
+observations may change `last_outcome` without revoking that marker. Other
+terminal, missing, or unregistered leases remain `cleanup-required`.
 
 ## Field Contract
 
@@ -268,9 +273,11 @@ archive, snapshots it to:
 ```
 
 The helper retains the valid terminal lease until the fresh `created` lease is
-atomically installed. If that fresh write is interrupted after the archive
-snapshot, a retry can use the still-active terminal lease and preserve the
-archived historical evidence.
+atomically installed. Terminal archive creation is exclusive: an existing
+archive may be reused only when its bytes exactly equal the active terminal
+lease; divergent bytes fail closed without overwriting either lease. If that
+fresh write is interrupted after the archive snapshot, a retry can use the
+still-active terminal lease and preserve the archived historical evidence.
 
 For a `posted` or `aborted` lease whose cleanup helper has recorded a closed
 `cleanup` observation with a valid non-null `removed_at` timestamp and whose

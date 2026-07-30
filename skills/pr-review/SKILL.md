@@ -79,9 +79,13 @@ repository root with `REPOSITORY`, `PR_NUMBER`, and
 bash "$PR_REVIEW_LEASE_HELPER" discover
 ```
 
-The planner emits one closed selection result. Only `create` permits the new
-canonical worktree command below. `resume` identifies the already registered
-worktree and lease to validate through the existing lifecycle flow;
+The planner emits one closed selection result. Only `create` permits canonical
+worktree progression. When `create` reports one authority-valid `reentry`
+candidate and `canonical_worktree_present=true`, reuse that clean registered
+canonical worktree and write the fresh LC-18 lease without rerunning
+`git worktree add`; otherwise `create` permits the new canonical worktree
+command below. `resume` identifies the already registered worktree and lease to
+validate through the existing lifecycle flow;
 `cleanup-required`, `ambiguous`, and `invalid` stop for the existing cleanup
 or lifecycle owner. Discovery is read-only: it never creates, removes, or
 updates worktrees, leases, or artifacts.

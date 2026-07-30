@@ -66,12 +66,15 @@ async function discoverReviewSession() {
     active.sort((left, right) => compareDiscoveryEntries(left.lease_file, right.lease_file));
     const invalid = active.some((candidate) => candidate.classification === "invalid");
     const resumable = active.filter((candidate) => candidate.classification === "resumable");
+    const reentry = active.filter((candidate) => candidate.classification === "reentry");
     const blocked = active.some((candidate) => (candidate.classification !== "resumable" &&
         candidate.classification !== "reentry") ||
         candidate.worktree_dirty === true ||
         candidate.unmanaged_ephemeral_artifacts === true);
     const selectedResumable = resumable.length === 1 ? resumable[0] : undefined;
+    const selectedReentry = reentry.length === 1 && resumable.length === 0 ? reentry[0] : undefined;
     const canonicalConflictsWithResume = (canonicalWorktreePresent || canonicalWorktreeRegistered) &&
+        selectedReentry === undefined &&
         (selectedResumable?.worktree_path === undefined ||
             selectedResumable.worktree_path === null ||
             normalizeComparablePath(selectedResumable.worktree_path) !==
@@ -120,6 +123,7 @@ async function inspectDiscoveryCandidate(identity, leaseFileName, registrations)
         if (lease.repository !== identity.repository ||
             lease.pr_number !== identity.prNumber ||
             lease.lease_file !== leaseFile ||
+            !path.isAbsolute(lease.worktree_path) ||
             leaseFile !==
                 `.ephemeral/pr-${identity.prNumber}-${lease.worktree_digest}-lease.json` ||
             lease.worktree_digest !== digestPath(lease.worktree_path)) {
@@ -147,6 +151,10 @@ async function inspectDiscoveryCandidate(identity, leaseFileName, registrations)
             };
         }
         const worktreePath = resolvedWorktree.path;
+        if (normalizeComparablePath(worktreePath) !==
+            normalizeComparablePath(lease.worktree_path)) {
+            return discoveryInvalidCandidate(leaseFile);
+        }
         if (worktreePath === identity.primaryRoot) {
             return discoveryInvalidCandidate(leaseFile);
         }
@@ -165,13 +173,17 @@ async function inspectDiscoveryCandidate(identity, leaseFileName, registrations)
             isWorktreeDirty(worktreePath),
             findUnmanagedEphemeralArtifacts(lease, worktreePath),
         ]);
+        const isReentry = (await hasPostCleanupArchiveAuthority(lease, identity)) &&
+            (await hasRetriableTerminalArchive(lease, identity, leaseFile));
         return {
             lease_file: leaseFile,
             worktree_path: worktreePath,
             state: lease.state,
-            classification: ["created", "reviewed", "gated", "failed"].includes(lease.state)
-                ? "resumable"
-                : "terminal",
+            classification: isReentry
+                ? "reentry"
+                : ["created", "reviewed", "gated", "failed"].includes(lease.state)
+                    ? "resumable"
+                    : "terminal",
             worktree_dirty: worktreeDirty,
             unmanaged_ephemeral_artifacts: unmanagedArtifacts.length > 0,
         };
@@ -376,10 +388,42 @@ async function writeLease() {
     const content = `${JSON.stringify(reduced, null, 2)}\n`;
     if (archive !== null) {
         await assertWritableDirectChild(identity.primaryRoot, archive, "archived lease");
-        await copyFile(target, path.join(identity.primaryRoot, archive));
+        await writeTerminalArchive(target, path.join(identity.primaryRoot, archive));
     }
     await writeTextAtomically(target, content);
     return identity.leaseFile;
+}
+async function writeTerminalArchive(target, archive) {
+    try {
+        await copyFile(target, archive, constants.COPYFILE_EXCL);
+    }
+    catch (err) {
+        if (err.code !== "EEXIST") {
+            throw err;
+        }
+        const [existing, active] = await Promise.all([
+            readFile(archive),
+            readFile(target),
+        ]);
+        if (!existing.equals(active)) {
+            throw new PrReviewLeaseError("archived lease collision");
+        }
+    }
+}
+async function hasRetriableTerminalArchive(lease, identity, leaseFile) {
+    try {
+        const [archive, active] = await Promise.all([
+            readFile(path.join(identity.primaryRoot, terminalArchivePath(lease, identity.prNumber))),
+            readFile(path.join(identity.primaryRoot, leaseFile)),
+        ]);
+        return archive.equals(active);
+    }
+    catch (err) {
+        if (err.code === "ENOENT") {
+            return false;
+        }
+        throw err;
+    }
 }
 async function recordAuditFailure() {
     const { identity, previous } = await readAuditFailureIdentity();
@@ -1102,8 +1146,11 @@ function archivePathIfNeeded(previous, identity, inputs) {
         (previous?.state !== "posted" && previous?.state !== "aborted")) {
         return null;
     }
-    const stamp = (previous.terminal.finished_at ?? previous.updated_at).replace(/[-:Z]/gu, "");
-    return `.ephemeral/pr-${identity.prNumber}-${identity.worktreeDigest}-${stamp}-${previous.state}-archived-lease.json`;
+    return terminalArchivePath(previous, identity.prNumber);
+}
+function terminalArchivePath(lease, prNumber) {
+    const stamp = (lease.terminal.finished_at ?? lease.updated_at).replace(/[-:Z]/gu, "");
+    return `.ephemeral/pr-${prNumber}-${lease.worktree_digest}-${stamp}-${lease.state}-archived-lease.json`;
 }
 function policyForLifecycleWrite(row) {
     switch (row) {
