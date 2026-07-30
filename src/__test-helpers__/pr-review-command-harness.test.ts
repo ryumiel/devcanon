@@ -120,6 +120,31 @@ describe("PR-review command harness seeded workspaces", () => {
     harness.beginTest();
   });
 
+  it("skips Git removal for an unregistered worktree with a stale regular .git marker", async () => {
+    const workspace = await harness.createRegisteredReviewWorkspace();
+    await harness.run(
+      "git",
+      [
+        "-C",
+        workspace.primary,
+        "worktree",
+        "remove",
+        "--force",
+        workspace.worktree,
+      ],
+      { cwd: workspace.tempRoot },
+    );
+    await mkdir(workspace.worktree, { recursive: true });
+    await writeFile(path.join(workspace.worktree, ".git"), "stale marker\n");
+
+    await harness.endTest();
+
+    await expect(access(workspace.tempRoot)).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+    harness.beginTest();
+  });
+
   it("surfaces Git cleanup failures after removing the case root", async () => {
     const workspace = await harness.createRegisteredReviewWorkspace();
     await rm(path.join(workspace.primary, ".git"), {
@@ -208,6 +233,134 @@ describe("PR-review command harness source seeds", () => {
 });
 
 describe("PR-review command harness process ownership", () => {
+  it("reports bounded taskkill diagnostics after a simulated Windows direct-child fallback", async () => {
+    const harness = new PrReviewCommandHarness({
+      envKeys: [],
+      seed: "review",
+      commandDeadlineMs: 250,
+      terminationPlatform: "win32",
+      windowsTaskkillCommand: () => ({
+        command: process.execPath,
+        args: [
+          "-e",
+          "process.stderr.write(`denied\\n${'x'.repeat(20_000)}`, () => process.exit(7))",
+        ],
+      }),
+    });
+    harness.beginTest();
+
+    let failure: unknown;
+    try {
+      await harness.run(
+        process.execPath,
+        ["-e", "setInterval(() => {}, 1000)"],
+        { deadlineMs: 50 },
+      );
+    } catch (error) {
+      failure = error;
+    }
+
+    expect(failure).toBeInstanceOf(Error);
+    const message = failure instanceof Error ? failure.message : "";
+    expect(message).toContain("taskkill exited 7: denied");
+    expect(Buffer.byteLength(message, "utf8")).toBeLessThanOrEqual(16_450);
+    expect(harness.activeChildCount).toBe(0);
+    await harness.endTest();
+    expect(harness.activeOperationCount).toBe(0);
+  });
+
+  it("terminates a platform descendant before it can outlive the command root", async () => {
+    const harness = new PrReviewCommandHarness({
+      envKeys: [],
+      seed: "review",
+    });
+    await harness.setup();
+    harness.beginTest();
+    const root = await harness.createScratchRoot();
+    const lateMarker = path.join(root, "descendant-survived");
+    const descendantScript = [
+      'const { writeFileSync } = require("node:fs");',
+      `setTimeout(() => writeFileSync(${JSON.stringify(lateMarker)}, "late\\n"), 400);`,
+      "setInterval(() => {}, 1000);",
+    ].join("\n");
+    const rootScript = [
+      'const { spawn } = require("node:child_process");',
+      `spawn(process.execPath, ["-e", ${JSON.stringify(descendantScript)}], { stdio: "ignore" });`,
+      "setInterval(() => {}, 1000);",
+    ].join("\n");
+
+    try {
+      await expect(
+        harness.run(process.execPath, ["-e", rootScript], {
+          deadlineMs: 150,
+        }),
+      ).rejects.toThrow("exceeded the 150ms child deadline");
+      await delay(500);
+      await expect(access(lateMarker)).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+    } finally {
+      try {
+        await harness.endTest();
+      } finally {
+        await harness.dispose();
+      }
+    }
+  });
+
+  it("retains a late outer-operation rejection until drain", async () => {
+    const harness = new PrReviewCommandHarness({
+      envKeys: [],
+      seed: "review",
+      commandDeadlineMs: 50,
+    });
+    harness.beginTest();
+    let rejectOperation: (error: Error) => void = () => undefined;
+    const operation = new Promise<void>((_resolve, reject) => {
+      rejectOperation = reject;
+    });
+
+    await expect(
+      harness.trackOuter(operation, "controlled outer operation"),
+    ).rejects.toThrow("exceeded the 50ms harness deadline");
+
+    let teardownState = "pending";
+    const teardown = harness.endTest().then(
+      () => {
+        teardownState = "resolved";
+      },
+      (error: unknown) => {
+        teardownState = "rejected";
+        throw error;
+      },
+    );
+    await delay(20);
+    expect(teardownState).toBe("pending");
+
+    rejectOperation(new Error("late outer root cause"));
+    await expect(teardown).rejects.toThrow("late outer root cause");
+    expect(teardownState).toBe("rejected");
+    expect(harness.activeOperationCount).toBe(0);
+  });
+
+  it("does not report an outer rejection already delivered before its deadline", async () => {
+    const harness = new PrReviewCommandHarness({
+      envKeys: [],
+      seed: "review",
+      commandDeadlineMs: 100,
+    });
+    harness.beginTest();
+
+    await expect(
+      harness.trackOuter(
+        Promise.reject(new Error("early outer root cause")),
+        "early outer operation",
+      ),
+    ).rejects.toThrow("early outer root cause");
+    await expect(harness.endTest()).resolves.toBeUndefined();
+    expect(harness.activeOperationCount).toBe(0);
+  });
+
   it("terminates an over-deadline child and drains it through close", async () => {
     const harness = new PrReviewCommandHarness({
       envKeys: [],
@@ -246,3 +399,7 @@ describe("PR-review command harness process ownership", () => {
     expect(harness.activeOperationCount).toBe(0);
   });
 });
+
+async function delay(milliseconds: number): Promise<void> {
+  await new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
+}

@@ -15,6 +15,8 @@ import path from "node:path";
 
 const DEFAULT_COMMAND_DEADLINE_MS = 4_000;
 const DEFAULT_OUTPUT_LIMIT_BYTES = 1_048_576;
+const TASKKILL_STDERR_LIMIT_BYTES = 16_384;
+const DIRECT_CHILD_CLOSE_DEADLINE_MS = 250;
 const MAX_OWNED_SUFFIX_CODE_UNITS = 120;
 const MAX_WINDOWS_ABSOLUTE_CODE_UNITS = 180;
 const LONGEST_OWNED_ARTIFACT = `.ephemeral/pr-432-${"a".repeat(64)}-lease.json`;
@@ -60,6 +62,13 @@ interface HarnessOptions {
   envKeys: readonly string[];
   seed: HarnessSeed;
   commandDeadlineMs?: number;
+  terminationPlatform?: NodeJS.Platform;
+  windowsTaskkillCommand?: (pid: number) => CommandInvocation;
+}
+
+interface CommandInvocation {
+  command: string;
+  args: readonly string[];
 }
 
 interface CaseRecord {
@@ -131,6 +140,9 @@ export class PrReviewCommandHarness {
   private readonly envKeys: readonly string[];
   private readonly seed: HarnessSeed;
   private readonly commandDeadlineMs: number;
+  private readonly terminationPlatform: NodeJS.Platform;
+  private readonly windowsTaskkillCommand: (pid: number) => CommandInvocation;
+  private readonly observedErrors: unknown[] = [];
   private root: string | null = null;
   private snapshot: GlobalStateSnapshot | null = null;
   private nextCaseId = 0;
@@ -140,6 +152,9 @@ export class PrReviewCommandHarness {
     this.seed = options.seed;
     this.commandDeadlineMs =
       options.commandDeadlineMs ?? DEFAULT_COMMAND_DEADLINE_MS;
+    this.terminationPlatform = options.terminationPlatform ?? process.platform;
+    this.windowsTaskkillCommand =
+      options.windowsTaskkillCommand ?? defaultWindowsTaskkillCommand;
     if (
       this.commandDeadlineMs <= 0 ||
       this.commandDeadlineMs >= DEFAULT_COMMAND_DEADLINE_MS + 1_000
@@ -197,14 +212,18 @@ export class PrReviewCommandHarness {
   }
 
   trackOuter<T>(operation: Promise<T>, label: string): Promise<T> {
+    let deadlineWon = false;
     const deadline = deferredDeadline<T>(
       this.commandDeadlineMs,
       `${label} exceeded the ${this.commandDeadlineMs}ms harness deadline`,
+      () => {
+        deadlineWon = true;
+      },
     );
     const guarded = Promise.race([operation, deadline.promise]).finally(
       deadline.cancel,
     );
-    this.observe(operation);
+    this.observe(operation, () => deadlineWon);
     return guarded;
   }
 
@@ -236,7 +255,7 @@ export class PrReviewCommandHarness {
       const child = spawn(command, [...args], {
         cwd: options.cwd,
         env: options.env,
-        detached: process.platform !== "win32",
+        detached: this.terminationPlatform !== "win32",
         windowsHide: true,
         stdio: ["pipe", "pipe", "pipe"],
       });
@@ -510,11 +529,18 @@ export class PrReviewCommandHarness {
     }
   }
 
-  private observe<T>(operation: Promise<T>): void {
+  private observe<T>(
+    operation: Promise<T>,
+    retainRejection: (error: unknown) => boolean = () => false,
+  ): void {
     const observed = operation
       .then(
         () => undefined,
-        () => undefined,
+        (error) => {
+          if (retainRejection(error)) {
+            this.observedErrors.push(error);
+          }
+        },
       )
       .finally(() => {
         this.activeOperations.delete(observed);
@@ -526,11 +552,15 @@ export class PrReviewCommandHarness {
     while (this.activeOperations.size > 0) {
       await Promise.all([...this.activeOperations]);
     }
+    const errors = this.observedErrors.splice(0);
     if (this.children.size !== 0) {
-      throw new Error(
-        `command harness retained ${this.children.size} child processes after drain`,
+      errors.push(
+        new Error(
+          `command harness retained ${this.children.size} child processes after drain`,
+        ),
       );
     }
+    throwCollected("command harness operation drain failed", errors);
   }
 
   private async cleanupCase(record: CaseRecord): Promise<void> {
@@ -539,6 +569,12 @@ export class PrReviewCommandHarness {
     const worktree = record.worktree;
     if (primary !== undefined && worktree !== undefined) {
       await captureError(async () => {
+        const target = record.registeredWorktree ?? worktree;
+        const registered = await this.listRegisteredWorktrees(primary);
+        if (!registered.some((candidate) => samePath(candidate, target))) {
+          return;
+        }
+
         const marker = await fileType(path.join(worktree, ".git"));
         if (marker === "file") {
           await this.run(
@@ -549,11 +585,6 @@ export class PrReviewCommandHarness {
           return;
         }
 
-        const target = record.registeredWorktree ?? worktree;
-        const registered = await this.listRegisteredWorktrees(primary);
-        if (!registered.some((candidate) => samePath(candidate, target))) {
-          return;
-        }
         await rm(worktree, { recursive: true, force: true });
         await this.run(
           "git",
@@ -592,7 +623,7 @@ export class PrReviewCommandHarness {
 
   private async terminateTree(child: ChildProcess): Promise<void> {
     if (child.pid === undefined || child.exitCode !== null) return;
-    if (process.platform === "win32") {
+    if (this.terminationPlatform === "win32") {
       await this.terminateWindowsTree(child);
       return;
     }
@@ -625,39 +656,86 @@ export class PrReviewCommandHarness {
 
   private async terminateWindowsTree(child: ChildProcess): Promise<void> {
     if (child.pid === undefined) return;
+    const invocation = this.windowsTaskkillCommand(child.pid);
     await new Promise<void>((resolve, reject) => {
-      const taskkill = spawn(
-        "taskkill.exe",
-        ["/pid", String(child.pid), "/t", "/f"],
-        {
-          windowsHide: true,
-          stdio: ["ignore", "pipe", "pipe"],
-        },
-      );
+      const taskkill = spawn(invocation.command, [...invocation.args], {
+        windowsHide: true,
+        stdio: ["ignore", "ignore", "pipe"],
+      });
       this.children.add(taskkill);
       let settled = false;
       let terminalError: Error | null = null;
+      let fallback: Promise<void> | null = null;
+      let stderr: Buffer<ArrayBufferLike> = Buffer.alloc(0);
       let timer: NodeJS.Timeout | null = null;
-      const finish = (): void => {
+      const startFallback = (): Promise<void> => {
+        fallback ??= this.terminateDirectChild(child);
+        return fallback;
+      };
+      const finish = async (
+        code: number | null,
+        signal: NodeJS.Signals | null,
+      ): Promise<void> => {
         if (settled) return;
         settled = true;
         if (timer !== null) clearTimeout(timer);
         this.children.delete(taskkill);
-        if (terminalError === null) resolve();
-        else reject(terminalError);
+        if (terminalError === null && (code !== 0 || signal !== null)) {
+          terminalError = taskkillFailure(code, signal, stderr);
+        }
+        try {
+          if (terminalError !== null) {
+            await startFallback();
+            reject(terminalError);
+            return;
+          }
+          resolve();
+        } catch (error) {
+          reject(
+            new AggregateError(
+              [terminalError, error].filter((entry) => entry !== null),
+              "taskkill and direct-child fallback failed",
+            ),
+          );
+        }
       };
+      taskkill.stderr?.on("data", (chunk: Buffer) => {
+        stderr = appendBounded(stderr, chunk, TASKKILL_STDERR_LIMIT_BYTES);
+      });
       timer = setTimeout(() => {
         terminalError = new Error(
           `taskkill exceeded the ${this.commandDeadlineMs}ms child deadline`,
         );
         taskkill.kill();
-        child.kill();
+        void startFallback().catch(() => undefined);
       }, this.commandDeadlineMs);
       taskkill.once("error", (error) => {
         terminalError = error;
-        child.kill();
+        void startFallback().catch(() => undefined);
       });
-      taskkill.once("close", finish);
+      taskkill.once("close", (code, signal) => {
+        void finish(code, signal);
+      });
+    });
+  }
+
+  private async terminateDirectChild(child: ChildProcess): Promise<void> {
+    if (child.exitCode !== null) return;
+    await new Promise<void>((resolve, reject) => {
+      const onClose = (): void => {
+        clearTimeout(timer);
+        resolve();
+      };
+      const timer = setTimeout(() => {
+        child.off("close", onClose);
+        reject(
+          new Error(
+            `direct child did not close within ${DIRECT_CHILD_CLOSE_DEADLINE_MS}ms after taskkill failure`,
+          ),
+        );
+      }, DIRECT_CHILD_CLOSE_DEADLINE_MS);
+      child.once("close", onClose);
+      child.kill();
     });
   }
 
@@ -726,10 +804,14 @@ function commandFailure(
 function deferredDeadline<T>(
   deadlineMs: number,
   message: string,
+  onDeadline: () => void = () => undefined,
 ): { promise: Promise<T>; cancel: () => void } {
   let timer: NodeJS.Timeout | null = null;
   const promise = new Promise<T>((_resolve, reject) => {
-    timer = setTimeout(() => reject(new Error(message)), deadlineMs);
+    timer = setTimeout(() => {
+      onDeadline();
+      reject(new Error(message));
+    }, deadlineMs);
   });
   return {
     promise,
@@ -738,6 +820,40 @@ function deferredDeadline<T>(
       timer = null;
     },
   };
+}
+
+function defaultWindowsTaskkillCommand(pid: number): CommandInvocation {
+  return {
+    command: "taskkill.exe",
+    args: ["/pid", String(pid), "/t", "/f"],
+  };
+}
+
+function taskkillFailure(
+  code: number | null,
+  signal: NodeJS.Signals | null,
+  stderr: Buffer,
+): Error {
+  const status =
+    code === null
+      ? `terminated by ${signal ?? "unknown signal"}`
+      : `exited ${code}`;
+  const diagnostic = stderr.toString("utf8").trim();
+  const suffix = diagnostic === "" ? "" : `: ${diagnostic}`;
+  return new Error(`taskkill ${status}${suffix}`);
+}
+
+function appendBounded(
+  current: Buffer,
+  chunk: Buffer,
+  limitBytes: number,
+): Buffer {
+  if (current.length >= limitBytes) return current;
+  const remaining = limitBytes - current.length;
+  return Buffer.concat(
+    [current, chunk.subarray(0, remaining)],
+    current.length + Math.min(chunk.length, remaining),
+  );
 }
 
 async function captureError(
