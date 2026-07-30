@@ -717,7 +717,7 @@ it("selects the exact issue-569 Windows PR-review lane", async () => {
   }>;
   const collectedInventory = collectedTests
     .map(({ file, name, projectName }) => ({
-      file: path.relative(repositoryRoot, file),
+      file: path.relative(repositoryRoot, file).split(path.sep).join("/"),
       name,
       projectName,
     }))
