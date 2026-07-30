@@ -1,30 +1,30 @@
-import { access, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { access, chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
-  GENERATED_ROOT_MARKER,
+  type PrReviewProcessGeneratedRoot,
+  createPrReviewProcessGeneratedRoot,
   launchPrReviewProcessLifecycle,
 } from "./pr-review-process-lifecycle.js";
 
 const roots: string[] = [];
 
-async function generatedRoot(): Promise<string> {
-  const root = await mkdtemp(path.join(os.tmpdir(), "dc-process-lifecycle-"));
-  roots.push(root);
-  await writeFile(path.join(root, GENERATED_ROOT_MARKER), "v1\n");
+async function generatedRoot(): Promise<PrReviewProcessGeneratedRoot> {
+  const root = await createPrReviewProcessGeneratedRoot();
+  roots.push(root.path);
   return root;
 }
 
 async function lifecycle(
-  root: string,
+  root: PrReviewProcessGeneratedRoot,
   source: string,
   options: Partial<Parameters<typeof launchPrReviewProcessLifecycle>[0]> = {},
 ) {
   return launchPrReviewProcessLifecycle({
     executable: process.execPath,
     args: ["-e", source],
-    cwd: root,
+    cwd: root.path,
     generatedRoot: root,
     deadlineMs: 250,
     outputLimitBytes: 128,
@@ -143,6 +143,247 @@ describe("pr-review process lifecycle", () => {
     expect(result.output.stdout.digest).toMatch(/^[0-9a-f]{64}$/u);
   });
 
+  it("redacts across chunks before the retained-byte boundary", async () => {
+    const root = await generatedRoot();
+    const processLifecycle = await lifecycle(
+      root,
+      'process.stdout.write("TOP_"); setTimeout(() => process.stdout.write("SECRET"), 1);',
+      { outputLimitBytes: 4, redact: ["TOP_SECRET"] },
+    );
+
+    const result = await processLifecycle.finish();
+
+    expect(result.output.stdout.text).not.toContain("TOP_SECRET");
+    expect(result.output.stdout.text).not.toContain("TOP_");
+    expect(
+      Buffer.byteLength(result.output.stdout.text, "utf8"),
+    ).toBeLessThanOrEqual(4);
+  });
+
+  it("uses a synchronous request snapshot after launch begins", async () => {
+    const root = await generatedRoot();
+    const args = ["-e", 'process.stdout.write("original");'];
+    const redact = ["original"];
+    const launched = launchPrReviewProcessLifecycle({
+      executable: process.execPath,
+      args,
+      cwd: root.path,
+      generatedRoot: root,
+      deadlineMs: 250,
+      outputLimitBytes: 128,
+      environment: { SNAPSHOT_VALUE: "original" },
+      redact,
+    });
+    args[1] = 'process.stdout.write("mutated");';
+
+    const result = await (await launched).finish();
+
+    expect(result.output.stdout.text).toBe("[REDACTED]");
+  });
+
+  it("rejects a forged generated-root object even when its path is helper-created", async () => {
+    const root = await generatedRoot();
+
+    await expect(
+      launchPrReviewProcessLifecycle({
+        executable: process.execPath,
+        args: ["-e", "process.exit(0);"],
+        cwd: root.path,
+        generatedRoot: { path: root.path },
+        deadlineMs: 250,
+        outputLimitBytes: 128,
+        environment: {},
+      }),
+    ).rejects.toThrow("helper-created enrollment");
+    await expect(access(root.path)).resolves.toBeUndefined();
+  });
+
+  it("records a real spawn failure without claiming the root process spawned", async () => {
+    const root = await generatedRoot();
+    const executableDirectory = await mkdtemp(
+      path.join(os.tmpdir(), "dc-process-lifecycle-executable-"),
+    );
+    roots.push(executableDirectory);
+    const executable = path.join(executableDirectory, "missing-interpreter");
+    await writeFile(executable, "#!/not/a/real/interpreter\n");
+    await chmod(executable, 0o700);
+    const processLifecycle = await launchPrReviewProcessLifecycle({
+      executable,
+      args: [],
+      cwd: root.path,
+      generatedRoot: root,
+      deadlineMs: 250,
+      outputLimitBytes: 128,
+      environment: {},
+    });
+
+    const result = await processLifecycle.finish();
+
+    expect(result.rootProcess.spawned).toBe(false);
+    expect(result.rootProcess.closeObserved).toBe(false);
+    expect(result.evidence.some((entry) => entry.startsWith("spawn:"))).toBe(
+      true,
+    );
+    expect(result.generatedRoot).toBe("preserved_unsafe");
+  });
+
+  it("records protocol failure and a false root kill without overstating cleanup", async () => {
+    const root = await generatedRoot();
+    const source = [
+      'require("node:child_process").spawn(process.execPath, ["-e", "setTimeout(() => {}, 500)"], { stdio: ["ignore", "inherit", "inherit"] });',
+      'process.stdout.write("ready");',
+      'require("node:fs").writeSync(3, Buffer.from([0, 0, 0, 1, 0xff]));',
+      "process.exit(0);",
+    ].join("\n");
+    const processLifecycle = await lifecycle(root, source, { deadlineMs: 200 });
+    await new Promise((resolve) => setTimeout(resolve, 80));
+
+    const result = await processLifecycle.finish({
+      cancel: true,
+      cooperativeGraceMs: 1,
+    });
+
+    expect(result.rootProcess.exitObserved).toBe(true);
+    expect(result.cleanup.forceTermination).toBe("failed");
+    expect(result.evidence).toContain("kill:false");
+    expect(result.evidence.some((entry) => entry.startsWith("protocol:"))).toBe(
+      true,
+    );
+  });
+
+  it("restores controller cwd before generated-root disposition", async () => {
+    const root = await generatedRoot();
+    const beforeCwd = process.cwd();
+    const processLifecycle = await lifecycle(root, "process.exit(0);");
+    process.chdir(root.path);
+
+    const result = await processLifecycle.finish();
+
+    expect(process.cwd()).toBe(beforeCwd);
+    expect(result.restoration).toBe("restored");
+    expect(result.generatedRoot).toBe("removed");
+  });
+
+  it("enforces every finite request boundary with exact and plus-one cases", async () => {
+    const source = "process.exit(0);";
+    const boundaryCases = [
+      {
+        name: "deadline",
+        exact: 60_000,
+        plusOne: 60_001,
+        assign: (request: Record<string, unknown>, value: number) => {
+          request.deadlineMs = value;
+        },
+      },
+      {
+        name: "output",
+        exact: 65_536,
+        plusOne: 65_537,
+        assign: (request: Record<string, unknown>, value: number) => {
+          request.outputLimitBytes = value;
+        },
+      },
+      {
+        name: "arguments",
+        exact: 128,
+        plusOne: 129,
+        assign: (request: Record<string, unknown>, value: number) => {
+          request.args = Array.from({ length: value }, () => "x");
+        },
+      },
+      {
+        name: "argument bytes",
+        exact: 8_192,
+        plusOne: 8_193,
+        assign: (request: Record<string, unknown>, value: number) => {
+          request.args = ["-e", "process.exit(0);", "x".repeat(value)];
+        },
+      },
+      {
+        name: "environment entries",
+        exact: 64,
+        plusOne: 65,
+        assign: (request: Record<string, unknown>, value: number) => {
+          request.environment = Object.fromEntries(
+            Array.from({ length: value }, (_, index) => [`K${index}`, "v"]),
+          );
+        },
+      },
+      {
+        name: "environment key bytes",
+        exact: 256,
+        plusOne: 257,
+        assign: (request: Record<string, unknown>, value: number) => {
+          request.environment = { ["K".repeat(value)]: "v" };
+        },
+      },
+      {
+        name: "environment value bytes",
+        exact: 8_192,
+        plusOne: 8_193,
+        assign: (request: Record<string, unknown>, value: number) => {
+          request.environment = { K: "v".repeat(value) };
+        },
+      },
+      {
+        name: "redactions",
+        exact: 16,
+        plusOne: 17,
+        assign: (request: Record<string, unknown>, value: number) => {
+          request.redact = Array.from(
+            { length: value },
+            (_, index) => `secret-${index}`,
+          );
+        },
+      },
+      {
+        name: "redaction bytes",
+        exact: 4_096,
+        plusOne: 4_097,
+        assign: (request: Record<string, unknown>, value: number) => {
+          request.redact = ["s".repeat(value)];
+        },
+      },
+    ] as const;
+    for (const boundaryCase of boundaryCases) {
+      const exactRoot = await generatedRoot();
+      const exact: Record<string, unknown> = {
+        executable: process.execPath,
+        args: ["-e", source],
+        cwd: exactRoot.path,
+        generatedRoot: exactRoot,
+        deadlineMs: 250,
+        outputLimitBytes: 128,
+        environment: {},
+      };
+      boundaryCase.assign(exact, boundaryCase.exact);
+      await expect(
+        launchPrReviewProcessLifecycle(
+          exact as unknown as Parameters<
+            typeof launchPrReviewProcessLifecycle
+          >[0],
+        ),
+        `accepts exact ${boundaryCase.name}`,
+      ).resolves.toBeDefined();
+
+      const plusOneRoot = await generatedRoot();
+      const plusOne: Record<string, unknown> = {
+        ...exact,
+        cwd: plusOneRoot.path,
+        generatedRoot: plusOneRoot,
+      };
+      boundaryCase.assign(plusOne, boundaryCase.plusOne);
+      await expect(
+        launchPrReviewProcessLifecycle(
+          plusOne as unknown as Parameters<
+            typeof launchPrReviewProcessLifecycle
+          >[0],
+        ),
+        `rejects ${boundaryCase.name} plus one`,
+      ).rejects.toThrow();
+    }
+  });
+
   it("restores harness-owned global state", async () => {
     const root = await generatedRoot();
     const beforeCwd = process.cwd();
@@ -165,12 +406,12 @@ describe("pr-review process lifecycle", () => {
     const result = await processLifecycle.finish();
 
     expect(result.generatedRoot).toBe("removed");
-    await expect(access(root)).rejects.toThrow();
+    await expect(access(root.path)).rejects.toThrow();
   });
 
   it("preserves a changed, aliased, or unsafe generated root", async () => {
     const root = await generatedRoot();
-    const moved = `${root}-moved`;
+    const moved = `${root.path}-moved`;
     roots.push(moved);
     const source = [
       'const fs = require("node:fs");',
@@ -179,8 +420,8 @@ describe("pr-review process lifecycle", () => {
     ].join("\n");
     const processLifecycle = await launchPrReviewProcessLifecycle({
       executable: process.execPath,
-      args: ["-e", source, root, moved],
-      cwd: root,
+      args: ["-e", source, root.path, moved],
+      cwd: root.path,
       generatedRoot: root,
       deadlineMs: 250,
       outputLimitBytes: 128,

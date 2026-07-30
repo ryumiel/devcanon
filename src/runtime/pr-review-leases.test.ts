@@ -622,13 +622,20 @@ it("selects the exact issue-578 Windows PR-review lane", async () => {
     "attempts root termination after the shared deadline phase",
     "reports an incomplete root observation without claiming descendant absence",
     "caps and redacts incremental output overflow evidence",
+    "redacts across chunks before the retained-byte boundary",
+    "uses a synchronous request snapshot after launch begins",
+    "rejects a forged generated-root object even when its path is helper-created",
+    "records a real spawn failure without claiming the root process spawned",
+    "records protocol failure and a false root kill without overstating cleanup",
+    "restores controller cwd before generated-root disposition",
+    "enforces every finite request boundary with exact and plus-one cases",
     "restores harness-owned global state",
     "removes a safe helper-created generated root after root close",
     "preserves a changed, aliased, or unsafe generated root",
   ]);
   expect(
     lifecycleRegistrations.filter(({ fullTitle }) => selector.test(fullTitle)),
-  ).toHaveLength(8);
+  ).toHaveLength(15);
 
   const leaseTemplate =
     /it\(`rejects stale or mismatched gated result evidence: \$\{testCase\.name\}`/gu;
@@ -868,7 +875,7 @@ it("selects the exact issue-578 Windows PR-review lane", async () => {
   ].sort((left, right) =>
     `${left.file}\0${left.name}`.localeCompare(`${right.file}\0${right.name}`),
   );
-  expect(collectedInventory).toHaveLength(45);
+  expect(collectedInventory).toHaveLength(52);
   expect(collectedInventory).toEqual(expectedCollectedInventory);
 });
 
