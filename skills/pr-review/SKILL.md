@@ -1273,6 +1273,7 @@ Only after user approval:
      [ "$CURRENT_LEASE_STATE" = "gated" ] || [ "$CURRENT_LEASE_STATE" = "failed" ] || exit 1
      RECONCILIATION_SCALARS="$( (
        cd "$WORKING_DIRECTORY" || exit 1
+       set -o pipefail
        gh api --paginate --slurp "repos/{owner}/{repo}/pulls/<N>/reviews?per_page=100" \
          | jq -cer --slurpfile intent "$POST_INTENT_FILE" '
            def safe_id: type == "number" and . == floor and . >= 1 and . <= 9007199254740991;

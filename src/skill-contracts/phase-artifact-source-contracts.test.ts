@@ -3899,6 +3899,9 @@ None
       "never fresh-POST, re-gate, re-present, or repost.",
     );
     expect(reusedIntentBranch).toContain("gh api --paginate --slurp");
+    expect(reusedIntentBranch.indexOf("set -o pipefail")).toBeLessThan(
+      reusedIntentBranch.indexOf("gh api --paginate --slurp"),
+    );
     expect(reusedIntentBranch).toContain(
       "reconciliation requires exactly one exact review",
     );
