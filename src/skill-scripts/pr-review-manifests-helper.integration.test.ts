@@ -2027,7 +2027,12 @@ describe("pr-review manifest helper", () => {
         });
 
         await writeJson(cwd, scopePath(headSha), {
-          ...initialScope(baseSha, headSha),
+          ...initialScope(baseSha, headSha, {
+            prior_context: {
+              kind: "github-prior-threads",
+              path: priorThreadsPath(headSha),
+            },
+          }),
           head_sha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         });
         await writeJson(cwd, handoffPath(headSha), handoff);
@@ -2044,7 +2049,12 @@ describe("pr-review manifest helper", () => {
         await writeJson(
           cwd,
           scopePath(headSha),
-          initialScope(baseSha, headSha),
+          initialScope(baseSha, headSha, {
+            prior_context: {
+              kind: "github-prior-threads",
+              path: priorThreadsPath(headSha),
+            },
+          }),
         );
 
         const result = await readJson(cwd, resultPath(headSha));
@@ -2052,7 +2062,7 @@ describe("pr-review manifest helper", () => {
           ...result,
           artifacts: {
             ...result.artifacts,
-            prior_threads_file: priorThreadsPath(headSha),
+            prior_threads_file: `.ephemeral/topic-${headSha}-stale-prior-threads.json`,
           },
           digests: {
             ...result.digests,
