@@ -428,10 +428,13 @@ async function sessionCreatePreflight(): Promise<RuntimeCommandOutcome> {
       commonGitDirectory,
       headSha,
     );
+    const registrationState = await registeredWorktreeState(
+      identity.primaryRoot,
+      worktreePath,
+    );
     if (
       registration === null &&
-      ((await pathExists(worktreePath)) ||
-        (await isRegisteredWorktree(identity.primaryRoot, worktreePath)))
+      ((await pathExists(worktreePath)) || registrationState !== "absent")
     ) {
       return sessionCreateManualCleanup(
         "worktree-unverifiable",
@@ -516,7 +519,7 @@ async function sessionCreatePreflight(): Promise<RuntimeCommandOutcome> {
       "lease-unverifiable",
       reservation,
       registration,
-      null,
+      leasePublication === "published-unverifiable" ? leaseSha256 : null,
       ["reservation", "worktree", "registration", "lease"],
     );
   }
@@ -871,7 +874,9 @@ async function publishSessionCreateLease(
   primaryRoot: string,
   leaseFile: string,
   bytes: string,
-): Promise<"published" | "not-published" | "unverifiable"> {
+): Promise<
+  "published" | "published-unverifiable" | "not-published" | "unverifiable"
+> {
   validateDirectChild("lease", leaseFile, DIRECT_SUFFIXES.lease);
   await assertEphemeralDirectory(primaryRoot);
   const target = path.join(primaryRoot, leaseFile);
@@ -880,6 +885,7 @@ async function publishSessionCreateLease(
     `.${path.basename(target)}.${randomUUID()}.session-create.tmp`,
   );
   let handle: Awaited<ReturnType<typeof open>> | null = null;
+  let published = false;
   try {
     handle = await open(temp, "wx");
     await handle.writeFile(bytes, "utf8");
@@ -887,9 +893,11 @@ async function publishSessionCreateLease(
     await handle.close();
     handle = null;
     await link(temp, target);
+    published = true;
     await rm(temp);
     return "published";
   } catch (err) {
+    if (published) return "published-unverifiable";
     return (err as NodeJS.ErrnoException).code === "EEXIST"
       ? "unverifiable"
       : "not-published";

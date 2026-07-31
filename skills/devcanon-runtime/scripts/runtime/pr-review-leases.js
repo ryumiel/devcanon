@@ -146,9 +146,9 @@ async function sessionCreatePreflight() {
     }
     catch {
         const registration = await verifyCreatedSessionWorktree(identity.primaryRoot, worktreePath, commonGitDirectory, headSha);
+        const registrationState = await registeredWorktreeState(identity.primaryRoot, worktreePath);
         if (registration === null &&
-            ((await pathExists(worktreePath)) ||
-                (await isRegisteredWorktree(identity.primaryRoot, worktreePath)))) {
+            ((await pathExists(worktreePath)) || registrationState !== "absent")) {
             return sessionCreateManualCleanup("worktree-unverifiable", reservation, null, null, ["reservation", "worktree"]);
         }
         return await sessionCreateRollbackResult({
@@ -198,7 +198,7 @@ async function sessionCreatePreflight() {
                 worktreeCreated: true,
             });
         }
-        return sessionCreateManualCleanup("lease-unverifiable", reservation, registration, null, ["reservation", "worktree", "registration", "lease"]);
+        return sessionCreateManualCleanup("lease-unverifiable", reservation, registration, leasePublication === "published-unverifiable" ? leaseSha256 : null, ["reservation", "worktree", "registration", "lease"]);
     }
     if (!(await verifySessionCreateFinalState({
         identity,
@@ -470,6 +470,7 @@ async function publishSessionCreateLease(primaryRoot, leaseFile, bytes) {
     const target = path.join(primaryRoot, leaseFile);
     const temp = path.join(path.dirname(target), `.${path.basename(target)}.${randomUUID()}.session-create.tmp`);
     let handle = null;
+    let published = false;
     try {
         handle = await open(temp, "wx");
         await handle.writeFile(bytes, "utf8");
@@ -477,10 +478,13 @@ async function publishSessionCreateLease(primaryRoot, leaseFile, bytes) {
         await handle.close();
         handle = null;
         await link(temp, target);
+        published = true;
         await rm(temp);
         return "published";
     }
     catch (err) {
+        if (published)
+            return "published-unverifiable";
         return err.code === "EEXIST"
             ? "unverifiable"
             : "not-published";

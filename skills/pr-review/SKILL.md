@@ -106,21 +106,22 @@ this transaction makes no mutation for that case.
 ```sh
 git fetch origin <base-ref>
 git fetch origin <head-ref>
-bash "$PR_REVIEW_LEASE_HELPER" session-create
+SESSION_CREATE_RESULT="$(bash "$PR_REVIEW_LEASE_HELPER" session-create)" || exit 1
+WORKING_DIRECTORY="$(printf '%s' "$SESSION_CREATE_RESULT" | jq -er '.outcome == "success" and .canonical_worktree_path')"
+LEASE_FILE="$(printf '%s' "$SESSION_CREATE_RESULT" | jq -er '.outcome == "success" and .lease_file')"
 ```
 
 Fetch `<head-ref>` for the worktree and `<base-ref>` for GitHub PR context.
 They run as separate commands so a fork-PR failure on `<head-ref>` doesn't lose
 the `<base-ref>` fetch.
 
-**Fork PRs:** if `git fetch origin <head-ref>` fails or `origin/<head-ref>` doesn't exist, use `{{tool:github-cli}} pr checkout <N> --detach` in a fresh worktree instead (this populates `HEAD` without needing `origin/<head-ref>`), or add the fork as a remote and re-fetch. The `<base-ref>` fetch is still useful for local context, but Phase 3 review scope must use the provider-proven PR diff base SHA from explicit provider scope evidence, not a moving `origin/<base-ref>` ref.
+**Fork PRs:** if `git fetch origin <head-ref>` fails or `origin/<head-ref>` doesn't exist, add the fork as a remote and fetch its immutable head into the primary repository object database. Do not create or check out a separate worktree: `session-create` owns canonical worktree creation and initial LC-01 publication. The `<base-ref>` fetch is still useful for local context, but Phase 3 review scope must use the provider-proven PR diff base SHA from explicit provider scope evidence, not a moving `origin/<base-ref>` ref.
 
 Use the repo root as the base for `.worktrees/` to avoid cwd issues across bash
 calls.
 
-For `create`, `working_directory` for the play-review handoff is the physical
-absolute canonical path, for example
-`WORKING_DIRECTORY="$(cd ".worktrees/pr-<N>-review" && pwd -P)"`. For
+For `create`, `WORKING_DIRECTORY` and `LEASE_FILE` are the validated values
+from the successful `session-create` result. For
 `resume`, use the planner's selected `resume.worktree_path` and
 `resume.lease_file` instead. Manifest validation rejects subdirectories, `.`
 aliases, and symlinked aliases.
@@ -153,6 +154,7 @@ Helper command surface:
 
 - `derive-path`
 - `discover`
+- `session-create`
 - `write`
 - `validate`
 - `inspect-worktree`
@@ -177,8 +179,8 @@ Fresh PR reviews with no existing worktree follow the same Phase 1 through
 Phase 6 flow as before, except the lease is created and updated at lifecycle
 boundaries:
 
-- Write `created` after `WORKING_DIRECTORY` is resolved.
-- Refresh `created` with `HANDOFF_FILE` after the Phase 3 handoff validates.
+- `session-create` creates and verifies the initial `created` lease (LC-01).
+- Attach `HANDOFF_FILE` to that lease after the Phase 3 handoff validates.
 - Write `reviewed` after the initial Phase 4 result manifest validates.
 - Write `gated` after each successful Phase 5 preview render, using
   `PRESENTED_AT` and `PRESENTATION_STATUS`.

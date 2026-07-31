@@ -73,8 +73,6 @@ All other transitions are forbidden. `stale-head` is a valid failure phase for
 post-freeze refusal, but it is not eligible for LC-17 retry-to-post; it must
 return through review discovery or a fresh approval path before posting.
 
-## Session Discovery
-
 ## Session creation boundary
 
 `session-create` is private transaction state around a fresh LC-01 write, not
@@ -83,6 +81,8 @@ its direct-child reservation, canonical detached worktree, and initial
 no-clobber lease. Its `manual-cleanup` outcome preserves invocation evidence
 only; it grants no lifecycle cleanup, stale-reclaim, or alternate-owner
 deletion authority. LC-18 remains outside this command.
+
+## Session Discovery
 
 `review-leases.sh discover` is a read-only preflight for one repository and PR.
 It inventories only direct-child active lease names for that PR, separately
