@@ -142,6 +142,7 @@ async function writeResult() {
     const findingsFile = requiredEnv("FINDINGS_FILE");
     const scopeDecisionFile = requiredEnv("SCOPE_DECISION_FILE");
     const priorThreadsFile = optionalEnv("PRIOR_THREADS_FILE") ?? null;
+    const threadActionsFile = requiredEnv("THREAD_ACTIONS_FILE");
     const reviewBodyFile = optionalEnv("REVIEW_BODY_FILE") ?? null;
     const contextFile = optionalEnv("CONTEXT_FILE") ?? null;
     const renderedPreviewFile = optionalEnv("RENDERED_PREVIEW_FILE") ?? null;
@@ -157,6 +158,8 @@ async function writeResult() {
     validateCanonicalReviewBodyPath(reviewBodyFile, prNumber, headSha);
     await validateOptionalDirectChildReadableArtifact("context", contextFile, "-context.md");
     await validateOptionalDirectChildReadableArtifact("rendered preview", renderedPreviewFile, "-review-preview.md");
+    await validateDirectChildReadableArtifact("thread actions", threadActionsFile, "-thread-actions.json");
+    await validateThreadActionsAuthority(threadActionsFile, priorThreadsFile);
     const scope = await readJsonObject(scopeDecisionFile, "scope decision file");
     const result = {
         schema: "pr-review/result/v1",
@@ -170,6 +173,7 @@ async function writeResult() {
             handoff_file: handoffFile,
             scope_decision_file: scopeDecisionFile,
             prior_threads_file: priorThreadsFile,
+            thread_actions_file: threadActionsFile,
             rendered_preview_file: renderedPreviewFile,
             provider_scope_evidence_file: providerEvidence.file,
         },
@@ -180,6 +184,7 @@ async function writeResult() {
             context_sha256: contextFile === null ? null : await sha256File(contextFile),
             scope_decision_sha256: await sha256File(scopeDecisionFile),
             prior_threads_sha256: priorThreadsFile === null ? null : await sha256File(priorThreadsFile),
+            thread_actions_sha256: await sha256File(threadActionsFile),
             rendered_preview_sha256: renderedPreviewFile === null
                 ? null
                 : await sha256File(renderedPreviewFile),
@@ -236,15 +241,17 @@ async function renderPhase5AuditSummary() {
     validateDirectChildPath("result", resultFile, "-result.json");
     const primaryRoot = await requireAbsoluteDirectory("PRIMARY_REPOSITORY_ROOT", requiredEnv("PRIMARY_REPOSITORY_ROOT"));
     const worktreeRoot = await requireAbsoluteDirectory("WORKTREE_PATH", requiredEnv("WORKTREE_PATH"));
-    const { result, handoff, findings } = await withCwd(worktreeRoot, async () => {
+    const { result, handoff, findings, threadActions } = await withCwd(worktreeRoot, async () => {
         await validateResultFile(resultFile);
         const result = await readJsonObject(resultFile, "result file");
         const handoffFile = stringField(objectField(result, "artifacts"), "handoff_file");
         const findingsFile = stringField(result, "findings_file");
+        const threadActionsFile = stringField(objectField(result, "artifacts"), "thread_actions_file");
         return {
             result,
             handoff: await readJsonObject(handoffFile, "handoff file"),
             findings: await readJsonObject(findingsFile, "findings file"),
+            threadActions: await readJsonObject(threadActionsFile, "thread actions file"),
         };
     });
     if (stringField(result, "repository") !== repository) {
@@ -268,6 +275,7 @@ async function renderPhase5AuditSummary() {
         ? findings.carry_forward
         : [];
     const code = formatMarkdownCodeSpan;
+    const actionItems = arrayField(threadActions, "actions");
     return [
         "## Phase 5 Artifact Audit Summary",
         "",
@@ -279,6 +287,13 @@ async function renderPhase5AuditSummary() {
         `- Result manifest: ${code(resultFile)}`,
         `- Findings: ${code(stringField(result, "findings_file"))} (${findingItems.length} active, ${carryForwardItems.length} carry-forward)`,
         `- Result artifacts: handoff ${code(stringField(artifacts, "handoff_file"))}, scope ${code(stringField(artifacts, "scope_decision_file"))}, prior threads ${formatNullablePath(nullableStringField(artifacts, "prior_threads_file"))}, review body ${formatNullablePath(nullableStringField(result, "review_body_file"))}, context ${formatNullablePath(nullableStringField(result, "context_file"))}, rendered preview ${formatNullablePath(nullableStringField(artifacts, "rendered_preview_file"))}`,
+        `- Thread actions: ${code(stringField(artifacts, "thread_actions_file"))} (${actionItems.length} validated)`,
+        "",
+        "### Thread Actions",
+        "",
+        "| Thread | Action | Evidence |",
+        "|---|---|---|",
+        ...actionItems.map((action) => `| ${code(stringField(action, "thread_id"))} | ${capitalizeAction(stringField(action, "action"))} | ${escapeMarkdownTableCell(stringField(action, "evidence"))} |`),
         `- Validation status: result ${code(stringField(validation, "status"))}; findings validated ${code(String(booleanField(validation, "findings_validated")))}; scope validated ${code(String(booleanField(validation, "scope_decision_validated")))}; lease result digest ${code(status.result_sha256)}; lease validated at ${code(status.result_validated_at)}`,
         `- Presentation status: result ${code(stringField(presentation, "status"))}; lease ${code(status.presentation_status)}; presented at ${code(status.presented_at)}`,
         `- Lease/worktree status: lease ${code(status.lease_state)}; worktree ${code(status.worktree_path)}; digest ${code(status.worktree_digest)}; exists ${code(String(status.worktree_exists))}; registered ${code(String(status.worktree_registered))}; dirty ${code(String(status.worktree_dirty))}; identity match ${code(String(status.identity_match))}`,
@@ -443,6 +458,14 @@ function formatMarkdownCodeSpan(value) {
     const delimiter = "`".repeat(delimiterLength);
     return `${delimiter} ${value} ${delimiter}`;
 }
+function capitalizeAction(value) {
+    return value.length === 0
+        ? value
+        : `${value[0].toUpperCase()}${value.slice(1)}`;
+}
+function escapeMarkdownTableCell(value) {
+    return value.replaceAll("|", "\\|").replaceAll("\n", " ");
+}
 async function validateHandoffFile(file, identityFile = file) {
     await requireRepoRoot();
     readPrNumber();
@@ -594,12 +617,14 @@ function validateResultObject(value, file, identityFile) {
             "handoff_file",
             "scope_decision_file",
             "prior_threads_file",
+            "thread_actions_file",
             "rendered_preview_file",
             "provider_scope_evidence_file",
         ]) ||
         !isDirectEphemeralPath(stringField(artifacts, "handoff_file", ""), "-handoff.json") ||
         !isDirectEphemeralPath(stringField(artifacts, "scope_decision_file", ""), "-scope-decision.json") ||
         !isNullableDirectEphemeralPath(artifacts.prior_threads_file, "-prior-threads.json") ||
+        !isDirectEphemeralPath(stringField(artifacts, "thread_actions_file", ""), "-thread-actions.json") ||
         !isNullableDirectEphemeralPath(artifacts.rendered_preview_file, "-review-preview.md") ||
         !isDirectEphemeralPath(stringField(artifacts, "provider_scope_evidence_file", ""), "-provider-scope-evidence.json") ||
         !hasExactKeys(digests, [
@@ -609,6 +634,7 @@ function validateResultObject(value, file, identityFile) {
             "context_sha256",
             "scope_decision_sha256",
             "prior_threads_sha256",
+            "thread_actions_sha256",
             "rendered_preview_sha256",
             "provider_scope_evidence_sha256",
         ]) ||
@@ -619,6 +645,7 @@ function validateResultObject(value, file, identityFile) {
         !digestMatchesNullable(value.review_body_file, digests.review_body_sha256) ||
         !digestMatchesNullable(value.context_file, digests.context_sha256) ||
         !digestMatchesNullable(artifacts.prior_threads_file, digests.prior_threads_sha256) ||
+        !isSha256(stringField(digests, "thread_actions_sha256", "")) ||
         !digestMatchesNullable(artifacts.rendered_preview_file, digests.rendered_preview_sha256) ||
         !hasExactKeys(scope, [
             "summary",
@@ -740,6 +767,7 @@ async function validateResultFacts(result, identityFile) {
         fail(`result path mismatch: ${identityFile}`);
     }
     const artifacts = objectField(result, "artifacts");
+    const threadActionsFile = stringField(artifacts, "thread_actions_file");
     const handoffFile = stringField(artifacts, "handoff_file");
     if (handoffFile !== expectedHandoffPath(Number(manifestPrNumber), reviewHeadSha)) {
         fail("result handoff path mismatch");
@@ -763,6 +791,8 @@ async function validateResultFacts(result, identityFile) {
     await validateOptionalReadableArtifact("rendered preview file", renderedPreviewFile);
     const scopeDecisionFile = stringField(artifacts, "scope_decision_file");
     const priorThreadsFile = nullableStringField(artifacts, "prior_threads_file");
+    await assertReadableFile("thread actions file", threadActionsFile);
+    await validateThreadActionsAuthority(threadActionsFile, priorThreadsFile);
     const providerScopeEvidenceFile = stringField(artifacts, "provider_scope_evidence_file");
     const handoffArtifacts = objectField(handoff, "artifacts");
     if (scopeDecisionFile !== stringField(handoffArtifacts, "scope_decision_file")) {
@@ -807,6 +837,7 @@ async function validateResultFacts(result, identityFile) {
     await validateOptionalDigest("context", contextFile, nullableStringField(digests, "context_sha256"));
     await validateDigest("scope decision", scopeDecisionFile, stringField(digests, "scope_decision_sha256"));
     await validateOptionalDigest("prior threads", priorThreadsFile, nullableStringField(digests, "prior_threads_sha256"));
+    await validateDigest("thread actions", threadActionsFile, stringField(digests, "thread_actions_sha256"));
     await validateOptionalDigest("rendered preview", renderedPreviewFile, nullableStringField(digests, "rendered_preview_sha256"));
     await validateDigest("provider scope evidence", providerScopeEvidenceFile, stringField(digests, "provider_scope_evidence_sha256"));
     if (stringField(digests, "provider_scope_evidence_sha256") !==
@@ -1069,6 +1100,24 @@ async function validateOptionalDirectChildReadableArtifact(label, file, suffix) 
     validateDirectChildPath(label, file, suffix);
     await assertReadableFile(`${label} file`, file);
 }
+async function validateDirectChildReadableArtifact(label, file, suffix) {
+    validateDirectChildPath(label, file, suffix);
+    await assertReadableFile(`${label} file`, file);
+}
+async function validateThreadActionsAuthority(threadActionsFile, priorThreadsFile) {
+    if (priorThreadsFile === null) {
+        fail("thread actions require prior threads evidence");
+    }
+    const scopeHelper = await resolveScopeHelper();
+    await runBashHelper(scopeHelper, "validate-thread-actions", {
+        ...process.env,
+        HEAD_SHA: readHeadSha(),
+        THREAD_ACTIONS_FILE: threadActionsFile,
+        PRIOR_THREADS_FILE: priorThreadsFile,
+        REPOSITORY: requiredEnv("REPOSITORY"),
+        PR_NUMBER: String(readPrNumber()),
+    });
+}
 async function validateDigest(label, file, expected) {
     const actual = await sha256File(file);
     if (actual !== expected) {
@@ -1218,6 +1267,7 @@ function requireResultWriteEnv() {
         "REPOSITORY",
         "FINDINGS_FILE",
         "SCOPE_DECISION_FILE",
+        "THREAD_ACTIONS_FILE",
         "PRESENTATION_STATUS",
     ]) {
         requireEnv(name);

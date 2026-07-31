@@ -537,7 +537,19 @@ to resolve a provider thread until a later approved-review freeze.
 ```bash
 write_thread_actions_candidate() {
   cd "$WORKING_DIRECTORY" || return 1
-  : "${PRIOR_THREADS_FILE:?Phase 5 prior-thread artifact path missing}"
+  if [ -z "${PRIOR_THREADS_FILE:-}" ]; then
+    PRIOR_THREADS_FILE=$(HEAD_SHA="$REVIEW_HEAD_SHA" \
+      bash "$PR_REVIEW_DIR/scripts/prior-thread-artifacts.sh" prepare-prior-threads-write) || return 1
+    # Write the canonical empty pr-review/prior-threads/v1 envelope for this
+    # initial review: repository/PR/head bound with threads=[] and dropped=[].
+    HEAD_SHA="$REVIEW_HEAD_SHA" \
+    PRIOR_THREADS_FILE="$PRIOR_THREADS_FILE" \
+      bash "$PR_REVIEW_DIR/scripts/prior-thread-artifacts.sh" validate-prior-threads || return 1
+  else
+    HEAD_SHA="$REVIEW_HEAD_SHA" \
+    PRIOR_THREADS_FILE="$PRIOR_THREADS_FILE" \
+      bash "$PR_REVIEW_DIR/scripts/prior-thread-artifacts.sh" validate-prior-threads || return 1
+  fi
   THREAD_ACTIONS_FILE=$(HEAD_SHA="$REVIEW_HEAD_SHA" \
     bash "$PR_REVIEW_DIR/scripts/prior-thread-artifacts.sh" prepare-thread-actions-write) || return 1
   # Write the complete pr-review/thread-actions/v1 candidate to "$THREAD_ACTIONS_FILE".
@@ -893,7 +905,10 @@ before waiting for approval.
 **Thread-action edits and `skip threads`:** rewrite the complete
 `pr-review/thread-actions/v1` candidate first, preserving one action for every
 eligible thread. For `skip threads`, write the explicit complete all-`leave`
-candidate; never omit actions as shorthand. Validate it, rewrite
+candidate; never omit actions as shorthand. Immediately before every candidate
+write or rewrite, invoke `prepare-thread-actions-write` for the immutable head
+and exact direct-child path; only then write and validate the candidate. Do not
+overwrite an existing candidate path directly. Rewrite
 `pr-review/result/v1` with its new path/digest and
 `PRESENTATION_STATUS="edited"`, re-render the preview from that validated
 candidate, refresh the `gated` lease, render the artifact audit summary, and

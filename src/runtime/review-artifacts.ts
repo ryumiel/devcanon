@@ -743,7 +743,11 @@ async function validateScopeDecision(
   const artifactPriorPath = nullableStringField(priorContext, "path") ?? "null";
   if (
     mode === "initial" &&
-    (artifactPriorKind !== "none" || artifactPriorPath !== "null")
+    artifactPriorKind !== "none" &&
+    !(
+      options.surface === "pr-review" &&
+      artifactPriorKind === "github-prior-threads"
+    )
   ) {
     fail("initial scope requires no prior context");
   }

@@ -179,6 +179,10 @@ function priorThreadsPath(headSha: string) {
   return `.ephemeral/topic-${headSha}-prior-threads.json`;
 }
 
+function threadActionsPath(headSha: string) {
+  return `.ephemeral/topic-${headSha}-thread-actions.json`;
+}
+
 function findingsPath(headSha: string) {
   return `.ephemeral/topic-${headSha}-findings.json`;
 }
@@ -427,6 +431,40 @@ async function sha256File(cwd: string, relPath: string) {
 }
 
 async function writeValidInputs(cwd: string, baseSha: string, headSha: string) {
+  const priorFile = priorThreadsPath(headSha);
+  const candidateFile = threadActionsPath(headSha);
+  await runPriorHelper(cwd, "prepare-prior-threads-write", {
+    HEAD_SHA: headSha,
+  });
+  await writeJson(cwd, priorFile, {
+    schema: "pr-review/prior-threads/v1",
+    provider: "github",
+    pr_number: Number(prNumber),
+    head_sha: headSha,
+    threads: [],
+    dropped: [],
+  });
+  await runPriorHelper(cwd, "validate-prior-threads", {
+    HEAD_SHA: headSha,
+    PRIOR_THREADS_FILE: priorFile,
+  });
+  await runPriorHelper(cwd, "prepare-thread-actions-write", {
+    HEAD_SHA: headSha,
+  });
+  await writeJson(cwd, candidateFile, {
+    schema: "pr-review/thread-actions/v1",
+    repository: "owner/repo",
+    pr_number: Number(prNumber),
+    review_head_sha: headSha,
+    prior_threads_file: priorFile,
+    prior_threads_sha256: await sha256File(cwd, priorFile),
+    actions: [],
+  });
+  await runPriorHelper(cwd, "validate-thread-actions", {
+    HEAD_SHA: headSha,
+    PRIOR_THREADS_FILE: priorFile,
+    THREAD_ACTIONS_FILE: candidateFile,
+  });
   const evidencePath = providerScopePath(headSha);
   const evidenceText = JSON.stringify(
     await providerScopeEvidence(cwd, baseSha, headSha),
@@ -435,7 +473,9 @@ async function writeValidInputs(cwd: string, baseSha: string, headSha: string) {
   );
   await writeFile(path.join(cwd, evidencePath), evidenceText);
   await writeJson(cwd, scopePath(headSha), {
-    ...initialScope(baseSha, headSha),
+    ...initialScope(baseSha, headSha, {
+      prior_context: { kind: "github-prior-threads", path: priorFile },
+    }),
     artifacts: {
       provider_scope_evidence_file: evidencePath,
       provider_scope_evidence_sha256: sha256(evidenceText),
@@ -460,6 +500,8 @@ function handoffEnv(cwd: string, baseSha: string, headSha: string) {
     FOLLOW_UP_STATE: "initial",
     IS_FOLLOWUP_NARROW: "false",
     SCOPE_DECISION_FILE: scopePath(headSha),
+    PRIOR_THREADS_FILE: priorThreadsPath(headSha),
+    THREAD_ACTIONS_FILE: threadActionsPath(headSha),
   };
 }
 
@@ -470,6 +512,8 @@ function resultEnv(headSha: string) {
     REPOSITORY: "owner/repo",
     FINDINGS_FILE: findingsPath(headSha),
     SCOPE_DECISION_FILE: scopePath(headSha),
+    PRIOR_THREADS_FILE: priorThreadsPath(headSha),
+    THREAD_ACTIONS_FILE: threadActionsPath(headSha),
     PRESENTATION_STATUS: "not-presented",
   };
 }
@@ -481,6 +525,23 @@ async function runHelper(
   script = helperScript,
 ) {
   return execFileAsync("bash", [script, command], {
+    cwd,
+    env: {
+      ...process.env,
+      PR_NUMBER: prNumber,
+      REPOSITORY: "owner/repo",
+      ...env,
+    },
+    maxBuffer: 1024 * 1024,
+  });
+}
+
+async function runPriorHelper(
+  cwd: string,
+  command: string,
+  env: NodeJS.ProcessEnv = {},
+) {
+  return execFileAsync("bash", [priorHelperScript, command], {
     cwd,
     env: {
       ...process.env,
@@ -964,7 +1025,7 @@ describe("pr-review manifest helper", () => {
           `Findings: \`${findingsPath(workspace.headSha)}\` (0 active, 0 carry-forward)`,
         );
         expect(stdout).toContain(
-          `Result artifacts: handoff \`${handoffPath(workspace.headSha)}\`, scope \`${scopePath(workspace.headSha)}\`, prior threads \`none\`, review body \`${reviewBodyPath(workspace.headSha)}\`, context \`none\`, rendered preview \`${previewPath(workspace.headSha)}\``,
+          `Result artifacts: handoff \`${handoffPath(workspace.headSha)}\`, scope \`${scopePath(workspace.headSha)}\`, prior threads \`${priorThreadsPath(workspace.headSha)}\`, review body \`${reviewBodyPath(workspace.headSha)}\`, context \`none\`, rendered preview \`${previewPath(workspace.headSha)}\``,
         );
         expect(stdout).toContain(
           `Validation status: result \`valid\`; findings validated \`true\`; scope validated \`true\`; lease result digest \`${lease.validation.result_manifest.sha256}\`; lease validated at \`${lease.validation.result_manifest.validated_at}\``,
@@ -1152,6 +1213,8 @@ describe("pr-review manifest helper", () => {
         schema: "pr-review/result/v1",
         artifacts: {
           handoff_file: handoffPath(headSha),
+          prior_threads_file: priorThreadsPath(headSha),
+          thread_actions_file: threadActionsPath(headSha),
         },
         digests: {
           handoff_sha256: expect.stringMatching(/^[0-9a-f]{64}$/),
@@ -1159,7 +1222,8 @@ describe("pr-review manifest helper", () => {
           review_body_sha256: null,
           context_sha256: null,
           scope_decision_sha256: expect.stringMatching(/^[0-9a-f]{64}$/),
-          prior_threads_sha256: null,
+          prior_threads_sha256: expect.stringMatching(/^[0-9a-f]{64}$/),
+          thread_actions_sha256: expect.stringMatching(/^[0-9a-f]{64}$/),
           rendered_preview_sha256: null,
         },
         validation: {
