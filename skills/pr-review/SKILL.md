@@ -336,10 +336,13 @@ PR_BASE_REF="<base-ref>"
 PROVIDER_PR_DIFF_BASE_SHA="<provider_pr_diff_base_sha>"
 REVIEW_SCOPE_BASE_REF="$PROVIDER_PR_DIFF_BASE_SHA"
 REVIEW_CALLER_DIR="$(pwd -P)" || exit 1
+REVIEW_HEAD_SHA="$(git -C "$WORKING_DIRECTORY" rev-parse HEAD)" || exit 1
+REVIEW_MODE="$FOLLOW_UP_STATE"
+case "$REVIEW_MODE" in initial | follow-up) ;; *) exit 1 ;; esac
 
 materialize_initial_prior_threads() {
   cd "$WORKING_DIRECTORY" || return 1
-  [ "${FOLLOW_UP_STATE:-}" = "initial" ] || return 0
+  [ "$REVIEW_MODE" = "initial" ] || return 0
   PRIOR_THREADS_FILE=$(HEAD_SHA="$REVIEW_HEAD_SHA" \
     bash "$PR_REVIEW_ARTIFACT_HELPER" prepare-prior-threads-write) || return 1
   # Write the canonical empty pr-review/prior-threads/v1 envelope here:
@@ -351,7 +354,7 @@ materialize_initial_prior_threads() {
 
 bind_scope_decision_artifact() {
   cd "$WORKING_DIRECTORY" || return 1
-  HEAD_SHA="$(git rev-parse HEAD)" || return 1
+  HEAD_SHA="$REVIEW_HEAD_SHA"
   FULL_PR_DIFF_RANGE="$PROVIDER_PR_DIFF_BASE_SHA..$HEAD_SHA"
   PROVIDER_SCOPE_EVIDENCE_FILE=$(
     HEAD_SHA="$HEAD_SHA" \

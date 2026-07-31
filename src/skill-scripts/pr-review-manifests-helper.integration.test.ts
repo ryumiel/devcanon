@@ -484,7 +484,12 @@ async function writeValidInputs(cwd: string, baseSha: string, headSha: string) {
   await writeJson(cwd, findingsPath(headSha), findingsEnvelope());
 }
 
-function handoffEnv(cwd: string, baseSha: string, headSha: string) {
+function handoffEnv(
+  cwd: string,
+  baseSha: string,
+  headSha: string,
+  includePriorThreads = true,
+) {
   return {
     PR_NUMBER: prNumber,
     HEAD_SHA: headSha,
@@ -500,8 +505,9 @@ function handoffEnv(cwd: string, baseSha: string, headSha: string) {
     FOLLOW_UP_STATE: "initial",
     IS_FOLLOWUP_NARROW: "false",
     SCOPE_DECISION_FILE: scopePath(headSha),
-    PRIOR_THREADS_FILE: priorThreadsPath(headSha),
-    THREAD_ACTIONS_FILE: threadActionsPath(headSha),
+    ...(includePriorThreads
+      ? { PRIOR_THREADS_FILE: priorThreadsPath(headSha) }
+      : {}),
   };
 }
 
@@ -1446,7 +1452,7 @@ describe("pr-review manifest helper", () => {
 
         await expect(
           runHelper(cwd, "write-handoff", {
-            ...handoffEnv(cwd, baseSha, headSha),
+            ...handoffEnv(cwd, baseSha, headSha, false),
             LANGUAGE_HINTS_JSON: '["c++","ts"]',
           }),
         ).resolves.toMatchObject({ stdout: `${handoffPath(headSha)}\n` });
@@ -1649,7 +1655,7 @@ describe("pr-review manifest helper", () => {
       });
       await expect(
         runHelper(cwd, "write-handoff", {
-          ...handoffEnv(cwd, baseSha, headSha),
+          ...handoffEnv(cwd, baseSha, headSha, false),
           EXECUTION_WORKING_DIRECTORY: ".",
         }),
       ).rejects.toMatchObject({
@@ -2464,7 +2470,7 @@ describe("pr-review manifest helper", () => {
         await writeJson(cwd, branchFindingsPath, findingsEnvelope());
 
         await runHelper(cwd, "write-handoff", {
-          ...handoffEnv(cwd, baseSha, headSha),
+          ...handoffEnv(cwd, baseSha, headSha, false),
           SCOPE_DECISION_FILE: branchScopePath,
         });
         await runHelper(cwd, "write-result", {
