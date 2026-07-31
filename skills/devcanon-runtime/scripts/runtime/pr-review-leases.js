@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { constants } from "node:fs";
-import { access, copyFile, lstat, mkdir, open, readFile, readdir, realpath, rm, } from "node:fs/promises";
+import { access, copyFile, link, lstat, mkdir, open, readFile, readdir, realpath, rm, } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import { writeTextAtomically } from "./artifacts.js";
@@ -130,6 +130,9 @@ async function sessionCreatePreflight() {
         }
         return sessionCreateManualCleanup("rollback-incomplete", reservation, null, null, ["reservation"]);
     }
+    if (!(await reservationMatches(path.join(identity.primaryRoot, reservationFile), reservation, reservationBytes))) {
+        return sessionCreateManualCleanup("reservation-unverifiable", reservation, null, null, ["reservation"]);
+    }
     try {
         await execFileAsync("git", [
             "-C",
@@ -176,6 +179,9 @@ async function sessionCreatePreflight() {
             worktreeCreated: true,
         });
     }
+    if (!(await reservationMatches(path.join(identity.primaryRoot, reservationFile), reservation, reservationBytes))) {
+        return sessionCreateManualCleanup("reservation-unverifiable", reservation, registration, null, ["reservation", "worktree", "registration"]);
+    }
     const leasePublication = await publishSessionCreateLease(identity.primaryRoot, leaseFile, leaseBytes);
     if (leasePublication !== "published") {
         return sessionCreateManualCleanup("lease-unverifiable", reservation, registration, null, ["reservation", "worktree", "registration", "lease"]);
@@ -217,6 +223,12 @@ async function assertPrimaryGitBinding(primaryRoot) {
     ]);
     if ((await realpath(stdout.trim())) !== primaryRoot) {
         throw new PrReviewLeaseError("PRIMARY_REPOSITORY_ROOT must be the physical Git worktree root");
+    }
+    const registrations = await listRegisteredWorktrees(primaryRoot);
+    const primaryRegistration = registrations[0];
+    if (primaryRegistration === undefined ||
+        (await realpath(primaryRegistration)) !== primaryRoot) {
+        throw new PrReviewLeaseError("PRIMARY_REPOSITORY_ROOT must be the primary Git worktree");
     }
 }
 async function assertGitCommit(primaryRoot, immutableHead) {
@@ -450,7 +462,7 @@ async function publishSessionCreateLease(primaryRoot, leaseFile, bytes) {
         await handle.sync();
         await handle.close();
         handle = null;
-        await copyFile(temp, target, constants.COPYFILE_EXCL);
+        await link(temp, target);
         await rm(temp);
         return "published";
     }

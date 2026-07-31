@@ -4,6 +4,7 @@ import { constants } from "node:fs";
 import {
   access,
   copyFile,
+  link,
   lstat,
   mkdir,
   open,
@@ -394,6 +395,22 @@ async function sessionCreatePreflight(): Promise<RuntimeCommandOutcome> {
     );
   }
 
+  if (
+    !(await reservationMatches(
+      path.join(identity.primaryRoot, reservationFile),
+      reservation,
+      reservationBytes,
+    ))
+  ) {
+    return sessionCreateManualCleanup(
+      "reservation-unverifiable",
+      reservation,
+      null,
+      null,
+      ["reservation"],
+    );
+  }
+
   try {
     await execFileAsync("git", [
       "-C",
@@ -457,6 +474,22 @@ async function sessionCreatePreflight(): Promise<RuntimeCommandOutcome> {
       leaseSha256: null,
       worktreeCreated: true,
     });
+  }
+
+  if (
+    !(await reservationMatches(
+      path.join(identity.primaryRoot, reservationFile),
+      reservation,
+      reservationBytes,
+    ))
+  ) {
+    return sessionCreateManualCleanup(
+      "reservation-unverifiable",
+      reservation,
+      registration,
+      null,
+      ["reservation", "worktree", "registration"],
+    );
   }
 
   const leasePublication = await publishSessionCreateLease(
@@ -537,6 +570,16 @@ async function assertPrimaryGitBinding(primaryRoot: string): Promise<void> {
   if ((await realpath(stdout.trim())) !== primaryRoot) {
     throw new PrReviewLeaseError(
       "PRIMARY_REPOSITORY_ROOT must be the physical Git worktree root",
+    );
+  }
+  const registrations = await listRegisteredWorktrees(primaryRoot);
+  const primaryRegistration = registrations[0];
+  if (
+    primaryRegistration === undefined ||
+    (await realpath(primaryRegistration)) !== primaryRoot
+  ) {
+    throw new PrReviewLeaseError(
+      "PRIMARY_REPOSITORY_ROOT must be the primary Git worktree",
     );
   }
 }
@@ -826,7 +869,7 @@ async function publishSessionCreateLease(
     await handle.sync();
     await handle.close();
     handle = null;
-    await copyFile(temp, target, constants.COPYFILE_EXCL);
+    await link(temp, target);
     await rm(temp);
     return "published";
   } catch {

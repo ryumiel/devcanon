@@ -1286,6 +1286,66 @@ describe("pr-review lease reducer", () => {
 });
 
 describe("pr-review lease command validation", () => {
+  it("rejects a linked worktree presented as the primary repository root", async () => {
+    const workspace = await makeRegisteredWorkspace("linked-primary");
+    const { stdout } = await execFileAsync("git", [
+      "-C",
+      workspace.physicalWorktree,
+      "rev-parse",
+      "HEAD",
+    ]);
+    process.chdir(workspace.physicalWorktree);
+    process.env.REPOSITORY = "owner/repo";
+    process.env.PR_NUMBER = "432";
+    process.env.PRIMARY_REPOSITORY_ROOT = workspace.physicalWorktree;
+    process.env.HEAD_SHA = stdout.trim();
+    process.env.BASE_REF = "main";
+    process.env.HEAD_REF = "topic";
+    process.env.UPDATED_AT = "2026-07-31T00:00:00Z";
+
+    const result = await runPrReviewLeasesCommand(["session-create"]);
+
+    expect(result).toEqual({
+      exitCode: 1,
+      stdout: "",
+      stderr: "PRIMARY_REPOSITORY_ROOT must be the primary Git worktree\n",
+    });
+  });
+
+  it("rejects whitespace-only frozen refs before creating a reservation", async () => {
+    const repository = await commandHarness.createReviewRepository();
+    const { stdout } = await execFileAsync("git", [
+      "-C",
+      repository.physicalRepository,
+      "rev-parse",
+      "HEAD",
+    ]);
+    process.chdir(repository.physicalRepository);
+    process.env.REPOSITORY = "owner/repo";
+    process.env.PR_NUMBER = "432";
+    process.env.PRIMARY_REPOSITORY_ROOT = repository.physicalRepository;
+    process.env.HEAD_SHA = stdout.trim();
+    process.env.BASE_REF = " \t";
+    process.env.HEAD_REF = "topic";
+    process.env.UPDATED_AT = "2026-07-31T00:00:00Z";
+
+    const result = await runPrReviewLeasesCommand(["session-create"]);
+
+    expect(result).toEqual({
+      exitCode: 1,
+      stdout: "",
+      stderr: "BASE_REF and HEAD_REF must be nonblank\n",
+    });
+    await expect(
+      lstat(
+        path.join(
+          repository.physicalRepository,
+          ".ephemeral/pr-432-session-create-reservation.json",
+        ),
+      ),
+    ).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
   it("creates one verified detached canonical session from frozen inputs", async () => {
     const repository = await commandHarness.createReviewRepository();
     const { stdout: headOutput } = await execFileAsync("git", [
