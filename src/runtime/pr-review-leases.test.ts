@@ -1243,8 +1243,17 @@ describe("pr-review lease reducer", () => {
     });
     expect(preservedFailure).toMatchObject({
       state: "failed",
-      artifacts: { post_intent_file: intended.artifacts.post_intent_file },
+      artifacts: {
+        post_intent_file: intended.artifacts.post_intent_file,
+        execution_receipt_file: null,
+      },
+      terminal: { finished_at: "2026-06-11T00:03:00Z", reason: null },
       failure: failed.failure,
+      github: {
+        github_post_attempted: true,
+        github_post_result: "failed",
+        github_posted_at: null,
+      },
     });
     const recoveredResolving = reducePrReviewLease(failed, identity, {
       state: "resolving",

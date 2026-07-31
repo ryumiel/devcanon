@@ -1155,6 +1155,41 @@ Only after user approval:
    LEASE_FILE="$(cd "$REVIEW_CALLER_DIR" && bash "$PR_REVIEW_LEASE_HELPER" derive-path)" || exit 1
    CURRENT_LEASE_STATE="$(jq -er '.state | select(. == "gated" or . == "failed" or . == "resolving" or . == "posted")' "$REVIEW_CALLER_DIR/$LEASE_FILE")" || exit 1
    LEASE_POST_INTENT_FILE="$(jq -er '.artifacts.post_intent_file // ""' "$REVIEW_CALLER_DIR/$LEASE_FILE")" || exit 1
+   CURRENT_FAILURE_REASON=""
+   CURRENT_FAILURE_RECOVERABILITY=""
+   CURRENT_FAILURE_FINISHED_AT=""
+   if [ "$CURRENT_LEASE_STATE" = "failed" ]; then
+     # A reused, no-receipt intent can only resume the immutable github-post
+     # failure fact. It cannot invent a new failed lifecycle fact.
+     CURRENT_FAILURE_REASON="$(jq -er '.failure | select(.phase == "github-post") | .reason | strings | select(length > 0)' "$REVIEW_CALLER_DIR/$LEASE_FILE")" || exit 1
+     CURRENT_FAILURE_RECOVERABILITY="$(jq -er '.failure | select(.phase == "github-post") | .recoverability | select(. == "recoverable" or . == "unrecoverable" or . == "unknown")' "$REVIEW_CALLER_DIR/$LEASE_FILE")" || exit 1
+     CURRENT_FAILURE_FINISHED_AT="$(jq -er '.terminal.finished_at | strings | select(test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"))' "$REVIEW_CALLER_DIR/$LEASE_FILE")" || exit 1
+   fi
+   record_indeterminate_github_post_failure() {
+     if [ "$CURRENT_LEASE_STATE" = "failed" ]; then
+       FAILURE_REASON="$CURRENT_FAILURE_REASON"
+       FAILURE_RECOVERABILITY="$CURRENT_FAILURE_RECOVERABILITY"
+       FAILURE_FINISHED_AT="$CURRENT_FAILURE_FINISHED_AT"
+     else
+       FAILURE_REASON="GitHub review POST outcome is indeterminate"
+       FAILURE_RECOVERABILITY="unknown"
+       FAILURE_FINISHED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+     fi
+     STATE="failed" \
+     EXPECTED_STATE="$CURRENT_LEASE_STATE" \
+     APPROVED_REVIEW_FILE="$APPROVED_REVIEW_FILE" \
+     VALIDATED_REVIEW_PAYLOAD_FILE="$VALIDATED_REVIEW_PAYLOAD_FILE" \
+     EXECUTION_RECEIPT_FILE="" \
+     FINISHED_AT="$FAILURE_FINISHED_AT" \
+     FAILURE_PHASE="github-post" \
+     FAILURE_REASON="$FAILURE_REASON" \
+     FAILURE_RECOVERABILITY="$FAILURE_RECOVERABILITY" \
+     GITHUB_POST_ATTEMPTED=true \
+     GITHUB_POST_RESULT=failed \
+     UPDATED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+       bash "$PR_REVIEW_LEASE_HELPER" write || exit 1
+     exit 1
+   }
    POST_INTENT_LEASE_OWNED=false
    [ "$LEASE_POST_INTENT_FILE" = "$POST_INTENT_FILE" ] && POST_INTENT_LEASE_OWNED=true
    EXISTING_EXECUTION_RECEIPT_FILE=".ephemeral/pr-${PR_NUMBER}-${REVIEW_HEAD_SHA}-thread-action-execution.json"
@@ -1255,10 +1290,10 @@ Only after user approval:
              | select(.state | matching_state($intent[0].review_event))
              | {id, submitted_at}
            ] | if length == 1 then .[0] else error("reconciliation requires exactly one exact review") end'
-     ) )" || exit 1
+     ) )" || record_indeterminate_github_post_failure
      POST_OUTCOME="provider-reconciliation"
-     PROVIDER_REVIEW_ID="$(printf '%s' "$RECONCILIATION_SCALARS" | jq -er '.id | numbers | select(. == floor and . >= 1 and . <= 9007199254740991)')" || exit 1
-     PROVIDER_REVIEW_SUBMITTED_AT="$(printf '%s' "$RECONCILIATION_SCALARS" | jq -er '.submitted_at | strings | select(test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"))')" || exit 1
+     PROVIDER_REVIEW_ID="$(printf '%s' "$RECONCILIATION_SCALARS" | jq -er '.id | numbers | select(. == floor and . >= 1 and . <= 9007199254740991)')" || record_indeterminate_github_post_failure
+     PROVIDER_REVIEW_SUBMITTED_AT="$(printf '%s' "$RECONCILIATION_SCALARS" | jq -er '.submitted_at | strings | select(test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"))')" || record_indeterminate_github_post_failure
    else
      [ "$CURRENT_LEASE_STATE" = "gated" ] || exit 1
      # The helper has atomically created and revalidated both artifacts. Persist
@@ -1293,9 +1328,9 @@ Only after user approval:
            and (.state | matching_state($intent[0].review_event)))
          then {id, submitted_at}
          else error("POST response does not match sealed intent")
-         end' "$POST_RESPONSE_FILE")" || exit 1
-       PROVIDER_REVIEW_ID="$(printf '%s' "$POST_RESPONSE_SCALARS" | jq -er '.id')" || exit 1
-       PROVIDER_REVIEW_SUBMITTED_AT="$(printf '%s' "$POST_RESPONSE_SCALARS" | jq -er '.submitted_at')" || exit 1
+         end' "$POST_RESPONSE_FILE")" || record_indeterminate_github_post_failure
+       PROVIDER_REVIEW_ID="$(printf '%s' "$POST_RESPONSE_SCALARS" | jq -er '.id')" || record_indeterminate_github_post_failure
+       PROVIDER_REVIEW_SUBMITTED_AT="$(printf '%s' "$POST_RESPONSE_SCALARS" | jq -er '.submitted_at')" || record_indeterminate_github_post_failure
      else
        # A definite HTTP 4xx is a certain rejection; transport failures,
        # 5xx responses, and malformed output are uncertain and must never be reposted.
@@ -1329,10 +1364,13 @@ Only after user approval:
    by reading every page of submitted reviews for this PR and accept exactly one
    review only when its exact full marked body, provider actor, event/state,
    and reviewed commit match the intent, with the provider actor, event, commit, and non-null submission timestamp all bound to that same review.
-   Zero or multiple matches, an incomplete page walk, or any mismatched field is
-   an indeterminate failure: retain the valid intent, leave no provider mutation,
-   and stop. Do not treat a matching marker alone as proof and do not create a
-   second review.
+   Zero or multiple matches, an incomplete or malformed page walk, any mismatched
+   field, or a successful POST response that cannot be validated is an
+   indeterminate `github-post` failure. Before stopping, write `failed` through
+   the lease helper with the intent retained and no receipt. If this is a retry
+   from an existing action-bearing failure, preserve its immutable failure fact;
+   otherwise record `unknown` recoverability. Do not treat a matching marker
+   alone as proof and do not create a second review.
 
 6. **Write the execution receipt before the first resolution.** For either a
    returned successful POST response or the one proven reconciliation match,

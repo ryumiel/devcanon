@@ -3842,6 +3842,20 @@ None
     );
     expect(retryIntentGate).toContain("POST_INTENT_REUSED=true");
     expect(retryIntentGate).toContain('cd "$WORKING_DIRECTORY" || exit 1');
+    const indeterminatePostFailure = retryIntentGate.slice(
+      retryIntentGate.indexOf("record_indeterminate_github_post_failure()"),
+      retryIntentGate.indexOf("POST_INTENT_LEASE_OWNED=false"),
+    );
+    expect(indeterminatePostFailure).toContain('STATE="failed"');
+    expect(indeterminatePostFailure).toContain(
+      'EXPECTED_STATE="$CURRENT_LEASE_STATE"',
+    );
+    expect(indeterminatePostFailure).toContain('FAILURE_PHASE="github-post"');
+    expect(indeterminatePostFailure).toContain("GITHUB_POST_ATTEMPTED=true");
+    expect(indeterminatePostFailure).toContain("GITHUB_POST_RESULT=failed");
+    expect(indeterminatePostFailure).toContain('EXECUTION_RECEIPT_FILE=""');
+    expect(indeterminatePostFailure).toContain("CURRENT_FAILURE_REASON");
+    expect(indeterminatePostFailure).toContain("CURRENT_FAILURE_FINISHED_AT");
     expect(existingReceiptIndex).toBeGreaterThan(existingIntentIndex);
     expect(existingReceiptIndex).toBeLessThan(firstProviderPostIndex);
     const existingReceiptBranch = prReviewPhase6.slice(
@@ -3891,12 +3905,18 @@ None
     expect(reusedIntentBranch).toContain(
       'POST_OUTCOME="provider-reconciliation"',
     );
+    expect(reusedIntentBranch).toContain(
+      "record_indeterminate_github_post_failure",
+    );
     expect(reusedIntentBranch).not.toContain("--method POST");
     expect(reusedIntentBranch).not.toContain("PR_REVIEW_LEASE_HELPER");
     expect(reusedIntentBranch).not.toContain('STATE="gated"');
+    const intentOwnershipStart = prReviewPhase6.indexOf(
+      "POST_INTENT_LEASE_OWNED=false",
+    );
     const intentOwnershipGate = prReviewPhase6.slice(
-      prReviewPhase6.indexOf("POST_INTENT_LEASE_OWNED=false"),
-      prReviewPhase6.indexOf('EXECUTION_RECEIPT_FILE=""'),
+      intentOwnershipStart,
+      prReviewPhase6.indexOf('EXECUTION_RECEIPT_FILE=""', intentOwnershipStart),
     );
     expect(intentOwnershipGate).toContain("LEASE_POST_INTENT_FILE");
     expect(intentOwnershipGate).toContain(
@@ -3927,6 +3947,7 @@ None
       ".user.id == $intent[0].provider_actor_id",
       ".body == $intent[0].final_body",
       ".commit_id == $intent[0].review_head_sha",
+      "record_indeterminate_github_post_failure",
       "GITHUB_POST_ATTEMPTED=true",
       "GITHUB_POST_RESULT=failed",
     ]) {
