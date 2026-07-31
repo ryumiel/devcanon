@@ -15,6 +15,15 @@
 - symlink support may depend on Developer Mode or privileges
 - copy fallback must always be supported
 
+### PR-review session creation
+
+Transactional PR-review creation coordinates only cooperating creators that
+share the same primary-repository filesystem, including supported Linux and
+native Windows/Git Bash environments. Unsupported no-clobber or filesystem
+behavior fails closed and leaves evidence for manual cleanup. It does not
+guarantee coordination with hostile or uncooperative writers, stale-owner
+reclamation, or distributed hosts.
+
 ### Path rules
 
 - resolve all internal paths to normalized absolute paths

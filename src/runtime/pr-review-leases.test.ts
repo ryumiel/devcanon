@@ -6472,7 +6472,6 @@ describe("pr-review lease wrapper trusted runtime bootstrap", () => {
     );
     expect(result).toEqual({
       exitCode: 0,
-      signal: null,
       stdout: "runtime-ok\n",
       stderr: "",
     });

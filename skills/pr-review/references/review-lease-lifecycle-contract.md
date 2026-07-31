@@ -75,6 +75,15 @@ return through review discovery or a fresh approval path before posting.
 
 ## Session Discovery
 
+## Session creation boundary
+
+`session-create` is private transaction state around a fresh LC-01 write, not
+an LC-01 field, transition, or cleanup authority. The runtime alone may create
+its direct-child reservation, canonical detached worktree, and initial
+no-clobber lease. Its `manual-cleanup` outcome preserves invocation evidence
+only; it grants no lifecycle cleanup, stale-reclaim, or alternate-owner
+deletion authority. LC-18 remains outside this command.
+
 `review-leases.sh discover` is a read-only preflight for one repository and PR.
 It inventories only direct-child active lease names for that PR, separately
 reports archived lease names, observes the canonical

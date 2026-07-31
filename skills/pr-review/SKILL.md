@@ -71,7 +71,7 @@ PR_REVIEW_DIR="<installed-pr-review-skill-bundle>"
 PR_REVIEW_LEASE_HELPER="$PR_REVIEW_DIR/scripts/review-leases.sh"
 ```
 
-Before `git worktree add`, run the read-only session planner from the primary
+Before session creation, run the read-only session planner from the primary
 repository root with `REPOSITORY`, `PR_NUMBER`, and
 `PRIMARY_REPOSITORY_ROOT` set:
 
@@ -92,10 +92,21 @@ validate through the existing lifecycle flow;
 or lifecycle owner. Discovery is read-only: it never creates, removes, or
 updates worktrees, leases, or artifacts.
 
+For an eligible fresh `create`, invoke the runtime-owned transaction instead
+of separately adding a worktree and writing LC-01. Set the provider-bound
+`HEAD_SHA`, `BASE_REF`, `HEAD_REF`, and one RFC 3339 UTC `UPDATED_AT` alongside
+the discovery inputs, then run `review-leases.sh session-create`. A `success`
+result is the only verified session identity. A `conflict` leaves no claimed
+created session; follow the existing discovery or LC-18 operator route. A
+`manual-cleanup` result preserves evidence for an operator and never grants
+this skill authority to delete a reservation, worktree, registration, or lease.
+`lifecycle-reentry-required` specifically means use the existing LC-18 route;
+this transaction makes no mutation for that case.
+
 ```sh
 git fetch origin <base-ref>
 git fetch origin <head-ref>
-git worktree add .worktrees/pr-<N>-review origin/<head-ref>
+bash "$PR_REVIEW_LEASE_HELPER" session-create
 ```
 
 Fetch `<head-ref>` for the worktree and `<base-ref>` for GitHub PR context.

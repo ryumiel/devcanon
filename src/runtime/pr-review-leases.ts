@@ -498,6 +498,20 @@ async function sessionCreatePreflight(): Promise<RuntimeCommandOutcome> {
     leaseBytes,
   );
   if (leasePublication !== "published") {
+    if (leasePublication === "not-published") {
+      return await sessionCreateRollbackResult({
+        conflictReason: "lease-create-failed",
+        manualReason: "lease-unverifiable",
+        identity,
+        reservation,
+        reservationFile,
+        reservationBytes,
+        registration,
+        leaseBytes: null,
+        leaseSha256: null,
+        worktreeCreated: true,
+      });
+    }
     return sessionCreateManualCleanup(
       "lease-unverifiable",
       reservation,
@@ -820,7 +834,10 @@ async function verifyCreatedSessionWorktree(
 ): Promise<RegistrationIdentity | null> {
   try {
     if ((await realpath(worktreePath)) !== worktreePath) return null;
-    if (!(await isRegisteredWorktree(primaryRoot, worktreePath))) return null;
+    if (
+      (await registeredWorktreeState(primaryRoot, worktreePath)) !== "present"
+    )
+      return null;
     const [commonDirectory, gitDirectoryPath, head] = await Promise.all([
       gitDirectory(worktreePath, "--git-common-dir"),
       gitDirectory(worktreePath, "--git-dir"),
@@ -854,7 +871,7 @@ async function publishSessionCreateLease(
   primaryRoot: string,
   leaseFile: string,
   bytes: string,
-): Promise<"published" | "unverifiable"> {
+): Promise<"published" | "not-published" | "unverifiable"> {
   validateDirectChild("lease", leaseFile, DIRECT_SUFFIXES.lease);
   await assertEphemeralDirectory(primaryRoot);
   const target = path.join(primaryRoot, leaseFile);
@@ -872,8 +889,10 @@ async function publishSessionCreateLease(
     await link(temp, target);
     await rm(temp);
     return "published";
-  } catch {
-    return "unverifiable";
+  } catch (err) {
+    return (err as NodeJS.ErrnoException).code === "EEXIST"
+      ? "unverifiable"
+      : "not-published";
   } finally {
     await handle?.close().catch(() => undefined);
     await rm(temp, { force: true }).catch(() => undefined);
@@ -1118,7 +1137,10 @@ async function removeOwnedSessionWorktree(
     ]);
     return (
       !(await pathExists(registration.worktree_path)) &&
-      !(await isRegisteredWorktree(primaryRoot, registration.worktree_path))
+      (await registeredWorktreeState(
+        primaryRoot,
+        registration.worktree_path,
+      )) === "absent"
     );
   } catch {
     return false;
@@ -2326,14 +2348,25 @@ async function isRegisteredWorktree(
   primaryRoot: string,
   worktreePath: string,
 ): Promise<boolean> {
+  return (
+    (await registeredWorktreeState(primaryRoot, worktreePath)) === "present"
+  );
+}
+
+async function registeredWorktreeState(
+  primaryRoot: string,
+  worktreePath: string,
+): Promise<"present" | "absent" | "unverifiable"> {
   try {
     const registrations = await listRegisteredWorktrees(primaryRoot);
     const expected = normalizeComparablePath(worktreePath);
     return registrations.some(
       (entry) => normalizeComparablePath(entry) === expected,
-    );
+    )
+      ? "present"
+      : "absent";
   } catch {
-    return false;
+    return "unverifiable";
   }
 }
 
