@@ -523,6 +523,38 @@ FINDINGS_FILE=$(printf '%s\n' "$PLAY_REVIEW_OUTPUT" | sed -n 's/^Findings writte
 REVIEW_FINDINGS_FILE="$FINDINGS_FILE"
 ```
 
+Before writing a result or rendering the Phase 5 preview, write one complete
+`pr-review/thread-actions/v1` candidate as a direct child of `.ephemeral/`.
+It must bind the current repository, PR number, immutable review head, and the
+validated `PRIOR_THREADS_FILE` plus its digest. It must contain exactly one
+`resolve` or `leave` record for every eligible prior thread, in the validator's
+canonical order. Use `prior-thread-artifacts.sh prepare-thread-actions-write`
+before the write, then validate the exact candidate with
+`validate-thread-actions`; do not copy a table from conversation text. The
+candidate is presentation evidence only: it is not approval and cannot be used
+to resolve a provider thread until a later approved-review freeze.
+
+```bash
+write_thread_actions_candidate() {
+  cd "$WORKING_DIRECTORY" || return 1
+  : "${PRIOR_THREADS_FILE:?Phase 5 prior-thread artifact path missing}"
+  THREAD_ACTIONS_FILE=$(HEAD_SHA="$REVIEW_HEAD_SHA" \
+    bash "$PR_REVIEW_DIR/scripts/prior-thread-artifacts.sh" prepare-thread-actions-write) || return 1
+  # Write the complete pr-review/thread-actions/v1 candidate to "$THREAD_ACTIONS_FILE".
+  HEAD_SHA="$REVIEW_HEAD_SHA" \
+  THREAD_ACTIONS_FILE="$THREAD_ACTIONS_FILE" \
+  PRIOR_THREADS_FILE="$PRIOR_THREADS_FILE" \
+  REPOSITORY="<owner/repo>" \
+  PR_NUMBER="$PR_NUMBER" \
+    bash "$PR_REVIEW_DIR/scripts/prior-thread-artifacts.sh" validate-thread-actions || return 1
+}
+
+THREAD_ACTIONS_STATUS=0
+write_thread_actions_candidate || THREAD_ACTIONS_STATUS=$?
+cd "$REVIEW_CALLER_DIR" || exit 1
+[ "$THREAD_ACTIONS_STATUS" -eq 0 ] || exit "$THREAD_ACTIONS_STATUS"
+```
+
 Then write and validate the initial result manifest before the Phase 5 preview.
 This records that findings and scope-decision validation succeeded before any
 user approval gate. It does not record approval intent, review event, lease
@@ -538,6 +570,7 @@ write_initial_pr_review_result_manifest() {
     FINDINGS_FILE="$REVIEW_FINDINGS_FILE" \
     SCOPE_DECISION_FILE="$REVIEW_SCOPE_DECISION_FILE" \
     PRIOR_THREADS_FILE="${PRIOR_THREADS_FILE:-}" \
+    THREAD_ACTIONS_FILE="$THREAD_ACTIONS_FILE" \
     PRESENTATION_STATUS="not-presented" \
       bash "$PR_REVIEW_MANIFEST_HELPER" write-result || return 1
   ) || return 1
@@ -571,7 +604,7 @@ than ambient conversation variables. After validation, extract and rebind the
 manifest-backed paths and review head needed for rendering:
 `REVIEW_HEAD_SHA`, `REVIEW_HANDOFF_FILE`, `REVIEW_HEAD_REF`,
 `REVIEW_FINDINGS_FILE`, `REVIEW_BODY_FILE` when present, `REVIEW_SCOPE_DECISION_FILE`,
-`PRIOR_THREADS_FILE` when present, and `RENDERED_PREVIEW_FILE` when present.
+`PRIOR_THREADS_FILE`, `THREAD_ACTIONS_FILE`, and `RENDERED_PREVIEW_FILE` when present.
 Then re-read the live PR head from GitHub and compare it to the rebound
 `REVIEW_HEAD_SHA`. If it changed, stop and return to Phase 1; do not present,
 edit, approve, or post a stale review result.
@@ -602,6 +635,8 @@ read_pr_review_result_manifest_for_preview() {
   REVIEW_BODY_FILE="$(jq -r '.review_body_file // empty' "$RESULT_JSON")" || return 1
   REVIEW_SCOPE_DECISION_FILE="$(jq -r '.artifacts.scope_decision_file' "$RESULT_JSON")" || return 1
   PRIOR_THREADS_FILE="$(jq -r '.artifacts.prior_threads_file // empty' "$RESULT_JSON")" || return 1
+  THREAD_ACTIONS_FILE="$(jq -r '.artifacts.thread_actions_file' "$RESULT_JSON")" || return 1
+  [ -n "$THREAD_ACTIONS_FILE" ] && [ "$THREAD_ACTIONS_FILE" != "null" ] || return 1
   RENDERED_PREVIEW_FILE="$(jq -r '.artifacts.rendered_preview_file // empty' "$RESULT_JSON")" || return 1
 }
 
@@ -692,6 +727,7 @@ update_pr_review_result_manifest() {
     REVIEW_BODY_FILE="$REVIEW_BODY_FILE" \
     SCOPE_DECISION_FILE="$REVIEW_SCOPE_DECISION_FILE" \
     PRIOR_THREADS_FILE="${PRIOR_THREADS_FILE:-}" \
+    THREAD_ACTIONS_FILE="$THREAD_ACTIONS_FILE" \
     RENDERED_PREVIEW_FILE="${RENDERED_PREVIEW_FILE:-}" \
     PRESENTATION_STATUS="preview-current" \
       bash "$PR_REVIEW_MANIFEST_HELPER" write-result || return 1
@@ -783,16 +819,20 @@ mandatory audit summary, plus the thread resolution list for follow-up reviews
 when applicable:
 
 ```
-### Previous Threads
+### Previous Threads (validated candidate)
 
 | # | File:Line | Author | Action | Evidence |
 |---|-----------|--------|--------|----------|
 | 1 | entity.rs:153 | user | Resolve | Gate added at L439 |
 ```
 
-The Phase 5 preview is not approval by itself. Any user-requested change returns
-to this gate after the artifacts are rewritten and re-rendered. Approval intent
-is captured only when the user approves a specific preview.
+The Phase 5 preview is not approval by itself. Any user-requested change,
+including an action edit, rewrites the candidate and `pr-review/result/v1`,
+re-renders the preview, and returns to this gate for a fresh latest-preview
+approval. Approval intent is captured only when the user approves a specific
+preview; it is never transferable from a prior candidate digest.
+Any user-requested change returns to this gate after the artifacts are
+rewritten and re-rendered.
 
 **Body edits:** rewrite `REVIEW_BODY_FILE`, rerun
 `render-review-preview` with the same `REVIEW_HEAD_SHA`,
@@ -850,18 +890,28 @@ from conversation text or current checkout state. After findings edits, rewrite
 `gated` lease and render the mandatory Phase 5 artifact audit summary again
 before waiting for approval.
 
+**Thread-action edits and `skip threads`:** rewrite the complete
+`pr-review/thread-actions/v1` candidate first, preserving one action for every
+eligible thread. For `skip threads`, write the explicit complete all-`leave`
+candidate; never omit actions as shorthand. Validate it, rewrite
+`pr-review/result/v1` with its new path/digest and
+`PRESENTATION_STATUS="edited"`, re-render the preview from that validated
+candidate, refresh the `gated` lease, render the artifact audit summary, and
+wait for fresh approval. A missing, unreadable, malformed, stale, or
+digest-mismatched candidate stops rendering and resume before the user gate.
+
 **User actions:**
 
-| Action                               | Effect                                     |
-| ------------------------------------ | ------------------------------------------ |
-| `post`                               | Post review + resolve approved threads     |
-| `post as comment`                    | Comment only, no verdict                   |
-| `drop #N`                            | Remove finding                             |
-| `change #N severity to Blocking/Nit` | Reclassify severity                        |
-| `change #N category to Logic/...`    | Reclassify category                        |
-| `edit`                               | Revise draft text                          |
-| `skip threads`                       | Post but don't resolve                     |
-| `abort`                              | Record `aborted`, then lease-gated cleanup |
+| Action                               | Effect                                                                     |
+| ------------------------------------ | -------------------------------------------------------------------------- |
+| `post`                               | Post review + resolve approved threads                                     |
+| `post as comment`                    | Comment only, no verdict                                                   |
+| `drop #N`                            | Remove finding                                                             |
+| `change #N severity to Blocking/Nit` | Reclassify severity                                                        |
+| `change #N category to Logic/...`    | Reclassify category                                                        |
+| `edit`                               | Revise draft text                                                          |
+| `skip threads`                       | Rebuild explicit all-leave candidate, rerender, and require fresh approval |
+| `abort`                              | Record `aborted`, then lease-gated cleanup                                 |
 
 ## Phase 6: Post
 

@@ -203,6 +203,7 @@ async function writeResult(): Promise<string> {
   const findingsFile = requiredEnv("FINDINGS_FILE");
   const scopeDecisionFile = requiredEnv("SCOPE_DECISION_FILE");
   const priorThreadsFile = optionalEnv("PRIOR_THREADS_FILE") ?? null;
+  const threadActionsFile = requiredEnv("THREAD_ACTIONS_FILE");
   const reviewBodyFile = optionalEnv("REVIEW_BODY_FILE") ?? null;
   const contextFile = optionalEnv("CONTEXT_FILE") ?? null;
   const renderedPreviewFile = optionalEnv("RENDERED_PREVIEW_FILE") ?? null;
@@ -238,6 +239,12 @@ async function writeResult(): Promise<string> {
     renderedPreviewFile,
     "-review-preview.md",
   );
+  await validateDirectChildReadableArtifact(
+    "thread actions",
+    threadActionsFile,
+    "-thread-actions.json",
+  );
+  await validateThreadActionsAuthority(threadActionsFile, priorThreadsFile);
 
   const scope = await readJsonObject(scopeDecisionFile, "scope decision file");
   const result = {
@@ -252,6 +259,7 @@ async function writeResult(): Promise<string> {
       handoff_file: handoffFile,
       scope_decision_file: scopeDecisionFile,
       prior_threads_file: priorThreadsFile,
+      thread_actions_file: threadActionsFile,
       rendered_preview_file: renderedPreviewFile,
       provider_scope_evidence_file: providerEvidence.file,
     },
@@ -265,6 +273,7 @@ async function writeResult(): Promise<string> {
       scope_decision_sha256: await sha256File(scopeDecisionFile),
       prior_threads_sha256:
         priorThreadsFile === null ? null : await sha256File(priorThreadsFile),
+      thread_actions_sha256: await sha256File(threadActionsFile),
       rendered_preview_sha256:
         renderedPreviewFile === null
           ? null
@@ -337,7 +346,7 @@ async function renderPhase5AuditSummary(): Promise<string> {
     requiredEnv("WORKTREE_PATH"),
   );
 
-  const { result, handoff, findings } = await withCwd(
+  const { result, handoff, findings, threadActions } = await withCwd(
     worktreeRoot,
     async () => {
       await validateResultFile(resultFile);
@@ -347,10 +356,18 @@ async function renderPhase5AuditSummary(): Promise<string> {
         "handoff_file",
       );
       const findingsFile = stringField(result, "findings_file");
+      const threadActionsFile = stringField(
+        objectField(result, "artifacts"),
+        "thread_actions_file",
+      );
       return {
         result,
         handoff: await readJsonObject(handoffFile, "handoff file"),
         findings: await readJsonObject(findingsFile, "findings file"),
+        threadActions: await readJsonObject(
+          threadActionsFile,
+          "thread actions file",
+        ),
       };
     },
   );
@@ -377,6 +394,7 @@ async function renderPhase5AuditSummary(): Promise<string> {
     ? findings.carry_forward
     : [];
   const code = formatMarkdownCodeSpan;
+  const actionItems = arrayField(threadActions, "actions") as JsonObject[];
 
   return [
     "## Phase 5 Artifact Audit Summary",
@@ -389,6 +407,16 @@ async function renderPhase5AuditSummary(): Promise<string> {
     `- Result manifest: ${code(resultFile)}`,
     `- Findings: ${code(stringField(result, "findings_file"))} (${findingItems.length} active, ${carryForwardItems.length} carry-forward)`,
     `- Result artifacts: handoff ${code(stringField(artifacts, "handoff_file"))}, scope ${code(stringField(artifacts, "scope_decision_file"))}, prior threads ${formatNullablePath(nullableStringField(artifacts, "prior_threads_file"))}, review body ${formatNullablePath(nullableStringField(result, "review_body_file"))}, context ${formatNullablePath(nullableStringField(result, "context_file"))}, rendered preview ${formatNullablePath(nullableStringField(artifacts, "rendered_preview_file"))}`,
+    `- Thread actions: ${code(stringField(artifacts, "thread_actions_file"))} (${actionItems.length} validated)`,
+    "",
+    "### Thread Actions",
+    "",
+    "| Thread | Action | Evidence |",
+    "|---|---|---|",
+    ...actionItems.map(
+      (action) =>
+        `| ${code(stringField(action, "thread_id"))} | ${capitalizeAction(stringField(action, "action"))} | ${escapeMarkdownTableCell(stringField(action, "evidence"))} |`,
+    ),
     `- Validation status: result ${code(stringField(validation, "status"))}; findings validated ${code(String(booleanField(validation, "findings_validated")))}; scope validated ${code(String(booleanField(validation, "scope_decision_validated")))}; lease result digest ${code(status.result_sha256)}; lease validated at ${code(status.result_validated_at)}`,
     `- Presentation status: result ${code(stringField(presentation, "status"))}; lease ${code(status.presentation_status)}; presented at ${code(status.presented_at)}`,
     `- Lease/worktree status: lease ${code(status.lease_state)}; worktree ${code(status.worktree_path)}; digest ${code(status.worktree_digest)}; exists ${code(String(status.worktree_exists))}; registered ${code(String(status.worktree_registered))}; dirty ${code(String(status.worktree_dirty))}; identity match ${code(String(status.identity_match))}`,
@@ -638,6 +666,16 @@ function formatMarkdownCodeSpan(value: string): string {
   return `${delimiter} ${value} ${delimiter}`;
 }
 
+function capitalizeAction(value: string): string {
+  return value.length === 0
+    ? value
+    : `${value[0].toUpperCase()}${value.slice(1)}`;
+}
+
+function escapeMarkdownTableCell(value: string): string {
+  return value.replaceAll("|", "\\|").replaceAll("\n", " ");
+}
+
 async function validateHandoffFile(file: string, identityFile = file) {
   await requireRepoRoot();
   readPrNumber();
@@ -878,6 +916,7 @@ function validateResultObject(
       "handoff_file",
       "scope_decision_file",
       "prior_threads_file",
+      "thread_actions_file",
       "rendered_preview_file",
       "provider_scope_evidence_file",
     ]) ||
@@ -892,6 +931,10 @@ function validateResultObject(
     !isNullableDirectEphemeralPath(
       artifacts.prior_threads_file,
       "-prior-threads.json",
+    ) ||
+    !isDirectEphemeralPath(
+      stringField(artifacts, "thread_actions_file", ""),
+      "-thread-actions.json",
     ) ||
     !isNullableDirectEphemeralPath(
       artifacts.rendered_preview_file,
@@ -908,6 +951,7 @@ function validateResultObject(
       "context_sha256",
       "scope_decision_sha256",
       "prior_threads_sha256",
+      "thread_actions_sha256",
       "rendered_preview_sha256",
       "provider_scope_evidence_sha256",
     ]) ||
@@ -924,6 +968,7 @@ function validateResultObject(
       artifacts.prior_threads_file,
       digests.prior_threads_sha256,
     ) ||
+    !isSha256(stringField(digests, "thread_actions_sha256", "")) ||
     !digestMatchesNullable(
       artifacts.rendered_preview_file,
       digests.rendered_preview_sha256,
@@ -1089,6 +1134,7 @@ async function validateResultFacts(result: JsonObject, identityFile: string) {
     fail(`result path mismatch: ${identityFile}`);
   }
   const artifacts = objectField(result, "artifacts");
+  const threadActionsFile = stringField(artifacts, "thread_actions_file");
   const handoffFile = stringField(artifacts, "handoff_file");
   if (
     handoffFile !== expectedHandoffPath(Number(manifestPrNumber), reviewHeadSha)
@@ -1126,6 +1172,8 @@ async function validateResultFacts(result: JsonObject, identityFile: string) {
   );
   const scopeDecisionFile = stringField(artifacts, "scope_decision_file");
   const priorThreadsFile = nullableStringField(artifacts, "prior_threads_file");
+  await assertReadableFile("thread actions file", threadActionsFile);
+  await validateThreadActionsAuthority(threadActionsFile, priorThreadsFile);
   const providerScopeEvidenceFile = stringField(
     artifacts,
     "provider_scope_evidence_file",
@@ -1215,6 +1263,11 @@ async function validateResultFacts(result: JsonObject, identityFile: string) {
     "prior threads",
     priorThreadsFile,
     nullableStringField(digests, "prior_threads_sha256"),
+  );
+  await validateDigest(
+    "thread actions",
+    threadActionsFile,
+    stringField(digests, "thread_actions_sha256"),
   );
   await validateOptionalDigest(
     "rendered preview",
@@ -1604,6 +1657,33 @@ async function validateOptionalDirectChildReadableArtifact(
   await assertReadableFile(`${label} file`, file);
 }
 
+async function validateDirectChildReadableArtifact(
+  label: string,
+  file: string,
+  suffix: string,
+) {
+  validateDirectChildPath(label, file, suffix);
+  await assertReadableFile(`${label} file`, file);
+}
+
+async function validateThreadActionsAuthority(
+  threadActionsFile: string,
+  priorThreadsFile: string | null,
+) {
+  if (priorThreadsFile === null) {
+    fail("thread actions require prior threads evidence");
+  }
+  const scopeHelper = await resolveScopeHelper();
+  await runBashHelper(scopeHelper, "validate-thread-actions", {
+    ...process.env,
+    HEAD_SHA: readHeadSha(),
+    THREAD_ACTIONS_FILE: threadActionsFile,
+    PRIOR_THREADS_FILE: priorThreadsFile,
+    REPOSITORY: requiredEnv("REPOSITORY"),
+    PR_NUMBER: String(readPrNumber()),
+  });
+}
+
 async function validateDigest(label: string, file: string, expected: string) {
   const actual = await sha256File(file);
   if (actual !== expected) {
@@ -1771,6 +1851,7 @@ function requireResultWriteEnv() {
     "REPOSITORY",
     "FINDINGS_FILE",
     "SCOPE_DECISION_FILE",
+    "THREAD_ACTIONS_FILE",
     "PRESENTATION_STATUS",
   ]) {
     requireEnv(name);

@@ -103,6 +103,7 @@ export async function validatePrReviewResultCommandAuthority(
       nullableStringField(artifacts, "prior_threads_file"),
       input,
     );
+    await validateThreadActionsAuthority(result, input);
   });
 }
 
@@ -274,6 +275,7 @@ async function validateResultFacts(
     );
   }
   const artifacts = objectField(result, "artifacts");
+  const threadActionsFile = stringField(artifacts, "thread_actions_file");
   const handoffFile = stringField(artifacts, "handoff_file");
   if (handoffFile !== expectedHandoffPath(input.prNumber, reviewHeadSha)) {
     fail("result handoff path mismatch");
@@ -306,6 +308,7 @@ async function validateResultFacts(
     "rendered preview file",
     renderedPreviewFile,
   );
+  await assertReadableFile("thread actions file", threadActionsFile);
   const scopeDecisionFile = stringField(artifacts, "scope_decision_file");
   const priorThreadsFile = nullableStringField(artifacts, "prior_threads_file");
   const providerScopeEvidenceFile = stringField(
@@ -393,6 +396,11 @@ async function validateResultFacts(
     "prior threads",
     priorThreadsFile,
     nullableStringField(digests, "prior_threads_sha256"),
+  );
+  await validateDigest(
+    "thread actions",
+    threadActionsFile,
+    stringField(digests, "thread_actions_sha256"),
   );
   await validateOptionalDigest(
     "rendered preview",
@@ -593,6 +601,7 @@ function validateResultObject(
       "handoff_file",
       "scope_decision_file",
       "prior_threads_file",
+      "thread_actions_file",
       "rendered_preview_file",
       "provider_scope_evidence_file",
     ]) ||
@@ -607,6 +616,10 @@ function validateResultObject(
     !isNullableDirectEphemeralPath(
       artifacts.prior_threads_file,
       "-prior-threads.json",
+    ) ||
+    !isDirectEphemeralPath(
+      stringField(artifacts, "thread_actions_file", ""),
+      "-thread-actions.json",
     ) ||
     !isNullableDirectEphemeralPath(
       artifacts.rendered_preview_file,
@@ -623,6 +636,7 @@ function validateResultObject(
       "context_sha256",
       "scope_decision_sha256",
       "prior_threads_sha256",
+      "thread_actions_sha256",
       "rendered_preview_sha256",
       "provider_scope_evidence_sha256",
     ]) ||
@@ -639,6 +653,7 @@ function validateResultObject(
       artifacts.prior_threads_file,
       digests.prior_threads_sha256,
     ) ||
+    !isSha256(stringField(digests, "thread_actions_sha256", "")) ||
     !digestMatchesNullable(
       artifacts.rendered_preview_file,
       digests.rendered_preview_sha256,
@@ -791,6 +806,27 @@ async function validateScopeAuthority(
       PRIOR_THREADS_FILE: manifestPriorPath,
     });
   }
+}
+
+async function validateThreadActionsAuthority(
+  result: JsonObject,
+  input: PrReviewResultCommandAuthorityInput,
+): Promise<void> {
+  const artifacts = objectField(result, "artifacts");
+  const priorThreadsFile = nullableStringField(artifacts, "prior_threads_file");
+  if (priorThreadsFile === null) {
+    fail("thread actions require prior threads evidence");
+  }
+  const threadActionsFile = stringField(artifacts, "thread_actions_file");
+  const scopeHelper = await resolveScopeHelper(input);
+  await runBashHelper(scopeHelper, "validate-thread-actions", {
+    ...(input.helperEnv ?? {}),
+    HEAD_SHA: input.reviewHeadSha,
+    THREAD_ACTIONS_FILE: threadActionsFile,
+    PRIOR_THREADS_FILE: priorThreadsFile,
+    REPOSITORY: input.repository,
+    PR_NUMBER: String(input.prNumber),
+  });
 }
 
 async function validateScopePriorContext(

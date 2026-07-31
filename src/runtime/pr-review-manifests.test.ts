@@ -68,6 +68,8 @@ interface ManifestWorkspace {
   resultSha256: string;
   worktreeDigest: string;
   findingsFile: string;
+  priorThreadsFile: string;
+  threadActionsFile: string;
   reviewBodyFile: string;
   providerScopeEvidenceFile: string;
 }
@@ -378,6 +380,139 @@ describe("pr-review Phase 5 audit summary renderer", () => {
     expect(outcome.stderr).toContain("result schema mismatch");
   });
 
+  it("accepts and renders a digest-bound all-leave thread-action candidate", async () => {
+    const workspace = await makeManifestWorkspace(
+      "pr-review-all-leave-candidate-",
+    );
+    const priorPath = path.join(workspace.worktree, workspace.priorThreadsFile);
+    const candidatePath = path.join(
+      workspace.worktree,
+      workspace.threadActionsFile,
+    );
+    await writeJson(workspace.worktree, workspace.priorThreadsFile, {
+      schema: "pr-review/prior-threads/v1",
+      repository: "owner/repo",
+      pr_number: 432,
+      head_sha: workspace.headSha,
+      threads: [
+        {
+          thread_id: "PRRT_kwDOEligible",
+          is_resolved: false,
+          is_outdated: false,
+          path: "src/app.ts",
+          line: 12,
+          original_line: 12,
+          start_line: null,
+          original_start_line: null,
+          classification: "actionable",
+          model_context: "include",
+          staleness_reason: "",
+          comments: [],
+          summary: "Needs an explicit decision.",
+        },
+      ],
+      dropped: [],
+    });
+    await writeJson(workspace.worktree, workspace.threadActionsFile, {
+      schema: "pr-review/thread-actions/v1",
+      repository: "owner/repo",
+      pr_number: 432,
+      review_head_sha: workspace.headSha,
+      prior_threads_file: workspace.priorThreadsFile,
+      prior_threads_sha256: await sha256File(priorPath),
+      actions: [
+        {
+          thread_id: "PRRT_kwDOEligible",
+          action: "leave",
+          evidence: "Skip threads preserves this discussion for follow-up.",
+          reason: "Leave every eligible thread open.",
+        },
+      ],
+    });
+    const resultPath = path.join(workspace.worktree, workspace.resultFile);
+    const resultManifest = JSON.parse(await readFile(resultPath, "utf8")) as {
+      artifacts: Record<string, unknown>;
+      digests: Record<string, unknown>;
+    };
+    await writeJson(workspace.worktree, workspace.resultFile, {
+      ...resultManifest,
+      artifacts: {
+        ...resultManifest.artifacts,
+        thread_actions_file: workspace.threadActionsFile,
+      },
+      digests: {
+        ...resultManifest.digests,
+        prior_threads_sha256: await sha256File(priorPath),
+        thread_actions_sha256: await sha256File(candidatePath),
+      },
+    });
+    const resultSha256 = await sha256File(resultPath);
+    const leasePath = path.join(workspace.primary, workspace.leaseFile);
+    const lease = JSON.parse(await readFile(leasePath, "utf8")) as {
+      validation: { result_manifest: Record<string, unknown> };
+    };
+    await writeJson(workspace.primary, workspace.leaseFile, {
+      ...lease,
+      validation: {
+        ...lease.validation,
+        result_manifest: {
+          ...lease.validation.result_manifest,
+          sha256: resultSha256,
+        },
+      },
+    });
+    setSummaryEnv(workspace);
+
+    const outcome = await runManifestCommand(["render-phase5-audit-summary"]);
+
+    expect(outcome.exitCode, outcome.stderr).toBe(0);
+    expect(outcome.stdout).toContain("Thread actions:");
+    expect(outcome.stdout).toContain("`PRRT_kwDOEligible`");
+    expect(outcome.stdout).toContain("Leave");
+  });
+
+  it.each([
+    {
+      name: "nested candidate path",
+      update: (manifest: { artifacts: Record<string, unknown> }) => ({
+        ...manifest,
+        artifacts: {
+          ...manifest.artifacts,
+          thread_actions_file: ".ephemeral/nested/thread-actions.json",
+        },
+      }),
+      stderr: "result schema mismatch",
+    },
+    {
+      name: "candidate digest drift",
+      update: (manifest: { digests: Record<string, unknown> }) => ({
+        ...manifest,
+        digests: {
+          ...manifest.digests,
+          thread_actions_sha256: "0".repeat(64),
+        },
+      }),
+      stderr: "thread actions digest mismatch",
+    },
+  ])("rejects $name before Phase 5 rendering", async ({ update, stderr }) => {
+    const workspace = await makeManifestWorkspace(
+      "pr-review-candidate-binding-reject-",
+    );
+    const resultPath = path.join(workspace.worktree, workspace.resultFile);
+    const manifest = JSON.parse(await readFile(resultPath, "utf8")) as {
+      artifacts: Record<string, unknown>;
+      digests: Record<string, unknown>;
+    };
+    await writeJson(workspace.worktree, workspace.resultFile, update(manifest));
+    setSummaryEnv(workspace);
+
+    const outcome = await runManifestCommand(["render-phase5-audit-summary"]);
+
+    expect(outcome.exitCode).toBe(1);
+    expect(outcome.stdout).toBe("");
+    expect(outcome.stderr).toContain(stderr);
+  });
+
   it("rejects provider evidence digest drift during Phase 5 result validation", async () => {
     const workspace = await makeManifestWorkspace(
       "pr-review-provider-evidence-drift-",
@@ -601,6 +736,8 @@ async function makeManifestWorkspace(
   await mkdir(path.join(primary, ".ephemeral"), { recursive: true });
   await mkdir(path.join(worktree, ".ephemeral"), { recursive: true });
   const findingsFile = `.ephemeral/topic-${headSha}-findings.json`;
+  const priorThreadsFile = `.ephemeral/topic-${headSha}-prior-threads.json`;
+  const threadActionsFile = `.ephemeral/topic-${headSha}-thread-actions.json`;
   const scopeFile = `.ephemeral/topic-${headSha}-scope-decision.json`;
   const handoffFile = `.ephemeral/pr-432-${headSha}-handoff.json`;
   const resultFile = `.ephemeral/pr-432-${headSha}-result.json`;
@@ -640,6 +777,25 @@ async function makeManifestWorkspace(
     findings: [{ id: "F1", title: "Finding" }],
     carry_forward: [],
   });
+  await writeJson(worktree, priorThreadsFile, {
+    schema: "pr-review/prior-threads/v1",
+    repository: "owner/repo",
+    pr_number: 432,
+    head_sha: headSha,
+    threads: [],
+    dropped: [],
+  });
+  await writeJson(worktree, threadActionsFile, {
+    schema: "pr-review/thread-actions/v1",
+    repository: "owner/repo",
+    pr_number: 432,
+    review_head_sha: headSha,
+    prior_threads_file: priorThreadsFile,
+    prior_threads_sha256: await sha256File(
+      path.join(worktree, priorThreadsFile),
+    ),
+    actions: [],
+  });
   await writeFile(path.join(worktree, reviewBodyFile), "Review body.\n");
   await writeFile(path.join(worktree, previewFile), "Rendered preview.\n");
   await writeJson(worktree, scopeFile, {
@@ -651,7 +807,10 @@ async function makeManifestWorkspace(
     language_hints: [],
     mode: "initial",
     last_reviewed_sha: null,
-    prior_context: { kind: "none", path: null },
+    prior_context: {
+      kind: "github-prior-threads",
+      path: priorThreadsFile,
+    },
     artifacts: {
       provider_scope_evidence_file: providerScopeEvidenceFile,
       provider_scope_evidence_sha256: providerScopeEvidenceSha256,
@@ -680,7 +839,7 @@ async function makeManifestWorkspace(
     },
     artifacts: {
       scope_decision_file: scopeFile,
-      prior_threads_file: null,
+      prior_threads_file: priorThreadsFile,
       provider_scope_evidence_file: providerScopeEvidenceFile,
       provider_scope_evidence_sha256: providerScopeEvidenceSha256,
     },
@@ -696,7 +855,8 @@ async function makeManifestWorkspace(
     artifacts: {
       handoff_file: handoffFile,
       scope_decision_file: scopeFile,
-      prior_threads_file: null,
+      prior_threads_file: priorThreadsFile,
+      thread_actions_file: threadActionsFile,
       rendered_preview_file: previewFile,
       provider_scope_evidence_file: providerScopeEvidenceFile,
     },
@@ -706,7 +866,12 @@ async function makeManifestWorkspace(
       review_body_sha256: await sha256File(path.join(worktree, reviewBodyFile)),
       context_sha256: null,
       scope_decision_sha256: await sha256File(path.join(worktree, scopeFile)),
-      prior_threads_sha256: null,
+      prior_threads_sha256: await sha256File(
+        path.join(worktree, priorThreadsFile),
+      ),
+      thread_actions_sha256: await sha256File(
+        path.join(worktree, threadActionsFile),
+      ),
       rendered_preview_sha256: await sha256File(
         path.join(worktree, previewFile),
       ),
@@ -785,6 +950,8 @@ async function makeManifestWorkspace(
     resultSha256,
     worktreeDigest,
     findingsFile,
+    priorThreadsFile,
+    threadActionsFile,
     reviewBodyFile,
     providerScopeEvidenceFile,
   };
