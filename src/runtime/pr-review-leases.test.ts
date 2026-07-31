@@ -1188,6 +1188,63 @@ describe("pr-review lease reducer", () => {
         githubPostedAt: "2026-06-11T00:04:00Z",
       }),
     ).toThrow("execution receipt recovery");
+    for (const [state, inputs] of [
+      [
+        "gated",
+        {
+          presentedAt: "2026-06-11T00:04:00Z",
+          presentationStatus: "preview-current",
+          resultSha256: resultDigest,
+        },
+      ],
+      [
+        "aborted",
+        {
+          finishedAt: "2026-06-11T00:04:00Z",
+          terminalReason: "user-aborted",
+        },
+      ],
+      [
+        "failed",
+        {
+          finishedAt: "2026-06-11T00:04:00Z",
+          failurePhase: "stale-head",
+          failureReason: "head moved",
+          failureRecoverability: "recoverable",
+        },
+      ],
+    ] as const) {
+      expect(() =>
+        reducePrReviewLease(failed, identity, {
+          state,
+          baseRef: "main",
+          headRef: "topic",
+          createdAt: "2026-06-11T00:00:00Z",
+          updatedAt: "2026-06-11T00:04:00Z",
+          ...inputs,
+        } as Parameters<typeof reducePrReviewLease>[2]),
+      ).toThrow(
+        "action-bearing failed lease requires execution receipt recovery",
+      );
+    }
+    const preservedFailure = reducePrReviewLease(failed, identity, {
+      state: "failed",
+      baseRef: "main",
+      headRef: "topic",
+      createdAt: "2026-06-11T00:00:00Z",
+      updatedAt: "2026-06-11T00:04:00Z",
+      finishedAt: "2026-06-11T00:03:00Z",
+      failurePhase: "github-post",
+      failureReason: "provider response lost",
+      failureRecoverability: "recoverable",
+      githubPostAttempted: true,
+      githubPostResult: "failed",
+    });
+    expect(preservedFailure).toMatchObject({
+      state: "failed",
+      artifacts: { post_intent_file: intended.artifacts.post_intent_file },
+      failure: failed.failure,
+    });
     const recoveredResolving = reducePrReviewLease(failed, identity, {
       state: "resolving",
       baseRef: "main",
@@ -4598,20 +4655,93 @@ describe("pr-review lease intent command validation", () => {
           })}\n`,
         );
       };
+      const gatedWithIntent = await readLease(
+        workspace.primary,
+        workspace.leaseFile,
+      );
+      expect(gatedWithIntent.artifacts.post_intent_file).toBe(intentFile);
+      const actionBearingFailure: PrReviewLease = {
+        ...gatedWithIntent,
+        state: "failed",
+        updated_at: "2026-06-11T00:03:00Z",
+        terminal: { finished_at: "2026-06-11T00:03:00Z", reason: null },
+        failure: {
+          phase: "github-post",
+          reason: "provider response lost",
+          recoverability: "unknown",
+        },
+        github: {
+          github_post_attempted: true,
+          github_post_result: "failed",
+          github_posted_at: null,
+        },
+      };
+      const failedLease = `${JSON.stringify(actionBearingFailure, null, 2)}\n`;
+      await writeFile(
+        path.join(workspace.primary, workspace.leaseFile),
+        failedLease,
+      );
+
+      process.env.STATE = "gated";
+      process.env.EXPECTED_STATE = "failed";
+      process.env.UPDATED_AT = "2026-06-11T00:04:00Z";
+      process.env.PRESENTED_AT = "2026-06-11T00:04:00Z";
+      process.env.PRESENTATION_STATUS = "preview-current";
+      process.env.RESULT_SHA256 = workspace.resultSha256;
+      let result = await runPrReviewLeasesCommand(["write"]);
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain(
+        "action-bearing failed lease requires execution receipt recovery",
+      );
+
+      process.env.STATE = "aborted";
+      process.env.TERMINAL_REASON = "user-aborted";
+      result = await runPrReviewLeasesCommand(["write"]);
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain(
+        "action-bearing failed lease requires execution receipt recovery",
+      );
+
+      process.env.STATE = "failed";
+      process.env.FINISHED_AT = "2026-06-11T00:04:00Z";
+      process.env.FAILURE_PHASE = "stale-head";
+      process.env.FAILURE_REASON = "head moved";
+      process.env.FAILURE_RECOVERABILITY = "recoverable";
+      unsetEnv("GITHUB_POST_ATTEMPTED");
+      unsetEnv("GITHUB_POST_RESULT");
+      result = await runPrReviewLeasesCommand(["write"]);
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain(
+        "action-bearing failed lease requires execution receipt recovery",
+      );
+      await expect(
+        readFile(path.join(workspace.primary, workspace.leaseFile), "utf8"),
+      ).resolves.toBe(failedLease);
+
       await writeReceipt("pending", "2026-06-11T00:03:00Z");
       process.env.STATE = "resolving";
       process.env.UPDATED_AT = "2026-06-11T00:03:00Z";
       process.env.EXECUTION_RECEIPT_FILE = receiptFile;
       process.env.GITHUB_POSTED_AT = "2026-06-11T00:03:00Z";
       process.env.PROVIDER_REVIEW_ID = "99";
+      unsetEnv("FAILURE_PHASE");
+      unsetEnv("FAILURE_REASON");
+      unsetEnv("FAILURE_RECOVERABILITY");
+      unsetEnv("GITHUB_POST_ATTEMPTED");
+      unsetEnv("GITHUB_POST_RESULT");
+      unsetEnv("TERMINAL_REASON");
+      unsetEnv("PRESENTED_AT");
+      unsetEnv("PRESENTATION_STATUS");
+      unsetEnv("RESULT_SHA256");
       expect((await runPrReviewLeasesCommand(["write"])).exitCode).toBe(0);
+      process.env.EXPECTED_STATE = "resolving";
 
       await writeReceipt(
         "succeeded",
         "2026-06-11T00:03:00Z",
         "2026-06-11T00:04:00Z",
       );
-      let result = await runPrReviewLeasesCommand(["validate"]);
+      result = await runPrReviewLeasesCommand(["validate"]);
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain(
         "resolving lease requires pending or failed execution receipt action",

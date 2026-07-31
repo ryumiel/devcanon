@@ -732,6 +732,76 @@ describe.skipIf(!jqAvailable)(
       }
     });
 
+    it("resumes a failed sealed resolve through advance without rematerializing", async () => {
+      const cwd = await makeGitWorkspace();
+      try {
+        await writeInputs(cwd);
+        await runHelper(cwd, "freeze-approved-review", {
+          FINDINGS_FILE: findingsFile,
+          REVIEW_BODY_FILE: reviewBodyFile,
+          REVIEW_PAYLOAD_FILE: payloadFile,
+        });
+        await runHelper(cwd, "materialize-post-intent", {
+          APPROVED_REVIEW_FILE: approvedReviewFile,
+          PROVIDER_ACTOR_ID: "7",
+          POST_INTENT_CREATED_AT: "2026-08-01T00:00:00Z",
+        });
+        await runHelper(cwd, "materialize-execution-receipt", {
+          APPROVED_REVIEW_FILE: approvedReviewFile,
+          POST_INTENT_FILE: postIntentFile,
+          POST_OUTCOME: "provider-reconciliation",
+          PROVIDER_REVIEW_ID: "91",
+          PROVIDER_REVIEW_SUBMITTED_AT: "2026-08-01T00:00:01Z",
+          EXECUTION_RECEIPT_UPDATED_AT: "2026-08-01T00:00:01Z",
+        });
+        await runHelper(cwd, "advance-execution-receipt", {
+          APPROVED_REVIEW_FILE: approvedReviewFile,
+          POST_INTENT_FILE: postIntentFile,
+          EXECUTION_RECEIPT_FILE: executionReceiptFile,
+          THREAD_ID: "PRRT_kwDOExample",
+          DISPOSITION: "failed",
+          ACTION_FAILURE_REASON: "Provider mutation did not complete.",
+          EXECUTION_RECEIPT_UPDATED_AT: "2026-08-01T00:00:02Z",
+        });
+
+        await expect(
+          runHelper(cwd, "advance-execution-receipt", {
+            APPROVED_REVIEW_FILE: approvedReviewFile,
+            POST_INTENT_FILE: postIntentFile,
+            EXECUTION_RECEIPT_FILE: executionReceiptFile,
+            THREAD_ID: "PRRT_kwDOExample",
+            DISPOSITION: "succeeded",
+            EXECUTION_RECEIPT_UPDATED_AT: "2026-08-01T00:00:03Z",
+          }),
+        ).resolves.toMatchObject({
+          stdout: `${JSON.stringify({
+            execution_receipt_file: executionReceiptFile,
+            write_status: "committed",
+            all_terminal: true,
+          })}\n`,
+        });
+        const receipt = JSON.parse(
+          await readFile(path.join(cwd, executionReceiptFile), "utf8"),
+        ) as {
+          post_outcome: string;
+          provider_review_id: number;
+          provider_review_submitted_at: string;
+          actions: Array<{
+            disposition: string;
+            failure_reason: string | null;
+          }>;
+        };
+        expect(receipt).toMatchObject({
+          post_outcome: "provider-reconciliation",
+          provider_review_id: 91,
+          provider_review_submitted_at: "2026-08-01T00:00:01Z",
+          actions: [{ disposition: "succeeded", failure_reason: null }],
+        });
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    });
+
     it("retains the exact prior receipt when atomic replacement is not committed", async () => {
       const cwd = await makeGitWorkspace();
       try {

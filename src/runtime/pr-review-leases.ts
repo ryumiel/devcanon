@@ -1581,6 +1581,7 @@ export function reducePrReviewLease(
       `EXPECTED_STATE mismatch: ${previous?.state ?? "none"}`,
     );
   }
+  assertActionBearingFailedLeaseRecovery(previous, inputs);
 
   const base = buildBaseLease(previous, identity, inputs, row);
   switch (row) {
@@ -2992,6 +2993,41 @@ type TransitionId =
   | "LC-23"
   | "LC-24"
   | "LC-25";
+
+function assertActionBearingFailedLeaseRecovery(
+  previous: PrReviewLease | null,
+  inputs: LeaseInputs,
+): void {
+  if (
+    previous?.state !== "failed" ||
+    previous.failure.phase !== "github-post" ||
+    previous.artifacts.post_intent_file === null ||
+    previous.artifacts.execution_receipt_file !== null
+  ) {
+    return;
+  }
+  if (inputs.state === "resolving") return;
+  if (inputs.state === "posted" && inputs.executionReceiptFile !== undefined)
+    return;
+  if (
+    inputs.state === "failed" &&
+    inputs.failurePhase === "github-post" &&
+    inputs.failureReason === previous.failure.reason &&
+    inputs.failureRecoverability === previous.failure.recoverability &&
+    inputs.finishedAt === previous.terminal.finished_at &&
+    inputs.githubPostAttempted === true &&
+    inputs.githubPostResult === "failed" &&
+    (inputs.approvedReviewFile === undefined ||
+      inputs.approvedReviewFile === previous.artifacts.approved_review_file) &&
+    (inputs.validatedPayloadFile === undefined ||
+      inputs.validatedPayloadFile === previous.artifacts.validated_payload_file)
+  ) {
+    return;
+  }
+  throw new PrReviewLeaseError(
+    "action-bearing failed lease requires execution receipt recovery",
+  );
+}
 
 function transitionId(
   previous: PrReviewLease | null,

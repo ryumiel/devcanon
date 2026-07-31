@@ -3788,6 +3788,10 @@ None
       "exactly one review",
       "exact full marked body",
       "provider actor, event, commit, and non-null submission timestamp",
+      'POST_OUTCOME="post-response"',
+      'POST_OUTCOME="provider-reconciliation"',
+      "GITHUB_POST_ATTEMPTED=true",
+      "GITHUB_POST_RESULT=failed",
       "Write the execution receipt before the first resolution",
       "fresh provider read immediately before resolving each sealed `resolve` ID",
       "already-resolved",
@@ -3822,6 +3826,9 @@ None
     const existingIntentIndex = prReviewPhase6.indexOf(
       "EXISTING_POST_INTENT_FILE",
     );
+    const existingReceiptIndex = prReviewPhase6.indexOf(
+      "EXISTING_EXECUTION_RECEIPT_FILE",
+    );
     const firstProviderPostIndex = prReviewPhase6.indexOf(
       "gh api repos/{owner}/{repo}/pulls/<N>/reviews",
     );
@@ -3835,6 +3842,20 @@ None
     );
     expect(retryIntentGate).toContain("POST_INTENT_REUSED=true");
     expect(retryIntentGate).toContain('cd "$WORKING_DIRECTORY" || exit 1');
+    expect(existingReceiptIndex).toBeGreaterThan(existingIntentIndex);
+    expect(existingReceiptIndex).toBeLessThan(firstProviderPostIndex);
+    const existingReceiptBranch = prReviewPhase6.slice(
+      existingReceiptIndex,
+      prReviewPhase6.indexOf('elif [ "$POST_INTENT_REUSED" = true ]; then'),
+    );
+    expect(existingReceiptBranch).toContain(
+      'bash "$PR_REVIEW_LEASE_HELPER" validate',
+    );
+    expect(existingReceiptBranch).toContain("RESUME_SEALED_THREAD_IDS");
+    expect(existingReceiptBranch).toContain(
+      '"pending" or .disposition == "failed"',
+    );
+    expect(existingReceiptBranch).not.toContain("gh api");
     const reusedIntentBranch = retryIntentGate.slice(
       retryIntentGate.indexOf('if [ "$POST_INTENT_REUSED" = true ]; then'),
       retryIntentGate.indexOf("else\n     # The helper has atomically"),
@@ -3842,10 +3863,40 @@ None
     expect(reusedIntentBranch).toContain(
       'if [ "$POST_INTENT_REUSED" = true ]; then',
     );
-    expect(reusedIntentBranch).toContain("Reconcile directly;");
+    expect(reusedIntentBranch).toContain("Reconcile every");
     expect(reusedIntentBranch).toContain("failed -> gated (LC-14)");
+    expect(reusedIntentBranch).toContain("gh api --paginate --slurp");
+    expect(reusedIntentBranch).toContain(
+      "reconciliation requires exactly one exact review",
+    );
+    expect(reusedIntentBranch).toContain(
+      'POST_OUTCOME="provider-reconciliation"',
+    );
+    expect(reusedIntentBranch).not.toContain("--method POST");
     expect(reusedIntentBranch).not.toContain("PR_REVIEW_LEASE_HELPER");
     expect(reusedIntentBranch).not.toContain('STATE="gated"');
+    const postResponseBranch = prReviewPhase6.slice(
+      firstProviderPostIndex,
+      prReviewPhase6.indexOf(
+        "Persist the post intent before any provider POST",
+      ),
+    );
+    for (const scalarBinding of [
+      "POST_RESPONSE_FILE",
+      'POST_OUTCOME="post-response"',
+      "PROVIDER_REVIEW_ID",
+      "PROVIDER_REVIEW_SUBMITTED_AT",
+      ".user.id == $intent[0].provider_actor_id",
+      ".body == $intent[0].final_body",
+      ".commit_id == $intent[0].review_head_sha",
+      "GITHUB_POST_ATTEMPTED=true",
+      "GITHUB_POST_RESULT=failed",
+    ]) {
+      expect(postResponseBranch).toContain(scalarBinding);
+    }
+    expect(
+      prReviewPhase6.indexOf('if [ -z "$EXECUTION_RECEIPT_FILE" ]; then'),
+    ).toBeLessThan(prReviewPhase6.indexOf("materialize-execution-receipt"));
     expect(normalizedPrReview).toContain("LC-24/LC-25");
     expect(normalizedPrReview).toContain(
       "do not fetch `commit_id` from live `{{tool:github-cli}} pr view` for posting",

@@ -1152,10 +1152,49 @@ Only after user approval:
    ) ) || exit 1
    VALIDATED_REVIEW_PAYLOAD_FILE="$(printf '%s' "$POST_INTENT_JSON" | jq -er '.validated_review_payload_file')" || exit 1
    POST_INTENT_FILE="$(printf '%s' "$POST_INTENT_JSON" | jq -er '.post_intent_file')" || exit 1
-   if [ "$POST_INTENT_REUSED" = true ]; then
-     # The helper just revalidated the stored sealed intent. Reconcile directly;
-     # do not attempt failed -> gated (LC-14), re-present, or repost.
-     : "route directly to the required provider reconciliation"
+   EXECUTION_RECEIPT_FILE=""
+   EXISTING_EXECUTION_RECEIPT_FILE=".ephemeral/pr-${PR_NUMBER}-${REVIEW_HEAD_SHA}-thread-action-execution.json"
+   if (cd "$WORKING_DIRECTORY" && [ -e "$EXISTING_EXECUTION_RECEIPT_FILE" ]); then
+     # A stored receipt is progress, not an invitation to recreate the initial
+     # pending/not-requested dispositions. Validate the stored lease chain
+     # first, then resume only its pending or failed sealed resolves in step 7.
+     ( cd "$WORKING_DIRECTORY" || exit 1
+       [ ! -L "$EXISTING_EXECUTION_RECEIPT_FILE" ] && [ -f "$EXISTING_EXECUTION_RECEIPT_FILE" ] || exit 1
+     ) || exit 1
+     (cd "$REVIEW_CALLER_DIR" && bash "$PR_REVIEW_LEASE_HELPER" validate) || exit 1
+     EXECUTION_RECEIPT_FILE="$EXISTING_EXECUTION_RECEIPT_FILE"
+     RESUME_SEALED_THREAD_IDS="$( (
+       cd "$WORKING_DIRECTORY" || exit 1
+       jq -cer '[.actions[] | select(.action == "resolve" and (.disposition == "pending" or .disposition == "failed")) | .thread_id]' "$EXECUTION_RECEIPT_FILE"
+     ) )" || exit 1
+   elif [ "$POST_INTENT_REUSED" = true ]; then
+     # No receipt means an action-bearing github-post failure. Reconcile every
+     # submitted-review page; never return through failed -> gated (LC-14),
+     # re-present, or repost. A failed or ambiguous reconciliation preserves
+     # the existing failed evidence unchanged and stops.
+     RECONCILIATION_SCALARS="$( (
+       cd "$WORKING_DIRECTORY" || exit 1
+       gh api --paginate --slurp "repos/{owner}/{repo}/pulls/<N>/reviews?per_page=100" \
+         | jq -cer --slurpfile intent "$POST_INTENT_FILE" '
+           def safe_id: type == "number" and . == floor and . >= 1 and . <= 9007199254740991;
+           def utc_second: type == "string" and test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$");
+           def matching_state($event):
+             ($event == "APPROVE" and . == "APPROVED")
+             or ($event == "REQUEST_CHANGES" and . == "CHANGES_REQUESTED")
+             or ($event == "COMMENT" and . == "COMMENTED");
+           [ .[] | .[]
+             | select(.id | safe_id)
+             | select(.submitted_at | utc_second)
+             | select(.user.id == $intent[0].provider_actor_id)
+             | select(.body == $intent[0].final_body)
+             | select(.commit_id == $intent[0].review_head_sha)
+             | select(.state | matching_state($intent[0].review_event))
+             | {id, submitted_at}
+           ] | if length == 1 then .[0] else error("reconciliation requires exactly one exact review") end'
+     ) )" || exit 1
+     POST_OUTCOME="provider-reconciliation"
+     PROVIDER_REVIEW_ID="$(printf '%s' "$RECONCILIATION_SCALARS" | jq -er '.id | numbers | select(. == floor and . >= 1 and . <= 9007199254740991)')" || exit 1
+     PROVIDER_REVIEW_SUBMITTED_AT="$(printf '%s' "$RECONCILIATION_SCALARS" | jq -er '.submitted_at | strings | select(test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"))')" || exit 1
    else
      # The helper has atomically created and revalidated both artifacts. Persist
      # LC-19 (`record-post-intent`) before the first provider POST.
@@ -1165,12 +1204,56 @@ Only after user approval:
      POST_INTENT_FILE="$POST_INTENT_FILE" \
      UPDATED_AT="<RFC-3339-UTC>" \
        bash "$PR_REVIEW_LEASE_HELPER" write || exit 1
-     (
+     POST_RESPONSE_FILE="$(mktemp "$WORKING_DIRECTORY/.ephemeral/.review-post-response-${REVIEW_HEAD_SHA}.XXXXXX")" || exit 1
+     POST_ERROR_FILE="$(mktemp "$WORKING_DIRECTORY/.ephemeral/.review-post-error-${REVIEW_HEAD_SHA}.XXXXXX")" || exit 1
+     trap 'rm -f "${POST_RESPONSE_FILE:-}" "${POST_ERROR_FILE:-}"' EXIT
+     if (
        cd "$WORKING_DIRECTORY" || exit 1
        gh api repos/{owner}/{repo}/pulls/<N>/reviews \
          --method POST \
          --input "$VALIDATED_REVIEW_PAYLOAD_FILE"
-     )
+     ) >"$POST_RESPONSE_FILE" 2>"$POST_ERROR_FILE"; then
+       POST_OUTCOME="post-response"
+       POST_RESPONSE_SCALARS="$(jq -cer --slurpfile intent "$POST_INTENT_FILE" '
+         def safe_id: type == "number" and . == floor and . >= 1 and . <= 9007199254740991;
+         def utc_second: type == "string" and test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$");
+         def matching_state($event):
+           ($event == "APPROVE" and . == "APPROVED")
+           or ($event == "REQUEST_CHANGES" and . == "CHANGES_REQUESTED")
+           or ($event == "COMMENT" and . == "COMMENTED");
+         if ((.id | safe_id) and (.submitted_at | utc_second)
+           and (.user.id == $intent[0].provider_actor_id)
+           and (.body == $intent[0].final_body)
+           and (.commit_id == $intent[0].review_head_sha)
+           and (.state | matching_state($intent[0].review_event)))
+         then {id, submitted_at}
+         else error("POST response does not match sealed intent")
+         end' "$POST_RESPONSE_FILE")" || exit 1
+       PROVIDER_REVIEW_ID="$(printf '%s' "$POST_RESPONSE_SCALARS" | jq -er '.id')" || exit 1
+       PROVIDER_REVIEW_SUBMITTED_AT="$(printf '%s' "$POST_RESPONSE_SCALARS" | jq -er '.submitted_at')" || exit 1
+     else
+       # A definite HTTP 4xx is a certain rejection; transport failures,
+       # 5xx responses, and malformed output are uncertain and must never be reposted.
+       if grep -Eq 'HTTP 4[0-9]{2}' "$POST_ERROR_FILE"; then
+         FAILURE_RECOVERABILITY="unrecoverable"
+         FAILURE_REASON="GitHub rejected the review POST"
+       else
+         FAILURE_RECOVERABILITY="unknown"
+         FAILURE_REASON="GitHub review POST outcome is uncertain"
+       fi
+       STATE="failed" \
+       APPROVED_REVIEW_FILE="$APPROVED_REVIEW_FILE" \
+       VALIDATED_REVIEW_PAYLOAD_FILE="$VALIDATED_REVIEW_PAYLOAD_FILE" \
+       FINISHED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+       FAILURE_PHASE="github-post" \
+       FAILURE_REASON="$FAILURE_REASON" \
+       FAILURE_RECOVERABILITY="$FAILURE_RECOVERABILITY" \
+       GITHUB_POST_ATTEMPTED=true \
+       GITHUB_POST_RESULT=failed \
+       UPDATED_AT="<RFC-3339-UTC>" \
+         bash "$PR_REVIEW_LEASE_HELPER" write || exit 1
+       exit 1
+     fi
    fi
    ```
 
@@ -1206,6 +1289,7 @@ Only after user approval:
    `failed` (LC-24/LC-25); it never re-enters `gated` or rebuilds presentation:
 
    ```sh
+   if [ -z "$EXECUTION_RECEIPT_FILE" ]; then
    EXECUTION_RECEIPT_JSON=$( (
      cd "$WORKING_DIRECTORY" || exit 1
      HEAD_SHA="$REVIEW_HEAD_SHA" \
@@ -1239,9 +1323,15 @@ Only after user approval:
    FINISHED_AT="${FINISHED_AT:-}" \
    UPDATED_AT="<RFC-3339-UTC>" \
      bash "$PR_REVIEW_LEASE_HELPER" write || exit 1
+   RESUME_SEALED_THREAD_IDS="$( (
+     cd "$WORKING_DIRECTORY" || exit 1
+     jq -cer '[.actions[] | select(.action == "resolve" and (.disposition == "pending" or .disposition == "failed")) | .thread_id]' "$EXECUTION_RECEIPT_FILE"
+   ) )" || exit 1
+   fi
    ```
 
-   Resolve only sealed `resolve` IDs. Make a fresh provider read immediately before resolving each sealed `resolve` ID, using the complete review-thread connection. The ID must
+   Resolve only the sealed IDs in `RESUME_SEALED_THREAD_IDS`; this is empty for
+   a terminal existing receipt. Make a fresh provider read immediately before resolving each sealed `resolve` ID, using the complete review-thread connection. The ID must
    appear exactly once and remain an eligible sealed thread. A freshly
    already-resolved record receives the `already-resolved` disposition without a
    mutation; missing, duplicate, unknown, ineligible, or malformed records stop

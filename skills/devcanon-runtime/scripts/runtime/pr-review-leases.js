@@ -891,6 +891,7 @@ export function reducePrReviewLease(previous, identity, inputs, options = {}) {
         inputs.expectedState !== previous?.state) {
         throw new PrReviewLeaseError(`EXPECTED_STATE mismatch: ${previous?.state ?? "none"}`);
     }
+    assertActionBearingFailedLeaseRecovery(previous, inputs);
     const base = buildBaseLease(previous, identity, inputs, row);
     switch (row) {
         case "LC-01":
@@ -1914,6 +1915,32 @@ function validatePostGatedPreviewRenderFailure(previous, options = {}) {
             options.allowMissingPresentationTimestamp !== true)) {
         throw new PrReviewLeaseError("preview-render failure requires prior presentation evidence");
     }
+}
+function assertActionBearingFailedLeaseRecovery(previous, inputs) {
+    if (previous?.state !== "failed" ||
+        previous.failure.phase !== "github-post" ||
+        previous.artifacts.post_intent_file === null ||
+        previous.artifacts.execution_receipt_file !== null) {
+        return;
+    }
+    if (inputs.state === "resolving")
+        return;
+    if (inputs.state === "posted" && inputs.executionReceiptFile !== undefined)
+        return;
+    if (inputs.state === "failed" &&
+        inputs.failurePhase === "github-post" &&
+        inputs.failureReason === previous.failure.reason &&
+        inputs.failureRecoverability === previous.failure.recoverability &&
+        inputs.finishedAt === previous.terminal.finished_at &&
+        inputs.githubPostAttempted === true &&
+        inputs.githubPostResult === "failed" &&
+        (inputs.approvedReviewFile === undefined ||
+            inputs.approvedReviewFile === previous.artifacts.approved_review_file) &&
+        (inputs.validatedPayloadFile === undefined ||
+            inputs.validatedPayloadFile === previous.artifacts.validated_payload_file)) {
+        return;
+    }
+    throw new PrReviewLeaseError("action-bearing failed lease requires execution receipt recovery");
 }
 function transitionId(previous, inputs) {
     const previousState = previous?.state ?? "none";

@@ -66,9 +66,9 @@ updates are valid only when the matching row says so.
 | LC-11 | `record-failure`              | `gated`               | `failed`    | Pre-approval failure phase, `FINISHED_AT`, `FAILURE_REASON`, `FAILURE_RECOVERABILITY`, `UPDATED_AT`                                                                                     |
 | LC-12 | `record-failure`              | `gated`               | `failed`    | `FAILURE_PHASE=approval-freeze`, `FINISHED_AT`, `FAILURE_REASON`, `FAILURE_RECOVERABILITY`, `UPDATED_AT`                                                                                |
 | LC-13 | `record-failure`              | `gated`               | `failed`    | `FAILURE_PHASE=github-post`, `APPROVED_REVIEW_FILE`, `GITHUB_POST_ATTEMPTED=true`, `GITHUB_POST_RESULT=failed`, `FINISHED_AT`, `FAILURE_REASON`, `FAILURE_RECOVERABILITY`, `UPDATED_AT` |
-| LC-14 | `present-preview`             | `failed`              | `gated`     | Existing or supplied `RESULT_FILE`, `PRESENTED_AT`, `PRESENTATION_STATUS`, `UPDATED_AT`; the helper refreshes `validation.result_manifest.sha256` from the validated result file        |
-| LC-15 | `abort`                       | `failed`              | `aborted`   | `FINISHED_AT`, `TERMINAL_REASON`, `UPDATED_AT`                                                                                                                                          |
-| LC-16 | `record-failure`              | `failed`              | `failed`    | `FINISHED_AT`, `FAILURE_PHASE`, `FAILURE_REASON`, `FAILURE_RECOVERABILITY`, `UPDATED_AT`                                                                                                |
+| LC-14 | `present-preview`             | `failed`              | `gated`     | Existing or supplied `RESULT_FILE`, `PRESENTED_AT`, `PRESENTATION_STATUS`, `UPDATED_AT`; unavailable to an action-bearing `github-post` failure retaining a post intent                 |
+| LC-15 | `abort`                       | `failed`              | `aborted`   | `FINISHED_AT`, `TERMINAL_REASON`, `UPDATED_AT`; unavailable to an action-bearing `github-post` failure retaining a post intent                                                          |
+| LC-16 | `record-failure`              | `failed`              | `failed`    | `FINISHED_AT`, `FAILURE_PHASE`, `FAILURE_REASON`, `FAILURE_RECOVERABILITY`, `UPDATED_AT`; an action-bearing `github-post` failure may retain only identical failure evidence            |
 | LC-17 | `retry-post-success`          | `failed`              | `posted`    | Prior failure is `github-post`, `FINISHED_AT`, `GITHUB_POSTED_AT`, `UPDATED_AT`                                                                                                         |
 | LC-18 | `archive-terminal-and-create` | `posted` or `aborted` | `created`   | `CREATED_AT`, `UPDATED_AT`                                                                                                                                                              |
 | LC-19 | `record-post-intent`          | `gated`               | `gated`     | `APPROVED_REVIEW_FILE`, `VALIDATED_REVIEW_PAYLOAD_FILE`, `POST_INTENT_FILE`, `UPDATED_AT`                                                                                               |
@@ -114,7 +114,9 @@ An action-bearing `github-post` failure with its stored intent and no receipt
 may proceed only through LC-24 or LC-25 after provider reconciliation and
 receipt materialization. Those rows preserve the frozen approved review,
 validated payload, post intent, and existing presentation without re-entering
-`gated`. While `resolving`, each receipt replacement must retain the exact receipt path,
+`gated`. It must reject LC-14 presentation, LC-15 abort, and any LC-16 rewrite
+other than identical `github-post` failure evidence; it cannot reach LC-18
+through an abort. While `resolving`, each receipt replacement must retain the exact receipt path,
 provider review ID, and post time already recorded by the lease. The controller
 accepts only an exact reread of the intended replacement as committed, or an
 exact reread of the prior valid receipt as a recoverable stop; it does not
