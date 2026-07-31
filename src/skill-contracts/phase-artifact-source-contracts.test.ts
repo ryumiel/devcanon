@@ -3846,7 +3846,7 @@ None
     expect(existingReceiptIndex).toBeLessThan(firstProviderPostIndex);
     const existingReceiptBranch = prReviewPhase6.slice(
       existingReceiptIndex,
-      prReviewPhase6.indexOf('elif [ "$POST_INTENT_REUSED" = true ]; then'),
+      prReviewPhase6.indexOf('elif [ "$POST_INTENT_REUSED" = true ] &&'),
     );
     expect(existingReceiptBranch).toContain(
       'bash "$PR_REVIEW_LEASE_HELPER" validate',
@@ -3855,13 +3855,27 @@ None
     expect(existingReceiptBranch).toContain(
       '"pending" or .disposition == "failed"',
     );
+    expect(existingReceiptBranch).toContain("materialize-execution-receipt");
+    expect(existingReceiptBranch).toContain("EXPECTED_STATE");
+    expect(existingReceiptBranch).toContain('STATE="$STATE"');
+    expect(existingReceiptBranch).toContain(
+      'resolving:true)\n         STATE="posted"',
+    );
+    expect(
+      existingReceiptBranch.indexOf("materialize-execution-receipt"),
+    ).toBeLessThan(existingReceiptBranch.indexOf("RESUME_SEALED_THREAD_IDS"));
+    expect(existingReceiptBranch.indexOf('STATE="$STATE"')).toBeLessThan(
+      existingReceiptBranch.indexOf("RESUME_SEALED_THREAD_IDS"),
+    );
     expect(existingReceiptBranch).not.toContain("gh api");
     const reusedIntentBranch = retryIntentGate.slice(
-      retryIntentGate.indexOf('if [ "$POST_INTENT_REUSED" = true ]; then'),
-      retryIntentGate.indexOf("else\n     # The helper has atomically"),
+      retryIntentGate.indexOf('elif [ "$POST_INTENT_REUSED" = true ] &&'),
+      retryIntentGate.indexOf(
+        'else\n     [ "$CURRENT_LEASE_STATE" = "gated" ] || exit 1',
+      ),
     );
     expect(reusedIntentBranch).toContain(
-      'if [ "$POST_INTENT_REUSED" = true ]; then',
+      'elif [ "$POST_INTENT_REUSED" = true ] &&',
     );
     expect(reusedIntentBranch).toContain("Reconcile every");
     expect(reusedIntentBranch).toContain("failed -> gated (LC-14)");
@@ -3875,6 +3889,16 @@ None
     expect(reusedIntentBranch).not.toContain("--method POST");
     expect(reusedIntentBranch).not.toContain("PR_REVIEW_LEASE_HELPER");
     expect(reusedIntentBranch).not.toContain('STATE="gated"');
+    const intentOwnershipGate = prReviewPhase6.slice(
+      prReviewPhase6.indexOf("POST_INTENT_LEASE_OWNED=false"),
+      existingReceiptIndex,
+    );
+    expect(intentOwnershipGate).toContain("LEASE_POST_INTENT_FILE");
+    expect(intentOwnershipGate).toContain(
+      'if [ "$POST_INTENT_REUSED" = true ] && [ "$POST_INTENT_LEASE_OWNED" != true ]; then',
+    );
+    expect(intentOwnershipGate).toContain('STATE="gated"');
+    expect(intentOwnershipGate).toContain("POST_INTENT_REUSED=false");
     const postResponseBranch = prReviewPhase6.slice(
       firstProviderPostIndex,
       prReviewPhase6.indexOf(
@@ -3894,9 +3918,16 @@ None
     ]) {
       expect(postResponseBranch).toContain(scalarBinding);
     }
-    expect(
-      prReviewPhase6.indexOf('if [ -z "$EXECUTION_RECEIPT_FILE" ]; then'),
-    ).toBeLessThan(prReviewPhase6.indexOf("materialize-execution-receipt"));
+    const initialReceiptGuard = prReviewPhase6.indexOf(
+      'if [ -z "$EXECUTION_RECEIPT_FILE" ]; then',
+    );
+    expect(initialReceiptGuard).toBeGreaterThan(existingReceiptIndex);
+    expect(initialReceiptGuard).toBeLessThan(
+      prReviewPhase6.indexOf(
+        "materialize-execution-receipt",
+        initialReceiptGuard,
+      ),
+    );
     expect(normalizedPrReview).toContain("LC-24/LC-25");
     expect(normalizedPrReview).toContain(
       "do not fetch `commit_id` from live `{{tool:github-cli}} pr view` for posting",

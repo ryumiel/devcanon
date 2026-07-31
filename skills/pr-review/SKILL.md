@@ -1152,22 +1152,88 @@ Only after user approval:
    ) ) || exit 1
    VALIDATED_REVIEW_PAYLOAD_FILE="$(printf '%s' "$POST_INTENT_JSON" | jq -er '.validated_review_payload_file')" || exit 1
    POST_INTENT_FILE="$(printf '%s' "$POST_INTENT_JSON" | jq -er '.post_intent_file')" || exit 1
+   LEASE_FILE="$(cd "$REVIEW_CALLER_DIR" && bash "$PR_REVIEW_LEASE_HELPER" derive-path)" || exit 1
+   CURRENT_LEASE_STATE="$(jq -er '.state | select(. == "gated" or . == "failed" or . == "resolving" or . == "posted")' "$REVIEW_CALLER_DIR/$LEASE_FILE")" || exit 1
+   LEASE_POST_INTENT_FILE="$(jq -er '.artifacts.post_intent_file // ""' "$REVIEW_CALLER_DIR/$LEASE_FILE")" || exit 1
+   POST_INTENT_LEASE_OWNED=false
+   [ "$LEASE_POST_INTENT_FILE" = "$POST_INTENT_FILE" ] && POST_INTENT_LEASE_OWNED=true
+   if [ "$POST_INTENT_REUSED" = true ] && [ "$POST_INTENT_LEASE_OWNED" != true ]; then
+     # A deterministic file alone proves neither LC-19 nor a provider attempt.
+     # This is the crash boundary before intent binding: bind it while gated,
+     # then take the fresh POST branch below rather than reconciling.
+     [ "$CURRENT_LEASE_STATE" = "gated" ] || exit 1
+     STATE="gated" \
+     APPROVED_REVIEW_FILE="$APPROVED_REVIEW_FILE" \
+     VALIDATED_REVIEW_PAYLOAD_FILE="$VALIDATED_REVIEW_PAYLOAD_FILE" \
+     POST_INTENT_FILE="$POST_INTENT_FILE" \
+     UPDATED_AT="<RFC-3339-UTC>" \
+       bash "$PR_REVIEW_LEASE_HELPER" write || exit 1
+     POST_INTENT_REUSED=false
+     POST_INTENT_LEASE_OWNED=true
+   fi
    EXECUTION_RECEIPT_FILE=""
    EXISTING_EXECUTION_RECEIPT_FILE=".ephemeral/pr-${PR_NUMBER}-${REVIEW_HEAD_SHA}-thread-action-execution.json"
    if (cd "$WORKING_DIRECTORY" && [ -e "$EXISTING_EXECUTION_RECEIPT_FILE" ]); then
      # A stored receipt is progress, not an invitation to recreate the initial
-     # pending/not-requested dispositions. Validate the stored lease chain
-     # first, then resume only its pending or failed sealed resolves in step 7.
+     # pending/not-requested dispositions. Validate its closed artifact chain
+     # and bind its lifecycle state before deriving or mutating a thread ID.
      ( cd "$WORKING_DIRECTORY" || exit 1
        [ ! -L "$EXISTING_EXECUTION_RECEIPT_FILE" ] && [ -f "$EXISTING_EXECUTION_RECEIPT_FILE" ] || exit 1
      ) || exit 1
-     (cd "$REVIEW_CALLER_DIR" && bash "$PR_REVIEW_LEASE_HELPER" validate) || exit 1
      EXECUTION_RECEIPT_FILE="$EXISTING_EXECUTION_RECEIPT_FILE"
+     POST_OUTCOME="$(cd "$WORKING_DIRECTORY" && jq -er '.post_outcome | select(. == "post-response" or . == "provider-reconciliation")' "$EXECUTION_RECEIPT_FILE")" || exit 1
+     PROVIDER_REVIEW_ID="$(cd "$WORKING_DIRECTORY" && jq -er '.provider_review_id | numbers | select(. == floor and . >= 1 and . <= 9007199254740991)' "$EXECUTION_RECEIPT_FILE")" || exit 1
+     PROVIDER_REVIEW_SUBMITTED_AT="$(cd "$WORKING_DIRECTORY" && jq -er '.provider_review_submitted_at | strings | select(test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"))' "$EXECUTION_RECEIPT_FILE")" || exit 1
+     EXISTING_RECEIPT_JSON=$( (
+       cd "$WORKING_DIRECTORY" || exit 1
+       HEAD_SHA="$REVIEW_HEAD_SHA" \
+       PR_NUMBER="$PR_NUMBER" \
+       REPOSITORY="<owner/repo>" \
+       BASE_REF="$REVIEW_SCOPE_BASE_REF" \
+       APPROVED_REVIEW_FILE="$APPROVED_REVIEW_FILE" \
+       POST_INTENT_FILE="$POST_INTENT_FILE" \
+       POST_OUTCOME="$POST_OUTCOME" \
+       PROVIDER_REVIEW_ID="$PROVIDER_REVIEW_ID" \
+       PROVIDER_REVIEW_SUBMITTED_AT="$PROVIDER_REVIEW_SUBMITTED_AT" \
+       EXECUTION_RECEIPT_UPDATED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+         bash "$PR_REVIEW_HELPER" materialize-execution-receipt
+     ) ) || exit 1
+     [ "$(printf '%s' "$EXISTING_RECEIPT_JSON" | jq -er '.write_status')" = "already-current" ] || exit 1
+     RECEIPT_ALL_TERMINAL="$(printf '%s' "$EXISTING_RECEIPT_JSON" | jq -er '.all_terminal | booleans')" || exit 1
+     case "$CURRENT_LEASE_STATE:$RECEIPT_ALL_TERMINAL" in
+       gated:true | failed:true | resolving:true)
+         STATE="posted"
+         FINISHED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+         ;;
+       gated:false | failed:false | resolving:false)
+         STATE="resolving"
+         unset FINISHED_AT
+         ;;
+       posted:true)
+         STATE=""
+         ;;
+       *)
+         exit 1
+         ;;
+     esac
+     if [ -n "$STATE" ]; then
+       STATE="$STATE" \
+       EXPECTED_STATE="$CURRENT_LEASE_STATE" \
+       EXECUTION_RECEIPT_FILE="$EXECUTION_RECEIPT_FILE" \
+       GITHUB_POSTED_AT="$PROVIDER_REVIEW_SUBMITTED_AT" \
+       PROVIDER_REVIEW_ID="$PROVIDER_REVIEW_ID" \
+       FINISHED_AT="${FINISHED_AT:-}" \
+       UPDATED_AT="<RFC-3339-UTC>" \
+         bash "$PR_REVIEW_LEASE_HELPER" write || exit 1
+     fi
+     # This post-bind validation tolerates the resolving -> posted crash
+     # boundary while still proving the deterministic lease and receipt chain.
+     (cd "$REVIEW_CALLER_DIR" && bash "$PR_REVIEW_LEASE_HELPER" validate) || exit 1
      RESUME_SEALED_THREAD_IDS="$( (
        cd "$WORKING_DIRECTORY" || exit 1
        jq -cer '[.actions[] | select(.action == "resolve" and (.disposition == "pending" or .disposition == "failed")) | .thread_id]' "$EXECUTION_RECEIPT_FILE"
      ) )" || exit 1
-   elif [ "$POST_INTENT_REUSED" = true ]; then
+   elif [ "$POST_INTENT_REUSED" = true ] && [ "$POST_INTENT_LEASE_OWNED" = true ] && [ "$CURRENT_LEASE_STATE" = "failed" ]; then
      # No receipt means an action-bearing github-post failure. Reconcile every
      # submitted-review page; never return through failed -> gated (LC-14),
      # re-present, or repost. A failed or ambiguous reconciliation preserves
@@ -1196,6 +1262,7 @@ Only after user approval:
      PROVIDER_REVIEW_ID="$(printf '%s' "$RECONCILIATION_SCALARS" | jq -er '.id | numbers | select(. == floor and . >= 1 and . <= 9007199254740991)')" || exit 1
      PROVIDER_REVIEW_SUBMITTED_AT="$(printf '%s' "$RECONCILIATION_SCALARS" | jq -er '.submitted_at | strings | select(test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"))')" || exit 1
    else
+     [ "$CURRENT_LEASE_STATE" = "gated" ] || exit 1
      # The helper has atomically created and revalidated both artifacts. Persist
      # LC-19 (`record-post-intent`) before the first provider POST.
      STATE="gated" \

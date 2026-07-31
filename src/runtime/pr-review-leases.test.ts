@@ -4761,6 +4761,9 @@ describe("pr-review lease intent command validation", () => {
 
       await writeReceipt("succeeded", "2026-06-11T00:03:00Z");
       expect((await runPrReviewLeasesCommand(["write"])).exitCode).toBe(0);
+      expect(
+        (await readLease(workspace.primary, workspace.leaseFile)).state,
+      ).toBe("posted");
 
       await writeReceipt("pending", "2026-06-11T00:03:00Z");
       result = await runPrReviewLeasesCommand(["validate"]);
