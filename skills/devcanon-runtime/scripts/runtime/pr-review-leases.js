@@ -603,6 +603,40 @@ async function hasSessionCreateRollbackChanges(worktreePath) {
     ], { maxBuffer: 1024 * 1024 });
     return stdout.length > 0;
 }
+async function hasUnexpectedSessionGitAdminOutput(gitDirectory) {
+    const entries = await readdir(gitDirectory, { withFileTypes: true });
+    for (const entry of entries) {
+        if (["HEAD", "ORIG_HEAD", "commondir", "gitdir", "index"].includes(entry.name)) {
+            if (!entry.isFile())
+                return true;
+            continue;
+        }
+        if (/^sharedindex\.[0-9a-f]{40,64}$/u.test(entry.name)) {
+            if (!entry.isFile())
+                return true;
+            continue;
+        }
+        if (entry.name === "logs") {
+            if (!entry.isDirectory())
+                return true;
+            const logs = await readdir(path.join(gitDirectory, entry.name), {
+                withFileTypes: true,
+            });
+            if (logs.some((log) => log.name !== "HEAD" || !log.isFile()))
+                return true;
+            continue;
+        }
+        if (entry.name === "refs") {
+            if (!entry.isDirectory() ||
+                (await readdir(path.join(gitDirectory, entry.name))).length > 0) {
+                return true;
+            }
+            continue;
+        }
+        return true;
+    }
+    return false;
+}
 async function removeOwnedSessionWorktree(primaryRoot, registration, commonGitDirectory, immutableHead) {
     const verified = await verifyCreatedSessionWorktree(primaryRoot, registration.worktree_path, commonGitDirectory, immutableHead);
     if (verified === null ||
@@ -610,6 +644,8 @@ async function removeOwnedSessionWorktree(primaryRoot, registration, commonGitDi
         return false;
     }
     try {
+        if (await hasUnexpectedSessionGitAdminOutput(verified.git_directory))
+            return false;
         if (await hasSessionCreateRollbackChanges(registration.worktree_path))
             return false;
         if ((await findUnmanagedEphemeralArtifacts({ artifacts: emptyArtifacts() }, registration.worktree_path)).length > 0) {
