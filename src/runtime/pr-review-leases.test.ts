@@ -1014,17 +1014,30 @@ describe("pr-review lease reducer", () => {
   });
 
   it("records post success and derives GitHub metadata", () => {
-    const posted = reducePrReviewLease(gatedLease(), identity, {
+    const intended = reducePrReviewLease(gatedLease(), identity, {
+      state: "gated",
+      baseRef: "main",
+      headRef: "topic",
+      createdAt: "2026-06-11T00:00:00Z",
+      updatedAt: "2026-06-11T00:02:30Z",
+      approvedReviewFile: ".ephemeral/topic-approved-review.json",
+      validatedPayloadFile:
+        ".ephemeral/pr-432-1111111111111111111111111111111111111111-validated-review-payload.json",
+      postIntentFile:
+        ".ephemeral/pr-432-1111111111111111111111111111111111111111-thread-action-post-intent.json",
+    } as Parameters<typeof reducePrReviewLease>[2]);
+    const posted = reducePrReviewLease(intended, identity, {
       state: "posted",
       baseRef: "main",
       headRef: "topic",
       createdAt: "2026-06-11T00:00:00Z",
       updatedAt: "2026-06-11T00:03:00Z",
-      approvedReviewFile: ".ephemeral/topic-approved-review.json",
-      validatedPayloadFile:
-        ".ephemeral/pr-432-1111111111111111111111111111111111111111-validated-review-payload.json",
+      executionReceiptFile:
+        ".ephemeral/pr-432-1111111111111111111111111111111111111111-thread-action-execution.json",
       finishedAt: "2026-06-11T00:03:00Z",
       githubPostedAt: "2026-06-11T00:03:00Z",
+      providerReviewId: 987,
+      executionReceiptAllTerminal: true,
     });
 
     expect(posted).toMatchObject({
@@ -1038,12 +1051,50 @@ describe("pr-review lease reducer", () => {
         github_post_attempted: true,
         github_post_result: "succeeded",
         github_posted_at: "2026-06-11T00:03:00Z",
+        provider_review_id: 987,
       },
       failure: { phase: null },
     });
   });
 
-  it("rejects posted leases without a validated payload pointer", () => {
+  it("enters resolving only from a sealed post intent and execution receipt", () => {
+    const intended = reducePrReviewLease(gatedLease(), identity, {
+      state: "gated",
+      baseRef: "main",
+      headRef: "topic",
+      createdAt: "2026-06-11T00:00:00Z",
+      updatedAt: "2026-06-11T00:02:30Z",
+      approvedReviewFile: ".ephemeral/topic-approved-review.json",
+      validatedPayloadFile:
+        ".ephemeral/pr-432-1111111111111111111111111111111111111111-validated-review-payload.json",
+      postIntentFile:
+        ".ephemeral/pr-432-1111111111111111111111111111111111111111-thread-action-post-intent.json",
+    } as Parameters<typeof reducePrReviewLease>[2]);
+    const resolving = reducePrReviewLease(intended, identity, {
+      state: "resolving",
+      baseRef: "main",
+      headRef: "topic",
+      createdAt: "2026-06-11T00:00:00Z",
+      updatedAt: "2026-06-11T00:03:00Z",
+      executionReceiptFile:
+        ".ephemeral/pr-432-1111111111111111111111111111111111111111-thread-action-execution.json",
+      githubPostedAt: "2026-06-11T00:03:00Z",
+      providerReviewId: 987,
+      executionReceiptAllTerminal: false,
+    } as Parameters<typeof reducePrReviewLease>[2]);
+
+    expect(resolving).toMatchObject({
+      state: "resolving",
+      terminal: { finished_at: null },
+      github: {
+        github_post_attempted: true,
+        github_post_result: "succeeded",
+        github_posted_at: "2026-06-11T00:03:00Z",
+      },
+    });
+  });
+
+  it("rejects posted leases without a persisted post intent", () => {
     expect(() =>
       reducePrReviewLease(gatedLease(), identity, {
         state: "posted",
@@ -1055,7 +1106,7 @@ describe("pr-review lease reducer", () => {
         finishedAt: "2026-06-11T00:03:00Z",
         githubPostedAt: "2026-06-11T00:03:00Z",
       }),
-    ).toThrow("VALIDATED_REVIEW_PAYLOAD_FILE is required");
+    ).toThrow("POST_INTENT_FILE is required");
   });
 
   it("preserves gated recovery evidence for GitHub post failures", () => {

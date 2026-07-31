@@ -17,6 +17,8 @@ const DIRECT_SUFFIXES = {
     result: "-result.json",
     approved: "-approved-review.json",
     payload: "-validated-review-payload.json",
+    postIntent: "-thread-action-post-intent.json",
+    executionReceipt: "-thread-action-execution.json",
     lease: "-lease.json",
 };
 export async function runPrReviewLeasesCommand(args) {
@@ -832,7 +834,7 @@ async function inspectDiscoveryCandidate(identity, leaseFileName, registrations)
             state: lease.state,
             classification: isReentry
                 ? "reentry"
-                : ["created", "reviewed", "gated", "failed"].includes(lease.state)
+                : ["created", "reviewed", "gated", "resolving", "failed"].includes(lease.state)
                     ? "resumable"
                     : "terminal",
             worktree_dirty: worktreeDirty,
@@ -972,6 +974,13 @@ export function reducePrReviewLease(previous, identity, inputs, options = {}) {
                     github_posted_at: inputs.githubPostedAt,
                 },
             };
+        case "LC-19":
+            return applyPostIntent(base, previous, inputs);
+        case "LC-20":
+        case "LC-21":
+        case "LC-22":
+        case "LC-23":
+            return applyExecutionReceipt(row, base, previous, inputs);
         case "LC-09":
         case "LC-10":
         case "LC-11":
@@ -1604,6 +1613,8 @@ function readInputs() {
         approvedReviewFile: optionalEnv("APPROVED_REVIEW_FILE"),
         validatedPayloadFile: optionalEnv("VALIDATED_REVIEW_PAYLOAD_FILE") ??
             optionalEnv("VALIDATED_PAYLOAD_FILE"),
+        postIntentFile: optionalEnv("POST_INTENT_FILE"),
+        executionReceiptFile: optionalEnv("EXECUTION_RECEIPT_FILE"),
         presentedAt: optionalEnv("PRESENTED_AT"),
         presentationStatus: parseOptionalPresentation(optionalEnv("PRESENTATION_STATUS")),
         finishedAt: optionalEnv("FINISHED_AT"),
@@ -1614,6 +1625,7 @@ function readInputs() {
         githubPostAttempted: parseOptionalBoolean(optionalEnv("GITHUB_POST_ATTEMPTED")),
         githubPostResult: parseOptionalGitHubResult(optionalEnv("GITHUB_POST_RESULT")),
         githubPostedAt: optionalEnv("GITHUB_POSTED_AT"),
+        providerReviewId: parseOptionalPositiveSafeInteger("PROVIDER_REVIEW_ID", optionalEnv("PROVIDER_REVIEW_ID")),
         expectedState: parseOptionalState(optionalEnv("EXPECTED_STATE")),
     };
 }
@@ -1623,6 +1635,14 @@ async function readInputsForWrite(previous, worktreePath) {
     if (resultFile !== null) {
         validateDirectChild("result", resultFile, DIRECT_SUFFIXES.result);
         inputs.resultSha256 = await sha256DirectChild(worktreePath, resultFile, "result file");
+    }
+    const receiptFile = inputs.executionReceiptFile ?? previous?.artifacts.execution_receipt_file;
+    if (receiptFile !== null && receiptFile !== undefined) {
+        const receipt = await readRequiredJson(worktreePath, receiptFile, "execution receipt file");
+        if (!Array.isArray(receipt.actions)) {
+            throw new PrReviewLeaseError("execution receipt actions missing");
+        }
+        inputs.executionReceiptAllTerminal = receipt.actions.every(executionActionIsTerminal);
     }
     return inputs;
 }
@@ -1685,6 +1705,72 @@ function applyGated(base, previous, inputs) {
         },
     };
 }
+function applyPostIntent(base, previous, inputs) {
+    requireInput("APPROVED_REVIEW_FILE", inputs.approvedReviewFile);
+    requireInput("VALIDATED_REVIEW_PAYLOAD_FILE", inputs.validatedPayloadFile);
+    requireInput("POST_INTENT_FILE", inputs.postIntentFile);
+    return {
+        ...base,
+        state: "gated",
+        artifacts: {
+            ...base.artifacts,
+            handoff_file: previous?.artifacts.handoff_file ?? null,
+            result_file: previous?.artifacts.result_file ?? null,
+            approved_review_file: inputs.approvedReviewFile,
+            validated_payload_file: inputs.validatedPayloadFile,
+            post_intent_file: inputs.postIntentFile,
+            execution_receipt_file: null,
+        },
+        validation: previous?.validation ?? emptyValidation(),
+        presentation: previous?.presentation ?? emptyPresentation(),
+    };
+}
+function applyExecutionReceipt(row, base, previous, inputs) {
+    const postIntentFile = previous?.artifacts.post_intent_file ?? null;
+    requireInput("POST_INTENT_FILE", postIntentFile ?? undefined);
+    const receiptFile = inputs.executionReceiptFile ?? previous?.artifacts.execution_receipt_file;
+    requireInput("EXECUTION_RECEIPT_FILE", receiptFile);
+    requireInput("GITHUB_POSTED_AT", inputs.githubPostedAt);
+    requireInput("PROVIDER_REVIEW_ID", inputs.providerReviewId);
+    if (row === "LC-21" || row === "LC-23") {
+        requireInput("FINISHED_AT", inputs.finishedAt);
+        if (inputs.executionReceiptAllTerminal !== true) {
+            throw new PrReviewLeaseError("posted transition requires terminal execution receipt");
+        }
+    }
+    else if (inputs.executionReceiptAllTerminal === true) {
+        throw new PrReviewLeaseError("resolving transition requires pending or failed execution receipt action");
+    }
+    if (previous?.state === "resolving" &&
+        inputs.postIntentFile !== undefined &&
+        inputs.postIntentFile !== postIntentFile) {
+        throw new PrReviewLeaseError("POST_INTENT_FILE must match resolving intent");
+    }
+    return {
+        ...base,
+        state: row === "LC-21" || row === "LC-23" ? "posted" : "resolving",
+        artifacts: {
+            ...base.artifacts,
+            handoff_file: previous?.artifacts.handoff_file ?? null,
+            result_file: previous?.artifacts.result_file ?? null,
+            approved_review_file: previous?.artifacts.approved_review_file ?? null,
+            validated_payload_file: previous?.artifacts.validated_payload_file ?? null,
+            post_intent_file: postIntentFile,
+            execution_receipt_file: receiptFile,
+        },
+        validation: previous?.validation ?? emptyValidation(),
+        presentation: previous?.presentation ?? emptyPresentation(),
+        terminal: row === "LC-21" || row === "LC-23"
+            ? { finished_at: inputs.finishedAt ?? null, reason: null }
+            : { finished_at: null, reason: null },
+        github: {
+            github_post_attempted: true,
+            github_post_result: "succeeded",
+            github_posted_at: inputs.githubPostedAt ?? null,
+            provider_review_id: inputs.providerReviewId ?? null,
+        },
+    };
+}
 function applyFailure(row, base, previous, inputs, options = {}) {
     requireInput("FINISHED_AT", inputs.finishedAt);
     requireInput("FAILURE_PHASE", inputs.failurePhase);
@@ -1729,6 +1815,10 @@ function applyFailure(row, base, previous, inputs, options = {}) {
                 : (inputs.validatedPayloadFile ??
                     previous?.artifacts.validated_payload_file ??
                     null),
+            post_intent_file: approvedReviewFile === null
+                ? null
+                : (previous?.artifacts.post_intent_file ?? null),
+            execution_receipt_file: null,
         },
         validation: previous?.validation ?? emptyValidation(),
         presentation: row === "LC-11" || row === "LC-12" || row === "LC-13" || row === "LC-16"
@@ -1806,6 +1896,11 @@ function transitionId(previous, inputs) {
         return "LC-03";
     if (previousState === "reviewed" && inputs.state === "gated")
         return "LC-04";
+    if (previousState === "gated" &&
+        inputs.state === "gated" &&
+        inputs.postIntentFile !== undefined) {
+        return "LC-19";
+    }
     if (previousState === "gated" && inputs.state === "gated")
         return "LC-05";
     if (previousState === "reviewed" && inputs.state === "aborted")
@@ -1813,7 +1908,7 @@ function transitionId(previous, inputs) {
     if (previousState === "gated" && inputs.state === "aborted")
         return "LC-07";
     if (previousState === "gated" && inputs.state === "posted")
-        return "LC-08";
+        return "LC-21";
     if (previousState === "created" && inputs.state === "failed")
         return "LC-09";
     if (previousState === "reviewed" && inputs.state === "failed")
@@ -1833,6 +1928,12 @@ function transitionId(previous, inputs) {
         return "LC-16";
     if (previousState === "failed" && inputs.state === "posted")
         return "LC-17";
+    if (previousState === "gated" && inputs.state === "resolving")
+        return "LC-20";
+    if (previousState === "resolving" && inputs.state === "resolving")
+        return "LC-22";
+    if (previousState === "resolving" && inputs.state === "posted")
+        return "LC-23";
     return null;
 }
 function archivePathIfNeeded(previous, identity, inputs) {
@@ -1855,6 +1956,11 @@ function policyForLifecycleWrite(row) {
         case "LC-14":
             return "accept-gated-result";
         case "LC-08":
+        case "LC-19":
+        case "LC-20":
+        case "LC-21":
+        case "LC-22":
+        case "LC-23":
             return "accept-post-success";
         case "LC-17":
             return "validate-post-retry";
@@ -1899,6 +2005,12 @@ function validateLeaseShape(lease, options = {}) {
     if (lease.github.github_posted_at !== null) {
         validateTimestamp("github.github_posted_at", lease.github.github_posted_at);
     }
+    if (lease.github.provider_review_id !== undefined &&
+        (lease.github.provider_review_id !== null || lease.state === "resolving") &&
+        (!Number.isSafeInteger(lease.github.provider_review_id) ||
+            (lease.github.provider_review_id ?? 0) < 1)) {
+        throw new PrReviewLeaseError("github.provider_review_id must be a positive safe integer or null");
+    }
     if (lease.validation.result_manifest.validated_at !== null) {
         validateTimestamp("validation.result_manifest.validated_at", lease.validation.result_manifest.validated_at);
     }
@@ -1920,6 +2032,16 @@ function validateLeaseShape(lease, options = {}) {
             lease.artifacts.validated_payload_file,
             DIRECT_SUFFIXES.payload,
         ],
+        [
+            "post intent",
+            lease.artifacts.post_intent_file ?? null,
+            DIRECT_SUFFIXES.postIntent,
+        ],
+        [
+            "execution receipt",
+            lease.artifacts.execution_receipt_file ?? null,
+            DIRECT_SUFFIXES.executionReceipt,
+        ],
         ["lease", lease.lease_file, DIRECT_SUFFIXES.lease],
     ]) {
         if (value !== null)
@@ -1933,6 +2055,7 @@ function validateStateInvariants(lease, options = {}) {
     }
     if ((lease.state === "reviewed" ||
         lease.state === "gated" ||
+        lease.state === "resolving" ||
         lease.state === "posted") &&
         lease.artifacts.result_file === null) {
         throw new PrReviewLeaseError("lease schema mismatch");
@@ -1966,6 +2089,24 @@ function validateStateInvariants(lease, options = {}) {
     if (lease.state === "posted" &&
         (lease.artifacts.approved_review_file === null ||
             lease.artifacts.validated_payload_file === null)) {
+        throw new PrReviewLeaseError("lease schema mismatch");
+    }
+    if ((lease.state === "resolving" ||
+        (lease.state === "posted" &&
+            (lease.artifacts.post_intent_file !== undefined ||
+                lease.artifacts.execution_receipt_file !== undefined ||
+                lease.github.provider_review_id !== undefined))) &&
+        (lease.artifacts.approved_review_file === null ||
+            lease.artifacts.validated_payload_file === null ||
+            lease.artifacts.post_intent_file == null ||
+            lease.artifacts.execution_receipt_file == null ||
+            lease.github.provider_review_id == null)) {
+        throw new PrReviewLeaseError("lease schema mismatch");
+    }
+    if (lease.state === "resolving" &&
+        (lease.terminal.finished_at !== null ||
+            lease.github.github_posted_at === null ||
+            lease.github.github_post_result !== "succeeded")) {
         throw new PrReviewLeaseError("lease schema mismatch");
     }
     if (lease.state === "failed" && lease.failure.phase === null) {
@@ -2170,9 +2311,121 @@ async function validateReferencedArtifacts(lease, worktreePath, options = {}) {
         const scopeBaseRef = await scopeBaseRefFromValidatedResult(resultArtifact, worktreePath);
         await validateApprovedReviewOwnership(lease, worktreePath, approvedReviewHead, scopeBaseRef);
     }
+    if (lease.artifacts.post_intent_file != null) {
+        await validatePostIntentAndReceipt(lease, worktreePath, resultReviewHead, resultArtifact);
+    }
     if (options.validateResultAuthority === true) {
         await validateResultCommandAuthority(lease, worktreePath);
     }
+}
+async function validatePostIntentAndReceipt(lease, worktreePath, resultReviewHead, resultArtifact) {
+    const intentFile = lease.artifacts.post_intent_file;
+    if (intentFile == null || lease.artifacts.approved_review_file === null) {
+        throw new PrReviewLeaseError("post intent approval binding missing");
+    }
+    const reviewHead = resultReviewHead ??
+        reviewHeadShaFromResultFile(lease.artifacts.result_file ?? "");
+    const expectedIntent = `.ephemeral/pr-${lease.pr_number}-${reviewHead}-thread-action-post-intent.json`;
+    if (intentFile !== expectedIntent) {
+        throw new PrReviewLeaseError("post intent path mismatch");
+    }
+    const intent = await readRequiredJson(worktreePath, intentFile, "post intent file");
+    validateExactKeys(intent, [
+        "schema",
+        "repository",
+        "pr_number",
+        "review_head_sha",
+        "approved_review_file",
+        "approved_review_sha256",
+        "validated_review_payload_file",
+        "validated_review_payload_sha256",
+        "review_event",
+        "provider_actor_id",
+        "request_fingerprint_sha256",
+        "final_body",
+        "thread_actions_sha256",
+        "created_at",
+    ], "post intent");
+    if (intent.schema !== "pr-review/thread-action-post-intent/v1" ||
+        intent.repository !== lease.repository ||
+        intent.pr_number !== lease.pr_number ||
+        intent.review_head_sha !== reviewHead ||
+        intent.approved_review_file !== lease.artifacts.approved_review_file ||
+        !isSha256(intent.approved_review_sha256) ||
+        !isSha256(intent.validated_review_payload_sha256) ||
+        !isSha256(intent.request_fingerprint_sha256) ||
+        !isSha256(intent.thread_actions_sha256) ||
+        !isPositiveSafeInteger(intent.provider_actor_id) ||
+        !isReviewEvent(intent.review_event) ||
+        typeof intent.final_body !== "string")
+        throw new PrReviewLeaseError("post intent schema mismatch");
+    validateTimestamp("post intent created_at", stringField(intent, "created_at"));
+    const approvedSha = await sha256DirectChild(worktreePath, lease.artifacts.approved_review_file, "approved review file");
+    if (approvedSha !== intent.approved_review_sha256)
+        throw new PrReviewLeaseError("post intent approved-review digest mismatch");
+    const approved = await readRequiredJson(worktreePath, lease.artifacts.approved_review_file, "approved review file");
+    if (intent.thread_actions_sha256 !== approved.thread_actions_sha256)
+        throw new PrReviewLeaseError("post intent thread actions digest mismatch");
+    if (intent.validated_review_payload_file !==
+        lease.artifacts.validated_payload_file)
+        throw new PrReviewLeaseError("post intent payload binding mismatch");
+    if (lease.artifacts.validated_payload_file === null)
+        throw new PrReviewLeaseError("post intent payload binding missing");
+    const payloadSha = await sha256DirectChild(worktreePath, lease.artifacts.validated_payload_file, "validated payload file");
+    if (payloadSha !== intent.validated_review_payload_sha256)
+        throw new PrReviewLeaseError("post intent payload digest mismatch");
+    const payload = await readRequiredJson(worktreePath, lease.artifacts.validated_payload_file, "validated payload file");
+    const marker = `<!-- devcanon-pr-review-request:v1 sha256=${intent.request_fingerprint_sha256} -->`;
+    if (intent.final_body !== payload.body || !intent.final_body.endsWith(marker))
+        throw new PrReviewLeaseError("post intent final body mismatch");
+    const receiptFile = lease.artifacts.execution_receipt_file;
+    if (receiptFile == null)
+        return;
+    const expectedReceipt = `.ephemeral/pr-${lease.pr_number}-${reviewHead}-thread-action-execution.json`;
+    if (receiptFile !== expectedReceipt)
+        throw new PrReviewLeaseError("execution receipt path mismatch");
+    const receipt = await readRequiredJson(worktreePath, receiptFile, "execution receipt file");
+    validateExactKeys(receipt, [
+        "schema",
+        "repository",
+        "pr_number",
+        "review_head_sha",
+        "approved_review_file",
+        "approved_review_sha256",
+        "post_intent_file",
+        "post_intent_sha256",
+        "request_fingerprint_sha256",
+        "post_outcome",
+        "provider_review_id",
+        "provider_review_submitted_at",
+        "updated_at",
+        "actions",
+    ], "execution receipt");
+    if (receipt.schema !== "pr-review/thread-action-execution/v1" ||
+        receipt.repository !== lease.repository ||
+        receipt.pr_number !== lease.pr_number ||
+        receipt.review_head_sha !== reviewHead ||
+        receipt.approved_review_file !== intent.approved_review_file ||
+        receipt.approved_review_sha256 !== intent.approved_review_sha256 ||
+        receipt.post_intent_file !== intentFile ||
+        !isSha256(receipt.post_intent_sha256) ||
+        receipt.request_fingerprint_sha256 !== intent.request_fingerprint_sha256 ||
+        (receipt.post_outcome !== "post-response" &&
+            receipt.post_outcome !== "provider-reconciliation") ||
+        !isPositiveSafeInteger(receipt.provider_review_id) ||
+        typeof receipt.provider_review_submitted_at !== "string" ||
+        !Array.isArray(receipt.actions))
+        throw new PrReviewLeaseError("execution receipt schema mismatch");
+    validateTimestamp("execution receipt provider_review_submitted_at", receipt.provider_review_submitted_at);
+    validateTimestamp("execution receipt updated_at", stringField(receipt, "updated_at"));
+    if ((await sha256DirectChild(worktreePath, intentFile, "post intent file")) !==
+        receipt.post_intent_sha256)
+        throw new PrReviewLeaseError("execution receipt intent digest mismatch");
+    validateReceiptActions(receipt.actions, approved.thread_actions);
+    if (lease.github.provider_review_id != null &&
+        lease.github.provider_review_id !== receipt.provider_review_id)
+        throw new PrReviewLeaseError("execution receipt provider review mismatch");
+    void resultArtifact;
 }
 function validateResultFreshness(lease, policy, freshnessTimestamp) {
     if (lease.validation.result_manifest.status !== "valid") {
@@ -2399,6 +2652,8 @@ async function collectOwnedEphemeralArtifacts(lease, worktreePath) {
     const owned = new Set();
     addOwnedPath(owned, lease.artifacts.handoff_file);
     addOwnedPath(owned, lease.artifacts.result_file);
+    addOwnedPath(owned, lease.artifacts.post_intent_file ?? null);
+    addOwnedPath(owned, lease.artifacts.execution_receipt_file ?? null);
     if (lease.artifacts.handoff_file !== null) {
         const handoff = await readRequiredJson(worktreePath, lease.artifacts.handoff_file, "handoff file");
         collectHandoffArtifactPaths(owned, handoff);
@@ -2779,6 +3034,8 @@ function emptyArtifacts() {
         result_file: null,
         approved_review_file: null,
         validated_payload_file: null,
+        post_intent_file: null,
+        execution_receipt_file: null,
     };
 }
 function emptyValidation() {
@@ -2852,6 +3109,7 @@ function parseOptionalState(value) {
     if (value === "created" ||
         value === "reviewed" ||
         value === "gated" ||
+        value === "resolving" ||
         value === "posted" ||
         value === "aborted" ||
         value === "failed") {
@@ -2860,6 +3118,18 @@ function parseOptionalState(value) {
     if (value === undefined)
         return undefined;
     throw new PrReviewLeaseError(`unknown lease state: ${value}`);
+}
+function parseOptionalPositiveSafeInteger(label, value) {
+    if (value === undefined)
+        return undefined;
+    if (!/^[1-9][0-9]*$/u.test(value)) {
+        throw new PrReviewLeaseError(`${label} must be a positive safe integer`);
+    }
+    const parsed = Number(value);
+    if (!Number.isSafeInteger(parsed)) {
+        throw new PrReviewLeaseError(`${label} must be a positive safe integer`);
+    }
+    return parsed;
 }
 function parseOptionalPresentation(value) {
     if (value === undefined ||
@@ -2915,6 +3185,66 @@ function stringField(object, key) {
         throw new PrReviewLeaseError(`${key} is required`);
     }
     return value;
+}
+function validateExactKeys(object, expected, label) {
+    const actual = Object.keys(object).sort();
+    const wanted = [...expected].sort();
+    if (actual.length !== wanted.length ||
+        actual.some((key, index) => key !== wanted[index])) {
+        throw new PrReviewLeaseError(`${label} schema mismatch`);
+    }
+}
+function isSha256(value) {
+    return typeof value === "string" && SHA256_RE.test(value);
+}
+function isPositiveSafeInteger(value) {
+    return typeof value === "number" && Number.isSafeInteger(value) && value >= 1;
+}
+function isReviewEvent(value) {
+    return (value === "APPROVE" || value === "REQUEST_CHANGES" || value === "COMMENT");
+}
+function executionActionIsTerminal(value) {
+    if (!isObject(value))
+        return false;
+    return ((value.action === "resolve" &&
+        (value.disposition === "succeeded" ||
+            value.disposition === "already-resolved")) ||
+        (value.action === "leave" && value.disposition === "not-requested"));
+}
+function validateReceiptActions(receiptActions, sealedActions) {
+    if (!Array.isArray(sealedActions) ||
+        receiptActions.length !== sealedActions.length) {
+        throw new PrReviewLeaseError("execution receipt sealed actions mismatch");
+    }
+    for (let index = 0; index < receiptActions.length; index += 1) {
+        const receipt = receiptActions[index];
+        const sealed = sealedActions[index];
+        if (!isObject(receipt) || !isObject(sealed))
+            throw new PrReviewLeaseError("execution receipt action schema mismatch");
+        validateExactKeys(receipt, ["thread_id", "action", "disposition", "failure_reason"], "execution receipt action");
+        if (receipt.thread_id !== sealed.thread_id ||
+            receipt.action !== sealed.action ||
+            typeof receipt.thread_id !== "string" ||
+            receipt.thread_id.trim() === "") {
+            throw new PrReviewLeaseError("execution receipt sealed actions mismatch");
+        }
+        if (receipt.action === "resolve") {
+            if (!["pending", "succeeded", "already-resolved", "failed"].includes(String(receipt.disposition)))
+                throw new PrReviewLeaseError("execution receipt disposition mismatch");
+            if ((receipt.disposition === "failed" &&
+                (typeof receipt.failure_reason !== "string" ||
+                    receipt.failure_reason.trim() === "")) ||
+                (receipt.disposition !== "failed" && receipt.failure_reason !== null))
+                throw new PrReviewLeaseError("execution receipt failure reason mismatch");
+        }
+        else if (receipt.action === "leave") {
+            if (receipt.disposition !== "not-requested" ||
+                receipt.failure_reason !== null)
+                throw new PrReviewLeaseError("execution receipt disposition mismatch");
+        }
+        else
+            throw new PrReviewLeaseError("execution receipt action schema mismatch");
+    }
 }
 function nullableStringField(object, key) {
     const value = object[key];
