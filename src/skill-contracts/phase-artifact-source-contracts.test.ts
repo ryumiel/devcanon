@@ -2152,32 +2152,41 @@ None
       "scope-decision authority checks, and worktree HEAD binding",
     );
     expect(normalizedPrReview).toContain(
-      "If the initial result write or validation fails, remove only the prepared direct-child thread-actions candidate before leaving Phase 4",
+      "If `write-result` fails before it produces the result manifest, remove only the prepared direct-child thread-actions candidate before leaving Phase 4",
     );
     expect(normalizedPrReview).toContain(
-      "It is not yet result-bound, so leaving it would block ordinary cleanup or reentry as an unmanaged `.ephemeral` artifact",
+      "If `write-result` succeeds but `validate-result` fails, retain both the candidate and result for recovery",
     );
     expect(normalizedPrReview).toContain(
       "cleanup_unbound_thread_actions_candidate",
     );
     expect(normalizedPrReview).toContain('rm -f "$THREAD_ACTIONS_FILE"');
-    const initialResultFailureCleanupStart = prReview.indexOf(
-      'if [ "$RESULT_MANIFEST_STATUS" -ne 0 ]; then',
+    const initialResultWriteFailureCleanupStart = prReview.indexOf(
+      'if [ "$INITIAL_RESULT_WRITE_STATUS" -ne 0 ]; then',
     );
-    const initialResultFailureCleanupEnd = prReview.indexOf(
-      'exit "$RESULT_MANIFEST_STATUS"',
-      initialResultFailureCleanupStart,
+    const initialResultWriteFailureCleanupEnd = prReview.indexOf(
+      'exit "$INITIAL_RESULT_WRITE_STATUS"',
+      initialResultWriteFailureCleanupStart,
     );
-    expect(initialResultFailureCleanupStart).toBeGreaterThanOrEqual(0);
-    expect(initialResultFailureCleanupEnd).toBeGreaterThan(
-      initialResultFailureCleanupStart,
+    const initialResultValidateFailureStart = prReview.indexOf(
+      '[ "$INITIAL_RESULT_VALIDATE_STATUS" -eq 0 ] || exit "$INITIAL_RESULT_VALIDATE_STATUS"',
+    );
+    expect(initialResultWriteFailureCleanupStart).toBeGreaterThanOrEqual(0);
+    expect(initialResultWriteFailureCleanupEnd).toBeGreaterThan(
+      initialResultWriteFailureCleanupStart,
+    );
+    expect(initialResultValidateFailureStart).toBeGreaterThan(
+      initialResultWriteFailureCleanupEnd,
     );
     expect(
       prReview.slice(
-        initialResultFailureCleanupStart,
-        initialResultFailureCleanupEnd,
+        initialResultWriteFailureCleanupStart,
+        initialResultWriteFailureCleanupEnd,
       ),
     ).toContain("cleanup_unbound_thread_actions_candidate || exit 1");
+    expect(prReview.slice(initialResultWriteFailureCleanupEnd)).not.toContain(
+      "cleanup_unbound_thread_actions_candidate || exit 1",
+    );
     expect(normalizedPrReview).toContain(
       "Phase 4 must not rebuild range, scope, or prior-thread facts from conversation text when the manifest is present",
     );

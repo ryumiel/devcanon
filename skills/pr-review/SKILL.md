@@ -584,11 +584,13 @@ This records that findings and scope-decision validation succeeded before any
 user approval gate. It does not record approval intent, review event, lease
 state, approved-review artifact paths, or payload JSON.
 
-If the initial result write or validation fails, remove only the prepared
-direct-child thread-actions candidate before leaving Phase 4. It is not yet
-result-bound, so leaving it would block ordinary cleanup or reentry as an
-unmanaged `.ephemeral` artifact. Once the result validates, retain the
-candidate: the result manifest owns it for lease lifecycle validation.
+If `write-result` fails before it produces the result manifest, remove only
+the prepared direct-child thread-actions candidate before leaving Phase 4. It
+is not yet result-bound, so leaving it would block ordinary cleanup or reentry
+as an unmanaged `.ephemeral` artifact. If `write-result` succeeds but
+`validate-result` fails, retain both the candidate and result for recovery:
+the persisted result already binds the candidate and must not be left pointing
+at a deleted artifact.
 
 ```bash
 write_initial_pr_review_result_manifest() {
@@ -604,9 +606,14 @@ write_initial_pr_review_result_manifest() {
     PRESENTATION_STATUS="not-presented" \
       bash "$PR_REVIEW_MANIFEST_HELPER" write-result || return 1
   ) || return 1
+  printf 'PR review result manifest written to %s.\n' "$REVIEW_RESULT_FILE"
+}
+
+validate_initial_pr_review_result_manifest() {
+  cd "$WORKING_DIRECTORY" || return 1
+  : "${REVIEW_RESULT_FILE:?Phase 4 result manifest path missing}"
   PR_NUMBER="$PR_NUMBER" HEAD_SHA="$REVIEW_HEAD_SHA" REPOSITORY="<owner/repo>" RESULT_FILE="$REVIEW_RESULT_FILE" \
     bash "$PR_REVIEW_MANIFEST_HELPER" validate-result || return 1
-  printf 'PR review result manifest written to %s.\n' "$REVIEW_RESULT_FILE"
 }
 
 cleanup_unbound_thread_actions_candidate() {
@@ -623,13 +630,18 @@ cleanup_unbound_thread_actions_candidate() {
   rm -f "$THREAD_ACTIONS_FILE"
 }
 
-RESULT_MANIFEST_STATUS=0
-write_initial_pr_review_result_manifest || RESULT_MANIFEST_STATUS=$?
+INITIAL_RESULT_WRITE_STATUS=0
+write_initial_pr_review_result_manifest || INITIAL_RESULT_WRITE_STATUS=$?
 cd "$REVIEW_CALLER_DIR" || exit 1
-if [ "$RESULT_MANIFEST_STATUS" -ne 0 ]; then
+if [ "$INITIAL_RESULT_WRITE_STATUS" -ne 0 ]; then
   cleanup_unbound_thread_actions_candidate || exit 1
-  exit "$RESULT_MANIFEST_STATUS"
+  exit "$INITIAL_RESULT_WRITE_STATUS"
 fi
+
+INITIAL_RESULT_VALIDATE_STATUS=0
+validate_initial_pr_review_result_manifest || INITIAL_RESULT_VALIDATE_STATUS=$?
+cd "$REVIEW_CALLER_DIR" || exit 1
+[ "$INITIAL_RESULT_VALIDATE_STATUS" -eq 0 ] || exit "$INITIAL_RESULT_VALIDATE_STATUS"
 ```
 
 After the initial result manifest validates, write `reviewed` with

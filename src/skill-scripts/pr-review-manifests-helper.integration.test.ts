@@ -27,6 +27,10 @@ const helperScript = path.join(
   process.cwd(),
   "skills/pr-review/scripts/review-manifests.sh",
 );
+const prReviewSkillSource = path.join(
+  process.cwd(),
+  "skills/pr-review/SKILL.md",
+);
 const leaseHelperScript = path.join(
   process.cwd(),
   "skills/pr-review/scripts/review-leases.sh",
@@ -539,6 +543,41 @@ async function runHelper(
       ...env,
     },
     maxBuffer: 1024 * 1024,
+  });
+}
+
+async function initialResultPhase4Script(): Promise<string> {
+  const source = await readFile(prReviewSkillSource, "utf8");
+  const blockStart = source.lastIndexOf(
+    "```bash\n",
+    source.indexOf("write_initial_pr_review_result_manifest"),
+  );
+  const blockEnd = source.indexOf("\n```", blockStart);
+  if (blockStart < 0 || blockEnd < 0) {
+    throw new Error("initial Phase 4 result workflow block is missing");
+  }
+  return source.slice(blockStart + "```bash\n".length, blockEnd);
+}
+
+async function runInitialResultPhase4(
+  cwd: string,
+  headSha: string,
+  helper: string,
+) {
+  return execFileAsync("bash", ["-c", await initialResultPhase4Script()], {
+    cwd,
+    env: {
+      ...process.env,
+      WORKING_DIRECTORY: cwd,
+      REVIEW_CALLER_DIR: cwd,
+      PR_NUMBER: prNumber,
+      REVIEW_HEAD_SHA: headSha,
+      REVIEW_FINDINGS_FILE: findingsPath(headSha),
+      REVIEW_SCOPE_DECISION_FILE: scopePath(headSha),
+      PRIOR_THREADS_FILE: priorThreadsPath(headSha),
+      THREAD_ACTIONS_FILE: threadActionsPath(headSha),
+      PR_REVIEW_MANIFEST_HELPER: helper,
+    },
   });
 }
 
@@ -1228,6 +1267,104 @@ describe("pr-review manifest helper", () => {
       });
     } finally {
       await cleanupTempDir(cwd);
+    }
+  });
+
+  it("keeps a result-bound candidate on Phase 4 validation failure but removes an unbound one on write failure", async () => {
+    const validationFailure = await makeGitWorkspace();
+    const writeFailure = await makeGitWorkspace();
+
+    try {
+      const persistedResult = resultPath(validationFailure.headSha);
+      const validationHelper = path.join(
+        validationFailure.cwd,
+        "phase4-validation-failure-helper.sh",
+      );
+      await writeFile(
+        path.join(
+          validationFailure.cwd,
+          threadActionsPath(validationFailure.headSha),
+        ),
+        '{"schema":"pr-review/thread-actions/v1"}\n',
+      );
+      await writeFile(
+        validationHelper,
+        [
+          "#!/usr/bin/env bash",
+          "set -eu",
+          'case "${1:?}" in',
+          "  write-result)",
+          `    printf '%s\\n' '${persistedResult}'`,
+          `    printf '%s\\n' '{"schema":"pr-review/result/v1"}' > '${persistedResult}'`,
+          "    ;;",
+          "  validate-result) exit 23 ;;",
+          "  *) exit 64 ;;",
+          "esac",
+        ].join("\n"),
+      );
+      await chmod(validationHelper, 0o755);
+
+      await expect(
+        runInitialResultPhase4(
+          validationFailure.cwd,
+          validationFailure.headSha,
+          validationHelper,
+        ),
+      ).rejects.toMatchObject({ code: 1 });
+      await expect(
+        readFile(
+          path.join(
+            validationFailure.cwd,
+            threadActionsPath(validationFailure.headSha),
+          ),
+          "utf8",
+        ),
+      ).resolves.toContain("thread-actions");
+      await expect(
+        readFile(path.join(validationFailure.cwd, persistedResult), "utf8"),
+      ).resolves.toContain("pr-review/result/v1");
+
+      const writeHelper = path.join(
+        writeFailure.cwd,
+        "phase4-write-failure-helper.sh",
+      );
+      const unboundCandidate = threadActionsPath(writeFailure.headSha);
+      await writeFile(
+        path.join(writeFailure.cwd, unboundCandidate),
+        '{"schema":"pr-review/thread-actions/v1"}\n',
+      );
+      await writeFile(
+        writeHelper,
+        [
+          "#!/usr/bin/env bash",
+          "set -eu",
+          'case "${1:?}" in',
+          "  write-result) exit 19 ;;",
+          "  *) exit 64 ;;",
+          "esac",
+        ].join("\n"),
+      );
+      await chmod(writeHelper, 0o755);
+
+      await expect(
+        runInitialResultPhase4(
+          writeFailure.cwd,
+          writeFailure.headSha,
+          writeHelper,
+        ),
+      ).rejects.toMatchObject({ code: 1 });
+      await expect(
+        readFile(path.join(writeFailure.cwd, unboundCandidate), "utf8"),
+      ).rejects.toMatchObject({ code: "ENOENT" });
+      await expect(
+        readFile(
+          path.join(writeFailure.cwd, resultPath(writeFailure.headSha)),
+          "utf8",
+        ),
+      ).rejects.toMatchObject({ code: "ENOENT" });
+    } finally {
+      await cleanupTempDir(validationFailure.cwd);
+      await cleanupTempDir(writeFailure.cwd);
     }
   });
 
