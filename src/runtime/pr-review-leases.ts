@@ -3493,6 +3493,7 @@ async function validateApprovedReviewOwnership(
         cwd: worktreePath,
         env: {
           ...inheritedHelperEnv(),
+          REPOSITORY: lease.repository,
           PR_NUMBER: String(lease.pr_number),
           HEAD_SHA: reviewHeadSha,
           BASE_REF: scopeBaseRef,

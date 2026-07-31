@@ -549,6 +549,104 @@ describe.skipIf(!jqAvailable)(
       }
     });
 
+    it("rejects a second freeze even when the candidate remains valid", async () => {
+      const cwd = await makeGitWorkspace();
+      try {
+        await writeInputs(cwd);
+        await runHelper(cwd, "freeze-approved-review", {
+          FINDINGS_FILE: findingsFile,
+          REVIEW_BODY_FILE: reviewBodyFile,
+          REVIEW_PAYLOAD_FILE: payloadFile,
+        });
+
+        const editedCandidate = threadActionsEnvelope(priorThreadsEnvelope());
+        editedCandidate.actions[0].action = "leave";
+        await writeJson(cwd, threadActionsFile, editedCandidate);
+
+        await expect(
+          runHelper(cwd, "freeze-approved-review", {
+            FINDINGS_FILE: findingsFile,
+            REVIEW_BODY_FILE: reviewBodyFile,
+            REVIEW_PAYLOAD_FILE: payloadFile,
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining(
+            "approved review path already exists",
+          ),
+        });
+        const frozen = JSON.parse(
+          await readFile(path.join(cwd, approvedReviewFile), "utf8"),
+        ) as { thread_actions: Array<{ action: string }> };
+        expect(frozen.thread_actions[0]?.action).toBe("resolve");
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    });
+
+    it("freezes and materializes an explicit all-leave candidate", async () => {
+      const cwd = await makeGitWorkspace();
+      try {
+        await writeInputs(cwd);
+        const allLeaveCandidate = threadActionsEnvelope(priorThreadsEnvelope());
+        allLeaveCandidate.actions[0].action = "leave";
+        await writeJson(cwd, threadActionsFile, allLeaveCandidate);
+
+        await runHelper(cwd, "freeze-approved-review", {
+          FINDINGS_FILE: findingsFile,
+          REVIEW_BODY_FILE: reviewBodyFile,
+          REVIEW_PAYLOAD_FILE: payloadFile,
+        });
+        const artifact = JSON.parse(
+          await readFile(path.join(cwd, approvedReviewFile), "utf8"),
+        ) as { thread_actions: unknown };
+        expect(artifact.thread_actions).toEqual(allLeaveCandidate.actions);
+
+        await expect(
+          runHelper(cwd, "materialize-validated-review-payload", {
+            APPROVED_REVIEW_FILE: approvedReviewFile,
+          }),
+        ).resolves.toMatchObject({
+          stdout: `${validatedPayloadFile}\n`,
+        });
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    });
+
+    it("requires the exact repository when inspecting frozen ownership", async () => {
+      const cwd = await makeGitWorkspace();
+      try {
+        await writeInputs(cwd);
+        await runHelper(cwd, "freeze-approved-review", {
+          FINDINGS_FILE: findingsFile,
+          REVIEW_BODY_FILE: reviewBodyFile,
+          REVIEW_PAYLOAD_FILE: payloadFile,
+        });
+
+        await expect(
+          runHelper(cwd, "inspect-approved-review-ownership", {
+            APPROVED_REVIEW_FILE: approvedReviewFile,
+            REPOSITORY: "other/repo",
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining(
+            "approved review repository mismatch",
+          ),
+        });
+        await expect(
+          runHelper(cwd, "inspect-approved-review-ownership", {
+            APPROVED_REVIEW_FILE: approvedReviewFile,
+          }),
+        ).resolves.toMatchObject({
+          stdout: expect.stringContaining(
+            `"review_body_file":"${reviewBodyFile}"`,
+          ),
+        });
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    });
+
     it("delegates approved payload equivalence with explicit scope-policy inputs", async () => {
       const cwd = await makeGitWorkspace();
       try {

@@ -706,6 +706,10 @@ freeze_approved_review() {
   approved_review_file="$(expected_approved_path_for "$HEAD_SHA")"
   validate_approved_path_shape "$approved_review_file"
   prepare_write_target "approved review" "$approved_review_file"
+  [ ! -e "$approved_review_file" ] || {
+    echo "approved review path already exists: $approved_review_file" >&2
+    exit 1
+  }
   findings_sha256="$(sha256_file "$FINDINGS_FILE")"
   review_body_sha256="$(sha256_file "$REVIEW_BODY_FILE")"
   payload_sha256="$(sha256_file "$REVIEW_PAYLOAD_FILE")"
@@ -748,7 +752,11 @@ freeze_approved_review() {
       thread_actions: $thread_actions[0].actions,
       payload: $payload[0]
     }' > "$tmp_file"
-  mv -f "$tmp_file" "$approved_review_file"
+  ln "$tmp_file" "$approved_review_file" 2>/dev/null || {
+    echo "approved review path already exists: $approved_review_file" >&2
+    exit 1
+  }
+  rm -f "$tmp_file"
   tmp_file=""
   printf '%s\n' "$approved_review_file"
 }

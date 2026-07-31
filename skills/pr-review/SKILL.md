@@ -1080,6 +1080,9 @@ Only after user approval:
    frozen action content before posting. The helper ensures `commit_id`, `event`, `body`, and `comments` all land in the JSON body,
    and requires ranged inline comments to pair `start_line` with
    `start_side: "RIGHT"` while single-line comments omit both fields.
+   The approved-review target is write-once: an existing target is a stale
+   approval boundary and causes the freeze to fail. Return to Phase 5 to
+   rewrite the result and preview, refresh the gate, and obtain fresh approval.
    Any nonzero helper exit is a contract failure; fail closed before posting.
 
 4. **Refuse stale heads before posting.** Re-read the PR head SHA from GitHub

@@ -6433,6 +6433,7 @@ async function writeReviewHelperScripts(tempRoot: string): Promise<{
       "set -euo pipefail",
       'command_name="${1:-}"',
       'if [ "$command_name" = "inspect-approved-review-ownership" ]; then',
+      '  [ "$REPOSITORY" = "owner/repo" ] || { echo "approved ownership repository mismatch" >&2; exit 1; }',
       '  jq -cn --arg review_body_file ".ephemeral/pr-${PR_NUMBER}-${HEAD_SHA}-review-body.md" --arg review_payload_file ".ephemeral/review-topic-${HEAD_SHA}-review-payload.json" \'{review_body_file: $review_body_file, review_payload_file: $review_payload_file}\'',
       "  exit 0",
       "fi",
