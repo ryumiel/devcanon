@@ -756,6 +756,135 @@ function sha256(value: string): string {
   return createHash("sha256").update(value).digest("hex");
 }
 
+function priorThreadsForThreadActions(headSha: string): JsonObject {
+  return {
+    schema: "pr-review/prior-threads/v1",
+    provider: "github",
+    pr_number: 390,
+    head_sha: headSha,
+    threads: [
+      {
+        thread_id: "PRRT_kwDOEligibleFirst",
+        is_resolved: false,
+        is_outdated: false,
+        path: "src/app.ts",
+        line: 1,
+        original_line: 1,
+        start_line: null,
+        original_start_line: null,
+        classification: "actionable",
+        model_context: "include",
+        staleness_reason: "",
+        comments: [
+          {
+            author: "reviewer",
+            author_association: "MEMBER",
+            created_at: "2026-01-01T00:00:00Z",
+            updated_at: "2026-01-01T00:00:01Z",
+            body: "Please check this.",
+            is_bot: false,
+            minimized_reason: null,
+          },
+        ],
+        summary: "",
+      },
+      {
+        thread_id: "PRRT_kwDOEligibleSecond",
+        is_resolved: false,
+        is_outdated: false,
+        path: "src/app.ts",
+        line: 1,
+        original_line: 1,
+        start_line: null,
+        original_start_line: null,
+        classification: "actionable",
+        model_context: "include",
+        staleness_reason: "",
+        comments: [
+          {
+            author: "reviewer",
+            author_association: "MEMBER",
+            created_at: "2026-01-01T00:00:00Z",
+            updated_at: "2026-01-01T00:00:01Z",
+            body: "Please check this too.",
+            is_bot: false,
+            minimized_reason: null,
+          },
+        ],
+        summary: "",
+      },
+      {
+        thread_id: "PRRT_kwDOIneligible",
+        is_resolved: true,
+        is_outdated: false,
+        path: "src/app.ts",
+        line: 1,
+        original_line: 1,
+        start_line: null,
+        original_start_line: null,
+        classification: "resolved",
+        model_context: "summarize",
+        staleness_reason: "Thread was resolved before this review.",
+        comments: [],
+        summary: "Already resolved before this review.",
+      },
+    ],
+    dropped: [
+      {
+        thread_id: "PRRT_kwDODropped",
+        classification: "outdated",
+        reason: "Thread is outdated.",
+      },
+    ],
+  };
+}
+
+function threadActionsArtifact(
+  headSha: string,
+  priorThreads: JsonObject,
+  overrides: JsonObject = {},
+): JsonObject {
+  return {
+    schema: "pr-review/thread-actions/v1",
+    repository: "owner/repo",
+    pr_number: 390,
+    review_head_sha: headSha,
+    prior_threads_file: ".ephemeral/topic-prior-threads.json",
+    prior_threads_sha256: sha256(JSON.stringify(priorThreads, null, 2)),
+    actions: [
+      {
+        thread_id: "PRRT_kwDOEligibleFirst",
+        action: "resolve",
+        evidence: "The current change addresses the requested correction.",
+        reason: "Resolve because the reviewed code now satisfies the request.",
+      },
+      {
+        thread_id: "PRRT_kwDOEligibleSecond",
+        action: "leave",
+        evidence: "The comment still needs a maintainer decision.",
+        reason: "Leave it open until that decision is made.",
+      },
+    ],
+    ...overrides,
+  };
+}
+
+function threadActionsArgs(headSha: string): string[] {
+  return [
+    "validate-thread-actions",
+    "--head-sha",
+    headSha,
+    "--thread-actions-file",
+    ".ephemeral/topic-thread-actions.json",
+    "--prior-threads-file",
+    ".ephemeral/topic-prior-threads.json",
+    "--repository",
+    "owner/repo",
+    "--pr-number",
+    "390",
+  ];
+}
+
 async function providerEvidenceFileEntry(
   cwd: string,
   baseSha: string,
@@ -3335,6 +3464,103 @@ describe.skipIf(isWindows)("review artifact runtime reducers", () => {
       ).resolves.toMatchObject({
         exitCode: 1,
         stderr: expect.stringContaining("risk-signals JSON validation failed"),
+      });
+    } finally {
+      await cleanupRiskSignalsWorkspace(cwd);
+    }
+  });
+});
+
+describe("pr-review thread-actions artifacts", () => {
+  it("validates a complete canonical mixed action set bound to prior threads", async () => {
+    const { cwd, headSha } = await makeRiskSignalsWorkspace();
+    try {
+      process.chdir(cwd);
+      const priorThreads = priorThreadsForThreadActions(headSha);
+      await writeJson(cwd, ".ephemeral/topic-prior-threads.json", priorThreads);
+      await writeJson(
+        cwd,
+        ".ephemeral/topic-thread-actions.json",
+        threadActionsArtifact(headSha, priorThreads),
+      );
+
+      await expect(
+        runReviewArtifactsCommand(threadActionsArgs(headSha)),
+      ).resolves.toEqual({
+        exitCode: 0,
+        stdout: "",
+        stderr: "",
+      });
+    } finally {
+      await cleanupRiskSignalsWorkspace(cwd);
+    }
+  });
+
+  it.each([
+    {
+      name: "duplicate action thread ID",
+      artifact: (headSha: string, priorThreads: JsonObject) => {
+        const artifact = threadActionsArtifact(headSha, priorThreads);
+        const actions = artifact.actions as JsonObject[];
+        return { ...artifact, actions: [...actions, { ...actions[1] }] };
+      },
+      stderr: "thread-actions duplicate action thread ID",
+    },
+    {
+      name: "missing eligible action",
+      artifact: (headSha: string, priorThreads: JsonObject) => {
+        const artifact = threadActionsArtifact(headSha, priorThreads);
+        const actions = artifact.actions as JsonObject[];
+        return { ...artifact, actions: [actions[0]] };
+      },
+      stderr: "thread-actions actions do not match eligible prior threads",
+    },
+    {
+      name: "ineligible extra action",
+      artifact: (headSha: string, priorThreads: JsonObject) => {
+        const artifact = threadActionsArtifact(headSha, priorThreads);
+        const actions = artifact.actions as JsonObject[];
+        return {
+          ...artifact,
+          actions: [
+            ...actions,
+            {
+              thread_id: "PRRT_kwDOIneligible",
+              action: "resolve",
+              evidence: "The thread has a prior resolution state.",
+              reason: "This intentionally exercises the ineligible boundary.",
+            },
+          ],
+        };
+      },
+      stderr: "thread-actions actions do not match eligible prior threads",
+    },
+    {
+      name: "noncanonical action order",
+      artifact: (headSha: string, priorThreads: JsonObject) => {
+        const artifact = threadActionsArtifact(headSha, priorThreads);
+        const actions = artifact.actions as JsonObject[];
+        return { ...artifact, actions: [actions[1], actions[0]] };
+      },
+      stderr: "thread-actions actions are not in canonical prior-thread order",
+    },
+  ])("rejects $name", async (testCase) => {
+    const { cwd, headSha } = await makeRiskSignalsWorkspace();
+    try {
+      process.chdir(cwd);
+      const priorThreads = priorThreadsForThreadActions(headSha);
+      await writeJson(cwd, ".ephemeral/topic-prior-threads.json", priorThreads);
+      await writeJson(
+        cwd,
+        ".ephemeral/topic-thread-actions.json",
+        testCase.artifact(headSha, priorThreads),
+      );
+
+      await expect(
+        runReviewArtifactsCommand(threadActionsArgs(headSha)),
+      ).resolves.toMatchObject({
+        exitCode: 1,
+        stderr: expect.stringContaining(testCase.stderr),
       });
     } finally {
       await cleanupRiskSignalsWorkspace(cwd);

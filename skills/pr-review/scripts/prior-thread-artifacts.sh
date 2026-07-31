@@ -68,6 +68,10 @@ expected_prior_threads_path() {
   printf '.ephemeral/%s-%s-prior-threads.json\n' "$(branch_slug)" "$HEAD_SHA"
 }
 
+expected_thread_actions_path() {
+  printf '.ephemeral/%s-%s-thread-actions.json\n' "$(branch_slug)" "$HEAD_SHA"
+}
+
 expected_scope_decision_path() {
   printf '.ephemeral/%s-%s-scope-decision.json\n' "$(branch_slug)" "$HEAD_SHA"
 }
@@ -146,6 +150,16 @@ prepare_prior_threads_write() {
   printf '%s\n' "$file"
 }
 
+prepare_thread_actions_write() {
+  local file
+  require_repo_root
+  validate_head_sha
+  file="$(expected_thread_actions_path)"
+  validate_direct_child_path "thread actions" "$file" "-thread-actions.json"
+  prepare_write_target "thread actions" "$file"
+  printf '%s\n' "$file"
+}
+
 prepare_scope_decision_write() {
   local file
   require_repo_root
@@ -182,6 +196,32 @@ validate_prior_threads() {
     --prior-threads-file "$file" \
     --expected-schema pr-review/prior-threads/v1 \
     --provider github
+}
+
+validate_thread_actions() {
+  local file prior_threads_file expected expected_prior validator
+  require_repo_root
+  validate_head_sha
+  require_env THREAD_ACTIONS_FILE
+  require_env PRIOR_THREADS_FILE
+  require_env REPOSITORY
+  require_env PR_NUMBER
+  expected="$(expected_thread_actions_path)"
+  expected_prior="$(expected_prior_threads_path)"
+  file="$THREAD_ACTIONS_FILE"
+  prior_threads_file="$PRIOR_THREADS_FILE"
+  validate_direct_child_path "thread actions" "$file" "-thread-actions.json"
+  validate_direct_child_path "prior threads" "$prior_threads_file" "-prior-threads.json"
+  [ "$file" = "$expected" ] || fail "thread actions path mismatch: $file"
+  [ "$prior_threads_file" = "$expected_prior" ] ||
+    fail "prior threads path mismatch: $prior_threads_file"
+  validator="$(resolve_validator)"
+  bash "$validator" validate-thread-actions \
+    --head-sha "$HEAD_SHA" \
+    --thread-actions-file "$file" \
+    --prior-threads-file "$prior_threads_file" \
+    --repository "$REPOSITORY" \
+    --pr-number "$PR_NUMBER"
 }
 
 validate_scope_decision() {
@@ -229,8 +269,14 @@ case "$command_name" in
   prepare-prior-threads-write)
     prepare_prior_threads_write
     ;;
+  prepare-thread-actions-write)
+    prepare_thread_actions_write
+    ;;
   validate-prior-threads)
     validate_prior_threads
+    ;;
+  validate-thread-actions)
+    validate_thread_actions
     ;;
   prepare-scope-decision-write)
     prepare_scope_decision_write
@@ -242,6 +288,6 @@ case "$command_name" in
     validate_scope_decision
     ;;
   *)
-    fail "usage: prior-thread-artifacts.sh prepare-prior-threads-write|validate-prior-threads|prepare-scope-decision-write|prepare-provider-scope-evidence-write|validate-scope-decision"
+    fail "usage: prior-thread-artifacts.sh prepare-prior-threads-write|prepare-thread-actions-write|validate-prior-threads|validate-thread-actions|prepare-scope-decision-write|prepare-provider-scope-evidence-write|validate-scope-decision"
     ;;
 esac
