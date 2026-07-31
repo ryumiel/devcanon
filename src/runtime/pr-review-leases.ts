@@ -3543,10 +3543,14 @@ async function validateReferencedArtifacts(
         lease.artifacts.validated_payload_file,
         "validated payload file",
       );
-      if (JSON.stringify(payload) !== JSON.stringify(approved.payload)) {
-        throw new PrReviewLeaseError(
-          "validated payload approved-review mismatch",
-        );
+      if (lease.artifacts.post_intent_file == null) {
+        if (JSON.stringify(payload) !== JSON.stringify(approved.payload)) {
+          throw new PrReviewLeaseError(
+            "validated payload approved-review mismatch",
+          );
+        }
+      } else {
+        validateMarkedValidatedPayloadBinding(approved.payload, payload);
       }
     }
     await validateResultCommandAuthority(lease, worktreePath);
@@ -3668,6 +3672,7 @@ async function validatePostIntentAndReceipt(
     lease.artifacts.validated_payload_file,
     "validated payload file",
   );
+  validateMarkedValidatedPayloadBinding(approved.payload, payload);
   const marker = `<!-- devcanon-pr-review-request:v1 sha256=${intent.request_fingerprint_sha256} -->`;
   if (intent.final_body !== payload.body || !intent.final_body.endsWith(marker))
     throw new PrReviewLeaseError("post intent final body mismatch");
@@ -3759,6 +3764,54 @@ async function validatePostIntentAndReceipt(
   )
     throw new PrReviewLeaseError("execution receipt provider review mismatch");
   void resultArtifact;
+}
+
+function validateMarkedValidatedPayloadBinding(
+  unmarkedPayload: JsonObject,
+  markedPayload: JsonObject,
+): void {
+  if (
+    unmarkedPayload.commit_id !== markedPayload.commit_id ||
+    unmarkedPayload.event !== markedPayload.event ||
+    JSON.stringify(unmarkedPayload.comments) !==
+      JSON.stringify(markedPayload.comments)
+  ) {
+    throw new PrReviewLeaseError(
+      "validated payload approved-review binding mismatch",
+    );
+  }
+  if (
+    typeof unmarkedPayload.body !== "string" ||
+    typeof markedPayload.body !== "string"
+  ) {
+    throw new PrReviewLeaseError(
+      "validated payload approved-review binding mismatch",
+    );
+  }
+  const marker = "<!-- devcanon-pr-review-request:v1 sha256=";
+  const markerSuffix = " -->";
+  const expectedPrefix =
+    unmarkedPayload.body.length === 0 ? "" : `${unmarkedPayload.body}\n\n`;
+  const finalBody = markedPayload.body;
+  if (
+    !finalBody.startsWith(expectedPrefix + marker) ||
+    !finalBody.endsWith(markerSuffix) ||
+    finalBody.length !==
+      expectedPrefix.length + marker.length + 64 + markerSuffix.length
+  ) {
+    throw new PrReviewLeaseError(
+      "validated payload approved-review binding mismatch",
+    );
+  }
+  const fingerprint = finalBody.slice(
+    expectedPrefix.length + marker.length,
+    finalBody.length - markerSuffix.length,
+  );
+  if (!isSha256(fingerprint)) {
+    throw new PrReviewLeaseError(
+      "validated payload approved-review binding mismatch",
+    );
+  }
 }
 
 function providerRequestFingerprint({

@@ -4093,6 +4093,211 @@ describe("pr-review lease command validation", () => {
 });
 
 describe("pr-review lease intent command validation", () => {
+  it("accepts an actual helper-materialized marked payload and post intent", async () => {
+    const workspace = await makeGatedStatusWorkspace(
+      "pr-review-helper-to-lease-intent-",
+    );
+    const branch = (
+      await execFileAsync("git", [
+        "-C",
+        workspace.worktree,
+        "branch",
+        "--show-current",
+      ])
+    ).stdout.trim();
+    const payloadFile = `.ephemeral/${branch}-${workspace.reviewHead}-review-payload.json`;
+    const approvedReviewFile = `.ephemeral/${branch}-${workspace.reviewHead}-approved-review.json`;
+    const reviewBodyFile = `.ephemeral/pr-432-${workspace.reviewHead}-review-body.md`;
+    const scopeDecisionFile = `.ephemeral/${branch}-${workspace.reviewHead}-scope-decision.json`;
+    const providerScopeEvidenceFile = `.ephemeral/${branch}-${workspace.reviewHead}-provider-scope-evidence.json`;
+    const priorThreadsFile = `.ephemeral/${branch}-${workspace.reviewHead}-prior-threads.json`;
+    const threadActionsFile = `.ephemeral/${branch}-${workspace.reviewHead}-thread-actions.json`;
+    const helper = path.join(
+      originalCwd,
+      "skills/pr-review/scripts/approved-review-artifacts.sh",
+    );
+    const installedHelper = path.join(
+      workspace.prReviewDir,
+      "scripts/approved-review-artifacts.sh",
+    );
+    const priorInstalledHelper = await readFile(installedHelper, "utf8");
+
+    try {
+      await writeFile(
+        path.join(workspace.worktree, workspace.findingsFile),
+        `${JSON.stringify({ schema: "play-review/findings/v2", findings: [], carry_forward: [], incomplete_topical_routes: [] })}\n`,
+      );
+      const resultArtifact = JSON.parse(
+        await readFile(
+          path.join(workspace.worktree, workspace.resultFile),
+          "utf8",
+        ),
+      ) as { digests: { findings_sha256: string } };
+      resultArtifact.digests.findings_sha256 = await sha256File(
+        path.join(workspace.worktree, workspace.findingsFile),
+      );
+      await writeFile(
+        path.join(workspace.worktree, workspace.resultFile),
+        `${JSON.stringify(resultArtifact, null, 2)}\n`,
+      );
+      const lease = JSON.parse(
+        await readFile(
+          path.join(workspace.primary, workspace.leaseFile),
+          "utf8",
+        ),
+      ) as { validation: { result_manifest: { sha256: string } } };
+      lease.validation.result_manifest.sha256 = await sha256File(
+        path.join(workspace.worktree, workspace.resultFile),
+      );
+      await writeFile(
+        path.join(workspace.primary, workspace.leaseFile),
+        `${JSON.stringify(lease, null, 2)}\n`,
+      );
+      await writeFile(
+        path.join(workspace.worktree, payloadFile),
+        `${JSON.stringify({ commit_id: workspace.reviewHead, event: "COMMENT", body: "Review body", comments: [] })}\n`,
+      );
+      await writeFile(
+        path.join(workspace.worktree, scopeDecisionFile),
+        `${JSON.stringify({ prior_context: { kind: "none", path: null }, artifacts: { provider_scope_evidence_file: providerScopeEvidenceFile } })}\n`,
+      );
+      await writeFile(
+        path.join(workspace.worktree, priorThreadsFile),
+        `${JSON.stringify({ schema: "pr-review/prior-threads/v1", provider: "github", pr_number: 432, head_sha: workspace.reviewHead, threads: [], dropped: [] })}\n`,
+      );
+      await writeFile(
+        path.join(workspace.worktree, threadActionsFile),
+        `${JSON.stringify({ schema: "pr-review/thread-actions/v1", repository: "owner/repo", pr_number: 432, review_head_sha: workspace.reviewHead, prior_threads_file: priorThreadsFile, prior_threads_sha256: await sha256File(path.join(workspace.worktree, priorThreadsFile)), actions: [] })}\n`,
+      );
+      const refreshedResult = JSON.parse(
+        await readFile(
+          path.join(workspace.worktree, workspace.resultFile),
+          "utf8",
+        ),
+      ) as {
+        digests: {
+          prior_threads_sha256: string;
+          thread_actions_sha256: string;
+        };
+      };
+      refreshedResult.digests.prior_threads_sha256 = await sha256File(
+        path.join(workspace.worktree, priorThreadsFile),
+      );
+      refreshedResult.digests.thread_actions_sha256 = await sha256File(
+        path.join(workspace.worktree, threadActionsFile),
+      );
+      await writeFile(
+        path.join(workspace.worktree, workspace.resultFile),
+        `${JSON.stringify(refreshedResult, null, 2)}\n`,
+      );
+      const refreshedLease = JSON.parse(
+        await readFile(
+          path.join(workspace.primary, workspace.leaseFile),
+          "utf8",
+        ),
+      ) as { validation: { result_manifest: { sha256: string } } };
+      refreshedLease.validation.result_manifest.sha256 = await sha256File(
+        path.join(workspace.worktree, workspace.resultFile),
+      );
+      await writeFile(
+        path.join(workspace.primary, workspace.leaseFile),
+        `${JSON.stringify(refreshedLease, null, 2)}\n`,
+      );
+      const approvedPayload = JSON.parse(
+        await readFile(path.join(workspace.worktree, payloadFile), "utf8"),
+      );
+      await writeFile(
+        path.join(workspace.worktree, approvedReviewFile),
+        `${JSON.stringify({
+          schema: "pr-review/approved-review/v1",
+          repository: "owner/repo",
+          pr_number: 432,
+          review_head_sha: workspace.reviewHead,
+          findings_file: workspace.findingsFile,
+          review_body_file: reviewBodyFile,
+          review_payload_file: payloadFile,
+          scope_decision_file: scopeDecisionFile,
+          findings_sha256: await sha256File(
+            path.join(workspace.worktree, workspace.findingsFile),
+          ),
+          review_body_sha256: await sha256File(
+            path.join(workspace.worktree, reviewBodyFile),
+          ),
+          review_payload_sha256: await sha256File(
+            path.join(workspace.worktree, payloadFile),
+          ),
+          scope_decision_sha256: await sha256File(
+            path.join(workspace.worktree, scopeDecisionFile),
+          ),
+          thread_actions_file: threadActionsFile,
+          thread_actions_sha256: await sha256File(
+            path.join(workspace.worktree, threadActionsFile),
+          ),
+          thread_actions: [],
+          payload: approvedPayload,
+        })}\n`,
+      );
+      await writeFile(
+        installedHelper,
+        [
+          "#!/usr/bin/env bash",
+          "set -euo pipefail",
+          `jq -cn --arg review_body_file ${JSON.stringify(reviewBodyFile)} --arg review_payload_file ${JSON.stringify(payloadFile)} '{review_body_file: $review_body_file, review_payload_file: $review_payload_file}'`,
+          "",
+        ].join("\n"),
+      );
+      await chmod(installedHelper, 0o755);
+
+      const materialized = await execFileAsync(
+        "bash",
+        [helper, "materialize-post-intent"],
+        {
+          cwd: workspace.worktree,
+          env: {
+            ...process.env,
+            BASE_REF: "main",
+            HEAD_SHA: workspace.reviewHead,
+            PR_NUMBER: "432",
+            REPOSITORY: "owner/repo",
+            APPROVED_REVIEW_FILE: approvedReviewFile,
+            PROVIDER_ACTOR_ID: "7",
+            POST_INTENT_CREATED_AT: "2026-06-11T00:03:00Z",
+            PRIOR_THREAD_ARTIFACTS_HELPER: path.join(
+              workspace.prReviewDir,
+              "scripts/prior-thread-artifacts.sh",
+            ),
+            PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT: path.join(
+              workspace.prReviewDir,
+              "scripts/review-manifests.sh",
+            ),
+          },
+        },
+      );
+      const paths = JSON.parse(materialized.stdout) as {
+        validated_review_payload_file: string;
+        post_intent_file: string;
+      };
+
+      process.chdir(workspace.physicalPrimary);
+      setReadStatusEnv(workspace);
+      process.env.STATE = "gated";
+      process.env.BASE_REF = "main";
+      process.env.HEAD_REF = "topic";
+      process.env.UPDATED_AT = "2026-06-11T00:03:00Z";
+      process.env.APPROVED_REVIEW_FILE = approvedReviewFile;
+      process.env.VALIDATED_REVIEW_PAYLOAD_FILE =
+        paths.validated_review_payload_file;
+      process.env.POST_INTENT_FILE = paths.post_intent_file;
+      const result = await runPrReviewLeasesCommand(["write"]);
+      expect(result.exitCode, result.stderr).toBe(0);
+    } finally {
+      await writeFile(installedHelper, priorInstalledHelper);
+      await chmod(installedHelper, 0o755);
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
+    }
+  });
+
   it("rejects a nested post-intent path before it can update a gated lease", async () => {
     const workspace = await makeGatedStatusWorkspace(
       "pr-review-post-intent-path-",
@@ -4147,13 +4352,14 @@ describe("pr-review lease intent command validation", () => {
         body: finalBody,
         comments: [],
       };
+      const approvedPayload = { ...payload, body: "Review body" };
       const approved = {
         schema: "pr-review/approved-review/v1",
         review_head_sha: workspace.reviewHead,
         review_body_file: `.ephemeral/pr-432-${workspace.reviewHead}-review-body.md`,
         thread_actions_sha256: threadActionsSha256,
         thread_actions: [],
-        payload,
+        payload: approvedPayload,
       };
       await writeFile(
         path.join(workspace.worktree, approvedReviewFile),
@@ -4241,13 +4447,14 @@ describe("pr-review lease intent command validation", () => {
         body: finalBody,
         comments: [],
       };
+      const approvedPayload = { ...payload, body: "Review body" };
       const approved = {
         schema: "pr-review/approved-review/v1",
         review_head_sha: workspace.reviewHead,
         review_body_file: `.ephemeral/pr-432-${workspace.reviewHead}-review-body.md`,
         thread_actions_sha256: threadActionsSha256,
         thread_actions: [{ thread_id: "thread-1", action: "resolve" }],
-        payload,
+        payload: approvedPayload,
       };
       await writeFile(
         path.join(workspace.worktree, approvedReviewFile),

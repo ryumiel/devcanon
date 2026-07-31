@@ -729,6 +729,32 @@ describe.skipIf(!jqAvailable)(
       }
     });
 
+    it("uses the marker alone for an empty frozen body", async () => {
+      const cwd = await makeGitWorkspace();
+      try {
+        await writeInputs(cwd);
+        await writeJson(cwd, payloadFile, payload({ body: "" }));
+        await runHelper(cwd, "freeze-approved-review", {
+          FINDINGS_FILE: findingsFile,
+          REVIEW_BODY_FILE: reviewBodyFile,
+          REVIEW_PAYLOAD_FILE: payloadFile,
+        });
+        await runHelper(cwd, "materialize-post-intent", {
+          APPROVED_REVIEW_FILE: approvedReviewFile,
+          PROVIDER_ACTOR_ID: "7",
+          POST_INTENT_CREATED_AT: "2026-08-01T00:00:00Z",
+        });
+        const finalPayload = JSON.parse(
+          await readFile(path.join(cwd, validatedPayloadFile), "utf8"),
+        ) as { body: string };
+        expect(finalPayload.body).toMatch(
+          /^<!-- devcanon-pr-review-request:v1 sha256=[0-9a-f]{64} -->$/u,
+        );
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    });
+
     it("rejects a second freeze even when the candidate remains valid", async () => {
       const cwd = await makeGitWorkspace();
       try {

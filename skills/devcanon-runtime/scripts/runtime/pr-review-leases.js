@@ -2353,8 +2353,13 @@ async function validateReferencedArtifacts(lease, worktreePath, options = {}) {
                 throw new PrReviewLeaseError("validated payload path mismatch");
             }
             const payload = await readRequiredJson(worktreePath, lease.artifacts.validated_payload_file, "validated payload file");
-            if (JSON.stringify(payload) !== JSON.stringify(approved.payload)) {
-                throw new PrReviewLeaseError("validated payload approved-review mismatch");
+            if (lease.artifacts.post_intent_file == null) {
+                if (JSON.stringify(payload) !== JSON.stringify(approved.payload)) {
+                    throw new PrReviewLeaseError("validated payload approved-review mismatch");
+                }
+            }
+            else {
+                validateMarkedValidatedPayloadBinding(approved.payload, payload);
             }
         }
         await validateResultCommandAuthority(lease, worktreePath);
@@ -2425,6 +2430,7 @@ async function validatePostIntentAndReceipt(lease, worktreePath, resultReviewHea
     if (payloadSha !== intent.validated_review_payload_sha256)
         throw new PrReviewLeaseError("post intent payload digest mismatch");
     const payload = await readRequiredJson(worktreePath, lease.artifacts.validated_payload_file, "validated payload file");
+    validateMarkedValidatedPayloadBinding(approved.payload, payload);
     const marker = `<!-- devcanon-pr-review-request:v1 sha256=${intent.request_fingerprint_sha256} -->`;
     if (intent.final_body !== payload.body || !intent.final_body.endsWith(marker))
         throw new PrReviewLeaseError("post intent final body mismatch");
@@ -2495,6 +2501,34 @@ async function validatePostIntentAndReceipt(lease, worktreePath, resultReviewHea
         lease.github.provider_review_id !== receipt.provider_review_id)
         throw new PrReviewLeaseError("execution receipt provider review mismatch");
     void resultArtifact;
+}
+function validateMarkedValidatedPayloadBinding(unmarkedPayload, markedPayload) {
+    if (unmarkedPayload.commit_id !== markedPayload.commit_id ||
+        unmarkedPayload.event !== markedPayload.event ||
+        JSON.stringify(unmarkedPayload.comments) !==
+            JSON.stringify(markedPayload.comments)) {
+        throw new PrReviewLeaseError("validated payload approved-review binding mismatch");
+    }
+    if (typeof unmarkedPayload.body !== "string" ||
+        typeof markedPayload.body !== "string") {
+        throw new PrReviewLeaseError("validated payload approved-review binding mismatch");
+    }
+    const marker = "<!-- devcanon-pr-review-request:v1 sha256=";
+    const markerSuffix = " -->";
+    const expectedPrefix = unmarkedPayload.body.length === 0
+        ? ""
+        : `${unmarkedPayload.body}\n\n`;
+    const finalBody = markedPayload.body;
+    if (!finalBody.startsWith(expectedPrefix + marker) ||
+        !finalBody.endsWith(markerSuffix) ||
+        finalBody.length !==
+            expectedPrefix.length + marker.length + 64 + markerSuffix.length) {
+        throw new PrReviewLeaseError("validated payload approved-review binding mismatch");
+    }
+    const fingerprint = finalBody.slice(expectedPrefix.length + marker.length, finalBody.length - markerSuffix.length);
+    if (!isSha256(fingerprint)) {
+        throw new PrReviewLeaseError("validated payload approved-review binding mismatch");
+    }
 }
 function providerRequestFingerprint({ repository, prNumber, reviewHead, providerActorId, reviewEvent, finalBody, threadActionsSha256, payload, }) {
     if (!isReviewEvent(reviewEvent) || typeof finalBody !== "string") {

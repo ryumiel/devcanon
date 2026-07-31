@@ -1122,7 +1122,18 @@ Only after user approval:
 
    ```sh
    PROVIDER_ACTOR_ID="$(gh api user --jq .id)" || exit 1
-   POST_INTENT_CREATED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+   EXISTING_POST_INTENT_FILE=".ephemeral/pr-${PR_NUMBER}-${REVIEW_HEAD_SHA}-thread-action-post-intent.json"
+   if [ -e "$EXISTING_POST_INTENT_FILE" ]; then
+     [ ! -L "$EXISTING_POST_INTENT_FILE" ] && [ -f "$EXISTING_POST_INTENT_FILE" ] || exit 1
+     POST_INTENT_CREATED_AT="$(jq -er '
+       select(.schema == "pr-review/thread-action-post-intent/v1")
+       | .created_at
+       | strings
+       | select(test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"))
+     ' "$EXISTING_POST_INTENT_FILE")" || exit 1
+   else
+     POST_INTENT_CREATED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+   fi
    POST_INTENT_JSON=$( (
      cd "$WORKING_DIRECTORY" || exit 1
      HEAD_SHA="$REVIEW_HEAD_SHA" \

@@ -792,7 +792,7 @@ materialize_post_intent() {
     ]' "$unmarked_payload_file")"
   fingerprint="$(printf '%s' "$fingerprint_tuple" | sha256_file /dev/stdin)"
   marker="<!-- devcanon-pr-review-request:v1 sha256=${fingerprint} -->"
-  jq --arg marker "$marker" '.body = (.body + "\n\n" + $marker)' \
+  jq --arg marker "$marker" '.body = (if .body == "" then $marker else .body + "\n\n" + $marker end)' \
     "$unmarked_payload_file" > "$payload_tmp"
   assert_single_json_object "validated review payload" "$payload_tmp"
   assert_payload_shape "$payload_tmp" "$HEAD_SHA"
