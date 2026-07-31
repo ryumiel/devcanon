@@ -205,8 +205,8 @@ boundaries:
   `FINISHED_AT` and `TERMINAL_REASON`, then proceed to lease-gated cleanup.
 - Persist the sealed post intent while `gated` (LC-19) before a provider POST.
   After a proven post, write the execution receipt before any resolution: use
-  `resolving` for pending or failed sealed resolves (LC-20/LC-22), and `posted`
-  only with an all-terminal receipt (LC-21/LC-23). The reducer records
+  `resolving` for pending or failed sealed resolves (LC-20/LC-22/LC-24), and
+  `posted` only with an all-terminal receipt (LC-21/LC-23/LC-25). The reducer records
   `github_post_attempted=true` and `github_post_result=succeeded` as derived
   metadata.
 - Write `failed` before any cleanup decision when validation, preview,
@@ -1152,18 +1152,19 @@ Only after user approval:
    ) ) || exit 1
    VALIDATED_REVIEW_PAYLOAD_FILE="$(printf '%s' "$POST_INTENT_JSON" | jq -er '.validated_review_payload_file')" || exit 1
    POST_INTENT_FILE="$(printf '%s' "$POST_INTENT_JSON" | jq -er '.post_intent_file')" || exit 1
-   # The helper has atomically created and revalidated both artifacts. Persist
-   # LC-19 (`record-post-intent`) before the first provider POST.
-   STATE="gated" \
-   APPROVED_REVIEW_FILE="$APPROVED_REVIEW_FILE" \
-   VALIDATED_REVIEW_PAYLOAD_FILE="$VALIDATED_REVIEW_PAYLOAD_FILE" \
-   POST_INTENT_FILE="$POST_INTENT_FILE" \
-   UPDATED_AT="<RFC-3339-UTC>" \
-     bash "$PR_REVIEW_LEASE_HELPER" write || exit 1
    if [ "$POST_INTENT_REUSED" = true ]; then
-     # The helper just revalidated the sealed intent. Reconcile; never repost.
+     # The helper just revalidated the stored sealed intent. Reconcile directly;
+     # do not attempt failed -> gated (LC-14), re-present, or repost.
      : "route directly to the required provider reconciliation"
    else
+     # The helper has atomically created and revalidated both artifacts. Persist
+     # LC-19 (`record-post-intent`) before the first provider POST.
+     STATE="gated" \
+     APPROVED_REVIEW_FILE="$APPROVED_REVIEW_FILE" \
+     VALIDATED_REVIEW_PAYLOAD_FILE="$VALIDATED_REVIEW_PAYLOAD_FILE" \
+     POST_INTENT_FILE="$POST_INTENT_FILE" \
+     UPDATED_AT="<RFC-3339-UTC>" \
+       bash "$PR_REVIEW_LEASE_HELPER" write || exit 1
      (
        cd "$WORKING_DIRECTORY" || exit 1
        gh api repos/{owner}/{repo}/pulls/<N>/reviews \
@@ -1200,7 +1201,9 @@ Only after user approval:
    time. It does not reconstruct the receipt, its fingerprints, or its sealed
    actions. Pass those scalars to the approved-review helper, parse its compact
    response, and use the existing lease writer only after `committed` or
-   `already-current`:
+   `already-current`. A reconciled action-bearing `github-post` failure with its
+   stored intent but no receipt uses the same receipt write directly from
+   `failed` (LC-24/LC-25); it never re-enters `gated` or rebuilds presentation:
 
    ```sh
    EXECUTION_RECEIPT_JSON=$( (

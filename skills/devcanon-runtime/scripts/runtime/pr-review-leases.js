@@ -980,6 +980,8 @@ export function reducePrReviewLease(previous, identity, inputs, options = {}) {
         case "LC-21":
         case "LC-22":
         case "LC-23":
+        case "LC-24":
+        case "LC-25":
             return applyExecutionReceipt(row, base, previous, inputs);
         case "LC-09":
         case "LC-10":
@@ -1744,7 +1746,8 @@ function applyExecutionReceipt(row, base, previous, inputs) {
     requireInput("EXECUTION_RECEIPT_FILE", receiptFile);
     requireInput("GITHUB_POSTED_AT", inputs.githubPostedAt);
     requireInput("PROVIDER_REVIEW_ID", inputs.providerReviewId);
-    if (row === "LC-21" || row === "LC-23") {
+    const terminal = row === "LC-21" || row === "LC-23" || row === "LC-25";
+    if (terminal) {
         requireInput("FINISHED_AT", inputs.finishedAt);
         if (inputs.executionReceiptAllTerminal !== true) {
             throw new PrReviewLeaseError("posted transition requires terminal execution receipt");
@@ -1769,9 +1772,16 @@ function applyExecutionReceipt(row, base, previous, inputs) {
             throw new PrReviewLeaseError("EXECUTION_RECEIPT_FILE must match resolving receipt");
         }
     }
+    if (previous?.state === "failed") {
+        if (previous.failure.phase !== "github-post" ||
+            previous.artifacts.post_intent_file == null ||
+            previous.artifacts.execution_receipt_file != null) {
+            throw new PrReviewLeaseError("failed receipt recovery requires an action-bearing github-post failure without a receipt");
+        }
+    }
     return {
         ...base,
-        state: row === "LC-21" || row === "LC-23" ? "posted" : "resolving",
+        state: terminal ? "posted" : "resolving",
         artifacts: {
             ...base.artifacts,
             handoff_file: previous?.artifacts.handoff_file ?? null,
@@ -1783,7 +1793,7 @@ function applyExecutionReceipt(row, base, previous, inputs) {
         },
         validation: previous?.validation ?? emptyValidation(),
         presentation: previous?.presentation ?? emptyPresentation(),
-        terminal: row === "LC-21" || row === "LC-23"
+        terminal: terminal
             ? { finished_at: inputs.finishedAt ?? null, reason: null }
             : { finished_at: null, reason: null },
         github: {
@@ -1949,8 +1959,15 @@ function transitionId(previous, inputs) {
         return "LC-15";
     if (previousState === "failed" && inputs.state === "failed")
         return "LC-16";
-    if (previousState === "failed" && inputs.state === "posted")
+    if (previousState === "failed" && inputs.state === "resolving")
+        return "LC-24";
+    if (previousState === "failed" && inputs.state === "posted") {
+        if (previous?.artifacts.post_intent_file != null &&
+            inputs.executionReceiptFile !== undefined) {
+            return "LC-25";
+        }
         return "LC-17";
+    }
     if (previousState === "gated" && inputs.state === "resolving")
         return "LC-20";
     if (previousState === "resolving" && inputs.state === "resolving")
@@ -1984,6 +2001,8 @@ function policyForLifecycleWrite(row) {
         case "LC-21":
         case "LC-22":
         case "LC-23":
+        case "LC-24":
+        case "LC-25":
             return "accept-post-success";
         case "LC-17":
             return "validate-post-retry";
@@ -2500,6 +2519,13 @@ async function validatePostIntentAndReceipt(lease, worktreePath, resultReviewHea
     if (lease.github.provider_review_id != null &&
         lease.github.provider_review_id !== receipt.provider_review_id)
         throw new PrReviewLeaseError("execution receipt provider review mismatch");
+    const allTerminal = receipt.actions.every(executionActionIsTerminal);
+    if (lease.state === "posted" && !allTerminal) {
+        throw new PrReviewLeaseError("posted lease requires terminal execution receipt");
+    }
+    if (lease.state === "resolving" && allTerminal) {
+        throw new PrReviewLeaseError("resolving lease requires pending or failed execution receipt action");
+    }
     void resultArtifact;
 }
 function validateMarkedValidatedPayloadBinding(unmarkedPayload, markedPayload) {
@@ -2515,9 +2541,7 @@ function validateMarkedValidatedPayloadBinding(unmarkedPayload, markedPayload) {
     }
     const marker = "<!-- devcanon-pr-review-request:v1 sha256=";
     const markerSuffix = " -->";
-    const expectedPrefix = unmarkedPayload.body.length === 0
-        ? ""
-        : `${unmarkedPayload.body}\n\n`;
+    const expectedPrefix = unmarkedPayload.body.length === 0 ? "" : `${unmarkedPayload.body}\n\n`;
     const finalBody = markedPayload.body;
     if (!finalBody.startsWith(expectedPrefix + marker) ||
         !finalBody.endsWith(markerSuffix) ||

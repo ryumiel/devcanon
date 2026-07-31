@@ -76,6 +76,8 @@ updates are valid only when the matching row says so.
 | LC-21 | `record-complete-receipt`     | `gated`               | `posted`    | Stored intent and valid terminal receipt, `GITHUB_POSTED_AT`, `PROVIDER_REVIEW_ID`, `FINISHED_AT`, `UPDATED_AT`                                                                         |
 | LC-22 | `record-receipt-progress`     | `resolving`           | `resolving` | Same stored intent, valid replacement receipt with a pending or failed sealed resolve, `GITHUB_POSTED_AT`, `PROVIDER_REVIEW_ID`, `UPDATED_AT`                                           |
 | LC-23 | `complete-receipt-progress`   | `resolving`           | `posted`    | Same stored intent, valid terminal replacement receipt, `GITHUB_POSTED_AT`, `PROVIDER_REVIEW_ID`, `FINISHED_AT`, `UPDATED_AT`                                                           |
+| LC-24 | `recover-execution-receipt`   | `failed`              | `resolving` | Prior `github-post` failure preserves a stored intent and no receipt; valid receipt with a pending or failed sealed resolve, `GITHUB_POSTED_AT`, `PROVIDER_REVIEW_ID`, `UPDATED_AT`     |
+| LC-25 | `recover-complete-receipt`    | `failed`              | `posted`    | Prior `github-post` failure preserves a stored intent and no receipt; valid terminal receipt, `GITHUB_POSTED_AT`, `PROVIDER_REVIEW_ID`, `FINISHED_AT`, `UPDATED_AT`                     |
 
 All other transitions are forbidden. `stale-head` is a valid failure phase for
 post-freeze refusal, but it is not eligible for LC-17 retry-to-post; it must
@@ -108,7 +110,11 @@ the intended replacement; any other bytes fail closed. A certain or
 indeterminate post failure retains a valid intent without a receipt and grants
 no resolution, repost, cleanup, archive, or reentry authority.
 
-While `resolving`, each receipt replacement must retain the exact receipt path,
+An action-bearing `github-post` failure with its stored intent and no receipt
+may proceed only through LC-24 or LC-25 after provider reconciliation and
+receipt materialization. Those rows preserve the frozen approved review,
+validated payload, post intent, and existing presentation without re-entering
+`gated`. While `resolving`, each receipt replacement must retain the exact receipt path,
 provider review ID, and post time already recorded by the lease. The controller
 accepts only an exact reread of the intended replacement as committed, or an
 exact reread of the prior valid receipt as a recoverable stop; it does not

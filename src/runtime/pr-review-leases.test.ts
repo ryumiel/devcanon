@@ -1188,6 +1188,50 @@ describe("pr-review lease reducer", () => {
         githubPostedAt: "2026-06-11T00:04:00Z",
       }),
     ).toThrow("execution receipt recovery");
+    const recoveredResolving = reducePrReviewLease(failed, identity, {
+      state: "resolving",
+      baseRef: "main",
+      headRef: "topic",
+      createdAt: "2026-06-11T00:00:00Z",
+      updatedAt: "2026-06-11T00:04:00Z",
+      executionReceiptFile:
+        ".ephemeral/pr-432-1111111111111111111111111111111111111111-thread-action-execution.json",
+      githubPostedAt: "2026-06-11T00:03:00Z",
+      providerReviewId: 987,
+      executionReceiptAllTerminal: false,
+    } as Parameters<typeof reducePrReviewLease>[2]);
+    expect(recoveredResolving).toMatchObject({
+      state: "resolving",
+      artifacts: {
+        approved_review_file: intended.artifacts.approved_review_file,
+        validated_payload_file: intended.artifacts.validated_payload_file,
+        post_intent_file: intended.artifacts.post_intent_file,
+      },
+      presentation: intended.presentation,
+      failure: { phase: null, reason: null, recoverability: null },
+    });
+    const recoveredPosted = reducePrReviewLease(failed, identity, {
+      state: "posted",
+      baseRef: "main",
+      headRef: "topic",
+      createdAt: "2026-06-11T00:00:00Z",
+      updatedAt: "2026-06-11T00:04:00Z",
+      finishedAt: "2026-06-11T00:04:00Z",
+      executionReceiptFile:
+        ".ephemeral/pr-432-1111111111111111111111111111111111111111-thread-action-execution.json",
+      githubPostedAt: "2026-06-11T00:03:00Z",
+      providerReviewId: 987,
+      executionReceiptAllTerminal: true,
+    } as Parameters<typeof reducePrReviewLease>[2]);
+    expect(recoveredPosted).toMatchObject({
+      state: "posted",
+      artifacts: {
+        approved_review_file: intended.artifacts.approved_review_file,
+        validated_payload_file: intended.artifacts.validated_payload_file,
+        post_intent_file: intended.artifacts.post_intent_file,
+      },
+      presentation: intended.presentation,
+    });
   });
 
   it("preserves gated recovery evidence for GitHub post failures", () => {
@@ -4523,6 +4567,7 @@ describe("pr-review lease intent command validation", () => {
       const writeReceipt = async (
         disposition: "pending" | "succeeded",
         submittedAt: string,
+        updatedAt = submittedAt,
       ): Promise<void> => {
         await writeFile(
           path.join(workspace.worktree, receiptFile),
@@ -4541,7 +4586,7 @@ describe("pr-review lease intent command validation", () => {
             post_outcome: "post-response",
             provider_review_id: 99,
             provider_review_submitted_at: submittedAt,
-            updated_at: submittedAt,
+            updated_at: updatedAt,
             actions: [
               {
                 thread_id: "thread-1",
@@ -4561,14 +4606,36 @@ describe("pr-review lease intent command validation", () => {
       process.env.PROVIDER_REVIEW_ID = "99";
       expect((await runPrReviewLeasesCommand(["write"])).exitCode).toBe(0);
 
+      await writeReceipt(
+        "succeeded",
+        "2026-06-11T00:03:00Z",
+        "2026-06-11T00:04:00Z",
+      );
+      let result = await runPrReviewLeasesCommand(["validate"]);
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain(
+        "resolving lease requires pending or failed execution receipt action",
+      );
+
+      await writeReceipt("pending", "2026-06-11T00:03:00Z");
       await writeReceipt("succeeded", "2026-06-11T00:04:00Z");
       process.env.STATE = "posted";
       process.env.UPDATED_AT = "2026-06-11T00:04:00Z";
       process.env.FINISHED_AT = "2026-06-11T00:04:00Z";
-      const result = await runPrReviewLeasesCommand(["write"]);
+      result = await runPrReviewLeasesCommand(["write"]);
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain(
         "execution receipt provider review submitted time mismatch",
+      );
+
+      await writeReceipt("succeeded", "2026-06-11T00:03:00Z");
+      expect((await runPrReviewLeasesCommand(["write"])).exitCode).toBe(0);
+
+      await writeReceipt("pending", "2026-06-11T00:03:00Z");
+      result = await runPrReviewLeasesCommand(["validate"]);
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain(
+        "posted lease requires terminal execution receipt",
       );
     } finally {
       process.chdir(originalCwd);

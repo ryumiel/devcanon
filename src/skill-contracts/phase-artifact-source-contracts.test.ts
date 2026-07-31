@@ -3835,12 +3835,18 @@ None
     );
     expect(retryIntentGate).toContain("POST_INTENT_REUSED=true");
     expect(retryIntentGate).toContain('cd "$WORKING_DIRECTORY" || exit 1');
-    expect(prReviewPhase6.slice(firstProviderPostIndex - 300)).toContain(
+    const reusedIntentBranch = retryIntentGate.slice(
+      retryIntentGate.indexOf('if [ "$POST_INTENT_REUSED" = true ]; then'),
+      retryIntentGate.indexOf("else\n     # The helper has atomically"),
+    );
+    expect(reusedIntentBranch).toContain(
       'if [ "$POST_INTENT_REUSED" = true ]; then',
     );
-    expect(prReviewPhase6.slice(firstProviderPostIndex - 300)).toContain(
-      "Reconcile; never repost.",
-    );
+    expect(reusedIntentBranch).toContain("Reconcile directly;");
+    expect(reusedIntentBranch).toContain("failed -> gated (LC-14)");
+    expect(reusedIntentBranch).not.toContain("PR_REVIEW_LEASE_HELPER");
+    expect(reusedIntentBranch).not.toContain('STATE="gated"');
+    expect(normalizedPrReview).toContain("LC-24/LC-25");
     expect(normalizedPrReview).toContain(
       "do not fetch `commit_id` from live `{{tool:github-cli}} pr view` for posting",
     );

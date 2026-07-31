@@ -1681,6 +1681,8 @@ export function reducePrReviewLease(
     case "LC-21":
     case "LC-22":
     case "LC-23":
+    case "LC-24":
+    case "LC-25":
       return applyExecutionReceipt(row, base, previous, inputs);
     case "LC-09":
     case "LC-10":
@@ -2701,7 +2703,7 @@ function applyPostIntent(
 }
 
 function applyExecutionReceipt(
-  row: "LC-20" | "LC-21" | "LC-22" | "LC-23",
+  row: "LC-20" | "LC-21" | "LC-22" | "LC-23" | "LC-24" | "LC-25",
   base: PrReviewLease,
   previous: PrReviewLease | null,
   inputs: LeaseInputs,
@@ -2713,7 +2715,8 @@ function applyExecutionReceipt(
   requireInput("EXECUTION_RECEIPT_FILE", receiptFile);
   requireInput("GITHUB_POSTED_AT", inputs.githubPostedAt);
   requireInput("PROVIDER_REVIEW_ID", inputs.providerReviewId);
-  if (row === "LC-21" || row === "LC-23") {
+  const terminal = row === "LC-21" || row === "LC-23" || row === "LC-25";
+  if (terminal) {
     requireInput("FINISHED_AT", inputs.finishedAt);
     if (inputs.executionReceiptAllTerminal !== true) {
       throw new PrReviewLeaseError(
@@ -2751,9 +2754,20 @@ function applyExecutionReceipt(
       );
     }
   }
+  if (previous?.state === "failed") {
+    if (
+      previous.failure.phase !== "github-post" ||
+      previous.artifacts.post_intent_file == null ||
+      previous.artifacts.execution_receipt_file != null
+    ) {
+      throw new PrReviewLeaseError(
+        "failed receipt recovery requires an action-bearing github-post failure without a receipt",
+      );
+    }
+  }
   return {
     ...base,
-    state: row === "LC-21" || row === "LC-23" ? "posted" : "resolving",
+    state: terminal ? "posted" : "resolving",
     artifacts: {
       ...base.artifacts,
       handoff_file: previous?.artifacts.handoff_file ?? null,
@@ -2766,10 +2780,9 @@ function applyExecutionReceipt(
     },
     validation: previous?.validation ?? emptyValidation(),
     presentation: previous?.presentation ?? emptyPresentation(),
-    terminal:
-      row === "LC-21" || row === "LC-23"
-        ? { finished_at: inputs.finishedAt ?? null, reason: null }
-        : { finished_at: null, reason: null },
+    terminal: terminal
+      ? { finished_at: inputs.finishedAt ?? null, reason: null }
+      : { finished_at: null, reason: null },
     github: {
       github_post_attempted: true,
       github_post_result: "succeeded",
@@ -2976,7 +2989,9 @@ type TransitionId =
   | "LC-20"
   | "LC-21"
   | "LC-22"
-  | "LC-23";
+  | "LC-23"
+  | "LC-24"
+  | "LC-25";
 
 function transitionId(
   previous: PrReviewLease | null,
@@ -3016,7 +3031,17 @@ function transitionId(
   if (previousState === "failed" && inputs.state === "gated") return "LC-14";
   if (previousState === "failed" && inputs.state === "aborted") return "LC-15";
   if (previousState === "failed" && inputs.state === "failed") return "LC-16";
-  if (previousState === "failed" && inputs.state === "posted") return "LC-17";
+  if (previousState === "failed" && inputs.state === "resolving")
+    return "LC-24";
+  if (previousState === "failed" && inputs.state === "posted") {
+    if (
+      previous?.artifacts.post_intent_file != null &&
+      inputs.executionReceiptFile !== undefined
+    ) {
+      return "LC-25";
+    }
+    return "LC-17";
+  }
   if (previousState === "gated" && inputs.state === "resolving") return "LC-20";
   if (previousState === "resolving" && inputs.state === "resolving")
     return "LC-22";
@@ -3061,6 +3086,8 @@ function policyForLifecycleWrite(row: TransitionId | null): EvidencePolicy {
     case "LC-21":
     case "LC-22":
     case "LC-23":
+    case "LC-24":
+    case "LC-25":
       return "accept-post-success";
     case "LC-17":
       return "validate-post-retry";
@@ -3550,7 +3577,10 @@ async function validateReferencedArtifacts(
           );
         }
       } else {
-        validateMarkedValidatedPayloadBinding(approved.payload, payload);
+        validateMarkedValidatedPayloadBinding(
+          approved.payload as JsonObject,
+          payload,
+        );
       }
     }
     await validateResultCommandAuthority(lease, worktreePath);
@@ -3672,7 +3702,10 @@ async function validatePostIntentAndReceipt(
     lease.artifacts.validated_payload_file,
     "validated payload file",
   );
-  validateMarkedValidatedPayloadBinding(approved.payload, payload);
+  validateMarkedValidatedPayloadBinding(
+    approved.payload as JsonObject,
+    payload,
+  );
   const marker = `<!-- devcanon-pr-review-request:v1 sha256=${intent.request_fingerprint_sha256} -->`;
   if (intent.final_body !== payload.body || !intent.final_body.endsWith(marker))
     throw new PrReviewLeaseError("post intent final body mismatch");
@@ -3763,6 +3796,17 @@ async function validatePostIntentAndReceipt(
     lease.github.provider_review_id !== receipt.provider_review_id
   )
     throw new PrReviewLeaseError("execution receipt provider review mismatch");
+  const allTerminal = receipt.actions.every(executionActionIsTerminal);
+  if (lease.state === "posted" && !allTerminal) {
+    throw new PrReviewLeaseError(
+      "posted lease requires terminal execution receipt",
+    );
+  }
+  if (lease.state === "resolving" && allTerminal) {
+    throw new PrReviewLeaseError(
+      "resolving lease requires pending or failed execution receipt action",
+    );
+  }
   void resultArtifact;
 }
 
