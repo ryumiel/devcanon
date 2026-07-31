@@ -79,21 +79,24 @@ repository root with `REPOSITORY`, `PR_NUMBER`, and
 bash "$PR_REVIEW_LEASE_HELPER" discover
 ```
 
-The planner emits one closed selection result. Only `create` permits canonical
-worktree progression. A missing canonical LC-18 `reentry` is admitted only
+The planner emits one closed selection result. Only `create` without an
+authority-valid `reentry` candidate permits `session-create` canonical worktree
+progression. A missing canonical LC-18 `reentry` is admitted only
 when its exact deterministic terminal archive is absent or byte-equal; a
 divergent or unreadable archive remains a stop condition. When `create` reports
 one authority-valid `reentry` candidate and `canonical_worktree_present=true`,
-reuse that clean registered canonical worktree and write the fresh LC-18 lease
-without rerunning `git worktree add`; otherwise `create` permits the new
-canonical worktree command below. `resume` identifies the already registered worktree and lease to
+route it through the existing LC-18 operator flow: reuse that clean registered
+canonical worktree and write the fresh LC-18 lease without rerunning `git
+worktree add`. Do not invoke `session-create` for any `reentry` candidate.
+`resume` identifies the already registered worktree and lease to
 validate through the existing lifecycle flow;
 `cleanup-required`, `ambiguous`, and `invalid` stop for the existing cleanup
 or lifecycle owner. Discovery is read-only: it never creates, removes, or
 updates worktrees, leases, or artifacts.
 
-For an eligible fresh `create`, invoke the runtime-owned transaction instead
-of separately adding a worktree and writing LC-01. Set the provider-bound
+For an eligible fresh `create` with no `reentry` candidate, invoke the
+runtime-owned transaction instead of separately adding a worktree and writing
+LC-01. Set the provider-bound
 `HEAD_SHA`, `BASE_REF`, `HEAD_REF`, and one RFC 3339 UTC `UPDATED_AT` alongside
 the discovery inputs, then run `review-leases.sh session-create`. A `success`
 result is the only verified session identity. A `conflict` leaves no claimed
