@@ -126,6 +126,11 @@ expected_post_intent_path_for() {
   printf '.ephemeral/pr-%s-%s-thread-action-post-intent.json\n' "$PR_NUMBER" "$review_head_sha"
 }
 
+expected_execution_receipt_path_for() {
+  local review_head_sha="$1"
+  printf '.ephemeral/pr-%s-%s-thread-action-execution.json\n' "$PR_NUMBER" "$review_head_sha"
+}
+
 expected_thread_actions_path_for() {
   local review_head_sha="$1"
   printf '.ephemeral/%s-%s-thread-actions.json\n' "$(branch_slug)" "$review_head_sha"
@@ -236,6 +241,18 @@ validate_post_intent_path_shape() {
   expected="$(expected_post_intent_path_for "$review_head_sha")"
   [ "$post_intent_file" = "$expected" ] || {
     echo "post intent path mismatch: $post_intent_file" >&2
+    exit 1
+  }
+}
+
+validate_execution_receipt_path_shape() {
+  local receipt_file="$1"
+  local review_head_sha="$2"
+  local expected
+  validate_direct_child_path "execution receipt" "$receipt_file" "-thread-action-execution.json"
+  expected="$(expected_execution_receipt_path_for "$review_head_sha")"
+  [ "$receipt_file" = "$expected" ] || {
+    echo "execution receipt path mismatch: $receipt_file" >&2
     exit 1
   }
 }
@@ -698,6 +715,414 @@ validate_post_intent_created_at() {
   }
 }
 
+validate_utc_second() {
+  local name="$1"
+  local value="$2"
+  [[ "$value" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]] || {
+    echo "$name must be a canonical UTC timestamp" >&2
+    exit 1
+  }
+}
+
+validate_positive_safe_integer() {
+  local name="$1"
+  local value="$2"
+  case "$value" in
+    0 | *[!0-9]*)
+      echo "$name must be a positive safe integer" >&2
+      exit 1
+      ;;
+  esac
+  jq -en --arg value "$value" \
+    '$value | tonumber | . >= 1 and . <= 9007199254740991' >/dev/null || {
+    echo "$name must be a positive safe integer" >&2
+    exit 1
+  }
+}
+
+validate_execution_receipt_inputs() {
+  require_env POST_OUTCOME
+  require_env PROVIDER_REVIEW_ID
+  require_env PROVIDER_REVIEW_SUBMITTED_AT
+  require_env EXECUTION_RECEIPT_UPDATED_AT
+  case "$POST_OUTCOME" in
+    post-response | provider-reconciliation) ;;
+    *)
+      echo "POST_OUTCOME must be post-response or provider-reconciliation" >&2
+      exit 1
+      ;;
+  esac
+  validate_positive_safe_integer PROVIDER_REVIEW_ID "$PROVIDER_REVIEW_ID"
+  validate_utc_second PROVIDER_REVIEW_SUBMITTED_AT "$PROVIDER_REVIEW_SUBMITTED_AT"
+  validate_utc_second EXECUTION_RECEIPT_UPDATED_AT "$EXECUTION_RECEIPT_UPDATED_AT"
+}
+
+validate_advance_execution_receipt_inputs() {
+  require_env EXECUTION_RECEIPT_FILE
+  require_env THREAD_ID
+  require_env DISPOSITION
+  require_env EXECUTION_RECEIPT_UPDATED_AT
+  case "$DISPOSITION" in
+    succeeded | already-resolved | failed) ;;
+    *)
+      echo "DISPOSITION must be succeeded, already-resolved, or failed" >&2
+      exit 1
+      ;;
+  esac
+  [ -n "${THREAD_ID//[[:space:]]/}" ] || {
+    echo "THREAD_ID must be nonblank" >&2
+    exit 1
+  }
+  validate_utc_second EXECUTION_RECEIPT_UPDATED_AT "$EXECUTION_RECEIPT_UPDATED_AT"
+  if [ "$DISPOSITION" = "failed" ]; then
+    require_env ACTION_FAILURE_REASON
+    [ -n "${ACTION_FAILURE_REASON//[[:space:]]/}" ] || {
+      echo "ACTION_FAILURE_REASON must be nonblank when DISPOSITION is failed" >&2
+      exit 1
+    }
+  elif [ -n "${ACTION_FAILURE_REASON:-}" ]; then
+    echo "ACTION_FAILURE_REASON must be absent or empty unless DISPOSITION is failed" >&2
+    exit 1
+  fi
+}
+
+validate_post_intent_chain() {
+  local validated_payload_file
+  local approved_review_sha256
+  local validated_payload_sha256
+  local thread_actions_sha256
+  local unmarked_payload_file
+  local fingerprint_tuple
+  local fingerprint
+
+  require_repo_root
+  require_jq
+  validate_head_sha
+  validate_pr_number
+  require_env REPOSITORY
+  require_env APPROVED_REVIEW_FILE
+  require_env POST_INTENT_FILE
+  require_env BASE_REF
+  validate_approved_path_shape "$APPROVED_REVIEW_FILE"
+  validate_post_intent_path_shape "$POST_INTENT_FILE" "$HEAD_SHA"
+  assert_readable_file "post intent file" "$POST_INTENT_FILE"
+  unmarked_payload_file="$(mktemp ".ephemeral/.receipt-unmarked-payload-${HEAD_SHA}.XXXXXX")"
+  validate_approved_review > "$unmarked_payload_file"
+  assert_single_json_object "approved review payload" "$unmarked_payload_file"
+  assert_payload_shape "$unmarked_payload_file" "$HEAD_SHA"
+
+  jq -e \
+    --arg repository "$REPOSITORY" \
+    --argjson pr_number "$PR_NUMBER" \
+    --arg review_head_sha "$HEAD_SHA" \
+    --arg approved_review_file "$APPROVED_REVIEW_FILE" \
+    '
+      def hex_sha256: type == "string" and test("^[0-9a-f]{64}$");
+      def utc_second: type == "string" and test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$");
+      (keys | sort) == ["approved_review_file", "approved_review_sha256", "created_at", "final_body", "pr_number", "provider_actor_id", "repository", "request_fingerprint_sha256", "review_event", "review_head_sha", "schema", "thread_actions_sha256", "validated_review_payload_file", "validated_review_payload_sha256"]
+      and .schema == "pr-review/thread-action-post-intent/v1"
+      and .repository == $repository
+      and .pr_number == $pr_number
+      and .review_head_sha == $review_head_sha
+      and .approved_review_file == $approved_review_file
+      and (.approved_review_sha256 | hex_sha256)
+      and (.validated_review_payload_file | type == "string")
+      and (.validated_review_payload_sha256 | hex_sha256)
+      and (.request_fingerprint_sha256 | hex_sha256)
+      and (.thread_actions_sha256 | hex_sha256)
+      and (.provider_actor_id | type == "number" and . == floor and . >= 1 and . <= 9007199254740991)
+      and (.review_event == "APPROVE" or .review_event == "REQUEST_CHANGES" or .review_event == "COMMENT")
+      and (.final_body | type == "string")
+      and (.created_at | utc_second)
+    ' "$POST_INTENT_FILE" >/dev/null || {
+    echo "post intent schema mismatch: $POST_INTENT_FILE" >&2
+    exit 1
+  }
+  approved_review_sha256="$(sha256_file "$APPROVED_REVIEW_FILE")"
+  [ "$approved_review_sha256" = "$(jq -r '.approved_review_sha256' "$POST_INTENT_FILE")" ] || {
+    echo "post intent approved-review digest mismatch: $POST_INTENT_FILE" >&2
+    exit 1
+  }
+  validated_payload_file="$(jq -r '.validated_review_payload_file' "$POST_INTENT_FILE")"
+  validate_validated_payload_path_shape "$validated_payload_file" "$HEAD_SHA"
+  assert_readable_file "validated review payload" "$validated_payload_file"
+  assert_single_json_object "validated review payload" "$validated_payload_file"
+  assert_payload_shape "$validated_payload_file" "$HEAD_SHA"
+  validated_payload_sha256="$(sha256_file "$validated_payload_file")"
+  [ "$validated_payload_sha256" = "$(jq -r '.validated_review_payload_sha256' "$POST_INTENT_FILE")" ] || {
+    echo "post intent payload digest mismatch: $POST_INTENT_FILE" >&2
+    exit 1
+  }
+  thread_actions_sha256="$(jq -r '.thread_actions_sha256' "$APPROVED_REVIEW_FILE")"
+  [ "$thread_actions_sha256" = "$(jq -r '.thread_actions_sha256' "$POST_INTENT_FILE")" ] || {
+    echo "post intent thread actions digest mismatch: $POST_INTENT_FILE" >&2
+    exit 1
+  }
+  jq -e --slurpfile unmarked "$unmarked_payload_file" \
+    --arg fingerprint "$(jq -r '.request_fingerprint_sha256' "$POST_INTENT_FILE")" \
+    '
+      .review_event == $unmarked[0].event
+      and .final_body == (if $unmarked[0].body == "" then "<!-- devcanon-pr-review-request:v1 sha256=" + $fingerprint + " -->" else $unmarked[0].body + "\n\n<!-- devcanon-pr-review-request:v1 sha256=" + $fingerprint + " -->" end)
+    ' "$POST_INTENT_FILE" >/dev/null || {
+    echo "post intent final body mismatch: $POST_INTENT_FILE" >&2
+    exit 1
+  }
+  jq -e --slurpfile intent "$POST_INTENT_FILE" '
+    .commit_id == $intent[0].review_head_sha
+    and .event == $intent[0].review_event
+    and .body == $intent[0].final_body
+  ' "$validated_payload_file" >/dev/null || {
+    echo "post intent validated payload binding mismatch: $POST_INTENT_FILE" >&2
+    exit 1
+  }
+  fingerprint_tuple="$(jq -c \
+    --slurpfile intent "$POST_INTENT_FILE" \
+    --arg thread_actions_sha256 "$thread_actions_sha256" \
+    '[
+      "pr-review/provider-request-fingerprint/v1",
+      $intent[0].repository,
+      $intent[0].pr_number,
+      $intent[0].review_head_sha,
+      $intent[0].provider_actor_id,
+      .event,
+      .body,
+      $thread_actions_sha256,
+      (.comments | map([.path, .line, (.start_line // null), (.start_side // null), .side, .body]))
+    ]' "$unmarked_payload_file")"
+  fingerprint="$(printf '%s' "$fingerprint_tuple" | sha256_file /dev/stdin)"
+  [ "$fingerprint" = "$(jq -r '.request_fingerprint_sha256' "$POST_INTENT_FILE")" ] || {
+    echo "post intent request fingerprint mismatch: $POST_INTENT_FILE" >&2
+    exit 1
+  }
+  rm -f "$unmarked_payload_file"
+}
+
+validate_execution_receipt_file() {
+  local receipt_file="$1"
+  local require_initial="$2"
+  local allow_temporary="${3:-false}"
+  local approved_actions_file
+
+  if [ "$allow_temporary" = true ]; then
+    validate_direct_child_path "execution receipt candidate" "$receipt_file"
+  else
+    validate_execution_receipt_path_shape "$receipt_file" "$HEAD_SHA"
+  fi
+  assert_readable_file "execution receipt file" "$receipt_file"
+  jq -e \
+    --arg repository "$REPOSITORY" \
+    --argjson pr_number "$PR_NUMBER" \
+    --arg review_head_sha "$HEAD_SHA" \
+    --arg approved_review_file "$APPROVED_REVIEW_FILE" \
+    --arg post_intent_file "$POST_INTENT_FILE" \
+    '
+      def hex_sha256: type == "string" and test("^[0-9a-f]{64}$");
+      def utc_second: type == "string" and test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$");
+      def resolve_disposition: . == "pending" or . == "succeeded" or . == "already-resolved" or . == "failed";
+      def valid_action:
+        type == "object"
+        and (keys | sort) == ["action", "disposition", "failure_reason", "thread_id"]
+        and (.thread_id | (type == "string" and (gsub("[[:space:]]"; "") | length > 0)))
+        and ((.action == "resolve" and (.disposition | resolve_disposition) and (if .disposition == "failed" then (.failure_reason | type == "string" and length > 0) else .failure_reason == null end)) or (.action == "leave" and .disposition == "not-requested" and .failure_reason == null));
+      (keys | sort) == ["actions", "approved_review_file", "approved_review_sha256", "post_intent_file", "post_intent_sha256", "post_outcome", "pr_number", "provider_review_id", "provider_review_submitted_at", "repository", "request_fingerprint_sha256", "review_head_sha", "schema", "updated_at"]
+      and .schema == "pr-review/thread-action-execution/v1"
+      and .repository == $repository
+      and .pr_number == $pr_number
+      and .review_head_sha == $review_head_sha
+      and .approved_review_file == $approved_review_file
+      and (.approved_review_sha256 | hex_sha256)
+      and .post_intent_file == $post_intent_file
+      and (.post_intent_sha256 | hex_sha256)
+      and (.request_fingerprint_sha256 | hex_sha256)
+      and (.post_outcome == "post-response" or .post_outcome == "provider-reconciliation")
+      and (.provider_review_id | type == "number" and . == floor and . >= 1 and . <= 9007199254740991)
+      and (.provider_review_submitted_at | utc_second)
+      and (.updated_at | utc_second)
+      and (.actions | type == "array" and all(.[]; valid_action))
+    ' "$receipt_file" >/dev/null || {
+    echo "execution receipt schema mismatch: $receipt_file" >&2
+    exit 1
+  }
+  [ "$(sha256_file "$APPROVED_REVIEW_FILE")" = "$(jq -r '.approved_review_sha256' "$receipt_file")" ] || {
+    echo "execution receipt approved-review digest mismatch: $receipt_file" >&2
+    exit 1
+  }
+  [ "$(sha256_file "$POST_INTENT_FILE")" = "$(jq -r '.post_intent_sha256' "$receipt_file")" ] || {
+    echo "execution receipt post-intent digest mismatch: $receipt_file" >&2
+    exit 1
+  }
+  [ "$(jq -r '.request_fingerprint_sha256' "$POST_INTENT_FILE")" = "$(jq -r '.request_fingerprint_sha256' "$receipt_file")" ] || {
+    echo "execution receipt fingerprint mismatch: $receipt_file" >&2
+    exit 1
+  }
+  approved_actions_file="$(mktemp ".ephemeral/.receipt-approved-actions-${HEAD_SHA}.XXXXXX")"
+  jq '.thread_actions' "$APPROVED_REVIEW_FILE" > "$approved_actions_file"
+  jq -e --slurpfile approved "$approved_actions_file" --argjson require_initial "$require_initial" '
+    .actions as $actions
+    | ($actions | length) == ($approved[0] | length)
+    and all(range(0; ($actions | length)); . as $i |
+      $actions[$i].thread_id == $approved[0][$i].thread_id
+      and $actions[$i].action == $approved[0][$i].action
+      and (if $require_initial then
+        if $actions[$i].action == "resolve" then $actions[$i].disposition == "pending" and $actions[$i].failure_reason == null
+        else $actions[$i].disposition == "not-requested" and $actions[$i].failure_reason == null end
+      else true end)
+    )
+  ' "$receipt_file" >/dev/null || {
+    echo "execution receipt sealed actions mismatch: $receipt_file" >&2
+    exit 1
+  }
+  rm -f "$approved_actions_file"
+}
+
+receipt_all_terminal() {
+  jq -e '[.actions[] | (.action == "leave" and .disposition == "not-requested") or (.action == "resolve" and (.disposition == "succeeded" or .disposition == "already-resolved"))] | all' "$1" >/dev/null
+}
+
+emit_execution_receipt_result() {
+  local receipt_file="$1"
+  local write_status="$2"
+  local all_terminal=false
+  if receipt_all_terminal "$receipt_file"; then
+    all_terminal=true
+  fi
+  jq -cn --arg execution_receipt_file "$receipt_file" --arg write_status "$write_status" --argjson all_terminal "$all_terminal" \
+    '{execution_receipt_file: $execution_receipt_file, write_status: $write_status, all_terminal: $all_terminal}'
+}
+
+materialize_execution_receipt() {
+  local receipt_file
+  local receipt_tmp
+  local approved_review_sha256
+  local post_intent_sha256
+
+  validate_execution_receipt_inputs
+  validate_post_intent_chain
+  receipt_file="$(expected_execution_receipt_path_for "$HEAD_SHA")"
+  validate_execution_receipt_path_shape "$receipt_file" "$HEAD_SHA"
+  prepare_write_target "execution receipt" "$receipt_file"
+  approved_review_sha256="$(sha256_file "$APPROVED_REVIEW_FILE")"
+  post_intent_sha256="$(sha256_file "$POST_INTENT_FILE")"
+  receipt_tmp="$(mktemp ".ephemeral/.execution-receipt-${HEAD_SHA}.XXXXXX")"
+  trap 'rm -f "${receipt_tmp:-}"' EXIT
+  jq -n \
+    --arg schema "pr-review/thread-action-execution/v1" \
+    --arg repository "$REPOSITORY" \
+    --argjson pr_number "$PR_NUMBER" \
+    --arg review_head_sha "$HEAD_SHA" \
+    --arg approved_review_file "$APPROVED_REVIEW_FILE" \
+    --arg approved_review_sha256 "$approved_review_sha256" \
+    --arg post_intent_file "$POST_INTENT_FILE" \
+    --arg post_intent_sha256 "$post_intent_sha256" \
+    --arg request_fingerprint_sha256 "$(jq -r '.request_fingerprint_sha256' "$POST_INTENT_FILE")" \
+    --arg post_outcome "$POST_OUTCOME" \
+    --argjson provider_review_id "$PROVIDER_REVIEW_ID" \
+    --arg provider_review_submitted_at "$PROVIDER_REVIEW_SUBMITTED_AT" \
+    --arg updated_at "$EXECUTION_RECEIPT_UPDATED_AT" \
+    --slurpfile approved "$APPROVED_REVIEW_FILE" \
+    '{schema: $schema, repository: $repository, pr_number: $pr_number, review_head_sha: $review_head_sha, approved_review_file: $approved_review_file, approved_review_sha256: $approved_review_sha256, post_intent_file: $post_intent_file, post_intent_sha256: $post_intent_sha256, request_fingerprint_sha256: $request_fingerprint_sha256, post_outcome: $post_outcome, provider_review_id: $provider_review_id, provider_review_submitted_at: $provider_review_submitted_at, updated_at: $updated_at, actions: ($approved[0].thread_actions | map(if .action == "resolve" then {thread_id, action, disposition: "pending", failure_reason: null} else {thread_id, action, disposition: "not-requested", failure_reason: null} end))}' > "$receipt_tmp"
+  if [ -e "$receipt_file" ]; then
+    validate_execution_receipt_file "$receipt_file" true
+    jq -e \
+      --arg post_outcome "$POST_OUTCOME" \
+      --argjson provider_review_id "$PROVIDER_REVIEW_ID" \
+      --arg provider_review_submitted_at "$PROVIDER_REVIEW_SUBMITTED_AT" \
+      '.post_outcome == $post_outcome and .provider_review_id == $provider_review_id and .provider_review_submitted_at == $provider_review_submitted_at' \
+      "$receipt_file" >/dev/null || {
+      echo "execution receipt identity mismatch: $receipt_file" >&2
+      exit 1
+    }
+    emit_execution_receipt_result "$receipt_file" already-current
+    return
+  fi
+  ln "$receipt_tmp" "$receipt_file" 2>/dev/null || {
+    validate_execution_receipt_file "$receipt_file" true
+    jq -e --arg post_outcome "$POST_OUTCOME" --argjson provider_review_id "$PROVIDER_REVIEW_ID" --arg provider_review_submitted_at "$PROVIDER_REVIEW_SUBMITTED_AT" '.post_outcome == $post_outcome and .provider_review_id == $provider_review_id and .provider_review_submitted_at == $provider_review_submitted_at' "$receipt_file" >/dev/null || exit 1
+    emit_execution_receipt_result "$receipt_file" already-current
+    return
+  }
+  validate_execution_receipt_file "$receipt_file" true
+  cmp -s "$receipt_tmp" "$receipt_file" || {
+    echo "execution receipt reread mismatch: $receipt_file" >&2
+    exit 1
+  }
+  emit_execution_receipt_result "$receipt_file" committed
+}
+
+advance_execution_receipt() {
+  local prior_tmp
+  local intended_tmp
+  local publish_tmp
+  local action
+  local current_disposition
+  local current_failure_reason
+
+  validate_advance_execution_receipt_inputs
+  validate_post_intent_chain
+  validate_execution_receipt_path_shape "$EXECUTION_RECEIPT_FILE" "$HEAD_SHA"
+  validate_execution_receipt_file "$EXECUTION_RECEIPT_FILE" false
+  prior_tmp="$(mktemp ".ephemeral/.execution-receipt-prior-${HEAD_SHA}.XXXXXX")"
+  intended_tmp="$(mktemp ".ephemeral/.execution-receipt-intended-${HEAD_SHA}.XXXXXX")"
+  publish_tmp="$(mktemp ".ephemeral/.execution-receipt-publish-${HEAD_SHA}.XXXXXX")"
+  trap 'rm -f "${prior_tmp:-}" "${intended_tmp:-}" "${publish_tmp:-}"' EXIT
+  cp "$EXECUTION_RECEIPT_FILE" "$prior_tmp"
+  action="$(jq -r --arg thread_id "$THREAD_ID" '.actions[] | select(.thread_id == $thread_id) | .action' "$prior_tmp")"
+  [ "$action" = "resolve" ] || {
+    echo "THREAD_ID is not a sealed resolve action: $THREAD_ID" >&2
+    exit 1
+  }
+  current_disposition="$(jq -r --arg thread_id "$THREAD_ID" '.actions[] | select(.thread_id == $thread_id) | .disposition' "$prior_tmp")"
+  current_failure_reason="$(jq -r --arg thread_id "$THREAD_ID" '.actions[] | select(.thread_id == $thread_id) | .failure_reason // ""' "$prior_tmp")"
+  case "$current_disposition" in
+    succeeded | already-resolved)
+      [ "$current_disposition" = "$DISPOSITION" ] || {
+        echo "execution receipt terminal disposition conflict: $THREAD_ID" >&2
+        exit 1
+      }
+      [ -z "$current_failure_reason" ] || {
+        echo "execution receipt terminal failure reason conflict: $THREAD_ID" >&2
+        exit 1
+      }
+      emit_execution_receipt_result "$EXECUTION_RECEIPT_FILE" already-current
+      return
+      ;;
+    pending | failed) ;;
+    *)
+      echo "execution receipt disposition is not advanceable: $THREAD_ID" >&2
+      exit 1
+      ;;
+  esac
+  jq \
+    --arg thread_id "$THREAD_ID" \
+    --arg disposition "$DISPOSITION" \
+    --arg failure_reason "${ACTION_FAILURE_REASON:-}" \
+    --arg updated_at "$EXECUTION_RECEIPT_UPDATED_AT" \
+    '.updated_at = $updated_at | .actions |= map(if .thread_id == $thread_id then .disposition = $disposition | .failure_reason = (if $disposition == "failed" then $failure_reason else null end) else . end)' \
+    "$prior_tmp" > "$intended_tmp"
+  # Validate the intended replacement against the same closed chain before publication.
+  validate_execution_receipt_file "$intended_tmp" false true
+  cp "$intended_tmp" "$publish_tmp"
+  [ ! -L "$EXECUTION_RECEIPT_FILE" ] && [ -f "$EXECUTION_RECEIPT_FILE" ] || {
+    echo "execution receipt path changed before replacement: $EXECUTION_RECEIPT_FILE" >&2
+    exit 1
+  }
+  mv -f "$publish_tmp" "$EXECUTION_RECEIPT_FILE" 2>/dev/null || true
+  [ ! -L "$EXECUTION_RECEIPT_FILE" ] && [ -f "$EXECUTION_RECEIPT_FILE" ] || {
+    echo "execution receipt path changed during replacement: $EXECUTION_RECEIPT_FILE" >&2
+    exit 1
+  }
+  if cmp -s "$intended_tmp" "$EXECUTION_RECEIPT_FILE"; then
+    validate_execution_receipt_file "$EXECUTION_RECEIPT_FILE" false
+    emit_execution_receipt_result "$EXECUTION_RECEIPT_FILE" committed
+  elif cmp -s "$prior_tmp" "$EXECUTION_RECEIPT_FILE"; then
+    validate_execution_receipt_file "$EXECUTION_RECEIPT_FILE" false
+    emit_execution_receipt_result "$EXECUTION_RECEIPT_FILE" prior-retained
+  else
+    echo "execution receipt reread diverged after replacement: $EXECUTION_RECEIPT_FILE" >&2
+    exit 1
+  fi
+}
+
 publish_exact_json() {
   local label="$1"
   local target="$2"
@@ -1086,6 +1511,12 @@ case "$command_name" in
   materialize-post-intent)
     materialize_post_intent
     ;;
+  materialize-execution-receipt)
+    materialize_execution_receipt
+    ;;
+  advance-execution-receipt)
+    advance_execution_receipt
+    ;;
   freeze-approved-review)
     freeze_approved_review
     ;;
@@ -1096,7 +1527,7 @@ case "$command_name" in
     inspect_approved_review_ownership
     ;;
   *)
-    echo "usage: approved-review-artifacts.sh prepare-review-payload-write|materialize-validated-review-payload|materialize-post-intent|freeze-approved-review|validate-approved-review|inspect-approved-review-ownership" >&2
+    echo "usage: approved-review-artifacts.sh prepare-review-payload-write|materialize-validated-review-payload|materialize-post-intent|materialize-execution-receipt|advance-execution-receipt|freeze-approved-review|validate-approved-review|inspect-approved-review-ownership" >&2
     exit 1
     ;;
 esac

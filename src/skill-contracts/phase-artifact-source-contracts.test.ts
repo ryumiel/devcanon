@@ -3794,6 +3794,9 @@ None
       "Do not resolve `leave` actions",
       "atomic direct-child replacement",
       "exact intended receipt or the exact prior valid receipt",
+      "materialize-execution-receipt",
+      "advance-execution-receipt",
+      "prior-retained",
     ]) {
       expect(normalizedPrReview).toContain(providerExecutionContract);
     }

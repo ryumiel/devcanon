@@ -1185,6 +1185,37 @@ Only after user approval:
    set is all leave, write the terminal receipt through LC-21 (`posted`) without
    a thread mutation.
 
+   The wrapper records only the already-proven provider scalar response (or the
+   single reconciliation match): outcome, numeric review ID, and submitted-at
+   time. It does not reconstruct the receipt, its fingerprints, or its sealed
+   actions. Pass those scalars to the approved-review helper, parse its compact
+   response, and use the existing lease writer only after `committed` or
+   `already-current`:
+
+   ```sh
+   EXECUTION_RECEIPT_JSON=$( (
+     cd "$WORKING_DIRECTORY" || exit 1
+     HEAD_SHA="$REVIEW_HEAD_SHA" \
+     PR_NUMBER="$PR_NUMBER" \
+     REPOSITORY="<owner/repo>" \
+     BASE_REF="$REVIEW_SCOPE_BASE_REF" \
+     APPROVED_REVIEW_FILE="$APPROVED_REVIEW_FILE" \
+     POST_INTENT_FILE="$POST_INTENT_FILE" \
+     POST_OUTCOME="$POST_OUTCOME" \
+     PROVIDER_REVIEW_ID="$PROVIDER_REVIEW_ID" \
+     PROVIDER_REVIEW_SUBMITTED_AT="$PROVIDER_REVIEW_SUBMITTED_AT" \
+     EXECUTION_RECEIPT_UPDATED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+       bash "$PR_REVIEW_HELPER" materialize-execution-receipt
+   ) ) || exit 1
+   EXECUTION_RECEIPT_FILE="$(printf '%s' "$EXECUTION_RECEIPT_JSON" | jq -er '.execution_receipt_file')" || exit 1
+   RECEIPT_WRITE_STATUS="$(printf '%s' "$EXECUTION_RECEIPT_JSON" | jq -er '.write_status | select(. == "committed" or . == "already-current")')" || exit 1
+   RECEIPT_ALL_TERMINAL="$(printf '%s' "$EXECUTION_RECEIPT_JSON" | jq -er '.all_terminal | booleans')" || exit 1
+   STATE="$(if [ "$RECEIPT_ALL_TERMINAL" = true ]; then printf posted; else printf resolving; fi)" \
+   EXECUTION_RECEIPT_FILE="$EXECUTION_RECEIPT_FILE" \
+   UPDATED_AT="<RFC-3339-UTC>" \
+     bash "$PR_REVIEW_LEASE_HELPER" write || exit 1
+   ```
+
    Resolve only sealed `resolve` IDs. Make a fresh provider read immediately before resolving each sealed `resolve` ID, using the complete review-thread connection. The ID must
    appear exactly once and remain an eligible sealed thread. A freshly
    already-resolved record receives the `already-resolved` disposition without a
@@ -1211,6 +1242,38 @@ Only after user approval:
    resolution. Resume only its pending or failed sealed resolves—never repost,
    never replace provider identity, and never reconstruct authority from
    conversation state.
+
+   Capture only the fresh sealed thread outcome and, for a failure, its nonblank
+   provider reason. The helper owns replacement and returns a compact status.
+   On `prior-retained`, stop before another thread read, mutation, or lease
+   write; only `committed` and `already-current` may reach the existing lease
+   writer:
+
+   ```sh
+   ADVANCE_RECEIPT_JSON=$( (
+     cd "$WORKING_DIRECTORY" || exit 1
+     HEAD_SHA="$REVIEW_HEAD_SHA" \
+     PR_NUMBER="$PR_NUMBER" \
+     REPOSITORY="<owner/repo>" \
+     BASE_REF="$REVIEW_SCOPE_BASE_REF" \
+     APPROVED_REVIEW_FILE="$APPROVED_REVIEW_FILE" \
+     POST_INTENT_FILE="$POST_INTENT_FILE" \
+     EXECUTION_RECEIPT_FILE="$EXECUTION_RECEIPT_FILE" \
+     THREAD_ID="$SEALED_THREAD_ID" \
+     DISPOSITION="$THREAD_DISPOSITION" \
+     ACTION_FAILURE_REASON="${ACTION_FAILURE_REASON:-}" \
+     EXECUTION_RECEIPT_UPDATED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+       bash "$PR_REVIEW_HELPER" advance-execution-receipt
+   ) ) || exit 1
+   ADVANCE_WRITE_STATUS="$(printf '%s' "$ADVANCE_RECEIPT_JSON" | jq -er '.write_status | select(. == "committed" or . == "already-current" or . == "prior-retained")')" || exit 1
+   [ "$ADVANCE_WRITE_STATUS" != "prior-retained" ] || exit 1
+   EXECUTION_RECEIPT_FILE="$(printf '%s' "$ADVANCE_RECEIPT_JSON" | jq -er '.execution_receipt_file')" || exit 1
+   RECEIPT_ALL_TERMINAL="$(printf '%s' "$ADVANCE_RECEIPT_JSON" | jq -er '.all_terminal | booleans')" || exit 1
+   STATE="$(if [ "$RECEIPT_ALL_TERMINAL" = true ]; then printf posted; else printf resolving; fi)" \
+   EXECUTION_RECEIPT_FILE="$EXECUTION_RECEIPT_FILE" \
+   UPDATED_AT="<RFC-3339-UTC>" \
+     bash "$PR_REVIEW_LEASE_HELPER" write || exit 1
+   ```
 
    Verify every API response. If a resolution fails, record its `failed`
    disposition in the receipt before stopping; do not report `posted` until all

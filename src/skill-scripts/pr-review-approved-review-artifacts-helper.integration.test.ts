@@ -35,6 +35,7 @@ const reviewBodyFile = `.ephemeral/pr-${prNumber}-${headSha}-review-body.md`;
 const payloadFile = `.ephemeral/topic-${headSha}-review-payload.json`;
 const validatedPayloadFile = `.ephemeral/pr-${prNumber}-${headSha}-validated-review-payload.json`;
 const postIntentFile = `.ephemeral/pr-${prNumber}-${headSha}-thread-action-post-intent.json`;
+const executionReceiptFile = `.ephemeral/pr-${prNumber}-${headSha}-thread-action-execution.json`;
 const scopeDecisionFile = `.ephemeral/topic-${headSha}-scope-decision.json`;
 const providerScopeEvidenceFile = `.ephemeral/topic-${headSha}-provider-scope-evidence.json`;
 const PROVIDER_EVIDENCE_SCHEMA = "pr-review/provider-scope-evidence/v2";
@@ -623,6 +624,199 @@ describe.skipIf(!jqAvailable)(
           )
           .digest("hex");
         expect(intent.request_fingerprint_sha256).toBe(expectedFingerprint);
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    });
+
+    it("materializes a receipt before resolving its sealed actions", async () => {
+      const cwd = await makeGitWorkspace();
+      try {
+        await writeInputs(cwd);
+        await runHelper(cwd, "freeze-approved-review", {
+          FINDINGS_FILE: findingsFile,
+          REVIEW_BODY_FILE: reviewBodyFile,
+          REVIEW_PAYLOAD_FILE: payloadFile,
+        });
+        await runHelper(cwd, "materialize-post-intent", {
+          APPROVED_REVIEW_FILE: approvedReviewFile,
+          PROVIDER_ACTOR_ID: "7",
+          POST_INTENT_CREATED_AT: "2026-08-01T00:00:00Z",
+        });
+
+        await expect(
+          runHelper(cwd, "materialize-execution-receipt", {
+            APPROVED_REVIEW_FILE: approvedReviewFile,
+            POST_INTENT_FILE: postIntentFile,
+            POST_OUTCOME: "post-response",
+            PROVIDER_REVIEW_ID: "91",
+            PROVIDER_REVIEW_SUBMITTED_AT: "2026-08-01T00:00:01Z",
+            EXECUTION_RECEIPT_UPDATED_AT: "2026-08-01T00:00:01Z",
+          }),
+        ).resolves.toMatchObject({
+          stdout: `${JSON.stringify({
+            execution_receipt_file: executionReceiptFile,
+            write_status: "committed",
+            all_terminal: false,
+          })}\n`,
+        });
+
+        await expect(
+          readFile(path.join(cwd, executionReceiptFile), "utf8"),
+        ).resolves.toContain('"disposition": "pending"');
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    });
+
+    it("advances one sealed pending resolve while preserving the receipt identity", async () => {
+      const cwd = await makeGitWorkspace();
+      try {
+        await writeInputs(cwd);
+        await runHelper(cwd, "freeze-approved-review", {
+          FINDINGS_FILE: findingsFile,
+          REVIEW_BODY_FILE: reviewBodyFile,
+          REVIEW_PAYLOAD_FILE: payloadFile,
+        });
+        await runHelper(cwd, "materialize-post-intent", {
+          APPROVED_REVIEW_FILE: approvedReviewFile,
+          PROVIDER_ACTOR_ID: "7",
+          POST_INTENT_CREATED_AT: "2026-08-01T00:00:00Z",
+        });
+        await runHelper(cwd, "materialize-execution-receipt", {
+          APPROVED_REVIEW_FILE: approvedReviewFile,
+          POST_INTENT_FILE: postIntentFile,
+          POST_OUTCOME: "post-response",
+          PROVIDER_REVIEW_ID: "91",
+          PROVIDER_REVIEW_SUBMITTED_AT: "2026-08-01T00:00:01Z",
+          EXECUTION_RECEIPT_UPDATED_AT: "2026-08-01T00:00:01Z",
+        });
+
+        await expect(
+          runHelper(cwd, "advance-execution-receipt", {
+            APPROVED_REVIEW_FILE: approvedReviewFile,
+            POST_INTENT_FILE: postIntentFile,
+            EXECUTION_RECEIPT_FILE: executionReceiptFile,
+            THREAD_ID: "PRRT_kwDOExample",
+            DISPOSITION: "succeeded",
+            EXECUTION_RECEIPT_UPDATED_AT: "2026-08-01T00:00:02Z",
+          }),
+        ).resolves.toMatchObject({
+          stdout: `${JSON.stringify({
+            execution_receipt_file: executionReceiptFile,
+            write_status: "committed",
+            all_terminal: true,
+          })}\n`,
+        });
+        const receipt = JSON.parse(
+          await readFile(path.join(cwd, executionReceiptFile), "utf8"),
+        ) as {
+          provider_review_id: number;
+          provider_review_submitted_at: string;
+          actions: Array<{ disposition: string }>;
+        };
+        expect(receipt).toMatchObject({
+          provider_review_id: 91,
+          provider_review_submitted_at: "2026-08-01T00:00:01Z",
+          actions: [{ disposition: "succeeded" }],
+        });
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    });
+
+    it("retains the exact prior receipt when atomic replacement is not committed", async () => {
+      const cwd = await makeGitWorkspace();
+      try {
+        await writeInputs(cwd);
+        await runHelper(cwd, "freeze-approved-review", {
+          FINDINGS_FILE: findingsFile,
+          REVIEW_BODY_FILE: reviewBodyFile,
+          REVIEW_PAYLOAD_FILE: payloadFile,
+        });
+        await runHelper(cwd, "materialize-post-intent", {
+          APPROVED_REVIEW_FILE: approvedReviewFile,
+          PROVIDER_ACTOR_ID: "7",
+          POST_INTENT_CREATED_AT: "2026-08-01T00:00:00Z",
+        });
+        await runHelper(cwd, "materialize-execution-receipt", {
+          APPROVED_REVIEW_FILE: approvedReviewFile,
+          POST_INTENT_FILE: postIntentFile,
+          POST_OUTCOME: "post-response",
+          PROVIDER_REVIEW_ID: "91",
+          PROVIDER_REVIEW_SUBMITTED_AT: "2026-08-01T00:00:01Z",
+          EXECUTION_RECEIPT_UPDATED_AT: "2026-08-01T00:00:01Z",
+        });
+        const before = await readFile(
+          path.join(cwd, executionReceiptFile),
+          "utf8",
+        );
+        const fakeBin = path.join(cwd, ".ephemeral/fake-bin");
+        await mkdir(fakeBin);
+        const failingMv = path.join(fakeBin, "mv");
+        await writeFile(failingMv, "#!/usr/bin/env bash\nexit 1\n");
+        await chmod(failingMv, 0o755);
+
+        await expect(
+          runHelper(cwd, "advance-execution-receipt", {
+            APPROVED_REVIEW_FILE: approvedReviewFile,
+            POST_INTENT_FILE: postIntentFile,
+            EXECUTION_RECEIPT_FILE: executionReceiptFile,
+            THREAD_ID: "PRRT_kwDOExample",
+            DISPOSITION: "failed",
+            ACTION_FAILURE_REASON: "Provider mutation did not complete.",
+            EXECUTION_RECEIPT_UPDATED_AT: "2026-08-01T00:00:02Z",
+            PATH: `${fakeBin}:${process.env.PATH}`,
+          }),
+        ).resolves.toMatchObject({
+          stdout: `${JSON.stringify({
+            execution_receipt_file: executionReceiptFile,
+            write_status: "prior-retained",
+            all_terminal: false,
+          })}\n`,
+        });
+        await expect(
+          readFile(path.join(cwd, executionReceiptFile), "utf8"),
+        ).resolves.toBe(before);
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    });
+
+    it("materializes an all-terminal receipt for an all-leave approved action set", async () => {
+      const cwd = await makeGitWorkspace();
+      try {
+        await writeInputs(cwd);
+        const allLeave = threadActionsEnvelope(priorThreadsEnvelope());
+        allLeave.actions[0].action = "leave";
+        await writeJson(cwd, threadActionsFile, allLeave);
+        await runHelper(cwd, "freeze-approved-review", {
+          FINDINGS_FILE: findingsFile,
+          REVIEW_BODY_FILE: reviewBodyFile,
+          REVIEW_PAYLOAD_FILE: payloadFile,
+        });
+        await runHelper(cwd, "materialize-post-intent", {
+          APPROVED_REVIEW_FILE: approvedReviewFile,
+          PROVIDER_ACTOR_ID: "7",
+          POST_INTENT_CREATED_AT: "2026-08-01T00:00:00Z",
+        });
+
+        await expect(
+          runHelper(cwd, "materialize-execution-receipt", {
+            APPROVED_REVIEW_FILE: approvedReviewFile,
+            POST_INTENT_FILE: postIntentFile,
+            POST_OUTCOME: "provider-reconciliation",
+            PROVIDER_REVIEW_ID: "91",
+            PROVIDER_REVIEW_SUBMITTED_AT: "2026-08-01T00:00:01Z",
+            EXECUTION_RECEIPT_UPDATED_AT: "2026-08-01T00:00:01Z",
+          }),
+        ).resolves.toMatchObject({
+          stdout: `${JSON.stringify({
+            execution_receipt_file: executionReceiptFile,
+            write_status: "committed",
+            all_terminal: true,
+          })}\n`,
+        });
       } finally {
         await cleanupTempDir(cwd);
       }
