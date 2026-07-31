@@ -121,6 +121,11 @@ expected_validated_payload_path_for() {
   printf '.ephemeral/pr-%s-%s-validated-review-payload.json\n' "$PR_NUMBER" "$review_head_sha"
 }
 
+expected_thread_actions_path_for() {
+  local review_head_sha="$1"
+  printf '.ephemeral/%s-%s-thread-actions.json\n' "$(branch_slug)" "$review_head_sha"
+}
+
 expected_scope_decision_path_for() {
   local review_head_sha="$1"
   printf '.ephemeral/%s-%s-scope-decision.json\n' "$(branch_slug)" "$review_head_sha"
@@ -230,6 +235,30 @@ validate_scope_decision_path_shape() {
   }
 }
 
+validate_thread_actions_path_shape() {
+  local thread_actions_file="$1"
+  local review_head_sha="$2"
+  local expected
+  validate_direct_child_path "thread actions" "$thread_actions_file" "-thread-actions.json"
+  expected="$(expected_thread_actions_path_for "$review_head_sha")"
+  [ "$thread_actions_file" = "$expected" ] || {
+    echo "thread actions path mismatch: $thread_actions_file" >&2
+    exit 1
+  }
+}
+
+validate_prior_threads_path_shape() {
+  local prior_threads_file="$1"
+  local review_head_sha="$2"
+  local expected
+  validate_direct_child_path "prior threads" "$prior_threads_file" "-prior-threads.json"
+  expected=".ephemeral/$(branch_slug)-${review_head_sha}-prior-threads.json"
+  [ "$prior_threads_file" = "$expected" ] || {
+    echo "prior threads path mismatch: $prior_threads_file" >&2
+    exit 1
+  }
+}
+
 prepare_write_target() {
   local label="$1"
   local file="$2"
@@ -320,6 +349,41 @@ resolve_validator() {
 
   echo "play-validate-review-artifacts validator missing" >&2
   exit 1
+}
+
+resolve_prior_thread_artifacts_helper() {
+  local helper
+  if [ -n "${PRIOR_THREAD_ARTIFACTS_HELPER:-}" ]; then
+    helper="$PRIOR_THREAD_ARTIFACTS_HELPER"
+  else
+    helper="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/prior-thread-artifacts.sh"
+  fi
+  [ -f "$helper" ] && [ -x "$helper" ] || {
+    echo "pr-review prior-thread-artifacts helper missing" >&2
+    exit 1
+  }
+  printf '%s\n' "$helper"
+}
+
+validate_thread_actions_binding() {
+  local thread_actions_file="$1"
+  local prior_threads_file="$2"
+  local review_head_sha="$3"
+  local helper
+
+  require_env REPOSITORY
+  validate_pr_number
+  validate_thread_actions_path_shape "$thread_actions_file" "$review_head_sha"
+  validate_prior_threads_path_shape "$prior_threads_file" "$review_head_sha"
+  assert_readable_file "thread actions file" "$thread_actions_file"
+  assert_readable_file "prior threads file" "$prior_threads_file"
+  helper="$(resolve_prior_thread_artifacts_helper)"
+  HEAD_SHA="$review_head_sha" \
+  THREAD_ACTIONS_FILE="$thread_actions_file" \
+  PRIOR_THREADS_FILE="$prior_threads_file" \
+  REPOSITORY="$REPOSITORY" \
+  PR_NUMBER="$PR_NUMBER" \
+    bash "$helper" validate-thread-actions
 }
 
 scope_decision_file_for() {
@@ -533,15 +597,20 @@ assert_approved_schema() {
     def head_sha: type == "string" and test("^[0-9a-f]{40}$");
     type == "object"
     and .schema == "pr-review/approved-review/v1"
+    and (.repository | type == "string")
+    and (.pr_number | type == "number" and . == floor and . >= 1)
     and (.review_head_sha | head_sha)
     and (.findings_file | type == "string")
     and (.review_body_file | type == "string")
     and (.review_payload_file | type == "string")
     and (.scope_decision_file | type == "string")
+    and (.thread_actions_file | type == "string")
     and (.findings_sha256 | hex_sha256)
     and (.review_body_sha256 | hex_sha256)
     and (.review_payload_sha256 | hex_sha256)
     and (.scope_decision_sha256 | hex_sha256)
+    and (.thread_actions_sha256 | hex_sha256)
+    and (.thread_actions | type == "array")
     and (.payload | type == "object")
   ' "$file" >/dev/null || {
     echo "approved review schema mismatch: $file" >&2
@@ -597,6 +666,9 @@ freeze_approved_review() {
   local payload_sha256
   local scope_decision_file
   local scope_decision_sha256
+  local thread_actions_file
+  local thread_actions_sha256
+  local prior_threads_file
   local review_event
   require_repo_root
   validate_head_sha
@@ -604,6 +676,8 @@ freeze_approved_review() {
   require_env FINDINGS_FILE
   require_env REVIEW_BODY_FILE
   require_env REVIEW_PAYLOAD_FILE
+  require_env REPOSITORY
+  require_env THREAD_ACTIONS_FILE
   validate_findings_path_shape "$FINDINGS_FILE" "$HEAD_SHA"
   validate_review_body_path_shape "$REVIEW_BODY_FILE" "$HEAD_SHA"
   validate_payload_path_shape "$REVIEW_PAYLOAD_FILE" "$HEAD_SHA"
@@ -620,6 +694,14 @@ freeze_approved_review() {
   validate_scope_decision_path_shape "$scope_decision_file" "$HEAD_SHA"
   assert_readable_file "scope decision file" "$scope_decision_file"
   compare_payload_with_support "$HEAD_SHA" "$scope_decision_file" "$FINDINGS_FILE" "$REVIEW_BODY_FILE" "$REVIEW_PAYLOAD_FILE" "$REVIEW_EVENT" >/dev/null
+  thread_actions_file="$THREAD_ACTIONS_FILE"
+  validate_thread_actions_path_shape "$thread_actions_file" "$HEAD_SHA"
+  assert_readable_file "thread actions file" "$thread_actions_file"
+  prior_threads_file="$(jq -er '.prior_threads_file | strings | select(length > 0)' "$thread_actions_file")" || {
+    echo "thread actions prior threads path missing or malformed: $thread_actions_file" >&2
+    exit 1
+  }
+  validate_thread_actions_binding "$thread_actions_file" "$prior_threads_file" "$HEAD_SHA"
 
   approved_review_file="$(expected_approved_path_for "$HEAD_SHA")"
   validate_approved_path_shape "$approved_review_file"
@@ -628,10 +710,13 @@ freeze_approved_review() {
   review_body_sha256="$(sha256_file "$REVIEW_BODY_FILE")"
   payload_sha256="$(sha256_file "$REVIEW_PAYLOAD_FILE")"
   scope_decision_sha256="$(sha256_file "$scope_decision_file")"
+  thread_actions_sha256="$(sha256_file "$thread_actions_file")"
   tmp_file="$(mktemp ".ephemeral/.approved-review-${HEAD_SHA}.XXXXXX")"
   trap 'rm -f "${tmp_file:-}"' EXIT
   jq -n \
     --arg schema "pr-review/approved-review/v1" \
+    --arg repository "$REPOSITORY" \
+    --argjson pr_number "$PR_NUMBER" \
     --arg review_head_sha "$HEAD_SHA" \
     --arg findings_file "$FINDINGS_FILE" \
     --arg review_body_file "$REVIEW_BODY_FILE" \
@@ -641,9 +726,14 @@ freeze_approved_review() {
     --arg review_body_sha256 "$review_body_sha256" \
     --arg review_payload_sha256 "$payload_sha256" \
     --arg scope_decision_sha256 "$scope_decision_sha256" \
+    --arg thread_actions_file "$thread_actions_file" \
+    --arg thread_actions_sha256 "$thread_actions_sha256" \
     --slurpfile payload "$REVIEW_PAYLOAD_FILE" \
+    --slurpfile thread_actions "$thread_actions_file" \
     '{
       schema: $schema,
+      repository: $repository,
+      pr_number: $pr_number,
       review_head_sha: $review_head_sha,
       findings_file: $findings_file,
       review_body_file: $review_body_file,
@@ -653,6 +743,9 @@ freeze_approved_review() {
       review_body_sha256: $review_body_sha256,
       review_payload_sha256: $review_payload_sha256,
       scope_decision_sha256: $scope_decision_sha256,
+      thread_actions_file: $thread_actions_file,
+      thread_actions_sha256: $thread_actions_sha256,
+      thread_actions: $thread_actions[0].actions,
       payload: $payload[0]
     }' > "$tmp_file"
   mv -f "$tmp_file" "$approved_review_file"
@@ -682,14 +775,31 @@ validate_approved_review() {
   local review_body_sha256
   local payload_sha256
   local scope_decision_sha256
+  local repository
+  local pr_number
+  local thread_actions_file
+  local thread_actions_sha256
+  local prior_threads_file
   local review_event
   require_repo_root
   validate_head_sha
   validate_pr_number
+  require_env REPOSITORY
   require_env APPROVED_REVIEW_FILE
   validate_approved_path_shape "$APPROVED_REVIEW_FILE"
   assert_readable_file "approved review file" "$APPROVED_REVIEW_FILE"
   assert_approved_schema "$APPROVED_REVIEW_FILE"
+
+  repository="$(jq -r '.repository' "$APPROVED_REVIEW_FILE")"
+  pr_number="$(jq -r '.pr_number' "$APPROVED_REVIEW_FILE")"
+  [ "$repository" = "$REPOSITORY" ] || {
+    echo "approved review repository mismatch: $repository" >&2
+    exit 1
+  }
+  [ "$pr_number" = "$PR_NUMBER" ] || {
+    echo "approved review PR number mismatch: $pr_number" >&2
+    exit 1
+  }
 
   review_head_sha="$(jq -r '.review_head_sha' "$APPROVED_REVIEW_FILE")"
   [ "$HEAD_SHA" = "$review_head_sha" ] || {
@@ -706,6 +816,8 @@ validate_approved_review() {
   review_body_sha256="$(jq -r '.review_body_sha256' "$APPROVED_REVIEW_FILE")"
   payload_sha256="$(jq -r '.review_payload_sha256' "$APPROVED_REVIEW_FILE")"
   scope_decision_sha256="$(jq -r '.scope_decision_sha256 // ""' "$APPROVED_REVIEW_FILE")"
+  thread_actions_file="$(jq -r '.thread_actions_file' "$APPROVED_REVIEW_FILE")"
+  thread_actions_sha256="$(jq -r '.thread_actions_sha256' "$APPROVED_REVIEW_FILE")"
   review_event="$(jq -r '.payload.event' "$APPROVED_REVIEW_FILE")"
 
   validate_findings_path_shape "$findings_file" "$review_head_sha"
@@ -723,6 +835,18 @@ validate_approved_review() {
   validate_scope_decision_path_shape "$scope_decision_file" "$review_head_sha"
   assert_readable_file "scope decision file" "$scope_decision_file"
   validate_digest "scope decision" "$scope_decision_file" "$scope_decision_sha256"
+  validate_thread_actions_path_shape "$thread_actions_file" "$review_head_sha"
+  assert_readable_file "thread actions file" "$thread_actions_file"
+  prior_threads_file="$(jq -er '.prior_threads_file | strings | select(length > 0)' "$thread_actions_file")" || {
+    echo "thread actions prior threads path missing or malformed: $thread_actions_file" >&2
+    exit 1
+  }
+  validate_thread_actions_binding "$thread_actions_file" "$prior_threads_file" "$review_head_sha"
+  validate_digest "thread actions" "$thread_actions_file" "$thread_actions_sha256"
+  jq -e --slurpfile thread_actions "$thread_actions_file" '.thread_actions == $thread_actions[0].actions' "$APPROVED_REVIEW_FILE" >/dev/null || {
+    echo "thread actions content mismatch: $thread_actions_file" >&2
+    exit 1
+  }
   jq -e --slurpfile payload "$payload_file" '.payload == $payload[0]' "$APPROVED_REVIEW_FILE" >/dev/null || {
     echo "payload content mismatch: $payload_file" >&2
     exit 1

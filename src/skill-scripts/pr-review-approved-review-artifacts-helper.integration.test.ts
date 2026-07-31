@@ -41,6 +41,7 @@ const DIGEST_PROVENANCE_SCHEMA = "pr-review/digest-provenance/v1";
 const CANONICAL_GIT_DIFF_DIALECT = "canonical-git-diff/v1";
 const approvedReviewFile = `.ephemeral/topic-${headSha}-approved-review.json`;
 const priorThreadsFile = `.ephemeral/topic-${headSha}-prior-threads.json`;
+const threadActionsFile = `.ephemeral/topic-${headSha}-thread-actions.json`;
 
 async function commandAvailable(command: string): Promise<boolean> {
   try {
@@ -119,6 +120,67 @@ function payloadWithRange(overrides: Record<string, unknown> = {}) {
     ],
     ...overrides,
   });
+}
+
+function priorThreadsEnvelope(headShaValue = headSha) {
+  return {
+    schema: "pr-review/prior-threads/v1",
+    provider: "github",
+    pr_number: Number(prNumber),
+    head_sha: headShaValue,
+    threads: [
+      {
+        thread_id: "PRRT_kwDOExample",
+        is_resolved: false,
+        is_outdated: false,
+        path: "src/example.ts",
+        line: 12,
+        original_line: 12,
+        start_line: null,
+        original_start_line: null,
+        classification: "actionable",
+        model_context: "include",
+        staleness_reason: "",
+        comments: [
+          {
+            author: "reviewer",
+            author_association: "MEMBER",
+            created_at: "2026-01-01T00:00:00Z",
+            updated_at: "2026-01-01T00:00:00Z",
+            body: "Please check this.",
+            is_bot: false,
+            minimized_reason: null,
+          },
+        ],
+        summary: "",
+      },
+    ],
+    dropped: [],
+  };
+}
+
+function threadActionsEnvelope(
+  priorThreads: ReturnType<typeof priorThreadsEnvelope>,
+  headShaValue = headSha,
+) {
+  return {
+    schema: "pr-review/thread-actions/v1",
+    repository: "owner/repo",
+    pr_number: Number(prNumber),
+    review_head_sha: headShaValue,
+    prior_threads_file: `.ephemeral/topic-${headShaValue}-prior-threads.json`,
+    prior_threads_sha256: createHash("sha256")
+      .update(JSON.stringify(priorThreads, null, 2))
+      .digest("hex"),
+    actions: [
+      {
+        thread_id: "PRRT_kwDOExample",
+        action: "resolve",
+        evidence: "The current change addresses the requested correction.",
+        reason: "Resolve because the reviewed code now satisfies the request.",
+      },
+    ],
+  };
 }
 
 function prReviewInitialScope(
@@ -240,10 +302,23 @@ async function writeInputs(cwd: string) {
   await writeJson(cwd, findingsFile, findingsEnvelope());
   await writeFile(path.join(cwd, reviewBodyFile), "Review body\n");
   await writeJson(cwd, payloadFile, payload());
+  await writeThreadActionInputs(cwd);
   await writeJson(
     cwd,
     scopeDecisionFile,
     prReviewInitialScope(headSha, headSha),
+  );
+}
+
+async function writeThreadActionInputs(cwd: string, headShaValue = headSha) {
+  const currentPriorThreadsFile = `.ephemeral/topic-${headShaValue}-prior-threads.json`;
+  const currentThreadActionsFile = `.ephemeral/topic-${headShaValue}-thread-actions.json`;
+  const priorThreads = priorThreadsEnvelope(headShaValue);
+  await writeJson(cwd, currentPriorThreadsFile, priorThreads);
+  await writeJson(
+    cwd,
+    currentThreadActionsFile,
+    threadActionsEnvelope(priorThreads, headShaValue),
   );
 }
 
@@ -300,6 +375,7 @@ async function runHelper(
   command: string,
   env: NodeJS.ProcessEnv = {},
 ) {
+  const currentHeadSha = env.HEAD_SHA ?? headSha;
   const supportValidator =
     env.PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT ??
     (await writePassingSupportValidator(cwd));
@@ -310,6 +386,8 @@ async function runHelper(
       BASE_REF: "main",
       HEAD_SHA: headSha,
       PR_NUMBER: prNumber,
+      REPOSITORY: "owner/repo",
+      THREAD_ACTIONS_FILE: `.ephemeral/topic-${currentHeadSha}-thread-actions.json`,
       PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT: supportValidator,
       ...env,
     },
@@ -333,7 +411,7 @@ async function writeRecordingSupportValidator(cwd: string, stderr = "") {
     [
       "#!/usr/bin/env bash",
       "set -euo pipefail",
-      'printf "%s\\n" "$@" > ".ephemeral/support-validator-args.txt"',
+      'printf "%s\\n" "$@" >> ".ephemeral/support-validator-args.txt"',
       stderr ? `printf '%s\\n' ${JSON.stringify(stderr)} >&2` : "",
       stderr ? "exit 1" : "exit 0",
       "",
@@ -410,6 +488,11 @@ describe.skipIf(!jqAvailable)(
           review_body_sha256: string;
           review_payload_sha256: string;
           scope_decision_sha256: string;
+          repository: string;
+          pr_number: number;
+          thread_actions_file: string;
+          thread_actions_sha256: string;
+          thread_actions: unknown;
           payload: unknown;
         };
         expect(artifact).toMatchObject({
@@ -419,12 +502,17 @@ describe.skipIf(!jqAvailable)(
           review_body_file: reviewBodyFile,
           review_payload_file: payloadFile,
           scope_decision_file: scopeDecisionFile,
+          repository: "owner/repo",
+          pr_number: Number(prNumber),
+          thread_actions_file: threadActionsFile,
+          thread_actions: threadActionsEnvelope(priorThreadsEnvelope()).actions,
           payload: payload(),
         });
         expect(artifact.findings_sha256).toMatch(/^[0-9a-f]{64}$/);
         expect(artifact.review_body_sha256).toMatch(/^[0-9a-f]{64}$/);
         expect(artifact.review_payload_sha256).toMatch(/^[0-9a-f]{64}$/);
         expect(artifact.scope_decision_sha256).toMatch(/^[0-9a-f]{64}$/);
+        expect(artifact.thread_actions_sha256).toMatch(/^[0-9a-f]{64}$/);
       } finally {
         await cleanupTempDir(cwd);
       }
@@ -492,7 +580,7 @@ describe.skipIf(!jqAvailable)(
       }
     });
 
-    it("uses follow-up prior context from the scope artifact when the sibling prior-thread file is absent", async () => {
+    it("rejects a candidate whose prior-thread evidence is no longer readable", async () => {
       const cwd = await makeGitWorkspace();
       try {
         await writeInputs(cwd);
@@ -511,24 +599,18 @@ describe.skipIf(!jqAvailable)(
         );
         const validator = await writeRecordingSupportValidator(cwd);
 
-        await runHelper(cwd, "freeze-approved-review", {
-          FINDINGS_FILE: findingsFile,
-          REVIEW_BODY_FILE: reviewBodyFile,
-          REVIEW_PAYLOAD_FILE: payloadFile,
-          PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT: validator,
+        await expect(
+          runHelper(cwd, "freeze-approved-review", {
+            FINDINGS_FILE: findingsFile,
+            REVIEW_BODY_FILE: reviewBodyFile,
+            REVIEW_PAYLOAD_FILE: payloadFile,
+            PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT: validator,
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining(
+            "prior threads file missing or not a regular file",
+          ),
         });
-        await runHelper(cwd, "validate-approved-review", {
-          APPROVED_REVIEW_FILE: approvedReviewFile,
-          PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT: validator,
-        });
-
-        const args = await readRecordedSupportArgs(cwd);
-        expectArgValue(
-          args,
-          "--expected-prior-context-kind",
-          "github-prior-threads",
-        );
-        expectArgValue(args, "--expected-prior-context-path", priorThreadsFile);
       } finally {
         await cleanupTempDir(cwd);
       }
@@ -766,6 +848,7 @@ describe.skipIf(!jqAvailable)(
             },
           }),
         );
+        await writeThreadActionInputs(cwd, realHeadSha);
 
         await expect(
           runHelper(cwd, "freeze-approved-review", {
@@ -958,6 +1041,7 @@ describe.skipIf(!jqAvailable)(
             },
           }),
         );
+        await writeThreadActionInputs(cwd, realHeadSha);
 
         for (const wrongBaseRef of ["main", providerBaseRefOid]) {
           await expect(
@@ -1089,6 +1173,50 @@ describe.skipIf(!jqAvailable)(
 
         expect(JSON.parse(stdout)).toEqual(payload());
         expect(stdout).toContain('"body": "Review body\\n"');
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    });
+
+    it("rejects thread-action edits that are not covered by the approved freeze", async () => {
+      const cwd = await makeGitWorkspace();
+      try {
+        await writeInputs(cwd);
+        await runHelper(cwd, "freeze-approved-review", {
+          FINDINGS_FILE: findingsFile,
+          REVIEW_BODY_FILE: reviewBodyFile,
+          REVIEW_PAYLOAD_FILE: payloadFile,
+        });
+
+        const priorThreads = priorThreadsEnvelope();
+        const editedCandidate = threadActionsEnvelope(priorThreads);
+        editedCandidate.actions[0].action = "leave";
+        await writeJson(cwd, threadActionsFile, editedCandidate);
+
+        await expect(
+          runHelper(cwd, "validate-approved-review", {
+            APPROVED_REVIEW_FILE: approvedReviewFile,
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("thread actions digest mismatch"),
+        });
+
+        const artifact = JSON.parse(
+          await readFile(path.join(cwd, approvedReviewFile), "utf8"),
+        ) as Record<string, unknown>;
+        artifact.thread_actions_sha256 = await sha256File(
+          cwd,
+          threadActionsFile,
+        );
+        await writeJson(cwd, approvedReviewFile, artifact);
+
+        await expect(
+          runHelper(cwd, "validate-approved-review", {
+            APPROVED_REVIEW_FILE: approvedReviewFile,
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("thread actions content mismatch"),
+        });
       } finally {
         await cleanupTempDir(cwd);
       }

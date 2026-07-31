@@ -1051,9 +1051,11 @@ Only after user approval:
      APPROVED_REVIEW_FILE=$(
        HEAD_SHA="$REVIEW_HEAD_SHA" \
        PR_NUMBER="$PR_NUMBER" \
+       REPOSITORY="<owner/repo>" \
        FINDINGS_FILE="$REVIEW_FINDINGS_FILE" \
        REVIEW_BODY_FILE="$REVIEW_BODY_FILE" \
        REVIEW_PAYLOAD_FILE="$REVIEW_PAYLOAD_FILE" \
+       THREAD_ACTIONS_FILE="$THREAD_ACTIONS_FILE" \
        BASE_REF="$REVIEW_SCOPE_BASE_REF" \
        SCOPE_DECISION_FILE="$REVIEW_SCOPE_DECISION_FILE" \
          bash "$PR_REVIEW_HELPER" freeze-approved-review || return 1
@@ -1068,11 +1070,14 @@ Only after user approval:
    ```
 
    The frozen artifact schema is `pr-review/approved-review/v1`. It stores the
-   approved `review_head_sha`, findings path, review body path, review payload
-   path, Phase 3 scope-decision path, SHA-256 digests for all four source
-   artifacts including the scope-decision artifact, and the exact payload
-   object. The helper validates the stored scope-decision artifact and digest
-   before posting. The helper ensures `commit_id`, `event`, `body`, and `comments` all land in the JSON body,
+   approved repository, PR number, `review_head_sha`, findings path, review
+   body path, review payload path, Phase 3 scope-decision path, and the exact
+   validated `pr-review/thread-actions/v1` candidate path, digest, and action
+   list. It stores SHA-256 digests for every frozen source artifact, including
+   the scope-decision and thread-actions candidates, together with the exact
+   payload object. The helper revalidates the stored scope-decision and
+   thread-actions evidence, their repository/PR/head bindings, digests, and
+   frozen action content before posting. The helper ensures `commit_id`, `event`, `body`, and `comments` all land in the JSON body,
    and requires ranged inline comments to pair `start_line` with
    `start_side: "RIGHT"` while single-line comments omit both fields.
    Any nonzero helper exit is a contract failure; fail closed before posting.
@@ -1100,8 +1105,9 @@ Only after user approval:
    VALIDATED_REVIEW_PAYLOAD_FILE=$( (
      cd "$WORKING_DIRECTORY" || exit 1
      HEAD_SHA="$REVIEW_HEAD_SHA" \
-       PR_NUMBER="$PR_NUMBER" \
-       BASE_REF="$REVIEW_SCOPE_BASE_REF" \
+     PR_NUMBER="$PR_NUMBER" \
+     REPOSITORY="<owner/repo>" \
+     BASE_REF="$REVIEW_SCOPE_BASE_REF" \
        APPROVED_REVIEW_FILE="$APPROVED_REVIEW_FILE" \
        bash "$PR_REVIEW_HELPER" materialize-validated-review-payload
    ) ) || exit 1
