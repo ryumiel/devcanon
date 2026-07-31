@@ -2854,40 +2854,48 @@ describe("play-validate-review-artifacts validator", () => {
         "github-prior-threads prior context is pr-review only",
       );
 
-      for (const invalidInitialPriorContext of [
-        {
-          surface: "pr-review",
+      await writeJson(
+        cwd,
+        ".ephemeral/topic-scope-decision.json",
+        initialScope(baseSha, headSha, "pr-review", {
           kind: "github-prior-threads",
           path: ".ephemeral/topic-prior-threads.json",
-        },
-        {
-          surface: "branch-review",
+        }),
+      );
+      await expect(
+        runValidator(cwd, "validate-scope-decision", [
+          ...scopeArgs(
+            headSha,
+            baseSha,
+            ".ephemeral/topic-scope-decision.json",
+            "pr-review",
+            "github-prior-threads",
+            ".ephemeral/topic-prior-threads.json",
+          ),
+        ]),
+      ).resolves.toMatchObject({ stdout: "" });
+
+      await writeJson(
+        cwd,
+        ".ephemeral/topic-scope-decision.json",
+        initialScope(baseSha, headSha, "branch-review", {
           kind: "branch-findings",
           path: ".ephemeral/topic-findings.json",
-        },
-      ]) {
-        await writeJson(
-          cwd,
-          ".ephemeral/topic-scope-decision.json",
-          initialScope(baseSha, headSha, invalidInitialPriorContext.surface, {
-            kind: invalidInitialPriorContext.kind,
-            path: invalidInitialPriorContext.path,
-          }),
-        );
-        await expectRejectsWith(
-          runValidator(cwd, "validate-scope-decision", [
-            ...scopeArgs(
-              headSha,
-              baseSha,
-              ".ephemeral/topic-scope-decision.json",
-              invalidInitialPriorContext.surface,
-              invalidInitialPriorContext.kind,
-              invalidInitialPriorContext.path,
-            ),
-          ]),
-          "initial scope requires no prior context",
-        );
-      }
+        }),
+      );
+      await expectRejectsWith(
+        runValidator(cwd, "validate-scope-decision", [
+          ...scopeArgs(
+            headSha,
+            baseSha,
+            ".ephemeral/topic-scope-decision.json",
+            "branch-review",
+            "branch-findings",
+            ".ephemeral/topic-findings.json",
+          ),
+        ]),
+        "initial scope requires no prior context",
+      );
 
       await writeJson(cwd, ".ephemeral/topic-scope-decision.json", {
         ...narrowScope(baseSha, firstSha, headSha),
