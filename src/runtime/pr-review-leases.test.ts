@@ -1109,6 +1109,27 @@ describe("pr-review lease reducer", () => {
         executionReceiptAllTerminal: false,
       } as Parameters<typeof reducePrReviewLease>[2]),
     ).toThrow("PROVIDER_REVIEW_ID must match resolving provider review");
+    const posted = reducePrReviewLease(resolving, identity, {
+      state: "posted",
+      baseRef: "main",
+      headRef: "topic",
+      createdAt: "2026-06-11T00:00:00Z",
+      updatedAt: "2026-06-11T00:04:00Z",
+      finishedAt: "2026-06-11T00:04:00Z",
+      executionReceiptFile:
+        ".ephemeral/pr-432-1111111111111111111111111111111111111111-thread-action-execution.json",
+      githubPostedAt: "2026-06-11T00:03:00Z",
+      providerReviewId: 987,
+      executionReceiptAllTerminal: true,
+    } as Parameters<typeof reducePrReviewLease>[2]);
+    expect(posted).toMatchObject({
+      state: "posted",
+      terminal: { finished_at: "2026-06-11T00:04:00Z" },
+      github: {
+        github_posted_at: "2026-06-11T00:03:00Z",
+        provider_review_id: 987,
+      },
+    });
   });
 
   it("rejects posted leases without a persisted post intent", () => {

@@ -1123,14 +1123,19 @@ Only after user approval:
    ```sh
    PROVIDER_ACTOR_ID="$(gh api user --jq .id)" || exit 1
    EXISTING_POST_INTENT_FILE=".ephemeral/pr-${PR_NUMBER}-${REVIEW_HEAD_SHA}-thread-action-post-intent.json"
-   if [ -e "$EXISTING_POST_INTENT_FILE" ]; then
-     [ ! -L "$EXISTING_POST_INTENT_FILE" ] && [ -f "$EXISTING_POST_INTENT_FILE" ] || exit 1
-     POST_INTENT_CREATED_AT="$(jq -er '
+   POST_INTENT_REUSED=false
+   if (cd "$WORKING_DIRECTORY" && [ -e "$EXISTING_POST_INTENT_FILE"); then
+     POST_INTENT_CREATED_AT="$( (
+       cd "$WORKING_DIRECTORY" || exit 1
+       [ ! -L "$EXISTING_POST_INTENT_FILE" ] && [ -f "$EXISTING_POST_INTENT_FILE" ] || exit 1
+       jq -er '
        select(.schema == "pr-review/thread-action-post-intent/v1")
        | .created_at
        | strings
        | select(test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"))
-     ' "$EXISTING_POST_INTENT_FILE")" || exit 1
+       ' "$EXISTING_POST_INTENT_FILE"
+     ) )" || exit 1
+     POST_INTENT_REUSED=true
    else
      POST_INTENT_CREATED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
    fi
@@ -1155,12 +1160,17 @@ Only after user approval:
    POST_INTENT_FILE="$POST_INTENT_FILE" \
    UPDATED_AT="<RFC-3339-UTC>" \
      bash "$PR_REVIEW_LEASE_HELPER" write || exit 1
-   (
-     cd "$WORKING_DIRECTORY" || exit 1
-     gh api repos/{owner}/{repo}/pulls/<N>/reviews \
-       --method POST \
-       --input "$VALIDATED_REVIEW_PAYLOAD_FILE"
-   )
+   if [ "$POST_INTENT_REUSED" = true ]; then
+     # The helper just revalidated the sealed intent. Reconcile; never repost.
+     : "route directly to the required provider reconciliation"
+   else
+     (
+       cd "$WORKING_DIRECTORY" || exit 1
+       gh api repos/{owner}/{repo}/pulls/<N>/reviews \
+         --method POST \
+         --input "$VALIDATED_REVIEW_PAYLOAD_FILE"
+     )
+   fi
    ```
 
    Persist the post intent before any provider POST; an intent alone grants no
@@ -1210,8 +1220,20 @@ Only after user approval:
    EXECUTION_RECEIPT_FILE="$(printf '%s' "$EXECUTION_RECEIPT_JSON" | jq -er '.execution_receipt_file')" || exit 1
    RECEIPT_WRITE_STATUS="$(printf '%s' "$EXECUTION_RECEIPT_JSON" | jq -er '.write_status | select(. == "committed" or . == "already-current")')" || exit 1
    RECEIPT_ALL_TERMINAL="$(printf '%s' "$EXECUTION_RECEIPT_JSON" | jq -er '.all_terminal | booleans')" || exit 1
-   STATE="$(if [ "$RECEIPT_ALL_TERMINAL" = true ]; then printf posted; else printf resolving; fi)" \
+   GITHUB_POSTED_AT="$(cd "$WORKING_DIRECTORY" && jq -er '.provider_review_submitted_at' "$EXECUTION_RECEIPT_FILE")" || exit 1
+   PROVIDER_REVIEW_ID="$(cd "$WORKING_DIRECTORY" && jq -er '.provider_review_id' "$EXECUTION_RECEIPT_FILE")" || exit 1
+   if [ "$RECEIPT_ALL_TERMINAL" = true ]; then
+     STATE="posted"
+     FINISHED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+   else
+     STATE="resolving"
+     unset FINISHED_AT
+   fi
+   STATE="$STATE" \
    EXECUTION_RECEIPT_FILE="$EXECUTION_RECEIPT_FILE" \
+   GITHUB_POSTED_AT="$GITHUB_POSTED_AT" \
+   PROVIDER_REVIEW_ID="$PROVIDER_REVIEW_ID" \
+   FINISHED_AT="${FINISHED_AT:-}" \
    UPDATED_AT="<RFC-3339-UTC>" \
      bash "$PR_REVIEW_LEASE_HELPER" write || exit 1
    ```
@@ -1269,8 +1291,20 @@ Only after user approval:
    [ "$ADVANCE_WRITE_STATUS" != "prior-retained" ] || exit 1
    EXECUTION_RECEIPT_FILE="$(printf '%s' "$ADVANCE_RECEIPT_JSON" | jq -er '.execution_receipt_file')" || exit 1
    RECEIPT_ALL_TERMINAL="$(printf '%s' "$ADVANCE_RECEIPT_JSON" | jq -er '.all_terminal | booleans')" || exit 1
-   STATE="$(if [ "$RECEIPT_ALL_TERMINAL" = true ]; then printf posted; else printf resolving; fi)" \
+   GITHUB_POSTED_AT="$(cd "$WORKING_DIRECTORY" && jq -er '.provider_review_submitted_at' "$EXECUTION_RECEIPT_FILE")" || exit 1
+   PROVIDER_REVIEW_ID="$(cd "$WORKING_DIRECTORY" && jq -er '.provider_review_id' "$EXECUTION_RECEIPT_FILE")" || exit 1
+   if [ "$RECEIPT_ALL_TERMINAL" = true ]; then
+     STATE="posted"
+     FINISHED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+   else
+     STATE="resolving"
+     unset FINISHED_AT
+   fi
+   STATE="$STATE" \
    EXECUTION_RECEIPT_FILE="$EXECUTION_RECEIPT_FILE" \
+   GITHUB_POSTED_AT="$GITHUB_POSTED_AT" \
+   PROVIDER_REVIEW_ID="$PROVIDER_REVIEW_ID" \
+   FINISHED_AT="${FINISHED_AT:-}" \
    UPDATED_AT="<RFC-3339-UTC>" \
      bash "$PR_REVIEW_LEASE_HELPER" write || exit 1
    ```

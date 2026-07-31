@@ -3800,6 +3800,47 @@ None
     ]) {
       expect(normalizedPrReview).toContain(providerExecutionContract);
     }
+    const receiptMaterialization = prReviewPhase6.slice(
+      prReviewPhase6.indexOf("materialize-execution-receipt"),
+      prReviewPhase6.indexOf("Resolve only sealed `resolve` IDs"),
+    );
+    const receiptAdvancement = prReviewPhase6.slice(
+      prReviewPhase6.indexOf("advance-execution-receipt"),
+      prReviewPhase6.indexOf("Verify every API response"),
+    );
+    for (const receiptLeaseInput of [
+      'cd "$WORKING_DIRECTORY" && jq -er \'.provider_review_submitted_at\' "$EXECUTION_RECEIPT_FILE"',
+      'cd "$WORKING_DIRECTORY" && jq -er \'.provider_review_id\' "$EXECUTION_RECEIPT_FILE"',
+      'FINISHED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"',
+      'GITHUB_POSTED_AT="$GITHUB_POSTED_AT"',
+      'PROVIDER_REVIEW_ID="$PROVIDER_REVIEW_ID"',
+      'FINISHED_AT="${FINISHED_AT:-}"',
+    ]) {
+      expect(receiptMaterialization).toContain(receiptLeaseInput);
+      expect(receiptAdvancement).toContain(receiptLeaseInput);
+    }
+    const existingIntentIndex = prReviewPhase6.indexOf(
+      "EXISTING_POST_INTENT_FILE",
+    );
+    const firstProviderPostIndex = prReviewPhase6.indexOf(
+      "gh api repos/{owner}/{repo}/pulls/<N>/reviews",
+    );
+    const retryIntentGate = prReviewPhase6.slice(
+      existingIntentIndex,
+      firstProviderPostIndex,
+    );
+    expect(retryIntentGate).toContain("POST_INTENT_REUSED=false");
+    expect(retryIntentGate).toContain(
+      'if (cd "$WORKING_DIRECTORY" && [ -e "$EXISTING_POST_INTENT_FILE"); then',
+    );
+    expect(retryIntentGate).toContain("POST_INTENT_REUSED=true");
+    expect(retryIntentGate).toContain('cd "$WORKING_DIRECTORY" || exit 1');
+    expect(prReviewPhase6.slice(firstProviderPostIndex - 300)).toContain(
+      'if [ "$POST_INTENT_REUSED" = true ]; then',
+    );
+    expect(prReviewPhase6.slice(firstProviderPostIndex - 300)).toContain(
+      "Reconcile; never repost.",
+    );
     expect(normalizedPrReview).toContain(
       "do not fetch `commit_id` from live `{{tool:github-cli}} pr view` for posting",
     );
