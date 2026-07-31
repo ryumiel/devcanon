@@ -208,8 +208,8 @@ async function writeResult() {
     };
     validateResultObject(result, file, file);
     await validateResultFacts(result, file);
-    await writeTextAtomically(path.join(process.cwd(), file), `${json(result)}\n`);
     await rm(path.join(process.cwd(), tmpPathFor(file)), { force: true });
+    await writeTextAtomically(path.join(process.cwd(), file), `${json(result)}\n`);
     return file;
 }
 async function validateHandoffCommand() {
