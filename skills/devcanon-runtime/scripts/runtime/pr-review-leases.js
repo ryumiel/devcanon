@@ -210,18 +210,9 @@ async function sessionCreatePreflight() {
             leaseSha256,
             registration,
         }))) {
-            return await sessionCreateRollbackResult({
-                conflictReason: "final-verification-failed",
-                manualReason: "lease-unverifiable",
-                identity,
-                reservation,
-                reservationFile,
-                reservationBytes,
-                registration,
-                leaseBytes,
-                leaseSha256,
-                worktreeCreated: true,
-            });
+            // A linked LC-01 lease is the creation commit point: discovery can now
+            // legitimately resume it. Do not roll back that visible session.
+            return sessionCreateManualCleanup("lease-unverifiable", reservation, registration, leaseSha256, ["reservation", "worktree", "registration", "lease"]);
         }
         if (!(await removeOwnedReservation(identity.primaryRoot, reservationFile, reservation, reservationBytes))) {
             return sessionCreateManualCleanup("rollback-incomplete", reservation, registration, leaseSha256, ["reservation", "worktree", "registration", "lease"]);

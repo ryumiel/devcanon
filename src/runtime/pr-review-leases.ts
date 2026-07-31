@@ -536,18 +536,15 @@ async function sessionCreatePreflight(): Promise<RuntimeCommandOutcome> {
         registration,
       }))
     ) {
-      return await sessionCreateRollbackResult({
-        conflictReason: "final-verification-failed",
-        manualReason: "lease-unverifiable",
-        identity,
+      // A linked LC-01 lease is the creation commit point: discovery can now
+      // legitimately resume it. Do not roll back that visible session.
+      return sessionCreateManualCleanup(
+        "lease-unverifiable",
         reservation,
-        reservationFile,
-        reservationBytes,
         registration,
-        leaseBytes,
         leaseSha256,
-        worktreeCreated: true,
-      });
+        ["reservation", "worktree", "registration", "lease"],
+      );
     }
 
     if (

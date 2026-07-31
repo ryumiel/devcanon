@@ -1433,6 +1433,67 @@ describe("pr-review lease command validation", () => {
     ).toBe(session.lease_sha256);
   });
 
+  it("preserves the published lease when final verification sees a resumed dirty session", async () => {
+    const repository = await commandHarness.createReviewRepository();
+    const { stdout: headOutput } = await execFileAsync("git", [
+      "-C",
+      repository.physicalRepository,
+      "rev-parse",
+      "HEAD",
+    ]);
+    const head = headOutput.trim();
+    const canonical = path.join(
+      repository.physicalRepository,
+      ".worktrees",
+      "pr-432-review",
+    );
+    const leaseFile = `.ephemeral/pr-432-${discoveryWorktreeDigest(canonical)}-lease.json`;
+    const leasePath = path.join(repository.physicalRepository, leaseFile);
+    process.chdir(repository.physicalRepository);
+    Object.assign(process.env, {
+      REPOSITORY: "owner/repo",
+      PR_NUMBER: "432",
+      PRIMARY_REPOSITORY_ROOT: repository.physicalRepository,
+      HEAD_SHA: head,
+      BASE_REF: "main",
+      HEAD_REF: "topic",
+      UPDATED_AT: "2026-07-31T00:00:00Z",
+    });
+
+    const markResumedSessionDirty = (async () => {
+      for (let attempt = 0; attempt < 1_000; attempt += 1) {
+        try {
+          await lstat(leasePath);
+          await writeFile(
+            path.join(canonical, "resumed-session.txt"),
+            "dirty\n",
+          );
+          return;
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+          await new Promise((resolve) => setTimeout(resolve, 1));
+        }
+      }
+      throw new Error("session lease was not published");
+    })();
+
+    const result = await runPrReviewLeasesCommand(["session-create"]);
+    await markResumedSessionDirty;
+
+    expect(result.exitCode, result.stderr).toBe(1);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      schema: "pr-review/session-create/v1",
+      outcome: "manual-cleanup",
+      reason: "lease-unverifiable",
+      canonical_worktree_path: canonical,
+      immutable_head: head,
+      observed_artifacts: ["reservation", "worktree", "registration", "lease"],
+    });
+    await expect(readFile(leasePath, "utf8")).resolves.toContain(
+      '"state": "created"',
+    );
+  });
+
   it("preserves a closed competing reservation without creating a worktree", async () => {
     const repository = await commandHarness.createReviewRepository();
     const { stdout: headOutput } = await execFileAsync("git", [
