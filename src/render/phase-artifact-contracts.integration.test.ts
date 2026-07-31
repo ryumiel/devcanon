@@ -760,7 +760,7 @@ describe("rendered phase artifact smoke coverage", () => {
     expect(prReview).toContain("prepare-review-payload-write");
     expect(prReview).toContain("freeze-approved-review");
     expect(prReview).toContain("pr-review/handoff/v1");
-    expect(prReview).toContain("pr-review/result/v1");
+    expect(prReview).toContain("pr-review/result/v2");
     expect(prReview).toContain("pr-review/approved-review/v1");
     expect(prReview).toContain('REVIEW_SURFACE="pr-review"');
     expect(prReview).toContain("PR_REVIEW_MANIFEST_HELPER");
@@ -868,7 +868,7 @@ describe("rendered phase artifact smoke coverage", () => {
       "Refresh lease validation for every gate cycle; never treat the `RESULT_FILE` path alone as freshness evidence",
     );
     expect(normalizeRenderedWhitespace(prReview)).toContain(
-      '`pr-review/result/v1` with `PRESENTATION_STATUS="edited"`',
+      '`pr-review/result/v2` with `PRESENTATION_STATUS="edited"`',
     );
     expect(normalizeRenderedWhitespace(prReview)).toContain(
       "render the mandatory Phase 5 artifact audit summary again before waiting for approval",
@@ -954,7 +954,7 @@ describe("rendered phase artifact smoke coverage", () => {
         'PLAY_REVIEW_HELPER="$PLAY_REVIEW_HELPER"',
       );
       expect(renderedPrReview).toContain("pr-review/handoff/v1");
-      expect(renderedPrReview).toContain("pr-review/result/v1");
+      expect(renderedPrReview).toContain("pr-review/result/v2");
       expect(renderedPrReview).toContain("render-review-preview");
       expect(renderedPrReview).toContain("prepare-review-payload-write");
       expect(renderedPrReview).toContain("build-github-review-payload");
@@ -1121,7 +1121,7 @@ describe("rendered phase artifact smoke coverage", () => {
         "Refresh lease validation for every gate cycle; never treat the `RESULT_FILE` path alone as freshness evidence",
       );
       expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
-        '`pr-review/result/v1` with `PRESENTATION_STATUS="edited"`',
+        '`pr-review/result/v2` with `PRESENTATION_STATUS="edited"`',
       );
       expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
         "render the mandatory Phase 5 artifact audit summary again before waiting for approval",

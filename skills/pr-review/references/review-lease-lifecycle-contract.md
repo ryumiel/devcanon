@@ -299,7 +299,7 @@ That validation timestamp is policy-specific evidence:
   still validate for the preserved family.
 
 The result manifest digest is stored only in
-`validation.result_manifest.sha256`. Do not expand the `pr-review/result/v1`
+`validation.result_manifest.sha256`. Do not expand the `pr-review/result/v2`
 schema to carry lease freshness evidence.
 
 Missing validation metadata, missing `validation.result_manifest`, or missing

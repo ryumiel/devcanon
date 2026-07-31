@@ -232,8 +232,9 @@ async function writeInitialScope(
 
 function priorThreadsEnvelope(headSha: string, overrides = {}) {
   return {
-    schema: "pr-review/prior-threads/v1",
+    schema: "pr-review/prior-threads/v2",
     provider: "github",
+    repository: "owner/repo",
     pr_number: 390,
     head_sha: headSha,
     threads: [
@@ -384,6 +385,8 @@ describe.skipIf(!jqAvailable)("pr-review prior-thread adapter", () => {
         runHelper(cwd, helperScript, "validate-prior-threads", {
           HEAD_SHA: headSha,
           PRIOR_THREADS_FILE: threadsPath,
+          REPOSITORY: "owner/repo",
+          PR_NUMBER: "390",
         }),
       ).resolves.toMatchObject({ stdout: "" });
       const actionsPath = `.ephemeral/topic-${headSha}-thread-actions.json`;
@@ -523,6 +526,8 @@ describe.skipIf(!jqAvailable)("pr-review prior-thread adapter", () => {
         runHelper(cwd, script, "validate-prior-threads", {
           HEAD_SHA: headSha,
           PRIOR_THREADS_FILE: priorThreadsPath(headSha),
+          REPOSITORY: "owner/repo",
+          PR_NUMBER: "390",
         }),
       ).resolves.toMatchObject({ stdout: "installed-validator\n" });
     } finally {
@@ -647,6 +652,8 @@ describe.skipIf(!jqAvailable)("pr-review prior-thread adapter", () => {
         runHelper(cwd, helperScript, "validate-prior-threads", {
           HEAD_SHA: headSha,
           PRIOR_THREADS_FILE: threadsPath,
+          REPOSITORY: "owner/repo",
+          PR_NUMBER: "390",
         }),
       ).rejects.toMatchObject({
         stderr: expect.stringContaining(

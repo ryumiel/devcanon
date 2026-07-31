@@ -2101,7 +2101,7 @@ None
     expect(prReview).toContain("PR_REVIEW_MANIFEST_HELPER");
     expect(prReview).toContain("PR_REVIEW_LEASE_HELPER");
     expect(prReview).toContain("pr-review/handoff/v1");
-    expect(prReview).toContain("pr-review/result/v1");
+    expect(prReview).toContain("pr-review/result/v2");
     expect(prReview).toContain(
       ".ephemeral/pr-${PR_NUMBER}-${REVIEW_HEAD_SHA}-handoff.json",
     );
@@ -2233,7 +2233,7 @@ None
       "Any user-requested change returns to this gate after the artifacts are rewritten and re-rendered",
     );
     expect(normalizedPrReview).toContain(
-      '`pr-review/result/v1` with `PRESENTATION_STATUS="edited"`',
+      '`pr-review/result/v2` with `PRESENTATION_STATUS="edited"`',
     );
     expect(normalizedPrReview).toContain(
       "render the mandatory Phase 5 artifact audit summary again before waiting for approval",
@@ -2342,7 +2342,7 @@ None
       'schema: "pr-review/handoff/v1"',
     );
     expect(normalizedManifestRuntime).toContain(
-      'schema: "pr-review/result/v1"',
+      'schema: "pr-review/result/v2"',
     );
     expect(normalizedLeaseLifecycleReference).toContain(
       "The result manifest digest is stored only in `validation.result_manifest.sha256`",
@@ -2354,7 +2354,7 @@ None
       "the helper refreshes `validation.result_manifest.sha256` from the validated result file",
     );
     expect(normalizedLeaseLifecycleReference).toContain(
-      "Do not expand the `pr-review/result/v1` schema to carry lease freshness evidence",
+      "Do not expand the `pr-review/result/v2` schema to carry lease freshness evidence",
     );
     expect(normalizedLeaseLifecycleReference).toContain(
       "Missing validation metadata, missing `validation.result_manifest`, or missing required digest evidence makes a lease invalid",

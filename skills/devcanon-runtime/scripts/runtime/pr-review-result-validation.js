@@ -335,7 +335,11 @@ function validateResultObject(value, file, _identityPath) {
     const scope = objectField(value, "scope_decision", `result schema mismatch: ${file}`);
     const presentation = objectField(value, "presentation", `result schema mismatch: ${file}`);
     const validation = objectField(value, "validation", `result schema mismatch: ${file}`);
-    if (stringField(value, "schema", "") !== "pr-review/result/v1" ||
+    const schema = stringField(value, "schema", "");
+    if (schema === "pr-review/result/v1") {
+        fail(`result schema obsolete: ${file}; restart at Phase 4 and repeat the Phase 5 presentation gate`);
+    }
+    if (schema !== "pr-review/result/v2" ||
         !isPositiveInteger(value.pr_number) ||
         !isRepository(stringField(value, "repository", "")) ||
         !isSha(stringField(value, "review_head_sha", "")) ||

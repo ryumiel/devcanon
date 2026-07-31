@@ -162,7 +162,7 @@ async function writeResult() {
     await validateThreadActionsAuthority(threadActionsFile, priorThreadsFile);
     const scope = await readJsonObject(scopeDecisionFile, "scope decision file");
     const result = {
-        schema: "pr-review/result/v1",
+        schema: "pr-review/result/v2",
         pr_number: prNumber,
         repository: requiredEnv("REPOSITORY"),
         review_head_sha: headSha,
@@ -606,7 +606,11 @@ function validateResultObject(value, file, identityFile) {
     const scope = objectField(value, "scope_decision", `result schema mismatch: ${file}`);
     const presentation = objectField(value, "presentation", `result schema mismatch: ${file}`);
     const validation = objectField(value, "validation", `result schema mismatch: ${file}`);
-    if (stringField(value, "schema", "") !== "pr-review/result/v1" ||
+    const schema = stringField(value, "schema", "");
+    if (schema === "pr-review/result/v1") {
+        throw new PrReviewManifestError(`result schema obsolete: ${file}; restart at Phase 4 and repeat the Phase 5 presentation gate`);
+    }
+    if (schema !== "pr-review/result/v2" ||
         !isPositiveInteger(value.pr_number) ||
         !isRepository(stringField(value, "repository", "")) ||
         !isSha(stringField(value, "review_head_sha", "")) ||

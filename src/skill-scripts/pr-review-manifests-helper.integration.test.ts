@@ -332,8 +332,9 @@ async function providerFileEntries(cwd: string, range: string) {
 
 function priorThreadsEnvelope(headSha: string) {
   return {
-    schema: "pr-review/prior-threads/v1",
+    schema: "pr-review/prior-threads/v2",
     provider: "github",
+    repository: "owner/repo",
     pr_number: Number(prNumber),
     head_sha: headSha,
     threads: [
@@ -441,8 +442,9 @@ async function writeValidInputs(cwd: string, baseSha: string, headSha: string) {
     HEAD_SHA: headSha,
   });
   await writeJson(cwd, priorFile, {
-    schema: "pr-review/prior-threads/v1",
+    schema: "pr-review/prior-threads/v2",
     provider: "github",
+    repository: "owner/repo",
     pr_number: Number(prNumber),
     head_sha: headSha,
     threads: [],
@@ -451,6 +453,8 @@ async function writeValidInputs(cwd: string, baseSha: string, headSha: string) {
   await runPriorHelper(cwd, "validate-prior-threads", {
     HEAD_SHA: headSha,
     PRIOR_THREADS_FILE: priorFile,
+    REPOSITORY: "owner/repo",
+    PR_NUMBER: prNumber,
   });
   await runPriorHelper(cwd, "prepare-thread-actions-write", {
     HEAD_SHA: headSha,
@@ -1243,7 +1247,7 @@ describe("pr-review manifest helper", () => {
       ).resolves.toMatchObject({ stdout: "" });
 
       await expect(readJson(cwd, resultPath(headSha))).resolves.toMatchObject({
-        schema: "pr-review/result/v1",
+        schema: "pr-review/result/v2",
         artifacts: {
           handoff_file: handoffPath(headSha),
           prior_threads_file: priorThreadsPath(headSha),
@@ -1295,7 +1299,7 @@ describe("pr-review manifest helper", () => {
           'case "${1:?}" in',
           "  write-result)",
           `    printf '%s\\n' '${persistedResult}'`,
-          `    printf '%s\\n' '{"schema":"pr-review/result/v1"}' > '${persistedResult}'`,
+          `    printf '%s\\n' '{"schema":"pr-review/result/v2"}' > '${persistedResult}'`,
           "    ;;",
           "  validate-result) exit 23 ;;",
           "  *) exit 64 ;;",
@@ -1322,7 +1326,7 @@ describe("pr-review manifest helper", () => {
       ).resolves.toContain("thread-actions");
       await expect(
         readFile(path.join(validationFailure.cwd, persistedResult), "utf8"),
-      ).resolves.toContain("pr-review/result/v1");
+      ).resolves.toContain("pr-review/result/v2");
 
       const writeHelper = path.join(
         writeFailure.cwd,
@@ -2616,8 +2620,9 @@ describe("pr-review manifest helper", () => {
         const branchPriorThreadsPath = `.ephemeral/feature-pr-432-${headSha}-prior-threads.json`;
         const branchThreadActionsPath = `.ephemeral/feature-pr-432-${headSha}-thread-actions.json`;
         await writeJson(cwd, branchPriorThreadsPath, {
-          schema: "pr-review/prior-threads/v1",
+          schema: "pr-review/prior-threads/v2",
           provider: "github",
+          repository: "owner/repo",
           pr_number: Number(prNumber),
           head_sha: headSha,
           threads: [],

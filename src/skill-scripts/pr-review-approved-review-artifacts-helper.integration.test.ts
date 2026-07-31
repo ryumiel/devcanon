@@ -127,8 +127,9 @@ function payloadWithRange(overrides: Record<string, unknown> = {}) {
 
 function priorThreadsEnvelope(headShaValue = headSha) {
   return {
-    schema: "pr-review/prior-threads/v1",
+    schema: "pr-review/prior-threads/v2",
     provider: "github",
+    repository: "owner/repo",
     pr_number: Number(prNumber),
     head_sha: headShaValue,
     threads: [
@@ -732,6 +733,47 @@ describe.skipIf(!jqAvailable)(
       }
     });
 
+    it("fails closed while the receipt-local advancement boundary is held", async () => {
+      const cwd = await makeGitWorkspace();
+      try {
+        await writeInputs(cwd);
+        await runHelper(cwd, "freeze-approved-review", {
+          FINDINGS_FILE: findingsFile,
+          REVIEW_BODY_FILE: reviewBodyFile,
+          REVIEW_PAYLOAD_FILE: payloadFile,
+        });
+        await runHelper(cwd, "materialize-post-intent", {
+          APPROVED_REVIEW_FILE: approvedReviewFile,
+          PROVIDER_ACTOR_ID: "7",
+          POST_INTENT_CREATED_AT: "2026-08-01T00:00:00Z",
+        });
+        await runHelper(cwd, "materialize-execution-receipt", {
+          APPROVED_REVIEW_FILE: approvedReviewFile,
+          POST_INTENT_FILE: postIntentFile,
+          POST_OUTCOME: "post-response",
+          PROVIDER_REVIEW_ID: "91",
+          PROVIDER_REVIEW_SUBMITTED_AT: "2026-08-01T00:00:01Z",
+          EXECUTION_RECEIPT_UPDATED_AT: "2026-08-01T00:00:01Z",
+        });
+        await mkdir(path.join(cwd, `${executionReceiptFile}.lock`));
+
+        await expect(
+          runHelper(cwd, "advance-execution-receipt", {
+            APPROVED_REVIEW_FILE: approvedReviewFile,
+            POST_INTENT_FILE: postIntentFile,
+            EXECUTION_RECEIPT_FILE: executionReceiptFile,
+            THREAD_ID: "PRRT_kwDOExample",
+            DISPOSITION: "succeeded",
+            EXECUTION_RECEIPT_UPDATED_AT: "2026-08-01T00:00:02Z",
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("advancement is already in progress"),
+        });
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    });
+
     it("resumes a failed sealed resolve through advance without rematerializing", async () => {
       const cwd = await makeGitWorkspace();
       try {
@@ -1281,7 +1323,7 @@ describe.skipIf(!jqAvailable)(
       try {
         await writeInputs(cwd);
         await writeJson(cwd, priorThreadsFile, {
-          schema: "pr-review/prior-threads/v1",
+          schema: "pr-review/prior-threads/v2",
           stale: true,
         });
         const validator = await writeRecordingSupportValidator(cwd);

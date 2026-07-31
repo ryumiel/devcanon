@@ -380,7 +380,7 @@ describe("pr-review Phase 5 audit summary renderer", () => {
     );
   });
 
-  it("keeps pr-review/result/v1 forbidden lease and approval fields rejected", async () => {
+  it("keeps pr-review/result/v2 forbidden lease and approval fields rejected", async () => {
     const workspace = await makeManifestWorkspace("pr-review-forbidden-field-");
     setSummaryEnv(workspace);
     const resultPath = path.join(workspace.worktree, workspace.resultFile);
@@ -400,6 +400,26 @@ describe("pr-review Phase 5 audit summary renderer", () => {
     expect(outcome.stderr).toContain("result schema mismatch");
   });
 
+  it("fails closed for obsolete pr-review/result/v1 with a fresh gate route", async () => {
+    const workspace = await makeManifestWorkspace("pr-review-obsolete-result-");
+    setSummaryEnv(workspace);
+    const resultPath = path.join(workspace.worktree, workspace.resultFile);
+    const result = JSON.parse(await readFile(resultPath, "utf8")) as Record<
+      string,
+      unknown
+    >;
+    await writeJson(workspace.worktree, workspace.resultFile, {
+      ...result,
+      schema: "pr-review/result/v1",
+    });
+
+    const outcome = await runManifestCommand(["render-phase5-audit-summary"]);
+
+    expect(outcome.exitCode).toBe(1);
+    expect(outcome.stderr).toContain("result schema obsolete");
+    expect(outcome.stderr).toContain("restart at Phase 4");
+  });
+
   it("accepts and renders a digest-bound all-leave thread-action candidate", async () => {
     const workspace = await makeManifestWorkspace(
       "pr-review-all-leave-candidate-",
@@ -410,7 +430,8 @@ describe("pr-review Phase 5 audit summary renderer", () => {
       workspace.threadActionsFile,
     );
     await writeJson(workspace.worktree, workspace.priorThreadsFile, {
-      schema: "pr-review/prior-threads/v1",
+      schema: "pr-review/prior-threads/v2",
+      provider: "github",
       repository: "owner/repo",
       pr_number: 432,
       head_sha: workspace.headSha,
@@ -798,7 +819,8 @@ async function makeManifestWorkspace(
     carry_forward: [],
   });
   await writeJson(worktree, priorThreadsFile, {
-    schema: "pr-review/prior-threads/v1",
+    schema: "pr-review/prior-threads/v2",
+    provider: "github",
     repository: "owner/repo",
     pr_number: 432,
     head_sha: headSha,
@@ -865,7 +887,7 @@ async function makeManifestWorkspace(
     },
   });
   const resultManifest = {
-    schema: "pr-review/result/v1",
+    schema: "pr-review/result/v2",
     pr_number: 432,
     repository: "owner/repo",
     review_head_sha: headSha,

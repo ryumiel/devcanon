@@ -185,6 +185,8 @@ validate_prior_threads() {
   require_repo_root
   validate_head_sha
   require_env PRIOR_THREADS_FILE
+  require_env REPOSITORY
+  require_env PR_NUMBER
   expected="$(expected_prior_threads_path)"
   file="$PRIOR_THREADS_FILE"
   validate_direct_child_path "prior threads" "$file" "-prior-threads.json"
@@ -194,8 +196,10 @@ validate_prior_threads() {
     --surface pr-review \
     --head-sha "$HEAD_SHA" \
     --prior-threads-file "$file" \
-    --expected-schema pr-review/prior-threads/v1 \
-    --provider github
+    --expected-schema pr-review/prior-threads/v2 \
+    --provider github \
+    --repository "$REPOSITORY" \
+    --pr-number "$PR_NUMBER"
 }
 
 validate_thread_actions() {

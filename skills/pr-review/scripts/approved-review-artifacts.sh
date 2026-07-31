@@ -1064,6 +1064,7 @@ advance_execution_receipt() {
   local prior_tmp
   local intended_tmp
   local publish_tmp
+  local receipt_lock
   local action
   local current_disposition
   local current_failure_reason
@@ -1072,10 +1073,19 @@ advance_execution_receipt() {
   validate_post_intent_chain
   validate_execution_receipt_path_shape "$EXECUTION_RECEIPT_FILE" "$HEAD_SHA"
   validate_execution_receipt_file "$EXECUTION_RECEIPT_FILE" false
+  receipt_lock="${EXECUTION_RECEIPT_FILE}.lock"
+  mkdir "$receipt_lock" 2>/dev/null || {
+    echo "execution receipt advancement is already in progress: $EXECUTION_RECEIPT_FILE" >&2
+    exit 1
+  }
   prior_tmp="$(mktemp ".ephemeral/.execution-receipt-prior-${HEAD_SHA}.XXXXXX")"
   intended_tmp="$(mktemp ".ephemeral/.execution-receipt-intended-${HEAD_SHA}.XXXXXX")"
   publish_tmp="$(mktemp ".ephemeral/.execution-receipt-publish-${HEAD_SHA}.XXXXXX")"
-  trap 'rm -f "${prior_tmp:-}" "${intended_tmp:-}" "${publish_tmp:-}"' EXIT
+  trap 'rm -f "${prior_tmp:-}" "${intended_tmp:-}" "${publish_tmp:-}"; rmdir "${receipt_lock:-}" 2>/dev/null || true' EXIT
+  # The receipt-local lock is not reclaimable: after acquisition, re-read the
+  # full chain and snapshot the exact predecessor that this advance may replace.
+  validate_post_intent_chain
+  validate_execution_receipt_file "$EXECUTION_RECEIPT_FILE" false
   cp "$EXECUTION_RECEIPT_FILE" "$prior_tmp"
   action="$(jq -r --arg thread_id "$THREAD_ID" '.actions[] | select(.thread_id == $thread_id) | .action' "$prior_tmp")"
   [ "$action" = "resolve" ] || {
@@ -1115,6 +1125,11 @@ advance_execution_receipt() {
   cp "$intended_tmp" "$publish_tmp"
   [ ! -L "$EXECUTION_RECEIPT_FILE" ] && [ -f "$EXECUTION_RECEIPT_FILE" ] || {
     echo "execution receipt path changed before replacement: $EXECUTION_RECEIPT_FILE" >&2
+    exit 1
+  }
+  cmp -s "$prior_tmp" "$EXECUTION_RECEIPT_FILE" || {
+    validate_execution_receipt_file "$EXECUTION_RECEIPT_FILE" false
+    echo "execution receipt changed before replacement: $EXECUTION_RECEIPT_FILE" >&2
     exit 1
   }
   mv -f "$publish_tmp" "$EXECUTION_RECEIPT_FILE" 2>/dev/null || true

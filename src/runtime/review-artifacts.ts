@@ -782,11 +782,19 @@ async function readValidatedPriorThreads(
   if (options.surface !== "pr-review") {
     fail("validate-prior-threads requires --surface pr-review");
   }
-  if (options.expectedSchema !== "pr-review/prior-threads/v1") {
-    fail("--expected-schema must be pr-review/prior-threads/v1");
+  if (options.expectedSchema !== "pr-review/prior-threads/v2") {
+    fail("--expected-schema must be pr-review/prior-threads/v2");
   }
   if (options.provider !== "github") {
     fail("--provider must be github");
+  }
+  requireFlag("--repository", options.repository);
+  requireFlag("--pr-number", options.prNumber);
+  if (!isRepository(options.repository)) {
+    fail("--repository must be owner/repo");
+  }
+  if (!/^[1-9][0-9]*$/u.test(options.prNumber)) {
+    fail("--pr-number must be a positive integer");
   }
   await validateHeadShaCommit(options.headSha);
   await assertReadableFile("--prior-threads-file", options.priorThreads);
@@ -809,6 +817,14 @@ async function readValidatedPriorThreads(
       fail("prior-thread shape validation failed");
     }
     envelope = parsed as JsonObject;
+    if (
+      typeof envelope.schema === "string" &&
+      envelope.schema === "pr-review/prior-threads/v1"
+    ) {
+      fail(
+        "prior-thread schema obsolete: refetch provider threads into pr-review/prior-threads/v2 before deriving action authority",
+      );
+    }
     validatePriorThreadsSchema(envelope, options);
   } catch (err) {
     if (!(err instanceof ReviewArtifactsError)) {
@@ -839,7 +855,7 @@ async function validateThreadActions(
   const prior = await readValidatedPriorThreads({
     ...options,
     surface: "pr-review",
-    expectedSchema: "pr-review/prior-threads/v1",
+    expectedSchema: "pr-review/prior-threads/v2",
     provider: "github",
   });
   const actions = await readSingleJsonObject(
@@ -1802,6 +1818,7 @@ function validatePriorThreadsSchema(
     !hasExactKeys(envelope, [
       "schema",
       "provider",
+      "repository",
       "pr_number",
       "head_sha",
       "threads",
@@ -1809,7 +1826,9 @@ function validatePriorThreadsSchema(
     ]) ||
     stringField(envelope, "schema") !== options.expectedSchema ||
     stringField(envelope, "provider") !== options.provider ||
+    stringField(envelope, "repository") !== options.repository ||
     !isPositiveInteger(envelope.pr_number) ||
+    envelope.pr_number !== Number(options.prNumber) ||
     stringField(envelope, "head_sha") !== options.headSha ||
     !Array.isArray(envelope.threads) ||
     !Array.isArray(envelope.dropped)

@@ -758,8 +758,9 @@ function sha256(value: string): string {
 
 function priorThreadsForThreadActions(headSha: string): JsonObject {
   return {
-    schema: "pr-review/prior-threads/v1",
+    schema: "pr-review/prior-threads/v2",
     provider: "github",
+    repository: "owner/repo",
     pr_number: 390,
     head_sha: headSha,
     threads: [
@@ -3496,9 +3497,13 @@ describe("pr-review thread-actions artifacts", () => {
             "--prior-threads-file",
             ".ephemeral/topic-prior-threads.json",
             "--expected-schema",
-            "pr-review/prior-threads/v1",
+            "pr-review/prior-threads/v2",
             "--provider",
             "github",
+            "--repository",
+            "owner/repo",
+            "--pr-number",
+            "390",
           ]),
         ).resolves.toMatchObject({
           exitCode: 1,
@@ -3530,6 +3535,58 @@ describe("pr-review thread-actions artifacts", () => {
         exitCode: 0,
         stdout: "",
         stderr: "",
+      });
+    } finally {
+      await cleanupRiskSignalsWorkspace(cwd);
+    }
+  });
+
+  it("rejects obsolete v1 prior-thread evidence before deriving action authority", async () => {
+    const { cwd, headSha } = await makeRiskSignalsWorkspace();
+    try {
+      process.chdir(cwd);
+      const priorThreads = {
+        ...priorThreadsForThreadActions(headSha),
+        schema: "pr-review/prior-threads/v1",
+      };
+      await writeJson(cwd, ".ephemeral/topic-prior-threads.json", priorThreads);
+      await writeJson(
+        cwd,
+        ".ephemeral/topic-thread-actions.json",
+        threadActionsArtifact(headSha, priorThreads),
+      );
+
+      await expect(
+        runReviewArtifactsCommand(threadActionsArgs(headSha)),
+      ).resolves.toMatchObject({
+        exitCode: 1,
+        stderr: expect.stringContaining("prior-thread schema obsolete"),
+      });
+    } finally {
+      await cleanupRiskSignalsWorkspace(cwd);
+    }
+  });
+
+  it("rejects prior-thread evidence from another repository", async () => {
+    const { cwd, headSha } = await makeRiskSignalsWorkspace();
+    try {
+      process.chdir(cwd);
+      const priorThreads = {
+        ...priorThreadsForThreadActions(headSha),
+        repository: "other/repo",
+      };
+      await writeJson(cwd, ".ephemeral/topic-prior-threads.json", priorThreads);
+      await writeJson(
+        cwd,
+        ".ephemeral/topic-thread-actions.json",
+        threadActionsArtifact(headSha, priorThreads),
+      );
+
+      await expect(
+        runReviewArtifactsCommand(threadActionsArgs(headSha)),
+      ).resolves.toMatchObject({
+        exitCode: 1,
+        stderr: expect.stringContaining("prior-thread shape validation failed"),
       });
     } finally {
       await cleanupRiskSignalsWorkspace(cwd);

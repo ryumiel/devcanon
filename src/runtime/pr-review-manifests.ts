@@ -248,7 +248,7 @@ async function writeResult(): Promise<string> {
 
   const scope = await readJsonObject(scopeDecisionFile, "scope decision file");
   const result = {
-    schema: "pr-review/result/v1",
+    schema: "pr-review/result/v2",
     pr_number: prNumber,
     repository: requiredEnv("REPOSITORY"),
     review_head_sha: headSha,
@@ -901,8 +901,14 @@ function validateResultObject(
     "validation",
     `result schema mismatch: ${file}`,
   );
+  const schema = stringField(value, "schema", "");
+  if (schema === "pr-review/result/v1") {
+    throw new PrReviewManifestError(
+      `result schema obsolete: ${file}; restart at Phase 4 and repeat the Phase 5 presentation gate`,
+    );
+  }
   if (
-    stringField(value, "schema", "") !== "pr-review/result/v1" ||
+    schema !== "pr-review/result/v2" ||
     !isPositiveInteger(value.pr_number) ||
     !isRepository(stringField(value, "repository", "")) ||
     !isSha(stringField(value, "review_head_sha", "")) ||

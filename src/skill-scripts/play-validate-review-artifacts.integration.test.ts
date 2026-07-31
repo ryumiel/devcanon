@@ -690,8 +690,9 @@ function priorThread(overrides: JsonObject = {}): JsonObject {
 
 function priorThreadsEnvelope(headSha: string, overrides: JsonObject = {}) {
   return {
-    schema: "pr-review/prior-threads/v1",
+    schema: "pr-review/prior-threads/v2",
     provider: "github",
+    repository: "owner/repo",
     pr_number: 390,
     head_sha: headSha,
     threads: [priorThread()],
@@ -3316,7 +3317,7 @@ describe("play-validate-review-artifacts validator", () => {
       "--prior-threads-file",
       threadsPath,
       "--expected-schema",
-      "pr-review/prior-threads/v1",
+      "pr-review/prior-threads/v2",
       "--provider",
       "github",
     ];

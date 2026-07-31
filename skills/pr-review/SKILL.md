@@ -157,7 +157,7 @@ path derivation, typed reducer transitions, closed-schema validation,
 path-guarded writes, and atomic writes to `devcanon-runtime`'s
 `pr-review-leases` command. `review-manifests.sh` likewise preserves the public
 handoff/result helper commands while delegating `pr-review/handoff/v1` and
-`pr-review/result/v1` schema validation, path guards, delegated authority
+`pr-review/result/v2` schema validation, path guards, delegated authority
 checks, digest verification, and atomic writes to `devcanon-runtime`'s
 `pr-review-manifests` command.
 `approved-review-artifacts.sh` and `play-review` continue to own approved
@@ -350,10 +350,12 @@ materialize_initial_prior_threads() {
   [ "$REVIEW_MODE" = "initial" ] || return 0
   PRIOR_THREADS_FILE=$(HEAD_SHA="$REVIEW_HEAD_SHA" \
     bash "$PR_REVIEW_ARTIFACT_HELPER" prepare-prior-threads-write) || return 1
-  # Write the canonical empty pr-review/prior-threads/v1 envelope here:
-  # provider="github", pr_number, head_sha, threads=[], and dropped=[].
+  # Write the canonical empty pr-review/prior-threads/v2 envelope here:
+  # provider="github", repository, pr_number, head_sha, threads=[], and dropped=[].
   HEAD_SHA="$REVIEW_HEAD_SHA" \
   PRIOR_THREADS_FILE="$PRIOR_THREADS_FILE" \
+  REPOSITORY="<owner/repo>" \
+  PR_NUMBER="$PR_NUMBER" \
     bash "$PR_REVIEW_ARTIFACT_HELPER" validate-prior-threads || return 1
 }
 
@@ -415,7 +417,7 @@ Canonical manifest schemas:
   immutable review head, follow-up classification, language hints, and paths to
   the validated scope-decision, provider scope evidence file and digest, and
   optional prior-threads artifacts.
-- `pr-review/result/v1` records the deterministic handoff path, validated
+- `pr-review/result/v2` records the deterministic handoff path, validated
   review findings, optional review body and preview paths, content digests for
   mutable result inputs, the scope-decision summary, provider scope evidence
   file and digest, and presentation status.
@@ -657,7 +659,7 @@ detailed evidence-family and freshness contract lives in
 **STOP HERE. Present the report. Wait for user response.**
 
 Before presenting or resuming this gate after a user-requested edit, consume the
-current `pr-review/result/v1` manifest from the target worktree root. Phase 5
+current `pr-review/result/v2` manifest from the target worktree root. Phase 5
 validates `REVIEW_RESULT_FILE` against the trusted review head captured before
 the gate, then renders and resumes from the validated result manifest rather
 than ambient conversation variables. After validation, extract and rebind the
@@ -887,7 +889,7 @@ when applicable:
 ```
 
 The Phase 5 preview is not approval by itself. Any user-requested change,
-including an action edit, rewrites the candidate and `pr-review/result/v1`,
+including an action edit, rewrites the candidate and `pr-review/result/v2`,
 re-renders the preview, and returns to this gate for a fresh latest-preview
 approval. Approval intent is captured only when the user approves a specific
 preview; it is never transferable from a prior candidate digest.
@@ -897,7 +899,7 @@ rewritten and re-rendered.
 **Body edits:** rewrite `REVIEW_BODY_FILE`, rerun
 `render-review-preview` with the same `REVIEW_HEAD_SHA`,
 `REVIEW_FINDINGS_FILE`, `REVIEW_SURFACE=pr-review`, and `REVIEW_BODY_FILE`,
-then update `pr-review/result/v1`, present the new stdout and result-manifest
+then update `pr-review/result/v2`, present the new stdout and result-manifest
 update notice, and wait again. Run the same `REVIEW_BODY_FILE` pre-write guard
 immediately before every rewrite. Do not proceed to Phase 6 until the user
 approves that latest preview.
@@ -945,7 +947,7 @@ sentences naming what the implementation got right before findings:
 
 Then present the re-rendered stdout and wait again. Do not rebuild a preview
 from conversation text or current checkout state. After findings edits, rewrite
-`pr-review/result/v1` with `PRESENTATION_STATUS="edited"` and emit
+`pr-review/result/v2` with `PRESENTATION_STATUS="edited"` and emit
 `PR review result manifest updated at <repo-relative-path>.`, then refresh the
 `gated` lease and render the mandatory Phase 5 artifact audit summary again
 before waiting for approval.
@@ -957,7 +959,7 @@ candidate; never omit actions as shorthand. Immediately before every candidate
 write or rewrite, invoke `prepare-thread-actions-write` for the immutable head
 and exact direct-child path; only then write and validate the candidate. Do not
 overwrite an existing candidate path directly. Rewrite
-`pr-review/result/v1` with its new path/digest and
+`pr-review/result/v2` with its new path/digest and
 `PRESENTATION_STATUS="edited"`, re-render the preview from that validated
 candidate, refresh the `gated` lease, render the artifact audit summary, and
 wait for fresh approval. A missing, unreadable, malformed, stale, or
@@ -980,7 +982,28 @@ digest-mismatched candidate stops rendering and resume before the user gate.
 
 Only after user approval:
 
-1. **Resume from the current result separately from approval.** Re-run the
+0. **Run the sealed-recovery preflight before rebuilding any review artifact.** Derive and validate the current lease first. If it owns a `post_intent_file` or `execution_receipt_file`, bind only the stored direct-child paths, validate the lease → approved review → post intent → receipt chain, and take the sealed recovery continuation below. Do this before the Phase 5 result read, approved-review freeze, normal stale-head POST guard, or creation of a new intent. A stored intent without a receipt performs the one fingerprint reconciliation; a stored receipt resumes only its sealed pending or failed `resolve` actions. Neither branch re-gates, rebuilds the result or preview, refreezes approval, creates a new request, or reposts. An invalid chain, ambiguous reconciliation, or obsolete `pr-review/result/v1` / `pr-review/prior-threads/v1` artifact stops with the cleanup/restart or provider-refetch disposition before any provider mutation.
+
+   ```sh
+   LEASE_FILE="$(cd "$REVIEW_CALLER_DIR" && bash "$PR_REVIEW_LEASE_HELPER" derive-path)" || exit 1
+   (cd "$REVIEW_CALLER_DIR" && bash "$PR_REVIEW_LEASE_HELPER" validate) || exit 1
+   CURRENT_LEASE_STATE="$(jq -er '.state' "$REVIEW_CALLER_DIR/$LEASE_FILE")" || exit 1
+   STORED_POST_INTENT_FILE="$(jq -er '.artifacts.post_intent_file // ""' "$REVIEW_CALLER_DIR/$LEASE_FILE")" || exit 1
+   STORED_EXECUTION_RECEIPT_FILE="$(jq -er '.artifacts.execution_receipt_file // ""' "$REVIEW_CALLER_DIR/$LEASE_FILE")" || exit 1
+   SEALED_RECOVERY=false
+   if [ -n "$STORED_POST_INTENT_FILE" ] || [ -n "$STORED_EXECUTION_RECEIPT_FILE" ]; then
+     SEALED_RECOVERY=true
+     # Rebind APPROVED_REVIEW_FILE, VALIDATED_REVIEW_PAYLOAD_FILE, and the
+     # stored intent/receipt from the validated lease; continue at the existing
+     # receipt-validation or single reconciliation branch in step 5 below.
+   fi
+   ```
+
+   Continue with steps 1–4 only when `SEALED_RECOVERY=false`. When it is true,
+   skip directly to the receipt validation/reconciliation continuation in step
+   5; those branches remain the sole owner of provider reads and action resume.
+
+1. **Resume from the current result separately from approval.** When `SEALED_RECOVERY=false`, Re-run the
    Phase 5 result-manifest read before binding any approved review event. That
    read validates `REVIEW_RESULT_FILE`, rebinds `REVIEW_HEAD_SHA`,
    `REVIEW_HANDOFF_FILE`, `REVIEW_FINDINGS_FILE`, `REVIEW_BODY_FILE`,
@@ -993,7 +1016,7 @@ Only after user approval:
    GitHub mutation. Fresh explicit user approval for the latest preview is still
    required after this read.
 
-2. **Bind the approved review event from the user-approved intent.** Do not
+2. **Bind the approved review event from the user-approved intent.** When `SEALED_RECOVERY=false`, do not
    reuse an ambient or previously exported `REVIEW_EVENT`; unset it first, then
    derive it from the explicit Phase 5 approval that applies to the latest
    rendered preview. Approval intent maps to GitHub review events as follows:
@@ -1012,7 +1035,7 @@ Only after user approval:
    esac
    ```
 
-3. **Build and freeze the approved payload artifact before posting.** Use the
+3. **Build and freeze the approved payload artifact before posting.** When `SEALED_RECOVERY=false`, use the
    approved Phase 5 artifacts; do not rebuild findings or the review body from
    conversation text. `PR_REVIEW_DIR` must resolve to the installed
    `pr-review` skill bundle, not the repository under review. Bind
@@ -1086,7 +1109,7 @@ Only after user approval:
    rewrite the result and preview, refresh the gate, and obtain fresh approval.
    Any nonzero helper exit is a contract failure; fail closed before posting.
 
-4. **Refuse stale heads before posting.** Re-read the PR head SHA from GitHub
+4. **Refuse stale heads before posting.** When `SEALED_RECOVERY=false`, re-read the PR head SHA from GitHub
    immediately before posting. If it differs from `REVIEW_HEAD_SHA`, stop and
    return to Phase 1; do not post an approved artifact against a stale head.
 

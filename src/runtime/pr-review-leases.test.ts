@@ -4295,7 +4295,7 @@ describe("pr-review lease intent command validation", () => {
       );
       await writeFile(
         path.join(workspace.worktree, priorThreadsFile),
-        `${JSON.stringify({ schema: "pr-review/prior-threads/v1", provider: "github", pr_number: 432, head_sha: workspace.reviewHead, threads: [], dropped: [] })}\n`,
+        `${JSON.stringify({ schema: "pr-review/prior-threads/v2", provider: "github", repository: "owner/repo", pr_number: 432, head_sha: workspace.reviewHead, threads: [], dropped: [] })}\n`,
       );
       await writeFile(
         path.join(workspace.worktree, threadActionsFile),
@@ -7340,7 +7340,7 @@ async function writeResultArtifact(
   );
   await writeFile(
     path.join(worktree, priorThreadsFile),
-    `${JSON.stringify({ schema: "pr-review/prior-threads/v1", provider: "github", pr_number: 432, head_sha: reviewHead, threads: [], dropped: [] }, null, 2)}\n`,
+    `${JSON.stringify({ schema: "pr-review/prior-threads/v2", provider: "github", repository: "owner/repo", pr_number: 432, head_sha: reviewHead, threads: [], dropped: [] }, null, 2)}\n`,
   );
   await writeFile(
     path.join(worktree, threadActionsFile),
@@ -7392,7 +7392,7 @@ async function writeResultArtifact(
     `${JSON.stringify(handoff, null, 2)}\n`,
   );
   const result = {
-    schema: "pr-review/result/v1",
+    schema: "pr-review/result/v2",
     repository: "owner/repo",
     pr_number: 432,
     review_head_sha: reviewHead,
