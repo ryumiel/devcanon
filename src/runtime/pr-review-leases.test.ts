@@ -27,7 +27,12 @@ import {
 
 vi.mock("node:fs/promises", async (importOriginal) => {
   const actual = await importOriginal<typeof import("node:fs/promises")>();
-  return { ...actual, link: vi.fn(actual.link) };
+  return {
+    ...actual,
+    link: vi.fn(actual.link),
+    open: vi.fn(actual.open),
+    rm: vi.fn(actual.rm),
+  };
 });
 
 import { PrReviewCommandHarness } from "../__test-helpers__/pr-review-command-harness.js";
@@ -1552,6 +1557,90 @@ describe("pr-review lease command validation", () => {
     await expect(lstat(canonical)).resolves.toMatchObject({
       isDirectory: expect.any(Function),
     });
+  });
+
+  it("preserves manual-cleanup evidence when failed staging cannot remove its temporary file", async () => {
+    const repository = await commandHarness.createReviewRepository();
+    const { stdout: headOutput } = await execFileAsync("git", [
+      "-C",
+      repository.physicalRepository,
+      "rev-parse",
+      "HEAD",
+    ]);
+    const head = headOutput.trim();
+    const canonical = path.join(
+      repository.physicalRepository,
+      ".worktrees",
+      "pr-432-review",
+    );
+    const reservationPath = path.join(
+      repository.physicalRepository,
+      ".ephemeral",
+      "pr-432-session-create-reservation.json",
+    );
+    process.chdir(repository.physicalRepository);
+    Object.assign(process.env, {
+      REPOSITORY: "owner/repo",
+      PR_NUMBER: "432",
+      PRIMARY_REPOSITORY_ROOT: repository.physicalRepository,
+      HEAD_SHA: head,
+      BASE_REF: "main",
+      HEAD_REF: "topic",
+      UPDATED_AT: "2026-07-31T00:00:00Z",
+    });
+    const actualFs =
+      await vi.importActual<typeof import("node:fs/promises")>(
+        "node:fs/promises",
+      );
+    const mockedOpen = vi.mocked(fsPromises.open);
+    const mockedRm = vi.mocked(fsPromises.rm);
+    mockedOpen.mockImplementation(async (...args) => {
+      const handle = await actualFs.open(...args);
+      if (
+        typeof args[0] === "string" &&
+        args[0].endsWith(".session-create.tmp")
+      ) {
+        vi.spyOn(handle, "writeFile").mockRejectedValueOnce(
+          new Error("staging write failed"),
+        );
+      }
+      return handle;
+    });
+    mockedRm.mockImplementation(async (...args) => {
+      if (
+        typeof args[0] === "string" &&
+        args[0].endsWith(".session-create.tmp")
+      ) {
+        throw new Error("temporary cleanup failed");
+      }
+      return await actualFs.rm(...args);
+    });
+
+    let result: Awaited<ReturnType<typeof runPrReviewLeasesCommand>>;
+    try {
+      result = await runPrReviewLeasesCommand(["session-create"]);
+    } finally {
+      mockedOpen.mockImplementation(actualFs.open);
+      mockedRm.mockImplementation(actualFs.rm);
+    }
+
+    expect(result.exitCode, result.stderr).toBe(1);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      schema: "pr-review/session-create/v1",
+      outcome: "manual-cleanup",
+      reason: "lease-unverifiable",
+      canonical_worktree_path: canonical,
+      immutable_head: head,
+      lease_sha256: null,
+      observed_artifacts: ["reservation", "worktree", "registration", "lease"],
+    });
+    await expect(readFile(reservationPath, "utf8")).resolves.toContain(
+      '"schema":"pr-review/session-create-reservation/v1"',
+    );
+    const temporaryEntries = (
+      await readdir(path.dirname(reservationPath))
+    ).filter((entry) => entry.endsWith(".session-create.tmp"));
+    expect(temporaryEntries).toHaveLength(1);
   });
 
   it("preserves a closed competing reservation without creating a worktree", async () => {

@@ -482,16 +482,23 @@ async function publishSessionCreateLease(primaryRoot, leaseFile, bytes) {
     const temp = path.join(path.dirname(target), `.${path.basename(target)}.${randomUUID()}.session-create.tmp`);
     let handle = null;
     try {
+        handle = await open(temp, "wx");
+        await handle.writeFile(bytes, "utf8");
+        await handle.sync();
+        await handle.close();
+        handle = null;
+    }
+    catch {
+        await handle?.close().catch(() => undefined);
         try {
-            handle = await open(temp, "wx");
-            await handle.writeFile(bytes, "utf8");
-            await handle.sync();
-            await handle.close();
-            handle = null;
-        }
-        catch {
+            await rm(temp, { force: true });
             return "not-published";
         }
+        catch {
+            return "unverifiable";
+        }
+    }
+    try {
         try {
             await link(temp, target);
         }
@@ -509,7 +516,6 @@ async function publishSessionCreateLease(primaryRoot, leaseFile, bytes) {
         }
     }
     finally {
-        await handle?.close().catch(() => undefined);
         await rm(temp, { force: true }).catch(() => undefined);
     }
 }

@@ -908,16 +908,22 @@ async function publishSessionCreateLease(
   );
   let handle: Awaited<ReturnType<typeof open>> | null = null;
   try {
+    handle = await open(temp, "wx");
+    await handle.writeFile(bytes, "utf8");
+    await handle.sync();
+    await handle.close();
+    handle = null;
+  } catch {
+    await handle?.close().catch(() => undefined);
     try {
-      handle = await open(temp, "wx");
-      await handle.writeFile(bytes, "utf8");
-      await handle.sync();
-      await handle.close();
-      handle = null;
-    } catch {
+      await rm(temp, { force: true });
       return "not-published";
+    } catch {
+      return "unverifiable";
     }
+  }
 
+  try {
     try {
       await link(temp, target);
     } catch {
@@ -933,7 +939,6 @@ async function publishSessionCreateLease(
       return "published-unverifiable";
     }
   } finally {
-    await handle?.close().catch(() => undefined);
     await rm(temp, { force: true }).catch(() => undefined);
   }
 }
