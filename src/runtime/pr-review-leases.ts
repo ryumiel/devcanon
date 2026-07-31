@@ -959,7 +959,6 @@ async function sessionCreateRollbackResult({
   worktreeCreated: boolean;
 }): Promise<RuntimeCommandOutcome> {
   const observed: ObservedArtifact[] = ["reservation"];
-  let clean = true;
   if (leaseBytes !== null) {
     observed.push("lease");
     if (
@@ -974,7 +973,13 @@ async function sessionCreateRollbackResult({
         leaseBytes,
       ))
     ) {
-      clean = false;
+      return sessionCreateManualCleanup(
+        manualReason,
+        reservation,
+        registration,
+        leaseSha256,
+        observed,
+      );
     }
   }
   if (worktreeCreated) {
@@ -994,7 +999,13 @@ async function sessionCreateRollbackResult({
         reservation.immutable_head,
       ))
     ) {
-      clean = false;
+      return sessionCreateManualCleanup(
+        manualReason,
+        reservation,
+        registration,
+        leaseSha256,
+        observed,
+      );
     }
   }
   if (
@@ -1005,16 +1016,15 @@ async function sessionCreateRollbackResult({
       reservationBytes,
     ))
   ) {
-    clean = false;
+    return sessionCreateManualCleanup(
+      manualReason,
+      reservation,
+      registration,
+      leaseSha256,
+      observed,
+    );
   }
-  if (clean) return sessionCreateConflict(conflictReason, []);
-  return sessionCreateManualCleanup(
-    manualReason,
-    reservation,
-    registration,
-    leaseSha256,
-    observed,
-  );
+  return sessionCreateConflict(conflictReason, []);
 }
 
 async function removeOwnedSessionLease(

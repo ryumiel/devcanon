@@ -1486,6 +1486,45 @@ describe("pr-review lease command validation", () => {
     await expect(lstat(canonical)).rejects.toMatchObject({ code: "ENOENT" });
   });
 
+  it("keeps the closed conflict envelope ordered for reservation contention", async () => {
+    const repository = await commandHarness.createReviewRepository();
+    const { stdout } = await execFileAsync("git", [
+      "-C",
+      repository.physicalRepository,
+      "rev-parse",
+      "HEAD",
+    ]);
+    const canonical = path.join(
+      repository.physicalRepository,
+      ".worktrees",
+      "pr-432-review",
+    );
+    await writeFile(
+      path.join(
+        repository.physicalRepository,
+        ".ephemeral/pr-432-session-create-reservation.json",
+      ),
+      `${JSON.stringify({ schema: "pr-review/session-create-reservation/v1", invocation_token: "other", repository: "owner/repo", pr_number: 432, primary_repository_root: repository.physicalRepository, common_git_directory: path.join(repository.physicalRepository, ".git"), canonical_worktree_path: canonical, immutable_head: stdout.trim(), lease_file: `.ephemeral/pr-432-${discoveryWorktreeDigest(canonical)}-lease.json`, expected_lease_sha256: "b".repeat(64) })}\n`,
+    );
+    process.chdir(repository.physicalRepository);
+    Object.assign(process.env, {
+      REPOSITORY: "owner/repo",
+      PR_NUMBER: "432",
+      PRIMARY_REPOSITORY_ROOT: repository.physicalRepository,
+      HEAD_SHA: stdout.trim(),
+      BASE_REF: "main",
+      HEAD_REF: "topic",
+      UPDATED_AT: "2026-07-31T00:00:00Z",
+    });
+    const result = await runPrReviewLeasesCommand(["session-create"]);
+    expect(Object.keys(JSON.parse(result.stdout))).toEqual([
+      "schema",
+      "outcome",
+      "reason",
+      "observed_artifacts",
+    ]);
+  });
+
   it("retains malformed reservation evidence for manual cleanup", async () => {
     const repository = await commandHarness.createReviewRepository();
     const { stdout: headOutput } = await execFileAsync("git", [
@@ -6431,8 +6470,9 @@ describe("pr-review lease wrapper trusted runtime bootstrap", () => {
       typedSentinel,
       bashExecutable,
     );
-    expect(result).toMatchObject({
+    expect(result).toEqual({
       exitCode: 0,
+      signal: null,
       stdout: "runtime-ok\n",
       stderr: "",
     });

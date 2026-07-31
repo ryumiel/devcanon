@@ -494,12 +494,11 @@ async function verifySessionCreateFinalState({ identity, commonGitDirectory, hea
 }
 async function sessionCreateRollbackResult({ conflictReason, manualReason, identity, reservation, reservationFile, reservationBytes, registration, leaseBytes, leaseSha256, worktreeCreated, }) {
     const observed = ["reservation"];
-    let clean = true;
     if (leaseBytes !== null) {
         observed.push("lease");
         if (!(await reservationMatches(path.join(identity.primaryRoot, reservationFile), reservation, reservationBytes)) ||
             !(await removeOwnedSessionLease(identity.primaryRoot, reservation.lease_file, leaseBytes))) {
-            clean = false;
+            return sessionCreateManualCleanup(manualReason, reservation, registration, leaseSha256, observed);
         }
     }
     if (worktreeCreated) {
@@ -509,15 +508,13 @@ async function sessionCreateRollbackResult({ conflictReason, manualReason, ident
         if (registration === null ||
             !(await reservationMatches(path.join(identity.primaryRoot, reservationFile), reservation, reservationBytes)) ||
             !(await removeOwnedSessionWorktree(identity.primaryRoot, registration, reservation.common_git_directory, reservation.immutable_head))) {
-            clean = false;
+            return sessionCreateManualCleanup(manualReason, reservation, registration, leaseSha256, observed);
         }
     }
     if (!(await removeOwnedReservation(identity.primaryRoot, reservationFile, reservation, reservationBytes))) {
-        clean = false;
+        return sessionCreateManualCleanup(manualReason, reservation, registration, leaseSha256, observed);
     }
-    if (clean)
-        return sessionCreateConflict(conflictReason, []);
-    return sessionCreateManualCleanup(manualReason, reservation, registration, leaseSha256, observed);
+    return sessionCreateConflict(conflictReason, []);
 }
 async function removeOwnedSessionLease(primaryRoot, leaseFile, expectedBytes) {
     const target = path.join(primaryRoot, leaseFile);
