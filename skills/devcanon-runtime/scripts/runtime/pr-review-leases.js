@@ -481,24 +481,32 @@ async function publishSessionCreateLease(primaryRoot, leaseFile, bytes) {
     const target = path.join(primaryRoot, leaseFile);
     const temp = path.join(path.dirname(target), `.${path.basename(target)}.${randomUUID()}.session-create.tmp`);
     let handle = null;
-    let published = false;
     try {
-        handle = await open(temp, "wx");
-        await handle.writeFile(bytes, "utf8");
-        await handle.sync();
-        await handle.close();
-        handle = null;
-        await link(temp, target);
-        published = true;
-        await rm(temp);
-        return "published";
-    }
-    catch (err) {
-        if (published)
+        try {
+            handle = await open(temp, "wx");
+            await handle.writeFile(bytes, "utf8");
+            await handle.sync();
+            await handle.close();
+            handle = null;
+        }
+        catch {
+            return "not-published";
+        }
+        try {
+            await link(temp, target);
+        }
+        catch {
+            // A failed publication primitive can be unsupported or otherwise
+            // unverifiable even when it did not report EEXIST.
+            return "unverifiable";
+        }
+        try {
+            await rm(temp);
+            return "published";
+        }
+        catch {
             return "published-unverifiable";
-        return err.code === "EEXIST"
-            ? "unverifiable"
-            : "not-published";
+        }
     }
     finally {
         await handle?.close().catch(() => undefined);

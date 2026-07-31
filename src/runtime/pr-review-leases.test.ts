@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import * as fsPromises from "node:fs/promises";
 import {
   chmod,
   lstat,
@@ -23,6 +24,12 @@ import {
   it,
   vi,
 } from "vitest";
+
+vi.mock("node:fs/promises", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:fs/promises")>();
+  return { ...actual, link: vi.fn(actual.link) };
+});
+
 import { PrReviewCommandHarness } from "../__test-helpers__/pr-review-command-harness.js";
 import * as artifacts from "./artifacts.js";
 import { runPlayReviewSharedContextCommand as runPlayReviewSharedContextRuntimeCommand } from "./play-review-shared-context.js";
@@ -1492,6 +1499,59 @@ describe("pr-review lease command validation", () => {
     await expect(readFile(leasePath, "utf8")).resolves.toContain(
       '"state": "created"',
     );
+  });
+
+  it("preserves manual-cleanup evidence for an unsupported publication primitive", async () => {
+    const repository = await commandHarness.createReviewRepository();
+    const { stdout: headOutput } = await execFileAsync("git", [
+      "-C",
+      repository.physicalRepository,
+      "rev-parse",
+      "HEAD",
+    ]);
+    const head = headOutput.trim();
+    const canonical = path.join(
+      repository.physicalRepository,
+      ".worktrees",
+      "pr-432-review",
+    );
+    const reservationPath = path.join(
+      repository.physicalRepository,
+      ".ephemeral",
+      "pr-432-session-create-reservation.json",
+    );
+    process.chdir(repository.physicalRepository);
+    Object.assign(process.env, {
+      REPOSITORY: "owner/repo",
+      PR_NUMBER: "432",
+      PRIMARY_REPOSITORY_ROOT: repository.physicalRepository,
+      HEAD_SHA: head,
+      BASE_REF: "main",
+      HEAD_REF: "topic",
+      UPDATED_AT: "2026-07-31T00:00:00Z",
+    });
+    vi.mocked(fsPromises.link).mockRejectedValueOnce(
+      Object.assign(new Error("unsupported hard link"), { code: "EOPNOTSUPP" }),
+    );
+
+    const result = await runPrReviewLeasesCommand(["session-create"]);
+
+    expect(result.exitCode, result.stderr).toBe(1);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      schema: "pr-review/session-create/v1",
+      outcome: "manual-cleanup",
+      reason: "lease-unverifiable",
+      canonical_worktree_path: canonical,
+      immutable_head: head,
+      lease_sha256: null,
+      observed_artifacts: ["reservation", "worktree", "registration", "lease"],
+    });
+    await expect(readFile(reservationPath, "utf8")).resolves.toContain(
+      '"schema":"pr-review/session-create-reservation/v1"',
+    );
+    await expect(lstat(canonical)).resolves.toMatchObject({
+      isDirectory: expect.any(Function),
+    });
   });
 
   it("preserves a closed competing reservation without creating a worktree", async () => {
