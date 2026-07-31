@@ -274,6 +274,25 @@ function priorThreadsEnvelope(headSha: string, overrides = {}) {
   };
 }
 
+function threadActionsEnvelope(headSha: string, priorThreads: object) {
+  return {
+    schema: "pr-review/thread-actions/v1",
+    repository: "owner/repo",
+    pr_number: 390,
+    review_head_sha: headSha,
+    prior_threads_file: priorThreadsPath(headSha),
+    prior_threads_sha256: sha256(JSON.stringify(priorThreads, null, 2)),
+    actions: [
+      {
+        thread_id: "PRRT_kwDOExample",
+        action: "resolve",
+        evidence: "The current change addresses the requested correction.",
+        reason: "Resolve because the reviewed code now satisfies the request.",
+      },
+    ],
+  };
+}
+
 async function writeJson(cwd: string, relPath: string, value: unknown) {
   await mkdir(path.dirname(path.join(cwd, relPath)), { recursive: true });
   await writeFile(path.join(cwd, relPath), JSON.stringify(value, null, 2));
@@ -365,6 +384,23 @@ describe.skipIf(!jqAvailable)("pr-review prior-thread adapter", () => {
         runHelper(cwd, helperScript, "validate-prior-threads", {
           HEAD_SHA: headSha,
           PRIOR_THREADS_FILE: threadsPath,
+        }),
+      ).resolves.toMatchObject({ stdout: "" });
+      const actionsPath = `.ephemeral/topic-${headSha}-thread-actions.json`;
+      const priorThreads = priorThreadsEnvelope(headSha);
+      await writeJson(cwd, threadsPath, priorThreads);
+      await writeJson(
+        cwd,
+        actionsPath,
+        threadActionsEnvelope(headSha, priorThreads),
+      );
+      await expect(
+        runHelper(cwd, helperScript, "validate-thread-actions", {
+          HEAD_SHA: headSha,
+          THREAD_ACTIONS_FILE: actionsPath,
+          PRIOR_THREADS_FILE: threadsPath,
+          REPOSITORY: "owner/repo",
+          PR_NUMBER: "390",
         }),
       ).resolves.toMatchObject({ stdout: "" });
     } finally {

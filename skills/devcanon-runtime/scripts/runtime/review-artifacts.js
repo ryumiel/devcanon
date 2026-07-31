@@ -22,6 +22,9 @@ const EMPTY_OPTIONS = {
     maxNarrowChangedFiles: "",
     allowAmbiguousFull: "true",
     priorThreads: "",
+    threadActions: "",
+    repository: "",
+    prNumber: "",
     findingsFile: "",
     reviewBodyFile: "",
     reviewEvent: "",
@@ -126,6 +129,9 @@ export async function runReviewArtifactsCommand(args) {
             case "validate-prior-threads":
                 await validatePriorThreads(options);
                 return ok("");
+            case "validate-thread-actions":
+                await validateThreadActions(options);
+                return ok("");
             case "validate-diff-anchors":
                 await validateDiffAnchors(options);
                 return ok("");
@@ -137,7 +143,7 @@ export async function runReviewArtifactsCommand(args) {
                 await validateRiskSignals(options);
                 return ok("");
             default:
-                throw new ReviewArtifactsError("usage: review-artifacts.sh validate-scope-decision|validate-prior-threads|validate-diff-anchors|compare-approved-payload|validate-approval-summary|validate-risk-signals");
+                throw new ReviewArtifactsError("usage: review-artifacts.sh validate-scope-decision|validate-prior-threads|validate-thread-actions|validate-diff-anchors|compare-approved-payload|validate-approval-summary|validate-risk-signals");
         }
     }
     catch (err) {
@@ -203,6 +209,15 @@ function parseCommonArgs(args) {
                 break;
             case "--prior-threads-file":
                 options.priorThreads = value;
+                break;
+            case "--thread-actions-file":
+                options.threadActions = value;
+                break;
+            case "--repository":
+                options.repository = value;
+                break;
+            case "--pr-number":
+                options.prNumber = value;
                 break;
             case "--provider":
                 options.provider = value;
@@ -585,6 +600,9 @@ async function validateScopeDecision(options) {
     return scope;
 }
 async function validatePriorThreads(options) {
+    await readValidatedPriorThreads(options);
+}
+async function readValidatedPriorThreads(options) {
     await requireRepoRoot();
     requireFlag("--surface", options.surface);
     requireFlag("--prior-threads-file", options.priorThreads);
@@ -602,16 +620,70 @@ async function validatePriorThreads(options) {
     await validateHeadShaCommit(options.headSha);
     await assertReadableFile("--prior-threads-file", options.priorThreads);
     validateSuffix("--prior-threads-file", options.priorThreads, "-prior-threads.json");
-    const envelope = await readSingleJsonObject(options.priorThreads, "prior-thread shape validation failed");
+    let text;
+    let envelope;
     try {
+        text = await readUtf8FileStrict(options.priorThreads);
+        const parsed = JSON.parse(text);
+        if (parsed === null ||
+            typeof parsed !== "object" ||
+            Array.isArray(parsed)) {
+            fail("prior-thread shape validation failed");
+        }
+        envelope = parsed;
         validatePriorThreadsSchema(envelope, options);
     }
     catch (err) {
-        if (err instanceof ReviewArtifactsError &&
-            err.message === "runtime validation failed") {
+        if (!(err instanceof ReviewArtifactsError)) {
+            fail("prior-thread shape validation failed");
+        }
+        if (err.message === "runtime validation failed") {
             fail("prior-thread shape validation failed");
         }
         throw err;
+    }
+    return { envelope, text };
+}
+async function validateThreadActions(options) {
+    await requireRepoRoot();
+    requireThreadActionFlags(options);
+    rejectThreadActionExtraFlags(options);
+    await validateHeadShaCommit(options.headSha);
+    await assertReadableFile("--thread-actions-file", options.threadActions);
+    validateSuffix("--thread-actions-file", options.threadActions, "-thread-actions.json");
+    const prior = await readValidatedPriorThreads({
+        ...options,
+        surface: "pr-review",
+        expectedSchema: "pr-review/prior-threads/v1",
+        provider: "github",
+    });
+    const actions = await readSingleJsonObject(options.threadActions, "thread-actions JSON validation failed");
+    validateThreadActionsSchema(actions, options, prior);
+}
+function requireThreadActionFlags(options) {
+    requireFlag("--head-sha", options.headSha);
+    requireFlag("--thread-actions-file", options.threadActions);
+    requireFlag("--prior-threads-file", options.priorThreads);
+    requireFlag("--repository", options.repository);
+    requireFlag("--pr-number", options.prNumber);
+    if (!isRepository(options.repository)) {
+        fail("--repository must be owner/repo");
+    }
+    if (!/^[1-9][0-9]*$/u.test(options.prNumber)) {
+        fail("--pr-number must be a positive integer");
+    }
+}
+function rejectThreadActionExtraFlags(options) {
+    const allowed = new Set([
+        "--head-sha",
+        "--thread-actions-file",
+        "--prior-threads-file",
+        "--repository",
+        "--pr-number",
+    ]);
+    const extraFlag = options.providedFlags.find((flag) => !allowed.has(flag));
+    if (extraFlag !== undefined) {
+        fail(`validate-thread-actions does not accept ${extraFlag}`);
     }
 }
 async function validatePrReviewProviderEvidence(scope, options) {
@@ -1400,6 +1472,103 @@ function validatePriorThreadsSchema(envelope, options) {
             fail("dropped-thread shape validation failed");
         }
     }
+}
+function validateThreadActionsSchema(artifact, options, prior) {
+    try {
+        if (!hasExactKeys(artifact, [
+            "schema",
+            "repository",
+            "pr_number",
+            "review_head_sha",
+            "prior_threads_file",
+            "prior_threads_sha256",
+            "actions",
+        ]) ||
+            stringField(artifact, "schema") !== "pr-review/thread-actions/v1" ||
+            !isRepository(stringField(artifact, "repository")) ||
+            !isPositiveInteger(artifact.pr_number) ||
+            !isSha(stringField(artifact, "review_head_sha")) ||
+            typeof artifact.prior_threads_file !== "string" ||
+            !isSha256(stringField(artifact, "prior_threads_sha256")) ||
+            !Array.isArray(artifact.actions) ||
+            !artifact.actions.every(isThreadAction)) {
+            fail("thread-actions schema validation failed");
+        }
+    }
+    catch (err) {
+        if (err instanceof ReviewArtifactsError &&
+            err.message === "runtime validation failed") {
+            fail("thread-actions schema validation failed");
+        }
+        throw err;
+    }
+    if (stringField(artifact, "repository") !== options.repository) {
+        fail("thread-actions repository mismatch");
+    }
+    if (artifact.pr_number !== Number(options.prNumber)) {
+        fail("thread-actions PR number mismatch");
+    }
+    if (stringField(artifact, "review_head_sha") !== options.headSha) {
+        fail("thread-actions reviewed head mismatch");
+    }
+    if (artifact.prior_threads_file !== options.priorThreads) {
+        fail("thread-actions prior threads path mismatch");
+    }
+    if (stringField(artifact, "prior_threads_sha256") !== sha256Text(prior.text)) {
+        fail("thread-actions prior threads digest mismatch");
+    }
+    if (artifact.pr_number !== prior.envelope.pr_number) {
+        fail("thread-actions prior threads PR number mismatch");
+    }
+    if (stringField(artifact, "review_head_sha") !==
+        stringField(prior.envelope, "head_sha")) {
+        fail("thread-actions prior threads head mismatch");
+    }
+    const actions = artifact.actions;
+    const actionIds = actions.map((action) => stringField(action, "thread_id"));
+    if (new Set(actionIds).size !== actionIds.length) {
+        fail("thread-actions duplicate action thread ID");
+    }
+    const eligibleIds = arrayField(prior.envelope, "threads")
+        .map((thread, index) => ({ thread: thread, index }))
+        .filter(({ thread }) => isEligiblePriorThread(thread))
+        .sort((left, right) => left.index - right.index ||
+        stringField(left.thread, "thread_id").localeCompare(stringField(right.thread, "thread_id")))
+        .map(({ thread }) => stringField(thread, "thread_id"));
+    if (actionIds.length !== eligibleIds.length ||
+        !setEquals(new Set(actionIds), new Set(eligibleIds))) {
+        fail("thread-actions actions do not match eligible prior threads");
+    }
+    if (!jsonEqual(actionIds, eligibleIds)) {
+        fail("thread-actions actions are not in canonical prior-thread order");
+    }
+}
+function isEligiblePriorThread(thread) {
+    return (stringField(thread, "classification") === "actionable" &&
+        booleanField(thread, "is_resolved") === false &&
+        booleanField(thread, "is_outdated") === false &&
+        stringField(thread, "model_context") === "include");
+}
+function isThreadAction(value) {
+    if (value === null || typeof value !== "object" || Array.isArray(value)) {
+        return false;
+    }
+    const action = value;
+    return (hasExactKeys(action, ["thread_id", "action", "evidence", "reason"]) &&
+        isGithubNodeId(action.thread_id) &&
+        typeof action.action === "string" &&
+        ["resolve", "leave"].includes(action.action) &&
+        isConciseThreadActionText(action.evidence) &&
+        isConciseThreadActionText(action.reason));
+}
+function isConciseThreadActionText(value) {
+    return (typeof value === "string" &&
+        value.trim().length > 0 &&
+        value.length <= 500 &&
+        !value.includes("\0"));
+}
+function sha256Text(value) {
+    return createHash("sha256").update(value).digest("hex");
 }
 async function validateDiffAnchors(options) {
     const scope = await validateScopeDecision(options);
@@ -2694,6 +2863,9 @@ function isSha(value) {
 }
 function isSha256(value) {
     return /^[0-9a-f]{64}$/u.test(value);
+}
+function isRepository(value) {
+    return /^[^/\s]+\/[^/\s]+$/u.test(value);
 }
 function isApprovalTerminalState(value) {
     return ["approved", "approved_with_nits", "blocked", "invalid"].includes(value);
