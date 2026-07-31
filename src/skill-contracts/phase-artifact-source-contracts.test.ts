@@ -3831,7 +3831,7 @@ None
     );
     expect(retryIntentGate).toContain("POST_INTENT_REUSED=false");
     expect(retryIntentGate).toContain(
-      'if (cd "$WORKING_DIRECTORY" && [ -e "$EXISTING_POST_INTENT_FILE"); then',
+      'if (cd "$WORKING_DIRECTORY" && [ -e "$EXISTING_POST_INTENT_FILE" ]); then',
     );
     expect(retryIntentGate).toContain("POST_INTENT_REUSED=true");
     expect(retryIntentGate).toContain('cd "$WORKING_DIRECTORY" || exit 1');

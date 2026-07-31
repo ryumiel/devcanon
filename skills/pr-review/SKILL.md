@@ -1124,7 +1124,7 @@ Only after user approval:
    PROVIDER_ACTOR_ID="$(gh api user --jq .id)" || exit 1
    EXISTING_POST_INTENT_FILE=".ephemeral/pr-${PR_NUMBER}-${REVIEW_HEAD_SHA}-thread-action-post-intent.json"
    POST_INTENT_REUSED=false
-   if (cd "$WORKING_DIRECTORY" && [ -e "$EXISTING_POST_INTENT_FILE"); then
+   if (cd "$WORKING_DIRECTORY" && [ -e "$EXISTING_POST_INTENT_FILE" ]); then
      POST_INTENT_CREATED_AT="$( (
        cd "$WORKING_DIRECTORY" || exit 1
        [ ! -L "$EXISTING_POST_INTENT_FILE" ] && [ -f "$EXISTING_POST_INTENT_FILE" ] || exit 1
