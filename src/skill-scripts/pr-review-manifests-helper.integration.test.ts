@@ -981,9 +981,6 @@ describe("pr-review manifest helper", () => {
   it(
     "renders the Phase 5 audit through a copied installed sibling layout using only public inputs",
     async () => {
-      const previousValidatorOverride =
-        process.env.PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT;
-      process.env.PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT = helperScript;
       let workspace: Phase5AuditWorkspace | undefined;
       try {
         workspace = await makePhase5AuditWorkspace();
@@ -1043,15 +1040,6 @@ describe("pr-review manifest helper", () => {
           readFile(path.join(workspace.primary, workspace.leaseFile), "utf8"),
         ).resolves.toBe(beforeLease);
       } finally {
-        if (previousValidatorOverride === undefined) {
-          Reflect.deleteProperty(
-            process.env,
-            "PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT",
-          );
-        } else {
-          process.env.PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT =
-            previousValidatorOverride;
-        }
         if (workspace !== undefined) {
           await cleanupPhase5AuditWorkspace(workspace);
         }

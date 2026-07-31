@@ -337,6 +337,18 @@ PROVIDER_PR_DIFF_BASE_SHA="<provider_pr_diff_base_sha>"
 REVIEW_SCOPE_BASE_REF="$PROVIDER_PR_DIFF_BASE_SHA"
 REVIEW_CALLER_DIR="$(pwd -P)" || exit 1
 
+materialize_initial_prior_threads() {
+  cd "$WORKING_DIRECTORY" || return 1
+  [ "${FOLLOW_UP_STATE:-}" = "initial" ] || return 0
+  PRIOR_THREADS_FILE=$(HEAD_SHA="$REVIEW_HEAD_SHA" \
+    bash "$PR_REVIEW_ARTIFACT_HELPER" prepare-prior-threads-write) || return 1
+  # Write the canonical empty pr-review/prior-threads/v1 envelope here:
+  # provider="github", pr_number, head_sha, threads=[], and dropped=[].
+  HEAD_SHA="$REVIEW_HEAD_SHA" \
+  PRIOR_THREADS_FILE="$PRIOR_THREADS_FILE" \
+    bash "$PR_REVIEW_ARTIFACT_HELPER" validate-prior-threads || return 1
+}
+
 bind_scope_decision_artifact() {
   cd "$WORKING_DIRECTORY" || return 1
   HEAD_SHA="$(git rev-parse HEAD)" || return 1
@@ -365,6 +377,11 @@ bind_scope_decision_artifact() {
     bash "$PR_REVIEW_ARTIFACT_HELPER" validate-scope-decision || return 1
   REVIEW_SCOPE_DECISION_FILE="$SCOPE_DECISION_FILE"
 }
+
+PRIOR_THREADS_STATUS=0
+materialize_initial_prior_threads || PRIOR_THREADS_STATUS=$?
+cd "$REVIEW_CALLER_DIR" || exit 1
+[ "$PRIOR_THREADS_STATUS" -eq 0 ] || exit "$PRIOR_THREADS_STATUS"
 
 SCOPE_DECISION_STATUS=0
 bind_scope_decision_artifact || SCOPE_DECISION_STATUS=$?
@@ -537,19 +554,7 @@ to resolve a provider thread until a later approved-review freeze.
 ```bash
 write_thread_actions_candidate() {
   cd "$WORKING_DIRECTORY" || return 1
-  if [ -z "${PRIOR_THREADS_FILE:-}" ]; then
-    PRIOR_THREADS_FILE=$(HEAD_SHA="$REVIEW_HEAD_SHA" \
-      bash "$PR_REVIEW_DIR/scripts/prior-thread-artifacts.sh" prepare-prior-threads-write) || return 1
-    # Write the canonical empty pr-review/prior-threads/v1 envelope for this
-    # initial review: repository/PR/head bound with threads=[] and dropped=[].
-    HEAD_SHA="$REVIEW_HEAD_SHA" \
-    PRIOR_THREADS_FILE="$PRIOR_THREADS_FILE" \
-      bash "$PR_REVIEW_DIR/scripts/prior-thread-artifacts.sh" validate-prior-threads || return 1
-  else
-    HEAD_SHA="$REVIEW_HEAD_SHA" \
-    PRIOR_THREADS_FILE="$PRIOR_THREADS_FILE" \
-      bash "$PR_REVIEW_DIR/scripts/prior-thread-artifacts.sh" validate-prior-threads || return 1
-  fi
+  : "${PRIOR_THREADS_FILE:?Phase 3 prior-thread artifact path missing}"
   THREAD_ACTIONS_FILE=$(HEAD_SHA="$REVIEW_HEAD_SHA" \
     bash "$PR_REVIEW_DIR/scripts/prior-thread-artifacts.sh" prepare-thread-actions-write) || return 1
   # Write the complete pr-review/thread-actions/v1 candidate to "$THREAD_ACTIONS_FILE".
