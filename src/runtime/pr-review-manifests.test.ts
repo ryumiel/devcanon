@@ -85,6 +85,26 @@ afterAll(async () => {
 });
 
 describe("pr-review Phase 5 audit summary renderer", () => {
+  it("prevents deterministic result-temp cleanup from failing after publication", async () => {
+    const source = await readFile(
+      path.join(originalCwd, "src/runtime/pr-review-manifests.ts"),
+      "utf8",
+    );
+    const resultStart = source.indexOf("async function writeResult()");
+    const resultEnd = source.indexOf(
+      "async function validateHandoffCommand",
+      resultStart,
+    );
+    const resultWriter = source.slice(resultStart, resultEnd);
+    const cleanup = resultWriter.indexOf(
+      "await rm(path.join(process.cwd(), tmpPathFor(file)), { force: true });",
+    );
+    const publish = resultWriter.indexOf("await writeTextAtomically(");
+
+    expect(cleanup).toBeGreaterThanOrEqual(0);
+    expect(publish).toBeGreaterThan(cleanup);
+  });
+
   it("keeps POSIX single-letter roots as operational paths", async () => {
     const { toOperationalPathText } = await import("./pr-review-manifests.js");
     expect(toOperationalPathText("/c/repo")).toBe("/c/repo");

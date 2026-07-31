@@ -299,11 +299,11 @@ async function writeResult(): Promise<string> {
 
   validateResultObject(result, file, file);
   await validateResultFacts(result, file);
+  await rm(path.join(process.cwd(), tmpPathFor(file)), { force: true });
   await writeTextAtomically(
     path.join(process.cwd(), file),
     `${json(result)}\n`,
   );
-  await rm(path.join(process.cwd(), tmpPathFor(file)), { force: true });
   return file;
 }
 
