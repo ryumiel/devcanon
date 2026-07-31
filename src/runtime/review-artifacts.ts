@@ -807,10 +807,10 @@ async function readValidatedPriorThreads(
     envelope = parsed as JsonObject;
     validatePriorThreadsSchema(envelope, options);
   } catch (err) {
-    if (
-      err instanceof ReviewArtifactsError &&
-      err.message === "runtime validation failed"
-    ) {
+    if (!(err instanceof ReviewArtifactsError)) {
+      fail("prior-thread shape validation failed");
+    }
+    if (err.message === "runtime validation failed") {
       fail("prior-thread shape validation failed");
     }
     throw err;
@@ -1985,7 +1985,8 @@ function isThreadAction(value: unknown): value is JsonObject {
   return (
     hasExactKeys(action, ["thread_id", "action", "evidence", "reason"]) &&
     isGithubNodeId(action.thread_id) &&
-    ["resolve", "leave"].includes(String(action.action)) &&
+    typeof action.action === "string" &&
+    ["resolve", "leave"].includes(action.action) &&
     isConciseThreadActionText(action.evidence) &&
     isConciseThreadActionText(action.reason)
   );

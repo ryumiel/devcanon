@@ -334,6 +334,13 @@ describe.skipIf(!jqAvailable)("pr-review prior-thread adapter", () => {
         }),
       ).resolves.toMatchObject({ stdout: `${threadsPath}\n` });
       await expect(
+        runHelper(cwd, helperScript, "prepare-thread-actions-write", {
+          HEAD_SHA: headSha,
+        }),
+      ).resolves.toMatchObject({
+        stdout: `.ephemeral/topic-${headSha}-thread-actions.json\n`,
+      });
+      await expect(
         runHelper(cwd, helperScript, "prepare-scope-decision-write", {
           HEAD_SHA: headSha,
         }),
@@ -424,6 +431,43 @@ describe.skipIf(!jqAvailable)("pr-review prior-thread adapter", () => {
       expect(args).toContain("--provider-scope-evidence-file");
       expect(args).toContain(providerScopePath(headSha));
       expect(args).toContain("--governed-path-pattern");
+    } finally {
+      await cleanupTempDir(cwd);
+      await cleanupTempDir(temp);
+    }
+  });
+
+  it("forwards deterministic thread-action bindings to the support validator", async () => {
+    const { cwd, headSha } = await makeGitWorkspace();
+    const temp = await mkdtemp(path.join(os.tmpdir(), "devcanon-pr-marker-"));
+    try {
+      const markerArgs = path.join(temp, "args.txt");
+      const validator = await writeMarkerValidator(temp, "override-validator");
+      const actionsPath = `.ephemeral/topic-${headSha}-thread-actions.json`;
+      const threadsPath = priorThreadsPath(headSha);
+
+      await expect(
+        runHelper(cwd, helperScript, "validate-thread-actions", {
+          HEAD_SHA: headSha,
+          THREAD_ACTIONS_FILE: actionsPath,
+          PRIOR_THREADS_FILE: threadsPath,
+          REPOSITORY: "owner/repo",
+          PR_NUMBER: "390",
+          PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT: validator,
+          MARKER_ARGS_FILE: markerArgs,
+        }),
+      ).resolves.toMatchObject({ stdout: "override-validator\n" });
+
+      const args = await readFile(markerArgs, "utf8");
+      expect(args).toContain("validate-thread-actions");
+      expect(args).toContain("--thread-actions-file");
+      expect(args).toContain(actionsPath);
+      expect(args).toContain("--prior-threads-file");
+      expect(args).toContain(threadsPath);
+      expect(args).toContain("--repository");
+      expect(args).toContain("owner/repo");
+      expect(args).toContain("--pr-number");
+      expect(args).toContain("390");
     } finally {
       await cleanupTempDir(cwd);
       await cleanupTempDir(temp);

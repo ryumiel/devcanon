@@ -3472,6 +3472,46 @@ describe.skipIf(isWindows)("review artifact runtime reducers", () => {
 });
 
 describe("pr-review thread-actions artifacts", () => {
+  it.each([
+    { name: "malformed JSON", content: "{not-json" },
+    { name: "invalid UTF-8", content: Buffer.from([0xc3, 0x28]) },
+  ])(
+    "normalizes prior-thread $name failures to the established shape error",
+    async (testCase) => {
+      const { cwd, headSha } = await makeRiskSignalsWorkspace();
+      try {
+        process.chdir(cwd);
+        await writeFile(
+          path.join(cwd, ".ephemeral/topic-prior-threads.json"),
+          testCase.content,
+        );
+
+        await expect(
+          runReviewArtifactsCommand([
+            "validate-prior-threads",
+            "--surface",
+            "pr-review",
+            "--head-sha",
+            headSha,
+            "--prior-threads-file",
+            ".ephemeral/topic-prior-threads.json",
+            "--expected-schema",
+            "pr-review/prior-threads/v1",
+            "--provider",
+            "github",
+          ]),
+        ).resolves.toMatchObject({
+          exitCode: 1,
+          stderr: expect.stringContaining(
+            "prior-thread shape validation failed",
+          ),
+        });
+      } finally {
+        await cleanupRiskSignalsWorkspace(cwd);
+      }
+    },
+  );
+
   it("validates a complete canonical mixed action set bound to prior threads", async () => {
     const { cwd, headSha } = await makeRiskSignalsWorkspace();
     try {
@@ -3505,6 +3545,18 @@ describe("pr-review thread-actions artifacts", () => {
         return { ...artifact, actions: [...actions, { ...actions[1] }] };
       },
       stderr: "thread-actions duplicate action thread ID",
+    },
+    {
+      name: "non-string action value",
+      artifact: (headSha: string, priorThreads: JsonObject) => {
+        const artifact = threadActionsArtifact(headSha, priorThreads);
+        const actions = artifact.actions as JsonObject[];
+        return {
+          ...artifact,
+          actions: [{ ...actions[0], action: ["resolve"] }, actions[1]],
+        };
+      },
+      stderr: "thread-actions schema validation failed",
     },
     {
       name: "missing eligible action",

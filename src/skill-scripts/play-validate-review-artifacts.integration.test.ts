@@ -3329,6 +3329,18 @@ describe("play-validate-review-artifacts validator", () => {
         "prior-thread shape validation failed",
       );
 
+      await writeFile(path.join(cwd, threadsPath), "{not-json");
+      await expectRejectsWith(
+        runValidator(cwd, "validate-prior-threads", priorThreadArgs),
+        "prior-thread shape validation failed",
+      );
+
+      await writeFile(path.join(cwd, threadsPath), Buffer.from([0xc3, 0x28]));
+      await expectRejectsWith(
+        runValidator(cwd, "validate-prior-threads", priorThreadArgs),
+        "prior-thread shape validation failed",
+      );
+
       await writeJson(
         cwd,
         threadsPath,
