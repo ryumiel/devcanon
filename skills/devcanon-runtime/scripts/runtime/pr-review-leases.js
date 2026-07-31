@@ -2483,8 +2483,7 @@ async function validatePostIntentAndReceipt(lease, worktreePath, resultReviewHea
         !Array.isArray(receipt.actions))
         throw new PrReviewLeaseError("execution receipt schema mismatch");
     validateTimestamp("execution receipt provider_review_submitted_at", receipt.provider_review_submitted_at);
-    if (lease.state === "resolving" &&
-        receipt.provider_review_submitted_at !== lease.github.github_posted_at) {
+    if (receipt.provider_review_submitted_at !== lease.github.github_posted_at) {
         throw new PrReviewLeaseError("execution receipt provider review submitted time mismatch");
     }
     validateTimestamp("execution receipt updated_at", stringField(receipt, "updated_at"));

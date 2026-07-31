@@ -114,7 +114,10 @@ const managedEnvKeys = [
   "APPROVED_REVIEW_FILE",
   "VALIDATED_REVIEW_PAYLOAD_FILE",
   "VALIDATED_PAYLOAD_FILE",
+  "POST_INTENT_FILE",
+  "EXECUTION_RECEIPT_FILE",
   "EXPECTED_STATE",
+  "PROVIDER_REVIEW_ID",
   "ALLOW_POLICY_OVERRIDE",
   "PR_REVIEW_DIR",
   "PR_REVIEW_MANIFEST_HELPER_SCRIPT",
@@ -4198,6 +4201,146 @@ describe("pr-review lease intent command validation", () => {
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain(
         "post intent request fingerprint mismatch",
+      );
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects receipt submitted-time drift while completing a resolving lease", async () => {
+    const workspace = await makeGatedStatusWorkspace(
+      "pr-review-receipt-time-drift-",
+    );
+    const approvedReviewFile = `.ephemeral/topic-${workspace.reviewHead}-approved-review.json`;
+    const payloadFile = `.ephemeral/pr-432-${workspace.reviewHead}-validated-review-payload.json`;
+    const intentFile = `.ephemeral/pr-432-${workspace.reviewHead}-thread-action-post-intent.json`;
+    const receiptFile = `.ephemeral/pr-432-${workspace.reviewHead}-thread-action-execution.json`;
+    const threadActionsSha256 = "a".repeat(64);
+    const fingerprint = createHash("sha256")
+      .update(
+        JSON.stringify([
+          "pr-review/provider-request-fingerprint/v1",
+          "owner/repo",
+          432,
+          workspace.reviewHead,
+          7,
+          "COMMENT",
+          "Review body",
+          threadActionsSha256,
+          [],
+        ]),
+      )
+      .digest("hex");
+    const finalBody = `Review body\n\n<!-- devcanon-pr-review-request:v1 sha256=${fingerprint} -->`;
+
+    try {
+      const payload = {
+        commit_id: workspace.reviewHead,
+        event: "COMMENT",
+        body: finalBody,
+        comments: [],
+      };
+      const approved = {
+        schema: "pr-review/approved-review/v1",
+        review_head_sha: workspace.reviewHead,
+        review_body_file: `.ephemeral/pr-432-${workspace.reviewHead}-review-body.md`,
+        thread_actions_sha256: threadActionsSha256,
+        thread_actions: [{ thread_id: "thread-1", action: "resolve" }],
+        payload,
+      };
+      await writeFile(
+        path.join(workspace.worktree, approvedReviewFile),
+        `${JSON.stringify(approved)}\n`,
+      );
+      await writeFile(
+        path.join(workspace.worktree, payloadFile),
+        `${JSON.stringify(payload)}\n`,
+      );
+      const intent = {
+        schema: "pr-review/thread-action-post-intent/v1",
+        repository: "owner/repo",
+        pr_number: 432,
+        review_head_sha: workspace.reviewHead,
+        approved_review_file: approvedReviewFile,
+        approved_review_sha256: await sha256File(
+          path.join(workspace.worktree, approvedReviewFile),
+        ),
+        validated_review_payload_file: payloadFile,
+        validated_review_payload_sha256: await sha256File(
+          path.join(workspace.worktree, payloadFile),
+        ),
+        review_event: "COMMENT",
+        provider_actor_id: 7,
+        request_fingerprint_sha256: fingerprint,
+        final_body: finalBody,
+        thread_actions_sha256: threadActionsSha256,
+        created_at: "2026-06-11T00:03:00Z",
+      };
+      await writeFile(
+        path.join(workspace.worktree, intentFile),
+        `${JSON.stringify(intent)}\n`,
+      );
+      process.chdir(workspace.physicalPrimary);
+      setReadStatusEnv(workspace);
+      process.env.STATE = "gated";
+      process.env.BASE_REF = "main";
+      process.env.HEAD_REF = "topic";
+      process.env.UPDATED_AT = "2026-06-11T00:03:00Z";
+      process.env.APPROVED_REVIEW_FILE = approvedReviewFile;
+      process.env.VALIDATED_REVIEW_PAYLOAD_FILE = payloadFile;
+      process.env.POST_INTENT_FILE = intentFile;
+      expect((await runPrReviewLeasesCommand(["write"])).exitCode).toBe(0);
+
+      const writeReceipt = async (
+        disposition: "pending" | "succeeded",
+        submittedAt: string,
+      ): Promise<void> => {
+        await writeFile(
+          path.join(workspace.worktree, receiptFile),
+          `${JSON.stringify({
+            schema: "pr-review/thread-action-execution/v1",
+            repository: "owner/repo",
+            pr_number: 432,
+            review_head_sha: workspace.reviewHead,
+            approved_review_file: approvedReviewFile,
+            approved_review_sha256: intent.approved_review_sha256,
+            post_intent_file: intentFile,
+            post_intent_sha256: await sha256File(
+              path.join(workspace.worktree, intentFile),
+            ),
+            request_fingerprint_sha256: fingerprint,
+            post_outcome: "post-response",
+            provider_review_id: 99,
+            provider_review_submitted_at: submittedAt,
+            updated_at: submittedAt,
+            actions: [
+              {
+                thread_id: "thread-1",
+                action: "resolve",
+                disposition,
+                failure_reason: null,
+              },
+            ],
+          })}\n`,
+        );
+      };
+      await writeReceipt("pending", "2026-06-11T00:03:00Z");
+      process.env.STATE = "resolving";
+      process.env.UPDATED_AT = "2026-06-11T00:03:00Z";
+      process.env.EXECUTION_RECEIPT_FILE = receiptFile;
+      process.env.GITHUB_POSTED_AT = "2026-06-11T00:03:00Z";
+      process.env.PROVIDER_REVIEW_ID = "99";
+      expect((await runPrReviewLeasesCommand(["write"])).exitCode).toBe(0);
+
+      await writeReceipt("succeeded", "2026-06-11T00:04:00Z");
+      process.env.STATE = "posted";
+      process.env.UPDATED_AT = "2026-06-11T00:04:00Z";
+      process.env.FINISHED_AT = "2026-06-11T00:04:00Z";
+      const result = await runPrReviewLeasesCommand(["write"]);
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain(
+        "execution receipt provider review submitted time mismatch",
       );
     } finally {
       process.chdir(originalCwd);

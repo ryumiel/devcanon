@@ -3738,10 +3738,7 @@ async function validatePostIntentAndReceipt(
     "execution receipt provider_review_submitted_at",
     receipt.provider_review_submitted_at,
   );
-  if (
-    lease.state === "resolving" &&
-    receipt.provider_review_submitted_at !== lease.github.github_posted_at
-  ) {
+  if (receipt.provider_review_submitted_at !== lease.github.github_posted_at) {
     throw new PrReviewLeaseError(
       "execution receipt provider review submitted time mismatch",
     );
