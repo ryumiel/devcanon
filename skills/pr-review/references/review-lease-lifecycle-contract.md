@@ -73,6 +73,75 @@ All other transitions are forbidden. `stale-head` is a valid failure phase for
 post-freeze refusal, but it is not eligible for LC-17 retry-to-post; it must
 return through review discovery or a fresh approval path before posting.
 
+## Session creation boundary
+
+`session-create` is private transaction state around a fresh LC-01 write, not
+an LC-01 field, transition, or cleanup authority. The runtime alone may create
+its direct-child reservation, canonical detached worktree, and initial
+no-clobber lease. Its `manual-cleanup` outcome preserves invocation evidence
+only; it grants no lifecycle cleanup, stale-reclaim, or alternate-owner
+deletion authority. LC-18 remains outside this command.
+
+### Operating model and guarantees
+
+The transaction supports cooperating creators on one shared filesystem, within
+the platform boundary in `docs/specs/platform.md`. Its guarantees are closed:
+
+- **SC-01 — Exclusive reservation:** one direct-child reservation is acquired
+  exclusively and verified before worktree mutation. Existing or unverifiable
+  reservation evidence is preserved and never reclaimed by age or inference.
+- **SC-02 — Canonical worktree:** the transaction creates and verifies one
+  canonical detached worktree at the immutable provider head before lease
+  publication.
+- **SC-03 — No-clobber LC-01 publication:** the exact fresh LC-01 bytes are
+  published without overwriting an existing lease. Successful publication is
+  the transaction commit boundary; later failures preserve the discoverable
+  lease.
+- **SC-04 — Final verification:** success is returned only after worktree,
+  registration, repository, head, lease, and discovery identity verify as one
+  session.
+- **SC-05 — Invocation-owned recovery:** before the commit boundary, complete
+  rollback may remove only invocation-owned, unchanged evidence. Progressed,
+  retained, replaced, or unverifiable evidence returns `manual-cleanup` and is
+  preserved for the operator.
+- **SC-06 — Crash retention:** evidence retained by a crash or incomplete
+  recovery blocks later creation. The transaction performs no automatic stale
+  reclamation.
+
+The source-owned command contract remains closed. Required inputs are
+`REPOSITORY`, `PR_NUMBER`, `PRIMARY_REPOSITORY_ROOT`, `HEAD_SHA`, `BASE_REF`,
+`HEAD_REF`, and `UPDATED_AT`. Outcomes are `success`, `conflict`, and
+`manual-cleanup`. Conflict reasons are `discovery-not-create`,
+`reservation-contended`, `worktree-create-failed`, `lease-create-failed`,
+`final-verification-failed`, `interrupted`, and
+`lifecycle-reentry-required`; manual-cleanup reasons are
+`reservation-unverifiable`, `worktree-unverifiable`, `lease-unverifiable`,
+`rollback-incomplete`, and `interrupted`. Observed artifacts are only
+`reservation`, `worktree`, `registration`, and `lease`, in that order. The
+runtime types and validators remain authoritative for the exact result shape.
+
+### Failure equivalence classes
+
+- **SC-F1 — Reservation phase:** a valid other-token reservation is clean
+  contention; missing proof of reservation custody or shape is unverifiable
+  evidence. Neither case permits worktree or lease mutation.
+- **SC-F2 — Worktree phase:** a creation failure with proven absence or
+  complete invocation-owned rollback is conflict; any present, registered,
+  progressed, or unverifiable worktree state is manual cleanup.
+- **SC-F3 — Lease phase:** a staging or publication failure is conflict only
+  when publication did not occur, temporary evidence is proven removed, and
+  invocation-owned worktree rollback completes. Unsupported publication,
+  retained temporary bytes, ignored or untracked hook output, or any other
+  rollback refusal is manual cleanup with the observed evidence preserved.
+- **SC-F4 — Final-verification phase:** a pre-publication verification failure
+  may be conflict only after complete invocation-owned rollback. Once LC-01 is
+  published, verification or reservation-cleanup failure is manual cleanup and
+  the lease remains discoverable.
+
+Focused regressions identify the applicable `SC-F*` class and prove one
+representative ordinary-use failure. They do not establish a general fault,
+custody, race, or filesystem-proof framework.
+
 ## Session Discovery
 
 `review-leases.sh discover` is a read-only preflight for one repository and PR.

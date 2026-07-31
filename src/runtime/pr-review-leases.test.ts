@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import * as fsPromises from "node:fs/promises";
 import {
   chmod,
   lstat,
@@ -23,6 +24,17 @@ import {
   it,
   vi,
 } from "vitest";
+
+vi.mock("node:fs/promises", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:fs/promises")>();
+  return {
+    ...actual,
+    link: vi.fn(actual.link),
+    open: vi.fn(actual.open),
+    rm: vi.fn(actual.rm),
+  };
+});
+
 import { PrReviewCommandHarness } from "../__test-helpers__/pr-review-command-harness.js";
 import * as artifacts from "./artifacts.js";
 import { runPlayReviewSharedContextCommand as runPlayReviewSharedContextRuntimeCommand } from "./play-review-shared-context.js";
@@ -1286,6 +1298,671 @@ describe("pr-review lease reducer", () => {
 });
 
 describe("pr-review lease command validation", () => {
+  it("rejects a linked worktree presented as the primary repository root", async () => {
+    const workspace = await makeRegisteredWorkspace("linked-primary");
+    const { stdout } = await execFileAsync("git", [
+      "-C",
+      workspace.physicalWorktree,
+      "rev-parse",
+      "HEAD",
+    ]);
+    process.chdir(workspace.physicalWorktree);
+    process.env.REPOSITORY = "owner/repo";
+    process.env.PR_NUMBER = "432";
+    process.env.PRIMARY_REPOSITORY_ROOT = workspace.physicalWorktree;
+    process.env.HEAD_SHA = stdout.trim();
+    process.env.BASE_REF = "main";
+    process.env.HEAD_REF = "topic";
+    process.env.UPDATED_AT = "2026-07-31T00:00:00Z";
+
+    const result = await runPrReviewLeasesCommand(["session-create"]);
+
+    expect(result).toEqual({
+      exitCode: 1,
+      stdout: "",
+      stderr: "PRIMARY_REPOSITORY_ROOT must be the primary Git worktree\n",
+    });
+  });
+
+  it("rejects whitespace-only frozen refs before creating a reservation", async () => {
+    const repository = await commandHarness.createReviewRepository();
+    const { stdout } = await execFileAsync("git", [
+      "-C",
+      repository.physicalRepository,
+      "rev-parse",
+      "HEAD",
+    ]);
+    process.chdir(repository.physicalRepository);
+    process.env.REPOSITORY = "owner/repo";
+    process.env.PR_NUMBER = "432";
+    process.env.PRIMARY_REPOSITORY_ROOT = repository.physicalRepository;
+    process.env.HEAD_SHA = stdout.trim();
+    process.env.BASE_REF = " \t";
+    process.env.HEAD_REF = "topic";
+    process.env.UPDATED_AT = "2026-07-31T00:00:00Z";
+
+    const result = await runPrReviewLeasesCommand(["session-create"]);
+
+    expect(result).toEqual({
+      exitCode: 1,
+      stdout: "",
+      stderr: "BASE_REF and HEAD_REF must be nonblank\n",
+    });
+    await expect(
+      lstat(
+        path.join(
+          repository.physicalRepository,
+          ".ephemeral/pr-432-session-create-reservation.json",
+        ),
+      ),
+    ).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("creates one verified detached canonical session from frozen inputs", async () => {
+    const repository = await commandHarness.createReviewRepository();
+    const { stdout: headOutput } = await execFileAsync("git", [
+      "-C",
+      repository.physicalRepository,
+      "rev-parse",
+      "HEAD",
+    ]);
+    const head = headOutput.trim();
+    process.chdir(repository.physicalRepository);
+    process.env.REPOSITORY = "owner/repo";
+    process.env.PR_NUMBER = "432";
+    process.env.PRIMARY_REPOSITORY_ROOT = repository.physicalRepository;
+    process.env.HEAD_SHA = head;
+    process.env.BASE_REF = "main";
+    process.env.HEAD_REF = "topic";
+    process.env.UPDATED_AT = "2026-07-31T00:00:00Z";
+
+    const result = await runPrReviewLeasesCommand(["session-create"]);
+
+    expect(result.exitCode, result.stderr).toBe(0);
+    expect(JSON.parse(result.stdout)).toEqual({
+      schema: "pr-review/session-create/v1",
+      outcome: "success",
+      repository: "owner/repo",
+      pr_number: 432,
+      primary_repository_root: repository.physicalRepository,
+      common_git_directory: path.join(repository.physicalRepository, ".git"),
+      canonical_worktree_path: path.join(
+        repository.physicalRepository,
+        ".worktrees",
+        "pr-432-review",
+      ),
+      immutable_head: head,
+      lease_file: expect.stringMatching(
+        /^\.ephemeral\/pr-432-[0-9a-f]{64}-lease\.json$/u,
+      ),
+      lease_sha256: expect.stringMatching(/^[0-9a-f]{64}$/u),
+    });
+    const session = JSON.parse(result.stdout) as {
+      lease_file: string;
+      lease_sha256: string;
+    };
+    const leaseBytes = await readFile(
+      path.join(repository.physicalRepository, session.lease_file),
+      "utf8",
+    );
+    expect(leaseBytes).toBe(
+      `${JSON.stringify(
+        reducePrReviewLease(
+          null,
+          {
+            repository: "owner/repo",
+            prNumber: 432,
+            worktreePath: path.join(
+              repository.physicalRepository,
+              ".worktrees",
+              "pr-432-review",
+            ),
+            worktreeDigest: discoveryWorktreeDigest(
+              path.join(
+                repository.physicalRepository,
+                ".worktrees",
+                "pr-432-review",
+              ),
+            ),
+            leaseFile: session.lease_file,
+          },
+          {
+            state: "created",
+            baseRef: "main",
+            headRef: "topic",
+            createdAt: "2026-07-31T00:00:00Z",
+            updatedAt: "2026-07-31T00:00:00Z",
+          },
+        ),
+        null,
+        2,
+      )}\n`,
+    );
+    expect(
+      await sha256File(
+        path.join(repository.physicalRepository, session.lease_file),
+      ),
+    ).toBe(session.lease_sha256);
+  });
+
+  it("preserves the published lease when final verification sees a resumed dirty session", async () => {
+    const repository = await commandHarness.createReviewRepository();
+    const { stdout: headOutput } = await execFileAsync("git", [
+      "-C",
+      repository.physicalRepository,
+      "rev-parse",
+      "HEAD",
+    ]);
+    const head = headOutput.trim();
+    const canonical = path.join(
+      repository.physicalRepository,
+      ".worktrees",
+      "pr-432-review",
+    );
+    const leaseFile = `.ephemeral/pr-432-${discoveryWorktreeDigest(canonical)}-lease.json`;
+    const leasePath = path.join(repository.physicalRepository, leaseFile);
+    process.chdir(repository.physicalRepository);
+    Object.assign(process.env, {
+      REPOSITORY: "owner/repo",
+      PR_NUMBER: "432",
+      PRIMARY_REPOSITORY_ROOT: repository.physicalRepository,
+      HEAD_SHA: head,
+      BASE_REF: "main",
+      HEAD_REF: "topic",
+      UPDATED_AT: "2026-07-31T00:00:00Z",
+    });
+
+    const markResumedSessionDirty = (async () => {
+      for (let attempt = 0; attempt < 1_000; attempt += 1) {
+        try {
+          await lstat(leasePath);
+          await writeFile(
+            path.join(canonical, "resumed-session.txt"),
+            "dirty\n",
+          );
+          return;
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+          await new Promise((resolve) => setTimeout(resolve, 1));
+        }
+      }
+      throw new Error("session lease was not published");
+    })();
+
+    const result = await runPrReviewLeasesCommand(["session-create"]);
+    await markResumedSessionDirty;
+
+    expect(result.exitCode, result.stderr).toBe(1);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      schema: "pr-review/session-create/v1",
+      outcome: "manual-cleanup",
+      reason: "lease-unverifiable",
+      canonical_worktree_path: canonical,
+      immutable_head: head,
+      observed_artifacts: ["reservation", "worktree", "registration", "lease"],
+    });
+    await expect(readFile(leasePath, "utf8")).resolves.toContain(
+      '"state": "created"',
+    );
+  });
+
+  it("preserves manual-cleanup evidence for an unsupported publication primitive", async () => {
+    const repository = await commandHarness.createReviewRepository();
+    const { stdout: headOutput } = await execFileAsync("git", [
+      "-C",
+      repository.physicalRepository,
+      "rev-parse",
+      "HEAD",
+    ]);
+    const head = headOutput.trim();
+    const canonical = path.join(
+      repository.physicalRepository,
+      ".worktrees",
+      "pr-432-review",
+    );
+    const reservationPath = path.join(
+      repository.physicalRepository,
+      ".ephemeral",
+      "pr-432-session-create-reservation.json",
+    );
+    process.chdir(repository.physicalRepository);
+    Object.assign(process.env, {
+      REPOSITORY: "owner/repo",
+      PR_NUMBER: "432",
+      PRIMARY_REPOSITORY_ROOT: repository.physicalRepository,
+      HEAD_SHA: head,
+      BASE_REF: "main",
+      HEAD_REF: "topic",
+      UPDATED_AT: "2026-07-31T00:00:00Z",
+    });
+    vi.mocked(fsPromises.link).mockRejectedValueOnce(
+      Object.assign(new Error("unsupported hard link"), { code: "EOPNOTSUPP" }),
+    );
+
+    const result = await runPrReviewLeasesCommand(["session-create"]);
+
+    expect(result.exitCode, result.stderr).toBe(1);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      schema: "pr-review/session-create/v1",
+      outcome: "manual-cleanup",
+      reason: "lease-unverifiable",
+      canonical_worktree_path: canonical,
+      immutable_head: head,
+      lease_sha256: null,
+      observed_artifacts: ["reservation", "worktree", "registration", "lease"],
+    });
+    await expect(readFile(reservationPath, "utf8")).resolves.toContain(
+      '"schema":"pr-review/session-create-reservation/v1"',
+    );
+    await expect(lstat(canonical)).resolves.toMatchObject({
+      isDirectory: expect.any(Function),
+    });
+  });
+
+  it("preserves manual-cleanup evidence when failed staging cannot remove its temporary file", async () => {
+    const repository = await commandHarness.createReviewRepository();
+    const { stdout: headOutput } = await execFileAsync("git", [
+      "-C",
+      repository.physicalRepository,
+      "rev-parse",
+      "HEAD",
+    ]);
+    const head = headOutput.trim();
+    const canonical = path.join(
+      repository.physicalRepository,
+      ".worktrees",
+      "pr-432-review",
+    );
+    const reservationPath = path.join(
+      repository.physicalRepository,
+      ".ephemeral",
+      "pr-432-session-create-reservation.json",
+    );
+    process.chdir(repository.physicalRepository);
+    Object.assign(process.env, {
+      REPOSITORY: "owner/repo",
+      PR_NUMBER: "432",
+      PRIMARY_REPOSITORY_ROOT: repository.physicalRepository,
+      HEAD_SHA: head,
+      BASE_REF: "main",
+      HEAD_REF: "topic",
+      UPDATED_AT: "2026-07-31T00:00:00Z",
+    });
+    const actualFs =
+      await vi.importActual<typeof import("node:fs/promises")>(
+        "node:fs/promises",
+      );
+    const mockedOpen = vi.mocked(fsPromises.open);
+    const mockedRm = vi.mocked(fsPromises.rm);
+    mockedOpen.mockImplementation(async (...args) => {
+      const handle = await actualFs.open(...args);
+      if (
+        typeof args[0] === "string" &&
+        args[0].endsWith(".session-create.tmp")
+      ) {
+        vi.spyOn(handle, "writeFile").mockRejectedValueOnce(
+          new Error("staging write failed"),
+        );
+      }
+      return handle;
+    });
+    mockedRm.mockImplementation(async (...args) => {
+      if (
+        typeof args[0] === "string" &&
+        args[0].endsWith(".session-create.tmp")
+      ) {
+        throw new Error("temporary cleanup failed");
+      }
+      return await actualFs.rm(...args);
+    });
+
+    let result: Awaited<ReturnType<typeof runPrReviewLeasesCommand>>;
+    try {
+      result = await runPrReviewLeasesCommand(["session-create"]);
+    } finally {
+      mockedOpen.mockImplementation(actualFs.open);
+      mockedRm.mockImplementation(actualFs.rm);
+    }
+
+    expect(result.exitCode, result.stderr).toBe(1);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      schema: "pr-review/session-create/v1",
+      outcome: "manual-cleanup",
+      reason: "lease-unverifiable",
+      canonical_worktree_path: canonical,
+      immutable_head: head,
+      lease_sha256: null,
+      observed_artifacts: ["reservation", "worktree", "registration", "lease"],
+    });
+    await expect(readFile(reservationPath, "utf8")).resolves.toContain(
+      '"schema":"pr-review/session-create-reservation/v1"',
+    );
+    const temporaryEntries = (
+      await readdir(path.dirname(reservationPath))
+    ).filter((entry) => entry.endsWith(".session-create.tmp"));
+    expect(temporaryEntries).toHaveLength(1);
+  });
+
+  it("[SC-F3] preserves ignored post-checkout output when lease staging fails", async () => {
+    const repository = await commandHarness.createReviewRepository();
+    const { stdout: headOutput } = await execFileAsync("git", [
+      "-C",
+      repository.physicalRepository,
+      "rev-parse",
+      "HEAD",
+    ]);
+    const head = headOutput.trim();
+    const canonical = path.join(
+      repository.physicalRepository,
+      ".worktrees",
+      "pr-432-review",
+    );
+    const reservationPath = path.join(
+      repository.physicalRepository,
+      ".ephemeral",
+      "pr-432-session-create-reservation.json",
+    );
+    const ignoredOutput = path.join(
+      canonical,
+      "ignored-session-hook-output.txt",
+    );
+    await writeFile(
+      path.join(repository.physicalRepository, ".git", "info", "exclude"),
+      "ignored-session-hook-output.txt\n",
+    );
+    const hookPath = path.join(
+      repository.physicalRepository,
+      ".git",
+      "hooks",
+      "post-checkout",
+    );
+    await writeFile(
+      hookPath,
+      [
+        "#!/bin/sh",
+        'worktree_root="$(git rev-parse --show-toplevel)"',
+        'printf "%s\\n" retained >"$worktree_root/ignored-session-hook-output.txt"',
+        "",
+      ].join("\n"),
+    );
+    await chmod(hookPath, 0o755);
+    process.chdir(repository.physicalRepository);
+    Object.assign(process.env, {
+      REPOSITORY: "owner/repo",
+      PR_NUMBER: "432",
+      PRIMARY_REPOSITORY_ROOT: repository.physicalRepository,
+      HEAD_SHA: head,
+      BASE_REF: "main",
+      HEAD_REF: "topic",
+      UPDATED_AT: "2026-07-31T00:00:00Z",
+    });
+    const actualFs =
+      await vi.importActual<typeof import("node:fs/promises")>(
+        "node:fs/promises",
+      );
+    const mockedOpen = vi.mocked(fsPromises.open);
+    mockedOpen.mockImplementation(async (...args) => {
+      if (
+        typeof args[0] === "string" &&
+        args[0].endsWith(".session-create.tmp")
+      ) {
+        throw new Error("lease staging failed");
+      }
+      return await actualFs.open(...args);
+    });
+
+    let result: Awaited<ReturnType<typeof runPrReviewLeasesCommand>>;
+    try {
+      result = await runPrReviewLeasesCommand(["session-create"]);
+    } finally {
+      mockedOpen.mockImplementation(actualFs.open);
+    }
+
+    expect(result.exitCode, result.stderr).toBe(1);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      schema: "pr-review/session-create/v1",
+      outcome: "manual-cleanup",
+      reason: "lease-unverifiable",
+      canonical_worktree_path: canonical,
+      immutable_head: head,
+      lease_sha256: null,
+      observed_artifacts: ["reservation", "worktree", "registration"],
+    });
+    await expect(readFile(ignoredOutput, "utf8")).resolves.toBe("retained\n");
+    await expect(readFile(reservationPath, "utf8")).resolves.toContain(
+      '"schema":"pr-review/session-create-reservation/v1"',
+    );
+  });
+
+  it("[SC-F3] preserves post-checkout per-worktree Git output", async () => {
+    const repository = await commandHarness.createReviewRepository();
+    const { stdout: headOutput } = await execFileAsync("git", [
+      "-C",
+      repository.physicalRepository,
+      "rev-parse",
+      "HEAD",
+    ]);
+    const head = headOutput.trim();
+    const canonical = path.join(
+      repository.physicalRepository,
+      ".worktrees",
+      "pr-432-review",
+    );
+    const reservationPath = path.join(
+      repository.physicalRepository,
+      ".ephemeral",
+      "pr-432-session-create-reservation.json",
+    );
+    const hookPath = path.join(
+      repository.physicalRepository,
+      ".git",
+      "hooks",
+      "post-checkout",
+    );
+    await writeFile(
+      hookPath,
+      [
+        "#!/bin/sh",
+        'git_dir="$(git rev-parse --path-format=absolute --git-dir)"',
+        'printf "%s\\n" retained >"$git_dir/session-hook-output"',
+        "",
+      ].join("\n"),
+    );
+    await chmod(hookPath, 0o755);
+    process.chdir(repository.physicalRepository);
+    Object.assign(process.env, {
+      REPOSITORY: "owner/repo",
+      PR_NUMBER: "432",
+      PRIMARY_REPOSITORY_ROOT: repository.physicalRepository,
+      HEAD_SHA: head,
+      BASE_REF: "main",
+      HEAD_REF: "topic",
+      UPDATED_AT: "2026-07-31T00:00:00Z",
+    });
+    const actualFs =
+      await vi.importActual<typeof import("node:fs/promises")>(
+        "node:fs/promises",
+      );
+    const mockedOpen = vi.mocked(fsPromises.open);
+    mockedOpen.mockImplementation(async (...args) => {
+      if (
+        typeof args[0] === "string" &&
+        args[0].endsWith(".session-create.tmp")
+      ) {
+        throw new Error("lease staging failed");
+      }
+      return await actualFs.open(...args);
+    });
+
+    let result: Awaited<ReturnType<typeof runPrReviewLeasesCommand>>;
+    try {
+      result = await runPrReviewLeasesCommand(["session-create"]);
+    } finally {
+      mockedOpen.mockImplementation(actualFs.open);
+    }
+
+    expect(result.exitCode, result.stderr).toBe(1);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      schema: "pr-review/session-create/v1",
+      outcome: "manual-cleanup",
+      reason: "lease-unverifiable",
+      canonical_worktree_path: canonical,
+      immutable_head: head,
+      lease_sha256: null,
+      observed_artifacts: ["reservation", "worktree", "registration"],
+    });
+    const { stdout: gitDirectoryOutput } = await execFileAsync("git", [
+      "-C",
+      canonical,
+      "rev-parse",
+      "--path-format=absolute",
+      "--git-dir",
+    ]);
+    await expect(
+      readFile(
+        path.join(gitDirectoryOutput.trim(), "session-hook-output"),
+        "utf8",
+      ),
+    ).resolves.toBe("retained\n");
+    await expect(readFile(reservationPath, "utf8")).resolves.toContain(
+      '"schema":"pr-review/session-create-reservation/v1"',
+    );
+  });
+
+  it("preserves a closed competing reservation without creating a worktree", async () => {
+    const repository = await commandHarness.createReviewRepository();
+    const { stdout: headOutput } = await execFileAsync("git", [
+      "-C",
+      repository.physicalRepository,
+      "rev-parse",
+      "HEAD",
+    ]);
+    const head = headOutput.trim();
+    const canonical = path.join(
+      repository.physicalRepository,
+      ".worktrees",
+      "pr-432-review",
+    );
+    const leaseFile = `.ephemeral/pr-432-${discoveryWorktreeDigest(canonical)}-lease.json`;
+    const reservationFile = path.join(
+      repository.physicalRepository,
+      ".ephemeral/pr-432-session-create-reservation.json",
+    );
+    const reservation = {
+      schema: "pr-review/session-create-reservation/v1",
+      invocation_token: "foreign-creator-token",
+      repository: "owner/repo",
+      pr_number: 432,
+      primary_repository_root: repository.physicalRepository,
+      common_git_directory: path.join(repository.physicalRepository, ".git"),
+      canonical_worktree_path: canonical,
+      immutable_head: head,
+      lease_file: leaseFile,
+      expected_lease_sha256: "a".repeat(64),
+    };
+    const reservationBytes = `${JSON.stringify(reservation)}\n`;
+    await writeFile(reservationFile, reservationBytes);
+    process.chdir(repository.physicalRepository);
+    process.env.REPOSITORY = "owner/repo";
+    process.env.PR_NUMBER = "432";
+    process.env.PRIMARY_REPOSITORY_ROOT = repository.physicalRepository;
+    process.env.HEAD_SHA = head;
+    process.env.BASE_REF = "main";
+    process.env.HEAD_REF = "topic";
+    process.env.UPDATED_AT = "2026-07-31T00:00:00Z";
+
+    const result = await runPrReviewLeasesCommand(["session-create"]);
+
+    expect(result).toEqual({
+      exitCode: 1,
+      stdout: `${JSON.stringify({ schema: "pr-review/session-create/v1", outcome: "conflict", reason: "reservation-contended", observed_artifacts: ["reservation"] })}\n`,
+      stderr: "",
+    });
+    expect(await readFile(reservationFile, "utf8")).toBe(reservationBytes);
+    await expect(lstat(canonical)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("keeps the closed conflict envelope ordered for reservation contention", async () => {
+    const repository = await commandHarness.createReviewRepository();
+    const { stdout } = await execFileAsync("git", [
+      "-C",
+      repository.physicalRepository,
+      "rev-parse",
+      "HEAD",
+    ]);
+    const canonical = path.join(
+      repository.physicalRepository,
+      ".worktrees",
+      "pr-432-review",
+    );
+    await writeFile(
+      path.join(
+        repository.physicalRepository,
+        ".ephemeral/pr-432-session-create-reservation.json",
+      ),
+      `${JSON.stringify({ schema: "pr-review/session-create-reservation/v1", invocation_token: "other", repository: "owner/repo", pr_number: 432, primary_repository_root: repository.physicalRepository, common_git_directory: path.join(repository.physicalRepository, ".git"), canonical_worktree_path: canonical, immutable_head: stdout.trim(), lease_file: `.ephemeral/pr-432-${discoveryWorktreeDigest(canonical)}-lease.json`, expected_lease_sha256: "b".repeat(64) })}\n`,
+    );
+    process.chdir(repository.physicalRepository);
+    Object.assign(process.env, {
+      REPOSITORY: "owner/repo",
+      PR_NUMBER: "432",
+      PRIMARY_REPOSITORY_ROOT: repository.physicalRepository,
+      HEAD_SHA: stdout.trim(),
+      BASE_REF: "main",
+      HEAD_REF: "topic",
+      UPDATED_AT: "2026-07-31T00:00:00Z",
+    });
+    const result = await runPrReviewLeasesCommand(["session-create"]);
+    expect(Object.keys(JSON.parse(result.stdout))).toEqual([
+      "schema",
+      "outcome",
+      "reason",
+      "observed_artifacts",
+    ]);
+  });
+
+  it("retains malformed reservation evidence for manual cleanup", async () => {
+    const repository = await commandHarness.createReviewRepository();
+    const { stdout: headOutput } = await execFileAsync("git", [
+      "-C",
+      repository.physicalRepository,
+      "rev-parse",
+      "HEAD",
+    ]);
+    const head = headOutput.trim();
+    const reservationFile = path.join(
+      repository.physicalRepository,
+      ".ephemeral/pr-432-session-create-reservation.json",
+    );
+    await writeFile(reservationFile, "{\n");
+    process.chdir(repository.physicalRepository);
+    process.env.REPOSITORY = "owner/repo";
+    process.env.PR_NUMBER = "432";
+    process.env.PRIMARY_REPOSITORY_ROOT = repository.physicalRepository;
+    process.env.HEAD_SHA = head;
+    process.env.BASE_REF = "main";
+    process.env.HEAD_REF = "topic";
+    process.env.UPDATED_AT = "2026-07-31T00:00:00Z";
+
+    const result = await runPrReviewLeasesCommand(["session-create"]);
+
+    expect(result.exitCode).toBe(1);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      schema: "pr-review/session-create/v1",
+      outcome: "manual-cleanup",
+      canonical_worktree_path: path.join(
+        repository.physicalRepository,
+        ".worktrees",
+        "pr-432-review",
+      ),
+      registration_identity: null,
+      lease_sha256: null,
+      observed_artifacts: ["reservation"],
+      reason: "reservation-unverifiable",
+    });
+    expect(await readFile(reservationFile, "utf8")).toBe("{\n");
+  });
+
   it("plans create, resume, and unleased-canonical cleanup without mutation", async () => {
     const workspace = await makeRegisteredWorkspace("pr-review-discovery-");
 
@@ -6229,6 +6906,34 @@ describe("pr-review lease wrapper trusted runtime bootstrap", () => {
       });
     }
   }
+
+  it("forwards session-create to the trusted runtime", async () => {
+    const root = await commandHarness.createScratchRoot();
+    const runtime = await writeRuntime(root, "session-create-runtime");
+    const result = await commandHarness.run(
+      "bash",
+      [wrapper, "session-create"],
+      {
+        env: {
+          ...process.env,
+          DEVCANON_RUNTIME_DIR: runtime.runtimeDir,
+          DEVCANON_TEST_RESOLVER_SENTINEL: runtime.resolverSentinel,
+          DEVCANON_TEST_TYPED_SENTINEL: runtime.typedSentinel,
+        },
+        acceptedExitCodes: [0, 1],
+      },
+    );
+    expect(result).toMatchObject({
+      exitCode: 0,
+      stdout: "runtime-ok\n",
+      stderr: "",
+    });
+    const executedSentinel =
+      process.platform === "win32"
+        ? runtime.typedSentinel
+        : runtime.resolverSentinel;
+    expect(await readFile(executedSentinel, "utf8")).toBe("executed\n");
+  });
 
   it.runIf(process.platform !== "win32")(
     "preserves POSIX backslashes, line feeds, and valid dot aliases despite a poisoned OSTYPE",

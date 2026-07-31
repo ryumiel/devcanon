@@ -71,7 +71,7 @@ PR_REVIEW_DIR="<installed-pr-review-skill-bundle>"
 PR_REVIEW_LEASE_HELPER="$PR_REVIEW_DIR/scripts/review-leases.sh"
 ```
 
-Before `git worktree add`, run the read-only session planner from the primary
+Before session creation, run the read-only session planner from the primary
 repository root with `REPOSITORY`, `PR_NUMBER`, and
 `PRIMARY_REPOSITORY_ROOT` set:
 
@@ -79,37 +79,66 @@ repository root with `REPOSITORY`, `PR_NUMBER`, and
 bash "$PR_REVIEW_LEASE_HELPER" discover
 ```
 
-The planner emits one closed selection result. Only `create` permits canonical
-worktree progression. A missing canonical LC-18 `reentry` is admitted only
+The planner emits one closed selection result. Only `create` without an
+authority-valid `reentry` candidate permits `session-create` canonical worktree
+progression. A missing canonical LC-18 `reentry` is admitted only
 when its exact deterministic terminal archive is absent or byte-equal; a
 divergent or unreadable archive remains a stop condition. When `create` reports
 one authority-valid `reentry` candidate and `canonical_worktree_present=true`,
-reuse that clean registered canonical worktree and write the fresh LC-18 lease
-without rerunning `git worktree add`; otherwise `create` permits the new
-canonical worktree command below. `resume` identifies the already registered worktree and lease to
+route it through the existing LC-18 operator flow: reuse that clean registered
+canonical worktree and write the fresh LC-18 lease without rerunning `git
+worktree add`. Do not invoke `session-create` for any `reentry` candidate.
+`resume` identifies the already registered worktree and lease to
 validate through the existing lifecycle flow;
 `cleanup-required`, `ambiguous`, and `invalid` stop for the existing cleanup
 or lifecycle owner. Discovery is read-only: it never creates, removes, or
 updates worktrees, leases, or artifacts.
 
+For an eligible fresh `create` with no `reentry` candidate, invoke the
+runtime-owned transaction instead of separately adding a worktree and writing
+LC-01. Set the provider-bound
+`HEAD_SHA`, `BASE_REF`, `HEAD_REF`, and one RFC 3339 UTC `UPDATED_AT` alongside
+the discovery inputs, then run `review-leases.sh session-create`. A `success`
+result is the only verified session identity. A `conflict` leaves no claimed
+created session; follow the existing discovery or LC-18 operator route. A
+`manual-cleanup` result preserves evidence for an operator and never grants
+this skill authority to delete a reservation, worktree, registration, or lease.
+`lifecycle-reentry-required` specifically means use the existing LC-18 route;
+this transaction makes no mutation for that case.
+
 ```sh
 git fetch origin <base-ref>
 git fetch origin <head-ref>
-git worktree add .worktrees/pr-<N>-review origin/<head-ref>
+if SESSION_CREATE_RESULT="$(bash "$PR_REVIEW_LEASE_HELPER" session-create)"; then
+  SESSION_CREATE_STATUS=0
+else
+  SESSION_CREATE_STATUS=$?
+fi
+SESSION_CREATE_OUTCOME="$(printf '%s' "$SESSION_CREATE_RESULT" | jq -er '.outcome')"
+case "$SESSION_CREATE_OUTCOME:$SESSION_CREATE_STATUS" in
+  success:0)
+    WORKING_DIRECTORY="$(printf '%s' "$SESSION_CREATE_RESULT" | jq -er 'select(.outcome == "success") | .canonical_worktree_path')"
+    LEASE_FILE="$(printf '%s' "$SESSION_CREATE_RESULT" | jq -er 'select(.outcome == "success") | .lease_file')"
+    ;;
+  conflict:1 | manual-cleanup:1)
+    printf '%s\n' "$SESSION_CREATE_RESULT" >&2
+    exit 1
+    ;;
+  *) exit 1 ;;
+esac
 ```
 
 Fetch `<head-ref>` for the worktree and `<base-ref>` for GitHub PR context.
 They run as separate commands so a fork-PR failure on `<head-ref>` doesn't lose
 the `<base-ref>` fetch.
 
-**Fork PRs:** if `git fetch origin <head-ref>` fails or `origin/<head-ref>` doesn't exist, use `{{tool:github-cli}} pr checkout <N> --detach` in a fresh worktree instead (this populates `HEAD` without needing `origin/<head-ref>`), or add the fork as a remote and re-fetch. The `<base-ref>` fetch is still useful for local context, but Phase 3 review scope must use the provider-proven PR diff base SHA from explicit provider scope evidence, not a moving `origin/<base-ref>` ref.
+**Fork PRs:** if `git fetch origin <head-ref>` fails or `origin/<head-ref>` doesn't exist, add the fork as a remote and fetch its immutable head into the primary repository object database. Do not create or check out a separate worktree: `session-create` owns canonical worktree creation and initial LC-01 publication. The `<base-ref>` fetch is still useful for local context, but Phase 3 review scope must use the provider-proven PR diff base SHA from explicit provider scope evidence, not a moving `origin/<base-ref>` ref.
 
 Use the repo root as the base for `.worktrees/` to avoid cwd issues across bash
 calls.
 
-For `create`, `working_directory` for the play-review handoff is the physical
-absolute canonical path, for example
-`WORKING_DIRECTORY="$(cd ".worktrees/pr-<N>-review" && pwd -P)"`. For
+For `create`, `WORKING_DIRECTORY` and `LEASE_FILE` are the validated values
+from the successful `session-create` result. For
 `resume`, use the planner's selected `resume.worktree_path` and
 `resume.lease_file` instead. Manifest validation rejects subdirectories, `.`
 aliases, and symlinked aliases.
@@ -142,6 +171,7 @@ Helper command surface:
 
 - `derive-path`
 - `discover`
+- `session-create`
 - `write`
 - `validate`
 - `inspect-worktree`
@@ -166,8 +196,8 @@ Fresh PR reviews with no existing worktree follow the same Phase 1 through
 Phase 6 flow as before, except the lease is created and updated at lifecycle
 boundaries:
 
-- Write `created` after `WORKING_DIRECTORY` is resolved.
-- Refresh `created` with `HANDOFF_FILE` after the Phase 3 handoff validates.
+- `session-create` creates and verifies the initial `created` lease (LC-01).
+- Attach `HANDOFF_FILE` to that lease after the Phase 3 handoff validates.
 - Write `reviewed` after the initial Phase 4 result manifest validates.
 - Write `gated` after each successful Phase 5 preview render, using
   `PRESENTED_AT` and `PRESENTATION_STATUS`.
@@ -1067,16 +1097,16 @@ gh api graphql -f query='{ repository(owner: "O", name: "R") {
 
 ## Error Handling
 
-| Scenario                                | Action                                                                          |
-| --------------------------------------- | ------------------------------------------------------------------------------- |
-| `{{tool:github-cli}}` not authenticated | Fail, suggest `{{tool:github-cli}} auth login`                                  |
-| PR not found                            | Fail, verify number/URL                                                         |
-| PR already merged/closed                | Warn user of state, ask whether to proceed                                      |
-| Fork PR (head ref not on origin)        | Use `{{tool:github-cli}} pr checkout <N> --detach` or add fork remote           |
-| Worktree exists                         | Inspect lease; resume valid leases or use lease-gated cleanup before recreating |
-| `play-review` reports a missing input   | Stop; this means the wrapper has a bug                                          |
-| API returns non-2xx                     | Report failure, stop                                                            |
-| Worktree cleanup fails                  | Report lease path, worktree path, and helper message                            |
+| Scenario                                | Action                                                                           |
+| --------------------------------------- | -------------------------------------------------------------------------------- |
+| `{{tool:github-cli}}` not authenticated | Fail, suggest `{{tool:github-cli}} auth login`                                   |
+| PR not found                            | Fail, verify number/URL                                                          |
+| PR already merged/closed                | Warn user of state, ask whether to proceed                                       |
+| Fork PR (head ref not on origin)        | Fetch immutable fork head into primary object database; do not create a worktree |
+| Worktree exists                         | Inspect lease; resume valid leases or use lease-gated cleanup before recreating  |
+| `play-review` reports a missing input   | Stop; this means the wrapper has a bug                                           |
+| API returns non-2xx                     | Report failure, stop                                                             |
+| Worktree cleanup fails                  | Report lease path, worktree path, and helper message                             |
 
 ## Integration
 
