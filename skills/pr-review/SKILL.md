@@ -106,9 +106,23 @@ this transaction makes no mutation for that case.
 ```sh
 git fetch origin <base-ref>
 git fetch origin <head-ref>
-SESSION_CREATE_RESULT="$(bash "$PR_REVIEW_LEASE_HELPER" session-create)" || exit 1
-WORKING_DIRECTORY="$(printf '%s' "$SESSION_CREATE_RESULT" | jq -er '.outcome == "success" and .canonical_worktree_path')"
-LEASE_FILE="$(printf '%s' "$SESSION_CREATE_RESULT" | jq -er '.outcome == "success" and .lease_file')"
+if SESSION_CREATE_RESULT="$(bash "$PR_REVIEW_LEASE_HELPER" session-create)"; then
+  SESSION_CREATE_STATUS=0
+else
+  SESSION_CREATE_STATUS=$?
+fi
+SESSION_CREATE_OUTCOME="$(printf '%s' "$SESSION_CREATE_RESULT" | jq -er '.outcome')"
+case "$SESSION_CREATE_OUTCOME:$SESSION_CREATE_STATUS" in
+  success:0)
+    WORKING_DIRECTORY="$(printf '%s' "$SESSION_CREATE_RESULT" | jq -er 'select(.outcome == "success") | .canonical_worktree_path')"
+    LEASE_FILE="$(printf '%s' "$SESSION_CREATE_RESULT" | jq -er 'select(.outcome == "success") | .lease_file')"
+    ;;
+  conflict:1 | manual-cleanup:1)
+    printf '%s\n' "$SESSION_CREATE_RESULT" >&2
+    exit 1
+    ;;
+  *) exit 1 ;;
+esac
 ```
 
 Fetch `<head-ref>` for the worktree and `<base-ref>` for GitHub PR context.
@@ -1080,16 +1094,16 @@ gh api graphql -f query='{ repository(owner: "O", name: "R") {
 
 ## Error Handling
 
-| Scenario                                | Action                                                                          |
-| --------------------------------------- | ------------------------------------------------------------------------------- |
-| `{{tool:github-cli}}` not authenticated | Fail, suggest `{{tool:github-cli}} auth login`                                  |
-| PR not found                            | Fail, verify number/URL                                                         |
-| PR already merged/closed                | Warn user of state, ask whether to proceed                                      |
-| Fork PR (head ref not on origin)        | Use `{{tool:github-cli}} pr checkout <N> --detach` or add fork remote           |
-| Worktree exists                         | Inspect lease; resume valid leases or use lease-gated cleanup before recreating |
-| `play-review` reports a missing input   | Stop; this means the wrapper has a bug                                          |
-| API returns non-2xx                     | Report failure, stop                                                            |
-| Worktree cleanup fails                  | Report lease path, worktree path, and helper message                            |
+| Scenario                                | Action                                                                           |
+| --------------------------------------- | -------------------------------------------------------------------------------- |
+| `{{tool:github-cli}}` not authenticated | Fail, suggest `{{tool:github-cli}} auth login`                                   |
+| PR not found                            | Fail, verify number/URL                                                          |
+| PR already merged/closed                | Warn user of state, ask whether to proceed                                       |
+| Fork PR (head ref not on origin)        | Fetch immutable fork head into primary object database; do not create a worktree |
+| Worktree exists                         | Inspect lease; resume valid leases or use lease-gated cleanup before recreating  |
+| `play-review` reports a missing input   | Stop; this means the wrapper has a bug                                           |
+| API returns non-2xx                     | Report failure, stop                                                             |
+| Worktree cleanup fails                  | Report lease path, worktree path, and helper message                             |
 
 ## Integration
 
