@@ -592,6 +592,17 @@ async function directSessionLeaseMatches(primaryRoot, leaseFile, expectedBytes, 
         return false;
     }
 }
+async function hasSessionCreateRollbackChanges(worktreePath) {
+    const { stdout } = await execFileAsync("git", [
+        "--no-optional-locks",
+        "-C",
+        worktreePath,
+        "status",
+        "--porcelain",
+        "--ignored",
+    ], { maxBuffer: 1024 * 1024 });
+    return stdout.length > 0;
+}
 async function removeOwnedSessionWorktree(primaryRoot, registration, commonGitDirectory, immutableHead) {
     const verified = await verifyCreatedSessionWorktree(primaryRoot, registration.worktree_path, commonGitDirectory, immutableHead);
     if (verified === null ||
@@ -599,7 +610,7 @@ async function removeOwnedSessionWorktree(primaryRoot, registration, commonGitDi
         return false;
     }
     try {
-        if (await isWorktreeDirty(registration.worktree_path))
+        if (await hasSessionCreateRollbackChanges(registration.worktree_path))
             return false;
         if ((await findUnmanagedEphemeralArtifacts({ artifacts: emptyArtifacts() }, registration.worktree_path)).length > 0) {
             return false;

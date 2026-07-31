@@ -1643,6 +1643,97 @@ describe("pr-review lease command validation", () => {
     expect(temporaryEntries).toHaveLength(1);
   });
 
+  it("[SC-F3] preserves ignored post-checkout output when lease staging fails", async () => {
+    const repository = await commandHarness.createReviewRepository();
+    const { stdout: headOutput } = await execFileAsync("git", [
+      "-C",
+      repository.physicalRepository,
+      "rev-parse",
+      "HEAD",
+    ]);
+    const head = headOutput.trim();
+    const canonical = path.join(
+      repository.physicalRepository,
+      ".worktrees",
+      "pr-432-review",
+    );
+    const reservationPath = path.join(
+      repository.physicalRepository,
+      ".ephemeral",
+      "pr-432-session-create-reservation.json",
+    );
+    const ignoredOutput = path.join(
+      canonical,
+      "ignored-session-hook-output.txt",
+    );
+    await writeFile(
+      path.join(repository.physicalRepository, ".git", "info", "exclude"),
+      "ignored-session-hook-output.txt\n",
+    );
+    const hookPath = path.join(
+      repository.physicalRepository,
+      ".git",
+      "hooks",
+      "post-checkout",
+    );
+    await writeFile(
+      hookPath,
+      [
+        "#!/bin/sh",
+        'worktree_root="$(git rev-parse --show-toplevel)"',
+        'printf "%s\\n" retained >"$worktree_root/ignored-session-hook-output.txt"',
+        "",
+      ].join("\n"),
+    );
+    await chmod(hookPath, 0o755);
+    process.chdir(repository.physicalRepository);
+    Object.assign(process.env, {
+      REPOSITORY: "owner/repo",
+      PR_NUMBER: "432",
+      PRIMARY_REPOSITORY_ROOT: repository.physicalRepository,
+      HEAD_SHA: head,
+      BASE_REF: "main",
+      HEAD_REF: "topic",
+      UPDATED_AT: "2026-07-31T00:00:00Z",
+    });
+    const actualFs =
+      await vi.importActual<typeof import("node:fs/promises")>(
+        "node:fs/promises",
+      );
+    const mockedOpen = vi.mocked(fsPromises.open);
+    mockedOpen.mockImplementation(async (...args) => {
+      if (
+        typeof args[0] === "string" &&
+        args[0].endsWith(".session-create.tmp")
+      ) {
+        throw new Error("lease staging failed");
+      }
+      return await actualFs.open(...args);
+    });
+
+    let result: Awaited<ReturnType<typeof runPrReviewLeasesCommand>>;
+    try {
+      result = await runPrReviewLeasesCommand(["session-create"]);
+    } finally {
+      mockedOpen.mockImplementation(actualFs.open);
+    }
+
+    expect(result.exitCode, result.stderr).toBe(1);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      schema: "pr-review/session-create/v1",
+      outcome: "manual-cleanup",
+      reason: "lease-unverifiable",
+      canonical_worktree_path: canonical,
+      immutable_head: head,
+      lease_sha256: null,
+      observed_artifacts: ["reservation", "worktree", "registration"],
+    });
+    await expect(readFile(ignoredOutput, "utf8")).resolves.toBe("retained\n");
+    await expect(readFile(reservationPath, "utf8")).resolves.toContain(
+      '"schema":"pr-review/session-create-reservation/v1"',
+    );
+  });
+
   it("preserves a closed competing reservation without creating a worktree", async () => {
     const repository = await commandHarness.createReviewRepository();
     const { stdout: headOutput } = await execFileAsync("git", [
