@@ -92,6 +92,7 @@ const managedEnvKeys = [
   "LEASE_FILE",
   "HANDOFF_FILE",
   "RESULT_FILE",
+  "RESULT_SHA256",
   "FINDINGS_FILE",
   "HEAD_SHA",
   "REVIEW_CONTEXT_INPUT_FILE",
