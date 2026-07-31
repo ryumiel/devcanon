@@ -337,8 +337,12 @@ PROVIDER_PR_DIFF_BASE_SHA="<provider_pr_diff_base_sha>"
 REVIEW_SCOPE_BASE_REF="$PROVIDER_PR_DIFF_BASE_SHA"
 REVIEW_CALLER_DIR="$(pwd -P)" || exit 1
 REVIEW_HEAD_SHA="$(git -C "$WORKING_DIRECTORY" rev-parse HEAD)" || exit 1
-REVIEW_MODE="$FOLLOW_UP_STATE"
-case "$REVIEW_MODE" in initial | follow-up) ;; *) exit 1 ;; esac
+: "${FOLLOW_UP_STATE:?Phase 1 follow-up state missing}"
+case "$FOLLOW_UP_STATE" in
+  initial) REVIEW_MODE="initial" ;;
+  follow-up-full | follow-up-narrow) REVIEW_MODE="follow-up" ;;
+  *) exit 1 ;;
+esac
 
 materialize_initial_prior_threads() {
   cd "$WORKING_DIRECTORY" || return 1

@@ -6407,6 +6407,8 @@ async function writeResultArtifact(
 ): Promise<{ findingsFile: string }> {
   const handoffFile = `.ephemeral/pr-432-${reviewHead}-handoff.json`;
   const findingsFile = `.ephemeral/review-topic-${reviewHead}-findings.json`;
+  const priorThreadsFile = `.ephemeral/review-topic-${reviewHead}-prior-threads.json`;
+  const threadActionsFile = `.ephemeral/review-topic-${reviewHead}-thread-actions.json`;
   const reviewBodyFile = `.ephemeral/pr-432-${reviewHead}-review-body.md`;
   const scopeDecisionFile = ".ephemeral/review-topic-scope-decision.json";
   const providerScopeEvidenceFile = `.ephemeral/review-topic-${reviewHead}-provider-scope-evidence.json`;
@@ -6453,7 +6455,7 @@ async function writeResultArtifact(
     is_followup_narrow: false,
     last_reviewed_sha: null,
     selection_reason: "Initial review scope.",
-    prior_context: { kind: "none", path: null },
+    prior_context: { kind: "github-prior-threads", path: priorThreadsFile },
     artifacts: {
       provider_scope_evidence_file: providerScopeEvidenceFile,
       provider_scope_evidence_sha256: providerScopeEvidenceSha256,
@@ -6462,6 +6464,14 @@ async function writeResultArtifact(
   await writeFile(
     path.join(worktree, scopeDecisionFile),
     `${JSON.stringify(scopeDecision, null, 2)}\n`,
+  );
+  await writeFile(
+    path.join(worktree, priorThreadsFile),
+    `${JSON.stringify({ schema: "pr-review/prior-threads/v1", provider: "github", pr_number: 432, head_sha: reviewHead, threads: [], dropped: [] }, null, 2)}\n`,
+  );
+  await writeFile(
+    path.join(worktree, threadActionsFile),
+    `${JSON.stringify({ schema: "pr-review/thread-actions/v1", repository: "owner/repo", pr_number: 432, review_head_sha: reviewHead, prior_threads_file: priorThreadsFile, prior_threads_sha256: await sha256File(path.join(worktree, priorThreadsFile)), actions: [] }, null, 2)}\n`,
   );
   await writeFile(
     path.join(worktree, findingsFile),
@@ -6499,7 +6509,7 @@ async function writeResultArtifact(
     },
     artifacts: {
       scope_decision_file: scopeDecisionFile,
-      prior_threads_file: null,
+      prior_threads_file: priorThreadsFile,
       provider_scope_evidence_file: providerScopeEvidenceFile,
       provider_scope_evidence_sha256: providerScopeEvidenceSha256,
     },
@@ -6519,7 +6529,8 @@ async function writeResultArtifact(
     artifacts: {
       handoff_file: handoffFile,
       scope_decision_file: scopeDecisionFile,
-      prior_threads_file: null,
+      prior_threads_file: priorThreadsFile,
+      thread_actions_file: threadActionsFile,
       rendered_preview_file: null,
       provider_scope_evidence_file: providerScopeEvidenceFile,
     },
@@ -6531,7 +6542,12 @@ async function writeResultArtifact(
       scope_decision_sha256: await sha256File(
         path.join(worktree, scopeDecisionFile),
       ),
-      prior_threads_sha256: null,
+      prior_threads_sha256: await sha256File(
+        path.join(worktree, priorThreadsFile),
+      ),
+      thread_actions_sha256: await sha256File(
+        path.join(worktree, threadActionsFile),
+      ),
       rendered_preview_sha256: null,
       provider_scope_evidence_sha256: providerScopeEvidenceSha256,
     },
