@@ -288,6 +288,9 @@ async function sessionCreatePreflight(): Promise<RuntimeCommandOutcome> {
   }
   const baseRef = requiredEnv("BASE_REF");
   const headRef = requiredEnv("HEAD_REF");
+  if (baseRef.trim() === "" || headRef.trim() === "") {
+    throw new PrReviewLeaseError("BASE_REF and HEAD_REF must be nonblank");
+  }
   const updatedAt = requiredEnv("UPDATED_AT");
   validateTimestamp("UPDATED_AT", updatedAt);
   await assertPrimaryGitBinding(identity.primaryRoot);
@@ -630,6 +633,7 @@ async function isValidForeignReservation(
       !after.isSymbolicLink() &&
       before.dev === after.dev &&
       before.ino === after.ino &&
+      content === `${JSON.stringify(JSON.parse(content) as unknown)}\n` &&
       isValidForeignSessionCreateReservation(
         JSON.parse(content) as unknown,
         expected,
@@ -826,16 +830,6 @@ async function publishSessionCreateLease(
     await rm(temp);
     return "published";
   } catch {
-    try {
-      const stat = await lstat(target);
-      if (
-        stat.isFile() &&
-        !stat.isSymbolicLink() &&
-        (await readFile(target, "utf8")) === bytes
-      ) {
-        return "published";
-      }
-    } catch {}
     return "unverifiable";
   } finally {
     await handle?.close().catch(() => undefined);
@@ -870,11 +864,12 @@ async function verifySessionCreateFinalState({
     if (
       worktree === null ||
       worktree.git_directory !== registration.git_directory ||
-      (await readFile(
-        path.join(identity.primaryRoot, lease.lease_file),
-        "utf8",
-      )) !== leaseBytes ||
-      sha256Text(leaseBytes) !== leaseSha256
+      !(await directSessionLeaseMatches(
+        identity.primaryRoot,
+        lease.lease_file,
+        leaseBytes,
+        leaseSha256,
+      ))
     ) {
       return false;
     }
@@ -925,6 +920,11 @@ async function sessionCreateRollbackResult({
   if (leaseBytes !== null) {
     observed.push("lease");
     if (
+      !(await reservationMatches(
+        path.join(identity.primaryRoot, reservationFile),
+        reservation,
+        reservationBytes,
+      )) ||
       !(await removeOwnedSessionLease(
         identity.primaryRoot,
         reservation.lease_file,
@@ -939,6 +939,11 @@ async function sessionCreateRollbackResult({
     if (registration !== null) observed.push("registration");
     if (
       registration === null ||
+      !(await reservationMatches(
+        path.join(identity.primaryRoot, reservationFile),
+        reservation,
+        reservationBytes,
+      )) ||
       !(await removeOwnedSessionWorktree(
         identity.primaryRoot,
         registration,
@@ -976,11 +981,42 @@ async function removeOwnedSessionLease(
 ): Promise<boolean> {
   const target = path.join(primaryRoot, leaseFile);
   try {
-    const stat = await lstat(target);
-    if (!stat.isFile() || stat.isSymbolicLink()) return false;
-    if ((await readFile(target, "utf8")) !== expectedBytes) return false;
+    if (
+      !(await directSessionLeaseMatches(
+        primaryRoot,
+        leaseFile,
+        expectedBytes,
+        sha256Text(expectedBytes),
+      ))
+    )
+      return false;
     await rm(target);
     return true;
+  } catch {
+    return false;
+  }
+}
+
+async function directSessionLeaseMatches(
+  primaryRoot: string,
+  leaseFile: string,
+  expectedBytes: string,
+  expectedSha256: string,
+): Promise<boolean> {
+  const target = path.join(primaryRoot, leaseFile);
+  try {
+    const before = await lstat(target);
+    if (!before.isFile() || before.isSymbolicLink()) return false;
+    const bytes = await readFile(target, "utf8");
+    const after = await lstat(target);
+    return (
+      after.isFile() &&
+      !after.isSymbolicLink() &&
+      before.dev === after.dev &&
+      before.ino === after.ino &&
+      bytes === expectedBytes &&
+      sha256Text(bytes) === expectedSha256
+    );
   } catch {
     return false;
   }
@@ -1025,7 +1061,6 @@ async function removeOwnedSessionWorktree(
       primaryRoot,
       "worktree",
       "remove",
-      "--force",
       registration.worktree_path,
     ]);
     return (

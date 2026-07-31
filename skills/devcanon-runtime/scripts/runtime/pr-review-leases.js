@@ -65,6 +65,9 @@ async function sessionCreatePreflight() {
     }
     const baseRef = requiredEnv("BASE_REF");
     const headRef = requiredEnv("HEAD_REF");
+    if (baseRef.trim() === "" || headRef.trim() === "") {
+        throw new PrReviewLeaseError("BASE_REF and HEAD_REF must be nonblank");
+    }
     const updatedAt = requiredEnv("UPDATED_AT");
     validateTimestamp("UPDATED_AT", updatedAt);
     await assertPrimaryGitBinding(identity.primaryRoot);
@@ -294,6 +297,7 @@ async function isValidForeignReservation(target, expected) {
             !after.isSymbolicLink() &&
             before.dev === after.dev &&
             before.ino === after.ino &&
+            content === `${JSON.stringify(JSON.parse(content))}\n` &&
             isValidForeignSessionCreateReservation(JSON.parse(content), expected));
     }
     catch {
@@ -451,15 +455,6 @@ async function publishSessionCreateLease(primaryRoot, leaseFile, bytes) {
         return "published";
     }
     catch {
-        try {
-            const stat = await lstat(target);
-            if (stat.isFile() &&
-                !stat.isSymbolicLink() &&
-                (await readFile(target, "utf8")) === bytes) {
-                return "published";
-            }
-        }
-        catch { }
         return "unverifiable";
     }
     finally {
@@ -472,8 +467,7 @@ async function verifySessionCreateFinalState({ identity, commonGitDirectory, hea
         const worktree = await verifyCreatedSessionWorktree(identity.primaryRoot, registration.worktree_path, commonGitDirectory, headSha);
         if (worktree === null ||
             worktree.git_directory !== registration.git_directory ||
-            (await readFile(path.join(identity.primaryRoot, lease.lease_file), "utf8")) !== leaseBytes ||
-            sha256Text(leaseBytes) !== leaseSha256) {
+            !(await directSessionLeaseMatches(identity.primaryRoot, lease.lease_file, leaseBytes, leaseSha256))) {
             return false;
         }
         validateLeaseShape(JSON.parse(await readFile(path.join(identity.primaryRoot, lease.lease_file), "utf8")));
@@ -491,7 +485,8 @@ async function sessionCreateRollbackResult({ conflictReason, manualReason, ident
     let clean = true;
     if (leaseBytes !== null) {
         observed.push("lease");
-        if (!(await removeOwnedSessionLease(identity.primaryRoot, reservation.lease_file, leaseBytes))) {
+        if (!(await reservationMatches(path.join(identity.primaryRoot, reservationFile), reservation, reservationBytes)) ||
+            !(await removeOwnedSessionLease(identity.primaryRoot, reservation.lease_file, leaseBytes))) {
             clean = false;
         }
     }
@@ -500,6 +495,7 @@ async function sessionCreateRollbackResult({ conflictReason, manualReason, ident
         if (registration !== null)
             observed.push("registration");
         if (registration === null ||
+            !(await reservationMatches(path.join(identity.primaryRoot, reservationFile), reservation, reservationBytes)) ||
             !(await removeOwnedSessionWorktree(identity.primaryRoot, registration, reservation.common_git_directory, reservation.immutable_head))) {
             clean = false;
         }
@@ -514,13 +510,29 @@ async function sessionCreateRollbackResult({ conflictReason, manualReason, ident
 async function removeOwnedSessionLease(primaryRoot, leaseFile, expectedBytes) {
     const target = path.join(primaryRoot, leaseFile);
     try {
-        const stat = await lstat(target);
-        if (!stat.isFile() || stat.isSymbolicLink())
-            return false;
-        if ((await readFile(target, "utf8")) !== expectedBytes)
+        if (!(await directSessionLeaseMatches(primaryRoot, leaseFile, expectedBytes, sha256Text(expectedBytes))))
             return false;
         await rm(target);
         return true;
+    }
+    catch {
+        return false;
+    }
+}
+async function directSessionLeaseMatches(primaryRoot, leaseFile, expectedBytes, expectedSha256) {
+    const target = path.join(primaryRoot, leaseFile);
+    try {
+        const before = await lstat(target);
+        if (!before.isFile() || before.isSymbolicLink())
+            return false;
+        const bytes = await readFile(target, "utf8");
+        const after = await lstat(target);
+        return (after.isFile() &&
+            !after.isSymbolicLink() &&
+            before.dev === after.dev &&
+            before.ino === after.ino &&
+            bytes === expectedBytes &&
+            sha256Text(bytes) === expectedSha256);
     }
     catch {
         return false;
@@ -548,7 +560,6 @@ async function removeOwnedSessionWorktree(primaryRoot, registration, commonGitDi
             primaryRoot,
             "worktree",
             "remove",
-            "--force",
             registration.worktree_path,
         ]);
         return (!(await pathExists(registration.worktree_path)) &&
