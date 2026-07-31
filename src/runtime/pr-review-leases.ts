@@ -456,25 +456,19 @@ async function sessionCreatePreflight(): Promise<RuntimeCommandOutcome> {
     });
   }
 
-  if (
-    !(await publishSessionCreateLease(
-      identity.primaryRoot,
-      leaseFile,
-      leaseBytes,
-    ))
-  ) {
-    return await sessionCreateRollbackResult({
-      conflictReason: "lease-create-failed",
-      manualReason: "lease-unverifiable",
-      identity,
+  const leasePublication = await publishSessionCreateLease(
+    identity.primaryRoot,
+    leaseFile,
+    leaseBytes,
+  );
+  if (leasePublication !== "published") {
+    return sessionCreateManualCleanup(
+      "lease-unverifiable",
       reservation,
-      reservationFile,
-      reservationBytes,
       registration,
-      leaseBytes: null,
-      leaseSha256: null,
-      worktreeCreated: true,
-    });
+      null,
+      ["reservation", "worktree", "registration", "lease"],
+    );
   }
 
   if (
@@ -604,14 +598,19 @@ async function acquireSessionCreateReservation(
       ? "contended"
       : "unverifiable";
   }
+  let writeSucceeded = true;
   try {
     await handle.writeFile(bytes, "utf8");
     await handle.sync();
   } catch {
-    return "unverifiable";
-  } finally {
-    await handle.close();
+    writeSucceeded = false;
   }
+  try {
+    await handle.close();
+  } catch {
+    return "unverifiable";
+  }
+  if (!writeSucceeded) return "unverifiable";
   return (await reservationMatches(target, reservation, bytes))
     ? "acquired"
     : "unverifiable";
@@ -622,10 +621,20 @@ async function isValidForeignReservation(
   expected: SessionCreateReservation,
 ): Promise<boolean> {
   try {
-    const stat = await lstat(target);
-    if (!stat.isFile() || stat.isSymbolicLink()) return false;
-    const parsed = JSON.parse(await readFile(target, "utf8")) as unknown;
-    return isValidForeignSessionCreateReservation(parsed, expected);
+    const before = await lstat(target);
+    if (!before.isFile() || before.isSymbolicLink()) return false;
+    const content = await readFile(target, "utf8");
+    const after = await lstat(target);
+    return (
+      after.isFile() &&
+      !after.isSymbolicLink() &&
+      before.dev === after.dev &&
+      before.ino === after.ino &&
+      isValidForeignSessionCreateReservation(
+        JSON.parse(content) as unknown,
+        expected,
+      )
+    );
   } catch {
     return false;
   }
@@ -785,7 +794,9 @@ async function verifyCreatedSessionWorktree(
         "HEAD",
       ]);
       return null;
-    } catch {}
+    } catch (err) {
+      if ((err as { code?: unknown }).code !== 1) return null;
+    }
     return { worktree_path: worktreePath, git_directory: gitDirectoryPath };
   } catch {
     return null;
@@ -796,7 +807,7 @@ async function publishSessionCreateLease(
   primaryRoot: string,
   leaseFile: string,
   bytes: string,
-): Promise<boolean> {
+): Promise<"published" | "unverifiable"> {
   validateDirectChild("lease", leaseFile, DIRECT_SUFFIXES.lease);
   await assertEphemeralDirectory(primaryRoot);
   const target = path.join(primaryRoot, leaseFile);
@@ -813,9 +824,19 @@ async function publishSessionCreateLease(
     handle = null;
     await copyFile(temp, target, constants.COPYFILE_EXCL);
     await rm(temp);
-    return true;
+    return "published";
   } catch {
-    return false;
+    try {
+      const stat = await lstat(target);
+      if (
+        stat.isFile() &&
+        !stat.isSymbolicLink() &&
+        (await readFile(target, "utf8")) === bytes
+      ) {
+        return "published";
+      }
+    } catch {}
+    return "unverifiable";
   } finally {
     await handle?.close().catch(() => undefined);
     await rm(temp, { force: true }).catch(() => undefined);
@@ -984,6 +1005,21 @@ async function removeOwnedSessionWorktree(
     return false;
   }
   try {
+    if (await isWorktreeDirty(registration.worktree_path)) return false;
+    if (
+      (
+        await findUnmanagedEphemeralArtifacts(
+          { artifacts: emptyArtifacts() } as PrReviewLease,
+          registration.worktree_path,
+        )
+      ).length > 0
+    ) {
+      return false;
+    }
+  } catch {
+    return false;
+  }
+  try {
     await execFileAsync("git", [
       "-C",
       primaryRoot,
@@ -992,7 +1028,10 @@ async function removeOwnedSessionWorktree(
       "--force",
       registration.worktree_path,
     ]);
-    return true;
+    return (
+      !(await pathExists(registration.worktree_path)) &&
+      !(await isRegisteredWorktree(primaryRoot, registration.worktree_path))
+    );
   } catch {
     return false;
   }
