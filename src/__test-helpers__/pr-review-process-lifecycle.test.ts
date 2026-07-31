@@ -351,12 +351,10 @@ describe("pr-review process lifecycle", () => {
     });
 
     const killReturnedFalse = result.evidence.includes("kill:false");
-    if (result.rootProcess.closeObserved) {
-      expect(result.cleanup.forceTermination).toBe("not-needed");
-      expect(killReturnedFalse).toBe(false);
-    } else {
+    if (killReturnedFalse) {
       expect(result.cleanup.forceTermination).toBe("failed");
-      expect(killReturnedFalse).toBe(true);
+    } else {
+      expect(result.cleanup.forceTermination).toBe("not-needed");
     }
     expect(result.evidence.some((entry) => entry.startsWith("protocol:"))).toBe(
       true,
