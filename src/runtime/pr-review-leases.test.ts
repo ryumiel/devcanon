@@ -4125,6 +4125,85 @@ describe("pr-review lease intent command validation", () => {
       await rm(workspace.tempRoot, { recursive: true, force: true });
     }
   });
+
+  it("rejects a self-consistent marker with a noncanonical request fingerprint", async () => {
+    const workspace = await makeGatedStatusWorkspace(
+      "pr-review-post-intent-fingerprint-",
+    );
+    const approvedReviewFile = `.ephemeral/topic-${workspace.reviewHead}-approved-review.json`;
+    const payloadFile = `.ephemeral/pr-432-${workspace.reviewHead}-validated-review-payload.json`;
+    const intentFile = `.ephemeral/pr-432-${workspace.reviewHead}-thread-action-post-intent.json`;
+    const threadActionsSha256 = "a".repeat(64);
+    const incorrectFingerprint = "b".repeat(64);
+    const finalBody = `Review body\n\n<!-- devcanon-pr-review-request:v1 sha256=${incorrectFingerprint} -->`;
+
+    try {
+      const payload = {
+        commit_id: workspace.reviewHead,
+        event: "COMMENT",
+        body: finalBody,
+        comments: [],
+      };
+      const approved = {
+        schema: "pr-review/approved-review/v1",
+        review_head_sha: workspace.reviewHead,
+        review_body_file: `.ephemeral/pr-432-${workspace.reviewHead}-review-body.md`,
+        thread_actions_sha256: threadActionsSha256,
+        thread_actions: [],
+        payload,
+      };
+      await writeFile(
+        path.join(workspace.worktree, approvedReviewFile),
+        `${JSON.stringify(approved)}\n`,
+      );
+      await writeFile(
+        path.join(workspace.worktree, payloadFile),
+        `${JSON.stringify(payload)}\n`,
+      );
+      const intent = {
+        schema: "pr-review/thread-action-post-intent/v1",
+        repository: "owner/repo",
+        pr_number: 432,
+        review_head_sha: workspace.reviewHead,
+        approved_review_file: approvedReviewFile,
+        approved_review_sha256: await sha256File(
+          path.join(workspace.worktree, approvedReviewFile),
+        ),
+        validated_review_payload_file: payloadFile,
+        validated_review_payload_sha256: await sha256File(
+          path.join(workspace.worktree, payloadFile),
+        ),
+        review_event: "COMMENT",
+        provider_actor_id: 7,
+        request_fingerprint_sha256: incorrectFingerprint,
+        final_body: finalBody,
+        thread_actions_sha256: threadActionsSha256,
+        created_at: "2026-06-11T00:03:00Z",
+      };
+      await writeFile(
+        path.join(workspace.worktree, intentFile),
+        `${JSON.stringify(intent)}\n`,
+      );
+      process.chdir(workspace.physicalPrimary);
+      setReadStatusEnv(workspace);
+      process.env.STATE = "gated";
+      process.env.BASE_REF = "main";
+      process.env.HEAD_REF = "topic";
+      process.env.UPDATED_AT = "2026-06-11T00:03:00Z";
+      process.env.APPROVED_REVIEW_FILE = approvedReviewFile;
+      process.env.VALIDATED_REVIEW_PAYLOAD_FILE = payloadFile;
+      process.env.POST_INTENT_FILE = intentFile;
+
+      const result = await runPrReviewLeasesCommand(["write"]);
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain(
+        "post intent request fingerprint mismatch",
+      );
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
+    }
+  });
 });
 
 describe("pr-review lease read-status", () => {

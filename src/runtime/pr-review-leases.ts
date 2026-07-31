@@ -3671,6 +3671,22 @@ async function validatePostIntentAndReceipt(
   const marker = `<!-- devcanon-pr-review-request:v1 sha256=${intent.request_fingerprint_sha256} -->`;
   if (intent.final_body !== payload.body || !intent.final_body.endsWith(marker))
     throw new PrReviewLeaseError("post intent final body mismatch");
+  if (intent.review_event !== payload.event) {
+    throw new PrReviewLeaseError("post intent review event mismatch");
+  }
+  const expectedFingerprint = providerRequestFingerprint({
+    repository: lease.repository,
+    prNumber: lease.pr_number,
+    reviewHead,
+    providerActorId: intent.provider_actor_id,
+    reviewEvent: intent.review_event,
+    finalBody: intent.final_body,
+    threadActionsSha256: intent.thread_actions_sha256,
+    payload,
+  });
+  if (intent.request_fingerprint_sha256 !== expectedFingerprint) {
+    throw new PrReviewLeaseError("post intent request fingerprint mismatch");
+  }
   const receiptFile = lease.artifacts.execution_receipt_file;
   if (receiptFile == null) return;
   const expectedReceipt = `.ephemeral/pr-${lease.pr_number}-${reviewHead}-thread-action-execution.json`;
@@ -3722,6 +3738,14 @@ async function validatePostIntentAndReceipt(
     "execution receipt provider_review_submitted_at",
     receipt.provider_review_submitted_at,
   );
+  if (
+    lease.state === "resolving" &&
+    receipt.provider_review_submitted_at !== lease.github.github_posted_at
+  ) {
+    throw new PrReviewLeaseError(
+      "execution receipt provider review submitted time mismatch",
+    );
+  }
   validateTimestamp(
     "execution receipt updated_at",
     stringField(receipt, "updated_at"),
@@ -3738,6 +3762,97 @@ async function validatePostIntentAndReceipt(
   )
     throw new PrReviewLeaseError("execution receipt provider review mismatch");
   void resultArtifact;
+}
+
+function providerRequestFingerprint({
+  repository,
+  prNumber,
+  reviewHead,
+  providerActorId,
+  reviewEvent,
+  finalBody,
+  threadActionsSha256,
+  payload,
+}: {
+  repository: string;
+  prNumber: number;
+  reviewHead: string;
+  providerActorId: number;
+  reviewEvent: unknown;
+  finalBody: unknown;
+  threadActionsSha256: string;
+  payload: JsonObject;
+}): string {
+  if (!isReviewEvent(reviewEvent) || typeof finalBody !== "string") {
+    throw new PrReviewLeaseError("post intent schema mismatch");
+  }
+  const marker = "<!-- devcanon-pr-review-request:v1 sha256=";
+  const markerSuffix = " -->";
+  let bodyWithoutMarker: string;
+  if (finalBody.startsWith(marker) && finalBody.endsWith(markerSuffix)) {
+    if (finalBody.length !== marker.length + 64 + markerSuffix.length) {
+      throw new PrReviewLeaseError("post intent final body mismatch");
+    }
+    bodyWithoutMarker = "";
+  } else {
+    const separator = "\n\n";
+    const markerStart = finalBody.lastIndexOf(separator + marker);
+    if (
+      markerStart < 0 ||
+      markerStart +
+        separator.length +
+        marker.length +
+        64 +
+        markerSuffix.length !==
+        finalBody.length
+    ) {
+      throw new PrReviewLeaseError("post intent final body mismatch");
+    }
+    bodyWithoutMarker = finalBody.slice(0, markerStart);
+  }
+  if (bodyWithoutMarker.includes(marker)) {
+    throw new PrReviewLeaseError("post intent final body mismatch");
+  }
+  const comments = payload.comments;
+  if (!Array.isArray(comments)) {
+    throw new PrReviewLeaseError("post intent payload comments mismatch");
+  }
+  const canonicalComments = comments.map((comment) => {
+    if (!isObject(comment)) {
+      throw new PrReviewLeaseError("post intent payload comments mismatch");
+    }
+    const path = comment.path;
+    const line = comment.line;
+    const startLine = comment.start_line ?? null;
+    const startSide = comment.start_side ?? null;
+    const side = comment.side;
+    const body = comment.body;
+    if (
+      typeof path !== "string" ||
+      !isPositiveSafeInteger(line) ||
+      (startLine !== null && !isPositiveSafeInteger(startLine)) ||
+      (startSide !== null && typeof startSide !== "string") ||
+      typeof side !== "string" ||
+      typeof body !== "string"
+    ) {
+      throw new PrReviewLeaseError("post intent payload comments mismatch");
+    }
+    return [path, line, startLine, startSide, side, body];
+  });
+  const tuple = [
+    "pr-review/provider-request-fingerprint/v1",
+    repository,
+    prNumber,
+    reviewHead,
+    providerActorId,
+    reviewEvent,
+    bodyWithoutMarker,
+    threadActionsSha256,
+    canonicalComments,
+  ];
+  return createHash("sha256")
+    .update(JSON.stringify(tuple), "utf8")
+    .digest("hex");
 }
 
 function validateResultFreshness(

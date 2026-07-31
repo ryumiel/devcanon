@@ -87,7 +87,12 @@ The post intent is the exact direct child
 `.ephemeral/pr-<PR_NUMBER>-<REVIEW_HEAD_SHA>-thread-action-post-intent.json`.
 It is persisted while `gated`, before any provider POST, and binds the approved
 review and validated payload digests, event, actor, canonical marked final body,
-thread-action digest, and request fingerprint. The execution receipt is the
+thread-action digest, and a recomputed request fingerprint. The fingerprint is
+the SHA-256 of the compact UTF-8 JSON tuple `[schema, repository, pr_number,
+reviewed_head_sha, provider_actor_id, review_event, body_without_marker,
+thread_actions_sha256, comments]`; comments retain final payload order as
+`[path, line, start_line_or_null, start_side_or_null, side, comment_body]`.
+The execution receipt is the
 same-name execution direct child ending in `-thread-action-execution.json`.
 It binds that exact intent and provider review identity/submission time, and has
 exactly one ordered disposition for every sealed action: `resolve` is
