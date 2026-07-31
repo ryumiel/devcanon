@@ -3855,14 +3855,17 @@ None
     expect(existingReceiptBranch).toContain(
       '"pending" or .disposition == "failed"',
     );
-    expect(existingReceiptBranch).toContain("materialize-execution-receipt");
+    expect(existingReceiptBranch).toContain("validate-execution-receipt");
+    expect(existingReceiptBranch).not.toContain(
+      "materialize-execution-receipt",
+    );
     expect(existingReceiptBranch).toContain("EXPECTED_STATE");
     expect(existingReceiptBranch).toContain('STATE="$STATE"');
     expect(existingReceiptBranch).toContain(
       'resolving:true)\n         STATE="posted"',
     );
     expect(
-      existingReceiptBranch.indexOf("materialize-execution-receipt"),
+      existingReceiptBranch.indexOf("validate-execution-receipt"),
     ).toBeLessThan(existingReceiptBranch.indexOf("RESUME_SEALED_THREAD_IDS"));
     expect(existingReceiptBranch.indexOf('STATE="$STATE"')).toBeLessThan(
       existingReceiptBranch.indexOf("RESUME_SEALED_THREAD_IDS"),
@@ -3878,7 +3881,9 @@ None
       'elif [ "$POST_INTENT_REUSED" = true ] &&',
     );
     expect(reusedIntentBranch).toContain("Reconcile every");
-    expect(reusedIntentBranch).toContain("failed -> gated (LC-14)");
+    expect(reusedIntentBranch).toContain(
+      "never fresh-POST, re-gate, re-present, or repost.",
+    );
     expect(reusedIntentBranch).toContain("gh api --paginate --slurp");
     expect(reusedIntentBranch).toContain(
       "reconciliation requires exactly one exact review",
@@ -3891,7 +3896,7 @@ None
     expect(reusedIntentBranch).not.toContain('STATE="gated"');
     const intentOwnershipGate = prReviewPhase6.slice(
       prReviewPhase6.indexOf("POST_INTENT_LEASE_OWNED=false"),
-      existingReceiptIndex,
+      prReviewPhase6.indexOf('EXECUTION_RECEIPT_FILE=""'),
     );
     expect(intentOwnershipGate).toContain("LEASE_POST_INTENT_FILE");
     expect(intentOwnershipGate).toContain(
@@ -3899,6 +3904,15 @@ None
     );
     expect(intentOwnershipGate).toContain('STATE="gated"');
     expect(intentOwnershipGate).toContain("POST_INTENT_REUSED=false");
+    expect(intentOwnershipGate).toContain(
+      '[ ! -e "$EXISTING_EXECUTION_RECEIPT_FILE" ]',
+    );
+    expect(intentOwnershipGate).toContain(
+      '[ ! -L "$EXISTING_EXECUTION_RECEIPT_FILE" ]',
+    );
+    expect(reusedIntentBranch).toContain(
+      '[ "$CURRENT_LEASE_STATE" = "gated" ] || [ "$CURRENT_LEASE_STATE" = "failed" ] || exit 1',
+    );
     const postResponseBranch = prReviewPhase6.slice(
       firstProviderPostIndex,
       prReviewPhase6.indexOf(

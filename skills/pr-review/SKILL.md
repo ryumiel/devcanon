@@ -1157,11 +1157,14 @@ Only after user approval:
    LEASE_POST_INTENT_FILE="$(jq -er '.artifacts.post_intent_file // ""' "$REVIEW_CALLER_DIR/$LEASE_FILE")" || exit 1
    POST_INTENT_LEASE_OWNED=false
    [ "$LEASE_POST_INTENT_FILE" = "$POST_INTENT_FILE" ] && POST_INTENT_LEASE_OWNED=true
+   EXISTING_EXECUTION_RECEIPT_FILE=".ephemeral/pr-${PR_NUMBER}-${REVIEW_HEAD_SHA}-thread-action-execution.json"
    if [ "$POST_INTENT_REUSED" = true ] && [ "$POST_INTENT_LEASE_OWNED" != true ]; then
      # A deterministic file alone proves neither LC-19 nor a provider attempt.
      # This is the crash boundary before intent binding: bind it while gated,
      # then take the fresh POST branch below rather than reconciling.
      [ "$CURRENT_LEASE_STATE" = "gated" ] || exit 1
+     # A receipt cannot precede a lease-owned intent and provider post.
+     (cd "$WORKING_DIRECTORY" && [ ! -e "$EXISTING_EXECUTION_RECEIPT_FILE" ] && [ ! -L "$EXISTING_EXECUTION_RECEIPT_FILE" ]) || exit 1
      STATE="gated" \
      APPROVED_REVIEW_FILE="$APPROVED_REVIEW_FILE" \
      VALIDATED_REVIEW_PAYLOAD_FILE="$VALIDATED_REVIEW_PAYLOAD_FILE" \
@@ -1172,7 +1175,6 @@ Only after user approval:
      POST_INTENT_LEASE_OWNED=true
    fi
    EXECUTION_RECEIPT_FILE=""
-   EXISTING_EXECUTION_RECEIPT_FILE=".ephemeral/pr-${PR_NUMBER}-${REVIEW_HEAD_SHA}-thread-action-execution.json"
    if (cd "$WORKING_DIRECTORY" && [ -e "$EXISTING_EXECUTION_RECEIPT_FILE" ]); then
      # A stored receipt is progress, not an invitation to recreate the initial
      # pending/not-requested dispositions. Validate its closed artifact chain
@@ -1184,7 +1186,7 @@ Only after user approval:
      POST_OUTCOME="$(cd "$WORKING_DIRECTORY" && jq -er '.post_outcome | select(. == "post-response" or . == "provider-reconciliation")' "$EXECUTION_RECEIPT_FILE")" || exit 1
      PROVIDER_REVIEW_ID="$(cd "$WORKING_DIRECTORY" && jq -er '.provider_review_id | numbers | select(. == floor and . >= 1 and . <= 9007199254740991)' "$EXECUTION_RECEIPT_FILE")" || exit 1
      PROVIDER_REVIEW_SUBMITTED_AT="$(cd "$WORKING_DIRECTORY" && jq -er '.provider_review_submitted_at | strings | select(test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"))' "$EXECUTION_RECEIPT_FILE")" || exit 1
-     EXISTING_RECEIPT_JSON=$( (
+     (
        cd "$WORKING_DIRECTORY" || exit 1
        HEAD_SHA="$REVIEW_HEAD_SHA" \
        PR_NUMBER="$PR_NUMBER" \
@@ -1192,14 +1194,10 @@ Only after user approval:
        BASE_REF="$REVIEW_SCOPE_BASE_REF" \
        APPROVED_REVIEW_FILE="$APPROVED_REVIEW_FILE" \
        POST_INTENT_FILE="$POST_INTENT_FILE" \
-       POST_OUTCOME="$POST_OUTCOME" \
-       PROVIDER_REVIEW_ID="$PROVIDER_REVIEW_ID" \
-       PROVIDER_REVIEW_SUBMITTED_AT="$PROVIDER_REVIEW_SUBMITTED_AT" \
-       EXECUTION_RECEIPT_UPDATED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-         bash "$PR_REVIEW_HELPER" materialize-execution-receipt
-     ) ) || exit 1
-     [ "$(printf '%s' "$EXISTING_RECEIPT_JSON" | jq -er '.write_status')" = "already-current" ] || exit 1
-     RECEIPT_ALL_TERMINAL="$(printf '%s' "$EXISTING_RECEIPT_JSON" | jq -er '.all_terminal | booleans')" || exit 1
+       EXECUTION_RECEIPT_FILE="$EXECUTION_RECEIPT_FILE" \
+         bash "$PR_REVIEW_HELPER" validate-execution-receipt
+     ) || exit 1
+     RECEIPT_ALL_TERMINAL="$(cd "$WORKING_DIRECTORY" && jq -er '[.actions[] | (.action == "leave" and .disposition == "not-requested") or (.action == "resolve" and (.disposition == "succeeded" or .disposition == "already-resolved"))] | all' "$EXECUTION_RECEIPT_FILE")" || exit 1
      case "$CURRENT_LEASE_STATE:$RECEIPT_ALL_TERMINAL" in
        gated:true | failed:true | resolving:true)
          STATE="posted"
@@ -1233,11 +1231,11 @@ Only after user approval:
        cd "$WORKING_DIRECTORY" || exit 1
        jq -cer '[.actions[] | select(.action == "resolve" and (.disposition == "pending" or .disposition == "failed")) | .thread_id]' "$EXECUTION_RECEIPT_FILE"
      ) )" || exit 1
-   elif [ "$POST_INTENT_REUSED" = true ] && [ "$POST_INTENT_LEASE_OWNED" = true ] && [ "$CURRENT_LEASE_STATE" = "failed" ]; then
-     # No receipt means an action-bearing github-post failure. Reconcile every
-     # submitted-review page; never return through failed -> gated (LC-14),
-     # re-present, or repost. A failed or ambiguous reconciliation preserves
-     # the existing failed evidence unchanged and stops.
+   elif [ "$POST_INTENT_REUSED" = true ] && [ "$POST_INTENT_LEASE_OWNED" = true ]; then
+     # A lease-owned intent with no receipt might have crashed after LC-19 or
+     # after a provider attempt. Reconcile every submitted-review page and
+     # fail closed; never fresh-POST, re-gate, re-present, or repost.
+     [ "$CURRENT_LEASE_STATE" = "gated" ] || [ "$CURRENT_LEASE_STATE" = "failed" ] || exit 1
      RECONCILIATION_SCALARS="$( (
        cd "$WORKING_DIRECTORY" || exit 1
        gh api --paginate --slurp "repos/{owner}/{repo}/pulls/<N>/reviews?per_page=100" \

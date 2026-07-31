@@ -1051,6 +1051,15 @@ materialize_execution_receipt() {
   emit_execution_receipt_result "$receipt_file" committed
 }
 
+validate_execution_receipt() {
+  require_env EXECUTION_RECEIPT_FILE
+  validate_post_intent_chain
+  validate_execution_receipt_path_shape "$EXECUTION_RECEIPT_FILE" "$HEAD_SHA"
+  # Adoption deliberately permits already-progressed sealed resolve actions.
+  # Only materializing a new receipt requires initial dispositions.
+  validate_execution_receipt_file "$EXECUTION_RECEIPT_FILE" false
+}
+
 advance_execution_receipt() {
   local prior_tmp
   local intended_tmp
@@ -1516,6 +1525,9 @@ case "$command_name" in
   materialize-execution-receipt)
     materialize_execution_receipt
     ;;
+  validate-execution-receipt)
+    validate_execution_receipt
+    ;;
   advance-execution-receipt)
     advance_execution_receipt
     ;;
@@ -1529,7 +1541,7 @@ case "$command_name" in
     inspect_approved_review_ownership
     ;;
   *)
-    echo "usage: approved-review-artifacts.sh prepare-review-payload-write|materialize-validated-review-payload|materialize-post-intent|materialize-execution-receipt|advance-execution-receipt|freeze-approved-review|validate-approved-review|inspect-approved-review-ownership" >&2
+    echo "usage: approved-review-artifacts.sh prepare-review-payload-write|materialize-validated-review-payload|materialize-post-intent|materialize-execution-receipt|validate-execution-receipt|advance-execution-receipt|freeze-approved-review|validate-approved-review|inspect-approved-review-ownership" >&2
     exit 1
     ;;
 esac

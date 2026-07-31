@@ -763,6 +763,15 @@ describe.skipIf(!jqAvailable)(
           ACTION_FAILURE_REASON: "Provider mutation did not complete.",
           EXECUTION_RECEIPT_UPDATED_AT: "2026-08-01T00:00:02Z",
         });
+        // Adoption validates the progressed closed chain without recreating
+        // initial pending/not-requested dispositions.
+        await expect(
+          runHelper(cwd, "validate-execution-receipt", {
+            APPROVED_REVIEW_FILE: approvedReviewFile,
+            POST_INTENT_FILE: postIntentFile,
+            EXECUTION_RECEIPT_FILE: executionReceiptFile,
+          }),
+        ).resolves.toMatchObject({ stdout: "" });
 
         await expect(
           runHelper(cwd, "advance-execution-receipt", {
