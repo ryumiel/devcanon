@@ -1529,7 +1529,17 @@ function validateThreadActionsSchema(artifact, options, prior) {
     if (new Set(actionIds).size !== actionIds.length) {
         fail("thread-actions duplicate action thread ID");
     }
-    const eligibleIds = arrayField(prior.envelope, "threads")
+    const sourceThreads = arrayField(prior.envelope, "threads").map((thread) => thread);
+    const sourceRecords = [
+        ...sourceThreads.map((thread) => stringField(thread, "thread_id")),
+        ...arrayField(prior.envelope, "dropped").map((dropped) => stringField(dropped, "thread_id")),
+    ];
+    for (const actionId of actionIds) {
+        if (sourceRecords.filter((threadId) => threadId === actionId).length !== 1) {
+            fail("thread-actions action thread ID is ambiguous in prior threads");
+        }
+    }
+    const eligibleIds = sourceThreads
         .map((thread, index) => ({ thread: thread, index }))
         .filter(({ thread }) => isEligiblePriorThread(thread))
         .sort((left, right) => left.index - right.index ||

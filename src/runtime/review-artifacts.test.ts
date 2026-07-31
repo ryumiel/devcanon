@@ -3538,6 +3538,78 @@ describe("pr-review thread-actions artifacts", () => {
 
   it.each([
     {
+      name: "an ineligible thread",
+      priorThreads: (headSha: string) => {
+        const priorThreads = priorThreadsForThreadActions(headSha);
+        const threads = priorThreads.threads as JsonObject[];
+        return {
+          ...priorThreads,
+          threads: [
+            ...threads,
+            {
+              ...threads[0],
+              is_resolved: true,
+              classification: "resolved",
+              model_context: "summarize",
+              staleness_reason: "The thread was resolved before this review.",
+              comments: [],
+              summary: "Already resolved before this review.",
+            },
+          ],
+        };
+      },
+    },
+    {
+      name: "a dropped record",
+      priorThreads: (headSha: string) => {
+        const priorThreads = priorThreadsForThreadActions(headSha);
+        return {
+          ...priorThreads,
+          dropped: [
+            ...(priorThreads.dropped as JsonObject[]),
+            {
+              thread_id: "PRRT_kwDOEligibleFirst",
+              classification: "resolved",
+              reason: "A duplicate source record must not be actionable.",
+            },
+          ],
+        };
+      },
+    },
+  ])(
+    "rejects an action ID shared by an eligible thread and $name",
+    async (testCase) => {
+      const { cwd, headSha } = await makeRiskSignalsWorkspace();
+      try {
+        process.chdir(cwd);
+        const priorThreads = testCase.priorThreads(headSha);
+        await writeJson(
+          cwd,
+          ".ephemeral/topic-prior-threads.json",
+          priorThreads,
+        );
+        await writeJson(
+          cwd,
+          ".ephemeral/topic-thread-actions.json",
+          threadActionsArtifact(headSha, priorThreads),
+        );
+
+        await expect(
+          runReviewArtifactsCommand(threadActionsArgs(headSha)),
+        ).resolves.toMatchObject({
+          exitCode: 1,
+          stderr: expect.stringContaining(
+            "thread-actions action thread ID is ambiguous in prior threads",
+          ),
+        });
+      } finally {
+        await cleanupRiskSignalsWorkspace(cwd);
+      }
+    },
+  );
+
+  it.each([
+    {
       name: "duplicate action thread ID",
       artifact: (headSha: string, priorThreads: JsonObject) => {
         const artifact = threadActionsArtifact(headSha, priorThreads);
