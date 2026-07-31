@@ -1,14 +1,16 @@
 import { execFile } from "node:child_process";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { constants } from "node:fs";
 import {
   access,
   copyFile,
   lstat,
   mkdir,
+  open,
   readFile,
   readdir,
   realpath,
+  rm,
 } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -97,6 +99,41 @@ interface PrReviewSessionDiscovery {
   archived_lease_files: string[];
   disposition: DiscoveryDisposition;
   resume: { lease_file: string; worktree_path: string } | null;
+}
+
+type SessionCreateOutcome = "success" | "conflict" | "manual-cleanup";
+type SessionCreateConflictReason =
+  | "discovery-not-create"
+  | "reservation-contended"
+  | "worktree-create-failed"
+  | "lease-create-failed"
+  | "final-verification-failed"
+  | "interrupted"
+  | "lifecycle-reentry-required";
+type ObservedArtifact = "reservation" | "worktree" | "registration" | "lease";
+type SessionCreateManualReason =
+  | "reservation-unverifiable"
+  | "worktree-unverifiable"
+  | "lease-unverifiable"
+  | "rollback-incomplete"
+  | "interrupted";
+
+interface RegistrationIdentity {
+  worktree_path: string;
+  git_directory: string;
+}
+
+interface SessionCreateReservation {
+  schema: "pr-review/session-create-reservation/v1";
+  invocation_token: string;
+  repository: string;
+  pr_number: number;
+  primary_repository_root: string;
+  common_git_directory: string;
+  canonical_worktree_path: string;
+  immutable_head: string;
+  lease_file: string;
+  expected_lease_sha256: string;
 }
 
 export interface PrReviewLease {
@@ -212,6 +249,13 @@ export async function runPrReviewLeasesCommand(
           );
         }
         return ok(`${JSON.stringify(await discoverReviewSession())}\n`);
+      case "session-create":
+        if (commandArgs.length !== 0) {
+          throw new PrReviewLeaseError(
+            "session-create does not accept positional arguments",
+          );
+        }
+        return await sessionCreatePreflight();
       case "write":
         return ok(`${await writeLease()}\n`);
       case "record-audit-failure":
@@ -227,13 +271,777 @@ export async function runPrReviewLeasesCommand(
         return ok(await cleanupWorktree());
       default:
         throw new PrReviewLeaseError(
-          "usage: review-leases.sh derive-path|discover|write|record-audit-failure|validate|read-status|inspect-worktree|cleanup-worktree",
+          "usage: review-leases.sh derive-path|discover|session-create|write|record-audit-failure|validate|read-status|inspect-worktree|cleanup-worktree",
         );
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return { exitCode: 1, stdout: "", stderr: `${message}\n` };
   }
+}
+
+async function sessionCreatePreflight(): Promise<RuntimeCommandOutcome> {
+  const identity = await readDiscoveryIdentity();
+  const headSha = requiredEnv("HEAD_SHA");
+  if (!SHA_RE.test(headSha)) {
+    throw new PrReviewLeaseError("HEAD_SHA must be a lowercase 40-hex SHA");
+  }
+  const baseRef = requiredEnv("BASE_REF");
+  const headRef = requiredEnv("HEAD_REF");
+  const updatedAt = requiredEnv("UPDATED_AT");
+  validateTimestamp("UPDATED_AT", updatedAt);
+  await assertPrimaryGitBinding(identity.primaryRoot);
+  await assertGitCommit(identity.primaryRoot, headSha);
+
+  const discovery = await discoverReviewSession();
+  if (hasLifecycleReentry(discovery)) {
+    return sessionCreateConflict("lifecycle-reentry-required", []);
+  }
+  if (discovery.disposition !== "create") {
+    return sessionCreateConflict("discovery-not-create", []);
+  }
+
+  const commonGitDirectory = await gitDirectory(
+    identity.primaryRoot,
+    "--git-common-dir",
+  );
+  const worktreePath = discovery.canonical_worktree_path;
+  const worktreeDigest = digestPath(worktreePath);
+  const leaseFile = `.ephemeral/pr-${identity.prNumber}-${worktreeDigest}-lease.json`;
+  const lease = reducePrReviewLease(
+    null,
+    {
+      repository: identity.repository,
+      prNumber: identity.prNumber,
+      worktreePath,
+      worktreeDigest,
+      leaseFile,
+    },
+    {
+      state: "created",
+      baseRef,
+      headRef,
+      createdAt: updatedAt,
+      updatedAt,
+    },
+  );
+  validateLeaseShape(lease);
+  const leaseBytes = `${JSON.stringify(lease, null, 2)}\n`;
+  const leaseSha256 = sha256Text(leaseBytes);
+  const reservation: SessionCreateReservation = {
+    schema: "pr-review/session-create-reservation/v1",
+    invocation_token: randomUUID(),
+    repository: identity.repository,
+    pr_number: identity.prNumber,
+    primary_repository_root: identity.primaryRoot,
+    common_git_directory: commonGitDirectory,
+    canonical_worktree_path: worktreePath,
+    immutable_head: headSha,
+    lease_file: leaseFile,
+    expected_lease_sha256: leaseSha256,
+  };
+  const reservationFile = `.ephemeral/pr-${identity.prNumber}-session-create-reservation.json`;
+  const reservationBytes = `${JSON.stringify(reservation)}\n`;
+
+  const reservationState = await acquireSessionCreateReservation(
+    identity.primaryRoot,
+    reservationFile,
+    reservation,
+    reservationBytes,
+  );
+  if (reservationState === "contended") {
+    return sessionCreateConflict("reservation-contended", ["reservation"]);
+  }
+  if (reservationState !== "acquired") {
+    return sessionCreateManualCleanup(
+      "reservation-unverifiable",
+      reservation,
+      null,
+      null,
+      ["reservation"],
+    );
+  }
+
+  const postReservationDiscovery = await discoverReviewSession();
+  if (
+    hasLifecycleReentry(postReservationDiscovery) ||
+    postReservationDiscovery.disposition !== "create"
+  ) {
+    if (
+      await removeOwnedReservation(
+        identity.primaryRoot,
+        reservationFile,
+        reservation,
+        reservationBytes,
+      )
+    ) {
+      return sessionCreateConflict(
+        hasLifecycleReentry(postReservationDiscovery)
+          ? "lifecycle-reentry-required"
+          : "discovery-not-create",
+        [],
+      );
+    }
+    return sessionCreateManualCleanup(
+      "rollback-incomplete",
+      reservation,
+      null,
+      null,
+      ["reservation"],
+    );
+  }
+
+  try {
+    await execFileAsync("git", [
+      "-C",
+      identity.primaryRoot,
+      "worktree",
+      "add",
+      "--detach",
+      worktreePath,
+      headSha,
+    ]);
+  } catch {
+    const registration = await verifyCreatedSessionWorktree(
+      identity.primaryRoot,
+      worktreePath,
+      commonGitDirectory,
+      headSha,
+    );
+    if (
+      registration === null &&
+      ((await pathExists(worktreePath)) ||
+        (await isRegisteredWorktree(identity.primaryRoot, worktreePath)))
+    ) {
+      return sessionCreateManualCleanup(
+        "worktree-unverifiable",
+        reservation,
+        null,
+        null,
+        ["reservation", "worktree"],
+      );
+    }
+    return await sessionCreateRollbackResult({
+      conflictReason: "worktree-create-failed",
+      manualReason: "rollback-incomplete",
+      identity,
+      reservation,
+      reservationFile,
+      reservationBytes,
+      registration,
+      leaseBytes: null,
+      leaseSha256: null,
+      worktreeCreated: registration !== null,
+    });
+  }
+
+  const registration = await verifyCreatedSessionWorktree(
+    identity.primaryRoot,
+    worktreePath,
+    commonGitDirectory,
+    headSha,
+  );
+  if (registration === null) {
+    return await sessionCreateRollbackResult({
+      conflictReason: "final-verification-failed",
+      manualReason: "worktree-unverifiable",
+      identity,
+      reservation,
+      reservationFile,
+      reservationBytes,
+      registration: null,
+      leaseBytes: null,
+      leaseSha256: null,
+      worktreeCreated: true,
+    });
+  }
+
+  if (
+    !(await publishSessionCreateLease(
+      identity.primaryRoot,
+      leaseFile,
+      leaseBytes,
+    ))
+  ) {
+    return await sessionCreateRollbackResult({
+      conflictReason: "lease-create-failed",
+      manualReason: "lease-unverifiable",
+      identity,
+      reservation,
+      reservationFile,
+      reservationBytes,
+      registration,
+      leaseBytes: null,
+      leaseSha256: null,
+      worktreeCreated: true,
+    });
+  }
+
+  if (
+    !(await verifySessionCreateFinalState({
+      identity,
+      commonGitDirectory,
+      headSha,
+      lease,
+      leaseBytes,
+      leaseSha256,
+      registration,
+    }))
+  ) {
+    return await sessionCreateRollbackResult({
+      conflictReason: "final-verification-failed",
+      manualReason: "lease-unverifiable",
+      identity,
+      reservation,
+      reservationFile,
+      reservationBytes,
+      registration,
+      leaseBytes,
+      leaseSha256,
+      worktreeCreated: true,
+    });
+  }
+
+  if (
+    !(await removeOwnedReservation(
+      identity.primaryRoot,
+      reservationFile,
+      reservation,
+      reservationBytes,
+    ))
+  ) {
+    return sessionCreateManualCleanup(
+      "rollback-incomplete",
+      reservation,
+      registration,
+      leaseSha256,
+      ["reservation", "worktree", "registration", "lease"],
+    );
+  }
+
+  return sessionCreateSuccess(
+    identity,
+    commonGitDirectory,
+    worktreePath,
+    headSha,
+    leaseFile,
+    leaseSha256,
+  );
+}
+
+async function assertPrimaryGitBinding(primaryRoot: string): Promise<void> {
+  const { stdout } = await execFileAsync("git", [
+    "-C",
+    primaryRoot,
+    "rev-parse",
+    "--path-format=absolute",
+    "--show-toplevel",
+  ]);
+  if ((await realpath(stdout.trim())) !== primaryRoot) {
+    throw new PrReviewLeaseError(
+      "PRIMARY_REPOSITORY_ROOT must be the physical Git worktree root",
+    );
+  }
+}
+
+async function assertGitCommit(
+  primaryRoot: string,
+  immutableHead: string,
+): Promise<void> {
+  try {
+    await execFileAsync("git", [
+      "-C",
+      primaryRoot,
+      "cat-file",
+      "-e",
+      `${immutableHead}^{commit}`,
+    ]);
+  } catch {
+    throw new PrReviewLeaseError("HEAD_SHA must name an available commit");
+  }
+}
+
+async function gitDirectory(
+  workingDirectory: string,
+  option: "--git-common-dir" | "--git-dir",
+): Promise<string> {
+  const { stdout } = await execFileAsync("git", [
+    "-C",
+    workingDirectory,
+    "rev-parse",
+    "--path-format=absolute",
+    option,
+  ]);
+  return realpath(stdout.trim());
+}
+
+function hasLifecycleReentry(discovery: PrReviewSessionDiscovery): boolean {
+  return discovery.active.some((entry) => entry.classification === "reentry");
+}
+
+function sha256Text(value: string): string {
+  return createHash("sha256").update(value, "utf8").digest("hex");
+}
+
+async function acquireSessionCreateReservation(
+  primaryRoot: string,
+  reservationFile: string,
+  reservation: SessionCreateReservation,
+  bytes: string,
+): Promise<"acquired" | "contended" | "unverifiable"> {
+  validateDirectChild("reservation", reservationFile);
+  await assertEphemeralDirectory(primaryRoot);
+  await mkdir(path.join(primaryRoot, ".ephemeral"), { recursive: true });
+  const target = path.join(primaryRoot, reservationFile);
+  let handle: Awaited<ReturnType<typeof open>>;
+  try {
+    handle = await open(target, "wx");
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== "EEXIST") {
+      return "unverifiable";
+    }
+    return (await isValidForeignReservation(target, reservation))
+      ? "contended"
+      : "unverifiable";
+  }
+  try {
+    await handle.writeFile(bytes, "utf8");
+    await handle.sync();
+  } catch {
+    return "unverifiable";
+  } finally {
+    await handle.close();
+  }
+  return (await reservationMatches(target, reservation, bytes))
+    ? "acquired"
+    : "unverifiable";
+}
+
+async function isValidForeignReservation(
+  target: string,
+  expected: SessionCreateReservation,
+): Promise<boolean> {
+  try {
+    const stat = await lstat(target);
+    if (!stat.isFile() || stat.isSymbolicLink()) return false;
+    const parsed = JSON.parse(await readFile(target, "utf8")) as unknown;
+    return isValidForeignSessionCreateReservation(parsed, expected);
+  } catch {
+    return false;
+  }
+}
+
+function isClosedSessionCreateReservation(
+  value: unknown,
+  expected: SessionCreateReservation,
+  requireExpectedToken: boolean,
+): boolean {
+  if (!isObject(value)) return false;
+  const keys = Object.keys(value);
+  const expectedKeys = [
+    "schema",
+    "invocation_token",
+    "repository",
+    "pr_number",
+    "primary_repository_root",
+    "common_git_directory",
+    "canonical_worktree_path",
+    "immutable_head",
+    "lease_file",
+    "expected_lease_sha256",
+  ];
+  if (
+    keys.length !== expectedKeys.length ||
+    keys.some((key, index) => key !== expectedKeys[index])
+  ) {
+    return false;
+  }
+  const candidate = value as Partial<SessionCreateReservation>;
+  return (
+    candidate.schema === expected.schema &&
+    typeof candidate.invocation_token === "string" &&
+    candidate.invocation_token.length > 0 &&
+    (!requireExpectedToken ||
+      candidate.invocation_token === expected.invocation_token) &&
+    candidate.repository === expected.repository &&
+    candidate.pr_number === expected.pr_number &&
+    candidate.primary_repository_root === expected.primary_repository_root &&
+    candidate.common_git_directory === expected.common_git_directory &&
+    candidate.canonical_worktree_path === expected.canonical_worktree_path &&
+    candidate.immutable_head === expected.immutable_head &&
+    candidate.lease_file === expected.lease_file &&
+    candidate.expected_lease_sha256 === expected.expected_lease_sha256
+  );
+}
+
+function isValidForeignSessionCreateReservation(
+  value: unknown,
+  expected: SessionCreateReservation,
+): boolean {
+  if (!isObject(value)) return false;
+  const candidate = value as Partial<SessionCreateReservation>;
+  const keys = Object.keys(candidate);
+  const expectedKeys = [
+    "schema",
+    "invocation_token",
+    "repository",
+    "pr_number",
+    "primary_repository_root",
+    "common_git_directory",
+    "canonical_worktree_path",
+    "immutable_head",
+    "lease_file",
+    "expected_lease_sha256",
+  ];
+  return (
+    keys.length === expectedKeys.length &&
+    keys.every((key, index) => key === expectedKeys[index]) &&
+    candidate.schema === expected.schema &&
+    typeof candidate.invocation_token === "string" &&
+    candidate.invocation_token.length > 0 &&
+    candidate.repository === expected.repository &&
+    candidate.pr_number === expected.pr_number &&
+    candidate.primary_repository_root === expected.primary_repository_root &&
+    candidate.common_git_directory === expected.common_git_directory &&
+    candidate.canonical_worktree_path === expected.canonical_worktree_path &&
+    typeof candidate.immutable_head === "string" &&
+    SHA_RE.test(candidate.immutable_head) &&
+    candidate.lease_file === expected.lease_file &&
+    typeof candidate.expected_lease_sha256 === "string" &&
+    SHA256_RE.test(candidate.expected_lease_sha256)
+  );
+}
+
+async function reservationMatches(
+  target: string,
+  expected: SessionCreateReservation,
+  bytes: string,
+): Promise<boolean> {
+  try {
+    const before = await lstat(target);
+    if (!before.isFile() || before.isSymbolicLink()) return false;
+    const content = await readFile(target, "utf8");
+    const after = await lstat(target);
+    return (
+      after.isFile() &&
+      !after.isSymbolicLink() &&
+      before.dev === after.dev &&
+      before.ino === after.ino &&
+      content === bytes &&
+      sha256Text(content) === sha256Text(bytes) &&
+      isClosedSessionCreateReservation(
+        JSON.parse(content) as unknown,
+        expected,
+        true,
+      )
+    );
+  } catch {
+    return false;
+  }
+}
+
+async function removeOwnedReservation(
+  primaryRoot: string,
+  reservationFile: string,
+  reservation: SessionCreateReservation,
+  bytes: string,
+): Promise<boolean> {
+  const target = path.join(primaryRoot, reservationFile);
+  if (!(await reservationMatches(target, reservation, bytes))) return false;
+  try {
+    await rm(target);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function verifyCreatedSessionWorktree(
+  primaryRoot: string,
+  worktreePath: string,
+  commonGitDirectory: string,
+  immutableHead: string,
+): Promise<RegistrationIdentity | null> {
+  try {
+    if ((await realpath(worktreePath)) !== worktreePath) return null;
+    if (!(await isRegisteredWorktree(primaryRoot, worktreePath))) return null;
+    const [commonDirectory, gitDirectoryPath, head] = await Promise.all([
+      gitDirectory(worktreePath, "--git-common-dir"),
+      gitDirectory(worktreePath, "--git-dir"),
+      execFileAsync("git", ["-C", worktreePath, "rev-parse", "HEAD"]),
+    ]);
+    if (
+      commonDirectory !== commonGitDirectory ||
+      head.stdout.trim() !== immutableHead
+    ) {
+      return null;
+    }
+    try {
+      await execFileAsync("git", [
+        "-C",
+        worktreePath,
+        "symbolic-ref",
+        "-q",
+        "HEAD",
+      ]);
+      return null;
+    } catch {}
+    return { worktree_path: worktreePath, git_directory: gitDirectoryPath };
+  } catch {
+    return null;
+  }
+}
+
+async function publishSessionCreateLease(
+  primaryRoot: string,
+  leaseFile: string,
+  bytes: string,
+): Promise<boolean> {
+  validateDirectChild("lease", leaseFile, DIRECT_SUFFIXES.lease);
+  await assertEphemeralDirectory(primaryRoot);
+  const target = path.join(primaryRoot, leaseFile);
+  const temp = path.join(
+    path.dirname(target),
+    `.${path.basename(target)}.${randomUUID()}.session-create.tmp`,
+  );
+  let handle: Awaited<ReturnType<typeof open>> | null = null;
+  try {
+    handle = await open(temp, "wx");
+    await handle.writeFile(bytes, "utf8");
+    await handle.sync();
+    await handle.close();
+    handle = null;
+    await copyFile(temp, target, constants.COPYFILE_EXCL);
+    await rm(temp);
+    return true;
+  } catch {
+    return false;
+  } finally {
+    await handle?.close().catch(() => undefined);
+    await rm(temp, { force: true }).catch(() => undefined);
+  }
+}
+
+async function verifySessionCreateFinalState({
+  identity,
+  commonGitDirectory,
+  headSha,
+  lease,
+  leaseBytes,
+  leaseSha256,
+  registration,
+}: {
+  identity: DiscoveryIdentity;
+  commonGitDirectory: string;
+  headSha: string;
+  lease: PrReviewLease;
+  leaseBytes: string;
+  leaseSha256: string;
+  registration: RegistrationIdentity;
+}): Promise<boolean> {
+  try {
+    const worktree = await verifyCreatedSessionWorktree(
+      identity.primaryRoot,
+      registration.worktree_path,
+      commonGitDirectory,
+      headSha,
+    );
+    if (
+      worktree === null ||
+      worktree.git_directory !== registration.git_directory ||
+      (await readFile(
+        path.join(identity.primaryRoot, lease.lease_file),
+        "utf8",
+      )) !== leaseBytes ||
+      sha256Text(leaseBytes) !== leaseSha256
+    ) {
+      return false;
+    }
+    validateLeaseShape(
+      JSON.parse(
+        await readFile(
+          path.join(identity.primaryRoot, lease.lease_file),
+          "utf8",
+        ),
+      ) as PrReviewLease,
+    );
+    const finalDiscovery = await discoverReviewSession();
+    return (
+      finalDiscovery.disposition === "resume" &&
+      finalDiscovery.resume?.lease_file === lease.lease_file &&
+      finalDiscovery.resume.worktree_path === registration.worktree_path
+    );
+  } catch {
+    return false;
+  }
+}
+
+async function sessionCreateRollbackResult({
+  conflictReason,
+  manualReason,
+  identity,
+  reservation,
+  reservationFile,
+  reservationBytes,
+  registration,
+  leaseBytes,
+  leaseSha256,
+  worktreeCreated,
+}: {
+  conflictReason: SessionCreateConflictReason;
+  manualReason: SessionCreateManualReason;
+  identity: DiscoveryIdentity;
+  reservation: SessionCreateReservation;
+  reservationFile: string;
+  reservationBytes: string;
+  registration: RegistrationIdentity | null;
+  leaseBytes: string | null;
+  leaseSha256: string | null;
+  worktreeCreated: boolean;
+}): Promise<RuntimeCommandOutcome> {
+  const observed: ObservedArtifact[] = ["reservation"];
+  let clean = true;
+  if (leaseBytes !== null) {
+    observed.push("lease");
+    if (
+      !(await removeOwnedSessionLease(
+        identity.primaryRoot,
+        reservation.lease_file,
+        leaseBytes,
+      ))
+    ) {
+      clean = false;
+    }
+  }
+  if (worktreeCreated) {
+    observed.push("worktree");
+    if (registration !== null) observed.push("registration");
+    if (
+      registration === null ||
+      !(await removeOwnedSessionWorktree(
+        identity.primaryRoot,
+        registration,
+        reservation.common_git_directory,
+        reservation.immutable_head,
+      ))
+    ) {
+      clean = false;
+    }
+  }
+  if (
+    !(await removeOwnedReservation(
+      identity.primaryRoot,
+      reservationFile,
+      reservation,
+      reservationBytes,
+    ))
+  ) {
+    clean = false;
+  }
+  if (clean) return sessionCreateConflict(conflictReason, []);
+  return sessionCreateManualCleanup(
+    manualReason,
+    reservation,
+    registration,
+    leaseSha256,
+    observed,
+  );
+}
+
+async function removeOwnedSessionLease(
+  primaryRoot: string,
+  leaseFile: string,
+  expectedBytes: string,
+): Promise<boolean> {
+  const target = path.join(primaryRoot, leaseFile);
+  try {
+    const stat = await lstat(target);
+    if (!stat.isFile() || stat.isSymbolicLink()) return false;
+    if ((await readFile(target, "utf8")) !== expectedBytes) return false;
+    await rm(target);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function removeOwnedSessionWorktree(
+  primaryRoot: string,
+  registration: RegistrationIdentity,
+  commonGitDirectory: string,
+  immutableHead: string,
+): Promise<boolean> {
+  const verified = await verifyCreatedSessionWorktree(
+    primaryRoot,
+    registration.worktree_path,
+    commonGitDirectory,
+    immutableHead,
+  );
+  if (
+    verified === null ||
+    verified.git_directory !== registration.git_directory
+  ) {
+    return false;
+  }
+  try {
+    await execFileAsync("git", [
+      "-C",
+      primaryRoot,
+      "worktree",
+      "remove",
+      "--force",
+      registration.worktree_path,
+    ]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function sessionCreateSuccess(
+  identity: DiscoveryIdentity,
+  commonGitDirectory: string,
+  worktreePath: string,
+  immutableHead: string,
+  leaseFile: string,
+  leaseSha256: string,
+): RuntimeCommandOutcome {
+  return {
+    exitCode: 0,
+    stdout: `${JSON.stringify({ schema: "pr-review/session-create/v1", outcome: "success", repository: identity.repository, pr_number: identity.prNumber, primary_repository_root: identity.primaryRoot, common_git_directory: commonGitDirectory, canonical_worktree_path: worktreePath, immutable_head: immutableHead, lease_file: leaseFile, lease_sha256: leaseSha256 })}\n`,
+    stderr: "",
+  };
+}
+
+function sessionCreateConflict(
+  reason: SessionCreateConflictReason,
+  observed: ObservedArtifact[],
+): RuntimeCommandOutcome {
+  const ordered = (
+    ["reservation", "worktree", "registration", "lease"] as const
+  ).filter((item) => observed.includes(item));
+  return {
+    exitCode: 1,
+    stdout: `${JSON.stringify({ schema: "pr-review/session-create/v1", outcome: "conflict" as SessionCreateOutcome, reason, observed_artifacts: ordered })}\n`,
+    stderr: "",
+  };
+}
+
+function sessionCreateManualCleanup(
+  reason: SessionCreateManualReason,
+  reservation: SessionCreateReservation,
+  registration: RegistrationIdentity | null,
+  leaseSha256: string | null,
+  observed: ObservedArtifact[],
+): RuntimeCommandOutcome {
+  const ordered = (
+    ["reservation", "worktree", "registration", "lease"] as const
+  ).filter((item) => observed.includes(item));
+  return {
+    exitCode: 1,
+    stdout: `${JSON.stringify({ schema: "pr-review/session-create/v1", outcome: "manual-cleanup" as SessionCreateOutcome, invocation_token: reservation.invocation_token, canonical_worktree_path: reservation.canonical_worktree_path, immutable_head: reservation.immutable_head, registration_identity: registration, lease_sha256: leaseSha256, observed_artifacts: ordered, reason })}\n`,
+    stderr: "",
+  };
 }
 
 async function discoverReviewSession(): Promise<PrReviewSessionDiscovery> {

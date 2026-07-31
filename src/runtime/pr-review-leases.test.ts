@@ -1286,6 +1286,188 @@ describe("pr-review lease reducer", () => {
 });
 
 describe("pr-review lease command validation", () => {
+  it("creates one verified detached canonical session from frozen inputs", async () => {
+    const repository = await commandHarness.createReviewRepository();
+    const { stdout: headOutput } = await execFileAsync("git", [
+      "-C",
+      repository.physicalRepository,
+      "rev-parse",
+      "HEAD",
+    ]);
+    const head = headOutput.trim();
+    process.chdir(repository.physicalRepository);
+    process.env.REPOSITORY = "owner/repo";
+    process.env.PR_NUMBER = "432";
+    process.env.PRIMARY_REPOSITORY_ROOT = repository.physicalRepository;
+    process.env.HEAD_SHA = head;
+    process.env.BASE_REF = "main";
+    process.env.HEAD_REF = "topic";
+    process.env.UPDATED_AT = "2026-07-31T00:00:00Z";
+
+    const result = await runPrReviewLeasesCommand(["session-create"]);
+
+    expect(result.exitCode, result.stderr).toBe(0);
+    expect(JSON.parse(result.stdout)).toEqual({
+      schema: "pr-review/session-create/v1",
+      outcome: "success",
+      repository: "owner/repo",
+      pr_number: 432,
+      primary_repository_root: repository.physicalRepository,
+      common_git_directory: path.join(repository.physicalRepository, ".git"),
+      canonical_worktree_path: path.join(
+        repository.physicalRepository,
+        ".worktrees",
+        "pr-432-review",
+      ),
+      immutable_head: head,
+      lease_file: expect.stringMatching(
+        /^\.ephemeral\/pr-432-[0-9a-f]{64}-lease\.json$/u,
+      ),
+      lease_sha256: expect.stringMatching(/^[0-9a-f]{64}$/u),
+    });
+    const session = JSON.parse(result.stdout) as {
+      lease_file: string;
+      lease_sha256: string;
+    };
+    const leaseBytes = await readFile(
+      path.join(repository.physicalRepository, session.lease_file),
+      "utf8",
+    );
+    expect(leaseBytes).toBe(
+      `${JSON.stringify(
+        reducePrReviewLease(
+          null,
+          {
+            repository: "owner/repo",
+            prNumber: 432,
+            worktreePath: path.join(
+              repository.physicalRepository,
+              ".worktrees",
+              "pr-432-review",
+            ),
+            worktreeDigest: discoveryWorktreeDigest(
+              path.join(
+                repository.physicalRepository,
+                ".worktrees",
+                "pr-432-review",
+              ),
+            ),
+            leaseFile: session.lease_file,
+          },
+          {
+            state: "created",
+            baseRef: "main",
+            headRef: "topic",
+            createdAt: "2026-07-31T00:00:00Z",
+            updatedAt: "2026-07-31T00:00:00Z",
+          },
+        ),
+        null,
+        2,
+      )}\n`,
+    );
+    expect(
+      await sha256File(
+        path.join(repository.physicalRepository, session.lease_file),
+      ),
+    ).toBe(session.lease_sha256);
+  });
+
+  it("preserves a closed competing reservation without creating a worktree", async () => {
+    const repository = await commandHarness.createReviewRepository();
+    const { stdout: headOutput } = await execFileAsync("git", [
+      "-C",
+      repository.physicalRepository,
+      "rev-parse",
+      "HEAD",
+    ]);
+    const head = headOutput.trim();
+    const canonical = path.join(
+      repository.physicalRepository,
+      ".worktrees",
+      "pr-432-review",
+    );
+    const leaseFile = `.ephemeral/pr-432-${discoveryWorktreeDigest(canonical)}-lease.json`;
+    const reservationFile = path.join(
+      repository.physicalRepository,
+      ".ephemeral/pr-432-session-create-reservation.json",
+    );
+    const reservation = {
+      schema: "pr-review/session-create-reservation/v1",
+      invocation_token: "foreign-creator-token",
+      repository: "owner/repo",
+      pr_number: 432,
+      primary_repository_root: repository.physicalRepository,
+      common_git_directory: path.join(repository.physicalRepository, ".git"),
+      canonical_worktree_path: canonical,
+      immutable_head: head,
+      lease_file: leaseFile,
+      expected_lease_sha256: "a".repeat(64),
+    };
+    const reservationBytes = `${JSON.stringify(reservation)}\n`;
+    await writeFile(reservationFile, reservationBytes);
+    process.chdir(repository.physicalRepository);
+    process.env.REPOSITORY = "owner/repo";
+    process.env.PR_NUMBER = "432";
+    process.env.PRIMARY_REPOSITORY_ROOT = repository.physicalRepository;
+    process.env.HEAD_SHA = head;
+    process.env.BASE_REF = "main";
+    process.env.HEAD_REF = "topic";
+    process.env.UPDATED_AT = "2026-07-31T00:00:00Z";
+
+    const result = await runPrReviewLeasesCommand(["session-create"]);
+
+    expect(result).toEqual({
+      exitCode: 1,
+      stdout: `${JSON.stringify({ schema: "pr-review/session-create/v1", outcome: "conflict", reason: "reservation-contended", observed_artifacts: ["reservation"] })}\n`,
+      stderr: "",
+    });
+    expect(await readFile(reservationFile, "utf8")).toBe(reservationBytes);
+    await expect(lstat(canonical)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("retains malformed reservation evidence for manual cleanup", async () => {
+    const repository = await commandHarness.createReviewRepository();
+    const { stdout: headOutput } = await execFileAsync("git", [
+      "-C",
+      repository.physicalRepository,
+      "rev-parse",
+      "HEAD",
+    ]);
+    const head = headOutput.trim();
+    const reservationFile = path.join(
+      repository.physicalRepository,
+      ".ephemeral/pr-432-session-create-reservation.json",
+    );
+    await writeFile(reservationFile, "{\n");
+    process.chdir(repository.physicalRepository);
+    process.env.REPOSITORY = "owner/repo";
+    process.env.PR_NUMBER = "432";
+    process.env.PRIMARY_REPOSITORY_ROOT = repository.physicalRepository;
+    process.env.HEAD_SHA = head;
+    process.env.BASE_REF = "main";
+    process.env.HEAD_REF = "topic";
+    process.env.UPDATED_AT = "2026-07-31T00:00:00Z";
+
+    const result = await runPrReviewLeasesCommand(["session-create"]);
+
+    expect(result.exitCode).toBe(1);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      schema: "pr-review/session-create/v1",
+      outcome: "manual-cleanup",
+      canonical_worktree_path: path.join(
+        repository.physicalRepository,
+        ".worktrees",
+        "pr-432-review",
+      ),
+      registration_identity: null,
+      lease_sha256: null,
+      observed_artifacts: ["reservation"],
+      reason: "reservation-unverifiable",
+    });
+    expect(await readFile(reservationFile, "utf8")).toBe("{\n");
+  });
+
   it("plans create, resume, and unleased-canonical cleanup without mutation", async () => {
     const workspace = await makeRegisteredWorkspace("pr-review-discovery-");
 
@@ -6189,7 +6371,7 @@ describe("pr-review lease wrapper trusted runtime bootstrap", () => {
       typedSentinel,
       bashExecutable,
     );
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       exitCode: 0,
       stdout: "runtime-ok\n",
       stderr: "",
@@ -6229,6 +6411,34 @@ describe("pr-review lease wrapper trusted runtime bootstrap", () => {
       });
     }
   }
+
+  it("forwards session-create to the trusted runtime", async () => {
+    const root = await commandHarness.createScratchRoot();
+    const runtime = await writeRuntime(root, "session-create-runtime");
+    const result = await commandHarness.run(
+      "bash",
+      [wrapper, "session-create"],
+      {
+        env: {
+          ...process.env,
+          DEVCANON_RUNTIME_DIR: runtime.runtimeDir,
+          DEVCANON_TEST_RESOLVER_SENTINEL: runtime.resolverSentinel,
+          DEVCANON_TEST_TYPED_SENTINEL: runtime.typedSentinel,
+        },
+        acceptedExitCodes: [0, 1],
+      },
+    );
+    expect(result).toMatchObject({
+      exitCode: 0,
+      stdout: "runtime-ok\n",
+      stderr: "",
+    });
+    const executedSentinel =
+      process.platform === "win32"
+        ? runtime.typedSentinel
+        : runtime.resolverSentinel;
+    expect(await readFile(executedSentinel, "utf8")).toBe("executed\n");
+  });
 
   it.runIf(process.platform !== "win32")(
     "preserves POSIX backslashes, line feeds, and valid dot aliases despite a poisoned OSTYPE",
