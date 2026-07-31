@@ -1092,6 +1092,20 @@ describe("pr-review lease reducer", () => {
         github_posted_at: "2026-06-11T00:03:00Z",
       },
     });
+    expect(() =>
+      reducePrReviewLease(resolving, identity, {
+        state: "resolving",
+        baseRef: "main",
+        headRef: "topic",
+        createdAt: "2026-06-11T00:00:00Z",
+        updatedAt: "2026-06-11T00:04:00Z",
+        executionReceiptFile:
+          ".ephemeral/pr-432-1111111111111111111111111111111111111111-thread-action-execution.json",
+        githubPostedAt: "2026-06-11T00:03:00Z",
+        providerReviewId: 988,
+        executionReceiptAllTerminal: false,
+      } as Parameters<typeof reducePrReviewLease>[2]),
+    ).toThrow("PROVIDER_REVIEW_ID must match resolving provider review");
   });
 
   it("rejects posted leases without a persisted post intent", () => {
@@ -1107,6 +1121,49 @@ describe("pr-review lease reducer", () => {
         githubPostedAt: "2026-06-11T00:03:00Z",
       }),
     ).toThrow("POST_INTENT_FILE is required");
+  });
+
+  it("does not allow an action-bearing post failure to bypass its receipt", () => {
+    const intended = reducePrReviewLease(gatedLease(), identity, {
+      state: "gated",
+      baseRef: "main",
+      headRef: "topic",
+      createdAt: "2026-06-11T00:00:00Z",
+      updatedAt: "2026-06-11T00:02:30Z",
+      approvedReviewFile: ".ephemeral/topic-approved-review.json",
+      validatedPayloadFile:
+        ".ephemeral/pr-432-1111111111111111111111111111111111111111-validated-review-payload.json",
+      postIntentFile:
+        ".ephemeral/pr-432-1111111111111111111111111111111111111111-thread-action-post-intent.json",
+    } as Parameters<typeof reducePrReviewLease>[2]);
+    const failed = reducePrReviewLease(intended, identity, {
+      state: "failed",
+      baseRef: "main",
+      headRef: "topic",
+      createdAt: "2026-06-11T00:00:00Z",
+      updatedAt: "2026-06-11T00:03:00Z",
+      finishedAt: "2026-06-11T00:03:00Z",
+      failurePhase: "github-post",
+      failureReason: "provider response lost",
+      failureRecoverability: "recoverable",
+      githubPostAttempted: true,
+      githubPostResult: "failed",
+    });
+
+    expect(failed.artifacts.post_intent_file).toBe(
+      intended.artifacts.post_intent_file,
+    );
+    expect(() =>
+      reducePrReviewLease(failed, identity, {
+        state: "posted",
+        baseRef: "main",
+        headRef: "topic",
+        createdAt: "2026-06-11T00:00:00Z",
+        updatedAt: "2026-06-11T00:04:00Z",
+        finishedAt: "2026-06-11T00:04:00Z",
+        githubPostedAt: "2026-06-11T00:04:00Z",
+      }),
+    ).toThrow("execution receipt recovery");
   });
 
   it("preserves gated recovery evidence for GitHub post failures", () => {
@@ -3255,6 +3312,8 @@ describe("pr-review lease command validation", () => {
         result_file: null,
         approved_review_file: null,
         validated_payload_file: null,
+        post_intent_file: null,
+        execution_receipt_file: null,
       });
       expect(failedAfterDrift.validation.result_manifest).toEqual({
         status: null,
@@ -3377,6 +3436,8 @@ describe("pr-review lease command validation", () => {
         result_file: workspace.resultFile,
         approved_review_file: null,
         validated_payload_file: null,
+        post_intent_file: null,
+        execution_receipt_file: null,
       });
       expect(failed.validation.result_manifest).toEqual({
         status: "valid",
@@ -4021,6 +4082,44 @@ describe("pr-review lease command validation", () => {
 
       expect(result.exitCode, result.stderr).toBe(0);
       expect(result.stdout).toBe("");
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("pr-review lease intent command validation", () => {
+  it("rejects a nested post-intent path before it can update a gated lease", async () => {
+    const workspace = await makeGatedStatusWorkspace(
+      "pr-review-post-intent-path-",
+    );
+    const approvedReviewFile = `.ephemeral/topic-${workspace.reviewHead}-approved-review.json`;
+
+    try {
+      await writeApprovedReviewArtifact(
+        workspace.worktree,
+        approvedReviewFile,
+        workspace.reviewHead,
+      );
+      const payloadFile = await writeValidatedPayloadArtifact(
+        workspace.worktree,
+        workspace.reviewHead,
+      );
+      process.chdir(workspace.physicalPrimary);
+      setReadStatusEnv(workspace);
+      process.env.STATE = "gated";
+      process.env.BASE_REF = "main";
+      process.env.HEAD_REF = "topic";
+      process.env.UPDATED_AT = "2026-06-11T00:03:00Z";
+      process.env.APPROVED_REVIEW_FILE = approvedReviewFile;
+      process.env.VALIDATED_REVIEW_PAYLOAD_FILE = payloadFile;
+      process.env.POST_INTENT_FILE =
+        ".ephemeral/nested/thread-action-post-intent.json";
+
+      const result = await runPrReviewLeasesCommand(["write"]);
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain("nested post intent path rejected");
     } finally {
       process.chdir(originalCwd);
       await rm(workspace.tempRoot, { recursive: true, force: true });
@@ -4900,6 +4999,8 @@ describe("pr-review lease read-status", () => {
         result_file: null,
         approved_review_file: null,
         validated_payload_file: null,
+        post_intent_file: null,
+        execution_receipt_file: null,
       });
       expect(failed.validation.result_manifest).toEqual({
         status: null,

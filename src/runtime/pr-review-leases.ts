@@ -1697,6 +1697,11 @@ export function reducePrReviewLease(
           "invalid lease transition: failed -> posted requires github-post failure",
         );
       }
+      if (previous.artifacts.post_intent_file != null) {
+        throw new PrReviewLeaseError(
+          "action-bearing failed lease requires execution receipt recovery",
+        );
+      }
       if (
         inputs.approvedReviewFile !== undefined &&
         inputs.approvedReviewFile !== previous.artifacts.approved_review_file
@@ -2060,7 +2065,8 @@ function shouldRecordCleanupMetadata(
   return (
     decision.identityMatch &&
     decision.leaseState !== "" &&
-    decision.refusalReason !== "invalid-lease"
+    decision.refusalReason !== "invalid-lease" &&
+    decision.refusalReason !== "action-execution-incomplete"
   );
 }
 
@@ -2147,6 +2153,17 @@ async function classifyCleanup(
       ...base,
       refusalReason: "invalid-lease",
       message: "lease is invalid; preserving worktree",
+    };
+  }
+
+  if (
+    lease.state === "resolving" ||
+    (lease.state === "failed" && lease.artifacts.post_intent_file != null)
+  ) {
+    return {
+      ...base,
+      refusalReason: "action-execution-incomplete",
+      message: "action-bearing lease must be retained",
     };
   }
 
@@ -2717,6 +2734,23 @@ function applyExecutionReceipt(
       "POST_INTENT_FILE must match resolving intent",
     );
   }
+  if (previous?.state === "resolving") {
+    if (inputs.providerReviewId !== previous.github.provider_review_id) {
+      throw new PrReviewLeaseError(
+        "PROVIDER_REVIEW_ID must match resolving provider review",
+      );
+    }
+    if (inputs.githubPostedAt !== previous.github.github_posted_at) {
+      throw new PrReviewLeaseError(
+        "GITHUB_POSTED_AT must match resolving post time",
+      );
+    }
+    if (receiptFile !== previous.artifacts.execution_receipt_file) {
+      throw new PrReviewLeaseError(
+        "EXECUTION_RECEIPT_FILE must match resolving receipt",
+      );
+    }
+  }
   return {
     ...base,
     state: row === "LC-21" || row === "LC-23" ? "posted" : "resolving",
@@ -3239,6 +3273,8 @@ function clearPreviewRenderRecoveryArtifacts(
       result_file: null,
       approved_review_file: null,
       validated_payload_file: null,
+      post_intent_file: null,
+      execution_receipt_file: null,
     },
     validation: emptyValidation(),
     presentation: emptyPresentation(),
@@ -3368,6 +3404,32 @@ async function classifyRecoveryEvidence(
       freshnessTimestamp,
     });
     sanitized = payloadCandidate;
+  } catch {
+    validateLeaseShape(sanitized);
+    return sanitized;
+  }
+
+  if (reduced.artifacts.post_intent_file === null) {
+    validateLeaseShape(sanitized);
+    return sanitized;
+  }
+
+  const intentCandidate: PrReviewLease = {
+    ...sanitized,
+    artifacts: {
+      ...sanitized.artifacts,
+      post_intent_file: reduced.artifacts.post_intent_file,
+      execution_receipt_file: null,
+    },
+  };
+  try {
+    validateLeaseShape(intentCandidate);
+    await validateReferencedArtifacts(intentCandidate, worktreePath, {
+      validateResultAuthority: true,
+      policy,
+      freshnessTimestamp,
+    });
+    sanitized = intentCandidate;
   } catch {
     validateLeaseShape(sanitized);
     return sanitized;

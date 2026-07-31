@@ -103,6 +103,14 @@ the intended replacement; any other bytes fail closed. A certain or
 indeterminate post failure retains a valid intent without a receipt and grants
 no resolution, repost, cleanup, archive, or reentry authority.
 
+While `resolving`, each receipt replacement must retain the exact receipt path,
+provider review ID, and post time already recorded by the lease. The controller
+accepts only an exact reread of the intended replacement as committed, or an
+exact reread of the prior valid receipt as a recoverable stop; it does not
+replace provider identity. An action-bearing `github-post` failure preserves a
+valid intent and likewise cannot use legacy failed-to-posted recovery without a
+validated receipt.
+
 ## Session creation boundary
 
 `session-create` is private transaction state around a fresh LC-01 write, not
