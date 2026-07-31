@@ -2466,17 +2466,48 @@ describe("pr-review manifest helper", () => {
         });
         const branchScopePath = `.ephemeral/feature-pr-432-${headSha}-scope-decision.json`;
         const branchFindingsPath = `.ephemeral/feature-pr-432-${headSha}-findings.json`;
-        await writeJson(cwd, branchScopePath, initialScope(baseSha, headSha));
+        const branchPriorThreadsPath = `.ephemeral/feature-pr-432-${headSha}-prior-threads.json`;
+        const branchThreadActionsPath = `.ephemeral/feature-pr-432-${headSha}-thread-actions.json`;
+        await writeJson(cwd, branchPriorThreadsPath, {
+          schema: "pr-review/prior-threads/v1",
+          provider: "github",
+          pr_number: Number(prNumber),
+          head_sha: headSha,
+          threads: [],
+          dropped: [],
+        });
+        await writeJson(cwd, branchThreadActionsPath, {
+          schema: "pr-review/thread-actions/v1",
+          repository: "owner/repo",
+          pr_number: Number(prNumber),
+          review_head_sha: headSha,
+          prior_threads_file: branchPriorThreadsPath,
+          prior_threads_sha256: await sha256File(cwd, branchPriorThreadsPath),
+          actions: [],
+        });
+        await writeJson(
+          cwd,
+          branchScopePath,
+          initialScope(baseSha, headSha, {
+            prior_context: {
+              kind: "github-prior-threads",
+              path: branchPriorThreadsPath,
+            },
+          }),
+        );
         await writeJson(cwd, branchFindingsPath, findingsEnvelope());
 
         await runHelper(cwd, "write-handoff", {
           ...handoffEnv(cwd, baseSha, headSha, false),
           SCOPE_DECISION_FILE: branchScopePath,
+          PRIOR_THREADS_FILE: branchPriorThreadsPath,
         });
         await runHelper(cwd, "write-result", {
           ...resultEnv(headSha),
           FINDINGS_FILE: branchFindingsPath,
           SCOPE_DECISION_FILE: branchScopePath,
+          PRIOR_THREADS_FILE: branchPriorThreadsPath,
+          THREAD_ACTIONS_FILE: branchThreadActionsPath,
         });
 
         await expect(
