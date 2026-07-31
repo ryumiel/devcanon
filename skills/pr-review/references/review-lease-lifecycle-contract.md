@@ -73,6 +73,87 @@ All other transitions are forbidden. `stale-head` is a valid failure phase for
 post-freeze refusal, but it is not eligible for LC-17 retry-to-post; it must
 return through review discovery or a fresh approval path before posting.
 
+## Session Discovery
+
+`review-leases.sh discover` is a read-only preflight for one repository and PR.
+It inventories only direct-child active lease names for that PR, separately
+reports archived lease names, observes the canonical
+`.worktrees/pr-<N>-review` path, and compares lease worktree paths with the
+repository's registered worktrees. It returns exactly one disposition:
+`create`, `resume`, `cleanup-required`, `ambiguous`, or `invalid`.
+
+### Discover result schema
+
+`discover` writes exactly one JSON object followed by a newline; it has no
+notice line. Its closed `pr-review/session-discovery/v1` object uses this key
+order and these values:
+
+1. `schema`: the literal `"pr-review/session-discovery/v1"`.
+2. `repository`: the requested `owner/name` string.
+3. `pr_number`: the requested positive integer.
+4. `primary_repository_root`: the physical absolute primary repository path.
+5. `canonical_worktree_path`: the physical absolute
+   `.worktrees/pr-<N>-review` path under that root; discovery resolves an
+   existing canonical path, or its existing `.worktrees` parent, before using
+   it for registration and LC-18 comparison.
+6. `canonical_worktree_present`: whether that canonical path is present on
+   disk.
+7. `active`: active candidates sorted lexically by direct-child `lease_file`.
+8. `archived_lease_files`: archived `.ephemeral/<name>` direct-child lease
+   paths sorted lexically.
+9. `disposition`: one of the five values above.
+10. `resume`: `null`, or an object with `lease_file` and physical absolute
+    `worktree_path`; it is non-null only for `resume`.
+
+Each `active` candidate uses this key order: `lease_file` (direct-child active
+lease path), `worktree_path` (physical absolute path or `null`), `state` (one
+of `created`, `reviewed`, `gated`, `posted`, `aborted`, `failed`, or `null`),
+`classification` (`resumable`, `terminal`, `reentry`, `missing`,
+`unregistered`, or `invalid`), `worktree_dirty`, and
+`unmanaged_ephemeral_artifacts`. The two observation fields are booleans only
+for a present, registered, identity-valid candidate; otherwise both are `null`.
+They never expose dirty file names or unmanaged artifact paths.
+
+For an eligible candidate, discovery reuses the existing read-only dirty and
+owned-artifact inspections without calling `inspect-worktree` or recording
+cleanup metadata. An inspection or ownership failure is `invalid`, not a
+guessed `false`; only missing worktree paths retain the documented missing or
+LC-18 reentry classification. A true dirty or unmanaged observation selects
+`cleanup-required` with `resume: null`; it grants no cleanup authority.
+
+`resume` is emitted only for one registered, schema-valid nonterminal lease.
+Invalid evidence wins first, then dirty or unmanaged observations select
+`cleanup-required`. More than one clean resumable lease is `ambiguous`, even
+when one is canonical; canonical-path conflict handling applies only after that
+selection. Terminal, missing, unregistered, or unleased canonical paths that
+are present or still registered require an existing lifecycle or cleanup owner.
+Stored active-lease `worktree_path` values must already be absolute physical
+paths: relative paths, lexical aliases, and resolvable aliases are malformed
+and `invalid`. For a missing path, discovery physicalizes the deepest existing
+physical directory before that identity comparison. An `ENOTDIR` ancestor or
+dangling-symlink ancestor is invalid before missing or LC-18 reentry, as is a
+lexical or symlink-parent alias; a physical missing canonical or alternate path
+retains its normal missing classification.
+Malformed active lease evidence is `invalid`. The planner does not inspect or
+repair arbitrary historical paths, infer cleanup authority, or mutate any
+lifecycle state. Cleanup remains exclusively lease-gated.
+
+When a `posted` or `aborted` lease has a valid helper-recorded
+`cleanup.removed_at` marker and its stored physical worktree path is canonical,
+its missing, unregistered worktree is eligible for the existing LC-18
+archive-and-create reentry only after discovery reads that lease's exact
+deterministic archive:
+an absent archive or byte-equal archive permits reentry, a divergent archive
+remains `missing` and therefore `cleanup-required`, and an unreadable archive
+fails closed as `invalid`. Discovery establishes absence from that direct entry
+before reading it, so a present dangling entry is unreadable rather than
+absent. If a fresh LC-18 lease write is interrupted after that archive snapshot
+and the canonical worktree has already been recreated, the same authority-valid,
+clean, managed, registered canonical candidate is also `reentry`; `create`
+reuses that worktree and retries only the fresh lease write. Later cleanup
+observations may change `last_outcome` without revoking that marker. Other
+terminal, missing, or unregistered leases remain `cleanup-required`.
+
 ## Field Contract
 
 `UPDATED_AT` is required on every write. `created_at`, `base_ref`, `head_ref`,
@@ -198,19 +279,31 @@ metadata never adds or refreshes artifact authority.
 
 LC-18 is the only transition that replaces a terminal active lease with a fresh
 `created` lease. The helper first validates the existing terminal lease for
-archive, then moves it to:
+archive, snapshots it to:
 
 ```text
 .ephemeral/pr-${PR_NUMBER}-${WORKTREE_DIGEST}-${YYYYMMDDTHHMMSS}-${STATE}-archived-lease.json
 ```
 
+The helper retains the valid terminal lease until the fresh `created` lease is
+atomically installed. Terminal archive creation is exclusive: an existing
+archive may be reused only when its bytes exactly equal the active terminal
+lease; divergent bytes fail closed without overwriting either lease. If that
+fresh write is interrupted after the archive snapshot, a retry can use the
+still-active terminal lease and preserve the archived historical evidence.
+Before discovery admits a missing canonical LC-18 reentry, it reads only this
+exact archive: absent or byte-equal content permits the existing reentry/create
+flow, while divergent or unreadable content never permits `create`.
+
 For a `posted` or `aborted` lease whose cleanup helper has recorded a closed
-`cleanup` observation with a valid non-null `removed_at` timestamp, LC-18 may
-archive after recreating the canonical worktree path without revalidating
-historical artifacts in that new checkout. The helper writes `removed_at` only
-after `git worktree remove` succeeds; a legacy `last_outcome: "removed"`
-observation without that marker remains subject to strict historical-artifact
-validation. That observation is narrowly scoped archive authority; it does not
+`cleanup` observation with a valid non-null `removed_at` timestamp and whose
+recorded physical worktree path is the canonical path, LC-18 may archive after
+recreating that path without revalidating historical artifacts in the new
+checkout. The helper writes `removed_at` only after `git worktree remove`
+succeeds; a legacy `last_outcome: "removed"` observation without that marker
+remains subject to strict historical-artifact validation. Later cleanup retries
+may change `last_outcome` while `removed_at` remains the archive-authority
+marker. That observation is narrowly scoped archive authority; it does not
 refresh or create artifact authority. In every other case, LC-18 keeps strict
 historical artifact validation before archive. A fresh `created` lease carries
 none of the terminal lease's artifact, validation, presentation, terminal,

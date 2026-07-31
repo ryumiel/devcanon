@@ -64,6 +64,34 @@ Detect mode:
 
 ## Phase 2: Worktree setup
 
+Bind the lease helper before selecting a worktree path:
+
+```bash
+PR_REVIEW_DIR="<installed-pr-review-skill-bundle>"
+PR_REVIEW_LEASE_HELPER="$PR_REVIEW_DIR/scripts/review-leases.sh"
+```
+
+Before `git worktree add`, run the read-only session planner from the primary
+repository root with `REPOSITORY`, `PR_NUMBER`, and
+`PRIMARY_REPOSITORY_ROOT` set:
+
+```bash
+bash "$PR_REVIEW_LEASE_HELPER" discover
+```
+
+The planner emits one closed selection result. Only `create` permits canonical
+worktree progression. A missing canonical LC-18 `reentry` is admitted only
+when its exact deterministic terminal archive is absent or byte-equal; a
+divergent or unreadable archive remains a stop condition. When `create` reports
+one authority-valid `reentry` candidate and `canonical_worktree_present=true`,
+reuse that clean registered canonical worktree and write the fresh LC-18 lease
+without rerunning `git worktree add`; otherwise `create` permits the new
+canonical worktree command below. `resume` identifies the already registered worktree and lease to
+validate through the existing lifecycle flow;
+`cleanup-required`, `ambiguous`, and `invalid` stop for the existing cleanup
+or lifecycle owner. Discovery is read-only: it never creates, removes, or
+updates worktrees, leases, or artifacts.
+
 ```sh
 git fetch origin <base-ref>
 git fetch origin <head-ref>
@@ -79,16 +107,12 @@ the `<base-ref>` fetch.
 Use the repo root as the base for `.worktrees/` to avoid cwd issues across bash
 calls.
 
-`working_directory` for the play-review handoff = the physical absolute path to
-`.worktrees/pr-<N>-review`, for example
-`WORKING_DIRECTORY="$(cd ".worktrees/pr-<N>-review" && pwd -P)"`. Manifest
-validation rejects subdirectories, `.` aliases, and symlinked aliases.
-
-Bind the lease helper after `PR_REVIEW_DIR` is known:
-
-```bash
-PR_REVIEW_LEASE_HELPER="$PR_REVIEW_DIR/scripts/review-leases.sh"
-```
+For `create`, `working_directory` for the play-review handoff is the physical
+absolute canonical path, for example
+`WORKING_DIRECTORY="$(cd ".worktrees/pr-<N>-review" && pwd -P)"`. For
+`resume`, use the planner's selected `resume.worktree_path` and
+`resume.lease_file` instead. Manifest validation rejects subdirectories, `.`
+aliases, and symlinked aliases.
 
 ## Lease Lifecycle
 
@@ -117,6 +141,7 @@ and never constructs GitHub review payloads.
 Helper command surface:
 
 - `derive-path`
+- `discover`
 - `write`
 - `validate`
 - `inspect-worktree`
@@ -435,7 +460,9 @@ approval state, no lease state, and no GitHub review payload.
 
 Hand off to `play-review` with these manifest-backed inputs:
 
-- `working_directory` = absolute path to `.worktrees/pr-<N>-review`
+- `working_directory` = the Phase 2 selected physical worktree path: canonical
+  `.worktrees/pr-<N>-review` for `create`, or `resume.worktree_path` for
+  `resume`
 - `base_ref` = the PR's base ref name (e.g., `main`)
 - `active_diff_range` = computed in Phase 3
 - `full_pr_diff_range` = `"<provider_pr_diff_base_sha>..<headRefOid>"` from explicit provider scope evidence (always)
