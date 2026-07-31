@@ -786,7 +786,7 @@ validate_advance_execution_receipt_inputs() {
   fi
 }
 
-validate_post_intent_chain() {
+validate_post_intent_chain() (
   local validated_payload_file
   local approved_review_sha256
   local validated_payload_sha256
@@ -807,6 +807,7 @@ validate_post_intent_chain() {
   validate_post_intent_path_shape "$POST_INTENT_FILE" "$HEAD_SHA"
   assert_readable_file "post intent file" "$POST_INTENT_FILE"
   unmarked_payload_file="$(mktemp ".ephemeral/.receipt-unmarked-payload-${HEAD_SHA}.XXXXXX")"
+  trap 'rm -f "${unmarked_payload_file:-}"' EXIT
   validate_approved_review > "$unmarked_payload_file"
   assert_single_json_object "approved review payload" "$unmarked_payload_file"
   assert_payload_shape "$unmarked_payload_file" "$HEAD_SHA"
@@ -895,9 +896,9 @@ validate_post_intent_chain() {
     exit 1
   }
   rm -f "$unmarked_payload_file"
-}
+)
 
-validate_execution_receipt_file() {
+validate_execution_receipt_file() (
   local receipt_file="$1"
   local require_initial="$2"
   local allow_temporary="${3:-false}"
@@ -956,6 +957,7 @@ validate_execution_receipt_file() {
     exit 1
   }
   approved_actions_file="$(mktemp ".ephemeral/.receipt-approved-actions-${HEAD_SHA}.XXXXXX")"
+  trap 'rm -f "${approved_actions_file:-}"' EXIT
   jq '.thread_actions' "$APPROVED_REVIEW_FILE" > "$approved_actions_file"
   jq -e --slurpfile approved "$approved_actions_file" --argjson require_initial "$require_initial" '
     .actions as $actions
@@ -973,7 +975,7 @@ validate_execution_receipt_file() {
     exit 1
   }
   rm -f "$approved_actions_file"
-}
+)
 
 receipt_all_terminal() {
   jq -e '[.actions[] | (.action == "leave" and .disposition == "not-requested") or (.action == "resolve" and (.disposition == "succeeded" or .disposition == "already-resolved"))] | all' "$1" >/dev/null
