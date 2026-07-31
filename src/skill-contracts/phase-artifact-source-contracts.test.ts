@@ -3742,9 +3742,7 @@ None
     expect(normalizedPrReview).toContain(
       "Post exactly the validated approved payload",
     );
-    const materializeIndex = prReviewPhase6.indexOf(
-      "materialize-validated-review-payload",
-    );
+    const materializeIndex = prReviewPhase6.indexOf("materialize-post-intent");
     const providerIndex = prReviewPhase6.indexOf(
       "gh api repos/{owner}/{repo}/pulls/<N>/reviews",
     );
@@ -3755,6 +3753,7 @@ None
       providerIndex,
     );
     expect(materializationGate).toContain("VALIDATED_REVIEW_PAYLOAD_FILE");
+    expect(materializationGate).toContain("POST_INTENT_FILE");
     expect(materializationGate).toContain("|| exit 1");
     expect(prReviewPhase6.slice(providerIndex)).toContain(
       '--input "$VALIDATED_REVIEW_PAYLOAD_FILE"',
@@ -3775,6 +3774,29 @@ None
     expect(normalizedPrReview).toContain(
       "Do not manually construct a `jq` payload here",
     );
+    for (const providerExecutionContract of [
+      "canonical provider request fingerprint v1",
+      "devcanon-pr-review-request:v1 sha256=",
+      "materialize-post-intent",
+      "PROVIDER_ACTOR_ID",
+      "POST_INTENT_CREATED_AT",
+      "Persist the post intent before any provider POST",
+      "record-post-intent",
+      "POST_INTENT_FILE",
+      "Never repost after an uncertain POST outcome",
+      "every page of submitted reviews",
+      "exactly one review",
+      "exact full marked body",
+      "provider actor, event, commit, and non-null submission timestamp",
+      "Write the execution receipt before the first resolution",
+      "fresh provider read immediately before resolving each sealed `resolve` ID",
+      "already-resolved",
+      "Do not resolve `leave` actions",
+      "atomic direct-child replacement",
+      "exact intended receipt or the exact prior valid receipt",
+    ]) {
+      expect(normalizedPrReview).toContain(providerExecutionContract);
+    }
     expect(normalizedPrReview).toContain(
       "do not fetch `commit_id` from live `{{tool:github-cli}} pr view` for posting",
     );

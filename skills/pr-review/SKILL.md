@@ -203,11 +203,12 @@ boundaries:
   `PRESENTED_AT` and `PRESENTATION_STATUS`.
 - Write `aborted` immediately after the user chooses `abort`, with
   `FINISHED_AT` and `TERMINAL_REASON`, then proceed to lease-gated cleanup.
-- Write `posted` only after the GitHub review post succeeds, with
-  `APPROVED_REVIEW_FILE`, `VALIDATED_REVIEW_PAYLOAD_FILE`, `FINISHED_AT`, and
-  `GITHUB_POSTED_AT`. The runtime
-  reducer records `github_post_attempted=true` and
-  `github_post_result=succeeded` as derived metadata.
+- Persist the sealed post intent while `gated` (LC-19) before a provider POST.
+  After a proven post, write the execution receipt before any resolution: use
+  `resolving` for pending or failed sealed resolves (LC-20/LC-22), and `posted`
+  only with an all-terminal receipt (LC-21/LC-23). The reducer records
+  `github_post_attempted=true` and `github_post_result=succeeded` as derived
+  metadata.
 - Write `failed` before any cleanup decision when validation, preview,
   approval-freeze, stale-head, or GitHub posting fails. `failed` writes must
   include `FINISHED_AT`, `FAILURE_PHASE`, `FAILURE_REASON`, and
@@ -1097,50 +1098,115 @@ Only after user approval:
    }
    ```
 
-5. **Post exactly the validated approved payload.** After the stale-head guard
-   passes, have the approved-review helper materialize the guarded canonical
-   payload and bind its returned path. Only invoke `{{tool:github-cli}} api`
-   after materialization exits zero. Do not call `build-github-review-payload` again after user approval.
-   Do not edit, reformat, filter, or reconstruct the payload between validation
-   and posting.
+5. **Post exactly the validated approved payload: seal the provider request, persist intent, then post exactly once.** The
+   provider request uses canonical provider request fingerprint v1. After the
+   stale-head guard, obtain the authenticated GitHub numeric actor ID with a
+   read-only `{{tool:github-cli}} api user --jq .id` call. Pass that ID and one
+   canonical UTC-second timestamp to `materialize-post-intent`. The existing
+   helper alone reads the unmarked frozen payload, builds the compact UTF-8
+   fingerprint tuple (schema, repository, PR number, reviewed head SHA, actor
+   ID, review event, body without marker, thread-actions digest, and final
+   payload-order comments), appends exactly one marker, and atomically
+   materializes both direct children. The marker is
+   `<!-- devcanon-pr-review-request:v1 sha256=<fingerprint> -->`. Do not
+   inline JSON, recompute that tuple, or derive a second body in the wrapper.
+   The post-intent artifact records the canonical final body, actor, event,
+   payload and approved-review digests, fingerprint, and sealed action digest.
+
+   After the stale-head guard passes, have the approved-review helper materialize
+   the guarded canonical payload and bind its returned path. Only invoke
+   `{{tool:github-cli}} api` after materialization and post-intent validation
+   both exit zero. Do not call `build-github-review-payload` again after user approval.
+   Do not edit, reformat, filter, or reconstruct the payload between
+   validation and posting.
 
    ```sh
-   VALIDATED_REVIEW_PAYLOAD_FILE=$( (
+   PROVIDER_ACTOR_ID="$(gh api user --jq .id)" || exit 1
+   POST_INTENT_CREATED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+   POST_INTENT_JSON=$( (
      cd "$WORKING_DIRECTORY" || exit 1
      HEAD_SHA="$REVIEW_HEAD_SHA" \
      PR_NUMBER="$PR_NUMBER" \
      REPOSITORY="<owner/repo>" \
      BASE_REF="$REVIEW_SCOPE_BASE_REF" \
-       APPROVED_REVIEW_FILE="$APPROVED_REVIEW_FILE" \
-       bash "$PR_REVIEW_HELPER" materialize-validated-review-payload
+     APPROVED_REVIEW_FILE="$APPROVED_REVIEW_FILE" \
+     PROVIDER_ACTOR_ID="$PROVIDER_ACTOR_ID" \
+     POST_INTENT_CREATED_AT="$POST_INTENT_CREATED_AT" \
+       bash "$PR_REVIEW_HELPER" materialize-post-intent
    ) ) || exit 1
-   [ -n "$VALIDATED_REVIEW_PAYLOAD_FILE" ] || exit 1
+   VALIDATED_REVIEW_PAYLOAD_FILE="$(printf '%s' "$POST_INTENT_JSON" | jq -er '.validated_review_payload_file')" || exit 1
+   POST_INTENT_FILE="$(printf '%s' "$POST_INTENT_JSON" | jq -er '.post_intent_file')" || exit 1
+   # The helper has atomically created and revalidated both artifacts. Persist
+   # LC-19 (`record-post-intent`) before the first provider POST.
+   STATE="gated" \
+   APPROVED_REVIEW_FILE="$APPROVED_REVIEW_FILE" \
+   VALIDATED_REVIEW_PAYLOAD_FILE="$VALIDATED_REVIEW_PAYLOAD_FILE" \
+   POST_INTENT_FILE="$POST_INTENT_FILE" \
+   UPDATED_AT="<RFC-3339-UTC>" \
+     bash "$PR_REVIEW_LEASE_HELPER" write || exit 1
    (
      cd "$WORKING_DIRECTORY" || exit 1
      gh api repos/{owner}/{repo}/pulls/<N>/reviews \
        --method POST \
-       --silent \
        --input "$VALIDATED_REVIEW_PAYLOAD_FILE"
    )
    ```
 
-6. Resolve threads via GraphQL only after the approved review post succeeds and
-   only for threads the user approved for resolution:
+   Persist the post intent before any provider POST; an intent alone grants no
+   resolution authority. A certain POST failure writes the existing
+   `github-post` failed lease with the intent retained and performs no thread
+   mutation. Never repost after an uncertain POST outcome. Instead, reconcile
+   by reading every page of submitted reviews for this PR and accept exactly one
+   review only when its exact full marked body, provider actor, event/state,
+   and reviewed commit match the intent, with the provider actor, event, commit, and non-null submission timestamp all bound to that same review.
+   Zero or multiple matches, an incomplete page walk, or any mismatched field is
+   an indeterminate failure: retain the valid intent, leave no provider mutation,
+   and stop. Do not treat a matching marker alone as proof and do not create a
+   second review.
+
+6. **Write the execution receipt before the first resolution.** For either a
+   returned successful POST response or the one proven reconciliation match,
+   atomically create the exact direct-child execution receipt with the provider
+   review ID and provider submission time, exact intent digest/fingerprint, and
+   one ordered disposition per sealed action. `resolve` starts `pending`; every
+   sealed `leave` starts and remains `not-requested`. Validate that receipt and
+   write LC-20 (`resolving`) before resolving any thread. If the sealed action
+   set is all leave, write the terminal receipt through LC-21 (`posted`) without
+   a thread mutation.
+
+   Resolve only sealed `resolve` IDs. Make a fresh provider read immediately before resolving each sealed `resolve` ID, using the complete review-thread connection. The ID must
+   appear exactly once and remain an eligible sealed thread. A freshly
+   already-resolved record receives the `already-resolved` disposition without a
+   mutation; missing, duplicate, unknown, ineligible, or malformed records stop
+   with no further mutation. Do not resolve `leave` actions. For a pending
+   eligible ID, GraphQL resolution is the only mutation:
 
    ```sh
    gh api graphql --silent -f query='mutation { resolveReviewThread(input: {threadId: "<id>"}) { thread { isResolved } } }'
    ```
 
-7. Verify each API response succeeded. Report failures, stop on error.
+7. **Advance the receipt atomically and recover without widening authority.**
+   After each fresh-state check or mutation response, replace the same receipt
+   path using an atomic direct-child replacement only; preserve its provider
+   review ID, post time, intent binding, action order, and all already-terminal
+   dispositions. Validate the intended replacement before publication and then
+   re-read the direct child. If a replacement write is uncertain, accept only
+   the exact intended receipt or the exact prior valid receipt; any other bytes
+   are a fail-closed recovery stop. The former permits the matching lifecycle
+   transition; the latter leaves the prior receipt authoritative and performs no
+   further provider mutation. LC-22 records a valid pending/failed replacement
+   while `resolving`; LC-23 records the valid all-terminal replacement and
+   enters `posted`. A fresh lease read is required before every replacement and
+   resolution. Resume only its pending or failed sealed resolves—never repost,
+   never replace provider identity, and never reconstruct authority from
+   conversation state.
 
-After the GitHub review post succeeds, write `posted` with
-`APPROVED_REVIEW_FILE`, `VALIDATED_REVIEW_PAYLOAD_FILE`, `FINISHED_AT`, and `GITHUB_POSTED_AT`. If
-approved-review validation, stale-head verification, or GitHub posting fails
-after the approval freeze, write `failed` with `FINISHED_AT`, `FAILURE_PHASE`,
-`FAILURE_REASON`, and `FAILURE_RECOVERABILITY` before any cleanup decision.
-Preserve the result manifest, findings file, review body, rendered preview,
-approved-review artifact, and validated payload file when available. Do not
-retry or reconstruct a GitHub mutation from conversation text.
+   Verify every API response. If a resolution fails, record its `failed`
+   disposition in the receipt before stopping; do not report `posted` until all
+   sealed resolves are `succeeded` or `already-resolved` and all leaves are
+   `not-requested`. Preserve the result manifest, findings file, review body,
+   rendered preview, approved-review artifact, validated payload, post intent,
+   and receipt when available.
 
 ## Phase 7: Cleanup
 
@@ -1167,10 +1233,12 @@ For the `{{tool:github-cli}} api` flag conventions used here, see [docs/guidelin
 Phase 6's explicitly user-approved artifact flow: after approval,
 `prepare-review-payload-write`, `build-github-review-payload`,
 `freeze-approved-review`, stale-head refusal,
-`materialize-validated-review-payload`, and then `{{tool:github-cli}} api --input
+`materialize-post-intent`, and then `{{tool:github-cli}} api --input
 "$VALIDATED_REVIEW_PAYLOAD_FILE"`. Do not manually construct a `jq` payload
 here, do not fetch `commit_id` from live `{{tool:github-cli}} pr view` for posting, and do not
 call `{{tool:github-cli}} api` until the approved artifact has validated successfully.
+`materialize-validated-review-payload` remains the legacy payload-only helper
+operation; it does not create Phase 6 post authority.
 
 The sealed payload uses `line` (absolute file line in HEAD), not `position`
 (diff offset). `side` is `"RIGHT"` for PR head lines.

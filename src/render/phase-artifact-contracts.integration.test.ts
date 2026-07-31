@@ -1138,7 +1138,7 @@ describe("rendered phase artifact smoke coverage", () => {
         "## Phase 7: Cleanup",
       );
       const materializeIndex = renderedPrReviewPhase6.indexOf(
-        "materialize-validated-review-payload",
+        "materialize-post-intent",
       );
       const providerIndex = renderedPrReviewPhase6.indexOf(
         "gh api repos/{owner}/{repo}/pulls/<N>/reviews",
@@ -1150,6 +1150,7 @@ describe("rendered phase artifact smoke coverage", () => {
         providerIndex,
       );
       expect(materializationGate).toContain("VALIDATED_REVIEW_PAYLOAD_FILE");
+      expect(materializationGate).toContain("POST_INTENT_FILE");
       expect(materializationGate).toContain("|| exit 1");
       expect(renderedPrReviewPhase6.slice(providerIndex)).toContain(
         '--input "$VALIDATED_REVIEW_PAYLOAD_FILE"',

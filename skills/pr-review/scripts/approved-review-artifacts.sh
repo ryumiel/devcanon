@@ -121,6 +121,11 @@ expected_validated_payload_path_for() {
   printf '.ephemeral/pr-%s-%s-validated-review-payload.json\n' "$PR_NUMBER" "$review_head_sha"
 }
 
+expected_post_intent_path_for() {
+  local review_head_sha="$1"
+  printf '.ephemeral/pr-%s-%s-thread-action-post-intent.json\n' "$PR_NUMBER" "$review_head_sha"
+}
+
 expected_thread_actions_path_for() {
   local review_head_sha="$1"
   printf '.ephemeral/%s-%s-thread-actions.json\n' "$(branch_slug)" "$review_head_sha"
@@ -219,6 +224,18 @@ validate_validated_payload_path_shape() {
   expected="$(expected_validated_payload_path_for "$review_head_sha")"
   [ "$validated_payload_file" = "$expected" ] || {
     echo "validated review payload path mismatch: $validated_payload_file" >&2
+    exit 1
+  }
+}
+
+validate_post_intent_path_shape() {
+  local post_intent_file="$1"
+  local review_head_sha="$2"
+  local expected
+  validate_direct_child_path "post intent" "$post_intent_file" "-thread-action-post-intent.json"
+  expected="$(expected_post_intent_path_for "$review_head_sha")"
+  [ "$post_intent_file" = "$expected" ] || {
+    echo "post intent path mismatch: $post_intent_file" >&2
     exit 1
   }
 }
@@ -658,6 +675,190 @@ materialize_validated_review_payload() {
   printf '%s\n' "$validated_payload_file"
 }
 
+validate_provider_actor_id() {
+  require_env PROVIDER_ACTOR_ID
+  case "$PROVIDER_ACTOR_ID" in
+    0 | *[!0-9]*)
+      echo "PROVIDER_ACTOR_ID must be a positive safe integer" >&2
+      exit 1
+      ;;
+  esac
+  jq -en --arg value "$PROVIDER_ACTOR_ID" \
+    '$value | tonumber | . >= 1 and . <= 9007199254740991' >/dev/null || {
+    echo "PROVIDER_ACTOR_ID must be a positive safe integer" >&2
+    exit 1
+  }
+}
+
+validate_post_intent_created_at() {
+  require_env POST_INTENT_CREATED_AT
+  [[ "$POST_INTENT_CREATED_AT" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]] || {
+    echo "POST_INTENT_CREATED_AT must be a canonical UTC timestamp" >&2
+    exit 1
+  }
+}
+
+publish_exact_json() {
+  local label="$1"
+  local target="$2"
+  local source="$3"
+
+  [ ! -L .ephemeral ] || {
+    echo ".ephemeral must be a directory, not a symlink" >&2
+    exit 1
+  }
+  mkdir -p .ephemeral
+  [ ! -L "$target" ] || {
+    echo "$label path must not be a symlink: $target" >&2
+    exit 1
+  }
+  if [ -e "$target" ]; then
+    [ -f "$target" ] || {
+      echo "$label path exists but is not a regular file: $target" >&2
+      exit 1
+    }
+    cmp -s "$source" "$target" || {
+      echo "$label path collision: $target" >&2
+      exit 1
+    }
+    return
+  fi
+  ln "$source" "$target" 2>/dev/null || {
+    [ -f "$target" ] && cmp -s "$source" "$target" && return
+    echo "$label path collision: $target" >&2
+    exit 1
+  }
+}
+
+materialize_post_intent() {
+  local unmarked_payload_file
+  local final_payload_file
+  local intent_file
+  local fingerprint_tuple
+  local fingerprint
+  local marker
+  local thread_actions_sha256
+  local approved_review_sha256
+  local validated_payload_sha256
+  local final_body
+  local payload_tmp
+  local intent_tmp
+  local expected_intent_tmp
+
+  require_repo_root
+  require_jq
+  validate_head_sha
+  validate_pr_number
+  require_env REPOSITORY
+  require_env APPROVED_REVIEW_FILE
+  validate_provider_actor_id
+  validate_post_intent_created_at
+  validate_approved_path_shape "$APPROVED_REVIEW_FILE"
+
+  unmarked_payload_file="$(mktemp ".ephemeral/.unmarked-approved-payload-${HEAD_SHA}.XXXXXX")"
+  payload_tmp="$(mktemp ".ephemeral/.validated-post-payload-${HEAD_SHA}.XXXXXX")"
+  intent_tmp="$(mktemp ".ephemeral/.post-intent-${HEAD_SHA}.XXXXXX")"
+  expected_intent_tmp="$(mktemp ".ephemeral/.post-intent-expected-${HEAD_SHA}.XXXXXX")"
+  trap 'rm -f "${unmarked_payload_file:-}" "${payload_tmp:-}" "${intent_tmp:-}" "${expected_intent_tmp:-}"' EXIT
+
+  validate_approved_review > "$unmarked_payload_file"
+  assert_single_json_object "approved review payload" "$unmarked_payload_file"
+  assert_payload_shape "$unmarked_payload_file" "$HEAD_SHA"
+  jq -e '
+    (.body | contains("<!-- devcanon-pr-review-request:v1 sha256=") | not)
+  ' "$unmarked_payload_file" >/dev/null || {
+    echo "unmarked approved review payload contains reserved request marker" >&2
+    exit 1
+  }
+
+  thread_actions_sha256="$(jq -er '.thread_actions_sha256' "$APPROVED_REVIEW_FILE")"
+  fingerprint_tuple="$(jq -c \
+    --arg schema "pr-review/provider-request-fingerprint/v1" \
+    --arg repository "$REPOSITORY" \
+    --argjson pr_number "$PR_NUMBER" \
+    --arg review_head_sha "$HEAD_SHA" \
+    --argjson provider_actor_id "$PROVIDER_ACTOR_ID" \
+    --arg thread_actions_sha256 "$thread_actions_sha256" \
+    '[
+      $schema,
+      $repository,
+      $pr_number,
+      $review_head_sha,
+      $provider_actor_id,
+      .event,
+      .body,
+      $thread_actions_sha256,
+      (.comments | map([.path, .line, (.start_line // null), (.start_side // null), .side, .body]))
+    ]' "$unmarked_payload_file")"
+  fingerprint="$(printf '%s' "$fingerprint_tuple" | sha256_file /dev/stdin)"
+  marker="<!-- devcanon-pr-review-request:v1 sha256=${fingerprint} -->"
+  jq --arg marker "$marker" '.body = (.body + "\n\n" + $marker)' \
+    "$unmarked_payload_file" > "$payload_tmp"
+  assert_single_json_object "validated review payload" "$payload_tmp"
+  assert_payload_shape "$payload_tmp" "$HEAD_SHA"
+  final_body="$(jq -er '.body' "$payload_tmp")"
+
+  final_payload_file="$(expected_validated_payload_path_for "$HEAD_SHA")"
+  intent_file="$(expected_post_intent_path_for "$HEAD_SHA")"
+  validate_validated_payload_path_shape "$final_payload_file" "$HEAD_SHA"
+  validate_post_intent_path_shape "$intent_file" "$HEAD_SHA"
+  publish_exact_json "validated review payload" "$final_payload_file" "$payload_tmp"
+  assert_readable_file "validated review payload" "$final_payload_file"
+  assert_single_json_object "validated review payload" "$final_payload_file"
+  assert_payload_shape "$final_payload_file" "$HEAD_SHA"
+  cmp -s "$payload_tmp" "$final_payload_file" || {
+    echo "validated review payload revalidation mismatch: $final_payload_file" >&2
+    exit 1
+  }
+
+  approved_review_sha256="$(sha256_file "$APPROVED_REVIEW_FILE")"
+  validated_payload_sha256="$(sha256_file "$final_payload_file")"
+  jq -n \
+    --arg schema "pr-review/thread-action-post-intent/v1" \
+    --arg repository "$REPOSITORY" \
+    --argjson pr_number "$PR_NUMBER" \
+    --arg review_head_sha "$HEAD_SHA" \
+    --arg approved_review_file "$APPROVED_REVIEW_FILE" \
+    --arg approved_review_sha256 "$approved_review_sha256" \
+    --arg validated_review_payload_file "$final_payload_file" \
+    --arg validated_review_payload_sha256 "$validated_payload_sha256" \
+    --arg review_event "$(jq -er '.event' "$final_payload_file")" \
+    --argjson provider_actor_id "$PROVIDER_ACTOR_ID" \
+    --arg request_fingerprint_sha256 "$fingerprint" \
+    --arg final_body "$final_body" \
+    --arg thread_actions_sha256 "$thread_actions_sha256" \
+    --arg created_at "$POST_INTENT_CREATED_AT" \
+    '{
+      schema: $schema,
+      repository: $repository,
+      pr_number: $pr_number,
+      review_head_sha: $review_head_sha,
+      approved_review_file: $approved_review_file,
+      approved_review_sha256: $approved_review_sha256,
+      validated_review_payload_file: $validated_review_payload_file,
+      validated_review_payload_sha256: $validated_review_payload_sha256,
+      review_event: $review_event,
+      provider_actor_id: $provider_actor_id,
+      request_fingerprint_sha256: $request_fingerprint_sha256,
+      final_body: $final_body,
+      thread_actions_sha256: $thread_actions_sha256,
+      created_at: $created_at
+    }' > "$intent_tmp"
+  cp "$intent_tmp" "$expected_intent_tmp"
+  publish_exact_json "post intent" "$intent_file" "$intent_tmp"
+  assert_readable_file "post intent" "$intent_file"
+  assert_single_json_object "post intent" "$intent_file"
+  cmp -s "$expected_intent_tmp" "$intent_file" || {
+    echo "post intent revalidation mismatch: $intent_file" >&2
+    exit 1
+  }
+
+  jq -cn \
+    --arg validated_review_payload_file "$final_payload_file" \
+    --arg post_intent_file "$intent_file" \
+    '{validated_review_payload_file: $validated_review_payload_file, post_intent_file: $post_intent_file}'
+}
+
 freeze_approved_review() {
   local approved_review_file
   local tmp_file
@@ -882,6 +1083,9 @@ case "$command_name" in
   materialize-validated-review-payload)
     materialize_validated_review_payload
     ;;
+  materialize-post-intent)
+    materialize_post_intent
+    ;;
   freeze-approved-review)
     freeze_approved_review
     ;;
@@ -892,7 +1096,7 @@ case "$command_name" in
     inspect_approved_review_ownership
     ;;
   *)
-    echo "usage: approved-review-artifacts.sh prepare-review-payload-write|materialize-validated-review-payload|freeze-approved-review|validate-approved-review|inspect-approved-review-ownership" >&2
+    echo "usage: approved-review-artifacts.sh prepare-review-payload-write|materialize-validated-review-payload|materialize-post-intent|freeze-approved-review|validate-approved-review|inspect-approved-review-ownership" >&2
     exit 1
     ;;
 esac

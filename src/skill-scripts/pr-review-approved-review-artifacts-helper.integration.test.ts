@@ -34,6 +34,7 @@ const findingsFile = `.ephemeral/topic-${headSha}-findings.json`;
 const reviewBodyFile = `.ephemeral/pr-${prNumber}-${headSha}-review-body.md`;
 const payloadFile = `.ephemeral/topic-${headSha}-review-payload.json`;
 const validatedPayloadFile = `.ephemeral/pr-${prNumber}-${headSha}-validated-review-payload.json`;
+const postIntentFile = `.ephemeral/pr-${prNumber}-${headSha}-thread-action-post-intent.json`;
 const scopeDecisionFile = `.ephemeral/topic-${headSha}-scope-decision.json`;
 const providerScopeEvidenceFile = `.ephemeral/topic-${headSha}-provider-scope-evidence.json`;
 const PROVIDER_EVIDENCE_SCHEMA = "pr-review/provider-scope-evidence/v2";
@@ -546,6 +547,185 @@ describe.skipIf(!jqAvailable)(
         );
       } finally {
         await cleanupTempDir(cwd);
+      }
+    });
+
+    it("materializes an idempotent marked payload and post intent from the frozen payload", async () => {
+      const cwd = await makeGitWorkspace();
+      try {
+        await writeInputs(cwd);
+        await runHelper(cwd, "freeze-approved-review", {
+          FINDINGS_FILE: findingsFile,
+          REVIEW_BODY_FILE: reviewBodyFile,
+          REVIEW_PAYLOAD_FILE: payloadFile,
+        });
+
+        const env = {
+          APPROVED_REVIEW_FILE: approvedReviewFile,
+          PROVIDER_ACTOR_ID: "7",
+          POST_INTENT_CREATED_AT: "2026-08-01T00:00:00Z",
+        };
+        const first = JSON.parse(
+          (await runHelper(cwd, "materialize-post-intent", env)).stdout,
+        ) as {
+          validated_review_payload_file: string;
+          post_intent_file: string;
+        };
+        expect(first).toEqual({
+          validated_review_payload_file: validatedPayloadFile,
+          post_intent_file: postIntentFile,
+        });
+        await expect(
+          runHelper(cwd, "materialize-post-intent", env),
+        ).resolves.toMatchObject({ stdout: `${JSON.stringify(first)}\n` });
+
+        const finalPayload = JSON.parse(
+          await readFile(path.join(cwd, validatedPayloadFile), "utf8"),
+        ) as { body: string };
+        const intent = JSON.parse(
+          await readFile(path.join(cwd, postIntentFile), "utf8"),
+        ) as {
+          provider_actor_id: number;
+          final_body: string;
+          request_fingerprint_sha256: string;
+          validated_review_payload_file: string;
+        };
+        expect(finalPayload.body).toBe(intent.final_body);
+        expect(finalPayload.body).toBe(
+          `${payload().body}\n\n<!-- devcanon-pr-review-request:v1 sha256=${intent.request_fingerprint_sha256} -->`,
+        );
+        expect(intent).toMatchObject({
+          provider_actor_id: 7,
+          validated_review_payload_file: validatedPayloadFile,
+        });
+        const unmarkedPayload = payload();
+        const expectedFingerprint = createHash("sha256")
+          .update(
+            JSON.stringify([
+              "pr-review/provider-request-fingerprint/v1",
+              "owner/repo",
+              Number(prNumber),
+              headSha,
+              7,
+              unmarkedPayload.event,
+              unmarkedPayload.body,
+              await sha256File(cwd, threadActionsFile),
+              unmarkedPayload.comments.map((comment) => [
+                comment.path,
+                comment.line,
+                null,
+                null,
+                comment.side,
+                comment.body,
+              ]),
+            ]),
+            "utf8",
+          )
+          .digest("hex");
+        expect(intent.request_fingerprint_sha256).toBe(expectedFingerprint);
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    });
+
+    it("fails closed for invalid post-intent producers and divergent existing artifacts", async () => {
+      const cwd = await makeGitWorkspace();
+      try {
+        await writeInputs(cwd);
+        await runHelper(cwd, "freeze-approved-review", {
+          FINDINGS_FILE: findingsFile,
+          REVIEW_BODY_FILE: reviewBodyFile,
+          REVIEW_PAYLOAD_FILE: payloadFile,
+        });
+        const baseEnv = {
+          APPROVED_REVIEW_FILE: approvedReviewFile,
+          PROVIDER_ACTOR_ID: "7",
+          POST_INTENT_CREATED_AT: "2026-08-01T00:00:00Z",
+        };
+        for (const [name, env, error] of [
+          [
+            "non-safe actor",
+            { ...baseEnv, PROVIDER_ACTOR_ID: "9007199254740992" },
+            "PROVIDER_ACTOR_ID must be a positive safe integer",
+          ],
+          [
+            "noncanonical timestamp",
+            { ...baseEnv, POST_INTENT_CREATED_AT: "2026-08-01T00:00:00+00:00" },
+            "POST_INTENT_CREATED_AT must be a canonical UTC timestamp",
+          ],
+        ] as const) {
+          await expect(
+            runHelper(cwd, "materialize-post-intent", env),
+            name,
+          ).rejects.toMatchObject({ stderr: expect.stringContaining(error) });
+        }
+
+        await runHelper(cwd, "materialize-post-intent", baseEnv);
+        await writeJson(
+          cwd,
+          validatedPayloadFile,
+          payload({ body: "diverged" }),
+        );
+        await expect(
+          runHelper(cwd, "materialize-post-intent", baseEnv),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining(
+            "validated review payload path collision",
+          ),
+        });
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    });
+
+    it("rejects a reserved marker in the frozen payload and divergent post intent", async () => {
+      const cwd = await makeGitWorkspace();
+      try {
+        await writeInputs(cwd);
+        const markedBody = `${payload().body}\n<!-- devcanon-pr-review-request:v1 sha256=${"a".repeat(64)} -->`;
+        await writeJson(cwd, payloadFile, payload({ body: markedBody }));
+        await runHelper(cwd, "freeze-approved-review", {
+          FINDINGS_FILE: findingsFile,
+          REVIEW_BODY_FILE: reviewBodyFile,
+          REVIEW_PAYLOAD_FILE: payloadFile,
+        });
+        await expect(
+          runHelper(cwd, "materialize-post-intent", {
+            APPROVED_REVIEW_FILE: approvedReviewFile,
+            PROVIDER_ACTOR_ID: "7",
+            POST_INTENT_CREATED_AT: "2026-08-01T00:00:00Z",
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining(
+            "unmarked approved review payload contains reserved request marker",
+          ),
+        });
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+
+      const collisionCwd = await makeGitWorkspace();
+      try {
+        await writeInputs(collisionCwd);
+        await runHelper(collisionCwd, "freeze-approved-review", {
+          FINDINGS_FILE: findingsFile,
+          REVIEW_BODY_FILE: reviewBodyFile,
+          REVIEW_PAYLOAD_FILE: payloadFile,
+        });
+        const env = {
+          APPROVED_REVIEW_FILE: approvedReviewFile,
+          PROVIDER_ACTOR_ID: "7",
+          POST_INTENT_CREATED_AT: "2026-08-01T00:00:00Z",
+        };
+        await runHelper(collisionCwd, "materialize-post-intent", env);
+        await writeJson(collisionCwd, postIntentFile, { divergent: true });
+        await expect(
+          runHelper(collisionCwd, "materialize-post-intent", env),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("post intent path collision"),
+        });
+      } finally {
+        await cleanupTempDir(collisionCwd);
       }
     });
 
