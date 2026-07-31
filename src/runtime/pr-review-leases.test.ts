@@ -5870,6 +5870,66 @@ describe("pr-review lease Git cleanup safety", () => {
     }
   });
 
+  it("allows ordinary reentry after Phase 4 removes an unbound thread-actions candidate", async () => {
+    const workspace = await makeRegisteredWorkspace(
+      "pr-review-unbound-thread-actions-",
+    );
+
+    try {
+      process.chdir(workspace.physicalPrimary);
+      setLeaseCommandEnv(workspace.physicalPrimary, workspace.physicalWorktree);
+      const pathResult = await runPrReviewLeasesCommand(["derive-path"]);
+      expect(pathResult.exitCode, pathResult.stderr).toBe(0);
+      process.env.LEASE_FILE = pathResult.stdout.trim();
+      await writeLeaseCommandState({
+        state: "created",
+        updatedAt: "2026-08-01T00:00:00Z",
+      });
+
+      const { stdout: headOutput } = await execFileAsync("git", [
+        "-C",
+        workspace.physicalWorktree,
+        "rev-parse",
+        "HEAD",
+      ]);
+      const candidateFile = `.ephemeral/review-topic-${headOutput.trim()}-thread-actions.json`;
+      await writeFile(
+        path.join(workspace.physicalWorktree, candidateFile),
+        '{"schema":"pr-review/thread-actions/v1"}\n',
+      );
+
+      expect(await discoverPrReviewSession()).toMatchObject({
+        disposition: "cleanup-required",
+        resume: null,
+        active: [
+          {
+            classification: "resumable",
+            unmanaged_ephemeral_artifacts: true,
+          },
+        ],
+      });
+
+      await removePath(path.join(workspace.physicalWorktree, candidateFile));
+
+      expect(await discoverPrReviewSession()).toMatchObject({
+        disposition: "resume",
+        active: [
+          {
+            classification: "resumable",
+            unmanaged_ephemeral_artifacts: false,
+          },
+        ],
+        resume: {
+          lease_file: process.env.LEASE_FILE,
+          worktree_path: workspace.physicalWorktree,
+        },
+      });
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
+    }
+  });
+
   it("treats malformed result metadata as invalid before cleanup ownership", async () => {
     const { tempRoot, primary, worktree, physicalPrimary, physicalWorktree } =
       await makeRegisteredWorkspace("pr-review-owned-");

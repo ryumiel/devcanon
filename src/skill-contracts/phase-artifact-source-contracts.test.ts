@@ -2152,6 +2152,33 @@ None
       "scope-decision authority checks, and worktree HEAD binding",
     );
     expect(normalizedPrReview).toContain(
+      "If the initial result write or validation fails, remove only the prepared direct-child thread-actions candidate before leaving Phase 4",
+    );
+    expect(normalizedPrReview).toContain(
+      "It is not yet result-bound, so leaving it would block ordinary cleanup or reentry as an unmanaged `.ephemeral` artifact",
+    );
+    expect(normalizedPrReview).toContain(
+      "cleanup_unbound_thread_actions_candidate",
+    );
+    expect(normalizedPrReview).toContain('rm -f "$THREAD_ACTIONS_FILE"');
+    const initialResultFailureCleanupStart = prReview.indexOf(
+      'if [ "$RESULT_MANIFEST_STATUS" -ne 0 ]; then',
+    );
+    const initialResultFailureCleanupEnd = prReview.indexOf(
+      'exit "$RESULT_MANIFEST_STATUS"',
+      initialResultFailureCleanupStart,
+    );
+    expect(initialResultFailureCleanupStart).toBeGreaterThanOrEqual(0);
+    expect(initialResultFailureCleanupEnd).toBeGreaterThan(
+      initialResultFailureCleanupStart,
+    );
+    expect(
+      prReview.slice(
+        initialResultFailureCleanupStart,
+        initialResultFailureCleanupEnd,
+      ),
+    ).toContain("cleanup_unbound_thread_actions_candidate || exit 1");
+    expect(normalizedPrReview).toContain(
       "Phase 4 must not rebuild range, scope, or prior-thread facts from conversation text when the manifest is present",
     );
     expect(normalizedPrReview).toContain(
