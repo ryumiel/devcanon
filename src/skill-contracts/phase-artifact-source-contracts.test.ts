@@ -4157,6 +4157,51 @@ None
     );
   });
 
+  it("keeps sealed recovery tolerant of head drift and deleted comment authors", async () => {
+    const prReview = await readSkillSource("pr-review");
+    const lifecycle = await readRepoFile(
+      "skills/pr-review/references/review-lease-lifecycle-contract.md",
+    );
+    const phase6 = getMarkdownSection(prReview, "Phase 6: Post");
+    const freshThreadReader = phase6.slice(
+      phase6.indexOf("read_sealed_thread_fresh()"),
+      phase6.indexOf("while IFS= read -r SEALED_THREAD_ID; do"),
+    );
+    const sealedActionLoop = phase6.slice(
+      phase6.indexOf("while IFS= read -r SEALED_THREAD_ID; do"),
+      phase6.indexOf("done < <(printf '%s' \"$RESUME_SEALED_THREAD_IDS\""),
+    );
+
+    expect(freshThreadReader).toContain("number headRefOid");
+    expect(freshThreadReader).not.toContain("headRefOid == $head");
+    expect(freshThreadReader).not.toContain('--arg head "$REVIEW_HEAD_SHA"');
+    expect(
+      freshThreadReader.match(
+        /pullRequest\.headRefOid \| type == "string" and test\("\^\[0-9a-f\]\{40\}\$"\)/gu,
+      ),
+    ).toHaveLength(2);
+    expect(freshThreadReader.match(/\.author == null/gu)).toHaveLength(2);
+    expect(freshThreadReader).toContain(
+      '{ lookup_status: "missing", thread_id: $id }',
+    );
+    expect(sealedActionLoop).toContain(
+      'ACTION_FAILURE_REASON="The sealed GitHub review thread is missing."',
+    );
+    expect(sealedActionLoop).toContain(
+      'ACTION_FAILURE_REASON="The sealed GitHub review thread became outdated."',
+    );
+    expect(sealedActionLoop).toContain('FAILURE_PHASE="thread-resolution"');
+    expect(sealedActionLoop).toContain(
+      'FAILURE_RECOVERABILITY="unrecoverable"',
+    );
+    expect(sealedActionLoop.indexOf("advance-execution-receipt")).toBeLessThan(
+      sealedActionLoop.indexOf('STATE="failed"'),
+    );
+    expect(lifecycle).toContain("| LC-26 |");
+    expect(lifecycle).toContain("`FAILURE_PHASE=thread-resolution`");
+    expect(normalizeWhitespace(lifecycle)).toContain("cleanup remains manual");
+  });
+
   it("records play-skill-authoring pressure evidence for wrapper artifact loopholes", async () => {
     const prReview = await readSkillSource("pr-review");
     const branchReview = await readSkillSource("branch-review");

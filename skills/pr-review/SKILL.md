@@ -1623,13 +1623,12 @@ PR_REVIEW_HELPER="$PR_REVIEW_DIR/scripts/approved-review-artifacts.sh"
        fi
        printf '%s' "$THREAD_PAGE_JSON" | jq -e \
          --arg repository "$SEALED_REPOSITORY" \
-         --arg head "$REVIEW_HEAD_SHA" \
          --argjson number "$PR_NUMBER" '
          def comment: type == "object"
            and (.id | type == "string" and length > 0)
            and (.body | type == "string")
-           and (.author | type == "object")
-           and (.author.login | type == "string" and length > 0)
+           and ((.author == null) or ((.author | type == "object")
+             and (.author.login | type == "string" and length > 0)))
            and (.path | type == "string" and length > 0)
            and (.line == null or (.line | type == "number"))
            and (.originalLine == null or (.originalLine | type == "number"));
@@ -1642,7 +1641,7 @@ PR_REVIEW_HELPER="$PR_REVIEW_DIR/scripts/approved-review-artifacts.sh"
          ((.errors // []) | length) == 0
          and .data.repository.nameWithOwner == $repository
          and .data.repository.pullRequest.number == $number
-         and .data.repository.pullRequest.headRefOid == $head
+         and (.data.repository.pullRequest.headRefOid | type == "string" and test("^[0-9a-f]{40}$"))
          and (.data.repository.pullRequest.reviewThreads | type == "object")
          and (.data.repository.pullRequest.reviewThreads.nodes | type == "array")
          and all(.data.repository.pullRequest.reviewThreads.nodes[];
@@ -1668,9 +1667,16 @@ PR_REVIEW_HELPER="$PR_REVIEW_DIR/scripts/approved-review-artifacts.sh"
        | if ([$nodes[].id] | length) != ([$nodes[].id] | unique | length)
          then error("reviewThreads ID duplicated")
          else [$nodes[] | select(.id == $id)]
-           | if length == 1 then .[0] else error("sealed thread missing or duplicated") end
+           | if length == 1 then .[0]
+             elif length == 0 then { lookup_status: "missing", thread_id: $id }
+             else error("sealed thread duplicated") end
          end
      ')" || return 1
+
+     if printf '%s' "$FRESH_SEALED_THREAD_JSON" | jq -e '.lookup_status == "missing"' >/dev/null; then
+       printf '%s\n' "$FRESH_SEALED_THREAD_JSON"
+       return
+     fi
 
      COMMENTS_HAS_NEXT="$(printf '%s' "$FRESH_SEALED_THREAD_JSON" | jq -er '.comments.pageInfo.hasNextPage | booleans')" || return 1
      if [ "$COMMENTS_HAS_NEXT" = true ]; then
@@ -1692,21 +1698,20 @@ PR_REVIEW_HELPER="$PR_REVIEW_DIR/scripts/approved-review-artifacts.sh"
            -f cursor="$COMMENTS_CURSOR")" || return 1
          printf '%s' "$COMMENTS_PAGE_JSON" | jq -e \
            --arg repository "$SEALED_REPOSITORY" \
-           --arg head "$REVIEW_HEAD_SHA" \
            --arg id "$SEALED_THREAD_ID" \
            --argjson number "$PR_NUMBER" '
            def comment: type == "object"
              and (.id | type == "string" and length > 0)
              and (.body | type == "string")
-             and (.author | type == "object")
-             and (.author.login | type == "string" and length > 0)
+             and ((.author == null) or ((.author | type == "object")
+               and (.author.login | type == "string" and length > 0)))
              and (.path | type == "string" and length > 0)
              and (.line == null or (.line | type == "number"))
              and (.originalLine == null or (.originalLine | type == "number"));
            ((.errors // []) | length) == 0
            and .data.repository.nameWithOwner == $repository
            and .data.repository.pullRequest.number == $number
-           and .data.repository.pullRequest.headRefOid == $head
+           and (.data.repository.pullRequest.headRefOid | type == "string" and test("^[0-9a-f]{40}$"))
            and .data.node.id == $id
            and (.data.node.isResolved | type == "boolean")
            and (.data.node.isOutdated | type == "boolean")
@@ -1733,8 +1738,13 @@ PR_REVIEW_HELPER="$PR_REVIEW_DIR/scripts/approved-review-artifacts.sh"
      (cd "$REVIEW_CALLER_DIR" && bash "$PR_REVIEW_LEASE_HELPER" validate) || exit 1
      CURRENT_LEASE_STATE="$(jq -er '.state' "$REVIEW_CALLER_DIR/$LEASE_FILE")" || exit 1
      FRESH_SEALED_THREAD_JSON="$(read_sealed_thread_fresh "$SEALED_THREAD_ID")" || exit 1
+     SEALED_THREAD_TERMINAL_FAILURE=false
 
-     if printf '%s' "$FRESH_SEALED_THREAD_JSON" | jq -e '.isResolved == true' >/dev/null; then
+     if printf '%s' "$FRESH_SEALED_THREAD_JSON" | jq -e '.lookup_status == "missing"' >/dev/null; then
+       THREAD_DISPOSITION="failed"
+       ACTION_FAILURE_REASON="The sealed GitHub review thread is missing."
+       SEALED_THREAD_TERMINAL_FAILURE=true
+     elif printf '%s' "$FRESH_SEALED_THREAD_JSON" | jq -e '.isResolved == true' >/dev/null; then
        THREAD_DISPOSITION="already-resolved"
        ACTION_FAILURE_REASON=""
      elif printf '%s' "$FRESH_SEALED_THREAD_JSON" | jq -e '.isResolved == false and .isOutdated == false' >/dev/null; then
@@ -1753,6 +1763,10 @@ PR_REVIEW_HELPER="$PR_REVIEW_DIR/scripts/approved-review-artifacts.sh"
          THREAD_DISPOSITION="failed"
          ACTION_FAILURE_REASON="GitHub resolveReviewThread request failed."
        fi
+     elif printf '%s' "$FRESH_SEALED_THREAD_JSON" | jq -e '.isResolved == false and .isOutdated == true' >/dev/null; then
+       THREAD_DISPOSITION="failed"
+       ACTION_FAILURE_REASON="The sealed GitHub review thread became outdated."
+       SEALED_THREAD_TERMINAL_FAILURE=true
      else
        exit 1
      fi
@@ -1778,6 +1792,22 @@ PR_REVIEW_HELPER="$PR_REVIEW_DIR/scripts/approved-review-artifacts.sh"
      RECEIPT_ALL_TERMINAL="$(printf '%s' "$ADVANCE_RECEIPT_JSON" | jq -er '.all_terminal | booleans')" || exit 1
      GITHUB_POSTED_AT="$(cd "$WORKING_DIRECTORY" && jq -er '.provider_review_submitted_at' "$EXECUTION_RECEIPT_FILE")" || exit 1
      PROVIDER_REVIEW_ID="$(cd "$WORKING_DIRECTORY" && jq -er '.provider_review_id' "$EXECUTION_RECEIPT_FILE")" || exit 1
+     if [ "$SEALED_THREAD_TERMINAL_FAILURE" = true ]; then
+       STATE="failed" \
+       EXPECTED_STATE="$CURRENT_LEASE_STATE" \
+       BASE_REF="$LEASE_BASE_REF" \
+       HEAD_REF="$LEASE_HEAD_REF" \
+       EXECUTION_RECEIPT_FILE="$EXECUTION_RECEIPT_FILE" \
+       FAILURE_PHASE="thread-resolution" \
+       FAILURE_REASON="$ACTION_FAILURE_REASON" \
+       FAILURE_RECOVERABILITY="unrecoverable" \
+       GITHUB_POSTED_AT="$GITHUB_POSTED_AT" \
+       PROVIDER_REVIEW_ID="$PROVIDER_REVIEW_ID" \
+       FINISHED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+       UPDATED_AT="<RFC-3339-UTC>" \
+         bash "$PR_REVIEW_LEASE_HELPER" write || exit 1
+       exit 1
+     fi
      if [ "$RECEIPT_ALL_TERMINAL" = true ]; then
        STATE="posted"
        FINISHED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -1805,7 +1835,11 @@ PR_REVIEW_HELPER="$PR_REVIEW_DIR/scripts/approved-review-artifacts.sh"
    sealed resolves are `succeeded` or `already-resolved` and all leaves are
    `not-requested`. Preserve the result manifest, findings file, review body,
    rendered preview, approved-review artifact, validated payload, post intent,
-   and receipt when available.
+   and receipt when available. A missing or newly outdated sealed thread records
+   its closed failed disposition, transitions the lease from `resolving` to the
+   terminal `thread-resolution` failure, and retains all sealed evidence for
+   manual cleanup. It grants no automatic retry, reentry, stale reclamation, or
+   provider re-mutation.
 
 ## Phase 7: Cleanup
 
@@ -1853,8 +1887,11 @@ Verify the response includes the new comment ID. Do not assume success.
 **Fetch thread IDs for resolution:** walk this same connection with `first: 100`
 and `after: $cursor` until `hasNextPage` is false. Apply the Phase 1
 completeness, cursor, duplicate, and identity checks before using any returned
-ID. Require the response `nameWithOwner`, pull request number, and `headRefOid`
-to equal the sealed repository, PR, and reviewed head on every page. Require
+ID. The pre-post authority path requires response `nameWithOwner`, pull request
+number, and `headRefOid` to equal the sealed repository, PR, and reviewed head
+on every page. Post-success sealed recovery retains exact repository and PR
+identity and validates the observed head shape, but tolerates head drift because
+the receipt already seals the provider review and GraphQL thread IDs. Require
 `isResolved=false` and `isOutdated=false` before mutation; an
 `isResolved=true` match remains the non-mutating `already-resolved` path. For
 the one matched sealed thread, walk its

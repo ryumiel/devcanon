@@ -828,15 +828,18 @@ async function inspectDiscoveryCandidate(identity, leaseFileName, registrations)
         ]);
         const isReentry = (await hasPostCleanupArchiveAuthority(lease, identity)) &&
             (await inspectTerminalArchive(lease, identity, leaseFile)) === "equal";
+        const isTerminalThreadResolutionFailure = isThreadResolutionTerminalFailure(lease);
         return {
             lease_file: leaseFile,
             worktree_path: worktreePath,
             state: lease.state,
             classification: isReentry
                 ? "reentry"
-                : ["created", "reviewed", "gated", "resolving", "failed"].includes(lease.state)
-                    ? "resumable"
-                    : "terminal",
+                : isTerminalThreadResolutionFailure
+                    ? "terminal"
+                    : ["created", "reviewed", "gated", "resolving", "failed"].includes(lease.state)
+                        ? "resumable"
+                        : "terminal",
             worktree_dirty: worktreeDirty,
             unmanaged_ephemeral_artifacts: unmanagedArtifacts.length > 0,
         };
@@ -880,6 +883,9 @@ async function pathExists(target) {
             return false;
         throw err;
     }
+}
+function isThreadResolutionTerminalFailure(lease) {
+    return (lease?.state === "failed" && lease.failure.phase === "thread-resolution");
 }
 export function reducePrReviewLease(previous, identity, inputs, options = {}) {
     const previousState = previous?.state ?? "none";
@@ -984,6 +990,8 @@ export function reducePrReviewLease(previous, identity, inputs, options = {}) {
         case "LC-24":
         case "LC-25":
             return applyExecutionReceipt(row, base, previous, inputs);
+        case "LC-26":
+            return applyThreadResolutionFailure(base, previous, inputs);
         case "LC-09":
         case "LC-10":
         case "LC-11":
@@ -1027,7 +1035,7 @@ async function writeLease() {
     const archive = archivePathIfNeeded(previous, identity, inputs);
     const row = transitionId(previous, inputs);
     let reduced = reducePrReviewLease(previous, identity, inputs);
-    if (previous !== null && inputs.state === "failed") {
+    if (previous !== null && inputs.state === "failed" && row !== "LC-26") {
         reduced = await clearInvalidFailureRecoveryArtifacts(reduced, previous, identity.primaryRoot, identity.worktreePath, recoveryPolicyForPreviousState(previous.state));
     }
     else {
@@ -1307,6 +1315,17 @@ async function classifyCleanup(identity) {
             validateResultAuthority: true,
             policy: "validate-stored-lease",
         });
+        if (lease.state === "resolving" ||
+            (lease.state === "gated" && lease.artifacts.post_intent_file != null) ||
+            (lease.state === "failed" &&
+                lease.artifacts.post_intent_file != null &&
+                !isThreadResolutionTerminalFailure(lease))) {
+            return {
+                ...base,
+                refusalReason: "action-execution-incomplete",
+                message: "action-bearing lease must be retained",
+            };
+        }
         const unmanagedArtifacts = await findUnmanagedEphemeralArtifacts(lease, identity.worktreePath);
         if (unmanagedArtifacts.length > 0) {
             return {
@@ -1321,14 +1340,6 @@ async function classifyCleanup(identity) {
             ...base,
             refusalReason: "invalid-lease",
             message: "lease is invalid; preserving worktree",
-        };
-    }
-    if (lease.state === "resolving" ||
-        (lease.state === "failed" && lease.artifacts.post_intent_file != null)) {
-        return {
-            ...base,
-            refusalReason: "action-execution-incomplete",
-            message: "action-bearing lease must be retained",
         };
     }
     try {
@@ -1658,6 +1669,12 @@ async function readInputsForWrite(previous, worktreePath) {
             throw new PrReviewLeaseError("execution receipt actions missing");
         }
         inputs.executionReceiptAllTerminal = receipt.actions.every(executionActionIsTerminal);
+        inputs.executionReceiptFailureReasons = receipt.actions.flatMap((action) => isObject(action) &&
+            action.action === "resolve" &&
+            action.disposition === "failed" &&
+            typeof action.failure_reason === "string"
+            ? [action.failure_reason]
+            : []);
     }
     return inputs;
 }
@@ -1807,11 +1824,53 @@ function applyExecutionReceipt(row, base, previous, inputs) {
         },
     };
 }
+function applyThreadResolutionFailure(base, previous, inputs) {
+    if (previous?.state !== "resolving") {
+        throw new PrReviewLeaseError("thread-resolution failure requires resolving lease");
+    }
+    requireInput("FINISHED_AT", inputs.finishedAt);
+    requireInput("FAILURE_REASON", inputs.failureReason);
+    if (inputs.failurePhase !== "thread-resolution") {
+        throw new PrReviewLeaseError("resolving failure requires FAILURE_PHASE=thread-resolution");
+    }
+    if (inputs.failureRecoverability !== "unrecoverable") {
+        throw new PrReviewLeaseError("thread-resolution failure must be unrecoverable");
+    }
+    const allowedFailureReasons = [
+        "The sealed GitHub review thread is missing.",
+        "The sealed GitHub review thread became outdated.",
+    ];
+    if (!allowedFailureReasons.includes(inputs.failureReason ?? "") ||
+        !inputs.executionReceiptFailureReasons?.includes(inputs.failureReason ?? "")) {
+        throw new PrReviewLeaseError("thread-resolution failure requires matching closed receipt disposition");
+    }
+    if (inputs.executionReceiptFile !== undefined &&
+        inputs.executionReceiptFile !== previous.artifacts.execution_receipt_file) {
+        throw new PrReviewLeaseError("EXECUTION_RECEIPT_FILE must match resolving receipt");
+    }
+    return {
+        ...base,
+        state: "failed",
+        artifacts: previous.artifacts,
+        validation: previous.validation,
+        presentation: previous.presentation,
+        terminal: { finished_at: inputs.finishedAt ?? null, reason: null },
+        failure: {
+            phase: "thread-resolution",
+            reason: inputs.failureReason ?? null,
+            recoverability: "unrecoverable",
+        },
+        github: previous.github,
+    };
+}
 function applyFailure(row, base, previous, inputs, options = {}) {
     requireInput("FINISHED_AT", inputs.finishedAt);
     requireInput("FAILURE_PHASE", inputs.failurePhase);
     requireInput("FAILURE_REASON", inputs.failureReason);
     requireInput("FAILURE_RECOVERABILITY", inputs.failureRecoverability);
+    if (inputs.failurePhase === "thread-resolution") {
+        throw new PrReviewLeaseError("thread-resolution failure requires resolving lease");
+    }
     if (inputs.failurePhase === "github-post") {
         if (row !== "LC-13" && row !== "LC-16") {
             throw new PrReviewLeaseError("github-post failure requires gated lease");
@@ -1919,6 +1978,9 @@ function validatePostGatedPreviewRenderFailure(previous, options = {}) {
     }
 }
 function assertActionBearingFailedLeaseRecovery(previous, inputs) {
+    if (isThreadResolutionTerminalFailure(previous)) {
+        throw new PrReviewLeaseError("thread-resolution failure is terminal and requires manual cleanup");
+    }
     if (previous?.state !== "failed" ||
         previous.failure.phase !== "github-post" ||
         previous.artifacts.post_intent_file === null ||
@@ -2003,6 +2065,11 @@ function transitionId(previous, inputs) {
         return "LC-22";
     if (previousState === "resolving" && inputs.state === "posted")
         return "LC-23";
+    if (previousState === "resolving" &&
+        inputs.state === "failed" &&
+        inputs.failurePhase === "thread-resolution") {
+        return "LC-26";
+    }
     return null;
 }
 function archivePathIfNeeded(previous, identity, inputs) {
@@ -2032,6 +2099,7 @@ function policyForLifecycleWrite(row) {
         case "LC-23":
         case "LC-24":
         case "LC-25":
+        case "LC-26":
             return "accept-post-success";
         case "LC-17":
             return "validate-post-retry";
@@ -2181,6 +2249,19 @@ function validateStateInvariants(lease, options = {}) {
         throw new PrReviewLeaseError("lease schema mismatch");
     }
     if (lease.state === "failed" && lease.failure.phase === null) {
+        throw new PrReviewLeaseError("lease schema mismatch");
+    }
+    if (lease.failure.phase === "thread-resolution" &&
+        (lease.state !== "failed" ||
+            lease.failure.recoverability !== "unrecoverable" ||
+            lease.artifacts.approved_review_file === null ||
+            lease.artifacts.validated_payload_file === null ||
+            lease.artifacts.post_intent_file == null ||
+            lease.artifacts.execution_receipt_file == null ||
+            lease.github.github_post_attempted !== true ||
+            lease.github.github_post_result !== "succeeded" ||
+            lease.github.github_posted_at === null ||
+            lease.github.provider_review_id == null)) {
         throw new PrReviewLeaseError("lease schema mismatch");
     }
 }
@@ -3401,7 +3482,8 @@ function parseOptionalFailurePhase(value) {
         value === "preview-render" ||
         value === "approval-freeze" ||
         value === "stale-head" ||
-        value === "github-post") {
+        value === "github-post" ||
+        value === "thread-resolution") {
         return value;
     }
     throw new PrReviewLeaseError(`unknown failure phase: ${value}`);

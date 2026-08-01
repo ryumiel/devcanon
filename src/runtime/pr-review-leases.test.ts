@@ -1133,6 +1133,95 @@ describe("pr-review lease reducer", () => {
     });
   });
 
+  it("terminates sealed resolution when the provider thread is missing or outdated", () => {
+    const receiptFile =
+      ".ephemeral/pr-432-1111111111111111111111111111111111111111-thread-action-execution.json";
+    const intended = reducePrReviewLease(gatedLease(), identity, {
+      state: "gated",
+      baseRef: "main",
+      headRef: "topic",
+      createdAt: "2026-06-11T00:00:00Z",
+      updatedAt: "2026-06-11T00:02:30Z",
+      approvedReviewFile: ".ephemeral/topic-approved-review.json",
+      validatedPayloadFile:
+        ".ephemeral/pr-432-1111111111111111111111111111111111111111-validated-review-payload.json",
+      postIntentFile:
+        ".ephemeral/pr-432-1111111111111111111111111111111111111111-thread-action-post-intent.json",
+    } as Parameters<typeof reducePrReviewLease>[2]);
+    const resolving = reducePrReviewLease(intended, identity, {
+      state: "resolving",
+      baseRef: "main",
+      headRef: "topic",
+      createdAt: "2026-06-11T00:00:00Z",
+      updatedAt: "2026-06-11T00:03:00Z",
+      executionReceiptFile: receiptFile,
+      githubPostedAt: "2026-06-11T00:03:00Z",
+      providerReviewId: 987,
+      executionReceiptAllTerminal: false,
+    } as Parameters<typeof reducePrReviewLease>[2]);
+
+    expect(() =>
+      reducePrReviewLease(resolving, identity, {
+        state: "failed",
+        baseRef: "main",
+        headRef: "topic",
+        createdAt: "2026-06-11T00:00:00Z",
+        updatedAt: "2026-06-11T00:04:00Z",
+        finishedAt: "2026-06-11T00:04:00Z",
+        executionReceiptFile: receiptFile,
+        failurePhase: "thread-resolution",
+        failureReason: "The sealed GitHub review thread is missing.",
+        failureRecoverability: "unrecoverable",
+        executionReceiptFailureReasons: [],
+      } as Parameters<typeof reducePrReviewLease>[2]),
+    ).toThrow(
+      "thread-resolution failure requires matching closed receipt disposition",
+    );
+
+    const failed = reducePrReviewLease(resolving, identity, {
+      state: "failed",
+      baseRef: "main",
+      headRef: "topic",
+      createdAt: "2026-06-11T00:00:00Z",
+      updatedAt: "2026-06-11T00:04:00Z",
+      finishedAt: "2026-06-11T00:04:00Z",
+      executionReceiptFile: receiptFile,
+      failurePhase: "thread-resolution",
+      failureReason: "The sealed GitHub review thread is missing.",
+      failureRecoverability: "unrecoverable",
+      executionReceiptFailureReasons: [
+        "The sealed GitHub review thread is missing.",
+      ],
+    } as Parameters<typeof reducePrReviewLease>[2]);
+
+    expect(failed).toMatchObject({
+      state: "failed",
+      artifacts: resolving.artifacts,
+      terminal: { finished_at: "2026-06-11T00:04:00Z", reason: null },
+      failure: {
+        phase: "thread-resolution",
+        reason: "The sealed GitHub review thread is missing.",
+        recoverability: "unrecoverable",
+      },
+      github: resolving.github,
+    });
+    expect(() =>
+      reducePrReviewLease(failed, identity, {
+        state: "resolving",
+        baseRef: "main",
+        headRef: "topic",
+        createdAt: "2026-06-11T00:00:00Z",
+        updatedAt: "2026-06-11T00:05:00Z",
+        executionReceiptFile: receiptFile,
+        githubPostedAt: "2026-06-11T00:03:00Z",
+        providerReviewId: 987,
+        executionReceiptAllTerminal: false,
+      } as Parameters<typeof reducePrReviewLease>[2]),
+    ).toThrow(
+      "thread-resolution failure is terminal and requires manual cleanup",
+    );
+  });
+
   it("rejects posted leases without a persisted post intent", () => {
     expect(() =>
       reducePrReviewLease(gatedLease(), identity, {
@@ -4437,6 +4526,52 @@ describe("pr-review lease intent command validation", () => {
       setReadStatusEnv(workspace);
       const validated = await runPrReviewLeasesCommand(["validate"]);
       expect(validated.exitCode, validated.stderr).toBe(0);
+
+      process.env.ALLOW_POLICY_OVERRIDE = "yes";
+      let inspection = await runPrReviewLeasesCommand(["inspect-worktree"]);
+      expect(inspection.exitCode, inspection.stderr).toBe(0);
+      expect(inspection.stdout).toContain("CAN_REMOVE=no");
+      expect(inspection.stdout).toContain(
+        "REFUSAL_REASON=action-execution-incomplete",
+      );
+
+      const intent = JSON.parse(
+        await readFile(
+          path.join(workspace.worktree, paths.post_intent_file),
+          "utf8",
+        ),
+      ) as {
+        approved_review_sha256: string;
+        request_fingerprint_sha256: string;
+      };
+      const receiptFile = `.ephemeral/pr-432-${workspace.reviewHead}-thread-action-execution.json`;
+      await writeFile(
+        path.join(workspace.worktree, receiptFile),
+        `${JSON.stringify({
+          schema: "pr-review/thread-action-execution/v1",
+          repository: "owner/repo",
+          pr_number: 432,
+          review_head_sha: workspace.reviewHead,
+          approved_review_file: approvedReviewFile,
+          approved_review_sha256: intent.approved_review_sha256,
+          post_intent_file: paths.post_intent_file,
+          post_intent_sha256: await sha256File(
+            path.join(workspace.worktree, paths.post_intent_file),
+          ),
+          request_fingerprint_sha256: intent.request_fingerprint_sha256,
+          post_outcome: "post-response",
+          provider_review_id: 99,
+          provider_review_submitted_at: "2026-06-11T00:03:30Z",
+          updated_at: "2026-06-11T00:03:30Z",
+          actions: [],
+        })}\n`,
+      );
+      inspection = await runPrReviewLeasesCommand(["inspect-worktree"]);
+      expect(inspection.exitCode, inspection.stderr).toBe(0);
+      expect(inspection.stdout).toContain("CAN_REMOVE=no");
+      expect(inspection.stdout).toContain(
+        "REFUSAL_REASON=action-execution-incomplete",
+      );
     } finally {
       await writeFile(installedHelper, priorInstalledHelper);
       await chmod(installedHelper, 0o755);
@@ -4649,7 +4784,7 @@ describe("pr-review lease intent command validation", () => {
       expect((await runPrReviewLeasesCommand(["write"])).exitCode).toBe(0);
 
       const writeReceipt = async (
-        disposition: "pending" | "succeeded",
+        disposition: "pending" | "succeeded" | "failed",
         submittedAt: string,
         updatedAt = submittedAt,
       ): Promise<void> => {
@@ -4676,7 +4811,10 @@ describe("pr-review lease intent command validation", () => {
                 thread_id: "PRRT_kwDOReceiptAction",
                 action: "resolve",
                 disposition,
-                failure_reason: null,
+                failure_reason:
+                  disposition === "failed"
+                    ? "The sealed GitHub review thread is missing."
+                    : null,
               },
             ],
           })}\n`,
@@ -4812,6 +4950,43 @@ describe("pr-review lease intent command validation", () => {
       unsetEnv("RESULT_SHA256");
       expect((await runPrReviewLeasesCommand(["write"])).exitCode).toBe(0);
       process.env.EXPECTED_STATE = "resolving";
+
+      const resolvingLeaseBytes = await readFile(
+        path.join(workspace.primary, workspace.leaseFile),
+        "utf8",
+      );
+      await writeReceipt(
+        "failed",
+        "2026-06-11T00:03:00Z",
+        "2026-06-11T00:03:30Z",
+      );
+      process.env.STATE = "failed";
+      process.env.UPDATED_AT = "2026-06-11T00:03:30Z";
+      process.env.FINISHED_AT = "2026-06-11T00:03:30Z";
+      process.env.FAILURE_PHASE = "thread-resolution";
+      process.env.FAILURE_REASON =
+        "The sealed GitHub review thread is missing.";
+      process.env.FAILURE_RECOVERABILITY = "unrecoverable";
+      result = await runPrReviewLeasesCommand(["write"]);
+      expect(result.exitCode, result.stderr).toBe(0);
+      await expect(discoverPrReviewSession()).resolves.toMatchObject({
+        disposition: "cleanup-required",
+        resume: null,
+        active: [
+          {
+            state: "failed",
+            classification: "terminal",
+          },
+        ],
+      });
+      await writeFile(
+        path.join(workspace.primary, workspace.leaseFile),
+        resolvingLeaseBytes,
+      );
+      await writeReceipt("pending", "2026-06-11T00:03:00Z");
+      unsetEnv("FAILURE_PHASE");
+      unsetEnv("FAILURE_REASON");
+      unsetEnv("FAILURE_RECOVERABILITY");
 
       await writeReceipt(
         "succeeded",

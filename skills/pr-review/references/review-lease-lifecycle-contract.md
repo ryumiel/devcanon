@@ -43,41 +43,43 @@ Valid states are:
   artifact.
 - `aborted`: user explicitly abandoned the review lifecycle.
 - `failed`: recoverable or unrecoverable failure occurred before a successful
-  terminal state; failure audit metadata is recorded and valid recovery
-  artifact pointers are preserved.
+  terminal state, or a post-success sealed thread became missing or outdated;
+  failure audit metadata is recorded and valid recovery artifact pointers are
+  preserved.
 
 ## Transition Matrix
 
 Every valid transition is listed here. Missing rows fail closed. Same-state
 updates are valid only when the matching row says so.
 
-| Row   | Event                         | From                  | To          | Required inputs                                                                                                                                                                         |
-| ----- | ----------------------------- | --------------------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| LC-01 | `create`                      | `none`                | `created`   | `CREATED_AT`, `UPDATED_AT`                                                                                                                                                              |
-| LC-02 | `attach-handoff`              | `created`             | `created`   | `HANDOFF_FILE`, `UPDATED_AT`                                                                                                                                                            |
-| LC-03 | `record-result`               | `created`             | `reviewed`  | `RESULT_FILE`, `UPDATED_AT`; the helper records `validation.result_manifest.status=valid` and `validation.result_manifest.sha256` from the validated result file                        |
-| LC-04 | `present-preview`             | `reviewed`            | `gated`     | Existing or supplied `RESULT_FILE`, `PRESENTED_AT`, `PRESENTATION_STATUS`, `UPDATED_AT`; the helper refreshes `validation.result_manifest.sha256` from the validated result file        |
-| LC-05 | `present-preview`             | `gated`               | `gated`     | Existing or supplied `RESULT_FILE`, fresh `PRESENTED_AT`, `PRESENTATION_STATUS`, `UPDATED_AT`; the helper refreshes `validation.result_manifest.sha256` from the validated result file  |
-| LC-06 | `abort`                       | `reviewed`            | `aborted`   | `FINISHED_AT`, `TERMINAL_REASON`, `UPDATED_AT`                                                                                                                                          |
-| LC-07 | `abort`                       | `gated`               | `aborted`   | `FINISHED_AT`, `TERMINAL_REASON`, `UPDATED_AT`                                                                                                                                          |
-| LC-08 | legacy `record-post-success`  | `gated`               | `posted`    | Historical read compatibility only; new writes use LC-19 through LC-23 and require an execution receipt                                                                                 |
-| LC-09 | `record-failure`              | `created`             | `failed`    | `FINISHED_AT`, `FAILURE_PHASE`, `FAILURE_REASON`, `FAILURE_RECOVERABILITY`, `UPDATED_AT`                                                                                                |
-| LC-10 | `record-failure`              | `reviewed`            | `failed`    | `FINISHED_AT`, `FAILURE_PHASE`, `FAILURE_REASON`, `FAILURE_RECOVERABILITY`, `UPDATED_AT`                                                                                                |
-| LC-11 | `record-failure`              | `gated`               | `failed`    | Pre-approval failure phase, `FINISHED_AT`, `FAILURE_REASON`, `FAILURE_RECOVERABILITY`, `UPDATED_AT`                                                                                     |
-| LC-12 | `record-failure`              | `gated`               | `failed`    | `FAILURE_PHASE=approval-freeze`, `FINISHED_AT`, `FAILURE_REASON`, `FAILURE_RECOVERABILITY`, `UPDATED_AT`                                                                                |
-| LC-13 | `record-failure`              | `gated`               | `failed`    | `FAILURE_PHASE=github-post`, `APPROVED_REVIEW_FILE`, `GITHUB_POST_ATTEMPTED=true`, `GITHUB_POST_RESULT=failed`, `FINISHED_AT`, `FAILURE_REASON`, `FAILURE_RECOVERABILITY`, `UPDATED_AT` |
-| LC-14 | `present-preview`             | `failed`              | `gated`     | Existing or supplied `RESULT_FILE`, `PRESENTED_AT`, `PRESENTATION_STATUS`, `UPDATED_AT`; unavailable to an action-bearing `github-post` failure retaining a post intent                 |
-| LC-15 | `abort`                       | `failed`              | `aborted`   | `FINISHED_AT`, `TERMINAL_REASON`, `UPDATED_AT`; unavailable to an action-bearing `github-post` failure retaining a post intent                                                          |
-| LC-16 | `record-failure`              | `failed`              | `failed`    | `FINISHED_AT`, `FAILURE_PHASE`, `FAILURE_REASON`, `FAILURE_RECOVERABILITY`, `UPDATED_AT`; an action-bearing `github-post` failure may retain only identical failure evidence            |
-| LC-17 | `retry-post-success`          | `failed`              | `posted`    | Prior failure is `github-post`, `FINISHED_AT`, `GITHUB_POSTED_AT`, `UPDATED_AT`                                                                                                         |
-| LC-18 | `archive-terminal-and-create` | `posted` or `aborted` | `created`   | `CREATED_AT`, `UPDATED_AT`                                                                                                                                                              |
-| LC-19 | `record-post-intent`          | `gated`               | `gated`     | `APPROVED_REVIEW_FILE`, `VALIDATED_REVIEW_PAYLOAD_FILE`, `POST_INTENT_FILE`, current validated result digest, `UPDATED_AT`; refreshes result validation to `UPDATED_AT`                 |
-| LC-20 | `record-execution-receipt`    | `gated`               | `resolving` | Stored intent and valid receipt with one pending or failed sealed resolve, `GITHUB_POSTED_AT`, `PROVIDER_REVIEW_ID`, `UPDATED_AT`                                                       |
-| LC-21 | `record-complete-receipt`     | `gated`               | `posted`    | Stored intent and valid terminal receipt, `GITHUB_POSTED_AT`, `PROVIDER_REVIEW_ID`, `FINISHED_AT`, `UPDATED_AT`                                                                         |
-| LC-22 | `record-receipt-progress`     | `resolving`           | `resolving` | Same stored intent, valid replacement receipt with a pending or failed sealed resolve, `GITHUB_POSTED_AT`, `PROVIDER_REVIEW_ID`, `UPDATED_AT`                                           |
-| LC-23 | `complete-receipt-progress`   | `resolving`           | `posted`    | Same stored intent, valid terminal replacement receipt, `GITHUB_POSTED_AT`, `PROVIDER_REVIEW_ID`, `FINISHED_AT`, `UPDATED_AT`                                                           |
-| LC-24 | `recover-execution-receipt`   | `failed`              | `resolving` | Prior `github-post` failure preserves a stored intent and no receipt; valid receipt with a pending or failed sealed resolve, `GITHUB_POSTED_AT`, `PROVIDER_REVIEW_ID`, `UPDATED_AT`     |
-| LC-25 | `recover-complete-receipt`    | `failed`              | `posted`    | Prior `github-post` failure preserves a stored intent and no receipt; valid terminal receipt, `GITHUB_POSTED_AT`, `PROVIDER_REVIEW_ID`, `FINISHED_AT`, `UPDATED_AT`                     |
+| Row   | Event                              | From                  | To          | Required inputs                                                                                                                                                                                                             |
+| ----- | ---------------------------------- | --------------------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| LC-01 | `create`                           | `none`                | `created`   | `CREATED_AT`, `UPDATED_AT`                                                                                                                                                                                                  |
+| LC-02 | `attach-handoff`                   | `created`             | `created`   | `HANDOFF_FILE`, `UPDATED_AT`                                                                                                                                                                                                |
+| LC-03 | `record-result`                    | `created`             | `reviewed`  | `RESULT_FILE`, `UPDATED_AT`; the helper records `validation.result_manifest.status=valid` and `validation.result_manifest.sha256` from the validated result file                                                            |
+| LC-04 | `present-preview`                  | `reviewed`            | `gated`     | Existing or supplied `RESULT_FILE`, `PRESENTED_AT`, `PRESENTATION_STATUS`, `UPDATED_AT`; the helper refreshes `validation.result_manifest.sha256` from the validated result file                                            |
+| LC-05 | `present-preview`                  | `gated`               | `gated`     | Existing or supplied `RESULT_FILE`, fresh `PRESENTED_AT`, `PRESENTATION_STATUS`, `UPDATED_AT`; the helper refreshes `validation.result_manifest.sha256` from the validated result file                                      |
+| LC-06 | `abort`                            | `reviewed`            | `aborted`   | `FINISHED_AT`, `TERMINAL_REASON`, `UPDATED_AT`                                                                                                                                                                              |
+| LC-07 | `abort`                            | `gated`               | `aborted`   | `FINISHED_AT`, `TERMINAL_REASON`, `UPDATED_AT`                                                                                                                                                                              |
+| LC-08 | legacy `record-post-success`       | `gated`               | `posted`    | Historical read compatibility only; new writes use LC-19 through LC-23 and require an execution receipt                                                                                                                     |
+| LC-09 | `record-failure`                   | `created`             | `failed`    | `FINISHED_AT`, `FAILURE_PHASE`, `FAILURE_REASON`, `FAILURE_RECOVERABILITY`, `UPDATED_AT`                                                                                                                                    |
+| LC-10 | `record-failure`                   | `reviewed`            | `failed`    | `FINISHED_AT`, `FAILURE_PHASE`, `FAILURE_REASON`, `FAILURE_RECOVERABILITY`, `UPDATED_AT`                                                                                                                                    |
+| LC-11 | `record-failure`                   | `gated`               | `failed`    | Pre-approval failure phase, `FINISHED_AT`, `FAILURE_REASON`, `FAILURE_RECOVERABILITY`, `UPDATED_AT`                                                                                                                         |
+| LC-12 | `record-failure`                   | `gated`               | `failed`    | `FAILURE_PHASE=approval-freeze`, `FINISHED_AT`, `FAILURE_REASON`, `FAILURE_RECOVERABILITY`, `UPDATED_AT`                                                                                                                    |
+| LC-13 | `record-failure`                   | `gated`               | `failed`    | `FAILURE_PHASE=github-post`, `APPROVED_REVIEW_FILE`, `GITHUB_POST_ATTEMPTED=true`, `GITHUB_POST_RESULT=failed`, `FINISHED_AT`, `FAILURE_REASON`, `FAILURE_RECOVERABILITY`, `UPDATED_AT`                                     |
+| LC-14 | `present-preview`                  | `failed`              | `gated`     | Existing or supplied `RESULT_FILE`, `PRESENTED_AT`, `PRESENTATION_STATUS`, `UPDATED_AT`; unavailable to an action-bearing `github-post` failure retaining a post intent                                                     |
+| LC-15 | `abort`                            | `failed`              | `aborted`   | `FINISHED_AT`, `TERMINAL_REASON`, `UPDATED_AT`; unavailable to an action-bearing `github-post` failure retaining a post intent                                                                                              |
+| LC-16 | `record-failure`                   | `failed`              | `failed`    | `FINISHED_AT`, `FAILURE_PHASE`, `FAILURE_REASON`, `FAILURE_RECOVERABILITY`, `UPDATED_AT`; an action-bearing `github-post` failure may retain only identical failure evidence                                                |
+| LC-17 | `retry-post-success`               | `failed`              | `posted`    | Prior failure is `github-post`, `FINISHED_AT`, `GITHUB_POSTED_AT`, `UPDATED_AT`                                                                                                                                             |
+| LC-18 | `archive-terminal-and-create`      | `posted` or `aborted` | `created`   | `CREATED_AT`, `UPDATED_AT`                                                                                                                                                                                                  |
+| LC-19 | `record-post-intent`               | `gated`               | `gated`     | `APPROVED_REVIEW_FILE`, `VALIDATED_REVIEW_PAYLOAD_FILE`, `POST_INTENT_FILE`, current validated result digest, `UPDATED_AT`; refreshes result validation to `UPDATED_AT`                                                     |
+| LC-20 | `record-execution-receipt`         | `gated`               | `resolving` | Stored intent and valid receipt with one pending or failed sealed resolve, `GITHUB_POSTED_AT`, `PROVIDER_REVIEW_ID`, `UPDATED_AT`                                                                                           |
+| LC-21 | `record-complete-receipt`          | `gated`               | `posted`    | Stored intent and valid terminal receipt, `GITHUB_POSTED_AT`, `PROVIDER_REVIEW_ID`, `FINISHED_AT`, `UPDATED_AT`                                                                                                             |
+| LC-22 | `record-receipt-progress`          | `resolving`           | `resolving` | Same stored intent, valid replacement receipt with a pending or failed sealed resolve, `GITHUB_POSTED_AT`, `PROVIDER_REVIEW_ID`, `UPDATED_AT`                                                                               |
+| LC-23 | `complete-receipt-progress`        | `resolving`           | `posted`    | Same stored intent, valid terminal replacement receipt, `GITHUB_POSTED_AT`, `PROVIDER_REVIEW_ID`, `FINISHED_AT`, `UPDATED_AT`                                                                                               |
+| LC-24 | `recover-execution-receipt`        | `failed`              | `resolving` | Prior `github-post` failure preserves a stored intent and no receipt; valid receipt with a pending or failed sealed resolve, `GITHUB_POSTED_AT`, `PROVIDER_REVIEW_ID`, `UPDATED_AT`                                         |
+| LC-25 | `recover-complete-receipt`         | `failed`              | `posted`    | Prior `github-post` failure preserves a stored intent and no receipt; valid terminal receipt, `GITHUB_POSTED_AT`, `PROVIDER_REVIEW_ID`, `FINISHED_AT`, `UPDATED_AT`                                                         |
+| LC-26 | `record-thread-resolution-failure` | `resolving`           | `failed`    | `FAILURE_PHASE=thread-resolution`, exact stored intent and receipt, preserved post identity, `FAILURE_RECOVERABILITY=unrecoverable`, `FINISHED_AT`, `UPDATED_AT`; only for a sealed thread proven missing or newly outdated |
 
 All other transitions are forbidden. `stale-head` is a valid failure phase for
 post-freeze refusal, but it is not eligible for LC-17 retry-to-post; it must
@@ -123,6 +125,13 @@ exact reread of the prior valid receipt as a recoverable stop; it does not
 replace provider identity. An action-bearing `github-post` failure preserves a
 valid intent and likewise cannot use legacy failed-to-posted recovery without a
 validated receipt.
+
+LC-26 records the closed failed action disposition before replacing the lease.
+That terminal failure preserves the successful provider-review identity and the
+lease-owned approved review, validated payload, post intent, and execution
+receipt. It has no lifecycle retry, abort, archive, reentry, stale-reclamation,
+or provider-mutation path. Discovery treats it as terminal, and cleanup remains
+manual through the existing explicit confirmation or policy-override boundary.
 
 ## Session creation boundary
 
@@ -312,7 +321,9 @@ GitHub post metadata is phase-scoped:
 
 - `github-post` failures must record `GITHUB_POST_ATTEMPTED=true` and
   `GITHUB_POST_RESULT=failed`.
-- Non-`github-post` failures clear GitHub post metadata to
+- `thread-resolution` failures preserve the successful post metadata and
+  provider review identity from the resolving lease.
+- Other non-`github-post` failures clear GitHub post metadata to
   `github_post_attempted=false`, `github_post_result=not-attempted`, and
   `github_posted_at=null`.
 - `posted` writes set `github_post_attempted=true`,
