@@ -710,16 +710,15 @@ validate_provider_actor_id() {
 
 validate_post_intent_created_at() {
   require_env POST_INTENT_CREATED_AT
-  [[ "$POST_INTENT_CREATED_AT" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]] || {
-    echo "POST_INTENT_CREATED_AT must be a canonical UTC timestamp" >&2
-    exit 1
-  }
+  validate_utc_second POST_INTENT_CREATED_AT "$POST_INTENT_CREATED_AT"
 }
 
 validate_utc_second() {
   local name="$1"
   local value="$2"
-  [[ "$value" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]] || {
+  [[ "$value" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]] &&
+    jq -e -n --arg value "$value" \
+      '(($value | fromdateiso8601 | todateiso8601) == $value)' >/dev/null 2>&1 || {
     echo "$name must be a canonical UTC timestamp" >&2
     exit 1
   }
@@ -1079,8 +1078,11 @@ advance_execution_receipt() {
     echo "execution receipt advancement is already in progress: $EXECUTION_RECEIPT_FILE" >&2
     exit 1
   }
+  trap "rmdir '$receipt_lock' 2>/dev/null || true" EXIT
   prior_tmp="$(mktemp ".ephemeral/.execution-receipt-prior-${HEAD_SHA}.XXXXXX")"
+  trap "rm -f '$prior_tmp'; rmdir '$receipt_lock' 2>/dev/null || true" EXIT
   intended_tmp="$(mktemp ".ephemeral/.execution-receipt-intended-${HEAD_SHA}.XXXXXX")"
+  trap "rm -f '$prior_tmp' '$intended_tmp'; rmdir '$receipt_lock' 2>/dev/null || true" EXIT
   publish_tmp="$(mktemp ".ephemeral/.execution-receipt-publish-${HEAD_SHA}.XXXXXX")"
   trap "rm -f '$prior_tmp' '$intended_tmp' '$publish_tmp'; rmdir '$receipt_lock' 2>/dev/null || true" EXIT
   # The receipt-local lock is not reclaimable: after acquisition, re-read the

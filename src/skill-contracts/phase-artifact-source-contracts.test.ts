@@ -3743,9 +3743,21 @@ None
       "duplicate thread IDs",
       "review_threads_complete=true",
       "REST review/comment IDs are display context only",
+      "nameWithOwner",
+      "headRefOid",
+      "isOutdated",
+      "comments(first: 100, after: $commentsCursor)",
+      "missing or repeated comments cursor",
+      "Nested comments are context",
     ]) {
       expect(normalizedPrReview).toContain(threadAuthorityContract);
     }
+    expect(normalizedPrReview).toContain(
+      "lease-owned or deterministic action evidence stops",
+    );
+    expect(normalizedPrReview).toContain(
+      "genuinely no-attempt lifecycle with no action-bearing evidence",
+    );
     expect(
       normalizedPrReview.indexOf(
         "Sealed action recovery before review rebuild",

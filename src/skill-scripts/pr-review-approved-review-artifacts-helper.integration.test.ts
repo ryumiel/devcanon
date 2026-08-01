@@ -659,6 +659,24 @@ describe.skipIf(!jqAvailable)(
             POST_INTENT_FILE: postIntentFile,
             POST_OUTCOME: "post-response",
             PROVIDER_REVIEW_ID: "91",
+            PROVIDER_REVIEW_SUBMITTED_AT: "2026-02-30T00:00:01Z",
+            EXECUTION_RECEIPT_UPDATED_AT: "2026-08-01T00:00:01Z",
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining(
+            "PROVIDER_REVIEW_SUBMITTED_AT must be a canonical UTC timestamp",
+          ),
+        });
+        await expect(
+          lstat(path.join(cwd, executionReceiptFile)),
+        ).rejects.toMatchObject({ code: "ENOENT" });
+
+        await expect(
+          runHelper(cwd, "materialize-execution-receipt", {
+            APPROVED_REVIEW_FILE: approvedReviewFile,
+            POST_INTENT_FILE: postIntentFile,
+            POST_OUTCOME: "post-response",
+            PROVIDER_REVIEW_ID: "91",
             PROVIDER_REVIEW_SUBMITTED_AT: "2026-08-01T00:00:01Z",
             EXECUTION_RECEIPT_UPDATED_AT: "2026-08-01T00:00:01Z",
           }),
@@ -728,6 +746,78 @@ describe.skipIf(!jqAvailable)(
           provider_review_id: 91,
           provider_review_submitted_at: "2026-08-01T00:00:01Z",
           actions: [{ disposition: "succeeded" }],
+        });
+        await expect(
+          lstat(path.join(cwd, `${executionReceiptFile}.lock`)),
+        ).rejects.toMatchObject({ code: "ENOENT" });
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    });
+
+    it("cleans the receipt-local lock when allocation fails after acquisition", async () => {
+      const cwd = await makeGitWorkspace();
+      try {
+        await writeInputs(cwd);
+        await runHelper(cwd, "freeze-approved-review", {
+          FINDINGS_FILE: findingsFile,
+          REVIEW_BODY_FILE: reviewBodyFile,
+          REVIEW_PAYLOAD_FILE: payloadFile,
+        });
+        await runHelper(cwd, "materialize-post-intent", {
+          APPROVED_REVIEW_FILE: approvedReviewFile,
+          PROVIDER_ACTOR_ID: "7",
+          POST_INTENT_CREATED_AT: "2026-08-01T00:00:00Z",
+        });
+        await runHelper(cwd, "materialize-execution-receipt", {
+          APPROVED_REVIEW_FILE: approvedReviewFile,
+          POST_INTENT_FILE: postIntentFile,
+          POST_OUTCOME: "post-response",
+          PROVIDER_REVIEW_ID: "91",
+          PROVIDER_REVIEW_SUBMITTED_AT: "2026-08-01T00:00:01Z",
+          EXECUTION_RECEIPT_UPDATED_AT: "2026-08-01T00:00:01Z",
+        });
+        const fakeBin = path.join(cwd, ".ephemeral/failing-mktemp-bin");
+        await mkdir(fakeBin);
+        const { stdout: realMktempOutput } = await execFileAsync("bash", [
+          "-c",
+          "command -v mktemp",
+        ]);
+        const failingMktemp = path.join(fakeBin, "mktemp");
+        await writeFile(
+          failingMktemp,
+          [
+            "#!/usr/bin/env bash",
+            'case "${1:-}" in',
+            "  .ephemeral/.execution-receipt-prior-*) exit 1 ;;",
+            "esac",
+            `exec ${JSON.stringify(realMktempOutput.trim())} "$@"`,
+            "",
+          ].join("\n"),
+        );
+        await chmod(failingMktemp, 0o755);
+        const advanceEnv = {
+          APPROVED_REVIEW_FILE: approvedReviewFile,
+          POST_INTENT_FILE: postIntentFile,
+          EXECUTION_RECEIPT_FILE: executionReceiptFile,
+          THREAD_ID: "PRRT_kwDOExample",
+          DISPOSITION: "succeeded",
+          EXECUTION_RECEIPT_UPDATED_AT: "2026-08-01T00:00:02Z",
+        };
+
+        await expect(
+          runHelper(cwd, "advance-execution-receipt", {
+            ...advanceEnv,
+            PATH: `${fakeBin}:${process.env.PATH}`,
+          }),
+        ).rejects.toBeDefined();
+        await expect(
+          lstat(path.join(cwd, `${executionReceiptFile}.lock`)),
+        ).rejects.toMatchObject({ code: "ENOENT" });
+        await expect(
+          runHelper(cwd, "advance-execution-receipt", advanceEnv),
+        ).resolves.toMatchObject({
+          stdout: expect.stringContaining('"write_status":"committed"'),
         });
       } finally {
         await cleanupTempDir(cwd);
@@ -1052,12 +1142,21 @@ describe.skipIf(!jqAvailable)(
             { ...baseEnv, POST_INTENT_CREATED_AT: "2026-08-01T00:00:00+00:00" },
             "POST_INTENT_CREATED_AT must be a canonical UTC timestamp",
           ],
+          [
+            "impossible timestamp",
+            { ...baseEnv, POST_INTENT_CREATED_AT: "2026-02-30T00:00:00Z" },
+            "POST_INTENT_CREATED_AT must be a canonical UTC timestamp",
+          ],
         ] as const) {
           await expect(
             runHelper(cwd, "materialize-post-intent", env),
             name,
           ).rejects.toMatchObject({ stderr: expect.stringContaining(error) });
         }
+
+        await expect(
+          lstat(path.join(cwd, postIntentFile)),
+        ).rejects.toMatchObject({ code: "ENOENT" });
 
         await runHelper(cwd, "materialize-post-intent", baseEnv);
         await writeJson(

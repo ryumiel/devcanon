@@ -244,7 +244,10 @@ guard, or fresh POST. An intent-only chain performs the single existing exact
 fingerprint reconciliation. A receipt is first adopted through LC-20, LC-21,
 LC-23, LC-24, or LC-25 as applicable, then resumes only sealed pending/failed
 actions. Invalid, obsolete, legacy, mismatched, orphan, or non-action-bearing
-evidence does not bypass the normal fresh v2 rebuild and approval path.
+lease-owned or deterministic action evidence stops for explicit cleanup/restart
+or provider refetch; it never authorizes a fresh POST. Only a validated
+genuinely no-attempt lifecycle with no action-bearing evidence may use the
+normal fresh v2 rebuild and approval path.
 
 ## Phase 3: Determine diff ranges
 
@@ -1619,15 +1622,39 @@ Verify the response includes the new comment ID. Do not assume success.
 **Fetch thread IDs for resolution:** walk this same connection with `first: 100`
 and `after: $cursor` until `hasNextPage` is false. Apply the Phase 1
 completeness, cursor, duplicate, and identity checks before using any returned
-ID.
+ID. Require the response `nameWithOwner`, pull request number, and `headRefOid`
+to equal the sealed repository, PR, and reviewed head on every page. Require
+`isOutdated` for eligibility. For the one matched sealed thread, walk its
+`comments(first: 100, after: $commentsCursor)` connection through
+`hasNextPage=false`; reject null or partial pages, a missing or repeated
+comments cursor, or identity/head drift. Nested comments are context for the
+fresh eligibility decision, never a substitute thread ID.
 
 ```sh
 # Bare body intentional: response is consumed for content-keyed thread-ID lookup
 # (resolveReviewThread mutation at the snippet above). See docs/guidelines/gh-api-hygiene.md § 3.
-gh api graphql -f query='query($cursor: String) { repository(owner: "O", name: "R") {
-  pullRequest(number: N) { reviewThreads(first: 100, after: $cursor) { nodes {
-    id isResolved comments(first: 5) { nodes { body author { login } path originalLine } }
-  } pageInfo { hasNextPage endCursor } } } } }'
+gh api graphql -f query='query($owner: String!, $name: String!, $number: Int!, $cursor: String) {
+  repository(owner: $owner, name: $name) { nameWithOwner pullRequest(number: $number) {
+    number headRefOid reviewThreads(first: 100, after: $cursor) { nodes {
+      id isResolved isOutdated comments(first: 100) {
+        nodes { body author { login } path originalLine }
+        pageInfo { hasNextPage endCursor }
+      }
+    } pageInfo { hasNextPage endCursor } }
+  } }
+}'
+
+# If the matched sealed thread's first comments page is incomplete, continue
+# that thread by its authoritative GraphQL node ID until its comments pageInfo
+# is complete; apply the same cursor and sealed identity/head checks.
+gh api graphql -f query='query($threadId: ID!, $commentsCursor: String) {
+  node(id: $threadId) { ... on PullRequestReviewThread {
+    id isResolved isOutdated comments(first: 100, after: $commentsCursor) {
+      nodes { body author { login } path originalLine }
+      pageInfo { hasNextPage endCursor }
+    }
+  } }
+}'
 ```
 
 ## Hard Rules
