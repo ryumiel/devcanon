@@ -1608,7 +1608,9 @@ function isConciseThreadActionText(value) {
         !value.includes("\0"));
 }
 function isReviewThreadNodeId(value) {
-    return typeof value === "string" && /^PRRT_[A-Za-z0-9_-]+$/u.test(value);
+    return (typeof value === "string" &&
+        value.trim().length > 0 &&
+        !value.includes("\0"));
 }
 function sha256Text(value) {
     return createHash("sha256").update(value).digest("hex");

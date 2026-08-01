@@ -4197,6 +4197,23 @@ None
     expect(sealedActionLoop.indexOf("advance-execution-receipt")).toBeLessThan(
       sealedActionLoop.indexOf('STATE="failed"'),
     );
+    const existingReceiptRecovery = phase6.slice(
+      phase6.indexOf(
+        'if (cd "$WORKING_DIRECTORY" && [ -e "$EXISTING_EXECUTION_RECEIPT_FILE" ])',
+      ),
+      phase6.indexOf('elif [ "$POST_INTENT_REUSED" = true ]'),
+    );
+    expect(existingReceiptRecovery).toContain("CLOSED_THREAD_FAILURE_COUNT");
+    expect(existingReceiptRecovery).toContain('EXPECTED_STATE="resolving"');
+    expect(existingReceiptRecovery.indexOf('STATE="failed"')).toBeLessThan(
+      existingReceiptRecovery.indexOf("RESUME_SEALED_THREAD_IDS"),
+    );
+    expect(existingReceiptRecovery).toContain(
+      "The sealed GitHub review thread is missing.",
+    );
+    expect(existingReceiptRecovery).toContain(
+      "The sealed GitHub review thread became outdated.",
+    );
     expect(lifecycle).toContain("| LC-26 |");
     expect(lifecycle).toContain("`FAILURE_PHASE=thread-resolution`");
     expect(normalizeWhitespace(lifecycle)).toContain("cleanup remains manual");

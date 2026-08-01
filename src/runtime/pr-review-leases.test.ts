@@ -4723,6 +4723,10 @@ describe("pr-review lease intent command validation", () => {
     const finalBody = `Review body\n\n<!-- devcanon-pr-review-request:v1 sha256=${fingerprint} -->`;
 
     try {
+      await writeFile(
+        path.join(workspace.primary, ".git", "info", "exclude"),
+        ".ephemeral/\n",
+      );
       const payload = {
         commit_id: workspace.reviewHead,
         event: "COMMENT",
@@ -4979,6 +4983,42 @@ describe("pr-review lease intent command validation", () => {
           },
         ],
       });
+      setReadStatusEnv(workspace);
+      unsetEnv("ALLOW_POLICY_OVERRIDE");
+      let inspection = await runPrReviewLeasesCommand(["inspect-worktree"]);
+      expect(inspection.exitCode, inspection.stderr).toBe(0);
+      expect(inspection.stdout).toContain("CAN_REMOVE=no");
+      expect(inspection.stdout).toContain("REQUIRES_CONFIRMATION=yes");
+      expect(inspection.stdout).toContain(
+        "REFUSAL_REASON=confirmation-required",
+      );
+
+      process.env.ALLOW_POLICY_OVERRIDE = "yes";
+      inspection = await runPrReviewLeasesCommand(["inspect-worktree"]);
+      expect(inspection.exitCode, inspection.stderr).toBe(0);
+      expect(inspection.stdout).toContain("CAN_REMOVE=yes");
+      expect(inspection.stdout).toContain("REQUIRES_CONFIRMATION=yes");
+
+      const failedReceiptBytes = await readFile(
+        path.join(workspace.worktree, receiptFile),
+        "utf8",
+      );
+      await writeFile(
+        path.join(workspace.worktree, receiptFile),
+        failedReceiptBytes.replace(
+          '"repository":"owner/repo"',
+          '"repository":"other/repo"',
+        ),
+      );
+      inspection = await runPrReviewLeasesCommand(["inspect-worktree"]);
+      expect(inspection.exitCode, inspection.stderr).toBe(0);
+      expect(inspection.stdout).toContain("CAN_REMOVE=no");
+      expect(inspection.stdout).toContain("REFUSAL_REASON=invalid-lease");
+      await writeFile(
+        path.join(workspace.worktree, receiptFile),
+        failedReceiptBytes,
+      );
+      unsetEnv("ALLOW_POLICY_OVERRIDE");
       await writeFile(
         path.join(workspace.primary, workspace.leaseFile),
         resolvingLeaseBytes,

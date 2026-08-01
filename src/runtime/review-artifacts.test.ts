@@ -3542,6 +3542,34 @@ describe("pr-review thread-actions artifacts", () => {
     }
   });
 
+  it("accepts opaque nonblank GraphQL review-thread node IDs", async () => {
+    const { cwd, headSha } = await makeRiskSignalsWorkspace();
+    try {
+      process.chdir(cwd);
+      const priorThreads = priorThreadsForThreadActions(headSha);
+      const threads = priorThreads.threads as JsonObject[];
+      const opaqueId = "opaque:PullRequestReviewThread:eligible-first";
+      threads[0] = { ...threads[0], thread_id: opaqueId };
+      const actions = threadActionsArtifact(headSha, priorThreads).actions as
+        | JsonObject[]
+        | undefined;
+      expect(actions).toBeDefined();
+      if (actions === undefined) throw new Error("thread actions missing");
+      actions[0] = { ...actions[0], thread_id: opaqueId };
+      await writeJson(cwd, ".ephemeral/topic-prior-threads.json", priorThreads);
+      await writeJson(cwd, ".ephemeral/topic-thread-actions.json", {
+        ...threadActionsArtifact(headSha, priorThreads),
+        actions,
+      });
+
+      await expect(
+        runReviewArtifactsCommand(threadActionsArgs(headSha)),
+      ).resolves.toEqual({ exitCode: 0, stdout: "", stderr: "" });
+    } finally {
+      await cleanupRiskSignalsWorkspace(cwd);
+    }
+  });
+
   it("rejects obsolete v1 prior-thread evidence before deriving action authority", async () => {
     const { cwd, headSha } = await makeRiskSignalsWorkspace();
     try {

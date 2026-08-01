@@ -1366,10 +1366,34 @@ PR_REVIEW_HELPER="$PR_REVIEW_DIR/scripts/approved-review-artifacts.sh"
        FINISHED_AT="${FINISHED_AT:-}" \
        UPDATED_AT="<RFC-3339-UTC>" \
          bash "$PR_REVIEW_LEASE_HELPER" write || exit 1
+       CURRENT_LEASE_STATE="$STATE"
      fi
      # This post-bind validation tolerates the resolving -> posted crash
      # boundary while still proving the deterministic lease and receipt chain.
      (cd "$REVIEW_CALLER_DIR" && bash "$PR_REVIEW_LEASE_HELPER" validate) || exit 1
+     CLOSED_THREAD_FAILURE_COUNT="$(cd "$WORKING_DIRECTORY" && jq -er '[.actions[] | select(.action == "resolve" and .disposition == "failed" and (.failure_reason == "The sealed GitHub review thread is missing." or .failure_reason == "The sealed GitHub review thread became outdated."))] | length' "$EXECUTION_RECEIPT_FILE")" || exit 1
+     case "$CLOSED_THREAD_FAILURE_COUNT" in
+       0) ;;
+       1)
+         [ "$CURRENT_LEASE_STATE" = "resolving" ] || exit 1
+         ACTION_FAILURE_REASON="$(cd "$WORKING_DIRECTORY" && jq -er '.actions[] | select(.action == "resolve" and .disposition == "failed" and (.failure_reason == "The sealed GitHub review thread is missing." or .failure_reason == "The sealed GitHub review thread became outdated.")) | .failure_reason' "$EXECUTION_RECEIPT_FILE")" || exit 1
+         STATE="failed" \
+         EXPECTED_STATE="resolving" \
+         BASE_REF="$LEASE_BASE_REF" \
+         HEAD_REF="$LEASE_HEAD_REF" \
+         EXECUTION_RECEIPT_FILE="$EXECUTION_RECEIPT_FILE" \
+         FAILURE_PHASE="thread-resolution" \
+         FAILURE_REASON="$ACTION_FAILURE_REASON" \
+         FAILURE_RECOVERABILITY="unrecoverable" \
+         GITHUB_POSTED_AT="$PROVIDER_REVIEW_SUBMITTED_AT" \
+         PROVIDER_REVIEW_ID="$PROVIDER_REVIEW_ID" \
+         FINISHED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+         UPDATED_AT="<RFC-3339-UTC>" \
+           bash "$PR_REVIEW_LEASE_HELPER" write || exit 1
+         exit 1
+         ;;
+       *) exit 1 ;;
+     esac
      RESUME_SEALED_THREAD_IDS="$( (
        cd "$WORKING_DIRECTORY" || exit 1
        jq -cer '[.actions[] | select(.action == "resolve" and (.disposition == "pending" or .disposition == "failed")) | .thread_id]' "$EXECUTION_RECEIPT_FILE"
@@ -1851,6 +1875,15 @@ and removes worktrees only after all checks pass. Dirty worktrees, unmanaged
 non-worktree paths, and missing paths remain removal refusals or skipped
 outcomes.
 
+A `gated` lease that owns a post intent, a `resolving` lease, or a nonterminal
+action-bearing `failed` lease is `action-execution-incomplete`. Inspection and
+cleanup always retain it without recording cleanup metadata, even when
+`ALLOW_POLICY_OVERRIDE=yes`. A valid LC-26 `thread-resolution` failure is
+different: it is terminal evidence and is manually cleanable only through the
+existing explicit confirmation or policy-override boundary after its complete
+lease, intent, and receipt chain validates. Neither path grants automatic
+retry, reentry, stale reclamation, or provider re-mutation.
+
 Cleanup prints fixed keys: `OUTCOME` and `MESSAGE`. It also prints classifier
 keys for inspection and cleanup decisions: `CAN_REMOVE`, `REFUSAL_REASON`,
 `DIRTY`, `LEASE_STATE`, `IDENTITY_MATCH`, `REQUIRES_CONFIRMATION`,
@@ -1897,8 +1930,11 @@ the receipt already seals the provider review and GraphQL thread IDs. Require
 the one matched sealed thread, walk its
 `comments(first: 100, after: $commentsCursor)` connection through
 `hasNextPage=false`; reject null or partial pages, a missing or repeated
-comments cursor, or identity/head drift. Nested comments are context for the
-fresh eligibility decision, never a substitute thread ID. The first page binds
+comments cursor, or repository, PR, or thread identity drift. Require reviewed
+head equality on nested pages only on the pre-post authority path; post-success
+sealed recovery requires a well-shaped observed head but tolerates head changes.
+Nested comments are context for the fresh eligibility decision, never a
+substitute thread ID. The first page binds
 each nullable cursor as GraphQL `null`; later pages replace that binding with
 the validated nonblank provider cursor.
 
@@ -1919,7 +1955,8 @@ gh api graphql -f query='query($owner: String!, $name: String!, $number: Int!, $
 
 # If the matched sealed thread's first comments page is incomplete, continue
 # that thread by its authoritative GraphQL node ID until its comments pageInfo
-# is complete; apply the same cursor and sealed identity/head checks.
+# is complete; apply the same cursor and sealed repository/PR/thread checks,
+# with reviewed-head equality only before provider POST.
 gh api graphql -f query='query($owner: String!, $name: String!, $number: Int!, $threadId: ID!, $commentsCursor: String) {
   repository(owner: $owner, name: $name) { nameWithOwner pullRequest(number: $number) {
     number headRefOid

@@ -403,10 +403,16 @@ The policy selects which families are required:
 - Validated payload copy: direct-child path must match the approved-review
   payload.
 
-Recovery dependency order is strict: invalid result evidence clears result
-validation, presentation, approved-review, and validated payload pointers;
-invalid approval evidence clears the validated payload pointer; cleanup
-metadata never adds or refreshes artifact authority.
+Recovery dependency order is strict. Before provider-post success, invalid
+result evidence clears result validation, presentation, approved-review,
+validated-payload, post-intent, and execution-receipt pointers; invalid
+approved-review evidence clears validated-payload, post-intent, and receipt
+pointers; invalid validated-payload or post-intent evidence clears its
+downstream receipt pointer. After provider-post success, a missing, malformed,
+or mismatched sealed chain refuses adoption or progress and preserves the
+existing lease and evidence unchanged; it never reconstructs authority from a
+downstream artifact. Cleanup metadata never adds or refreshes artifact
+authority.
 
 ## Terminal Archive Behavior
 
@@ -494,3 +500,14 @@ registered, `inspect-worktree` and `cleanup-worktree` may record skipped or
 retained cleanup metadata without reading artifacts from that unavailable or
 untrusted worktree. Present registered worktrees still require artifact
 validation before removal can proceed.
+
+For a present registered worktree, `resolving`, `gated` with a lease-owned post
+intent, and nonterminal action-bearing `failed` leases are
+`action-execution-incomplete`. They are retained before override evaluation and
+receive no cleanup metadata, including when `ALLOW_POLICY_OVERRIDE=yes`. A
+valid LC-26 `thread-resolution` failure is terminal rather than incomplete: its
+full approved-review, payload, intent, receipt, and provider-post chain must
+validate, then cleanup remains manual through explicit confirmation or policy
+override. Invalid or tampered LC-26 evidence remains `invalid-lease` and is
+retained. Neither outcome grants lifecycle retry, reentry, stale reclamation,
+or provider re-mutation.

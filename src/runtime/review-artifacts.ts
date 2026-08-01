@@ -2055,7 +2055,11 @@ function isConciseThreadActionText(value: unknown): value is string {
 }
 
 function isReviewThreadNodeId(value: unknown): value is string {
-  return typeof value === "string" && /^PRRT_[A-Za-z0-9_-]+$/u.test(value);
+  return (
+    typeof value === "string" &&
+    value.trim().length > 0 &&
+    !value.includes("\0")
+  );
 }
 
 function sha256Text(value: string): string {
