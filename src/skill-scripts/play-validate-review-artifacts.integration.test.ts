@@ -3346,7 +3346,7 @@ describe("play-validate-review-artifacts validator", () => {
         cwd,
         threadsPath,
         priorThreadsEnvelope(headSha, {
-          threads: [priorThread({ thread_id: "PRRC_kwDORestComment" })],
+          threads: [priorThread({ thread_id: "   " })],
         }),
       );
       await expectRejectsWith(

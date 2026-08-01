@@ -237,6 +237,8 @@ interface LeaseInputs {
 const SHA_RE = /^[0-9a-f]{40}$/u;
 const SHA256_RE = /^[0-9a-f]{64}$/u;
 const TIMESTAMP_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/u;
+const DEFINITIVE_GITHUB_POST_REJECTION_REASON =
+  "GitHub rejected the review POST";
 const DIRECT_SUFFIXES = {
   handoff: "-handoff.json",
   result: "-result.json",
@@ -1576,6 +1578,23 @@ function isThreadResolutionTerminalFailure(
   );
 }
 
+function isDefinitiveGithubPostTerminalFailure(
+  lease: PrReviewLease | null | undefined,
+): boolean {
+  return (
+    lease?.state === "failed" &&
+    lease.failure.phase === "github-post" &&
+    lease.failure.reason === DEFINITIVE_GITHUB_POST_REJECTION_REASON &&
+    lease.failure.recoverability === "unrecoverable" &&
+    lease.artifacts.post_intent_file != null &&
+    lease.artifacts.execution_receipt_file == null &&
+    lease.github.github_post_attempted === true &&
+    lease.github.github_post_result === "failed" &&
+    lease.github.github_posted_at === null &&
+    lease.github.provider_review_id == null
+  );
+}
+
 export function reducePrReviewLease(
   previous: PrReviewLease | null,
   identity: Omit<LeaseIdentity, "primaryRoot">,
@@ -2161,7 +2180,8 @@ async function classifyCleanup(
       (lease.state === "gated" && lease.artifacts.post_intent_file != null) ||
       (lease.state === "failed" &&
         lease.artifacts.post_intent_file != null &&
-        !isThreadResolutionTerminalFailure(lease))
+        !isThreadResolutionTerminalFailure(lease) &&
+        !isDefinitiveGithubPostTerminalFailure(lease))
     ) {
       return {
         ...base,
@@ -3094,6 +3114,11 @@ function assertActionBearingFailedLeaseRecovery(
   if (isThreadResolutionTerminalFailure(previous)) {
     throw new PrReviewLeaseError(
       "thread-resolution failure is terminal and requires manual cleanup",
+    );
+  }
+  if (isDefinitiveGithubPostTerminalFailure(previous)) {
+    throw new PrReviewLeaseError(
+      "definitive github-post rejection is terminal and requires manual cleanup",
     );
   }
   if (

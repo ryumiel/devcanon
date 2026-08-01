@@ -3976,6 +3976,26 @@ None
     );
     expect(retryIntentGate).toContain("POST_INTENT_REUSED=true");
     expect(retryIntentGate).toContain('cd "$WORKING_DIRECTORY" || exit 1');
+    const definitiveRejectionGate = retryIntentGate.slice(
+      retryIntentGate.indexOf('if [ "$CURRENT_LEASE_STATE" = "failed" ]'),
+      retryIntentGate.indexOf(
+        'if [ "$POST_INTENT_REUSED" = true ] && [ "$POST_INTENT_LEASE_OWNED" != true ]; then',
+      ),
+    );
+    expect(definitiveRejectionGate).toContain(
+      'CURRENT_FAILURE_REASON" = "GitHub rejected the review POST"',
+    );
+    expect(definitiveRejectionGate).toContain(
+      'CURRENT_FAILURE_RECOVERABILITY" = "unrecoverable"',
+    );
+    expect(definitiveRejectionGate).toContain(
+      '[ "$POST_INTENT_LEASE_OWNED" = true ]',
+    );
+    expect(definitiveRejectionGate).toContain(
+      '[ -z "$STORED_EXECUTION_RECEIPT_FILE" ]',
+    );
+    expect(definitiveRejectionGate).toContain("fresh approval session");
+    expect(definitiveRejectionGate).not.toContain("gh api");
     const indeterminatePostFailure = retryIntentGate.slice(
       retryIntentGate.indexOf("record_indeterminate_github_post_failure()"),
       retryIntentGate.indexOf("POST_INTENT_LEASE_OWNED=false"),

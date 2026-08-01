@@ -1390,6 +1390,60 @@ describe("pr-review lease reducer", () => {
     });
   });
 
+  it("makes a definitive GitHub POST rejection terminal and manual-cleanup-only", () => {
+    const intended = reducePrReviewLease(gatedLease(), identity, {
+      state: "gated",
+      baseRef: "main",
+      headRef: "topic",
+      createdAt: "2026-06-11T00:00:00Z",
+      updatedAt: "2026-06-11T00:02:30Z",
+      approvedReviewFile: ".ephemeral/topic-approved-review.json",
+      validatedPayloadFile:
+        ".ephemeral/pr-432-1111111111111111111111111111111111111111-validated-review-payload.json",
+      postIntentFile:
+        ".ephemeral/pr-432-1111111111111111111111111111111111111111-thread-action-post-intent.json",
+    } as Parameters<typeof reducePrReviewLease>[2]);
+    const rejected = reducePrReviewLease(intended, identity, {
+      state: "failed",
+      baseRef: "main",
+      headRef: "topic",
+      createdAt: "2026-06-11T00:00:00Z",
+      updatedAt: "2026-06-11T00:03:00Z",
+      finishedAt: "2026-06-11T00:03:00Z",
+      failurePhase: "github-post",
+      failureReason: "GitHub rejected the review POST",
+      failureRecoverability: "unrecoverable",
+      githubPostAttempted: true,
+      githubPostResult: "failed",
+    });
+
+    expect(rejected).toMatchObject({
+      state: "failed",
+      artifacts: {
+        post_intent_file: intended.artifacts.post_intent_file,
+        execution_receipt_file: null,
+      },
+      failure: {
+        phase: "github-post",
+        reason: "GitHub rejected the review POST",
+        recoverability: "unrecoverable",
+      },
+    });
+    for (const state of ["failed", "resolving", "posted"] as const) {
+      expect(() =>
+        reducePrReviewLease(rejected, identity, {
+          state,
+          baseRef: "main",
+          headRef: "topic",
+          createdAt: "2026-06-11T00:00:00Z",
+          updatedAt: "2026-06-11T00:04:00Z",
+        } as Parameters<typeof reducePrReviewLease>[2]),
+      ).toThrow(
+        "definitive github-post rejection is terminal and requires manual cleanup",
+      );
+    }
+  });
+
   it("preserves gated recovery evidence for GitHub post failures", () => {
     const failed = reducePrReviewLease(gatedLease(), identity, {
       state: "failed",
@@ -4378,9 +4432,16 @@ describe("pr-review lease intent command validation", () => {
         path.join(workspace.worktree, payloadFile),
         `${JSON.stringify({ commit_id: workspace.reviewHead, event: "COMMENT", body: "Review body", comments: [] })}\n`,
       );
+      const originalScopeDecision = await readFile(
+        path.join(
+          workspace.worktree,
+          ".ephemeral/review-topic-scope-decision.json",
+        ),
+        "utf8",
+      );
       await writeFile(
         path.join(workspace.worktree, scopeDecisionFile),
-        `${JSON.stringify({ prior_context: { kind: "none", path: null }, artifacts: { provider_scope_evidence_file: providerScopeEvidenceFile } })}\n`,
+        originalScopeDecision,
       );
       await writeFile(
         path.join(workspace.worktree, priorThreadsFile),
@@ -4396,11 +4457,32 @@ describe("pr-review lease intent command validation", () => {
           "utf8",
         ),
       ) as {
+        artifacts: { handoff_file: string; scope_decision_file: string };
         digests: {
+          handoff_sha256: string;
           prior_threads_sha256: string;
+          scope_decision_sha256: string;
           thread_actions_sha256: string;
         };
       };
+      const refreshedHandoff = JSON.parse(
+        await readFile(
+          path.join(workspace.worktree, refreshedResult.artifacts.handoff_file),
+          "utf8",
+        ),
+      ) as { artifacts: { scope_decision_file: string } };
+      refreshedHandoff.artifacts.scope_decision_file = scopeDecisionFile;
+      await writeFile(
+        path.join(workspace.worktree, refreshedResult.artifacts.handoff_file),
+        `${JSON.stringify(refreshedHandoff, null, 2)}\n`,
+      );
+      refreshedResult.artifacts.scope_decision_file = scopeDecisionFile;
+      refreshedResult.digests.handoff_sha256 = await sha256File(
+        path.join(workspace.worktree, refreshedResult.artifacts.handoff_file),
+      );
+      refreshedResult.digests.scope_decision_sha256 = await sha256File(
+        path.join(workspace.worktree, scopeDecisionFile),
+      );
       refreshedResult.digests.prior_threads_sha256 = await sha256File(
         path.join(workspace.worktree, priorThreadsFile),
       );
@@ -4410,6 +4492,12 @@ describe("pr-review lease intent command validation", () => {
       await writeFile(
         path.join(workspace.worktree, workspace.resultFile),
         `${JSON.stringify(refreshedResult, null, 2)}\n`,
+      );
+      await removePath(
+        path.join(
+          workspace.worktree,
+          ".ephemeral/review-topic-scope-decision.json",
+        ),
       );
       const refreshedLease = JSON.parse(
         await readFile(
@@ -4498,6 +4586,19 @@ describe("pr-review lease intent command validation", () => {
         validated_review_payload_file: string;
         post_intent_file: string;
       };
+      for (const child of await readdir(
+        path.join(workspace.worktree, ".ephemeral"),
+      )) {
+        if (
+          /^\.(?:post-intent|post-intent-expected|unmarked-approved-payload|validated-post-payload)-/u.test(
+            child,
+          )
+        ) {
+          await removePath(path.join(workspace.worktree, ".ephemeral", child));
+        }
+      }
+      await writeFile(installedHelper, priorInstalledHelper);
+      await chmod(installedHelper, 0o755);
 
       process.chdir(workspace.physicalPrimary);
       setReadStatusEnv(workspace);
@@ -4533,6 +4634,80 @@ describe("pr-review lease intent command validation", () => {
       expect(inspection.stdout).toContain("CAN_REMOVE=no");
       expect(inspection.stdout).toContain(
         "REFUSAL_REASON=action-execution-incomplete",
+      );
+
+      const intentBytes = await readFile(
+        path.join(workspace.worktree, paths.post_intent_file),
+        "utf8",
+      );
+      const definitiveFailure = {
+        ...intentLease,
+        state: "failed",
+        updated_at: "2026-06-11T00:04:00Z",
+        terminal: { finished_at: "2026-06-11T00:04:00Z", reason: null },
+        failure: {
+          phase: "github-post",
+          reason: "GitHub rejected the review POST",
+          recoverability: "unrecoverable",
+        },
+        github: {
+          github_post_attempted: true,
+          github_post_result: "failed",
+          github_posted_at: null,
+          provider_review_id: null,
+        },
+      } satisfies PrReviewLease;
+      await writeFile(
+        path.join(workspace.primary, workspace.leaseFile),
+        `${JSON.stringify(definitiveFailure, null, 2)}\n`,
+      );
+      inspection = await runPrReviewLeasesCommand(["inspect-worktree"]);
+      expect(inspection.exitCode, inspection.stderr).toBe(0);
+      expect(inspection.stdout).toContain("CAN_REMOVE=no");
+      expect(inspection.stdout).toContain("REFUSAL_REASON=dirty");
+      expect(inspection.stdout).not.toContain("action-execution-incomplete");
+
+      const mismatchedIntent = JSON.parse(intentBytes) as {
+        repository: string;
+      };
+      mismatchedIntent.repository = "foreign/repo";
+      await writeFile(
+        path.join(workspace.worktree, paths.post_intent_file),
+        `${JSON.stringify(mismatchedIntent)}\n`,
+      );
+      inspection = await runPrReviewLeasesCommand(["inspect-worktree"]);
+      expect(inspection.exitCode, inspection.stderr).toBe(0);
+      expect(inspection.stdout).toContain("CAN_REMOVE=no");
+      expect(inspection.stdout).toContain("REFUSAL_REASON=invalid-lease");
+      await writeFile(
+        path.join(workspace.worktree, paths.post_intent_file),
+        intentBytes,
+      );
+
+      await writeFile(
+        path.join(workspace.primary, workspace.leaseFile),
+        `${JSON.stringify(
+          {
+            ...definitiveFailure,
+            failure: {
+              phase: "github-post",
+              reason: "GitHub review POST outcome is uncertain",
+              recoverability: "unknown",
+            },
+          },
+          null,
+          2,
+        )}\n`,
+      );
+      inspection = await runPrReviewLeasesCommand(["inspect-worktree"]);
+      expect(inspection.exitCode, inspection.stderr).toBe(0);
+      expect(inspection.stdout).toContain("CAN_REMOVE=no");
+      expect(inspection.stdout).toContain(
+        "REFUSAL_REASON=action-execution-incomplete",
+      );
+      await writeFile(
+        path.join(workspace.primary, workspace.leaseFile),
+        `${JSON.stringify(intentLease, null, 2)}\n`,
       );
 
       const intent = JSON.parse(

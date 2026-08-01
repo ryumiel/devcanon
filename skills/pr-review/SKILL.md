@@ -1298,6 +1298,17 @@ PR_REVIEW_HELPER="$PR_REVIEW_DIR/scripts/approved-review-artifacts.sh"
    POST_INTENT_LEASE_OWNED=false
    [ "$LEASE_POST_INTENT_FILE" = "$POST_INTENT_FILE" ] && POST_INTENT_LEASE_OWNED=true
    EXISTING_EXECUTION_RECEIPT_FILE="${EXECUTION_RECEIPT_FILE:-.ephemeral/pr-${PR_NUMBER}-${REVIEW_HEAD_SHA}-thread-action-execution.json}"
+   if [ "$CURRENT_LEASE_STATE" = "failed" ] \
+     && [ "$CURRENT_FAILURE_REASON" = "GitHub rejected the review POST" ] \
+     && [ "$CURRENT_FAILURE_RECOVERABILITY" = "unrecoverable" ]; then
+     # A definitive provider rejection is terminal evidence, not an uncertain
+     # POST. It permits only explicit manual cleanup; never reconcile, retry,
+     # reenter, read provider state, or mutate provider state from this intent.
+     [ "$POST_INTENT_LEASE_OWNED" = true ] || exit 1
+     [ -z "$STORED_EXECUTION_RECEIPT_FILE" ] || exit 1
+     printf '%s\n' 'GitHub definitively rejected the review POST; start a fresh approval session after manual cleanup.' >&2
+     exit 1
+   fi
    if [ "$POST_INTENT_REUSED" = true ] && [ "$POST_INTENT_LEASE_OWNED" != true ]; then
      # A deterministic file alone proves neither LC-19 nor a provider attempt.
      # This is the crash boundary before intent binding: bind it while gated,
@@ -1496,9 +1507,12 @@ PR_REVIEW_HELPER="$PR_REVIEW_DIR/scripts/approved-review-artifacts.sh"
    ```
 
    Persist the post intent before any provider POST; an intent alone grants no
-   resolution authority. A certain POST failure writes the existing
-   `github-post` failed lease with the intent retained and performs no thread
-   mutation. Never repost after an uncertain POST outcome. Instead, reconcile
+   resolution authority. A definitive HTTP 4xx rejection writes the exact
+   unrecoverable `github-post` failure above with the intent retained, performs
+   no thread mutation or provider read, and is terminal except for explicit
+   manual cleanup. A later POST requires a completely fresh approval session;
+   never reconcile, retry, or reenter from the rejected intent. Never repost
+   after an uncertain POST outcome, including transport or 5xx failure. Instead, reconcile
    by reading every page of submitted reviews for this PR and accept exactly one
    review only when its exact full marked body, provider actor, event/state,
    and reviewed commit match the intent, with the provider actor, event, commit, and non-null submission timestamp all bound to that same review.
@@ -1879,11 +1893,15 @@ outcomes.
 A `gated` lease that owns a post intent, a `resolving` lease, or a nonterminal
 action-bearing `failed` lease is `action-execution-incomplete`. Inspection and
 cleanup always retain it without recording cleanup metadata, even when
-`ALLOW_POLICY_OVERRIDE=yes`. A valid LC-26 `thread-resolution` failure is
-different: it is terminal evidence and is manually cleanable only through the
-existing explicit confirmation or policy-override boundary after its complete
-lease, intent, and receipt chain validates. Neither path grants automatic
-retry, reentry, stale reclamation, or provider re-mutation.
+`ALLOW_POLICY_OVERRIDE=yes`. A valid LC-26 `thread-resolution` failure or the
+exact definitive HTTP 4xx `github-post` rejection is different: it is terminal
+evidence and is manually cleanable only through the existing explicit
+confirmation or policy-override boundary after its complete sealed chain
+validates. The definitive rejection retains no receipt and never enters
+reconciliation. Neither terminal path grants automatic retry, reentry, stale
+reclamation, or provider read/mutation; a later POST requires a fresh approval
+session. Uncertain transport or 5xx failures remain incomplete and
+reconciliation-only.
 
 Cleanup prints fixed keys: `OUTCOME` and `MESSAGE`. It also prints classifier
 keys for inspection and cleanup decisions: `CAN_REMOVE`, `REFUSAL_REASON`,

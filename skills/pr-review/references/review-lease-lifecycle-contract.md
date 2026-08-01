@@ -108,9 +108,14 @@ approved action membership. A receipt may enter `resolving` only with a pending
 or failed resolve; it may enter `posted` only when every resolve is succeeded
 or already-resolved and every leave is not-requested. A failed replacement is
 recoverable only when a reread is exactly the prior valid receipt or exactly
-the intended replacement; any other bytes fail closed. A certain or
-indeterminate post failure retains a valid intent without a receipt and grants
-no resolution, repost, cleanup, archive, or reentry authority.
+the intended replacement; any other bytes fail closed. An uncertain transport
+or 5xx post failure retains a valid intent without a receipt and grants no
+resolution, repost, cleanup, archive, or reentry authority. The exact definitive
+HTTP 4xx failure is `phase=github-post`, reason
+`GitHub rejected the review POST`, and `recoverability=unrecoverable`, with the
+sealed intent retained and no receipt. It performs no reconciliation or provider
+read/mutation, is eligible only for explicit manual cleanup, and grants no
+retry, archive, or reentry. Any later POST requires a fresh approval session.
 
 An action-bearing `github-post` failure with its stored intent and no receipt
 may proceed only through LC-24 or LC-25 after provider reconciliation and
@@ -505,9 +510,11 @@ For a present registered worktree, `resolving`, `gated` with a lease-owned post
 intent, and nonterminal action-bearing `failed` leases are
 `action-execution-incomplete`. They are retained before override evaluation and
 receive no cleanup metadata, including when `ALLOW_POLICY_OVERRIDE=yes`. A
-valid LC-26 `thread-resolution` failure is terminal rather than incomplete: its
-full approved-review, payload, intent, receipt, and provider-post chain must
-validate, then cleanup remains manual through explicit confirmation or policy
-override. Invalid or tampered LC-26 evidence remains `invalid-lease` and is
-retained. Neither outcome grants lifecycle retry, reentry, stale reclamation,
-or provider re-mutation.
+valid LC-26 `thread-resolution` failure or exact definitive HTTP 4xx
+`github-post` rejection is terminal rather than incomplete: its complete sealed
+chain must validate (with no receipt for the definitive rejection), then cleanup
+remains manual through explicit confirmation or policy override. Invalid or
+tampered terminal evidence remains `invalid-lease` and is retained. Neither
+outcome grants lifecycle retry, reentry, stale reclamation, reconciliation, or
+provider re-mutation. Uncertain transport or 5xx failures remain incomplete
+regardless of override.
