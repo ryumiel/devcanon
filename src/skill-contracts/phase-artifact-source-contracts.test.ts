@@ -2069,6 +2069,9 @@ None
     );
     const normalizedManifestRuntime = normalizeWhitespace(manifestRuntime);
     const normalizedLeaseRuntime = normalizeWhitespace(leaseRuntime);
+    expect(normalizedLeaseLifecycleReference).toContain(
+      "LC-19 revalidates the current result, preserves its accepted digest, and refreshes the result validation timestamp",
+    );
     const phase5PostGatedAuditStart = prReview.indexOf(
       "After every successful `gated` write",
     );
@@ -3895,10 +3898,27 @@ None
       prReviewPhase6.indexOf("read_sealed_thread_fresh()"),
       prReviewPhase6.indexOf("while IFS= read -r SEALED_THREAD_ID; do"),
     );
-    expect(freshThreadReader).toContain("gh api graphql --paginate --slurp");
-    expect(freshThreadReader).toContain("reviewThreads cursor repeated");
+    expect(freshThreadReader).not.toContain(
+      "gh api graphql --paginate --slurp",
+    );
+    expect(freshThreadReader).toContain("SEEN_THREAD_CURSORS");
+    expect(freshThreadReader).toContain("NEXT_THREAD_CURSOR");
+    expect(freshThreadReader).toContain("index($cursor) == null");
     expect(freshThreadReader).toContain("reviewThreads ID duplicated");
     expect(freshThreadReader).toContain("COMMENTS_PAGES_JSON");
+    expect(freshThreadReader).toContain(
+      "id body author { login } path line originalLine",
+    );
+    expect(freshThreadReader).toContain(
+      "all(.data.node.comments.nodes[]; comment)",
+    );
+    expect(freshThreadReader).not.toContain(
+      '[ "$SEALED_OWNER" != "$SEALED_NAME" ]',
+    );
+    expect(sealedActionLoop).toContain(".isResolved == true");
+    expect(sealedActionLoop).toContain(
+      ".isResolved == false and .isOutdated == false",
+    );
     for (const sealedRecoveryBinding of [
       'LEASE_BASE_REF="$(jq -er',
       'LEASE_HEAD_REF="$(jq -er',

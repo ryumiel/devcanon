@@ -71,7 +71,7 @@ updates are valid only when the matching row says so.
 | LC-16 | `record-failure`              | `failed`              | `failed`    | `FINISHED_AT`, `FAILURE_PHASE`, `FAILURE_REASON`, `FAILURE_RECOVERABILITY`, `UPDATED_AT`; an action-bearing `github-post` failure may retain only identical failure evidence            |
 | LC-17 | `retry-post-success`          | `failed`              | `posted`    | Prior failure is `github-post`, `FINISHED_AT`, `GITHUB_POSTED_AT`, `UPDATED_AT`                                                                                                         |
 | LC-18 | `archive-terminal-and-create` | `posted` or `aborted` | `created`   | `CREATED_AT`, `UPDATED_AT`                                                                                                                                                              |
-| LC-19 | `record-post-intent`          | `gated`               | `gated`     | `APPROVED_REVIEW_FILE`, `VALIDATED_REVIEW_PAYLOAD_FILE`, `POST_INTENT_FILE`, `UPDATED_AT`                                                                                               |
+| LC-19 | `record-post-intent`          | `gated`               | `gated`     | `APPROVED_REVIEW_FILE`, `VALIDATED_REVIEW_PAYLOAD_FILE`, `POST_INTENT_FILE`, current validated result digest, `UPDATED_AT`; refreshes result validation to `UPDATED_AT`                 |
 | LC-20 | `record-execution-receipt`    | `gated`               | `resolving` | Stored intent and valid receipt with one pending or failed sealed resolve, `GITHUB_POSTED_AT`, `PROVIDER_REVIEW_ID`, `UPDATED_AT`                                                       |
 | LC-21 | `record-complete-receipt`     | `gated`               | `posted`    | Stored intent and valid terminal receipt, `GITHUB_POSTED_AT`, `PROVIDER_REVIEW_ID`, `FINISHED_AT`, `UPDATED_AT`                                                                         |
 | LC-22 | `record-receipt-progress`     | `resolving`           | `resolving` | Same stored intent, valid replacement receipt with a pending or failed sealed resolve, `GITHUB_POSTED_AT`, `PROVIDER_REVIEW_ID`, `UPDATED_AT`                                           |
@@ -294,6 +294,8 @@ That validation timestamp is policy-specific evidence:
   presentation.
 - LC-04, LC-05, LC-14, `read-status`, and Phase 5 audit status require the
   result validation timestamp to match the current gated lease update.
+- LC-19 revalidates the current result, preserves its accepted digest, and
+  refreshes the result validation timestamp to that transition's `UPDATED_AT`.
 - Terminal and failed recovery states may preserve older valid result evidence
   when artifact digest, identity, nested artifacts, and helper-backed authority
   still validate for the preserved family.

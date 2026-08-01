@@ -1588,70 +1588,142 @@ PR_REVIEW_HELPER="$PR_REVIEW_DIR/scripts/approved-review-artifacts.sh"
      SEALED_REPOSITORY="<owner/repo>"
      SEALED_OWNER="${SEALED_REPOSITORY%%/*}"
      SEALED_NAME="${SEALED_REPOSITORY#*/}"
-     [ -n "$SEALED_OWNER" ] && [ -n "$SEALED_NAME" ] && [ "$SEALED_OWNER" != "$SEALED_NAME" ] || return 1
-     THREAD_PAGES_JSON="$(gh api graphql --paginate --slurp \
-       -f query='query($owner: String!, $name: String!, $number: Int!, $endCursor: String) {
-         repository(owner: $owner, name: $name) { nameWithOwner pullRequest(number: $number) {
-           number headRefOid reviewThreads(first: 100, after: $endCursor) { nodes {
-             id isResolved isOutdated comments(first: 100) { pageInfo { hasNextPage endCursor } }
-           } pageInfo { hasNextPage endCursor } }
-         } }
-       }' \
-       -f owner="$SEALED_OWNER" -f name="$SEALED_NAME" \
-       -F number="$PR_NUMBER" -F endCursor=null)" || return 1
+     [ -n "$SEALED_OWNER" ] && [ -n "$SEALED_NAME" ] || return 1
+     [ "$SEALED_NAME" = "${SEALED_NAME#*/}" ] || return 1
+     THREAD_CURSOR=""
+     THREAD_PAGES_JSON='[]'
+     SEEN_THREAD_CURSORS='[]'
+     while :; do
+       if [ -z "$THREAD_CURSOR" ]; then
+         THREAD_PAGE_JSON="$(gh api graphql \
+           -f query='query($owner: String!, $name: String!, $number: Int!, $cursor: String) {
+             repository(owner: $owner, name: $name) { nameWithOwner pullRequest(number: $number) {
+               number headRefOid reviewThreads(first: 100, after: $cursor) { nodes {
+                 id isResolved isOutdated comments(first: 100) { nodes {
+                   id body author { login } path line originalLine
+                 } pageInfo { hasNextPage endCursor } }
+               } pageInfo { hasNextPage endCursor } }
+             } }
+           }' \
+           -f owner="$SEALED_OWNER" -f name="$SEALED_NAME" \
+           -F number="$PR_NUMBER" -F cursor=null)" || return 1
+       else
+         THREAD_PAGE_JSON="$(gh api graphql \
+           -f query='query($owner: String!, $name: String!, $number: Int!, $cursor: String) {
+             repository(owner: $owner, name: $name) { nameWithOwner pullRequest(number: $number) {
+               number headRefOid reviewThreads(first: 100, after: $cursor) { nodes {
+                 id isResolved isOutdated comments(first: 100) { nodes {
+                   id body author { login } path line originalLine
+                 } pageInfo { hasNextPage endCursor } }
+               } pageInfo { hasNextPage endCursor } }
+             } }
+           }' \
+           -f owner="$SEALED_OWNER" -f name="$SEALED_NAME" \
+           -F number="$PR_NUMBER" -f cursor="$THREAD_CURSOR")" || return 1
+       fi
+       printf '%s' "$THREAD_PAGE_JSON" | jq -e \
+         --arg repository "$SEALED_REPOSITORY" \
+         --arg head "$REVIEW_HEAD_SHA" \
+         --argjson number "$PR_NUMBER" '
+         def comment: type == "object"
+           and (.id | type == "string" and length > 0)
+           and (.body | type == "string")
+           and (.author | type == "object")
+           and (.author.login | type == "string" and length > 0)
+           and (.path | type == "string" and length > 0)
+           and (.line == null or (.line | type == "number"))
+           and (.originalLine == null or (.originalLine | type == "number"));
+         def connection: type == "object"
+           and (.nodes | type == "array") and all(.nodes[]; comment)
+           and (.pageInfo | type == "object")
+           and (.pageInfo.hasNextPage | type == "boolean")
+           and ((.pageInfo.hasNextPage == false and (.pageInfo.endCursor == null or (.pageInfo.endCursor | type == "string")))
+             or (.pageInfo.hasNextPage == true and (.pageInfo.endCursor | type == "string" and length > 0)));
+         ((.errors // []) | length) == 0
+         and .data.repository.nameWithOwner == $repository
+         and .data.repository.pullRequest.number == $number
+         and .data.repository.pullRequest.headRefOid == $head
+         and (.data.repository.pullRequest.reviewThreads | type == "object")
+         and (.data.repository.pullRequest.reviewThreads.nodes | type == "array")
+         and all(.data.repository.pullRequest.reviewThreads.nodes[];
+           (.id | type == "string" and length > 0)
+           and (.isResolved | type == "boolean")
+           and (.isOutdated | type == "boolean")
+           and (.comments | connection))
+         and (.data.repository.pullRequest.reviewThreads.pageInfo | type == "object")
+         and (.data.repository.pullRequest.reviewThreads.pageInfo.hasNextPage | type == "boolean")
+       ' >/dev/null || return 1
+       THREAD_PAGES_JSON="$(jq -cn --argjson pages "$THREAD_PAGES_JSON" --argjson page "$THREAD_PAGE_JSON" '$pages + [$page]')" || return 1
+       THREAD_HAS_NEXT="$(printf '%s' "$THREAD_PAGE_JSON" | jq -er '.data.repository.pullRequest.reviewThreads.pageInfo.hasNextPage | booleans')" || return 1
+       [ "$THREAD_HAS_NEXT" = true ] || break
+       NEXT_THREAD_CURSOR="$(printf '%s' "$THREAD_PAGE_JSON" | jq -er '.data.repository.pullRequest.reviewThreads.pageInfo.endCursor | strings | select(length > 0)')" || return 1
+       printf '%s' "$SEEN_THREAD_CURSORS" | jq -e --arg cursor "$NEXT_THREAD_CURSOR" 'index($cursor) == null' >/dev/null || return 1
+       SEEN_THREAD_CURSORS="$(printf '%s' "$SEEN_THREAD_CURSORS" | jq -c --arg cursor "$NEXT_THREAD_CURSOR" '. + [$cursor]')" || return 1
+       THREAD_CURSOR="$NEXT_THREAD_CURSOR"
+     done
+
      FRESH_SEALED_THREAD_JSON="$(printf '%s' "$THREAD_PAGES_JSON" | jq -cer \
-       --arg repository "$SEALED_REPOSITORY" \
-       --arg head "$REVIEW_HEAD_SHA" \
-       --arg id "$SEALED_THREAD_ID" \
-       --argjson number "$PR_NUMBER" '
-       def pages: [.[] | .data.repository.pullRequest.reviewThreads.pageInfo];
-       def nodes: [.[] | .data.repository.pullRequest.reviewThreads.nodes[]];
-       if type != "array" or length == 0 then error("reviewThreads pages missing")
-       elif any(.[]; ((.errors // []) | length) != 0) then error("GraphQL errors")
-       elif any(.[]; .data.repository == null or .data.repository.pullRequest == null) then error("reviewThreads page missing")
-       elif any(.[]; .data.repository.nameWithOwner != $repository
-         or .data.repository.pullRequest.number != $number
-         or .data.repository.pullRequest.headRefOid != $head) then error("reviewThreads identity drift")
-       elif any(pages[]; .hasNextPage == true and ((.endCursor | type) != "string" or (.endCursor | length) == 0)) then error("reviewThreads cursor missing")
-       elif pages[-1].hasNextPage != false then error("reviewThreads incomplete")
-       elif ([pages[].endCursor | select(. != null)] | length) != ([pages[].endCursor | select(. != null)] | unique | length) then error("reviewThreads cursor repeated")
-       elif ([nodes[].id] | length) != ([nodes[].id] | unique | length) then error("reviewThreads ID duplicated")
-       else [nodes[] | select(.id == $id)]
-         | if length == 1 then .[0] else error("sealed thread missing or duplicated") end
-       end
+       --arg id "$SEALED_THREAD_ID" '
+       [.[] | .data.repository.pullRequest.reviewThreads.nodes[]] as $nodes
+       | if ([$nodes[].id] | length) != ([$nodes[].id] | unique | length)
+         then error("reviewThreads ID duplicated")
+         else [$nodes[] | select(.id == $id)]
+           | if length == 1 then .[0] else error("sealed thread missing or duplicated") end
+         end
      ')" || return 1
 
      COMMENTS_HAS_NEXT="$(printf '%s' "$FRESH_SEALED_THREAD_JSON" | jq -er '.comments.pageInfo.hasNextPage | booleans')" || return 1
      if [ "$COMMENTS_HAS_NEXT" = true ]; then
        COMMENTS_CURSOR="$(printf '%s' "$FRESH_SEALED_THREAD_JSON" | jq -er '.comments.pageInfo.endCursor | strings | select(length > 0)')" || return 1
-       COMMENTS_PAGES_JSON="$(gh api graphql --paginate --slurp \
-         -f query='query($owner: String!, $name: String!, $number: Int!, $threadId: ID!, $endCursor: String) {
-           repository(owner: $owner, name: $name) { nameWithOwner pullRequest(number: $number) { number headRefOid } }
-           node(id: $threadId) { ... on PullRequestReviewThread {
-             id comments(first: 100, after: $endCursor) { nodes { id } pageInfo { hasNextPage endCursor } }
-           } }
-         }' \
-         -f owner="$SEALED_OWNER" -f name="$SEALED_NAME" \
-         -F number="$PR_NUMBER" -f threadId="$SEALED_THREAD_ID" \
-         -f endCursor="$COMMENTS_CURSOR")" || return 1
-       printf '%s' "$COMMENTS_PAGES_JSON" | jq -e \
-         --arg repository "$SEALED_REPOSITORY" \
-         --arg head "$REVIEW_HEAD_SHA" \
-         --arg id "$SEALED_THREAD_ID" \
-         --argjson number "$PR_NUMBER" '
-         def pages: [.[] | .data.node.comments.pageInfo];
-         type == "array" and length > 0
-         and all(.[]; ((.errors // []) | length) == 0)
-         and all(.[]; .data.repository.nameWithOwner == $repository
+       SEEN_COMMENTS_CURSORS="$(jq -cn --arg cursor "$COMMENTS_CURSOR" '[$cursor]')" || return 1
+       COMMENTS_PAGES_JSON='[]'
+       while :; do
+         COMMENTS_PAGE_JSON="$(gh api graphql \
+           -f query='query($owner: String!, $name: String!, $number: Int!, $threadId: ID!, $cursor: String) {
+             repository(owner: $owner, name: $name) { nameWithOwner pullRequest(number: $number) { number headRefOid } }
+             node(id: $threadId) { ... on PullRequestReviewThread {
+               id isResolved isOutdated comments(first: 100, after: $cursor) { nodes {
+                 id body author { login } path line originalLine
+               } pageInfo { hasNextPage endCursor } }
+             } }
+           }' \
+           -f owner="$SEALED_OWNER" -f name="$SEALED_NAME" \
+           -F number="$PR_NUMBER" -f threadId="$SEALED_THREAD_ID" \
+           -f cursor="$COMMENTS_CURSOR")" || return 1
+         printf '%s' "$COMMENTS_PAGE_JSON" | jq -e \
+           --arg repository "$SEALED_REPOSITORY" \
+           --arg head "$REVIEW_HEAD_SHA" \
+           --arg id "$SEALED_THREAD_ID" \
+           --argjson number "$PR_NUMBER" '
+           def comment: type == "object"
+             and (.id | type == "string" and length > 0)
+             and (.body | type == "string")
+             and (.author | type == "object")
+             and (.author.login | type == "string" and length > 0)
+             and (.path | type == "string" and length > 0)
+             and (.line == null or (.line | type == "number"))
+             and (.originalLine == null or (.originalLine | type == "number"));
+           ((.errors // []) | length) == 0
+           and .data.repository.nameWithOwner == $repository
            and .data.repository.pullRequest.number == $number
            and .data.repository.pullRequest.headRefOid == $head
-           and .data.node.id == $id)
-         and all(pages[]; (.hasNextPage == false)
-           or ((.endCursor | type) == "string" and (.endCursor | length) > 0))
-         and pages[-1].hasNextPage == false
-         and (([pages[].endCursor | select(. != null)] | length)
-           == ([pages[].endCursor | select(. != null)] | unique | length))
-       ' >/dev/null || return 1
+           and .data.node.id == $id
+           and (.data.node.isResolved | type == "boolean")
+           and (.data.node.isOutdated | type == "boolean")
+           and (.data.node.comments | type == "object")
+           and (.data.node.comments.nodes | type == "array")
+           and all(.data.node.comments.nodes[]; comment)
+           and (.data.node.comments.pageInfo | type == "object")
+           and (.data.node.comments.pageInfo.hasNextPage | type == "boolean")
+         ' >/dev/null || return 1
+         COMMENTS_PAGES_JSON="$(jq -cn --argjson pages "$COMMENTS_PAGES_JSON" --argjson page "$COMMENTS_PAGE_JSON" '$pages + [$page]')" || return 1
+         COMMENTS_HAS_NEXT="$(printf '%s' "$COMMENTS_PAGE_JSON" | jq -er '.data.node.comments.pageInfo.hasNextPage | booleans')" || return 1
+         [ "$COMMENTS_HAS_NEXT" = true ] || break
+         NEXT_COMMENTS_CURSOR="$(printf '%s' "$COMMENTS_PAGE_JSON" | jq -er '.data.node.comments.pageInfo.endCursor | strings | select(length > 0)')" || return 1
+         printf '%s' "$SEEN_COMMENTS_CURSORS" | jq -e --arg cursor "$NEXT_COMMENTS_CURSOR" 'index($cursor) == null' >/dev/null || return 1
+         SEEN_COMMENTS_CURSORS="$(printf '%s' "$SEEN_COMMENTS_CURSORS" | jq -c --arg cursor "$NEXT_COMMENTS_CURSOR" '. + [$cursor]')" || return 1
+         COMMENTS_CURSOR="$NEXT_COMMENTS_CURSOR"
+       done
      fi
      printf '%s\n' "$FRESH_SEALED_THREAD_JSON"
    }
@@ -1662,10 +1734,10 @@ PR_REVIEW_HELPER="$PR_REVIEW_DIR/scripts/approved-review-artifacts.sh"
      CURRENT_LEASE_STATE="$(jq -er '.state' "$REVIEW_CALLER_DIR/$LEASE_FILE")" || exit 1
      FRESH_SEALED_THREAD_JSON="$(read_sealed_thread_fresh "$SEALED_THREAD_ID")" || exit 1
 
-     if printf '%s' "$FRESH_SEALED_THREAD_JSON" | jq -e '.is_resolved == true' >/dev/null; then
+     if printf '%s' "$FRESH_SEALED_THREAD_JSON" | jq -e '.isResolved == true' >/dev/null; then
        THREAD_DISPOSITION="already-resolved"
        ACTION_FAILURE_REASON=""
-     elif printf '%s' "$FRESH_SEALED_THREAD_JSON" | jq -e '.is_resolved == false and .is_outdated == false' >/dev/null; then
+     elif printf '%s' "$FRESH_SEALED_THREAD_JSON" | jq -e '.isResolved == false and .isOutdated == false' >/dev/null; then
        if RESOLVE_THREAD_RESPONSE=$(gh api graphql \
          -f query='mutation($threadId: ID!) { resolveReviewThread(input: {threadId: $threadId}) { thread { isResolved } } }' \
          -f threadId="$SEALED_THREAD_ID"); then
