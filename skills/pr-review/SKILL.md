@@ -1624,11 +1624,15 @@ and `after: $cursor` until `hasNextPage` is false. Apply the Phase 1
 completeness, cursor, duplicate, and identity checks before using any returned
 ID. Require the response `nameWithOwner`, pull request number, and `headRefOid`
 to equal the sealed repository, PR, and reviewed head on every page. Require
-`isOutdated` for eligibility. For the one matched sealed thread, walk its
+`isResolved=false` and `isOutdated=false` before mutation; an
+`isResolved=true` match remains the non-mutating `already-resolved` path. For
+the one matched sealed thread, walk its
 `comments(first: 100, after: $commentsCursor)` connection through
 `hasNextPage=false`; reject null or partial pages, a missing or repeated
 comments cursor, or identity/head drift. Nested comments are context for the
-fresh eligibility decision, never a substitute thread ID.
+fresh eligibility decision, never a substitute thread ID. The first page binds
+each nullable cursor as GraphQL `null`; later pages replace that binding with
+the validated nonblank provider cursor.
 
 ```sh
 # Bare body intentional: response is consumed for content-keyed thread-ID lookup
@@ -1642,19 +1646,25 @@ gh api graphql -f query='query($owner: String!, $name: String!, $number: Int!, $
       }
     } pageInfo { hasNextPage endCursor } }
   } }
-}'
+}' \
+  -f owner="<owner>" -f name="<repo>" -F number="$PR_NUMBER" -F cursor=null
 
 # If the matched sealed thread's first comments page is incomplete, continue
 # that thread by its authoritative GraphQL node ID until its comments pageInfo
 # is complete; apply the same cursor and sealed identity/head checks.
-gh api graphql -f query='query($threadId: ID!, $commentsCursor: String) {
+gh api graphql -f query='query($owner: String!, $name: String!, $number: Int!, $threadId: ID!, $commentsCursor: String) {
+  repository(owner: $owner, name: $name) { nameWithOwner pullRequest(number: $number) {
+    number headRefOid
+  } }
   node(id: $threadId) { ... on PullRequestReviewThread {
     id isResolved isOutdated comments(first: 100, after: $commentsCursor) {
       nodes { body author { login } path originalLine }
       pageInfo { hasNextPage endCursor }
     }
   } }
-}'
+}' \
+  -f owner="<owner>" -f name="<repo>" -F number="$PR_NUMBER" \
+  -f threadId="$SEALED_THREAD_ID" -F commentsCursor=null
 ```
 
 ## Hard Rules

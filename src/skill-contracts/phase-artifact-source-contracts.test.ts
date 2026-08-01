@@ -3749,9 +3749,22 @@ None
       "comments(first: 100, after: $commentsCursor)",
       "missing or repeated comments cursor",
       "Nested comments are context",
+      "`isResolved=false` and `isOutdated=false` before mutation",
+      '-f owner="<owner>" -f name="<repo>" -F number="$PR_NUMBER" -F cursor=null',
+      '-f threadId="$SEALED_THREAD_ID" -F commentsCursor=null',
+      "later pages replace that binding with the validated nonblank provider cursor",
     ]) {
       expect(normalizedPrReview).toContain(threadAuthorityContract);
     }
+    const nestedCommentsQuery = normalizedPrReview.slice(
+      normalizedPrReview.indexOf(
+        "query($owner: String!, $name: String!, $number: Int!, $threadId: ID!",
+      ),
+    );
+    expect(nestedCommentsQuery).toContain(
+      "repository(owner: $owner, name: $name) { nameWithOwner pullRequest(number: $number)",
+    );
+    expect(nestedCommentsQuery).toContain("number headRefOid");
     expect(normalizedPrReview).toContain(
       "lease-owned or deterministic action evidence stops",
     );
