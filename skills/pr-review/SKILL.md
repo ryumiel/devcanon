@@ -102,6 +102,20 @@ one authority-valid `reentry` candidate and `canonical_worktree_present=true`,
 route it through the existing lifecycle-reentry operator flow: reuse that clean
 registered canonical worktree and write the fresh LC-18 or LC-27 lease without rerunning `git
 worktree add`. Do not invoke `session-create` for any `reentry` candidate.
+When the one authority-valid LC-27 `reentry` reports
+`canonical_worktree_present=false`, read its exact `lease_file` and
+`worktree_path` from the selected `active[]` record, fetch and verify the
+already-bound immutable `HEAD_SHA`, then recreate that exact canonical path as
+a registered detached worktree at `HEAD_SHA`. Verify its physical path, clean
+state, registration, and exact HEAD before continuing. From the primary root,
+invoke the existing lease `write` with that selected `LEASE_FILE` and canonical
+`WORKTREE_PATH`, `EXPECTED_STATE=failed`, `STATE=created`, the current
+provider-bound `BASE_REF` and `HEAD_REF`, and fresh canonical `CREATED_AT` and
+`UPDATED_AT`. That write is the LC-27 archive-and-replacement boundary. It must
+not receive any old artifact path, failure field, GitHub field, or cleanup
+field, and the reentry flow performs no provider read, reconciliation, or
+mutation. If exact worktree recreation or any binding check fails, stop without
+writing the lease. Do not invoke `session-create` for this path.
 `resume` identifies the already registered worktree and lease to
 validate through the existing lifecycle flow;
 `cleanup-required`, `ambiguous`, and `invalid` stop for the existing cleanup

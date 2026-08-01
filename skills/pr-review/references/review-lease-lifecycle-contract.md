@@ -531,7 +531,10 @@ valid LC-26 `thread-resolution` failure or exact definitive HTTP 4xx
 chain must validate (with no receipt for the definitive rejection), then cleanup
 remains manual through explicit confirmation or policy override. Invalid or
 tampered terminal evidence remains `invalid-lease` and is retained. Neither
-outcome grants lifecycle retry, reentry, stale reclamation, reconciliation, or
-provider re-mutation. Valid non-definitive indeterminate outcomes, including
-transport failure, 5xx, or unvalidated success, remain incomplete regardless of
-override.
+LC-26 nor invalid or tampered evidence grants lifecycle retry, reentry, stale
+reclamation, reconciliation, or provider re-mutation. An exact definitive HTTP
+4xx rejection also remains non-reentrant until successful helper-recorded
+cleanup; after that cleanup it permits only LC-27 archive-and-replacement, with
+no retry, reconciliation, provider access, or old authority reuse. Valid
+non-definitive indeterminate outcomes, including transport failure, 5xx, or
+unvalidated success, remain incomplete regardless of override.

@@ -1258,8 +1258,8 @@ describe("pr-review lease reducer", () => {
       updatedAt: "2026-06-11T00:03:00Z",
       finishedAt: "2026-06-11T00:03:00Z",
       failurePhase: "github-post",
-      failureReason: "provider response lost",
-      failureRecoverability: "recoverable",
+      failureReason: "GitHub review POST outcome is uncertain",
+      failureRecoverability: "unknown",
       githubPostAttempted: true,
       githubPostResult: "failed",
     });
@@ -1325,8 +1325,8 @@ describe("pr-review lease reducer", () => {
       updatedAt: "2026-06-11T00:04:00Z",
       finishedAt: "2026-06-11T00:03:00Z",
       failurePhase: "github-post",
-      failureReason: "provider response lost",
-      failureRecoverability: "recoverable",
+      failureReason: "GitHub review POST outcome is uncertain",
+      failureRecoverability: "unknown",
       githubPostAttempted: true,
       githubPostResult: "failed",
     });
@@ -1388,6 +1388,65 @@ describe("pr-review lease reducer", () => {
       },
       presentation: intended.presentation,
     });
+
+    const receiptInputs = {
+      state: "resolving" as const,
+      baseRef: "main",
+      headRef: "topic",
+      createdAt: "2026-06-11T00:00:00Z",
+      updatedAt: "2026-06-11T00:04:00Z",
+      executionReceiptFile:
+        ".ephemeral/pr-432-1111111111111111111111111111111111111111-thread-action-execution.json",
+      githubPostedAt: "2026-06-11T00:03:00Z",
+      providerReviewId: 987,
+      executionReceiptAllTerminal: false,
+    };
+    for (const failure of [
+      { reason: "provider response lost", recoverability: "unknown" },
+      {
+        reason: "GitHub review POST outcome is uncertain",
+        recoverability: "recoverable",
+      },
+      {
+        reason: "GitHub rejected the review POST",
+        recoverability: "unknown",
+      },
+    ] as const) {
+      expect(() =>
+        reducePrReviewLease(
+          { ...failed, failure: { phase: "github-post", ...failure } },
+          identity,
+          receiptInputs,
+        ),
+      ).toThrow(
+        "execution receipt recovery requires a valid non-definitive indeterminate github-post failure",
+      );
+    }
+    for (const github of [
+      { ...failed.github, github_post_attempted: false },
+      { ...failed.github, github_post_result: "succeeded" as const },
+      { ...failed.github, provider_review_id: 987 },
+    ]) {
+      expect(() =>
+        reducePrReviewLease({ ...failed, github }, identity, receiptInputs),
+      ).toThrow(
+        "execution receipt recovery requires a valid non-definitive indeterminate github-post failure",
+      );
+    }
+    expect(() =>
+      reducePrReviewLease(
+        {
+          ...failed,
+          failure: {
+            phase: "github-post",
+            reason: "GitHub review POST outcome is indeterminate",
+            recoverability: "unknown",
+          },
+        },
+        identity,
+        receiptInputs,
+      ),
+    ).not.toThrow();
   });
 
   it("makes a definitive GitHub POST rejection terminal and manual-cleanup-only", () => {
@@ -5102,7 +5161,7 @@ describe("pr-review lease intent command validation", () => {
         terminal: { finished_at: "2026-06-11T00:03:00Z", reason: null },
         failure: {
           phase: "github-post",
-          reason: "provider response lost",
+          reason: "GitHub review POST outcome is uncertain",
           recoverability: "unknown",
         },
         github: {

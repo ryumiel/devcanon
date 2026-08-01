@@ -13,6 +13,10 @@ const SHA_RE = /^[0-9a-f]{40}$/u;
 const SHA256_RE = /^[0-9a-f]{64}$/u;
 const TIMESTAMP_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/u;
 const DEFINITIVE_GITHUB_POST_REJECTION_REASON = "GitHub rejected the review POST";
+const NON_DEFINITIVE_GITHUB_POST_FAILURE_REASONS = new Set([
+    "GitHub review POST outcome is uncertain",
+    "GitHub review POST outcome is indeterminate",
+]);
 const DIRECT_SUFFIXES = {
     handoff: "-handoff.json",
     result: "-result.json",
@@ -894,6 +898,18 @@ function isDefinitiveGithubPostTerminalFailure(lease) {
         lease.failure.phase === "github-post" &&
         lease.failure.reason === DEFINITIVE_GITHUB_POST_REJECTION_REASON &&
         lease.failure.recoverability === "unrecoverable" &&
+        lease.artifacts.post_intent_file != null &&
+        lease.artifacts.execution_receipt_file == null &&
+        lease.github.github_post_attempted === true &&
+        lease.github.github_post_result === "failed" &&
+        lease.github.github_posted_at === null &&
+        lease.github.provider_review_id == null);
+}
+function isNonDefinitiveIndeterminateGithubPostFailure(lease) {
+    return (lease?.state === "failed" &&
+        lease.failure.phase === "github-post" &&
+        NON_DEFINITIVE_GITHUB_POST_FAILURE_REASONS.has(lease.failure.reason ?? "") &&
+        lease.failure.recoverability === "unknown" &&
         lease.artifacts.post_intent_file != null &&
         lease.artifacts.execution_receipt_file == null &&
         lease.github.github_post_attempted === true &&
@@ -1814,10 +1830,8 @@ function applyExecutionReceipt(row, base, previous, inputs) {
         }
     }
     if (previous?.state === "failed") {
-        if (previous.failure.phase !== "github-post" ||
-            previous.artifacts.post_intent_file == null ||
-            previous.artifacts.execution_receipt_file != null) {
-            throw new PrReviewLeaseError("failed receipt recovery requires an action-bearing github-post failure without a receipt");
+        if (!isNonDefinitiveIndeterminateGithubPostFailure(previous)) {
+            throw new PrReviewLeaseError("failed receipt recovery requires a valid non-definitive indeterminate github-post failure");
         }
     }
     return {
@@ -2014,6 +2028,12 @@ function assertActionBearingFailedLeaseRecovery(previous, inputs) {
         previous.artifacts.post_intent_file === null ||
         previous.artifacts.execution_receipt_file !== null) {
         return;
+    }
+    if ((inputs.state === "resolving" ||
+        (inputs.state === "posted" &&
+            inputs.executionReceiptFile !== undefined)) &&
+        !isNonDefinitiveIndeterminateGithubPostFailure(previous)) {
+        throw new PrReviewLeaseError("execution receipt recovery requires a valid non-definitive indeterminate github-post failure");
     }
     if (inputs.state === "resolving")
         return;
