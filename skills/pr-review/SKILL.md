@@ -95,12 +95,12 @@ bash "$PR_REVIEW_LEASE_HELPER" discover
 
 The planner emits one closed selection result. Only `create` without an
 authority-valid `reentry` candidate permits `session-create` canonical worktree
-progression. A missing canonical LC-18 `reentry` is admitted only
+progression. A missing canonical LC-18 or LC-27 `reentry` is admitted only
 when its exact deterministic terminal archive is absent or byte-equal; a
 divergent or unreadable archive remains a stop condition. When `create` reports
 one authority-valid `reentry` candidate and `canonical_worktree_present=true`,
-route it through the existing LC-18 operator flow: reuse that clean registered
-canonical worktree and write the fresh LC-18 lease without rerunning `git
+route it through the existing lifecycle-reentry operator flow: reuse that clean
+registered canonical worktree and write the fresh LC-18 or LC-27 lease without rerunning `git
 worktree add`. Do not invoke `session-create` for any `reentry` candidate.
 `resume` identifies the already registered worktree and lease to
 validate through the existing lifecycle flow;
@@ -114,10 +114,10 @@ LC-01. Set the provider-bound
 `HEAD_SHA`, `BASE_REF`, `HEAD_REF`, and one RFC 3339 UTC `UPDATED_AT` alongside
 the discovery inputs, then run `review-leases.sh session-create`. A `success`
 result is the only verified session identity. A `conflict` leaves no claimed
-created session; follow the existing discovery or LC-18 operator route. A
+created session; follow the existing discovery or lifecycle-reentry operator route. A
 `manual-cleanup` result preserves evidence for an operator and never grants
 this skill authority to delete a reservation, worktree, registration, or lease.
-`lifecycle-reentry-required` specifically means use the existing LC-18 route;
+`lifecycle-reentry-required` specifically means use the existing LC-18/LC-27 route;
 this transaction makes no mutation for that case.
 
 ```sh
@@ -201,8 +201,8 @@ value domains, and cleanup artifact ownership rules. Keep `SKILL.md`
 operator-facing; update the reference and focused tests when lease lifecycle
 behavior changes.
 
-After helper-recorded terminal worktree removal, LC-18 may archive and create a
-fresh lease when the lifecycle reference's closed cleanup-authority rules pass.
+After helper-recorded terminal worktree removal, LC-18 or LC-27 may archive and
+create a fresh lease when the lifecycle reference's closed cleanup-authority rules pass.
 This does not relax normal validation for other terminal re-entry attempts;
 consult the lifecycle reference for retry and failure-atomicity behavior.
 
@@ -1511,8 +1511,10 @@ PR_REVIEW_HELPER="$PR_REVIEW_DIR/scripts/approved-review-artifacts.sh"
    unrecoverable `github-post` failure above with the intent retained, performs
    no thread mutation or provider read, and is terminal except for explicit
    manual cleanup. A later POST requires a completely fresh approval session;
-   never reconcile, retry, or reenter from the rejected intent. Never repost
-   after an uncertain POST outcome, including transport or 5xx failure. Instead, reconcile
+   never reconcile or retry from the rejected intent. Only the post-cleanup
+   LC-27 route may archive it and create a fresh session. Never repost after a
+   non-definitive indeterminate POST outcome, including transport failure, 5xx,
+   or an unvalidated success. Instead, reconcile
    by reading every page of submitted reviews for this PR and accept exactly one
    review only when its exact full marked body, provider actor, event/state,
    and reviewed commit match the intent, with the provider actor, event, commit, and non-null submission timestamp all bound to that same review.
@@ -1900,8 +1902,13 @@ confirmation or policy-override boundary after its complete sealed chain
 validates. The definitive rejection retains no receipt and never enters
 reconciliation. Neither terminal path grants automatic retry, reentry, stale
 reclamation, or provider read/mutation; a later POST requires a fresh approval
-session. Uncertain transport or 5xx failures remain incomplete and
-reconciliation-only.
+session. Valid non-definitive indeterminate outcomes, including transport
+failure, 5xx, or unvalidated success, remain incomplete and
+reconciliation-only. After manual cleanup of the exact definitive rejection,
+LC-27 archives that failed lease as immutable evidence and creates a fresh
+`created` session with no inherited artifacts or action authority. The LC-27
+route performs no provider access; it is unavailable to every neighboring
+failed tuple.
 
 Cleanup prints fixed keys: `OUTCOME` and `MESSAGE`. It also prints classifier
 keys for inspection and cleanup decisions: `CAN_REMOVE`, `REFUSAL_REASON`,

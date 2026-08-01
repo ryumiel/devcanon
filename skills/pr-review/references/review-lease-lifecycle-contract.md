@@ -52,34 +52,35 @@ Valid states are:
 Every valid transition is listed here. Missing rows fail closed. Same-state
 updates are valid only when the matching row says so.
 
-| Row   | Event                              | From                  | To          | Required inputs                                                                                                                                                                                                             |
-| ----- | ---------------------------------- | --------------------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| LC-01 | `create`                           | `none`                | `created`   | `CREATED_AT`, `UPDATED_AT`                                                                                                                                                                                                  |
-| LC-02 | `attach-handoff`                   | `created`             | `created`   | `HANDOFF_FILE`, `UPDATED_AT`                                                                                                                                                                                                |
-| LC-03 | `record-result`                    | `created`             | `reviewed`  | `RESULT_FILE`, `UPDATED_AT`; the helper records `validation.result_manifest.status=valid` and `validation.result_manifest.sha256` from the validated result file                                                            |
-| LC-04 | `present-preview`                  | `reviewed`            | `gated`     | Existing or supplied `RESULT_FILE`, `PRESENTED_AT`, `PRESENTATION_STATUS`, `UPDATED_AT`; the helper refreshes `validation.result_manifest.sha256` from the validated result file                                            |
-| LC-05 | `present-preview`                  | `gated`               | `gated`     | Existing or supplied `RESULT_FILE`, fresh `PRESENTED_AT`, `PRESENTATION_STATUS`, `UPDATED_AT`; the helper refreshes `validation.result_manifest.sha256` from the validated result file                                      |
-| LC-06 | `abort`                            | `reviewed`            | `aborted`   | `FINISHED_AT`, `TERMINAL_REASON`, `UPDATED_AT`                                                                                                                                                                              |
-| LC-07 | `abort`                            | `gated`               | `aborted`   | `FINISHED_AT`, `TERMINAL_REASON`, `UPDATED_AT`                                                                                                                                                                              |
-| LC-08 | legacy `record-post-success`       | `gated`               | `posted`    | Historical read compatibility only; new writes use LC-19 through LC-23 and require an execution receipt                                                                                                                     |
-| LC-09 | `record-failure`                   | `created`             | `failed`    | `FINISHED_AT`, `FAILURE_PHASE`, `FAILURE_REASON`, `FAILURE_RECOVERABILITY`, `UPDATED_AT`                                                                                                                                    |
-| LC-10 | `record-failure`                   | `reviewed`            | `failed`    | `FINISHED_AT`, `FAILURE_PHASE`, `FAILURE_REASON`, `FAILURE_RECOVERABILITY`, `UPDATED_AT`                                                                                                                                    |
-| LC-11 | `record-failure`                   | `gated`               | `failed`    | Pre-approval failure phase, `FINISHED_AT`, `FAILURE_REASON`, `FAILURE_RECOVERABILITY`, `UPDATED_AT`                                                                                                                         |
-| LC-12 | `record-failure`                   | `gated`               | `failed`    | `FAILURE_PHASE=approval-freeze`, `FINISHED_AT`, `FAILURE_REASON`, `FAILURE_RECOVERABILITY`, `UPDATED_AT`                                                                                                                    |
-| LC-13 | `record-failure`                   | `gated`               | `failed`    | `FAILURE_PHASE=github-post`, `APPROVED_REVIEW_FILE`, `GITHUB_POST_ATTEMPTED=true`, `GITHUB_POST_RESULT=failed`, `FINISHED_AT`, `FAILURE_REASON`, `FAILURE_RECOVERABILITY`, `UPDATED_AT`                                     |
-| LC-14 | `present-preview`                  | `failed`              | `gated`     | Existing or supplied `RESULT_FILE`, `PRESENTED_AT`, `PRESENTATION_STATUS`, `UPDATED_AT`; unavailable to an action-bearing `github-post` failure retaining a post intent                                                     |
-| LC-15 | `abort`                            | `failed`              | `aborted`   | `FINISHED_AT`, `TERMINAL_REASON`, `UPDATED_AT`; unavailable to an action-bearing `github-post` failure retaining a post intent                                                                                              |
-| LC-16 | `record-failure`                   | `failed`              | `failed`    | `FINISHED_AT`, `FAILURE_PHASE`, `FAILURE_REASON`, `FAILURE_RECOVERABILITY`, `UPDATED_AT`; an action-bearing `github-post` failure may retain only identical failure evidence                                                |
-| LC-17 | `retry-post-success`               | `failed`              | `posted`    | Prior failure is `github-post`, `FINISHED_AT`, `GITHUB_POSTED_AT`, `UPDATED_AT`                                                                                                                                             |
-| LC-18 | `archive-terminal-and-create`      | `posted` or `aborted` | `created`   | `CREATED_AT`, `UPDATED_AT`                                                                                                                                                                                                  |
-| LC-19 | `record-post-intent`               | `gated`               | `gated`     | `APPROVED_REVIEW_FILE`, `VALIDATED_REVIEW_PAYLOAD_FILE`, `POST_INTENT_FILE`, current validated result digest, `UPDATED_AT`; refreshes result validation to `UPDATED_AT`                                                     |
-| LC-20 | `record-execution-receipt`         | `gated`               | `resolving` | Stored intent and valid receipt with one pending or failed sealed resolve, `GITHUB_POSTED_AT`, `PROVIDER_REVIEW_ID`, `UPDATED_AT`                                                                                           |
-| LC-21 | `record-complete-receipt`          | `gated`               | `posted`    | Stored intent and valid terminal receipt, `GITHUB_POSTED_AT`, `PROVIDER_REVIEW_ID`, `FINISHED_AT`, `UPDATED_AT`                                                                                                             |
-| LC-22 | `record-receipt-progress`          | `resolving`           | `resolving` | Same stored intent, valid replacement receipt with a pending or failed sealed resolve, `GITHUB_POSTED_AT`, `PROVIDER_REVIEW_ID`, `UPDATED_AT`                                                                               |
-| LC-23 | `complete-receipt-progress`        | `resolving`           | `posted`    | Same stored intent, valid terminal replacement receipt, `GITHUB_POSTED_AT`, `PROVIDER_REVIEW_ID`, `FINISHED_AT`, `UPDATED_AT`                                                                                               |
-| LC-24 | `recover-execution-receipt`        | `failed`              | `resolving` | An uncertain transport or 5xx `github-post` failure preserves a stored intent and no receipt; valid receipt with a pending or failed sealed resolve, `GITHUB_POSTED_AT`, `PROVIDER_REVIEW_ID`, `UPDATED_AT`                 |
-| LC-25 | `recover-complete-receipt`         | `failed`              | `posted`    | An uncertain transport or 5xx `github-post` failure preserves a stored intent and no receipt; valid terminal receipt, `GITHUB_POSTED_AT`, `PROVIDER_REVIEW_ID`, `FINISHED_AT`, `UPDATED_AT`                                 |
-| LC-26 | `record-thread-resolution-failure` | `resolving`           | `failed`    | `FAILURE_PHASE=thread-resolution`, exact stored intent and receipt, preserved post identity, `FAILURE_RECOVERABILITY=unrecoverable`, `FINISHED_AT`, `UPDATED_AT`; only for a sealed thread proven missing or newly outdated |
+| Row   | Event                              | From                  | To          | Required inputs                                                                                                                                                                                                                                                               |
+| ----- | ---------------------------------- | --------------------- | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| LC-01 | `create`                           | `none`                | `created`   | `CREATED_AT`, `UPDATED_AT`                                                                                                                                                                                                                                                    |
+| LC-02 | `attach-handoff`                   | `created`             | `created`   | `HANDOFF_FILE`, `UPDATED_AT`                                                                                                                                                                                                                                                  |
+| LC-03 | `record-result`                    | `created`             | `reviewed`  | `RESULT_FILE`, `UPDATED_AT`; the helper records `validation.result_manifest.status=valid` and `validation.result_manifest.sha256` from the validated result file                                                                                                              |
+| LC-04 | `present-preview`                  | `reviewed`            | `gated`     | Existing or supplied `RESULT_FILE`, `PRESENTED_AT`, `PRESENTATION_STATUS`, `UPDATED_AT`; the helper refreshes `validation.result_manifest.sha256` from the validated result file                                                                                              |
+| LC-05 | `present-preview`                  | `gated`               | `gated`     | Existing or supplied `RESULT_FILE`, fresh `PRESENTED_AT`, `PRESENTATION_STATUS`, `UPDATED_AT`; the helper refreshes `validation.result_manifest.sha256` from the validated result file                                                                                        |
+| LC-06 | `abort`                            | `reviewed`            | `aborted`   | `FINISHED_AT`, `TERMINAL_REASON`, `UPDATED_AT`                                                                                                                                                                                                                                |
+| LC-07 | `abort`                            | `gated`               | `aborted`   | `FINISHED_AT`, `TERMINAL_REASON`, `UPDATED_AT`                                                                                                                                                                                                                                |
+| LC-08 | legacy `record-post-success`       | `gated`               | `posted`    | Historical read compatibility only; new writes use LC-19 through LC-23 and require an execution receipt                                                                                                                                                                       |
+| LC-09 | `record-failure`                   | `created`             | `failed`    | `FINISHED_AT`, `FAILURE_PHASE`, `FAILURE_REASON`, `FAILURE_RECOVERABILITY`, `UPDATED_AT`                                                                                                                                                                                      |
+| LC-10 | `record-failure`                   | `reviewed`            | `failed`    | `FINISHED_AT`, `FAILURE_PHASE`, `FAILURE_REASON`, `FAILURE_RECOVERABILITY`, `UPDATED_AT`                                                                                                                                                                                      |
+| LC-11 | `record-failure`                   | `gated`               | `failed`    | Pre-approval failure phase, `FINISHED_AT`, `FAILURE_REASON`, `FAILURE_RECOVERABILITY`, `UPDATED_AT`                                                                                                                                                                           |
+| LC-12 | `record-failure`                   | `gated`               | `failed`    | `FAILURE_PHASE=approval-freeze`, `FINISHED_AT`, `FAILURE_REASON`, `FAILURE_RECOVERABILITY`, `UPDATED_AT`                                                                                                                                                                      |
+| LC-13 | `record-failure`                   | `gated`               | `failed`    | `FAILURE_PHASE=github-post`, `APPROVED_REVIEW_FILE`, `GITHUB_POST_ATTEMPTED=true`, `GITHUB_POST_RESULT=failed`, `FINISHED_AT`, `FAILURE_REASON`, `FAILURE_RECOVERABILITY`, `UPDATED_AT`                                                                                       |
+| LC-14 | `present-preview`                  | `failed`              | `gated`     | Existing or supplied `RESULT_FILE`, `PRESENTED_AT`, `PRESENTATION_STATUS`, `UPDATED_AT`; unavailable to an action-bearing `github-post` failure retaining a post intent                                                                                                       |
+| LC-15 | `abort`                            | `failed`              | `aborted`   | `FINISHED_AT`, `TERMINAL_REASON`, `UPDATED_AT`; unavailable to an action-bearing `github-post` failure retaining a post intent                                                                                                                                                |
+| LC-16 | `record-failure`                   | `failed`              | `failed`    | `FINISHED_AT`, `FAILURE_PHASE`, `FAILURE_REASON`, `FAILURE_RECOVERABILITY`, `UPDATED_AT`; an action-bearing `github-post` failure may retain only identical failure evidence                                                                                                  |
+| LC-17 | `retry-post-success`               | `failed`              | `posted`    | Prior failure is `github-post`, `FINISHED_AT`, `GITHUB_POSTED_AT`, `UPDATED_AT`                                                                                                                                                                                               |
+| LC-18 | `archive-terminal-and-create`      | `posted` or `aborted` | `created`   | `CREATED_AT`, `UPDATED_AT`                                                                                                                                                                                                                                                    |
+| LC-19 | `record-post-intent`               | `gated`               | `gated`     | `APPROVED_REVIEW_FILE`, `VALIDATED_REVIEW_PAYLOAD_FILE`, `POST_INTENT_FILE`, current validated result digest, `UPDATED_AT`; refreshes result validation to `UPDATED_AT`                                                                                                       |
+| LC-20 | `record-execution-receipt`         | `gated`               | `resolving` | Stored intent and valid receipt with one pending or failed sealed resolve, `GITHUB_POSTED_AT`, `PROVIDER_REVIEW_ID`, `UPDATED_AT`                                                                                                                                             |
+| LC-21 | `record-complete-receipt`          | `gated`               | `posted`    | Stored intent and valid terminal receipt, `GITHUB_POSTED_AT`, `PROVIDER_REVIEW_ID`, `FINISHED_AT`, `UPDATED_AT`                                                                                                                                                               |
+| LC-22 | `record-receipt-progress`          | `resolving`           | `resolving` | Same stored intent, valid replacement receipt with a pending or failed sealed resolve, `GITHUB_POSTED_AT`, `PROVIDER_REVIEW_ID`, `UPDATED_AT`                                                                                                                                 |
+| LC-23 | `complete-receipt-progress`        | `resolving`           | `posted`    | Same stored intent, valid terminal replacement receipt, `GITHUB_POSTED_AT`, `PROVIDER_REVIEW_ID`, `FINISHED_AT`, `UPDATED_AT`                                                                                                                                                 |
+| LC-24 | `recover-execution-receipt`        | `failed`              | `resolving` | A valid non-definitive indeterminate `github-post` outcome, including transport failure, 5xx, or unvalidated success, preserves a stored intent and no receipt; valid receipt with a pending or failed sealed resolve, `GITHUB_POSTED_AT`, `PROVIDER_REVIEW_ID`, `UPDATED_AT` |
+| LC-25 | `recover-complete-receipt`         | `failed`              | `posted`    | A valid non-definitive indeterminate `github-post` outcome, including transport failure, 5xx, or unvalidated success, preserves a stored intent and no receipt; valid terminal receipt, `GITHUB_POSTED_AT`, `PROVIDER_REVIEW_ID`, `FINISHED_AT`, `UPDATED_AT`                 |
+| LC-26 | `record-thread-resolution-failure` | `resolving`           | `failed`    | `FAILURE_PHASE=thread-resolution`, exact stored intent and receipt, preserved post identity, `FAILURE_RECOVERABILITY=unrecoverable`, `FINISHED_AT`, `UPDATED_AT`; only for a sealed thread proven missing or newly outdated                                                   |
+| LC-27 | `retire-definitive-rejection`      | `failed`              | `created`   | Exact definitive HTTP 4xx terminal tuple, valid helper-recorded `cleanup.removed_at`, canonical worktree identity, `CREATED_AT`, `UPDATED_AT`; archives the old lease and clears every artifact and authority field without provider access                                   |
 
 All other transitions are forbidden. `stale-head` is a valid failure phase for
 post-freeze refusal, but it is not eligible for LC-17 retry-to-post; it must
@@ -108,18 +109,22 @@ approved action membership. A receipt may enter `resolving` only with a pending
 or failed resolve; it may enter `posted` only when every resolve is succeeded
 or already-resolved and every leave is not-requested. A failed replacement is
 recoverable only when a reread is exactly the prior valid receipt or exactly
-the intended replacement; any other bytes fail closed. An uncertain transport
-or 5xx post failure retains a valid intent without a receipt and grants no
-resolution, repost, cleanup, archive, or reentry authority. The exact definitive
+the intended replacement; any other bytes fail closed. Any valid non-definitive
+indeterminate post outcome, including transport failure, 5xx, or unvalidated
+success, retains a valid intent without a receipt and grants no resolution,
+repost, cleanup, archive, or reentry authority. The exact definitive
 HTTP 4xx failure is `phase=github-post`, reason
 `GitHub rejected the review POST`, and `recoverability=unrecoverable`, with the
 sealed intent retained and no receipt. It performs no reconciliation or provider
-read/mutation, is eligible only for explicit manual cleanup, and grants no
-retry, archive, or reentry. Any later POST requires a fresh approval session.
+read/mutation and is eligible only for explicit manual cleanup. After that
+cleanup, LC-27 may archive the failed lease as retained diagnostic evidence and
+create a wholly fresh session; it grants no retry or reuse of the sealed intent.
+Any later POST requires that fresh session's approval authority.
 
-An uncertain transport or 5xx action-bearing `github-post` failure with its
-stored intent and no receipt may proceed only through LC-24 or LC-25 after
-provider reconciliation and receipt materialization. The exact definitive HTTP
+Any valid non-definitive indeterminate action-bearing `github-post` failure,
+including transport failure, 5xx, or unvalidated success, with its stored intent
+and no receipt may proceed only through LC-24 or LC-25 after provider
+reconciliation and receipt materialization. The exact definitive HTTP
 4xx terminal failure is excluded from those rows. LC-24 and LC-25 preserve the frozen approved review,
 validated payload, post intent, and existing presentation without re-entering
 `gated`. It must reject LC-14 presentation, LC-15 abort, and any LC-16 rewrite
@@ -146,7 +151,7 @@ an LC-01 field, transition, or cleanup authority. The runtime alone may create
 its direct-child reservation, canonical detached worktree, and initial
 no-clobber lease. Its `manual-cleanup` outcome preserves invocation evidence
 only; it grants no lifecycle cleanup, stale-reclaim, or alternate-owner
-deletion authority. LC-18 remains outside this command.
+deletion authority. LC-18 and LC-27 remain outside this command.
 
 ### Operating model and guarantees
 
@@ -230,7 +235,7 @@ order and these values:
 5. `canonical_worktree_path`: the physical absolute
    `.worktrees/pr-<N>-review` path under that root; discovery resolves an
    existing canonical path, or its existing `.worktrees` parent, before using
-   it for registration and LC-18 comparison.
+   it for registration and LC-18/LC-27 comparison.
 6. `canonical_worktree_present`: whether that canonical path is present on
    disk.
 7. `active`: active candidates sorted lexically by direct-child `lease_file`.
@@ -253,7 +258,7 @@ For an eligible candidate, discovery reuses the existing read-only dirty and
 owned-artifact inspections without calling `inspect-worktree` or recording
 cleanup metadata. An inspection or ownership failure is `invalid`, not a
 guessed `false`; only missing worktree paths retain the documented missing or
-LC-18 reentry classification. A true dirty or unmanaged observation selects
+LC-18/LC-27 reentry classification. A true dirty or unmanaged observation selects
 `cleanup-required` with `resume: null`; it grants no cleanup authority.
 
 `resume` is emitted only for one registered, schema-valid nonterminal lease.
@@ -266,23 +271,24 @@ Stored active-lease `worktree_path` values must already be absolute physical
 paths: relative paths, lexical aliases, and resolvable aliases are malformed
 and `invalid`. For a missing path, discovery physicalizes the deepest existing
 physical directory before that identity comparison. An `ENOTDIR` ancestor or
-dangling-symlink ancestor is invalid before missing or LC-18 reentry, as is a
+dangling-symlink ancestor is invalid before missing or lifecycle reentry, as is a
 lexical or symlink-parent alias; a physical missing canonical or alternate path
 retains its normal missing classification.
 Malformed active lease evidence is `invalid`. The planner does not inspect or
 repair arbitrary historical paths, infer cleanup authority, or mutate any
 lifecycle state. Cleanup remains exclusively lease-gated.
 
-When a `posted` or `aborted` lease has a valid helper-recorded
-`cleanup.removed_at` marker and its stored physical worktree path is canonical,
-its missing, unregistered worktree is eligible for the existing LC-18
-archive-and-create reentry only after discovery reads that lease's exact
+When a `posted` or `aborted` lease, or an exact definitive HTTP 4xx failed
+lease, has a valid helper-recorded `cleanup.removed_at` marker and its stored
+physical worktree path is canonical, its missing, unregistered worktree is
+eligible for LC-18 or LC-27 archive-and-create reentry only after discovery
+reads that lease's exact
 deterministic archive:
 an absent archive or byte-equal archive permits reentry, a divergent archive
 remains `missing` and therefore `cleanup-required`, and an unreadable archive
 fails closed as `invalid`. Discovery establishes absence from that direct entry
 before reading it, so a present dangling entry is unreadable rather than
-absent. If a fresh LC-18 lease write is interrupted after that archive snapshot
+absent. If a fresh LC-18 or LC-27 lease write is interrupted after that archive snapshot
 and the canonical worktree has already been recreated, the same authority-valid,
 clean, managed, registered canonical candidate is also `reentry`; `create`
 reuses that worktree and retries only the fresh lease write. Later cleanup
@@ -422,8 +428,8 @@ authority.
 
 ## Terminal Archive Behavior
 
-LC-18 is the only transition that replaces a terminal active lease with a fresh
-`created` lease. The helper first validates the existing terminal lease for
+LC-18 and LC-27 are the only transitions that replace a terminal active lease
+with a fresh `created` lease. The helper first validates the existing terminal lease for
 archive, snapshots it to:
 
 ```text
@@ -436,20 +442,21 @@ archive may be reused only when its bytes exactly equal the active terminal
 lease; divergent bytes fail closed without overwriting either lease. If that
 fresh write is interrupted after the archive snapshot, a retry can use the
 still-active terminal lease and preserve the archived historical evidence.
-Before discovery admits a missing canonical LC-18 reentry, it reads only this
+Before discovery admits a missing canonical LC-18 or LC-27 reentry, it reads only this
 exact archive: absent or byte-equal content permits the existing reentry/create
 flow, while divergent or unreadable content never permits `create`.
 
-For a `posted` or `aborted` lease whose cleanup helper has recorded a closed
-`cleanup` observation with a valid non-null `removed_at` timestamp and whose
-recorded physical worktree path is the canonical path, LC-18 may archive after
+For a `posted` or `aborted` lease, or an exact definitive HTTP 4xx failed lease,
+whose cleanup helper has recorded a closed `cleanup` observation with a valid
+non-null `removed_at` timestamp and whose recorded physical worktree path is
+the canonical path, LC-18 or LC-27 may archive after
 recreating that path without revalidating historical artifacts in the new
 checkout. The helper writes `removed_at` only after `git worktree remove`
 succeeds; a legacy `last_outcome: "removed"` observation without that marker
 remains subject to strict historical-artifact validation. Later cleanup retries
 may change `last_outcome` while `removed_at` remains the archive-authority
 marker. That observation is narrowly scoped archive authority; it does not
-refresh or create artifact authority. In every other case, LC-18 keeps strict
+refresh or create artifact authority. In every other case, LC-18 and LC-27 keep strict
 historical artifact validation before archive. A fresh `created` lease carries
 none of the terminal lease's artifact, validation, presentation, terminal,
 failure, GitHub, or cleanup metadata.
@@ -463,10 +470,18 @@ cleanup metadata fails lease validation before archive or fresh creation.
 The exact historical two-key shape without `removed_at` is accepted only for
 backward-compatible strict validation; it can never grant archive authority.
 
+For LC-27, the archived failed lease retains the sealed post intent and failure
+evidence unchanged, while the fresh active lease clears all artifact,
+validation, presentation, terminal, failure, GitHub, and cleanup fields. The
+retirement write performs no provider access, reconciliation, or mutation and
+never transfers the archived fingerprint or action authority to the new
+session. Uncleaned, malformed, mismatched, noncanonical, uncertain, 5xx,
+unvalidated-success, or other failed leases cannot select LC-27.
+
 Cleanup and archive are independently retryable. An interruption before a
 successful helper-recorded removal leaves ordinary validation in force. An
 interruption after recorded removal may use the narrow archive authority on a
-later LC-18 attempt. Archive and fresh-creation retries must preserve historical
+later LC-18 or LC-27 attempt. Archive and fresh-creation retries must preserve historical
 evidence or a valid active lease, and invalid authority must leave the active
 lease unchanged without creating an archive. These are observable guarantees;
 they do not prescribe a private removal/archive write order.
@@ -517,5 +532,6 @@ chain must validate (with no receipt for the definitive rejection), then cleanup
 remains manual through explicit confirmation or policy override. Invalid or
 tampered terminal evidence remains `invalid-lease` and is retained. Neither
 outcome grants lifecycle retry, reentry, stale reclamation, reconciliation, or
-provider re-mutation. Uncertain transport or 5xx failures remain incomplete
-regardless of override.
+provider re-mutation. Valid non-definitive indeterminate outcomes, including
+transport failure, 5xx, or unvalidated success, remain incomplete regardless of
+override.

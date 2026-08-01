@@ -1442,6 +1442,79 @@ describe("pr-review lease reducer", () => {
         "definitive github-post rejection is terminal and requires manual cleanup",
       );
     }
+
+    expect(() =>
+      reducePrReviewLease(rejected, identity, {
+        state: "created",
+        baseRef: "main",
+        headRef: "fresh-topic",
+        createdAt: "2026-06-11T00:05:00Z",
+        updatedAt: "2026-06-11T00:05:00Z",
+      }),
+    ).toThrow("invalid lease transition: failed -> created");
+
+    const cleaned = {
+      ...rejected,
+      cleanup: {
+        last_outcome: "removed" as const,
+        last_checked_at: "2026-06-11T00:04:00Z",
+        removed_at: "2026-06-11T00:04:00Z",
+      },
+    };
+    const fresh = reducePrReviewLease(cleaned, identity, {
+      state: "created",
+      baseRef: "main",
+      headRef: "fresh-topic",
+      createdAt: "2026-06-11T00:05:00Z",
+      updatedAt: "2026-06-11T00:05:00Z",
+    });
+    expect(fresh).toMatchObject({
+      state: "created",
+      created_at: "2026-06-11T00:05:00Z",
+      head_ref: "fresh-topic",
+      artifacts: {
+        handoff_file: null,
+        result_file: null,
+        approved_review_file: null,
+        validated_payload_file: null,
+        post_intent_file: null,
+        execution_receipt_file: null,
+      },
+      validation: {
+        result_manifest: {
+          status: null,
+          validated_at: null,
+          sha256: null,
+        },
+      },
+      github: {
+        github_post_attempted: false,
+        github_post_result: "not-attempted",
+        github_posted_at: null,
+      },
+    });
+    expect("cleanup" in fresh).toBe(false);
+
+    expect(() =>
+      reducePrReviewLease(
+        {
+          ...cleaned,
+          failure: {
+            phase: "github-post",
+            reason: "GitHub review POST outcome is uncertain",
+            recoverability: "unknown",
+          },
+        },
+        identity,
+        {
+          state: "created",
+          baseRef: "main",
+          headRef: "fresh-topic",
+          createdAt: "2026-06-11T00:05:00Z",
+          updatedAt: "2026-06-11T00:05:00Z",
+        },
+      ),
+    ).toThrow("invalid lease transition: failed -> created");
   });
 
   it("preserves gated recovery evidence for GitHub post failures", () => {
@@ -6730,6 +6803,127 @@ describe("pr-review lease Git cleanup safety", () => {
     }
   });
 
+  it("archives a manually cleaned definitive rejection before LC-27 fresh creation", async () => {
+    const workspace = await makeGatedStatusWorkspace(
+      "pr-review-definitive-retirement-",
+      true,
+    );
+
+    try {
+      const prior = await readLease(workspace.primary, workspace.leaseFile);
+      const rejected = definitiveRejectedCommandLease(prior, workspace);
+      const rejectedBytes = `${JSON.stringify(rejected, null, 2)}\n`;
+      await writeFile(
+        path.join(workspace.primary, workspace.leaseFile),
+        rejectedBytes,
+      );
+      await execFileAsync(
+        "git",
+        ["worktree", "remove", "-f", workspace.worktree],
+        { cwd: workspace.primary },
+      );
+
+      process.chdir(workspace.physicalPrimary);
+      setLeaseCommandEnv(workspace.physicalPrimary, workspace.physicalWorktree);
+      expect(await discoverPrReviewSession()).toMatchObject({
+        disposition: "create",
+        active: [
+          {
+            lease_file: workspace.leaseFile,
+            state: "failed",
+            classification: "reentry",
+          },
+        ],
+      });
+
+      await execFileAsync(
+        "git",
+        ["worktree", "add", workspace.worktree, "review-topic"],
+        { cwd: workspace.primary },
+      );
+      setLeaseCommandEnv(workspace.physicalPrimary, workspace.physicalWorktree);
+      process.env.LEASE_FILE = workspace.leaseFile;
+      process.env.STATE = "created";
+      process.env.BASE_REF = "main";
+      process.env.HEAD_REF = "fresh-topic";
+      process.env.CREATED_AT = "2026-06-11T00:05:00Z";
+      process.env.UPDATED_AT = "2026-06-11T00:05:00Z";
+
+      const result = await runPrReviewLeasesCommand(["write"]);
+      expect(result.exitCode, result.stderr).toBe(0);
+      const archiveFile = `.ephemeral/pr-432-${workspace.worktreeDigest}-20260611T000400-failed-archived-lease.json`;
+      await expect(
+        readFile(path.join(workspace.primary, archiveFile), "utf8"),
+      ).resolves.toBe(rejectedBytes);
+      const fresh = await readLease(workspace.primary, workspace.leaseFile);
+      expect(fresh).toMatchObject({
+        state: "created",
+        created_at: "2026-06-11T00:05:00Z",
+        head_ref: "fresh-topic",
+        artifacts: {
+          handoff_file: null,
+          result_file: null,
+          approved_review_file: null,
+          validated_payload_file: null,
+          post_intent_file: null,
+          execution_receipt_file: null,
+        },
+        failure: { phase: null, reason: null, recoverability: null },
+        github: {
+          github_post_attempted: false,
+          github_post_result: "not-attempted",
+          github_posted_at: null,
+        },
+      });
+      expect("cleanup" in fresh).toBe(false);
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects LC-27 retirement outside the canonical review worktree", async () => {
+    const workspace = await makeGatedStatusWorkspace(
+      "pr-review-noncanonical-definitive-retirement-",
+    );
+
+    try {
+      const prior = await readLease(workspace.primary, workspace.leaseFile);
+      await writeFile(
+        path.join(workspace.primary, workspace.leaseFile),
+        `${JSON.stringify(
+          definitiveRejectedCommandLease(prior, workspace),
+          null,
+          2,
+        )}\n`,
+      );
+      process.chdir(workspace.physicalPrimary);
+      setLeaseCommandEnv(workspace.physicalPrimary, workspace.physicalWorktree);
+      process.env.LEASE_FILE = workspace.leaseFile;
+      process.env.STATE = "created";
+      process.env.BASE_REF = "main";
+      process.env.HEAD_REF = "fresh-topic";
+      process.env.CREATED_AT = "2026-06-11T00:05:00Z";
+      process.env.UPDATED_AT = "2026-06-11T00:05:00Z";
+
+      const before = await readFile(
+        path.join(workspace.primary, workspace.leaseFile),
+        "utf8",
+      );
+      const result = await runPrReviewLeasesCommand(["write"]);
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain(
+        "LC-27 requires canonical helper-recorded cleanup authority",
+      );
+      await expect(
+        readFile(path.join(workspace.primary, workspace.leaseFile), "utf8"),
+      ).resolves.toBe(before);
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
+    }
+  });
+
   it("keeps noncanonical helper-recorded removed terminal leases under strict archive validation", async () => {
     const workspace = await makeGatedStatusWorkspace(
       "pr-review-noncanonical-archive-after-cleanup-",
@@ -7620,6 +7814,41 @@ function abortedCommandLease(
       github_post_attempted: false,
       github_post_result: "not-attempted",
       github_posted_at: null,
+    },
+  };
+}
+
+function definitiveRejectedCommandLease(
+  prior: PrReviewLease,
+  workspace: Pick<GatedStatusWorkspace, "reviewHead">,
+): PrReviewLease {
+  return {
+    ...prior,
+    state: "failed",
+    updated_at: "2026-06-11T00:04:00Z",
+    artifacts: {
+      ...prior.artifacts,
+      approved_review_file: `.ephemeral/topic-${workspace.reviewHead}-approved-review.json`,
+      validated_payload_file: `.ephemeral/pr-432-${workspace.reviewHead}-validated-review-payload.json`,
+      post_intent_file: `.ephemeral/pr-432-${workspace.reviewHead}-thread-action-post-intent.json`,
+      execution_receipt_file: null,
+    },
+    terminal: { finished_at: "2026-06-11T00:04:00Z", reason: null },
+    failure: {
+      phase: "github-post",
+      reason: "GitHub rejected the review POST",
+      recoverability: "unrecoverable",
+    },
+    github: {
+      github_post_attempted: true,
+      github_post_result: "failed",
+      github_posted_at: null,
+      provider_review_id: null,
+    },
+    cleanup: {
+      last_outcome: "removed",
+      last_checked_at: "2026-06-11T00:04:30Z",
+      removed_at: "2026-06-11T00:04:30Z",
     },
   };
 }

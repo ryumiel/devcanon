@@ -3849,7 +3849,7 @@ None
       "Persist the post intent before any provider POST",
       "record-post-intent",
       "POST_INTENT_FILE",
-      "Never repost after an uncertain POST outcome",
+      "Never repost after a non-definitive indeterminate POST outcome",
       "every page of submitted reviews",
       "exactly one review",
       "exact full marked body",
@@ -4235,8 +4235,27 @@ None
       "The sealed GitHub review thread became outdated.",
     );
     expect(lifecycle).toContain("| LC-26 |");
+    expect(lifecycle).toContain("| LC-27 |");
     expect(lifecycle).toContain("`FAILURE_PHASE=thread-resolution`");
     expect(normalizeWhitespace(lifecycle)).toContain("cleanup remains manual");
+    expect(normalizeWhitespace(lifecycle)).toContain(
+      "including transport failure, 5xx, or unvalidated success",
+    );
+    expect(normalizeWhitespace(lifecycle)).toContain(
+      "archives the old lease and clears every artifact and authority field without provider access",
+    );
+    const lc27OperatorContract = prReview.slice(
+      prReview.indexOf(
+        "After manual cleanup of the exact definitive rejection",
+      ),
+      prReview.indexOf("Cleanup prints fixed keys"),
+    );
+    expect(lc27OperatorContract).toContain("LC-27");
+    expect(lc27OperatorContract).toContain(
+      "no inherited artifacts or action authority",
+    );
+    expect(lc27OperatorContract).toContain("performs no provider access");
+    expect(lc27OperatorContract).not.toContain("gh api");
   });
 
   it("records play-skill-authoring pressure evidence for wrapper artifact loopholes", async () => {

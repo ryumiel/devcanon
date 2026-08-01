@@ -916,6 +916,7 @@ export function reducePrReviewLease(previous, identity, inputs, options = {}) {
     switch (row) {
         case "LC-01":
         case "LC-18":
+        case "LC-27":
             return base;
         case "LC-02":
             requireInput("HANDOFF_FILE", inputs.handoffFile);
@@ -1048,6 +1049,10 @@ async function writeLease() {
     const inputs = await readInputsForWrite(previous, identity.worktreePath);
     const archive = archivePathIfNeeded(previous, identity, inputs);
     const row = transitionId(previous, inputs);
+    if (row === "LC-27" &&
+        !(await hasPostCleanupArchiveAuthority(previous, identity))) {
+        throw new PrReviewLeaseError("LC-27 requires canonical helper-recorded cleanup authority");
+    }
     let reduced = reducePrReviewLease(previous, identity, inputs);
     if (previous !== null && inputs.state === "failed" && row !== "LC-26") {
         reduced = await clearInvalidFailureRecoveryArtifacts(reduced, previous, identity.primaryRoot, identity.worktreePath, recoveryPolicyForPreviousState(previous.state));
@@ -1700,7 +1705,8 @@ function resultFileForLifecycleValidation(previous, inputs) {
     return null;
 }
 function buildBaseLease(previous, identity, inputs, row) {
-    const createdAt = row === "LC-01" || row === "LC-18"
+    const freshCreation = row === "LC-01" || row === "LC-18" || row === "LC-27";
+    const createdAt = freshCreation
         ? inputs.createdAt
         : (previous?.created_at ?? inputs.createdAt);
     return {
@@ -1708,10 +1714,10 @@ function buildBaseLease(previous, identity, inputs, row) {
         repository: identity.repository,
         pr_number: identity.prNumber,
         state: inputs.state,
-        base_ref: row === "LC-01" || row === "LC-18"
+        base_ref: freshCreation
             ? inputs.baseRef
             : (previous?.base_ref ?? inputs.baseRef),
-        head_ref: row === "LC-01" || row === "LC-18"
+        head_ref: freshCreation
             ? inputs.headRef
             : (previous?.head_ref ?? inputs.headRef),
         worktree_path: identity.worktreePath,
@@ -1997,6 +2003,10 @@ function assertActionBearingFailedLeaseRecovery(previous, inputs) {
         throw new PrReviewLeaseError("thread-resolution failure is terminal and requires manual cleanup");
     }
     if (isDefinitiveGithubPostTerminalFailure(previous)) {
+        if (inputs.state === "created" &&
+            typeof previous?.cleanup?.removed_at === "string") {
+            return;
+        }
         throw new PrReviewLeaseError("definitive github-post rejection is terminal and requires manual cleanup");
     }
     if (previous?.state !== "failed" ||
@@ -2031,6 +2041,13 @@ function transitionId(previous, inputs) {
     if ((previousState === "posted" || previousState === "aborted") &&
         inputs.state === "created") {
         return "LC-18";
+    }
+    if (previous !== null &&
+        previousState === "failed" &&
+        inputs.state === "created" &&
+        isDefinitiveGithubPostTerminalFailure(previous) &&
+        typeof previous.cleanup?.removed_at === "string") {
+        return "LC-27";
     }
     if (previousState === "created" && inputs.state === "created")
         return "LC-02";
@@ -2091,8 +2108,11 @@ function transitionId(previous, inputs) {
     return null;
 }
 function archivePathIfNeeded(previous, identity, inputs) {
-    if (inputs.state !== "created" ||
-        (previous?.state !== "posted" && previous?.state !== "aborted")) {
+    if (previous === null ||
+        inputs.state !== "created" ||
+        (previous.state !== "posted" &&
+            previous.state !== "aborted" &&
+            !isDefinitiveGithubPostTerminalFailure(previous))) {
         return null;
     }
     return terminalArchivePath(previous, identity.prNumber);
@@ -3244,7 +3264,9 @@ async function canonicalPrReviewWorktreePath(identity) {
 async function hasPostCleanupArchiveAuthority(previous, identity) {
     const canonicalWorktreePath = await canonicalPrReviewWorktreePath(identity);
     return (previous !== null &&
-        (previous.state === "posted" || previous.state === "aborted") &&
+        (previous.state === "posted" ||
+            previous.state === "aborted" ||
+            isDefinitiveGithubPostTerminalFailure(previous)) &&
         typeof previous.cleanup?.removed_at === "string" &&
         normalizeComparablePath(previous.worktree_path) ===
             normalizeComparablePath(canonicalWorktreePath));
