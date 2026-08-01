@@ -2123,6 +2123,32 @@ describe.skipIf(!jqAvailable)(
       }
     });
 
+    it("rejects unknown approved-review fields", async () => {
+      const cwd = await makeGitWorkspace();
+      try {
+        await writeInputs(cwd);
+        await runHelper(cwd, "freeze-approved-review", {
+          FINDINGS_FILE: findingsFile,
+          REVIEW_BODY_FILE: reviewBodyFile,
+          REVIEW_PAYLOAD_FILE: payloadFile,
+        });
+        const approved = await readJson(cwd, approvedReviewFile);
+        await writeJson(cwd, approvedReviewFile, {
+          ...approved,
+          unexpected: true,
+        });
+        await expect(
+          runHelper(cwd, "validate-approved-review", {
+            APPROVED_REVIEW_FILE: approvedReviewFile,
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("approved review schema mismatch"),
+        });
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    });
+
     it("rejects digest drift for findings, review body, payload files, and recorded digests", async () => {
       const cwd = await makeGitWorkspace();
       try {

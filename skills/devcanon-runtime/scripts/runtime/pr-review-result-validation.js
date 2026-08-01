@@ -479,6 +479,8 @@ async function validateScopeAuthority(scopeDecisionFile, expectedBaseRef, manife
             ...baseEnv,
             HEAD_SHA: input.reviewHeadSha,
             PRIOR_THREADS_FILE: manifestPriorPath,
+            REPOSITORY: input.repository,
+            PR_NUMBER: String(input.prNumber),
         });
     }
 }

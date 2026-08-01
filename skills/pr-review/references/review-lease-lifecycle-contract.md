@@ -227,7 +227,7 @@ order and these values:
 
 Each `active` candidate uses this key order: `lease_file` (direct-child active
 lease path), `worktree_path` (physical absolute path or `null`), `state` (one
-of `created`, `reviewed`, `gated`, `posted`, `aborted`, `failed`, or `null`),
+of `created`, `reviewed`, `gated`, `resolving`, `posted`, `aborted`, `failed`, or `null`),
 `classification` (`resumable`, `terminal`, `reentry`, `missing`,
 `unregistered`, or `invalid`), `worktree_dirty`, and
 `unmanaged_ephemeral_artifacts`. The two observation fields are booleans only

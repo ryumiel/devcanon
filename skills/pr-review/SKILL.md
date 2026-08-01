@@ -214,9 +214,11 @@ boundaries:
   include `FINISHED_AT`, `FAILURE_PHASE`, `FAILURE_REASON`, and
   `FAILURE_RECOVERABILITY`.
 
-Resume `created`, `reviewed`, `gated`, and `failed` leases from validated lease
-and manifest artifacts. Do not remove an existing review worktree during resume
-discovery. If a review worktree exists, first derive the lease path from the
+Resume `created`, `reviewed`, `gated`, `failed`, and `resolving` leases from
+validated lease and manifest artifacts. A `resolving` lease with a sealed post
+intent or receipt resumes only its sealed recovery path; it does not re-present
+or request fresh user approval. Do not remove an existing review worktree during
+resume discovery. If a review worktree exists, first derive the lease path from the
 physical worktree path and run `review-leases.sh validate` or
 `review-leases.sh inspect-worktree`; only treat it as stale after the helper
 reports a cleanup outcome that permits removal. A prior Phase 5 preview is not
@@ -1144,10 +1146,21 @@ Only after user approval:
    validation and posting.
 
    ```sh
-   PROVIDER_ACTOR_ID="$(gh api user --jq .id)" || exit 1
-   EXISTING_POST_INTENT_FILE=".ephemeral/pr-${PR_NUMBER}-${REVIEW_HEAD_SHA}-thread-action-post-intent.json"
-   POST_INTENT_REUSED=false
-   if (cd "$WORKING_DIRECTORY" && [ -e "$EXISTING_POST_INTENT_FILE" ]); then
+   if [ "$SEALED_RECOVERY" = true ]; then
+     # Lease validation is the authority chain. Rebind its sealed paths and
+     # resume below; do not read the current actor or materialize a new intent.
+     APPROVED_REVIEW_FILE="$(jq -er '.artifacts.approved_review_file | strings' "$REVIEW_CALLER_DIR/$LEASE_FILE")" || exit 1
+     VALIDATED_REVIEW_PAYLOAD_FILE="$(jq -er '.artifacts.validated_payload_file | strings' "$REVIEW_CALLER_DIR/$LEASE_FILE")" || exit 1
+     POST_INTENT_FILE="$(jq -er '.artifacts.post_intent_file | strings' "$REVIEW_CALLER_DIR/$LEASE_FILE")" || exit 1
+     EXECUTION_RECEIPT_FILE="$(jq -er '.artifacts.execution_receipt_file // ""' "$REVIEW_CALLER_DIR/$LEASE_FILE")" || exit 1
+     REVIEW_HEAD_SHA="$(cd "$WORKING_DIRECTORY" && jq -er '.review_head_sha | strings | select(test("^[0-9a-f]{40}$"))' "$POST_INTENT_FILE")" || exit 1
+     POST_INTENT_REUSED=true
+     POST_INTENT_JSON="$(jq -cn --arg validated_review_payload_file "$VALIDATED_REVIEW_PAYLOAD_FILE" --arg post_intent_file "$POST_INTENT_FILE" '{validated_review_payload_file:$validated_review_payload_file,post_intent_file:$post_intent_file}')"
+   else
+     PROVIDER_ACTOR_ID="$(gh api user --jq .id)" || exit 1
+     EXISTING_POST_INTENT_FILE=".ephemeral/pr-${PR_NUMBER}-${REVIEW_HEAD_SHA}-thread-action-post-intent.json"
+     POST_INTENT_REUSED=false
+     if (cd "$WORKING_DIRECTORY" && [ -e "$EXISTING_POST_INTENT_FILE" ]); then
      POST_INTENT_CREATED_AT="$( (
        cd "$WORKING_DIRECTORY" || exit 1
        [ ! -L "$EXISTING_POST_INTENT_FILE" ] && [ -f "$EXISTING_POST_INTENT_FILE" ] || exit 1
@@ -1159,10 +1172,10 @@ Only after user approval:
        ' "$EXISTING_POST_INTENT_FILE"
      ) )" || exit 1
      POST_INTENT_REUSED=true
-   else
-     POST_INTENT_CREATED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-   fi
-   POST_INTENT_JSON=$( (
+     else
+       POST_INTENT_CREATED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+     fi
+     POST_INTENT_JSON=$( (
      cd "$WORKING_DIRECTORY" || exit 1
      HEAD_SHA="$REVIEW_HEAD_SHA" \
      PR_NUMBER="$PR_NUMBER" \
@@ -1172,9 +1185,10 @@ Only after user approval:
      PROVIDER_ACTOR_ID="$PROVIDER_ACTOR_ID" \
      POST_INTENT_CREATED_AT="$POST_INTENT_CREATED_AT" \
        bash "$PR_REVIEW_HELPER" materialize-post-intent
-   ) ) || exit 1
-   VALIDATED_REVIEW_PAYLOAD_FILE="$(printf '%s' "$POST_INTENT_JSON" | jq -er '.validated_review_payload_file')" || exit 1
-   POST_INTENT_FILE="$(printf '%s' "$POST_INTENT_JSON" | jq -er '.post_intent_file')" || exit 1
+     ) ) || exit 1
+     VALIDATED_REVIEW_PAYLOAD_FILE="$(printf '%s' "$POST_INTENT_JSON" | jq -er '.validated_review_payload_file')" || exit 1
+     POST_INTENT_FILE="$(printf '%s' "$POST_INTENT_JSON" | jq -er '.post_intent_file')" || exit 1
+   fi
    LEASE_FILE="$(cd "$REVIEW_CALLER_DIR" && bash "$PR_REVIEW_LEASE_HELPER" derive-path)" || exit 1
    CURRENT_LEASE_STATE="$(jq -er '.state | select(. == "gated" or . == "failed" or . == "resolving" or . == "posted")' "$REVIEW_CALLER_DIR/$LEASE_FILE")" || exit 1
    LEASE_POST_INTENT_FILE="$(jq -er '.artifacts.post_intent_file // ""' "$REVIEW_CALLER_DIR/$LEASE_FILE")" || exit 1
@@ -1215,7 +1229,7 @@ Only after user approval:
    }
    POST_INTENT_LEASE_OWNED=false
    [ "$LEASE_POST_INTENT_FILE" = "$POST_INTENT_FILE" ] && POST_INTENT_LEASE_OWNED=true
-   EXISTING_EXECUTION_RECEIPT_FILE=".ephemeral/pr-${PR_NUMBER}-${REVIEW_HEAD_SHA}-thread-action-execution.json"
+   EXISTING_EXECUTION_RECEIPT_FILE="${EXECUTION_RECEIPT_FILE:-.ephemeral/pr-${PR_NUMBER}-${REVIEW_HEAD_SHA}-thread-action-execution.json}"
    if [ "$POST_INTENT_REUSED" = true ] && [ "$POST_INTENT_LEASE_OWNED" != true ]; then
      # A deterministic file alone proves neither LC-19 nor a provider attempt.
      # This is the crash boundary before intent binding: bind it while gated,
@@ -1232,7 +1246,7 @@ Only after user approval:
      POST_INTENT_REUSED=false
      POST_INTENT_LEASE_OWNED=true
    fi
-   EXECUTION_RECEIPT_FILE=""
+   [ "$SEALED_RECOVERY" = true ] || EXECUTION_RECEIPT_FILE=""
    if (cd "$WORKING_DIRECTORY" && [ -e "$EXISTING_EXECUTION_RECEIPT_FILE" ]); then
      # A stored receipt is progress, not an invitation to recreate the initial
      # pending/not-requested dispositions. Validate its closed artifact chain

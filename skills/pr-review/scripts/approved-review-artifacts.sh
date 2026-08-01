@@ -630,6 +630,7 @@ assert_approved_schema() {
     def hex_sha256: type == "string" and test("^[0-9a-f]{64}$");
     def head_sha: type == "string" and test("^[0-9a-f]{40}$");
     type == "object"
+    and (keys | sort) == ["findings_file", "findings_sha256", "payload", "pr_number", "repository", "review_body_file", "review_body_sha256", "review_head_sha", "review_payload_file", "review_payload_sha256", "schema", "scope_decision_file", "scope_decision_sha256", "thread_actions", "thread_actions_file", "thread_actions_sha256"]
     and .schema == "pr-review/approved-review/v1"
     and (.repository | type == "string")
     and (.pr_number | type == "number" and . == floor and . >= 1)
