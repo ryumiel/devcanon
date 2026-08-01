@@ -464,7 +464,7 @@ function capitalizeAction(value) {
         : `${value[0].toUpperCase()}${value.slice(1)}`;
 }
 function escapeMarkdownTableCell(value) {
-    return value.replaceAll("|", "\\|").replaceAll("\n", " ");
+    return value.replaceAll("|", "\\|").replace(/\r\n?|\n/gu, " ");
 }
 async function validateHandoffFile(file, identityFile = file) {
     await requireRepoRoot();

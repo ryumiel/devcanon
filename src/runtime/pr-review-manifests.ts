@@ -673,7 +673,7 @@ function capitalizeAction(value: string): string {
 }
 
 function escapeMarkdownTableCell(value: string): string {
-  return value.replaceAll("|", "\\|").replaceAll("\n", " ");
+  return value.replaceAll("|", "\\|").replace(/\r\n?|\n/gu, " ");
 }
 
 async function validateHandoffFile(file: string, identityFile = file) {

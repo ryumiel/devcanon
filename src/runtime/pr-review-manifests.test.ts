@@ -466,7 +466,7 @@ describe("pr-review Phase 5 audit summary renderer", () => {
         {
           thread_id: "PRRT_kwDOEligible",
           action: "leave",
-          evidence: "Skip threads preserves this discussion for follow-up.",
+          evidence: "LF\nCRLF\r\nCR\rPipe | End",
           reason: "Leave every eligible thread open.",
         },
       ],
@@ -511,6 +511,8 @@ describe("pr-review Phase 5 audit summary renderer", () => {
     expect(outcome.stdout).toContain("Thread actions:");
     expect(outcome.stdout).toContain("`PRRT_kwDOEligible`");
     expect(outcome.stdout).toContain("Leave");
+    expect(outcome.stdout).toContain("LF CRLF CR Pipe \\| End");
+    expect(outcome.stdout).not.toContain("\r");
   });
 
   it.each([
