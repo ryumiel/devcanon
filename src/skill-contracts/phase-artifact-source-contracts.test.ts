@@ -4237,6 +4237,40 @@ None
     expect(existingReceiptRecovery).toContain(
       "The sealed GitHub review thread became outdated.",
     );
+    const recoveryAuthorityIndex = phase6.indexOf(
+      "Closed non-definitive recovery authority must be proven",
+    );
+    const recoveryAuthorityGate = phase6.slice(
+      recoveryAuthorityIndex,
+      phase6.indexOf(
+        'if [ "$POST_INTENT_REUSED" = true ] && [ "$POST_INTENT_LEASE_OWNED" != true ]; then',
+        recoveryAuthorityIndex,
+      ),
+    );
+    expect(recoveryAuthorityIndex).toBeGreaterThanOrEqual(0);
+    expect(recoveryAuthorityGate).toContain(
+      '"GitHub review POST outcome is uncertain"|"GitHub review POST outcome is indeterminate"',
+    );
+    expect(recoveryAuthorityGate).toContain(
+      '[ "$CURRENT_FAILURE_RECOVERABILITY" = "unknown" ]',
+    );
+    expect(recoveryAuthorityGate).toContain(
+      ".github.github_post_attempted == true",
+    );
+    expect(recoveryAuthorityGate).toContain(
+      '.github.github_post_result == "failed"',
+    );
+    expect(recoveryAuthorityGate).toContain(
+      "(.github.provider_review_id // null) == null",
+    );
+    expect(recoveryAuthorityIndex).toBeLessThan(
+      phase6.indexOf(
+        'if (cd "$WORKING_DIRECTORY" && [ -e "$EXISTING_EXECUTION_RECEIPT_FILE" ])',
+      ),
+    );
+    expect(recoveryAuthorityIndex).toBeLessThan(
+      phase6.indexOf("gh api --paginate --slurp"),
+    );
     expect(lifecycle).toContain("| LC-26 |");
     expect(lifecycle).toContain("| LC-27 |");
     expect(lifecycle).toContain("`FAILURE_PHASE=thread-resolution`");

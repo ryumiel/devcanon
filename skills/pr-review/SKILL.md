@@ -1325,6 +1325,25 @@ PR_REVIEW_HELPER="$PR_REVIEW_DIR/scripts/approved-review-artifacts.sh"
      printf '%s\n' 'GitHub definitively rejected the review POST; start a fresh approval session after manual cleanup.' >&2
      exit 1
    fi
+   if [ "$CURRENT_LEASE_STATE" = "failed" ]; then
+     # Closed non-definitive recovery authority must be proven before receipt
+     # adoption, provider reconciliation, or any other provider access.
+     [ "$POST_INTENT_LEASE_OWNED" = true ] || exit 1
+     [ -z "$STORED_EXECUTION_RECEIPT_FILE" ] || exit 1
+     [ "$CURRENT_FAILURE_RECOVERABILITY" = "unknown" ] || exit 1
+     case "$CURRENT_FAILURE_REASON" in
+       "GitHub review POST outcome is uncertain"|"GitHub review POST outcome is indeterminate") ;;
+       *) exit 1 ;;
+     esac
+     jq -e '
+       .artifacts.post_intent_file != null
+       and .artifacts.execution_receipt_file == null
+       and .github.github_post_attempted == true
+       and .github.github_post_result == "failed"
+       and .github.github_posted_at == null
+       and (.github.provider_review_id // null) == null
+     ' "$REVIEW_CALLER_DIR/$LEASE_FILE" >/dev/null || exit 1
+   fi
    if [ "$POST_INTENT_REUSED" = true ] && [ "$POST_INTENT_LEASE_OWNED" != true ]; then
      # A deterministic file alone proves neither LC-19 nor a provider attempt.
      # This is the crash boundary before intent binding: bind it while gated,
@@ -1918,9 +1937,9 @@ confirmation or policy-override boundary after its complete sealed chain
 validates. The definitive rejection retains no receipt and never enters
 reconciliation. Neither terminal path grants automatic retry, reentry, stale
 reclamation, or provider read/mutation; a later POST requires a fresh approval
-session. Valid non-definitive indeterminate outcomes, including transport
-failure, 5xx, or unvalidated success, remain incomplete and
-reconciliation-only. After manual cleanup of the exact definitive rejection,
+session. Only the two closed non-definitive tuples in the lifecycle contract
+remain incomplete and reconciliation-only; every neighboring failed tuple
+stops before receipt adoption or provider access. After manual cleanup of the exact definitive rejection,
 LC-27 archives that failed lease as immutable evidence and creates a fresh
 `created` session with no inherited artifacts or action authority. The LC-27
 route performs no provider access; it is unavailable to every neighboring
