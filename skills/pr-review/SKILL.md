@@ -249,8 +249,9 @@ directly to Phase 6's sealed continuation before Phase 3 range rebuilding,
 Phase 4 result production, Phase 5 presentation, approval freeze, stale-head
 guard, or fresh POST. An intent-only chain performs the single existing exact
 fingerprint reconciliation. A receipt is first adopted through LC-20, LC-21,
-LC-23, LC-24, or LC-25 as applicable, then resumes only sealed pending/failed
-actions. Invalid, obsolete, legacy, mismatched, orphan, or non-action-bearing
+LC-22, LC-23, LC-24, or LC-25 as applicable; LC-22 records nonterminal receipt
+progress while already `resolving`. Recovery then resumes only sealed
+pending/failed actions. Invalid, obsolete, legacy, mismatched, orphan, or non-action-bearing
 lease-owned or deterministic action evidence stops for explicit cleanup/restart
 or provider refetch; it never authorizes a fresh POST. Only a validated
 genuinely no-attempt lifecycle with no action-bearing evidence may use the
@@ -1578,9 +1579,9 @@ PR_REVIEW_HELPER="$PR_REVIEW_DIR/scripts/approved-review-artifacts.sh"
    Iterate the JSON array in receipt order and bind each member to
    `SEALED_THREAD_ID`. Immediately before each member, revalidate the lease and
    execute the complete cursor-validated GraphQL walk in **Fetch thread IDs for
-   resolution** below, binding its normalized current v2 envelope to
-   `FRESH_REVIEW_THREADS_JSON`. Never reuse that value for the next member. The
-   sealed ID must appear exactly once. A freshly resolved record advances to
+   resolution** below, binding its validated raw thread node or closed missing
+   sentinel to `FRESH_SEALED_THREAD_JSON`. Never reuse that value for the next
+   member. The sealed ID must appear exactly once. A freshly resolved record advances to
    `already-resolved` without mutation; a fresh unresolved, non-outdated record
    may use the GraphQL mutation. Missing, duplicate, unknown, outdated, or
    malformed records stop before mutation. Do not resolve `leave` actions.
@@ -1939,8 +1940,9 @@ each nullable cursor as GraphQL `null`; later pages replace that binding with
 the validated nonblank provider cursor.
 
 ```sh
-# Bare body intentional: response is consumed for content-keyed thread-ID lookup
-# (resolveReviewThread mutation at the snippet above). See docs/guidelines/gh-api-hygiene.md § 3.
+# Bare body intentional: response is consumed for exact sealed GraphQL-ID
+# lookup and fresh-state validation; bodies and comments never derive resolution
+# authority. See docs/guidelines/gh-api-hygiene.md § 3.
 gh api graphql -f query='query($owner: String!, $name: String!, $number: Int!, $cursor: String) {
   repository(owner: $owner, name: $name) { nameWithOwner pullRequest(number: $number) {
     number headRefOid reviewThreads(first: 100, after: $cursor) { nodes {
