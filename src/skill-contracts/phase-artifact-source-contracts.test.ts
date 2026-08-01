@@ -3858,6 +3858,9 @@ None
       'POST_OUTCOME="provider-reconciliation"',
       "GITHUB_POST_ATTEMPTED=true",
       "GITHUB_POST_RESULT=failed",
+      "GitHub review POST outcome is uncertain",
+      "GitHub review POST outcome is indeterminate",
+      'FAILURE_RECOVERABILITY="unknown"',
       "Write the execution receipt before the first resolution",
       "execute the complete cursor-validated GraphQL walk",
       "already-resolved",
@@ -4239,7 +4242,7 @@ None
     expect(lifecycle).toContain("`FAILURE_PHASE=thread-resolution`");
     expect(normalizeWhitespace(lifecycle)).toContain("cleanup remains manual");
     expect(normalizeWhitespace(lifecycle)).toContain(
-      "including transport failure, 5xx, or unvalidated success",
+      "either reason `GitHub review POST outcome is uncertain` for transport or 5xx failure, or reason `GitHub review POST outcome is indeterminate` for an unvalidated success",
     );
     expect(normalizeWhitespace(lifecycle)).toContain(
       "archives the old lease and clears every artifact and authority field without provider access",

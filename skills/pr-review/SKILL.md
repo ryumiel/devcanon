@@ -104,10 +104,12 @@ registered canonical worktree and write the fresh LC-18 or LC-27 lease without r
 worktree add`. Do not invoke `session-create` for any `reentry` candidate.
 When the one authority-valid LC-27 `reentry` reports
 `canonical_worktree_present=false`, read its exact `lease_file` and
-`worktree_path` from the selected `active[]` record, fetch and verify the
-already-bound immutable `HEAD_SHA`, then recreate that exact canonical path as
-a registered detached worktree at `HEAD_SHA`. Verify its physical path, clean
-state, registration, and exact HEAD before continuing. From the primary root,
+`worktree_path` from the selected `active[]` record. Require the already-bound
+immutable `HEAD_SHA` commit object to exist in the primary repository's local
+object database and verify it locally; if it is unavailable, fail closed
+without network access or worktree creation. Then recreate that exact canonical
+path as a registered detached worktree at `HEAD_SHA`. Verify its physical path,
+clean state, registration, and exact HEAD before continuing. From the primary root,
 invoke the existing lease `write` with that selected `LEASE_FILE` and canonical
 `WORKTREE_PATH`, `EXPECTED_STATE=failed`, `STATE=created`, the current
 provider-bound `BASE_REF` and `HEAD_REF`, and fresh canonical `CREATED_AT` and
