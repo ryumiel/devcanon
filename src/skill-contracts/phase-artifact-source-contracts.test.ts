@@ -3754,7 +3754,7 @@ None
       "Nested comments are context",
       "`isResolved=false` and `isOutdated=false` before mutation",
       '-f owner="<owner>" -f name="<repo>" -F number="$PR_NUMBER" -F cursor=null',
-      '-f threadId="$SEALED_THREAD_ID" -F commentsCursor=null',
+      '-f threadId="$SEALED_THREAD_ID" -f commentsCursor="$COMMENTS_CURSOR"',
       "later pages replace that binding with the validated nonblank provider cursor",
     ]) {
       expect(normalizedPrReview).toContain(threadAuthorityContract);

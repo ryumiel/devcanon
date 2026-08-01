@@ -1895,7 +1895,7 @@ gh api graphql -f query='query($owner: String!, $name: String!, $number: Int!, $
   } }
 }' \
   -f owner="<owner>" -f name="<repo>" -F number="$PR_NUMBER" \
-  -f threadId="$SEALED_THREAD_ID" -F commentsCursor=null
+  -f threadId="$SEALED_THREAD_ID" -f commentsCursor="$COMMENTS_CURSOR"
 ```
 
 ## Hard Rules
