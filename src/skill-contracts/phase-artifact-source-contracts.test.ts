@@ -3771,6 +3771,16 @@ None
     expect(normalizedPrReview).toContain(
       "genuinely no-attempt lifecycle with no action-bearing evidence",
     );
+    expect(normalizedPrReview).toContain("bind_provider_prior_threads");
+    expect(normalizedPrReview).toContain(
+      "Phase 1 cursor-complete prior-threads/v2 path missing",
+    );
+    expect(normalizedPrReview).toContain(
+      "threads=[] is valid only when the completed walk returned zero threads",
+    );
+    expect(normalizedPrReview).not.toContain(
+      "Write the canonical empty pr-review/prior-threads/v2 envelope here",
+    );
     expect(
       normalizedPrReview.indexOf(
         "Sealed action recovery before review rebuild",
@@ -3843,8 +3853,35 @@ None
       "materialize-execution-receipt",
       "advance-execution-receipt",
       "prior-retained",
+      "mutation($threadId: ID!)",
+      '-f threadId="$SEALED_THREAD_ID"',
+      ".data.resolveReviewThread.thread.isResolved == true",
+      'THREAD_DISPOSITION="succeeded"',
+      'THREAD_DISPOSITION="failed"',
     ]) {
       expect(normalizedPrReview).toContain(providerExecutionContract);
+    }
+    expect(prReview.indexOf('REVIEW_CALLER_DIR="$(pwd -P)"')).toBeLessThan(
+      prReview.indexOf("Sealed action recovery before review rebuild"),
+    );
+    for (const sealedRecoveryBinding of [
+      'LEASE_BASE_REF="$(jq -er',
+      'LEASE_HEAD_REF="$(jq -er',
+      'REVIEW_RESULT_FILE="$(jq -er',
+      'REVIEW_SCOPE_DECISION_FILE="$(cd "$WORKING_DIRECTORY"',
+      'PROVIDER_SCOPE_EVIDENCE_FILE="$(cd "$WORKING_DIRECTORY"',
+      'REVIEW_SCOPE_BASE_REF="$(cd "$WORKING_DIRECTORY"',
+    ]) {
+      expect(prReviewPhase6).toContain(sealedRecoveryBinding);
+    }
+    const phase6LeaseWriteSegments = prReviewPhase6.split(
+      'bash "$PR_REVIEW_LEASE_HELPER" write',
+    );
+    expect(phase6LeaseWriteSegments.length).toBeGreaterThan(1);
+    for (const beforeLeaseWrite of phase6LeaseWriteSegments.slice(0, -1)) {
+      const leaseWriteInputs = beforeLeaseWrite.slice(-900);
+      expect(leaseWriteInputs).toContain('BASE_REF="$LEASE_BASE_REF"');
+      expect(leaseWriteInputs).toContain('HEAD_REF="$LEASE_HEAD_REF"');
     }
     const receiptMaterialization = prReviewPhase6.slice(
       prReviewPhase6.indexOf("materialize-execution-receipt"),

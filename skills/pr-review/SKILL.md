@@ -76,6 +76,8 @@ Bind the lease helper before selecting a worktree path:
 ```bash
 PR_REVIEW_DIR="<installed-pr-review-skill-bundle>"
 PR_REVIEW_LEASE_HELPER="$PR_REVIEW_DIR/scripts/review-leases.sh"
+REVIEW_CALLER_DIR="$(pwd -P)" || exit 1
+PRIMARY_REPOSITORY_ROOT="$REVIEW_CALLER_DIR"
 ```
 
 Before session creation, run the read-only session planner from the primary
@@ -362,7 +364,7 @@ PR_REVIEW_ARTIFACT_HELPER="$PR_REVIEW_DIR/scripts/prior-thread-artifacts.sh"
 PR_BASE_REF="<base-ref>"
 PROVIDER_PR_DIFF_BASE_SHA="<provider_pr_diff_base_sha>"
 REVIEW_SCOPE_BASE_REF="$PROVIDER_PR_DIFF_BASE_SHA"
-REVIEW_CALLER_DIR="$(pwd -P)" || exit 1
+[ "$(pwd -P)" = "$REVIEW_CALLER_DIR" ] || exit 1
 REVIEW_HEAD_SHA="$(git -C "$WORKING_DIRECTORY" rev-parse HEAD)" || exit 1
 : "${FOLLOW_UP_STATE:?Phase 1 follow-up state missing}"
 case "$FOLLOW_UP_STATE" in
@@ -371,14 +373,15 @@ case "$FOLLOW_UP_STATE" in
   *) exit 1 ;;
 esac
 
-materialize_initial_prior_threads() {
+bind_provider_prior_threads() {
   cd "$WORKING_DIRECTORY" || return 1
-  [ "$REVIEW_MODE" = "initial" ] || return 0
-  PRIOR_THREADS_FILE=$(HEAD_SHA="$REVIEW_HEAD_SHA" \
+  : "${PRIOR_THREADS_FILE:?Phase 1 cursor-complete prior-threads/v2 path missing}"
+  EXPECTED_PRIOR_THREADS_FILE=$(HEAD_SHA="$REVIEW_HEAD_SHA" \
     bash "$PR_REVIEW_ARTIFACT_HELPER" prepare-prior-threads-write) || return 1
-  # Write the canonical empty pr-review/prior-threads/v2 envelope here:
-  # provider="github", repository, pr_number, head_sha,
-  # review_threads_complete=true, threads=[], and dropped=[].
+  [ "$PRIOR_THREADS_FILE" = "$EXPECTED_PRIOR_THREADS_FILE" ] || return 1
+  # Phase 1 already materialized this v2 envelope from its cursor-complete
+  # GraphQL reviewThreads walk. Initial mode uses that same provider snapshot;
+  # threads=[] is valid only when the completed walk returned zero threads.
   HEAD_SHA="$REVIEW_HEAD_SHA" \
   PRIOR_THREADS_FILE="$PRIOR_THREADS_FILE" \
   REPOSITORY="<owner/repo>" \
@@ -416,7 +419,7 @@ bind_scope_decision_artifact() {
 }
 
 PRIOR_THREADS_STATUS=0
-materialize_initial_prior_threads || PRIOR_THREADS_STATUS=$?
+bind_provider_prior_threads || PRIOR_THREADS_STATUS=$?
 cd "$REVIEW_CALLER_DIR" || exit 1
 [ "$PRIOR_THREADS_STATUS" -eq 0 ] || exit "$PRIOR_THREADS_STATUS"
 
@@ -1015,6 +1018,16 @@ recovery branch established before Phase 3:
    ```sh
    LEASE_FILE="$(cd "$REVIEW_CALLER_DIR" && bash "$PR_REVIEW_LEASE_HELPER" derive-path)" || exit 1
    (cd "$REVIEW_CALLER_DIR" && bash "$PR_REVIEW_LEASE_HELPER" validate) || exit 1
+   LEASE_BASE_REF="$(jq -er '.base_ref | strings | select(length > 0)' "$REVIEW_CALLER_DIR/$LEASE_FILE")" || exit 1
+   LEASE_HEAD_REF="$(jq -er '.head_ref | strings | select(length > 0)' "$REVIEW_CALLER_DIR/$LEASE_FILE")" || exit 1
+   PR_BASE_REF="$LEASE_BASE_REF"
+   REVIEW_HEAD_REF="$LEASE_HEAD_REF"
+   REVIEW_RESULT_FILE="$(jq -er '.artifacts.result_file | strings' "$REVIEW_CALLER_DIR/$LEASE_FILE")" || exit 1
+   REVIEW_HEAD_SHA="$(cd "$WORKING_DIRECTORY" && jq -er '.review_head_sha | strings | select(test("^[0-9a-f]{40}$"))' "$REVIEW_RESULT_FILE")" || exit 1
+   REVIEW_HANDOFF_FILE="$(cd "$WORKING_DIRECTORY" && jq -er '.artifacts.handoff_file | strings' "$REVIEW_RESULT_FILE")" || exit 1
+   REVIEW_SCOPE_DECISION_FILE="$(cd "$WORKING_DIRECTORY" && jq -er '.artifacts.scope_decision_file | strings' "$REVIEW_RESULT_FILE")" || exit 1
+   PROVIDER_SCOPE_EVIDENCE_FILE="$(cd "$WORKING_DIRECTORY" && jq -er '.artifacts.provider_scope_evidence_file | strings' "$REVIEW_SCOPE_DECISION_FILE")" || exit 1
+   REVIEW_SCOPE_BASE_REF="$(cd "$WORKING_DIRECTORY" && jq -er '.provider_pr_diff_base_sha | strings | select(test("^[0-9a-f]{40}$"))' "$PROVIDER_SCOPE_EVIDENCE_FILE")" || exit 1
    CURRENT_LEASE_STATE="$(jq -er '.state' "$REVIEW_CALLER_DIR/$LEASE_FILE")" || exit 1
    STORED_POST_INTENT_FILE="$(jq -er '.artifacts.post_intent_file // ""' "$REVIEW_CALLER_DIR/$LEASE_FILE")" || exit 1
    STORED_EXECUTION_RECEIPT_FILE="$(jq -er '.artifacts.execution_receipt_file // ""' "$REVIEW_CALLER_DIR/$LEASE_FILE")" || exit 1
@@ -1240,6 +1253,8 @@ recovery branch established before Phase 3:
      fi
      STATE="failed" \
      EXPECTED_STATE="$CURRENT_LEASE_STATE" \
+     BASE_REF="$LEASE_BASE_REF" \
+     HEAD_REF="$LEASE_HEAD_REF" \
      APPROVED_REVIEW_FILE="$APPROVED_REVIEW_FILE" \
      VALIDATED_REVIEW_PAYLOAD_FILE="$VALIDATED_REVIEW_PAYLOAD_FILE" \
      EXECUTION_RECEIPT_FILE="" \
@@ -1264,6 +1279,8 @@ recovery branch established before Phase 3:
      # A receipt cannot precede a lease-owned intent and provider post.
      (cd "$WORKING_DIRECTORY" && [ ! -e "$EXISTING_EXECUTION_RECEIPT_FILE" ] && [ ! -L "$EXISTING_EXECUTION_RECEIPT_FILE" ]) || exit 1
      STATE="gated" \
+     BASE_REF="$LEASE_BASE_REF" \
+     HEAD_REF="$LEASE_HEAD_REF" \
      APPROVED_REVIEW_FILE="$APPROVED_REVIEW_FILE" \
      VALIDATED_REVIEW_PAYLOAD_FILE="$VALIDATED_REVIEW_PAYLOAD_FILE" \
      POST_INTENT_FILE="$POST_INTENT_FILE" \
@@ -1315,6 +1332,8 @@ recovery branch established before Phase 3:
      if [ -n "$STATE" ]; then
        STATE="$STATE" \
        EXPECTED_STATE="$CURRENT_LEASE_STATE" \
+       BASE_REF="$LEASE_BASE_REF" \
+       HEAD_REF="$LEASE_HEAD_REF" \
        EXECUTION_RECEIPT_FILE="$EXECUTION_RECEIPT_FILE" \
        GITHUB_POSTED_AT="$PROVIDER_REVIEW_SUBMITTED_AT" \
        PROVIDER_REVIEW_ID="$PROVIDER_REVIEW_ID" \
@@ -1363,6 +1382,8 @@ recovery branch established before Phase 3:
      # The helper has atomically created and revalidated both artifacts. Persist
      # LC-19 (`record-post-intent`) before the first provider POST.
      STATE="gated" \
+     BASE_REF="$LEASE_BASE_REF" \
+     HEAD_REF="$LEASE_HEAD_REF" \
      APPROVED_REVIEW_FILE="$APPROVED_REVIEW_FILE" \
      VALIDATED_REVIEW_PAYLOAD_FILE="$VALIDATED_REVIEW_PAYLOAD_FILE" \
      POST_INTENT_FILE="$POST_INTENT_FILE" \
@@ -1406,6 +1427,8 @@ recovery branch established before Phase 3:
          FAILURE_REASON="GitHub review POST outcome is uncertain"
        fi
        STATE="failed" \
+       BASE_REF="$LEASE_BASE_REF" \
+       HEAD_REF="$LEASE_HEAD_REF" \
        APPROVED_REVIEW_FILE="$APPROVED_REVIEW_FILE" \
        VALIDATED_REVIEW_PAYLOAD_FILE="$VALIDATED_REVIEW_PAYLOAD_FILE" \
        FINISHED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
@@ -1484,6 +1507,8 @@ recovery branch established before Phase 3:
      unset FINISHED_AT
    fi
    STATE="$STATE" \
+   BASE_REF="$LEASE_BASE_REF" \
+   HEAD_REF="$LEASE_HEAD_REF" \
    EXECUTION_RECEIPT_FILE="$EXECUTION_RECEIPT_FILE" \
    GITHUB_POSTED_AT="$GITHUB_POSTED_AT" \
    PROVIDER_REVIEW_ID="$PROVIDER_REVIEW_ID" \
@@ -1506,7 +1531,21 @@ recovery branch established before Phase 3:
    eligible ID, GraphQL resolution is the only mutation:
 
    ```sh
-   gh api graphql --silent -f query='mutation { resolveReviewThread(input: {threadId: "<id>"}) { thread { isResolved } } }'
+   if RESOLVE_THREAD_RESPONSE=$(gh api graphql \
+     -f query='mutation($threadId: ID!) { resolveReviewThread(input: {threadId: $threadId}) { thread { isResolved } } }' \
+     -f threadId="$SEALED_THREAD_ID"); then
+     if printf '%s' "$RESOLVE_THREAD_RESPONSE" | \
+       jq -e '.data.resolveReviewThread.thread.isResolved == true' >/dev/null; then
+       THREAD_DISPOSITION="succeeded"
+       ACTION_FAILURE_REASON=""
+     else
+       THREAD_DISPOSITION="failed"
+       ACTION_FAILURE_REASON="GitHub did not confirm the sealed thread was resolved."
+     fi
+   else
+     THREAD_DISPOSITION="failed"
+     ACTION_FAILURE_REASON="GitHub resolveReviewThread request failed."
+   fi
    ```
 
 7. **Advance the receipt atomically and recover without widening authority.**
@@ -1561,6 +1600,8 @@ recovery branch established before Phase 3:
      unset FINISHED_AT
    fi
    STATE="$STATE" \
+   BASE_REF="$LEASE_BASE_REF" \
+   HEAD_REF="$LEASE_HEAD_REF" \
    EXECUTION_RECEIPT_FILE="$EXECUTION_RECEIPT_FILE" \
    GITHUB_POSTED_AT="$GITHUB_POSTED_AT" \
    PROVIDER_REVIEW_ID="$PROVIDER_REVIEW_ID" \
