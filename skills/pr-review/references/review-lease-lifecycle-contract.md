@@ -77,8 +77,8 @@ updates are valid only when the matching row says so.
 | LC-21 | `record-complete-receipt`          | `gated`               | `posted`    | Stored intent and valid terminal receipt, `GITHUB_POSTED_AT`, `PROVIDER_REVIEW_ID`, `FINISHED_AT`, `UPDATED_AT`                                                                                                             |
 | LC-22 | `record-receipt-progress`          | `resolving`           | `resolving` | Same stored intent, valid replacement receipt with a pending or failed sealed resolve, `GITHUB_POSTED_AT`, `PROVIDER_REVIEW_ID`, `UPDATED_AT`                                                                               |
 | LC-23 | `complete-receipt-progress`        | `resolving`           | `posted`    | Same stored intent, valid terminal replacement receipt, `GITHUB_POSTED_AT`, `PROVIDER_REVIEW_ID`, `FINISHED_AT`, `UPDATED_AT`                                                                                               |
-| LC-24 | `recover-execution-receipt`        | `failed`              | `resolving` | Prior `github-post` failure preserves a stored intent and no receipt; valid receipt with a pending or failed sealed resolve, `GITHUB_POSTED_AT`, `PROVIDER_REVIEW_ID`, `UPDATED_AT`                                         |
-| LC-25 | `recover-complete-receipt`         | `failed`              | `posted`    | Prior `github-post` failure preserves a stored intent and no receipt; valid terminal receipt, `GITHUB_POSTED_AT`, `PROVIDER_REVIEW_ID`, `FINISHED_AT`, `UPDATED_AT`                                                         |
+| LC-24 | `recover-execution-receipt`        | `failed`              | `resolving` | An uncertain transport or 5xx `github-post` failure preserves a stored intent and no receipt; valid receipt with a pending or failed sealed resolve, `GITHUB_POSTED_AT`, `PROVIDER_REVIEW_ID`, `UPDATED_AT`                 |
+| LC-25 | `recover-complete-receipt`         | `failed`              | `posted`    | An uncertain transport or 5xx `github-post` failure preserves a stored intent and no receipt; valid terminal receipt, `GITHUB_POSTED_AT`, `PROVIDER_REVIEW_ID`, `FINISHED_AT`, `UPDATED_AT`                                 |
 | LC-26 | `record-thread-resolution-failure` | `resolving`           | `failed`    | `FAILURE_PHASE=thread-resolution`, exact stored intent and receipt, preserved post identity, `FAILURE_RECOVERABILITY=unrecoverable`, `FINISHED_AT`, `UPDATED_AT`; only for a sealed thread proven missing or newly outdated |
 
 All other transitions are forbidden. `stale-head` is a valid failure phase for
@@ -117,9 +117,10 @@ sealed intent retained and no receipt. It performs no reconciliation or provider
 read/mutation, is eligible only for explicit manual cleanup, and grants no
 retry, archive, or reentry. Any later POST requires a fresh approval session.
 
-An action-bearing `github-post` failure with its stored intent and no receipt
-may proceed only through LC-24 or LC-25 after provider reconciliation and
-receipt materialization. Those rows preserve the frozen approved review,
+An uncertain transport or 5xx action-bearing `github-post` failure with its
+stored intent and no receipt may proceed only through LC-24 or LC-25 after
+provider reconciliation and receipt materialization. The exact definitive HTTP
+4xx terminal failure is excluded from those rows. LC-24 and LC-25 preserve the frozen approved review,
 validated payload, post intent, and existing presentation without re-entering
 `gated`. It must reject LC-14 presentation, LC-15 abort, and any LC-16 rewrite
 other than identical `github-post` failure evidence; it cannot reach LC-18

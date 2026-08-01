@@ -4661,6 +4661,16 @@ describe("pr-review lease intent command validation", () => {
         path.join(workspace.primary, workspace.leaseFile),
         `${JSON.stringify(definitiveFailure, null, 2)}\n`,
       );
+      await expect(discoverPrReviewSession()).resolves.toMatchObject({
+        disposition: "cleanup-required",
+        resume: null,
+        active: [
+          {
+            state: "failed",
+            classification: "terminal",
+          },
+        ],
+      });
       inspection = await runPrReviewLeasesCommand(["inspect-worktree"]);
       expect(inspection.exitCode, inspection.stderr).toBe(0);
       expect(inspection.stdout).toContain("CAN_REMOVE=no");
@@ -4699,6 +4709,14 @@ describe("pr-review lease intent command validation", () => {
           2,
         )}\n`,
       );
+      await expect(discoverPrReviewSession()).resolves.toMatchObject({
+        active: [
+          {
+            state: "failed",
+            classification: "resumable",
+          },
+        ],
+      });
       inspection = await runPrReviewLeasesCommand(["inspect-worktree"]);
       expect(inspection.exitCode, inspection.stderr).toBe(0);
       expect(inspection.stdout).toContain("CAN_REMOVE=no");

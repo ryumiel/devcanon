@@ -1499,15 +1499,16 @@ async function inspectDiscoveryCandidate(
     const isReentry =
       (await hasPostCleanupArchiveAuthority(lease, identity)) &&
       (await inspectTerminalArchive(lease, identity, leaseFile)) === "equal";
-    const isTerminalThreadResolutionFailure =
-      isThreadResolutionTerminalFailure(lease);
+    const isTerminalManualCleanupFailure =
+      isThreadResolutionTerminalFailure(lease) ||
+      isDefinitiveGithubPostTerminalFailure(lease);
     return {
       lease_file: leaseFile,
       worktree_path: worktreePath,
       state: lease.state,
       classification: isReentry
         ? "reentry"
-        : isTerminalThreadResolutionFailure
+        : isTerminalManualCleanupFailure
           ? "terminal"
           : ["created", "reviewed", "gated", "resolving", "failed"].includes(
                 lease.state,
