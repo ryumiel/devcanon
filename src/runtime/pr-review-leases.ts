@@ -2686,6 +2686,9 @@ function applyPostIntent(
   requireInput("APPROVED_REVIEW_FILE", inputs.approvedReviewFile);
   requireInput("VALIDATED_REVIEW_PAYLOAD_FILE", inputs.validatedPayloadFile);
   requireInput("POST_INTENT_FILE", inputs.postIntentFile);
+  const resultSha256 =
+    inputs.resultSha256 ?? previous?.validation.result_manifest.sha256;
+  requireInput("RESULT_SHA256", resultSha256);
   return {
     ...base,
     state: "gated",
@@ -2698,7 +2701,7 @@ function applyPostIntent(
       post_intent_file: inputs.postIntentFile,
       execution_receipt_file: null,
     },
-    validation: previous?.validation ?? emptyValidation(),
+    validation: validResultValidation(inputs.updatedAt, resultSha256),
     presentation: previous?.presentation ?? emptyPresentation(),
   };
 }

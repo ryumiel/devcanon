@@ -4422,6 +4422,21 @@ describe("pr-review lease intent command validation", () => {
       process.env.POST_INTENT_FILE = paths.post_intent_file;
       const result = await runPrReviewLeasesCommand(["write"]);
       expect(result.exitCode, result.stderr).toBe(0);
+      const intentLease = await readLease(
+        workspace.primary,
+        workspace.leaseFile,
+      );
+      expect(intentLease.validation.result_manifest).toEqual({
+        status: "valid",
+        validated_at: "2026-06-11T00:03:00Z",
+        sha256: await sha256File(
+          path.join(workspace.worktree, workspace.resultFile),
+        ),
+      });
+
+      setReadStatusEnv(workspace);
+      const validated = await runPrReviewLeasesCommand(["validate"]);
+      expect(validated.exitCode, validated.stderr).toBe(0);
     } finally {
       await writeFile(installedHelper, priorInstalledHelper);
       await chmod(installedHelper, 0o755);

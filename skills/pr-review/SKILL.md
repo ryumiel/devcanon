@@ -51,6 +51,11 @@ $cursor)` walk. Continue until `pageInfo.hasNextPage=false`; reject GraphQL
   in `pr-review/prior-threads/v2` with `review_threads_complete=true`. REST
   review/comment IDs are display context only and never resolution authority.
 
+After those checks, retain the exact compact closed v2 envelope in
+`PRIOR_THREADS_SNAPSHOT_JSON`. This Phase 1 value is provider evidence, not a
+worktree path: Phase 3 publishes the unchanged bytes to the selected review
+worktree after Phase 2 has established `WORKING_DIRECTORY`.
+
 Phase 1 must fetch and record provider `baseRefOid` and `headRefOid`, but
 provider `baseRefOid` is metadata, not proof that the base branch ref is the PR
 diff base. Also gather the complete provider file/diff evidence needed to prove
@@ -375,13 +380,23 @@ esac
 
 bind_provider_prior_threads() {
   cd "$WORKING_DIRECTORY" || return 1
-  : "${PRIOR_THREADS_FILE:?Phase 1 cursor-complete prior-threads/v2 path missing}"
-  EXPECTED_PRIOR_THREADS_FILE=$(HEAD_SHA="$REVIEW_HEAD_SHA" \
+  : "${PRIOR_THREADS_SNAPSHOT_JSON:?Phase 1 cursor-complete prior-threads/v2 snapshot missing}"
+  PRIOR_THREADS_FILE=$(HEAD_SHA="$REVIEW_HEAD_SHA" \
     bash "$PR_REVIEW_ARTIFACT_HELPER" prepare-prior-threads-write) || return 1
-  [ "$PRIOR_THREADS_FILE" = "$EXPECTED_PRIOR_THREADS_FILE" ] || return 1
-  # Phase 1 already materialized this v2 envelope from its cursor-complete
-  # GraphQL reviewThreads walk. Initial mode uses that same provider snapshot;
-  # threads=[] is valid only when the completed walk returned zero threads.
+  PRIOR_THREADS_TMP=$(mktemp ".ephemeral/.prior-threads.XXXXXX") || return 1
+  printf '%s\n' "$PRIOR_THREADS_SNAPSHOT_JSON" > "$PRIOR_THREADS_TMP" || {
+    rm -f "$PRIOR_THREADS_TMP"
+    return 1
+  }
+  if ! ln "$PRIOR_THREADS_TMP" "$PRIOR_THREADS_FILE" 2>/dev/null; then
+    cmp -s "$PRIOR_THREADS_TMP" "$PRIOR_THREADS_FILE" || {
+      rm -f "$PRIOR_THREADS_TMP"
+      return 1
+    }
+  fi
+  rm -f "$PRIOR_THREADS_TMP" || return 1
+  # Initial and follow-up modes consume the same cursor-complete provider
+  # snapshot; threads=[] is valid only when the completed walk returned zero.
   HEAD_SHA="$REVIEW_HEAD_SHA" \
   PRIOR_THREADS_FILE="$PRIOR_THREADS_FILE" \
   REPOSITORY="<owner/repo>" \
@@ -556,7 +571,10 @@ Hand off to `play-review` with these manifest-backed inputs:
 - `head_sha` = `git rev-parse HEAD` in the worktree
 - `mode` = `"github-post"`
 - `language_hints` = derived from the **active diff's** changed-files set (so `Code-quality` language checks and risk-triggered routing context match the selected scope; deriving from the full PR would re-run earlier-touched language context on docs-only follow-ups, defeating the narrow-mode scoping)
-- `prior_threads` = parsed from the `{{tool:github-cli}} api .../comments` and `.../reviews` responses (follow-up only)
+- `prior_threads` = parsed from the validated `PRIOR_THREADS_FILE`
+  `pr-review/prior-threads/v2` envelope in both initial and follow-up modes;
+  REST review/comment responses may enrich display context only and never
+  replace its GraphQL thread IDs or completeness authority
 - `last_reviewed_sha` = set in Phase 1 (follow-up only)
 - `is_followup_narrow` = computed in Phase 3
 
@@ -1013,6 +1031,15 @@ digest-mismatched candidate stops rendering and resume before the user gate.
 After user approval for a fresh request, or directly from the validated sealed
 recovery branch established before Phase 3:
 
+Bind the installed approved-review helper before choosing the fresh or sealed
+recovery branch so both paths use the same artifact authority:
+
+```sh
+PR_REVIEW_DIR="<installed-pr-review-skill-bundle>"
+PR_REVIEW_HELPER="$PR_REVIEW_DIR/scripts/approved-review-artifacts.sh"
+[ -f "$PR_REVIEW_HELPER" ] && [ -x "$PR_REVIEW_HELPER" ] || exit 1
+```
+
 0. **Run the sealed-recovery preflight before rebuilding any review artifact.** Derive and validate the current lease first. If it owns a `post_intent_file` or `execution_receipt_file`, bind only the stored direct-child paths, validate the lease → approved review → post intent → receipt chain, and take the sealed recovery continuation below. Do this before the Phase 5 result read, approved-review freeze, normal stale-head POST guard, or creation of a new intent. A stored intent without a receipt performs the one fingerprint reconciliation; a stored receipt resumes only its sealed pending or failed `resolve` actions. Neither branch re-gates, rebuilds the result or preview, refreezes approval, creates a new request, or reposts. An invalid chain, ambiguous reconciliation, or obsolete `pr-review/result/v1` / `pr-review/prior-threads/v1` artifact stops with the cleanup/restart or provider-refetch disposition before any provider mutation.
 
    ```sh
@@ -1079,8 +1106,9 @@ recovery branch established before Phase 3:
 3. **Build and freeze the approved payload artifact before posting.** When `SEALED_RECOVERY=false`, use the
    approved Phase 5 artifacts; do not rebuild findings or the review body from
    conversation text. `PR_REVIEW_DIR` must resolve to the installed
-   `pr-review` skill bundle, not the repository under review. Bind
-   `PR_REVIEW_HELPER="$PR_REVIEW_DIR/scripts/approved-review-artifacts.sh"`.
+   `pr-review` skill bundle, not the repository under review. The common
+   Phase 6 preflight already bound `PR_REVIEW_HELPER` for fresh and recovery
+   paths.
    First validate the findings envelope, then ask the `pr-review` helper for
    the deterministic payload path, then write exactly the JSON emitted by
    `build-github-review-payload` to that path, then freeze it. Run this as a
@@ -1089,8 +1117,6 @@ recovery branch established before Phase 3:
    restore the starting directory before those later repo-root-relative steps:
 
    ```bash
-   PR_REVIEW_DIR="<installed-pr-review-skill-bundle>"
-   PR_REVIEW_HELPER="$PR_REVIEW_DIR/scripts/approved-review-artifacts.sh"
    PLAY_REVIEW_DIR="<installed-play-review-skill-bundle>"
    PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"
    REVIEW_CALLER_DIR="$(pwd -P)" || exit 1
@@ -1522,33 +1548,19 @@ recovery branch established before Phase 3:
    fi
    ```
 
-   Resolve only the sealed IDs in `RESUME_SEALED_THREAD_IDS`; this is empty for
-   a terminal existing receipt. Make a fresh provider read immediately before resolving each sealed `resolve` ID, using the complete review-thread connection. The ID must
-   appear exactly once and remain an eligible sealed thread. A freshly
-   already-resolved record receives the `already-resolved` disposition without a
-   mutation; missing, duplicate, unknown, ineligible, or malformed records stop
-   with no further mutation. Do not resolve `leave` actions. For a pending
-   eligible ID, GraphQL resolution is the only mutation:
+7. **Resolve in sealed order and advance the receipt atomically without
+   widening authority.** Resolve only the sealed IDs in
+   `RESUME_SEALED_THREAD_IDS`; this is empty for a terminal existing receipt.
+   Iterate the JSON array in receipt order and bind each member to
+   `SEALED_THREAD_ID`. Immediately before each member, revalidate the lease and
+   execute the complete cursor-validated GraphQL walk in **Fetch thread IDs for
+   resolution** below, binding its normalized current v2 envelope to
+   `FRESH_REVIEW_THREADS_JSON`. Never reuse that value for the next member. The
+   sealed ID must appear exactly once. A freshly resolved record advances to
+   `already-resolved` without mutation; a fresh unresolved, non-outdated record
+   may use the GraphQL mutation. Missing, duplicate, unknown, outdated, or
+   malformed records stop before mutation. Do not resolve `leave` actions.
 
-   ```sh
-   if RESOLVE_THREAD_RESPONSE=$(gh api graphql \
-     -f query='mutation($threadId: ID!) { resolveReviewThread(input: {threadId: $threadId}) { thread { isResolved } } }' \
-     -f threadId="$SEALED_THREAD_ID"); then
-     if printf '%s' "$RESOLVE_THREAD_RESPONSE" | \
-       jq -e '.data.resolveReviewThread.thread.isResolved == true' >/dev/null; then
-       THREAD_DISPOSITION="succeeded"
-       ACTION_FAILURE_REASON=""
-     else
-       THREAD_DISPOSITION="failed"
-       ACTION_FAILURE_REASON="GitHub did not confirm the sealed thread was resolved."
-     fi
-   else
-     THREAD_DISPOSITION="failed"
-     ACTION_FAILURE_REASON="GitHub resolveReviewThread request failed."
-   fi
-   ```
-
-7. **Advance the receipt atomically and recover without widening authority.**
    After each fresh-state check or mutation response, replace the same receipt
    path using an atomic direct-child replacement only; preserve its provider
    review ID, post time, intent binding, action order, and all already-terminal
@@ -1571,43 +1583,149 @@ recovery branch established before Phase 3:
    writer:
 
    ```sh
-   ADVANCE_RECEIPT_JSON=$( (
-     cd "$WORKING_DIRECTORY" || exit 1
-     HEAD_SHA="$REVIEW_HEAD_SHA" \
-     PR_NUMBER="$PR_NUMBER" \
-     REPOSITORY="<owner/repo>" \
-     BASE_REF="$REVIEW_SCOPE_BASE_REF" \
-     APPROVED_REVIEW_FILE="$APPROVED_REVIEW_FILE" \
-     POST_INTENT_FILE="$POST_INTENT_FILE" \
+   read_sealed_thread_fresh() {
+     SEALED_THREAD_ID="$1"
+     SEALED_REPOSITORY="<owner/repo>"
+     SEALED_OWNER="${SEALED_REPOSITORY%%/*}"
+     SEALED_NAME="${SEALED_REPOSITORY#*/}"
+     [ -n "$SEALED_OWNER" ] && [ -n "$SEALED_NAME" ] && [ "$SEALED_OWNER" != "$SEALED_NAME" ] || return 1
+     THREAD_PAGES_JSON="$(gh api graphql --paginate --slurp \
+       -f query='query($owner: String!, $name: String!, $number: Int!, $endCursor: String) {
+         repository(owner: $owner, name: $name) { nameWithOwner pullRequest(number: $number) {
+           number headRefOid reviewThreads(first: 100, after: $endCursor) { nodes {
+             id isResolved isOutdated comments(first: 100) { pageInfo { hasNextPage endCursor } }
+           } pageInfo { hasNextPage endCursor } }
+         } }
+       }' \
+       -f owner="$SEALED_OWNER" -f name="$SEALED_NAME" \
+       -F number="$PR_NUMBER" -F endCursor=null)" || return 1
+     FRESH_SEALED_THREAD_JSON="$(printf '%s' "$THREAD_PAGES_JSON" | jq -cer \
+       --arg repository "$SEALED_REPOSITORY" \
+       --arg head "$REVIEW_HEAD_SHA" \
+       --arg id "$SEALED_THREAD_ID" \
+       --argjson number "$PR_NUMBER" '
+       def pages: [.[] | .data.repository.pullRequest.reviewThreads.pageInfo];
+       def nodes: [.[] | .data.repository.pullRequest.reviewThreads.nodes[]];
+       if type != "array" or length == 0 then error("reviewThreads pages missing")
+       elif any(.[]; ((.errors // []) | length) != 0) then error("GraphQL errors")
+       elif any(.[]; .data.repository == null or .data.repository.pullRequest == null) then error("reviewThreads page missing")
+       elif any(.[]; .data.repository.nameWithOwner != $repository
+         or .data.repository.pullRequest.number != $number
+         or .data.repository.pullRequest.headRefOid != $head) then error("reviewThreads identity drift")
+       elif any(pages[]; .hasNextPage == true and ((.endCursor | type) != "string" or (.endCursor | length) == 0)) then error("reviewThreads cursor missing")
+       elif pages[-1].hasNextPage != false then error("reviewThreads incomplete")
+       elif ([pages[].endCursor | select(. != null)] | length) != ([pages[].endCursor | select(. != null)] | unique | length) then error("reviewThreads cursor repeated")
+       elif ([nodes[].id] | length) != ([nodes[].id] | unique | length) then error("reviewThreads ID duplicated")
+       else [nodes[] | select(.id == $id)]
+         | if length == 1 then .[0] else error("sealed thread missing or duplicated") end
+       end
+     ')" || return 1
+
+     COMMENTS_HAS_NEXT="$(printf '%s' "$FRESH_SEALED_THREAD_JSON" | jq -er '.comments.pageInfo.hasNextPage | booleans')" || return 1
+     if [ "$COMMENTS_HAS_NEXT" = true ]; then
+       COMMENTS_CURSOR="$(printf '%s' "$FRESH_SEALED_THREAD_JSON" | jq -er '.comments.pageInfo.endCursor | strings | select(length > 0)')" || return 1
+       COMMENTS_PAGES_JSON="$(gh api graphql --paginate --slurp \
+         -f query='query($owner: String!, $name: String!, $number: Int!, $threadId: ID!, $endCursor: String) {
+           repository(owner: $owner, name: $name) { nameWithOwner pullRequest(number: $number) { number headRefOid } }
+           node(id: $threadId) { ... on PullRequestReviewThread {
+             id comments(first: 100, after: $endCursor) { nodes { id } pageInfo { hasNextPage endCursor } }
+           } }
+         }' \
+         -f owner="$SEALED_OWNER" -f name="$SEALED_NAME" \
+         -F number="$PR_NUMBER" -f threadId="$SEALED_THREAD_ID" \
+         -f endCursor="$COMMENTS_CURSOR")" || return 1
+       printf '%s' "$COMMENTS_PAGES_JSON" | jq -e \
+         --arg repository "$SEALED_REPOSITORY" \
+         --arg head "$REVIEW_HEAD_SHA" \
+         --arg id "$SEALED_THREAD_ID" \
+         --argjson number "$PR_NUMBER" '
+         def pages: [.[] | .data.node.comments.pageInfo];
+         type == "array" and length > 0
+         and all(.[]; ((.errors // []) | length) == 0)
+         and all(.[]; .data.repository.nameWithOwner == $repository
+           and .data.repository.pullRequest.number == $number
+           and .data.repository.pullRequest.headRefOid == $head
+           and .data.node.id == $id)
+         and all(pages[]; (.hasNextPage == false)
+           or ((.endCursor | type) == "string" and (.endCursor | length) > 0))
+         and pages[-1].hasNextPage == false
+         and (([pages[].endCursor | select(. != null)] | length)
+           == ([pages[].endCursor | select(. != null)] | unique | length))
+       ' >/dev/null || return 1
+     fi
+     printf '%s\n' "$FRESH_SEALED_THREAD_JSON"
+   }
+
+   while IFS= read -r SEALED_THREAD_ID; do
+     [ -n "$SEALED_THREAD_ID" ] || exit 1
+     (cd "$REVIEW_CALLER_DIR" && bash "$PR_REVIEW_LEASE_HELPER" validate) || exit 1
+     CURRENT_LEASE_STATE="$(jq -er '.state' "$REVIEW_CALLER_DIR/$LEASE_FILE")" || exit 1
+     FRESH_SEALED_THREAD_JSON="$(read_sealed_thread_fresh "$SEALED_THREAD_ID")" || exit 1
+
+     if printf '%s' "$FRESH_SEALED_THREAD_JSON" | jq -e '.is_resolved == true' >/dev/null; then
+       THREAD_DISPOSITION="already-resolved"
+       ACTION_FAILURE_REASON=""
+     elif printf '%s' "$FRESH_SEALED_THREAD_JSON" | jq -e '.is_resolved == false and .is_outdated == false' >/dev/null; then
+       if RESOLVE_THREAD_RESPONSE=$(gh api graphql \
+         -f query='mutation($threadId: ID!) { resolveReviewThread(input: {threadId: $threadId}) { thread { isResolved } } }' \
+         -f threadId="$SEALED_THREAD_ID"); then
+         if printf '%s' "$RESOLVE_THREAD_RESPONSE" | \
+           jq -e '.data.resolveReviewThread.thread.isResolved == true' >/dev/null; then
+           THREAD_DISPOSITION="succeeded"
+           ACTION_FAILURE_REASON=""
+         else
+           THREAD_DISPOSITION="failed"
+           ACTION_FAILURE_REASON="GitHub did not confirm the sealed thread was resolved."
+         fi
+       else
+         THREAD_DISPOSITION="failed"
+         ACTION_FAILURE_REASON="GitHub resolveReviewThread request failed."
+       fi
+     else
+       exit 1
+     fi
+
+     ADVANCE_RECEIPT_JSON=$( (
+       cd "$WORKING_DIRECTORY" || exit 1
+       HEAD_SHA="$REVIEW_HEAD_SHA" \
+       PR_NUMBER="$PR_NUMBER" \
+       REPOSITORY="<owner/repo>" \
+       BASE_REF="$REVIEW_SCOPE_BASE_REF" \
+       APPROVED_REVIEW_FILE="$APPROVED_REVIEW_FILE" \
+       POST_INTENT_FILE="$POST_INTENT_FILE" \
+       EXECUTION_RECEIPT_FILE="$EXECUTION_RECEIPT_FILE" \
+       THREAD_ID="$SEALED_THREAD_ID" \
+       DISPOSITION="$THREAD_DISPOSITION" \
+       ACTION_FAILURE_REASON="${ACTION_FAILURE_REASON:-}" \
+       EXECUTION_RECEIPT_UPDATED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+         bash "$PR_REVIEW_HELPER" advance-execution-receipt
+     ) ) || exit 1
+     ADVANCE_WRITE_STATUS="$(printf '%s' "$ADVANCE_RECEIPT_JSON" | jq -er '.write_status | select(. == "committed" or . == "already-current" or . == "prior-retained")')" || exit 1
+     [ "$ADVANCE_WRITE_STATUS" != "prior-retained" ] || exit 1
+     EXECUTION_RECEIPT_FILE="$(printf '%s' "$ADVANCE_RECEIPT_JSON" | jq -er '.execution_receipt_file')" || exit 1
+     RECEIPT_ALL_TERMINAL="$(printf '%s' "$ADVANCE_RECEIPT_JSON" | jq -er '.all_terminal | booleans')" || exit 1
+     GITHUB_POSTED_AT="$(cd "$WORKING_DIRECTORY" && jq -er '.provider_review_submitted_at' "$EXECUTION_RECEIPT_FILE")" || exit 1
+     PROVIDER_REVIEW_ID="$(cd "$WORKING_DIRECTORY" && jq -er '.provider_review_id' "$EXECUTION_RECEIPT_FILE")" || exit 1
+     if [ "$RECEIPT_ALL_TERMINAL" = true ]; then
+       STATE="posted"
+       FINISHED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+     else
+       STATE="resolving"
+       unset FINISHED_AT
+     fi
+     STATE="$STATE" \
+     EXPECTED_STATE="$CURRENT_LEASE_STATE" \
+     BASE_REF="$LEASE_BASE_REF" \
+     HEAD_REF="$LEASE_HEAD_REF" \
      EXECUTION_RECEIPT_FILE="$EXECUTION_RECEIPT_FILE" \
-     THREAD_ID="$SEALED_THREAD_ID" \
-     DISPOSITION="$THREAD_DISPOSITION" \
-     ACTION_FAILURE_REASON="${ACTION_FAILURE_REASON:-}" \
-     EXECUTION_RECEIPT_UPDATED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-       bash "$PR_REVIEW_HELPER" advance-execution-receipt
-   ) ) || exit 1
-   ADVANCE_WRITE_STATUS="$(printf '%s' "$ADVANCE_RECEIPT_JSON" | jq -er '.write_status | select(. == "committed" or . == "already-current" or . == "prior-retained")')" || exit 1
-   [ "$ADVANCE_WRITE_STATUS" != "prior-retained" ] || exit 1
-   EXECUTION_RECEIPT_FILE="$(printf '%s' "$ADVANCE_RECEIPT_JSON" | jq -er '.execution_receipt_file')" || exit 1
-   RECEIPT_ALL_TERMINAL="$(printf '%s' "$ADVANCE_RECEIPT_JSON" | jq -er '.all_terminal | booleans')" || exit 1
-   GITHUB_POSTED_AT="$(cd "$WORKING_DIRECTORY" && jq -er '.provider_review_submitted_at' "$EXECUTION_RECEIPT_FILE")" || exit 1
-   PROVIDER_REVIEW_ID="$(cd "$WORKING_DIRECTORY" && jq -er '.provider_review_id' "$EXECUTION_RECEIPT_FILE")" || exit 1
-   if [ "$RECEIPT_ALL_TERMINAL" = true ]; then
-     STATE="posted"
-     FINISHED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-   else
-     STATE="resolving"
-     unset FINISHED_AT
-   fi
-   STATE="$STATE" \
-   BASE_REF="$LEASE_BASE_REF" \
-   HEAD_REF="$LEASE_HEAD_REF" \
-   EXECUTION_RECEIPT_FILE="$EXECUTION_RECEIPT_FILE" \
-   GITHUB_POSTED_AT="$GITHUB_POSTED_AT" \
-   PROVIDER_REVIEW_ID="$PROVIDER_REVIEW_ID" \
-   FINISHED_AT="${FINISHED_AT:-}" \
-   UPDATED_AT="<RFC-3339-UTC>" \
-     bash "$PR_REVIEW_LEASE_HELPER" write || exit 1
+     GITHUB_POSTED_AT="$GITHUB_POSTED_AT" \
+     PROVIDER_REVIEW_ID="$PROVIDER_REVIEW_ID" \
+     FINISHED_AT="${FINISHED_AT:-}" \
+     UPDATED_AT="<RFC-3339-UTC>" \
+       bash "$PR_REVIEW_LEASE_HELPER" write || exit 1
+     unset FRESH_SEALED_THREAD_JSON
+     [ "$THREAD_DISPOSITION" != "failed" ] || exit 1
+   done < <(printf '%s' "$RESUME_SEALED_THREAD_IDS" | jq -er '.[]')
    ```
 
    Verify every API response. If a resolution fails, record its `failed`

@@ -3322,7 +3322,7 @@ None
     );
 
     expect(prReview).toContain(
-      "`prior_threads` = parsed from the `{{tool:github-cli}} api .../comments` and `.../reviews` responses",
+      "`prior_threads` = parsed from the validated `PRIOR_THREADS_FILE`",
     );
     expect(branchReview).toContain(
       "prior_branch_findings` = the validated `--prior-findings` envelope path",
@@ -3773,11 +3773,22 @@ None
     );
     expect(normalizedPrReview).toContain("bind_provider_prior_threads");
     expect(normalizedPrReview).toContain(
-      "Phase 1 cursor-complete prior-threads/v2 path missing",
+      "Phase 1 cursor-complete prior-threads/v2 snapshot missing",
+    );
+    expect(normalizedPrReview).toContain("PRIOR_THREADS_SNAPSHOT_JSON");
+    expect(normalizedPrReview).toContain(
+      'PRIOR_THREADS_TMP=$(mktemp ".ephemeral/.prior-threads.XXXXXX")',
     );
     expect(normalizedPrReview).toContain(
-      "threads=[] is valid only when the completed walk returned zero threads",
+      'ln "$PRIOR_THREADS_TMP" "$PRIOR_THREADS_FILE"',
     );
+    expect(normalizedPrReview).toContain(
+      "threads=[] is valid only when the completed walk returned zero",
+    );
+    expect(normalizedPrReview).toContain(
+      "`prior_threads` = parsed from the validated `PRIOR_THREADS_FILE`",
+    );
+    expect(normalizedPrReview).toContain("in both initial and follow-up modes");
     expect(normalizedPrReview).not.toContain(
       "Write the canonical empty pr-review/prior-threads/v2 envelope here",
     );
@@ -3845,7 +3856,7 @@ None
       "GITHUB_POST_ATTEMPTED=true",
       "GITHUB_POST_RESULT=failed",
       "Write the execution receipt before the first resolution",
-      "fresh provider read immediately before resolving each sealed `resolve` ID",
+      "execute the complete cursor-validated GraphQL walk",
       "already-resolved",
       "Do not resolve `leave` actions",
       "atomic direct-child replacement",
@@ -3864,6 +3875,30 @@ None
     expect(prReview.indexOf('REVIEW_CALLER_DIR="$(pwd -P)"')).toBeLessThan(
       prReview.indexOf("Sealed action recovery before review rebuild"),
     );
+    expect(
+      prReviewPhase6.indexOf(
+        'PR_REVIEW_HELPER="$PR_REVIEW_DIR/scripts/approved-review-artifacts.sh"',
+      ),
+    ).toBeLessThan(prReviewPhase6.indexOf("SEALED_RECOVERY=false"));
+    const sealedActionLoop = prReviewPhase6.slice(
+      prReviewPhase6.indexOf("while IFS= read -r SEALED_THREAD_ID; do"),
+      prReviewPhase6.indexOf(
+        "done < <(printf '%s' \"$RESUME_SEALED_THREAD_IDS\"",
+      ),
+    );
+    expect(sealedActionLoop).toContain(
+      'FRESH_SEALED_THREAD_JSON="$(read_sealed_thread_fresh "$SEALED_THREAD_ID")"',
+    );
+    expect(sealedActionLoop).toContain("advance-execution-receipt");
+    expect(sealedActionLoop).toContain('EXPECTED_STATE="$CURRENT_LEASE_STATE"');
+    const freshThreadReader = prReviewPhase6.slice(
+      prReviewPhase6.indexOf("read_sealed_thread_fresh()"),
+      prReviewPhase6.indexOf("while IFS= read -r SEALED_THREAD_ID; do"),
+    );
+    expect(freshThreadReader).toContain("gh api graphql --paginate --slurp");
+    expect(freshThreadReader).toContain("reviewThreads cursor repeated");
+    expect(freshThreadReader).toContain("reviewThreads ID duplicated");
+    expect(freshThreadReader).toContain("COMMENTS_PAGES_JSON");
     for (const sealedRecoveryBinding of [
       'LEASE_BASE_REF="$(jq -er',
       'LEASE_HEAD_REF="$(jq -er',
@@ -3885,7 +3920,7 @@ None
     }
     const receiptMaterialization = prReviewPhase6.slice(
       prReviewPhase6.indexOf("materialize-execution-receipt"),
-      prReviewPhase6.indexOf("Resolve only sealed `resolve` IDs"),
+      prReviewPhase6.indexOf("Resolve in sealed order"),
     );
     const receiptAdvancement = prReviewPhase6.slice(
       prReviewPhase6.indexOf("advance-execution-receipt"),
