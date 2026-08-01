@@ -4295,7 +4295,7 @@ describe("pr-review lease intent command validation", () => {
       );
       await writeFile(
         path.join(workspace.worktree, priorThreadsFile),
-        `${JSON.stringify({ schema: "pr-review/prior-threads/v2", provider: "github", repository: "owner/repo", pr_number: 432, head_sha: workspace.reviewHead, threads: [], dropped: [] })}\n`,
+        `${JSON.stringify({ schema: "pr-review/prior-threads/v2", provider: "github", repository: "owner/repo", pr_number: 432, head_sha: workspace.reviewHead, review_threads_complete: true, threads: [], dropped: [] })}\n`,
       );
       await writeFile(
         path.join(workspace.worktree, threadActionsFile),
@@ -4585,7 +4585,9 @@ describe("pr-review lease intent command validation", () => {
         review_head_sha: workspace.reviewHead,
         review_body_file: `.ephemeral/pr-432-${workspace.reviewHead}-review-body.md`,
         thread_actions_sha256: threadActionsSha256,
-        thread_actions: [{ thread_id: "thread-1", action: "resolve" }],
+        thread_actions: [
+          { thread_id: "PRRT_kwDOReceiptAction", action: "resolve" },
+        ],
         payload: approvedPayload,
       };
       await writeFile(
@@ -4656,7 +4658,7 @@ describe("pr-review lease intent command validation", () => {
             updated_at: updatedAt,
             actions: [
               {
-                thread_id: "thread-1",
+                thread_id: "PRRT_kwDOReceiptAction",
                 action: "resolve",
                 disposition,
                 failure_reason: null,
@@ -4729,6 +4731,56 @@ describe("pr-review lease intent command validation", () => {
       ).resolves.toBe(failedLease);
 
       await writeReceipt("pending", "2026-06-11T00:03:00Z");
+      const receiptBytes = await readFile(
+        path.join(workspace.worktree, receiptFile),
+        "utf8",
+      );
+      const orphanLease: PrReviewLease = {
+        ...gatedWithIntent,
+        artifacts: {
+          ...gatedWithIntent.artifacts,
+          post_intent_file: null,
+        },
+      };
+      await writeFile(
+        path.join(workspace.primary, workspace.leaseFile),
+        `${JSON.stringify(orphanLease, null, 2)}\n`,
+      );
+      await expect(discoverPrReviewSession()).resolves.toMatchObject({
+        active: [
+          {
+            state: "gated",
+            classification: "resumable",
+            unmanaged_ephemeral_artifacts: true,
+          },
+        ],
+      });
+
+      await writeFile(
+        path.join(workspace.primary, workspace.leaseFile),
+        failedLease,
+      );
+      await writeFile(
+        path.join(workspace.worktree, receiptFile),
+        receiptBytes.replace(
+          '"repository":"owner/repo"',
+          '"repository":"other/repo"',
+        ),
+      );
+      await expect(discoverPrReviewSession()).resolves.toMatchObject({
+        active: [{ classification: "invalid" }],
+      });
+      await writeFile(path.join(workspace.worktree, receiptFile), receiptBytes);
+      await expect(discoverPrReviewSession()).resolves.toMatchObject({
+        active: [
+          {
+            lease_file: workspace.leaseFile,
+            state: "failed",
+            classification: "resumable",
+            unmanaged_ephemeral_artifacts: false,
+          },
+        ],
+      });
       process.env.STATE = "resolving";
       process.env.UPDATED_AT = "2026-06-11T00:03:00Z";
       process.env.EXECUTION_RECEIPT_FILE = receiptFile;
@@ -4752,10 +4804,7 @@ describe("pr-review lease intent command validation", () => {
         "2026-06-11T00:04:00Z",
       );
       result = await runPrReviewLeasesCommand(["validate"]);
-      expect(result.exitCode).toBe(1);
-      expect(result.stderr).toContain(
-        "resolving lease requires pending or failed execution receipt action",
-      );
+      expect(result.exitCode).toBe(0);
 
       await writeReceipt("pending", "2026-06-11T00:03:00Z");
       await writeReceipt("succeeded", "2026-06-11T00:04:00Z");
@@ -7340,7 +7389,7 @@ async function writeResultArtifact(
   );
   await writeFile(
     path.join(worktree, priorThreadsFile),
-    `${JSON.stringify({ schema: "pr-review/prior-threads/v2", provider: "github", repository: "owner/repo", pr_number: 432, head_sha: reviewHead, threads: [], dropped: [] }, null, 2)}\n`,
+    `${JSON.stringify({ schema: "pr-review/prior-threads/v2", provider: "github", repository: "owner/repo", pr_number: 432, head_sha: reviewHead, review_threads_complete: true, threads: [], dropped: [] }, null, 2)}\n`,
   );
   await writeFile(
     path.join(worktree, threadActionsFile),

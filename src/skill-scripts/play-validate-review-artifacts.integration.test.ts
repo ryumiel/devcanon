@@ -695,6 +695,7 @@ function priorThreadsEnvelope(headSha: string, overrides: JsonObject = {}) {
     repository: "owner/repo",
     pr_number: 390,
     head_sha: headSha,
+    review_threads_complete: true,
     threads: [priorThread()],
     dropped: [
       {
@@ -3320,12 +3321,51 @@ describe("play-validate-review-artifacts validator", () => {
       "pr-review/prior-threads/v2",
       "--provider",
       "github",
+      "--repository",
+      "owner/repo",
+      "--pr-number",
+      "390",
     ];
     try {
       await writeJson(cwd, threadsPath, priorThreadsEnvelope(headSha));
       await expect(
         runValidator(cwd, "validate-prior-threads", priorThreadArgs),
       ).resolves.toMatchObject({ stdout: "" });
+
+      await writeJson(
+        cwd,
+        threadsPath,
+        priorThreadsEnvelope(headSha, { review_threads_complete: false }),
+      );
+      await expectRejectsWith(
+        runValidator(cwd, "validate-prior-threads", priorThreadArgs),
+        "prior-thread shape validation failed",
+      );
+
+      await writeJson(
+        cwd,
+        threadsPath,
+        priorThreadsEnvelope(headSha, {
+          threads: [priorThread({ thread_id: "PRRC_kwDORestComment" })],
+        }),
+      );
+      await expectRejectsWith(
+        runValidator(cwd, "validate-prior-threads", priorThreadArgs),
+        "prior-thread shape validation failed",
+      );
+
+      await writeJson(
+        cwd,
+        threadsPath,
+        priorThreadsEnvelope(headSha, {
+          threads: [priorThread(), priorThread()],
+          dropped: [],
+        }),
+      );
+      await expectRejectsWith(
+        runValidator(cwd, "validate-prior-threads", priorThreadArgs),
+        "prior-thread duplicate thread ID",
+      );
 
       await writeFile(
         path.join(cwd, threadsPath),

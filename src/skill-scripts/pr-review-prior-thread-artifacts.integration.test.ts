@@ -237,6 +237,7 @@ function priorThreadsEnvelope(headSha: string, overrides = {}) {
     repository: "owner/repo",
     pr_number: 390,
     head_sha: headSha,
+    review_threads_complete: true,
     threads: [
       {
         thread_id: "PRRT_kwDOExample",

@@ -1821,6 +1821,7 @@ function validatePriorThreadsSchema(
       "repository",
       "pr_number",
       "head_sha",
+      "review_threads_complete",
       "threads",
       "dropped",
     ]) ||
@@ -1830,17 +1831,24 @@ function validatePriorThreadsSchema(
     !isPositiveInteger(envelope.pr_number) ||
     envelope.pr_number !== Number(options.prNumber) ||
     stringField(envelope, "head_sha") !== options.headSha ||
+    envelope.review_threads_complete !== true ||
     !Array.isArray(envelope.threads) ||
     !Array.isArray(envelope.dropped)
   ) {
     fail("prior-thread shape validation failed");
   }
 
+  const seenThreadIds = new Set<string>();
   for (const thread of envelope.threads) {
     if (!isPriorThread(thread)) {
       fail("prior-thread shape validation failed");
     }
     const threadObject = thread as JsonObject;
+    const threadId = stringField(threadObject, "thread_id");
+    if (seenThreadIds.has(threadId)) {
+      fail("prior-thread duplicate thread ID");
+    }
+    seenThreadIds.add(threadId);
     for (const comment of arrayField(threadObject, "comments")) {
       const commentObject = comment as JsonObject;
       if (
@@ -1895,6 +1903,11 @@ function validatePriorThreadsSchema(
     if (!isDroppedThread(dropped)) {
       fail("dropped-thread shape validation failed");
     }
+    const threadId = stringField(dropped as JsonObject, "thread_id");
+    if (seenThreadIds.has(threadId)) {
+      fail("prior-thread duplicate thread ID");
+    }
+    seenThreadIds.add(threadId);
   }
 }
 
@@ -2024,7 +2037,7 @@ function isThreadAction(value: unknown): value is JsonObject {
   const action = value as JsonObject;
   return (
     hasExactKeys(action, ["thread_id", "action", "evidence", "reason"]) &&
-    isGithubNodeId(action.thread_id) &&
+    isReviewThreadNodeId(action.thread_id) &&
     typeof action.action === "string" &&
     ["resolve", "leave"].includes(action.action) &&
     isConciseThreadActionText(action.evidence) &&
@@ -2039,6 +2052,10 @@ function isConciseThreadActionText(value: unknown): value is string {
     value.length <= 500 &&
     !value.includes("\0")
   );
+}
+
+function isReviewThreadNodeId(value: unknown): value is string {
+  return typeof value === "string" && /^PRRT_[A-Za-z0-9_-]+$/u.test(value);
 }
 
 function sha256Text(value: string): string {
@@ -3576,7 +3593,7 @@ function isPriorThread(value: unknown): boolean {
       "comments",
       "summary",
     ]) &&
-    isGithubNodeId(thread.thread_id) &&
+    isReviewThreadNodeId(thread.thread_id) &&
     typeof thread.is_resolved === "boolean" &&
     typeof thread.is_outdated === "boolean" &&
     isRepoPath(thread.path) &&
@@ -3641,7 +3658,7 @@ function isDroppedThread(value: unknown): boolean {
   const dropped = value as JsonObject;
   return (
     hasExactKeys(dropped, ["thread_id", "classification", "reason"]) &&
-    isGithubNodeId(dropped.thread_id) &&
+    isReviewThreadNodeId(dropped.thread_id) &&
     [
       "resolved",
       "outdated",

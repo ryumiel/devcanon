@@ -3331,7 +3331,7 @@ None
       "**STOP HERE. Present the report. Wait for user response.**",
     );
     expect(normalizedPrReview).toContain(
-      "NEVER post, approve, or resolve without user approval at the Phase 5 gate",
+      "NEVER post, approve, or resolve without either the fresh Phase 5 approval or its fully validated sealed action-bearing recovery chain",
     );
     expect(normalizedBranchReview).toContain(
       "`--fix` without follow-up arguments keeps the existing full-diff default",
@@ -3735,6 +3735,23 @@ None
     );
     expect(normalizedPrReview).toContain(
       "Do not proceed to Phase 6 until the user approves that latest preview",
+    );
+    for (const threadAuthorityContract of [
+      "PullRequest.reviewThreads(first: 100",
+      "pageInfo.hasNextPage=false",
+      "missing or repeated cursors",
+      "duplicate thread IDs",
+      "review_threads_complete=true",
+      "REST review/comment IDs are display context only",
+    ]) {
+      expect(normalizedPrReview).toContain(threadAuthorityContract);
+    }
+    expect(
+      normalizedPrReview.indexOf(
+        "Sealed action recovery before review rebuild",
+      ),
+    ).toBeLessThan(
+      normalizedPrReview.indexOf("Phase 3: Determine diff ranges"),
     );
     expect(normalizedPrReview).toContain(
       "Do not call `build-github-review-payload` again after user approval",

@@ -435,6 +435,7 @@ describe("pr-review Phase 5 audit summary renderer", () => {
       repository: "owner/repo",
       pr_number: 432,
       head_sha: workspace.headSha,
+      review_threads_complete: true,
       threads: [
         {
           thread_id: "PRRT_kwDOEligible",
@@ -824,6 +825,7 @@ async function makeManifestWorkspace(
     repository: "owner/repo",
     pr_number: 432,
     head_sha: headSha,
+    review_threads_complete: true,
     threads: [],
     dropped: [],
   });

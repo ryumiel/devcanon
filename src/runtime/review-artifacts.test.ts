@@ -763,6 +763,7 @@ function priorThreadsForThreadActions(headSha: string): JsonObject {
     repository: "owner/repo",
     pr_number: 390,
     head_sha: headSha,
+    review_threads_complete: true,
     threads: [
       {
         thread_id: "PRRT_kwDOEligibleFirst",
@@ -3655,9 +3656,7 @@ describe("pr-review thread-actions artifacts", () => {
           runReviewArtifactsCommand(threadActionsArgs(headSha)),
         ).resolves.toMatchObject({
           exitCode: 1,
-          stderr: expect.stringContaining(
-            "thread-actions action thread ID is ambiguous in prior threads",
-          ),
+          stderr: expect.stringContaining("prior-thread duplicate thread ID"),
         });
       } finally {
         await cleanupRiskSignalsWorkspace(cwd);

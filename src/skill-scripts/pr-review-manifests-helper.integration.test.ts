@@ -337,6 +337,7 @@ function priorThreadsEnvelope(headSha: string) {
     repository: "owner/repo",
     pr_number: Number(prNumber),
     head_sha: headSha,
+    review_threads_complete: true,
     threads: [
       {
         thread_id: "PRRT_kwDOExample",
@@ -447,6 +448,7 @@ async function writeValidInputs(cwd: string, baseSha: string, headSha: string) {
     repository: "owner/repo",
     pr_number: Number(prNumber),
     head_sha: headSha,
+    review_threads_complete: true,
     threads: [],
     dropped: [],
   });
@@ -2625,6 +2627,7 @@ describe("pr-review manifest helper", () => {
           repository: "owner/repo",
           pr_number: Number(prNumber),
           head_sha: headSha,
+          review_threads_complete: true,
           threads: [],
           dropped: [],
         });

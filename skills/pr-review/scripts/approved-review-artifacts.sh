@@ -1082,7 +1082,7 @@ advance_execution_receipt() {
   prior_tmp="$(mktemp ".ephemeral/.execution-receipt-prior-${HEAD_SHA}.XXXXXX")"
   intended_tmp="$(mktemp ".ephemeral/.execution-receipt-intended-${HEAD_SHA}.XXXXXX")"
   publish_tmp="$(mktemp ".ephemeral/.execution-receipt-publish-${HEAD_SHA}.XXXXXX")"
-  trap 'rm -f "${prior_tmp:-}" "${intended_tmp:-}" "${publish_tmp:-}"; rmdir "${receipt_lock:-}" 2>/dev/null || true' EXIT
+  trap "rm -f '$prior_tmp' '$intended_tmp' '$publish_tmp'; rmdir '$receipt_lock' 2>/dev/null || true" EXIT
   # The receipt-local lock is not reclaimable: after acquisition, re-read the
   # full chain and snapshot the exact predecessor that this advance may replace.
   validate_post_intent_chain

@@ -43,6 +43,13 @@ Run in parallel:
 - `{{tool:github-cli}} pr view <N> --json title,body,baseRefName,baseRefOid,headRefName,headRefOid,commits,files,reviews,comments,url`
 - `{{tool:github-cli}} api repos/{owner}/{repo}/pulls/<N>/comments` — inline review threads
 - `{{tool:github-cli}} api repos/{owner}/{repo}/pulls/<N>/reviews` — review states
+- A cursor-complete GraphQL `PullRequest.reviewThreads(first: 100, after:
+$cursor)` walk. Continue until `pageInfo.hasNextPage=false`; reject GraphQL
+  errors, null or partial pages, missing or repeated cursors, duplicate thread
+  IDs, and repository/PR/head drift. Persist only nonblank GraphQL
+  `PullRequestReviewThread.id` values as `thread_id`, in deterministic order,
+  in `pr-review/prior-threads/v2` with `review_threads_complete=true`. REST
+  review/comment IDs are display context only and never resolution authority.
 
 Phase 1 must fetch and record provider `baseRefOid` and `headRefOid`, but
 provider `baseRefOid` is metadata, not proof that the base branch ref is the PR
@@ -222,8 +229,22 @@ resume discovery. If a review worktree exists, first derive the lease path from 
 physical worktree path and run `review-leases.sh validate` or
 `review-leases.sh inspect-worktree`; only treat it as stale after the helper
 reports a cleanup outcome that permits removal. A prior Phase 5 preview is not
-approval; resume must present or re-render the latest validated artifacts and
-wait for fresh user action.
+approval. Only a resume without an intact lease-owned action-bearing intent or
+receipt must present or re-render the latest validated v2 artifacts and wait for
+fresh user action.
+
+### Sealed action recovery before review rebuild
+
+Immediately after basic primary-root and lease identity validation, inspect the
+validated lease pointers. When the lease owns an intact post intent or execution
+receipt, validate the lease → approved review → intent → receipt chain and route
+directly to Phase 6's sealed continuation before Phase 3 range rebuilding,
+Phase 4 result production, Phase 5 presentation, approval freeze, stale-head
+guard, or fresh POST. An intent-only chain performs the single existing exact
+fingerprint reconciliation. A receipt is first adopted through LC-20, LC-21,
+LC-23, LC-24, or LC-25 as applicable, then resumes only sealed pending/failed
+actions. Invalid, obsolete, legacy, mismatched, orphan, or non-action-bearing
+evidence does not bypass the normal fresh v2 rebuild and approval path.
 
 ## Phase 3: Determine diff ranges
 
@@ -353,7 +374,8 @@ materialize_initial_prior_threads() {
   PRIOR_THREADS_FILE=$(HEAD_SHA="$REVIEW_HEAD_SHA" \
     bash "$PR_REVIEW_ARTIFACT_HELPER" prepare-prior-threads-write) || return 1
   # Write the canonical empty pr-review/prior-threads/v2 envelope here:
-  # provider="github", repository, pr_number, head_sha, threads=[], and dropped=[].
+  # provider="github", repository, pr_number, head_sha,
+  # review_threads_complete=true, threads=[], and dropped=[].
   HEAD_SHA="$REVIEW_HEAD_SHA" \
   PRIOR_THREADS_FILE="$PRIOR_THREADS_FILE" \
   REPOSITORY="<owner/repo>" \
@@ -982,7 +1004,8 @@ digest-mismatched candidate stops rendering and resume before the user gate.
 
 ## Phase 6: Post
 
-Only after user approval:
+After user approval for a fresh request, or directly from the validated sealed
+recovery branch established before Phase 3:
 
 0. **Run the sealed-recovery preflight before rebuilding any review artifact.** Derive and validate the current lease first. If it owns a `post_intent_file` or `execution_receipt_file`, bind only the stored direct-child paths, validate the lease → approved review → post intent → receipt chain, and take the sealed recovery continuation below. Do this before the Phase 5 result read, approved-review freeze, normal stale-head POST guard, or creation of a new intent. A stored intent without a receipt performs the one fingerprint reconciliation; a stored receipt resumes only its sealed pending or failed `resolve` actions. Neither branch re-gates, rebuilds the result or preview, refreezes approval, creates a new request, or reposts. An invalid chain, ambiguous reconciliation, or obsolete `pr-review/result/v1` / `pr-review/prior-threads/v1` artifact stops with the cleanup/restart or provider-refetch disposition before any provider mutation.
 
@@ -1593,20 +1616,24 @@ gh api repos/{owner}/{repo}/pulls/<N>/comments/<comment-id>/replies --jq '.id' -
 
 Verify the response includes the new comment ID. Do not assume success.
 
-**Fetch thread IDs for resolution:**
+**Fetch thread IDs for resolution:** walk this same connection with `first: 100`
+and `after: $cursor` until `hasNextPage` is false. Apply the Phase 1
+completeness, cursor, duplicate, and identity checks before using any returned
+ID.
 
 ```sh
 # Bare body intentional: response is consumed for content-keyed thread-ID lookup
 # (resolveReviewThread mutation at the snippet above). See docs/guidelines/gh-api-hygiene.md § 3.
-gh api graphql -f query='{ repository(owner: "O", name: "R") {
-  pullRequest(number: N) { reviewThreads(first: 50) { nodes {
+gh api graphql -f query='query($cursor: String) { repository(owner: "O", name: "R") {
+  pullRequest(number: N) { reviewThreads(first: 100, after: $cursor) { nodes {
     id isResolved comments(first: 5) { nodes { body author { login } path originalLine } }
-} } } } }'
+  } pageInfo { hasNextPage endCursor } } } } }'
 ```
 
 ## Hard Rules
 
-1. **NEVER post, approve, or resolve without user approval at the Phase 5 gate.**
+1. **NEVER post, approve, or resolve without either the fresh Phase 5 approval
+   or its fully validated sealed action-bearing recovery chain.**
 2. **NEVER auto-approve.** Present the verdict recommendation; user decides.
 3. **Never remove a review worktree directly; use the lease helper cleanup contract.**
 4. **Verify every GitHub API response.** Report non-2xx failures.

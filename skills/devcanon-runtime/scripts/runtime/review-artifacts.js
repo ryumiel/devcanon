@@ -1428,6 +1428,7 @@ function validatePriorThreadsSchema(envelope, options) {
         "repository",
         "pr_number",
         "head_sha",
+        "review_threads_complete",
         "threads",
         "dropped",
     ]) ||
@@ -1437,15 +1438,22 @@ function validatePriorThreadsSchema(envelope, options) {
         !isPositiveInteger(envelope.pr_number) ||
         envelope.pr_number !== Number(options.prNumber) ||
         stringField(envelope, "head_sha") !== options.headSha ||
+        envelope.review_threads_complete !== true ||
         !Array.isArray(envelope.threads) ||
         !Array.isArray(envelope.dropped)) {
         fail("prior-thread shape validation failed");
     }
+    const seenThreadIds = new Set();
     for (const thread of envelope.threads) {
         if (!isPriorThread(thread)) {
             fail("prior-thread shape validation failed");
         }
         const threadObject = thread;
+        const threadId = stringField(threadObject, "thread_id");
+        if (seenThreadIds.has(threadId)) {
+            fail("prior-thread duplicate thread ID");
+        }
+        seenThreadIds.add(threadId);
         for (const comment of arrayField(threadObject, "comments")) {
             const commentObject = comment;
             if (!isValidTimestamp(stringField(commentObject, "created_at")) ||
@@ -1488,6 +1496,11 @@ function validatePriorThreadsSchema(envelope, options) {
         if (!isDroppedThread(dropped)) {
             fail("dropped-thread shape validation failed");
         }
+        const threadId = stringField(dropped, "thread_id");
+        if (seenThreadIds.has(threadId)) {
+            fail("prior-thread duplicate thread ID");
+        }
+        seenThreadIds.add(threadId);
     }
 }
 function validateThreadActionsSchema(artifact, options, prior) {
@@ -1582,7 +1595,7 @@ function isThreadAction(value) {
     }
     const action = value;
     return (hasExactKeys(action, ["thread_id", "action", "evidence", "reason"]) &&
-        isGithubNodeId(action.thread_id) &&
+        isReviewThreadNodeId(action.thread_id) &&
         typeof action.action === "string" &&
         ["resolve", "leave"].includes(action.action) &&
         isConciseThreadActionText(action.evidence) &&
@@ -1593,6 +1606,9 @@ function isConciseThreadActionText(value) {
         value.trim().length > 0 &&
         value.length <= 500 &&
         !value.includes("\0"));
+}
+function isReviewThreadNodeId(value) {
+    return typeof value === "string" && /^PRRT_[A-Za-z0-9_-]+$/u.test(value);
 }
 function sha256Text(value) {
     return createHash("sha256").update(value).digest("hex");
@@ -2741,7 +2757,7 @@ function isPriorThread(value) {
         "comments",
         "summary",
     ]) &&
-        isGithubNodeId(thread.thread_id) &&
+        isReviewThreadNodeId(thread.thread_id) &&
         typeof thread.is_resolved === "boolean" &&
         typeof thread.is_outdated === "boolean" &&
         isRepoPath(thread.path) &&
@@ -2800,7 +2816,7 @@ function isDroppedThread(value) {
     }
     const dropped = value;
     return (hasExactKeys(dropped, ["thread_id", "classification", "reason"]) &&
-        isGithubNodeId(dropped.thread_id) &&
+        isReviewThreadNodeId(dropped.thread_id) &&
         [
             "resolved",
             "outdated",

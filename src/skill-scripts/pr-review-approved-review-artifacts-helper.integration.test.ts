@@ -132,6 +132,7 @@ function priorThreadsEnvelope(headShaValue = headSha) {
     repository: "owner/repo",
     pr_number: Number(prNumber),
     head_sha: headShaValue,
+    review_threads_complete: true,
     threads: [
       {
         thread_id: "PRRT_kwDOExample",
@@ -2132,7 +2133,9 @@ describe.skipIf(!jqAvailable)(
           REVIEW_BODY_FILE: reviewBodyFile,
           REVIEW_PAYLOAD_FILE: payloadFile,
         });
-        const approved = await readJson(cwd, approvedReviewFile);
+        const approved = JSON.parse(
+          await readFile(path.join(cwd, approvedReviewFile), "utf8"),
+        ) as Record<string, unknown>;
         await writeJson(cwd, approvedReviewFile, {
           ...approved,
           unexpected: true,

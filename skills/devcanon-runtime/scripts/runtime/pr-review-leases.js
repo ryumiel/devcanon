@@ -2535,7 +2535,8 @@ async function validatePostIntentAndReceipt(lease, worktreePath, resultReviewHea
         !Array.isArray(receipt.actions))
         throw new PrReviewLeaseError("execution receipt schema mismatch");
     validateTimestamp("execution receipt provider_review_submitted_at", receipt.provider_review_submitted_at);
-    if (receipt.provider_review_submitted_at !== lease.github.github_posted_at) {
+    if (lease.github.github_posted_at != null &&
+        receipt.provider_review_submitted_at !== lease.github.github_posted_at) {
         throw new PrReviewLeaseError("execution receipt provider review submitted time mismatch");
     }
     validateTimestamp("execution receipt updated_at", stringField(receipt, "updated_at"));
@@ -2550,9 +2551,9 @@ async function validatePostIntentAndReceipt(lease, worktreePath, resultReviewHea
     if (lease.state === "posted" && !allTerminal) {
         throw new PrReviewLeaseError("posted lease requires terminal execution receipt");
     }
-    if (lease.state === "resolving" && allTerminal) {
-        throw new PrReviewLeaseError("resolving lease requires pending or failed execution receipt action");
-    }
+    // A terminal receipt may become visible before the LC-23 lease replacement.
+    // Keep the resolving lease readable so recovery can adopt that exact receipt
+    // and perform the already-defined resolving -> posted transition.
     void resultArtifact;
 }
 function validateMarkedValidatedPayloadBinding(unmarkedPayload, markedPayload) {
@@ -2877,6 +2878,34 @@ async function collectOwnedEphemeralArtifacts(lease, worktreePath) {
     addOwnedPath(owned, lease.artifacts.result_file);
     addOwnedPath(owned, lease.artifacts.post_intent_file ?? null);
     addOwnedPath(owned, lease.artifacts.execution_receipt_file ?? null);
+    if (lease.artifacts.post_intent_file != null &&
+        lease.artifacts.execution_receipt_file == null) {
+        const intent = await readRequiredJson(worktreePath, lease.artifacts.post_intent_file, "post intent file");
+        const reviewHead = stringField(intent, "review_head_sha");
+        const candidateReceipt = `.ephemeral/pr-${lease.pr_number}-${reviewHead}-thread-action-execution.json`;
+        try {
+            const candidateStat = await lstat(path.join(worktreePath, candidateReceipt));
+            if (!candidateStat.isFile() || candidateStat.isSymbolicLink()) {
+                throw new PrReviewLeaseError("execution receipt file kind invalid");
+            }
+            const adoptionLease = {
+                ...lease,
+                artifacts: {
+                    ...lease.artifacts,
+                    execution_receipt_file: candidateReceipt,
+                },
+            };
+            await validateReferencedArtifacts(adoptionLease, worktreePath, {
+                validateResultAuthority: true,
+                policy: "validate-stored-lease",
+            });
+            addOwnedPath(owned, candidateReceipt);
+        }
+        catch (err) {
+            if (err.code !== "ENOENT")
+                throw err;
+        }
+    }
     if (lease.artifacts.handoff_file !== null) {
         const handoff = await readRequiredJson(worktreePath, lease.artifacts.handoff_file, "handoff file");
         collectHandoffArtifactPaths(owned, handoff);
