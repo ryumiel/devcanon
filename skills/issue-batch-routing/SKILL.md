@@ -67,7 +67,8 @@ require an explicit provider boundary.
 | `current_head_sha`                             | Current branch or PR head SHA, optional until known.                                                                                                            |
 | `current_gate_kind`                            | Waiting gate such as `issue-priming`, `plan-approval`, `review-response`, `ci-fix`, `merge-conflict`, `merge-routing`, `source-issue-reporting`, or `archival`. |
 | `source_issue_state_snapshot_digest`           | Digest of the provider-supported source-issue state snapshot used for the last decision.                                                                        |
-| `last_owner_thread_report_digest`              | Digest of the last owner-thread gate report or consumed unfinished non-gate progress receipt integrated by the parent.                                          |
+| `last_owner_thread_report_digest`              | Digest of the last owner-thread gate report integrated by the parent.                                                                                           |
+| `recent_consumed_progress_receipt_keys`        | Bounded complete progress receipt consumption keys for the current exact owner route; distinct from gate-report and approval-gate keys.                         |
 | `last_routed_issue_priming_route_key`          | Full replay-sensitive issue-priming route key last sent.                                                                                                        |
 | `last_routed_review_thread_set_digest`         | Digest for the last unresolved review-thread set routed.                                                                                                        |
 | `last_routed_review_response_route_key`        | Full replay-sensitive review-response route key last sent.                                                                                                      |
@@ -159,12 +160,15 @@ For each open batch item:
 4. Refresh owner-thread state and integrate any owner-thread gate report.
 5. Before gate classification, validate any unfinished non-gate progress
    receipt against the current item and consume a verified new receipt by
-   continuing the same owner route. Record the consumed receipt digest in the
-   existing `last_owner_thread_report_digest`. A receipt whose digest already
-   matches `last_owner_thread_report_digest` for the same owner route is a
-   repeat: do not continue the route again or update any approval key. Missing
-   identity, route provenance, or unfinished non-gate evidence fails closed to
-   waiting or manual action. A genuine gate does not qualify as progress.
+   continuing the same owner route. Form the complete progress receipt
+   consumption key from the exact owner route identity and receipt digest. For
+   the same exact owner route, retain the 32 most recent complete progress
+   receipt consumption keys in `recent_consumed_progress_receipt_keys` and
+   discard prior-route keys. A receipt A, then receipt B, then receipt A again
+   uses the retained A key and is a repeat: do not continue the route again or
+   update any approval key. Missing identity, route provenance, or unfinished
+   non-gate evidence fails closed to waiting or manual action. A genuine gate
+   does not qualify as progress.
 6. Refresh PR provider state when a PR exists.
 7. Only then classify a remaining gate using PR gate precedence, source-issue state, and
    any owner-thread report.
@@ -353,8 +357,10 @@ and is non-gate continuation under the canonical `issue-priming-workflow`
 auto-route boundary.
 
 Continue the same owner route without requesting approval and without updating
-`last_reported_approval_waiting_key` or `last_routed_approval_gate_key`. Do not
-create a progress receipt key or consume any approval de-duplication key.
+`last_reported_approval_waiting_key` or `last_routed_approval_gate_key`. Use
+this bounded receipt state only for verified unfinished non-gate progress; it
+is distinct from gate-report and approval-gate de-duplication. Do not create a
+generalized event store, schema, or persistence subsystem.
 
 Missing receipt identity or non-gate/unfinished evidence fails closed to waiting
 or manual action, and a genuine gate follows the existing gate and approval

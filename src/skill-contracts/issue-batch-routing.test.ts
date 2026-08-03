@@ -641,7 +641,7 @@ describe("issue-batch-routing skill contract", () => {
       "Missing receipt identity or non-gate/unfinished evidence fails closed to waiting or manual action, and a genuine gate follows the existing gate and approval path",
     );
     expect(router).toContain(
-      "Do not create a progress receipt key or consume any approval de-duplication key",
+      "Use this bounded receipt state only for verified unfinished non-gate progress; it is distinct from gate-report and approval-gate de-duplication",
     );
     expect(producer).toContain(
       "An unfinished non-gate progress receipt must identify the exact approved owner route, the source provider and source issue identifier, the delegated owner-thread identity, and the current reviewed-plan handoff provenance",
@@ -653,14 +653,20 @@ describe("issue-batch-routing skill contract", () => {
       "Before gate classification, validate any unfinished non-gate progress receipt against the current item and consume a verified new receipt by continuing the same owner route",
     );
     expect(monitorLoop).toContain(
-      "Record the consumed receipt digest in the existing `last_owner_thread_report_digest`",
+      "Form the complete progress receipt consumption key from the exact owner route identity and receipt digest",
     );
     expect(monitorLoop).toContain(
-      "A receipt whose digest already matches `last_owner_thread_report_digest` for the same owner route is a repeat: do not continue the route again or update any approval key",
+      "For the same exact owner route, retain the 32 most recent complete progress receipt consumption keys in `recent_consumed_progress_receipt_keys`",
+    );
+    expect(monitorLoop).toContain(
+      "A receipt A, then receipt B, then receipt A again uses the retained A key and is a repeat: do not continue the route again or update any approval key",
     );
     expect(monitorLoop).toContain("Only then classify a remaining gate");
     expect(ledger).toContain(
-      "Digest of the last owner-thread gate report or consumed unfinished non-gate progress receipt integrated by the parent",
+      "Digest of the last owner-thread gate report integrated by the parent",
+    );
+    expect(ledger).toContain(
+      "Bounded complete progress receipt consumption keys for the current exact owner route; distinct from gate-report and approval-gate keys",
     );
   });
 
