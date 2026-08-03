@@ -44,10 +44,14 @@ owns the decision rationale, bounded runtime gate, and deferrals.
   footer expectations.
 - [Dependency Audit Guideline](dependency-audit-guideline.md) - audit-fix PRs,
   `pnpm why`, overrides, exposure, and lockfile review expectations.
+- [DevCanon Terminology](devcanon-terminology.md) - canonical human-language
+  vocabulary for bounded shared terms and their executable owners.
 - [Documentation Checklists](documentation-checklists.md) - fast documentation
   review, gardening, and validation checks.
 - [Documentation Standard](documentation-standard.md) - AFDS document profiles,
   ownership boundaries, and anti-rot rules.
+- [Implementation Proportionality](implementation-proportionality.md) -
+  bounded hardening and test-ownership guidance.
 - [gh api Hygiene Guideline](gh-api-hygiene.md) - context-safe `gh api`
   invocation rules for authored snippets.
 - [PR Guideline](pr-guideline.md) - pull request title, body, issue linkage,

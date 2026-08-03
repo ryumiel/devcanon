@@ -127,6 +127,10 @@ Quick navigation index for the DevCanon repository.
 - Where is policy for promoting prompt templates into agents? -> [`docs/guidelines/agent-authoring-guide.md`](docs/guidelines/agent-authoring-guide.md)
 - Where is guidance on writing skills in this repo? -> [`docs/guidelines/writing-skills.md`](docs/guidelines/writing-skills.md)
 - Where are the documentation checklists? -> [`docs/guidelines/documentation-checklists.md`](docs/guidelines/documentation-checklists.md)
+- Where is implementation-proportionality and test-ownership guidance? ->
+  [`docs/guidelines/implementation-proportionality.md`](docs/guidelines/implementation-proportionality.md)
+- Where is canonical DevCanon terminology defined? ->
+  [`docs/guidelines/devcanon-terminology.md`](docs/guidelines/devcanon-terminology.md)
 - Where is dependency audit guidance? -> [`docs/guidelines/dependency-audit-guideline.md`](docs/guidelines/dependency-audit-guideline.md)
 - Where is the commit guideline? -> [`docs/guidelines/commit-guideline.md`](docs/guidelines/commit-guideline.md)
 - Where is the PR guideline? -> [`docs/guidelines/pr-guideline.md`](docs/guidelines/pr-guideline.md)

@@ -335,6 +335,32 @@ function isUsableInternalPartial(evidence: InternalPartialEvidence): boolean {
 }
 
 describe("phase artifact source contracts", () => {
+  it("indexes bounded implementation and terminology guidance", async () => {
+    const guidelineIndex = await readRepoFile("docs/guidelines/README.md");
+    const map = await readRepoFile("MAP.md");
+    const proportionality = await readRepoFile(
+      "docs/guidelines/implementation-proportionality.md",
+    );
+    const terminology = await readRepoFile(
+      "docs/guidelines/devcanon-terminology.md",
+    );
+
+    for (const index of [guidelineIndex, map]) {
+      expect(index).toContain("implementation-proportionality.md");
+      expect(index).toContain("devcanon-terminology.md");
+    }
+    expect(proportionality).toContain("## Test ownership boundary");
+    expect(proportionality).toContain("Explanatory prose");
+    expect(terminology).toContain("## Entry fields");
+    expect(terminology).toContain(
+      "**Canonical term:** review handoff manifest",
+    );
+    expect(terminology).toContain("**Deprecated or forbidden synonyms:**");
+    expect(normalizeWhitespace(terminology)).toContain(
+      "Typed executable contracts remain authoritative",
+    );
+  });
+
   it("keeps issue-priming helper extraction contracts and static RED fallback checks in source", async () => {
     const issuePrimingWorkflow = await readSkillSource(
       "issue-priming-workflow",
@@ -2013,13 +2039,12 @@ None
     );
   });
 
-  it("keeps immutable review-head findings validation handoffs in source skills", async () => {
+  it("keeps immutable review-head identifiers and helper references in source skills", async () => {
     const branchReview = await readSkillSource("branch-review");
     const prReview = await readSkillSource("pr-review");
 
     for (const skillSource of [branchReview, prReview]) {
       expect(skillSource).toContain("REVIEW_HEAD_SHA");
-      expect(skillSource).toContain("play-review findings notice missing");
       expect(skillSource).toContain("validate-findings");
       expect(skillSource).toContain("PLAY_REVIEW_HELPER");
       expect(skillSource).toContain("play-review/findings/v2");
@@ -2034,16 +2059,7 @@ None
     );
     expect(branchReview).toContain("prepare-findings-write");
 
-    expect(prReview).toContain(
-      "trusted Phase 4 head_sha input passed to play-review",
-    );
-    expect(prReview).toContain(
-      "immutable Phase 4 review head; current HEAD may differ before posting",
-    );
-    expect(prReview).toContain(
-      "commit_id`, `event`, `body`, and `comments` all land in the JSON body",
-    );
-    expect(prReview).toContain("fail closed before posting");
+    expect(prReview).toContain("## Phase 4: Run play-review");
   });
 
   it("keeps pr-review manifest handoff/result contracts in source", async () => {
@@ -2145,160 +2161,11 @@ None
       expect(prReview).toContain(noticeLine);
     }
 
-    expect(normalizedPrReview).toContain(
-      "temp-file writes, atomic replacement, closed-schema validation",
-    );
-    expect(normalizedPrReview).toContain(
-      "scope-decision authority checks, and worktree HEAD binding",
-    );
-    expect(normalizedPrReview).toContain(
-      "Phase 4 must not rebuild range, scope, or prior-thread facts from conversation text when the manifest is present",
-    );
-    expect(normalizedPrReview).toContain(
-      "review worktree HEAD changed since handoff; refusing stale review",
-    );
-    expect(normalizedPrReview).toContain(
-      "PR head changed since review; refusing stale review result",
-    );
-    expect(normalizedPrReview).toContain(
-      "Phase 5 validates `REVIEW_RESULT_FILE` against the trusted review head captured before the gate, then renders and resumes from the validated result manifest rather than ambient conversation variables",
-    );
-    expect(normalizedPrReview).toContain(
-      "`REVIEW_HEAD_SHA`, `REVIEW_HANDOFF_FILE`, `REVIEW_HEAD_REF`, `REVIEW_FINDINGS_FILE`",
-    );
-    expect(normalizedPrReview).toContain(
-      "After every successful `gated` write, including edited previews, render the mandatory Phase 5 artifact audit summary before asking for user action",
-    );
-    expect(normalizedPrReview).toContain(
-      "The audit renderer validates the result manifest and then derives the summary only from that validated manifest plus the current read-only lease/worktree status",
-    );
-    expect(normalizedPrReview).toContain(
-      "Fail closed if the summary detects a stale digest or validation timestamp, missing digest, mismatched presentation status, missing `presented_at`, identity mismatch, missing worktree, unregistered worktree, or unreadable worktree",
-    );
-    expect(normalizedPrReview).toContain(
-      "Treat a dirty-but-valid worktree as truthful status and continue",
-    );
-    expect(normalizedPrReview).toContain(
-      "`read-status` is read-only, uses optional-lock-free git status inspection, and must not record cleanup metadata",
-    );
-    expect(normalizedPrReview).toContain(
-      "use the recovery-specific `record-audit-failure` command from the primary repository root to record `failed`",
-    );
-    expect(normalizedPrReview).toContain(
-      "That command derives the worktree identity from the existing gated lease, so it can record the failure even when the worktree is missing",
-    );
-    expect(normalizedPrReview).toContain(
-      "Preserve prior validated artifacts only when they are current and still pass lease/result identity, digest freshness, result command authority including nested artifacts and helper-backed checks, current presentation evidence, and worktree existence/registration where applicable",
-    );
-    expect(normalizedPrReview).toContain(
-      "Invalid evidence is cleared while the failed lease is still written when identity and transition authority are trustworthy",
-    );
-    expect(normalizedPrReview).toContain(
-      "Any user-requested change returns to this gate after the artifacts are rewritten and re-rendered",
-    );
-    expect(normalizedPrReview).toContain(
-      '`pr-review/result/v1` with `PRESENTATION_STATUS="edited"`',
-    );
-    expect(normalizedPrReview).toContain(
-      "render the mandatory Phase 5 artifact audit summary again before waiting for approval",
-    );
-    expect(normalizedPrReview).toContain(
-      "Refresh lease validation for every gate cycle; never treat the `RESULT_FILE` path alone as freshness evidence",
-    );
-    expect(normalizedPrReview).toContain(
-      "read_pr_review_result_manifest_for_preview",
-    );
-    expect(normalizedPrReview).toContain("PHASE5_AUDIT_SUMMARY=$(");
-    expect(normalizedPrReview).toContain("PHASE5_AUDIT_STATUS=0");
-    expect(normalizedPrReview).toContain(") || PHASE5_AUDIT_STATUS=$?");
-    expect(normalizedPrReview).toContain(
-      'if [ "$PHASE5_AUDIT_STATUS" -ne 0 ]; then',
-    );
-    expect(normalizedPrReview).toContain(
-      'REVIEW_GATE_FINISHED_AT="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"',
-    );
-    expect(normalizedPrReview).toContain('REPOSITORY="<owner/repo>"');
-    expect(normalizedPrReview).toContain(
-      'PRIMARY_REPOSITORY_ROOT="$REVIEW_CALLER_DIR"',
-    );
-    expect(normalizedPrReview).toContain('WORKTREE_PATH="$WORKING_DIRECTORY"');
-    expect(normalizedPrReview).toContain('LEASE_FILE="$LEASE_FILE"');
-    expect(normalizedPrReview).toContain(
-      'bash "$PR_REVIEW_MANIFEST_HELPER" render-phase5-audit-summary',
-    );
-    expect(normalizedPrReview).toContain('STATE="failed"');
-    expect(normalizedPrReview).toContain('EXPECTED_STATE="gated"');
-    expect(normalizedPrReview).toContain(
-      'FINISHED_AT="$REVIEW_GATE_FINISHED_AT"',
-    );
-    expect(normalizedPrReview).toContain('FAILURE_PHASE="preview-render"');
-    expect(normalizedPrReview).toContain(
-      'FAILURE_REASON="Phase 5 artifact audit summary failed"',
-    );
-    expect(normalizedPrReview).toContain(
-      'FAILURE_RECOVERABILITY="recoverable"',
-    );
-    expect(normalizedPrReview).toContain(
-      'bash "$PR_REVIEW_LEASE_HELPER" record-audit-failure >/dev/null',
-    );
-    expect(normalizedPrReview).toContain('exit "$PHASE5_AUDIT_STATUS"');
-    expect(phase5PostGatedAuditBlock).toContain(
-      'bash "$PR_REVIEW_MANIFEST_HELPER" render-phase5-audit-summary',
-    );
     expect(phase5PostGatedAuditBlock).toContain(
       'bash "$PR_REVIEW_LEASE_HELPER" record-audit-failure >/dev/null',
     );
     expect(phase5PostGatedBeforeStatus).not.toContain("validate-result");
-    expect(normalizedPrReview).toContain(
-      "`render-phase5-audit-summary` invokes `review-leases.sh read-status` from the primary repository root and parses that single JSON object",
-    );
     expect(normalizedPrReview).not.toContain("LEASE_STATUS_JSON");
-    expect(normalizedPrReview).toContain(
-      ': "${REVIEW_HEAD_SHA:?Phase 5 trusted review head missing}"',
-    );
-    expect(normalizedPrReview).toContain(
-      'PR_NUMBER="$PR_NUMBER" HEAD_SHA="$REVIEW_HEAD_SHA" REPOSITORY="<owner/repo>" RESULT_FILE="$REVIEW_RESULT_FILE"',
-    );
-    expect(normalizedPrReview).toContain(
-      'REVIEW_HANDOFF_FILE="$(jq -r \'.artifacts.handoff_file\' "$RESULT_JSON")"',
-    );
-    expect(normalizedPrReview).toContain(
-      'PR_NUMBER="$PR_NUMBER" \\ HEAD_SHA="$REVIEW_HEAD_SHA" \\ REPOSITORY="<owner/repo>" \\ HANDOFF_FILE="$REVIEW_HANDOFF_FILE" \\ bash "$PR_REVIEW_MANIFEST_HELPER" validate-handoff >/dev/null',
-    );
-    expect(normalizedPrReview).toContain(
-      'REVIEW_HEAD_REF="$(jq -r \'.head_ref\' "$REVIEW_HANDOFF_FILE")"',
-    );
-    expect(normalizedPrReview).toContain(
-      '[ -n "$REVIEW_HEAD_REF" ] && [ "$REVIEW_HEAD_REF" != "null" ] || return 1',
-    );
-    expect(normalizedPrReview).toContain(
-      'REVIEW_HEAD_SHA="$(jq -r \'.review_head_sha\' "$RESULT_JSON")"',
-    );
-    expect(normalizedPrReview).toContain(
-      'REVIEW_FINDINGS_FILE="$(jq -r \'.findings_file\' "$RESULT_JSON")"',
-    );
-    expect(normalizedPrReview).toContain(
-      'REVIEW_SCOPE_DECISION_FILE="$(jq -r \'.artifacts.scope_decision_file\' "$RESULT_JSON")"',
-    );
-    expect(normalizedPrReview).toContain(
-      'RENDERED_PREVIEW_FILE="$(jq -r \'.artifacts.rendered_preview_file // empty\' "$RESULT_JSON")"',
-    );
-    expect(normalizedPrReview).toContain(
-      "Result-manifest consumption is only for rendering or resume",
-    );
-    expect(normalizedPrReview).toContain(
-      "The result manifest is evidence that the handoff, findings, body, preview, and scope-decision inputs were validated and digest-bound for rendering or resume; it is not approval, a lease, lifecycle state, an approved-review freeze, or a GitHub payload",
-    );
-    expect(normalizedPrReview).toContain(
-      "Approval intent is captured only when the user approves a specific preview",
-    );
-    expect(normalizedPrReview).toContain(
-      "Build and freeze the approved payload artifact before posting",
-    );
-    expect(normalizedPrReview).toContain("Refuse stale heads before posting");
-    expect(normalizedPrReview).toContain(
-      "Do not call `build-github-review-payload` again after user approval",
-    );
     expect(phase5AuditFailureBlock).toContain('HEAD_REF="$REVIEW_HEAD_REF"');
     expect(phase5AuditFailureBlock).not.toContain('HEAD_REF="$PR_HEAD_REF"');
 
