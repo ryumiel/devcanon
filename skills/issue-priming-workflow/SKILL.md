@@ -1007,8 +1007,10 @@ controller report with report kind `owner-handoff`, not a receipt or a gate
 report. It carries the source provider and issue identifier, delegated owner
 thread identity, exact approved route identity, current issue-authority
 validation, reviewed plan digest, and non-authorizing auto-handoff identity.
-It also echoes the controller-held complete `issue-priming` route key for
-equality comparison; it cannot originate that key. The batch controller records
+It also echoes the complete `issue-priming` route key received as
+non-authorizing controller handoff context for equality comparison; it cannot
+originate, derive, or replace that key. Missing or changed handoff context must
+wait or report rather than emit an owner-handoff. The batch controller records
 these controller-held facts before it consumes a receipt; a later receipt cannot
 initialize or authenticate them.
 

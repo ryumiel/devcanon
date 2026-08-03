@@ -1541,7 +1541,10 @@ describe("play subagent routing source contracts", () => {
       "report kind `owner-handoff`, not a receipt or a gate report",
     );
     expect(gateReports).toContain(
-      "echoes the controller-held complete `issue-priming` route key for equality comparison; it cannot originate that key",
+      "echoes the complete `issue-priming` route key received as non-authorizing controller handoff context for equality comparison",
+    );
+    expect(gateReports).toContain(
+      "Missing or changed handoff context must wait or report rather than emit an owner-handoff",
     );
     for (const gateOnlyRequirement of [
       "gate kind",

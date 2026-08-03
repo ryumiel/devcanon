@@ -181,11 +181,16 @@ For each open batch item:
    `owner_thread_id` is still missing, wait, inspect, or report instead of
    routing another source-specific priming entrypoint. Missing route-key
    evidence fails closed to waiting or manual action. Record
-   `last_routed_issue_priming_route_key` before or at handoff. Record the
-   created or located owner-thread mapping before continuing the item. Only
-   active source issues with missing owner threads route to source-specific
-   issue priming. Terminal, duplicate, abandoned, blocked, or unknown no-owner
-   states wait or report instead of creating owner work.
+   `last_routed_issue_priming_route_key` before or at handoff, and supply that
+   recorded complete key as non-authorizing controller handoff context to the
+   source-specific issue-priming route. The shared issue-priming workflow may
+   only forward that received value unchanged into its initial owner-handoff
+   report for equality comparison; it must wait or report when the supplied
+   value is missing or changed. Record the created or located owner-thread
+   mapping before continuing the item. Only active source issues with missing
+   owner threads route to source-specific issue priming. Terminal, duplicate,
+   abandoned, blocked, or unknown no-owner states wait or report instead of
+   creating owner work.
 4. Refresh owner-thread state and integrate any owner-thread gate report or
    validated initial owner-handoff report.
 5. Refresh current source and PR state. Apply the canonical

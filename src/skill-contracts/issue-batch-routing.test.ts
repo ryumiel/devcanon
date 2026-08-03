@@ -742,6 +742,12 @@ describe("issue-batch-routing skill contract", () => {
     expect(controllerHeldFacts).toContain(
       "Missing or mismatched keys fail closed to waiting or manual action",
     );
+    expect(monitorLoop).toContain(
+      "supply that recorded complete key as non-authorizing controller handoff context to the source-specific issue-priming route",
+    );
+    expect(monitorLoop).toContain(
+      "only forward that received value unchanged into its initial owner-handoff report for equality comparison",
+    );
     expect(controllerHeldFacts).toContain(
       "report comes from the recorded owner thread, matches the current source provider and issue, and carries the controller-validated route tuple",
     );
@@ -761,7 +767,14 @@ describe("issue-batch-routing skill contract", () => {
         getMarkdownSection(issuePriming, "Issue Batch Routing Reports"),
       ),
     ).toContain(
-      "echoes the controller-held complete `issue-priming` route key for equality comparison; it cannot originate that key",
+      "echoes the complete `issue-priming` route key received as non-authorizing controller handoff context for equality comparison",
+    );
+    expect(
+      normalizeWhitespace(
+        getMarkdownSection(issuePriming, "Issue Batch Routing Reports"),
+      ),
+    ).toContain(
+      "Missing or changed handoff context must wait or report rather than emit an owner-handoff",
     );
     expect(controllerHeldFacts).toContain(
       "The auto-handoff identity is non-authorizing provenance, not an approval or a receipt-derived authority",
