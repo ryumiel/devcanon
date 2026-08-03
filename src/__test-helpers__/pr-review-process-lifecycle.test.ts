@@ -3,9 +3,12 @@ import * as fsPromises from "node:fs/promises";
 import {
   access,
   chmod,
+  mkdir,
   mkdtemp,
   readFile,
   rm,
+  rmdir,
+  unlink,
   writeFile,
 } from "node:fs/promises";
 import os from "node:os";
@@ -781,6 +784,54 @@ describe("pr-review process lifecycle", () => {
     expect(retried.generatedRoot).toBe("removed");
     expect(remove).toHaveBeenCalledTimes(2);
     await expect(access(retryRoot.path)).rejects.toThrow();
+
+    const partiallyRemovedRoot = await generatedRoot();
+    const partiallyRemovedLifecycle = await lifecycle(
+      partiallyRemovedRoot,
+      "process.exit(0);",
+    );
+    remove.mockClear();
+    remove.mockImplementationOnce(async () => {
+      await unlink(
+        path.join(
+          partiallyRemovedRoot.path,
+          ".devcanon-pr-review-generated-root",
+        ),
+      );
+      throw Object.assign(new Error("partially removed root is busy"), {
+        code: "EBUSY",
+      });
+    });
+
+    const partiallyRemoved = await partiallyRemovedLifecycle.finish();
+
+    expect(partiallyRemoved.generatedRoot).toBe("removed");
+    expect(remove).toHaveBeenCalledTimes(2);
+    await expect(access(partiallyRemovedRoot.path)).rejects.toThrow();
+
+    const identityLostRoot = await generatedRoot();
+    const identityLostLifecycle = await lifecycle(
+      identityLostRoot,
+      "process.exit(0);",
+    );
+    remove.mockClear();
+    remove.mockImplementationOnce(async () => {
+      await unlink(
+        path.join(identityLostRoot.path, ".devcanon-pr-review-generated-root"),
+      );
+      await rmdir(identityLostRoot.path);
+      await mkdir(identityLostRoot.path);
+      throw Object.assign(new Error("replaced root is busy"), {
+        code: "EBUSY",
+      });
+    });
+
+    const identityLost = await identityLostLifecycle.finish();
+
+    expect(identityLost.generatedRoot).toBe("preserved_unsafe");
+    expect(identityLost.evidence).toContain("rm:identity-mismatch");
+    expect(remove).toHaveBeenCalledTimes(1);
+    await expect(access(identityLostRoot.path)).resolves.toBeUndefined();
 
     const failedRoot = await generatedRoot();
     const failedLifecycle = await lifecycle(failedRoot, "process.exit(0);");
