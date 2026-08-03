@@ -91,6 +91,16 @@ deduplication must use the full route-key fields.
 matching approval evidence is present. Report-only waiting state uses
 `last_reported_approval_waiting_key` instead.
 
+## Controller-Held Approved-Route Facts
+
+For receipt validation, the router already holds the approved-route facts from
+the controller's approval, handoff, and resumed-route state: source provider,
+source issue identifier, owner thread ID, exact approved route identity,
+reviewed plan digest, and auto-handoff identity. The auto-handoff identity is
+non-authorizing provenance, not an approval or a receipt-derived authority.
+These are controller-local facts, not a new receipt artifact, ledger schema, or
+persistence system.
+
 Unknown provider states are reported as waiting rather than coerced into GitHub
 or Linear terminology.
 
@@ -160,23 +170,23 @@ For each open batch item:
    issue priming. Terminal, duplicate, abandoned, blocked, or unknown no-owner
    states wait or report instead of creating owner work.
 4. Refresh owner-thread state and integrate any owner-thread gate report.
-5. Refresh current source and PR state. Apply genuine PR, source-issue,
-   publication, and terminal gate precedence before any non-gate receipt
-   continuation: when current evidence identifies a genuine gate, use its gate
-   path and do not consume a receipt. Stale CI, review, conflict, publication,
-   or terminal evidence remains a genuine gate and cannot be bypassed by a
-   receipt.
-6. After `issue-priming-workflow --auto` approves and hands off the route,
-   record `current_approved_owner_route_identity` from the source provider,
-   source issue identifier, owner thread ID, and exact approved route identity.
-   Record `current_reviewed_plan_handoff_provenance` from the reviewed plan
-   digest and auto-handoff identity. Only the router records or refreshes these
-   bindings from approved-route handoff evidence. A receipt must not initialize,
-   refresh, or validate either current binding. On an initial or resumed route,
-   record or refresh these values only when the approved handoff supplies the
-   current binding; missing bindings fail closed rather than being inferred from
-   a receipt. When that handoff records a changed binding, clear the prior
-   route's receipt keys before accepting a subsequent receipt.
+5. Refresh current source and PR state. Apply the canonical
+   `issue-priming-workflow` genuine-gate classification while preserving the
+   router's PR, source-issue, publication, and terminal precedence before any
+   non-gate receipt continuation: when current evidence identifies a canonical
+   genuine gate, use its gate path and do not consume a receipt. Stale gate
+   evidence remains a gate and cannot be bypassed by a receipt.
+6. At initial approval or handoff, and on a resumed route, use the router's
+   existing controller-held approved-route facts to record or refresh
+   `current_approved_owner_route_identity` from the source provider, source
+   issue identifier, owner thread ID, and exact approved route identity. Record
+   `current_reviewed_plan_handoff_provenance` from the reviewed plan digest and
+   non-authorizing auto-handoff identity. Only the router records or refreshes
+   these bindings from those controller-held facts. A receipt must not
+   initialize, refresh, authenticate, or validate either current binding.
+   Missing controller-held facts fail closed rather than being inferred from a
+   receipt. When the router records changed facts on a resumed route, clear the
+   prior route's receipt keys before accepting a subsequent receipt.
 7. Before gate classification, validate any unfinished non-gate progress
    receipt against the current item and consume a verified new receipt by
    continuing the same owner route. Form the complete progress receipt

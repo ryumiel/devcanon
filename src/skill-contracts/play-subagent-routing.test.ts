@@ -1511,6 +1511,15 @@ describe("play subagent routing source contracts", () => {
     const gateReports = normalizeWhitespace(
       getMarkdownSection(issuePriming, "Issue Batch Routing Reports"),
     );
+    expect(progressReceipts).toContain(
+      "Before initial continuation, the controller records the current route binding from its existing approved-route facts",
+    );
+    expect(progressReceipts).toContain(
+      "Before resumed continuation, the controller refreshes that binding from its current approved-route facts and clears any prior-route receipt keys",
+    );
+    expect(progressReceipts).toContain(
+      "the receipt cannot establish or self-authenticate that binding",
+    );
     expect(gateReports).not.toContain("Unfinished Non-Gate Progress Receipts");
     for (const gateOnlyRequirement of [
       "gate kind",

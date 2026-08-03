@@ -624,6 +624,9 @@ describe("issue-batch-routing skill contract", () => {
     const ledger = normalizeWhitespace(
       getMarkdownSection(routerSource, "Batch Ledger"),
     );
+    const controllerHeldFacts = normalizeWhitespace(
+      getMarkdownSection(routerSource, "Controller-Held Approved-Route Facts"),
+    );
     const producer = normalizeWhitespace(
       getMarkdownSection(issuePriming, "Issue Batch Routing Progress Receipts"),
     );
@@ -649,26 +652,35 @@ describe("issue-batch-routing skill contract", () => {
     expect(producer).toContain(
       "It must provide evidence that the named non-gate work remains unfinished and stays within that route's current issue authority",
     );
+    expect(producer).toContain(
+      "Before initial continuation, the controller records the current route binding from its existing approved-route facts",
+    );
+    expect(producer).toContain(
+      "Before resumed continuation, the controller refreshes that binding from its current approved-route facts and clears any prior-route receipt keys",
+    );
+    expect(producer).toContain(
+      "the receipt cannot establish or self-authenticate that binding",
+    );
     expect(monitorLoop).toContain(
       "Before gate classification, validate any unfinished non-gate progress receipt against the current item and consume a verified new receipt by continuing the same owner route",
     );
     expect(monitorLoop).toContain(
-      "Refresh current source and PR state. Apply genuine PR, source-issue, publication, and terminal gate precedence before any non-gate receipt continuation: when current evidence identifies a genuine gate, use its gate path and do not consume a receipt",
+      "Apply the canonical `issue-priming-workflow` genuine-gate classification while preserving the router's PR, source-issue, publication, and terminal precedence before any non-gate receipt continuation",
     );
     expect(monitorLoop).toContain(
-      "After `issue-priming-workflow --auto` approves and hands off the route, record `current_approved_owner_route_identity` from the source provider, source issue identifier, owner thread ID, and exact approved route identity",
+      "At initial approval or handoff, and on a resumed route, use the router's existing controller-held approved-route facts to record or refresh `current_approved_owner_route_identity` from the source provider, source issue identifier, owner thread ID, and exact approved route identity",
     );
     expect(monitorLoop).toContain(
-      "Record `current_reviewed_plan_handoff_provenance` from the reviewed plan digest and auto-handoff identity",
+      "Record `current_reviewed_plan_handoff_provenance` from the reviewed plan digest and non-authorizing auto-handoff identity",
     );
     expect(monitorLoop).toContain(
-      "On an initial or resumed route, record or refresh these values only when the approved handoff supplies the current binding",
+      "Only the router records or refreshes these bindings from those controller-held facts",
     );
     expect(monitorLoop).toContain(
-      "When that handoff records a changed binding, clear the prior route's receipt keys before accepting a subsequent receipt",
+      "When the router records changed facts on a resumed route, clear the prior route's receipt keys before accepting a subsequent receipt",
     );
     expect(monitorLoop).toContain(
-      "A receipt must not initialize, refresh, or validate either current binding",
+      "A receipt must not initialize, refresh, authenticate, or validate either current binding",
     );
     expect(monitorLoop).toContain(
       "Form the complete progress receipt consumption key from the exact owner route identity and receipt digest",
@@ -680,11 +692,11 @@ describe("issue-batch-routing skill contract", () => {
       "A missing current binding or stale route/provenance mismatch fails closed to waiting or manual action",
     );
     expect(monitorLoop).toContain(
-      "Stale CI, review, conflict, publication, or terminal evidence remains a genuine gate and cannot be bypassed by a receipt",
+      "Stale gate evidence remains a gate and cannot be bypassed by a receipt",
     );
     expect(
       monitorLoop.indexOf(
-        "Refresh current source and PR state. Apply genuine PR, source-issue, publication, and terminal gate precedence before any non-gate receipt continuation",
+        "Apply the canonical `issue-priming-workflow` genuine-gate classification while preserving the router's PR, source-issue, publication, and terminal precedence before any non-gate receipt continuation",
       ),
     ).toBeLessThan(
       monitorLoop.indexOf(
@@ -711,6 +723,15 @@ describe("issue-batch-routing skill contract", () => {
     );
     expect(ledger).toContain(
       "Current reviewed-plan handoff provenance required to validate progress receipts and clear prior-route receipt keys",
+    );
+    expect(controllerHeldFacts).toContain(
+      "source provider, source issue identifier, owner thread ID, exact approved route identity, reviewed plan digest, and auto-handoff identity",
+    );
+    expect(controllerHeldFacts).toContain(
+      "The auto-handoff identity is non-authorizing provenance, not an approval or a receipt-derived authority",
+    );
+    expect(controllerHeldFacts).toContain(
+      "These are controller-local facts, not a new receipt artifact, ledger schema, or persistence system",
     );
   });
 

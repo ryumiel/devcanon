@@ -1004,13 +1004,18 @@ parent/manual-action report.
 
 ## Issue Batch Routing Progress Receipts
 
-An unfinished non-gate progress receipt must identify the exact approved owner
-route, the source provider and source issue identifier, the delegated
-owner-thread identity, and the current reviewed-plan handoff provenance. It
-must provide evidence that the named non-gate work remains unfinished and stays
-within that route's current issue authority. Include the current route identity
-already held by the controller and the branch, PR, and head facts when known so
-the router can match the receipt to the existing owner route.
+Before initial continuation, the controller records the current route binding
+from its existing approved-route facts. Before resumed continuation, the
+controller refreshes that binding from its current approved-route facts and
+clears any prior-route receipt keys. Only after that may a producer emit a
+receipt. An unfinished non-gate progress receipt must identify the exact
+approved owner route, the source provider and source issue identifier, the
+delegated owner-thread identity, and the current reviewed-plan handoff
+provenance. It must provide evidence that the named non-gate work remains
+unfinished and stays within that route's current issue authority. Include the
+current route identity already held by the controller and the branch, PR, and
+head facts when known so the router can match the receipt to the existing owner
+route; the receipt cannot establish or self-authenticate that binding.
 
 This is progress evidence for the existing route, not a new authority gate,
 approval request, ledger schema, or authorization for provider mutation. If the
