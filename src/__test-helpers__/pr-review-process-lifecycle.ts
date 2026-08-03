@@ -24,6 +24,8 @@ import {
 } from "./pr-review-root-identity.js";
 
 const GENERATED_ROOT_MARKER = ".devcanon-pr-review-generated-root";
+const GENERATED_ROOT_REMOVAL_MAX_RETRIES = 3;
+const GENERATED_ROOT_REMOVAL_RETRY_DELAY_MS = 100;
 const MIN_DEADLINE_MS = 1;
 const MAX_DEADLINE_MS = 60_000;
 const MIN_OUTPUT_LIMIT_BYTES = 1;
@@ -276,17 +278,15 @@ export async function launchPrReviewProcessLifecycle(
   request: PrReviewProcessLifecycleRequest,
 ): Promise<PrReviewProcessLifecycle> {
   const frozen = snapshotRequest(request);
-  const deadline = performance.now() + frozen.deadlineMs;
   const executable = await enrollExecutable(frozen.executable);
   const cwd = await enrollWorkingDirectory(
     frozen.generatedRoot.root,
     frozen.cwd,
   );
   const initialRoot = await readGeneratedRootEvidence(frozen.generatedRoot);
-  if (deadline - performance.now() <= 0)
-    throw new LifecycleError("deadline expired during root preflight");
   const initialCwd = process.cwd();
   const initialCwdPhysical = await realpath(initialCwd);
+  const deadline = performance.now() + frozen.deadlineMs;
   let child: ChildProcess;
   try {
     if (deadline - performance.now() <= 0)
@@ -657,29 +657,60 @@ class RootLifecycle implements PrReviewProcessLifecycle {
       this.#recordDisposition("rm:controller-cwd-or-ancestor");
       return "preserved_unsafe";
     }
-    try {
-      const liveCwd = await realpath(process.cwd());
-      if (isControllerCwdOrAncestor(this.generatedRoot.physical, liveCwd)) {
-        this.#recordDisposition("rm:live-cwd-or-ancestor");
+    for (
+      let attempt = 0;
+      attempt <= GENERATED_ROOT_REMOVAL_MAX_RETRIES;
+      attempt += 1
+    ) {
+      try {
+        const liveCwd = await realpath(process.cwd());
+        if (isControllerCwdOrAncestor(this.generatedRoot.physical, liveCwd)) {
+          this.#recordDisposition("rm:live-cwd-or-ancestor");
+          return "preserved_unsafe";
+        }
+        const current =
+          attempt === 0
+            ? await readGeneratedRootEvidence(this.request.generatedRoot)
+            : await readGeneratedRootRetryEvidence(this.request.generatedRoot);
+        if (!sameIdentity(this.generatedRoot, current)) {
+          this.#recordDisposition("rm:identity-mismatch");
+          return "preserved_unsafe";
+        }
+        if (this.#remaining() <= 0) {
+          this.#recordDisposition("rm:deadline-after-revalidation");
+          return "preserved_unsafe";
+        }
+      } catch (error) {
+        this.#recordDisposition(`rm:${errorName(error)}`);
         return "preserved_unsafe";
       }
-      const current = await readGeneratedRootEvidence(
-        this.request.generatedRoot,
-      );
-      if (!sameIdentity(this.generatedRoot, current)) {
-        this.#recordDisposition("rm:identity-mismatch");
-        return "preserved_unsafe";
+      try {
+        await rm(this.generatedRoot.logical, {
+          force: false,
+          recursive: true,
+        });
+        return "removed";
+      } catch (error) {
+        if (
+          attempt === GENERATED_ROOT_REMOVAL_MAX_RETRIES ||
+          !isGeneratedRootRemovalRetryable(error)
+        ) {
+          this.#recordDisposition(`rm:${errorName(error)}`);
+          return "preserved_unsafe";
+        }
+        const delay = Math.min(
+          this.#remaining(),
+          GENERATED_ROOT_REMOVAL_RETRY_DELAY_MS * (attempt + 1),
+        );
+        if (delay <= 0) {
+          this.#recordDisposition("rm:deadline-after-revalidation");
+          return "preserved_unsafe";
+        }
+        await new Promise<void>((resolve) => setTimeout(resolve, delay));
       }
-      if (this.#remaining() <= 0) {
-        this.#recordDisposition("rm:deadline-after-revalidation");
-        return "preserved_unsafe";
-      }
-      await rm(this.generatedRoot.logical, { force: false, recursive: true });
-      return "removed";
-    } catch (error) {
-      this.#recordDisposition(`rm:${errorName(error)}`);
-      return "preserved_unsafe";
     }
+    this.#recordDisposition("rm:retries-exhausted");
+    return "preserved_unsafe";
   }
 }
 
@@ -773,6 +804,40 @@ function snapshotFinishOptions(options: {
 async function readGeneratedRootEvidence(
   enrollment: GeneratedRootEnrollment,
 ): Promise<RootIdentity> {
+  const root = await readGeneratedRootIdentity(enrollment);
+  await assertGeneratedRootMarker(enrollment, root);
+  return root;
+}
+
+async function readGeneratedRootRetryEvidence(
+  enrollment: GeneratedRootEnrollment,
+): Promise<RootIdentity> {
+  const root = await readGeneratedRootIdentity(enrollment);
+  try {
+    await assertGeneratedRootMarker(enrollment, root);
+  } catch (error) {
+    if (errorCode(error) !== "ENOENT") throw error;
+  }
+  return root;
+}
+
+async function assertGeneratedRootMarker(
+  enrollment: GeneratedRootEnrollment,
+  root: RootIdentity,
+): Promise<void> {
+  const marker = await lstat(path.join(root.logical, GENERATED_ROOT_MARKER));
+  if (
+    !marker.isFile() ||
+    marker.isSymbolicLink() ||
+    (await readFile(path.join(root.logical, GENERATED_ROOT_MARKER), "utf8")) !==
+      enrollment.marker
+  )
+    throw new LifecycleError("generated root marker is unsafe");
+}
+
+async function readGeneratedRootIdentity(
+  enrollment: GeneratedRootEnrollment,
+): Promise<RootIdentity> {
   const root = enrollment.root;
   const direct = await lstat(root.logical);
   if (!direct.isDirectory() || direct.isSymbolicLink())
@@ -782,19 +847,22 @@ async function readGeneratedRootEvidence(
     throw new LifecycleError("generated root identity is ambiguous");
   if ((await realpath(root.logical)) !== root.physical)
     throw new LifecycleError("generated root physical path changed");
-  const marker = await lstat(path.join(root.logical, GENERATED_ROOT_MARKER));
-  if (
-    !marker.isFile() ||
-    marker.isSymbolicLink() ||
-    (await readFile(path.join(root.logical, GENERATED_ROOT_MARKER), "utf8")) !==
-      enrollment.marker
-  )
-    throw new LifecycleError("generated root marker is unsafe");
   return { ...root, device: BigInt(direct.dev), file: BigInt(direct.ino) };
 }
 
 function sameIdentity(left: RootIdentity, right: RootIdentity): boolean {
   return left.device === right.device && left.file === right.file;
+}
+
+function isGeneratedRootRemovalRetryable(error: unknown): boolean {
+  if (!error || typeof error !== "object" || !("code" in error)) return false;
+  return ["EBUSY", "EMFILE", "ENFILE", "ENOTEMPTY", "EPERM"].includes(
+    String(error.code),
+  );
+}
+function errorCode(error: unknown): string | undefined {
+  if (!error || typeof error !== "object" || !("code" in error)) return;
+  return String(error.code);
 }
 function sameStats(
   left: Awaited<ReturnType<typeof lstat>>,

@@ -1,15 +1,38 @@
 import { ChildProcess } from "node:child_process";
+import * as fsPromises from "node:fs/promises";
 import {
   access,
   chmod,
+  mkdir,
   mkdtemp,
   readFile,
   rm,
+  rmdir,
+  unlink,
   writeFile,
 } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+const lifecyclePreflight = vi.hoisted(() => ({
+  controllerCwd: "",
+  elapsed: false,
+}));
+
+vi.mock("node:fs/promises", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:fs/promises")>();
+  return {
+    ...actual,
+    realpath: vi.fn(async (...args: Parameters<typeof actual.realpath>) => {
+      if (String(args[0]) === lifecyclePreflight.controllerCwd)
+        lifecyclePreflight.elapsed = true;
+      return actual.realpath(...args);
+    }),
+    rm: vi.fn(actual.rm),
+  };
+});
+
 import {
   PR_REVIEW_PROCESS_LIFECYCLE_LIMITS,
   PrReviewProcessFailureEvidence,
@@ -95,19 +118,30 @@ afterEach(async () => {
 describe("pr-review process lifecycle", () => {
   it("observes a normal root-process exit", async () => {
     const root = await generatedRoot();
-    const processLifecycle = await lifecycle(
-      root,
-      'process.stdout.write("normal");',
-    );
+    lifecyclePreflight.controllerCwd = process.cwd();
+    lifecyclePreflight.elapsed = false;
+    const now = vi
+      .spyOn(performance, "now")
+      .mockImplementation(() => (lifecyclePreflight.elapsed ? 250 : 0));
+    try {
+      const processLifecycle = await lifecycle(
+        root,
+        'process.stdout.write("normal");',
+      );
+      const result = await processLifecycle.finish();
 
-    const result = await processLifecycle.finish();
-
-    expect(result.rootProcess).toMatchObject({
-      exitObserved: true,
-      closeObserved: true,
-    });
-    expect(result.output.stdout.text).toBe("normal");
-    expect(result.generatedRoot).toBe("removed");
+      expect(lifecyclePreflight.elapsed).toBe(true);
+      expect(result.rootProcess).toMatchObject({
+        exitObserved: true,
+        closeObserved: true,
+      });
+      expect(result.output.stdout.text).toBe("normal");
+      expect(result.generatedRoot).toBe("removed");
+    } finally {
+      now.mockRestore();
+      lifecyclePreflight.controllerCwd = "";
+      lifecyclePreflight.elapsed = false;
+    }
   });
 
   it("records cooperative cancellation acknowledgement", async () => {
@@ -351,12 +385,11 @@ describe("pr-review process lifecycle", () => {
     });
 
     const killReturnedFalse = result.evidence.includes("kill:false");
-    if (result.rootProcess.closeObserved) {
-      expect(result.cleanup.forceTermination).toBe("not-needed");
-      expect(killReturnedFalse).toBe(false);
-    } else {
+    if (killReturnedFalse) {
       expect(result.cleanup.forceTermination).toBe("failed");
-      expect(killReturnedFalse).toBe(true);
+    } else {
+      expect(result.cleanup.forceTermination).toBe("not-needed");
+      expect(result.rootProcess.closeObserved).toBe(true);
     }
     expect(result.evidence.some((entry) => entry.startsWith("protocol:"))).toBe(
       true,
@@ -591,7 +624,6 @@ describe("pr-review process lifecycle", () => {
     const beforeSpawnClock = vi
       .spyOn(performance, "now")
       .mockReturnValueOnce(0)
-      .mockReturnValueOnce(0)
       .mockReturnValueOnce(251);
     try {
       await expect(
@@ -728,11 +760,145 @@ describe("pr-review process lifecycle", () => {
   it("removes a safe helper-created generated root after root close", async () => {
     const root = await generatedRoot();
     const processLifecycle = await lifecycle(root, "process.exit(0);");
+    const remove = vi.mocked(fsPromises.rm);
+    remove.mockClear();
 
     const result = await processLifecycle.finish();
 
     expect(result.generatedRoot).toBe("removed");
+    expect(remove).toHaveBeenCalledWith(root.path, {
+      force: false,
+      recursive: true,
+    });
     await expect(access(root.path)).rejects.toThrow();
+
+    const retryRoot = await generatedRoot();
+    const retryLifecycle = await lifecycle(retryRoot, "process.exit(0);");
+    remove.mockClear();
+    remove.mockRejectedValueOnce(
+      Object.assign(new Error("transient removal failure"), { code: "EBUSY" }),
+    );
+
+    const retried = await retryLifecycle.finish();
+
+    expect(retried.generatedRoot).toBe("removed");
+    expect(remove).toHaveBeenCalledTimes(2);
+    await expect(access(retryRoot.path)).rejects.toThrow();
+
+    const partiallyRemovedRoot = await generatedRoot();
+    const partiallyRemovedLifecycle = await lifecycle(
+      partiallyRemovedRoot,
+      "process.exit(0);",
+    );
+    remove.mockClear();
+    remove.mockImplementationOnce(async () => {
+      await unlink(
+        path.join(
+          partiallyRemovedRoot.path,
+          ".devcanon-pr-review-generated-root",
+        ),
+      );
+      throw Object.assign(new Error("partially removed root is busy"), {
+        code: "EBUSY",
+      });
+    });
+
+    const partiallyRemoved = await partiallyRemovedLifecycle.finish();
+
+    expect(partiallyRemoved.generatedRoot).toBe("removed");
+    expect(remove).toHaveBeenCalledTimes(2);
+    await expect(access(partiallyRemovedRoot.path)).rejects.toThrow();
+
+    const identityLostRoot = await generatedRoot();
+    const identityLostLifecycle = await lifecycle(
+      identityLostRoot,
+      "process.exit(0);",
+    );
+    remove.mockClear();
+    remove.mockImplementationOnce(async () => {
+      await unlink(
+        path.join(identityLostRoot.path, ".devcanon-pr-review-generated-root"),
+      );
+      await rmdir(identityLostRoot.path);
+      await mkdir(identityLostRoot.path);
+      throw Object.assign(new Error("replaced root is busy"), {
+        code: "EBUSY",
+      });
+    });
+
+    const identityLost = await identityLostLifecycle.finish();
+
+    expect(identityLost.generatedRoot).toBe("preserved_unsafe");
+    expect(identityLost.evidence).toContain("rm:identity-mismatch");
+    expect(remove).toHaveBeenCalledTimes(1);
+    await expect(access(identityLostRoot.path)).resolves.toBeUndefined();
+
+    const failedRoot = await generatedRoot();
+    const failedLifecycle = await lifecycle(failedRoot, "process.exit(0);");
+    remove.mockClear();
+    remove.mockRejectedValueOnce(new Error("injected removal failure"));
+
+    const failed = await failedLifecycle.finish();
+
+    expect(failed.generatedRoot).toBe("preserved_unsafe");
+    expect(failed.evidence).toContain("rm:Error");
+    await expect(access(failedRoot.path)).resolves.toBeUndefined();
+
+    const replacedRoot = await generatedRoot();
+    const replacedLifecycle = await lifecycle(replacedRoot, "process.exit(0);");
+    remove.mockClear();
+    remove.mockImplementationOnce(async () => {
+      await writeFile(
+        path.join(replacedRoot.path, ".devcanon-pr-review-generated-root"),
+        "replaced\n",
+      );
+      throw Object.assign(new Error("transient removal failure"), {
+        code: "EBUSY",
+      });
+    });
+
+    const replaced = await replacedLifecycle.finish();
+
+    expect(replaced.generatedRoot).toBe("preserved_unsafe");
+    expect(replaced.evidence).toContain("rm:LifecycleError");
+    expect(remove).toHaveBeenCalledTimes(1);
+    await expect(access(replacedRoot.path)).resolves.toBeUndefined();
+
+    const revalidationRoot = await generatedRoot();
+    const revalidationLifecycle = await lifecycle(
+      revalidationRoot,
+      "process.exit(0);",
+    );
+    const realpath = vi.mocked(fsPromises.realpath);
+    const originalRealpath = realpath.getMockImplementation();
+    if (!originalRealpath)
+      throw new Error("realpath mock implementation missing");
+    let rejectRevalidation = false;
+    realpath.mockImplementation(async (...args) => {
+      if (rejectRevalidation && String(args[0]) === revalidationRoot.path)
+        throw Object.assign(new Error("unsafe revalidation failure"), {
+          code: "EPERM",
+        });
+      return originalRealpath(...args);
+    });
+    remove.mockClear();
+    remove.mockImplementationOnce(async () => {
+      rejectRevalidation = true;
+      throw Object.assign(new Error("transient removal failure"), {
+        code: "EBUSY",
+      });
+    });
+
+    try {
+      const revalidation = await revalidationLifecycle.finish();
+
+      expect(revalidation.generatedRoot).toBe("preserved_unsafe");
+      expect(revalidation.evidence).toContain("rm:Error");
+      expect(remove).toHaveBeenCalledTimes(1);
+      await expect(access(revalidationRoot.path)).resolves.toBeUndefined();
+    } finally {
+      realpath.mockImplementation(originalRealpath);
+    }
   });
 
   it("preserves a changed, aliased, or unsafe generated root", async () => {
