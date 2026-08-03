@@ -64,5 +64,6 @@ aliases, and deprecated or forbidden synonyms.
   preview and posting.
 - **Owner:** `skills/pr-review/SKILL.md` Phase 5.
 - **Protocol identifier:** none.
-- **Allowed display aliases:** user gate; preview approval gate.
+- **Allowed display aliases:** user gate; user approval gate; preview approval
+  gate; Phase 5 gate.
 - **Deprecated or forbidden synonyms:** auto-post gate; implicit approval.

@@ -344,6 +344,16 @@ describe("phase artifact source contracts", () => {
     const terminology = await readRepoFile(
       "docs/guidelines/devcanon-terminology.md",
     );
+    const prReview = await readSkillSource("pr-review");
+    const leaseLifecycleReference = await readRepoFile(
+      "skills/pr-review/references/review-lease-lifecycle-contract.md",
+    );
+    const phase5EntryStart = terminology.indexOf("### Phase 5 user gate");
+    expect(phase5EntryStart).toBeGreaterThanOrEqual(0);
+    const phase5Entry = terminology.slice(phase5EntryStart);
+    const forbiddenAliases = phase5Entry
+      .match(/\*\*Deprecated or forbidden synonyms:\*\* (.+)\./)?.[1]
+      .split("; ");
 
     for (const index of [guidelineIndex, map]) {
       expect(index).toContain("implementation-proportionality.md");
@@ -352,7 +362,12 @@ describe("phase artifact source contracts", () => {
     expect(proportionality).toContain("## Test ownership boundary");
     expect(terminology).toContain("## Entry fields");
     expect(terminology).toContain("pr-review/handoff/v1");
-    expect(terminology).toContain("auto-post gate");
+    expect(forbiddenAliases).toEqual(["auto-post gate", "implicit approval"]);
+    for (const source of [prReview, leaseLifecycleReference]) {
+      for (const alias of forbiddenAliases ?? []) {
+        expect(source).not.toContain(alias);
+      }
+    }
   });
 
   it("keeps issue-priming helper extraction contracts and static RED fallback checks in source", async () => {
