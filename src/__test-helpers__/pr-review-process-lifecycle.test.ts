@@ -970,6 +970,71 @@ describe("pr-review process lifecycle", () => {
         stat.mockImplementation(originalStat);
       }
     }
+    {
+      const root = await generatedRoot();
+      const lstat = vi.mocked(fsPromises.lstat);
+      const stat = vi.mocked(fsPromises.stat);
+      const originalLstat = lstat.getMockImplementation();
+      const originalStat = stat.getMockImplementation();
+      if (!originalLstat || !originalStat)
+        throw new Error("stat mock implementation missing");
+      const enrolled = (await originalLstat(root.path, {
+        bigint: true,
+      })) as import("node:fs").BigIntStats;
+      lstat.mockImplementation(async (...args) => {
+        const observed = await originalLstat(...args);
+        if (String(args[0]) !== root.path) return observed;
+        const bigint = args[1]?.bigint === true;
+        return Object.assign(
+          Object.create(Object.getPrototypeOf(observed)),
+          observed,
+          {
+            dev: bigint ? enrolled.dev : Number(enrolled.dev),
+            ino: bigint ? enrolled.ino : Number(enrolled.ino),
+            ...(bigint ? { birthtimeNs: 0n } : {}),
+          },
+        );
+      });
+      stat.mockImplementation(async (...args) => {
+        const observed = await originalStat(...args);
+        if (String(args[0]) !== root.path) return observed;
+        const bigint = args[1]?.bigint === true;
+        return Object.assign(
+          Object.create(Object.getPrototypeOf(observed)),
+          observed,
+          {
+            dev: bigint ? enrolled.dev : Number(enrolled.dev),
+            ino: bigint ? enrolled.ino : Number(enrolled.ino),
+            ...(bigint ? { birthtimeNs: 0n } : {}),
+          },
+        );
+      });
+      const processLifecycle = await lifecycle(root, "process.exit(0);");
+      const remove = vi.mocked(fsPromises.rm);
+      remove.mockClear();
+      remove.mockImplementationOnce(async () => {
+        await unlink(
+          path.join(root.path, ".devcanon-pr-review-generated-root"),
+        );
+        await rmdir(root.path);
+        await mkdir(root.path);
+        throw Object.assign(new Error("replaced root is busy"), {
+          code: "EBUSY",
+        });
+      });
+
+      try {
+        const result = await processLifecycle.finish();
+
+        expect(result.generatedRoot).toBe("preserved_unsafe");
+        expect(result.evidence).toContain("rm:identity-mismatch");
+        expect(remove).toHaveBeenCalledTimes(1);
+        await expect(access(root.path)).resolves.toBeUndefined();
+      } finally {
+        lstat.mockImplementation(originalLstat);
+        stat.mockImplementation(originalStat);
+      }
+    }
   });
 
   it("preserves a changed, aliased, or unsafe generated root", async () => {

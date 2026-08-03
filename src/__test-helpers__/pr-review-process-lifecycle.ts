@@ -675,7 +675,11 @@ class RootLifecycle implements PrReviewProcessLifecycle {
           attempt === 0
             ? await readGeneratedRootEvidence(this.request.generatedRoot)
             : await readGeneratedRootRetryEvidence(this.request.generatedRoot);
-        if (!sameIdentity(this.generatedRoot, current)) {
+        const matchesIdentity =
+          attempt === 0
+            ? sameIdentity(this.generatedRoot, current)
+            : sameRetryIdentity(this.generatedRoot, current);
+        if (!matchesIdentity) {
           this.#recordDisposition("rm:identity-mismatch");
           return "preserved_unsafe";
         }
@@ -871,6 +875,14 @@ function sameIdentity(left: RootIdentity, right: RootIdentity): boolean {
     left.device === right.device &&
     left.file === right.file &&
     left.birthtimeNs === right.birthtimeNs
+  );
+}
+
+function sameRetryIdentity(left: RootIdentity, right: RootIdentity): boolean {
+  return (
+    left.birthtimeNs !== 0n &&
+    right.birthtimeNs !== 0n &&
+    sameIdentity(left, right)
   );
 }
 
