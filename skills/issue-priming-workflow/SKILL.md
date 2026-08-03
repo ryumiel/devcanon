@@ -700,10 +700,10 @@ in-contract fixes; and task-locally recoverable D12 `NEEDS_CONTEXT` or
 The following are genuine gates and fail closed: materially unresolved product
 outcomes; externally observable behavior not required by the approved issue;
 new public schema or compatibility commitments; ownership or source-surface
-expansion; unauthorized provider mutation; reviewed publication decisions; and
-terminal outcomes. Preserve the existing route-specific stop, escalation, or
-publication behavior for these gates; `--auto` does not supply missing
-authority.
+expansion into dependencies, workflows, or subsystems; unauthorized provider
+mutation; reviewed publication decisions; and terminal outcomes. Preserve the
+existing route-specific stop, escalation, or publication behavior for these
+gates; `--auto` does not supply missing authority.
 
 ### Phase 5: Write Plan
 
@@ -1001,6 +1001,22 @@ This workflow does not directly mutate source issue status unless an explicitly
 available provider-specific workflow owns that side effect. Source-issue
 reporting without an available provider-specific workflow becomes a
 parent/manual-action report.
+
+### Unfinished Non-Gate Progress Receipts
+
+An unfinished non-gate progress receipt must identify the exact approved owner
+route, the source provider and source issue identifier, the delegated
+owner-thread identity, and the current reviewed-plan handoff provenance. It
+must provide evidence that the named non-gate work remains unfinished and stays
+within that route's current issue authority. Include the current route identity
+already held by the controller and the branch, PR, and head facts when known so
+the router can match the receipt to the existing owner route.
+
+This is progress evidence for the existing route, not a new authority gate,
+approval request, ledger schema, or authorization for provider mutation. If the
+identity, provenance, or unfinished non-gate evidence is absent, report the
+condition through the existing incomplete or gate path instead of emitting a
+progress receipt.
 
 ## Common Mistakes
 

@@ -1446,7 +1446,7 @@ describe("play subagent routing source contracts", () => {
       "materially unresolved product outcomes",
       "externally observable behavior not required by the approved issue",
       "new public schema or compatibility commitments",
-      "ownership or source-surface expansion",
+      "ownership or source-surface expansion into dependencies, workflows, or subsystems",
       "unauthorized provider mutation",
       "reviewed publication decisions",
       "terminal outcomes",
@@ -1475,6 +1475,20 @@ describe("play subagent routing source contracts", () => {
     );
     expect(normalizedLifecycle).toContain(
       "D13 selection, reclassification, and boundary failures remain governed by the unchanged D13 sections above",
+    );
+    expect(
+      normalizeWhitespace(
+        getMarkdownSection(issuePriming, "Issue Batch Routing Reports"),
+      ),
+    ).toContain(
+      "An unfinished non-gate progress receipt must identify the exact approved owner route, the source provider and source issue identifier, the delegated owner-thread identity, and the current reviewed-plan handoff provenance",
+    );
+    expect(
+      normalizeWhitespace(
+        getMarkdownSection(issuePriming, "Issue Batch Routing Reports"),
+      ),
+    ).toContain(
+      "It must provide evidence that the named non-gate work remains unfinished and stays within that route's current issue authority",
     );
   });
 

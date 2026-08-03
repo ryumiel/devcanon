@@ -67,7 +67,7 @@ require an explicit provider boundary.
 | `current_head_sha`                             | Current branch or PR head SHA, optional until known.                                                                                                            |
 | `current_gate_kind`                            | Waiting gate such as `issue-priming`, `plan-approval`, `review-response`, `ci-fix`, `merge-conflict`, `merge-routing`, `source-issue-reporting`, or `archival`. |
 | `source_issue_state_snapshot_digest`           | Digest of the provider-supported source-issue state snapshot used for the last decision.                                                                        |
-| `last_owner_thread_report_digest`              | Digest of the last owner-thread gate report integrated by the parent.                                                                                           |
+| `last_owner_thread_report_digest`              | Digest of the last owner-thread gate report or consumed unfinished non-gate progress receipt integrated by the parent.                                          |
 | `last_routed_issue_priming_route_key`          | Full replay-sensitive issue-priming route key last sent.                                                                                                        |
 | `last_routed_review_thread_set_digest`         | Digest for the last unresolved review-thread set routed.                                                                                                        |
 | `last_routed_review_response_route_key`        | Full replay-sensitive review-response route key last sent.                                                                                                      |
@@ -157,14 +157,22 @@ For each open batch item:
    issue priming. Terminal, duplicate, abandoned, blocked, or unknown no-owner
    states wait or report instead of creating owner work.
 4. Refresh owner-thread state and integrate any owner-thread gate report.
-5. Refresh PR provider state when a PR exists.
-6. Classify the current gate using PR gate precedence, source-issue state, and
+5. Before gate classification, validate any unfinished non-gate progress
+   receipt against the current item and consume a verified new receipt by
+   continuing the same owner route. Record the consumed receipt digest in the
+   existing `last_owner_thread_report_digest`. A receipt whose digest already
+   matches `last_owner_thread_report_digest` for the same owner route is a
+   repeat: do not continue the route again or update any approval key. Missing
+   identity, route provenance, or unfinished non-gate evidence fails closed to
+   waiting or manual action. A genuine gate does not qualify as progress.
+6. Refresh PR provider state when a PR exists.
+7. Only then classify a remaining gate using PR gate precedence, source-issue state, and
    any owner-thread report.
-7. Compare the gate's duplicate-route key with the ledger.
-8. Route only when the route key is new or the current state invalidates the
+8. Compare the gate's duplicate-route key with the ledger.
+9. Route only when the route key is new or the current state invalidates the
    prior route.
-9. Record the route, approval, waiting reason, or terminal state in the ledger.
-10. Report the monitor pass.
+10. Record the route, approval, waiting reason, or terminal state in the ledger.
+11. Report the monitor pass.
 
 If a required live-state surface is unavailable, report the item as waiting
 with the missing surface and the next safe manual command or workflow.

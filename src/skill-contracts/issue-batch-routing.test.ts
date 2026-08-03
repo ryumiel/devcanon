@@ -613,11 +613,19 @@ describe("issue-batch-routing skill contract", () => {
   });
 
   it("continues verified unfinished non-gate progress without consuming approval keys", async () => {
+    const routerSource = await readSkillSource("issue-batch-routing");
+    const issuePriming = await readSkillSource("issue-priming-workflow");
     const router = normalizeWhitespace(
-      getMarkdownSection(
-        await readSkillSource("issue-batch-routing"),
-        "Unfinished Non-Gate Progress Receipts",
-      ),
+      getMarkdownSection(routerSource, "Unfinished Non-Gate Progress Receipts"),
+    );
+    const monitorLoop = normalizeWhitespace(
+      getMarkdownSection(routerSource, "Monitor Loop"),
+    );
+    const ledger = normalizeWhitespace(
+      getMarkdownSection(routerSource, "Batch Ledger"),
+    );
+    const producer = normalizeWhitespace(
+      getMarkdownSection(issuePriming, "Issue Batch Routing Reports"),
     );
 
     expect(router).toContain(
@@ -634,6 +642,25 @@ describe("issue-batch-routing skill contract", () => {
     );
     expect(router).toContain(
       "Do not create a progress receipt key or consume any approval de-duplication key",
+    );
+    expect(producer).toContain(
+      "An unfinished non-gate progress receipt must identify the exact approved owner route, the source provider and source issue identifier, the delegated owner-thread identity, and the current reviewed-plan handoff provenance",
+    );
+    expect(producer).toContain(
+      "It must provide evidence that the named non-gate work remains unfinished and stays within that route's current issue authority",
+    );
+    expect(monitorLoop).toContain(
+      "Before gate classification, validate any unfinished non-gate progress receipt against the current item and consume a verified new receipt by continuing the same owner route",
+    );
+    expect(monitorLoop).toContain(
+      "Record the consumed receipt digest in the existing `last_owner_thread_report_digest`",
+    );
+    expect(monitorLoop).toContain(
+      "A receipt whose digest already matches `last_owner_thread_report_digest` for the same owner route is a repeat: do not continue the route again or update any approval key",
+    );
+    expect(monitorLoop).toContain("Only then classify a remaining gate");
+    expect(ledger).toContain(
+      "Digest of the last owner-thread gate report or consumed unfinished non-gate progress receipt integrated by the parent",
     );
   });
 
