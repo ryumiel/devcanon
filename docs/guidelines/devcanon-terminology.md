@@ -41,7 +41,8 @@ aliases, and deprecated or forbidden synonyms.
 - **Definition:** The lifecycle record for a PR-review session and its
   worktree identity.
 - **Owner:** `src/runtime/pr-review-leases.ts` and
-  `skills/pr-review/scripts/review-leases.sh`.
+  `skills/pr-review/scripts/review-leases.sh`; lifecycle contract:
+  `skills/pr-review/references/review-lease-lifecycle-contract.md`.
 - **Protocol identifier:** `pr-review/lease/v1`.
 - **Allowed display aliases:** lease; review session lease.
 - **Deprecated or forbidden synonyms:** lock file; session lock.
