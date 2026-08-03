@@ -771,6 +771,16 @@ describe("pr-review process lifecycle", () => {
       retryDelay: 100,
     });
     await expect(access(root.path)).rejects.toThrow();
+
+    const failedRoot = await generatedRoot();
+    const failedLifecycle = await lifecycle(failedRoot, "process.exit(0);");
+    remove.mockRejectedValueOnce(new Error("injected removal failure"));
+
+    const failed = await failedLifecycle.finish();
+
+    expect(failed.generatedRoot).toBe("preserved_unsafe");
+    expect(failed.evidence).toContain("rm:Error");
+    await expect(access(failedRoot.path)).resolves.toBeUndefined();
   });
 
   it("preserves a changed, aliased, or unsafe generated root", async () => {
