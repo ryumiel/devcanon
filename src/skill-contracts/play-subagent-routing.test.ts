@@ -1328,7 +1328,7 @@ describe("play subagent routing source contracts", () => {
       "Do not redispatch D13 with more context or a more capable model",
     );
     expect(normalizedLifecycle).toContain(
-      "For a D12 implementer, `NEEDS_CONTEXT` means required information was not provided. When that information is task-locally recoverable under the canonical auto-route boundary, provide it and redispatch the same D12 route",
+      "For a D12 implementer, `NEEDS_CONTEXT` means required information was not provided. Outside that exact verified auto route, a D12 `NEEDS_CONTEXT` request that can be resolved within the task's existing scope provides the missing context and redispatches the same D12 route",
     );
     expect(normalizedLifecycle).toContain(
       "A non-boundary operational D13 `BLOCKED` also stops D13, keeps the task incomplete, and routes the blocker plus any available base/head SHA and snapshot state to D12 for judgment-bearing recovery",
@@ -1455,7 +1455,10 @@ describe("play subagent routing source contracts", () => {
     }
 
     expect(normalizedPrompt).toContain(
-      "For an exact approved `issue-priming-workflow --auto` route, use the canonical continuation boundary in [`issue-priming-workflow/SKILL.md`](../../issue-priming-workflow/SKILL.md) rather than pausing for a routine internal choice",
+      "For a verified `issue-priming-workflow --auto` dispatch on an exact approved route, use the canonical continuation boundary in [`issue-priming-workflow/SKILL.md`](../../issue-priming-workflow/SKILL.md) rather than pausing for a routine internal choice",
+    );
+    expect(normalizedPrompt).toContain(
+      "Do not infer verified auto authority from a task mention or generic controller context",
     );
     expect(normalizedPrompt).toContain(
       "resolve it from the named authority, repository patterns, and the smallest compatible in-scope design",
@@ -1474,6 +1477,9 @@ describe("play subagent routing source contracts", () => {
       "A genuinely unresolvable context or scope gap remains incomplete and follows the existing owning-caller escalation path",
     );
     expect(normalizedLifecycle).toContain(
+      "Outside that exact verified auto route, a D12 `NEEDS_CONTEXT` request that can be resolved within the task's existing scope provides the missing context and redispatches the same D12 route",
+    );
+    expect(normalizedLifecycle).toContain(
       "D13 selection, reclassification, and boundary failures remain governed by the unchanged D13 sections above",
     );
     expect(
@@ -1490,6 +1496,18 @@ describe("play subagent routing source contracts", () => {
     ).toContain(
       "It must provide evidence that the named non-gate work remains unfinished and stays within that route's current issue authority",
     );
+    expect(
+      issuePriming.indexOf("## Auto-Route Continuation Boundary"),
+    ).toBeLessThan(
+      issuePriming.indexOf(
+        "## Phases 5-8: Autonomous Execution (`--auto` only)",
+      ),
+    );
+    expect(
+      issuePriming.indexOf(
+        "## Phases 5-8: Autonomous Execution (`--auto` only)",
+      ),
+    ).toBeLessThan(issuePriming.indexOf("### Phase 5: Write Plan"));
   });
 
   it("keeps tier-conditional planning contracts and review-routing rules in source", async () => {

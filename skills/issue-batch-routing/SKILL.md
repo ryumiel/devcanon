@@ -66,6 +66,8 @@ require an explicit provider boundary.
 | `pr_identifier`                                | Provider-native PR identity, optional until a PR exists.                                                                                                        |
 | `current_head_sha`                             | Current branch or PR head SHA, optional until known.                                                                                                            |
 | `current_gate_kind`                            | Waiting gate such as `issue-priming`, `plan-approval`, `review-response`, `ci-fix`, `merge-conflict`, `merge-routing`, `source-issue-reporting`, or `archival`. |
+| `current_approved_owner_route_identity`        | Exact current approved owner-route identity required to validate progress receipts and clear prior-route receipt keys.                                          |
+| `current_reviewed_plan_handoff_provenance`     | Current reviewed-plan handoff provenance required to validate progress receipts and clear prior-route receipt keys.                                             |
 | `source_issue_state_snapshot_digest`           | Digest of the provider-supported source-issue state snapshot used for the last decision.                                                                        |
 | `last_owner_thread_report_digest`              | Digest of the last owner-thread gate report integrated by the parent.                                                                                           |
 | `recent_consumed_progress_receipt_keys`        | Bounded complete progress receipt consumption keys for the current exact owner route; distinct from gate-report and approval-gate keys.                         |
@@ -161,14 +163,19 @@ For each open batch item:
 5. Before gate classification, validate any unfinished non-gate progress
    receipt against the current item and consume a verified new receipt by
    continuing the same owner route. Form the complete progress receipt
-   consumption key from the exact owner route identity and receipt digest. For
-   the same exact owner route, retain the 32 most recent complete progress
-   receipt consumption keys in `recent_consumed_progress_receipt_keys` and
-   discard prior-route keys. A receipt A, then receipt B, then receipt A again
-   uses the retained A key and is a repeat: do not continue the route again or
-   update any approval key. Missing identity, route provenance, or unfinished
-   non-gate evidence fails closed to waiting or manual action. A genuine gate
-   does not qualify as progress.
+   consumption key from the exact owner route identity and receipt digest.
+   Verify that the receipt matches `current_approved_owner_route_identity` and
+   `current_reviewed_plan_handoff_provenance`. A missing current binding or
+   stale route/provenance mismatch fails closed to waiting or manual action.
+   When the current approved-route identity or reviewed-plan provenance changes,
+   clear the prior route's receipt keys before consuming a matching resumed
+   receipt. For the same exact owner route, retain the 32 most recent complete
+   progress receipt consumption keys in `recent_consumed_progress_receipt_keys`.
+   A receipt A, then receipt B, then receipt A again uses the retained A key and
+   is a repeat: do not continue the route again or update any approval key.
+   Missing identity, route provenance, or unfinished non-gate evidence fails
+   closed to waiting or manual action. A genuine gate does not qualify as
+   progress.
 6. Refresh PR provider state when a PR exists.
 7. Only then classify a remaining gate using PR gate precedence, source-issue state, and
    any owner-thread report.

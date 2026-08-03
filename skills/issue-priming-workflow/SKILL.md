@@ -675,12 +675,6 @@ user after `play-brainstorm` completes. `play-brainstorm` owns its approved
 handoff to `play-planning`; do not suppress or replace child skill approval
 gates.
 
-## Phases 5-8: Autonomous Execution (`--auto` only)
-
-These phases run only when `--auto` is set. They chain automatically after brainstorming.
-
-**`--auto` removes user checkpoints. It does not remove phases.** The full pipeline runs end-to-end unless `play-brainstorm` emits the explicit durable owner referral notice, which first takes the Phase 1 "don't implement" cleanup path and then stops. Only the gates between phases are bypassed. Phases are never skipped, streamlined, or short-circuited because an issue "looks simple," because a teammate is impatient, or because CI is green.
-
 ## Auto-Route Continuation Boundary
 
 This section is the sole normative owner of the closed genuine-gate/non-gate
@@ -704,6 +698,12 @@ expansion into dependencies, workflows, or subsystems; unauthorized provider
 mutation; reviewed publication decisions; and terminal outcomes. Preserve the
 existing route-specific stop, escalation, or publication behavior for these
 gates; `--auto` does not supply missing authority.
+
+## Phases 5-8: Autonomous Execution (`--auto` only)
+
+These phases run only when `--auto` is set. They chain automatically after brainstorming.
+
+**`--auto` removes user checkpoints. It does not remove phases.** The full pipeline runs end-to-end unless `play-brainstorm` emits the explicit durable owner referral notice, which first takes the Phase 1 "don't implement" cleanup path and then stops. Only the gates between phases are bypassed. Phases are never skipped, streamlined, or short-circuited because an issue "looks simple," because a teammate is impatient, or because CI is green.
 
 ### Phase 5: Write Plan
 

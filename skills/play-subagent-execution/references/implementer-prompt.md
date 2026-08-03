@@ -80,18 +80,23 @@ Task tool (general-purpose):
 
     ## Before You Begin
 
-    For an exact approved `issue-priming-workflow --auto` route, use the
-    canonical continuation boundary in
+    For a verified `issue-priming-workflow --auto` dispatch on an exact
+    approved route, use the canonical continuation boundary in
     [`issue-priming-workflow/SKILL.md`](../../issue-priming-workflow/SKILL.md)
     rather than pausing for a routine internal choice. When a routine choice is
     not explicit, resolve it from the named authority, repository patterns, and
     the smallest compatible in-scope design.
 
-    Stop and report `NEEDS_CONTEXT` or `BLOCKED` only for an unresolvable
-    requirement, unapproved plan mechanic, genuine ambiguity, authorization
-    gap, or widened scope. The canonical boundary decides whether an `--auto`
-    condition is routine continuation or a genuine gate; this prompt does not
-    define a second classification.
+    On that verified auto dispatch, stop and report `NEEDS_CONTEXT` or `BLOCKED`
+    only for an unresolvable requirement, unapproved plan mechanic, genuine
+    ambiguity, authorization gap, or widened scope. The canonical boundary
+    decides whether an `--auto` condition is routine continuation or a genuine
+    gate; this prompt does not define a second classification. Do not infer
+    verified auto authority from a task mention or generic controller context.
+
+    For manual or default dispatches, ask before starting when requirements,
+    acceptance criteria, approach, dependencies, assumptions, or task context
+    are unclear. Preserve the existing clarification and escalation behavior.
 
     ## Your Job
 
@@ -111,11 +116,13 @@ Task tool (general-purpose):
 
     Work from: [directory]
 
-    **While you work:** Resolve routine internal choices using the authoritative
-    sources and repository patterns above. Do not pause merely because the
-    choice was unexpected. For an unresolvable requirement, unapproved plan
-    mechanic, genuine ambiguity, authorization gap, or widened scope, stop and
-    report the exact gap rather than guessing.
+    **While you work:** On a verified auto dispatch, resolve routine internal
+    choices using the authoritative sources and repository patterns above. Do
+    not pause merely because the choice was unexpected. For an unresolvable
+    requirement, unapproved plan mechanic, genuine ambiguity, authorization
+    gap, or widened scope, stop and report the exact gap rather than guessing.
+    On a manual or default dispatch, pause and clarify unexpected or unclear
+    requirements before proceeding.
 
     If the plan appears to require an unapproved code-like example, test
     snippet, plan-authored test body, shell snippet, shell recipe, command

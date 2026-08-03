@@ -656,6 +656,15 @@ describe("issue-batch-routing skill contract", () => {
       "Form the complete progress receipt consumption key from the exact owner route identity and receipt digest",
     );
     expect(monitorLoop).toContain(
+      "Verify that the receipt matches `current_approved_owner_route_identity` and `current_reviewed_plan_handoff_provenance`",
+    );
+    expect(monitorLoop).toContain(
+      "A missing current binding or stale route/provenance mismatch fails closed to waiting or manual action",
+    );
+    expect(monitorLoop).toContain(
+      "When the current approved-route identity or reviewed-plan provenance changes, clear the prior route's receipt keys before consuming a matching resumed receipt",
+    );
+    expect(monitorLoop).toContain(
       "For the same exact owner route, retain the 32 most recent complete progress receipt consumption keys in `recent_consumed_progress_receipt_keys`",
     );
     expect(monitorLoop).toContain(
@@ -667,6 +676,12 @@ describe("issue-batch-routing skill contract", () => {
     );
     expect(ledger).toContain(
       "Bounded complete progress receipt consumption keys for the current exact owner route; distinct from gate-report and approval-gate keys",
+    );
+    expect(ledger).toContain(
+      "Exact current approved owner-route identity required to validate progress receipts and clear prior-route receipt keys",
+    );
+    expect(ledger).toContain(
+      "Current reviewed-plan handoff provenance required to validate progress receipts and clear prior-route receipt keys",
     );
   });
 
