@@ -105,6 +105,14 @@ controller-validated route tuple. A receipt cannot initialize, refresh,
 authenticate, or validate those facts. These are controller-local facts, not a
 new receipt artifact, ledger schema, or persistence system.
 
+`current_approved_owner_route_identity` is the controller-local deterministic
+identity of the current issue-authority approval binding: source provider,
+source issue identifier, owner thread ID, current issue-authority approval
+identity, reviewed plan digest, and auto-handoff identity. The router derives
+and records it from those controller-held facts before accepting a receipt; a
+change to any component creates a new exact route identity. It is not an opaque
+value supplied by a receipt or owner report.
+
 Unknown provider states are reported as waiting rather than coerced into GitHub
 or Linear terminology.
 
@@ -182,16 +190,16 @@ For each open batch item:
    genuine gate, use its gate path and do not consume a receipt. Stale gate
    evidence remains a gate and cannot be bypassed by a receipt.
 6. At initial approval, validated initial owner handoff, and on a resumed route,
-   use the router's existing controller-held approved-route facts to record or refresh
-   `current_approved_owner_route_identity` from the source provider, source
-   issue identifier, owner thread ID, and exact approved route identity. Record
+   use the router's existing controller-held approved-route facts to derive and
+   record `current_approved_owner_route_identity`. Record
    `current_reviewed_plan_handoff_provenance` from the reviewed plan digest and
    non-authorizing auto-handoff identity. Only the router records or refreshes
    these bindings from those controller-held facts. A receipt must not
    initialize, refresh, authenticate, or validate either current binding.
    Missing controller-held facts fail closed rather than being inferred from a
-   receipt. When the exact owner route identity changes, clear the prior route's
-   progress sequence before accepting a subsequent receipt.
+   receipt. Retain the progress sequence for the same exact route and
+   provenance; only when that binding changes, clear the prior route's progress
+   sequence before accepting a subsequent receipt.
 7. Before remaining gate classification, validate any unfinished non-gate
    progress receipt against the current item and consume a verified new receipt
    by continuing the same owner route. Require a positive, strictly increasing

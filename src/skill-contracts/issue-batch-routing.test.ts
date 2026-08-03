@@ -656,7 +656,7 @@ describe("issue-batch-routing skill contract", () => {
       "Before initial continuation, the controller records the current route binding from its existing approved-route facts",
     );
     expect(producer).toContain(
-      "Before resumed continuation, the controller refreshes that binding from its current approved-route facts and clears the prior route's progress sequence",
+      "Before resumed continuation, the controller refreshes that binding from its current approved-route facts. It retains the progress sequence for the same exact route and provenance, and clears it only when that binding changes",
     );
     expect(producer).toContain(
       "the receipt cannot establish or self-authenticate that binding",
@@ -668,7 +668,7 @@ describe("issue-batch-routing skill contract", () => {
       "Apply the canonical `issue-priming-workflow` genuine-gate classification while preserving the router's PR, source-issue, publication, and terminal precedence before any non-gate receipt continuation",
     );
     expect(monitorLoop).toContain(
-      "At initial approval, validated initial owner handoff, and on a resumed route, use the router's existing controller-held approved-route facts to record or refresh `current_approved_owner_route_identity` from the source provider, source issue identifier, owner thread ID, and exact approved route identity",
+      "At initial approval, validated initial owner handoff, and on a resumed route, use the router's existing controller-held approved-route facts to derive and record `current_approved_owner_route_identity`",
     );
     expect(monitorLoop).toContain(
       "Record `current_reviewed_plan_handoff_provenance` from the reviewed plan digest and non-authorizing auto-handoff identity",
@@ -677,7 +677,7 @@ describe("issue-batch-routing skill contract", () => {
       "Only the router records or refreshes these bindings from those controller-held facts",
     );
     expect(monitorLoop).toContain(
-      "When the exact owner route identity changes, clear the prior route's progress sequence before accepting a subsequent receipt",
+      "Retain the progress sequence for the same exact route and provenance; only when that binding changes, clear the prior route's progress sequence before accepting a subsequent receipt",
     );
     expect(monitorLoop).toContain(
       "A receipt must not initialize, refresh, authenticate, or validate either current binding",
@@ -729,6 +729,12 @@ describe("issue-batch-routing skill contract", () => {
     );
     expect(controllerHeldFacts).toContain(
       "validated initial owner-handoff report",
+    );
+    expect(controllerHeldFacts).toContain(
+      "controller-local deterministic identity of the current issue-authority approval binding",
+    );
+    expect(controllerHeldFacts).toContain(
+      "a change to any component creates a new exact route identity",
     );
     expect(controllerHeldFacts).toContain(
       "report comes from the recorded owner thread, matches the current source provider and issue, and carries the controller-validated route tuple",

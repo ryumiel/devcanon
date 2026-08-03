@@ -1467,6 +1467,12 @@ describe("play subagent routing source contracts", () => {
       "[CONTROLLER-VALIDATED EXACT-ROUTE AUTO ATTESTATION]",
     );
     expect(normalizedPrompt).toContain(
+      "dispatch controller must replace the marker above with its validated exact-route attestation before every D12 spawn",
+    );
+    expect(normalizedPrompt).toContain(
+      "render `unverified` and use the manual or default dispatch behavior",
+    );
+    expect(normalizedPrompt).toContain(
       "Without that exact attestation, follow the manual or default dispatch behavior below",
     );
     expect(normalizedPrompt).toContain(
@@ -1524,7 +1530,7 @@ describe("play subagent routing source contracts", () => {
       "Before initial continuation, the controller records the current route binding from its existing approved-route facts",
     );
     expect(progressReceipts).toContain(
-      "Before resumed continuation, the controller refreshes that binding from its current approved-route facts and clears the prior route's progress sequence",
+      "Before resumed continuation, the controller refreshes that binding from its current approved-route facts. It retains the progress sequence for the same exact route and provenance, and clears it only when that binding changes",
     );
     expect(progressReceipts).toContain(
       "the receipt cannot establish or self-authenticate that binding",

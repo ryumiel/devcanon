@@ -1028,9 +1028,10 @@ parent/manual-action report.
 
 Before initial continuation, the controller records the current route binding
 from its existing approved-route facts. Before resumed continuation, the
-controller refreshes that binding from its current approved-route facts and
-clears the prior route's progress sequence. Only after that may a producer emit
-a receipt. An unfinished non-gate progress receipt must identify the exact
+controller refreshes that binding from its current approved-route facts. It
+retains the progress sequence for the same exact route and provenance, and
+clears it only when that binding changes. Only after that may a producer emit a
+receipt. An unfinished non-gate progress receipt must identify the exact
 approved owner route, the source provider and source issue identifier, the
 delegated owner-thread identity, and the current reviewed-plan handoff
 provenance. It must also carry a positive, strictly increasing per-route
