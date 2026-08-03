@@ -66,11 +66,11 @@ require an explicit provider boundary.
 | `pr_identifier`                                | Provider-native PR identity, optional until a PR exists.                                                                                                        |
 | `current_head_sha`                             | Current branch or PR head SHA, optional until known.                                                                                                            |
 | `current_gate_kind`                            | Waiting gate such as `issue-priming`, `plan-approval`, `review-response`, `ci-fix`, `merge-conflict`, `merge-routing`, `source-issue-reporting`, or `archival`. |
-| `current_approved_owner_route_identity`        | Exact current approved owner-route identity required to validate progress receipts and clear prior-route receipt keys.                                          |
-| `current_reviewed_plan_handoff_provenance`     | Current reviewed-plan handoff provenance required to validate progress receipts and clear prior-route receipt keys.                                             |
+| `current_approved_owner_route_identity`        | Exact current approved owner-route identity required to validate progress receipts and clear the prior route's progress sequence.                               |
+| `current_reviewed_plan_handoff_provenance`     | Current reviewed-plan handoff provenance required to validate progress receipts.                                                                                |
 | `source_issue_state_snapshot_digest`           | Digest of the provider-supported source-issue state snapshot used for the last decision.                                                                        |
 | `last_owner_thread_report_digest`              | Digest of the last owner-thread gate report integrated by the parent.                                                                                           |
-| `recent_consumed_progress_receipt_keys`        | Bounded complete progress receipt consumption keys for the current exact owner route; distinct from gate-report and approval-gate keys.                         |
+| `last_consumed_progress_receipt_sequence`      | Highest accepted positive progress sequence for the current exact owner route; distinct from gate-report and approval-gate keys.                                |
 | `last_routed_issue_priming_route_key`          | Full replay-sensitive issue-priming route key last sent.                                                                                                        |
 | `last_routed_review_thread_set_digest`         | Digest for the last unresolved review-thread set routed.                                                                                                        |
 | `last_routed_review_response_route_key`        | Full replay-sensitive review-response route key last sent.                                                                                                      |
@@ -93,13 +93,17 @@ matching approval evidence is present. Report-only waiting state uses
 
 ## Controller-Held Approved-Route Facts
 
-For receipt validation, the router already holds the approved-route facts from
-the controller's approval, handoff, and resumed-route state: source provider,
-source issue identifier, owner thread ID, exact approved route identity,
-reviewed plan digest, and auto-handoff identity. The auto-handoff identity is
-non-authorizing provenance, not an approval or a receipt-derived authority.
-These are controller-local facts, not a new receipt artifact, ledger schema, or
-persistence system.
+For receipt validation, the router holds the approved-route facts from the
+controller's approval, validated initial owner-handoff report, and resumed-route
+state: source provider, source issue identifier, owner thread ID, exact
+approved route identity, reviewed plan digest, and auto-handoff identity. The
+auto-handoff identity is non-authorizing provenance, not an approval or a
+receipt-derived authority. The router records the initial owner-handoff facts
+before any receipt only when the report comes from the recorded owner thread,
+matches the current source provider and issue, and carries the
+controller-validated route tuple. A receipt cannot initialize, refresh,
+authenticate, or validate those facts. These are controller-local facts, not a
+new receipt artifact, ledger schema, or persistence system.
 
 Unknown provider states are reported as waiting rather than coerced into GitHub
 or Linear terminology.
@@ -169,15 +173,16 @@ For each open batch item:
    active source issues with missing owner threads route to source-specific
    issue priming. Terminal, duplicate, abandoned, blocked, or unknown no-owner
    states wait or report instead of creating owner work.
-4. Refresh owner-thread state and integrate any owner-thread gate report.
+4. Refresh owner-thread state and integrate any owner-thread gate report or
+   validated initial owner-handoff report.
 5. Refresh current source and PR state. Apply the canonical
    `issue-priming-workflow` genuine-gate classification while preserving the
    router's PR, source-issue, publication, and terminal precedence before any
    non-gate receipt continuation: when current evidence identifies a canonical
    genuine gate, use its gate path and do not consume a receipt. Stale gate
    evidence remains a gate and cannot be bypassed by a receipt.
-6. At initial approval or handoff, and on a resumed route, use the router's
-   existing controller-held approved-route facts to record or refresh
+6. At initial approval, validated initial owner handoff, and on a resumed route,
+   use the router's existing controller-held approved-route facts to record or refresh
    `current_approved_owner_route_identity` from the source provider, source
    issue identifier, owner thread ID, and exact approved route identity. Record
    `current_reviewed_plan_handoff_provenance` from the reviewed plan digest and
@@ -185,22 +190,23 @@ For each open batch item:
    these bindings from those controller-held facts. A receipt must not
    initialize, refresh, authenticate, or validate either current binding.
    Missing controller-held facts fail closed rather than being inferred from a
-   receipt. When the router records changed facts on a resumed route, clear the
-   prior route's receipt keys before accepting a subsequent receipt.
-7. Before gate classification, validate any unfinished non-gate progress
-   receipt against the current item and consume a verified new receipt by
-   continuing the same owner route. Form the complete progress receipt
-   consumption key from the exact owner route identity and receipt digest.
+   receipt. When the exact owner route identity changes, clear the prior route's
+   progress sequence before accepting a subsequent receipt.
+7. Before remaining gate classification, validate any unfinished non-gate
+   progress receipt against the current item and consume a verified new receipt
+   by continuing the same owner route. Require a positive, strictly increasing
+   per-route progress sequence and record the highest accepted sequence for the
+   exact owner route separately from approval and gate-report keys.
    Verify that the receipt matches `current_approved_owner_route_identity` and
    `current_reviewed_plan_handoff_provenance`. A missing current binding or
-   stale route/provenance mismatch fails closed to waiting or manual action.
-   For the same exact owner route, retain the 32 most recent complete
-   progress receipt consumption keys in `recent_consumed_progress_receipt_keys`.
-   A receipt A, then receipt B, then receipt A again uses the retained A key and
-   is a repeat: do not continue the route again or update any approval key.
-   Missing identity, route provenance, or unfinished non-gate evidence fails
-   closed to waiting or manual action. A genuine gate does not qualify as
-   progress.
+   stale route/provenance mismatch fails closed to waiting or manual action. A
+   receipt A at sequence 1, receipt B at sequence 33, then receipt A again at
+   sequence 1 is older than the recorded sequence and is a repeat: do not
+   continue the route again or update any approval key. Missing, repeated,
+   non-positive, or non-increasing progress sequences fail closed rather than
+   being retained in an evicting receipt history. Missing identity, route
+   provenance, or unfinished non-gate evidence fails closed to waiting or
+   manual action. A genuine gate does not qualify as progress.
 8. For an item without receipt continuation, classify any remaining gate using
    PR gate precedence, source-issue state, and any owner-thread report.
 9. Compare the gate's duplicate-route key with the ledger.

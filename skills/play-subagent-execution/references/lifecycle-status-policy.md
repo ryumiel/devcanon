@@ -190,9 +190,10 @@ follows the existing owning-caller escalation path.
 ### NEEDS_CONTEXT
 
 For a D12 implementer, `NEEDS_CONTEXT` means required information was not
-provided. Outside that exact verified auto route, a D12 `NEEDS_CONTEXT` request
-that can be resolved within the task's existing scope provides the missing
-context and redispatches the same D12 route. On the exact approved auto route,
+provided. Outside that exact verified auto route, when a D12 `NEEDS_CONTEXT`
+request can be resolved within the task's existing scope, the controller
+provides the missing context and redispatches the same D12 route. On the exact
+approved auto route,
 apply the canonical auto-route boundary: task-locally recoverable context
 continues the same D12 route, while a genuinely unresolvable context or scope
 gap remains incomplete and follows the existing owning-caller escalation path.

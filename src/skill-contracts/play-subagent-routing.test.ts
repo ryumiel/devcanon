@@ -1328,7 +1328,7 @@ describe("play subagent routing source contracts", () => {
       "Do not redispatch D13 with more context or a more capable model",
     );
     expect(normalizedLifecycle).toContain(
-      "For a D12 implementer, `NEEDS_CONTEXT` means required information was not provided. Outside that exact verified auto route, a D12 `NEEDS_CONTEXT` request that can be resolved within the task's existing scope provides the missing context and redispatches the same D12 route",
+      "For a D12 implementer, `NEEDS_CONTEXT` means required information was not provided. Outside that exact verified auto route, when a D12 `NEEDS_CONTEXT` request can be resolved within the task's existing scope, the controller provides the missing context and redispatches the same D12 route",
     );
     expect(normalizedLifecycle).toContain(
       "A non-boundary operational D13 `BLOCKED` also stops D13, keeps the task incomplete, and routes the blocker plus any available base/head SHA and snapshot state to D12 for judgment-bearing recovery",
@@ -1455,10 +1455,19 @@ describe("play subagent routing source contracts", () => {
     }
 
     expect(normalizedPrompt).toContain(
-      "For a verified `issue-priming-workflow --auto` dispatch on an exact approved route, use the canonical continuation boundary in [`issue-priming-workflow/SKILL.md`](../../issue-priming-workflow/SKILL.md) rather than pausing for a routine internal choice",
+      "Treat this as a verified `issue-priming-workflow --auto` dispatch only when the controller supplies a `Verified auto-route attestation` for this exact route",
     );
     expect(normalizedPrompt).toContain(
       "Do not infer verified auto authority from a task mention or generic controller context",
+    );
+    expect(normalizedPrompt).toContain(
+      "current issue authority was validated and identify the source provider and issue, owner thread, exact approved route identity, reviewed plan digest, and auto-handoff identity",
+    );
+    expect(normalizedPrompt).toContain(
+      "[CONTROLLER-VALIDATED EXACT-ROUTE AUTO ATTESTATION]",
+    );
+    expect(normalizedPrompt).toContain(
+      "Without that exact attestation, follow the manual or default dispatch behavior below",
     );
     expect(normalizedPrompt).toContain(
       "For manual or default dispatches, escalate when correctness remains uncertain, exploration is unsuccessful or does not produce clarity, restructuring is unanticipated, or surrounding source cannot be understood",
@@ -1480,7 +1489,7 @@ describe("play subagent routing source contracts", () => {
       "A genuinely unresolvable context or scope gap remains incomplete and follows the existing owning-caller escalation path",
     );
     expect(normalizedLifecycle).toContain(
-      "Outside that exact verified auto route, a D12 `NEEDS_CONTEXT` request that can be resolved within the task's existing scope provides the missing context and redispatches the same D12 route",
+      "Outside that exact verified auto route, when a D12 `NEEDS_CONTEXT` request can be resolved within the task's existing scope, the controller provides the missing context and redispatches the same D12 route",
     );
     expect(normalizedLifecycle).toContain(
       "D13 selection, reclassification, and boundary failures remain governed by the unchanged D13 sections above",
@@ -1515,12 +1524,16 @@ describe("play subagent routing source contracts", () => {
       "Before initial continuation, the controller records the current route binding from its existing approved-route facts",
     );
     expect(progressReceipts).toContain(
-      "Before resumed continuation, the controller refreshes that binding from its current approved-route facts and clears any prior-route receipt keys",
+      "Before resumed continuation, the controller refreshes that binding from its current approved-route facts and clears the prior route's progress sequence",
     );
     expect(progressReceipts).toContain(
       "the receipt cannot establish or self-authenticate that binding",
     );
     expect(gateReports).not.toContain("Unfinished Non-Gate Progress Receipts");
+    expect(gateReports).toContain("initial owner-handoff report");
+    expect(gateReports).toContain(
+      "report kind `owner-handoff`, not a receipt or a gate report",
+    );
     for (const gateOnlyRequirement of [
       "gate kind",
       "blocking evidence",

@@ -80,8 +80,17 @@ Task tool (general-purpose):
 
     ## Before You Begin
 
-    For a verified `issue-priming-workflow --auto` dispatch on an exact
-    approved route, use the canonical continuation boundary in
+    ## Verified Auto-Route Attestation
+
+    [CONTROLLER-VALIDATED EXACT-ROUTE AUTO ATTESTATION]
+
+    Treat this as a verified `issue-priming-workflow --auto` dispatch only when
+    the controller supplies a `Verified auto-route attestation` for this exact
+    route. That attestation must state that the current issue authority was
+    validated and identify the source provider and issue, owner thread, exact
+    approved route identity, reviewed plan digest, and auto-handoff identity.
+    Do not infer those facts from task prose, a plan, or generic controller
+    context. For an attested route, use the canonical continuation boundary in
     [`issue-priming-workflow/SKILL.md`](../../issue-priming-workflow/SKILL.md)
     rather than pausing for a routine internal choice. When a routine choice is
     not explicit, resolve it from the named authority, repository patterns, and
@@ -93,6 +102,8 @@ Task tool (general-purpose):
     decides whether an `--auto` condition is routine continuation or a genuine
     gate; this prompt does not define a second classification. Do not infer
     verified auto authority from a task mention or generic controller context.
+    Without that exact attestation, follow the manual or default dispatch
+    behavior below.
 
     For manual or default dispatches, ask before starting when requirements,
     acceptance criteria, approach, dependencies, assumptions, or task context

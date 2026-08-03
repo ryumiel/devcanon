@@ -794,10 +794,23 @@ Any missing tool, unreadable plan, hashing failure, malformed digest, or
 mismatch stops before executor handoff and requires a fresh planning wave; do
 not update the expected digest to match changed bytes.
 
+Before dispatching D12, the controller validates the exact approved route from
+the current issue authority, existing owner-route identity, preserved reviewed
+plan digest, and auto-handoff identity. It carries that validated tuple only in
+controller-local state. When an `issue-batch-routing` parent is present, first
+send the initial owner-handoff report defined below so the router can record
+the same facts before any progress receipt. Then inject a `Verified auto-route
+attestation` into each D12 prompt that names the source provider and issue,
+owner thread, exact approved route identity, reviewed plan digest, auto-handoff
+identity, and that current issue authority was validated. Missing, unclear,
+invalid, or unverified route facts produce no attestation and fail closed to
+`spec-and-quality`; neither a plan nor copied invocation prose can supply it.
+
 Invoke `play-subagent-execution` and pass the plan as a `Plan: <path>`
-reference, the preserved `Expected digest: <sha256>`, and
-`Auto handoff: <repo-relative-path>` in the invocation prose, NOT as inline
-content. Use the `$AUTO_HANDOFF_FILE` path captured above. Carry
+reference, the preserved `Expected digest: <sha256>`, `Auto handoff:
+<repo-relative-path>`, and the controller-validated `Verified auto-route
+attestation` in the invocation prose, NOT as inline content. Use the
+`$AUTO_HANDOFF_FILE` path captured above. Carry
 `ISSUE_PRIMING_AUTO_PARENT_ACTIVE=true` and `ISSUE_PRIMING_AUTO_HEAD` in
 controller-local state for the executor's handoff validation. Reduced routes
 are allowed only through the verified `issue-priming-workflow --auto` handoff
@@ -817,6 +830,7 @@ Parent-owned review contract: this invocation comes from `issue-priming-workflow
 Plan: <PLAN_PATH captured above>
 Expected digest: <reviewed lowercase 64-hex digest captured above>
 Auto handoff: <repo-relative-path>
+Verified auto-route attestation: <controller-validated exact-route attestation>
 ```
 
 All `play-subagent-execution` rules apply (fresh subagent per task,
@@ -986,9 +1000,17 @@ issue-batch-routing reports for research, brainstorming, or design ambiguity
 stops; user or parent approval gates; implementation blockers; branch-review
 blockers; Phase 8 PR readiness, creation, or update blockers; created PR and
 current head result reports; terminal owner-thread state; and source-issue
-reporting gates surfaced from implementation.
+reporting gates surfaced from implementation. Before the first non-gate
+progress receipt on a batch-routed `--auto` route, it also sends an initial
+owner-handoff report after the Phase 6 route validation. This is an existing
+controller report with report kind `owner-handoff`, not a receipt or a gate
+report. It carries the source provider and issue identifier, delegated owner
+thread identity, exact approved route identity, current issue-authority
+validation, reviewed plan digest, and non-authorizing auto-handoff identity.
+The batch controller records these controller-held facts before it consumes a
+receipt; a later receipt cannot initialize or authenticate them.
 
-Every report should include the source provider and source issue identifier
+Every gate report should include the source provider and source issue identifier
 from the payload, delegated owner-thread identity when known, branch name when
 known, PR provider and identifier when known, head SHA when known, gate kind,
 the relevant complete route key when known or applicable, blocking evidence,
@@ -1007,11 +1029,12 @@ parent/manual-action report.
 Before initial continuation, the controller records the current route binding
 from its existing approved-route facts. Before resumed continuation, the
 controller refreshes that binding from its current approved-route facts and
-clears any prior-route receipt keys. Only after that may a producer emit a
-receipt. An unfinished non-gate progress receipt must identify the exact
+clears the prior route's progress sequence. Only after that may a producer emit
+a receipt. An unfinished non-gate progress receipt must identify the exact
 approved owner route, the source provider and source issue identifier, the
 delegated owner-thread identity, and the current reviewed-plan handoff
-provenance. It must provide evidence that the named non-gate work remains
+provenance. It must also carry a positive, strictly increasing per-route
+progress sequence. It must provide evidence that the named non-gate work remains
 unfinished and stays within that route's current issue authority. Include the
 current route identity already held by the controller and the branch, PR, and
 head facts when known so the router can match the receipt to the existing owner

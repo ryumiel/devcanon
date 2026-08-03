@@ -656,19 +656,19 @@ describe("issue-batch-routing skill contract", () => {
       "Before initial continuation, the controller records the current route binding from its existing approved-route facts",
     );
     expect(producer).toContain(
-      "Before resumed continuation, the controller refreshes that binding from its current approved-route facts and clears any prior-route receipt keys",
+      "Before resumed continuation, the controller refreshes that binding from its current approved-route facts and clears the prior route's progress sequence",
     );
     expect(producer).toContain(
       "the receipt cannot establish or self-authenticate that binding",
     );
     expect(monitorLoop).toContain(
-      "Before gate classification, validate any unfinished non-gate progress receipt against the current item and consume a verified new receipt by continuing the same owner route",
+      "Before remaining gate classification, validate any unfinished non-gate progress receipt against the current item and consume a verified new receipt by continuing the same owner route",
     );
     expect(monitorLoop).toContain(
       "Apply the canonical `issue-priming-workflow` genuine-gate classification while preserving the router's PR, source-issue, publication, and terminal precedence before any non-gate receipt continuation",
     );
     expect(monitorLoop).toContain(
-      "At initial approval or handoff, and on a resumed route, use the router's existing controller-held approved-route facts to record or refresh `current_approved_owner_route_identity` from the source provider, source issue identifier, owner thread ID, and exact approved route identity",
+      "At initial approval, validated initial owner handoff, and on a resumed route, use the router's existing controller-held approved-route facts to record or refresh `current_approved_owner_route_identity` from the source provider, source issue identifier, owner thread ID, and exact approved route identity",
     );
     expect(monitorLoop).toContain(
       "Record `current_reviewed_plan_handoff_provenance` from the reviewed plan digest and non-authorizing auto-handoff identity",
@@ -677,13 +677,13 @@ describe("issue-batch-routing skill contract", () => {
       "Only the router records or refreshes these bindings from those controller-held facts",
     );
     expect(monitorLoop).toContain(
-      "When the router records changed facts on a resumed route, clear the prior route's receipt keys before accepting a subsequent receipt",
+      "When the exact owner route identity changes, clear the prior route's progress sequence before accepting a subsequent receipt",
     );
     expect(monitorLoop).toContain(
       "A receipt must not initialize, refresh, authenticate, or validate either current binding",
     );
     expect(monitorLoop).toContain(
-      "Form the complete progress receipt consumption key from the exact owner route identity and receipt digest",
+      "Require a positive, strictly increasing per-route progress sequence and record the highest accepted sequence for the exact owner route separately from approval and gate-report keys",
     );
     expect(monitorLoop).toContain(
       "Verify that the receipt matches `current_approved_owner_route_identity` and `current_reviewed_plan_handoff_provenance`",
@@ -700,14 +700,14 @@ describe("issue-batch-routing skill contract", () => {
       ),
     ).toBeLessThan(
       monitorLoop.indexOf(
-        "Before gate classification, validate any unfinished non-gate progress receipt against the current item",
+        "Before remaining gate classification, validate any unfinished non-gate progress receipt against the current item",
       ),
     );
     expect(monitorLoop).toContain(
-      "For the same exact owner route, retain the 32 most recent complete progress receipt consumption keys in `recent_consumed_progress_receipt_keys`",
+      "A receipt A at sequence 1, receipt B at sequence 33, then receipt A again at sequence 1 is older than the recorded sequence and is a repeat: do not continue the route again or update any approval key",
     );
     expect(monitorLoop).toContain(
-      "A receipt A, then receipt B, then receipt A again uses the retained A key and is a repeat: do not continue the route again or update any approval key",
+      "Missing, repeated, non-positive, or non-increasing progress sequences fail closed rather than being retained in an evicting receipt history",
     );
     expect(monitorLoop).toContain(
       "For an item without receipt continuation, classify any remaining gate",
@@ -716,17 +716,34 @@ describe("issue-batch-routing skill contract", () => {
       "Digest of the last owner-thread gate report integrated by the parent",
     );
     expect(ledger).toContain(
-      "Bounded complete progress receipt consumption keys for the current exact owner route; distinct from gate-report and approval-gate keys",
+      "Highest accepted positive progress sequence for the current exact owner route; distinct from gate-report and approval-gate keys",
     );
     expect(ledger).toContain(
-      "Exact current approved owner-route identity required to validate progress receipts and clear prior-route receipt keys",
+      "Exact current approved owner-route identity required to validate progress receipts and clear the prior route's progress sequence",
     );
     expect(ledger).toContain(
-      "Current reviewed-plan handoff provenance required to validate progress receipts and clear prior-route receipt keys",
+      "Current reviewed-plan handoff provenance required to validate progress receipts",
     );
     expect(controllerHeldFacts).toContain(
       "source provider, source issue identifier, owner thread ID, exact approved route identity, reviewed plan digest, and auto-handoff identity",
     );
+    expect(controllerHeldFacts).toContain(
+      "validated initial owner-handoff report",
+    );
+    expect(controllerHeldFacts).toContain(
+      "report comes from the recorded owner thread, matches the current source provider and issue, and carries the controller-validated route tuple",
+    );
+    expect(monitorLoop).toContain(
+      "integrate any owner-thread gate report or validated initial owner-handoff report",
+    );
+    expect(producer).toContain(
+      "positive, strictly increasing per-route progress sequence",
+    );
+    expect(
+      normalizeWhitespace(
+        getMarkdownSection(issuePriming, "Issue Batch Routing Reports"),
+      ),
+    ).toContain("initial owner-handoff report");
     expect(controllerHeldFacts).toContain(
       "The auto-handoff identity is non-authorizing provenance, not an approval or a receipt-derived authority",
     );
