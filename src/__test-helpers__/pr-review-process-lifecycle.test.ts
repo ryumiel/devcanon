@@ -16,7 +16,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const lifecyclePreflight = vi.hoisted(() => ({
-  root: "",
+  controllerCwd: "",
   elapsed: false,
 }));
 
@@ -25,7 +25,7 @@ vi.mock("node:fs/promises", async (importOriginal) => {
   return {
     ...actual,
     realpath: vi.fn(async (...args: Parameters<typeof actual.realpath>) => {
-      if (String(args[0]) === lifecyclePreflight.root)
+      if (String(args[0]) === lifecyclePreflight.controllerCwd)
         lifecyclePreflight.elapsed = true;
       return actual.realpath(...args);
     }),
@@ -118,7 +118,7 @@ afterEach(async () => {
 describe("pr-review process lifecycle", () => {
   it("observes a normal root-process exit", async () => {
     const root = await generatedRoot();
-    lifecyclePreflight.root = root.path;
+    lifecyclePreflight.controllerCwd = process.cwd();
     lifecyclePreflight.elapsed = false;
     const now = vi
       .spyOn(performance, "now")
@@ -139,7 +139,7 @@ describe("pr-review process lifecycle", () => {
       expect(result.generatedRoot).toBe("removed");
     } finally {
       now.mockRestore();
-      lifecyclePreflight.root = "";
+      lifecyclePreflight.controllerCwd = "";
       lifecyclePreflight.elapsed = false;
     }
   });
