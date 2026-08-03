@@ -49,8 +49,9 @@ aliases, and deprecated or forbidden synonyms.
 ### Approved-review artifact
 
 - **Canonical term:** approved-review artifact.
-- **Definition:** The helper-validated frozen review payload prepared after
-  the user approves a specific preview.
+- **Definition:** The helper-validated envelope that freezes and binds the
+  approved review's source artifacts, digests, scope decision, and exact
+  payload after approval.
 - **Owner:** `skills/pr-review/scripts/approved-review-artifacts.sh`.
 - **Protocol identifier:** `pr-review/approved-review/v1`.
 - **Allowed display aliases:** approved review; frozen approved review.

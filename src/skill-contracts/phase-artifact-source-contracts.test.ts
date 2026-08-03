@@ -355,15 +355,25 @@ describe("phase artifact source contracts", () => {
       .match(/\*\*Deprecated or forbidden synonyms:\*\* (.+)\./)?.[1]
       .split("; ");
 
-    for (const index of [guidelineIndex, map]) {
-      expect(index).toContain("implementation-proportionality.md");
-      expect(index).toContain("devcanon-terminology.md");
-    }
+    expect(guidelineIndex).toContain(
+      "[Implementation Proportionality](implementation-proportionality.md)",
+    );
+    expect(guidelineIndex).toContain(
+      "[DevCanon Terminology](devcanon-terminology.md)",
+    );
+    expect(map).toContain(
+      "[`docs/guidelines/implementation-proportionality.md`](docs/guidelines/implementation-proportionality.md)",
+    );
+    expect(map).toContain(
+      "[`docs/guidelines/devcanon-terminology.md`](docs/guidelines/devcanon-terminology.md)",
+    );
     expect(proportionality).toContain("## Test ownership boundary");
     expect(terminology).toContain("## Entry fields");
     expect(terminology).toContain("pr-review/handoff/v1");
     expect(forbiddenAliases).toEqual(["auto-post gate", "implicit approval"]);
-    for (const source of [prReview, leaseLifecycleReference]) {
+    for (const source of [prReview, leaseLifecycleReference].map((source) =>
+      source.toLowerCase(),
+    )) {
       for (const alias of forbiddenAliases ?? []) {
         expect(source).not.toContain(alias);
       }
