@@ -173,21 +173,36 @@ incomplete, and routes the blocker plus any available base/head SHA and
 snapshot state to D12 for judgment-bearing recovery. Never redispatch or
 model-escalate D13, and never mark a non-DONE D13 result complete.
 
+D13 selection, reclassification, and boundary failures remain governed by the
+unchanged D13 sections above.
+
+### D12 Auto-Route Continuation
+
+For the exact approved `issue-priming-workflow --auto` route, consume the
+canonical genuine-gate/non-gate vocabulary in
+[`issue-priming-workflow/SKILL.md`](../../issue-priming-workflow/SKILL.md); do
+not define a second classification here. A task-locally recoverable D12
+`NEEDS_CONTEXT` or `BLOCKED` status is non-gate continuation: provide the
+bounded missing context or recoverable unblock and redispatch the same D12
+route. A genuinely unresolvable context or scope gap remains incomplete and
+follows the existing owning-caller escalation path.
+
 ### NEEDS_CONTEXT
 
 For a D12 implementer, `NEEDS_CONTEXT` means required information was not
-provided; provide the missing context and redispatch D12 when the task remains
-within its judgment-bearing scope.
+provided. When that information is task-locally recoverable under the canonical
+auto-route boundary, provide it and redispatch the same D12 route. Otherwise,
+keep the task incomplete and follow the existing owning-caller escalation path.
 
 ### BLOCKED
 
 D12 remains the shipped `implementer`, balanced/high; no `BLOCKED` disposition
-changes its role, capability, or effort. If a context problem can be resolved
-within the task's existing scope, provide that context and redispatch the same
-D12 pair. Otherwise keep the task incomplete and route the blocker through the
-owning caller's separately defined recovery or escalation policy. If no such
-route is available, return `BLOCKED`; do not invent a dispatch-time model or
-effort override.
+changes its role, capability, or effort. If a blocker can be resolved within
+the task's existing scope, provide that context or recoverable unblock and
+redispatch the same D12 pair. Otherwise keep the task incomplete and route the
+blocker through the owning caller's separately defined recovery or escalation
+policy. If no such route is available, return `BLOCKED`; do not invent a
+dispatch-time model or effort override.
 
 Record blocker state as a stable family plus brief detail, for example
 `context-missing: needs target install path` or `task-too-large: generated

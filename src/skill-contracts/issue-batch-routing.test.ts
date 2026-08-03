@@ -612,6 +612,31 @@ describe("issue-batch-routing skill contract", () => {
     }
   });
 
+  it("continues verified unfinished non-gate progress without consuming approval keys", async () => {
+    const router = normalizeWhitespace(
+      getMarkdownSection(
+        await readSkillSource("issue-batch-routing"),
+        "Unfinished Non-Gate Progress Receipts",
+      ),
+    );
+
+    expect(router).toContain(
+      "An exact approved owner route continues immediately when an unfinished non-gate progress receipt verifies the same source provider, source issue identifier, owner thread ID, and exact approved route identity already held by the controller",
+    );
+    expect(router).toContain(
+      "The receipt must also provide evidence that the work is unfinished and is non-gate continuation under the canonical `issue-priming-workflow` auto-route boundary",
+    );
+    expect(router).toContain(
+      "Continue the same owner route without requesting approval and without updating `last_reported_approval_waiting_key` or `last_routed_approval_gate_key`",
+    );
+    expect(router).toContain(
+      "Missing receipt identity or non-gate/unfinished evidence fails closed to waiting or manual action, and a genuine gate follows the existing gate and approval path",
+    );
+    expect(router).toContain(
+      "Do not create a progress receipt key or consume any approval de-duplication key",
+    );
+  });
+
   it("requires pr-merge reports to be source-attributable for router reconciliation", async () => {
     const prMerge = normalizeWhitespace(
       getMarkdownSection(

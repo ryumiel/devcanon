@@ -1328,7 +1328,7 @@ describe("play subagent routing source contracts", () => {
       "Do not redispatch D13 with more context or a more capable model",
     );
     expect(normalizedLifecycle).toContain(
-      "For a D12 implementer, `NEEDS_CONTEXT` means required information was not provided; provide the missing context and redispatch D12 when the task remains within its judgment-bearing scope",
+      "For a D12 implementer, `NEEDS_CONTEXT` means required information was not provided. When that information is task-locally recoverable under the canonical auto-route boundary, provide it and redispatch the same D12 route",
     );
     expect(normalizedLifecycle).toContain(
       "A non-boundary operational D13 `BLOCKED` also stops D13, keeps the task incomplete, and routes the blocker plus any available base/head SHA and snapshot state to D12 for judgment-bearing recovery",
@@ -1413,6 +1413,69 @@ describe("play subagent routing source contracts", () => {
       "review-routing-policy.md` | Computing effective per-task routes, validating reduced-route auto-handoff, checking hard-risk triggers, or resolving same-head reviewer disposition",
     );
     expect(skillSource).not.toContain("mechanical-implementer-prompt.md");
+  });
+
+  it("continues approved auto-route non-gates while preserving genuine stops", async () => {
+    const issuePriming = await readSkillSource("issue-priming-workflow");
+    const implementerPrompt = await readRepoFile(
+      "skills/play-subagent-execution/references/implementer-prompt.md",
+    );
+    const lifecycle = await readRepoFile(
+      "skills/play-subagent-execution/references/lifecycle-status-policy.md",
+    );
+    const continuation = normalizeWhitespace(
+      getMarkdownSection(issuePriming, "Auto-Route Continuation Boundary"),
+    );
+    const normalizedPrompt = normalizeWhitespace(implementerPrompt);
+    const normalizedLifecycle = normalizeWhitespace(lifecycle);
+
+    expect(continuation).toContain(
+      "This section is the sole normative owner of the closed genuine-gate/non-gate vocabulary for an exact approved `--auto` route",
+    );
+    for (const nonGate of [
+      "routine source inspection and mapping",
+      "bounded internal choices resolved from named authoritative sources, repository patterns, and the smallest compatible design",
+      "coherent slices",
+      "test or fixture correction",
+      "validation, normal commits, reviewer dispatch or waiting, and bounded in-contract fixes",
+      "task-locally recoverable D12 `NEEDS_CONTEXT` or `BLOCKED` statuses",
+    ]) {
+      expect(continuation).toContain(nonGate);
+    }
+    for (const genuineGate of [
+      "materially unresolved product outcomes",
+      "externally observable behavior not required by the approved issue",
+      "new public schema or compatibility commitments",
+      "ownership or source-surface expansion",
+      "unauthorized provider mutation",
+      "reviewed publication decisions",
+      "terminal outcomes",
+    ]) {
+      expect(continuation).toContain(genuineGate);
+    }
+
+    expect(normalizedPrompt).toContain(
+      "For an exact approved `issue-priming-workflow --auto` route, use the canonical continuation boundary in [`issue-priming-workflow/SKILL.md`](../../issue-priming-workflow/SKILL.md) rather than pausing for a routine internal choice",
+    );
+    expect(normalizedPrompt).toContain(
+      "resolve it from the named authority, repository patterns, and the smallest compatible in-scope design",
+    );
+    expect(normalizedPrompt).toContain(
+      "unresolvable requirement, unapproved plan mechanic, genuine ambiguity, authorization gap, or widened scope",
+    );
+
+    expect(normalizedLifecycle).toContain(
+      "For the exact approved `issue-priming-workflow --auto` route, consume the canonical genuine-gate/non-gate vocabulary in [`issue-priming-workflow/SKILL.md`](../../issue-priming-workflow/SKILL.md); do not define a second classification here",
+    );
+    expect(normalizedLifecycle).toContain(
+      "A task-locally recoverable D12 `NEEDS_CONTEXT` or `BLOCKED` status is non-gate continuation: provide the bounded missing context or recoverable unblock and redispatch the same D12 route",
+    );
+    expect(normalizedLifecycle).toContain(
+      "A genuinely unresolvable context or scope gap remains incomplete and follows the existing owning-caller escalation path",
+    );
+    expect(normalizedLifecycle).toContain(
+      "D13 selection, reclassification, and boundary failures remain governed by the unchanged D13 sections above",
+    );
   });
 
   it("keeps tier-conditional planning contracts and review-routing rules in source", async () => {

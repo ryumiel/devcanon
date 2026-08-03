@@ -80,13 +80,18 @@ Task tool (general-purpose):
 
     ## Before You Begin
 
-    If you have questions about:
-    - The requirements or acceptance criteria
-    - The approach or implementation strategy
-    - Dependencies or assumptions
-    - Anything unclear in the task description
+    For an exact approved `issue-priming-workflow --auto` route, use the
+    canonical continuation boundary in
+    [`issue-priming-workflow/SKILL.md`](../../issue-priming-workflow/SKILL.md)
+    rather than pausing for a routine internal choice. When a routine choice is
+    not explicit, resolve it from the named authority, repository patterns, and
+    the smallest compatible in-scope design.
 
-    **Ask them now.** Raise any concerns before starting work.
+    Stop and report `NEEDS_CONTEXT` or `BLOCKED` only for an unresolvable
+    requirement, unapproved plan mechanic, genuine ambiguity, authorization
+    gap, or widened scope. The canonical boundary decides whether an `--auto`
+    condition is routine continuation or a genuine gate; this prompt does not
+    define a second classification.
 
     ## Your Job
 
@@ -106,8 +111,11 @@ Task tool (general-purpose):
 
     Work from: [directory]
 
-    **While you work:** If you encounter something unexpected or unclear, **ask questions**.
-    It's always OK to pause and clarify. Don't guess or make assumptions.
+    **While you work:** Resolve routine internal choices using the authoritative
+    sources and repository patterns above. Do not pause merely because the
+    choice was unexpected. For an unresolvable requirement, unapproved plan
+    mechanic, genuine ambiguity, authorization gap, or widened scope, stop and
+    report the exact gap rather than guessing.
 
     If the plan appears to require an unapproved code-like example, test
     snippet, plan-authored test body, shell snippet, shell recipe, command
@@ -135,11 +143,9 @@ Task tool (general-purpose):
     no work. You will not be penalized for escalating.
 
     **STOP and escalate when:**
-    - The task requires architectural decisions with multiple valid approaches
-    - You need to understand code beyond what was provided and can't find clarity
-    - You feel uncertain about whether your approach is correct
-    - The task involves restructuring existing code in ways the plan didn't anticipate
-    - You've been reading file after file trying to understand the system without progress
+    - A requirement remains unresolvable from the named authority and source
+    - The plan requires an unapproved mechanic or genuine ambiguous decision
+    - Required authorization is absent or the work would widen scope
 
     **How to escalate:** Report back with status BLOCKED or NEEDS_CONTEXT. Describe
     specifically what you're stuck on, what you've tried, and what kind of help you need.

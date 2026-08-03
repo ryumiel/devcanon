@@ -335,6 +335,24 @@ the report omits the current head SHA, relevant complete route key, or
 route-specific state needed for the gate, ask the owner thread to refetch and
 resend rather than approving.
 
+## Unfinished Non-Gate Progress Receipts
+
+An exact approved owner route continues immediately when an unfinished non-gate
+progress receipt verifies the same source provider, source issue identifier,
+owner thread ID, and exact approved route identity already held by the
+controller. The receipt must also provide evidence that the work is unfinished
+and is non-gate continuation under the canonical `issue-priming-workflow`
+auto-route boundary.
+
+Continue the same owner route without requesting approval and without updating
+`last_reported_approval_waiting_key` or `last_routed_approval_gate_key`. Do not
+create a progress receipt key or consume any approval de-duplication key.
+
+Missing receipt identity or non-gate/unfinished evidence fails closed to waiting
+or manual action, and a genuine gate follows the existing gate and approval
+path. This receipt is controller-local progress evidence, not a new durable
+ledger schema or authorization for provider mutation.
+
 ## Parent Approval Evidence
 
 Parent approval is not blanket permission. It applies only when a user or

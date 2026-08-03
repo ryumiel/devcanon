@@ -681,6 +681,30 @@ These phases run only when `--auto` is set. They chain automatically after brain
 
 **`--auto` removes user checkpoints. It does not remove phases.** The full pipeline runs end-to-end unless `play-brainstorm` emits the explicit durable owner referral notice, which first takes the Phase 1 "don't implement" cleanup path and then stops. Only the gates between phases are bypassed. Phases are never skipped, streamlined, or short-circuited because an issue "looks simple," because a teammate is impatient, or because CI is green.
 
+## Auto-Route Continuation Boundary
+
+This section is the sole normative owner of the closed genuine-gate/non-gate
+vocabulary for an exact approved `--auto` route. An exact approved route has
+the current issue authority, the reviewed plan handoff, and the existing owner
+route identity; absent that evidence, do not classify work as continuation.
+Consumers reference this section and must not define a competing list.
+
+The following are non-gate continuation work on that route and continue without
+another approval request: routine source inspection and mapping; bounded
+internal choices resolved from named authoritative sources, repository patterns,
+and the smallest compatible design; coherent slices; test or fixture correction;
+validation, normal commits, reviewer dispatch or waiting, and bounded
+in-contract fixes; and task-locally recoverable D12 `NEEDS_CONTEXT` or
+`BLOCKED` statuses.
+
+The following are genuine gates and fail closed: materially unresolved product
+outcomes; externally observable behavior not required by the approved issue;
+new public schema or compatibility commitments; ownership or source-surface
+expansion; unauthorized provider mutation; reviewed publication decisions; and
+terminal outcomes. Preserve the existing route-specific stop, escalation, or
+publication behavior for these gates; `--auto` does not supply missing
+authority.
+
 ### Phase 5: Write Plan
 
 After `play-brainstorm` returns, first check whether it emitted the literal
