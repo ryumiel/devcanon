@@ -737,6 +737,12 @@ describe("issue-batch-routing skill contract", () => {
       "a change to any component creates a new exact route identity",
     );
     expect(controllerHeldFacts).toContain(
+      "existing complete `last_routed_issue_priming_route_key` recorded before or at source-specific issue-priming handoff",
+    );
+    expect(controllerHeldFacts).toContain(
+      "Missing or mismatched keys fail closed to waiting or manual action",
+    );
+    expect(controllerHeldFacts).toContain(
       "report comes from the recorded owner thread, matches the current source provider and issue, and carries the controller-validated route tuple",
     );
     expect(monitorLoop).toContain(
@@ -750,6 +756,13 @@ describe("issue-batch-routing skill contract", () => {
         getMarkdownSection(issuePriming, "Issue Batch Routing Reports"),
       ),
     ).toContain("initial owner-handoff report");
+    expect(
+      normalizeWhitespace(
+        getMarkdownSection(issuePriming, "Issue Batch Routing Reports"),
+      ),
+    ).toContain(
+      "echoes the controller-held complete `issue-priming` route key for equality comparison; it cannot originate that key",
+    );
     expect(controllerHeldFacts).toContain(
       "The auto-handoff identity is non-authorizing provenance, not an approval or a receipt-derived authority",
     );

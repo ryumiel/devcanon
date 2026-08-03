@@ -1007,8 +1007,10 @@ controller report with report kind `owner-handoff`, not a receipt or a gate
 report. It carries the source provider and issue identifier, delegated owner
 thread identity, exact approved route identity, current issue-authority
 validation, reviewed plan digest, and non-authorizing auto-handoff identity.
-The batch controller records these controller-held facts before it consumes a
-receipt; a later receipt cannot initialize or authenticate them.
+It also echoes the controller-held complete `issue-priming` route key for
+equality comparison; it cannot originate that key. The batch controller records
+these controller-held facts before it consumes a receipt; a later receipt cannot
+initialize or authenticate them.
 
 Every gate report should include the source provider and source issue identifier
 from the payload, delegated owner-thread identity when known, branch name when

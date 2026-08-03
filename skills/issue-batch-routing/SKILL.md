@@ -111,7 +111,12 @@ source issue identifier, owner thread ID, current issue-authority approval
 identity, reviewed plan digest, and auto-handoff identity. The router derives
 and records it from those controller-held facts before accepting a receipt; a
 change to any component creates a new exact route identity. It is not an opaque
-value supplied by a receipt or owner report.
+value supplied by a receipt or owner report. The current issue-authority
+approval identity is the existing complete `last_routed_issue_priming_route_key`
+recorded before or at source-specific issue-priming handoff. An initial
+owner-handoff report may echo that key only for equality comparison; it cannot
+originate it. Missing or mismatched keys fail closed to waiting or manual
+action.
 
 Unknown provider states are reported as waiting rather than coerced into GitHub
 or Linear terminology.

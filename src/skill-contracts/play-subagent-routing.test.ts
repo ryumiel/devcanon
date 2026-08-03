@@ -1540,6 +1540,9 @@ describe("play subagent routing source contracts", () => {
     expect(gateReports).toContain(
       "report kind `owner-handoff`, not a receipt or a gate report",
     );
+    expect(gateReports).toContain(
+      "echoes the controller-held complete `issue-priming` route key for equality comparison; it cannot originate that key",
+    );
     for (const gateOnlyRequirement of [
       "gate kind",
       "blocking evidence",
