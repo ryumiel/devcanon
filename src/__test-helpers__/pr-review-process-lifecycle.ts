@@ -657,34 +657,54 @@ class RootLifecycle implements PrReviewProcessLifecycle {
       this.#recordDisposition("rm:controller-cwd-or-ancestor");
       return "preserved_unsafe";
     }
-    try {
-      const liveCwd = await realpath(process.cwd());
-      if (isControllerCwdOrAncestor(this.generatedRoot.physical, liveCwd)) {
-        this.#recordDisposition("rm:live-cwd-or-ancestor");
-        return "preserved_unsafe";
+    for (
+      let attempt = 0;
+      attempt <= GENERATED_ROOT_REMOVAL_MAX_RETRIES;
+      attempt += 1
+    ) {
+      try {
+        const liveCwd = await realpath(process.cwd());
+        if (isControllerCwdOrAncestor(this.generatedRoot.physical, liveCwd)) {
+          this.#recordDisposition("rm:live-cwd-or-ancestor");
+          return "preserved_unsafe";
+        }
+        const current = await readGeneratedRootEvidence(
+          this.request.generatedRoot,
+        );
+        if (!sameIdentity(this.generatedRoot, current)) {
+          this.#recordDisposition("rm:identity-mismatch");
+          return "preserved_unsafe";
+        }
+        if (this.#remaining() <= 0) {
+          this.#recordDisposition("rm:deadline-after-revalidation");
+          return "preserved_unsafe";
+        }
+        await rm(this.generatedRoot.logical, {
+          force: false,
+          recursive: true,
+        });
+        return "removed";
+      } catch (error) {
+        if (
+          attempt === GENERATED_ROOT_REMOVAL_MAX_RETRIES ||
+          !isGeneratedRootRemovalRetryable(error)
+        ) {
+          this.#recordDisposition(`rm:${errorName(error)}`);
+          return "preserved_unsafe";
+        }
+        const delay = Math.min(
+          this.#remaining(),
+          GENERATED_ROOT_REMOVAL_RETRY_DELAY_MS * (attempt + 1),
+        );
+        if (delay <= 0) {
+          this.#recordDisposition("rm:deadline-after-revalidation");
+          return "preserved_unsafe";
+        }
+        await new Promise<void>((resolve) => setTimeout(resolve, delay));
       }
-      const current = await readGeneratedRootEvidence(
-        this.request.generatedRoot,
-      );
-      if (!sameIdentity(this.generatedRoot, current)) {
-        this.#recordDisposition("rm:identity-mismatch");
-        return "preserved_unsafe";
-      }
-      if (this.#remaining() <= 0) {
-        this.#recordDisposition("rm:deadline-after-revalidation");
-        return "preserved_unsafe";
-      }
-      await rm(this.generatedRoot.logical, {
-        force: false,
-        maxRetries: GENERATED_ROOT_REMOVAL_MAX_RETRIES,
-        recursive: true,
-        retryDelay: GENERATED_ROOT_REMOVAL_RETRY_DELAY_MS,
-      });
-      return "removed";
-    } catch (error) {
-      this.#recordDisposition(`rm:${errorName(error)}`);
-      return "preserved_unsafe";
     }
+    this.#recordDisposition("rm:retries-exhausted");
+    return "preserved_unsafe";
   }
 }
 
@@ -800,6 +820,13 @@ async function readGeneratedRootEvidence(
 
 function sameIdentity(left: RootIdentity, right: RootIdentity): boolean {
   return left.device === right.device && left.file === right.file;
+}
+
+function isGeneratedRootRemovalRetryable(error: unknown): boolean {
+  if (!error || typeof error !== "object" || !("code" in error)) return false;
+  return ["EBUSY", "EMFILE", "ENFILE", "ENOTEMPTY", "EPERM"].includes(
+    String(error.code),
+  );
 }
 function sameStats(
   left: Awaited<ReturnType<typeof lstat>>,

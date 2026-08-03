@@ -765,14 +765,26 @@ describe("pr-review process lifecycle", () => {
     expect(result.generatedRoot).toBe("removed");
     expect(remove).toHaveBeenCalledWith(root.path, {
       force: false,
-      maxRetries: 3,
       recursive: true,
-      retryDelay: 100,
     });
     await expect(access(root.path)).rejects.toThrow();
 
+    const retryRoot = await generatedRoot();
+    const retryLifecycle = await lifecycle(retryRoot, "process.exit(0);");
+    remove.mockClear();
+    remove.mockRejectedValueOnce(
+      Object.assign(new Error("transient removal failure"), { code: "EBUSY" }),
+    );
+
+    const retried = await retryLifecycle.finish();
+
+    expect(retried.generatedRoot).toBe("removed");
+    expect(remove).toHaveBeenCalledTimes(2);
+    await expect(access(retryRoot.path)).rejects.toThrow();
+
     const failedRoot = await generatedRoot();
     const failedLifecycle = await lifecycle(failedRoot, "process.exit(0);");
+    remove.mockClear();
     remove.mockRejectedValueOnce(new Error("injected removal failure"));
 
     const failed = await failedLifecycle.finish();
@@ -780,6 +792,26 @@ describe("pr-review process lifecycle", () => {
     expect(failed.generatedRoot).toBe("preserved_unsafe");
     expect(failed.evidence).toContain("rm:Error");
     await expect(access(failedRoot.path)).resolves.toBeUndefined();
+
+    const replacedRoot = await generatedRoot();
+    const replacedLifecycle = await lifecycle(replacedRoot, "process.exit(0);");
+    remove.mockClear();
+    remove.mockImplementationOnce(async () => {
+      await writeFile(
+        path.join(replacedRoot.path, ".devcanon-pr-review-generated-root"),
+        "replaced\n",
+      );
+      throw Object.assign(new Error("transient removal failure"), {
+        code: "EBUSY",
+      });
+    });
+
+    const replaced = await replacedLifecycle.finish();
+
+    expect(replaced.generatedRoot).toBe("preserved_unsafe");
+    expect(replaced.evidence).toContain("rm:LifecycleError");
+    expect(remove).toHaveBeenCalledTimes(1);
+    await expect(access(replacedRoot.path)).resolves.toBeUndefined();
   });
 
   it("preserves a changed, aliased, or unsafe generated root", async () => {
