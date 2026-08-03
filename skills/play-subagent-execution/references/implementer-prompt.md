@@ -96,7 +96,10 @@ Task tool (general-purpose):
 
     For manual or default dispatches, ask before starting when requirements,
     acceptance criteria, approach, dependencies, assumptions, or task context
-    are unclear. Preserve the existing clarification and escalation behavior.
+    are unclear. For manual or default dispatches, escalate when correctness
+    remains uncertain, exploration is unsuccessful or does not produce clarity,
+    restructuring is unanticipated, or surrounding source cannot be understood.
+    Preserve the existing clarification and escalation behavior.
 
     ## Your Job
 

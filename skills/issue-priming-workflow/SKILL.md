@@ -1002,7 +1002,7 @@ available provider-specific workflow owns that side effect. Source-issue
 reporting without an available provider-specific workflow becomes a
 parent/manual-action report.
 
-### Unfinished Non-Gate Progress Receipts
+## Issue Batch Routing Progress Receipts
 
 An unfinished non-gate progress receipt must identify the exact approved owner
 route, the source provider and source issue identifier, the delegated

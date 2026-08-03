@@ -160,30 +160,44 @@ For each open batch item:
    issue priming. Terminal, duplicate, abandoned, blocked, or unknown no-owner
    states wait or report instead of creating owner work.
 4. Refresh owner-thread state and integrate any owner-thread gate report.
-5. Before gate classification, validate any unfinished non-gate progress
+5. Refresh current source and PR state. Apply genuine PR, source-issue,
+   publication, and terminal gate precedence before any non-gate receipt
+   continuation: when current evidence identifies a genuine gate, use its gate
+   path and do not consume a receipt. Stale CI, review, conflict, publication,
+   or terminal evidence remains a genuine gate and cannot be bypassed by a
+   receipt.
+6. After `issue-priming-workflow --auto` approves and hands off the route,
+   record `current_approved_owner_route_identity` from the source provider,
+   source issue identifier, owner thread ID, and exact approved route identity.
+   Record `current_reviewed_plan_handoff_provenance` from the reviewed plan
+   digest and auto-handoff identity. Only the router records or refreshes these
+   bindings from approved-route handoff evidence. A receipt must not initialize,
+   refresh, or validate either current binding. On an initial or resumed route,
+   record or refresh these values only when the approved handoff supplies the
+   current binding; missing bindings fail closed rather than being inferred from
+   a receipt. When that handoff records a changed binding, clear the prior
+   route's receipt keys before accepting a subsequent receipt.
+7. Before gate classification, validate any unfinished non-gate progress
    receipt against the current item and consume a verified new receipt by
    continuing the same owner route. Form the complete progress receipt
    consumption key from the exact owner route identity and receipt digest.
    Verify that the receipt matches `current_approved_owner_route_identity` and
    `current_reviewed_plan_handoff_provenance`. A missing current binding or
    stale route/provenance mismatch fails closed to waiting or manual action.
-   When the current approved-route identity or reviewed-plan provenance changes,
-   clear the prior route's receipt keys before consuming a matching resumed
-   receipt. For the same exact owner route, retain the 32 most recent complete
+   For the same exact owner route, retain the 32 most recent complete
    progress receipt consumption keys in `recent_consumed_progress_receipt_keys`.
    A receipt A, then receipt B, then receipt A again uses the retained A key and
    is a repeat: do not continue the route again or update any approval key.
    Missing identity, route provenance, or unfinished non-gate evidence fails
    closed to waiting or manual action. A genuine gate does not qualify as
    progress.
-6. Refresh PR provider state when a PR exists.
-7. Only then classify a remaining gate using PR gate precedence, source-issue state, and
-   any owner-thread report.
-8. Compare the gate's duplicate-route key with the ledger.
-9. Route only when the route key is new or the current state invalidates the
-   prior route.
-10. Record the route, approval, waiting reason, or terminal state in the ledger.
-11. Report the monitor pass.
+8. For an item without receipt continuation, classify any remaining gate using
+   PR gate precedence, source-issue state, and any owner-thread report.
+9. Compare the gate's duplicate-route key with the ledger.
+10. Route only when the route key is new or the current state invalidates the
+    prior route.
+11. Record the route, approval, waiting reason, or terminal state in the ledger.
+12. Report the monitor pass.
 
 If a required live-state surface is unavailable, report the item as waiting
 with the missing surface and the next safe manual command or workflow.

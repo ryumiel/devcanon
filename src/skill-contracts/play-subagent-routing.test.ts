@@ -1461,6 +1461,9 @@ describe("play subagent routing source contracts", () => {
       "Do not infer verified auto authority from a task mention or generic controller context",
     );
     expect(normalizedPrompt).toContain(
+      "For manual or default dispatches, escalate when correctness remains uncertain, exploration is unsuccessful or does not produce clarity, restructuring is unanticipated, or surrounding source cannot be understood",
+    );
+    expect(normalizedPrompt).toContain(
       "resolve it from the named authority, repository patterns, and the smallest compatible in-scope design",
     );
     expect(normalizedPrompt).toContain(
@@ -1484,17 +1487,40 @@ describe("play subagent routing source contracts", () => {
     );
     expect(
       normalizeWhitespace(
-        getMarkdownSection(issuePriming, "Issue Batch Routing Reports"),
+        getMarkdownSection(
+          issuePriming,
+          "Issue Batch Routing Progress Receipts",
+        ),
       ),
     ).toContain(
       "An unfinished non-gate progress receipt must identify the exact approved owner route, the source provider and source issue identifier, the delegated owner-thread identity, and the current reviewed-plan handoff provenance",
     );
     expect(
       normalizeWhitespace(
-        getMarkdownSection(issuePriming, "Issue Batch Routing Reports"),
+        getMarkdownSection(
+          issuePriming,
+          "Issue Batch Routing Progress Receipts",
+        ),
       ),
     ).toContain(
       "It must provide evidence that the named non-gate work remains unfinished and stays within that route's current issue authority",
+    );
+    const progressReceipts = normalizeWhitespace(
+      getMarkdownSection(issuePriming, "Issue Batch Routing Progress Receipts"),
+    );
+    const gateReports = normalizeWhitespace(
+      getMarkdownSection(issuePriming, "Issue Batch Routing Reports"),
+    );
+    expect(gateReports).not.toContain("Unfinished Non-Gate Progress Receipts");
+    for (const gateOnlyRequirement of [
+      "gate kind",
+      "blocking evidence",
+      "requested parent action",
+    ]) {
+      expect(progressReceipts).not.toContain(gateOnlyRequirement);
+    }
+    expect(normalizeWhitespace(lifecycle)).toContain(
+      "Outside that exact verified auto route, D12 `BLOCKED` recovery retains existing context-problem semantics: provide context and redispatch the same D12 pair only when the context problem is resolvable within the task's existing scope",
     );
     expect(
       issuePriming.indexOf("## Auto-Route Continuation Boundary"),

@@ -625,7 +625,7 @@ describe("issue-batch-routing skill contract", () => {
       getMarkdownSection(routerSource, "Batch Ledger"),
     );
     const producer = normalizeWhitespace(
-      getMarkdownSection(issuePriming, "Issue Batch Routing Reports"),
+      getMarkdownSection(issuePriming, "Issue Batch Routing Progress Receipts"),
     );
 
     expect(router).toContain(
@@ -653,6 +653,24 @@ describe("issue-batch-routing skill contract", () => {
       "Before gate classification, validate any unfinished non-gate progress receipt against the current item and consume a verified new receipt by continuing the same owner route",
     );
     expect(monitorLoop).toContain(
+      "Refresh current source and PR state. Apply genuine PR, source-issue, publication, and terminal gate precedence before any non-gate receipt continuation: when current evidence identifies a genuine gate, use its gate path and do not consume a receipt",
+    );
+    expect(monitorLoop).toContain(
+      "After `issue-priming-workflow --auto` approves and hands off the route, record `current_approved_owner_route_identity` from the source provider, source issue identifier, owner thread ID, and exact approved route identity",
+    );
+    expect(monitorLoop).toContain(
+      "Record `current_reviewed_plan_handoff_provenance` from the reviewed plan digest and auto-handoff identity",
+    );
+    expect(monitorLoop).toContain(
+      "On an initial or resumed route, record or refresh these values only when the approved handoff supplies the current binding",
+    );
+    expect(monitorLoop).toContain(
+      "When that handoff records a changed binding, clear the prior route's receipt keys before accepting a subsequent receipt",
+    );
+    expect(monitorLoop).toContain(
+      "A receipt must not initialize, refresh, or validate either current binding",
+    );
+    expect(monitorLoop).toContain(
       "Form the complete progress receipt consumption key from the exact owner route identity and receipt digest",
     );
     expect(monitorLoop).toContain(
@@ -662,7 +680,16 @@ describe("issue-batch-routing skill contract", () => {
       "A missing current binding or stale route/provenance mismatch fails closed to waiting or manual action",
     );
     expect(monitorLoop).toContain(
-      "When the current approved-route identity or reviewed-plan provenance changes, clear the prior route's receipt keys before consuming a matching resumed receipt",
+      "Stale CI, review, conflict, publication, or terminal evidence remains a genuine gate and cannot be bypassed by a receipt",
+    );
+    expect(
+      monitorLoop.indexOf(
+        "Refresh current source and PR state. Apply genuine PR, source-issue, publication, and terminal gate precedence before any non-gate receipt continuation",
+      ),
+    ).toBeLessThan(
+      monitorLoop.indexOf(
+        "Before gate classification, validate any unfinished non-gate progress receipt against the current item",
+      ),
     );
     expect(monitorLoop).toContain(
       "For the same exact owner route, retain the 32 most recent complete progress receipt consumption keys in `recent_consumed_progress_receipt_keys`",
@@ -670,7 +697,9 @@ describe("issue-batch-routing skill contract", () => {
     expect(monitorLoop).toContain(
       "A receipt A, then receipt B, then receipt A again uses the retained A key and is a repeat: do not continue the route again or update any approval key",
     );
-    expect(monitorLoop).toContain("Only then classify a remaining gate");
+    expect(monitorLoop).toContain(
+      "For an item without receipt continuation, classify any remaining gate",
+    );
     expect(ledger).toContain(
       "Digest of the last owner-thread gate report integrated by the parent",
     );
