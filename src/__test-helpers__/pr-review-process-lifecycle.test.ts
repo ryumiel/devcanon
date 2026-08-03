@@ -812,6 +812,42 @@ describe("pr-review process lifecycle", () => {
     expect(replaced.evidence).toContain("rm:LifecycleError");
     expect(remove).toHaveBeenCalledTimes(1);
     await expect(access(replacedRoot.path)).resolves.toBeUndefined();
+
+    const revalidationRoot = await generatedRoot();
+    const revalidationLifecycle = await lifecycle(
+      revalidationRoot,
+      "process.exit(0);",
+    );
+    const realpath = vi.mocked(fsPromises.realpath);
+    const originalRealpath = realpath.getMockImplementation();
+    if (!originalRealpath)
+      throw new Error("realpath mock implementation missing");
+    let rejectRevalidation = false;
+    realpath.mockImplementation(async (...args) => {
+      if (rejectRevalidation && String(args[0]) === revalidationRoot.path)
+        throw Object.assign(new Error("unsafe revalidation failure"), {
+          code: "EPERM",
+        });
+      return originalRealpath(...args);
+    });
+    remove.mockClear();
+    remove.mockImplementationOnce(async () => {
+      rejectRevalidation = true;
+      throw Object.assign(new Error("transient removal failure"), {
+        code: "EBUSY",
+      });
+    });
+
+    try {
+      const revalidation = await revalidationLifecycle.finish();
+
+      expect(revalidation.generatedRoot).toBe("preserved_unsafe");
+      expect(revalidation.evidence).toContain("rm:Error");
+      expect(remove).toHaveBeenCalledTimes(1);
+      await expect(access(revalidationRoot.path)).resolves.toBeUndefined();
+    } finally {
+      realpath.mockImplementation(originalRealpath);
+    }
   });
 
   it("preserves a changed, aliased, or unsafe generated root", async () => {

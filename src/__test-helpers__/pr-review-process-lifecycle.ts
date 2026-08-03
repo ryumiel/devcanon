@@ -679,6 +679,11 @@ class RootLifecycle implements PrReviewProcessLifecycle {
           this.#recordDisposition("rm:deadline-after-revalidation");
           return "preserved_unsafe";
         }
+      } catch (error) {
+        this.#recordDisposition(`rm:${errorName(error)}`);
+        return "preserved_unsafe";
+      }
+      try {
         await rm(this.generatedRoot.logical, {
           force: false,
           recursive: true,
