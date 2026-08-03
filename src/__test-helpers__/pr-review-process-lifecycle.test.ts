@@ -1,4 +1,5 @@
 import { ChildProcess } from "node:child_process";
+import * as fsPromises from "node:fs/promises";
 import {
   access,
   chmod,
@@ -10,6 +11,25 @@ import {
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+const lifecyclePreflight = vi.hoisted(() => ({
+  root: "",
+  elapsed: false,
+}));
+
+vi.mock("node:fs/promises", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:fs/promises")>();
+  return {
+    ...actual,
+    realpath: vi.fn(async (...args: Parameters<typeof actual.realpath>) => {
+      if (String(args[0]) === lifecyclePreflight.root)
+        lifecyclePreflight.elapsed = true;
+      return actual.realpath(...args);
+    }),
+    rm: vi.fn(actual.rm),
+  };
+});
+
 import {
   PR_REVIEW_PROCESS_LIFECYCLE_LIMITS,
   PrReviewProcessFailureEvidence,
@@ -95,19 +115,30 @@ afterEach(async () => {
 describe("pr-review process lifecycle", () => {
   it("observes a normal root-process exit", async () => {
     const root = await generatedRoot();
-    const processLifecycle = await lifecycle(
-      root,
-      'process.stdout.write("normal");',
-    );
+    lifecyclePreflight.root = root.path;
+    lifecyclePreflight.elapsed = false;
+    const now = vi
+      .spyOn(performance, "now")
+      .mockImplementation(() => (lifecyclePreflight.elapsed ? 250 : 0));
+    try {
+      const processLifecycle = await lifecycle(
+        root,
+        'process.stdout.write("normal");',
+      );
+      const result = await processLifecycle.finish();
 
-    const result = await processLifecycle.finish();
-
-    expect(result.rootProcess).toMatchObject({
-      exitObserved: true,
-      closeObserved: true,
-    });
-    expect(result.output.stdout.text).toBe("normal");
-    expect(result.generatedRoot).toBe("removed");
+      expect(lifecyclePreflight.elapsed).toBe(true);
+      expect(result.rootProcess).toMatchObject({
+        exitObserved: true,
+        closeObserved: true,
+      });
+      expect(result.output.stdout.text).toBe("normal");
+      expect(result.generatedRoot).toBe("removed");
+    } finally {
+      now.mockRestore();
+      lifecyclePreflight.root = "";
+      lifecyclePreflight.elapsed = false;
+    }
   });
 
   it("records cooperative cancellation acknowledgement", async () => {
@@ -591,7 +622,6 @@ describe("pr-review process lifecycle", () => {
     const beforeSpawnClock = vi
       .spyOn(performance, "now")
       .mockReturnValueOnce(0)
-      .mockReturnValueOnce(0)
       .mockReturnValueOnce(251);
     try {
       await expect(
@@ -728,10 +758,18 @@ describe("pr-review process lifecycle", () => {
   it("removes a safe helper-created generated root after root close", async () => {
     const root = await generatedRoot();
     const processLifecycle = await lifecycle(root, "process.exit(0);");
+    const remove = vi.mocked(fsPromises.rm);
+    remove.mockClear();
 
     const result = await processLifecycle.finish();
 
     expect(result.generatedRoot).toBe("removed");
+    expect(remove).toHaveBeenCalledWith(root.path, {
+      force: false,
+      maxRetries: 3,
+      recursive: true,
+      retryDelay: 100,
+    });
     await expect(access(root.path)).rejects.toThrow();
   });
 

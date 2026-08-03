@@ -24,6 +24,8 @@ import {
 } from "./pr-review-root-identity.js";
 
 const GENERATED_ROOT_MARKER = ".devcanon-pr-review-generated-root";
+const GENERATED_ROOT_REMOVAL_MAX_RETRIES = 3;
+const GENERATED_ROOT_REMOVAL_RETRY_DELAY_MS = 100;
 const MIN_DEADLINE_MS = 1;
 const MAX_DEADLINE_MS = 60_000;
 const MIN_OUTPUT_LIMIT_BYTES = 1;
@@ -276,17 +278,15 @@ export async function launchPrReviewProcessLifecycle(
   request: PrReviewProcessLifecycleRequest,
 ): Promise<PrReviewProcessLifecycle> {
   const frozen = snapshotRequest(request);
-  const deadline = performance.now() + frozen.deadlineMs;
   const executable = await enrollExecutable(frozen.executable);
   const cwd = await enrollWorkingDirectory(
     frozen.generatedRoot.root,
     frozen.cwd,
   );
   const initialRoot = await readGeneratedRootEvidence(frozen.generatedRoot);
-  if (deadline - performance.now() <= 0)
-    throw new LifecycleError("deadline expired during root preflight");
   const initialCwd = process.cwd();
   const initialCwdPhysical = await realpath(initialCwd);
+  const deadline = performance.now() + frozen.deadlineMs;
   let child: ChildProcess;
   try {
     if (deadline - performance.now() <= 0)
@@ -674,7 +674,12 @@ class RootLifecycle implements PrReviewProcessLifecycle {
         this.#recordDisposition("rm:deadline-after-revalidation");
         return "preserved_unsafe";
       }
-      await rm(this.generatedRoot.logical, { force: false, recursive: true });
+      await rm(this.generatedRoot.logical, {
+        force: false,
+        maxRetries: GENERATED_ROOT_REMOVAL_MAX_RETRIES,
+        recursive: true,
+        retryDelay: GENERATED_ROOT_REMOVAL_RETRY_DELAY_MS,
+      });
       return "removed";
     } catch (error) {
       this.#recordDisposition(`rm:${errorName(error)}`);
