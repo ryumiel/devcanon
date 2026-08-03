@@ -774,6 +774,52 @@ describe("pr-review process lifecycle", () => {
     });
     await expect(access(root.path)).rejects.toThrow();
 
+    {
+      const ctimeRoot = await generatedRoot();
+      const ctimeLifecycle = await lifecycle(ctimeRoot, "process.exit(0);");
+      const lstat = vi.mocked(fsPromises.lstat);
+      const stat = vi.mocked(fsPromises.stat);
+      const originalLstat = lstat.getMockImplementation();
+      const originalStat = stat.getMockImplementation();
+      if (!originalLstat || !originalStat)
+        throw new Error("stat mock implementation missing");
+      const enrolled = (await originalLstat(ctimeRoot.path, {
+        bigint: true,
+      })) as import("node:fs").BigIntStats;
+      lstat.mockImplementation(async (...args) => {
+        const observed = await originalLstat(...args);
+        if (String(args[0]) !== ctimeRoot.path) return observed;
+        if (args[1]?.bigint !== true) return observed;
+        return Object.assign(
+          Object.create(Object.getPrototypeOf(observed)),
+          observed,
+          { birthtimeNs: enrolled.birthtimeNs + 1n },
+        );
+      });
+      stat.mockImplementation(async (...args) => {
+        const observed = await originalStat(...args);
+        if (String(args[0]) !== ctimeRoot.path) return observed;
+        if (args[1]?.bigint !== true) return observed;
+        return Object.assign(
+          Object.create(Object.getPrototypeOf(observed)),
+          observed,
+          { birthtimeNs: enrolled.birthtimeNs + 1n },
+        );
+      });
+      remove.mockClear();
+
+      try {
+        const ctimeChanged = await ctimeLifecycle.finish();
+
+        expect(ctimeChanged.generatedRoot).toBe("removed");
+        expect(remove).toHaveBeenCalledTimes(1);
+        await expect(access(ctimeRoot.path)).rejects.toThrow();
+      } finally {
+        lstat.mockImplementation(originalLstat);
+        stat.mockImplementation(originalStat);
+      }
+    }
+
     const retryRoot = await generatedRoot();
     const retryLifecycle = await lifecycle(retryRoot, "process.exit(0);");
     remove.mockClear();
@@ -786,6 +832,67 @@ describe("pr-review process lifecycle", () => {
     expect(retried.generatedRoot).toBe("removed");
     expect(remove).toHaveBeenCalledTimes(2);
     await expect(access(retryRoot.path)).rejects.toThrow();
+
+    {
+      const unavailableRetryRoot = await generatedRoot();
+      const unavailableRetryLifecycle = await lifecycle(
+        unavailableRetryRoot,
+        "process.exit(0);",
+      );
+      const lstat = vi.mocked(fsPromises.lstat);
+      const stat = vi.mocked(fsPromises.stat);
+      const originalLstat = lstat.getMockImplementation();
+      const originalStat = stat.getMockImplementation();
+      if (!originalLstat || !originalStat)
+        throw new Error("stat mock implementation missing");
+      let retryRevalidation = false;
+      lstat.mockImplementation(async (...args) => {
+        const observed = await originalLstat(...args);
+        if (
+          !retryRevalidation ||
+          String(args[0]) !== unavailableRetryRoot.path ||
+          args[1]?.bigint !== true
+        )
+          return observed;
+        return Object.assign(
+          Object.create(Object.getPrototypeOf(observed)),
+          observed,
+          { birthtimeNs: 0n },
+        );
+      });
+      stat.mockImplementation(async (...args) => {
+        const observed = await originalStat(...args);
+        if (
+          !retryRevalidation ||
+          String(args[0]) !== unavailableRetryRoot.path ||
+          args[1]?.bigint !== true
+        )
+          return observed;
+        return Object.assign(
+          Object.create(Object.getPrototypeOf(observed)),
+          observed,
+          { birthtimeNs: 0n },
+        );
+      });
+      remove.mockClear();
+      remove.mockImplementationOnce(async () => {
+        retryRevalidation = true;
+        throw Object.assign(new Error("transient removal failure"), {
+          code: "EBUSY",
+        });
+      });
+
+      try {
+        const unavailableRetry = await unavailableRetryLifecycle.finish();
+
+        expect(unavailableRetry.generatedRoot).toBe("removed");
+        expect(remove).toHaveBeenCalledTimes(2);
+        await expect(access(unavailableRetryRoot.path)).rejects.toThrow();
+      } finally {
+        lstat.mockImplementation(originalLstat);
+        stat.mockImplementation(originalStat);
+      }
+    }
 
     const partiallyRemovedRoot = await generatedRoot();
     const partiallyRemovedLifecycle = await lifecycle(

@@ -671,14 +671,17 @@ class RootLifecycle implements PrReviewProcessLifecycle {
           this.#recordDisposition("rm:live-cwd-or-ancestor");
           return "preserved_unsafe";
         }
-        const current =
+        const retryEvidence =
           attempt === 0
-            ? await readGeneratedRootEvidence(this.request.generatedRoot)
+            ? undefined
             : await readGeneratedRootRetryEvidence(this.request.generatedRoot);
+        const current =
+          retryEvidence?.root ??
+          (await readGeneratedRootEvidence(this.request.generatedRoot));
         const matchesIdentity =
-          attempt === 0
-            ? sameIdentity(this.generatedRoot, current)
-            : sameRetryIdentity(this.generatedRoot, current);
+          retryEvidence?.markerPresent === false
+            ? sameRetryIdentity(this.generatedRoot, current)
+            : sameIdentity(this.generatedRoot, current);
         if (!matchesIdentity) {
           this.#recordDisposition("rm:identity-mismatch");
           return "preserved_unsafe";
@@ -818,14 +821,15 @@ async function readGeneratedRootEvidence(
 
 async function readGeneratedRootRetryEvidence(
   enrollment: GeneratedRootEnrollment,
-): Promise<RootIdentity> {
+): Promise<{ readonly root: RootIdentity; readonly markerPresent: boolean }> {
   const root = await readGeneratedRootIdentity(enrollment);
   try {
     await assertGeneratedRootMarker(enrollment, root);
   } catch (error) {
     if (errorCode(error) !== "ENOENT") throw error;
+    return { root, markerPresent: false };
   }
-  return root;
+  return { root, markerPresent: true };
 }
 
 async function assertGeneratedRootMarker(
@@ -871,18 +875,15 @@ async function readGeneratedRootIdentity(
 }
 
 function sameIdentity(left: RootIdentity, right: RootIdentity): boolean {
-  return (
-    left.device === right.device &&
-    left.file === right.file &&
-    left.birthtimeNs === right.birthtimeNs
-  );
+  return left.device === right.device && left.file === right.file;
 }
 
 function sameRetryIdentity(left: RootIdentity, right: RootIdentity): boolean {
   return (
     left.birthtimeNs !== 0n &&
     right.birthtimeNs !== 0n &&
-    sameIdentity(left, right)
+    sameIdentity(left, right) &&
+    left.birthtimeNs === right.birthtimeNs
   );
 }
 
