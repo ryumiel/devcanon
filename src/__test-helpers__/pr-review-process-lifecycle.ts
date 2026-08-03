@@ -162,9 +162,12 @@ export function assertPrReviewProcessFinalReceiptBytes(
     throw new LifecycleError("final receipt exceeded its bounded size");
 }
 
-type RootIdentity = PathIdentity & { type: "directory" };
+type RootIdentity = PathIdentity & {
+  type: "directory";
+  birthtimeNs: bigint;
+};
 type GeneratedRootEnrollment = {
-  readonly root: RootIdentity;
+  readonly root: PathIdentity & { type: "directory" };
   readonly marker: string;
 };
 type FrozenRequest = Readonly<{
@@ -668,11 +671,18 @@ class RootLifecycle implements PrReviewProcessLifecycle {
           this.#recordDisposition("rm:live-cwd-or-ancestor");
           return "preserved_unsafe";
         }
-        const current =
+        const retryEvidence =
           attempt === 0
-            ? await readGeneratedRootEvidence(this.request.generatedRoot)
+            ? undefined
             : await readGeneratedRootRetryEvidence(this.request.generatedRoot);
-        if (!sameIdentity(this.generatedRoot, current)) {
+        const current =
+          retryEvidence?.root ??
+          (await readGeneratedRootEvidence(this.request.generatedRoot));
+        const matchesIdentity =
+          retryEvidence?.markerPresent === false
+            ? sameRetryIdentity(this.generatedRoot, current)
+            : sameIdentity(this.generatedRoot, current);
+        if (!matchesIdentity) {
           this.#recordDisposition("rm:identity-mismatch");
           return "preserved_unsafe";
         }
@@ -811,14 +821,15 @@ async function readGeneratedRootEvidence(
 
 async function readGeneratedRootRetryEvidence(
   enrollment: GeneratedRootEnrollment,
-): Promise<RootIdentity> {
+): Promise<{ readonly root: RootIdentity; readonly markerPresent: boolean }> {
   const root = await readGeneratedRootIdentity(enrollment);
   try {
     await assertGeneratedRootMarker(enrollment, root);
   } catch (error) {
     if (errorCode(error) !== "ENOENT") throw error;
+    return { root, markerPresent: false };
   }
-  return root;
+  return { root, markerPresent: true };
 }
 
 async function assertGeneratedRootMarker(
@@ -839,19 +850,41 @@ async function readGeneratedRootIdentity(
   enrollment: GeneratedRootEnrollment,
 ): Promise<RootIdentity> {
   const root = enrollment.root;
-  const direct = await lstat(root.logical);
+  const direct = await lstat(root.logical, { bigint: true });
   if (!direct.isDirectory() || direct.isSymbolicLink())
     throw new LifecycleError("generated root is not a direct directory");
-  const followed = await stat(root.logical);
-  if (!followed.isDirectory() || !sameStats(direct, followed))
+  const followed = await stat(root.logical, { bigint: true });
+  if (
+    !followed.isDirectory() ||
+    direct.dev < 0n ||
+    direct.ino < 0n ||
+    direct.birthtimeNs < 0n ||
+    direct.dev !== followed.dev ||
+    direct.ino !== followed.ino ||
+    direct.birthtimeNs !== followed.birthtimeNs
+  )
     throw new LifecycleError("generated root identity is ambiguous");
   if ((await realpath(root.logical)) !== root.physical)
     throw new LifecycleError("generated root physical path changed");
-  return { ...root, device: BigInt(direct.dev), file: BigInt(direct.ino) };
+  return {
+    ...root,
+    device: direct.dev,
+    file: direct.ino,
+    birthtimeNs: direct.birthtimeNs,
+  };
 }
 
 function sameIdentity(left: RootIdentity, right: RootIdentity): boolean {
   return left.device === right.device && left.file === right.file;
+}
+
+function sameRetryIdentity(left: RootIdentity, right: RootIdentity): boolean {
+  return (
+    left.birthtimeNs !== 0n &&
+    right.birthtimeNs !== 0n &&
+    sameIdentity(left, right) &&
+    left.birthtimeNs === right.birthtimeNs
+  );
 }
 
 function isGeneratedRootRemovalRetryable(error: unknown): boolean {
@@ -863,17 +896,6 @@ function isGeneratedRootRemovalRetryable(error: unknown): boolean {
 function errorCode(error: unknown): string | undefined {
   if (!error || typeof error !== "object" || !("code" in error)) return;
   return String(error.code);
-}
-function sameStats(
-  left: Awaited<ReturnType<typeof lstat>>,
-  right: Awaited<ReturnType<typeof stat>>,
-): boolean {
-  return (
-    Number.isSafeInteger(left.dev) &&
-    Number.isSafeInteger(left.ino) &&
-    left.dev === right.dev &&
-    left.ino === right.ino
-  );
 }
 function isControllerCwdOrAncestor(
   root: string,
