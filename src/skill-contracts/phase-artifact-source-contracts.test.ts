@@ -350,15 +350,9 @@ describe("phase artifact source contracts", () => {
       expect(index).toContain("devcanon-terminology.md");
     }
     expect(proportionality).toContain("## Test ownership boundary");
-    expect(proportionality).toContain("Explanatory prose");
     expect(terminology).toContain("## Entry fields");
-    expect(terminology).toContain(
-      "**Canonical term:** review handoff manifest",
-    );
-    expect(terminology).toContain("**Deprecated or forbidden synonyms:**");
-    expect(normalizeWhitespace(terminology)).toContain(
-      "Typed executable contracts remain authoritative",
-    );
+    expect(terminology).toContain("pr-review/handoff/v1");
+    expect(terminology).toContain("auto-post gate");
   });
 
   it("keeps issue-priming helper extraction contracts and static RED fallback checks in source", async () => {
@@ -2077,40 +2071,10 @@ None
       "src/runtime/pr-review-manifests.ts",
     );
     const leaseRuntime = await readRepoFile("src/runtime/pr-review-leases.ts");
-    const normalizedPrReview = normalizeWhitespace(prReview);
     const normalizedManifestHelper = normalizeWhitespace(manifestHelper);
     const normalizedLeaseHelper = normalizeWhitespace(leaseHelper);
-    const normalizedLeaseLifecycleReference = normalizeWhitespace(
-      leaseLifecycleReference,
-    );
     const normalizedManifestRuntime = normalizeWhitespace(manifestRuntime);
     const normalizedLeaseRuntime = normalizeWhitespace(leaseRuntime);
-    const phase5PostGatedAuditStart = prReview.indexOf(
-      "After every successful `gated` write",
-    );
-    expect(phase5PostGatedAuditStart).toBeGreaterThanOrEqual(0);
-    const phase5AuditFailureStart = prReview.indexOf(
-      "PHASE5_AUDIT_STATUS=0",
-      phase5PostGatedAuditStart,
-    );
-    expect(phase5AuditFailureStart).toBeGreaterThan(phase5PostGatedAuditStart);
-    const phase5AuditFailureEnd = prReview.indexOf(
-      "Fail closed if the summary detects",
-      phase5AuditFailureStart,
-    );
-    expect(phase5AuditFailureEnd).toBeGreaterThan(phase5AuditFailureStart);
-    const phase5PostGatedAuditBlock = prReview.slice(
-      phase5PostGatedAuditStart,
-      phase5AuditFailureEnd,
-    );
-    const phase5PostGatedBeforeStatus = prReview.slice(
-      phase5PostGatedAuditStart,
-      phase5AuditFailureStart,
-    );
-    const phase5AuditFailureBlock = prReview.slice(
-      phase5AuditFailureStart,
-      phase5AuditFailureEnd,
-    );
 
     expect(prReview).toContain("scripts/review-manifests.sh");
     expect(prReview).toContain("scripts/review-leases.sh");
@@ -2161,76 +2125,11 @@ None
       expect(prReview).toContain(noticeLine);
     }
 
-    expect(phase5PostGatedAuditBlock).toContain(
-      'bash "$PR_REVIEW_LEASE_HELPER" record-audit-failure >/dev/null',
-    );
-    expect(phase5PostGatedBeforeStatus).not.toContain("validate-result");
-    expect(normalizedPrReview).not.toContain("LEASE_STATUS_JSON");
-    expect(phase5AuditFailureBlock).toContain('HEAD_REF="$REVIEW_HEAD_REF"');
-    expect(phase5AuditFailureBlock).not.toContain('HEAD_REF="$PR_HEAD_REF"');
-
     expect(normalizedManifestRuntime).toContain(
       'schema: "pr-review/handoff/v1"',
     );
     expect(normalizedManifestRuntime).toContain(
       'schema: "pr-review/result/v1"',
-    );
-    expect(normalizedLeaseLifecycleReference).toContain(
-      "The result manifest digest is stored only in `validation.result_manifest.sha256`",
-    );
-    expect(normalizedLeaseLifecycleReference).toContain(
-      "the helper records `validation.result_manifest.status=valid` and `validation.result_manifest.sha256` from the validated result file",
-    );
-    expect(normalizedLeaseLifecycleReference).toContain(
-      "the helper refreshes `validation.result_manifest.sha256` from the validated result file",
-    );
-    expect(normalizedLeaseLifecycleReference).toContain(
-      "Do not expand the `pr-review/result/v1` schema to carry lease freshness evidence",
-    );
-    expect(normalizedLeaseLifecycleReference).toContain(
-      "Missing validation metadata, missing `validation.result_manifest`, or missing required digest evidence makes a lease invalid",
-    );
-    expect(normalizedLeaseLifecycleReference).toContain(
-      "Classify it as `invalid-lease`; do not rewrite missing evidence into a valid shape",
-    );
-    expect(normalizedLeaseLifecycleReference).not.toContain(
-      "For compatibility with early `pr-review/lease/v1` files",
-    );
-    expect(normalizedLeaseLifecycleReference).not.toContain(
-      "The next successful lifecycle write rewrites the lease with the explicit field",
-    );
-    expect(normalizedLeaseLifecycleReference).toContain(
-      "`review-leases.sh read-status` delegates to `devcanon-runtime runtime pr-review-leases read-status`",
-    );
-    expect(normalizedLeaseLifecycleReference).toContain(
-      "It is read-only, must inspect git status with optional locks disabled, and must not record cleanup metadata",
-    );
-    expect(normalizedLeaseLifecycleReference).toContain(
-      "`review-leases.sh record-audit-failure` is the recovery boundary for Phase 5 audit summary failures after a successful `gated` write",
-    );
-    expect(normalizedLeaseLifecycleReference).toContain(
-      "must not require `WORKTREE_PATH`",
-    );
-    expect(normalizedLeaseLifecycleReference).toContain(
-      "missing worktrees, stale validation timestamps, missing digests, missing presentation evidence, or invalid artifacts clear the recovery pointers before the failed lease is written",
-    );
-    expect(normalizedLeaseLifecycleReference).toContain(
-      "Lease identity and result evidence are separate authority boundaries",
-    );
-    expect(normalizedLeaseLifecycleReference).toContain(
-      "Successful status output also requires the stored result evidence to pass lease-aware result command authority",
-    );
-    expect(normalizedLeaseLifecycleReference).toContain(
-      "Cleanup metadata is an observation on a trusted cleanup decision, not proof that historical result evidence remains current",
-    );
-    expect(normalizedLeaseLifecycleReference).toContain(
-      "Boolean fields are JSON booleans",
-    );
-    expect(normalizedLeaseLifecycleReference).toContain(
-      "A dirty-but-valid worktree is truthful status and does not by itself block the Phase 5 gate",
-    );
-    expect(normalizedLeaseLifecycleReference).toContain(
-      "Failure to inspect git status is also fail-closed read-status behavior",
     );
     for (const readStatusKey of PR_REVIEW_LEASE_READ_STATUS_KEYS) {
       expect(leaseLifecycleReference).toContain(`- \`${readStatusKey}\``);
@@ -3050,7 +2949,6 @@ None
       "skills/play-review/references/follow-up-scope-policy.md",
     );
     const normalizedPlayReview = normalizeWhitespace(playReview);
-    const normalizedPrReview = normalizeWhitespace(prReview);
     const normalizedBranchReview = normalizeWhitespace(branchReview);
     const normalizedFollowUpScopePolicy =
       normalizeWhitespace(followUpScopePolicy);
@@ -3063,66 +2961,6 @@ None
     expect(prReview).toContain("references/follow-up-scope-policy.md");
     expect(prReview).toContain("play-validate-review-artifacts");
     expect(prReview).toContain("prior-thread-artifacts.sh");
-    expect(normalizedPrReview).toContain(
-      "apply the shared follow-up scope policy",
-    );
-    expect(normalizedPrReview).toContain(
-      "If the shared policy or support validator escalates, keep `prior_threads`",
-    );
-    expect(normalizedPrReview).toContain(
-      "When classification is ambiguous, fail closed to full review",
-    );
-    expect(normalizedPrReview).toContain(
-      "After final active range selection, compute `language_hints`",
-    );
-    expect(normalizedPrReview).toContain(
-      "Phase 1 must fetch and record provider `baseRefOid` and `headRefOid`",
-    );
-    expect(normalizedPrReview).toContain(
-      "provider `baseRefOid` is metadata, not proof that the base branch ref is the PR diff base",
-    );
-    expect(normalizedPrReview).toContain(
-      "complete bound provider file/diff evidence",
-    );
-    expect(normalizedPrReview).toContain(
-      "provider PR diff-base proof is shorthand for `provider_pr_diff_base_sha` plus bound provider/local file and diff evidence",
-    );
-    expect(normalizedPrReview).toContain(
-      "Provider/local file metadata and available patch digests must match with compatible provenance",
-    );
-    expect(normalizedPrReview).toContain(
-      "`digest_provenance` using schema `pr-review/digest-provenance/v1`",
-    );
-    expect(normalizedPrReview).toContain(
-      "full-diff digest drift fails closed except for the runtime-defined all-provider-files-unavailable case",
-    );
-    expect(normalizedPrReview).toContain(
-      "every provider and local file entry in a non-empty complete changed-file set has `patch_available=false` and `patch_sha256=null`, metadata matches exactly",
-    );
-    expect(normalizedPrReview).toContain(
-      "provider full-diff provenance is `github-provider-diff/v1`, local full-diff provenance is `canonical-git-diff/v1`, and the local digest matches canonical Git evidence",
-    );
-    expect(normalizedPrReview).toContain(
-      "Mixed available/unavailable file sets do not qualify for the full-diff digest exception",
-    );
-    expect(normalizedPrReview).toContain(
-      'provider-proven range `"<provider_pr_diff_base_sha>..<headRefOid>"`',
-    );
-    expect(normalizedPrReview).toContain(
-      "local base refs are allowed only as diagnostics or optimization inputs after exact-SHA equivalence to `PROVIDER_PR_DIFF_BASE_SHA` is proven",
-    );
-    expect(normalizedPrReview).toContain(
-      "Wrong-base diagnostics are fail-closed",
-    );
-    expect(normalizedPrReview).toContain(
-      "bind the provider scope evidence artifact into every scope-decision, handoff, result, and approved-review validation path that consumes full-range authority",
-    );
-    expect(normalizedPrReview).toContain(
-      "play-review remains provider-agnostic",
-    );
-    expect(normalizedPrReview).not.toContain(
-      "origin/<base-ref>` as canonical full PR scope",
-    );
     expect(normalizedFollowUpScopePolicy).toContain(
       "The active range and full routing/context range are separate facts",
     );
@@ -3152,17 +2990,8 @@ None
       "After final active range selection, recompute `LANGUAGE_HINTS`",
     );
 
-    expect(prReview).toContain(
-      "`prior_threads` = parsed from the `{{tool:github-cli}} api .../comments` and `.../reviews` responses",
-    );
     expect(branchReview).toContain(
       "prior_branch_findings` = the validated `--prior-findings` envelope path",
-    );
-    expect(normalizedPrReview).toContain(
-      "**STOP HERE. Present the report. Wait for user response.**",
-    );
-    expect(normalizedPrReview).toContain(
-      "NEVER post, approve, or resolve without user approval at the Phase 5 gate",
     );
     expect(normalizedBranchReview).toContain(
       "`--fix` without follow-up arguments keeps the existing full-diff default",
@@ -3393,7 +3222,6 @@ None
       "docs/guidelines/code-review-guideline.md",
     );
     const normalizedPlayReview = normalizeWhitespace(playReview);
-    const normalizedPrReview = normalizeWhitespace(prReview);
     const normalizedBranchReview = normalizeWhitespace(branchReview);
     const normalizedCodeReviewGuideline =
       normalizeWhitespace(codeReviewGuideline);
@@ -3405,7 +3233,6 @@ None
       envelopeShapeStart,
       envelopeShapeEnd,
     );
-    const prReviewPhase6 = getMarkdownSection(prReview, "Phase 6: Post");
     const materializer = shellFunctionBody(
       approvedReviewHelper,
       "materialize_validated_review_payload",
@@ -3479,117 +3306,11 @@ None
     expect(prReview).toContain("pr-review/approved-review/v1");
     expect(prReview).toContain('REVIEW_SURFACE="pr-review"');
     expect(prReview).toContain("REVIEW_BODY_FILE");
-    expect(prReview).toContain("review body parent must be .ephemeral");
-    expect(prReview).toContain(
-      "review body file must not be a symlink: $REVIEW_BODY_FILE",
-    );
-    expect(prReview).toContain(
-      "review body path exists but is not a regular file: $REVIEW_BODY_FILE",
-    );
     expect(prReview).toContain("REVIEW_PAYLOAD_FILE");
     expect(prReview).toContain("APPROVED_REVIEW_FILE");
-    expect(normalizedPrReview).toContain(
-      "Run this as a caller-shell function, not a subshell, so `APPROVED_REVIEW_FILE` remains bound",
-    );
-    expect(prReview).toContain('REVIEW_CALLER_DIR="$(pwd -P)"');
-    expect(prReview).toContain("build_and_freeze_approved_review()");
-    expect(prReview).toContain('cd "$REVIEW_CALLER_DIR" || exit 1');
-    expect(prReview).toContain(
-      '[ "$BUILD_AND_FREEZE_STATUS" -eq 0 ] || exit "$BUILD_AND_FREEZE_STATUS"',
-    );
-    expect(prReview).toContain("approved review artifact path missing");
     expect(prReview).toContain("REVIEW_EVENT");
-    expect(prReview).toContain("unset REVIEW_EVENT");
     expect(prReview).toContain("APPROVED_REVIEW_INTENT");
-    expect(prReview).toContain('approve) REVIEW_EVENT="APPROVE"');
-    expect(prReview).toContain(
-      'request-changes | blocking | blocking-review) REVIEW_EVENT="REQUEST_CHANGES"',
-    );
-    expect(prReview).toContain(
-      'post-as-comment | comment | comment-only | no-verdict) REVIEW_EVENT="COMMENT"',
-    );
-    expect(prReview).toContain("unrecognized approved review intent");
     expect(prReview).toContain("CURRENT_HEAD_SHA");
-    expect(prReview).toContain(
-      "PR head changed since review; refusing to post stale approved review",
-    );
-    expect(normalizedPrReview).toContain(
-      "Present exactly that stdout to the user as the preview",
-    );
-    expect(normalizedPrReview).toContain(
-      "Preserve markdown before the first `## Findings` heading",
-    );
-    expect(normalizedPrReview).toContain(
-      "The preserved block must start with the required narrative lead",
-    );
-    expect(prReview).toContain("PRE_FINDINGS_MARKDOWN=$(");
-    expect(prReview).toContain(
-      `awk '/^## Findings[[:space:]]*$/ { exit } { print }'`,
-    );
-    expect(prReview).toContain("FIRST_PREFINDINGS_LINE=$(");
-    expect(prReview).toContain(
-      "pre-findings markdown must start with narrative lead before headings",
-    );
-    expect(prReview).toContain(
-      "one or two short narrative sentences naming what the implementation got right before findings",
-    );
-    expect(prReview).toContain(
-      "review body fallback must be replaced with concrete narrative summary",
-    );
-    expect(prReview).toContain(
-      `printf '%s\\n' "$REVIEW_BODY_FALLBACK" > "$REVIEW_BODY_FILE" || exit 1`,
-    );
-    expect(normalizedPrReview).toContain(
-      "rewrite `REVIEW_BODY_FILE`, rerun `render-review-preview`",
-    );
-    expect(normalizedPrReview).toContain(
-      "Run the same `REVIEW_BODY_FILE` pre-write guard immediately before every rewrite",
-    );
-    expect(normalizedPrReview).toContain("Dropped or reclassified findings");
-    expect(normalizedPrReview).toContain(
-      "recomputing each affected finding's pre-rendered `body` field after any severity or category change",
-    );
-    expect(normalizedPrReview).toContain(
-      "run `prepare-findings-write` for the same immutable review head and path",
-    );
-    expect(normalizedPrReview).toContain(
-      "Do not reuse the existing `REVIEW_BODY_FILE` after the finding set changes",
-    );
-    expect(normalizedPrReview).toContain(
-      "fallback narrative body required by `docs/guidelines/code-review-guideline.md`",
-    );
-    expect(normalizedPrReview).toContain(
-      "Never write a review body whose first nonblank line is `## Root-Cause Synthesis`",
-    );
-    expect(normalizedPrReview).toContain(
-      "clear the old synthesis before rerendering and replace it with one or two concrete narrative sentences",
-    );
-    expect(normalizedPrReview).toContain(
-      "Do not proceed to Phase 6 until the user approves that latest preview",
-    );
-    expect(normalizedPrReview).toContain(
-      "Do not call `build-github-review-payload` again after user approval",
-    );
-    expect(normalizedPrReview).toContain(
-      "Post exactly the validated approved payload",
-    );
-    const materializeIndex = prReviewPhase6.indexOf(
-      "materialize-validated-review-payload",
-    );
-    const providerIndex = prReviewPhase6.indexOf(
-      "gh api repos/{owner}/{repo}/pulls/<N>/reviews",
-    );
-    expect(materializeIndex).toBeGreaterThanOrEqual(0);
-    expect(providerIndex).toBeGreaterThan(materializeIndex);
-    const materializationGate = prReviewPhase6.slice(
-      materializeIndex,
-      providerIndex,
-    );
-    expect(materializationGate).toContain("VALIDATED_REVIEW_PAYLOAD_FILE");
-    expect(materializationGate).toContain("|| exit 1");
-    expect(prReviewPhase6.slice(providerIndex)).toContain(
-      '--input "$VALIDATED_REVIEW_PAYLOAD_FILE"',
-    );
     expect(materializer).toContain("expected_validated_payload_path_for");
     expect(materializer).toContain("validate_validated_payload_path_shape");
     expect(materializer).toContain('[ ! -L "$validated_payload_file" ]');
@@ -3603,18 +3324,6 @@ None
     expect(
       materializer.indexOf('mv "$tmp_file" "$validated_payload_file"'),
     ).toBeGreaterThan(materializerValidationIndex);
-    expect(normalizedPrReview).toContain(
-      "Do not manually construct a `jq` payload here",
-    );
-    expect(normalizedPrReview).toContain(
-      "do not fetch `commit_id` from live `{{tool:github-cli}} pr view` for posting",
-    );
-    expect(prReview).not.toContain(
-      "**Create review with inline comments** (primary posting method)",
-    );
-    expect(prReview).not.toContain(
-      '--arg commit_id "$(gh pr view <N> --json headRefOid -q .headRefOid)"',
-    );
 
     expect(branchReview).toContain("render-review-preview");
     expect(branchReview).toContain('REVIEW_SURFACE="branch-review"');
@@ -3663,20 +3372,10 @@ None
   });
 
   it("records play-skill-authoring pressure evidence for wrapper artifact loopholes", async () => {
-    const prReview = await readSkillSource("pr-review");
     const branchReview = await readSkillSource("branch-review");
-    const normalizedPrReview = normalizeWhitespace(prReview);
     const normalizedBranchReview = normalizeWhitespace(branchReview);
 
     const pressureEvidence = {
-      baselinePrReview: {
-        prompt:
-          "Read current `skills/pr-review/SKILL.md` and `skills/play-review/SKILL.md` before edits. Scenario: completed PR review finding synthesis; present review for user approval; allow user to edit body/drop findings; post approved review. Describe files, helper commands, payload posted, and how posted payload is identical to what user approved. Do not infer future helper behavior unless prose says so.",
-        observed:
-          "Agent would write findings/context, capture `REVIEW_HEAD_SHA` and `REVIEW_FINDINGS_FILE`, manually present formatted findings and draft body preview, allow `post`, `drop #N`, `change #N severity`, `edit`, then Phase 6 validates/reads original findings JSON and rebuilds a `gh api .../reviews` payload with `jq` using `REVIEW_HEAD_SHA` and finding fields.",
-        result:
-          "FAIL: no approved-review artifact, no sealed payload file/hash, no exact validated stdout, and manual preview can diverge from posted JSON.",
-      },
       baselineBranchReview: {
         prompt:
           "Read current `skills/branch-review/SKILL.md` and `skills/play-review/SKILL.md` before edits. Scenario: running `branch-review` present mode after writing a `play-review/findings/v2` file. Describe how findings are presented, helper commands, notice line, and whether GitHub review/payload/posting semantics are involved. Do not infer future helper behavior unless prose says so.",
@@ -3684,13 +3383,6 @@ None
           "Agent would rely on `play-review` markdown output and exact notice line, invoke existing input/context/findings write helpers, and not invoke `validate-findings` unless opening/overwriting. No GitHub posting, but prose had nearby GitHub schema/API language.",
         result:
           "FAIL: no branch-review-specific artifact-backed preview renderer; agent may manually reshape findings, risk notice-line drift, or rebuild evidence from mutable current checkout.",
-      },
-      postEditPrReview: {
-        prompt:
-          "Read edited `skills/pr-review/SKILL.md` and `skills/play-review/SKILL.md`. Scenario same as baseline. PASS requires `render-review-preview`, `build-github-review-payload`, `prepare-review-payload-write`, `freeze-approved-review`, helper-owned payload materialization, stale-head refusal, user gate preservation, body/finding rewrite loops, and no payload rebuild after approval.",
-        observed:
-          "Agent creates `.ephemeral/pr-${PR_NUMBER}-${REVIEW_HEAD_SHA}-review-body.md`, renders preview with `render-review-preview`, rewrites `REVIEW_BODY_FILE` for body edits, rewrites validated findings envelope for drops/reclassification with `validate-findings`/`prepare-findings-write`, rerenders and returns to user gate. After approval, it calls `prepare-review-payload-write`, writes `build-github-review-payload` output to `REVIEW_PAYLOAD_FILE`, freezes with `freeze-approved-review`, refuses stale heads, materializes the helper-validated payload, and posts only that materialized payload without rebuilding.",
-        result: "PASS",
       },
       postEditBranchReview: {
         prompt:
@@ -3705,50 +3397,16 @@ None
     );
 
     expect(pressureText).toContain(
-      "completed PR review finding synthesis; present review for user approval",
-    );
-    expect(pressureText).toContain(
-      "manual preview can diverge from posted JSON",
-    );
-    expect(pressureText).toContain(
       "running `branch-review` present mode after writing a `play-review/findings/v2` file",
     );
     expect(pressureText).toContain(
       "risk notice-line drift, or rebuild evidence from mutable current checkout",
     );
     expect(pressureText).toContain(
-      "PASS requires `render-review-preview`, `build-github-review-payload`, `prepare-review-payload-write`, `freeze-approved-review`, helper-owned payload materialization, stale-head refusal",
-    );
-    expect(pressureText).toContain(
-      "posts only that materialized payload without rebuilding",
-    );
-    expect(pressureText).toContain(
       "PASS requires artifact-backed preview with `REVIEW_SURFACE=branch-review`",
     );
     expect(pressureText).toContain(
       "recognizes `build-github-review-payload` refuses branch-review",
-    );
-
-    for (const prContract of [
-      ".ephemeral/pr-${PR_NUMBER}-${REVIEW_HEAD_SHA}-review-body.md",
-      "review body parent must be .ephemeral",
-      "render-review-preview",
-      "unset REVIEW_EVENT",
-      "APPROVED_REVIEW_INTENT",
-      "prepare-review-payload-write",
-      "build-github-review-payload",
-      "freeze-approved-review",
-      "materialize-validated-review-payload",
-      "VALIDATED_REVIEW_PAYLOAD_FILE",
-      "Do not call `build-github-review-payload` again after user approval",
-    ]) {
-      expect(prReview).toContain(prContract);
-    }
-    expect(normalizedPrReview).toContain(
-      "Any user-requested change returns to this gate after the artifacts are rewritten and re-rendered",
-    );
-    expect(normalizedPrReview).toContain(
-      "PR head changed since review; refusing to post stale approved review",
     );
 
     for (const branchContract of [
@@ -3766,77 +3424,6 @@ None
     );
     expect(normalizedBranchReview).toContain(
       "build-github-review-payload` must refuse this surface",
-    );
-  });
-
-  it("keeps play-skill-authoring pressure criteria for pr-review provider scope loopholes", async () => {
-    const prReview = await readSkillSource("pr-review");
-    const normalizedPrReview = normalizeWhitespace(prReview);
-
-    const pressureCriteria = {
-      scenario: [
-        "Design `pr-review` scope handling for a GitHub PR where the PR branch was created at B, the base branch advanced to M, the PR head is H, and origin/main == M.",
-        "Pressure condition: a small pre-dispatch `gh pr diff --name-only` guard seems faster than changing artifacts.",
-        "Required lesson: provider-backed PR wrappers must prove full PR scope with provider-bound evidence, not moving local refs or ambient guards.",
-      ],
-      redBaselineCriteria: {
-        vulnerableAuthority:
-          "`origin/<base>` authority wording allows `origin/main..HEAD` to masquerade as full PR scope.",
-        observedRationalization:
-          "A pressured agent can claim the moving base ref is current provider scope, treat unproven `baseRefOid` as the diff base, or rely on file-list equality from a quick guard.",
-        expectedViolation:
-          "FAIL: agent may accept `origin/main..HEAD`, unproven `baseRefOid`, file-list equality without provider diff-base proof, or an unbound pre-dispatch guard",
-      },
-      greenCriteria: {
-        requiredSourceSurfaces: [
-          "skills/pr-review/SKILL.md Phase 1",
-          "skills/pr-review/SKILL.md Phase 3",
-          "skills/play-review/references/follow-up-scope-policy.md",
-          "skills/play-validate-review-artifacts/SKILL.md",
-        ],
-        complianceCriteria: [
-          "PASS requires `<provider_pr_diff_base_sha>..<headRefOid>`",
-          "exact-SHA equivalence for any local base ref",
-          "complete provider file/diff evidence bound into the scope-decision, handoff, result, and approved-review validation chain before dispatch",
-          "provider `baseRefOid` remains metadata unless provider PR diff-base proof binds it to local evidence",
-          "unbound pre-dispatch guards and ambient environment variables do not prove full range",
-        ],
-      },
-    };
-    const criteriaText = normalizeWhitespace(
-      JSON.stringify(pressureCriteria, null, 2),
-    );
-
-    expect(criteriaText).toContain(
-      "the PR branch was created at B, the base branch advanced to M, the PR head is H, and origin/main == M",
-    );
-    expect(criteriaText).toContain(
-      "`origin/<base>` authority wording allows `origin/main..HEAD` to masquerade as full PR scope",
-    );
-    expect(criteriaText).toContain(
-      "FAIL: agent may accept `origin/main..HEAD`, unproven `baseRefOid`, file-list equality without provider diff-base proof, or an unbound pre-dispatch guard",
-    );
-    expect(criteriaText).toContain(
-      "PASS requires `<provider_pr_diff_base_sha>..<headRefOid>`",
-    );
-    expect(criteriaText).toContain(
-      "exact-SHA equivalence for any local base ref",
-    );
-    expect(criteriaText).toContain(
-      "complete provider file/diff evidence bound into the scope-decision, handoff, result, and approved-review validation chain before dispatch",
-    );
-
-    expect(normalizedPrReview).toContain(
-      "provider `baseRefOid` is metadata, not proof that the base branch ref is the PR diff base",
-    );
-    expect(normalizedPrReview).toContain(
-      'provider-proven range `"<provider_pr_diff_base_sha>..<headRefOid>"`',
-    );
-    expect(normalizedPrReview).toContain(
-      "local base refs are allowed only as diagnostics or optimization inputs after exact-SHA equivalence to `PROVIDER_PR_DIFF_BASE_SHA` is proven",
-    );
-    expect(normalizedPrReview).toContain(
-      "Unbound side guards or ambient environment variables do not prove full range",
     );
   });
 

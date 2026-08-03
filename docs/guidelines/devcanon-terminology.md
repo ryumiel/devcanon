@@ -54,7 +54,8 @@ aliases, and deprecated or forbidden synonyms.
 - **Owner:** `skills/pr-review/scripts/approved-review-artifacts.sh`.
 - **Protocol identifier:** `pr-review/approved-review/v1`.
 - **Allowed display aliases:** approved review; frozen approved review.
-- **Deprecated or forbidden synonyms:** approval manifest; approved payload.
+- **Deprecated or forbidden synonyms:** approval manifest; review approval
+  record.
 
 ### Phase 5 user gate
 

@@ -1,9 +1,9 @@
 # Implementation Proportionality
 
-Implementation hardening is proportional to the guarantees named by the
-owning issue, specification, or operating model. Address the ordinary failure
-classes that can violate those named guarantees; keep the change at the
-smallest owner boundary that proves the requirement.
+Implementation hardening is proportional to the guarantees and ordinary
+failure classes explicitly named by the owning issue, specification, or
+operating model. Keep the change at the smallest owner boundary that proves
+the requirement.
 
 Do not introduce a generalized hostile-writer, custody, proof, signal,
 subprocess, TOCTOU/ABA, or exhaustive-race framework unless a separately
