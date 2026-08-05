@@ -3326,7 +3326,8 @@ None
     expect(prReview).toContain("scripts/approved-review-artifacts.sh");
     expect(prReview).toContain("render-review-preview");
     expect(prReview).toContain("build-github-review-payload");
-    expect(prReview).toContain("prepare-review-payload-write");
+    expect(prReview).toContain("materialize-review-payload");
+    expect(prReview).not.toContain("prepare-review-payload-write");
     expect(prReview).toContain("freeze-approved-review");
     expect(prReview).toContain("pr-review/approved-review/v1");
     expect(prReview).toContain('REVIEW_SURFACE="pr-review"');
@@ -3766,5 +3767,46 @@ None
     expect(adr0014).not.toContain(
       "The threshold is a single literal in two prompts",
     );
+  });
+  it("uses deterministic Phase 5 and Phase 6 PR-review artifact commands in order", async () => {
+    const prReview = await readSkillSource("pr-review");
+    const phase5 = getMarkdownSection(prReview, "Phase 5: Present (USER GATE)");
+    const phase6 = getMarkdownSection(prReview, "Phase 6: Post");
+
+    expect(phase5).toContain("read-result-for-preview");
+    expect(phase5).toContain("write-review-body");
+    expect(phase5.match(/write-review-body/g)?.length).toBeGreaterThanOrEqual(
+      3,
+    );
+    expect(phase5).not.toContain("validate-result >/dev/null");
+    expect(phase5).not.toContain("RESULT_JSON=$(mktemp)");
+    expect(phase5).not.toContain('cp "$REVIEW_RESULT_FILE" "$RESULT_JSON"');
+    expect(phase5).not.toContain("review body path validation failed");
+    expect(phase5).not.toContain('> "$REVIEW_BODY_FILE"');
+
+    expect(phase6).toContain("materialize-review-payload");
+    expect(phase6).not.toContain("prepare-review-payload-write");
+    expect(phase6).not.toContain(
+      'build-github-review-payload > "$REVIEW_PAYLOAD_FILE"',
+    );
+    expect(phase6).not.toContain("validate-approved-review");
+    const phase6Steps = [
+      "Only after user approval",
+      "APPROVED_REVIEW_INTENT",
+      "materialize-review-payload",
+      "freeze-approved-review",
+      "refusing to post stale approved review",
+      "materialize-validated-review-payload",
+      "gh api repos/{owner}/{repo}/pulls/<N>/reviews",
+    ];
+    let previousIndex = -1;
+    for (const step of phase6Steps) {
+      const index = phase6.indexOf(step, previousIndex + 1);
+      expect(
+        index,
+        `missing or out-of-order Phase 6 step: ${step}`,
+      ).toBeGreaterThan(previousIndex);
+      previousIndex = index;
+    }
   });
 });
