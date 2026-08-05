@@ -175,6 +175,7 @@ export async function doctorAction(
         const agents = await loadAndValidateAgents(
           config.library.agentsDir,
           skills,
+          { codexEnabled: config.targets.codex.enabled },
         );
         results.push({
           name: "agents-valid",

@@ -321,6 +321,12 @@ live parent or runtime configuration inheritance.
 - unknown target-specific fields are warnings in normal mode and errors in
   strict mode
 
+When the Codex target is enabled, custom agents named `default`, `worker`, or
+`explorer` shadow current Codex built-in agents. Validation emits an advisory
+warning for each shadowed built-in because the custom agent takes precedence.
+Deliberate overrides remain valid, including in strict mode; disable Codex to
+omit these target-specific warnings.
+
 ---
 
 ## See also

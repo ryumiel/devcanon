@@ -63,6 +63,7 @@ export async function validateAction(
 
   const agents = await loadAndValidateAgents(config.library.agentsDir, skills, {
     strict,
+    codexEnabled: config.targets.codex.enabled,
   }).catch((error: unknown) => {
     printSkillWarnings();
     throw error;

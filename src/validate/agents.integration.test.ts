@@ -207,6 +207,51 @@ describe("loadAndValidateAgents", () => {
     );
   });
 
+  it("warns in built-in order when custom agents shadow Codex built-ins", async () => {
+    for (const name of ["worker", "default", "explorer", "custom-agent"]) {
+      await createAgentFixture(agentsDir, name, makeAgentYaml(name));
+    }
+
+    await expect(
+      loadAndValidateAgents(agentsDir, noSkills, {
+        codexEnabled: true,
+      }),
+    ).resolves.toHaveLength(4);
+
+    expect(testLogger.warnings).toEqual([
+      'Warning: custom agent "default" shadows the Codex built-in agent "default"; the custom agent takes precedence. Deliberate overrides are valid.',
+      'Warning: custom agent "worker" shadows the Codex built-in agent "worker"; the custom agent takes precedence. Deliberate overrides are valid.',
+      'Warning: custom agent "explorer" shadows the Codex built-in agent "explorer"; the custom agent takes precedence. Deliberate overrides are valid.',
+    ]);
+  });
+
+  it("does not warn about built-in agent names when Codex is disabled", async () => {
+    await createAgentFixture(agentsDir, "default", makeAgentYaml("default"));
+
+    await expect(
+      loadAndValidateAgents(agentsDir, noSkills, {
+        codexEnabled: false,
+      }),
+    ).resolves.toHaveLength(1);
+
+    expect(testLogger.warnings).toEqual([]);
+  });
+
+  it("keeps Codex built-in shadowing advisory in strict mode", async () => {
+    await createAgentFixture(agentsDir, "worker", makeAgentYaml("worker"));
+
+    await expect(
+      loadAndValidateAgents(agentsDir, noSkills, {
+        strict: true,
+        codexEnabled: true,
+      }),
+    ).resolves.toHaveLength(1);
+
+    expect(testLogger.warnings).toEqual([
+      'Warning: custom agent "worker" shadows the Codex built-in agent "worker"; the custom agent takes precedence. Deliberate overrides are valid.',
+    ]);
+  });
+
   it("throws UserError for unknown field in strict mode", async () => {
     const yaml = `${makeAgentYaml("strict-agent")}\nextra_field: surprise`;
     await createAgentFixture(agentsDir, "strict-agent", yaml);
