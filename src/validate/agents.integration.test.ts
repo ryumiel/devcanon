@@ -237,6 +237,32 @@ describe("loadAndValidateAgents", () => {
     expect(testLogger.warnings).toEqual([]);
   });
 
+  it("defaults direct agent validation to Codex-enabled warnings", async () => {
+    await createAgentFixture(agentsDir, "worker", makeAgentYaml("worker"));
+
+    await expect(
+      loadAndValidateAgents(agentsDir, noSkills),
+    ).resolves.toHaveLength(1);
+
+    expect(testLogger.warnings).toEqual([
+      'Warning: custom agent "worker" shadows the Codex built-in agent "worker"; the custom agent takes precedence. Deliberate overrides are valid.',
+    ]);
+  });
+
+  it("does not warn for an invalid shadowing agent", async () => {
+    await createAgentFixture(
+      agentsDir,
+      "worker",
+      makeAgentYaml("worker", { description: "uses <tool>" }),
+    );
+
+    await expect(
+      loadAndValidateAgents(agentsDir, noSkills),
+    ).rejects.toBeInstanceOf(UserError);
+
+    expect(testLogger.warnings).toEqual([]);
+  });
+
   it("keeps Codex built-in shadowing advisory in strict mode", async () => {
     await createAgentFixture(agentsDir, "worker", makeAgentYaml("worker"));
 
