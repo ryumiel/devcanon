@@ -68,6 +68,7 @@ export async function renderAll(
   const skills = await loadAndValidateSkills(config.library.skillsDir);
   const agents = await loadAndValidateAgents(config.library.agentsDir, skills, {
     strict,
+    codexEnabled: config.targets.codex.enabled,
   });
 
   return renderLoadedInternal({

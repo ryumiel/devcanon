@@ -15,6 +15,13 @@ import { UserError } from "../utils/errors.js";
 import { pathExists, readTextFile } from "../utils/fs.js";
 import { getLogger } from "../utils/output.js";
 
+const CODEX_BUILT_IN_AGENT_NAMES = ["default", "worker", "explorer"];
+
+interface LoadAndValidateAgentsOptions {
+  strict?: boolean;
+  codexEnabled?: boolean;
+}
+
 function collectUnknownFields(
   value: Record<string, unknown>,
   knownKeys: readonly string[],
@@ -50,10 +57,12 @@ function formatZodIssue(issue: ZodIssue): string {
 export async function loadAndValidateAgents(
   agentsDir: string,
   skills: LoadedSkill[],
-  options: boolean | { strict?: boolean } = false,
+  options: boolean | LoadAndValidateAgentsOptions = false,
 ): Promise<LoadedAgent[]> {
   const strict =
     typeof options === "boolean" ? options : (options.strict ?? false);
+  const codexEnabled =
+    typeof options === "boolean" ? true : (options.codexEnabled ?? true);
   if (!(await pathExists(agentsDir))) {
     return [];
   }
@@ -186,6 +195,15 @@ export async function loadAndValidateAgents(
       `Agent validation failed:\n  ${errors.join("\n  ")}`,
       agentsDir,
     );
+  }
+
+  if (codexEnabled) {
+    for (const builtInName of CODEX_BUILT_IN_AGENT_NAMES) {
+      if (!names.has(builtInName)) continue;
+      getLogger().warn(
+        `Warning: custom agent "${builtInName}" shadows the Codex built-in agent "${builtInName}"; the custom agent takes precedence. Deliberate overrides are valid.`,
+      );
+    }
   }
 
   return agents;
