@@ -219,19 +219,19 @@ For each open batch item:
    binding selects a different map entry and never clears an earlier one. This
    controller-local replay state is not a generalized event store or new
    persistence system.
-7. Before remaining gate classification, validate any unfinished non-gate
-   progress receipt against the current item. Require a positive, strictly
-   increasing per-route progress sequence and record the highest accepted
-   sequence in the matching exact-route map entry, separately from approval and
-   gate-report keys, before continuing the same owner route. If that record
-   cannot be retained, fail closed to waiting or manual action; only after it
-   succeeds may the router consume the verified new receipt by continuing.
-   Verify that the receipt matches `current_approved_owner_route_identity` and
-   `current_reviewed_plan_handoff_provenance`. When a branch or PR exists, the
+7. Before remaining gate classification, validate every unfinished non-gate
+   progress receipt fact against the current item: exact approved route
+   (`current_approved_owner_route_identity`), reviewed-plan provenance
+   (`current_reviewed_plan_handoff_provenance`), current head when required (the
    receipt must carry the current head SHA and it must match the refreshed
-   controller-held head. A missing current binding, missing required head, or
-   stale route/provenance/head mismatch fails closed to waiting or manual action. A
-   receipt A at sequence 1, receipt B at sequence 33, then receipt A again at
+   controller-held head), and unfinished non-gate evidence. A missing current binding, missing required head, or stale
+   route/provenance/head mismatch fails closed to waiting or manual action.
+   Only after those checks pass, require a positive, strictly increasing
+   per-route progress sequence and record the highest accepted sequence in the
+   matching exact-route map entry, separately from approval and gate-report
+   keys, before continuing the same owner route. If that record cannot be
+   retained, fail closed to waiting or manual action; only after it succeeds may
+   the router consume the verified new receipt by continuing. A receipt A at sequence 1, receipt B at sequence 33, then receipt A again at
    sequence 1 is older than A's retained map entry and is a repeat: do not
    continue the route again or update any approval key. Missing, repeated,
    non-positive, or non-increasing progress sequences fail closed; route
@@ -417,11 +417,11 @@ resend rather than approving.
 
 ## Unfinished Non-Gate Progress Receipts
 
-After the router records the receipt's accepted sequence, an exact approved
-owner route continues when an unfinished non-gate progress receipt verifies the
-same source provider, source issue identifier, owner thread ID, and exact
-approved route identity already held by the controller. The receipt must also
-provide evidence that the work is unfinished and is non-gate continuation under
+After the router verifies every receipt fact and records its accepted sequence,
+an exact approved owner route continues when an unfinished non-gate progress
+receipt verifies the same source provider, source issue identifier, owner thread
+ID, and exact approved route identity already held by the controller. The
+receipt must also provide evidence that the work is unfinished and is non-gate continuation under
 the canonical `issue-priming-workflow` auto-route boundary. When the route has a branch or PR, its receipt must carry
 the refreshed current head SHA; a missing or mismatched head is stale and cannot
 continue the route.

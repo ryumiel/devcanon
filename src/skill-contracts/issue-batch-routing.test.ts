@@ -634,7 +634,7 @@ describe("issue-batch-routing skill contract", () => {
     );
 
     expect(router).toContain(
-      "After the router records the receipt's accepted sequence, an exact approved owner route continues when an unfinished non-gate progress receipt verifies the same source provider, source issue identifier, owner thread ID, and exact approved route identity already held by the controller",
+      "After the router verifies every receipt fact and records its accepted sequence, an exact approved owner route continues when an unfinished non-gate progress receipt verifies the same source provider, source issue identifier, owner thread ID, and exact approved route identity already held by the controller",
     );
     expect(router).toContain(
       "The receipt must also provide evidence that the work is unfinished and is non-gate continuation under the canonical `issue-priming-workflow` auto-route boundary",
@@ -664,7 +664,7 @@ describe("issue-batch-routing skill contract", () => {
       "the receipt cannot establish or self-authenticate that binding",
     );
     expect(monitorLoop).toContain(
-      "Before remaining gate classification, validate any unfinished non-gate progress receipt against the current item",
+      "Before remaining gate classification, validate every unfinished non-gate progress receipt fact against the current item",
     );
     expect(monitorLoop).toContain(
       "Apply the canonical `issue-priming-workflow` genuine-gate classification while preserving the router's PR, source-issue, publication, and terminal precedence before any non-gate receipt continuation",
@@ -685,13 +685,22 @@ describe("issue-batch-routing skill contract", () => {
       "A receipt must not initialize, refresh, authenticate, or validate either current binding",
     );
     expect(monitorLoop).toContain(
-      "record the highest accepted sequence in the matching exact-route map entry, separately from approval and gate-report keys, before continuing the same owner route",
+      "Only after those checks pass, require a positive, strictly increasing per-route progress sequence and record the highest accepted sequence in the matching exact-route map entry",
     );
     expect(monitorLoop).toContain(
-      "Verify that the receipt matches `current_approved_owner_route_identity` and `current_reviewed_plan_handoff_provenance`",
+      "exact approved route (`current_approved_owner_route_identity`), reviewed-plan provenance (`current_reviewed_plan_handoff_provenance`)",
     );
     expect(monitorLoop).toContain(
       "A missing current binding, missing required head, or stale route/provenance/head mismatch fails closed to waiting or manual action",
+    );
+    expect(
+      monitorLoop.indexOf(
+        "validate every unfinished non-gate progress receipt fact against the current item",
+      ),
+    ).toBeLessThan(
+      monitorLoop.indexOf(
+        "Only after those checks pass, require a positive, strictly increasing per-route progress sequence",
+      ),
     );
     expect(monitorLoop).toContain(
       "Stale gate evidence remains a gate and cannot be bypassed by a receipt",
@@ -702,7 +711,7 @@ describe("issue-batch-routing skill contract", () => {
       ),
     ).toBeLessThan(
       monitorLoop.indexOf(
-        "Before remaining gate classification, validate any unfinished non-gate progress receipt against the current item",
+        "Before remaining gate classification, validate every unfinished non-gate progress receipt fact against the current item",
       ),
     );
     expect(monitorLoop).toContain(
