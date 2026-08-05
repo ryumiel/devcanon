@@ -96,12 +96,14 @@ matching approval evidence is present. Report-only waiting state uses
 For receipt validation, the router holds the approved-route facts from the
 controller's approval, validated initial owner-handoff report, and resumed-route
 state: source provider, source issue identifier, owner thread ID, exact
-approved route identity, reviewed plan digest, auto-handoff identity, and the
-current head SHA when a branch or PR exists. The auto-handoff identity is
+approved route identity, reviewed plan digest, auto-handoff identity, refreshed
+source-issue state snapshot digest, and the current head SHA when a branch or
+PR exists. The auto-handoff identity is
 non-authorizing provenance, not an approval or a receipt-derived authority. The
 router records the initial owner-handoff facts before any receipt only when the
 report comes from the recorded owner thread, matches the current source provider
-and issue, and carries the controller-validated route tuple. A receipt cannot
+and issue, and carries the controller-validated route tuple and refreshed
+source-issue state snapshot digest. A receipt cannot
 initialize, refresh, authenticate, or validate those facts. These are
 controller-local facts, not a new receipt artifact, ledger schema, or
 persistence system.
@@ -109,8 +111,9 @@ persistence system.
 `current_approved_owner_route_identity` is the controller-local deterministic
 identity of the current issue-authority approval binding: source provider,
 source issue identifier, owner thread ID, current issue-authority approval
-identity, reviewed plan digest, auto-handoff identity, and current head SHA
-when a branch or PR exists. The router derives and records it from those
+identity, reviewed plan digest, auto-handoff identity, refreshed source-issue
+state snapshot digest, and current head SHA when a branch or PR exists. The
+router derives and records it from those
 controller-held facts before accepting a receipt; a change to any component
 creates a new exact route identity. It is not an opaque value supplied by a
 receipt or owner report. The current issue-authority
@@ -208,7 +211,8 @@ For each open batch item:
 6. At initial approval, validated initial owner handoff, and on a resumed route,
    use the router's existing controller-held approved-route facts to derive and
    record `current_approved_owner_route_identity`, including the refreshed
-   current head SHA whenever a branch or PR exists. Record
+   source-issue state snapshot digest and current head SHA whenever a branch or
+   PR exists. Record
    `current_reviewed_plan_handoff_provenance` from the reviewed plan digest and
    non-authorizing auto-handoff identity. Only the router records or refreshes
    these bindings from those controller-held facts. A receipt must not
@@ -218,20 +222,27 @@ For each open batch item:
    observed during this task's bounded controller lifetime; a changed current
    binding selects a different map entry and never clears an earlier one. This
    controller-local replay state is not a generalized event store or new
-   persistence system.
+   persistence system. Before the first receipt on an exact route, the
+   controller's continuation dispatch acknowledges that route's initial
+   required positive sequence to the same owner.
 7. Before remaining gate classification, validate every unfinished non-gate
    progress receipt fact against the current item: exact approved route
    (`current_approved_owner_route_identity`), reviewed-plan provenance
-   (`current_reviewed_plan_handoff_provenance`), current head when required (the
-   receipt must carry the current head SHA and it must match the refreshed
-   controller-held head), and unfinished non-gate evidence. A missing current binding, missing required head, or stale
-   route/provenance/head mismatch fails closed to waiting or manual action.
+   (`current_reviewed_plan_handoff_provenance`), refreshed source-issue state
+   snapshot digest, current head when required (the receipt must carry the
+   current head SHA and it must match the refreshed controller-held head), and
+   unfinished non-gate evidence. A missing current binding, missing required
+   source-state digest or head, or stale route/provenance/source-state/head
+   mismatch fails closed to waiting or manual action.
    Only after those checks pass, require a positive, strictly increasing
    per-route progress sequence and record the highest accepted sequence in the
    matching exact-route map entry, separately from approval and gate-report
-   keys, before continuing the same owner route. If that record cannot be
-   retained, fail closed to waiting or manual action; only after it succeeds may
-   the router consume the verified new receipt by continuing. A receipt A at sequence 1, receipt B at sequence 33, then receipt A again at
+   keys, before continuing the same owner route. The continuation dispatch
+   acknowledges that route's next required sequence to the same owner; the
+   producer must use that acknowledged value rather than infer sequence state
+   from a resumed or compacted thread. If that record or acknowledgement cannot
+   be retained, fail closed to waiting or manual action; only after it succeeds
+   may the router consume the verified new receipt by continuing. A receipt A at sequence 1, receipt B at sequence 33, then receipt A again at
    sequence 1 is older than A's retained map entry and is a repeat: do not
    continue the route again or update any approval key. Missing, repeated,
    non-positive, or non-increasing progress sequences fail closed; route

@@ -1560,6 +1560,12 @@ describe("play subagent routing source contracts", () => {
     expect(progressReceipts).toContain(
       "the receipt cannot establish or self-authenticate that binding",
     );
+    expect(progressReceipts).toContain(
+      "Before the first receipt and after every accepted receipt, the controller's continuation dispatch supplies the route's acknowledged next required sequence",
+    );
+    expect(progressReceipts).toContain(
+      "Missing or mismatched source-state evidence is likewise stale",
+    );
     expect(gateReports).not.toContain("Unfinished Non-Gate Progress Receipts");
     expect(gateReports).toContain("initial owner-handoff report");
     expect(gateReports).toContain(
@@ -1570,6 +1576,12 @@ describe("play subagent routing source contracts", () => {
     );
     expect(gateReports).toContain(
       "Missing or changed paired batch context must wait or report rather than emit an owner-handoff",
+    );
+    expect(gateReports).toContain(
+      "batch-routed reports must use the unchanged canonical `payload.batch-source-issue-identifier` rather than `payload.identifier`",
+    );
+    expect(gateReports).toContain(
+      "refreshed source-issue state snapshot digest and current head SHA whenever a branch or PR exists",
     );
     for (const gateOnlyRequirement of [
       "gate kind",

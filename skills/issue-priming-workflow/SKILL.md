@@ -1027,7 +1027,9 @@ owner-handoff report after the Phase 6 route validation. This is an existing
 controller report with report kind `owner-handoff`, not a receipt or a gate
 report. It carries the source provider and issue identifier, delegated owner
 thread identity, exact approved route identity, current issue-authority
-validation, reviewed plan digest, and non-authorizing auto-handoff identity.
+validation, reviewed plan digest, non-authorizing auto-handoff identity, and
+the refreshed source-issue state snapshot digest and current head SHA whenever
+a branch or PR exists.
 For batch-routed handoffs, it reports the received canonical
 `batch-source-issue-identifier`, not the provider-native payload identifier.
 It also echoes the complete `issue-priming` route key received as
@@ -1038,8 +1040,10 @@ records these controller-held facts before it consumes a receipt; a later
 receipt cannot initialize or authenticate them.
 
 Every gate report should include the source provider and source issue identifier
-from the payload, delegated owner-thread identity when known, branch name when
-known, PR provider and identifier when known, head SHA when known, gate kind,
+from the payload, except batch-routed reports must use the unchanged canonical
+`payload.batch-source-issue-identifier` rather than `payload.identifier`,
+delegated owner-thread identity when known, branch name when known, PR provider
+and identifier when known, head SHA when known, gate kind,
 the relevant complete route key when known or applicable, blocking evidence,
 requested parent action, source-specific side effects requested, and the next
 safe command or workflow. Reports missing or unable to produce the relevant
@@ -1063,13 +1067,21 @@ a producer emit a receipt. An unfinished non-gate progress receipt must identify
 approved owner route, the source provider and source issue identifier, the
 delegated owner-thread identity, and the current reviewed-plan handoff
 provenance. It must also carry a positive, strictly increasing per-route
-progress sequence. It must provide evidence that the named non-gate work remains
-unfinished and stays within that route's current issue authority. Include the
-current route identity already held by the controller and the branch, PR, and
-head facts when known so the router can match the receipt to the existing owner
-route. When a branch or PR exists, include its refreshed current head SHA;
+progress sequence. Before the first receipt and after every accepted receipt,
+the controller's continuation dispatch supplies the route's acknowledged next
+required sequence; use that value and never infer it from resumed or compacted
+owner-thread state. Missing acknowledgement must use the incomplete or gate path
+rather than emitting a receipt. It must provide evidence
+that the named non-gate work remains unfinished and stays within that route's
+current issue authority. Include the current route identity already held by the
+controller and the branch, PR, and head facts when known, plus the refreshed
+source-issue state snapshot digest, so the router can match the receipt to the
+existing owner route. When a branch or PR exists, include its refreshed current
+head SHA;
 missing or mismatched head evidence is stale and must use the incomplete or
 gate path; the receipt cannot establish or self-authenticate that binding.
+Missing or mismatched source-state evidence is likewise stale and must use the
+incomplete or gate path.
 For a batch-routed handoff, the receipt's source issue identifier must be the
 unchanged `payload.batch-source-issue-identifier`; never substitute the
 provider-native `payload.identifier`. Missing or changed paired batch context

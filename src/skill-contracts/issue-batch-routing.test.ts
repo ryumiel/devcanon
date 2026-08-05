@@ -655,6 +655,12 @@ describe("issue-batch-routing skill contract", () => {
       "It must provide evidence that the named non-gate work remains unfinished and stays within that route's current issue authority",
     );
     expect(producer).toContain(
+      "Before the first receipt and after every accepted receipt, the controller's continuation dispatch supplies the route's acknowledged next required sequence",
+    );
+    expect(producer).toContain(
+      "never infer it from resumed or compacted owner-thread state",
+    );
+    expect(producer).toContain(
       "Before initial continuation, the controller records the current route binding from its existing approved-route facts",
     );
     expect(producer).toContain(
@@ -691,7 +697,16 @@ describe("issue-batch-routing skill contract", () => {
       "exact approved route (`current_approved_owner_route_identity`), reviewed-plan provenance (`current_reviewed_plan_handoff_provenance`)",
     );
     expect(monitorLoop).toContain(
-      "A missing current binding, missing required head, or stale route/provenance/head mismatch fails closed to waiting or manual action",
+      "refreshed source-issue state snapshot digest",
+    );
+    expect(monitorLoop).toContain(
+      "A missing current binding, missing required source-state digest or head, or stale route/provenance/source-state/head mismatch fails closed to waiting or manual action",
+    );
+    expect(monitorLoop).toContain(
+      "The continuation dispatch acknowledges that route's next required sequence to the same owner",
+    );
+    expect(monitorLoop).toContain(
+      "Before the first receipt on an exact route, the controller's continuation dispatch acknowledges that route's initial required positive sequence",
     );
     expect(
       monitorLoop.indexOf(
@@ -736,7 +751,7 @@ describe("issue-batch-routing skill contract", () => {
       "Current reviewed-plan handoff provenance required to validate progress receipts",
     );
     expect(controllerHeldFacts).toContain(
-      "source provider, source issue identifier, owner thread ID, exact approved route identity, reviewed plan digest, auto-handoff identity, and the current head SHA when a branch or PR exists",
+      "source provider, source issue identifier, owner thread ID, exact approved route identity, reviewed plan digest, auto-handoff identity, refreshed source-issue state snapshot digest, and the current head SHA when a branch or PR exists",
     );
     expect(controllerHeldFacts).toContain(
       "validated initial owner-handoff report",
@@ -763,13 +778,13 @@ describe("issue-batch-routing skill contract", () => {
       "must not derive, replace, or shorten the canonical source issue identifier",
     );
     expect(monitorLoop).toContain(
-      "including the refreshed current head SHA whenever a branch or PR exists",
+      "including the refreshed source-issue state snapshot digest and current head SHA whenever a branch or PR exists",
     );
     expect(monitorLoop).toContain(
       "receipt must carry the current head SHA and it must match the refreshed controller-held head",
     );
     expect(controllerHeldFacts).toContain(
-      "report comes from the recorded owner thread, matches the current source provider and issue, and carries the controller-validated route tuple",
+      "report comes from the recorded owner thread, matches the current source provider and issue, and carries the controller-validated route tuple and refreshed source-issue state snapshot digest",
     );
     expect(monitorLoop).toContain(
       "integrate any owner-thread gate report or validated initial owner-handoff report",
@@ -779,6 +794,9 @@ describe("issue-batch-routing skill contract", () => {
     );
     expect(producer).toContain(
       "the receipt's source issue identifier must be the unchanged `payload.batch-source-issue-identifier`; never substitute the provider-native `payload.identifier`",
+    );
+    expect(producer).toContain(
+      "Missing or mismatched source-state evidence is likewise stale",
     );
     expect(producer).toContain(
       "Missing or changed paired batch context must use the incomplete or gate path rather than emitting a receipt",
@@ -801,6 +819,20 @@ describe("issue-batch-routing skill contract", () => {
       ),
     ).toContain(
       "Missing or changed paired batch context must wait or report rather than emit an owner-handoff",
+    );
+    expect(
+      normalizeWhitespace(
+        getMarkdownSection(issuePriming, "Issue Batch Routing Reports"),
+      ),
+    ).toContain(
+      "batch-routed reports must use the unchanged canonical `payload.batch-source-issue-identifier` rather than `payload.identifier`",
+    );
+    expect(
+      normalizeWhitespace(
+        getMarkdownSection(issuePriming, "Issue Batch Routing Reports"),
+      ),
+    ).toContain(
+      "refreshed source-issue state snapshot digest and current head SHA whenever a branch or PR exists",
     );
     for (const entrypoint of [github, linear]) {
       expect(entrypoint).toContain("batch-source-issue-identifier");
