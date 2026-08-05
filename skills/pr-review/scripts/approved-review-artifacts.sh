@@ -607,20 +607,22 @@ materialize_review_payload() {
   validate_pr_number
   require_env FINDINGS_FILE
   require_env REVIEW_BODY_FILE
+  require_env REVIEW_SURFACE
   require_env REVIEW_EVENT
   validate_findings_path_shape "$FINDINGS_FILE" "$HEAD_SHA"
   validate_review_body_path_shape "$REVIEW_BODY_FILE" "$HEAD_SHA"
-  validate_review_event
   review_payload_file="$(prepare_review_payload_write)"
   play_review_helper="$(resolve_play_review_helper)"
   tmp_file="$(mktemp ".ephemeral/.review-payload-${HEAD_SHA}.XXXXXX")"
   trap 'rm -f "${tmp_file:-}"' EXIT
   HEAD_SHA="$HEAD_SHA" \
   FINDINGS_FILE="$FINDINGS_FILE" \
-  REVIEW_SURFACE="pr-review" \
+  REVIEW_SURFACE="$REVIEW_SURFACE" \
   REVIEW_BODY_FILE="$REVIEW_BODY_FILE" \
   REVIEW_EVENT="$REVIEW_EVENT" \
     bash "$play_review_helper" build-github-review-payload > "$tmp_file"
+  assert_single_json_object "review payload" "$tmp_file"
+  assert_payload_shape "$tmp_file" "$HEAD_SHA"
   mv -f "$tmp_file" "$review_payload_file"
   tmp_file=""
   printf '%s\n' "$review_payload_file"

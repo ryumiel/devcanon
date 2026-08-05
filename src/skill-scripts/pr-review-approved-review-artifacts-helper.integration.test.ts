@@ -420,12 +420,13 @@ describe.skipIf(!jqAvailable)(
         await writeInputs(cwd);
         const producer = await writePayloadProducer(
           cwd,
-          '{"commit_id":"producer-output"}',
+          JSON.stringify(payload()),
         );
 
         const { stdout } = await runHelper(cwd, "materialize-review-payload", {
           FINDINGS_FILE: findingsFile,
           REVIEW_BODY_FILE: reviewBodyFile,
+          REVIEW_SURFACE: "pr-review",
           REVIEW_EVENT: "COMMENT",
           PLAY_REVIEW_HELPER: producer,
         });
@@ -433,7 +434,7 @@ describe.skipIf(!jqAvailable)(
         expect(stdout).toBe(`${payloadFile}\n`);
         await expect(
           readFile(path.join(cwd, payloadFile), "utf8"),
-        ).resolves.toBe('{"commit_id":"producer-output"}');
+        ).resolves.toBe(JSON.stringify(payload()));
         await expect(
           readFile(
             path.join(cwd, ".ephemeral/payload-producer-args.txt"),
@@ -476,27 +477,80 @@ describe.skipIf(!jqAvailable)(
       }
     });
 
-    it("preserves an existing pre-freeze payload and removes temporary output when the producer fails", async () => {
+    it("passes caller surface and event to the producer without pre-validating them", async () => {
       const cwd = await makeGitWorkspace();
       try {
         await writeInputs(cwd);
         await writeFile(path.join(cwd, payloadFile), "existing payload\n");
-        const producer = await writePayloadProducer(cwd, "", "producer failed");
+        const producer = await writePayloadProducer(
+          cwd,
+          "",
+          "producer rejected caller inputs",
+        );
 
         await expect(
           runHelper(cwd, "materialize-review-payload", {
             FINDINGS_FILE: findingsFile,
             REVIEW_BODY_FILE: reviewBodyFile,
-            REVIEW_EVENT: "COMMENT",
+            REVIEW_SURFACE: "branch-review",
+            REVIEW_EVENT: "NOT_A_GITHUB_EVENT",
             PLAY_REVIEW_HELPER: producer,
           }),
         ).rejects.toMatchObject({
-          stderr: expect.stringContaining("producer failed"),
+          stderr: expect.stringContaining("producer rejected caller inputs"),
         });
+        await expect(
+          readFile(
+            path.join(cwd, ".ephemeral/payload-producer-surface.txt"),
+            "utf8",
+          ),
+        ).resolves.toBe("branch-review\n");
+        await expect(
+          readFile(
+            path.join(cwd, ".ephemeral/payload-producer-event.txt"),
+            "utf8",
+          ),
+        ).resolves.toBe("NOT_A_GITHUB_EVENT\n");
         await expect(
           readFile(path.join(cwd, payloadFile), "utf8"),
         ).resolves.toBe("existing payload\n");
         await expect(temporaryPayloadFiles(cwd)).resolves.toEqual([]);
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    });
+
+    it("preserves the existing payload and removes temp output when producer output is malformed or stale", async () => {
+      const cwd = await makeGitWorkspace();
+      try {
+        await writeInputs(cwd);
+
+        for (const [output, error] of [
+          ["not JSON", "review payload must contain exactly one JSON object"],
+          [
+            JSON.stringify(payload({ commit_id: staleHeadSha })),
+            "payload shape mismatch",
+          ],
+        ]) {
+          await writeFile(path.join(cwd, payloadFile), "existing payload\n");
+          const producer = await writePayloadProducer(cwd, output);
+
+          await expect(
+            runHelper(cwd, "materialize-review-payload", {
+              FINDINGS_FILE: findingsFile,
+              REVIEW_BODY_FILE: reviewBodyFile,
+              REVIEW_SURFACE: "pr-review",
+              REVIEW_EVENT: "COMMENT",
+              PLAY_REVIEW_HELPER: producer,
+            }),
+          ).rejects.toMatchObject({
+            stderr: expect.stringContaining(error),
+          });
+          await expect(
+            readFile(path.join(cwd, payloadFile), "utf8"),
+          ).resolves.toBe("existing payload\n");
+          await expect(temporaryPayloadFiles(cwd)).resolves.toEqual([]);
+        }
       } finally {
         await cleanupTempDir(cwd);
       }
@@ -515,6 +569,7 @@ describe.skipIf(!jqAvailable)(
             runHelper(cwd, "materialize-review-payload", {
               FINDINGS_FILE: findingsFile,
               REVIEW_BODY_FILE: reviewBodyFile,
+              REVIEW_SURFACE: "pr-review",
               REVIEW_EVENT: "COMMENT",
               PLAY_REVIEW_HELPER: producer,
               REVIEW_PAYLOAD_FILE:
@@ -534,6 +589,7 @@ describe.skipIf(!jqAvailable)(
             runHelper(cwd, "materialize-review-payload", {
               FINDINGS_FILE: findingsFile,
               REVIEW_BODY_FILE: reviewBodyFile,
+              REVIEW_SURFACE: "pr-review",
               REVIEW_EVENT: "COMMENT",
               PLAY_REVIEW_HELPER: producer,
               REVIEW_PAYLOAD_FILE: payloadFile,
@@ -557,7 +613,10 @@ describe.skipIf(!jqAvailable)(
       const cwd = await makeGitWorkspace();
       try {
         await writeInputs(cwd);
-        const producer = await writePayloadProducer(cwd, "producer output\n");
+        const producer = await writePayloadProducer(
+          cwd,
+          JSON.stringify(payload()),
+        );
         const validator = await writeRecordingSupportValidator(
           cwd,
           "approved validation must not run",
@@ -567,6 +626,7 @@ describe.skipIf(!jqAvailable)(
           runHelper(cwd, "materialize-review-payload", {
             FINDINGS_FILE: findingsFile,
             REVIEW_BODY_FILE: reviewBodyFile,
+            REVIEW_SURFACE: "pr-review",
             REVIEW_EVENT: "COMMENT",
             PLAY_REVIEW_HELPER: producer,
             PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT: validator,
