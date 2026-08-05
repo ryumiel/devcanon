@@ -75,6 +75,7 @@ interface ManifestWorkspace {
 afterEach(async () => {
   await commandHarness.endTest();
   vi.doUnmock("./pr-review-leases.js");
+  vi.doUnmock("./pr-review-result-validation.js");
   vi.resetModules();
 });
 
@@ -143,6 +144,55 @@ describe("pr-review Phase 5 audit summary renderer", () => {
     expect(outcome.exitCode).toBe(1);
     expect(outcome.stdout).toBe("");
     expect(outcome.stderr).toContain("review body digest mismatch");
+  });
+
+  it("projects the preview from validator-accepted result and handoff evidence", async () => {
+    const workspace = await makeManifestWorkspace(
+      "pr-review-preview-evidence-",
+    );
+    setSummaryEnv(workspace);
+    process.chdir(workspace.worktree);
+    const acceptedResult = JSON.parse(
+      await readFile(
+        path.join(workspace.worktree, workspace.resultFile),
+        "utf8",
+      ),
+    ) as Record<string, unknown>;
+    const acceptedHandoff = JSON.parse(
+      await readFile(
+        path.join(
+          workspace.worktree,
+          `.ephemeral/pr-432-${workspace.headSha}-handoff.json`,
+        ),
+        "utf8",
+      ),
+    ) as Record<string, unknown>;
+    await writeJson(workspace.worktree, workspace.resultFile, {
+      ...acceptedResult,
+      findings_file: ".ephemeral/replaced-findings.json",
+    });
+    await writeJson(
+      workspace.worktree,
+      `.ephemeral/pr-432-${workspace.headSha}-handoff.json`,
+      { ...acceptedHandoff, head_ref: "replaced-head" },
+    );
+    vi.doMock("./pr-review-result-validation.js", async (importOriginal) => ({
+      ...(await importOriginal<
+        typeof import("./pr-review-result-validation.js")
+      >()),
+      validatePrReviewResultCommandAuthority: vi.fn(async () => ({
+        result: acceptedResult,
+        handoff: acceptedHandoff,
+      })),
+    }));
+
+    const outcome = await runManifestCommand(["read-result-for-preview"]);
+
+    expect(outcome.exitCode, outcome.stderr).toBe(0);
+    expect(JSON.parse(outcome.stdout)).toMatchObject({
+      findings_file: workspace.findingsFile,
+      head_ref: "topic",
+    });
   });
 
   it("keeps POSIX single-letter roots as operational paths", async () => {

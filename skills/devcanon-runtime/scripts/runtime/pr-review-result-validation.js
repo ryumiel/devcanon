@@ -34,7 +34,7 @@ export async function validatePrReviewResultEvidence(input) {
     });
 }
 export async function validatePrReviewResultCommandAuthority(input) {
-    await withCwd(input.worktreeRoot, async () => {
+    return withCwd(input.worktreeRoot, async () => {
         const { result, handoff } = await validatePrReviewResultEvidence({
             worktreeRoot: input.worktreeRoot,
             resultFile: input.resultFile,
@@ -52,6 +52,7 @@ export async function validatePrReviewResultCommandAuthority(input) {
         const artifacts = objectField(result, "artifacts");
         const scopeDecisionFile = stringField(artifacts, "scope_decision_file");
         await validateScopeAuthority(scopeDecisionFile, await guardedScopeBaseRef(scopeDecisionFile), nullableStringField(artifacts, "prior_threads_file"), input);
+        return { result, handoff };
     });
 }
 async function validateHandoffFile(file, input, identityPath = file) {

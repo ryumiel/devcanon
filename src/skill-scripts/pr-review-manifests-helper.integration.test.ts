@@ -979,10 +979,44 @@ describe("pr-review manifest helper", () => {
               RESULT_FILE: resultPath(headSha),
             },
           ),
-        ).resolves.toEqual({ stdout: "", stderr: "" });
+        ).resolves.toEqual({
+          stdout: `${reviewBodyPath(headSha)}\n`,
+          stderr: "",
+        });
         await expect(
           readFile(path.join(cwd, reviewBodyPath(headSha)), "utf8"),
         ).resolves.toBe("# Replacement\n\nBody text.\n");
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    },
+  );
+
+  it.skipIf(isWindows)(
+    "derives, creates, and reports the canonical review body for an initial null target",
+    async () => {
+      const { cwd, baseSha, headSha } = await makeGitWorkspace();
+      try {
+        await writeValidInputs(cwd, baseSha, headSha);
+        await runHelper(
+          cwd,
+          "write-handoff",
+          handoffEnv(cwd, baseSha, headSha),
+        );
+        await runHelper(cwd, "write-result", resultEnv(headSha));
+
+        await expect(
+          runHelperWithStdin(cwd, "write-review-body", "Initial body.\n", {
+            HEAD_SHA: headSha,
+            RESULT_FILE: resultPath(headSha),
+          }),
+        ).resolves.toEqual({
+          stdout: `${reviewBodyPath(headSha)}\n`,
+          stderr: "",
+        });
+        await expect(
+          readFile(path.join(cwd, reviewBodyPath(headSha)), "utf8"),
+        ).resolves.toBe("Initial body.\n");
       } finally {
         await cleanupTempDir(cwd);
       }

@@ -87,8 +87,7 @@ export async function runPrReviewManifestsCommand(
         return ok(`${await readResultForPreview()}\n`);
       case "write-review-body":
         requireNoCommandArgs(commandName, args);
-        await writeReviewBody();
-        return ok("");
+        return ok(await writeReviewBody());
       case "render-phase5-audit-summary":
         return ok(`${await renderPhase5AuditSummary()}\n`);
       default:
@@ -320,14 +319,8 @@ async function validateResultCommand(): Promise<void> {
 async function readResultForPreview(): Promise<string> {
   requireEnv("REPOSITORY");
   const resultFile = requiredEnv("RESULT_FILE");
-  await validateResultFile(resultFile);
-
-  const result = await readJsonObject(resultFile, "result file");
+  const { result, handoff } = await validateResultFile(resultFile);
   const artifacts = objectField(result, "artifacts");
-  const handoff = await readJsonObject(
-    stringField(artifacts, "handoff_file"),
-    "handoff file",
-  );
 
   return json({
     schema: "pr-review/result-preview/v1",
@@ -345,24 +338,23 @@ async function readResultForPreview(): Promise<string> {
   });
 }
 
-async function writeReviewBody(): Promise<void> {
+async function writeReviewBody(): Promise<string> {
   requireEnv("REPOSITORY");
   const resultFile = requiredEnv("RESULT_FILE");
-  await validateResultFile(resultFile);
-
-  const result = await readJsonObject(resultFile, "result file");
+  const { result } = await validateResultFile(resultFile);
   const prNumber = readPrNumber();
   const headSha = readHeadSha();
-  const reviewBodyFile = nullableStringField(result, "review_body_file");
+  const reviewBodyFile =
+    nullableStringField(result, "review_body_file") ??
+    canonicalReviewBodyPath(prNumber, headSha);
   validateCanonicalReviewBodyPath(reviewBodyFile, prNumber, headSha);
-  if (reviewBodyFile === null) {
-    fail("result review body target is required");
-  }
-  await assertReadableFile("review body file", reviewBodyFile);
+  validateDirectChildPath("review body", reviewBodyFile, "-review-body.md");
+  await prepareWriteTarget("review body", reviewBodyFile);
 
   const markdown = await readMarkdownFromStdin();
-  await assertReadableFile("review body file", reviewBodyFile);
+  await prepareWriteTarget("review body", reviewBodyFile);
   await writeTextAtomically(path.join(process.cwd(), reviewBodyFile), markdown);
+  return `${reviewBodyFile}\n`;
 }
 
 async function readMarkdownFromStdin(): Promise<string> {
@@ -719,7 +711,7 @@ async function validateHandoffFile(file: string, identityFile = file) {
 }
 
 async function validateResultFile(file: string, identityFile = file) {
-  await validatePrReviewResultCommandAuthority(
+  return validatePrReviewResultCommandAuthority(
     readResultValidationInput(file, identityFile),
   );
 }
@@ -1934,6 +1926,10 @@ function validateCanonicalReviewBodyPath(
   ) {
     fail(`review body path mismatch: ${reviewBodyFile}`);
   }
+}
+
+function canonicalReviewBodyPath(prNumber: number, headSha: string): string {
+  return `.ephemeral/pr-${prNumber}-${headSha}-review-body.md`;
 }
 
 async function expectedFindingsPath(headSha: string): Promise<string> {

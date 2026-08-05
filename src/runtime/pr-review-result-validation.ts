@@ -30,7 +30,7 @@ export interface PrReviewResultCommandAuthorityInput
   helperEnv?: Record<string, string>;
 }
 
-interface ResultEvidence {
+export interface PrReviewResultCommandAuthorityEvidence {
   result: JsonObject;
   handoff: JsonObject;
 }
@@ -54,7 +54,7 @@ const FORBIDDEN_KEYS = new Set([
 
 export async function validatePrReviewResultEvidence(
   input: PrReviewResultValidationInput,
-): Promise<ResultEvidence> {
+): Promise<PrReviewResultCommandAuthorityEvidence> {
   return withCwd(input.worktreeRoot, async () => {
     await requireRepoRoot();
     validateDirectChildPath("result", input.resultFile, "-result.json");
@@ -72,8 +72,8 @@ export async function validatePrReviewResultEvidence(
 
 export async function validatePrReviewResultCommandAuthority(
   input: PrReviewResultCommandAuthorityInput,
-): Promise<void> {
-  await withCwd(input.worktreeRoot, async () => {
+): Promise<PrReviewResultCommandAuthorityEvidence> {
+  return withCwd(input.worktreeRoot, async () => {
     const { result, handoff } = await validatePrReviewResultEvidence({
       worktreeRoot: input.worktreeRoot,
       resultFile: input.resultFile,
@@ -103,6 +103,7 @@ export async function validatePrReviewResultCommandAuthority(
       nullableStringField(artifacts, "prior_threads_file"),
       input,
     );
+    return { result, handoff };
   });
 }
 
