@@ -724,6 +724,18 @@ describe("pr-review manifest review body writer", () => {
     await expect(
       readFile(path.join(workspace.worktree, workspace.reviewBodyFile), "utf8"),
     ).resolves.toBe("Initial body.\n");
+    await expect(
+      runManifestCommand(["recover-review-body-publication"]),
+    ).resolves.toEqual({
+      exitCode: 0,
+      stdout: `${workspace.resultFile}\n`,
+      stderr: "",
+    });
+    const preview = await runManifestCommand(["read-result-for-preview"]);
+    expect(preview.exitCode, preview.stderr).toBe(0);
+    expect(JSON.parse(preview.stdout)).toMatchObject({
+      review_body_file: workspace.reviewBodyFile,
+    });
   });
 
   it("replaces the canonical result-bound review body from complete Markdown stdin", async () => {
@@ -744,6 +756,75 @@ describe("pr-review manifest review body writer", () => {
     await expect(
       readFile(path.join(workspace.worktree, workspace.reviewBodyFile), "utf8"),
     ).resolves.toBe("# Replacement\n\nBody text.\n");
+  });
+
+  it("recovers an interrupted body publication before validating, reading, and retrying", async () => {
+    const workspace = await makeManifestWorkspace("pr-review-body-recovery-");
+    setSummaryEnv(workspace);
+    process.chdir(workspace.worktree);
+
+    const publication = await runManifestCommandWithStdin(
+      ["write-review-body"],
+      "Published before interruption.\n",
+    );
+    expect(publication.exitCode, publication.stderr).toBe(0);
+
+    const staleValidation = await runManifestCommand(["validate-result"]);
+    expect(staleValidation.exitCode).toBe(1);
+    expect(staleValidation.stderr).toContain("review body digest mismatch");
+
+    const recovery = await runManifestCommand([
+      "recover-review-body-publication",
+    ]);
+    expect(recovery).toEqual({
+      exitCode: 0,
+      stdout: `${workspace.resultFile}\n`,
+      stderr: "",
+    });
+
+    await expect(runManifestCommand(["validate-result"])).resolves.toEqual({
+      exitCode: 0,
+      stdout: "",
+      stderr: "",
+    });
+    await expect(
+      runManifestCommand(["read-result-for-preview"]),
+    ).resolves.toMatchObject({ exitCode: 0 });
+    const result = JSON.parse(
+      await readFile(
+        path.join(workspace.worktree, workspace.resultFile),
+        "utf8",
+      ),
+    ) as {
+      artifacts: Record<string, unknown>;
+      digests: Record<string, unknown>;
+      presentation: Record<string, unknown>;
+    };
+    expect(result.artifacts.rendered_preview_file).toBeNull();
+    expect(result.digests.rendered_preview_sha256).toBeNull();
+    expect(result.presentation.status).toBe("edited");
+
+    const retry = await runManifestCommandWithStdin(
+      ["write-review-body"],
+      "Retried body publication.\n",
+    );
+    expect(retry).toEqual({
+      exitCode: 0,
+      stdout: `${workspace.reviewBodyFile}\n`,
+      stderr: "",
+    });
+    await expect(
+      runManifestCommand(["recover-review-body-publication"]),
+    ).resolves.toEqual({
+      exitCode: 0,
+      stdout: `${workspace.resultFile}\n`,
+      stderr: "",
+    });
+    await expect(
+      runManifestCommand(["read-result-for-preview"]),
+    ).resolves.toMatchObject({
+      exitCode: 0,
+    });
   });
 
   it.each([

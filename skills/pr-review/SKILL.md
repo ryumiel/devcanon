@@ -653,6 +653,14 @@ write_review_body_from_markdown() {
       RESULT_FILE="$REVIEW_RESULT_FILE" \
         bash "$PR_REVIEW_MANIFEST_HELPER" write-review-body
   ) || return 1
+  REVIEW_RESULT_FILE=$( \
+    cd "$WORKING_DIRECTORY" || exit 1
+    PR_NUMBER="$PR_NUMBER" \
+    HEAD_SHA="$REVIEW_HEAD_SHA" \
+    REPOSITORY="<owner/repo>" \
+    RESULT_FILE="$REVIEW_RESULT_FILE" \
+      bash "$PR_REVIEW_MANIFEST_HELPER" recover-review-body-publication
+  ) || return 1
 }
 
 # Preserve markdown before the first `## Findings` heading in PLAY_REVIEW_OUTPUT.
@@ -807,11 +815,17 @@ is captured only when the user approves a specific preview.
 
 **Body edits:** author the revised Markdown in the caller and pass it on stdin
 to `write-review-body` with the same `REVIEW_RESULT_FILE`. Rebind
-`REVIEW_BODY_FILE` from its stdout, rerun `render-review-preview` with the same
-`REVIEW_HEAD_SHA`, `REVIEW_FINDINGS_FILE`, `REVIEW_SURFACE=pr-review`, and
-`REVIEW_BODY_FILE`, then update `pr-review/result/v1`, present the new stdout
-and result-manifest update notice, and wait again. Do not proceed to Phase 6
-until the user approves that latest preview.
+`REVIEW_BODY_FILE` from its stdout, then immediately run
+`recover-review-body-publication` to bind only the canonical body digest, clear
+the stale rendered-preview binding, and mark the result edited before
+rerendering. If interrupted after `write-review-body` and before that recovery,
+run `recover-review-body-publication` first; it revalidates all unaffected
+result authority before allowing a retry or render. Then rerun
+`render-review-preview` with the same `REVIEW_HEAD_SHA`,
+`REVIEW_FINDINGS_FILE`, `REVIEW_SURFACE=pr-review`, and `REVIEW_BODY_FILE`,
+update `pr-review/result/v1`, present the new stdout and result-manifest update
+notice, and wait again. Do not proceed to Phase 6 until the user approves that
+latest preview.
 
 **Dropped or reclassified findings:** rewrite the
 `play-review/findings/v2` envelope at `REVIEW_FINDINGS_FILE`, recomputing each

@@ -107,6 +107,45 @@ export async function validatePrReviewResultCommandAuthority(
   });
 }
 
+export async function validatePrReviewResultCommandAuthorityForReviewBodyRecovery(
+  input: PrReviewResultCommandAuthorityInput,
+): Promise<PrReviewResultCommandAuthorityEvidence> {
+  return withCwd(input.worktreeRoot, async () => {
+    await requireRepoRoot();
+    validateDirectChildPath("result", input.resultFile, "-result.json");
+    await assertReadableFile("result file", input.resultFile);
+    const result = await readJsonObject(input.resultFile, "result file");
+    validateResultObject(
+      result,
+      input.resultFile,
+      input.resultIdentityPath ?? input.resultFile,
+    );
+    const handoff = await validateResultFacts(result, input, {
+      allowReviewBodyDigestMismatch: true,
+    });
+    const findingsFile = stringField(result, "findings_file");
+    await validateFindingsAuthority(findingsFile, input);
+
+    const handoffArtifacts = objectField(handoff, "artifacts");
+    await validateScopeAuthority(
+      stringField(handoffArtifacts, "scope_decision_file"),
+      stringField(handoff, "review_scope_base_ref"),
+      nullableStringField(handoffArtifacts, "prior_threads_file"),
+      input,
+    );
+
+    const artifacts = objectField(result, "artifacts");
+    const scopeDecisionFile = stringField(artifacts, "scope_decision_file");
+    await validateScopeAuthority(
+      scopeDecisionFile,
+      await guardedScopeBaseRef(scopeDecisionFile),
+      nullableStringField(artifacts, "prior_threads_file"),
+      input,
+    );
+    return { result, handoff };
+  });
+}
+
 async function validateHandoffFile(
   file: string,
   input: PrReviewResultValidationInput,
@@ -252,6 +291,7 @@ async function validateHandoffFacts(
 async function validateResultFacts(
   result: JsonObject,
   input: PrReviewResultValidationInput,
+  options: { allowReviewBodyDigestMismatch?: boolean } = {},
 ): Promise<JsonObject> {
   const manifestPrNumber = String(numberField(result, "pr_number"));
   if (manifestPrNumber !== String(input.prNumber)) {
@@ -375,11 +415,13 @@ async function validateResultFacts(
     findingsFile,
     stringField(digests, "findings_sha256"),
   );
-  await validateOptionalDigest(
-    "review body",
-    reviewBodyFile,
-    nullableStringField(digests, "review_body_sha256"),
-  );
+  if (!options.allowReviewBodyDigestMismatch) {
+    await validateOptionalDigest(
+      "review body",
+      reviewBodyFile,
+      nullableStringField(digests, "review_body_sha256"),
+    );
+  }
   await validateOptionalDigest(
     "context",
     contextFile,

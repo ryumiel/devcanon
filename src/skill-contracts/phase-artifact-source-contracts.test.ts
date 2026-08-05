@@ -3775,6 +3775,7 @@ None
 
     expect(phase5).toContain("read-result-for-preview");
     expect(phase5).toContain("write-review-body");
+    expect(phase5).toContain("recover-review-body-publication");
     expect(phase5.match(/write-review-body/g)?.length).toBeGreaterThanOrEqual(
       3,
     );
@@ -3795,6 +3796,16 @@ None
     expect(phase5).not.toContain('> "$REVIEW_BODY_FILE"');
     expect(phase5).toContain("write_review_body_from_markdown()");
     expect(phase5).toContain("REVIEW_BODY_FILE=$( \\");
+    expect(phase5).toContain(
+      'bash "$PR_REVIEW_MANIFEST_HELPER" recover-review-body-publication',
+    );
+    expect(
+      phase5.indexOf(
+        'bash "$PR_REVIEW_MANIFEST_HELPER" recover-review-body-publication',
+      ),
+    ).toBeGreaterThan(
+      phase5.indexOf('bash "$PR_REVIEW_MANIFEST_HELPER" write-review-body'),
+    );
     expect(phase5).toContain("write_review_body_from_markdown || exit 1");
 
     const findingsEditStart = phase5.indexOf(

@@ -768,6 +768,7 @@ describe("rendered phase artifact smoke coverage", () => {
     expect(prReview).toContain("PR_REVIEW_LEASE_HELPER");
     expect(prReview).toContain("REVIEW_BODY_FILE");
     expect(prReview).toContain("write-review-body");
+    expect(prReview).toContain("recover-review-body-publication");
     expect(prReview).not.toContain("review body parent must be .ephemeral");
     expect(prReview).toContain("REVIEW_PAYLOAD_FILE");
     expect(prReview).toContain("APPROVED_REVIEW_FILE");
@@ -1085,6 +1086,18 @@ describe("rendered phase artifact smoke coverage", () => {
       );
       expect(renderedPrReview).toContain("write_review_body_from_markdown()");
       expect(renderedPrReview).toContain("REVIEW_BODY_FILE=$( \\");
+      expect(renderedPrReview).toContain(
+        'bash "$PR_REVIEW_MANIFEST_HELPER" recover-review-body-publication',
+      );
+      expect(
+        renderedPrReview.indexOf(
+          'bash "$PR_REVIEW_MANIFEST_HELPER" recover-review-body-publication',
+        ),
+      ).toBeGreaterThan(
+        renderedPrReview.indexOf(
+          'bash "$PR_REVIEW_MANIFEST_HELPER" write-review-body',
+        ),
+      );
 
       const renderedFindingsEditStart = renderedPrReview.indexOf(
         "# Write the rewritten play-review/findings/v2 envelope",

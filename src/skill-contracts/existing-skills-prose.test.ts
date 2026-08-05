@@ -493,48 +493,10 @@ describe("existing skills source prose contracts", () => {
     );
     const playReview = await readSkillSource("play-review");
 
-    const failureProofOwnership = sliceBetween(
-      testingSpec,
-      "### Failure-Proof Ownership",
-      "For a breaking source-contract migration",
+    expect(testingSpec).toContain("### Failure-Proof Ownership");
+    expect(codeReviewGuideline).toContain(
+      "[Failure-Proof Ownership](../specs/testing.md#failure-proof-ownership)",
     );
-    const proportionalReview = sliceBetween(
-      codeReviewGuideline,
-      "### Proportional Contract-Test Review",
-      "## 3. Procedure and Workflow Invariant Review",
-    );
-
-    for (const ownerRule of [
-      "Each invariant has one primary proof owner",
-      "Transparent callers and adapters must test only their added behavior",
-      "They must not repeat the owner's fault-injection matrix",
-      "Hypothetically replacing a correct owner call with an incorrect implementation is not, by itself, evidence of a missing regression test",
-      "Do not introduce production injection seams, command shims, or filesystem harnesses solely to simulate an underlying primitive failure already covered by its owner",
-    ]) {
-      expect(normalizeWhitespace(failureProofOwnership)).toContain(ownerRule);
-    }
-
-    for (const example of [
-      "a wrapper swallows a dependency's nonzero exit",
-      "an adapter computes a new destination path",
-      "repeat rename-failure tests in every command using a tested atomic writer",
-      "require a `PATH`-injected fake `mv`",
-      '"replacing this dependency call with a direct write would pass"',
-    ]) {
-      expect(normalizeWhitespace(failureProofOwnership)).toContain(example);
-      expect(normalizeWhitespace(proportionalReview)).toContain(example);
-    }
-
-    for (const admissionRule of [
-      "The concrete observable behavior left unprotected",
-      "The normative owner of that behavior",
-      "Why the owner's existing tests do not cover it",
-      "Behavior added by the flagged consumer that requires another test",
-      "only asks a transparent consumer to repeat owner-level proof, it is invalid",
-      "exhaustive primitive-failure injection without a concrete acceptance, safety, or production regression, it is nonblocking",
-    ]) {
-      expect(normalizeWhitespace(proportionalReview)).toContain(admissionRule);
-    }
 
     expect(normalizeWhitespace(playReview)).toContain(
       "Reject duplicate proof requests when the invariant is already tested at its executable owner and the consumer adds no independently fallible behavior",

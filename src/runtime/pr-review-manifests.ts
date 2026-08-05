@@ -19,6 +19,7 @@ import { runPrReviewLeasesCommand } from "./pr-review-leases.js";
 import {
   type PrReviewResultCommandAuthorityInput,
   validatePrReviewResultCommandAuthority,
+  validatePrReviewResultCommandAuthorityForReviewBodyRecovery,
 } from "./pr-review-result-validation.js";
 
 const execFileAsync = promisify(execFile);
@@ -88,11 +89,14 @@ export async function runPrReviewManifestsCommand(
       case "write-review-body":
         requireNoCommandArgs(commandName, args);
         return ok(await writeReviewBody());
+      case "recover-review-body-publication":
+        requireNoCommandArgs(commandName, args);
+        return ok(`${await recoverReviewBodyPublication()}\n`);
       case "render-phase5-audit-summary":
         return ok(`${await renderPhase5AuditSummary()}\n`);
       default:
         throw new PrReviewManifestError(
-          "usage: review-manifests.sh prepare-handoff-write|write-handoff|validate-handoff|prepare-result-write|write-result|validate-result|read-result-for-preview|write-review-body|render-phase5-audit-summary",
+          "usage: review-manifests.sh prepare-handoff-write|write-handoff|validate-handoff|prepare-result-write|write-result|validate-result|read-result-for-preview|write-review-body|recover-review-body-publication|render-phase5-audit-summary",
         );
     }
   } catch (err) {
@@ -355,6 +359,59 @@ async function writeReviewBody(): Promise<string> {
   await prepareWriteTarget("review body", reviewBodyFile);
   await writeTextAtomically(path.join(process.cwd(), reviewBodyFile), markdown);
   return `${reviewBodyFile}\n`;
+}
+
+async function recoverReviewBodyPublication(): Promise<string> {
+  requireEnv("REPOSITORY");
+  const resultFile = requiredEnv("RESULT_FILE");
+  const { result } =
+    await validatePrReviewResultCommandAuthorityForReviewBodyRecovery(
+      readResultValidationInput(resultFile),
+    );
+  const reviewBodyFile =
+    nullableStringField(result, "review_body_file") ??
+    canonicalReviewBodyPath(readPrNumber(), readHeadSha());
+  validateCanonicalReviewBodyPath(
+    reviewBodyFile,
+    readPrNumber(),
+    readHeadSha(),
+  );
+  await validateOptionalDirectChildReadableArtifact(
+    "review body",
+    reviewBodyFile,
+    "-review-body.md",
+  );
+  const artifacts = objectField(result, "artifacts");
+  const digests = objectField(result, "digests");
+  const presentation = objectField(result, "presentation");
+  const recovered = {
+    ...result,
+    review_body_file: reviewBodyFile,
+    artifacts: {
+      ...artifacts,
+      rendered_preview_file: null,
+    },
+    digests: {
+      ...digests,
+      review_body_sha256: await sha256File(reviewBodyFile),
+      rendered_preview_sha256: null,
+    },
+    presentation: {
+      ...presentation,
+      status: "edited",
+    },
+  };
+  validateResultObject(recovered, resultFile, resultFile);
+  await validateResultFacts(recovered, resultFile);
+  await prepareWriteTarget("result", resultFile);
+  await prepareWriteTarget("result temp", tmpPathFor(resultFile));
+  await writeTextAtomically(
+    path.join(process.cwd(), resultFile),
+    `${json(recovered)}\n`,
+  );
+  await rm(path.join(process.cwd(), tmpPathFor(resultFile)), { force: true });
+  await validateResultFile(resultFile);
+  return resultFile;
 }
 
 async function readMarkdownFromStdin(): Promise<string> {

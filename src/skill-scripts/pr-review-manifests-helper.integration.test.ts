@@ -901,6 +901,7 @@ describe("pr-review manifest helper", () => {
     expect(manifestUsage).toContain("render-phase5-audit-summary");
     expect(manifestUsage).toContain("read-result-for-preview");
     expect(manifestUsage).toContain("write-review-body");
+    expect(manifestUsage).toContain("recover-review-body-publication");
     expect(leaseUsage).toContain("read-status");
     expect(leaseUsage).toContain("record-audit-failure");
   });
@@ -946,6 +947,11 @@ describe("pr-review manifest helper", () => {
         runHelper(installed, "write-review-body", {}, script),
       ).resolves.toMatchObject({
         stdout: "runtime pr-review-manifests write-review-body\n",
+      });
+      await expect(
+        runHelper(installed, "recover-review-body-publication", {}, script),
+      ).resolves.toMatchObject({
+        stdout: "runtime pr-review-manifests recover-review-body-publication\n",
       });
     } finally {
       await cleanupTempDir(installed);
