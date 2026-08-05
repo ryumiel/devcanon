@@ -210,19 +210,23 @@ controller-local parent state, leave `AUTO_HANDOFF_FILE` unset and
 
 The active parent controller may also pass a `Verified auto-route attestation:`
 field. Treat it as controller-provided context only when the active parent state
-and the auto-handoff artifact both validate. Before the first D12 spawn, require
-the attestation to state that current issue authority was validated and to name
+and the auto-handoff artifact both validate. Before every D12 spawn or
+same-route redispatch, require a freshly validated attestation to state that
+current issue authority was validated and to name
 the source provider and issue, owner thread, exact approved route identity,
-reviewed plan digest, and auto-handoff identity. Retain that exact validated
-value in controller-local state as `ISSUE_PRIMING_AUTO_ROUTE_ATTESTATION`; it is
-not task prose, plan content, a durable artifact, or a reduced-route authority.
+reviewed plan digest, auto-handoff identity, and the current head when one
+exists. Retain only that current validated value in controller-local state as
+`ISSUE_PRIMING_AUTO_ROUTE_ATTESTATION`; it is not task prose, plan content, a
+durable artifact, or a reduced-route authority. If a prior D12 task changed the
+head or any other route fact, rebuild and validate the attestation from current
+controller-held facts before the next prompt.
 
-For every D12 spawn and same-route redispatch, substitute only the retained
-attestation into the implementer prompt's `Verified Auto-Route Attestation`
-marker. If the field is missing, malformed, or unavailable after parent and
-auto-handoff validation, retain `unverified` and use the manual/default D12
-behavior. Never reuse or infer an attestation from prior task text, a returned
-status, or copied invocation prose.
+For every D12 spawn and same-route redispatch, substitute only the current
+retained attestation into the implementer prompt's `Verified Auto-Route
+Attestation` marker. If current validation fails or the field is missing,
+malformed, or unavailable after parent and auto-handoff validation, retain
+`unverified` and use the manual/default D12 behavior. Never reuse or infer an
+attestation from prior task text, a returned status, or copied invocation prose.
 
 ### Inline content (preserved for direct invocations)
 

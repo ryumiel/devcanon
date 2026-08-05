@@ -807,15 +807,19 @@ Any missing tool, unreadable plan, hashing failure, malformed digest, or
 mismatch stops before executor handoff and requires a fresh planning wave; do
 not update the expected digest to match changed bytes.
 
-Before dispatching D12, the controller validates the exact approved route from
-the current issue authority, existing owner-route identity, preserved reviewed
-plan digest, and auto-handoff identity. It carries that validated tuple only in
-controller-local state. When an `issue-batch-routing` parent is present, first
+Before every D12 spawn or same-route redispatch, the controller validates the
+exact approved route from current issue authority, existing owner-route
+identity, preserved reviewed plan digest, auto-handoff identity, and current
+head when one exists. It carries only the current validated tuple in
+controller-local state; after a D12 commit changes that head, it must rebuild
+and validate the attestation before another D12 prompt. When an
+`issue-batch-routing` parent is present, first
 send the initial owner-handoff report defined below so the router can record
 the same facts before any progress receipt. Then inject a `Verified auto-route
 attestation` into each D12 prompt that names the source provider and issue,
 owner thread, exact approved route identity, reviewed plan digest, auto-handoff
-identity, and that current issue authority was validated. Missing, unclear,
+identity, current head when present, and that current issue authority was
+validated. Missing, unclear,
 invalid, or unverified route facts produce no attestation and fail closed to
 `spec-and-quality`; neither a plan nor copied invocation prose can supply it.
 
@@ -823,9 +827,9 @@ Invoke `play-subagent-execution` and pass the plan as a `Plan: <path>`
 reference, the preserved `Expected digest: <sha256>`, `Auto handoff:
 <repo-relative-path>`, and the controller-validated `Verified auto-route
 attestation` in the invocation prose, NOT as inline content. The executor
-controller must validate and retain this controller-provided attestation before
-the first D12 spawn, then substitute that retained exact value into every D12
-spawn or same-route redispatch; it must render `unverified` and use the
+controller must validate and retain a current controller-provided attestation
+before every D12 spawn or same-route redispatch, then substitute only that
+current retained value; it must render `unverified` and use the
 manual/default D12 behavior when validation fails. Use the `$AUTO_HANDOFF_FILE`
 path captured above. Carry
 `ISSUE_PRIMING_AUTO_PARENT_ACTIVE=true` and `ISSUE_PRIMING_AUTO_HEAD` in
@@ -1052,9 +1056,10 @@ parent/manual-action report.
 Before initial continuation, the controller records the current route binding
 from its existing approved-route facts. Before resumed continuation, the
 controller refreshes that binding from its current approved-route facts. It
-retains the progress sequence for the same exact route and provenance, and
-clears it only when that binding changes. Only after that may a producer emit a
-receipt. An unfinished non-gate progress receipt must identify the exact
+retains the highest accepted progress sequence for every exact route observed
+during this task's bounded controller lifetime, so a changed binding selects a
+different retained entry without clearing the earlier one. Only after that may
+a producer emit a receipt. An unfinished non-gate progress receipt must identify the exact
 approved owner route, the source provider and source issue identifier, the
 delegated owner-thread identity, and the current reviewed-plan handoff
 provenance. It must also carry a positive, strictly increasing per-route

@@ -658,7 +658,7 @@ describe("issue-batch-routing skill contract", () => {
       "Before initial continuation, the controller records the current route binding from its existing approved-route facts",
     );
     expect(producer).toContain(
-      "Before resumed continuation, the controller refreshes that binding from its current approved-route facts. It retains the progress sequence for the same exact route and provenance, and clears it only when that binding changes",
+      "It retains the highest accepted progress sequence for every exact route observed during this task's bounded controller lifetime",
     );
     expect(producer).toContain(
       "the receipt cannot establish or self-authenticate that binding",
@@ -679,13 +679,13 @@ describe("issue-batch-routing skill contract", () => {
       "Only the router records or refreshes these bindings from those controller-held facts",
     );
     expect(monitorLoop).toContain(
-      "Retain the progress sequence for the same exact route and provenance; only when that binding changes, clear the prior route's progress sequence before accepting a subsequent receipt",
+      "a changed current binding selects a different map entry and never clears an earlier one",
     );
     expect(monitorLoop).toContain(
       "A receipt must not initialize, refresh, authenticate, or validate either current binding",
     );
     expect(monitorLoop).toContain(
-      "Require a positive, strictly increasing per-route progress sequence and record the highest accepted sequence for the exact owner route separately from approval and gate-report keys",
+      "Require a positive, strictly increasing per-route progress sequence and record the highest accepted sequence in the matching exact-route map entry, separately from approval and gate-report keys",
     );
     expect(monitorLoop).toContain(
       "Verify that the receipt matches `current_approved_owner_route_identity` and `current_reviewed_plan_handoff_provenance`",
@@ -706,10 +706,10 @@ describe("issue-batch-routing skill contract", () => {
       ),
     );
     expect(monitorLoop).toContain(
-      "A receipt A at sequence 1, receipt B at sequence 33, then receipt A again at sequence 1 is older than the recorded sequence and is a repeat: do not continue the route again or update any approval key",
+      "A receipt A at sequence 1, receipt B at sequence 33, then receipt A again at sequence 1 is older than A's retained map entry and is a repeat: do not continue the route again or update any approval key",
     );
     expect(monitorLoop).toContain(
-      "Missing, repeated, non-positive, or non-increasing progress sequences fail closed rather than being retained in an evicting receipt history",
+      "route changes must not evict their earlier replay state",
     );
     expect(monitorLoop).toContain(
       "For an item without receipt continuation, classify any remaining gate",
@@ -718,10 +718,10 @@ describe("issue-batch-routing skill contract", () => {
       "Digest of the last owner-thread gate report integrated by the parent",
     );
     expect(ledger).toContain(
-      "Highest accepted positive progress sequence for the current exact owner route; distinct from gate-report and approval-gate keys",
+      "Controller-local bounded map of each exact owner route observed during this task's lifetime to its highest accepted positive sequence; distinct from gate-report and approval-gate keys",
     );
     expect(ledger).toContain(
-      "Exact current approved owner-route identity required to validate progress receipts and clear the prior route's progress sequence",
+      "Exact current approved owner-route identity required to validate progress receipts",
     );
     expect(ledger).toContain(
       "Current reviewed-plan handoff provenance required to validate progress receipts",

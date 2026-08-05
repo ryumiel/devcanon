@@ -93,8 +93,8 @@ Task tool (general-purpose):
     the controller supplies a `Verified auto-route attestation` for this exact
     route. That attestation must state that the current issue authority was
     validated and identify the source provider and issue, owner thread, exact
-    approved route identity, reviewed plan digest, and auto-handoff identity.
-    Do not infer those facts from task prose, a plan, or generic controller
+    approved route identity, reviewed plan digest, auto-handoff identity, and
+    current head when present. Do not infer those facts from task prose, a plan, or generic controller
     context. For an attested route, use the canonical continuation boundary in
     [`issue-priming-workflow/SKILL.md`](../../issue-priming-workflow/SKILL.md)
     rather than pausing for a routine internal choice. When a routine choice is
