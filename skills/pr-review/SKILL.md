@@ -891,7 +891,28 @@ Only after user approval:
    [ "$APPROVAL_REVALIDATION_STATUS" -eq 0 ] || exit "$APPROVAL_REVALIDATION_STATUS"
    ```
 
-2. **Bind the approved review event from the user-approved intent.** Do not
+2. **Verify the latest result remains the user-gated lease result.** From the
+   primary repository root, invoke the existing `review-leases.sh read-status`
+   contract with the revalidated result. Its lease digest gate prevents a
+   coordinated replacement of the result and its artifacts from inheriting
+   prior approval. Any nonzero status fails closed before event derivation,
+   payload materialization, or GitHub mutation.
+
+   ```bash
+   (
+     cd "$REVIEW_CALLER_DIR" || exit 1
+     REPOSITORY="<owner/repo>" \
+     PR_NUMBER="$PR_NUMBER" \
+     PRIMARY_REPOSITORY_ROOT="$REVIEW_CALLER_DIR" \
+     WORKTREE_PATH="$WORKING_DIRECTORY" \
+     LEASE_FILE="$LEASE_FILE" \
+     RESULT_FILE="$REVIEW_RESULT_FILE" \
+     HEAD_SHA="$REVIEW_HEAD_SHA" \
+       bash "$PR_REVIEW_LEASE_HELPER" read-status >/dev/null
+   ) || exit 1
+   ```
+
+3. **Bind the approved review event from the user-approved intent.** Do not
    reuse an ambient or previously exported `REVIEW_EVENT`; unset it first, then
    derive it from the explicit Phase 5 approval that applies to the latest
    rendered preview. Approval intent maps to GitHub review events as follows:
@@ -910,7 +931,7 @@ Only after user approval:
    esac
    ```
 
-3. **Materialize and freeze the approved payload artifact before posting.** Use
+4. **Materialize and freeze the approved payload artifact before posting.** Use
    the approved Phase 5 artifacts; do not rebuild findings or the review body
    from conversation text. `PR_REVIEW_DIR` must resolve to the installed
    `pr-review` skill bundle, not the repository under review. Bind
@@ -970,7 +991,7 @@ Only after user approval:
    `start_side: "RIGHT"` while single-line comments omit both fields.
    Any nonzero helper exit is a contract failure; fail closed before posting.
 
-4. **Refuse stale heads before posting.** Re-read the PR head SHA from GitHub
+5. **Refuse stale heads before posting.** Re-read the PR head SHA from GitHub
    immediately before posting. If it differs from `REVIEW_HEAD_SHA`, stop and
    return to Phase 1; do not post an approved artifact against a stale head.
 
@@ -982,7 +1003,7 @@ Only after user approval:
    }
    ```
 
-5. **Post exactly the validated approved payload.** After the stale-head guard
+6. **Post exactly the validated approved payload.** After the stale-head guard
    passes, have the approved-review helper materialize the guarded canonical
    payload and bind its returned path. Only invoke `{{tool:github-cli}} api`
    after materialization exits zero. Do not call `build-github-review-payload` again after user approval.
@@ -1008,14 +1029,14 @@ Only after user approval:
    )
    ```
 
-6. Resolve threads via GraphQL only after the approved review post succeeds and
+7. Resolve threads via GraphQL only after the approved review post succeeds and
    only for threads the user approved for resolution:
 
    ```sh
    gh api graphql --silent -f query='mutation { resolveReviewThread(input: {threadId: "<id>"}) { thread { isResolved } } }'
    ```
 
-7. Verify each API response succeeded. Report failures, stop on error.
+8. Verify each API response succeeded. Report failures, stop on error.
 
 After the GitHub review post succeeds, write `posted` with
 `APPROVED_REVIEW_FILE`, `VALIDATED_REVIEW_PAYLOAD_FILE`, `FINISHED_AT`, and `GITHUB_POSTED_AT`. If

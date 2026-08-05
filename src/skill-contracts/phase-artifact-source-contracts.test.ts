@@ -3826,9 +3826,29 @@ None
       'build-github-review-payload > "$REVIEW_PAYLOAD_FILE"',
     );
     expect(phase6).not.toContain("validate-approved-review");
+    expect(phase6).toContain('bash "$PR_REVIEW_LEASE_HELPER" read-status');
+    const approvalLeaseGateStart = phase6.indexOf(
+      'bash "$PR_REVIEW_LEASE_HELPER" read-status',
+    );
+    const approvalLeaseGate = phase6.slice(
+      approvalLeaseGateStart - 600,
+      approvalLeaseGateStart + 100,
+    );
+    for (const binding of [
+      'REPOSITORY="<owner/repo>"',
+      'PR_NUMBER="$PR_NUMBER"',
+      'PRIMARY_REPOSITORY_ROOT="$REVIEW_CALLER_DIR"',
+      'WORKTREE_PATH="$WORKING_DIRECTORY"',
+      'LEASE_FILE="$LEASE_FILE"',
+      'RESULT_FILE="$REVIEW_RESULT_FILE"',
+      'HEAD_SHA="$REVIEW_HEAD_SHA"',
+    ]) {
+      expect(approvalLeaseGate).toContain(binding);
+    }
     const phase6Steps = [
       "Only after user approval",
       "read_pr_review_result_manifest_for_preview",
+      "read-status",
       "APPROVED_REVIEW_INTENT",
       "materialize-review-payload",
       "freeze-approved-review",

@@ -1161,6 +1161,9 @@ describe("rendered phase artifact smoke coverage", () => {
       const approvalRevalidationIndex = renderedPrReviewPhase6.indexOf(
         "read_pr_review_result_manifest_for_preview",
       );
+      const approvalLeaseGateIndex = renderedPrReviewPhase6.indexOf(
+        'bash "$PR_REVIEW_LEASE_HELPER" read-status',
+      );
       const reviewEventIndex = renderedPrReviewPhase6.indexOf(
         "APPROVED_REVIEW_INTENT",
       );
@@ -1168,8 +1171,27 @@ describe("rendered phase artifact smoke coverage", () => {
         "materialize-review-payload",
       );
       expect(approvalRevalidationIndex).toBeGreaterThanOrEqual(0);
-      expect(reviewEventIndex).toBeGreaterThan(approvalRevalidationIndex);
+      expect(approvalLeaseGateIndex).toBeGreaterThan(approvalRevalidationIndex);
+      expect(reviewEventIndex).toBeGreaterThan(approvalLeaseGateIndex);
       expect(preFreezeMaterializationIndex).toBeGreaterThan(reviewEventIndex);
+      const approvalLeaseGate = renderedPrReviewPhase6.slice(
+        approvalLeaseGateIndex - 600,
+        approvalLeaseGateIndex + 100,
+      );
+      for (const binding of [
+        'REPOSITORY="<owner/repo>"',
+        'PR_NUMBER="$PR_NUMBER"',
+        'PRIMARY_REPOSITORY_ROOT="$REVIEW_CALLER_DIR"',
+        'WORKTREE_PATH="$WORKING_DIRECTORY"',
+        'LEASE_FILE="$LEASE_FILE"',
+        'RESULT_FILE="$REVIEW_RESULT_FILE"',
+        'HEAD_SHA="$REVIEW_HEAD_SHA"',
+      ]) {
+        expect(approvalLeaseGate).toContain(binding);
+      }
+      expect(normalizeRenderedWhitespace(renderedPrReviewPhase6)).toContain(
+        "Its lease digest gate prevents a coordinated replacement of the result and its artifacts from inheriting prior approval",
+      );
       const materializeIndex = renderedPrReviewPhase6.indexOf(
         "materialize-validated-review-payload",
       );
