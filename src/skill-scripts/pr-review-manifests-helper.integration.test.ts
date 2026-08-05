@@ -1,4 +1,4 @@
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
   chmod,
@@ -492,6 +492,64 @@ async function runHelper(
   });
 }
 
+async function unknownCommandUsage(script: string): Promise<string> {
+  try {
+    await execFileAsync("bash", [script, "unknown-command"]);
+  } catch (err) {
+    const stderr =
+      err && typeof err === "object" && "stderr" in err
+        ? String((err as { stderr?: unknown }).stderr)
+        : "";
+    if (stderr.length > 0) {
+      return stderr;
+    }
+    throw err;
+  }
+  throw new Error("unknown command unexpectedly succeeded");
+}
+
+async function runHelperWithStdin(
+  cwd: string,
+  command: string,
+  input: string | Buffer,
+  env: NodeJS.ProcessEnv = {},
+  script = helperScript,
+) {
+  return new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
+    const child = spawn("bash", [script, command], {
+      cwd,
+      env: {
+        ...process.env,
+        PR_NUMBER: prNumber,
+        REPOSITORY: "owner/repo",
+        ...env,
+      },
+    });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.setEncoding("utf8").on("data", (chunk: string) => {
+      stdout += chunk;
+    });
+    child.stderr.setEncoding("utf8").on("data", (chunk: string) => {
+      stderr += chunk;
+    });
+    child.on("error", reject);
+    child.on("close", (code) => {
+      if (code === 0) {
+        resolve({ stdout, stderr });
+        return;
+      }
+      reject(
+        Object.assign(new Error(`helper exited with ${code}`), {
+          stdout,
+          stderr,
+        }),
+      );
+    });
+    child.stdin.end(input);
+  });
+}
+
 async function copyInstalledPrManifestHelper(root: string) {
   await cp(runtimeSkillDir, path.join(root, "devcanon-runtime"), {
     recursive: true,
@@ -834,22 +892,18 @@ async function cleanupPhase5AuditWorkspace(workspace: Phase5AuditWorkspace) {
 }
 
 describe("pr-review manifest helper", () => {
-  it("lists the Phase 5 audit summary and lease status commands in wrapper usage diagnostics", async () => {
-    await expect(
-      execFileAsync("bash", [helperScript, "unknown-command"]),
-    ).rejects.toMatchObject({
-      stderr: expect.stringContaining("render-phase5-audit-summary"),
-    });
-    await expect(
-      execFileAsync("bash", [leaseHelperScript, "unknown-command"]),
-    ).rejects.toMatchObject({
-      stderr: expect.stringContaining("read-status"),
-    });
-    await expect(
-      execFileAsync("bash", [leaseHelperScript, "unknown-command"]),
-    ).rejects.toMatchObject({
-      stderr: expect.stringContaining("record-audit-failure"),
-    });
+  it("lists the result preview and review body commands in wrapper usage diagnostics", async () => {
+    const [manifestUsage, leaseUsage] = await Promise.all([
+      unknownCommandUsage(helperScript),
+      unknownCommandUsage(leaseHelperScript),
+    ]);
+
+    expect(manifestUsage).toContain("render-phase5-audit-summary");
+    expect(manifestUsage).toContain("read-result-for-preview");
+    expect(manifestUsage).toContain("write-review-body");
+    expect(manifestUsage).toContain("recover-review-body-publication");
+    expect(leaseUsage).toContain("read-status");
+    expect(leaseUsage).toContain("record-audit-failure");
   });
 
   it("delegates the Phase 5 audit summary command to the pr-review-manifests runtime route", async () => {
@@ -872,6 +926,77 @@ describe("pr-review manifest helper", () => {
       await cleanupTempDir(installed);
     }
   });
+
+  it("delegates result preview and review body commands to the manifest runtime route", async () => {
+    const installed = await mkdtemp(
+      path.join(os.tmpdir(), "devcanon-pr-wrapper-"),
+    );
+    try {
+      const script = await copyWrapperWithRecordingRuntime(
+        installed,
+        helperScript,
+        "pr-review/scripts/review-manifests.sh",
+      );
+
+      await expect(
+        runHelper(installed, "read-result-for-preview", {}, script),
+      ).resolves.toMatchObject({
+        stdout: "runtime pr-review-manifests read-result-for-preview\n",
+      });
+      await expect(
+        runHelper(installed, "write-review-body", {}, script),
+      ).resolves.toMatchObject({
+        stdout: "runtime pr-review-manifests write-review-body\n",
+      });
+      await expect(
+        runHelper(installed, "recover-review-body-publication", {}, script),
+      ).resolves.toMatchObject({
+        stdout: "runtime pr-review-manifests recover-review-body-publication\n",
+      });
+    } finally {
+      await cleanupTempDir(installed);
+    }
+  });
+
+  it.skipIf(isWindows)(
+    "writes only the result-bound review body after validating authority and complete Markdown stdin",
+    async () => {
+      const { cwd, baseSha, headSha } = await makeGitWorkspace();
+      try {
+        await writeValidInputs(cwd, baseSha, headSha);
+        await writeFile(path.join(cwd, reviewBodyPath(headSha)), "Before.\n");
+        await runHelper(
+          cwd,
+          "write-handoff",
+          handoffEnv(cwd, baseSha, headSha),
+        );
+        await runHelper(cwd, "write-result", {
+          ...resultEnv(headSha),
+          REVIEW_BODY_FILE: reviewBodyPath(headSha),
+        });
+
+        await expect(
+          runHelperWithStdin(
+            cwd,
+            "write-review-body",
+            "# Replacement\n\nBody text.\n",
+            {
+              HEAD_SHA: headSha,
+              RESULT_FILE: resultPath(headSha),
+            },
+          ),
+        ).resolves.toEqual({
+          stdout: `${reviewBodyPath(headSha)}\n`,
+          stderr: "",
+        });
+        await expect(
+          readFile(path.join(cwd, reviewBodyPath(headSha)), "utf8"),
+        ).resolves.toBe("# Replacement\n\nBody text.\n");
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    },
+  );
 
   it("delegates the read-only lease status command to the pr-review-leases runtime route", async () => {
     const installed = await mkdtemp(

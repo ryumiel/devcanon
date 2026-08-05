@@ -322,6 +322,44 @@ resolve_validator() {
   exit 1
 }
 
+play_review_helper_from_dir() {
+  local script_path="$1"
+  local script_dir
+  script_dir="$(cd "$(dirname "$script_path")" && pwd)" || return 1
+  printf '%s\n' "$(cd "$script_dir/../.." && pwd)/play-review/scripts/review-artifacts.sh"
+}
+
+resolve_play_review_helper() {
+  local logical_candidate=""
+  local physical_source=""
+  local physical_candidate=""
+
+  if [ -n "${PLAY_REVIEW_HELPER:-}" ]; then
+    [ -f "$PLAY_REVIEW_HELPER" ] && [ -x "$PLAY_REVIEW_HELPER" ] || {
+      echo "play-review helper missing" >&2
+      exit 1
+    }
+    printf '%s\n' "$PLAY_REVIEW_HELPER"
+    return
+  fi
+
+  logical_candidate="$(play_review_helper_from_dir "${BASH_SOURCE[0]}")" || true
+  if [ -n "$logical_candidate" ] && [ -f "$logical_candidate" ] && [ -x "$logical_candidate" ]; then
+    printf '%s\n' "$logical_candidate"
+    return
+  fi
+
+  physical_source="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/$(basename "${BASH_SOURCE[0]}")"
+  physical_candidate="$(play_review_helper_from_dir "$physical_source")" || true
+  if [ -n "$physical_candidate" ] && [ -f "$physical_candidate" ] && [ -x "$physical_candidate" ]; then
+    printf '%s\n' "$physical_candidate"
+    return
+  fi
+
+  echo "play-review helper missing" >&2
+  exit 1
+}
+
 scope_decision_file_for() {
   local review_head_sha="$1"
   local expected
@@ -560,6 +598,36 @@ prepare_review_payload_write() {
   printf '%s\n' "$REVIEW_PAYLOAD_FILE"
 }
 
+materialize_review_payload() {
+  local review_payload_file
+  local tmp_file
+  local play_review_helper
+  require_repo_root
+  validate_head_sha
+  validate_pr_number
+  require_env FINDINGS_FILE
+  require_env REVIEW_BODY_FILE
+  require_env REVIEW_SURFACE
+  require_env REVIEW_EVENT
+  validate_findings_path_shape "$FINDINGS_FILE" "$HEAD_SHA"
+  validate_review_body_path_shape "$REVIEW_BODY_FILE" "$HEAD_SHA"
+  review_payload_file="$(prepare_review_payload_write)"
+  play_review_helper="$(resolve_play_review_helper)"
+  tmp_file="$(mktemp ".ephemeral/.review-payload-${HEAD_SHA}.XXXXXX")"
+  trap "rm -f -- $(printf '%q' "$tmp_file")" EXIT
+  HEAD_SHA="$HEAD_SHA" \
+  FINDINGS_FILE="$FINDINGS_FILE" \
+  REVIEW_SURFACE="$REVIEW_SURFACE" \
+  REVIEW_BODY_FILE="$REVIEW_BODY_FILE" \
+  REVIEW_EVENT="$REVIEW_EVENT" \
+    bash "$play_review_helper" build-github-review-payload > "$tmp_file"
+  assert_single_json_object "review payload" "$tmp_file"
+  assert_payload_shape "$tmp_file" "$HEAD_SHA"
+  mv -f "$tmp_file" "$review_payload_file"
+  trap - EXIT
+  printf '%s\n' "$review_payload_file"
+}
+
 materialize_validated_review_payload() {
   local validated_payload_file
   local tmp_file
@@ -744,8 +812,8 @@ inspect_approved_review_ownership() {
 }
 
 case "$command_name" in
-  prepare-review-payload-write)
-    prepare_review_payload_write
+  materialize-review-payload)
+    materialize_review_payload
     ;;
   materialize-validated-review-payload)
     materialize_validated_review_payload
@@ -760,7 +828,7 @@ case "$command_name" in
     inspect_approved_review_ownership
     ;;
   *)
-    echo "usage: approved-review-artifacts.sh prepare-review-payload-write|materialize-validated-review-payload|freeze-approved-review|validate-approved-review|inspect-approved-review-ownership" >&2
+    echo "usage: approved-review-artifacts.sh materialize-review-payload|materialize-validated-review-payload|freeze-approved-review|validate-approved-review|inspect-approved-review-ownership" >&2
     exit 1
     ;;
 esac

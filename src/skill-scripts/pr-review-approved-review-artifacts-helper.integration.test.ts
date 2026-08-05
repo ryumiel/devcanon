@@ -6,6 +6,7 @@ import {
   mkdir,
   mkdtemp,
   readFile,
+  readdir,
   rm,
   symlink,
   writeFile,
@@ -343,6 +344,34 @@ async function writeRecordingSupportValidator(cwd: string, stderr = "") {
   return validator;
 }
 
+async function writePayloadProducer(cwd: string, output: string, stderr = "") {
+  const producer = path.join(cwd, ".ephemeral/payload-producer.sh");
+  await writeFile(
+    producer,
+    [
+      "#!/usr/bin/env bash",
+      "set -euo pipefail",
+      'printf "%s\\n" "$@" > ".ephemeral/payload-producer-args.txt"',
+      'printf "%s\\n" "$HEAD_SHA" > ".ephemeral/payload-producer-head.txt"',
+      'printf "%s\\n" "$FINDINGS_FILE" > ".ephemeral/payload-producer-findings.txt"',
+      'printf "%s\\n" "$REVIEW_SURFACE" > ".ephemeral/payload-producer-surface.txt"',
+      'printf "%s\\n" "$REVIEW_BODY_FILE" > ".ephemeral/payload-producer-body.txt"',
+      'printf "%s\\n" "$REVIEW_EVENT" > ".ephemeral/payload-producer-event.txt"',
+      stderr ? `printf '%s\\n' ${JSON.stringify(stderr)} >&2` : "",
+      stderr ? "exit 1" : `printf '%s' ${JSON.stringify(output)}`,
+      "",
+    ].join("\n"),
+  );
+  await chmod(producer, 0o755);
+  return producer;
+}
+
+async function temporaryPayloadFiles(cwd: string): Promise<string[]> {
+  return (await readdir(path.join(cwd, ".ephemeral"))).filter((entry) =>
+    entry.startsWith(`.review-payload-${headSha}.`),
+  );
+}
+
 async function readRecordedSupportArgs(cwd: string): Promise<string[]> {
   const args = await readFile(
     path.join(cwd, ".ephemeral/support-validator-args.txt"),
@@ -360,26 +389,272 @@ function expectArgValue(args: string[], flag: string, value: string) {
 describe.skipIf(!jqAvailable)(
   "pr-review approved review artifact helper",
   () => {
-    it("derives and prepares the review payload write path from the checked-out git branch", async () => {
+    it("rejects the removed standalone payload write preparation command", async () => {
       const cwd = await makeGitWorkspace();
       try {
         await expect(
-          runHelper(cwd, "prepare-review-payload-write", {
-            REVIEW_PAYLOAD_FILE: "",
-            BRANCH_NAME: "caller-override-must-not-apply",
-          }),
-        ).resolves.toMatchObject({
-          stdout: `${payloadFile}\n`,
+          runHelper(cwd, "prepare-review-payload-write"),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining(
+            "usage: approved-review-artifacts.sh materialize-review-payload|",
+          ),
         });
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    });
 
+    it("derives the materialized payload path from the checked-out branch", async () => {
+      const cwd = await makeGitWorkspace();
+      try {
         await execFileAsync("git", ["switch", "-C", "Feature/ABC.1_2"], {
           cwd,
         });
+        const featureFindingsFile = `.ephemeral/Feature-ABC.1_2-${headSha}-findings.json`;
+        const featurePayloadFile = `.ephemeral/Feature-ABC.1_2-${headSha}-review-payload.json`;
+        const producer = await writePayloadProducer(
+          cwd,
+          JSON.stringify(payload()),
+        );
+
         await expect(
-          runHelper(cwd, "prepare-review-payload-write"),
+          runHelper(cwd, "materialize-review-payload", {
+            BRANCH_NAME: "caller-override-must-not-apply",
+            FINDINGS_FILE: featureFindingsFile,
+            REVIEW_BODY_FILE: reviewBodyFile,
+            REVIEW_SURFACE: "pr-review",
+            REVIEW_EVENT: "COMMENT",
+            PLAY_REVIEW_HELPER: producer,
+          }),
         ).resolves.toMatchObject({
-          stdout: `.ephemeral/Feature-ABC.1_2-${headSha}-review-payload.json\n`,
+          stdout: `${featurePayloadFile}\n`,
         });
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    });
+
+    it("materializes the canonical pre-freeze payload from the GitHub producer", async () => {
+      const cwd = await makeGitWorkspace();
+      try {
+        await writeInputs(cwd);
+        const producer = await writePayloadProducer(
+          cwd,
+          JSON.stringify(payload()),
+        );
+
+        const { stdout } = await runHelper(cwd, "materialize-review-payload", {
+          FINDINGS_FILE: findingsFile,
+          REVIEW_BODY_FILE: reviewBodyFile,
+          REVIEW_SURFACE: "pr-review",
+          REVIEW_EVENT: "COMMENT",
+          PLAY_REVIEW_HELPER: producer,
+        });
+
+        expect(stdout).toBe(`${payloadFile}\n`);
+        await expect(
+          readFile(path.join(cwd, payloadFile), "utf8"),
+        ).resolves.toBe(JSON.stringify(payload()));
+        await expect(
+          readFile(
+            path.join(cwd, ".ephemeral/payload-producer-args.txt"),
+            "utf8",
+          ),
+        ).resolves.toBe("build-github-review-payload\n");
+        await expect(
+          readFile(
+            path.join(cwd, ".ephemeral/payload-producer-head.txt"),
+            "utf8",
+          ),
+        ).resolves.toBe(`${headSha}\n`);
+        await expect(
+          readFile(
+            path.join(cwd, ".ephemeral/payload-producer-findings.txt"),
+            "utf8",
+          ),
+        ).resolves.toBe(`${findingsFile}\n`);
+        await expect(
+          readFile(
+            path.join(cwd, ".ephemeral/payload-producer-surface.txt"),
+            "utf8",
+          ),
+        ).resolves.toBe("pr-review\n");
+        await expect(
+          readFile(
+            path.join(cwd, ".ephemeral/payload-producer-body.txt"),
+            "utf8",
+          ),
+        ).resolves.toBe(`${reviewBodyFile}\n`);
+        await expect(
+          readFile(
+            path.join(cwd, ".ephemeral/payload-producer-event.txt"),
+            "utf8",
+          ),
+        ).resolves.toBe("COMMENT\n");
+        await expect(temporaryPayloadFiles(cwd)).resolves.toEqual([]);
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    });
+
+    it("passes caller inputs to a failing producer and removes temp output", async () => {
+      const cwd = await makeGitWorkspace();
+      try {
+        await writeInputs(cwd);
+        await writeFile(path.join(cwd, payloadFile), "existing payload\n");
+        const producer = await writePayloadProducer(
+          cwd,
+          "",
+          "producer rejected caller inputs",
+        );
+
+        await expect(
+          runHelper(cwd, "materialize-review-payload", {
+            FINDINGS_FILE: findingsFile,
+            REVIEW_BODY_FILE: reviewBodyFile,
+            REVIEW_SURFACE: "branch-review",
+            REVIEW_EVENT: "NOT_A_GITHUB_EVENT",
+            PLAY_REVIEW_HELPER: producer,
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("producer rejected caller inputs"),
+        });
+        await expect(
+          readFile(
+            path.join(cwd, ".ephemeral/payload-producer-surface.txt"),
+            "utf8",
+          ),
+        ).resolves.toBe("branch-review\n");
+        await expect(
+          readFile(
+            path.join(cwd, ".ephemeral/payload-producer-event.txt"),
+            "utf8",
+          ),
+        ).resolves.toBe("NOT_A_GITHUB_EVENT\n");
+        await expect(
+          readFile(path.join(cwd, payloadFile), "utf8"),
+        ).resolves.toBe("existing payload\n");
+        await expect(temporaryPayloadFiles(cwd)).resolves.toEqual([]);
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    });
+
+    it("preserves the existing payload and removes temp output when producer output is malformed or stale", async () => {
+      const cwd = await makeGitWorkspace();
+      try {
+        await writeInputs(cwd);
+
+        for (const [output, error] of [
+          ["not JSON", "review payload must contain exactly one JSON object"],
+          [
+            JSON.stringify(payload({ commit_id: staleHeadSha })),
+            "payload shape mismatch",
+          ],
+        ]) {
+          await writeFile(path.join(cwd, payloadFile), "existing payload\n");
+          const producer = await writePayloadProducer(cwd, output);
+
+          await expect(
+            runHelper(cwd, "materialize-review-payload", {
+              FINDINGS_FILE: findingsFile,
+              REVIEW_BODY_FILE: reviewBodyFile,
+              REVIEW_SURFACE: "pr-review",
+              REVIEW_EVENT: "COMMENT",
+              PLAY_REVIEW_HELPER: producer,
+            }),
+          ).rejects.toMatchObject({
+            stderr: expect.stringContaining(error),
+          });
+          await expect(
+            readFile(path.join(cwd, payloadFile), "utf8"),
+          ).resolves.toBe("existing payload\n");
+          await expect(temporaryPayloadFiles(cwd)).resolves.toEqual([]);
+        }
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    });
+
+    it.skipIf(!symlinkAvailable)(
+      "rejects non-canonical and symlinked pre-freeze payload targets before producer execution",
+      async () => {
+        const cwd = await makeGitWorkspace();
+        const outside = path.join(cwd, "outside-payload.json");
+        try {
+          await writeInputs(cwd);
+          const producer = await writePayloadProducer(cwd, "producer output\n");
+
+          await expect(
+            runHelper(cwd, "materialize-review-payload", {
+              FINDINGS_FILE: findingsFile,
+              REVIEW_BODY_FILE: reviewBodyFile,
+              REVIEW_SURFACE: "pr-review",
+              REVIEW_EVENT: "COMMENT",
+              PLAY_REVIEW_HELPER: producer,
+              REVIEW_PAYLOAD_FILE:
+                ".ephemeral/not-canonical-review-payload.json",
+            }),
+          ).rejects.toMatchObject({
+            stderr: expect.stringContaining("review payload path mismatch"),
+          });
+          await expect(
+            readFile(path.join(cwd, ".ephemeral/payload-producer-args.txt")),
+          ).rejects.toThrow();
+
+          await rm(path.join(cwd, payloadFile));
+          await writeFile(outside, "do not overwrite\n");
+          await symlink(outside, path.join(cwd, payloadFile));
+          await expect(
+            runHelper(cwd, "materialize-review-payload", {
+              FINDINGS_FILE: findingsFile,
+              REVIEW_BODY_FILE: reviewBodyFile,
+              REVIEW_SURFACE: "pr-review",
+              REVIEW_EVENT: "COMMENT",
+              PLAY_REVIEW_HELPER: producer,
+              REVIEW_PAYLOAD_FILE: payloadFile,
+            }),
+          ).rejects.toMatchObject({
+            stderr: expect.stringContaining(
+              "review payload path must not be a symlink",
+            ),
+          });
+          await expect(readFile(outside, "utf8")).resolves.toBe(
+            "do not overwrite\n",
+          );
+          await expect(temporaryPayloadFiles(cwd)).resolves.toEqual([]);
+        } finally {
+          await cleanupTempDir(cwd);
+        }
+      },
+    );
+
+    it("does not invoke approved-review validation before payload freezing", async () => {
+      const cwd = await makeGitWorkspace();
+      try {
+        await writeInputs(cwd);
+        const producer = await writePayloadProducer(
+          cwd,
+          JSON.stringify(payload()),
+        );
+        const validator = await writeRecordingSupportValidator(
+          cwd,
+          "approved validation must not run",
+        );
+
+        await expect(
+          runHelper(cwd, "materialize-review-payload", {
+            FINDINGS_FILE: findingsFile,
+            REVIEW_BODY_FILE: reviewBodyFile,
+            REVIEW_SURFACE: "pr-review",
+            REVIEW_EVENT: "COMMENT",
+            PLAY_REVIEW_HELPER: producer,
+            PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT: validator,
+          }),
+        ).resolves.toMatchObject({ stdout: `${payloadFile}\n` });
+        await expect(
+          readFile(path.join(cwd, ".ephemeral/support-validator-args.txt")),
+        ).rejects.toThrow();
       } finally {
         await cleanupTempDir(cwd);
       }
@@ -1192,7 +1467,11 @@ describe.skipIf(!jqAvailable)(
         await writeInputs(cwd);
 
         await expect(
-          runHelper(cwd, "prepare-review-payload-write", {
+          runHelper(cwd, "materialize-review-payload", {
+            FINDINGS_FILE: findingsFile,
+            REVIEW_BODY_FILE: reviewBodyFile,
+            REVIEW_SURFACE: "pr-review",
+            REVIEW_EVENT: "COMMENT",
             REVIEW_PAYLOAD_FILE: "payload.json",
           }),
         ).rejects.toMatchObject({
@@ -1201,7 +1480,11 @@ describe.skipIf(!jqAvailable)(
           ),
         });
         await expect(
-          runHelper(cwd, "prepare-review-payload-write", {
+          runHelper(cwd, "materialize-review-payload", {
+            FINDINGS_FILE: findingsFile,
+            REVIEW_BODY_FILE: reviewBodyFile,
+            REVIEW_SURFACE: "pr-review",
+            REVIEW_EVENT: "COMMENT",
             REVIEW_PAYLOAD_FILE: ".ephemeral/nested/review-payload.json",
           }),
         ).rejects.toMatchObject({
@@ -1543,7 +1826,12 @@ describe.skipIf(!jqAvailable)(
             path.join(cwd, ".ephemeral"),
           );
           await expect(
-            runHelper(cwd, "prepare-review-payload-write"),
+            runHelper(cwd, "materialize-review-payload", {
+              FINDINGS_FILE: findingsFile,
+              REVIEW_BODY_FILE: reviewBodyFile,
+              REVIEW_SURFACE: "pr-review",
+              REVIEW_EVENT: "COMMENT",
+            }),
           ).rejects.toMatchObject({
             stderr: expect.stringContaining(
               ".ephemeral must be a directory, not a symlink",
@@ -1568,7 +1856,11 @@ describe.skipIf(!jqAvailable)(
           await symlink(outsidePayload, path.join(cwd, payloadFile));
 
           await expect(
-            runHelper(cwd, "prepare-review-payload-write", {
+            runHelper(cwd, "materialize-review-payload", {
+              FINDINGS_FILE: findingsFile,
+              REVIEW_BODY_FILE: reviewBodyFile,
+              REVIEW_SURFACE: "pr-review",
+              REVIEW_EVENT: "COMMENT",
               REVIEW_PAYLOAD_FILE: payloadFile,
             }),
           ).rejects.toMatchObject({
@@ -1619,7 +1911,11 @@ describe.skipIf(!jqAvailable)(
           await execFileAsync("mkfifo", [path.join(cwd, payloadFile)]);
 
           await expect(
-            runHelper(cwd, "prepare-review-payload-write", {
+            runHelper(cwd, "materialize-review-payload", {
+              FINDINGS_FILE: findingsFile,
+              REVIEW_BODY_FILE: reviewBodyFile,
+              REVIEW_SURFACE: "pr-review",
+              REVIEW_EVENT: "COMMENT",
               REVIEW_PAYLOAD_FILE: payloadFile,
             }),
           ).rejects.toMatchObject({

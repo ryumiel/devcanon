@@ -85,6 +85,36 @@ test layer, and the gap in existing coverage. Use the smallest owner-derived
 assertion that would fail for that regression; improve the owner or choose a
 narrower observable boundary rather than creating a prose-testing framework.
 
+### Failure-Proof Ownership
+
+Each invariant has one primary proof owner. Failure behavior must be tested at
+the executable layer that owns it. Transparent callers and adapters must test
+only their added behavior: input translation, delegation, output propagation,
+cleanup they own, and consumer-specific state transitions. They must not repeat
+the owner's fault-injection matrix.
+
+Additional consumer-level failure tests are required only when the consumer can
+violate the invariant independently or transforms the failure into different
+observable behavior. Hypothetically replacing a correct owner call with an
+incorrect implementation is not, by itself, evidence of a missing regression
+test.
+
+Do not introduce production injection seams, command shims, or filesystem
+harnesses solely to simulate an underlying primitive failure already covered by
+its owner.
+
+Examples:
+
+- Valid: a wrapper swallows a dependency's nonzero exit, so test exit
+  propagation at the wrapper.
+- Valid: an adapter computes a new destination path, so test that path binding.
+- Invalid: repeat rename-failure tests in every command using a tested atomic
+  writer.
+- Invalid: require a `PATH`-injected fake `mv` merely because the implementation
+  invokes `mv`.
+- Invalid: argue "replacing this dependency call with a direct write would
+  pass" when the consumer does not own atomicity.
+
 For a breaking source-contract migration, compare deterministic v1 and v2
 renders in isolation: require identical relative artifact inventory, parse
 representative outputs, and enumerate an explicit allowlist of intentional

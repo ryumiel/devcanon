@@ -3326,7 +3326,8 @@ None
     expect(prReview).toContain("scripts/approved-review-artifacts.sh");
     expect(prReview).toContain("render-review-preview");
     expect(prReview).toContain("build-github-review-payload");
-    expect(prReview).toContain("prepare-review-payload-write");
+    expect(prReview).toContain("materialize-review-payload");
+    expect(prReview).not.toContain("prepare-review-payload-write");
     expect(prReview).toContain("freeze-approved-review");
     expect(prReview).toContain("pr-review/approved-review/v1");
     expect(prReview).toContain('REVIEW_SURFACE="pr-review"');
@@ -3766,5 +3767,114 @@ None
     expect(adr0014).not.toContain(
       "The threshold is a single literal in two prompts",
     );
+  });
+  it("uses deterministic Phase 5 and Phase 6 PR-review artifact commands in order", async () => {
+    const prReview = await readSkillSource("pr-review");
+    const phase5 = getMarkdownSection(prReview, "Phase 5: Present (USER GATE)");
+    const phase6 = getMarkdownSection(prReview, "Phase 6: Post");
+
+    expect(phase5).toContain("read-result-for-preview");
+    expect(phase5).toContain("write-review-body");
+    expect(phase5).toContain("recover-review-body-publication");
+    expect(phase5.match(/write-review-body/g)?.length).toBeGreaterThanOrEqual(
+      3,
+    );
+    expect(phase5).not.toContain("validate-result >/dev/null");
+    expect(phase5).not.toContain("RESULT_JSON=$(mktemp)");
+    expect(phase5).not.toContain('cp "$REVIEW_RESULT_FILE" "$RESULT_JSON"');
+    expect(phase5).not.toContain("@tsv");
+    expect(phase5).not.toContain("IFS=$'\\t' read");
+    expect(phase5).toContain("RESULT_PREVIEW_BINDINGS=$(jq -er");
+    expect(phase5).toContain('eval "$RESULT_PREVIEW_BINDINGS"');
+    expect(phase5).toContain(
+      '"REVIEW_BODY_FILE=" + ((.review_body_file // "") | @sh)',
+    );
+    expect(phase5).toContain(
+      '"PRIOR_THREADS_FILE=" + ((.prior_threads_file // "") | @sh)',
+    );
+    expect(phase5).not.toContain("review body path validation failed");
+    expect(phase5).not.toContain('> "$REVIEW_BODY_FILE"');
+    expect(phase5).toContain("write_review_body_from_markdown()");
+    expect(phase5).toContain("REVIEW_BODY_FILE=$( \\");
+    expect(phase5).toContain(
+      'bash "$PR_REVIEW_MANIFEST_HELPER" recover-review-body-publication',
+    );
+    expect(
+      phase5.indexOf(
+        'bash "$PR_REVIEW_MANIFEST_HELPER" recover-review-body-publication',
+      ),
+    ).toBeGreaterThan(
+      phase5.indexOf('bash "$PR_REVIEW_MANIFEST_HELPER" write-review-body'),
+    );
+    expect(phase5).toContain("write_review_body_from_markdown || exit 1");
+
+    const findingsEditStart = phase5.indexOf(
+      "# Write the rewritten play-review/findings/v2 envelope",
+    );
+    const findingsEditEnd = phase5.indexOf(
+      "Then present the re-rendered stdout",
+    );
+    expect(findingsEditStart).toBeGreaterThanOrEqual(0);
+    expect(findingsEditEnd).toBeGreaterThan(findingsEditStart);
+    const findingsEdit = phase5.slice(findingsEditStart, findingsEditEnd);
+    const manifestRefreshIndex = findingsEdit.indexOf(
+      'update_pr_review_result_manifest "edited" || exit 1',
+    );
+    const bodyRewriteIndex = findingsEdit.indexOf(
+      "write_review_body_from_markdown || exit 1",
+    );
+    expect(manifestRefreshIndex).toBeGreaterThanOrEqual(0);
+    expect(bodyRewriteIndex).toBeGreaterThan(manifestRefreshIndex);
+    expect(
+      findingsEdit.match(
+        /update_pr_review_result_manifest "edited" \|\| exit 1/g,
+      )?.length,
+    ).toBe(2);
+
+    expect(phase6).toContain("materialize-review-payload");
+    expect(phase6).not.toContain("prepare-review-payload-write");
+    expect(phase6).not.toContain(
+      'build-github-review-payload > "$REVIEW_PAYLOAD_FILE"',
+    );
+    expect(phase6).not.toContain("validate-approved-review");
+    expect(phase6).toContain('bash "$PR_REVIEW_LEASE_HELPER" read-status');
+    const approvalLeaseGateStart = phase6.indexOf(
+      'bash "$PR_REVIEW_LEASE_HELPER" read-status',
+    );
+    const approvalLeaseGate = phase6.slice(
+      approvalLeaseGateStart - 600,
+      approvalLeaseGateStart + 100,
+    );
+    for (const binding of [
+      'REPOSITORY="<owner/repo>"',
+      'PR_NUMBER="$PR_NUMBER"',
+      'PRIMARY_REPOSITORY_ROOT="$REVIEW_CALLER_DIR"',
+      'WORKTREE_PATH="$WORKING_DIRECTORY"',
+      'LEASE_FILE="$LEASE_FILE"',
+      'RESULT_FILE="$REVIEW_RESULT_FILE"',
+      'HEAD_SHA="$REVIEW_HEAD_SHA"',
+    ]) {
+      expect(approvalLeaseGate).toContain(binding);
+    }
+    const phase6Steps = [
+      "Only after user approval",
+      "read_pr_review_result_manifest_for_preview",
+      "read-status",
+      "APPROVED_REVIEW_INTENT",
+      "materialize-review-payload",
+      "freeze-approved-review",
+      "refusing to post stale approved review",
+      "materialize-validated-review-payload",
+      "gh api repos/{owner}/{repo}/pulls/<N>/reviews",
+    ];
+    let previousIndex = -1;
+    for (const step of phase6Steps) {
+      const index = phase6.indexOf(step, previousIndex + 1);
+      expect(
+        index,
+        `missing or out-of-order Phase 6 step: ${step}`,
+      ).toBeGreaterThan(previousIndex);
+      previousIndex = index;
+    }
   });
 });

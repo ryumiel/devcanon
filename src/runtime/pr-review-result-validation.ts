@@ -30,7 +30,7 @@ export interface PrReviewResultCommandAuthorityInput
   helperEnv?: Record<string, string>;
 }
 
-interface ResultEvidence {
+export interface PrReviewResultCommandAuthorityEvidence {
   result: JsonObject;
   handoff: JsonObject;
 }
@@ -52,38 +52,39 @@ const FORBIDDEN_KEYS = new Set([
   "event",
 ]);
 
+interface PrReviewResultCommandAuthorityOptions {
+  allowReviewBodyDigestMismatch?: true;
+}
+
 export async function validatePrReviewResultEvidence(
   input: PrReviewResultValidationInput,
-): Promise<ResultEvidence> {
-  return withCwd(input.worktreeRoot, async () => {
-    await requireRepoRoot();
-    validateDirectChildPath("result", input.resultFile, "-result.json");
-    await assertReadableFile("result file", input.resultFile);
-    const result = await readJsonObject(input.resultFile, "result file");
-    validateResultObject(
-      result,
-      input.resultFile,
-      input.resultIdentityPath ?? input.resultFile,
-    );
-    const handoff = await validateResultFacts(result, input);
-    return { result, handoff };
-  });
+): Promise<PrReviewResultCommandAuthorityEvidence> {
+  return withCwd(input.worktreeRoot, () =>
+    validatePrReviewResultEvidenceInCurrentWorktree(input),
+  );
 }
 
 export async function validatePrReviewResultCommandAuthority(
   input: PrReviewResultCommandAuthorityInput,
-): Promise<void> {
-  await withCwd(input.worktreeRoot, async () => {
-    const { result, handoff } = await validatePrReviewResultEvidence({
-      worktreeRoot: input.worktreeRoot,
-      resultFile: input.resultFile,
-      resultIdentityPath: input.resultIdentityPath,
-      repository: input.repository,
-      prNumber: input.prNumber,
-      reviewHeadSha: input.reviewHeadSha,
-      leaseBaseRef: input.leaseBaseRef,
-      leaseHeadRef: input.leaseHeadRef,
-    });
+): Promise<PrReviewResultCommandAuthorityEvidence> {
+  return validatePrReviewResultCommandAuthorityWithOptions(input);
+}
+
+export async function validatePrReviewResultCommandAuthorityForReviewBodyRecovery(
+  input: PrReviewResultCommandAuthorityInput,
+): Promise<PrReviewResultCommandAuthorityEvidence> {
+  return validatePrReviewResultCommandAuthorityWithOptions(input, {
+    allowReviewBodyDigestMismatch: true,
+  });
+}
+
+async function validatePrReviewResultCommandAuthorityWithOptions(
+  input: PrReviewResultCommandAuthorityInput,
+  options: PrReviewResultCommandAuthorityOptions = {},
+): Promise<PrReviewResultCommandAuthorityEvidence> {
+  return withCwd(input.worktreeRoot, async () => {
+    const { result, handoff } =
+      await validatePrReviewResultEvidenceInCurrentWorktree(input, options);
     const findingsFile = stringField(result, "findings_file");
     await validateFindingsAuthority(findingsFile, input);
 
@@ -103,7 +104,25 @@ export async function validatePrReviewResultCommandAuthority(
       nullableStringField(artifacts, "prior_threads_file"),
       input,
     );
+    return { result, handoff };
   });
+}
+
+async function validatePrReviewResultEvidenceInCurrentWorktree(
+  input: PrReviewResultValidationInput,
+  options: PrReviewResultCommandAuthorityOptions = {},
+): Promise<PrReviewResultCommandAuthorityEvidence> {
+  await requireRepoRoot();
+  validateDirectChildPath("result", input.resultFile, "-result.json");
+  await assertReadableFile("result file", input.resultFile);
+  const result = await readJsonObject(input.resultFile, "result file");
+  validateResultObject(
+    result,
+    input.resultFile,
+    input.resultIdentityPath ?? input.resultFile,
+  );
+  const handoff = await validateResultFacts(result, input, options);
+  return { result, handoff };
 }
 
 async function validateHandoffFile(
@@ -251,6 +270,7 @@ async function validateHandoffFacts(
 async function validateResultFacts(
   result: JsonObject,
   input: PrReviewResultValidationInput,
+  options: { allowReviewBodyDigestMismatch?: boolean } = {},
 ): Promise<JsonObject> {
   const manifestPrNumber = String(numberField(result, "pr_number"));
   if (manifestPrNumber !== String(input.prNumber)) {
@@ -374,11 +394,13 @@ async function validateResultFacts(
     findingsFile,
     stringField(digests, "findings_sha256"),
   );
-  await validateOptionalDigest(
-    "review body",
-    reviewBodyFile,
-    nullableStringField(digests, "review_body_sha256"),
-  );
+  if (!options.allowReviewBodyDigestMismatch) {
+    await validateOptionalDigest(
+      "review body",
+      reviewBodyFile,
+      nullableStringField(digests, "review_body_sha256"),
+    );
+  }
   await validateOptionalDigest(
     "context",
     contextFile,

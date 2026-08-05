@@ -757,7 +757,8 @@ describe("rendered phase artifact smoke coverage", () => {
     expect(prReview).toContain("scripts/review-manifests.sh");
     expect(prReview).toContain("scripts/review-leases.sh");
     expect(prReview).toContain("build-github-review-payload");
-    expect(prReview).toContain("prepare-review-payload-write");
+    expect(prReview).toContain("materialize-review-payload");
+    expect(prReview).not.toContain("prepare-review-payload-write");
     expect(prReview).toContain("freeze-approved-review");
     expect(prReview).toContain("pr-review/handoff/v1");
     expect(prReview).toContain("pr-review/result/v1");
@@ -766,7 +767,9 @@ describe("rendered phase artifact smoke coverage", () => {
     expect(prReview).toContain("PR_REVIEW_MANIFEST_HELPER");
     expect(prReview).toContain("PR_REVIEW_LEASE_HELPER");
     expect(prReview).toContain("REVIEW_BODY_FILE");
-    expect(prReview).toContain("review body parent must be .ephemeral");
+    expect(prReview).toContain("write-review-body");
+    expect(prReview).toContain("recover-review-body-publication");
+    expect(prReview).not.toContain("review body parent must be .ephemeral");
     expect(prReview).toContain("REVIEW_PAYLOAD_FILE");
     expect(prReview).toContain("APPROVED_REVIEW_FILE");
     expect(normalizeRenderedWhitespace(prReview)).toContain(
@@ -834,7 +837,7 @@ describe("rendered phase artifact smoke coverage", () => {
     );
     expect(prReviewPhase5BeforeAuditStatus).not.toContain("validate-result");
     expect(normalizeRenderedWhitespace(prReview)).toContain(
-      "Phase 5 validates `REVIEW_RESULT_FILE` against the trusted review head captured before the gate, then renders and resumes from the validated result manifest rather than ambient conversation variables",
+      "Phase 5 invokes `read-result-for-preview` with `REVIEW_RESULT_FILE` and the trusted review head captured before the gate",
     );
     expect(normalizeRenderedWhitespace(prReview)).toContain(
       "After every successful `gated` write, including edited previews, render the mandatory Phase 5 artifact audit summary before asking for user action",
@@ -868,7 +871,7 @@ describe("rendered phase artifact smoke coverage", () => {
       "Refresh lease validation for every gate cycle; never treat the `RESULT_FILE` path alone as freshness evidence",
     );
     expect(normalizeRenderedWhitespace(prReview)).toContain(
-      '`pr-review/result/v1` with `PRESENTATION_STATUS="edited"`',
+      "First update and validate `pr-review/result/v1` with the rewritten findings and the current review body",
     );
     expect(normalizeRenderedWhitespace(prReview)).toContain(
       "render the mandatory Phase 5 artifact audit summary again before waiting for approval",
@@ -880,7 +883,7 @@ describe("rendered phase artifact smoke coverage", () => {
       "Do not call `build-github-review-payload` again after user approval",
     );
     expect(normalizeRenderedWhitespace(prReview)).toContain(
-      "The result manifest is evidence that the handoff, findings, body, preview, and scope-decision inputs were validated and digest-bound for rendering or resume; it is not approval, a lease, lifecycle state, an approved-review freeze, or a GitHub payload",
+      "Result-manifest consumption is only for rendering or resume",
     );
 
     const supportValidator = bodyFor("play-validate-review-artifacts");
@@ -956,7 +959,8 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(renderedPrReview).toContain("pr-review/handoff/v1");
       expect(renderedPrReview).toContain("pr-review/result/v1");
       expect(renderedPrReview).toContain("render-review-preview");
-      expect(renderedPrReview).toContain("prepare-review-payload-write");
+      expect(renderedPrReview).toContain("materialize-review-payload");
+      expect(renderedPrReview).not.toContain("prepare-review-payload-write");
       expect(renderedPrReview).toContain("build-github-review-payload");
       expect(renderedPrReview).toContain("freeze-approved-review");
       expect(renderedPrReview).toContain("pr-review/approved-review/v1");
@@ -987,7 +991,8 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(renderedPrReview).toContain(
         "approved review artifact path missing",
       );
-      expect(renderedPrReview).toContain(
+      expect(renderedPrReview).toContain("write-review-body");
+      expect(renderedPrReview).not.toContain(
         "review body parent must be .ephemeral",
       );
       expect(renderedPrReview).toContain("APPROVED_REVIEW_INTENT");
@@ -1059,35 +1064,64 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(renderedPrReview).toContain(
         ': "${REVIEW_HEAD_SHA:?Phase 5 trusted review head missing}"',
       );
+      expect(renderedPrReview).toContain("read-result-for-preview");
+      expect(renderedPrReview).toContain("RESULT_PREVIEW_JSON=$(");
+      expect(renderedPrReview).toContain("RESULT_PREVIEW_BINDINGS=$(jq -er");
+      expect(renderedPrReview).toContain('eval "$RESULT_PREVIEW_BINDINGS"');
       expect(renderedPrReview).toContain(
-        'PR_NUMBER="$PR_NUMBER" HEAD_SHA="$REVIEW_HEAD_SHA" REPOSITORY="<owner/repo>" RESULT_FILE="$REVIEW_RESULT_FILE"',
+        '"REVIEW_BODY_FILE=" + ((.review_body_file // "") | @sh)',
       );
-      expect(renderedPrReview).toContain(
-        'REVIEW_HANDOFF_FILE="$(jq -r \'.artifacts.handoff_file\' "$RESULT_JSON")"',
+      expect(renderedPrReview).toContain("REVIEW_HANDOFF_FILE");
+      expect(renderedPrReview).not.toContain("RESULT_JSON=$(mktemp)");
+      expect(renderedPrReview).not.toContain("@tsv");
+      expect(renderedPrReview).not.toContain("IFS=$'\\t' read");
+      expect(renderedPrReview).not.toContain(
+        'cp "$REVIEW_RESULT_FILE" "$RESULT_JSON"',
+      );
+      expect(renderedPrReview).not.toContain(
+        'bash "$PR_REVIEW_MANIFEST_HELPER" validate-handoff >/dev/null',
       );
       expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
-        'PR_NUMBER="$PR_NUMBER" \\ HEAD_SHA="$REVIEW_HEAD_SHA" \\ REPOSITORY="<owner/repo>" \\ HANDOFF_FILE="$REVIEW_HANDOFF_FILE" \\ bash "$PR_REVIEW_MANIFEST_HELPER" validate-handoff >/dev/null',
+        "Consume its closed JSON snapshot, then render and resume from that validated result manifest rather than ambient conversation variables",
       );
+      expect(renderedPrReview).toContain("write_review_body_from_markdown()");
+      expect(renderedPrReview).toContain("REVIEW_BODY_FILE=$( \\");
       expect(renderedPrReview).toContain(
-        'REVIEW_HEAD_REF="$(jq -r \'.head_ref\' "$REVIEW_HANDOFF_FILE")"',
+        'bash "$PR_REVIEW_MANIFEST_HELPER" recover-review-body-publication',
       );
-      expect(renderedPrReview).toContain(
-        '[ -n "$REVIEW_HEAD_REF" ] && [ "$REVIEW_HEAD_REF" != "null" ] || return 1',
+      expect(
+        renderedPrReview.indexOf(
+          'bash "$PR_REVIEW_MANIFEST_HELPER" recover-review-body-publication',
+        ),
+      ).toBeGreaterThan(
+        renderedPrReview.indexOf(
+          'bash "$PR_REVIEW_MANIFEST_HELPER" write-review-body',
+        ),
       );
-      expect(renderedPrReview).toContain(
-        'REVIEW_HEAD_SHA="$(jq -r \'.review_head_sha\' "$RESULT_JSON")"',
+
+      const renderedFindingsEditStart = renderedPrReview.indexOf(
+        "# Write the rewritten play-review/findings/v2 envelope",
       );
-      expect(renderedPrReview).toContain(
-        'REVIEW_FINDINGS_FILE="$(jq -r \'.findings_file\' "$RESULT_JSON")"',
+      const renderedFindingsEditEnd = renderedPrReview.indexOf(
+        "Then present the re-rendered stdout",
       );
-      expect(renderedPrReview).toContain(
-        'REVIEW_SCOPE_DECISION_FILE="$(jq -r \'.artifacts.scope_decision_file\' "$RESULT_JSON")"',
+      expect(renderedFindingsEditStart).toBeGreaterThanOrEqual(0);
+      expect(renderedFindingsEditEnd).toBeGreaterThan(
+        renderedFindingsEditStart,
       );
-      expect(renderedPrReview).toContain(
-        'RENDERED_PREVIEW_FILE="$(jq -r \'.artifacts.rendered_preview_file // empty\' "$RESULT_JSON")"',
+      const renderedFindingsEdit = renderedPrReview.slice(
+        renderedFindingsEditStart,
+        renderedFindingsEditEnd,
       );
-      expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
-        "Phase 5 validates `REVIEW_RESULT_FILE` against the trusted review head captured before the gate, then renders and resumes from the validated result manifest rather than ambient conversation variables",
+      const renderedManifestRefreshIndex = renderedFindingsEdit.indexOf(
+        'update_pr_review_result_manifest "edited" || exit 1',
+      );
+      const renderedBodyRewriteIndex = renderedFindingsEdit.indexOf(
+        "write_review_body_from_markdown || exit 1",
+      );
+      expect(renderedManifestRefreshIndex).toBeGreaterThanOrEqual(0);
+      expect(renderedBodyRewriteIndex).toBeGreaterThan(
+        renderedManifestRefreshIndex,
       );
       expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
         "After every successful `gated` write, including edited previews, render the mandatory Phase 5 artifact audit summary before asking for user action",
@@ -1121,7 +1155,7 @@ describe("rendered phase artifact smoke coverage", () => {
         "Refresh lease validation for every gate cycle; never treat the `RESULT_FILE` path alone as freshness evidence",
       );
       expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
-        '`pr-review/result/v1` with `PRESENTATION_STATUS="edited"`',
+        "First update and validate `pr-review/result/v1` with the rewritten findings and the current review body",
       );
       expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
         "render the mandatory Phase 5 artifact audit summary again before waiting for approval",
@@ -1136,6 +1170,40 @@ describe("rendered phase artifact smoke coverage", () => {
         renderedPrReview,
         "## Phase 6: Post",
         "## Phase 7: Cleanup",
+      );
+      const approvalRevalidationIndex = renderedPrReviewPhase6.indexOf(
+        "read_pr_review_result_manifest_for_preview",
+      );
+      const approvalLeaseGateIndex = renderedPrReviewPhase6.indexOf(
+        'bash "$PR_REVIEW_LEASE_HELPER" read-status',
+      );
+      const reviewEventIndex = renderedPrReviewPhase6.indexOf(
+        "APPROVED_REVIEW_INTENT",
+      );
+      const preFreezeMaterializationIndex = renderedPrReviewPhase6.indexOf(
+        "materialize-review-payload",
+      );
+      expect(approvalRevalidationIndex).toBeGreaterThanOrEqual(0);
+      expect(approvalLeaseGateIndex).toBeGreaterThan(approvalRevalidationIndex);
+      expect(reviewEventIndex).toBeGreaterThan(approvalLeaseGateIndex);
+      expect(preFreezeMaterializationIndex).toBeGreaterThan(reviewEventIndex);
+      const approvalLeaseGate = renderedPrReviewPhase6.slice(
+        approvalLeaseGateIndex - 600,
+        approvalLeaseGateIndex + 100,
+      );
+      for (const binding of [
+        'REPOSITORY="<owner/repo>"',
+        'PR_NUMBER="$PR_NUMBER"',
+        'PRIMARY_REPOSITORY_ROOT="$REVIEW_CALLER_DIR"',
+        'WORKTREE_PATH="$WORKING_DIRECTORY"',
+        'LEASE_FILE="$LEASE_FILE"',
+        'RESULT_FILE="$REVIEW_RESULT_FILE"',
+        'HEAD_SHA="$REVIEW_HEAD_SHA"',
+      ]) {
+        expect(approvalLeaseGate).toContain(binding);
+      }
+      expect(normalizeRenderedWhitespace(renderedPrReviewPhase6)).toContain(
+        "Its lease digest gate prevents a coordinated replacement of the result and its artifacts from inheriting prior approval",
       );
       const materializeIndex = renderedPrReviewPhase6.indexOf(
         "materialize-validated-review-payload",
@@ -1164,10 +1232,10 @@ describe("rendered phase artifact smoke coverage", () => {
         "Do not call `build-github-review-payload` again after user approval",
       );
       expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
-        "The result manifest is evidence that the handoff, findings, body, preview, and scope-decision inputs were validated and digest-bound for rendering or resume; it is not approval, a lease, lifecycle state, an approved-review freeze, or a GitHub payload",
+        "Result-manifest consumption is only for rendering or resume",
       );
       expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
-        "Re-run the Phase 5 result-manifest read before binding any approved review event",
+        "Any post-preview mutation fails before event derivation, payload materialization, or GitHub mutation",
       );
       expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
         "Approval intent is captured only when the user approves a specific preview",
@@ -1433,12 +1501,18 @@ describe("rendered phase artifact smoke coverage", () => {
         "## Phase 3: Spawn agents",
         "## Phase 4: Sub-checks",
       );
+      const phase4 = sliceRenderedSection(
+        workflow,
+        "## Phase 4: Sub-checks",
+        "## Phase 5: Critic verification",
+      );
       const phase5 = sliceRenderedSection(
         workflow,
         "## Phase 5: Critic verification",
         "## Phase 5.5: Finding Pattern Synthesis",
       );
       const normalizedPhase3 = normalizeRenderedWhitespace(phase3);
+      const normalizedPhase4 = normalizeRenderedWhitespace(phase4);
       const normalizedPhase5 = normalizeRenderedWhitespace(phase5);
 
       expect(normalizedPhase3).toContain(
@@ -1453,6 +1527,9 @@ describe("rendered phase artifact smoke coverage", () => {
       }
       expect(normalizedPhase5).toContain(
         "response-only `deep-reviewer`, frontier/xhigh and source-immutable, with zero handoffs",
+      );
+      expect(normalizedPhase4).toContain(
+        "Reject duplicate proof requests when the invariant is already tested at its executable owner and the consumer adds no independently fallible behavior",
       );
 
       for (const [route, topic] of [

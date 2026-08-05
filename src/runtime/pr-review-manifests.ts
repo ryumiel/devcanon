@@ -19,6 +19,7 @@ import { runPrReviewLeasesCommand } from "./pr-review-leases.js";
 import {
   type PrReviewResultCommandAuthorityInput,
   validatePrReviewResultCommandAuthority,
+  validatePrReviewResultCommandAuthorityForReviewBodyRecovery,
 } from "./pr-review-result-validation.js";
 
 const execFileAsync = promisify(execFile);
@@ -82,11 +83,20 @@ export async function runPrReviewManifestsCommand(
       case "validate-result":
         await validateResultCommand();
         return ok("");
+      case "read-result-for-preview":
+        requireNoCommandArgs(commandName, args);
+        return ok(`${await readResultForPreview()}\n`);
+      case "write-review-body":
+        requireNoCommandArgs(commandName, args);
+        return ok(await writeReviewBody());
+      case "recover-review-body-publication":
+        requireNoCommandArgs(commandName, args);
+        return ok(`${await recoverReviewBodyPublication()}\n`);
       case "render-phase5-audit-summary":
         return ok(`${await renderPhase5AuditSummary()}\n`);
       default:
         throw new PrReviewManifestError(
-          "usage: review-manifests.sh prepare-handoff-write|write-handoff|validate-handoff|prepare-result-write|write-result|validate-result|render-phase5-audit-summary",
+          "usage: review-manifests.sh prepare-handoff-write|write-handoff|validate-handoff|prepare-result-write|write-result|validate-result|read-result-for-preview|write-review-body|recover-review-body-publication|render-phase5-audit-summary",
         );
     }
   } catch (err) {
@@ -308,6 +318,114 @@ async function validateResultCommand(): Promise<void> {
   requireEnv("REPOSITORY");
   requireEnv("RESULT_FILE");
   await validateResultFile(requiredEnv("RESULT_FILE"));
+}
+
+async function readResultForPreview(): Promise<string> {
+  requireEnv("REPOSITORY");
+  const resultFile = requiredEnv("RESULT_FILE");
+  const { result, handoff } = await validateResultFile(resultFile);
+  const artifacts = objectField(result, "artifacts");
+
+  return json({
+    schema: "pr-review/result-preview/v1",
+    review_head_sha: stringField(result, "review_head_sha"),
+    handoff_file: stringField(artifacts, "handoff_file"),
+    head_ref: stringField(handoff, "head_ref"),
+    findings_file: stringField(result, "findings_file"),
+    review_body_file: nullableStringField(result, "review_body_file"),
+    scope_decision_file: stringField(artifacts, "scope_decision_file"),
+    prior_threads_file: nullableStringField(artifacts, "prior_threads_file"),
+    rendered_preview_file: nullableStringField(
+      artifacts,
+      "rendered_preview_file",
+    ),
+  });
+}
+
+async function writeReviewBody(): Promise<string> {
+  requireEnv("REPOSITORY");
+  const resultFile = requiredEnv("RESULT_FILE");
+  const { result } = await validateResultFile(resultFile);
+  const prNumber = readPrNumber();
+  const headSha = readHeadSha();
+  const reviewBodyFile =
+    nullableStringField(result, "review_body_file") ??
+    canonicalReviewBodyPath(prNumber, headSha);
+  validateCanonicalReviewBodyPath(reviewBodyFile, prNumber, headSha);
+  validateDirectChildPath("review body", reviewBodyFile, "-review-body.md");
+  await prepareWriteTarget("review body", reviewBodyFile);
+
+  const markdown = await readMarkdownFromStdin();
+  await prepareWriteTarget("review body", reviewBodyFile);
+  await writeTextAtomically(path.join(process.cwd(), reviewBodyFile), markdown);
+  return `${reviewBodyFile}\n`;
+}
+
+async function recoverReviewBodyPublication(): Promise<string> {
+  requireEnv("REPOSITORY");
+  const resultFile = requiredEnv("RESULT_FILE");
+  const { result } =
+    await validatePrReviewResultCommandAuthorityForReviewBodyRecovery(
+      readResultValidationInput(resultFile),
+    );
+  const reviewBodyFile =
+    nullableStringField(result, "review_body_file") ??
+    canonicalReviewBodyPath(readPrNumber(), readHeadSha());
+  validateCanonicalReviewBodyPath(
+    reviewBodyFile,
+    readPrNumber(),
+    readHeadSha(),
+  );
+  await validateOptionalDirectChildReadableArtifact(
+    "review body",
+    reviewBodyFile,
+    "-review-body.md",
+  );
+  const artifacts = objectField(result, "artifacts");
+  const digests = objectField(result, "digests");
+  const presentation = objectField(result, "presentation");
+  const recovered = {
+    ...result,
+    review_body_file: reviewBodyFile,
+    artifacts: {
+      ...artifacts,
+      rendered_preview_file: null,
+    },
+    digests: {
+      ...digests,
+      review_body_sha256: await sha256File(reviewBodyFile),
+      rendered_preview_sha256: null,
+    },
+    presentation: {
+      ...presentation,
+      status: "edited",
+    },
+  };
+  validateResultObject(recovered, resultFile, resultFile);
+  await validateResultFacts(recovered, resultFile);
+  await prepareWriteTarget("result", resultFile);
+  await prepareWriteTarget("result temp", tmpPathFor(resultFile));
+  await writeTextAtomically(
+    path.join(process.cwd(), resultFile),
+    `${json(recovered)}\n`,
+  );
+  await rm(path.join(process.cwd(), tmpPathFor(resultFile)), { force: true });
+  await validateResultFile(resultFile);
+  return resultFile;
+}
+
+async function readMarkdownFromStdin(): Promise<string> {
+  try {
+    const chunks: Buffer[] = [];
+    for await (const chunk of process.stdin) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    }
+    return new TextDecoder("utf-8", { fatal: true }).decode(
+      Buffer.concat(chunks),
+    );
+  } catch {
+    fail("review body stdin must be valid UTF-8 Markdown");
+  }
 }
 
 async function renderPhase5AuditSummary(): Promise<string> {
@@ -650,7 +768,7 @@ async function validateHandoffFile(file: string, identityFile = file) {
 }
 
 async function validateResultFile(file: string, identityFile = file) {
-  await validatePrReviewResultCommandAuthority(
+  return validatePrReviewResultCommandAuthority(
     readResultValidationInput(file, identityFile),
   );
 }
@@ -1808,6 +1926,15 @@ function requireEnv(name: string) {
   }
 }
 
+function requireNoCommandArgs(
+  commandName: string | undefined,
+  args: readonly string[],
+): void {
+  if (args.length !== 1) {
+    fail(`${commandName ?? "command"} does not accept arguments`);
+  }
+}
+
 function requiredEnv(name: string): string {
   requireEnv(name);
   return process.env[name] ?? "";
@@ -1856,6 +1983,10 @@ function validateCanonicalReviewBodyPath(
   ) {
     fail(`review body path mismatch: ${reviewBodyFile}`);
   }
+}
+
+function canonicalReviewBodyPath(prNumber: number, headSha: string): string {
+  return `.ephemeral/pr-${prNumber}-${headSha}-review-body.md`;
 }
 
 async function expectedFindingsPath(headSha: string): Promise<string> {

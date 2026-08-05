@@ -23,28 +23,19 @@ const FORBIDDEN_KEYS = new Set([
     "event",
 ]);
 export async function validatePrReviewResultEvidence(input) {
-    return withCwd(input.worktreeRoot, async () => {
-        await requireRepoRoot();
-        validateDirectChildPath("result", input.resultFile, "-result.json");
-        await assertReadableFile("result file", input.resultFile);
-        const result = await readJsonObject(input.resultFile, "result file");
-        validateResultObject(result, input.resultFile, input.resultIdentityPath ?? input.resultFile);
-        const handoff = await validateResultFacts(result, input);
-        return { result, handoff };
-    });
+    return withCwd(input.worktreeRoot, () => validatePrReviewResultEvidenceInCurrentWorktree(input));
 }
 export async function validatePrReviewResultCommandAuthority(input) {
-    await withCwd(input.worktreeRoot, async () => {
-        const { result, handoff } = await validatePrReviewResultEvidence({
-            worktreeRoot: input.worktreeRoot,
-            resultFile: input.resultFile,
-            resultIdentityPath: input.resultIdentityPath,
-            repository: input.repository,
-            prNumber: input.prNumber,
-            reviewHeadSha: input.reviewHeadSha,
-            leaseBaseRef: input.leaseBaseRef,
-            leaseHeadRef: input.leaseHeadRef,
-        });
+    return validatePrReviewResultCommandAuthorityWithOptions(input);
+}
+export async function validatePrReviewResultCommandAuthorityForReviewBodyRecovery(input) {
+    return validatePrReviewResultCommandAuthorityWithOptions(input, {
+        allowReviewBodyDigestMismatch: true,
+    });
+}
+async function validatePrReviewResultCommandAuthorityWithOptions(input, options = {}) {
+    return withCwd(input.worktreeRoot, async () => {
+        const { result, handoff } = await validatePrReviewResultEvidenceInCurrentWorktree(input, options);
         const findingsFile = stringField(result, "findings_file");
         await validateFindingsAuthority(findingsFile, input);
         const handoffArtifacts = objectField(handoff, "artifacts");
@@ -52,7 +43,17 @@ export async function validatePrReviewResultCommandAuthority(input) {
         const artifacts = objectField(result, "artifacts");
         const scopeDecisionFile = stringField(artifacts, "scope_decision_file");
         await validateScopeAuthority(scopeDecisionFile, await guardedScopeBaseRef(scopeDecisionFile), nullableStringField(artifacts, "prior_threads_file"), input);
+        return { result, handoff };
     });
+}
+async function validatePrReviewResultEvidenceInCurrentWorktree(input, options = {}) {
+    await requireRepoRoot();
+    validateDirectChildPath("result", input.resultFile, "-result.json");
+    await assertReadableFile("result file", input.resultFile);
+    const result = await readJsonObject(input.resultFile, "result file");
+    validateResultObject(result, input.resultFile, input.resultIdentityPath ?? input.resultFile);
+    const handoff = await validateResultFacts(result, input, options);
+    return { result, handoff };
 }
 async function validateHandoffFile(file, input, identityPath = file) {
     validateDirectChildPath("handoff", file, "-handoff.json");
@@ -148,7 +149,7 @@ async function validateHandoffFacts(handoff, identityPath, input) {
         fail("handoff follow-up narrow mismatch");
     }
 }
-async function validateResultFacts(result, input) {
+async function validateResultFacts(result, input, options = {}) {
     const manifestPrNumber = String(numberField(result, "pr_number"));
     if (manifestPrNumber !== String(input.prNumber)) {
         fail(`result PR number mismatch: manifest ${manifestPrNumber}, current ${input.prNumber}`);
@@ -227,7 +228,9 @@ async function validateResultFacts(result, input) {
     const digests = objectField(result, "digests");
     await validateDigest("handoff", handoffFile, stringField(digests, "handoff_sha256"));
     await validateDigest("findings", findingsFile, stringField(digests, "findings_sha256"));
-    await validateOptionalDigest("review body", reviewBodyFile, nullableStringField(digests, "review_body_sha256"));
+    if (!options.allowReviewBodyDigestMismatch) {
+        await validateOptionalDigest("review body", reviewBodyFile, nullableStringField(digests, "review_body_sha256"));
+    }
     await validateOptionalDigest("context", contextFile, nullableStringField(digests, "context_sha256"));
     await validateDigest("scope decision", scopeDecisionFile, stringField(digests, "scope_decision_sha256"));
     await validateOptionalDigest("prior threads", priorThreadsFile, nullableStringField(digests, "prior_threads_sha256"));
