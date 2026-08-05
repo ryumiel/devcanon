@@ -253,7 +253,7 @@ describe("loadAndValidateAgents", () => {
     await createAgentFixture(
       agentsDir,
       "worker",
-      makeAgentYaml("worker", { description: "uses <tool>" }),
+      makeAgentYaml("worker", { skills: ["missing-skill"] }),
     );
 
     await expect(
