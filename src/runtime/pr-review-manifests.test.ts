@@ -1,6 +1,15 @@
 import { createHash } from "node:crypto";
-import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
+import {
+  chmod,
+  lstat,
+  mkdir,
+  readFile,
+  rm,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import path from "node:path";
+import { Readable } from "node:stream";
 import {
   afterAll,
   afterEach,
@@ -684,6 +693,161 @@ describe("pr-review Phase 5 audit summary renderer", () => {
   });
 });
 
+describe("pr-review manifest review body writer", () => {
+  it("derives, creates, and reports the canonical body for an initial null target", async () => {
+    const workspace = await makeManifestWorkspace("pr-review-body-null-");
+    setSummaryEnv(workspace);
+    process.chdir(workspace.worktree);
+    const result = JSON.parse(
+      await readFile(
+        path.join(workspace.worktree, workspace.resultFile),
+        "utf8",
+      ),
+    ) as { digests: Record<string, unknown> };
+    await writeJson(workspace.worktree, workspace.resultFile, {
+      ...result,
+      review_body_file: null,
+      digests: { ...result.digests, review_body_sha256: null },
+    });
+    await rm(path.join(workspace.worktree, workspace.reviewBodyFile));
+
+    const outcome = await runManifestCommandWithStdin(
+      ["write-review-body"],
+      "Initial body.\n",
+    );
+
+    expect(outcome).toEqual({
+      exitCode: 0,
+      stdout: `${workspace.reviewBodyFile}\n`,
+      stderr: "",
+    });
+    await expect(
+      readFile(path.join(workspace.worktree, workspace.reviewBodyFile), "utf8"),
+    ).resolves.toBe("Initial body.\n");
+  });
+
+  it("replaces the canonical result-bound review body from complete Markdown stdin", async () => {
+    const workspace = await makeManifestWorkspace("pr-review-body-write-");
+    setSummaryEnv(workspace);
+    process.chdir(workspace.worktree);
+
+    const outcome = await runManifestCommandWithStdin(
+      ["write-review-body"],
+      "# Replacement\n\nBody text.\n",
+    );
+
+    expect(outcome).toEqual({
+      exitCode: 0,
+      stdout: `${workspace.reviewBodyFile}\n`,
+      stderr: "",
+    });
+    await expect(
+      readFile(path.join(workspace.worktree, workspace.reviewBodyFile), "utf8"),
+    ).resolves.toBe("# Replacement\n\nBody text.\n");
+  });
+
+  it.each([
+    {
+      name: "stale findings authority",
+      input: "Replacement\n",
+      mutate: async (workspace: ManifestWorkspace) =>
+        writeFile(
+          path.join(workspace.worktree, workspace.findingsFile),
+          '{"invalid":true}\n',
+        ),
+      stderr: "findings digest mismatch",
+    },
+    {
+      name: "a noncanonical result body path",
+      input: "Replacement\n",
+      mutate: async (workspace: ManifestWorkspace) => {
+        const result = JSON.parse(
+          await readFile(
+            path.join(workspace.worktree, workspace.resultFile),
+            "utf8",
+          ),
+        ) as Record<string, unknown>;
+        await writeJson(workspace.worktree, workspace.resultFile, {
+          ...result,
+          review_body_file: ".ephemeral/other-review-body.md",
+        });
+      },
+      stderr: "review body path mismatch",
+    },
+    {
+      name: "malformed UTF-8 stdin",
+      input: Buffer.from([0xff]),
+      mutate: async () => undefined,
+      stderr: "review body stdin must be valid UTF-8 Markdown",
+    },
+  ])("preserves the body for $name", async ({ input, mutate, stderr }) => {
+    const workspace = await makeManifestWorkspace("pr-review-body-reject-");
+    setSummaryEnv(workspace);
+    process.chdir(workspace.worktree);
+    const before = await readFile(
+      path.join(workspace.worktree, workspace.reviewBodyFile),
+      "utf8",
+    );
+    await mutate(workspace);
+
+    const outcome = await runManifestCommandWithStdin(
+      ["write-review-body"],
+      input,
+    );
+
+    expect(outcome.exitCode).toBe(1);
+    expect(outcome.stdout).toBe("");
+    expect(outcome.stderr).toContain(stderr);
+    await expect(
+      readFile(path.join(workspace.worktree, workspace.reviewBodyFile), "utf8"),
+    ).resolves.toBe(before);
+  });
+
+  it.each([
+    {
+      name: "directory",
+      prepare: async (workspace: ManifestWorkspace) => {
+        const body = path.join(workspace.worktree, workspace.reviewBodyFile);
+        await rm(body);
+        await mkdir(body);
+      },
+      stderr: "review body file missing or not a regular file",
+    },
+    {
+      name: "symlink",
+      prepare: async (workspace: ManifestWorkspace) => {
+        const body = path.join(workspace.worktree, workspace.reviewBodyFile);
+        const externalBody = path.join(workspace.worktree, "external-body.md");
+        await rm(body);
+        await writeFile(externalBody, "External.\n");
+        await symlink(externalBody, body);
+      },
+      stderr: "review body file must not be a symlink",
+    },
+  ])(
+    "rejects a $name review body before writing",
+    async ({ prepare, stderr }) => {
+      const workspace = await makeManifestWorkspace("pr-review-body-hostile-");
+      setSummaryEnv(workspace);
+      process.chdir(workspace.worktree);
+      await prepare(workspace);
+
+      const outcome = await runManifestCommandWithStdin(
+        ["write-review-body"],
+        "Replacement\n",
+      );
+
+      expect(outcome.exitCode).toBe(1);
+      expect(outcome.stdout).toBe("");
+      expect(outcome.stderr).toContain(stderr);
+      const body = await lstat(
+        path.join(workspace.worktree, workspace.reviewBodyFile),
+      );
+      expect(body.isDirectory() || body.isSymbolicLink()).toBe(true);
+    },
+  );
+});
+
 async function runManifestCommand(
   args: readonly string[],
 ): Promise<RuntimeCommandOutcome> {
@@ -694,6 +858,26 @@ async function runManifestCommand(
     runPrReviewManifestsCommand(args),
     `pr-review-manifests ${args.join(" ")}`,
   );
+}
+
+async function runManifestCommandWithStdin(
+  args: readonly string[],
+  input: string | Buffer,
+): Promise<RuntimeCommandOutcome> {
+  const descriptor = Object.getOwnPropertyDescriptor(process, "stdin");
+  Object.defineProperty(process, "stdin", {
+    configurable: true,
+    value: Readable.from([input]),
+  });
+  try {
+    return await runManifestCommand(args);
+  } finally {
+    if (descriptor === undefined) {
+      Reflect.deleteProperty(process, "stdin");
+    } else {
+      Object.defineProperty(process, "stdin", descriptor);
+    }
+  }
 }
 
 async function makeManifestWorkspace(

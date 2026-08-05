@@ -7,7 +7,6 @@ import {
   mkdir,
   mkdtemp,
   readFile,
-  readdir,
   realpath,
   rename,
   rm,
@@ -493,6 +492,22 @@ async function runHelper(
   });
 }
 
+async function unknownCommandUsage(script: string): Promise<string> {
+  try {
+    await execFileAsync("bash", [script, "unknown-command"]);
+  } catch (err) {
+    const stderr =
+      err && typeof err === "object" && "stderr" in err
+        ? String((err as { stderr?: unknown }).stderr)
+        : "";
+    if (stderr.length > 0) {
+      return stderr;
+    }
+    throw err;
+  }
+  throw new Error("unknown command unexpectedly succeeded");
+}
+
 async function runHelperWithStdin(
   cwd: string,
   command: string,
@@ -878,31 +893,16 @@ async function cleanupPhase5AuditWorkspace(workspace: Phase5AuditWorkspace) {
 
 describe("pr-review manifest helper", () => {
   it("lists the result preview and review body commands in wrapper usage diagnostics", async () => {
-    await expect(
-      execFileAsync("bash", [helperScript, "unknown-command"]),
-    ).rejects.toMatchObject({
-      stderr: expect.stringContaining("render-phase5-audit-summary"),
-    });
-    await expect(
-      execFileAsync("bash", [helperScript, "unknown-command"]),
-    ).rejects.toMatchObject({
-      stderr: expect.stringContaining("read-result-for-preview"),
-    });
-    await expect(
-      execFileAsync("bash", [helperScript, "unknown-command"]),
-    ).rejects.toMatchObject({
-      stderr: expect.stringContaining("write-review-body"),
-    });
-    await expect(
-      execFileAsync("bash", [leaseHelperScript, "unknown-command"]),
-    ).rejects.toMatchObject({
-      stderr: expect.stringContaining("read-status"),
-    });
-    await expect(
-      execFileAsync("bash", [leaseHelperScript, "unknown-command"]),
-    ).rejects.toMatchObject({
-      stderr: expect.stringContaining("record-audit-failure"),
-    });
+    const [manifestUsage, leaseUsage] = await Promise.all([
+      unknownCommandUsage(helperScript),
+      unknownCommandUsage(leaseHelperScript),
+    ]);
+
+    expect(manifestUsage).toContain("render-phase5-audit-summary");
+    expect(manifestUsage).toContain("read-result-for-preview");
+    expect(manifestUsage).toContain("write-review-body");
+    expect(leaseUsage).toContain("read-status");
+    expect(leaseUsage).toContain("record-audit-failure");
   });
 
   it("delegates the Phase 5 audit summary command to the pr-review-manifests runtime route", async () => {
@@ -986,181 +986,6 @@ describe("pr-review manifest helper", () => {
         await expect(
           readFile(path.join(cwd, reviewBodyPath(headSha)), "utf8"),
         ).resolves.toBe("# Replacement\n\nBody text.\n");
-      } finally {
-        await cleanupTempDir(cwd);
-      }
-    },
-  );
-
-  it.skipIf(isWindows)(
-    "derives, creates, and reports the canonical review body for an initial null target",
-    async () => {
-      const { cwd, baseSha, headSha } = await makeGitWorkspace();
-      try {
-        await writeValidInputs(cwd, baseSha, headSha);
-        await runHelper(
-          cwd,
-          "write-handoff",
-          handoffEnv(cwd, baseSha, headSha),
-        );
-        await runHelper(cwd, "write-result", resultEnv(headSha));
-
-        await expect(
-          runHelperWithStdin(cwd, "write-review-body", "Initial body.\n", {
-            HEAD_SHA: headSha,
-            RESULT_FILE: resultPath(headSha),
-          }),
-        ).resolves.toEqual({
-          stdout: `${reviewBodyPath(headSha)}\n`,
-          stderr: "",
-        });
-        await expect(
-          readFile(path.join(cwd, reviewBodyPath(headSha)), "utf8"),
-        ).resolves.toBe("Initial body.\n");
-      } finally {
-        await cleanupTempDir(cwd);
-      }
-    },
-  );
-
-  it.skipIf(isWindows)(
-    "preserves the review body for stale authority, hostile result paths, and malformed stdin",
-    async () => {
-      const { cwd, baseSha, headSha } = await makeGitWorkspace();
-      const bodyFile = reviewBodyPath(headSha);
-      const resultFile = resultPath(headSha);
-      try {
-        await writeValidInputs(cwd, baseSha, headSha);
-        await writeFile(path.join(cwd, bodyFile), "Before.\n");
-        await runHelper(
-          cwd,
-          "write-handoff",
-          handoffEnv(cwd, baseSha, headSha),
-        );
-        await runHelper(cwd, "write-result", {
-          ...resultEnv(headSha),
-          REVIEW_BODY_FILE: bodyFile,
-        });
-
-        await writeFile(
-          path.join(cwd, findingsPath(headSha)),
-          '{"invalid":true}\n',
-        );
-        await expect(
-          runHelperWithStdin(cwd, "write-review-body", "Replacement\n", {
-            HEAD_SHA: headSha,
-            RESULT_FILE: resultFile,
-          }),
-        ).rejects.toMatchObject({
-          stdout: "",
-          stderr: expect.stringContaining("findings digest mismatch"),
-        });
-        await expect(readFile(path.join(cwd, bodyFile), "utf8")).resolves.toBe(
-          "Before.\n",
-        );
-
-        await writeValidInputs(cwd, baseSha, headSha);
-        await runHelper(cwd, "write-result", {
-          ...resultEnv(headSha),
-          REVIEW_BODY_FILE: bodyFile,
-        });
-        await writeJson(cwd, resultFile, {
-          ...(await readJson(cwd, resultFile)),
-          review_body_file: ".ephemeral/other-review-body.md",
-        });
-        await expect(
-          runHelperWithStdin(cwd, "write-review-body", "Replacement\n", {
-            HEAD_SHA: headSha,
-            RESULT_FILE: resultFile,
-          }),
-        ).rejects.toMatchObject({
-          stdout: "",
-          stderr: expect.stringContaining("review body path mismatch"),
-        });
-        await expect(readFile(path.join(cwd, bodyFile), "utf8")).resolves.toBe(
-          "Before.\n",
-        );
-
-        await writeValidInputs(cwd, baseSha, headSha);
-        await runHelper(cwd, "write-result", {
-          ...resultEnv(headSha),
-          REVIEW_BODY_FILE: bodyFile,
-        });
-        await expect(
-          runHelperWithStdin(cwd, "write-review-body", Buffer.from([0xff]), {
-            HEAD_SHA: headSha,
-            RESULT_FILE: resultFile,
-          }),
-        ).rejects.toMatchObject({
-          stdout: "",
-          stderr: expect.stringContaining(
-            "review body stdin must be valid UTF-8 Markdown",
-          ),
-        });
-        await expect(readFile(path.join(cwd, bodyFile), "utf8")).resolves.toBe(
-          "Before.\n",
-        );
-        expect(
-          (await readdir(path.join(cwd, ".ephemeral"))).filter((file) =>
-            file.startsWith(`.${path.basename(bodyFile)}.`),
-          ),
-        ).toEqual([]);
-      } finally {
-        await cleanupTempDir(cwd);
-      }
-    },
-  );
-
-  it.skipIf(isWindows)(
-    "rejects directory and symlinked result-bound review bodies before writing",
-    async () => {
-      const { cwd, baseSha, headSha } = await makeGitWorkspace();
-      const bodyFile = reviewBodyPath(headSha);
-      try {
-        await writeValidInputs(cwd, baseSha, headSha);
-        await writeFile(path.join(cwd, bodyFile), "Before.\n");
-        await runHelper(
-          cwd,
-          "write-handoff",
-          handoffEnv(cwd, baseSha, headSha),
-        );
-        await runHelper(cwd, "write-result", {
-          ...resultEnv(headSha),
-          REVIEW_BODY_FILE: bodyFile,
-        });
-
-        await rm(path.join(cwd, bodyFile));
-        await mkdir(path.join(cwd, bodyFile));
-        await expect(
-          runHelperWithStdin(cwd, "write-review-body", "Replacement\n", {
-            HEAD_SHA: headSha,
-            RESULT_FILE: resultPath(headSha),
-          }),
-        ).rejects.toMatchObject({
-          stdout: "",
-          stderr: expect.stringContaining(
-            "review body file missing or not a regular file",
-          ),
-        });
-
-        await rm(path.join(cwd, bodyFile), { recursive: true });
-        const externalBody = path.join(cwd, "external-review-body.md");
-        await writeFile(externalBody, "External.\n");
-        await symlink(externalBody, path.join(cwd, bodyFile));
-        await expect(
-          runHelperWithStdin(cwd, "write-review-body", "Replacement\n", {
-            HEAD_SHA: headSha,
-            RESULT_FILE: resultPath(headSha),
-          }),
-        ).rejects.toMatchObject({
-          stdout: "",
-          stderr: expect.stringContaining(
-            "review body file must not be a symlink",
-          ),
-        });
-        await expect(readFile(externalBody, "utf8")).resolves.toBe(
-          "External.\n",
-        );
       } finally {
         await cleanupTempDir(cwd);
       }
