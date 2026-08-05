@@ -65,6 +65,29 @@ unconvincing justification is blocking only when it leaves a real acceptance,
 safety, executable-output, rendered-output, or required-route gap; otherwise
 it is a non-blocking test-design improvement.
 
+A test-coverage finding must identify:
+
+1. The concrete observable behavior left unprotected.
+2. The normative owner of that behavior.
+3. Why the owner's existing tests do not cover it.
+4. Behavior added by the flagged consumer that requires another test.
+
+If the finding only asks a transparent consumer to repeat owner-level proof, it
+is invalid. If it asks for exhaustive primitive-failure injection without a
+concrete acceptance, safety, or production regression, it is nonblocking.
+
+Examples:
+
+- Valid: a wrapper swallows a dependency's nonzero exit, so test exit
+  propagation at the wrapper.
+- Valid: an adapter computes a new destination path, so test that path binding.
+- Invalid: repeat rename-failure tests in every command using a tested atomic
+  writer.
+- Invalid: require a `PATH`-injected fake `mv` merely because the implementation
+  invokes `mv`.
+- Invalid: argue "replacing this dependency call with a direct write would
+  pass" when the consumer does not own atomicity.
+
 ## 3. Procedure and Workflow Invariant Review
 
 Procedure and workflow invariant review is a cross-cutting review lens for

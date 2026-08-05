@@ -301,7 +301,9 @@ sub-checks. Keep this eager routing summary:
   architectural decisions; use Documentation findings for missing ADR/MAP/arch
   coverage.
 - Code-quality reviewer: run Substitution audit, Documented-behavior
-  verification, data-safety, language quality, and tests checks.
+  verification, data-safety, language quality, and tests checks. Reject
+  duplicate proof requests when the invariant is already tested at its
+  executable owner and the consumer adds no independently fallible behavior.
 - Spec reviewer: run Within-document identifier drift, Cross-document
   identifier drift, and documentation guidance checks.
 

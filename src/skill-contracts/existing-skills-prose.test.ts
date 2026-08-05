@@ -486,6 +486,61 @@ describe("existing skills source prose contracts", () => {
     expect(subCheckReference).toContain("DOCUMENTED-BEHAVIOR MISMATCH");
   });
 
+  it("keeps failure-proof ownership aligned across testing and review owners", async () => {
+    const testingSpec = await readRepoFile("docs/specs/testing.md");
+    const codeReviewGuideline = await readRepoFile(
+      "docs/guidelines/code-review-guideline.md",
+    );
+    const playReview = await readSkillSource("play-review");
+
+    const failureProofOwnership = sliceBetween(
+      testingSpec,
+      "### Failure-Proof Ownership",
+      "For a breaking source-contract migration",
+    );
+    const proportionalReview = sliceBetween(
+      codeReviewGuideline,
+      "### Proportional Contract-Test Review",
+      "## 3. Procedure and Workflow Invariant Review",
+    );
+
+    for (const ownerRule of [
+      "Each invariant has one primary proof owner",
+      "Transparent callers and adapters must test only their added behavior",
+      "They must not repeat the owner's fault-injection matrix",
+      "Hypothetically replacing a correct owner call with an incorrect implementation is not, by itself, evidence of a missing regression test",
+      "Do not introduce production injection seams, command shims, or filesystem harnesses solely to simulate an underlying primitive failure already covered by its owner",
+    ]) {
+      expect(normalizeWhitespace(failureProofOwnership)).toContain(ownerRule);
+    }
+
+    for (const example of [
+      "a wrapper swallows a dependency's nonzero exit",
+      "an adapter computes a new destination path",
+      "repeat rename-failure tests in every command using a tested atomic writer",
+      "require a `PATH`-injected fake `mv`",
+      '"replacing this dependency call with a direct write would pass"',
+    ]) {
+      expect(normalizeWhitespace(failureProofOwnership)).toContain(example);
+      expect(normalizeWhitespace(proportionalReview)).toContain(example);
+    }
+
+    for (const admissionRule of [
+      "The concrete observable behavior left unprotected",
+      "The normative owner of that behavior",
+      "Why the owner's existing tests do not cover it",
+      "Behavior added by the flagged consumer that requires another test",
+      "only asks a transparent consumer to repeat owner-level proof, it is invalid",
+      "exhaustive primitive-failure injection without a concrete acceptance, safety, or production regression, it is nonblocking",
+    ]) {
+      expect(normalizeWhitespace(proportionalReview)).toContain(admissionRule);
+    }
+
+    expect(normalizeWhitespace(playReview)).toContain(
+      "Reject duplicate proof requests when the invariant is already tested at its executable owner and the consumer adds no independently fallible behavior",
+    );
+  });
+
   it("keeps design-to-plan requirement traceability contracts in source", async () => {
     const playBrainstorm = await readSkillSource("play-brainstorm");
     const playPlanning = await readSkillSource("play-planning");
@@ -4234,10 +4289,13 @@ describe("existing skills source prose contracts", () => {
       "Before presenting or resuming this gate after a user-requested edit",
     );
     expect(normalizedPhase5).toContain(
-      "Phase 5 validates `REVIEW_RESULT_FILE` against the trusted review head captured before the gate, then renders and resumes from the validated result manifest rather than ambient conversation variables",
+      "Phase 5 invokes `read-result-for-preview` with `REVIEW_RESULT_FILE` and the trusted review head captured before the gate",
     );
     expect(normalizedPhase5).toContain(
-      "After validation, extract and rebind the manifest-backed paths and review head needed for rendering",
+      "Consume its closed JSON snapshot, then render and resume from that validated result manifest rather than ambient conversation variables",
+    );
+    expect(normalizedPhase5).toContain(
+      "Extract and rebind the manifest-backed paths and review head needed for rendering",
     );
     expect(normalizedPhase5).toContain(
       "Result-manifest consumption is only for rendering or resume",
@@ -4249,16 +4307,19 @@ describe("existing skills source prose contracts", () => {
       "The Phase 5 preview is not approval by itself",
     );
     expect(normalizedPhase6).toContain(
-      "Resume from the current result separately from approval",
+      "Revalidate the approved preview before binding approval intent",
     );
     expect(normalizedPhase6).toContain(
-      "Re-run the Phase 5 result-manifest read before binding any approved review event",
+      "Re-run the Phase 5 `read-result-for-preview` consumption against the same trusted `REVIEW_HEAD_SHA` and `REVIEW_RESULT_FILE`",
+    );
+    expect(normalizedPhase6).toContain(
+      "Verify the latest result remains the user-gated lease result",
     );
     expect(normalizedPhase6).toContain(
       "Bind the approved review event from the user-approved intent",
     );
     expect(normalizedPhase6).toContain(
-      "Build and freeze the approved payload artifact before posting",
+      "Materialize and freeze the approved payload artifact before posting",
     );
     expect(normalizedPhase6).toContain("Refuse stale heads before posting");
 

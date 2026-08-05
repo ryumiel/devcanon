@@ -1488,12 +1488,18 @@ describe("rendered phase artifact smoke coverage", () => {
         "## Phase 3: Spawn agents",
         "## Phase 4: Sub-checks",
       );
+      const phase4 = sliceRenderedSection(
+        workflow,
+        "## Phase 4: Sub-checks",
+        "## Phase 5: Critic verification",
+      );
       const phase5 = sliceRenderedSection(
         workflow,
         "## Phase 5: Critic verification",
         "## Phase 5.5: Finding Pattern Synthesis",
       );
       const normalizedPhase3 = normalizeRenderedWhitespace(phase3);
+      const normalizedPhase4 = normalizeRenderedWhitespace(phase4);
       const normalizedPhase5 = normalizeRenderedWhitespace(phase5);
 
       expect(normalizedPhase3).toContain(
@@ -1508,6 +1514,9 @@ describe("rendered phase artifact smoke coverage", () => {
       }
       expect(normalizedPhase5).toContain(
         "response-only `deep-reviewer`, frontier/xhigh and source-immutable, with zero handoffs",
+      );
+      expect(normalizedPhase4).toContain(
+        "Reject duplicate proof requests when the invariant is already tested at its executable owner and the consumer adds no independently fallible behavior",
       );
 
       for (const [route, topic] of [
