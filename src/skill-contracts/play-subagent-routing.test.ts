@@ -1561,7 +1561,7 @@ describe("play subagent routing source contracts", () => {
       "the receipt cannot establish or self-authenticate that binding",
     );
     expect(progressReceipts).toContain(
-      "Before the first receipt and after every accepted receipt, the controller's continuation dispatch supplies the route's acknowledged next required sequence",
+      "Before the first receipt and after every accepted receipt, the controller's continuation dispatch supplies the route's acknowledged next required sequence and refreshed source-issue state snapshot digest",
     );
     expect(progressReceipts).toContain(
       "Missing or mismatched source-state evidence is likewise stale",
@@ -1581,7 +1581,10 @@ describe("play subagent routing source contracts", () => {
       "batch-routed reports must use the unchanged canonical `payload.batch-source-issue-identifier` rather than `payload.identifier`",
     );
     expect(gateReports).toContain(
-      "refreshed source-issue state snapshot digest and current head SHA whenever a branch or PR exists",
+      "the refreshed current head SHA whenever a branch or PR exists",
+    );
+    expect(gateReports).toContain(
+      "The batch controller retains the refreshed source-issue state snapshot digest from its own source refresh",
     );
     for (const gateOnlyRequirement of [
       "gate kind",

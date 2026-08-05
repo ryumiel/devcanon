@@ -1028,8 +1028,9 @@ controller report with report kind `owner-handoff`, not a receipt or a gate
 report. It carries the source provider and issue identifier, delegated owner
 thread identity, exact approved route identity, current issue-authority
 validation, reviewed plan digest, non-authorizing auto-handoff identity, and
-the refreshed source-issue state snapshot digest and current head SHA whenever
-a branch or PR exists.
+the refreshed current head SHA whenever a branch or PR exists. The batch
+controller retains the refreshed source-issue state snapshot digest from its
+own source refresh; the owner-handoff cannot originate or refresh that fact.
 For batch-routed handoffs, it reports the received canonical
 `batch-source-issue-identifier`, not the provider-native payload identifier.
 It also echoes the complete `issue-priming` route key received as
@@ -1069,15 +1070,16 @@ delegated owner-thread identity, and the current reviewed-plan handoff
 provenance. It must also carry a positive, strictly increasing per-route
 progress sequence. Before the first receipt and after every accepted receipt,
 the controller's continuation dispatch supplies the route's acknowledged next
-required sequence; use that value and never infer it from resumed or compacted
-owner-thread state. Missing acknowledgement must use the incomplete or gate path
-rather than emitting a receipt. It must provide evidence
+required sequence and refreshed source-issue state snapshot digest; echo both
+values and never infer them from resumed or compacted owner-thread state.
+Missing acknowledgement must use the incomplete or gate path rather than
+emitting a receipt. It must provide evidence
 that the named non-gate work remains unfinished and stays within that route's
 current issue authority. Include the current route identity already held by the
 controller and the branch, PR, and head facts when known, plus the refreshed
-source-issue state snapshot digest, so the router can match the receipt to the
-existing owner route. When a branch or PR exists, include its refreshed current
-head SHA;
+source-issue state snapshot digest acknowledged by the controller, so the router
+can match the receipt to the existing owner route. When a branch or PR exists,
+include its refreshed current head SHA;
 missing or mismatched head evidence is stale and must use the incomplete or
 gate path; the receipt cannot establish or self-authenticate that binding.
 Missing or mismatched source-state evidence is likewise stale and must use the

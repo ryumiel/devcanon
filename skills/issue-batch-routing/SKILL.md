@@ -102,8 +102,9 @@ PR exists. The auto-handoff identity is
 non-authorizing provenance, not an approval or a receipt-derived authority. The
 router records the initial owner-handoff facts before any receipt only when the
 report comes from the recorded owner thread, matches the current source provider
-and issue, and carries the controller-validated route tuple and refreshed
-source-issue state snapshot digest. A receipt cannot
+and issue, and carries the controller-validated route tuple. The router retains
+the refreshed source-issue state snapshot digest from its own source refresh;
+an owner-handoff cannot initialize or refresh that controller-held fact. A receipt cannot
 initialize, refresh, authenticate, or validate those facts. These are
 controller-local facts, not a new receipt artifact, ledger schema, or
 persistence system.
@@ -224,7 +225,8 @@ For each open batch item:
    controller-local replay state is not a generalized event store or new
    persistence system. Before the first receipt on an exact route, the
    controller's continuation dispatch acknowledges that route's initial
-   required positive sequence to the same owner.
+   required positive sequence and refreshed source-issue state snapshot digest
+   to the same owner.
 7. Before remaining gate classification, validate every unfinished non-gate
    progress receipt fact against the current item: exact approved route
    (`current_approved_owner_route_identity`), reviewed-plan provenance
@@ -234,15 +236,17 @@ For each open batch item:
    unfinished non-gate evidence. A missing current binding, missing required
    source-state digest or head, or stale route/provenance/source-state/head
    mismatch fails closed to waiting or manual action.
-   Only after those checks pass, require a positive, strictly increasing
-   per-route progress sequence and record the highest accepted sequence in the
-   matching exact-route map entry, separately from approval and gate-report
-   keys, before continuing the same owner route. The continuation dispatch
-   acknowledges that route's next required sequence to the same owner; the
-   producer must use that acknowledged value rather than infer sequence state
-   from a resumed or compacted thread. If that record or acknowledgement cannot
-   be retained, fail closed to waiting or manual action; only after it succeeds
-   may the router consume the verified new receipt by continuing. A receipt A at sequence 1, receipt B at sequence 33, then receipt A again at
+   Only after those checks pass, require a positive progress sequence exactly
+   equal to the controller-acknowledged next required sequence, then record the
+   highest accepted sequence in the matching exact-route map entry, separately
+   from approval and gate-report keys, before continuing the same owner route.
+   The continuation dispatch acknowledges that route's next required sequence
+   and refreshed source-issue state snapshot digest to the same owner; the
+   producer must echo both acknowledged values rather than infer sequence or
+   source-state from a resumed or compacted thread. If that record or
+   acknowledgement cannot be retained, fail closed to waiting or manual action;
+   only after it succeeds may the router consume the verified new receipt by
+   continuing. A receipt A at sequence 1, receipt B at sequence 33, then receipt A again at
    sequence 1 is older than A's retained map entry and is a repeat: do not
    continue the route again or update any approval key. Missing, repeated,
    non-positive, or non-increasing progress sequences fail closed; route

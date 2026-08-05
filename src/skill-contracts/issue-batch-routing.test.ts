@@ -655,10 +655,10 @@ describe("issue-batch-routing skill contract", () => {
       "It must provide evidence that the named non-gate work remains unfinished and stays within that route's current issue authority",
     );
     expect(producer).toContain(
-      "Before the first receipt and after every accepted receipt, the controller's continuation dispatch supplies the route's acknowledged next required sequence",
+      "Before the first receipt and after every accepted receipt, the controller's continuation dispatch supplies the route's acknowledged next required sequence and refreshed source-issue state snapshot digest",
     );
     expect(producer).toContain(
-      "never infer it from resumed or compacted owner-thread state",
+      "echo both values and never infer them from resumed or compacted owner-thread state",
     );
     expect(producer).toContain(
       "Before initial continuation, the controller records the current route binding from its existing approved-route facts",
@@ -691,7 +691,7 @@ describe("issue-batch-routing skill contract", () => {
       "A receipt must not initialize, refresh, authenticate, or validate either current binding",
     );
     expect(monitorLoop).toContain(
-      "Only after those checks pass, require a positive, strictly increasing per-route progress sequence and record the highest accepted sequence in the matching exact-route map entry",
+      "Only after those checks pass, require a positive progress sequence exactly equal to the controller-acknowledged next required sequence",
     );
     expect(monitorLoop).toContain(
       "exact approved route (`current_approved_owner_route_identity`), reviewed-plan provenance (`current_reviewed_plan_handoff_provenance`)",
@@ -703,10 +703,10 @@ describe("issue-batch-routing skill contract", () => {
       "A missing current binding, missing required source-state digest or head, or stale route/provenance/source-state/head mismatch fails closed to waiting or manual action",
     );
     expect(monitorLoop).toContain(
-      "The continuation dispatch acknowledges that route's next required sequence to the same owner",
+      "The continuation dispatch acknowledges that route's next required sequence and refreshed source-issue state snapshot digest to the same owner",
     );
     expect(monitorLoop).toContain(
-      "Before the first receipt on an exact route, the controller's continuation dispatch acknowledges that route's initial required positive sequence",
+      "Before the first receipt on an exact route, the controller's continuation dispatch acknowledges that route's initial required positive sequence and refreshed source-issue state snapshot digest",
     );
     expect(
       monitorLoop.indexOf(
@@ -714,7 +714,7 @@ describe("issue-batch-routing skill contract", () => {
       ),
     ).toBeLessThan(
       monitorLoop.indexOf(
-        "Only after those checks pass, require a positive, strictly increasing per-route progress sequence",
+        "Only after those checks pass, require a positive progress sequence exactly equal to the controller-acknowledged next required sequence",
       ),
     );
     expect(monitorLoop).toContain(
@@ -784,7 +784,10 @@ describe("issue-batch-routing skill contract", () => {
       "receipt must carry the current head SHA and it must match the refreshed controller-held head",
     );
     expect(controllerHeldFacts).toContain(
-      "report comes from the recorded owner thread, matches the current source provider and issue, and carries the controller-validated route tuple and refreshed source-issue state snapshot digest",
+      "report comes from the recorded owner thread, matches the current source provider and issue, and carries the controller-validated route tuple",
+    );
+    expect(controllerHeldFacts).toContain(
+      "The router retains the refreshed source-issue state snapshot digest from its own source refresh",
     );
     expect(monitorLoop).toContain(
       "integrate any owner-thread gate report or validated initial owner-handoff report",
@@ -832,7 +835,7 @@ describe("issue-batch-routing skill contract", () => {
         getMarkdownSection(issuePriming, "Issue Batch Routing Reports"),
       ),
     ).toContain(
-      "refreshed source-issue state snapshot digest and current head SHA whenever a branch or PR exists",
+      "the refreshed current head SHA whenever a branch or PR exists",
     );
     for (const entrypoint of [github, linear]) {
       expect(entrypoint).toContain("batch-source-issue-identifier");
