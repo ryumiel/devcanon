@@ -634,7 +634,7 @@ describe("issue-batch-routing skill contract", () => {
     );
 
     expect(router).toContain(
-      "An exact approved owner route continues immediately when an unfinished non-gate progress receipt verifies the same source provider, source issue identifier, owner thread ID, and exact approved route identity already held by the controller",
+      "After the router records the receipt's accepted sequence, an exact approved owner route continues when an unfinished non-gate progress receipt verifies the same source provider, source issue identifier, owner thread ID, and exact approved route identity already held by the controller",
     );
     expect(router).toContain(
       "The receipt must also provide evidence that the work is unfinished and is non-gate continuation under the canonical `issue-priming-workflow` auto-route boundary",
@@ -664,7 +664,7 @@ describe("issue-batch-routing skill contract", () => {
       "the receipt cannot establish or self-authenticate that binding",
     );
     expect(monitorLoop).toContain(
-      "Before remaining gate classification, validate any unfinished non-gate progress receipt against the current item and consume a verified new receipt by continuing the same owner route",
+      "Before remaining gate classification, validate any unfinished non-gate progress receipt against the current item",
     );
     expect(monitorLoop).toContain(
       "Apply the canonical `issue-priming-workflow` genuine-gate classification while preserving the router's PR, source-issue, publication, and terminal precedence before any non-gate receipt continuation",
@@ -685,7 +685,7 @@ describe("issue-batch-routing skill contract", () => {
       "A receipt must not initialize, refresh, authenticate, or validate either current binding",
     );
     expect(monitorLoop).toContain(
-      "Require a positive, strictly increasing per-route progress sequence and record the highest accepted sequence in the matching exact-route map entry, separately from approval and gate-report keys",
+      "record the highest accepted sequence in the matching exact-route map entry, separately from approval and gate-report keys, before continuing the same owner route",
     );
     expect(monitorLoop).toContain(
       "Verify that the receipt matches `current_approved_owner_route_identity` and `current_reviewed_plan_handoff_provenance`",
@@ -768,6 +768,12 @@ describe("issue-batch-routing skill contract", () => {
     expect(producer).toContain(
       "positive, strictly increasing per-route progress sequence",
     );
+    expect(producer).toContain(
+      "the receipt's source issue identifier must be the unchanged `payload.batch-source-issue-identifier`; never substitute the provider-native `payload.identifier`",
+    );
+    expect(producer).toContain(
+      "Missing or changed paired batch context must use the incomplete or gate path rather than emitting a receipt",
+    );
     expect(
       normalizeWhitespace(
         getMarkdownSection(issuePriming, "Issue Batch Routing Reports"),
@@ -794,6 +800,8 @@ describe("issue-batch-routing skill contract", () => {
         "The entrypoint may neither derive nor modify the route key or canonical identifier",
       );
     }
+    expect(github).toContain("github:<owner>/<repo>#<N>");
+    expect(linear).toContain("linear:<IDENTIFIER>");
     expect(controllerHeldFacts).toContain(
       "The auto-handoff identity is non-authorizing provenance, not an approval or a receipt-derived authority",
     );

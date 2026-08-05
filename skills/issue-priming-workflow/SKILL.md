@@ -1070,6 +1070,10 @@ head facts when known so the router can match the receipt to the existing owner
 route. When a branch or PR exists, include its refreshed current head SHA;
 missing or mismatched head evidence is stale and must use the incomplete or
 gate path; the receipt cannot establish or self-authenticate that binding.
+For a batch-routed handoff, the receipt's source issue identifier must be the
+unchanged `payload.batch-source-issue-identifier`; never substitute the
+provider-native `payload.identifier`. Missing or changed paired batch context
+must use the incomplete or gate path rather than emitting a receipt.
 
 This is progress evidence for the existing route, not a new authority gate,
 approval request, ledger schema, or authorization for provider mutation. If the

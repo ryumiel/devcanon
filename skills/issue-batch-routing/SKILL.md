@@ -220,11 +220,12 @@ For each open batch item:
    controller-local replay state is not a generalized event store or new
    persistence system.
 7. Before remaining gate classification, validate any unfinished non-gate
-   progress receipt against the current item and consume a verified new receipt
-   by continuing the same owner route. Require a positive, strictly increasing
-   per-route progress sequence and record the highest accepted sequence in the
-   matching exact-route map entry, separately from approval and gate-report
-   keys.
+   progress receipt against the current item. Require a positive, strictly
+   increasing per-route progress sequence and record the highest accepted
+   sequence in the matching exact-route map entry, separately from approval and
+   gate-report keys, before continuing the same owner route. If that record
+   cannot be retained, fail closed to waiting or manual action; only after it
+   succeeds may the router consume the verified new receipt by continuing.
    Verify that the receipt matches `current_approved_owner_route_identity` and
    `current_reviewed_plan_handoff_provenance`. When a branch or PR exists, the
    receipt must carry the current head SHA and it must match the refreshed
@@ -416,12 +417,12 @@ resend rather than approving.
 
 ## Unfinished Non-Gate Progress Receipts
 
-An exact approved owner route continues immediately when an unfinished non-gate
-progress receipt verifies the same source provider, source issue identifier,
-owner thread ID, and exact approved route identity already held by the
-controller. The receipt must also provide evidence that the work is unfinished
-and is non-gate continuation under the canonical `issue-priming-workflow`
-auto-route boundary. When the route has a branch or PR, its receipt must carry
+After the router records the receipt's accepted sequence, an exact approved
+owner route continues when an unfinished non-gate progress receipt verifies the
+same source provider, source issue identifier, owner thread ID, and exact
+approved route identity already held by the controller. The receipt must also
+provide evidence that the work is unfinished and is non-gate continuation under
+the canonical `issue-priming-workflow` auto-route boundary. When the route has a branch or PR, its receipt must carry
 the refreshed current head SHA; a missing or mismatched head is stale and cannot
 continue the route.
 
