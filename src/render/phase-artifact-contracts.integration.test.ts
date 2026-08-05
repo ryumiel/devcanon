@@ -870,7 +870,7 @@ describe("rendered phase artifact smoke coverage", () => {
       "Refresh lease validation for every gate cycle; never treat the `RESULT_FILE` path alone as freshness evidence",
     );
     expect(normalizeRenderedWhitespace(prReview)).toContain(
-      '`pr-review/result/v1` with `PRESENTATION_STATUS="edited"`',
+      "First update and validate `pr-review/result/v1` with the rewritten findings and the current review body",
     );
     expect(normalizeRenderedWhitespace(prReview)).toContain(
       "render the mandatory Phase 5 artifact audit summary again before waiting for approval",
@@ -1065,9 +1065,15 @@ describe("rendered phase artifact smoke coverage", () => {
       );
       expect(renderedPrReview).toContain("read-result-for-preview");
       expect(renderedPrReview).toContain("RESULT_PREVIEW_JSON=$(");
-      expect(renderedPrReview).toContain("RESULT_PREVIEW_FIELDS=$(jq -r");
+      expect(renderedPrReview).toContain("RESULT_PREVIEW_BINDINGS=$(jq -er");
+      expect(renderedPrReview).toContain('eval "$RESULT_PREVIEW_BINDINGS"');
+      expect(renderedPrReview).toContain(
+        '"REVIEW_BODY_FILE=" + ((.review_body_file // "") | @sh)',
+      );
       expect(renderedPrReview).toContain("REVIEW_HANDOFF_FILE");
       expect(renderedPrReview).not.toContain("RESULT_JSON=$(mktemp)");
+      expect(renderedPrReview).not.toContain("@tsv");
+      expect(renderedPrReview).not.toContain("IFS=$'\\t' read");
       expect(renderedPrReview).not.toContain(
         'cp "$REVIEW_RESULT_FILE" "$RESULT_JSON"',
       );
@@ -1076,6 +1082,33 @@ describe("rendered phase artifact smoke coverage", () => {
       );
       expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
         "Consume its closed JSON snapshot, then render and resume from that validated result manifest rather than ambient conversation variables",
+      );
+      expect(renderedPrReview).toContain("write_review_body_from_markdown()");
+      expect(renderedPrReview).toContain("REVIEW_BODY_FILE=$( \\");
+
+      const renderedFindingsEditStart = renderedPrReview.indexOf(
+        "# Write the rewritten play-review/findings/v2 envelope",
+      );
+      const renderedFindingsEditEnd = renderedPrReview.indexOf(
+        "Then present the re-rendered stdout",
+      );
+      expect(renderedFindingsEditStart).toBeGreaterThanOrEqual(0);
+      expect(renderedFindingsEditEnd).toBeGreaterThan(
+        renderedFindingsEditStart,
+      );
+      const renderedFindingsEdit = renderedPrReview.slice(
+        renderedFindingsEditStart,
+        renderedFindingsEditEnd,
+      );
+      const renderedManifestRefreshIndex = renderedFindingsEdit.indexOf(
+        'update_pr_review_result_manifest "edited" || exit 1',
+      );
+      const renderedBodyRewriteIndex = renderedFindingsEdit.indexOf(
+        "write_review_body_from_markdown || exit 1",
+      );
+      expect(renderedManifestRefreshIndex).toBeGreaterThanOrEqual(0);
+      expect(renderedBodyRewriteIndex).toBeGreaterThan(
+        renderedManifestRefreshIndex,
       );
       expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
         "After every successful `gated` write, including edited previews, render the mandatory Phase 5 artifact audit summary before asking for user action",
@@ -1109,7 +1142,7 @@ describe("rendered phase artifact smoke coverage", () => {
         "Refresh lease validation for every gate cycle; never treat the `RESULT_FILE` path alone as freshness evidence",
       );
       expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
-        '`pr-review/result/v1` with `PRESENTATION_STATUS="edited"`',
+        "First update and validate `pr-review/result/v1` with the rewritten findings and the current review body",
       );
       expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
         "render the mandatory Phase 5 artifact audit summary again before waiting for approval",
@@ -1125,6 +1158,18 @@ describe("rendered phase artifact smoke coverage", () => {
         "## Phase 6: Post",
         "## Phase 7: Cleanup",
       );
+      const approvalRevalidationIndex = renderedPrReviewPhase6.indexOf(
+        "read_pr_review_result_manifest_for_preview",
+      );
+      const reviewEventIndex = renderedPrReviewPhase6.indexOf(
+        "APPROVED_REVIEW_INTENT",
+      );
+      const preFreezeMaterializationIndex = renderedPrReviewPhase6.indexOf(
+        "materialize-review-payload",
+      );
+      expect(approvalRevalidationIndex).toBeGreaterThanOrEqual(0);
+      expect(reviewEventIndex).toBeGreaterThan(approvalRevalidationIndex);
+      expect(preFreezeMaterializationIndex).toBeGreaterThan(reviewEventIndex);
       const materializeIndex = renderedPrReviewPhase6.indexOf(
         "materialize-validated-review-payload",
       );
@@ -1155,7 +1200,7 @@ describe("rendered phase artifact smoke coverage", () => {
         "Result-manifest consumption is only for rendering or resume",
       );
       expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
-        "The Phase 5 snapshot and live-head guard produced the preview that the user explicitly approved",
+        "Any post-preview mutation fails before event derivation, payload materialization, or GitHub mutation",
       );
       expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
         "Approval intent is captured only when the user approves a specific preview",

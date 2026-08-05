@@ -589,8 +589,19 @@ read_pr_review_result_manifest_for_preview() {
     RESULT_FILE="$REVIEW_RESULT_FILE" \
       bash "$PR_REVIEW_MANIFEST_HELPER" read-result-for-preview
   ) || return 1
-  RESULT_PREVIEW_FIELDS=$(jq -r '[.review_head_sha, .handoff_file, .head_ref, .findings_file, (.review_body_file // ""), .scope_decision_file, (.prior_threads_file // ""), (.rendered_preview_file // "")] | @tsv' <<<"$RESULT_PREVIEW_JSON") || return 1
-  IFS=$'\t' read -r REVIEW_HEAD_SHA REVIEW_HANDOFF_FILE REVIEW_HEAD_REF REVIEW_FINDINGS_FILE REVIEW_BODY_FILE REVIEW_SCOPE_DECISION_FILE PRIOR_THREADS_FILE RENDERED_PREVIEW_FILE <<<"$RESULT_PREVIEW_FIELDS"
+  RESULT_PREVIEW_BINDINGS=$(jq -er '
+    [
+      "REVIEW_HEAD_SHA=" + (.review_head_sha | @sh),
+      "REVIEW_HANDOFF_FILE=" + (.handoff_file | @sh),
+      "REVIEW_HEAD_REF=" + (.head_ref | @sh),
+      "REVIEW_FINDINGS_FILE=" + (.findings_file | @sh),
+      "REVIEW_BODY_FILE=" + ((.review_body_file // "") | @sh),
+      "REVIEW_SCOPE_DECISION_FILE=" + (.scope_decision_file | @sh),
+      "PRIOR_THREADS_FILE=" + ((.prior_threads_file // "") | @sh),
+      "RENDERED_PREVIEW_FILE=" + ((.rendered_preview_file // "") | @sh)
+    ] | .[]
+  ' <<<"$RESULT_PREVIEW_JSON") || return 1
+  eval "$RESULT_PREVIEW_BINDINGS" || return 1
   [ -n "$REVIEW_HEAD_REF" ] || return 1
 }
 
@@ -631,32 +642,38 @@ or supplement the narrative. Then render the preview with
 PLAY_REVIEW_DIR="<installed-play-review-skill-bundle>"
 PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"
 
-(
-  cd "$WORKING_DIRECTORY" || exit 1
-  # Preserve markdown before the first `## Findings` heading in PLAY_REVIEW_OUTPUT.
-  # The preserved block must start with the required narrative lead, then may include
-  # optional presentation such as `## Root-Cause Synthesis`.
-  PRE_FINDINGS_MARKDOWN=$(
-    printf '%s\n' "$PLAY_REVIEW_OUTPUT" |
-      awk '/^## Findings[[:space:]]*$/ { exit } { print }'
-  ) || exit 1
-  if [ -n "$PRE_FINDINGS_MARKDOWN" ]; then
-    FIRST_PREFINDINGS_LINE=$(printf '%s\n' "$PRE_FINDINGS_MARKDOWN" | sed -n '/[^[:space:]]/{p;q;}') || exit 1
-    case "$FIRST_PREFINDINGS_LINE" in "## "*) echo "pre-findings markdown must start with narrative lead before headings" >&2; exit 1 ;; esac
-    REVIEW_BODY_MARKDOWN="$PRE_FINDINGS_MARKDOWN"
-  else
-    REVIEW_BODY_FALLBACK="<one or two short narrative sentences naming what the implementation got right before findings>"
-    case "$REVIEW_BODY_FALLBACK" in *"<"*">"*) echo "review body fallback must be replaced with concrete narrative summary" >&2; exit 1 ;; esac
-    REVIEW_BODY_MARKDOWN="$REVIEW_BODY_FALLBACK"
-  fi
+write_review_body_from_markdown() {
+  : "${REVIEW_BODY_MARKDOWN:?caller-authored review body Markdown missing}"
   REVIEW_BODY_FILE=$( \
+    cd "$WORKING_DIRECTORY" || exit 1
     printf '%s\n' "$REVIEW_BODY_MARKDOWN" | \
       PR_NUMBER="$PR_NUMBER" \
       HEAD_SHA="$REVIEW_HEAD_SHA" \
       REPOSITORY="<owner/repo>" \
       RESULT_FILE="$REVIEW_RESULT_FILE" \
         bash "$PR_REVIEW_MANIFEST_HELPER" write-review-body
-  ) || exit 1
+  ) || return 1
+}
+
+# Preserve markdown before the first `## Findings` heading in PLAY_REVIEW_OUTPUT.
+# The preserved block must start with the required narrative lead, then may include
+# optional presentation such as `## Root-Cause Synthesis`.
+PRE_FINDINGS_MARKDOWN=$(
+  printf '%s\n' "$PLAY_REVIEW_OUTPUT" |
+    awk '/^## Findings[[:space:]]*$/ { exit } { print }'
+) || exit 1
+if [ -n "$PRE_FINDINGS_MARKDOWN" ]; then
+  FIRST_PREFINDINGS_LINE=$(printf '%s\n' "$PRE_FINDINGS_MARKDOWN" | sed -n '/[^[:space:]]/{p;q;}') || exit 1
+  case "$FIRST_PREFINDINGS_LINE" in "## "*) echo "pre-findings markdown must start with narrative lead before headings" >&2; exit 1 ;; esac
+  REVIEW_BODY_MARKDOWN="$PRE_FINDINGS_MARKDOWN"
+else
+  REVIEW_BODY_FALLBACK="<one or two short narrative sentences naming what the implementation got right before findings>"
+  case "$REVIEW_BODY_FALLBACK" in *"<"*">"*) echo "review body fallback must be replaced with concrete narrative summary" >&2; exit 1 ;; esac
+  REVIEW_BODY_MARKDOWN="$REVIEW_BODY_FALLBACK"
+fi
+write_review_body_from_markdown || exit 1
+(
+  cd "$WORKING_DIRECTORY" || exit 1
   HEAD_SHA="$REVIEW_HEAD_SHA" \
   FINDINGS_FILE="$REVIEW_FINDINGS_FILE" \
   REVIEW_SURFACE="pr-review" \
@@ -671,8 +688,10 @@ notice:
 
 ```bash
 update_pr_review_result_manifest() {
-  cd "$WORKING_DIRECTORY" || return 1
-  REVIEW_RESULT_FILE=$(
+  local presentation_status="${1:-preview-current}"
+  local updated_result_file
+  updated_result_file=$( \
+    cd "$WORKING_DIRECTORY" || exit 1
     PR_NUMBER="$PR_NUMBER" \
     HEAD_SHA="$REVIEW_HEAD_SHA" \
     REPOSITORY="<owner/repo>" \
@@ -681,11 +700,15 @@ update_pr_review_result_manifest() {
     SCOPE_DECISION_FILE="$REVIEW_SCOPE_DECISION_FILE" \
     PRIOR_THREADS_FILE="${PRIOR_THREADS_FILE:-}" \
     RENDERED_PREVIEW_FILE="${RENDERED_PREVIEW_FILE:-}" \
-    PRESENTATION_STATUS="preview-current" \
-      bash "$PR_REVIEW_MANIFEST_HELPER" write-result || return 1
+    PRESENTATION_STATUS="$presentation_status" \
+      bash "$PR_REVIEW_MANIFEST_HELPER" write-result
   ) || return 1
-  PR_NUMBER="$PR_NUMBER" HEAD_SHA="$REVIEW_HEAD_SHA" REPOSITORY="<owner/repo>" RESULT_FILE="$REVIEW_RESULT_FILE" \
-    bash "$PR_REVIEW_MANIFEST_HELPER" validate-result || return 1
+  (
+    cd "$WORKING_DIRECTORY" || exit 1
+    PR_NUMBER="$PR_NUMBER" HEAD_SHA="$REVIEW_HEAD_SHA" REPOSITORY="<owner/repo>" RESULT_FILE="$updated_result_file" \
+      bash "$PR_REVIEW_MANIFEST_HELPER" validate-result
+  ) || return 1
+  REVIEW_RESULT_FILE="$updated_result_file"
   printf 'PR review result manifest updated at %s.\n' "$REVIEW_RESULT_FILE"
 }
 
@@ -795,15 +818,17 @@ until the user approves that latest preview.
 affected finding's pre-rendered `body` field after any severity or category
 change. Validate the original path before reading, and immediately before
 overwriting run `prepare-findings-write` for the same immutable review head and
-path. Do not reuse the existing `REVIEW_BODY_FILE` after the finding set
-changes: author the replacement Markdown with the required narrative lead and
-any supported pre-findings synthesis, then pass it on stdin to
-`write-review-body`. If no synthesis remains, author the fallback narrative
-body required by `docs/guidelines/code-review-guideline.md`. Never author a
-review body whose first nonblank line is `## Root-Cause Synthesis`. If a dropped
-or reclassified finding removes synthesis support, clear the old synthesis
-before rerendering and replace it with one or two concrete narrative sentences
-naming what the implementation got right before findings:
+path. First update and validate `pr-review/result/v1` with the rewritten
+findings and the current review body so the body writer consumes the new
+findings digest. Then author the replacement Markdown with the required
+narrative lead and any supported pre-findings synthesis, and pass it on stdin
+to `write-review-body`. After rendering, update and validate the result manifest
+again to bind the new body digest. If no synthesis remains, author the fallback
+narrative body required by `docs/guidelines/code-review-guideline.md`. Never
+author a review body whose first nonblank line is `## Root-Cause Synthesis`. If
+a dropped or reclassified finding removes synthesis support, clear the old
+synthesis before rerendering and replace it with one or two concrete narrative
+sentences naming what the implementation got right before findings:
 
 ```bash
 (
@@ -813,30 +838,27 @@ naming what the implementation got right before findings:
   HEAD_SHA="$REVIEW_HEAD_SHA" FINDINGS_FILE="$REVIEW_FINDINGS_FILE" \
     bash "$PLAY_REVIEW_HELPER" prepare-findings-write || exit 1
   # Write the rewritten play-review/findings/v2 envelope to "$REVIEW_FINDINGS_FILE".
-  REVIEW_BODY_FALLBACK="<one or two short narrative sentences naming what the implementation got right before findings>"
-  case "$REVIEW_BODY_FALLBACK" in *"<"*">"*) echo "review body fallback must be replaced with concrete narrative summary" >&2; exit 1 ;; esac
-  REVIEW_BODY_FILE=$( \
-    printf '%s\n' "$REVIEW_BODY_FALLBACK" | \
-      PR_NUMBER="$PR_NUMBER" \
-      HEAD_SHA="$REVIEW_HEAD_SHA" \
-      REPOSITORY="<owner/repo>" \
-      RESULT_FILE="$REVIEW_RESULT_FILE" \
-        bash "$PR_REVIEW_MANIFEST_HELPER" write-review-body
-  ) || exit 1
+)
+update_pr_review_result_manifest "edited" || exit 1
+REVIEW_BODY_MARKDOWN="<one or two short narrative sentences naming what the implementation got right before findings>"
+case "$REVIEW_BODY_MARKDOWN" in *"<"*">"*) echo "review body fallback must be replaced with concrete narrative summary" >&2; exit 1 ;; esac
+write_review_body_from_markdown || exit 1
+(
+  cd "$WORKING_DIRECTORY" || exit 1
   HEAD_SHA="$REVIEW_HEAD_SHA" \
   FINDINGS_FILE="$REVIEW_FINDINGS_FILE" \
   REVIEW_SURFACE="pr-review" \
   REVIEW_BODY_FILE="$REVIEW_BODY_FILE" \
     bash "$PLAY_REVIEW_HELPER" render-review-preview
 )
+update_pr_review_result_manifest "edited" || exit 1
 ```
 
 Then present the re-rendered stdout and wait again. Do not rebuild a preview
-from conversation text or current checkout state. After findings edits, rewrite
-`pr-review/result/v1` with `PRESENTATION_STATUS="edited"` and emit
-`PR review result manifest updated at <repo-relative-path>.`, then refresh the
-`gated` lease and render the mandatory Phase 5 artifact audit summary again
-before waiting for approval.
+from conversation text or current checkout state. The second `edited` result
+manifest update emits `PR review result manifest updated at
+<repo-relative-path>.`; then refresh the `gated` lease and render the mandatory
+Phase 5 artifact audit summary again before waiting for approval.
 
 **User actions:**
 
@@ -855,9 +877,21 @@ before waiting for approval.
 
 Only after user approval:
 
-1. **Bind the approved review event from the user-approved intent.** The Phase
-   5 snapshot and live-head guard produced the preview that the user explicitly
-   approved; do not substitute an ambient or refreshed result after approval. Do not
+1. **Revalidate the approved preview before binding approval intent.** Re-run
+   the Phase 5 `read-result-for-preview` consumption against the same trusted
+   `REVIEW_HEAD_SHA` and `REVIEW_RESULT_FILE`; it rebinds the approved findings,
+   body, scope-decision, and optional artifact paths only if their digests still
+   validate. Any post-preview mutation fails before event derivation, payload
+   materialization, or GitHub mutation. This revalidation is not approval.
+
+   ```bash
+   APPROVAL_REVALIDATION_STATUS=0
+   read_pr_review_result_manifest_for_preview || APPROVAL_REVALIDATION_STATUS=$?
+   cd "$REVIEW_CALLER_DIR" || exit 1
+   [ "$APPROVAL_REVALIDATION_STATUS" -eq 0 ] || exit "$APPROVAL_REVALIDATION_STATUS"
+   ```
+
+2. **Bind the approved review event from the user-approved intent.** Do not
    reuse an ambient or previously exported `REVIEW_EVENT`; unset it first, then
    derive it from the explicit Phase 5 approval that applies to the latest
    rendered preview. Approval intent maps to GitHub review events as follows:
@@ -876,7 +910,7 @@ Only after user approval:
    esac
    ```
 
-2. **Materialize and freeze the approved payload artifact before posting.** Use
+3. **Materialize and freeze the approved payload artifact before posting.** Use
    the approved Phase 5 artifacts; do not rebuild findings or the review body
    from conversation text. `PR_REVIEW_DIR` must resolve to the installed
    `pr-review` skill bundle, not the repository under review. Bind
@@ -936,7 +970,7 @@ Only after user approval:
    `start_side: "RIGHT"` while single-line comments omit both fields.
    Any nonzero helper exit is a contract failure; fail closed before posting.
 
-3. **Refuse stale heads before posting.** Re-read the PR head SHA from GitHub
+4. **Refuse stale heads before posting.** Re-read the PR head SHA from GitHub
    immediately before posting. If it differs from `REVIEW_HEAD_SHA`, stop and
    return to Phase 1; do not post an approved artifact against a stale head.
 
@@ -948,7 +982,7 @@ Only after user approval:
    }
    ```
 
-4. **Post exactly the validated approved payload.** After the stale-head guard
+5. **Post exactly the validated approved payload.** After the stale-head guard
    passes, have the approved-review helper materialize the guarded canonical
    payload and bind its returned path. Only invoke `{{tool:github-cli}} api`
    after materialization exits zero. Do not call `build-github-review-payload` again after user approval.
@@ -974,14 +1008,14 @@ Only after user approval:
    )
    ```
 
-5. Resolve threads via GraphQL only after the approved review post succeeds and
+6. Resolve threads via GraphQL only after the approved review post succeeds and
    only for threads the user approved for resolution:
 
    ```sh
    gh api graphql --silent -f query='mutation { resolveReviewThread(input: {threadId: "<id>"}) { thread { isResolved } } }'
    ```
 
-6. Verify each API response succeeded. Report failures, stop on error.
+7. Verify each API response succeeded. Report failures, stop on error.
 
 After the GitHub review post succeeds, write `posted` with
 `APPROVED_REVIEW_FILE`, `VALIDATED_REVIEW_PAYLOAD_FILE`, `FINISHED_AT`, and `GITHUB_POSTED_AT`. If

@@ -3781,8 +3781,44 @@ None
     expect(phase5).not.toContain("validate-result >/dev/null");
     expect(phase5).not.toContain("RESULT_JSON=$(mktemp)");
     expect(phase5).not.toContain('cp "$REVIEW_RESULT_FILE" "$RESULT_JSON"');
+    expect(phase5).not.toContain("@tsv");
+    expect(phase5).not.toContain("IFS=$'\\t' read");
+    expect(phase5).toContain("RESULT_PREVIEW_BINDINGS=$(jq -er");
+    expect(phase5).toContain('eval "$RESULT_PREVIEW_BINDINGS"');
+    expect(phase5).toContain(
+      '"REVIEW_BODY_FILE=" + ((.review_body_file // "") | @sh)',
+    );
+    expect(phase5).toContain(
+      '"PRIOR_THREADS_FILE=" + ((.prior_threads_file // "") | @sh)',
+    );
     expect(phase5).not.toContain("review body path validation failed");
     expect(phase5).not.toContain('> "$REVIEW_BODY_FILE"');
+    expect(phase5).toContain("write_review_body_from_markdown()");
+    expect(phase5).toContain("REVIEW_BODY_FILE=$( \\");
+    expect(phase5).toContain("write_review_body_from_markdown || exit 1");
+
+    const findingsEditStart = phase5.indexOf(
+      "# Write the rewritten play-review/findings/v2 envelope",
+    );
+    const findingsEditEnd = phase5.indexOf(
+      "Then present the re-rendered stdout",
+    );
+    expect(findingsEditStart).toBeGreaterThanOrEqual(0);
+    expect(findingsEditEnd).toBeGreaterThan(findingsEditStart);
+    const findingsEdit = phase5.slice(findingsEditStart, findingsEditEnd);
+    const manifestRefreshIndex = findingsEdit.indexOf(
+      'update_pr_review_result_manifest "edited" || exit 1',
+    );
+    const bodyRewriteIndex = findingsEdit.indexOf(
+      "write_review_body_from_markdown || exit 1",
+    );
+    expect(manifestRefreshIndex).toBeGreaterThanOrEqual(0);
+    expect(bodyRewriteIndex).toBeGreaterThan(manifestRefreshIndex);
+    expect(
+      findingsEdit.match(
+        /update_pr_review_result_manifest "edited" \|\| exit 1/g,
+      )?.length,
+    ).toBe(2);
 
     expect(phase6).toContain("materialize-review-payload");
     expect(phase6).not.toContain("prepare-review-payload-write");
@@ -3792,6 +3828,7 @@ None
     expect(phase6).not.toContain("validate-approved-review");
     const phase6Steps = [
       "Only after user approval",
+      "read_pr_review_result_manifest_for_preview",
       "APPROVED_REVIEW_INTENT",
       "materialize-review-payload",
       "freeze-approved-review",
