@@ -113,8 +113,7 @@ persistence system.
 identity of the current issue-authority approval binding: source provider,
 source issue identifier, owner thread ID, current issue-authority approval
 identity, reviewed plan digest, auto-handoff identity, refreshed source-issue
-state snapshot digest, and current head SHA when a branch or PR exists. The
-router derives and records it from those
+state snapshot digest. The router derives and records it from those
 controller-held facts before accepting a receipt; a change to any component
 creates a new exact route identity. It is not an opaque value supplied by a
 receipt or owner report. The current issue-authority
@@ -212,8 +211,8 @@ For each open batch item:
 6. At initial approval, validated initial owner handoff, and on a resumed route,
    use the router's existing controller-held approved-route facts to derive and
    record `current_approved_owner_route_identity`, including the refreshed
-   source-issue state snapshot digest and current head SHA whenever a branch or
-   PR exists. Record
+   source-issue state snapshot digest. Keep the refreshed current head SHA as a
+   separate mandatory receipt comparison whenever a branch or PR exists. Record
    `current_reviewed_plan_handoff_provenance` from the reviewed plan digest and
    non-authorizing auto-handoff identity. Only the router records or refreshes
    these bindings from those controller-held facts. A receipt must not

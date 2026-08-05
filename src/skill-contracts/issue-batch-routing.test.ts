@@ -754,6 +754,9 @@ describe("issue-batch-routing skill contract", () => {
       "source provider, source issue identifier, owner thread ID, exact approved route identity, reviewed plan digest, auto-handoff identity, refreshed source-issue state snapshot digest, and the current head SHA when a branch or PR exists",
     );
     expect(controllerHeldFacts).toContain(
+      "current issue-authority approval binding: source provider, source issue identifier, owner thread ID, current issue-authority approval identity, reviewed plan digest, auto-handoff identity, refreshed source-issue state snapshot digest",
+    );
+    expect(controllerHeldFacts).toContain(
       "validated initial owner-handoff report",
     );
     expect(controllerHeldFacts).toContain(
@@ -778,7 +781,7 @@ describe("issue-batch-routing skill contract", () => {
       "must not derive, replace, or shorten the canonical source issue identifier",
     );
     expect(monitorLoop).toContain(
-      "including the refreshed source-issue state snapshot digest and current head SHA whenever a branch or PR exists",
+      "including the refreshed source-issue state snapshot digest. Keep the refreshed current head SHA as a separate mandatory receipt comparison whenever a branch or PR exists",
     );
     expect(monitorLoop).toContain(
       "receipt must carry the current head SHA and it must match the refreshed controller-held head",
