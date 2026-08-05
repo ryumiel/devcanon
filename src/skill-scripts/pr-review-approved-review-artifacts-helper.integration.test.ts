@@ -497,7 +497,7 @@ describe.skipIf(!jqAvailable)(
       }
     });
 
-    it("passes caller surface and event to the producer without pre-validating them", async () => {
+    it("passes caller inputs to a failing producer and removes temp output", async () => {
       const cwd = await makeGitWorkspace();
       try {
         await writeInputs(cwd);

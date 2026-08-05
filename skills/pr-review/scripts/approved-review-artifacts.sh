@@ -614,7 +614,7 @@ materialize_review_payload() {
   review_payload_file="$(prepare_review_payload_write)"
   play_review_helper="$(resolve_play_review_helper)"
   tmp_file="$(mktemp ".ephemeral/.review-payload-${HEAD_SHA}.XXXXXX")"
-  trap 'rm -f "${tmp_file:-}"' EXIT
+  trap "rm -f -- $(printf '%q' "$tmp_file")" EXIT
   HEAD_SHA="$HEAD_SHA" \
   FINDINGS_FILE="$FINDINGS_FILE" \
   REVIEW_SURFACE="$REVIEW_SURFACE" \
@@ -624,7 +624,7 @@ materialize_review_payload() {
   assert_single_json_object "review payload" "$tmp_file"
   assert_payload_shape "$tmp_file" "$HEAD_SHA"
   mv -f "$tmp_file" "$review_payload_file"
-  tmp_file=""
+  trap - EXIT
   printf '%s\n' "$review_payload_file"
 }
 
