@@ -615,6 +615,8 @@ describe("issue-batch-routing skill contract", () => {
   it("continues verified unfinished non-gate progress without consuming approval keys", async () => {
     const routerSource = await readSkillSource("issue-batch-routing");
     const issuePriming = await readSkillSource("issue-priming-workflow");
+    const github = await readSkillSource("github-issue-priming");
+    const linear = await readSkillSource("linear-issue-priming");
     const router = normalizeWhitespace(
       getMarkdownSection(routerSource, "Unfinished Non-Gate Progress Receipts"),
     );
@@ -689,7 +691,7 @@ describe("issue-batch-routing skill contract", () => {
       "Verify that the receipt matches `current_approved_owner_route_identity` and `current_reviewed_plan_handoff_provenance`",
     );
     expect(monitorLoop).toContain(
-      "A missing current binding or stale route/provenance mismatch fails closed to waiting or manual action",
+      "A missing current binding, missing required head, or stale route/provenance/head mismatch fails closed to waiting or manual action",
     );
     expect(monitorLoop).toContain(
       "Stale gate evidence remains a gate and cannot be bypassed by a receipt",
@@ -725,7 +727,7 @@ describe("issue-batch-routing skill contract", () => {
       "Current reviewed-plan handoff provenance required to validate progress receipts",
     );
     expect(controllerHeldFacts).toContain(
-      "source provider, source issue identifier, owner thread ID, exact approved route identity, reviewed plan digest, and auto-handoff identity",
+      "source provider, source issue identifier, owner thread ID, exact approved route identity, reviewed plan digest, auto-handoff identity, and the current head SHA when a branch or PR exists",
     );
     expect(controllerHeldFacts).toContain(
       "validated initial owner-handoff report",
@@ -743,10 +745,19 @@ describe("issue-batch-routing skill contract", () => {
       "Missing or mismatched keys fail closed to waiting or manual action",
     );
     expect(monitorLoop).toContain(
-      "supply that recorded complete key as non-authorizing controller handoff context to the source-specific issue-priming route",
+      "recorded complete key plus the canonical provider-prefixed `source_issue_identifier` as non-authorizing controller handoff context",
     );
     expect(monitorLoop).toContain(
-      "only forward that received value unchanged into its initial owner-handoff report for equality comparison",
+      "may only forward that received route key unchanged into its initial owner-handoff report for equality comparison",
+    );
+    expect(monitorLoop).toContain(
+      "must not derive, replace, or shorten the canonical source issue identifier",
+    );
+    expect(monitorLoop).toContain(
+      "including the refreshed current head SHA whenever a branch or PR exists",
+    );
+    expect(monitorLoop).toContain(
+      "receipt must carry the current head SHA and it must match the refreshed controller-held head",
     );
     expect(controllerHeldFacts).toContain(
       "report comes from the recorded owner thread, matches the current source provider and issue, and carries the controller-validated route tuple",
@@ -767,15 +778,22 @@ describe("issue-batch-routing skill contract", () => {
         getMarkdownSection(issuePriming, "Issue Batch Routing Reports"),
       ),
     ).toContain(
-      "echoes the complete `issue-priming` route key received as non-authorizing controller handoff context for equality comparison",
+      "reports the received canonical `batch-source-issue-identifier`, not the provider-native payload identifier",
     );
     expect(
       normalizeWhitespace(
         getMarkdownSection(issuePriming, "Issue Batch Routing Reports"),
       ),
     ).toContain(
-      "Missing or changed handoff context must wait or report rather than emit an owner-handoff",
+      "Missing or changed paired batch context must wait or report rather than emit an owner-handoff",
     );
+    for (const entrypoint of [github, linear]) {
+      expect(entrypoint).toContain("batch-source-issue-identifier");
+      expect(entrypoint).toContain("batch-issue-priming-route-key");
+      expect(normalizeWhitespace(entrypoint)).toContain(
+        "The entrypoint may neither derive nor modify the route key or canonical identifier",
+      );
+    }
     expect(controllerHeldFacts).toContain(
       "The auto-handoff identity is non-authorizing provenance, not an approval or a receipt-derived authority",
     );

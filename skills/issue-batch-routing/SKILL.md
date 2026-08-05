@@ -96,22 +96,24 @@ matching approval evidence is present. Report-only waiting state uses
 For receipt validation, the router holds the approved-route facts from the
 controller's approval, validated initial owner-handoff report, and resumed-route
 state: source provider, source issue identifier, owner thread ID, exact
-approved route identity, reviewed plan digest, and auto-handoff identity. The
-auto-handoff identity is non-authorizing provenance, not an approval or a
-receipt-derived authority. The router records the initial owner-handoff facts
-before any receipt only when the report comes from the recorded owner thread,
-matches the current source provider and issue, and carries the
-controller-validated route tuple. A receipt cannot initialize, refresh,
-authenticate, or validate those facts. These are controller-local facts, not a
-new receipt artifact, ledger schema, or persistence system.
+approved route identity, reviewed plan digest, auto-handoff identity, and the
+current head SHA when a branch or PR exists. The auto-handoff identity is
+non-authorizing provenance, not an approval or a receipt-derived authority. The
+router records the initial owner-handoff facts before any receipt only when the
+report comes from the recorded owner thread, matches the current source provider
+and issue, and carries the controller-validated route tuple. A receipt cannot
+initialize, refresh, authenticate, or validate those facts. These are
+controller-local facts, not a new receipt artifact, ledger schema, or
+persistence system.
 
 `current_approved_owner_route_identity` is the controller-local deterministic
 identity of the current issue-authority approval binding: source provider,
 source issue identifier, owner thread ID, current issue-authority approval
-identity, reviewed plan digest, and auto-handoff identity. The router derives
-and records it from those controller-held facts before accepting a receipt; a
-change to any component creates a new exact route identity. It is not an opaque
-value supplied by a receipt or owner report. The current issue-authority
+identity, reviewed plan digest, auto-handoff identity, and current head SHA
+when a branch or PR exists. The router derives and records it from those
+controller-held facts before accepting a receipt; a change to any component
+creates a new exact route identity. It is not an opaque value supplied by a
+receipt or owner report. The current issue-authority
 approval identity is the existing complete `last_routed_issue_priming_route_key`
 recorded before or at source-specific issue-priming handoff. An initial
 owner-handoff report may echo that key only for equality comparison; it cannot
@@ -182,15 +184,19 @@ For each open batch item:
    routing another source-specific priming entrypoint. Missing route-key
    evidence fails closed to waiting or manual action. Record
    `last_routed_issue_priming_route_key` before or at handoff, and supply that
-   recorded complete key as non-authorizing controller handoff context to the
-   source-specific issue-priming route. The shared issue-priming workflow may
-   only forward that received value unchanged into its initial owner-handoff
-   report for equality comparison; it must wait or report when the supplied
-   value is missing or changed. Record the created or located owner-thread
-   mapping before continuing the item. Only active source issues with missing
-   owner threads route to source-specific issue priming. Terminal, duplicate,
-   abandoned, blocked, or unknown no-owner states wait or report instead of
-   creating owner work.
+   recorded complete key plus the canonical provider-prefixed
+   `source_issue_identifier` as non-authorizing controller handoff context to
+   the source-specific issue-priming route. The source entrypoint must forward
+   both received values unchanged into the shared issue-priming workflow; it
+   must not derive, replace, or shorten the canonical source issue identifier.
+   The shared issue-priming workflow may only forward that received route key
+   unchanged into its initial owner-handoff report for equality comparison and
+   must use the received canonical identifier for batch reports. Missing or
+   changed handoff context must wait or report. Record the created or located
+   owner-thread mapping before continuing the item. Only active source issues
+   with missing owner threads route to source-specific issue priming. Terminal,
+   duplicate, abandoned, blocked, or unknown no-owner states wait or report
+   instead of creating owner work.
 4. Refresh owner-thread state and integrate any owner-thread gate report or
    validated initial owner-handoff report.
 5. Refresh current source and PR state. Apply the canonical
@@ -201,7 +207,8 @@ For each open batch item:
    evidence remains a gate and cannot be bypassed by a receipt.
 6. At initial approval, validated initial owner handoff, and on a resumed route,
    use the router's existing controller-held approved-route facts to derive and
-   record `current_approved_owner_route_identity`. Record
+   record `current_approved_owner_route_identity`, including the refreshed
+   current head SHA whenever a branch or PR exists. Record
    `current_reviewed_plan_handoff_provenance` from the reviewed plan digest and
    non-authorizing auto-handoff identity. Only the router records or refreshes
    these bindings from those controller-held facts. A receipt must not
@@ -216,8 +223,10 @@ For each open batch item:
    per-route progress sequence and record the highest accepted sequence for the
    exact owner route separately from approval and gate-report keys.
    Verify that the receipt matches `current_approved_owner_route_identity` and
-   `current_reviewed_plan_handoff_provenance`. A missing current binding or
-   stale route/provenance mismatch fails closed to waiting or manual action. A
+   `current_reviewed_plan_handoff_provenance`. When a branch or PR exists, the
+   receipt must carry the current head SHA and it must match the refreshed
+   controller-held head. A missing current binding, missing required head, or
+   stale route/provenance/head mismatch fails closed to waiting or manual action. A
    receipt A at sequence 1, receipt B at sequence 33, then receipt A again at
    sequence 1 is older than the recorded sequence and is a repeat: do not
    continue the route again or update any approval key. Missing, repeated,
@@ -409,7 +418,9 @@ progress receipt verifies the same source provider, source issue identifier,
 owner thread ID, and exact approved route identity already held by the
 controller. The receipt must also provide evidence that the work is unfinished
 and is non-gate continuation under the canonical `issue-priming-workflow`
-auto-route boundary.
+auto-route boundary. When the route has a branch or PR, its receipt must carry
+the refreshed current head SHA; a missing or mismatched head is stale and cannot
+continue the route.
 
 Continue the same owner route without requesting approval and without updating
 `last_reported_approval_waiting_key` or `last_routed_approval_gate_key`. Use

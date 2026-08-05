@@ -275,9 +275,19 @@ Invoke the `issue-priming-workflow` skill with the following normalized issue pa
 - **worktree-path**: <absolute worktree path selected above>
 - **mode**: <interactive | auto>
 - **research**: <gated | forced>
+- **batch-source-issue-identifier**: github:<owner>/<repo>#<N> (only when supplied by `issue-batch-routing`)
+- **batch-issue-priming-route-key**: <complete controller-recorded route key> (only when supplied by `issue-batch-routing`)
 ```
 
 The `mode` field is `auto` when `--auto` was passed and `interactive` otherwise. The `research` field is `forced` when `--research` was passed and `gated` otherwise.
+
+When `issue-batch-routing` supplies the paired batch fields, forward both
+unchanged to `issue-priming-workflow`. `identifier: #<N>` remains the
+provider-native entrypoint value; it must not replace the canonical
+`batch-source-issue-identifier`. The entrypoint may neither derive nor modify
+the route key or canonical identifier. Missing, incomplete, or mismatched
+paired batch context is a handoff blocker: wait or report instead of invoking
+the shared workflow.
 
 The workflow handles every subsequent phase (gate, research,
 brainstorming, planning, implementation, branch review, PR creation). Do

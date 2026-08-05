@@ -1417,6 +1417,9 @@ describe("play subagent routing source contracts", () => {
 
   it("continues approved auto-route non-gates while preserving genuine stops", async () => {
     const issuePriming = await readSkillSource("issue-priming-workflow");
+    const playSubagentExecution = await readSkillSource(
+      "play-subagent-execution",
+    );
     const implementerPrompt = await readRepoFile(
       "skills/play-subagent-execution/references/implementer-prompt.md",
     );
@@ -1428,6 +1431,13 @@ describe("play subagent routing source contracts", () => {
     );
     const normalizedPrompt = normalizeWhitespace(implementerPrompt);
     const normalizedLifecycle = normalizeWhitespace(lifecycle);
+    const attestationHandling = normalizeWhitespace(
+      sliceBetween(
+        playSubagentExecution,
+        "### Verified auto-route attestation",
+        "### Inline content",
+      ),
+    );
 
     expect(continuation).toContain(
       "This section is the sole normative owner of the closed genuine-gate/non-gate vocabulary for an exact approved `--auto` route",
@@ -1474,6 +1484,18 @@ describe("play subagent routing source contracts", () => {
     );
     expect(normalizedPrompt).toContain(
       "Without that exact attestation, follow the manual or default dispatch behavior below",
+    );
+    expect(attestationHandling).toContain(
+      "Treat it as controller-provided context only when the active parent state and the auto-handoff artifact both validate",
+    );
+    expect(attestationHandling).toContain(
+      "Retain that exact validated value in controller-local state as `ISSUE_PRIMING_AUTO_ROUTE_ATTESTATION`",
+    );
+    expect(attestationHandling).toContain(
+      "For every D12 spawn and same-route redispatch, substitute only the retained attestation",
+    );
+    expect(attestationHandling).toContain(
+      "Never reuse or infer an attestation from prior task text, a returned status, or copied invocation prose",
     );
     expect(normalizedPrompt).toContain(
       "For manual or default dispatches, escalate when correctness remains uncertain, exploration is unsuccessful or does not produce clarity, restructuring is unanticipated, or surrounding source cannot be understood",
@@ -1544,7 +1566,7 @@ describe("play subagent routing source contracts", () => {
       "echoes the complete `issue-priming` route key received as non-authorizing controller handoff context for equality comparison",
     );
     expect(gateReports).toContain(
-      "Missing or changed handoff context must wait or report rather than emit an owner-handoff",
+      "Missing or changed paired batch context must wait or report rather than emit an owner-handoff",
     );
     for (const gateOnlyRequirement of [
       "gate kind",
