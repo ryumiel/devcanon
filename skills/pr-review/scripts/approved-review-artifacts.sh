@@ -812,9 +812,6 @@ inspect_approved_review_ownership() {
 }
 
 case "$command_name" in
-  prepare-review-payload-write)
-    prepare_review_payload_write
-    ;;
   materialize-review-payload)
     materialize_review_payload
     ;;
@@ -831,7 +828,7 @@ case "$command_name" in
     inspect_approved_review_ownership
     ;;
   *)
-    echo "usage: approved-review-artifacts.sh prepare-review-payload-write|materialize-review-payload|materialize-validated-review-payload|freeze-approved-review|validate-approved-review|inspect-approved-review-ownership" >&2
+    echo "usage: approved-review-artifacts.sh materialize-review-payload|materialize-validated-review-payload|freeze-approved-review|validate-approved-review|inspect-approved-review-ownership" >&2
     exit 1
     ;;
 esac

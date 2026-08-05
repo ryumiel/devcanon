@@ -23,28 +23,19 @@ const FORBIDDEN_KEYS = new Set([
     "event",
 ]);
 export async function validatePrReviewResultEvidence(input) {
-    return withCwd(input.worktreeRoot, async () => {
-        await requireRepoRoot();
-        validateDirectChildPath("result", input.resultFile, "-result.json");
-        await assertReadableFile("result file", input.resultFile);
-        const result = await readJsonObject(input.resultFile, "result file");
-        validateResultObject(result, input.resultFile, input.resultIdentityPath ?? input.resultFile);
-        const handoff = await validateResultFacts(result, input);
-        return { result, handoff };
-    });
+    return withCwd(input.worktreeRoot, () => validatePrReviewResultEvidenceInCurrentWorktree(input));
 }
 export async function validatePrReviewResultCommandAuthority(input) {
+    return validatePrReviewResultCommandAuthorityWithOptions(input);
+}
+export async function validatePrReviewResultCommandAuthorityForReviewBodyRecovery(input) {
+    return validatePrReviewResultCommandAuthorityWithOptions(input, {
+        allowReviewBodyDigestMismatch: true,
+    });
+}
+async function validatePrReviewResultCommandAuthorityWithOptions(input, options = {}) {
     return withCwd(input.worktreeRoot, async () => {
-        const { result, handoff } = await validatePrReviewResultEvidence({
-            worktreeRoot: input.worktreeRoot,
-            resultFile: input.resultFile,
-            resultIdentityPath: input.resultIdentityPath,
-            repository: input.repository,
-            prNumber: input.prNumber,
-            reviewHeadSha: input.reviewHeadSha,
-            leaseBaseRef: input.leaseBaseRef,
-            leaseHeadRef: input.leaseHeadRef,
-        });
+        const { result, handoff } = await validatePrReviewResultEvidenceInCurrentWorktree(input, options);
         const findingsFile = stringField(result, "findings_file");
         await validateFindingsAuthority(findingsFile, input);
         const handoffArtifacts = objectField(handoff, "artifacts");
@@ -55,25 +46,14 @@ export async function validatePrReviewResultCommandAuthority(input) {
         return { result, handoff };
     });
 }
-export async function validatePrReviewResultCommandAuthorityForReviewBodyRecovery(input) {
-    return withCwd(input.worktreeRoot, async () => {
-        await requireRepoRoot();
-        validateDirectChildPath("result", input.resultFile, "-result.json");
-        await assertReadableFile("result file", input.resultFile);
-        const result = await readJsonObject(input.resultFile, "result file");
-        validateResultObject(result, input.resultFile, input.resultIdentityPath ?? input.resultFile);
-        const handoff = await validateResultFacts(result, input, {
-            allowReviewBodyDigestMismatch: true,
-        });
-        const findingsFile = stringField(result, "findings_file");
-        await validateFindingsAuthority(findingsFile, input);
-        const handoffArtifacts = objectField(handoff, "artifacts");
-        await validateScopeAuthority(stringField(handoffArtifacts, "scope_decision_file"), stringField(handoff, "review_scope_base_ref"), nullableStringField(handoffArtifacts, "prior_threads_file"), input);
-        const artifacts = objectField(result, "artifacts");
-        const scopeDecisionFile = stringField(artifacts, "scope_decision_file");
-        await validateScopeAuthority(scopeDecisionFile, await guardedScopeBaseRef(scopeDecisionFile), nullableStringField(artifacts, "prior_threads_file"), input);
-        return { result, handoff };
-    });
+async function validatePrReviewResultEvidenceInCurrentWorktree(input, options = {}) {
+    await requireRepoRoot();
+    validateDirectChildPath("result", input.resultFile, "-result.json");
+    await assertReadableFile("result file", input.resultFile);
+    const result = await readJsonObject(input.resultFile, "result file");
+    validateResultObject(result, input.resultFile, input.resultIdentityPath ?? input.resultFile);
+    const handoff = await validateResultFacts(result, input, options);
+    return { result, handoff };
 }
 async function validateHandoffFile(file, input, identityPath = file) {
     validateDirectChildPath("handoff", file, "-handoff.json");
