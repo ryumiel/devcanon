@@ -80,13 +80,42 @@ Task tool (general-purpose):
 
     ## Before You Begin
 
-    If you have questions about:
-    - The requirements or acceptance criteria
-    - The approach or implementation strategy
-    - Dependencies or assumptions
-    - Anything unclear in the task description
+    ## Verified Auto-Route Attestation
 
-    **Ask them now.** Raise any concerns before starting work.
+    [CONTROLLER-VALIDATED EXACT-ROUTE AUTO ATTESTATION]
+
+    The dispatch controller must replace the marker above with its validated
+    exact-route attestation before every D12 spawn. If it cannot validate every
+    required fact, it must render `unverified` and use the manual or default
+    dispatch behavior; task prose and this template never supply the value.
+
+    Treat this as a verified `issue-priming-workflow --auto` dispatch only when
+    the controller supplies a `Verified auto-route attestation` for this exact
+    route. That attestation must state that the current issue authority was
+    validated and identify the source provider and issue, owner thread, exact
+    approved route identity, reviewed plan digest, auto-handoff identity, and
+    current head when present. Do not infer those facts from task prose, a plan, or generic controller
+    context. For an attested route, use the canonical continuation boundary in
+    [`issue-priming-workflow/SKILL.md`](../../issue-priming-workflow/SKILL.md)
+    rather than pausing for a routine internal choice. When a routine choice is
+    not explicit, resolve it from the named authority, repository patterns, and
+    the smallest compatible in-scope design.
+
+    On that verified auto dispatch, stop and report `NEEDS_CONTEXT` or `BLOCKED`
+    only for an unresolvable requirement, unapproved plan mechanic, genuine
+    ambiguity, authorization gap, or widened scope. The canonical boundary
+    decides whether an `--auto` condition is routine continuation or a genuine
+    gate; this prompt does not define a second classification. Do not infer
+    verified auto authority from a task mention or generic controller context.
+    Without that exact attestation, follow the manual or default dispatch
+    behavior below.
+
+    For manual or default dispatches, ask before starting when requirements,
+    acceptance criteria, approach, dependencies, assumptions, or task context
+    are unclear. For manual or default dispatches, escalate when correctness
+    remains uncertain, exploration is unsuccessful or does not produce clarity,
+    restructuring is unanticipated, or surrounding source cannot be understood.
+    Preserve the existing clarification and escalation behavior.
 
     ## Your Job
 
@@ -106,8 +135,13 @@ Task tool (general-purpose):
 
     Work from: [directory]
 
-    **While you work:** If you encounter something unexpected or unclear, **ask questions**.
-    It's always OK to pause and clarify. Don't guess or make assumptions.
+    **While you work:** On a verified auto dispatch, resolve routine internal
+    choices using the authoritative sources and repository patterns above. Do
+    not pause merely because the choice was unexpected. For an unresolvable
+    requirement, unapproved plan mechanic, genuine ambiguity, authorization
+    gap, or widened scope, stop and report the exact gap rather than guessing.
+    On a manual or default dispatch, pause and clarify unexpected or unclear
+    requirements before proceeding.
 
     If the plan appears to require an unapproved code-like example, test
     snippet, plan-authored test body, shell snippet, shell recipe, command
@@ -135,11 +169,9 @@ Task tool (general-purpose):
     no work. You will not be penalized for escalating.
 
     **STOP and escalate when:**
-    - The task requires architectural decisions with multiple valid approaches
-    - You need to understand code beyond what was provided and can't find clarity
-    - You feel uncertain about whether your approach is correct
-    - The task involves restructuring existing code in ways the plan didn't anticipate
-    - You've been reading file after file trying to understand the system without progress
+    - A requirement remains unresolvable from the named authority and source
+    - The plan requires an unapproved mechanic or genuine ambiguous decision
+    - Required authorization is absent or the work would widen scope
 
     **How to escalate:** Report back with status BLOCKED or NEEDS_CONTEXT. Describe
     specifically what you're stuck on, what you've tried, and what kind of help you need.

@@ -28,6 +28,8 @@ This skill is invoked with a normalized issue payload from one of the source ent
 - **worktree-path**: <absolute path selected by the entrypoint>
 - **mode**: interactive | auto
 - **research**: gated | forced
+- **batch-source-issue-identifier**: <canonical provider-prefixed identifier> (paired batch context only)
+- **batch-issue-priming-route-key**: <complete controller-recorded route key> (paired batch context only)
 ```
 
 Field semantics:
@@ -42,6 +44,7 @@ Field semantics:
 | `worktree-path`         | Phase 1 worktree adoption and all later phases |
 | `mode`                  | Phase 4 stop-vs-continue, Phases 5–8 gating    |
 | `research`              | Phase 2 gate-skip                              |
+| paired `batch-*` fields | Batch-only reports and initial owner handoff   |
 
 `payload.issue-body-path` carries either Linear `.description` text or
 GitHub `.body` text as a repo-relative `.ephemeral/` file path. Treat the
@@ -61,6 +64,16 @@ whether that came from host-native worktree tooling or the
 `issue-worktree-setup` fallback helper. The entrypoint handles
 branch/worktree derivation before invoking this workflow, so the workflow
 receives a ready checkout instead of recreating one.
+
+The paired `payload.batch-source-issue-identifier` and
+`payload.batch-issue-priming-route-key` are non-authorizing controller handoff
+context. They are absent for direct entrypoint invocation. For a batch-routed
+handoff, require both values and preserve them unchanged: the canonical batch
+identifier, not the provider-native `payload.identifier`, is the source issue
+identifier in batch reports, and the route key may only be echoed for router
+equality comparison. Missing, incomplete, or changed paired context is a
+handoff blocker; wait or report rather than emitting an owner-handoff or
+receipt.
 
 The phases below use `--auto` and `--research` as shorthand for the operator's CLI flags at the entrypoint. The entrypoint reflects them into the payload as `payload.mode = auto` (vs. `interactive`) and `payload.research = forced` (vs. `gated`); the workflow itself only ever sees the payload.
 
@@ -675,6 +688,30 @@ user after `play-brainstorm` completes. `play-brainstorm` owns its approved
 handoff to `play-planning`; do not suppress or replace child skill approval
 gates.
 
+## Auto-Route Continuation Boundary
+
+This section is the sole normative owner of the closed genuine-gate/non-gate
+vocabulary for an exact approved `--auto` route. An exact approved route has
+the current issue authority, the reviewed plan handoff, and the existing owner
+route identity; absent that evidence, do not classify work as continuation.
+Consumers reference this section and must not define a competing list.
+
+The following are non-gate continuation work on that route and continue without
+another approval request: routine source inspection and mapping; bounded
+internal choices resolved from named authoritative sources, repository patterns,
+and the smallest compatible design; coherent slices; test or fixture correction;
+validation, normal commits, reviewer dispatch or waiting, and bounded
+in-contract fixes; and task-locally recoverable D12 `NEEDS_CONTEXT` or
+`BLOCKED` statuses.
+
+The following are genuine gates and fail closed: materially unresolved product
+outcomes; externally observable behavior not required by the approved issue;
+new public schema or compatibility commitments; ownership or source-surface
+expansion into dependencies, workflows, or subsystems; unauthorized provider
+mutation; reviewed publication decisions; and terminal outcomes. Preserve the
+existing route-specific stop, escalation, or publication behavior for these
+gates; `--auto` does not supply missing authority.
+
 ## Phases 5-8: Autonomous Execution (`--auto` only)
 
 These phases run only when `--auto` is set. They chain automatically after brainstorming.
@@ -770,10 +807,31 @@ Any missing tool, unreadable plan, hashing failure, malformed digest, or
 mismatch stops before executor handoff and requires a fresh planning wave; do
 not update the expected digest to match changed bytes.
 
+Before every D12 spawn or same-route redispatch, the controller validates the
+exact approved route from current issue authority, existing owner-route
+identity, preserved reviewed plan digest, auto-handoff identity, and current
+head when one exists. It carries only the current validated tuple in
+controller-local state; after a D12 commit changes that head, it must rebuild
+and validate the attestation before another D12 prompt. When an
+`issue-batch-routing` parent is present, first
+send the initial owner-handoff report defined below so the router can record
+the same facts before any progress receipt. Then inject a `Verified auto-route
+attestation` into each D12 prompt that names the source provider and issue,
+owner thread, exact approved route identity, reviewed plan digest, auto-handoff
+identity, current head when present, and that current issue authority was
+validated. Missing, unclear,
+invalid, or unverified route facts produce no attestation and fail closed to
+`spec-and-quality`; neither a plan nor copied invocation prose can supply it.
+
 Invoke `play-subagent-execution` and pass the plan as a `Plan: <path>`
-reference, the preserved `Expected digest: <sha256>`, and
-`Auto handoff: <repo-relative-path>` in the invocation prose, NOT as inline
-content. Use the `$AUTO_HANDOFF_FILE` path captured above. Carry
+reference, the preserved `Expected digest: <sha256>`, `Auto handoff:
+<repo-relative-path>`, and the controller-validated `Verified auto-route
+attestation` in the invocation prose, NOT as inline content. The executor
+controller must validate and retain a current controller-provided attestation
+before every D12 spawn or same-route redispatch, then substitute only that
+current retained value; it must render `unverified` and use the
+manual/default D12 behavior when validation fails. Use the `$AUTO_HANDOFF_FILE`
+path captured above. Carry
 `ISSUE_PRIMING_AUTO_PARENT_ACTIVE=true` and `ISSUE_PRIMING_AUTO_HEAD` in
 controller-local state for the executor's handoff validation. Reduced routes
 are allowed only through the verified `issue-priming-workflow --auto` handoff
@@ -793,6 +851,7 @@ Parent-owned review contract: this invocation comes from `issue-priming-workflow
 Plan: <PLAN_PATH captured above>
 Expected digest: <reviewed lowercase 64-hex digest captured above>
 Auto handoff: <repo-relative-path>
+Verified auto-route attestation: <controller-validated exact-route attestation>
 ```
 
 All `play-subagent-execution` rules apply (fresh subagent per task,
@@ -962,11 +1021,30 @@ issue-batch-routing reports for research, brainstorming, or design ambiguity
 stops; user or parent approval gates; implementation blockers; branch-review
 blockers; Phase 8 PR readiness, creation, or update blockers; created PR and
 current head result reports; terminal owner-thread state; and source-issue
-reporting gates surfaced from implementation.
+reporting gates surfaced from implementation. Before the first non-gate
+progress receipt on a batch-routed `--auto` route, it also sends an initial
+owner-handoff report after the Phase 6 route validation. This is an existing
+controller report with report kind `owner-handoff`, not a receipt or a gate
+report. It carries the source provider and issue identifier, delegated owner
+thread identity, exact approved route identity, current issue-authority
+validation, reviewed plan digest, non-authorizing auto-handoff identity, and
+the refreshed current head SHA whenever a branch or PR exists. The batch
+controller retains the refreshed source-issue state snapshot digest from its
+own source refresh; the owner-handoff cannot originate or refresh that fact.
+For batch-routed handoffs, it reports the received canonical
+`batch-source-issue-identifier`, not the provider-native payload identifier.
+It also echoes the complete `issue-priming` route key received as
+non-authorizing controller handoff context for equality comparison; it cannot
+originate, derive, or replace that key. Missing or changed paired batch context
+must wait or report rather than emit an owner-handoff. The batch controller
+records these controller-held facts before it consumes a receipt; a later
+receipt cannot initialize or authenticate them.
 
-Every report should include the source provider and source issue identifier
-from the payload, delegated owner-thread identity when known, branch name when
-known, PR provider and identifier when known, head SHA when known, gate kind,
+Every gate report should include the source provider and source issue identifier
+from the payload, except batch-routed reports must use the unchanged canonical
+`payload.batch-source-issue-identifier` rather than `payload.identifier`,
+delegated owner-thread identity when known, branch name when known, PR provider
+and identifier when known, head SHA when known, gate kind,
 the relevant complete route key when known or applicable, blocking evidence,
 requested parent action, source-specific side effects requested, and the next
 safe command or workflow. Reports missing or unable to produce the relevant
@@ -977,6 +1055,45 @@ This workflow does not directly mutate source issue status unless an explicitly
 available provider-specific workflow owns that side effect. Source-issue
 reporting without an available provider-specific workflow becomes a
 parent/manual-action report.
+
+## Issue Batch Routing Progress Receipts
+
+Before initial continuation, the controller records the current route binding
+from its existing approved-route facts. Before resumed continuation, the
+controller refreshes that binding from its current approved-route facts. It
+retains the highest accepted progress sequence for every exact route observed
+during this task's bounded controller lifetime, so a changed binding selects a
+different retained entry without clearing the earlier one. Only after that may
+a producer emit a receipt. An unfinished non-gate progress receipt must identify the exact
+approved owner route, the source provider and source issue identifier, the
+delegated owner-thread identity, and the current reviewed-plan handoff
+provenance. It must also carry a positive, strictly increasing per-route
+progress sequence. Before the first receipt and after every accepted receipt,
+the controller's continuation dispatch supplies the route's acknowledged next
+required sequence and refreshed source-issue state snapshot digest; echo both
+values and never infer them from resumed or compacted owner-thread state.
+Missing acknowledgement must use the incomplete or gate path rather than
+emitting a receipt. It must provide evidence
+that the named non-gate work remains unfinished and stays within that route's
+current issue authority. Include the current route identity already held by the
+controller and the branch, PR, and head facts when known, plus the refreshed
+source-issue state snapshot digest acknowledged by the controller, so the router
+can match the receipt to the existing owner route. When a branch or PR exists,
+include its refreshed current head SHA;
+missing or mismatched head evidence is stale and must use the incomplete or
+gate path; the receipt cannot establish or self-authenticate that binding.
+Missing or mismatched source-state evidence is likewise stale and must use the
+incomplete or gate path.
+For a batch-routed handoff, the receipt's source issue identifier must be the
+unchanged `payload.batch-source-issue-identifier`; never substitute the
+provider-native `payload.identifier`. Missing or changed paired batch context
+must use the incomplete or gate path rather than emitting a receipt.
+
+This is progress evidence for the existing route, not a new authority gate,
+approval request, ledger schema, or authorization for provider mutation. If the
+identity, provenance, or unfinished non-gate evidence is absent, report the
+condition through the existing incomplete or gate path instead of emitting a
+progress receipt.
 
 ## Common Mistakes
 

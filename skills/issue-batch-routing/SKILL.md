@@ -55,31 +55,34 @@ passes and automation resumes when possible.
 Allowed values: `source_provider: github | linear`. Additional providers
 require an explicit provider boundary.
 
-| Field                                          | Meaning                                                                                                                                                         |
-| ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `source_provider`                              | Provider family for the source issue record.                                                                                                                    |
-| `source_issue_identifier`                      | Provider-native issue identity, such as `github:owner/repo#123` or `linear:ENG-123`.                                                                            |
-| `source_issue_title`                           | Latest known source issue title.                                                                                                                                |
-| `owner_thread_id`                              | Delegated owner thread that owns implementation or source-specific follow-up.                                                                                   |
-| `branch_name`                                  | Current owner branch, when known.                                                                                                                               |
-| `pr_provider`                                  | PR provider, initially `github`; optional until a PR exists.                                                                                                    |
-| `pr_identifier`                                | Provider-native PR identity, optional until a PR exists.                                                                                                        |
-| `current_head_sha`                             | Current branch or PR head SHA, optional until known.                                                                                                            |
-| `current_gate_kind`                            | Waiting gate such as `issue-priming`, `plan-approval`, `review-response`, `ci-fix`, `merge-conflict`, `merge-routing`, `source-issue-reporting`, or `archival`. |
-| `source_issue_state_snapshot_digest`           | Digest of the provider-supported source-issue state snapshot used for the last decision.                                                                        |
-| `last_owner_thread_report_digest`              | Digest of the last owner-thread gate report integrated by the parent.                                                                                           |
-| `last_routed_issue_priming_route_key`          | Full replay-sensitive issue-priming route key last sent.                                                                                                        |
-| `last_routed_review_thread_set_digest`         | Digest for the last unresolved review-thread set routed.                                                                                                        |
-| `last_routed_review_response_route_key`        | Full replay-sensitive review-response route key last sent.                                                                                                      |
-| `last_routed_ci_run_check_identifier`          | Check run, job, or workflow identifier for the last CI route. Diagnostic only and not authoritative for de-duplication.                                         |
-| `last_routed_ci_fix_route_key`                 | Full replay-sensitive CI-fix route key last sent.                                                                                                               |
-| `last_routed_merge_conflict_key`               | Merge-conflict route key last sent.                                                                                                                             |
-| `last_routed_bot_review_signal_key`            | Review-bot signal route key last handled.                                                                                                                       |
-| `last_routed_source_issue_reporting_route_key` | Full replay-sensitive source-issue reporting route key last sent.                                                                                               |
-| `last_reported_approval_waiting_key`           | Waiting or report-only approval-gate key recorded when approval evidence is missing, stale, or too broad.                                                       |
-| `last_routed_approval_gate_key`                | Approval-gate route key last sent after matching approval evidence is present.                                                                                  |
-| `last_routed_merge_routing_key`                | Merge-ready route key last sent to `pr-merge`.                                                                                                                  |
-| `last_routed_archival_key`                     | Terminal archival route key last confirmed or sent.                                                                                                             |
+| Field                                          | Meaning                                                                                                                                                                                  |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `source_provider`                              | Provider family for the source issue record.                                                                                                                                             |
+| `source_issue_identifier`                      | Provider-native issue identity, such as `github:owner/repo#123` or `linear:ENG-123`.                                                                                                     |
+| `source_issue_title`                           | Latest known source issue title.                                                                                                                                                         |
+| `owner_thread_id`                              | Delegated owner thread that owns implementation or source-specific follow-up.                                                                                                            |
+| `branch_name`                                  | Current owner branch, when known.                                                                                                                                                        |
+| `pr_provider`                                  | PR provider, initially `github`; optional until a PR exists.                                                                                                                             |
+| `pr_identifier`                                | Provider-native PR identity, optional until a PR exists.                                                                                                                                 |
+| `current_head_sha`                             | Current branch or PR head SHA, optional until known.                                                                                                                                     |
+| `current_gate_kind`                            | Waiting gate such as `issue-priming`, `plan-approval`, `review-response`, `ci-fix`, `merge-conflict`, `merge-routing`, `source-issue-reporting`, or `archival`.                          |
+| `current_approved_owner_route_identity`        | Exact current approved owner-route identity required to validate progress receipts.                                                                                                      |
+| `current_reviewed_plan_handoff_provenance`     | Current reviewed-plan handoff provenance required to validate progress receipts.                                                                                                         |
+| `source_issue_state_snapshot_digest`           | Digest of the provider-supported source-issue state snapshot used for the last decision.                                                                                                 |
+| `last_owner_thread_report_digest`              | Digest of the last owner-thread gate report integrated by the parent.                                                                                                                    |
+| `consumed_progress_receipt_sequences_by_route` | Controller-local bounded map of each exact owner route observed during this task's lifetime to its highest accepted positive sequence; distinct from gate-report and approval-gate keys. |
+| `last_routed_issue_priming_route_key`          | Full replay-sensitive issue-priming route key last sent.                                                                                                                                 |
+| `last_routed_review_thread_set_digest`         | Digest for the last unresolved review-thread set routed.                                                                                                                                 |
+| `last_routed_review_response_route_key`        | Full replay-sensitive review-response route key last sent.                                                                                                                               |
+| `last_routed_ci_run_check_identifier`          | Check run, job, or workflow identifier for the last CI route. Diagnostic only and not authoritative for de-duplication.                                                                  |
+| `last_routed_ci_fix_route_key`                 | Full replay-sensitive CI-fix route key last sent.                                                                                                                                        |
+| `last_routed_merge_conflict_key`               | Merge-conflict route key last sent.                                                                                                                                                      |
+| `last_routed_bot_review_signal_key`            | Review-bot signal route key last handled.                                                                                                                                                |
+| `last_routed_source_issue_reporting_route_key` | Full replay-sensitive source-issue reporting route key last sent.                                                                                                                        |
+| `last_reported_approval_waiting_key`           | Waiting or report-only approval-gate key recorded when approval evidence is missing, stale, or too broad.                                                                                |
+| `last_routed_approval_gate_key`                | Approval-gate route key last sent after matching approval evidence is present.                                                                                                           |
+| `last_routed_merge_routing_key`                | Merge-ready route key last sent to `pr-merge`.                                                                                                                                           |
+| `last_routed_archival_key`                     | Terminal archival route key last confirmed or sent.                                                                                                                                      |
 
 `last_routed_ci_run_check_identifier` is diagnostic only and is not
 authoritative for de-duplication. Replay-sensitive review-response and CI-fix
@@ -87,6 +90,38 @@ deduplication must use the full route-key fields.
 `last_routed_approval_gate_key` records only actual approval routes sent after
 matching approval evidence is present. Report-only waiting state uses
 `last_reported_approval_waiting_key` instead.
+
+## Controller-Held Approved-Route Facts
+
+For receipt validation, the router holds the approved-route facts from the
+controller's approval, validated initial owner-handoff report, and resumed-route
+state: source provider, source issue identifier, owner thread ID, exact
+approved route identity, reviewed plan digest, auto-handoff identity, refreshed
+source-issue state snapshot digest, and the current head SHA when a branch or
+PR exists. The auto-handoff identity is
+non-authorizing provenance, not an approval or a receipt-derived authority. The
+router records the initial owner-handoff facts before any receipt only when the
+report comes from the recorded owner thread, matches the current source provider
+and issue, and carries the controller-validated route tuple. The router retains
+the refreshed source-issue state snapshot digest from its own source refresh;
+an owner-handoff cannot initialize or refresh that controller-held fact. A receipt cannot
+initialize, refresh, authenticate, or validate those facts. These are
+controller-local facts, not a new receipt artifact, ledger schema, or
+persistence system.
+
+`current_approved_owner_route_identity` is the controller-local deterministic
+identity of the current issue-authority approval binding: source provider,
+source issue identifier, owner thread ID, current issue-authority approval
+identity, reviewed plan digest, auto-handoff identity, refreshed source-issue
+state snapshot digest. The router derives and records it from those
+controller-held facts before accepting a receipt; a change to any component
+creates a new exact route identity. It is not an opaque value supplied by a
+receipt or owner report. The current issue-authority
+approval identity is the existing complete `last_routed_issue_priming_route_key`
+recorded before or at source-specific issue-priming handoff. An initial
+owner-handoff report may echo that key only for equality comparison; it cannot
+originate it. Missing or mismatched keys fail closed to waiting or manual
+action.
 
 Unknown provider states are reported as waiting rather than coerced into GitHub
 or Linear terminology.
@@ -151,20 +186,79 @@ For each open batch item:
    `owner_thread_id` is still missing, wait, inspect, or report instead of
    routing another source-specific priming entrypoint. Missing route-key
    evidence fails closed to waiting or manual action. Record
-   `last_routed_issue_priming_route_key` before or at handoff. Record the
-   created or located owner-thread mapping before continuing the item. Only
-   active source issues with missing owner threads route to source-specific
-   issue priming. Terminal, duplicate, abandoned, blocked, or unknown no-owner
-   states wait or report instead of creating owner work.
-4. Refresh owner-thread state and integrate any owner-thread gate report.
-5. Refresh PR provider state when a PR exists.
-6. Classify the current gate using PR gate precedence, source-issue state, and
-   any owner-thread report.
-7. Compare the gate's duplicate-route key with the ledger.
-8. Route only when the route key is new or the current state invalidates the
-   prior route.
-9. Record the route, approval, waiting reason, or terminal state in the ledger.
-10. Report the monitor pass.
+   `last_routed_issue_priming_route_key` before or at handoff, and supply that
+   recorded complete key plus the canonical provider-prefixed
+   `source_issue_identifier` as non-authorizing controller handoff context to
+   the source-specific issue-priming route. The source entrypoint must forward
+   both received values unchanged into the shared issue-priming workflow; it
+   must not derive, replace, or shorten the canonical source issue identifier.
+   The shared issue-priming workflow may only forward that received route key
+   unchanged into its initial owner-handoff report for equality comparison and
+   must use the received canonical identifier for batch reports. Missing or
+   changed handoff context must wait or report. Record the created or located
+   owner-thread mapping before continuing the item. Only active source issues
+   with missing owner threads route to source-specific issue priming. Terminal,
+   duplicate, abandoned, blocked, or unknown no-owner states wait or report
+   instead of creating owner work.
+4. Refresh owner-thread state and integrate any owner-thread gate report or
+   validated initial owner-handoff report.
+5. Refresh current source and PR state. Apply the canonical
+   `issue-priming-workflow` genuine-gate classification while preserving the
+   router's PR, source-issue, publication, and terminal precedence before any
+   non-gate receipt continuation: when current evidence identifies a canonical
+   genuine gate, use its gate path and do not consume a receipt. Stale gate
+   evidence remains a gate and cannot be bypassed by a receipt.
+6. At initial approval, validated initial owner handoff, and on a resumed route,
+   use the router's existing controller-held approved-route facts to derive and
+   record `current_approved_owner_route_identity`, including the refreshed
+   source-issue state snapshot digest. Keep the refreshed current head SHA as a
+   separate mandatory receipt comparison whenever a branch or PR exists. Record
+   `current_reviewed_plan_handoff_provenance` from the reviewed plan digest and
+   non-authorizing auto-handoff identity. Only the router records or refreshes
+   these bindings from those controller-held facts. A receipt must not
+   initialize, refresh, authenticate, or validate either current binding.
+   Missing controller-held facts fail closed rather than being inferred from a
+   receipt. Retain the highest accepted progress sequence for every exact route
+   observed during this task's bounded controller lifetime; a changed current
+   binding selects a different map entry and never clears an earlier one. This
+   controller-local replay state is not a generalized event store or new
+   persistence system. Before the first receipt on an exact route, the
+   controller's continuation dispatch acknowledges that route's initial
+   required positive sequence and refreshed source-issue state snapshot digest
+   to the same owner.
+7. Before remaining gate classification, validate every unfinished non-gate
+   progress receipt fact against the current item: exact approved route
+   (`current_approved_owner_route_identity`), reviewed-plan provenance
+   (`current_reviewed_plan_handoff_provenance`), refreshed source-issue state
+   snapshot digest, current head when required (the receipt must carry the
+   current head SHA and it must match the refreshed controller-held head), and
+   unfinished non-gate evidence. A missing current binding, missing required
+   source-state digest or head, or stale route/provenance/source-state/head
+   mismatch fails closed to waiting or manual action.
+   Only after those checks pass, require a positive progress sequence exactly
+   equal to the controller-acknowledged next required sequence, then record the
+   highest accepted sequence in the matching exact-route map entry, separately
+   from approval and gate-report keys, before continuing the same owner route.
+   The continuation dispatch acknowledges that route's next required sequence
+   and refreshed source-issue state snapshot digest to the same owner; the
+   producer must echo both acknowledged values rather than infer sequence or
+   source-state from a resumed or compacted thread. If that record or
+   acknowledgement cannot be retained, fail closed to waiting or manual action;
+   only after it succeeds may the router consume the verified new receipt by
+   continuing. A receipt A at sequence 1, receipt B at sequence 33, then receipt A again at
+   sequence 1 is older than A's retained map entry and is a repeat: do not
+   continue the route again or update any approval key. Missing, repeated,
+   non-positive, or non-increasing progress sequences fail closed; route
+   changes must not evict their earlier replay state. Missing identity, route
+   provenance, or unfinished non-gate evidence fails closed to waiting or
+   manual action. A genuine gate does not qualify as progress.
+8. For an item without receipt continuation, classify any remaining gate using
+   PR gate precedence, source-issue state, and any owner-thread report.
+9. Compare the gate's duplicate-route key with the ledger.
+10. Route only when the route key is new or the current state invalidates the
+    prior route.
+11. Record the route, approval, waiting reason, or terminal state in the ledger.
+12. Report the monitor pass.
 
 If a required live-state surface is unavailable, report the item as waiting
 with the missing surface and the next safe manual command or workflow.
@@ -334,6 +428,28 @@ Record a digest of the report before sending approvals or re-routing work. If
 the report omits the current head SHA, relevant complete route key, or
 route-specific state needed for the gate, ask the owner thread to refetch and
 resend rather than approving.
+
+## Unfinished Non-Gate Progress Receipts
+
+After the router verifies every receipt fact and records its accepted sequence,
+an exact approved owner route continues when an unfinished non-gate progress
+receipt verifies the same source provider, source issue identifier, owner thread
+ID, and exact approved route identity already held by the controller. The
+receipt must also provide evidence that the work is unfinished and is non-gate continuation under
+the canonical `issue-priming-workflow` auto-route boundary. When the route has a branch or PR, its receipt must carry
+the refreshed current head SHA; a missing or mismatched head is stale and cannot
+continue the route.
+
+Continue the same owner route without requesting approval and without updating
+`last_reported_approval_waiting_key` or `last_routed_approval_gate_key`. Use
+this bounded receipt state only for verified unfinished non-gate progress; it
+is distinct from gate-report and approval-gate de-duplication. Do not create a
+generalized event store, schema, or persistence subsystem.
+
+Missing receipt identity or non-gate/unfinished evidence fails closed to waiting
+or manual action, and a genuine gate follows the existing gate and approval
+path. This receipt is controller-local progress evidence, not a new durable
+ledger schema or authorization for provider mutation.
 
 ## Parent Approval Evidence
 

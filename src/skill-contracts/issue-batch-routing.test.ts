@@ -612,6 +612,251 @@ describe("issue-batch-routing skill contract", () => {
     }
   });
 
+  it("continues verified unfinished non-gate progress without consuming approval keys", async () => {
+    const routerSource = await readSkillSource("issue-batch-routing");
+    const issuePriming = await readSkillSource("issue-priming-workflow");
+    const github = await readSkillSource("github-issue-priming");
+    const linear = await readSkillSource("linear-issue-priming");
+    const router = normalizeWhitespace(
+      getMarkdownSection(routerSource, "Unfinished Non-Gate Progress Receipts"),
+    );
+    const monitorLoop = normalizeWhitespace(
+      getMarkdownSection(routerSource, "Monitor Loop"),
+    );
+    const ledger = normalizeWhitespace(
+      getMarkdownSection(routerSource, "Batch Ledger"),
+    );
+    const controllerHeldFacts = normalizeWhitespace(
+      getMarkdownSection(routerSource, "Controller-Held Approved-Route Facts"),
+    );
+    const producer = normalizeWhitespace(
+      getMarkdownSection(issuePriming, "Issue Batch Routing Progress Receipts"),
+    );
+
+    expect(router).toContain(
+      "After the router verifies every receipt fact and records its accepted sequence, an exact approved owner route continues when an unfinished non-gate progress receipt verifies the same source provider, source issue identifier, owner thread ID, and exact approved route identity already held by the controller",
+    );
+    expect(router).toContain(
+      "The receipt must also provide evidence that the work is unfinished and is non-gate continuation under the canonical `issue-priming-workflow` auto-route boundary",
+    );
+    expect(router).toContain(
+      "Continue the same owner route without requesting approval and without updating `last_reported_approval_waiting_key` or `last_routed_approval_gate_key`",
+    );
+    expect(router).toContain(
+      "Missing receipt identity or non-gate/unfinished evidence fails closed to waiting or manual action, and a genuine gate follows the existing gate and approval path",
+    );
+    expect(router).toContain(
+      "Use this bounded receipt state only for verified unfinished non-gate progress; it is distinct from gate-report and approval-gate de-duplication",
+    );
+    expect(producer).toContain(
+      "An unfinished non-gate progress receipt must identify the exact approved owner route, the source provider and source issue identifier, the delegated owner-thread identity, and the current reviewed-plan handoff provenance",
+    );
+    expect(producer).toContain(
+      "It must provide evidence that the named non-gate work remains unfinished and stays within that route's current issue authority",
+    );
+    expect(producer).toContain(
+      "Before the first receipt and after every accepted receipt, the controller's continuation dispatch supplies the route's acknowledged next required sequence and refreshed source-issue state snapshot digest",
+    );
+    expect(producer).toContain(
+      "echo both values and never infer them from resumed or compacted owner-thread state",
+    );
+    expect(producer).toContain(
+      "Before initial continuation, the controller records the current route binding from its existing approved-route facts",
+    );
+    expect(producer).toContain(
+      "It retains the highest accepted progress sequence for every exact route observed during this task's bounded controller lifetime",
+    );
+    expect(producer).toContain(
+      "the receipt cannot establish or self-authenticate that binding",
+    );
+    expect(monitorLoop).toContain(
+      "Before remaining gate classification, validate every unfinished non-gate progress receipt fact against the current item",
+    );
+    expect(monitorLoop).toContain(
+      "Apply the canonical `issue-priming-workflow` genuine-gate classification while preserving the router's PR, source-issue, publication, and terminal precedence before any non-gate receipt continuation",
+    );
+    expect(monitorLoop).toContain(
+      "At initial approval, validated initial owner handoff, and on a resumed route, use the router's existing controller-held approved-route facts to derive and record `current_approved_owner_route_identity`",
+    );
+    expect(monitorLoop).toContain(
+      "Record `current_reviewed_plan_handoff_provenance` from the reviewed plan digest and non-authorizing auto-handoff identity",
+    );
+    expect(monitorLoop).toContain(
+      "Only the router records or refreshes these bindings from those controller-held facts",
+    );
+    expect(monitorLoop).toContain(
+      "a changed current binding selects a different map entry and never clears an earlier one",
+    );
+    expect(monitorLoop).toContain(
+      "A receipt must not initialize, refresh, authenticate, or validate either current binding",
+    );
+    expect(monitorLoop).toContain(
+      "Only after those checks pass, require a positive progress sequence exactly equal to the controller-acknowledged next required sequence",
+    );
+    expect(monitorLoop).toContain(
+      "exact approved route (`current_approved_owner_route_identity`), reviewed-plan provenance (`current_reviewed_plan_handoff_provenance`)",
+    );
+    expect(monitorLoop).toContain(
+      "refreshed source-issue state snapshot digest",
+    );
+    expect(monitorLoop).toContain(
+      "A missing current binding, missing required source-state digest or head, or stale route/provenance/source-state/head mismatch fails closed to waiting or manual action",
+    );
+    expect(monitorLoop).toContain(
+      "The continuation dispatch acknowledges that route's next required sequence and refreshed source-issue state snapshot digest to the same owner",
+    );
+    expect(monitorLoop).toContain(
+      "Before the first receipt on an exact route, the controller's continuation dispatch acknowledges that route's initial required positive sequence and refreshed source-issue state snapshot digest",
+    );
+    expect(
+      monitorLoop.indexOf(
+        "validate every unfinished non-gate progress receipt fact against the current item",
+      ),
+    ).toBeLessThan(
+      monitorLoop.indexOf(
+        "Only after those checks pass, require a positive progress sequence exactly equal to the controller-acknowledged next required sequence",
+      ),
+    );
+    expect(monitorLoop).toContain(
+      "Stale gate evidence remains a gate and cannot be bypassed by a receipt",
+    );
+    expect(
+      monitorLoop.indexOf(
+        "Apply the canonical `issue-priming-workflow` genuine-gate classification while preserving the router's PR, source-issue, publication, and terminal precedence before any non-gate receipt continuation",
+      ),
+    ).toBeLessThan(
+      monitorLoop.indexOf(
+        "Before remaining gate classification, validate every unfinished non-gate progress receipt fact against the current item",
+      ),
+    );
+    expect(monitorLoop).toContain(
+      "A receipt A at sequence 1, receipt B at sequence 33, then receipt A again at sequence 1 is older than A's retained map entry and is a repeat: do not continue the route again or update any approval key",
+    );
+    expect(monitorLoop).toContain(
+      "route changes must not evict their earlier replay state",
+    );
+    expect(monitorLoop).toContain(
+      "For an item without receipt continuation, classify any remaining gate",
+    );
+    expect(ledger).toContain(
+      "Digest of the last owner-thread gate report integrated by the parent",
+    );
+    expect(ledger).toContain(
+      "Controller-local bounded map of each exact owner route observed during this task's lifetime to its highest accepted positive sequence; distinct from gate-report and approval-gate keys",
+    );
+    expect(ledger).toContain(
+      "Exact current approved owner-route identity required to validate progress receipts",
+    );
+    expect(ledger).toContain(
+      "Current reviewed-plan handoff provenance required to validate progress receipts",
+    );
+    expect(controllerHeldFacts).toContain(
+      "source provider, source issue identifier, owner thread ID, exact approved route identity, reviewed plan digest, auto-handoff identity, refreshed source-issue state snapshot digest, and the current head SHA when a branch or PR exists",
+    );
+    expect(controllerHeldFacts).toContain(
+      "current issue-authority approval binding: source provider, source issue identifier, owner thread ID, current issue-authority approval identity, reviewed plan digest, auto-handoff identity, refreshed source-issue state snapshot digest",
+    );
+    expect(controllerHeldFacts).toContain(
+      "validated initial owner-handoff report",
+    );
+    expect(controllerHeldFacts).toContain(
+      "controller-local deterministic identity of the current issue-authority approval binding",
+    );
+    expect(controllerHeldFacts).toContain(
+      "a change to any component creates a new exact route identity",
+    );
+    expect(controllerHeldFacts).toContain(
+      "existing complete `last_routed_issue_priming_route_key` recorded before or at source-specific issue-priming handoff",
+    );
+    expect(controllerHeldFacts).toContain(
+      "Missing or mismatched keys fail closed to waiting or manual action",
+    );
+    expect(monitorLoop).toContain(
+      "recorded complete key plus the canonical provider-prefixed `source_issue_identifier` as non-authorizing controller handoff context",
+    );
+    expect(monitorLoop).toContain(
+      "may only forward that received route key unchanged into its initial owner-handoff report for equality comparison",
+    );
+    expect(monitorLoop).toContain(
+      "must not derive, replace, or shorten the canonical source issue identifier",
+    );
+    expect(monitorLoop).toContain(
+      "including the refreshed source-issue state snapshot digest. Keep the refreshed current head SHA as a separate mandatory receipt comparison whenever a branch or PR exists",
+    );
+    expect(monitorLoop).toContain(
+      "receipt must carry the current head SHA and it must match the refreshed controller-held head",
+    );
+    expect(controllerHeldFacts).toContain(
+      "report comes from the recorded owner thread, matches the current source provider and issue, and carries the controller-validated route tuple",
+    );
+    expect(controllerHeldFacts).toContain(
+      "The router retains the refreshed source-issue state snapshot digest from its own source refresh",
+    );
+    expect(monitorLoop).toContain(
+      "integrate any owner-thread gate report or validated initial owner-handoff report",
+    );
+    expect(producer).toContain(
+      "positive, strictly increasing per-route progress sequence",
+    );
+    expect(producer).toContain(
+      "the receipt's source issue identifier must be the unchanged `payload.batch-source-issue-identifier`; never substitute the provider-native `payload.identifier`",
+    );
+    expect(producer).toContain(
+      "Missing or mismatched source-state evidence is likewise stale",
+    );
+    expect(producer).toContain(
+      "Missing or changed paired batch context must use the incomplete or gate path rather than emitting a receipt",
+    );
+    expect(
+      normalizeWhitespace(
+        getMarkdownSection(issuePriming, "Issue Batch Routing Reports"),
+      ),
+    ).toContain("initial owner-handoff report");
+    expect(
+      normalizeWhitespace(
+        getMarkdownSection(issuePriming, "Issue Batch Routing Reports"),
+      ),
+    ).toContain(
+      "reports the received canonical `batch-source-issue-identifier`, not the provider-native payload identifier",
+    );
+    expect(
+      normalizeWhitespace(
+        getMarkdownSection(issuePriming, "Issue Batch Routing Reports"),
+      ),
+    ).toContain(
+      "Missing or changed paired batch context must wait or report rather than emit an owner-handoff",
+    );
+    expect(
+      normalizeWhitespace(
+        getMarkdownSection(issuePriming, "Issue Batch Routing Reports"),
+      ),
+    ).toContain(
+      "batch-routed reports must use the unchanged canonical `payload.batch-source-issue-identifier` rather than `payload.identifier`",
+    );
+    expect(
+      normalizeWhitespace(
+        getMarkdownSection(issuePriming, "Issue Batch Routing Reports"),
+      ),
+    ).toContain(
+      "the refreshed current head SHA whenever a branch or PR exists",
+    );
+    for (const entrypoint of [github, linear]) {
+      expect(entrypoint).toContain("batch-source-issue-identifier");
+      expect(entrypoint).toContain("batch-issue-priming-route-key");
+      expect(normalizeWhitespace(entrypoint)).toContain(
+        "The entrypoint may neither derive nor modify the route key or canonical identifier",
+      );
+    }
+    expect(github).toContain("github:<owner>/<repo>#<N>");
+    expect(linear).toContain("linear:<IDENTIFIER>");
+    expect(controllerHeldFacts).toContain(
+      "The auto-handoff identity is non-authorizing provenance, not an approval or a receipt-derived authority",
+    );
+    expect(controllerHeldFacts).toContain(
+      "These are controller-local facts, not a new receipt artifact, ledger schema, or persistence system",
+    );
+  });
+
   it("requires pr-merge reports to be source-attributable for router reconciliation", async () => {
     const prMerge = normalizeWhitespace(
       getMarkdownSection(

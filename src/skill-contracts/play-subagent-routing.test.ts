@@ -1328,7 +1328,7 @@ describe("play subagent routing source contracts", () => {
       "Do not redispatch D13 with more context or a more capable model",
     );
     expect(normalizedLifecycle).toContain(
-      "For a D12 implementer, `NEEDS_CONTEXT` means required information was not provided; provide the missing context and redispatch D12 when the task remains within its judgment-bearing scope",
+      "For a D12 implementer, `NEEDS_CONTEXT` means required information was not provided. Outside that exact verified auto route, when a D12 `NEEDS_CONTEXT` request can be resolved within the task's existing scope, the controller provides the missing context and redispatches the same D12 route",
     );
     expect(normalizedLifecycle).toContain(
       "A non-boundary operational D13 `BLOCKED` also stops D13, keeps the task incomplete, and routes the blocker plus any available base/head SHA and snapshot state to D12 for judgment-bearing recovery",
@@ -1413,6 +1413,201 @@ describe("play subagent routing source contracts", () => {
       "review-routing-policy.md` | Computing effective per-task routes, validating reduced-route auto-handoff, checking hard-risk triggers, or resolving same-head reviewer disposition",
     );
     expect(skillSource).not.toContain("mechanical-implementer-prompt.md");
+  });
+
+  it("continues approved auto-route non-gates while preserving genuine stops", async () => {
+    const issuePriming = await readSkillSource("issue-priming-workflow");
+    const playSubagentExecution = await readSkillSource(
+      "play-subagent-execution",
+    );
+    const implementerPrompt = await readRepoFile(
+      "skills/play-subagent-execution/references/implementer-prompt.md",
+    );
+    const lifecycle = await readRepoFile(
+      "skills/play-subagent-execution/references/lifecycle-status-policy.md",
+    );
+    const continuation = normalizeWhitespace(
+      getMarkdownSection(issuePriming, "Auto-Route Continuation Boundary"),
+    );
+    const normalizedPrompt = normalizeWhitespace(implementerPrompt);
+    const normalizedLifecycle = normalizeWhitespace(lifecycle);
+    const attestationHandling = normalizeWhitespace(
+      sliceBetween(
+        playSubagentExecution,
+        "### Verified auto-route attestation",
+        "### Inline content",
+      ),
+    );
+
+    expect(continuation).toContain(
+      "This section is the sole normative owner of the closed genuine-gate/non-gate vocabulary for an exact approved `--auto` route",
+    );
+    for (const nonGate of [
+      "routine source inspection and mapping",
+      "bounded internal choices resolved from named authoritative sources, repository patterns, and the smallest compatible design",
+      "coherent slices",
+      "test or fixture correction",
+      "validation, normal commits, reviewer dispatch or waiting, and bounded in-contract fixes",
+      "task-locally recoverable D12 `NEEDS_CONTEXT` or `BLOCKED` statuses",
+    ]) {
+      expect(continuation).toContain(nonGate);
+    }
+    for (const genuineGate of [
+      "materially unresolved product outcomes",
+      "externally observable behavior not required by the approved issue",
+      "new public schema or compatibility commitments",
+      "ownership or source-surface expansion into dependencies, workflows, or subsystems",
+      "unauthorized provider mutation",
+      "reviewed publication decisions",
+      "terminal outcomes",
+    ]) {
+      expect(continuation).toContain(genuineGate);
+    }
+
+    expect(normalizedPrompt).toContain(
+      "Treat this as a verified `issue-priming-workflow --auto` dispatch only when the controller supplies a `Verified auto-route attestation` for this exact route",
+    );
+    expect(normalizedPrompt).toContain(
+      "Do not infer verified auto authority from a task mention or generic controller context",
+    );
+    expect(normalizedPrompt).toContain(
+      "current issue authority was validated and identify the source provider and issue, owner thread, exact approved route identity, reviewed plan digest, auto-handoff identity, and current head when present",
+    );
+    expect(normalizeWhitespace(issuePriming)).toContain(
+      "auto-handoff identity, current head when present, and that current issue authority was",
+    );
+    expect(normalizedPrompt).toContain(
+      "[CONTROLLER-VALIDATED EXACT-ROUTE AUTO ATTESTATION]",
+    );
+    expect(normalizedPrompt).toContain(
+      "dispatch controller must replace the marker above with its validated exact-route attestation before every D12 spawn",
+    );
+    expect(normalizedPrompt).toContain(
+      "render `unverified` and use the manual or default dispatch behavior",
+    );
+    expect(normalizedPrompt).toContain(
+      "Without that exact attestation, follow the manual or default dispatch behavior below",
+    );
+    expect(attestationHandling).toContain(
+      "Treat it as controller-provided context only when the active parent state and the auto-handoff artifact both validate",
+    );
+    expect(attestationHandling).toContain(
+      "Retain only that current validated value in controller-local state as `ISSUE_PRIMING_AUTO_ROUTE_ATTESTATION`",
+    );
+    expect(attestationHandling).toContain(
+      "Before every D12 spawn or same-route redispatch, require a freshly validated attestation",
+    );
+    expect(attestationHandling).toContain(
+      "If a prior D12 task changed the head or any other route fact, rebuild and validate the attestation from current controller-held facts before the next prompt",
+    );
+    expect(normalizedPrompt).toContain(
+      "For manual or default dispatches, escalate when correctness remains uncertain, exploration is unsuccessful or does not produce clarity, restructuring is unanticipated, or surrounding source cannot be understood",
+    );
+    expect(normalizedPrompt).toContain(
+      "resolve it from the named authority, repository patterns, and the smallest compatible in-scope design",
+    );
+    expect(normalizedPrompt).toContain(
+      "unresolvable requirement, unapproved plan mechanic, genuine ambiguity, authorization gap, or widened scope",
+    );
+
+    expect(normalizedLifecycle).toContain(
+      "For the exact approved `issue-priming-workflow --auto` route, consume the canonical genuine-gate/non-gate vocabulary in [`issue-priming-workflow/SKILL.md`](../../issue-priming-workflow/SKILL.md); do not define a second classification here",
+    );
+    expect(normalizedLifecycle).toContain(
+      "A task-locally recoverable D12 `NEEDS_CONTEXT` or `BLOCKED` status is non-gate continuation: provide the bounded missing context or recoverable unblock and redispatch the same D12 route",
+    );
+    expect(normalizedLifecycle).toContain(
+      "A genuinely unresolvable context or scope gap remains incomplete and follows the existing owning-caller escalation path",
+    );
+    expect(normalizedLifecycle).toContain(
+      "Outside that exact verified auto route, when a D12 `NEEDS_CONTEXT` request can be resolved within the task's existing scope, the controller provides the missing context and redispatches the same D12 route",
+    );
+    expect(normalizedLifecycle).toContain(
+      "D13 selection, reclassification, and boundary failures remain governed by the unchanged D13 sections above",
+    );
+    expect(
+      normalizeWhitespace(
+        getMarkdownSection(
+          issuePriming,
+          "Issue Batch Routing Progress Receipts",
+        ),
+      ),
+    ).toContain(
+      "An unfinished non-gate progress receipt must identify the exact approved owner route, the source provider and source issue identifier, the delegated owner-thread identity, and the current reviewed-plan handoff provenance",
+    );
+    expect(
+      normalizeWhitespace(
+        getMarkdownSection(
+          issuePriming,
+          "Issue Batch Routing Progress Receipts",
+        ),
+      ),
+    ).toContain(
+      "It must provide evidence that the named non-gate work remains unfinished and stays within that route's current issue authority",
+    );
+    const progressReceipts = normalizeWhitespace(
+      getMarkdownSection(issuePriming, "Issue Batch Routing Progress Receipts"),
+    );
+    const gateReports = normalizeWhitespace(
+      getMarkdownSection(issuePriming, "Issue Batch Routing Reports"),
+    );
+    expect(progressReceipts).toContain(
+      "Before initial continuation, the controller records the current route binding from its existing approved-route facts",
+    );
+    expect(progressReceipts).toContain(
+      "Before resumed continuation, the controller refreshes that binding from its current approved-route facts. It retains the highest accepted progress sequence for every exact route observed during this task's bounded controller lifetime",
+    );
+    expect(progressReceipts).toContain(
+      "the receipt cannot establish or self-authenticate that binding",
+    );
+    expect(progressReceipts).toContain(
+      "Before the first receipt and after every accepted receipt, the controller's continuation dispatch supplies the route's acknowledged next required sequence and refreshed source-issue state snapshot digest",
+    );
+    expect(progressReceipts).toContain(
+      "Missing or mismatched source-state evidence is likewise stale",
+    );
+    expect(gateReports).not.toContain("Unfinished Non-Gate Progress Receipts");
+    expect(gateReports).toContain("initial owner-handoff report");
+    expect(gateReports).toContain(
+      "report kind `owner-handoff`, not a receipt or a gate report",
+    );
+    expect(gateReports).toContain(
+      "echoes the complete `issue-priming` route key received as non-authorizing controller handoff context for equality comparison",
+    );
+    expect(gateReports).toContain(
+      "Missing or changed paired batch context must wait or report rather than emit an owner-handoff",
+    );
+    expect(gateReports).toContain(
+      "batch-routed reports must use the unchanged canonical `payload.batch-source-issue-identifier` rather than `payload.identifier`",
+    );
+    expect(gateReports).toContain(
+      "the refreshed current head SHA whenever a branch or PR exists",
+    );
+    expect(gateReports).toContain(
+      "The batch controller retains the refreshed source-issue state snapshot digest from its own source refresh",
+    );
+    for (const gateOnlyRequirement of [
+      "gate kind",
+      "blocking evidence",
+      "requested parent action",
+    ]) {
+      expect(progressReceipts).not.toContain(gateOnlyRequirement);
+    }
+    expect(normalizeWhitespace(lifecycle)).toContain(
+      "Outside that exact verified auto route, D12 `BLOCKED` recovery retains existing context-problem semantics: provide context and redispatch the same D12 pair only when the context problem is resolvable within the task's existing scope",
+    );
+    expect(
+      issuePriming.indexOf("## Auto-Route Continuation Boundary"),
+    ).toBeLessThan(
+      issuePriming.indexOf(
+        "## Phases 5-8: Autonomous Execution (`--auto` only)",
+      ),
+    );
+    expect(
+      issuePriming.indexOf(
+        "## Phases 5-8: Autonomous Execution (`--auto` only)",
+      ),
+    ).toBeLessThan(issuePriming.indexOf("### Phase 5: Write Plan"));
   });
 
   it("keeps tier-conditional planning contracts and review-routing rules in source", async () => {
