@@ -6,6 +6,7 @@ import {
   mkdir,
   mkdtemp,
   readFile,
+  readdir,
   rm,
   symlink,
   writeFile,
@@ -343,6 +344,34 @@ async function writeRecordingSupportValidator(cwd: string, stderr = "") {
   return validator;
 }
 
+async function writePayloadProducer(cwd: string, output: string, stderr = "") {
+  const producer = path.join(cwd, ".ephemeral/payload-producer.sh");
+  await writeFile(
+    producer,
+    [
+      "#!/usr/bin/env bash",
+      "set -euo pipefail",
+      'printf "%s\\n" "$@" > ".ephemeral/payload-producer-args.txt"',
+      'printf "%s\\n" "$HEAD_SHA" > ".ephemeral/payload-producer-head.txt"',
+      'printf "%s\\n" "$FINDINGS_FILE" > ".ephemeral/payload-producer-findings.txt"',
+      'printf "%s\\n" "$REVIEW_SURFACE" > ".ephemeral/payload-producer-surface.txt"',
+      'printf "%s\\n" "$REVIEW_BODY_FILE" > ".ephemeral/payload-producer-body.txt"',
+      'printf "%s\\n" "$REVIEW_EVENT" > ".ephemeral/payload-producer-event.txt"',
+      stderr ? `printf '%s\\n' ${JSON.stringify(stderr)} >&2` : "",
+      stderr ? "exit 1" : `printf '%s' ${JSON.stringify(output)}`,
+      "",
+    ].join("\n"),
+  );
+  await chmod(producer, 0o755);
+  return producer;
+}
+
+async function temporaryPayloadFiles(cwd: string): Promise<string[]> {
+  return (await readdir(path.join(cwd, ".ephemeral"))).filter((entry) =>
+    entry.startsWith(`.review-payload-${headSha}.`),
+  );
+}
+
 async function readRecordedSupportArgs(cwd: string): Promise<string[]> {
   const args = await readFile(
     path.join(cwd, ".ephemeral/support-validator-args.txt"),
@@ -380,6 +409,172 @@ describe.skipIf(!jqAvailable)(
         ).resolves.toMatchObject({
           stdout: `.ephemeral/Feature-ABC.1_2-${headSha}-review-payload.json\n`,
         });
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    });
+
+    it("materializes the canonical pre-freeze payload from the GitHub producer", async () => {
+      const cwd = await makeGitWorkspace();
+      try {
+        await writeInputs(cwd);
+        const producer = await writePayloadProducer(
+          cwd,
+          '{"commit_id":"producer-output"}',
+        );
+
+        const { stdout } = await runHelper(cwd, "materialize-review-payload", {
+          FINDINGS_FILE: findingsFile,
+          REVIEW_BODY_FILE: reviewBodyFile,
+          REVIEW_EVENT: "COMMENT",
+          PLAY_REVIEW_HELPER: producer,
+        });
+
+        expect(stdout).toBe(`${payloadFile}\n`);
+        await expect(
+          readFile(path.join(cwd, payloadFile), "utf8"),
+        ).resolves.toBe('{"commit_id":"producer-output"}');
+        await expect(
+          readFile(
+            path.join(cwd, ".ephemeral/payload-producer-args.txt"),
+            "utf8",
+          ),
+        ).resolves.toBe("build-github-review-payload\n");
+        await expect(
+          readFile(
+            path.join(cwd, ".ephemeral/payload-producer-head.txt"),
+            "utf8",
+          ),
+        ).resolves.toBe(`${headSha}\n`);
+        await expect(
+          readFile(
+            path.join(cwd, ".ephemeral/payload-producer-findings.txt"),
+            "utf8",
+          ),
+        ).resolves.toBe(`${findingsFile}\n`);
+        await expect(
+          readFile(
+            path.join(cwd, ".ephemeral/payload-producer-surface.txt"),
+            "utf8",
+          ),
+        ).resolves.toBe("pr-review\n");
+        await expect(
+          readFile(
+            path.join(cwd, ".ephemeral/payload-producer-body.txt"),
+            "utf8",
+          ),
+        ).resolves.toBe(`${reviewBodyFile}\n`);
+        await expect(
+          readFile(
+            path.join(cwd, ".ephemeral/payload-producer-event.txt"),
+            "utf8",
+          ),
+        ).resolves.toBe("COMMENT\n");
+        await expect(temporaryPayloadFiles(cwd)).resolves.toEqual([]);
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    });
+
+    it("preserves an existing pre-freeze payload and removes temporary output when the producer fails", async () => {
+      const cwd = await makeGitWorkspace();
+      try {
+        await writeInputs(cwd);
+        await writeFile(path.join(cwd, payloadFile), "existing payload\n");
+        const producer = await writePayloadProducer(cwd, "", "producer failed");
+
+        await expect(
+          runHelper(cwd, "materialize-review-payload", {
+            FINDINGS_FILE: findingsFile,
+            REVIEW_BODY_FILE: reviewBodyFile,
+            REVIEW_EVENT: "COMMENT",
+            PLAY_REVIEW_HELPER: producer,
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("producer failed"),
+        });
+        await expect(
+          readFile(path.join(cwd, payloadFile), "utf8"),
+        ).resolves.toBe("existing payload\n");
+        await expect(temporaryPayloadFiles(cwd)).resolves.toEqual([]);
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    });
+
+    it.skipIf(!symlinkAvailable)(
+      "rejects non-canonical and symlinked pre-freeze payload targets before producer execution",
+      async () => {
+        const cwd = await makeGitWorkspace();
+        const outside = path.join(cwd, "outside-payload.json");
+        try {
+          await writeInputs(cwd);
+          const producer = await writePayloadProducer(cwd, "producer output\n");
+
+          await expect(
+            runHelper(cwd, "materialize-review-payload", {
+              FINDINGS_FILE: findingsFile,
+              REVIEW_BODY_FILE: reviewBodyFile,
+              REVIEW_EVENT: "COMMENT",
+              PLAY_REVIEW_HELPER: producer,
+              REVIEW_PAYLOAD_FILE:
+                ".ephemeral/not-canonical-review-payload.json",
+            }),
+          ).rejects.toMatchObject({
+            stderr: expect.stringContaining("review payload path mismatch"),
+          });
+          await expect(
+            readFile(path.join(cwd, ".ephemeral/payload-producer-args.txt")),
+          ).rejects.toThrow();
+
+          await rm(path.join(cwd, payloadFile));
+          await writeFile(outside, "do not overwrite\n");
+          await symlink(outside, path.join(cwd, payloadFile));
+          await expect(
+            runHelper(cwd, "materialize-review-payload", {
+              FINDINGS_FILE: findingsFile,
+              REVIEW_BODY_FILE: reviewBodyFile,
+              REVIEW_EVENT: "COMMENT",
+              PLAY_REVIEW_HELPER: producer,
+              REVIEW_PAYLOAD_FILE: payloadFile,
+            }),
+          ).rejects.toMatchObject({
+            stderr: expect.stringContaining(
+              "review payload path must not be a symlink",
+            ),
+          });
+          await expect(readFile(outside, "utf8")).resolves.toBe(
+            "do not overwrite\n",
+          );
+          await expect(temporaryPayloadFiles(cwd)).resolves.toEqual([]);
+        } finally {
+          await cleanupTempDir(cwd);
+        }
+      },
+    );
+
+    it("does not invoke approved-review validation before payload freezing", async () => {
+      const cwd = await makeGitWorkspace();
+      try {
+        await writeInputs(cwd);
+        const producer = await writePayloadProducer(cwd, "producer output\n");
+        const validator = await writeRecordingSupportValidator(
+          cwd,
+          "approved validation must not run",
+        );
+
+        await expect(
+          runHelper(cwd, "materialize-review-payload", {
+            FINDINGS_FILE: findingsFile,
+            REVIEW_BODY_FILE: reviewBodyFile,
+            REVIEW_EVENT: "COMMENT",
+            PLAY_REVIEW_HELPER: producer,
+            PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT: validator,
+          }),
+        ).resolves.toMatchObject({ stdout: `${payloadFile}\n` });
+        await expect(
+          readFile(path.join(cwd, ".ephemeral/support-validator-args.txt")),
+        ).rejects.toThrow();
       } finally {
         await cleanupTempDir(cwd);
       }
