@@ -83,6 +83,68 @@ afterAll(async () => {
 });
 
 describe("pr-review Phase 5 audit summary renderer", () => {
+  it("reads a result-owned preview with the exact stable schema and nullable paths", async () => {
+    const workspace = await makeManifestWorkspace("pr-review-result-preview-");
+    setSummaryEnv(workspace);
+    process.chdir(workspace.worktree);
+    const result = JSON.parse(
+      await readFile(
+        path.join(workspace.worktree, workspace.resultFile),
+        "utf8",
+      ),
+    ) as {
+      digests: Record<string, unknown>;
+    };
+    await writeJson(workspace.worktree, workspace.resultFile, {
+      ...result,
+      review_body_file: null,
+      digests: { ...result.digests, review_body_sha256: null },
+    });
+
+    const outcome = await runManifestCommand(["read-result-for-preview"]);
+
+    expect(outcome.exitCode, outcome.stderr).toBe(0);
+    expect(outcome.stderr).toBe("");
+    expect(JSON.parse(outcome.stdout)).toEqual({
+      schema: "pr-review/result-preview/v1",
+      review_head_sha: workspace.headSha,
+      handoff_file: `.ephemeral/pr-432-${workspace.headSha}-handoff.json`,
+      head_ref: "topic",
+      findings_file: workspace.findingsFile,
+      review_body_file: null,
+      scope_decision_file: `.ephemeral/topic-${workspace.headSha}-scope-decision.json`,
+      prior_threads_file: null,
+      rendered_preview_file: `.ephemeral/topic-${workspace.headSha}-review-preview.md`,
+    });
+    expect(Object.keys(JSON.parse(outcome.stdout))).toEqual([
+      "schema",
+      "review_head_sha",
+      "handoff_file",
+      "head_ref",
+      "findings_file",
+      "review_body_file",
+      "scope_decision_file",
+      "prior_threads_file",
+      "rendered_preview_file",
+    ]);
+  });
+
+  it("rejects stale result evidence before emitting a preview", async () => {
+    const workspace = await makeManifestWorkspace("pr-review-stale-preview-");
+    setSummaryEnv(workspace);
+    process.chdir(workspace.worktree);
+    await writeFile(
+      path.join(workspace.worktree, workspace.reviewBodyFile),
+      "Changed after validation.\n",
+    );
+
+    const outcome = await runManifestCommand(["read-result-for-preview"]);
+
+    expect(outcome.exitCode).toBe(1);
+    expect(outcome.stdout).toBe("");
+    expect(outcome.stderr).toContain("review body digest mismatch");
+  });
+
   it("keeps POSIX single-letter roots as operational paths", async () => {
     const { toOperationalPathText } = await import("./pr-review-manifests.js");
     expect(toOperationalPathText("/c/repo")).toBe("/c/repo");

@@ -43,10 +43,17 @@ export async function runPrReviewManifestsCommand(args) {
             case "validate-result":
                 await validateResultCommand();
                 return ok("");
+            case "read-result-for-preview":
+                requireNoCommandArgs(commandName, args);
+                return ok(`${await readResultForPreview()}\n`);
+            case "write-review-body":
+                requireNoCommandArgs(commandName, args);
+                await writeReviewBody();
+                return ok("");
             case "render-phase5-audit-summary":
                 return ok(`${await renderPhase5AuditSummary()}\n`);
             default:
-                throw new PrReviewManifestError("usage: review-manifests.sh prepare-handoff-write|write-handoff|validate-handoff|prepare-result-write|write-result|validate-result|render-phase5-audit-summary");
+                throw new PrReviewManifestError("usage: review-manifests.sh prepare-handoff-write|write-handoff|validate-handoff|prepare-result-write|write-result|validate-result|read-result-for-preview|write-review-body|render-phase5-audit-summary");
         }
     }
     catch (err) {
@@ -216,6 +223,54 @@ async function validateResultCommand() {
     requireEnv("REPOSITORY");
     requireEnv("RESULT_FILE");
     await validateResultFile(requiredEnv("RESULT_FILE"));
+}
+async function readResultForPreview() {
+    requireEnv("REPOSITORY");
+    const resultFile = requiredEnv("RESULT_FILE");
+    await validateResultFile(resultFile);
+    const result = await readJsonObject(resultFile, "result file");
+    const artifacts = objectField(result, "artifacts");
+    const handoff = await readJsonObject(stringField(artifacts, "handoff_file"), "handoff file");
+    return json({
+        schema: "pr-review/result-preview/v1",
+        review_head_sha: stringField(result, "review_head_sha"),
+        handoff_file: stringField(artifacts, "handoff_file"),
+        head_ref: stringField(handoff, "head_ref"),
+        findings_file: stringField(result, "findings_file"),
+        review_body_file: nullableStringField(result, "review_body_file"),
+        scope_decision_file: stringField(artifacts, "scope_decision_file"),
+        prior_threads_file: nullableStringField(artifacts, "prior_threads_file"),
+        rendered_preview_file: nullableStringField(artifacts, "rendered_preview_file"),
+    });
+}
+async function writeReviewBody() {
+    requireEnv("REPOSITORY");
+    const resultFile = requiredEnv("RESULT_FILE");
+    await validateResultFile(resultFile);
+    const result = await readJsonObject(resultFile, "result file");
+    const prNumber = readPrNumber();
+    const headSha = readHeadSha();
+    const reviewBodyFile = nullableStringField(result, "review_body_file");
+    validateCanonicalReviewBodyPath(reviewBodyFile, prNumber, headSha);
+    if (reviewBodyFile === null) {
+        fail("result review body target is required");
+    }
+    await assertReadableFile("review body file", reviewBodyFile);
+    const markdown = await readMarkdownFromStdin();
+    await assertReadableFile("review body file", reviewBodyFile);
+    await writeTextAtomically(path.join(process.cwd(), reviewBodyFile), markdown);
+}
+async function readMarkdownFromStdin() {
+    try {
+        const chunks = [];
+        for await (const chunk of process.stdin) {
+            chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+        }
+        return new TextDecoder("utf-8", { fatal: true }).decode(Buffer.concat(chunks));
+    }
+    catch {
+        fail("review body stdin must be valid UTF-8 Markdown");
+    }
 }
 async function renderPhase5AuditSummary() {
     for (const name of [
@@ -1247,6 +1302,11 @@ function validateShaValue(label, value) {
 function requireEnv(name) {
     if ((process.env[name] ?? "").length === 0) {
         fail(`${name} is required`);
+    }
+}
+function requireNoCommandArgs(commandName, args) {
+    if (args.length !== 1) {
+        fail(`${commandName ?? "command"} does not accept arguments`);
     }
 }
 function requiredEnv(name) {
