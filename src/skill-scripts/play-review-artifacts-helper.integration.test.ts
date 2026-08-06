@@ -1303,6 +1303,58 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
     }
   });
 
+  it("requires exactly one document while allowing trailing whitespace", async () => {
+    const cwd = await makeTopicGitWorkspace();
+    try {
+      const reviewHeadSha = await currentHeadSha(cwd);
+      const canonicalFile = `.ephemeral/topic-${reviewHeadSha}-findings.json`;
+      const priorEnvelope = {
+        schema: "play-review/findings/v2",
+        findings: [],
+        carry_forward: [],
+        incomplete_topical_routes: [],
+      };
+      const replacementEnvelope = {
+        ...priorEnvelope,
+        findings: [finding()],
+      };
+      const priorContents = JSON.stringify(priorEnvelope);
+      await writeFile(path.join(cwd, canonicalFile), priorContents);
+
+      for (const input of ["", `${priorContents}\n${priorContents}`]) {
+        await expect(
+          runHelperWithStdin(cwd, "publish-findings", input, {
+            HEAD_SHA: reviewHeadSha,
+            FINDINGS_FILE: canonicalFile,
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining(
+            "findings input must contain exactly one complete JSON envelope",
+          ),
+        });
+        expect(await readFile(path.join(cwd, canonicalFile), "utf-8")).toBe(
+          priorContents,
+        );
+        await expectNoPublishStaging(cwd);
+      }
+
+      await expect(
+        runHelperWithStdin(
+          cwd,
+          "publish-findings",
+          `${JSON.stringify(replacementEnvelope)}\n \t\n`,
+          { HEAD_SHA: reviewHeadSha, FINDINGS_FILE: canonicalFile },
+        ),
+      ).resolves.toMatchObject({ stdout: `${canonicalFile}\n` });
+      expect(
+        JSON.parse(await readFile(path.join(cwd, canonicalFile), "utf-8")),
+      ).toEqual(replacementEnvelope);
+      await expectNoPublishStaging(cwd);
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
   it("refuses stale or noncanonical publication inputs before replacing the existing findings file", async () => {
     const cwd = await makeTopicGitWorkspace();
     try {
