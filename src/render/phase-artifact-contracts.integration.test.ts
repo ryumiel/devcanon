@@ -871,7 +871,7 @@ describe("rendered phase artifact smoke coverage", () => {
       "Refresh lease validation for every gate cycle; never treat the `RESULT_FILE` path alone as freshness evidence",
     );
     expect(normalizeRenderedWhitespace(prReview)).toContain(
-      "First update and validate `pr-review/result/v1` with the rewritten findings and the current review body",
+      "The caller-authored envelope must be exactly one complete JSON document",
     );
     expect(normalizeRenderedWhitespace(prReview)).toContain(
       "render the mandatory Phase 5 artifact audit summary again before waiting for approval",
@@ -1100,7 +1100,7 @@ describe("rendered phase artifact smoke coverage", () => {
       );
 
       const renderedFindingsEditStart = renderedPrReview.indexOf(
-        "# Write the rewritten play-review/findings/v2 envelope",
+        "REPLACED_RESULT_FILE=$( \\",
       );
       const renderedFindingsEditEnd = renderedPrReview.indexOf(
         "Then present the re-rendered stdout",
@@ -1113,16 +1113,35 @@ describe("rendered phase artifact smoke coverage", () => {
         renderedFindingsEditStart,
         renderedFindingsEditEnd,
       );
-      const renderedManifestRefreshIndex = renderedFindingsEdit.indexOf(
-        'update_pr_review_result_manifest "edited" || exit 1',
-      );
       const renderedBodyRewriteIndex = renderedFindingsEdit.indexOf(
         "write_review_body_from_markdown || exit 1",
       );
-      expect(renderedManifestRefreshIndex).toBeGreaterThanOrEqual(0);
-      expect(renderedBodyRewriteIndex).toBeGreaterThan(
-        renderedManifestRefreshIndex,
+      expect(renderedFindingsEdit).toContain(
+        'bash "$PR_REVIEW_MANIFEST_HELPER" replace-findings',
       );
+      expect(renderedFindingsEdit).toContain(
+        'PLAY_REVIEW_HELPER="$PLAY_REVIEW_HELPER"',
+      );
+      expect(renderedFindingsEdit).toContain(
+        'REVIEW_RESULT_FILE="$REPLACED_RESULT_FILE"',
+      );
+      expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
+        "exactly one complete JSON document",
+      );
+      expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
+        "refusal stops the Phase 5 continuation",
+      );
+      expect(renderedFindingsEdit).not.toContain("validate-findings");
+      expect(renderedFindingsEdit).not.toContain("prepare-findings-write");
+      expect(renderedBodyRewriteIndex).toBeGreaterThanOrEqual(0);
+      expectSubstringsInOrder(renderedFindingsEdit, [
+        "write-review-body",
+        "recover-review-body-publication when needed",
+        "render-review-preview",
+        "result update",
+        "gated lease write",
+        "render-phase5-audit-summary",
+      ]);
       expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
         "After every successful `gated` write, including edited previews, render the mandatory Phase 5 artifact audit summary before asking for user action",
       );
@@ -1155,7 +1174,7 @@ describe("rendered phase artifact smoke coverage", () => {
         "Refresh lease validation for every gate cycle; never treat the `RESULT_FILE` path alone as freshness evidence",
       );
       expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
-        "First update and validate `pr-review/result/v1` with the rewritten findings and the current review body",
+        "The caller-authored envelope must be exactly one complete JSON document",
       );
       expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
         "render the mandatory Phase 5 artifact audit summary again before waiting for approval",

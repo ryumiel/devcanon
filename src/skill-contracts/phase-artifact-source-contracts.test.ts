@@ -54,6 +54,19 @@ function shellFunctionBody(content: string, functionName: string): string {
   return content.slice(start, end);
 }
 
+function expectSubstringsInOrder(content: string, substrings: string[]): void {
+  let previousIndex = -1;
+
+  for (const substring of substrings) {
+    const currentIndex = content.indexOf(substring, previousIndex + 1);
+    expect(
+      currentIndex,
+      `missing ordered substring: ${substring}`,
+    ).toBeGreaterThan(previousIndex);
+    previousIndex = currentIndex;
+  }
+}
+
 type ResearchPromptTuple = {
   source: string;
   id: string;
@@ -2064,7 +2077,6 @@ None
 
     for (const skillSource of [branchReview, prReview]) {
       expect(skillSource).toContain("REVIEW_HEAD_SHA");
-      expect(skillSource).toContain("validate-findings");
       expect(skillSource).toContain("PLAY_REVIEW_HELPER");
       expect(skillSource).toContain("play-review/findings/v2");
     }
@@ -2076,9 +2088,12 @@ None
     expect(branchReview).toContain(
       "immutable Phase 2 review head; current HEAD may include auto-fix commits",
     );
+    expect(branchReview).toContain("validate-findings");
     expect(branchReview).toContain("prepare-findings-write");
 
     expect(prReview).toContain("## Phase 4: Run play-review");
+    expect(prReview).toContain("replace-findings");
+    expect(prReview).not.toContain("validate-findings");
   });
 
   it("keeps pr-review manifest handoff/result contracts in source", async () => {
@@ -3808,28 +3823,47 @@ None
     );
     expect(phase5).toContain("write_review_body_from_markdown || exit 1");
 
-    const findingsEditStart = phase5.indexOf(
-      "# Write the rewritten play-review/findings/v2 envelope",
-    );
+    const findingsEditStart = phase5.indexOf("REPLACED_RESULT_FILE=$( \\");
     const findingsEditEnd = phase5.indexOf(
       "Then present the re-rendered stdout",
     );
     expect(findingsEditStart).toBeGreaterThanOrEqual(0);
     expect(findingsEditEnd).toBeGreaterThan(findingsEditStart);
     const findingsEdit = phase5.slice(findingsEditStart, findingsEditEnd);
-    const manifestRefreshIndex = findingsEdit.indexOf(
-      'update_pr_review_result_manifest "edited" || exit 1',
+    expect(findingsEdit).toContain('cd "$WORKING_DIRECTORY" || exit 1');
+    expect(findingsEdit).toContain('PR_NUMBER="$PR_NUMBER"');
+    expect(findingsEdit).toContain('HEAD_SHA="$REVIEW_HEAD_SHA"');
+    expect(findingsEdit).toContain('REPOSITORY="<owner/repo>"');
+    expect(findingsEdit).toContain('RESULT_FILE="$REVIEW_RESULT_FILE"');
+    expect(findingsEdit).toContain('PLAY_REVIEW_HELPER="$PLAY_REVIEW_HELPER"');
+    expect(findingsEdit).toContain(
+      'bash "$PR_REVIEW_MANIFEST_HELPER" replace-findings',
     );
+    expect(findingsEdit).toContain(
+      'REVIEW_RESULT_FILE="$REPLACED_RESULT_FILE"',
+    );
+    expect(normalizeWhitespace(phase5)).toContain(
+      "exactly one complete JSON document",
+    );
+    expect(normalizeWhitespace(phase5)).toContain(
+      "refusal stops the Phase 5 continuation",
+    );
+    expect(findingsEdit).not.toContain("validate-findings");
+    expect(findingsEdit).not.toContain("prepare-findings-write");
+    expect(findingsEdit).not.toContain("# Write the rewritten");
+
     const bodyRewriteIndex = findingsEdit.indexOf(
       "write_review_body_from_markdown || exit 1",
     );
-    expect(manifestRefreshIndex).toBeGreaterThanOrEqual(0);
-    expect(bodyRewriteIndex).toBeGreaterThan(manifestRefreshIndex);
-    expect(
-      findingsEdit.match(
-        /update_pr_review_result_manifest "edited" \|\| exit 1/g,
-      )?.length,
-    ).toBe(2);
+    expect(bodyRewriteIndex).toBeGreaterThanOrEqual(0);
+    expectSubstringsInOrder(findingsEdit, [
+      "write-review-body",
+      "recover-review-body-publication when needed",
+      "render-review-preview",
+      "result update",
+      "gated lease write",
+      "render-phase5-audit-summary",
+    ]);
 
     expect(phase6).toContain("materialize-review-payload");
     expect(phase6).not.toContain("prepare-review-payload-write");

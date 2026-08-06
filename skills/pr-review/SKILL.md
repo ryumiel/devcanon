@@ -827,33 +827,43 @@ update `pr-review/result/v1`, present the new stdout and result-manifest update
 notice, and wait again. Do not proceed to Phase 6 until the user approves that
 latest preview.
 
-**Dropped or reclassified findings:** rewrite the
-`play-review/findings/v2` envelope at `REVIEW_FINDINGS_FILE`, recomputing each
-affected finding's pre-rendered `body` field after any severity or category
-change. Validate the original path before reading, and immediately before
-overwriting run `prepare-findings-write` for the same immutable review head and
-path. First update and validate `pr-review/result/v1` with the rewritten
-findings and the current review body so the body writer consumes the new
-findings digest. Then author the replacement Markdown with the required
-narrative lead and any supported pre-findings synthesis, and pass it on stdin
-to `write-review-body`. After rendering, update and validate the result manifest
-again to bind the new body digest. If no synthesis remains, author the fallback
-narrative body required by `docs/guidelines/code-review-guideline.md`. Never
-author a review body whose first nonblank line is `## Root-Cause Synthesis`. If
-a dropped or reclassified finding removes synthesis support, clear the old
-synthesis before rerendering and replace it with one or two concrete narrative
-sentences naming what the implementation got right before findings:
+**Dropped or reclassified findings:** author a replacement
+`play-review/findings/v2` envelope in the caller. The caller-authored envelope
+must be exactly one complete JSON document. Do not inspect helpers or runtime,
+write the governed findings or result artifacts directly, or compose private
+calls. From the target worktree root, pass that one caller-authored envelope on
+stdin to the public `review-manifests.sh replace-findings` command. It owns
+findings replacement and result-manifest rebinding. Its stdout is the canonical
+rebound result path; bind it as `REVIEW_RESULT_FILE`. A refusal stops the Phase
+5 continuation:
 
 ```bash
-(
+: "${REPLACEMENT_FINDINGS_ENVELOPE:?caller-authored replacement findings envelope missing}"
+REPLACED_RESULT_FILE=$( \
   cd "$WORKING_DIRECTORY" || exit 1
-  HEAD_SHA="$REVIEW_HEAD_SHA" FINDINGS_FILE="$REVIEW_FINDINGS_FILE" \
-    bash "$PLAY_REVIEW_HELPER" validate-findings || exit 1
-  HEAD_SHA="$REVIEW_HEAD_SHA" FINDINGS_FILE="$REVIEW_FINDINGS_FILE" \
-    bash "$PLAY_REVIEW_HELPER" prepare-findings-write || exit 1
-  # Write the rewritten play-review/findings/v2 envelope to "$REVIEW_FINDINGS_FILE".
-)
-update_pr_review_result_manifest "edited" || exit 1
+  printf '%s' "$REPLACEMENT_FINDINGS_ENVELOPE" | \
+    PR_NUMBER="$PR_NUMBER" \
+    HEAD_SHA="$REVIEW_HEAD_SHA" \
+    REPOSITORY="<owner/repo>" \
+    RESULT_FILE="$REVIEW_RESULT_FILE" \
+    PLAY_REVIEW_HELPER="$PLAY_REVIEW_HELPER" \
+      bash "$PR_REVIEW_MANIFEST_HELPER" replace-findings
+) || exit 1
+REVIEW_RESULT_FILE="$REPLACED_RESULT_FILE"
+```
+
+After that successful rebound, continue only through existing public owners in
+this order: `write-review-body`, `recover-review-body-publication when needed`,
+`render-review-preview`, result update, gated lease write, then
+`render-phase5-audit-summary`. Do not move any of those later owners into
+`replace-findings`. If no synthesis remains, author the fallback narrative body
+required by `docs/guidelines/code-review-guideline.md`. Never author a review
+body whose first nonblank line is `## Root-Cause Synthesis`. If a dropped or
+reclassified finding removes synthesis support, clear the old synthesis before
+rerendering and replace it with one or two concrete narrative sentences naming
+what the implementation got right before findings:
+
+```bash
 REVIEW_BODY_MARKDOWN="<one or two short narrative sentences naming what the implementation got right before findings>"
 case "$REVIEW_BODY_MARKDOWN" in *"<"*">"*) echo "review body fallback must be replaced with concrete narrative summary" >&2; exit 1 ;; esac
 write_review_body_from_markdown || exit 1
