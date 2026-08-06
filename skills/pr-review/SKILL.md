@@ -850,6 +850,7 @@ REPLACED_RESULT_FILE=$( \
       bash "$PR_REVIEW_MANIFEST_HELPER" replace-findings
 ) || exit 1
 REVIEW_RESULT_FILE="$REPLACED_RESULT_FILE"
+RENDERED_PREVIEW_FILE=""
 ```
 
 After that successful rebound, continue only through existing public owners in
@@ -874,7 +875,7 @@ write_review_body_from_markdown || exit 1
   REVIEW_SURFACE="pr-review" \
   REVIEW_BODY_FILE="$REVIEW_BODY_FILE" \
     bash "$PLAY_REVIEW_HELPER" render-review-preview
-)
+) || exit 1
 update_pr_review_result_manifest "edited" || exit 1
 REVIEW_GATE_PRESENTED_AT="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 (
@@ -894,6 +895,7 @@ REVIEW_GATE_PRESENTED_AT="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
   PRESENTATION_STATUS="edited" \
     bash "$PR_REVIEW_LEASE_HELPER" write
 ) || exit 1
+PHASE5_AUDIT_STATUS=0
 PHASE5_AUDIT_SUMMARY=$( \
   cd "$REVIEW_CALLER_DIR" || exit 1
   REPOSITORY="<owner/repo>" \
@@ -904,7 +906,32 @@ PHASE5_AUDIT_SUMMARY=$( \
   WORKTREE_PATH="$WORKING_DIRECTORY" \
   LEASE_FILE="$LEASE_FILE" \
     bash "$PR_REVIEW_MANIFEST_HELPER" render-phase5-audit-summary
-) || exit 1
+) || PHASE5_AUDIT_STATUS=$?
+if [ "$PHASE5_AUDIT_STATUS" -ne 0 ]; then
+  REVIEW_GATE_FINISHED_AT="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+  (
+    cd "$REVIEW_CALLER_DIR" || exit 1
+    REPOSITORY="<owner/repo>" \
+    PR_NUMBER="$PR_NUMBER" \
+    PRIMARY_REPOSITORY_ROOT="$REVIEW_CALLER_DIR" \
+    LEASE_FILE="$LEASE_FILE" \
+    PR_REVIEW_DIR="$PR_REVIEW_DIR" \
+    PR_REVIEW_MANIFEST_HELPER_SCRIPT="$PR_REVIEW_MANIFEST_HELPER" \
+    PLAY_REVIEW_HELPER="$PLAY_REVIEW_HELPER" \
+    STATE="failed" \
+    EXPECTED_STATE="gated" \
+    BASE_REF="$PR_BASE_REF" \
+    HEAD_REF="$REVIEW_HEAD_REF" \
+    UPDATED_AT="$REVIEW_GATE_FINISHED_AT" \
+    RESULT_FILE="$REVIEW_RESULT_FILE" \
+    FINISHED_AT="$REVIEW_GATE_FINISHED_AT" \
+    FAILURE_PHASE="preview-render" \
+    FAILURE_REASON="Phase 5 artifact audit summary failed" \
+    FAILURE_RECOVERABILITY="recoverable" \
+      bash "$PR_REVIEW_LEASE_HELPER" record-audit-failure >/dev/null
+  ) || exit 1
+  exit "$PHASE5_AUDIT_STATUS"
+fi
 printf '%s\n' "$PHASE5_AUDIT_SUMMARY"
 ```
 

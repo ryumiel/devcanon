@@ -1125,6 +1125,10 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(renderedFindingsEdit).toContain(
         'REVIEW_RESULT_FILE="$REPLACED_RESULT_FILE"',
       );
+      expect(renderedFindingsEdit).toContain('RENDERED_PREVIEW_FILE=""');
+      expect(renderedFindingsEdit).toContain(
+        'bash "$PLAY_REVIEW_HELPER" render-review-preview\n) || exit 1',
+      );
       expect(renderedFindingsEdit).toContain(
         'bash "$PR_REVIEW_LEASE_HELPER" write',
       );
@@ -1146,6 +1150,12 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(renderedFindingsEdit).toContain(
         'bash "$PR_REVIEW_MANIFEST_HELPER" render-phase5-audit-summary',
       );
+      expect(renderedFindingsEdit).toContain("PHASE5_AUDIT_STATUS=0");
+      expect(renderedFindingsEdit).toContain(
+        'bash "$PR_REVIEW_LEASE_HELPER" record-audit-failure >/dev/null',
+      );
+      expect(renderedFindingsEdit).toContain('EXPECTED_STATE="gated"');
+      expect(renderedFindingsEdit).toContain('FAILURE_PHASE="preview-render"');
       expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
         "exactly one complete JSON document",
       );

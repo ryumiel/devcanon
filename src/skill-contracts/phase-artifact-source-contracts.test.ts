@@ -3842,6 +3842,10 @@ None
     expect(findingsEdit).toContain(
       'REVIEW_RESULT_FILE="$REPLACED_RESULT_FILE"',
     );
+    expect(findingsEdit).toContain('RENDERED_PREVIEW_FILE=""');
+    expect(findingsEdit).toContain(
+      'bash "$PLAY_REVIEW_HELPER" render-review-preview\n) || exit 1',
+    );
     expect(findingsEdit).toContain('bash "$PR_REVIEW_LEASE_HELPER" write');
     for (const binding of [
       'PRIMARY_REPOSITORY_ROOT="$REVIEW_CALLER_DIR"',
@@ -3861,6 +3865,12 @@ None
     expect(findingsEdit).toContain(
       'bash "$PR_REVIEW_MANIFEST_HELPER" render-phase5-audit-summary',
     );
+    expect(findingsEdit).toContain("PHASE5_AUDIT_STATUS=0");
+    expect(findingsEdit).toContain(
+      'bash "$PR_REVIEW_LEASE_HELPER" record-audit-failure >/dev/null',
+    );
+    expect(findingsEdit).toContain('EXPECTED_STATE="gated"');
+    expect(findingsEdit).toContain('FAILURE_PHASE="preview-render"');
     expect(normalizeWhitespace(phase5)).toContain(
       "exactly one complete JSON document",
     );
