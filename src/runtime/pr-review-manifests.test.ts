@@ -34,6 +34,7 @@ const managedEnvKeys = [
   "PR_REVIEW_DIR",
   "PLAY_REVIEW_HELPER",
   "DRIFT_FILE",
+  "DELAYED_REFUSAL_MARKER",
 ] as const;
 const commandHarness = new PrReviewCommandHarness({
   envKeys: managedEnvKeys,
@@ -1058,6 +1059,29 @@ describe("pr-review findings publication rebinder", () => {
     ).resolves.toBe(beforeResult);
   });
 
+  it("waits for a delayed publisher refusal after stdin closes early", async () => {
+    const workspace = await makeManifestWorkspace("pr-review-findings-epipe-");
+    setSummaryEnv(workspace);
+    process.env.PLAY_REVIEW_HELPER = await writeEarlyStdinRefusalHelper(
+      workspace.tempRoot,
+    );
+    const marker = path.join(workspace.tempRoot, "publisher-terminal-marker");
+    process.env.DELAYED_REFUSAL_MARKER = marker;
+    process.chdir(workspace.worktree);
+
+    const outcome = await runManifestCommandWithStdin(
+      ["replace-findings"],
+      Buffer.alloc(1024 * 1024, "x"),
+    );
+
+    expect(outcome).toEqual({
+      exitCode: 1,
+      stdout: "",
+      stderr: "delayed publisher refusal\n",
+    });
+    await expect(readFile(marker, "utf8")).resolves.toBe("closed\n");
+  });
+
   it.each([
     {
       name: "invalid input",
@@ -1432,6 +1456,32 @@ async function writePublishingPlayReviewHelper(
       "    ;;",
       "  *)",
       '    echo "unexpected helper command" >&2',
+      "    exit 1",
+      "    ;;",
+      "esac",
+      "",
+    ].join("\n"),
+  );
+}
+
+async function writeEarlyStdinRefusalHelper(tempRoot: string): Promise<string> {
+  return writeExecutable(
+    path.join(tempRoot, "early-stdin-refusal-helper.sh"),
+    [
+      "#!/usr/bin/env bash",
+      "set -euo pipefail",
+      'case "$1" in',
+      "  validate-findings)",
+      "    exit 0",
+      "    ;;",
+      "  publish-findings)",
+      "    exec 0<&-",
+      "    sleep 0.15",
+      '    printf "closed\\n" > "$DELAYED_REFUSAL_MARKER"',
+      '    echo "delayed publisher refusal" >&2',
+      "    exit 1",
+      "    ;;",
+      "  *)",
       "    exit 1",
       "    ;;",
       "esac",

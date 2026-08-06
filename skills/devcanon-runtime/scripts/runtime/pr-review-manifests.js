@@ -1111,6 +1111,7 @@ async function runBashHelperWithStdin(helper, command, input, env) {
             stdio: ["pipe", "ignore", "pipe"],
         });
         let stderr = "";
+        let stdinError;
         let settled = false;
         const rejectOnce = (error) => {
             if (!settled) {
@@ -1131,20 +1132,24 @@ async function runBashHelperWithStdin(helper, command, input, env) {
             rejectOnce(error);
         });
         child.stdin.on("error", (error) => {
-            rejectOnce(new Error(`failed to write findings stdin: ${error.message || "write error"}`));
+            stdinError = new Error(`failed to write findings stdin: ${error.message || "write error"}`);
         });
         child.on("close", (code) => {
             if (code === 0) {
+                if (stdinError !== undefined) {
+                    rejectOnce(stdinError);
+                    return;
+                }
                 resolveOnce();
                 return;
             }
-            rejectOnce(new Error(stderr.trim() || "helper command failed"));
+            rejectOnce(new Error(stderr.trim() || stdinError?.message || "helper command failed"));
         });
         try {
             child.stdin.end(input);
         }
         catch (err) {
-            rejectOnce(new Error(`failed to write findings stdin: ${err instanceof Error ? err.message : "write error"}`));
+            stdinError = new Error(`failed to write findings stdin: ${err instanceof Error ? err.message : "write error"}`);
         }
     }).catch((err) => {
         fail(err instanceof Error ? err.message : "helper command failed");
