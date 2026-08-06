@@ -929,6 +929,168 @@ describe("pr-review manifest review body writer", () => {
   );
 });
 
+describe("pr-review findings publication rebinder", () => {
+  it("refuses without the public findings helper input", async () => {
+    const workspace = await makeManifestWorkspace("pr-review-findings-input-");
+    setSummaryEnv(workspace);
+    process.chdir(workspace.worktree);
+    process.env.PLAY_REVIEW_HELPER = undefined;
+
+    await expect(
+      runManifestCommandWithStdin(["replace-findings"], "{}"),
+    ).resolves.toEqual({
+      exitCode: 1,
+      stdout: "",
+      stderr: "PLAY_REVIEW_HELPER is required\n",
+    });
+  });
+
+  it("rebinds published findings and invalidates the rendered preview", async () => {
+    const workspace = await makeManifestWorkspace("pr-review-findings-rebind-");
+    setSummaryEnv(workspace);
+    process.env.PLAY_REVIEW_HELPER = await writePublishingPlayReviewHelper(
+      workspace.tempRoot,
+    );
+    process.chdir(workspace.worktree);
+    const replacement = JSON.stringify({
+      schema: "play-review/findings/v2",
+      findings: [{ id: "F2", title: "Replacement finding" }],
+      carry_forward: [],
+    });
+
+    await expect(
+      runManifestCommandWithStdin(["replace-findings"], replacement),
+    ).resolves.toEqual({
+      exitCode: 0,
+      stdout: `${workspace.resultFile}\n`,
+      stderr: "",
+    });
+
+    const result = JSON.parse(
+      await readFile(
+        path.join(workspace.worktree, workspace.resultFile),
+        "utf8",
+      ),
+    ) as {
+      artifacts: Record<string, unknown>;
+      digests: Record<string, unknown>;
+      presentation: Record<string, unknown>;
+    };
+    expect(result.digests.findings_sha256).toBe(
+      await sha256File(path.join(workspace.worktree, workspace.findingsFile)),
+    );
+    expect(result.artifacts.rendered_preview_file).toBeNull();
+    expect(result.digests.rendered_preview_sha256).toBeNull();
+    expect(result.presentation.status).toBe("edited");
+    await expect(runManifestCommand(["validate-result"])).resolves.toEqual({
+      exitCode: 0,
+      stdout: "",
+      stderr: "",
+    });
+  });
+
+  it("retries after publication when only the canonical findings digest is stale", async () => {
+    const workspace = await makeManifestWorkspace("pr-review-findings-retry-");
+    setSummaryEnv(workspace);
+    process.env.PLAY_REVIEW_HELPER = await writePublishingPlayReviewHelper(
+      workspace.tempRoot,
+    );
+    process.chdir(workspace.worktree);
+    const published = JSON.stringify({
+      schema: "play-review/findings/v2",
+      findings: [{ id: "F2", title: "Published before interruption" }],
+      carry_forward: [],
+    });
+    await writeFile(
+      path.join(workspace.worktree, workspace.findingsFile),
+      published,
+    );
+
+    const stale = await runManifestCommand(["validate-result"]);
+    expect(stale.exitCode).toBe(1);
+    expect(stale.stderr).toContain("findings digest mismatch");
+
+    await expect(
+      runManifestCommandWithStdin(["replace-findings"], published),
+    ).resolves.toEqual({
+      exitCode: 0,
+      stdout: `${workspace.resultFile}\n`,
+      stderr: "",
+    });
+    await expect(runManifestCommand(["validate-result"])).resolves.toEqual({
+      exitCode: 0,
+      stdout: "",
+      stderr: "",
+    });
+  });
+
+  it.each([
+    {
+      name: "invalid input",
+      input: "",
+      mutate: async () => undefined,
+      stderr: "findings input must contain exactly one complete JSON envelope",
+    },
+    {
+      name: "stale immutable identity",
+      input: JSON.stringify({
+        schema: "play-review/findings/v2",
+        findings: [],
+        carry_forward: [],
+      }),
+      mutate: async () => {
+        process.env.HEAD_SHA = "a".repeat(40);
+      },
+      stderr: "review head mismatch",
+    },
+    {
+      name: "unrelated result drift",
+      input: JSON.stringify({
+        schema: "play-review/findings/v2",
+        findings: [],
+        carry_forward: [],
+      }),
+      mutate: async (workspace: ManifestWorkspace) =>
+        writeFile(
+          path.join(workspace.worktree, workspace.reviewBodyFile),
+          "Changed outside findings publication.\n",
+        ),
+      stderr: "review body digest mismatch",
+    },
+  ])("preserves artifacts for $name", async ({ input, mutate, stderr }) => {
+    const workspace = await makeManifestWorkspace("pr-review-findings-refuse-");
+    setSummaryEnv(workspace);
+    process.env.PLAY_REVIEW_HELPER = await writePublishingPlayReviewHelper(
+      workspace.tempRoot,
+    );
+    process.chdir(workspace.worktree);
+    const beforeFindings = await readFile(
+      path.join(workspace.worktree, workspace.findingsFile),
+      "utf8",
+    );
+    const beforeResult = await readFile(
+      path.join(workspace.worktree, workspace.resultFile),
+      "utf8",
+    );
+    await mutate(workspace);
+
+    const outcome = await runManifestCommandWithStdin(
+      ["replace-findings"],
+      input,
+    );
+
+    expect(outcome.exitCode).toBe(1);
+    expect(outcome.stdout).toBe("");
+    expect(outcome.stderr).toContain(stderr);
+    await expect(
+      readFile(path.join(workspace.worktree, workspace.findingsFile), "utf8"),
+    ).resolves.toBe(beforeFindings);
+    await expect(
+      readFile(path.join(workspace.worktree, workspace.resultFile), "utf8"),
+    ).resolves.toBe(beforeResult);
+  });
+});
+
 async function runManifestCommand(
   args: readonly string[],
 ): Promise<RuntimeCommandOutcome> {
@@ -1205,6 +1367,40 @@ async function writePrReviewHelper(tempRoot: string): Promise<string> {
     ["#!/usr/bin/env bash", "set -euo pipefail", "exit 0", ""].join("\n"),
   );
   return prReviewDir;
+}
+
+async function writePublishingPlayReviewHelper(
+  tempRoot: string,
+): Promise<string> {
+  return writeExecutable(
+    path.join(tempRoot, "publishing-play-review-helper.sh"),
+    [
+      "#!/usr/bin/env bash",
+      "set -euo pipefail",
+      'case "$1" in',
+      "  validate-findings)",
+      "    exit 0",
+      "    ;;",
+      "  publish-findings)",
+      '    staged="$(mktemp)"',
+      "    trap 'rm -f \"$staged\"' EXIT",
+      '    cat > "$staged"',
+      "    jq -e -s 'length == 1' \"$staged\" >/dev/null || {",
+      '      echo "findings input must contain exactly one complete JSON envelope" >&2',
+      "      exit 1",
+      "    }",
+      '    mv "$staged" "$FINDINGS_FILE"',
+      "    trap - EXIT",
+      '    printf "%s\\n" "$FINDINGS_FILE"',
+      "    ;;",
+      "  *)",
+      '    echo "unexpected helper command" >&2',
+      "    exit 1",
+      "    ;;",
+      "esac",
+      "",
+    ].join("\n"),
+  );
 }
 
 async function writeExecutable(file: string, content: string): Promise<string> {

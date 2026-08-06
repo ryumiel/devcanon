@@ -1,4 +1,4 @@
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { constants } from "node:fs";
 import {
@@ -19,6 +19,7 @@ import { runPrReviewLeasesCommand } from "./pr-review-leases.js";
 import {
   type PrReviewResultCommandAuthorityInput,
   validatePrReviewResultCommandAuthority,
+  validatePrReviewResultCommandAuthorityForFindingsPublication,
   validatePrReviewResultCommandAuthorityForReviewBodyRecovery,
 } from "./pr-review-result-validation.js";
 
@@ -92,11 +93,14 @@ export async function runPrReviewManifestsCommand(
       case "recover-review-body-publication":
         requireNoCommandArgs(commandName, args);
         return ok(`${await recoverReviewBodyPublication()}\n`);
+      case "replace-findings":
+        requireNoCommandArgs(commandName, args);
+        return ok(`${await replaceFindings()}\n`);
       case "render-phase5-audit-summary":
         return ok(`${await renderPhase5AuditSummary()}\n`);
       default:
         throw new PrReviewManifestError(
-          "usage: review-manifests.sh prepare-handoff-write|write-handoff|validate-handoff|prepare-result-write|write-result|validate-result|read-result-for-preview|write-review-body|recover-review-body-publication|render-phase5-audit-summary",
+          "usage: review-manifests.sh prepare-handoff-write|write-handoff|validate-handoff|prepare-result-write|write-result|validate-result|read-result-for-preview|write-review-body|recover-review-body-publication|replace-findings|render-phase5-audit-summary",
         );
     }
   } catch (err) {
@@ -414,6 +418,66 @@ async function recoverReviewBodyPublication(): Promise<string> {
   return resultFile;
 }
 
+async function replaceFindings(): Promise<string> {
+  await requireRepoRoot();
+  for (const name of [
+    "PR_NUMBER",
+    "HEAD_SHA",
+    "REPOSITORY",
+    "RESULT_FILE",
+    "PLAY_REVIEW_HELPER",
+  ]) {
+    requireEnv(name);
+  }
+  const resultFile = requiredEnv("RESULT_FILE");
+  const { result } =
+    await validatePrReviewResultCommandAuthorityForFindingsPublication(
+      readResultValidationInput(resultFile),
+    );
+  const findingsFile = stringField(result, "findings_file");
+  const input = await readStdinBytes();
+  await runBashHelperWithStdin(
+    requiredEnv("PLAY_REVIEW_HELPER"),
+    "publish-findings",
+    input,
+    {
+      ...process.env,
+      HEAD_SHA: readHeadSha(),
+      FINDINGS_FILE: findingsFile,
+    },
+  );
+
+  const artifacts = objectField(result, "artifacts");
+  const digests = objectField(result, "digests");
+  const presentation = objectField(result, "presentation");
+  const rebound = {
+    ...result,
+    artifacts: {
+      ...artifacts,
+      rendered_preview_file: null,
+    },
+    digests: {
+      ...digests,
+      findings_sha256: await sha256File(findingsFile),
+      rendered_preview_sha256: null,
+    },
+    presentation: {
+      ...presentation,
+      status: "edited",
+    },
+  };
+  validateResultObject(rebound, resultFile, resultFile);
+  await prepareWriteTarget("result", resultFile);
+  await prepareWriteTarget("result temp", tmpPathFor(resultFile));
+  await writeTextAtomically(
+    path.join(process.cwd(), resultFile),
+    `${json(rebound)}\n`,
+  );
+  await rm(path.join(process.cwd(), tmpPathFor(resultFile)), { force: true });
+  await validateResultFile(resultFile);
+  return resultFile;
+}
+
 async function readMarkdownFromStdin(): Promise<string> {
   try {
     const chunks: Buffer[] = [];
@@ -425,6 +489,18 @@ async function readMarkdownFromStdin(): Promise<string> {
     );
   } catch {
     fail("review body stdin must be valid UTF-8 Markdown");
+  }
+}
+
+async function readStdinBytes(): Promise<Buffer> {
+  try {
+    const chunks: Buffer[] = [];
+    for await (const chunk of process.stdin) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    }
+    return Buffer.concat(chunks);
+  } catch {
+    fail("failed to read findings stdin");
   }
 }
 
@@ -1565,6 +1641,36 @@ async function runBashHelper(
         : "";
     fail(stderr.length > 0 ? stderr : "helper command failed");
   }
+}
+
+async function runBashHelperWithStdin(
+  helper: string,
+  command: string,
+  input: Buffer,
+  env: NodeJS.ProcessEnv,
+): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    const child = spawn("bash", [helper, command], {
+      cwd: process.cwd(),
+      env,
+      stdio: ["pipe", "ignore", "pipe"],
+    });
+    let stderr = "";
+    child.stderr.setEncoding("utf8").on("data", (chunk: string) => {
+      stderr += chunk;
+    });
+    child.on("error", reject);
+    child.on("close", (code) => {
+      if (code === 0) {
+        resolve();
+        return;
+      }
+      reject(new Error(stderr.trim() || "helper command failed"));
+    });
+    child.stdin.end(input);
+  }).catch((err: unknown) => {
+    fail(err instanceof Error ? err.message : "helper command failed");
+  });
 }
 
 async function resolveScopeHelper(): Promise<string> {

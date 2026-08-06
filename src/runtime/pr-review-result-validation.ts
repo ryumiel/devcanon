@@ -54,6 +54,7 @@ const FORBIDDEN_KEYS = new Set([
 
 interface PrReviewResultCommandAuthorityOptions {
   allowReviewBodyDigestMismatch?: true;
+  allowFindingsDigestMismatch?: true;
 }
 
 export async function validatePrReviewResultEvidence(
@@ -75,6 +76,14 @@ export async function validatePrReviewResultCommandAuthorityForReviewBodyRecover
 ): Promise<PrReviewResultCommandAuthorityEvidence> {
   return validatePrReviewResultCommandAuthorityWithOptions(input, {
     allowReviewBodyDigestMismatch: true,
+  });
+}
+
+export async function validatePrReviewResultCommandAuthorityForFindingsPublication(
+  input: PrReviewResultCommandAuthorityInput,
+): Promise<PrReviewResultCommandAuthorityEvidence> {
+  return validatePrReviewResultCommandAuthorityWithOptions(input, {
+    allowFindingsDigestMismatch: true,
   });
 }
 
@@ -270,7 +279,7 @@ async function validateHandoffFacts(
 async function validateResultFacts(
   result: JsonObject,
   input: PrReviewResultValidationInput,
-  options: { allowReviewBodyDigestMismatch?: boolean } = {},
+  options: PrReviewResultCommandAuthorityOptions = {},
 ): Promise<JsonObject> {
   const manifestPrNumber = String(numberField(result, "pr_number"));
   if (manifestPrNumber !== String(input.prNumber)) {
@@ -389,11 +398,13 @@ async function validateResultFacts(
     handoffFile,
     stringField(digests, "handoff_sha256"),
   );
-  await validateDigest(
-    "findings",
-    findingsFile,
-    stringField(digests, "findings_sha256"),
-  );
+  if (!options.allowFindingsDigestMismatch) {
+    await validateDigest(
+      "findings",
+      findingsFile,
+      stringField(digests, "findings_sha256"),
+    );
+  }
   if (!options.allowReviewBodyDigestMismatch) {
     await validateOptionalDigest(
       "review body",

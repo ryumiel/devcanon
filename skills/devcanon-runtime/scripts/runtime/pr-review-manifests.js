@@ -1,4 +1,4 @@
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { constants } from "node:fs";
 import { access, lstat, mkdir, readFile, realpath, rm, stat, } from "node:fs/promises";
@@ -7,7 +7,7 @@ import { promisify } from "node:util";
 import { writeTextAtomically } from "./artifacts.js";
 import { requireDirectEphemeralChild } from "./paths.js";
 import { runPrReviewLeasesCommand } from "./pr-review-leases.js";
-import { validatePrReviewResultCommandAuthority, validatePrReviewResultCommandAuthorityForReviewBodyRecovery, } from "./pr-review-result-validation.js";
+import { validatePrReviewResultCommandAuthority, validatePrReviewResultCommandAuthorityForFindingsPublication, validatePrReviewResultCommandAuthorityForReviewBodyRecovery, } from "./pr-review-result-validation.js";
 const execFileAsync = promisify(execFile);
 const FORBIDDEN_KEYS = new Set([
     "approval",
@@ -52,10 +52,13 @@ export async function runPrReviewManifestsCommand(args) {
             case "recover-review-body-publication":
                 requireNoCommandArgs(commandName, args);
                 return ok(`${await recoverReviewBodyPublication()}\n`);
+            case "replace-findings":
+                requireNoCommandArgs(commandName, args);
+                return ok(`${await replaceFindings()}\n`);
             case "render-phase5-audit-summary":
                 return ok(`${await renderPhase5AuditSummary()}\n`);
             default:
-                throw new PrReviewManifestError("usage: review-manifests.sh prepare-handoff-write|write-handoff|validate-handoff|prepare-result-write|write-result|validate-result|read-result-for-preview|write-review-body|recover-review-body-publication|render-phase5-audit-summary");
+                throw new PrReviewManifestError("usage: review-manifests.sh prepare-handoff-write|write-handoff|validate-handoff|prepare-result-write|write-result|validate-result|read-result-for-preview|write-review-body|recover-review-body-publication|replace-findings|render-phase5-audit-summary");
         }
     }
     catch (err) {
@@ -296,6 +299,53 @@ async function recoverReviewBodyPublication() {
     await validateResultFile(resultFile);
     return resultFile;
 }
+async function replaceFindings() {
+    await requireRepoRoot();
+    for (const name of [
+        "PR_NUMBER",
+        "HEAD_SHA",
+        "REPOSITORY",
+        "RESULT_FILE",
+        "PLAY_REVIEW_HELPER",
+    ]) {
+        requireEnv(name);
+    }
+    const resultFile = requiredEnv("RESULT_FILE");
+    const { result } = await validatePrReviewResultCommandAuthorityForFindingsPublication(readResultValidationInput(resultFile));
+    const findingsFile = stringField(result, "findings_file");
+    const input = await readStdinBytes();
+    await runBashHelperWithStdin(requiredEnv("PLAY_REVIEW_HELPER"), "publish-findings", input, {
+        ...process.env,
+        HEAD_SHA: readHeadSha(),
+        FINDINGS_FILE: findingsFile,
+    });
+    const artifacts = objectField(result, "artifacts");
+    const digests = objectField(result, "digests");
+    const presentation = objectField(result, "presentation");
+    const rebound = {
+        ...result,
+        artifacts: {
+            ...artifacts,
+            rendered_preview_file: null,
+        },
+        digests: {
+            ...digests,
+            findings_sha256: await sha256File(findingsFile),
+            rendered_preview_sha256: null,
+        },
+        presentation: {
+            ...presentation,
+            status: "edited",
+        },
+    };
+    validateResultObject(rebound, resultFile, resultFile);
+    await prepareWriteTarget("result", resultFile);
+    await prepareWriteTarget("result temp", tmpPathFor(resultFile));
+    await writeTextAtomically(path.join(process.cwd(), resultFile), `${json(rebound)}\n`);
+    await rm(path.join(process.cwd(), tmpPathFor(resultFile)), { force: true });
+    await validateResultFile(resultFile);
+    return resultFile;
+}
 async function readMarkdownFromStdin() {
     try {
         const chunks = [];
@@ -306,6 +356,18 @@ async function readMarkdownFromStdin() {
     }
     catch {
         fail("review body stdin must be valid UTF-8 Markdown");
+    }
+}
+async function readStdinBytes() {
+    try {
+        const chunks = [];
+        for await (const chunk of process.stdin) {
+            chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+        }
+        return Buffer.concat(chunks);
+    }
+    catch {
+        fail("failed to read findings stdin");
     }
 }
 async function renderPhase5AuditSummary() {
@@ -1039,6 +1101,30 @@ async function runBashHelper(helper, command, env) {
             : "";
         fail(stderr.length > 0 ? stderr : "helper command failed");
     }
+}
+async function runBashHelperWithStdin(helper, command, input, env) {
+    await new Promise((resolve, reject) => {
+        const child = spawn("bash", [helper, command], {
+            cwd: process.cwd(),
+            env,
+            stdio: ["pipe", "ignore", "pipe"],
+        });
+        let stderr = "";
+        child.stderr.setEncoding("utf8").on("data", (chunk) => {
+            stderr += chunk;
+        });
+        child.on("error", reject);
+        child.on("close", (code) => {
+            if (code === 0) {
+                resolve();
+                return;
+            }
+            reject(new Error(stderr.trim() || "helper command failed"));
+        });
+        child.stdin.end(input);
+    }).catch((err) => {
+        fail(err instanceof Error ? err.message : "helper command failed");
+    });
 }
 async function resolveScopeHelper() {
     const dir = await resolvePrReviewDir();

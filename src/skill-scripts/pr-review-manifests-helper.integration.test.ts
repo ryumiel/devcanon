@@ -902,6 +902,7 @@ describe("pr-review manifest helper", () => {
     expect(manifestUsage).toContain("read-result-for-preview");
     expect(manifestUsage).toContain("write-review-body");
     expect(manifestUsage).toContain("recover-review-body-publication");
+    expect(manifestUsage).toContain("replace-findings");
     expect(leaseUsage).toContain("read-status");
     expect(leaseUsage).toContain("record-audit-failure");
   });
@@ -953,6 +954,57 @@ describe("pr-review manifest helper", () => {
       ).resolves.toMatchObject({
         stdout: "runtime pr-review-manifests recover-review-body-publication\n",
       });
+      await expect(
+        runHelper(installed, "replace-findings", {}, script),
+      ).resolves.toMatchObject({
+        stdout: "runtime pr-review-manifests replace-findings\n",
+      });
+    } finally {
+      await cleanupTempDir(installed);
+    }
+  });
+
+  it("forwards replace-findings stdin and public environment to the runtime route", async () => {
+    const installed = await mkdtemp(
+      path.join(os.tmpdir(), "devcanon-pr-wrapper-"),
+    );
+    try {
+      const script = await copyWrapperWithRecordingRuntime(
+        installed,
+        helperScript,
+        "pr-review/scripts/review-manifests.sh",
+      );
+      const runtime = path.join(
+        installed,
+        "devcanon-runtime/scripts/devcanon-runtime.sh",
+      );
+      await writeFile(
+        runtime,
+        [
+          "#!/usr/bin/env bash",
+          "set -euo pipefail",
+          '[ "$1" = "runtime" ]',
+          '[ "$2" = "pr-review-manifests" ]',
+          '[ "$3" = "replace-findings" ]',
+          '[ "$PLAY_REVIEW_HELPER" = "/tmp/public-play-review-helper" ]',
+          "cat",
+          "",
+        ].join("\n"),
+      );
+      await chmod(runtime, 0o755);
+
+      await expect(
+        runHelperWithStdin(
+          installed,
+          "replace-findings",
+          '{"schema":"play-review/findings/v2"}',
+          { PLAY_REVIEW_HELPER: "/tmp/public-play-review-helper" },
+          script,
+        ),
+      ).resolves.toEqual({
+        stdout: '{"schema":"play-review/findings/v2"}',
+        stderr: "",
+      });
     } finally {
       await cleanupTempDir(installed);
     }
@@ -992,6 +1044,44 @@ describe("pr-review manifest helper", () => {
         await expect(
           readFile(path.join(cwd, reviewBodyPath(headSha)), "utf8"),
         ).resolves.toBe("# Replacement\n\nBody text.\n");
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    },
+  );
+
+  it.skipIf(isWindows)(
+    "rebinds a caller-published findings envelope using only public inputs",
+    async () => {
+      const { cwd, baseSha, headSha } = await makeGitWorkspace();
+      try {
+        await writeValidInputs(cwd, baseSha, headSha);
+        await runHelper(
+          cwd,
+          "write-handoff",
+          handoffEnv(cwd, baseSha, headSha),
+        );
+        await runHelper(cwd, "write-result", resultEnv(headSha));
+        const replacement = JSON.stringify(findingsEnvelope());
+
+        await expect(
+          runHelperWithStdin(cwd, "replace-findings", replacement, {
+            HEAD_SHA: headSha,
+            RESULT_FILE: resultPath(headSha),
+            PLAY_REVIEW_HELPER: playReviewHelperScript,
+          }),
+        ).resolves.toEqual({
+          stdout: `${resultPath(headSha)}\n`,
+          stderr: "",
+        });
+
+        const result = await readJson(cwd, resultPath(headSha));
+        expect(result.digests.findings_sha256).toBe(
+          await sha256File(cwd, findingsPath(headSha)),
+        );
+        expect(result.artifacts.rendered_preview_file).toBeNull();
+        expect(result.digests.rendered_preview_sha256).toBeNull();
+        expect(result.presentation.status).toBe("edited");
       } finally {
         await cleanupTempDir(cwd);
       }

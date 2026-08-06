@@ -33,6 +33,11 @@ export async function validatePrReviewResultCommandAuthorityForReviewBodyRecover
         allowReviewBodyDigestMismatch: true,
     });
 }
+export async function validatePrReviewResultCommandAuthorityForFindingsPublication(input) {
+    return validatePrReviewResultCommandAuthorityWithOptions(input, {
+        allowFindingsDigestMismatch: true,
+    });
+}
 async function validatePrReviewResultCommandAuthorityWithOptions(input, options = {}) {
     return withCwd(input.worktreeRoot, async () => {
         const { result, handoff } = await validatePrReviewResultEvidenceInCurrentWorktree(input, options);
@@ -227,7 +232,9 @@ async function validateResultFacts(result, input, options = {}) {
     }
     const digests = objectField(result, "digests");
     await validateDigest("handoff", handoffFile, stringField(digests, "handoff_sha256"));
-    await validateDigest("findings", findingsFile, stringField(digests, "findings_sha256"));
+    if (!options.allowFindingsDigestMismatch) {
+        await validateDigest("findings", findingsFile, stringField(digests, "findings_sha256"));
+    }
     if (!options.allowReviewBodyDigestMismatch) {
         await validateOptionalDigest("review body", reviewBodyFile, nullableStringField(digests, "review_body_sha256"));
     }
