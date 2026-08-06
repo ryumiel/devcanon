@@ -45,9 +45,9 @@ slugs map to `unnamed`.
 
 `prepare-findings-write` derives, validates, and prepares the deterministic
 findings target, then prints the repo-relative path. It does not write the
-`play-review/findings/v2` envelope JSON. `play-review` writes the envelope JSON
-to the prepared path before emitting
-`Findings written to <repo-relative-path>.`:
+`play-review/findings/v2` envelope JSON. It remains a local preparation
+primitive; callers crossing the review boundary publish through
+`publish-findings` instead.
 
 ```bash
 PLAY_REVIEW_DIR="<installed-play-review-skill-bundle>"
@@ -58,6 +58,28 @@ FINDINGS_FILE=$(
     bash "$PLAY_REVIEW_HELPER" prepare-findings-write || exit 1
 ) || exit 1
 ```
+
+### Publication
+
+`publish-findings` is the public publication boundary for a caller-authored
+replacement envelope. Run it from the target worktree root with exactly the
+immutable current `HEAD_SHA`, the canonical `FINDINGS_FILE`, and one complete
+envelope on standard input; it has no optional inputs:
+
+```bash
+printf '%s' "$FINDINGS_ENVELOPE" |
+  HEAD_SHA="$HEAD_SHA" \
+  FINDINGS_FILE="$FINDINGS_FILE" \
+  bash "$PLAY_REVIEW_HELPER" publish-findings || exit 1
+```
+
+The helper refuses a stale SHA, a noncanonical path, malformed or trailing
+input, unsafe file targets, and invalid envelopes before it replaces the
+canonical file. It stages standard input, reuses the findings-envelope
+validator, atomically replaces only the canonical findings file on success,
+cleans staging on every terminal path, and prints that canonical
+repo-relative path. Callers do not write or validate the canonical envelope
+themselves.
 
 Consumers validate parsed notice paths before opening or overwriting them:
 
@@ -133,8 +155,8 @@ The schema omits evidence code and a `side` field. Consumers re-read source via
 - `prepare-findings-write` does not write the `play-review/findings/v2`
   envelope JSON; it only derives, validates, prepares, and prints the guarded
   target path.
-- `play-review` writes the envelope JSON to the prepared path before emitting
-  `Findings written to <repo-relative-path>.`.
+- `play-review` publishes the envelope through `publish-findings` before
+  emitting `Findings written to <repo-relative-path>.`.
 - `Write` follows symlinks, so rely on the helper's symlink and file-kind
   guards before any write.
 
