@@ -1,4 +1,5 @@
 import { ChildProcess } from "node:child_process";
+import { realpath as realpathCallback } from "node:fs";
 import * as fsPromises from "node:fs/promises";
 import {
   access,
@@ -13,12 +14,15 @@ import {
 } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { promisify } from "node:util";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const lifecyclePreflight = vi.hoisted(() => ({
   controllerCwd: "",
   elapsed: false,
 }));
+
+const realpathNative = promisify(realpathCallback.native);
 
 vi.mock("node:fs/promises", async (importOriginal) => {
   const actual = await importOriginal<typeof import("node:fs/promises")>();
@@ -781,12 +785,20 @@ describe("pr-review process lifecycle", () => {
       const originalStat = stat.getMockImplementation();
       if (!originalLstat || !originalStat)
         throw new Error("stat mock implementation missing");
-      const generatedRootPrefix = `${await fsPromises.realpath(os.tmpdir())}${path.sep}dc-process-lifecycle-`;
+      const generatedRootPrefixes = [
+        `${os.tmpdir()}${path.sep}dc-process-lifecycle-`,
+        `${await realpathNative(os.tmpdir())}${path.sep}dc-process-lifecycle-`,
+      ];
       const device = BigInt(Number.MAX_SAFE_INTEGER) + 1n;
       const file = device + 1n;
       lstat.mockImplementation(async (...args) => {
         const observed = await originalLstat(...args);
-        if (!String(args[0]).startsWith(generatedRootPrefix)) return observed;
+        if (
+          !generatedRootPrefixes.some((prefix) =>
+            String(args[0]).startsWith(prefix),
+          )
+        )
+          return observed;
         return Object.assign(
           Object.create(Object.getPrototypeOf(observed)),
           observed,
@@ -800,7 +812,9 @@ describe("pr-review process lifecycle", () => {
       stat.mockImplementation(async (...args) => {
         const observed = await originalStat(...args);
         if (
-          !String(args[0]).startsWith(generatedRootPrefix) ||
+          !generatedRootPrefixes.some((prefix) =>
+            String(args[0]).startsWith(prefix),
+          ) ||
           args[1]?.bigint !== true
         )
           return observed;

@@ -1,3 +1,4 @@
+import { realpath as realpathCallback } from "node:fs";
 import {
   chmod,
   copyFile,
@@ -12,6 +13,7 @@ import {
 import * as fsPromises from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { promisify } from "node:util";
 import { describe, expect, test } from "vitest";
 
 import { vi } from "vitest";
@@ -27,6 +29,8 @@ import {
   enrollWorkingDirectory,
   parseWindowsPresentation,
 } from "./pr-review-root-identity.js";
+
+const realpathNative = promisify(realpathCallback.native);
 
 describe("pr-review root identity", () => {
   test("enrolls distinct logical, normalized, physical, and stable directory identity", async () => {
@@ -81,7 +85,7 @@ describe("pr-review root identity", () => {
       const device = BigInt(Number.MAX_SAFE_INTEGER) + 1n;
       const file = device + 1n;
       await mkdir(bigintChild, { recursive: true });
-      const physicalBigintRoot = await realpath(bigintRoot);
+      const physicalBigintRoot = await realpathNative(bigintRoot);
       const lstat = vi.mocked(fsPromises.lstat);
       const originalLstat = lstat.getMockImplementation();
       if (!originalLstat) throw new Error("lstat mock implementation missing");
