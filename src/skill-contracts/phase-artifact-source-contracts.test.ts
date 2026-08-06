@@ -3842,6 +3842,25 @@ None
     expect(findingsEdit).toContain(
       'REVIEW_RESULT_FILE="$REPLACED_RESULT_FILE"',
     );
+    expect(findingsEdit).toContain('bash "$PR_REVIEW_LEASE_HELPER" write');
+    for (const binding of [
+      'PRIMARY_REPOSITORY_ROOT="$REVIEW_CALLER_DIR"',
+      'WORKTREE_PATH="$WORKING_DIRECTORY"',
+      'LEASE_FILE="$LEASE_FILE"',
+      'STATE="gated"',
+      'EXPECTED_STATE="gated"',
+      'BASE_REF="$PR_BASE_REF"',
+      'HEAD_REF="$REVIEW_HEAD_REF"',
+      'UPDATED_AT="$REVIEW_GATE_PRESENTED_AT"',
+      'RESULT_FILE="$REVIEW_RESULT_FILE"',
+      'PRESENTED_AT="$REVIEW_GATE_PRESENTED_AT"',
+      'PRESENTATION_STATUS="edited"',
+    ]) {
+      expect(findingsEdit).toContain(binding);
+    }
+    expect(findingsEdit).toContain(
+      'bash "$PR_REVIEW_MANIFEST_HELPER" render-phase5-audit-summary',
+    );
     expect(normalizeWhitespace(phase5)).toContain(
       "exactly one complete JSON document",
     );
@@ -3863,6 +3882,8 @@ None
       "result update",
       "gated lease write",
       "render-phase5-audit-summary",
+      'bash "$PR_REVIEW_LEASE_HELPER" write',
+      'bash "$PR_REVIEW_MANIFEST_HELPER" render-phase5-audit-summary',
     ]);
 
     expect(phase6).toContain("materialize-review-payload");

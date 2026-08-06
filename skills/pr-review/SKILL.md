@@ -876,6 +876,36 @@ write_review_body_from_markdown || exit 1
     bash "$PLAY_REVIEW_HELPER" render-review-preview
 )
 update_pr_review_result_manifest "edited" || exit 1
+REVIEW_GATE_PRESENTED_AT="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+(
+  cd "$REVIEW_CALLER_DIR" || exit 1
+  REPOSITORY="<owner/repo>" \
+  PR_NUMBER="$PR_NUMBER" \
+  PRIMARY_REPOSITORY_ROOT="$REVIEW_CALLER_DIR" \
+  WORKTREE_PATH="$WORKING_DIRECTORY" \
+  LEASE_FILE="$LEASE_FILE" \
+  STATE="gated" \
+  EXPECTED_STATE="gated" \
+  BASE_REF="$PR_BASE_REF" \
+  HEAD_REF="$REVIEW_HEAD_REF" \
+  UPDATED_AT="$REVIEW_GATE_PRESENTED_AT" \
+  RESULT_FILE="$REVIEW_RESULT_FILE" \
+  PRESENTED_AT="$REVIEW_GATE_PRESENTED_AT" \
+  PRESENTATION_STATUS="edited" \
+    bash "$PR_REVIEW_LEASE_HELPER" write
+) || exit 1
+PHASE5_AUDIT_SUMMARY=$( \
+  cd "$REVIEW_CALLER_DIR" || exit 1
+  REPOSITORY="<owner/repo>" \
+  PR_NUMBER="$PR_NUMBER" \
+  HEAD_SHA="$REVIEW_HEAD_SHA" \
+  RESULT_FILE="$REVIEW_RESULT_FILE" \
+  PRIMARY_REPOSITORY_ROOT="$REVIEW_CALLER_DIR" \
+  WORKTREE_PATH="$WORKING_DIRECTORY" \
+  LEASE_FILE="$LEASE_FILE" \
+    bash "$PR_REVIEW_MANIFEST_HELPER" render-phase5-audit-summary
+) || exit 1
+printf '%s\n' "$PHASE5_AUDIT_SUMMARY"
 ```
 
 Then present the re-rendered stdout and wait again. Do not rebuild a preview

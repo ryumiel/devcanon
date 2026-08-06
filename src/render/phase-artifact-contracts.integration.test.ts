@@ -1125,6 +1125,27 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(renderedFindingsEdit).toContain(
         'REVIEW_RESULT_FILE="$REPLACED_RESULT_FILE"',
       );
+      expect(renderedFindingsEdit).toContain(
+        'bash "$PR_REVIEW_LEASE_HELPER" write',
+      );
+      for (const binding of [
+        'PRIMARY_REPOSITORY_ROOT="$REVIEW_CALLER_DIR"',
+        'WORKTREE_PATH="$WORKING_DIRECTORY"',
+        'LEASE_FILE="$LEASE_FILE"',
+        'STATE="gated"',
+        'EXPECTED_STATE="gated"',
+        'BASE_REF="$PR_BASE_REF"',
+        'HEAD_REF="$REVIEW_HEAD_REF"',
+        'UPDATED_AT="$REVIEW_GATE_PRESENTED_AT"',
+        'RESULT_FILE="$REVIEW_RESULT_FILE"',
+        'PRESENTED_AT="$REVIEW_GATE_PRESENTED_AT"',
+        'PRESENTATION_STATUS="edited"',
+      ]) {
+        expect(renderedFindingsEdit).toContain(binding);
+      }
+      expect(renderedFindingsEdit).toContain(
+        'bash "$PR_REVIEW_MANIFEST_HELPER" render-phase5-audit-summary',
+      );
       expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
         "exactly one complete JSON document",
       );
@@ -1141,6 +1162,8 @@ describe("rendered phase artifact smoke coverage", () => {
         "result update",
         "gated lease write",
         "render-phase5-audit-summary",
+        'bash "$PR_REVIEW_LEASE_HELPER" write',
+        'bash "$PR_REVIEW_MANIFEST_HELPER" render-phase5-audit-summary',
       ]);
       expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
         "After every successful `gated` write, including edited previews, render the mandatory Phase 5 artifact audit summary before asking for user action",
