@@ -447,11 +447,15 @@ async function replaceFindings(): Promise<string> {
     },
   );
 
-  const artifacts = objectField(result, "artifacts");
-  const digests = objectField(result, "digests");
-  const presentation = objectField(result, "presentation");
+  const { result: currentResult } =
+    await validatePrReviewResultCommandAuthorityForFindingsPublication(
+      readResultValidationInput(resultFile),
+    );
+  const artifacts = objectField(currentResult, "artifacts");
+  const digests = objectField(currentResult, "digests");
+  const presentation = objectField(currentResult, "presentation");
   const rebound = {
-    ...result,
+    ...currentResult,
     artifacts: {
       ...artifacts,
       rendered_preview_file: null,
@@ -1656,18 +1660,48 @@ async function runBashHelperWithStdin(
       stdio: ["pipe", "ignore", "pipe"],
     });
     let stderr = "";
+    let settled = false;
+    const rejectOnce = (error: Error) => {
+      if (!settled) {
+        settled = true;
+        reject(error);
+      }
+    };
+    const resolveOnce = () => {
+      if (!settled) {
+        settled = true;
+        resolve();
+      }
+    };
     child.stderr.setEncoding("utf8").on("data", (chunk: string) => {
       stderr += chunk;
     });
-    child.on("error", reject);
+    child.on("error", (error) => {
+      rejectOnce(error);
+    });
+    child.stdin.on("error", (error) => {
+      rejectOnce(
+        new Error(
+          `failed to write findings stdin: ${error.message || "write error"}`,
+        ),
+      );
+    });
     child.on("close", (code) => {
       if (code === 0) {
-        resolve();
+        resolveOnce();
         return;
       }
-      reject(new Error(stderr.trim() || "helper command failed"));
+      rejectOnce(new Error(stderr.trim() || "helper command failed"));
     });
-    child.stdin.end(input);
+    try {
+      child.stdin.end(input);
+    } catch (err) {
+      rejectOnce(
+        new Error(
+          `failed to write findings stdin: ${err instanceof Error ? err.message : "write error"}`,
+        ),
+      );
+    }
   }).catch((err: unknown) => {
     fail(err instanceof Error ? err.message : "helper command failed");
   });

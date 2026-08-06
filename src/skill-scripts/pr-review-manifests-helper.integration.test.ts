@@ -1010,6 +1010,49 @@ describe("pr-review manifest helper", () => {
     }
   });
 
+  it("forwards replace-findings arguments and propagates runtime refusal", async () => {
+    const installed = await mkdtemp(
+      path.join(os.tmpdir(), "devcanon-pr-wrapper-"),
+    );
+    try {
+      const script = await copyWrapperWithRecordingRuntime(
+        installed,
+        helperScript,
+        "pr-review/scripts/review-manifests.sh",
+      );
+      const runtime = path.join(
+        installed,
+        "devcanon-runtime/scripts/devcanon-runtime.sh",
+      );
+      await writeFile(
+        runtime,
+        [
+          "#!/usr/bin/env bash",
+          "set -euo pipefail",
+          '[ "$1" = "runtime" ]',
+          '[ "$2" = "pr-review-manifests" ]',
+          '[ "$3" = "replace-findings" ]',
+          '[ "$4" = "unexpected" ]',
+          'echo "replace-findings does not accept arguments" >&2',
+          "exit 1",
+          "",
+        ].join("\n"),
+      );
+      await chmod(runtime, 0o755);
+
+      await expect(
+        execFileAsync("bash", [script, "replace-findings", "unexpected"], {
+          cwd: installed,
+          env: process.env,
+        }),
+      ).rejects.toMatchObject({
+        stderr: "replace-findings does not accept arguments\n",
+      });
+    } finally {
+      await cleanupTempDir(installed);
+    }
+  });
+
   it.skipIf(isWindows)(
     "writes only the result-bound review body after validating authority and complete Markdown stdin",
     async () => {

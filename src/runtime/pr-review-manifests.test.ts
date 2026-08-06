@@ -33,6 +33,7 @@ const managedEnvKeys = [
   "LEASE_FILE",
   "PR_REVIEW_DIR",
   "PLAY_REVIEW_HELPER",
+  "DRIFT_FILE",
 ] as const;
 const commandHarness = new PrReviewCommandHarness({
   envKeys: managedEnvKeys,
@@ -934,7 +935,7 @@ describe("pr-review findings publication rebinder", () => {
     const workspace = await makeManifestWorkspace("pr-review-findings-input-");
     setSummaryEnv(workspace);
     process.chdir(workspace.worktree);
-    process.env.PLAY_REVIEW_HELPER = undefined;
+    Reflect.deleteProperty(process.env, "PLAY_REVIEW_HELPER");
 
     await expect(
       runManifestCommandWithStdin(["replace-findings"], "{}"),
@@ -1022,6 +1023,39 @@ describe("pr-review findings publication rebinder", () => {
       stdout: "",
       stderr: "",
     });
+  });
+
+  it("refuses to overwrite a result when publication causes unrelated drift", async () => {
+    const workspace = await makeManifestWorkspace("pr-review-findings-race-");
+    setSummaryEnv(workspace);
+    process.env.PLAY_REVIEW_HELPER = await writePublishingPlayReviewHelper(
+      workspace.tempRoot,
+    );
+    process.env.DRIFT_FILE = path.join(
+      workspace.worktree,
+      workspace.reviewBodyFile,
+    );
+    process.chdir(workspace.worktree);
+    const beforeResult = await readFile(
+      path.join(workspace.worktree, workspace.resultFile),
+      "utf8",
+    );
+
+    const outcome = await runManifestCommandWithStdin(
+      ["replace-findings"],
+      JSON.stringify({
+        schema: "play-review/findings/v2",
+        findings: [{ id: "F2", title: "Published before body drift" }],
+        carry_forward: [],
+      }),
+    );
+
+    expect(outcome.exitCode).toBe(1);
+    expect(outcome.stdout).toBe("");
+    expect(outcome.stderr).toContain("review body digest mismatch");
+    await expect(
+      readFile(path.join(workspace.worktree, workspace.resultFile), "utf8"),
+    ).resolves.toBe(beforeResult);
   });
 
   it.each([
@@ -1391,6 +1425,9 @@ async function writePublishingPlayReviewHelper(
       "    }",
       '    mv "$staged" "$FINDINGS_FILE"',
       "    trap - EXIT",
+      '    if [ -n "${DRIFT_FILE:-}" ]; then',
+      '      printf "Changed after findings publication.\\n" > "$DRIFT_FILE"',
+      "    fi",
       '    printf "%s\\n" "$FINDINGS_FILE"',
       "    ;;",
       "  *)",
