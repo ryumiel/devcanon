@@ -95,6 +95,19 @@ afterAll(async () => {
 });
 
 describe("pr-review Phase 5 audit summary renderer", () => {
+  it("refuses extraneous arguments before reading a result preview", async () => {
+    const outcome = await runManifestCommand([
+      "read-result-for-preview",
+      "unexpected",
+    ]);
+
+    expect(outcome).toEqual({
+      exitCode: 1,
+      stdout: "",
+      stderr: "read-result-for-preview does not accept arguments\n",
+    });
+  });
+
   it("reads a result-owned preview with the exact stable schema and nullable paths", async () => {
     const workspace = await makeManifestWorkspace("pr-review-result-preview-");
     setSummaryEnv(workspace);
