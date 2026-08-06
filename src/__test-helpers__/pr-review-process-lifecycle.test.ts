@@ -775,6 +775,57 @@ describe("pr-review process lifecycle", () => {
     await expect(access(root.path)).rejects.toThrow();
 
     {
+      const lstat = vi.mocked(fsPromises.lstat);
+      const stat = vi.mocked(fsPromises.stat);
+      const originalLstat = lstat.getMockImplementation();
+      const originalStat = stat.getMockImplementation();
+      if (!originalLstat || !originalStat)
+        throw new Error("stat mock implementation missing");
+      const generatedRootPrefix = `${await fsPromises.realpath(os.tmpdir())}${path.sep}dc-process-lifecycle-`;
+      const device = BigInt(Number.MAX_SAFE_INTEGER) + 1n;
+      const file = device + 1n;
+      lstat.mockImplementation(async (...args) => {
+        const observed = await originalLstat(...args);
+        if (!String(args[0]).startsWith(generatedRootPrefix)) return observed;
+        return Object.assign(
+          Object.create(Object.getPrototypeOf(observed)),
+          observed,
+          {
+            dev:
+              args[1]?.bigint === true ? device : Number.MAX_SAFE_INTEGER + 1,
+            ino: args[1]?.bigint === true ? file : Number.MAX_SAFE_INTEGER + 2,
+          },
+        );
+      });
+      stat.mockImplementation(async (...args) => {
+        const observed = await originalStat(...args);
+        if (
+          !String(args[0]).startsWith(generatedRootPrefix) ||
+          args[1]?.bigint !== true
+        )
+          return observed;
+        return Object.assign(
+          Object.create(Object.getPrototypeOf(observed)),
+          observed,
+          { dev: device, ino: file },
+        );
+      });
+
+      try {
+        const bigintRoot = await generatedRoot();
+        const bigintResult = await (
+          await lifecycle(bigintRoot, "process.exit(0);")
+        ).finish();
+
+        expect(bigintResult.generatedRoot).toBe("removed");
+        await expect(access(bigintRoot.path)).rejects.toThrow();
+      } finally {
+        lstat.mockImplementation(originalLstat);
+        stat.mockImplementation(originalStat);
+      }
+    }
+
+    {
       const ctimeRoot = await generatedRoot();
       const ctimeLifecycle = await lifecycle(ctimeRoot, "process.exit(0);");
       const lstat = vi.mocked(fsPromises.lstat);
