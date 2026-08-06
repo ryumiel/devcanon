@@ -2146,6 +2146,9 @@ None
     expect(leaseRuntime).toContain("runPrReviewLeasesCommand");
     expect(manifestHelper).toContain("render-phase5-audit-summary");
     expect(manifestHelper).toContain(
+      'exec "$runtime" runtime pr-review-manifests "$@"',
+    );
+    expect(manifestHelper).not.toContain(
       'exec "$runtime" runtime pr-review-manifests "$command_name"',
     );
     expect(leaseHelper).toContain("read-status");
