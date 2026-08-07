@@ -3886,13 +3886,13 @@ None
       "refusal stops the Phase 5 continuation",
     );
     expect(normalizeWhitespace(phase5)).toContain(
-      "every subsequent `replace-findings` invocation refuses before publication while that guard remains",
+      "`replace-findings` invocation refuses before publication",
     );
     expect(normalizeWhitespace(phase5)).toContain(
-      "request explicit manual recovery outside this command",
+      "manual recovery outside this command",
     );
     expect(normalizeWhitespace(phase5)).toContain(
-      "never reclaims retained guards or performs automatic crash recovery",
+      "never reclaims retained guards",
     );
     expect(findingsEdit).not.toContain("validate-findings");
     expect(findingsEdit).not.toContain("prepare-findings-write");

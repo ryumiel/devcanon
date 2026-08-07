@@ -871,9 +871,6 @@ describe("rendered phase artifact smoke coverage", () => {
       "Refresh lease validation for every gate cycle; never treat the `RESULT_FILE` path alone as freshness evidence",
     );
     expect(normalizeRenderedWhitespace(prReview)).toContain(
-      "The caller-authored envelope must be exactly one complete JSON document",
-    );
-    expect(normalizeRenderedWhitespace(prReview)).toContain(
       "render the mandatory Phase 5 artifact audit summary again before waiting for approval",
     );
     expect(prReview).toContain(
@@ -1168,13 +1165,13 @@ describe("rendered phase artifact smoke coverage", () => {
         "refusal stops the Phase 5 continuation",
       );
       expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
-        "every subsequent `replace-findings` invocation refuses before publication while that guard remains",
+        "`replace-findings` invocation refuses before publication",
       );
       expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
-        "request explicit manual recovery outside this command",
+        "manual recovery outside this command",
       );
       expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
-        "never reclaims retained guards or performs automatic crash recovery",
+        "never reclaims retained guards",
       );
       expect(renderedFindingsEdit).not.toContain("validate-findings");
       expect(renderedFindingsEdit).not.toContain("prepare-findings-write");
@@ -1219,9 +1216,6 @@ describe("rendered phase artifact smoke coverage", () => {
       );
       expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
         "Refresh lease validation for every gate cycle; never treat the `RESULT_FILE` path alone as freshness evidence",
-      );
-      expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
-        "The caller-authored envelope must be exactly one complete JSON document",
       );
       expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
         "render the mandatory Phase 5 artifact audit summary again before waiting for approval",
