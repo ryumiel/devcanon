@@ -450,6 +450,11 @@ async function replaceFindings(): Promise<string> {
       FINDINGS_FILE: findingsFile,
     },
   );
+  await validateDigest(
+    "published findings",
+    findingsFile,
+    publishedFindingsSha256,
+  );
 
   const { result: currentResult } =
     await validatePrReviewResultCommandAuthorityForFindingsPublication(
@@ -467,7 +472,7 @@ async function replaceFindings(): Promise<string> {
     },
     digests: {
       ...digests,
-      findings_sha256: await sha256File(findingsFile),
+      findings_sha256: publishedFindingsSha256,
       rendered_preview_sha256: null,
     },
     presentation: {

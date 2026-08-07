@@ -322,6 +322,7 @@ async function replaceFindings() {
         HEAD_SHA: readHeadSha(),
         FINDINGS_FILE: findingsFile,
     });
+    await validateDigest("published findings", findingsFile, publishedFindingsSha256);
     const { result: currentResult } = await validatePrReviewResultCommandAuthorityForFindingsPublication(readResultValidationInput(resultFile), publishedFindingsSha256);
     const artifacts = objectField(currentResult, "artifacts");
     const digests = objectField(currentResult, "digests");
@@ -334,7 +335,7 @@ async function replaceFindings() {
         },
         digests: {
             ...digests,
-            findings_sha256: await sha256File(findingsFile),
+            findings_sha256: publishedFindingsSha256,
             rendered_preview_sha256: null,
         },
         presentation: {

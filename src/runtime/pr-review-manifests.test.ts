@@ -1004,6 +1004,43 @@ describe("pr-review findings publication rebinder", () => {
     });
   });
 
+  it("refuses a successful publisher that leaves the old findings canonical", async () => {
+    const workspace = await makeManifestWorkspace("pr-review-findings-noop-");
+    setSummaryEnv(workspace);
+    process.env.PLAY_REVIEW_HELPER = await writeNoopPlayReviewHelper(
+      workspace.tempRoot,
+    );
+    process.chdir(workspace.worktree);
+    const beforeFindings = await readFile(
+      path.join(workspace.worktree, workspace.findingsFile),
+      "utf8",
+    );
+    const beforeResult = await readFile(
+      path.join(workspace.worktree, workspace.resultFile),
+      "utf8",
+    );
+    const replacement = JSON.stringify({
+      schema: "play-review/findings/v2",
+      findings: [{ id: "F2", title: "Unpublished replacement" }],
+      carry_forward: [],
+    });
+
+    const outcome = await runManifestCommandWithStdin(
+      ["replace-findings"],
+      replacement,
+    );
+
+    expect(outcome.exitCode).toBe(1);
+    expect(outcome.stdout).toBe("");
+    expect(outcome.stderr).toContain("published findings digest mismatch");
+    await expect(
+      readFile(path.join(workspace.worktree, workspace.findingsFile), "utf8"),
+    ).resolves.toBe(beforeFindings);
+    await expect(
+      readFile(path.join(workspace.worktree, workspace.resultFile), "utf8"),
+    ).resolves.toBe(beforeResult);
+  });
+
   it("retries after publication when only the canonical findings digest is stale", async () => {
     const workspace = await makeManifestWorkspace("pr-review-findings-retry-");
     setSummaryEnv(workspace);
@@ -1512,6 +1549,29 @@ async function writePublishingPlayReviewHelper(
       "    ;;",
       "  *)",
       '    echo "unexpected helper command" >&2',
+      "    exit 1",
+      "    ;;",
+      "esac",
+      "",
+    ].join("\n"),
+  );
+}
+
+async function writeNoopPlayReviewHelper(tempRoot: string): Promise<string> {
+  return writeExecutable(
+    path.join(tempRoot, "noop-play-review-helper.sh"),
+    [
+      "#!/usr/bin/env bash",
+      "set -euo pipefail",
+      'case "$1" in',
+      "  validate-findings)",
+      "    exit 0",
+      "    ;;",
+      "  publish-findings)",
+      "    cat >/dev/null",
+      '    printf "%s\\n" "$FINDINGS_FILE"',
+      "    ;;",
+      "  *)",
       "    exit 1",
       "    ;;",
       "esac",
