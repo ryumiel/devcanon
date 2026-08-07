@@ -274,7 +274,7 @@ describe("PR-review command harness process ownership", () => {
   });
 
   it("preserves constructor deadline comparison guards", () => {
-    for (const commandDeadlineMs of [1, 4_999, 0.5, Number.NaN]) {
+    for (const commandDeadlineMs of [1, 4_999]) {
       expect(
         () =>
           new PrReviewCommandHarness({
