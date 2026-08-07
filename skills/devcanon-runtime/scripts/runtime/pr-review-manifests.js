@@ -316,6 +316,8 @@ async function replaceFindings() {
         .update(input)
         .digest("hex");
     const releasePublicationGuard = await acquireFindingsPublicationGuard(resultFile, publishedFindingsSha256);
+    let publicationValidated = false;
+    let reboundResultValidated = false;
     try {
         const { result } = await validatePrReviewResultCommandAuthorityForFindingsPublication(readResultValidationInput(resultFile), publishedFindingsSha256);
         const findingsFile = stringField(result, "findings_file");
@@ -325,6 +327,7 @@ async function replaceFindings() {
             FINDINGS_FILE: findingsFile,
         });
         await validateDigest("published findings", findingsFile, publishedFindingsSha256);
+        publicationValidated = true;
         const { result: currentResult } = await validatePrReviewResultCommandAuthorityForFindingsPublication(readResultValidationInput(resultFile), publishedFindingsSha256);
         const artifacts = objectField(currentResult, "artifacts");
         const digests = objectField(currentResult, "digests");
@@ -351,10 +354,13 @@ async function replaceFindings() {
         await writeTextAtomically(path.join(process.cwd(), resultFile), `${json(rebound)}\n`);
         await rm(path.join(process.cwd(), tmpPathFor(resultFile)), { force: true });
         await validateResultFile(resultFile);
+        reboundResultValidated = true;
         return resultFile;
     }
     finally {
-        await releasePublicationGuard();
+        if (!publicationValidated || reboundResultValidated) {
+            await releasePublicationGuard();
+        }
     }
 }
 async function acquireFindingsPublicationGuard(resultFile, findingsSha256) {

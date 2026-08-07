@@ -449,6 +449,8 @@ async function replaceFindings(): Promise<string> {
     resultFile,
     publishedFindingsSha256,
   );
+  let publicationValidated = false;
+  let reboundResultValidated = false;
   try {
     const { result } =
       await validatePrReviewResultCommandAuthorityForFindingsPublication(
@@ -471,6 +473,7 @@ async function replaceFindings(): Promise<string> {
       findingsFile,
       publishedFindingsSha256,
     );
+    publicationValidated = true;
 
     const { result: currentResult } =
       await validatePrReviewResultCommandAuthorityForFindingsPublication(
@@ -505,9 +508,12 @@ async function replaceFindings(): Promise<string> {
     );
     await rm(path.join(process.cwd(), tmpPathFor(resultFile)), { force: true });
     await validateResultFile(resultFile);
+    reboundResultValidated = true;
     return resultFile;
   } finally {
-    await releasePublicationGuard();
+    if (!publicationValidated || reboundResultValidated) {
+      await releasePublicationGuard();
+    }
   }
 }
 

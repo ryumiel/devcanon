@@ -866,6 +866,8 @@ guard remains, regardless of the submitted envelope or whether the recorded
 PID appears live, dead, reused, stale, or ambiguous. Stop the Phase 5
 continuation and request explicit manual recovery outside this command. The
 command never reclaims retained guards or performs automatic crash recovery.
+Once canonical findings publication succeeds, every later authority, result
+write, or final-validation refusal retains the guard for manual recovery.
 An uninterrupted successful invocation removes only its exact owned guard
 after the rebound result validates.
 

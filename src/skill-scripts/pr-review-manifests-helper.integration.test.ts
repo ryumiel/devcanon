@@ -637,6 +637,31 @@ async function writePostPublicationBlockingHelper(
   return script;
 }
 
+async function writePostPublicationDriftHelper(
+  cwd: string,
+  realHelper: string,
+): Promise<string> {
+  const script = path.join(
+    cwd,
+    ".ephemeral/post-publication-drift-play-review.sh",
+  );
+  await writeFile(
+    script,
+    [
+      "#!/usr/bin/env bash",
+      "set -euo pipefail",
+      `real_helper=${JSON.stringify(realHelper)}`,
+      'if [[ "${1:-}" != "publish-findings" ]]; then exec bash "$real_helper" "$@"; fi',
+      ': "${DRIFT_FILE:?}"',
+      'bash "$real_helper" "$@"',
+      'printf "Changed after findings publication.\\n" > "$DRIFT_FILE"',
+      "",
+    ].join("\n"),
+  );
+  await chmod(script, 0o755);
+  return script;
+}
+
 async function copyWrapperWithRecordingRuntime(
   root: string,
   sourceScript: string,
@@ -1324,6 +1349,82 @@ describe("pr-review manifest helper", () => {
         ).resolves.toBe(firstEnvelope);
         const result = await readJson(cwd, resultPath(headSha));
         expect(result.digests.findings_sha256).toBe(sha256(firstEnvelope));
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    },
+  );
+
+  it.skipIf(isWindows)(
+    "retains the public guard when authority fails after publication",
+    async () => {
+      const { cwd, baseSha, headSha } = await makeGitWorkspace();
+      try {
+        await writeValidInputs(cwd, baseSha, headSha);
+        await writeFile(path.join(cwd, reviewBodyPath(headSha)), "Before.\n");
+        await runHelper(
+          cwd,
+          "write-handoff",
+          handoffEnv(cwd, baseSha, headSha),
+        );
+        await runHelper(cwd, "write-result", {
+          ...resultEnv(headSha),
+          REVIEW_BODY_FILE: reviewBodyPath(headSha),
+        });
+        const resultFile = resultPath(headSha);
+        const guardFile = resultFile.replace(
+          /-result\.json$/,
+          "-replace-findings.lock",
+        );
+        const beforeResult = await readFile(path.join(cwd, resultFile), "utf8");
+        const replacement = JSON.stringify(findingsEnvelope());
+        const driftHelper = await writePostPublicationDriftHelper(
+          cwd,
+          playReviewHelperScript,
+        );
+
+        await expect(
+          runHelperWithStdin(cwd, "replace-findings", replacement, {
+            HEAD_SHA: headSha,
+            RESULT_FILE: resultFile,
+            PLAY_REVIEW_HELPER: driftHelper,
+            DRIFT_FILE: path.join(cwd, reviewBodyPath(headSha)),
+          }),
+        ).rejects.toMatchObject({
+          stdout: "",
+          stderr: expect.stringContaining("review body digest mismatch"),
+        });
+        await expect(
+          readFile(path.join(cwd, findingsPath(headSha)), "utf8"),
+        ).resolves.toBe(replacement);
+        await expect(
+          readFile(path.join(cwd, resultFile), "utf8"),
+        ).resolves.toBe(beforeResult);
+        await expect(
+          lstat(path.join(cwd, guardFile)).then((stat) => stat.isFile()),
+        ).resolves.toBe(true);
+
+        await writeFile(path.join(cwd, reviewBodyPath(headSha)), "Before.\n");
+        const retryPublisherMarker = path.join(
+          cwd,
+          ".ephemeral/retry-publisher-entered",
+        );
+        await expect(
+          runHelperWithStdin(cwd, "replace-findings", replacement, {
+            HEAD_SHA: headSha,
+            RESULT_FILE: resultFile,
+            PLAY_REVIEW_HELPER: driftHelper,
+            DRIFT_FILE: retryPublisherMarker,
+          }),
+        ).rejects.toMatchObject({
+          stdout: "",
+          stderr: expect.stringContaining(
+            "findings publication guard requires manual recovery",
+          ),
+        });
+        await expect(
+          lstat(retryPublisherMarker).catch(() => null),
+        ).resolves.toBeNull();
       } finally {
         await cleanupTempDir(cwd);
       }

@@ -1319,14 +1319,23 @@ describe("pr-review findings publication rebinder", () => {
       path.join(workspace.worktree, workspace.resultFile),
       "utf8",
     );
+    const beforeReviewBody = await readFile(
+      path.join(workspace.worktree, workspace.reviewBodyFile),
+      "utf8",
+    );
+    const replacement = JSON.stringify({
+      schema: "play-review/findings/v2",
+      findings: [{ id: "F2", title: "Published before body drift" }],
+      carry_forward: [],
+    });
+    const guardFile = workspace.resultFile.replace(
+      /-result\.json$/,
+      "-replace-findings.lock",
+    );
 
     const outcome = await runManifestCommandWithStdin(
       ["replace-findings"],
-      JSON.stringify({
-        schema: "play-review/findings/v2",
-        findings: [{ id: "F2", title: "Published before body drift" }],
-        carry_forward: [],
-      }),
+      replacement,
     );
 
     expect(outcome.exitCode).toBe(1);
@@ -1335,6 +1344,44 @@ describe("pr-review findings publication rebinder", () => {
     await expect(
       readFile(path.join(workspace.worktree, workspace.resultFile), "utf8"),
     ).resolves.toBe(beforeResult);
+    await expect(
+      readFile(path.join(workspace.worktree, workspace.findingsFile), "utf8"),
+    ).resolves.toBe(replacement);
+    await expect(
+      lstat(path.join(workspace.worktree, guardFile)).then((stat) =>
+        stat.isFile(),
+      ),
+    ).resolves.toBe(true);
+
+    await writeFile(
+      path.join(workspace.worktree, workspace.reviewBodyFile),
+      beforeReviewBody,
+    );
+    const publisherMarker = path.join(
+      workspace.tempRoot,
+      "post-publication-retry-publisher",
+    );
+    process.env.DRIFT_FILE = publisherMarker;
+    await expect(
+      runManifestCommandWithStdin(
+        ["replace-findings"],
+        JSON.stringify({
+          schema: "play-review/findings/v2",
+          findings: [{ id: "F3", title: "Blocked retry" }],
+          carry_forward: [],
+        }),
+      ),
+    ).resolves.toEqual({
+      exitCode: 1,
+      stdout: "",
+      stderr: `findings publication guard requires manual recovery: ${workspace.resultFile}\n`,
+    });
+    await expect(lstat(publisherMarker).catch(() => null)).resolves.toBeNull();
+    await expect(
+      lstat(path.join(workspace.worktree, guardFile)).then((stat) =>
+        stat.isFile(),
+      ),
+    ).resolves.toBe(true);
   });
 
   it("waits for a delayed publisher refusal after stdin closes early", async () => {
@@ -1424,6 +1471,13 @@ describe("pr-review findings publication rebinder", () => {
     await expect(
       readFile(path.join(workspace.worktree, workspace.resultFile), "utf8"),
     ).resolves.toBe(beforeResult);
+    const guardFile = workspace.resultFile.replace(
+      /-result\.json$/,
+      "-replace-findings.lock",
+    );
+    await expect(
+      lstat(path.join(workspace.worktree, guardFile)).catch(() => null),
+    ).resolves.toBeNull();
   });
 });
 
