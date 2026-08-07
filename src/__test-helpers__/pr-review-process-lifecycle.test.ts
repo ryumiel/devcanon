@@ -1,4 +1,5 @@
 import { ChildProcess } from "node:child_process";
+import { realpath as realpathCallback } from "node:fs";
 import * as fsPromises from "node:fs/promises";
 import {
   access,
@@ -13,12 +14,15 @@ import {
 } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { promisify } from "node:util";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const lifecyclePreflight = vi.hoisted(() => ({
   controllerCwd: "",
   elapsed: false,
 }));
+
+const realpathNative = promisify(realpathCallback.native);
 
 vi.mock("node:fs/promises", async (importOriginal) => {
   const actual = await importOriginal<typeof import("node:fs/promises")>();
@@ -773,6 +777,67 @@ describe("pr-review process lifecycle", () => {
       recursive: true,
     });
     await expect(access(root.path)).rejects.toThrow();
+
+    {
+      const lstat = vi.mocked(fsPromises.lstat);
+      const stat = vi.mocked(fsPromises.stat);
+      const originalLstat = lstat.getMockImplementation();
+      const originalStat = stat.getMockImplementation();
+      if (!originalLstat || !originalStat)
+        throw new Error("stat mock implementation missing");
+      const generatedRootPrefixes = [
+        `${os.tmpdir()}${path.sep}dc-process-lifecycle-`,
+        `${await realpathNative(os.tmpdir())}${path.sep}dc-process-lifecycle-`,
+      ];
+      const device = BigInt(Number.MAX_SAFE_INTEGER) + 1n;
+      const file = device + 1n;
+      lstat.mockImplementation(async (...args) => {
+        const observed = await originalLstat(...args);
+        if (
+          !generatedRootPrefixes.some((prefix) =>
+            String(args[0]).startsWith(prefix),
+          )
+        )
+          return observed;
+        return Object.assign(
+          Object.create(Object.getPrototypeOf(observed)),
+          observed,
+          {
+            dev:
+              args[1]?.bigint === true ? device : Number.MAX_SAFE_INTEGER + 1,
+            ino: args[1]?.bigint === true ? file : Number.MAX_SAFE_INTEGER + 2,
+          },
+        );
+      });
+      stat.mockImplementation(async (...args) => {
+        const observed = await originalStat(...args);
+        if (
+          !generatedRootPrefixes.some((prefix) =>
+            String(args[0]).startsWith(prefix),
+          ) ||
+          args[1]?.bigint !== true
+        )
+          return observed;
+        return Object.assign(
+          Object.create(Object.getPrototypeOf(observed)),
+          observed,
+          { dev: device, ino: file },
+        );
+      });
+
+      try {
+        const bigintRoot = await generatedRoot();
+        const bigintResult = await (
+          await lifecycle(bigintRoot, "process.exit(0);")
+        ).finish();
+
+        expect(bigintResult.generatedRoot).toBe("removed");
+        await expect(access(bigintRoot.path)).rejects.toThrow();
+      } finally {
+        lstat.mockImplementation(originalLstat);
+        stat.mockImplementation(originalStat);
+      }
+    }
 
     {
       const ctimeRoot = await generatedRoot();

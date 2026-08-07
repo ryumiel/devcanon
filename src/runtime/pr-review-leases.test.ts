@@ -275,10 +275,14 @@ it("selects the exact issue-578 Windows PR-review lane", async () => {
     "src/runtime/source-immutability.test.ts",
   ];
   const commandPrefix = [
-    "vitest run --project unit --no-file-parallelism",
+    "vitest run --project unit --testTimeout 12000 --no-file-parallelism",
     ...laneFiles,
   ].join(" ");
   expect(command).toBeTypeOf("string");
+  const focusedTestTimeoutMs = Number(
+    /--testTimeout (\d+)/u.exec(command ?? "")?.[1],
+  );
+  expect(focusedTestTimeoutMs).toBeGreaterThan(4_999 + 4_999 + 250);
   const selectorRecord = new RegExp(
     `^${commandPrefix.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")} --testNamePattern "([^"]+)"$`,
     "u",
@@ -613,6 +617,9 @@ it("selects the exact issue-578 Windows PR-review lane", async () => {
     "tracks outer work and restores exact cwd and environment state",
     "fails fast when a generated suffix exceeds the path budget",
     "provides committed, unborn, and no-ephemeral independent copies",
+    "uses the 4500ms normal deadline for outer operations",
+    "preserves constructor deadline comparison guards",
+    "preserves child deadline comparison guards before child start",
     "reports bounded taskkill diagnostics after a simulated Windows direct-child fallback",
     "preserves output overflow when simulated Windows cleanup also fails",
     "preserves output overflow when delayed Windows cleanup crosses the deadline",
@@ -644,7 +651,7 @@ it("selects the exact issue-578 Windows PR-review lane", async () => {
   expect(harnessSource).not.toMatch(/descendant/iu);
   expect(
     harnessRegistrations.filter(({ fullTitle }) => selector.test(fullTitle)),
-  ).toHaveLength(18);
+  ).toHaveLength(21);
   const lifecycleRegistrations = strictHarnessRegistrations(
     lifecycleSource,
     "pr-review-process-lifecycle.test.ts",
@@ -909,7 +916,7 @@ it("selects the exact issue-578 Windows PR-review lane", async () => {
   ].sort((left, right) =>
     `${left.file}\0${left.name}`.localeCompare(`${right.file}\0${right.name}`),
   );
-  expect(collectedInventory).toHaveLength(52);
+  expect(collectedInventory).toHaveLength(55);
   expect(collectedInventory).toEqual(expectedCollectedInventory);
 });
 
