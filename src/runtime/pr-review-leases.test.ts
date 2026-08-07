@@ -275,10 +275,14 @@ it("selects the exact issue-578 Windows PR-review lane", async () => {
     "src/runtime/source-immutability.test.ts",
   ];
   const commandPrefix = [
-    "vitest run --project unit --no-file-parallelism",
+    "vitest run --project unit --testTimeout 12000 --no-file-parallelism",
     ...laneFiles,
   ].join(" ");
   expect(command).toBeTypeOf("string");
+  const focusedTestTimeoutMs = Number(
+    /--testTimeout (\d+)/u.exec(command ?? "")?.[1],
+  );
+  expect(focusedTestTimeoutMs).toBeGreaterThan(4_999 + 4_999 + 250);
   const selectorRecord = new RegExp(
     `^${commandPrefix.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")} --testNamePattern "([^"]+)"$`,
     "u",
