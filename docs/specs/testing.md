@@ -80,6 +80,14 @@ consumers execute source scripts against focused fixtures. Each layer stays at
 its own boundary and does not turn broad skill prose, prompt wording, ADR
 wording, or helper algorithms into a render or source-text contract.
 
+Behavioral guarantees for public script commands belong in runtime and
+public-wrapper integration tests. Source-contract and render tests may assert
+only stable structure and short semantic markers needed for discoverability,
+composition, required inputs, refusal semantics, or generated parity. They must
+not pin complete prose sentences or editorial wording. When behavior could
+regress while those markers remain present, add executable coverage at the
+owning runtime or public wrapper instead of expanding prose assertions.
+
 Each new regression test names the concrete failure, normative owner, primary
 test layer, and the gap in existing coverage. Use the smallest owner-derived
 assertion that would fail for that regression; improve the owner or choose a

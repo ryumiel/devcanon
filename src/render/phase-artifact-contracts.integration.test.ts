@@ -871,9 +871,6 @@ describe("rendered phase artifact smoke coverage", () => {
       "Refresh lease validation for every gate cycle; never treat the `RESULT_FILE` path alone as freshness evidence",
     );
     expect(normalizeRenderedWhitespace(prReview)).toContain(
-      "First update and validate `pr-review/result/v1` with the rewritten findings and the current review body",
-    );
-    expect(normalizeRenderedWhitespace(prReview)).toContain(
       "render the mandatory Phase 5 artifact audit summary again before waiting for approval",
     );
     expect(prReview).toContain(
@@ -1100,7 +1097,7 @@ describe("rendered phase artifact smoke coverage", () => {
       );
 
       const renderedFindingsEditStart = renderedPrReview.indexOf(
-        "# Write the rewritten play-review/findings/v2 envelope",
+        "REPLACED_RESULT_FILE=$( \\",
       );
       const renderedFindingsEditEnd = renderedPrReview.indexOf(
         "Then present the re-rendered stdout",
@@ -1113,16 +1110,82 @@ describe("rendered phase artifact smoke coverage", () => {
         renderedFindingsEditStart,
         renderedFindingsEditEnd,
       );
-      const renderedManifestRefreshIndex = renderedFindingsEdit.indexOf(
-        'update_pr_review_result_manifest "edited" || exit 1',
-      );
       const renderedBodyRewriteIndex = renderedFindingsEdit.indexOf(
         "write_review_body_from_markdown || exit 1",
       );
-      expect(renderedManifestRefreshIndex).toBeGreaterThanOrEqual(0);
-      expect(renderedBodyRewriteIndex).toBeGreaterThan(
-        renderedManifestRefreshIndex,
+      expect(renderedFindingsEdit).toContain(
+        'bash "$PR_REVIEW_MANIFEST_HELPER" replace-findings',
       );
+      expect(renderedFindingsEdit).toContain(
+        'PLAY_REVIEW_HELPER="$PLAY_REVIEW_HELPER"',
+      );
+      expect(renderedFindingsEdit).toContain(
+        'REVIEW_RESULT_FILE="$REPLACED_RESULT_FILE"',
+      );
+      expect(renderedFindingsEdit).toContain('RENDERED_PREVIEW_FILE=""');
+      expect(renderedFindingsEdit).toContain(
+        'bash "$PLAY_REVIEW_HELPER" render-review-preview\n) || exit 1',
+      );
+      expect(renderedFindingsEdit).toContain(
+        'bash "$PR_REVIEW_LEASE_HELPER" write',
+      );
+      for (const binding of [
+        'PRIMARY_REPOSITORY_ROOT="$REVIEW_CALLER_DIR"',
+        'WORKTREE_PATH="$WORKING_DIRECTORY"',
+        'LEASE_FILE="$LEASE_FILE"',
+        'STATE="gated"',
+        'EXPECTED_STATE="gated"',
+        'BASE_REF="$PR_BASE_REF"',
+        'HEAD_REF="$REVIEW_HEAD_REF"',
+        'UPDATED_AT="$REVIEW_GATE_PRESENTED_AT"',
+        'RESULT_FILE="$REVIEW_RESULT_FILE"',
+        'PRESENTED_AT="$REVIEW_GATE_PRESENTED_AT"',
+        'PRESENTATION_STATUS="edited"',
+      ]) {
+        expect(renderedFindingsEdit).toContain(binding);
+      }
+      expect(renderedFindingsEdit).toContain(
+        'bash "$PR_REVIEW_MANIFEST_HELPER" render-phase5-audit-summary',
+      );
+      expect(renderedFindingsEdit).toContain("PHASE5_AUDIT_STATUS=0");
+      expect(renderedFindingsEdit).toContain(
+        'bash "$PR_REVIEW_LEASE_HELPER" record-audit-failure >/dev/null',
+      );
+      expect(renderedFindingsEdit).toContain('EXPECTED_STATE="gated"');
+      expect(renderedFindingsEdit).toContain('FAILURE_PHASE="preview-render"');
+      expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
+        "exactly one complete JSON document",
+      );
+      expectSubstringsInOrder(normalizeRenderedWhitespace(renderedPrReview), [
+        "recompute its canonical `body`",
+        "final severity, category, `why`, and `recommendation`",
+        "`critic: null` for Nit findings",
+      ]);
+      expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
+        "refusal stops the Phase 5 continuation",
+      );
+      expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
+        "`replace-findings` invocation refuses before publication",
+      );
+      expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
+        "manual recovery outside this command",
+      );
+      expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
+        "never reclaims retained guards",
+      );
+      expect(renderedFindingsEdit).not.toContain("validate-findings");
+      expect(renderedFindingsEdit).not.toContain("prepare-findings-write");
+      expect(renderedBodyRewriteIndex).toBeGreaterThanOrEqual(0);
+      expectSubstringsInOrder(renderedFindingsEdit, [
+        "write-review-body",
+        "recover-review-body-publication when needed",
+        "render-review-preview",
+        "result update",
+        "gated lease write",
+        "render-phase5-audit-summary",
+        'bash "$PR_REVIEW_LEASE_HELPER" write',
+        'bash "$PR_REVIEW_MANIFEST_HELPER" render-phase5-audit-summary',
+      ]);
       expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
         "After every successful `gated` write, including edited previews, render the mandatory Phase 5 artifact audit summary before asking for user action",
       );
@@ -1153,9 +1216,6 @@ describe("rendered phase artifact smoke coverage", () => {
       );
       expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
         "Refresh lease validation for every gate cycle; never treat the `RESULT_FILE` path alone as freshness evidence",
-      );
-      expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
-        "First update and validate `pr-review/result/v1` with the rewritten findings and the current review body",
       );
       expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
         "render the mandatory Phase 5 artifact audit summary again before waiting for approval",

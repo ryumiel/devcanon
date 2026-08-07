@@ -54,6 +54,19 @@ function shellFunctionBody(content: string, functionName: string): string {
   return content.slice(start, end);
 }
 
+function expectSubstringsInOrder(content: string, substrings: string[]): void {
+  let previousIndex = -1;
+
+  for (const substring of substrings) {
+    const currentIndex = content.indexOf(substring, previousIndex + 1);
+    expect(
+      currentIndex,
+      `missing ordered substring: ${substring}`,
+    ).toBeGreaterThan(previousIndex);
+    previousIndex = currentIndex;
+  }
+}
+
 type ResearchPromptTuple = {
   source: string;
   id: string;
@@ -2064,7 +2077,6 @@ None
 
     for (const skillSource of [branchReview, prReview]) {
       expect(skillSource).toContain("REVIEW_HEAD_SHA");
-      expect(skillSource).toContain("validate-findings");
       expect(skillSource).toContain("PLAY_REVIEW_HELPER");
       expect(skillSource).toContain("play-review/findings/v2");
     }
@@ -2076,9 +2088,12 @@ None
     expect(branchReview).toContain(
       "immutable Phase 2 review head; current HEAD may include auto-fix commits",
     );
+    expect(branchReview).toContain("validate-findings");
     expect(branchReview).toContain("prepare-findings-write");
 
     expect(prReview).toContain("## Phase 4: Run play-review");
+    expect(prReview).toContain("replace-findings");
+    expect(prReview).not.toContain("validate-findings");
   });
 
   it("keeps pr-review manifest handoff/result contracts in source", async () => {
@@ -2131,6 +2146,9 @@ None
     expect(leaseRuntime).toContain("runPrReviewLeasesCommand");
     expect(manifestHelper).toContain("render-phase5-audit-summary");
     expect(manifestHelper).toContain(
+      'exec "$runtime" runtime pr-review-manifests "$@"',
+    );
+    expect(manifestHelper).not.toContain(
       'exec "$runtime" runtime pr-review-manifests "$command_name"',
     );
     expect(leaseHelper).toContain("read-status");
@@ -3808,28 +3826,92 @@ None
     );
     expect(phase5).toContain("write_review_body_from_markdown || exit 1");
 
-    const findingsEditStart = phase5.indexOf(
-      "# Write the rewritten play-review/findings/v2 envelope",
-    );
+    const findingsEditStart = phase5.indexOf("REPLACED_RESULT_FILE=$( \\");
     const findingsEditEnd = phase5.indexOf(
       "Then present the re-rendered stdout",
     );
     expect(findingsEditStart).toBeGreaterThanOrEqual(0);
     expect(findingsEditEnd).toBeGreaterThan(findingsEditStart);
     const findingsEdit = phase5.slice(findingsEditStart, findingsEditEnd);
-    const manifestRefreshIndex = findingsEdit.indexOf(
-      'update_pr_review_result_manifest "edited" || exit 1',
+    expect(findingsEdit).toContain('cd "$WORKING_DIRECTORY" || exit 1');
+    expect(findingsEdit).toContain('PR_NUMBER="$PR_NUMBER"');
+    expect(findingsEdit).toContain('HEAD_SHA="$REVIEW_HEAD_SHA"');
+    expect(findingsEdit).toContain('REPOSITORY="<owner/repo>"');
+    expect(findingsEdit).toContain('RESULT_FILE="$REVIEW_RESULT_FILE"');
+    expect(findingsEdit).toContain('PLAY_REVIEW_HELPER="$PLAY_REVIEW_HELPER"');
+    expect(findingsEdit).toContain(
+      'bash "$PR_REVIEW_MANIFEST_HELPER" replace-findings',
     );
+    expect(findingsEdit).toContain(
+      'REVIEW_RESULT_FILE="$REPLACED_RESULT_FILE"',
+    );
+    expect(findingsEdit).toContain('RENDERED_PREVIEW_FILE=""');
+    expect(findingsEdit).toContain(
+      'bash "$PLAY_REVIEW_HELPER" render-review-preview\n) || exit 1',
+    );
+    expect(findingsEdit).toContain('bash "$PR_REVIEW_LEASE_HELPER" write');
+    for (const binding of [
+      'PRIMARY_REPOSITORY_ROOT="$REVIEW_CALLER_DIR"',
+      'WORKTREE_PATH="$WORKING_DIRECTORY"',
+      'LEASE_FILE="$LEASE_FILE"',
+      'STATE="gated"',
+      'EXPECTED_STATE="gated"',
+      'BASE_REF="$PR_BASE_REF"',
+      'HEAD_REF="$REVIEW_HEAD_REF"',
+      'UPDATED_AT="$REVIEW_GATE_PRESENTED_AT"',
+      'RESULT_FILE="$REVIEW_RESULT_FILE"',
+      'PRESENTED_AT="$REVIEW_GATE_PRESENTED_AT"',
+      'PRESENTATION_STATUS="edited"',
+    ]) {
+      expect(findingsEdit).toContain(binding);
+    }
+    expect(findingsEdit).toContain(
+      'bash "$PR_REVIEW_MANIFEST_HELPER" render-phase5-audit-summary',
+    );
+    expect(findingsEdit).toContain("PHASE5_AUDIT_STATUS=0");
+    expect(findingsEdit).toContain(
+      'bash "$PR_REVIEW_LEASE_HELPER" record-audit-failure >/dev/null',
+    );
+    expect(findingsEdit).toContain('EXPECTED_STATE="gated"');
+    expect(findingsEdit).toContain('FAILURE_PHASE="preview-render"');
+    expect(normalizeWhitespace(phase5)).toContain(
+      "exactly one complete JSON document",
+    );
+    expectSubstringsInOrder(normalizeWhitespace(phase5), [
+      "recompute its canonical `body`",
+      "final severity, category, `why`, and `recommendation`",
+      "`critic: null` for Nit findings",
+    ]);
+    expect(normalizeWhitespace(phase5)).toContain(
+      "refusal stops the Phase 5 continuation",
+    );
+    expect(normalizeWhitespace(phase5)).toContain(
+      "`replace-findings` invocation refuses before publication",
+    );
+    expect(normalizeWhitespace(phase5)).toContain(
+      "manual recovery outside this command",
+    );
+    expect(normalizeWhitespace(phase5)).toContain(
+      "never reclaims retained guards",
+    );
+    expect(findingsEdit).not.toContain("validate-findings");
+    expect(findingsEdit).not.toContain("prepare-findings-write");
+    expect(findingsEdit).not.toContain("# Write the rewritten");
+
     const bodyRewriteIndex = findingsEdit.indexOf(
       "write_review_body_from_markdown || exit 1",
     );
-    expect(manifestRefreshIndex).toBeGreaterThanOrEqual(0);
-    expect(bodyRewriteIndex).toBeGreaterThan(manifestRefreshIndex);
-    expect(
-      findingsEdit.match(
-        /update_pr_review_result_manifest "edited" \|\| exit 1/g,
-      )?.length,
-    ).toBe(2);
+    expect(bodyRewriteIndex).toBeGreaterThanOrEqual(0);
+    expectSubstringsInOrder(findingsEdit, [
+      "write-review-body",
+      "recover-review-body-publication when needed",
+      "render-review-preview",
+      "result update",
+      "gated lease write",
+      "render-phase5-audit-summary",
+      'bash "$PR_REVIEW_LEASE_HELPER" write',
+      'bash "$PR_REVIEW_MANIFEST_HELPER" render-phase5-audit-summary',
+    ]);
 
     expect(phase6).toContain("materialize-review-payload");
     expect(phase6).not.toContain("prepare-review-payload-write");

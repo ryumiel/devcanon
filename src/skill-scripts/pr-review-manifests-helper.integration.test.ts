@@ -4,6 +4,7 @@ import {
   chmod,
   copyFile,
   cp,
+  lstat,
   mkdir,
   mkdtemp,
   readFile,
@@ -15,6 +16,7 @@ import {
 } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
 import {
@@ -515,39 +517,52 @@ async function runHelperWithStdin(
   env: NodeJS.ProcessEnv = {},
   script = helperScript,
 ) {
-  return new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
-    const child = spawn("bash", [script, command], {
-      cwd,
-      env: {
-        ...process.env,
-        PR_NUMBER: prNumber,
-        REPOSITORY: "owner/repo",
-        ...env,
-      },
-    });
-    let stdout = "";
-    let stderr = "";
-    child.stdout.setEncoding("utf8").on("data", (chunk: string) => {
-      stdout += chunk;
-    });
-    child.stderr.setEncoding("utf8").on("data", (chunk: string) => {
-      stderr += chunk;
-    });
-    child.on("error", reject);
-    child.on("close", (code) => {
-      if (code === 0) {
-        resolve({ stdout, stderr });
-        return;
-      }
-      reject(
-        Object.assign(new Error(`helper exited with ${code}`), {
-          stdout,
-          stderr,
-        }),
-      );
-    });
-    child.stdin.end(input);
+  return spawnHelperWithStdin(cwd, command, input, env, script).outcome;
+}
+
+function spawnHelperWithStdin(
+  cwd: string,
+  command: string,
+  input: string | Buffer,
+  env: NodeJS.ProcessEnv = {},
+  script = helperScript,
+) {
+  const child = spawn("bash", [script, command], {
+    cwd,
+    env: {
+      ...process.env,
+      PR_NUMBER: prNumber,
+      REPOSITORY: "owner/repo",
+      ...env,
+    },
   });
+  const outcome = new Promise<{ stdout: string; stderr: string }>(
+    (resolve, reject) => {
+      let stdout = "";
+      let stderr = "";
+      child.stdout.setEncoding("utf8").on("data", (chunk: string) => {
+        stdout += chunk;
+      });
+      child.stderr.setEncoding("utf8").on("data", (chunk: string) => {
+        stderr += chunk;
+      });
+      child.on("error", reject);
+      child.on("close", (code) => {
+        if (code === 0) {
+          resolve({ stdout, stderr });
+          return;
+        }
+        reject(
+          Object.assign(new Error(`helper exited with ${code}`), {
+            stdout,
+            stderr,
+          }),
+        );
+      });
+    },
+  );
+  child.stdin.end(input);
+  return { child, outcome };
 }
 
 async function copyInstalledPrManifestHelper(root: string) {
@@ -557,6 +572,92 @@ async function copyInstalledPrManifestHelper(root: string) {
   const script = path.join(root, "pr-review/scripts/review-manifests.sh");
   await mkdir(path.dirname(script), { recursive: true });
   await copyFile(helperScript, script);
+  await chmod(script, 0o755);
+  return script;
+}
+
+async function waitForFile(file: string): Promise<void> {
+  for (let attempt = 0; attempt < 500; attempt += 1) {
+    if ((await lstat(file).catch(() => null))?.isFile()) return;
+    await delay(10);
+  }
+  throw new Error(`timed out waiting for ${file}`);
+}
+
+async function writeBlockingPlayReviewHelper(
+  cwd: string,
+  realHelper: string,
+): Promise<string> {
+  const script = path.join(cwd, ".ephemeral/blocking-play-review.sh");
+  await writeFile(
+    script,
+    [
+      "#!/usr/bin/env bash",
+      "set -euo pipefail",
+      `real_helper=${JSON.stringify(realHelper)}`,
+      'if [[ "${1:-}" != "publish-findings" ]]; then exec bash "$real_helper" "$@"; fi',
+      ': "${BLOCK_MARKER:?}"',
+      ': "${RELEASE_MARKER:?}"',
+      'printf "started\\n" > "$BLOCK_MARKER"',
+      'while [[ ! -f "$RELEASE_MARKER" ]]; do sleep 0.01; done',
+      'exec bash "$real_helper" "$@"',
+      "",
+    ].join("\n"),
+  );
+  await chmod(script, 0o755);
+  return script;
+}
+
+async function writePostPublicationBlockingHelper(
+  cwd: string,
+  realHelper: string,
+): Promise<string> {
+  const script = path.join(
+    cwd,
+    ".ephemeral/post-publication-blocking-play-review.sh",
+  );
+  await writeFile(
+    script,
+    [
+      "#!/usr/bin/env bash",
+      "set -euo pipefail",
+      `real_helper=${JSON.stringify(realHelper)}`,
+      'if [[ "${1:-}" != "publish-findings" ]]; then exec bash "$real_helper" "$@"; fi',
+      ': "${BLOCK_MARKER:?}"',
+      ': "${RELEASE_MARKER:?}"',
+      ': "${TERMINAL_MARKER:?}"',
+      'bash "$real_helper" "$@"',
+      'printf "published\\n" > "$BLOCK_MARKER"',
+      'while [[ ! -f "$RELEASE_MARKER" ]]; do sleep 0.01; done',
+      'printf "terminal\\n" > "$TERMINAL_MARKER"',
+      "",
+    ].join("\n"),
+  );
+  await chmod(script, 0o755);
+  return script;
+}
+
+async function writePostPublicationDriftHelper(
+  cwd: string,
+  realHelper: string,
+): Promise<string> {
+  const script = path.join(
+    cwd,
+    ".ephemeral/post-publication-drift-play-review.sh",
+  );
+  await writeFile(
+    script,
+    [
+      "#!/usr/bin/env bash",
+      "set -euo pipefail",
+      `real_helper=${JSON.stringify(realHelper)}`,
+      'if [[ "${1:-}" != "publish-findings" ]]; then exec bash "$real_helper" "$@"; fi',
+      ': "${DRIFT_FILE:?}"',
+      'bash "$real_helper" "$@"',
+      'printf "Changed after findings publication.\\n" > "$DRIFT_FILE"',
+      "",
+    ].join("\n"),
+  );
   await chmod(script, 0o755);
   return script;
 }
@@ -902,6 +1003,18 @@ describe("pr-review manifest helper", () => {
     expect(manifestUsage).toContain("read-result-for-preview");
     expect(manifestUsage).toContain("write-review-body");
     expect(manifestUsage).toContain("recover-review-body-publication");
+    expect(manifestUsage).toContain("replace-findings");
+    expect(manifestUsage).toContain("target worktree root");
+    expect(manifestUsage).toContain(
+      "PR_NUMBER, HEAD_SHA, REPOSITORY, RESULT_FILE, and PLAY_REVIEW_HELPER",
+    );
+    expect(manifestUsage).toContain(
+      "exactly one complete findings envelope on stdin and no extra arguments",
+    );
+    expect(manifestUsage).toContain("canonical rebound result path");
+    expect(manifestUsage).toContain(
+      "concurrent ownership or any other refusal exits nonzero before continuation",
+    );
     expect(leaseUsage).toContain("read-status");
     expect(leaseUsage).toContain("record-audit-failure");
   });
@@ -953,6 +1066,147 @@ describe("pr-review manifest helper", () => {
       ).resolves.toMatchObject({
         stdout: "runtime pr-review-manifests recover-review-body-publication\n",
       });
+      await expect(
+        runHelper(installed, "replace-findings", {}, script),
+      ).resolves.toMatchObject({
+        stdout: "runtime pr-review-manifests replace-findings\n",
+      });
+    } finally {
+      await cleanupTempDir(installed);
+    }
+  });
+
+  it("forwards replace-findings stdin and public environment to the runtime route", async () => {
+    const installed = await mkdtemp(
+      path.join(os.tmpdir(), "devcanon-pr-wrapper-"),
+    );
+    try {
+      const script = await copyWrapperWithRecordingRuntime(
+        installed,
+        helperScript,
+        "pr-review/scripts/review-manifests.sh",
+      );
+      const runtime = path.join(
+        installed,
+        "devcanon-runtime/scripts/devcanon-runtime.sh",
+      );
+      await writeFile(
+        runtime,
+        [
+          "#!/usr/bin/env bash",
+          "set -euo pipefail",
+          '[ "$1" = "runtime" ]',
+          '[ "$2" = "pr-review-manifests" ]',
+          '[ "$3" = "replace-findings" ]',
+          '[ "$PLAY_REVIEW_HELPER" = "/tmp/public-play-review-helper" ]',
+          "cat",
+          "",
+        ].join("\n"),
+      );
+      await chmod(runtime, 0o755);
+
+      await expect(
+        runHelperWithStdin(
+          installed,
+          "replace-findings",
+          '{"schema":"play-review/findings/v2"}',
+          { PLAY_REVIEW_HELPER: "/tmp/public-play-review-helper" },
+          script,
+        ),
+      ).resolves.toEqual({
+        stdout: '{"schema":"play-review/findings/v2"}',
+        stderr: "",
+      });
+    } finally {
+      await cleanupTempDir(installed);
+    }
+  });
+
+  it("forwards replace-findings arguments and propagates runtime refusal", async () => {
+    const installed = await mkdtemp(
+      path.join(os.tmpdir(), "devcanon-pr-wrapper-"),
+    );
+    try {
+      const script = await copyWrapperWithRecordingRuntime(
+        installed,
+        helperScript,
+        "pr-review/scripts/review-manifests.sh",
+      );
+      const runtime = path.join(
+        installed,
+        "devcanon-runtime/scripts/devcanon-runtime.sh",
+      );
+      await writeFile(
+        runtime,
+        [
+          "#!/usr/bin/env bash",
+          "set -euo pipefail",
+          '[ "$1" = "runtime" ]',
+          '[ "$2" = "pr-review-manifests" ]',
+          '[ "$3" = "replace-findings" ]',
+          '[ "$4" = "unexpected" ]',
+          'echo "replace-findings does not accept arguments" >&2',
+          "exit 1",
+          "",
+        ].join("\n"),
+      );
+      await chmod(runtime, 0o755);
+
+      await expect(
+        execFileAsync("bash", [script, "replace-findings", "unexpected"], {
+          cwd: installed,
+          env: process.env,
+        }),
+      ).rejects.toMatchObject({
+        stderr: "replace-findings does not accept arguments\n",
+      });
+    } finally {
+      await cleanupTempDir(installed);
+    }
+  });
+
+  it("forwards normal public-command arguments and propagates runtime refusal", async () => {
+    const installed = await mkdtemp(
+      path.join(os.tmpdir(), "devcanon-pr-wrapper-"),
+    );
+    try {
+      const script = await copyWrapperWithRecordingRuntime(
+        installed,
+        helperScript,
+        "pr-review/scripts/review-manifests.sh",
+      );
+      const runtime = path.join(
+        installed,
+        "devcanon-runtime/scripts/devcanon-runtime.sh",
+      );
+      await writeFile(
+        runtime,
+        [
+          "#!/usr/bin/env bash",
+          "set -euo pipefail",
+          '[ "$1" = "runtime" ]',
+          '[ "$2" = "pr-review-manifests" ]',
+          '[ "$3" = "read-result-for-preview" ]',
+          '[ "$4" = "unexpected" ]',
+          'echo "read-result-for-preview does not accept arguments" >&2',
+          "exit 1",
+          "",
+        ].join("\n"),
+      );
+      await chmod(runtime, 0o755);
+
+      await expect(
+        execFileAsync(
+          "bash",
+          [script, "read-result-for-preview", "unexpected"],
+          {
+            cwd: installed,
+            env: process.env,
+          },
+        ),
+      ).rejects.toMatchObject({
+        stderr: "read-result-for-preview does not accept arguments\n",
+      });
     } finally {
       await cleanupTempDir(installed);
     }
@@ -992,6 +1246,272 @@ describe("pr-review manifest helper", () => {
         await expect(
           readFile(path.join(cwd, reviewBodyPath(headSha)), "utf8"),
         ).resolves.toBe("# Replacement\n\nBody text.\n");
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    },
+  );
+
+  it.skipIf(isWindows)(
+    "rebinds a caller-published findings envelope using only public inputs",
+    async () => {
+      const { cwd, baseSha, headSha } = await makeGitWorkspace();
+      try {
+        await writeValidInputs(cwd, baseSha, headSha);
+        await runHelper(
+          cwd,
+          "write-handoff",
+          handoffEnv(cwd, baseSha, headSha),
+        );
+        await runHelper(cwd, "write-result", resultEnv(headSha));
+        const replacement = JSON.stringify(findingsEnvelope());
+
+        await expect(
+          runHelperWithStdin(cwd, "replace-findings", replacement, {
+            HEAD_SHA: headSha,
+            RESULT_FILE: resultPath(headSha),
+            PLAY_REVIEW_HELPER: playReviewHelperScript,
+          }),
+        ).resolves.toEqual({
+          stdout: `${resultPath(headSha)}\n`,
+          stderr: "",
+        });
+
+        const result = await readJson(cwd, resultPath(headSha));
+        expect(result.digests.findings_sha256).toBe(
+          await sha256File(cwd, findingsPath(headSha)),
+        );
+        expect(result.artifacts.rendered_preview_file).toBeNull();
+        expect(result.digests.rendered_preview_sha256).toBeNull();
+        expect(result.presentation.status).toBe("edited");
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    },
+  );
+
+  it.skipIf(isWindows)(
+    "refuses a concurrent public findings replacement before publication",
+    async () => {
+      const { cwd, baseSha, headSha } = await makeGitWorkspace();
+      try {
+        await writeValidInputs(cwd, baseSha, headSha);
+        await runHelper(
+          cwd,
+          "write-handoff",
+          handoffEnv(cwd, baseSha, headSha),
+        );
+        await runHelper(cwd, "write-result", resultEnv(headSha));
+        const blockingHelper = await writeBlockingPlayReviewHelper(
+          cwd,
+          playReviewHelperScript,
+        );
+        const firstMarker = path.join(cwd, ".ephemeral/first-started");
+        const secondMarker = path.join(cwd, ".ephemeral/second-started");
+        const releaseMarker = path.join(cwd, ".ephemeral/release-first");
+        const firstEnvelope = JSON.stringify(findingsEnvelope());
+        const secondEnvelope = JSON.stringify(findingsEnvelope(), null, 2);
+        const commonEnv = {
+          HEAD_SHA: headSha,
+          RESULT_FILE: resultPath(headSha),
+          PLAY_REVIEW_HELPER: blockingHelper,
+          RELEASE_MARKER: releaseMarker,
+        };
+
+        const first = runHelperWithStdin(
+          cwd,
+          "replace-findings",
+          firstEnvelope,
+          { ...commonEnv, BLOCK_MARKER: firstMarker },
+        );
+        await waitForFile(firstMarker);
+
+        await expect(
+          runHelperWithStdin(cwd, "replace-findings", secondEnvelope, {
+            ...commonEnv,
+            BLOCK_MARKER: secondMarker,
+          }),
+        ).rejects.toMatchObject({
+          stdout: "",
+          stderr: expect.stringContaining(
+            "findings publication guard requires manual recovery",
+          ),
+        });
+        expect(await lstat(secondMarker).catch(() => null)).toBeNull();
+
+        await writeFile(releaseMarker, "release\n");
+        await expect(first).resolves.toEqual({
+          stdout: `${resultPath(headSha)}\n`,
+          stderr: "",
+        });
+        await expect(
+          readFile(path.join(cwd, findingsPath(headSha)), "utf8"),
+        ).resolves.toBe(firstEnvelope);
+        const result = await readJson(cwd, resultPath(headSha));
+        expect(result.digests.findings_sha256).toBe(sha256(firstEnvelope));
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    },
+  );
+
+  it.skipIf(isWindows)(
+    "retains the public guard when authority fails after publication",
+    async () => {
+      const { cwd, baseSha, headSha } = await makeGitWorkspace();
+      try {
+        await writeValidInputs(cwd, baseSha, headSha);
+        await writeFile(path.join(cwd, reviewBodyPath(headSha)), "Before.\n");
+        await runHelper(
+          cwd,
+          "write-handoff",
+          handoffEnv(cwd, baseSha, headSha),
+        );
+        await runHelper(cwd, "write-result", {
+          ...resultEnv(headSha),
+          REVIEW_BODY_FILE: reviewBodyPath(headSha),
+        });
+        const resultFile = resultPath(headSha);
+        const guardFile = resultFile.replace(
+          /-result\.json$/,
+          "-replace-findings.lock",
+        );
+        const beforeResult = await readFile(path.join(cwd, resultFile), "utf8");
+        const replacement = JSON.stringify(findingsEnvelope());
+        const driftHelper = await writePostPublicationDriftHelper(
+          cwd,
+          playReviewHelperScript,
+        );
+
+        await expect(
+          runHelperWithStdin(cwd, "replace-findings", replacement, {
+            HEAD_SHA: headSha,
+            RESULT_FILE: resultFile,
+            PLAY_REVIEW_HELPER: driftHelper,
+            DRIFT_FILE: path.join(cwd, reviewBodyPath(headSha)),
+          }),
+        ).rejects.toMatchObject({
+          stdout: "",
+          stderr: expect.stringContaining("review body digest mismatch"),
+        });
+        await expect(
+          readFile(path.join(cwd, findingsPath(headSha)), "utf8"),
+        ).resolves.toBe(replacement);
+        await expect(
+          readFile(path.join(cwd, resultFile), "utf8"),
+        ).resolves.toBe(beforeResult);
+        await expect(
+          lstat(path.join(cwd, guardFile)).then((stat) => stat.isFile()),
+        ).resolves.toBe(true);
+
+        await writeFile(path.join(cwd, reviewBodyPath(headSha)), "Before.\n");
+        const retryPublisherMarker = path.join(
+          cwd,
+          ".ephemeral/retry-publisher-entered",
+        );
+        await expect(
+          runHelperWithStdin(cwd, "replace-findings", replacement, {
+            HEAD_SHA: headSha,
+            RESULT_FILE: resultFile,
+            PLAY_REVIEW_HELPER: driftHelper,
+            DRIFT_FILE: retryPublisherMarker,
+          }),
+        ).rejects.toMatchObject({
+          stdout: "",
+          stderr: expect.stringContaining(
+            "findings publication guard requires manual recovery",
+          ),
+        });
+        await expect(
+          lstat(retryPublisherMarker).catch(() => null),
+        ).resolves.toBeNull();
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    },
+  );
+
+  it.skipIf(isWindows)(
+    "refuses automatic public recovery after the publication owner dies",
+    async () => {
+      const { cwd, baseSha, headSha } = await makeGitWorkspace();
+      try {
+        await writeValidInputs(cwd, baseSha, headSha);
+        await runHelper(
+          cwd,
+          "write-handoff",
+          handoffEnv(cwd, baseSha, headSha),
+        );
+        await runHelper(cwd, "write-result", resultEnv(headSha));
+        const blockingHelper = await writePostPublicationBlockingHelper(
+          cwd,
+          playReviewHelperScript,
+        );
+        const publishedMarker = path.join(cwd, ".ephemeral/published");
+        const releaseMarker = path.join(cwd, ".ephemeral/release-orphan");
+        const terminalMarker = path.join(cwd, ".ephemeral/orphan-terminal");
+        const envelope = JSON.stringify(findingsEnvelope());
+        const interrupted = spawnHelperWithStdin(
+          cwd,
+          "replace-findings",
+          envelope,
+          {
+            HEAD_SHA: headSha,
+            RESULT_FILE: resultPath(headSha),
+            PLAY_REVIEW_HELPER: blockingHelper,
+            BLOCK_MARKER: publishedMarker,
+            RELEASE_MARKER: releaseMarker,
+            TERMINAL_MARKER: terminalMarker,
+          },
+        );
+        const interruptedOutcome = interrupted.outcome.then(
+          (value) => ({ ok: true as const, value }),
+          (error: unknown) => ({ ok: false as const, error }),
+        );
+        await waitForFile(publishedMarker);
+        interrupted.child.kill("SIGKILL");
+        const stopped = await interruptedOutcome;
+        expect(stopped.ok).toBe(false);
+
+        await expect(
+          runHelperWithStdin(cwd, "replace-findings", envelope, {
+            HEAD_SHA: headSha,
+            RESULT_FILE: resultPath(headSha),
+            PLAY_REVIEW_HELPER: playReviewHelperScript,
+          }),
+        ).rejects.toMatchObject({
+          stdout: "",
+          stderr: expect.stringContaining(
+            "findings publication guard requires manual recovery",
+          ),
+        });
+
+        await writeFile(releaseMarker, "release\n");
+        await waitForFile(terminalMarker);
+
+        await expect(
+          runHelperWithStdin(cwd, "replace-findings", envelope, {
+            HEAD_SHA: headSha,
+            RESULT_FILE: resultPath(headSha),
+            PLAY_REVIEW_HELPER: playReviewHelperScript,
+          }),
+        ).rejects.toMatchObject({
+          stdout: "",
+          stderr: expect.stringContaining(
+            "findings publication guard requires manual recovery",
+          ),
+        });
+        await expect(
+          readFile(path.join(cwd, findingsPath(headSha)), "utf8"),
+        ).resolves.toBe(envelope);
+        await expect(
+          runHelper(cwd, "validate-result", {
+            ...resultEnv(headSha),
+            RESULT_FILE: resultPath(headSha),
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("findings digest mismatch"),
+        });
       } finally {
         await cleanupTempDir(cwd);
       }

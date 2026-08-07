@@ -273,6 +273,91 @@ expected_findings_path() {
   printf '.ephemeral/%s-%s-findings.json\n' "$branch_slug" "$HEAD_SHA"
 }
 
+validate_current_head() {
+  local current_head
+  current_head="$(git rev-parse HEAD 2>/dev/null)" || {
+    echo "failed to determine current HEAD" >&2
+    exit 1
+  }
+  [ "$HEAD_SHA" = "$current_head" ] || {
+    echo "HEAD_SHA is stale or does not match current HEAD" >&2
+    exit 1
+  }
+}
+
+prepare_publish_target() {
+  local file="$1"
+  [ -L .ephemeral ] && {
+    echo ".ephemeral must be a directory, not a symlink" >&2
+    exit 1
+  }
+  mkdir -p .ephemeral
+  [ -L .ephemeral ] && {
+    echo ".ephemeral must be a directory, not a symlink" >&2
+    exit 1
+  }
+  [ ! -L "$file" ] || {
+    echo "findings path must not be a symlink: $file" >&2
+    exit 1
+  }
+  [ ! -d "$file" ] || {
+    echo "findings path is a directory: $file" >&2
+    exit 1
+  }
+  [ ! -e "$file" ] || [ -f "$file" ] || {
+    echo "findings path exists but is not a regular file: $file" >&2
+    exit 1
+  }
+}
+
+publish_findings() {
+  local staging_file
+  require_repo_root
+  validate_head_sha
+  validate_current_head
+  require_env FINDINGS_FILE
+  validate_findings_path_shape "$FINDINGS_FILE"
+  prepare_publish_target "$FINDINGS_FILE"
+
+  staging_file="$(mktemp '.ephemeral/.publish-findings.XXXXXX')" || {
+    echo "failed to create findings staging file" >&2
+    exit 1
+  }
+  trap 'rm -f "${staging_file:-}"' EXIT
+
+  cat > "$staging_file" || {
+    echo "failed to stage findings input" >&2
+    exit 1
+  }
+  jq -e -s 'length == 1' "$staging_file" >/dev/null || {
+    echo "findings input must contain exactly one complete JSON envelope" >&2
+    exit 1
+  }
+  assert_readable_envelope "staged findings file" "$staging_file"
+
+  [ -L .ephemeral ] && {
+    echo ".ephemeral must be a directory, not a symlink" >&2
+    exit 1
+  }
+  [ ! -L "$FINDINGS_FILE" ] || {
+    echo "findings path must not be a symlink: $FINDINGS_FILE" >&2
+    exit 1
+  }
+  [ ! -d "$FINDINGS_FILE" ] || {
+    echo "findings path is a directory: $FINDINGS_FILE" >&2
+    exit 1
+  }
+  [ ! -e "$FINDINGS_FILE" ] || [ -f "$FINDINGS_FILE" ] || {
+    echo "findings path exists but is not a regular file: $FINDINGS_FILE" >&2
+    exit 1
+  }
+  validate_current_head
+  validate_findings_path_shape "$FINDINGS_FILE"
+  mv "$staging_file" "$FINDINGS_FILE"
+  trap - EXIT
+  printf '%s\n' "$FINDINGS_FILE"
+}
+
 language_for_path() {
   local entry_path="$1"
   case "$entry_path" in
@@ -674,6 +759,13 @@ case "$command_name" in
     prepare_write_target "findings" "$FINDINGS_FILE"
     printf '%s\n' "$FINDINGS_FILE"
     ;;
+  publish-findings)
+    [ "$#" -eq 1 ] || {
+      echo "publish-findings accepts no arguments" >&2
+      exit 1
+    }
+    publish_findings
+    ;;
   render-review-preview)
     render_review_preview
     ;;
@@ -681,7 +773,7 @@ case "$command_name" in
     build_github_review_payload
     ;;
   *)
-    echo "usage: review-artifacts.sh validate-findings|validate-nits-file|derive-nits-pending|prepare-judgment-nits|prepare-findings-write|render-review-preview|build-github-review-payload" >&2
+    echo "usage: review-artifacts.sh validate-findings|validate-nits-file|derive-nits-pending|prepare-judgment-nits|prepare-findings-write|publish-findings|render-review-preview|build-github-review-payload" >&2
     exit 1
     ;;
 esac
