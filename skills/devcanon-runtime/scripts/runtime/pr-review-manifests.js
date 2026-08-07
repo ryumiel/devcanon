@@ -1,7 +1,7 @@
 import { execFile, spawn } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { constants } from "node:fs";
-import { access, link, lstat, mkdir, open, readFile, realpath, rm, stat, } from "node:fs/promises";
+import { access, link, lstat, mkdir, open, readFile, readdir, realpath, rm, stat, } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import { writeTextAtomically } from "./artifacts.js";
@@ -362,31 +362,33 @@ async function acquireFindingsPublicationGuard(resultFile, findingsSha256) {
     const baseGuardFile = resultFile.replace(/-result\.json$/, "-replace-findings.lock");
     await guardEphemeral();
     await mkdir(path.join(process.cwd(), ".ephemeral"), { recursive: true });
-    let guardFile = baseGuardFile;
-    for (let generation = 0; generation < 256; generation += 1) {
-        validateDirectChildPath("findings publication guard", guardFile, ".lock");
-        const ownerToken = randomUUID();
-        const guard = {
-            schema: "pr-review/replace-findings-guard/v1",
-            result_file: resultFile,
-            findings_sha256: findingsSha256,
-            pid: process.pid,
-            owner_token: ownerToken,
-        };
-        const published = await publishFindingsPublicationGuard(guardFile, guard);
-        if (published) {
-            return () => releaseFindingsPublicationGuard(guardFile, guard);
-        }
-        const existing = await readFindingsPublicationGuard(guardFile, resultFile);
-        if (findingsPublicationGuardOwnerMayBeLive(existing.pid)) {
-            fail(`replace-findings already in progress: ${resultFile}`);
-        }
-        const generationDigest = createHash("sha256")
-            .update(existing.owner_token)
-            .digest("hex");
-        guardFile = baseGuardFile.replace(/\.lock$/, `-${generationDigest}.lock`);
+    if (await findingsPublicationGuardExists(baseGuardFile)) {
+        fail(`findings publication guard requires manual recovery: ${resultFile}`);
     }
-    fail(`findings publication guard chain is too deep: ${resultFile}`);
+    validateDirectChildPath("findings publication guard", baseGuardFile, ".lock");
+    const guard = {
+        schema: "pr-review/replace-findings-guard/v1",
+        result_file: resultFile,
+        findings_sha256: findingsSha256,
+        pid: process.pid,
+        owner_token: randomUUID(),
+    };
+    if (!(await publishFindingsPublicationGuard(baseGuardFile, guard))) {
+        fail(`findings publication guard requires manual recovery: ${resultFile}`);
+    }
+    return () => releaseFindingsPublicationGuard(baseGuardFile, guard);
+}
+async function findingsPublicationGuardExists(baseGuardFile) {
+    const baseName = path.basename(baseGuardFile);
+    const generationPrefix = `${baseName.slice(0, -".lock".length)}-`;
+    const entries = await readdir(path.join(process.cwd(), ".ephemeral"));
+    return entries.some((entry) => {
+        if (entry === baseName)
+            return true;
+        if (!entry.startsWith(generationPrefix))
+            return false;
+        return /^[0-9a-f]{64}\.lock$/u.test(entry.slice(generationPrefix.length));
+    });
 }
 async function publishFindingsPublicationGuard(guardFile, guard) {
     const guardPath = path.join(process.cwd(), guardFile);
@@ -464,15 +466,6 @@ function isFindingsPublicationGuard(value, resultFile) {
         value.pid > 0 &&
         typeof value.owner_token === "string" &&
         /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u.test(value.owner_token));
-}
-function findingsPublicationGuardOwnerMayBeLive(pid) {
-    try {
-        process.kill(pid, 0);
-        return true;
-    }
-    catch (err) {
-        return err.code !== "ESRCH";
-    }
 }
 async function releaseFindingsPublicationGuard(guardFile, expected) {
     const current = await readFindingsPublicationGuard(guardFile, expected.result_file);

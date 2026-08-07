@@ -1004,6 +1004,13 @@ describe("pr-review findings publication rebinder", () => {
       stdout: "",
       stderr: "",
     });
+    const guardFile = workspace.resultFile.replace(
+      /-result\.json$/,
+      "-replace-findings.lock",
+    );
+    await expect(
+      lstat(path.join(workspace.worktree, guardFile)).catch(() => null),
+    ).resolves.toBeNull();
   });
 
   it("refuses a live findings publication guard before invoking the publisher", async () => {
@@ -1044,19 +1051,23 @@ describe("pr-review findings publication rebinder", () => {
 
     expect(outcome.exitCode).toBe(1);
     expect(outcome.stdout).toBe("");
-    expect(outcome.stderr).toContain("replace-findings already in progress");
+    expect(outcome.stderr).toContain(
+      "findings publication guard requires manual recovery",
+    );
     await expect(
       readFile(path.join(workspace.worktree, workspace.findingsFile), "utf8"),
     ).resolves.toBe(beforeFindings);
   });
 
-  it("recovers a dead findings publication guard for the exact interrupted envelope", async () => {
+  it("refuses a dead findings publication guard before invoking the publisher", async () => {
     const workspace = await makeManifestWorkspace("pr-review-findings-dead-");
     setSummaryEnv(workspace);
     process.env.PLAY_REVIEW_HELPER = await writePublishingPlayReviewHelper(
       workspace.tempRoot,
     );
     process.chdir(workspace.worktree);
+    const publisherMarker = path.join(workspace.tempRoot, "publisher-marker");
+    process.env.DRIFT_FILE = publisherMarker;
     const published = JSON.stringify({
       schema: "play-review/findings/v2",
       findings: [{ id: "F2", title: "Published before process death" }],
@@ -1089,22 +1100,50 @@ describe("pr-review findings publication rebinder", () => {
     await expect(
       runManifestCommandWithStdin(["replace-findings"], published),
     ).resolves.toEqual({
-      exitCode: 0,
-      stdout: `${workspace.resultFile}\n`,
-      stderr: "",
-    });
-    await expect(runManifestCommand(["validate-result"])).resolves.toEqual({
-      exitCode: 0,
+      exitCode: 1,
       stdout: "",
-      stderr: "",
+      stderr: `findings publication guard requires manual recovery: ${workspace.resultFile}\n`,
     });
-    const nextGuardFile = guardFile.replace(
-      /\.lock$/,
-      `-${createHash("sha256").update(ownerToken).digest("hex")}.lock`,
+    await expect(lstat(publisherMarker).catch(() => null)).resolves.toBeNull();
+  });
+
+  it("refuses a retained generated findings publication guard", async () => {
+    const workspace = await makeManifestWorkspace(
+      "pr-review-findings-generated-guard-",
     );
+    setSummaryEnv(workspace);
+    process.env.PLAY_REVIEW_HELPER = await writePublishingPlayReviewHelper(
+      workspace.tempRoot,
+    );
+    process.chdir(workspace.worktree);
+    const publisherMarker = path.join(workspace.tempRoot, "publisher-marker");
+    process.env.DRIFT_FILE = publisherMarker;
+    const replacement = JSON.stringify({
+      schema: "play-review/findings/v2",
+      findings: [{ id: "F2", title: "Blocked by retained guard" }],
+      carry_forward: [],
+    });
+    const guardFile = workspace.resultFile.replace(
+      /-result\.json$/,
+      "-replace-findings.lock",
+    );
+    const generatedGuardFile = guardFile.replace(
+      /\.lock$/,
+      `-${"a".repeat(64)}.lock`,
+    );
+    await writeFile(
+      path.join(workspace.worktree, generatedGuardFile),
+      "retained guard evidence\n",
+    );
+
     await expect(
-      lstat(path.join(workspace.worktree, nextGuardFile)).catch(() => null),
-    ).resolves.toBeNull();
+      runManifestCommandWithStdin(["replace-findings"], replacement),
+    ).resolves.toEqual({
+      exitCode: 1,
+      stdout: "",
+      stderr: `findings publication guard requires manual recovery: ${workspace.resultFile}\n`,
+    });
+    await expect(lstat(publisherMarker).catch(() => null)).resolves.toBeNull();
   });
 
   it.each(["malformed", "symlink"])(
@@ -1144,7 +1183,9 @@ describe("pr-review findings publication rebinder", () => {
 
       expect(outcome.exitCode).toBe(1);
       expect(outcome.stdout).toBe("");
-      expect(outcome.stderr).toContain("findings publication guard is invalid");
+      expect(outcome.stderr).toContain(
+        "findings publication guard requires manual recovery",
+      );
     },
   );
 

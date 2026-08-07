@@ -1160,19 +1160,19 @@ describe("rendered phase artifact smoke coverage", () => {
         "exactly one complete JSON document",
       );
       expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
+        "After changing a finding's severity or category, recompute its canonical `body` from the final severity, category, `why`, and `recommendation`, and preserve all other envelope coherence rules, including `critic: null` for Nit findings",
+      );
+      expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
         "refusal stops the Phase 5 continuation",
       );
       expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
-        "rerun that same public `replace-findings` command with the exact same caller-authored envelope",
+        "every subsequent `replace-findings` invocation refuses before publication while that guard remains",
       );
       expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
-        "Only the matching canonical findings-digest discontinuity is recoverable; every unaffected result and nested authority binding still revalidates",
+        "request explicit manual recovery outside this command",
       );
       expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
-        "Any different envelope or unrelated drift refuses and stops the continuation",
-      );
-      expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
-        "refuses before publication when another `replace-findings` invocation owns the same result",
+        "never reclaims retained guards or performs automatic crash recovery",
       );
       expect(renderedFindingsEdit).not.toContain("validate-findings");
       expect(renderedFindingsEdit).not.toContain("prepare-findings-write");

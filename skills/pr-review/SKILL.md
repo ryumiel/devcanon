@@ -833,7 +833,10 @@ latest preview.
 
 **Dropped or reclassified findings:** author a replacement
 `play-review/findings/v2` envelope in the caller. The caller-authored envelope
-must be exactly one complete JSON document. Do not inspect helpers or runtime,
+must be exactly one complete JSON document. After changing a finding's severity
+or category, recompute its canonical `body` from the final severity, category,
+`why`, and `recommendation`, and preserve all other envelope coherence rules,
+including `critic: null` for Nit findings. Do not inspect helpers or runtime,
 write the governed findings or result artifacts directly, or compose private
 calls. From the target worktree root, pass that one caller-authored envelope on
 stdin to the public `review-manifests.sh replace-findings` command. It owns
@@ -857,16 +860,14 @@ REVIEW_RESULT_FILE="$REPLACED_RESULT_FILE"
 RENDERED_PREVIEW_FILE=""
 ```
 
-If findings replacement succeeds but result rebinding is interrupted, rerun
-that same public `replace-findings` command with the exact same caller-authored
-envelope. Only the matching canonical findings-digest discontinuity is
-recoverable; every unaffected result and nested authority binding still
-revalidates. A successful retry atomically rebinds the result, clears stale
-preview evidence, and again prints the canonical rebound result path. Any
-different envelope or unrelated drift refuses and stops the continuation. The
-command also refuses before publication when another `replace-findings`
-invocation owns the same result; after that invocation terminates, retry only
-with the caller-authored envelope still intended for publication.
+If an invocation is interrupted after its publication guard is created, every
+subsequent `replace-findings` invocation refuses before publication while that
+guard remains, regardless of the submitted envelope or whether the recorded
+PID appears live, dead, reused, stale, or ambiguous. Stop the Phase 5
+continuation and request explicit manual recovery outside this command. The
+command never reclaims retained guards or performs automatic crash recovery.
+An uninterrupted successful invocation removes only its exact owned guard
+after the rebound result validates.
 
 After that successful rebound, continue only through existing public owners in
 this order: `write-review-body`, `recover-review-body-publication when needed`,

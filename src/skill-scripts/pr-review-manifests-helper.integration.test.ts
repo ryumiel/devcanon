@@ -625,9 +625,11 @@ async function writePostPublicationBlockingHelper(
       'if [[ "${1:-}" != "publish-findings" ]]; then exec bash "$real_helper" "$@"; fi',
       ': "${BLOCK_MARKER:?}"',
       ': "${RELEASE_MARKER:?}"',
+      ': "${TERMINAL_MARKER:?}"',
       'bash "$real_helper" "$@"',
       'printf "published\\n" > "$BLOCK_MARKER"',
       'while [[ ! -f "$RELEASE_MARKER" ]]; do sleep 0.01; done',
+      'printf "terminal\\n" > "$TERMINAL_MARKER"',
       "",
     ].join("\n"),
   );
@@ -1307,7 +1309,7 @@ describe("pr-review manifest helper", () => {
         ).rejects.toMatchObject({
           stdout: "",
           stderr: expect.stringContaining(
-            "replace-findings already in progress",
+            "findings publication guard requires manual recovery",
           ),
         });
         expect(await lstat(secondMarker).catch(() => null)).toBeNull();
@@ -1329,7 +1331,7 @@ describe("pr-review manifest helper", () => {
   );
 
   it.skipIf(isWindows)(
-    "recovers the exact public envelope after the publication owner dies",
+    "refuses automatic public recovery after the publication owner dies",
     async () => {
       const { cwd, baseSha, headSha } = await makeGitWorkspace();
       try {
@@ -1346,6 +1348,7 @@ describe("pr-review manifest helper", () => {
         );
         const publishedMarker = path.join(cwd, ".ephemeral/published");
         const releaseMarker = path.join(cwd, ".ephemeral/release-orphan");
+        const terminalMarker = path.join(cwd, ".ephemeral/orphan-terminal");
         const envelope = JSON.stringify(findingsEnvelope());
         const interrupted = spawnHelperWithStdin(
           cwd,
@@ -1357,6 +1360,7 @@ describe("pr-review manifest helper", () => {
             PLAY_REVIEW_HELPER: blockingHelper,
             BLOCK_MARKER: publishedMarker,
             RELEASE_MARKER: releaseMarker,
+            TERMINAL_MARKER: terminalMarker,
           },
         );
         const interruptedOutcome = interrupted.outcome.then(
@@ -1367,7 +1371,6 @@ describe("pr-review manifest helper", () => {
         interrupted.child.kill("SIGKILL");
         const stopped = await interruptedOutcome;
         expect(stopped.ok).toBe(false);
-        await writeFile(releaseMarker, "release\n");
 
         await expect(
           runHelperWithStdin(cwd, "replace-findings", envelope, {
@@ -1375,12 +1378,39 @@ describe("pr-review manifest helper", () => {
             RESULT_FILE: resultPath(headSha),
             PLAY_REVIEW_HELPER: playReviewHelperScript,
           }),
-        ).resolves.toEqual({
-          stdout: `${resultPath(headSha)}\n`,
-          stderr: "",
+        ).rejects.toMatchObject({
+          stdout: "",
+          stderr: expect.stringContaining(
+            "findings publication guard requires manual recovery",
+          ),
         });
-        const result = await readJson(cwd, resultPath(headSha));
-        expect(result.digests.findings_sha256).toBe(sha256(envelope));
+
+        await writeFile(releaseMarker, "release\n");
+        await waitForFile(terminalMarker);
+
+        await expect(
+          runHelperWithStdin(cwd, "replace-findings", envelope, {
+            HEAD_SHA: headSha,
+            RESULT_FILE: resultPath(headSha),
+            PLAY_REVIEW_HELPER: playReviewHelperScript,
+          }),
+        ).rejects.toMatchObject({
+          stdout: "",
+          stderr: expect.stringContaining(
+            "findings publication guard requires manual recovery",
+          ),
+        });
+        await expect(
+          readFile(path.join(cwd, findingsPath(headSha)), "utf8"),
+        ).resolves.toBe(envelope);
+        await expect(
+          runHelper(cwd, "validate-result", {
+            ...resultEnv(headSha),
+            RESULT_FILE: resultPath(headSha),
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("findings digest mismatch"),
+        });
       } finally {
         await cleanupTempDir(cwd);
       }
