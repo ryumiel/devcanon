@@ -408,6 +408,10 @@ Helper command surface:
 - `prepare-result-write`
 - `write-result`
 - `validate-result`
+- `read-result-for-preview`
+- `write-review-body`
+- `recover-review-body-publication`
+- `replace-findings`
 - `render-phase5-audit-summary`
 
 Exact controller-facing notice lines:
@@ -852,6 +856,14 @@ REPLACED_RESULT_FILE=$( \
 REVIEW_RESULT_FILE="$REPLACED_RESULT_FILE"
 RENDERED_PREVIEW_FILE=""
 ```
+
+If findings replacement succeeds but result rebinding is interrupted, rerun
+that same public `replace-findings` command with the exact same caller-authored
+envelope. Only the matching canonical findings-digest discontinuity is
+recoverable; every unaffected result and nested authority binding still
+revalidates. A successful retry atomically rebinds the result, clears stale
+preview evidence, and again prints the canonical rebound result path. Any
+different envelope or unrelated drift refuses and stops the continuation.
 
 After that successful rebound, continue only through existing public owners in
 this order: `write-review-body`, `recover-review-body-publication when needed`,

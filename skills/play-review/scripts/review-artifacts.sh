@@ -351,6 +351,8 @@ publish_findings() {
     echo "findings path exists but is not a regular file: $FINDINGS_FILE" >&2
     exit 1
   }
+  validate_current_head
+  validate_findings_path_shape "$FINDINGS_FILE"
   mv "$staging_file" "$FINDINGS_FILE"
   trap - EXIT
   printf '%s\n' "$FINDINGS_FILE"

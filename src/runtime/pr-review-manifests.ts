@@ -430,12 +430,16 @@ async function replaceFindings(): Promise<string> {
     requireEnv(name);
   }
   const resultFile = requiredEnv("RESULT_FILE");
+  const input = await readStdinBytes();
+  const publishedFindingsSha256 = createHash("sha256")
+    .update(input)
+    .digest("hex");
   const { result } =
     await validatePrReviewResultCommandAuthorityForFindingsPublication(
       readResultValidationInput(resultFile),
+      publishedFindingsSha256,
     );
   const findingsFile = stringField(result, "findings_file");
-  const input = await readStdinBytes();
   await runBashHelperWithStdin(
     requiredEnv("PLAY_REVIEW_HELPER"),
     "publish-findings",
@@ -450,6 +454,7 @@ async function replaceFindings(): Promise<string> {
   const { result: currentResult } =
     await validatePrReviewResultCommandAuthorityForFindingsPublication(
       readResultValidationInput(resultFile),
+      publishedFindingsSha256,
     );
   const artifacts = objectField(currentResult, "artifacts");
   const digests = objectField(currentResult, "digests");

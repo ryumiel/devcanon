@@ -903,6 +903,17 @@ describe("pr-review manifest helper", () => {
     expect(manifestUsage).toContain("write-review-body");
     expect(manifestUsage).toContain("recover-review-body-publication");
     expect(manifestUsage).toContain("replace-findings");
+    expect(manifestUsage).toContain("target worktree root");
+    expect(manifestUsage).toContain(
+      "PR_NUMBER, HEAD_SHA, REPOSITORY, RESULT_FILE, and PLAY_REVIEW_HELPER",
+    );
+    expect(manifestUsage).toContain(
+      "exactly one complete findings envelope on stdin and no extra arguments",
+    );
+    expect(manifestUsage).toContain("canonical rebound result path");
+    expect(manifestUsage).toContain(
+      "any refusal exits nonzero and stops continuation",
+    );
     expect(leaseUsage).toContain("read-status");
     expect(leaseUsage).toContain("record-audit-failure");
   });

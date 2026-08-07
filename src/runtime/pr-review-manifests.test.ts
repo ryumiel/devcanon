@@ -1039,6 +1039,49 @@ describe("pr-review findings publication rebinder", () => {
     });
   });
 
+  it("refuses retry authority when canonical findings drift differs from stdin", async () => {
+    const workspace = await makeManifestWorkspace(
+      "pr-review-findings-unrelated-drift-",
+    );
+    setSummaryEnv(workspace);
+    process.env.PLAY_REVIEW_HELPER = await writePublishingPlayReviewHelper(
+      workspace.tempRoot,
+    );
+    process.chdir(workspace.worktree);
+    const drifted = JSON.stringify({
+      schema: "play-review/findings/v2",
+      findings: [{ id: "F2", title: "Unrelated canonical drift" }],
+      carry_forward: [],
+    });
+    const replacement = JSON.stringify({
+      schema: "play-review/findings/v2",
+      findings: [{ id: "F3", title: "Different submitted envelope" }],
+      carry_forward: [],
+    });
+    await writeFile(
+      path.join(workspace.worktree, workspace.findingsFile),
+      drifted,
+    );
+    const beforeResult = await readFile(
+      path.join(workspace.worktree, workspace.resultFile),
+      "utf8",
+    );
+
+    await expect(
+      runManifestCommandWithStdin(["replace-findings"], replacement),
+    ).resolves.toEqual({
+      exitCode: 1,
+      stdout: "",
+      stderr: `findings digest mismatch: ${workspace.findingsFile}\n`,
+    });
+    await expect(
+      readFile(path.join(workspace.worktree, workspace.findingsFile), "utf8"),
+    ).resolves.toBe(drifted);
+    await expect(
+      readFile(path.join(workspace.worktree, workspace.resultFile), "utf8"),
+    ).resolves.toBe(beforeResult);
+  });
+
   it("refuses to overwrite a result when publication causes unrelated drift", async () => {
     const workspace = await makeManifestWorkspace("pr-review-findings-race-");
     setSummaryEnv(workspace);

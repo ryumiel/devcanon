@@ -199,6 +199,20 @@ async function expectNoPublishStaging(cwd: string): Promise<void> {
   ).toEqual([]);
 }
 
+async function waitForPublishStaging(cwd: string): Promise<void> {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    if (
+      (await readdir(path.join(cwd, ".ephemeral"))).some((entry) =>
+        entry.startsWith(".publish-findings."),
+      )
+    ) {
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error("publish-findings did not create its staging file");
+}
+
 function previewBody(stdout: string): string {
   const match = stdout.match(
     /## GitHub Review Body\n\n(?<body>[\s\S]*?)\n\n## Findings/,
@@ -1396,6 +1410,71 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
           path.join(cwd, `.ephemeral/wrong-${reviewHeadSha}-findings.json`),
         ),
       ).rejects.toMatchObject({ code: "ENOENT" });
+      await expectNoPublishStaging(cwd);
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("refuses identity drift while findings input is still being staged", async () => {
+    const cwd = await makeTopicGitWorkspace();
+    try {
+      const reviewHeadSha = await currentHeadSha(cwd);
+      const canonicalFile = `.ephemeral/topic-${reviewHeadSha}-findings.json`;
+      const priorContents = JSON.stringify({
+        schema: "play-review/findings/v2",
+        findings: [],
+        carry_forward: [],
+        incomplete_topical_routes: [],
+      });
+      const replacement = JSON.stringify({
+        schema: "play-review/findings/v2",
+        findings: [finding()],
+        carry_forward: [],
+        incomplete_topical_routes: [],
+      });
+      await writeFile(path.join(cwd, canonicalFile), priorContents);
+
+      const child = spawn("bash", [helperScript, "publish-findings"], {
+        cwd,
+        env: {
+          ...process.env,
+          HEAD_SHA: reviewHeadSha,
+          FINDINGS_FILE: canonicalFile,
+        },
+      });
+      let stdout = "";
+      let stderr = "";
+      child.stdout.setEncoding("utf8").on("data", (chunk: string) => {
+        stdout += chunk;
+      });
+      child.stderr.setEncoding("utf8").on("data", (chunk: string) => {
+        stderr += chunk;
+      });
+      const outcome = new Promise<{ code: number | null }>(
+        (resolve, reject) => {
+          child.on("error", reject);
+          child.on("close", (code) => resolve({ code }));
+        },
+      );
+      const midpoint = Math.floor(replacement.length / 2);
+      child.stdin.write(replacement.slice(0, midpoint));
+      await waitForPublishStaging(cwd);
+      await writeFile(path.join(cwd, "README.md"), "changed identity\n");
+      await execFileAsync("git", ["add", "README.md"], { cwd });
+      await execFileAsync("git", ["commit", "-m", "test: drift head"], {
+        cwd,
+      });
+      child.stdin.end(replacement.slice(midpoint));
+
+      await expect(outcome).resolves.toEqual({ code: 1 });
+      expect(stdout).toBe("");
+      expect(stderr).toContain(
+        "HEAD_SHA is stale or does not match current HEAD",
+      );
+      expect(await readFile(path.join(cwd, canonicalFile), "utf8")).toBe(
+        priorContents,
+      );
       await expectNoPublishStaging(cwd);
     } finally {
       await cleanupTempDir(cwd);

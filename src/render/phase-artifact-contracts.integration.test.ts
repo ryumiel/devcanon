@@ -1162,6 +1162,15 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
         "refusal stops the Phase 5 continuation",
       );
+      expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
+        "rerun that same public `replace-findings` command with the exact same caller-authored envelope",
+      );
+      expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
+        "Only the matching canonical findings-digest discontinuity is recoverable; every unaffected result and nested authority binding still revalidates",
+      );
+      expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
+        "Any different envelope or unrelated drift refuses and stops the continuation",
+      );
       expect(renderedFindingsEdit).not.toContain("validate-findings");
       expect(renderedFindingsEdit).not.toContain("prepare-findings-write");
       expect(renderedBodyRewriteIndex).toBeGreaterThanOrEqual(0);

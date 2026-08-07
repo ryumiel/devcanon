@@ -54,7 +54,7 @@ const FORBIDDEN_KEYS = new Set([
 
 interface PrReviewResultCommandAuthorityOptions {
   allowReviewBodyDigestMismatch?: true;
-  allowFindingsDigestMismatch?: true;
+  allowedFindingsSha256?: string;
 }
 
 export async function validatePrReviewResultEvidence(
@@ -81,9 +81,10 @@ export async function validatePrReviewResultCommandAuthorityForReviewBodyRecover
 
 export async function validatePrReviewResultCommandAuthorityForFindingsPublication(
   input: PrReviewResultCommandAuthorityInput,
+  publishedFindingsSha256: string,
 ): Promise<PrReviewResultCommandAuthorityEvidence> {
   return validatePrReviewResultCommandAuthorityWithOptions(input, {
-    allowFindingsDigestMismatch: true,
+    allowedFindingsSha256: publishedFindingsSha256,
   });
 }
 
@@ -398,12 +399,13 @@ async function validateResultFacts(
     handoffFile,
     stringField(digests, "handoff_sha256"),
   );
-  if (!options.allowFindingsDigestMismatch) {
-    await validateDigest(
-      "findings",
-      findingsFile,
-      stringField(digests, "findings_sha256"),
-    );
+  const boundFindingsSha256 = stringField(digests, "findings_sha256");
+  const currentFindingsSha256 = await sha256File(findingsFile);
+  if (
+    currentFindingsSha256 !== boundFindingsSha256 &&
+    currentFindingsSha256 !== options.allowedFindingsSha256
+  ) {
+    fail(`findings digest mismatch: ${findingsFile}`);
   }
   if (!options.allowReviewBodyDigestMismatch) {
     await validateOptionalDigest(

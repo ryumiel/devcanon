@@ -3880,6 +3880,15 @@ None
     expect(normalizeWhitespace(phase5)).toContain(
       "refusal stops the Phase 5 continuation",
     );
+    expect(normalizeWhitespace(phase5)).toContain(
+      "rerun that same public `replace-findings` command with the exact same caller-authored envelope",
+    );
+    expect(normalizeWhitespace(phase5)).toContain(
+      "Only the matching canonical findings-digest discontinuity is recoverable; every unaffected result and nested authority binding still revalidates",
+    );
+    expect(normalizeWhitespace(phase5)).toContain(
+      "Any different envelope or unrelated drift refuses and stops the continuation",
+    );
     expect(findingsEdit).not.toContain("validate-findings");
     expect(findingsEdit).not.toContain("prepare-findings-write");
     expect(findingsEdit).not.toContain("# Write the rewritten");

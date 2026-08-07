@@ -311,15 +311,18 @@ async function replaceFindings() {
         requireEnv(name);
     }
     const resultFile = requiredEnv("RESULT_FILE");
-    const { result } = await validatePrReviewResultCommandAuthorityForFindingsPublication(readResultValidationInput(resultFile));
-    const findingsFile = stringField(result, "findings_file");
     const input = await readStdinBytes();
+    const publishedFindingsSha256 = createHash("sha256")
+        .update(input)
+        .digest("hex");
+    const { result } = await validatePrReviewResultCommandAuthorityForFindingsPublication(readResultValidationInput(resultFile), publishedFindingsSha256);
+    const findingsFile = stringField(result, "findings_file");
     await runBashHelperWithStdin(requiredEnv("PLAY_REVIEW_HELPER"), "publish-findings", input, {
         ...process.env,
         HEAD_SHA: readHeadSha(),
         FINDINGS_FILE: findingsFile,
     });
-    const { result: currentResult } = await validatePrReviewResultCommandAuthorityForFindingsPublication(readResultValidationInput(resultFile));
+    const { result: currentResult } = await validatePrReviewResultCommandAuthorityForFindingsPublication(readResultValidationInput(resultFile), publishedFindingsSha256);
     const artifacts = objectField(currentResult, "artifacts");
     const digests = objectField(currentResult, "digests");
     const presentation = objectField(currentResult, "presentation");
