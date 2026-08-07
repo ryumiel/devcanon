@@ -1171,6 +1171,9 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
         "Any different envelope or unrelated drift refuses and stops the continuation",
       );
+      expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
+        "refuses before publication when another `replace-findings` invocation owns the same result",
+      );
       expect(renderedFindingsEdit).not.toContain("validate-findings");
       expect(renderedFindingsEdit).not.toContain("prepare-findings-write");
       expect(renderedBodyRewriteIndex).toBeGreaterThanOrEqual(0);

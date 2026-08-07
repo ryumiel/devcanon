@@ -863,7 +863,10 @@ envelope. Only the matching canonical findings-digest discontinuity is
 recoverable; every unaffected result and nested authority binding still
 revalidates. A successful retry atomically rebinds the result, clears stale
 preview evidence, and again prints the canonical rebound result path. Any
-different envelope or unrelated drift refuses and stops the continuation.
+different envelope or unrelated drift refuses and stops the continuation. The
+command also refuses before publication when another `replace-findings`
+invocation owns the same result; after that invocation terminates, retry only
+with the caller-authored envelope still intended for publication.
 
 After that successful rebound, continue only through existing public owners in
 this order: `write-review-body`, `recover-review-body-publication when needed`,

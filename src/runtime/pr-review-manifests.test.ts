@@ -1,4 +1,6 @@
-import { createHash } from "node:crypto";
+import { spawn } from "node:child_process";
+import { createHash, randomUUID } from "node:crypto";
+import { once } from "node:events";
 import {
   chmod,
   lstat,
@@ -1003,6 +1005,148 @@ describe("pr-review findings publication rebinder", () => {
       stderr: "",
     });
   });
+
+  it("refuses a live findings publication guard before invoking the publisher", async () => {
+    const workspace = await makeManifestWorkspace("pr-review-findings-live-");
+    setSummaryEnv(workspace);
+    process.env.PLAY_REVIEW_HELPER = await writePublishingPlayReviewHelper(
+      workspace.tempRoot,
+    );
+    process.chdir(workspace.worktree);
+    const beforeFindings = await readFile(
+      path.join(workspace.worktree, workspace.findingsFile),
+      "utf8",
+    );
+    const replacement = JSON.stringify({
+      schema: "play-review/findings/v2",
+      findings: [{ id: "F2", title: "Contending replacement" }],
+      carry_forward: [],
+    });
+    const guardFile = workspace.resultFile.replace(
+      /-result\.json$/,
+      "-replace-findings.lock",
+    );
+    await writeFile(
+      path.join(workspace.worktree, guardFile),
+      `${JSON.stringify({
+        schema: "pr-review/replace-findings-guard/v1",
+        result_file: workspace.resultFile,
+        findings_sha256: createHash("sha256").update(replacement).digest("hex"),
+        pid: process.pid,
+        owner_token: randomUUID(),
+      })}\n`,
+    );
+
+    const outcome = await runManifestCommandWithStdin(
+      ["replace-findings"],
+      replacement,
+    );
+
+    expect(outcome.exitCode).toBe(1);
+    expect(outcome.stdout).toBe("");
+    expect(outcome.stderr).toContain("replace-findings already in progress");
+    await expect(
+      readFile(path.join(workspace.worktree, workspace.findingsFile), "utf8"),
+    ).resolves.toBe(beforeFindings);
+  });
+
+  it("recovers a dead findings publication guard for the exact interrupted envelope", async () => {
+    const workspace = await makeManifestWorkspace("pr-review-findings-dead-");
+    setSummaryEnv(workspace);
+    process.env.PLAY_REVIEW_HELPER = await writePublishingPlayReviewHelper(
+      workspace.tempRoot,
+    );
+    process.chdir(workspace.worktree);
+    const published = JSON.stringify({
+      schema: "play-review/findings/v2",
+      findings: [{ id: "F2", title: "Published before process death" }],
+      carry_forward: [],
+    });
+    await writeFile(
+      path.join(workspace.worktree, workspace.findingsFile),
+      published,
+    );
+    const ownerToken = randomUUID();
+    const exitedOwner = spawn(process.execPath, ["-e", ""]);
+    const exitedOwnerPid = exitedOwner.pid;
+    if (exitedOwnerPid === undefined) throw new Error("missing child pid");
+    await once(exitedOwner, "close");
+    const guardFile = workspace.resultFile.replace(
+      /-result\.json$/,
+      "-replace-findings.lock",
+    );
+    await writeFile(
+      path.join(workspace.worktree, guardFile),
+      `${JSON.stringify({
+        schema: "pr-review/replace-findings-guard/v1",
+        result_file: workspace.resultFile,
+        findings_sha256: createHash("sha256").update(published).digest("hex"),
+        pid: exitedOwnerPid,
+        owner_token: ownerToken,
+      })}\n`,
+    );
+
+    await expect(
+      runManifestCommandWithStdin(["replace-findings"], published),
+    ).resolves.toEqual({
+      exitCode: 0,
+      stdout: `${workspace.resultFile}\n`,
+      stderr: "",
+    });
+    await expect(runManifestCommand(["validate-result"])).resolves.toEqual({
+      exitCode: 0,
+      stdout: "",
+      stderr: "",
+    });
+    const nextGuardFile = guardFile.replace(
+      /\.lock$/,
+      `-${createHash("sha256").update(ownerToken).digest("hex")}.lock`,
+    );
+    await expect(
+      lstat(path.join(workspace.worktree, nextGuardFile)).catch(() => null),
+    ).resolves.toBeNull();
+  });
+
+  it.each(["malformed", "symlink"])(
+    "fails closed for a %s findings publication guard",
+    async (kind) => {
+      const workspace = await makeManifestWorkspace(
+        `pr-review-findings-${kind}-`,
+      );
+      setSummaryEnv(workspace);
+      process.env.PLAY_REVIEW_HELPER = await writePublishingPlayReviewHelper(
+        workspace.tempRoot,
+      );
+      process.chdir(workspace.worktree);
+      const guardPath = path.join(
+        workspace.worktree,
+        workspace.resultFile.replace(
+          /-result\.json$/,
+          "-replace-findings.lock",
+        ),
+      );
+      if (kind === "malformed") {
+        await writeFile(guardPath, "{}\n");
+      } else {
+        const external = path.join(workspace.tempRoot, "foreign-guard");
+        await writeFile(external, "{}\n");
+        await symlink(external, guardPath);
+      }
+
+      const outcome = await runManifestCommandWithStdin(
+        ["replace-findings"],
+        JSON.stringify({
+          schema: "play-review/findings/v2",
+          findings: [],
+          carry_forward: [],
+        }),
+      );
+
+      expect(outcome.exitCode).toBe(1);
+      expect(outcome.stdout).toBe("");
+      expect(outcome.stderr).toContain("findings publication guard is invalid");
+    },
+  );
 
   it("refuses a successful publisher that leaves the old findings canonical", async () => {
     const workspace = await makeManifestWorkspace("pr-review-findings-noop-");

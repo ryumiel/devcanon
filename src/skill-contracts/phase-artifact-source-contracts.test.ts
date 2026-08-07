@@ -3889,6 +3889,9 @@ None
     expect(normalizeWhitespace(phase5)).toContain(
       "Any different envelope or unrelated drift refuses and stops the continuation",
     );
+    expect(normalizeWhitespace(phase5)).toContain(
+      "refuses before publication when another `replace-findings` invocation owns the same result",
+    );
     expect(findingsEdit).not.toContain("validate-findings");
     expect(findingsEdit).not.toContain("prepare-findings-write");
     expect(findingsEdit).not.toContain("# Write the rewritten");
