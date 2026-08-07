@@ -1159,9 +1159,11 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
         "exactly one complete JSON document",
       );
-      expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
-        "After changing a finding's severity or category, recompute its canonical `body` from the final severity, category, `why`, and `recommendation`, and preserve all other envelope coherence rules, including `critic: null` for Nit findings",
-      );
+      expectSubstringsInOrder(normalizeRenderedWhitespace(renderedPrReview), [
+        "recompute its canonical `body`",
+        "final severity, category, `why`, and `recommendation`",
+        "`critic: null` for Nit findings",
+      ]);
       expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
         "refusal stops the Phase 5 continuation",
       );

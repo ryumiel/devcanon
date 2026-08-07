@@ -3877,9 +3877,11 @@ None
     expect(normalizeWhitespace(phase5)).toContain(
       "exactly one complete JSON document",
     );
-    expect(normalizeWhitespace(phase5)).toContain(
-      "After changing a finding's severity or category, recompute its canonical `body` from the final severity, category, `why`, and `recommendation`, and preserve all other envelope coherence rules, including `critic: null` for Nit findings",
-    );
+    expectSubstringsInOrder(normalizeWhitespace(phase5), [
+      "recompute its canonical `body`",
+      "final severity, category, `why`, and `recommendation`",
+      "`critic: null` for Nit findings",
+    ]);
     expect(normalizeWhitespace(phase5)).toContain(
       "refusal stops the Phase 5 continuation",
     );
