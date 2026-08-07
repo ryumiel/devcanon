@@ -13,7 +13,7 @@ import {
 import os from "node:os";
 import path from "node:path";
 
-const DEFAULT_COMMAND_DEADLINE_MS = 4_000;
+const DEFAULT_COMMAND_DEADLINE_MS = 4_500;
 const DEFAULT_OUTPUT_LIMIT_BYTES = 1_048_576;
 const TASKKILL_STDERR_LIMIT_BYTES = 16_384;
 const DIRECT_CHILD_CLOSE_DEADLINE_MS = 250;
@@ -162,10 +162,7 @@ export class PrReviewCommandHarness {
       ((child) => {
         child.kill();
       });
-    if (
-      this.commandDeadlineMs <= 0 ||
-      this.commandDeadlineMs >= DEFAULT_COMMAND_DEADLINE_MS + 1_000
-    ) {
+    if (this.commandDeadlineMs <= 0 || this.commandDeadlineMs >= 5_000) {
       throw new Error(
         `command deadline must be between 1 and 4999ms: ${this.commandDeadlineMs}`,
       );

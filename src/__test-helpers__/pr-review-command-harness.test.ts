@@ -8,6 +8,7 @@ import {
   describe,
   expect,
   it,
+  vi,
 } from "vitest";
 import { PrReviewCommandHarness } from "./pr-review-command-harness.js";
 
@@ -233,6 +234,110 @@ describe("PR-review command harness source seeds", () => {
 });
 
 describe("PR-review command harness process ownership", () => {
+  it("uses the 4500ms normal deadline for outer operations", async () => {
+    vi.useFakeTimers();
+    const harness = new PrReviewCommandHarness({
+      envKeys: [],
+      seed: "review",
+    });
+    harness.beginTest();
+    let rejectOperation: (error: Error) => void = () => undefined;
+    const operation = new Promise<void>((_resolve, reject) => {
+      rejectOperation = reject;
+    });
+    const tracked = harness.trackOuter(operation, "normal outer operation");
+    let trackedState = "pending";
+    void tracked.then(
+      () => {
+        trackedState = "resolved";
+      },
+      () => {
+        trackedState = "rejected";
+      },
+    );
+
+    try {
+      await vi.advanceTimersByTimeAsync(4_499);
+      expect(trackedState).toBe("pending");
+
+      await vi.advanceTimersByTimeAsync(1);
+      await expect(tracked).rejects.toThrow(
+        "normal outer operation exceeded the 4500ms harness deadline",
+      );
+
+      rejectOperation(new Error("late outer root cause"));
+      await expect(harness.endTest()).rejects.toThrow("late outer root cause");
+      expect(harness.activeOperationCount).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("preserves constructor deadline comparison guards", () => {
+    for (const commandDeadlineMs of [1, 4_999, 0.5, Number.NaN]) {
+      expect(
+        () =>
+          new PrReviewCommandHarness({
+            envKeys: [],
+            seed: "review",
+            commandDeadlineMs,
+          }),
+      ).not.toThrow();
+    }
+
+    for (const commandDeadlineMs of [0, 5_000]) {
+      expect(
+        () =>
+          new PrReviewCommandHarness({
+            envKeys: [],
+            seed: "review",
+            commandDeadlineMs,
+          }),
+      ).toThrow(
+        `command deadline must be between 1 and 4999ms: ${commandDeadlineMs}`,
+      );
+    }
+  });
+
+  it("preserves child deadline comparison guards before child start", async () => {
+    const harness = new PrReviewCommandHarness({
+      envKeys: [],
+      seed: "review",
+    });
+    harness.beginTest();
+
+    try {
+      await expect(
+        harness.run(
+          process.execPath,
+          ["-e", "setTimeout(() => process.exit(0), 100)"],
+          { deadlineMs: 1 },
+        ),
+      ).rejects.toThrow("exceeded the 1ms child deadline");
+      await expect(
+        harness.run(process.execPath, ["-e", "process.exit(0)"], {
+          deadlineMs: 4_999,
+        }),
+      ).resolves.toMatchObject({ exitCode: 0 });
+
+      for (const deadlineMs of [0, 5_000]) {
+        await expect(
+          harness.run(process.execPath, ["-e", "process.exit(0)"], {
+            deadlineMs,
+          }),
+        ).rejects.toThrow(
+          `child deadline must be between 1 and 4999ms: ${deadlineMs}`,
+        );
+        expect(harness.activeChildCount).toBe(0);
+      }
+
+      await harness.endTest();
+      expect(harness.activeOperationCount).toBe(0);
+    } finally {
+      await harness.dispose();
+    }
+  });
+
   it("reports bounded taskkill diagnostics after a simulated Windows direct-child fallback", async () => {
     const harness = new PrReviewCommandHarness({
       envKeys: [],
