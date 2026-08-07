@@ -45,7 +45,7 @@ export async function enrollPathIdentity<Type extends PathIdentity["type"]>(
   assertNativeAbsolutePath(logical);
   const normalized = path.normalize(path.resolve(logical));
   const physical = await resolvePhysicalPath(logical);
-  const stat = await lstat(physical);
+  const stat = await lstat(physical, { bigint: true });
   assertExpectedType(stat, expectedType);
   const identity = stableIdentity(stat);
 
@@ -211,7 +211,7 @@ async function assertPhysicalAncestry(
   const depth = relative === "" ? 0 : relative.split(path.sep).length;
 
   for (let index = 0; index <= depth; index += 1) {
-    const stat = await lstat(current);
+    const stat = await lstat(current, { bigint: true });
     assertExpectedType(stat, "directory");
     if (stat.isSymbolicLink()) {
       throw new RootIdentityError(
@@ -251,26 +251,26 @@ async function assertDirectoryNotLink(value: string): Promise<void> {
 }
 
 function assertExpectedType(
-  stat: Awaited<ReturnType<typeof lstat>>,
+  stat: Pick<import("node:fs").Stats, "isDirectory" | "isFile">,
   expected: PathIdentity["type"],
 ): void {
   const matches = expected === "directory" ? stat.isDirectory() : stat.isFile();
   if (!matches) throw new RootIdentityError(`path is not a ${expected}`);
 }
 
-function stableIdentity(stat: Awaited<ReturnType<typeof lstat>>): {
+function stableIdentity(stat: import("node:fs").BigIntStats): {
   device: bigint;
   file: bigint;
 } {
   if (
-    !Number.isSafeInteger(stat.dev) ||
-    !Number.isSafeInteger(stat.ino) ||
-    stat.dev < 0 ||
-    stat.ino < 0
+    typeof stat.dev !== "bigint" ||
+    typeof stat.ino !== "bigint" ||
+    stat.dev < 0n ||
+    stat.ino < 0n
   ) {
     throw new RootIdentityError("path has no reliable stable identity");
   }
-  return { device: BigInt(stat.dev), file: BigInt(stat.ino) };
+  return { device: stat.dev, file: stat.ino };
 }
 
 function sameIdentity(

@@ -1,3 +1,4 @@
+import { realpath as realpathCallback } from "node:fs";
 import {
   chmod,
   copyFile,
@@ -9,15 +10,27 @@ import {
   symlink,
   writeFile,
 } from "node:fs/promises";
+import * as fsPromises from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { promisify } from "node:util";
 import { describe, expect, test } from "vitest";
+
+import { vi } from "vitest";
+
+vi.mock("node:fs/promises", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:fs/promises")>();
+  return { ...actual, lstat: vi.fn(actual.lstat) };
+});
+
 import {
   enrollExecutable,
   enrollPathIdentity,
   enrollWorkingDirectory,
   parseWindowsPresentation,
 } from "./pr-review-root-identity.js";
+
+const realpathNative = promisify(realpathCallback.native);
 
 describe("pr-review root identity", () => {
   test("enrolls distinct logical, normalized, physical, and stable directory identity", async () => {
@@ -66,6 +79,44 @@ describe("pr-review root identity", () => {
       await expect(enrollWorkingDirectory(enrolledRoot, child)).rejects.toThrow(
         /contained|root/i,
       );
+
+      const bigintRoot = path.join(parent, "bigint-root");
+      const bigintChild = path.join(bigintRoot, "child");
+      const device = BigInt(Number.MAX_SAFE_INTEGER) + 1n;
+      const file = device + 1n;
+      await mkdir(bigintChild, { recursive: true });
+      const physicalBigintRoot = await realpathNative(bigintRoot);
+      const lstat = vi.mocked(fsPromises.lstat);
+      const originalLstat = lstat.getMockImplementation();
+      if (!originalLstat) throw new Error("lstat mock implementation missing");
+      lstat.mockImplementation(async (...args) => {
+        const observed = await originalLstat(...args);
+        if (String(args[0]) !== physicalBigintRoot || args[1]?.bigint !== true)
+          return observed;
+        return Object.assign(
+          Object.create(Object.getPrototypeOf(observed)),
+          observed,
+          { dev: device, ino: file },
+        );
+      });
+
+      try {
+        const bigintEnrolledRoot = await enrollPathIdentity(
+          bigintRoot,
+          "directory",
+        );
+        const bigintEnrolledWorkingDirectory = await enrollWorkingDirectory(
+          bigintEnrolledRoot,
+          bigintChild,
+        );
+
+        expect(bigintEnrolledRoot).toMatchObject({ device, file });
+        expect(bigintEnrolledWorkingDirectory.identity.physical).toBe(
+          await realpath(bigintChild),
+        );
+      } finally {
+        lstat.mockImplementation(originalLstat);
+      }
     } finally {
       await rm(parent, { recursive: true, force: true });
     }
