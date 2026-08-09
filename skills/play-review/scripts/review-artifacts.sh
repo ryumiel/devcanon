@@ -329,6 +329,14 @@ publish_findings() {
     echo "failed to stage findings input" >&2
     exit 1
   }
+  node -e '
+const fs = require("node:fs");
+const { TextDecoder } = require("node:util");
+new TextDecoder("utf-8", { fatal: true }).decode(fs.readFileSync(process.argv[1]));
+' "$staging_file" 2>/dev/null || {
+    echo "findings input must be valid UTF-8" >&2
+    exit 1
+  }
   jq -e -s 'length == 1' "$staging_file" >/dev/null || {
     echo "findings input must contain exactly one complete JSON envelope" >&2
     exit 1

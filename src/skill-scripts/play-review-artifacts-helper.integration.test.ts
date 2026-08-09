@@ -157,7 +157,7 @@ async function runHelper(
 async function runHelperWithStdin(
   cwd: string,
   command: string,
-  stdin: string,
+  stdin: string | Uint8Array,
   env: NodeJS.ProcessEnv = {},
 ): Promise<{ stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
@@ -1309,6 +1309,44 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
         stderr: expect.stringContaining("envelope schema mismatch"),
       });
       expect(await readFile(path.join(cwd, canonicalFile), "utf-8")).toBe(
+        priorContents,
+      );
+      await expectNoPublishStaging(cwd);
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("refuses invalid UTF-8 before publishing findings and cleans staging", async () => {
+    const cwd = await makeTopicGitWorkspace();
+    try {
+      const reviewHeadSha = await currentHeadSha(cwd);
+      const canonicalFile = `.ephemeral/topic-${reviewHeadSha}-findings.json`;
+      const priorEnvelope = {
+        schema: "play-review/findings/v2",
+        findings: [],
+        carry_forward: [],
+        incomplete_topical_routes: [],
+      };
+      const priorContents = `${JSON.stringify(priorEnvelope)}\n`;
+      const input = Buffer.from(
+        JSON.stringify({ ...priorEnvelope, findings: [finding()] }),
+        "utf8",
+      );
+      const markerOffset = input.indexOf("skills/play-review/SKILL.md");
+      expect(markerOffset).toBeGreaterThanOrEqual(0);
+      input[markerOffset] = 0x80;
+      await writeFile(path.join(cwd, canonicalFile), priorContents);
+
+      await expect(
+        runHelperWithStdin(cwd, "publish-findings", input, {
+          HEAD_SHA: reviewHeadSha,
+          FINDINGS_FILE: canonicalFile,
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("findings input must be valid UTF-8"),
+      });
+      expect(await readFile(path.join(cwd, canonicalFile), "utf8")).toBe(
         priorContents,
       );
       await expectNoPublishStaging(cwd);

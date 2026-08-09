@@ -73,9 +73,9 @@ printf '%s' "$FINDINGS_ENVELOPE" |
   bash "$PLAY_REVIEW_HELPER" publish-findings || exit 1
 ```
 
-The helper refuses a stale SHA, a noncanonical path, malformed input, trailing
-non-whitespace data, unsafe file targets, and invalid envelopes before it
-replaces the canonical file. It stages standard input, reuses the
+The helper refuses a stale SHA, a noncanonical path, invalid UTF-8, malformed
+input, trailing non-whitespace data, unsafe file targets, and invalid envelopes
+before it replaces the canonical file. It stages standard input, reuses the
 findings-envelope validator, atomically replaces only the canonical findings
 file on success, cleans staging on every terminal path, and prints that
 canonical repo-relative path. This public command is additive; existing direct
