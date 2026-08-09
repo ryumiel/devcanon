@@ -2497,7 +2497,7 @@ None
       "if any included finding or the combined grouped edit would trigger a stop rule",
     );
     expect(normalizedBranchReview).toContain(
-      "Each unit is one ungrouped blocking finding verified by the critic",
+      "Each unit is one proportionality-qualified ungrouped blocking finding verified by the critic",
     );
     expect(normalizedBranchReview).toContain(
       "one same-invariant grouped blocker set formed above",
@@ -2506,7 +2506,7 @@ None
       "Do not also process grouped members as individual findings",
     );
     expect(normalizedBranchReview).toContain(
-      "one ungrouped fixable nit, or one same-file same-scope grouped fixable-nit set formed above",
+      "one proportionality-qualified ungrouped fixable nit, or one same-file same-scope grouped fixable-nit set formed above",
     );
     expect(normalizedBranchReview).toContain(
       "need context beyond the unit's flagged lines and any adjacent same-invariant active-diff surfaces selected by the scan for that grouped unit",
@@ -2741,7 +2741,7 @@ None
       "Fixable nits that are resolved by `--fix` are removed from the final findings envelope",
     );
     expect(normalizedBranchReview).toContain(
-      "Only judgment-required nits remain for caller handoff",
+      "Non-mutating candidates and judgment-required nits remain for caller handoff",
     );
     expect(normalizedBranchReview).toContain(
       "one obvious correct fix that requires only a 1-3 line source change",
@@ -2751,6 +2751,45 @@ None
     );
     expect(normalizedBranchReview).toContain(
       "Reported by branch-review at <path>:<line>",
+    );
+  });
+
+  it("prevents the former severity-only branch-review auto-fix failure through the Writing Skills proportionality gate before grouping; source-contract coverage is primary proof and render coverage alone is insufficient", async () => {
+    const branchReview = await readSkillSource("branch-review");
+    const writingSkills = await readRepoFile(
+      "docs/guidelines/writing-skills.md",
+    );
+    const normalizedBranchReview = normalizeWhitespace(branchReview);
+    const normalizedWritingSkills = normalizeWhitespace(writingSkills);
+    const gateMarker = "Proportionality gate (Writing Skills)";
+
+    expect(normalizedWritingSkills).toContain(
+      "Before mutating source in response to a finding, classify it",
+    );
+    expect(branchReview).toContain(gateMarker);
+    expect(normalizedBranchReview).toContain(
+      "Severity, critic validity, and technical fixability alone never authorize mutation",
+    );
+    expect(normalizedBranchReview).toContain(
+      "Only an in-scope product blocker with a reachable production path, an authoritative contract violation, meaningful harm, and a minimal active-issue correction may enter the existing bounded production-fix path",
+    );
+    expect(normalizedBranchReview).toContain(
+      "A proof or test defect may use only its existing proof owner and must not expand production scope",
+    );
+    expect(normalizedBranchReview).toContain(
+      "Adjacent independently releasable defects, technically valid adjacent hardening, proof/test-driven production expansion, invalid, speculative, or unclear findings, and non-qualified fixable nits remain non-mutating",
+    );
+    expect(normalizedBranchReview).toContain(
+      "The remaining set includes every candidate withheld by the proportionality gate",
+    );
+    expect(
+      branchReview.indexOf("filter findings tagged `Critic: INVALID`"),
+    ).toBeLessThan(branchReview.indexOf(gateMarker));
+    expect(branchReview.indexOf(gateMarker)).toBeLessThan(
+      branchReview.indexOf("same-invariant grouping pass"),
+    );
+    expect(branchReview.indexOf(gateMarker)).toBeLessThan(
+      branchReview.indexOf("Iterate over fix units"),
     );
   });
 
@@ -2765,7 +2804,7 @@ None
       "Fixable nits that are resolved by `--fix` are removed from the final findings envelope",
     );
     expect(normalizedBranchReview).toContain(
-      "Only judgment-required nits remain for caller handoff",
+      "Non-mutating candidates and judgment-required nits remain for caller handoff",
     );
     expect(normalizedBranchReview).not.toContain(
       "Nit findings are never auto-fixed",
