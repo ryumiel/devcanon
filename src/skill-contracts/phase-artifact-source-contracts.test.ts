@@ -2754,14 +2754,20 @@ None
     );
   });
 
-  it("uses source-contract coverage as the primary proof that the Writing Skills gate follows candidate hard stops before grouping because prior/render-only coverage is insufficient", async () => {
+  it("uses source-contract coverage as the primary proof that the former severity-only auto-fix regression is gated after candidate hard stops and before grouping because prior/render-only coverage is insufficient", async () => {
     const branchReview = await readSkillSource("branch-review");
     const writingSkills = await readRepoFile(
       "docs/guidelines/writing-skills.md",
     );
     const normalizedWritingSkills = normalizeWhitespace(writingSkills);
+    const normalizedBranchReview = normalizeWhitespace(branchReview);
+    const invalidFilterMarker = "`Critic: INVALID` out of auto-fix eligibility";
+    const downgradeFilterMarker =
+      "tagged `DOWNGRADE` out of blocking auto-fix eligibility";
     const hardStopMarker = "Candidate hard-stop check";
     const gateMarker = "Proportionality gate (Writing Skills)";
+    const mutationBoundary =
+      "Severity, critic validity, and technical fixability alone never authorize mutation";
 
     expect(normalizedWritingSkills).toContain(
       "### Review and mutation routing",
@@ -2769,11 +2775,17 @@ None
     expect(branchReview).toContain(
       "[`docs/guidelines/writing-skills.md`](../../docs/guidelines/writing-skills.md#review-and-mutation-routing)",
     );
+    expect(branchReview).toContain(invalidFilterMarker);
+    expect(branchReview).toContain(downgradeFilterMarker);
     expect(branchReview).toContain(hardStopMarker);
     expect(branchReview).toContain(gateMarker);
-    expect(
-      branchReview.indexOf("filter findings tagged `Critic: INVALID`"),
-    ).toBeLessThan(branchReview.indexOf(hardStopMarker));
+    expect(normalizedBranchReview).toContain(mutationBoundary);
+    expect(branchReview.indexOf(invalidFilterMarker)).toBeLessThan(
+      branchReview.indexOf(hardStopMarker),
+    );
+    expect(branchReview.indexOf(downgradeFilterMarker)).toBeLessThan(
+      branchReview.indexOf(hardStopMarker),
+    );
     expect(branchReview.indexOf(hardStopMarker)).toBeLessThan(
       branchReview.indexOf(gateMarker),
     );
