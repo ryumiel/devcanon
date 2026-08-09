@@ -2815,6 +2815,31 @@ None
     );
   });
 
+  it("keeps Phase 7 follow-up evidence full-range and pre-mutation", async () => {
+    const issuePrimingWorkflow = await readSkillSource(
+      "issue-priming-workflow",
+    );
+    const phase7Reference = await readRepoFile(
+      "skills/issue-priming-workflow/references/phase-7-review-handling.md",
+    );
+    const firstRunMarker = "First run: existing full-diff route";
+    const followUpMarker = "Follow-up: paired prior-review route";
+    const normalizedReference = normalizeWhitespace(phase7Reference);
+
+    expect(phase7Reference).toContain(firstRunMarker);
+    expect(phase7Reference).toContain(followUpMarker);
+    expect(phase7Reference.indexOf(firstRunMarker)).toBeLessThan(
+      phase7Reference.indexOf(followUpMarker),
+    );
+    expect(phase7Reference).toContain("--last-reviewed");
+    expect(phase7Reference).toContain("--prior-findings");
+    expect(normalizedReference).toContain("full base...HEAD semantic scope");
+    expect(normalizedReference).toContain("Before grouping or mutation");
+    expect(normalizeWhitespace(issuePrimingWorkflow)).toContain(
+      "validated review head and post-fix findings envelope",
+    );
+  });
+
   it("keeps fixable nit ownership out of issue-priming caller surfaces", async () => {
     const issuePrimingWorkflow = await readSkillSource(
       "issue-priming-workflow",

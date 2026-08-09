@@ -876,6 +876,7 @@ unless a concrete blocker stops `--auto`.
 ### Phase 7: Branch Review
 
 Invoke `branch-review --fix` to review the implementation before creating a PR.
+The first Phase 7 invocation keeps this existing full-diff route.
 If Phase 6 emitted `Risk signals written to <path>.`, invoke
 `branch-review --fix --risk-signals <path>` for default-base artifacts on the
 next branch-review run. If Phase 6 emitted detached issue-base risk signals
@@ -919,10 +920,14 @@ that remain after the final branch-review run to Phase 8 via the
 helper-produced `-nits-pending.json` path. If the judgment-required set is
 empty, omit `nits_file`.
 
-After any branch-review-owned fix commit, rerun `branch-review --fix` on the
-new `HEAD` and restart Phase 7, passing only risk signals regenerated for that
-`HEAD` when using `--risk-signals`. For the run that will allow Phase 8 to
-start, capture that final run's exact
+After any branch-review-owned fix commit, capture the run's validated review
+head and post-fix findings envelope, then invoke the existing paired
+`--last-reviewed`/`--prior-findings` route on the new `HEAD`. Require its
+existing semantic scope selection to retain full base...HEAD review while it
+forwards the validated prior findings to `play-review`; regenerated risk signals
+remain governed by their existing route. Phase 7 owns those inputs and
+orchestration, while Branch Review remains the comparison, fix, and commit
+owner. For the run that will allow Phase 8 to start, capture that final run's exact
 `Approval summary written to <path>.` notice path alongside the review head and
 findings path evidence. A missing approval-summary notice from the final run is
 a hard stop before Phase 8. Do not carry an approval-summary path from an

@@ -82,11 +82,44 @@ one trailer per addressed nit:
 Reported by branch-review at <path>:<line>
 ```
 
-If `branch-review --fix` creates any fix commit, rerun `branch-review --fix` on
-the new `HEAD` and restart Phase 7. Continue until a run reports zero blocking
-findings auto-fixed, no unresolved true Blocking findings, captures that final
-run's approval-summary notice path, and carries fresh final approval-summary
-evidence after branch-review-owned fix commits.
+### First run: existing full-diff route
+
+The first Phase 7 run uses the existing full-diff `branch-review --fix` route.
+
+### Follow-up: paired prior-review route
+
+If that run creates a branch-review-owned fix commit, Phase 7 captures that
+run's validated review head and post-fix findings envelope before it invokes
+the next round. On the new `HEAD`, invoke the existing paired route with those
+exact values:
+
+```bash
+SEMANTIC_ESCALATION_REASON=shared-workflow-policy \
+  branch-review --fix \
+  --last-reviewed "$PRIOR_REVIEW_HEAD" \
+  --prior-findings "$PRIOR_FINDINGS_FILE"
+```
+
+This uses no new input or artifact. The existing paired-input validation fails
+closed; missing or invalid paired evidence stops this follow-up without source
+changes. `shared-workflow-policy` requires Branch Review to retain full
+base...HEAD semantic scope while it forwards the validated prior findings to
+`play-review`. Preserve any existing risk-signal and positional-base inputs
+under their current rules.
+
+Before grouping or mutation, Branch Review compares current findings and
+concrete source evidence with that validated prior evidence. Only a newly
+discovered concrete source fact, contradiction, invalid dependency, or material
+safety defect may reopen its existing remediation route. Repeated severity or
+critic labels, already available evidence, and wording or stable-marker-only
+corrections keep the prior disposition and remain non-mutating. Phase 7
+supplies the inputs and orchestration; it never applies a post-mutation veto.
+Branch Review remains the comparison, fix, and commit owner.
+
+Continue until a run reports zero blocking findings auto-fixed, no unresolved
+true Blocking findings, captures that final run's approval-summary notice path,
+and carries fresh final approval-summary evidence after branch-review-owned fix
+commits.
 
 ## Judgment-Required Nits Envelope
 
