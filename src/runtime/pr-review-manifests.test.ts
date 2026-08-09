@@ -1333,6 +1333,119 @@ describe("pr-review findings publication rebinder", () => {
     ).resolves.toBeNull();
   });
 
+  it("retains the guard when the publisher fails after canonical publication", async () => {
+    const workspace = await makeManifestWorkspace(
+      "pr-review-findings-publisher-failure-",
+    );
+    setSummaryEnv(workspace);
+    process.env.PLAY_REVIEW_HELPER =
+      await writePostPublicationFailurePlayReviewHelper(workspace.tempRoot);
+    process.chdir(workspace.worktree);
+    const beforeResult = await readFile(
+      path.join(workspace.worktree, workspace.resultFile),
+      "utf8",
+    );
+    const replacement = JSON.stringify({
+      schema: "play-review/findings/v2",
+      findings: [{ id: "F2", title: "Published before helper failure" }],
+      carry_forward: [],
+    });
+    const guardFile = workspace.resultFile.replace(
+      /-result\.json$/,
+      "-replace-findings.lock",
+    );
+
+    const outcome = await runManifestCommandWithStdin(
+      ["replace-findings"],
+      replacement,
+    );
+
+    expect(outcome).toEqual({
+      exitCode: 1,
+      stdout: "",
+      stderr: "publisher interrupted after publication\n",
+    });
+    await expect(
+      readFile(path.join(workspace.worktree, workspace.findingsFile), "utf8"),
+    ).resolves.toBe(replacement);
+    await expect(
+      readFile(path.join(workspace.worktree, workspace.resultFile), "utf8"),
+    ).resolves.toBe(beforeResult);
+    await expect(
+      lstat(path.join(workspace.worktree, guardFile)).then((stat) =>
+        stat.isFile(),
+      ),
+    ).resolves.toBe(true);
+
+    const retryPublisherMarker = path.join(
+      workspace.tempRoot,
+      "publisher-failure-retry-entered",
+    );
+    process.env.PLAY_REVIEW_HELPER =
+      await writePublisherEntryRecordingPlayReviewHelper(workspace.tempRoot);
+    process.env.DRIFT_FILE = retryPublisherMarker;
+    await expect(
+      runManifestCommandWithStdin(["replace-findings"], replacement),
+    ).resolves.toEqual({
+      exitCode: 1,
+      stdout: "",
+      stderr: `findings publication guard requires manual recovery: ${workspace.resultFile}\n`,
+    });
+    await expect(
+      lstat(retryPublisherMarker).catch(() => null),
+    ).resolves.toBeNull();
+  });
+
+  it("refuses invalid UTF-8 findings before publisher entry", async () => {
+    const workspace = await makeManifestWorkspace(
+      "pr-review-findings-invalid-utf8-",
+    );
+    setSummaryEnv(workspace);
+    process.env.PLAY_REVIEW_HELPER =
+      await writePublisherEntryRecordingPlayReviewHelper(workspace.tempRoot);
+    const publisherMarker = path.join(
+      workspace.tempRoot,
+      "invalid-utf8-publisher-entered",
+    );
+    process.env.DRIFT_FILE = publisherMarker;
+    process.chdir(workspace.worktree);
+    const beforeFindings = await readFile(
+      path.join(workspace.worktree, workspace.findingsFile),
+    );
+    const beforeResult = await readFile(
+      path.join(workspace.worktree, workspace.resultFile),
+    );
+    const invalidUtf8 = Buffer.concat([
+      Buffer.from(
+        '{"schema":"play-review/findings/v2","findings":[{"id":"F2","title":"invalid ',
+      ),
+      Buffer.from([0x80]),
+      Buffer.from('"}],"carry_forward":[]}'),
+    ]);
+    const guardFile = workspace.resultFile.replace(
+      /-result\.json$/,
+      "-replace-findings.lock",
+    );
+
+    await expect(
+      runManifestCommandWithStdin(["replace-findings"], invalidUtf8),
+    ).resolves.toEqual({
+      exitCode: 1,
+      stdout: "",
+      stderr: "findings stdin must be valid UTF-8\n",
+    });
+    await expect(
+      readFile(path.join(workspace.worktree, workspace.findingsFile)),
+    ).resolves.toEqual(beforeFindings);
+    await expect(
+      readFile(path.join(workspace.worktree, workspace.resultFile)),
+    ).resolves.toEqual(beforeResult);
+    await expect(lstat(publisherMarker).catch(() => null)).resolves.toBeNull();
+    await expect(
+      lstat(path.join(workspace.worktree, guardFile)).catch(() => null),
+    ).resolves.toBeNull();
+  });
+
   it("retries after publication when only the canonical findings digest is stale", async () => {
     const workspace = await makeManifestWorkspace("pr-review-findings-retry-");
     setSummaryEnv(workspace);
@@ -1520,6 +1633,7 @@ describe("pr-review findings publication rebinder", () => {
       input: "",
       mutate: async () => undefined,
       stderr: "findings input must contain exactly one complete JSON envelope",
+      retainedGuard: true,
     },
     {
       name: "stale immutable identity",
@@ -1532,6 +1646,7 @@ describe("pr-review findings publication rebinder", () => {
         process.env.HEAD_SHA = "a".repeat(40);
       },
       stderr: "review head mismatch",
+      retainedGuard: false,
     },
     {
       name: "unrelated result drift",
@@ -1546,46 +1661,54 @@ describe("pr-review findings publication rebinder", () => {
           "Changed outside findings publication.\n",
         ),
       stderr: "review body digest mismatch",
+      retainedGuard: false,
     },
-  ])("preserves artifacts for $name", async ({ input, mutate, stderr }) => {
-    const workspace = await makeManifestWorkspace("pr-review-findings-refuse-");
-    setSummaryEnv(workspace);
-    process.env.PLAY_REVIEW_HELPER = await writePublishingPlayReviewHelper(
-      workspace.tempRoot,
-    );
-    process.chdir(workspace.worktree);
-    const beforeFindings = await readFile(
-      path.join(workspace.worktree, workspace.findingsFile),
-      "utf8",
-    );
-    const beforeResult = await readFile(
-      path.join(workspace.worktree, workspace.resultFile),
-      "utf8",
-    );
-    await mutate(workspace);
+  ])(
+    "preserves artifacts for $name",
+    async ({ input, mutate, stderr, retainedGuard }) => {
+      const workspace = await makeManifestWorkspace(
+        "pr-review-findings-refuse-",
+      );
+      setSummaryEnv(workspace);
+      process.env.PLAY_REVIEW_HELPER = await writePublishingPlayReviewHelper(
+        workspace.tempRoot,
+      );
+      process.chdir(workspace.worktree);
+      const beforeFindings = await readFile(
+        path.join(workspace.worktree, workspace.findingsFile),
+        "utf8",
+      );
+      const beforeResult = await readFile(
+        path.join(workspace.worktree, workspace.resultFile),
+        "utf8",
+      );
+      await mutate(workspace);
 
-    const outcome = await runManifestCommandWithStdin(
-      ["replace-findings"],
-      input,
-    );
+      const outcome = await runManifestCommandWithStdin(
+        ["replace-findings"],
+        input,
+      );
 
-    expect(outcome.exitCode).toBe(1);
-    expect(outcome.stdout).toBe("");
-    expect(outcome.stderr).toContain(stderr);
-    await expect(
-      readFile(path.join(workspace.worktree, workspace.findingsFile), "utf8"),
-    ).resolves.toBe(beforeFindings);
-    await expect(
-      readFile(path.join(workspace.worktree, workspace.resultFile), "utf8"),
-    ).resolves.toBe(beforeResult);
-    const guardFile = workspace.resultFile.replace(
-      /-result\.json$/,
-      "-replace-findings.lock",
-    );
-    await expect(
-      lstat(path.join(workspace.worktree, guardFile)).catch(() => null),
-    ).resolves.toBeNull();
-  });
+      expect(outcome.exitCode).toBe(1);
+      expect(outcome.stdout).toBe("");
+      expect(outcome.stderr).toContain(stderr);
+      await expect(
+        readFile(path.join(workspace.worktree, workspace.findingsFile), "utf8"),
+      ).resolves.toBe(beforeFindings);
+      await expect(
+        readFile(path.join(workspace.worktree, workspace.resultFile), "utf8"),
+      ).resolves.toBe(beforeResult);
+      const guardFile = workspace.resultFile.replace(
+        /-result\.json$/,
+        "-replace-findings.lock",
+      );
+      await expect(
+        lstat(path.join(workspace.worktree, guardFile)).catch(() => null),
+      ).resolves.toSatisfy((guard) =>
+        retainedGuard ? guard?.isFile() === true : guard === null,
+      );
+    },
+  );
 });
 
 async function runManifestCommand(
@@ -1898,6 +2021,44 @@ async function writePublishingPlayReviewHelper(
       "    exit 1",
       "    ;;",
       "esac",
+      "",
+    ].join("\n"),
+  );
+}
+
+async function writePostPublicationFailurePlayReviewHelper(
+  tempRoot: string,
+): Promise<string> {
+  const publisher = await writePublishingPlayReviewHelper(tempRoot);
+  return writeExecutable(
+    path.join(tempRoot, "post-publication-failure-play-review-helper.sh"),
+    [
+      "#!/usr/bin/env bash",
+      "set -euo pipefail",
+      `publisher=${JSON.stringify(publisher)}`,
+      'if [[ "${1:-}" != "publish-findings" ]]; then exec bash "$publisher" "$@"; fi',
+      'bash "$publisher" "$@"',
+      'echo "publisher interrupted after publication" >&2',
+      "exit 143",
+      "",
+    ].join("\n"),
+  );
+}
+
+async function writePublisherEntryRecordingPlayReviewHelper(
+  tempRoot: string,
+): Promise<string> {
+  const publisher = await writePublishingPlayReviewHelper(tempRoot);
+  return writeExecutable(
+    path.join(tempRoot, "publisher-entry-recording-play-review-helper.sh"),
+    [
+      "#!/usr/bin/env bash",
+      "set -euo pipefail",
+      `publisher=${JSON.stringify(publisher)}`,
+      'if [[ "${1:-}" != "publish-findings" ]]; then exec bash "$publisher" "$@"; fi',
+      ': "${DRIFT_FILE:?}"',
+      'printf "entered\\n" > "$DRIFT_FILE"',
+      'exec bash "$publisher" "$@"',
       "",
     ].join("\n"),
   );

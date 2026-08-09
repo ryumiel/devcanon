@@ -441,6 +441,11 @@ async function replaceFindings(): Promise<string> {
   }
   const resultFile = requiredEnv("RESULT_FILE");
   const input = await readStdinBytes();
+  try {
+    new TextDecoder("utf-8", { fatal: true }).decode(input);
+  } catch {
+    fail("findings stdin must be valid UTF-8");
+  }
   const publishedFindingsSha256 = createHash("sha256")
     .update(input)
     .digest("hex");
@@ -448,7 +453,7 @@ async function replaceFindings(): Promise<string> {
     resultFile,
     publishedFindingsSha256,
   );
-  let publisherSucceeded = false;
+  let publisherInvoked = false;
   let reboundResultValidated = false;
   try {
     const { result } =
@@ -457,6 +462,7 @@ async function replaceFindings(): Promise<string> {
         publishedFindingsSha256,
       );
     const findingsFile = stringField(result, "findings_file");
+    publisherInvoked = true;
     await runBashHelperWithStdin(
       requiredEnv("PLAY_REVIEW_HELPER"),
       "publish-findings",
@@ -467,7 +473,6 @@ async function replaceFindings(): Promise<string> {
         FINDINGS_FILE: findingsFile,
       },
     );
-    publisherSucceeded = true;
     await validateDigest(
       "published findings",
       findingsFile,
@@ -510,7 +515,7 @@ async function replaceFindings(): Promise<string> {
     reboundResultValidated = true;
     return resultFile;
   } finally {
-    if (!publisherSucceeded || reboundResultValidated) {
+    if (!publisherInvoked || reboundResultValidated) {
       await releasePublicationGuard();
     }
   }

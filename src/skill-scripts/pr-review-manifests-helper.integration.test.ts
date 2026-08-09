@@ -662,6 +662,28 @@ async function writePostPublicationDriftHelper(
   return script;
 }
 
+async function writePublisherEntryRecordingHelper(
+  cwd: string,
+  realHelper: string,
+): Promise<string> {
+  const script = path.join(cwd, ".ephemeral/publisher-entry-recording.sh");
+  await writeFile(
+    script,
+    [
+      "#!/usr/bin/env bash",
+      "set -euo pipefail",
+      `real_helper=${JSON.stringify(realHelper)}`,
+      'if [[ "${1:-}" != "publish-findings" ]]; then exec bash "$real_helper" "$@"; fi',
+      ': "${PUBLISHER_ENTRY_MARKER:?}"',
+      'printf "entered\\n" > "$PUBLISHER_ENTRY_MARKER"',
+      'exec bash "$real_helper" "$@"',
+      "",
+    ].join("\n"),
+  );
+  await chmod(script, 0o755);
+  return script;
+}
+
 async function copyWrapperWithRecordingRuntime(
   root: string,
   sourceScript: string,
@@ -1284,6 +1306,72 @@ describe("pr-review manifest helper", () => {
         expect(result.artifacts.rendered_preview_file).toBeNull();
         expect(result.digests.rendered_preview_sha256).toBeNull();
         expect(result.presentation.status).toBe("edited");
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    },
+  );
+
+  it.skipIf(isWindows)(
+    "refuses invalid UTF-8 findings before the public publisher runs",
+    async () => {
+      const { cwd, baseSha, headSha } = await makeGitWorkspace();
+      try {
+        await writeValidInputs(cwd, baseSha, headSha);
+        await runHelper(
+          cwd,
+          "write-handoff",
+          handoffEnv(cwd, baseSha, headSha),
+        );
+        await runHelper(cwd, "write-result", resultEnv(headSha));
+        const resultFile = resultPath(headSha);
+        const guardFile = resultFile.replace(
+          /-result\.json$/,
+          "-replace-findings.lock",
+        );
+        const beforeFindings = await readFile(
+          path.join(cwd, findingsPath(headSha)),
+        );
+        const beforeResult = await readFile(path.join(cwd, resultFile));
+        const publisherMarker = path.join(
+          cwd,
+          ".ephemeral/invalid-utf8-publisher-entered",
+        );
+        const recordingHelper = await writePublisherEntryRecordingHelper(
+          cwd,
+          playReviewHelperScript,
+        );
+        const invalidUtf8 = Buffer.concat([
+          Buffer.from(
+            '{"schema":"play-review/findings/v2","findings":[{"id":"F2","title":"invalid ',
+          ),
+          Buffer.from([0x80]),
+          Buffer.from('"}],"carry_forward":[]}'),
+        ]);
+
+        await expect(
+          runHelperWithStdin(cwd, "replace-findings", invalidUtf8, {
+            HEAD_SHA: headSha,
+            RESULT_FILE: resultFile,
+            PLAY_REVIEW_HELPER: recordingHelper,
+            PUBLISHER_ENTRY_MARKER: publisherMarker,
+          }),
+        ).rejects.toMatchObject({
+          stdout: "",
+          stderr: "findings stdin must be valid UTF-8\n",
+        });
+        await expect(
+          readFile(path.join(cwd, findingsPath(headSha))),
+        ).resolves.toEqual(beforeFindings);
+        await expect(readFile(path.join(cwd, resultFile))).resolves.toEqual(
+          beforeResult,
+        );
+        await expect(
+          lstat(publisherMarker).catch(() => null),
+        ).resolves.toBeNull();
+        await expect(
+          lstat(path.join(cwd, guardFile)).catch(() => null),
+        ).resolves.toBeNull();
       } finally {
         await cleanupTempDir(cwd);
       }

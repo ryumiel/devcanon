@@ -833,16 +833,16 @@ latest preview.
 
 **Dropped or reclassified findings:** author a replacement
 `play-review/findings/v2` envelope in the caller. The caller-authored envelope
-must be exactly one complete JSON document. After changing a finding's severity
-or category, recompute its canonical `body` from the final severity, category,
-`why`, and `recommendation`, and preserve all other envelope coherence rules,
-including `critic: null` for Nit findings. Do not inspect helpers or runtime,
-write the governed findings or result artifacts directly, or compose private
-calls. From the target worktree root, pass that one caller-authored envelope on
-stdin to the public `review-manifests.sh replace-findings` command. It owns
-findings replacement and result-manifest rebinding. Its stdout is the canonical
-rebound result path; bind it as `REVIEW_RESULT_FILE`. A refusal stops the Phase
-5 continuation:
+must be exactly one complete JSON document encoded as valid UTF-8. After
+changing a finding's severity or category, recompute its canonical `body` from
+the final severity, category, `why`, and `recommendation`, and preserve all
+other envelope coherence rules, including `critic: null` for Nit findings. Do
+not inspect helpers or runtime, write the governed findings or result artifacts
+directly, or compose private calls. From the target worktree root, pass that one
+caller-authored envelope on stdin to the public `review-manifests.sh
+replace-findings` command. It owns findings replacement and result-manifest
+rebinding. Its stdout is the canonical rebound result path; bind it as
+`REVIEW_RESULT_FILE`. A refusal stops the Phase 5 continuation:
 
 ```bash
 : "${REPLACEMENT_FINDINGS_ENVELOPE:?caller-authored replacement findings envelope missing}"
