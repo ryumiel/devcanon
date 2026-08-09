@@ -311,7 +311,7 @@ prepare_publish_target() {
 }
 
 publish_findings() {
-  local staging_file
+  local staging_file utf8_roundtrip_file
   require_repo_root
   validate_head_sha
   validate_current_head
@@ -323,20 +323,27 @@ publish_findings() {
     echo "failed to create findings staging file" >&2
     exit 1
   }
-  trap 'rm -f "${staging_file:-}"' EXIT
+  trap 'rm -f "${staging_file:-}" "${utf8_roundtrip_file:-}"' EXIT
 
   cat > "$staging_file" || {
     echo "failed to stage findings input" >&2
     exit 1
   }
-  node -e '
-const fs = require("node:fs");
-const { TextDecoder } = require("node:util");
-new TextDecoder("utf-8", { fatal: true }).decode(fs.readFileSync(process.argv[1]));
-' "$staging_file" 2>/dev/null || {
+  utf8_roundtrip_file="$(mktemp '.ephemeral/.publish-findings.utf8.XXXXXX')" || {
+    echo "failed to create UTF-8 validation file" >&2
+    exit 1
+  }
+  jq --raw-input --slurp --join-output '.' "$staging_file" \
+    > "$utf8_roundtrip_file" 2>/dev/null || {
     echo "findings input must be valid UTF-8" >&2
     exit 1
   }
+  cmp -s "$staging_file" "$utf8_roundtrip_file" || {
+    echo "findings input must be valid UTF-8" >&2
+    exit 1
+  }
+  rm -f "$utf8_roundtrip_file"
+  utf8_roundtrip_file=
   jq -e -s 'length == 1' "$staging_file" >/dev/null || {
     echo "findings input must contain exactly one complete JSON envelope" >&2
     exit 1

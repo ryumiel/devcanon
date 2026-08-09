@@ -1355,9 +1355,14 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
     }
   });
 
-  it("requires exactly one document while allowing trailing whitespace", async () => {
+  it("requires one document and preserves valid bytes without ambient Node", async () => {
     const cwd = await makeTopicGitWorkspace();
     try {
+      const fakeBin = path.join(cwd, "test-bin");
+      const nodeShim = path.join(fakeBin, "node");
+      await mkdir(fakeBin);
+      await writeFile(nodeShim, "#!/usr/bin/env sh\nexit 97\n");
+      await chmod(nodeShim, 0o755);
       const reviewHeadSha = await currentHeadSha(cwd);
       const canonicalFile = `.ephemeral/topic-${reviewHeadSha}-findings.json`;
       const priorEnvelope = {
@@ -1395,7 +1400,11 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
           cwd,
           "publish-findings",
           `${JSON.stringify(replacementEnvelope)}\n \t\n`,
-          { HEAD_SHA: reviewHeadSha, FINDINGS_FILE: canonicalFile },
+          {
+            HEAD_SHA: reviewHeadSha,
+            FINDINGS_FILE: canonicalFile,
+            PATH: `${fakeBin}${path.delimiter}${process.env.PATH ?? ""}`,
+          },
         ),
       ).resolves.toMatchObject({ stdout: `${canonicalFile}\n` });
       expect(await readFile(path.join(cwd, canonicalFile), "utf-8")).toBe(
