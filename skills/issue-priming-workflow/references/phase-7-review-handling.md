@@ -59,7 +59,9 @@ before this workflow prepares the handoff.
 
 - Fixable: a 1-3 line source change with one obvious correct fix, such as a
   typo, broken sentence with one reconstruction, or dead cross-reference.
-  Branch-review owns resolving this class when `--fix` can do so.
+  Branch-review owns resolving this class when `--fix` can do so. A fixable nit
+  withheld by the proportionality gate remains non-mutating and is selected as
+  judgment-required for caller handoff rather than being dropped.
 - Judgment-required: subjective wording, structural suggestions, multiple
   plausible fixes, or anything else where a competent reviewer could defend
   more than one answer. Only this class is selected for Phase 8.
@@ -108,10 +110,13 @@ base...HEAD semantic scope while it forwards the validated prior findings to
 under their current rules.
 
 Before grouping or mutation, Branch Review compares current findings and
-concrete source evidence with that validated prior evidence. Only a newly
-discovered concrete source fact, contradiction, invalid dependency, or material
-safety defect may reopen its existing remediation route. Repeated severity or
-critic labels, already available evidence, and wording or stable-marker-only
+concrete source evidence with that validated prior evidence and the source at
+the validated review head. Only a newly discovered concrete source fact,
+contradiction, invalid dependency, or material safety defect unavailable to the
+prior round may reopen its existing remediation route. A prior auto-fix does
+not make its already-available evidence newly discovered merely because the
+post-fix envelope no longer lists that finding. Repeated severity or critic
+labels, already available evidence, and wording or stable-marker-only
 corrections do not reopen unrelated review dimensions. This does not suppress
 an existing bounded proof-owner repair or genuinely qualifying behavior,
 authority, or executable-contract evidence. Phase 7 supplies the inputs and

@@ -915,10 +915,11 @@ details, branch-review-owned fix commit rules, remaining-nit selection, and the
 For the eager contract: ignore `critic: "INVALID"` for continuation and never
 pass it to Phase 8; treat `critic: "DOWNGRADE"` as non-blocking,
 judgment-required feedback; branch-review owns fixable feedback through
-`branch-review --fix`; pass only judgment-required nits and downgraded findings
-that remain after the final branch-review run to Phase 8 via the
-helper-produced `-nits-pending.json` path. If the judgment-required set is
-empty, omit `nits_file`.
+`branch-review --fix`; a fixable nit withheld by the proportionality gate
+remains non-mutating and is selected for caller handoff as judgment-required.
+Pass that set and downgraded findings that remain after the final branch-review
+run to Phase 8 via the helper-produced `-nits-pending.json` path. If the
+judgment-required set is empty, omit `nits_file`.
 
 After any branch-review-owned fix commit, rerun `branch-review --fix` on the
 new `HEAD` and restart Phase 7, passing only risk signals regenerated for that

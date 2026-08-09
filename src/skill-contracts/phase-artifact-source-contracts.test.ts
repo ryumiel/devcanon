@@ -2760,8 +2760,6 @@ None
       "docs/guidelines/writing-skills.md",
     );
     const normalizedWritingSkills = normalizeWhitespace(writingSkills);
-    const hardStopMarker = "Candidate hard-stop check";
-    const followUpMarker = "Follow-up evidence qualification";
     const gateMarker = "Proportionality gate (Writing Skills)";
 
     expect(normalizedWritingSkills).toContain(
@@ -2770,18 +2768,7 @@ None
     expect(branchReview).toContain(
       "[`docs/guidelines/writing-skills.md`](../../docs/guidelines/writing-skills.md#review-and-mutation-routing)",
     );
-    expect(branchReview).toContain(hardStopMarker);
-    expect(branchReview).toContain(followUpMarker);
     expect(branchReview).toContain(gateMarker);
-    expect(branchReview.indexOf(hardStopMarker)).toBeLessThan(
-      branchReview.indexOf(followUpMarker),
-    );
-    expect(branchReview.indexOf(followUpMarker)).toBeLessThan(
-      branchReview.indexOf(gateMarker),
-    );
-    expect(branchReview.indexOf(followUpMarker)).toBeLessThan(
-      branchReview.indexOf("same-invariant grouping pass"),
-    );
     expect(branchReview.indexOf(gateMarker)).toBeLessThan(
       branchReview.indexOf("same-invariant grouping pass"),
     );

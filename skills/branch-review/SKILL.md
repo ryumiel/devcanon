@@ -529,24 +529,22 @@ not group, iterate, auto-fix, or halt on them. Also filter blocking findings
 tagged `DOWNGRADE` out of blocking auto-fix eligibility; preserve them as
 non-blocking feedback.
 
-**Candidate hard-stop check:** Before applying qualification or a non-mutating
-disposition to any remaining candidate, evaluate it under the existing stop-rule
-contract below. If it fires, halt `--fix` immediately under that contract; do
-not skip or reclassify the candidate and continue with later fixes. This check
-does not add a stop predicate or authority.
-
 **Follow-up evidence qualification:** When the existing paired follow-up inputs
 are present, compare each current candidate's concrete evidence with the
-validated prior findings before grouping or mutation. Only a newly discovered
-concrete source fact, contradiction, invalid dependency, or material safety
-defect may proceed to the existing remediation route. Repeated severity or
-critic labels, already available evidence, and wording or stable-marker-only
-corrections do not reopen unrelated review dimensions. This does not suppress
-an existing bounded proof-owner repair or genuinely qualifying behavior,
-authority, or executable-contract evidence.
+validated prior findings and the source at the validated review head before
+grouping or mutation. Only a newly discovered concrete source fact,
+contradiction, invalid dependency, or material safety defect unavailable to
+that prior round may proceed to the existing remediation route. A finding is
+not newly discovered merely because a prior auto-fix removed it from the
+post-fix findings envelope when its concrete evidence was already available at
+the validated review head. Repeated severity or critic labels, already
+available evidence, and wording or stable-marker-only corrections do not reopen
+unrelated review dimensions. This does not suppress an existing bounded
+proof-owner repair or genuinely qualifying behavior, authority, or
+executable-contract evidence.
 
-**Proportionality gate (Writing Skills):** After the candidate hard-stop check
-and before any blocker or fixable-nit grouping or fix-unit construction,
+**Proportionality gate (Writing Skills):** Before any blocker or fixable-nit
+grouping or fix-unit construction,
 classify every remaining mutation-capable candidate under
 [`docs/guidelines/writing-skills.md`](../../docs/guidelines/writing-skills.md#review-and-mutation-routing).
 Use the current finding evidence, active-diff context, issue-scope evidence,
@@ -563,6 +561,14 @@ mutation. Apply this gate independently to every blocker and fixable-nit
 candidate, including each candidate proposed for a group; grouping cannot
 bypass it. Then classify the candidates permitted by that gate for existing
 bounded handling:
+
+**Candidate hard-stop check:** Before grouping or mutating a candidate that the
+qualification and proportionality gates already permit to an existing bounded
+remediation route, evaluate it under the existing stop-rule contract below. If
+it fires, halt `--fix` immediately under that contract; do not skip or
+reclassify that mutation-capable candidate and continue with later fixes.
+Non-mutating classifications remain on the existing report and caller-handoff
+route. This check does not add a stop predicate or authority.
 
 - Eligible blocking units are the remaining critic-verified blockers permitted
   by the proportionality gate.
@@ -609,7 +615,7 @@ proportionality-qualified ungrouped fixable nit, or one same-file same-scope
 grouped fixable-nit set formed above. Do not also process grouped members as
 individual findings. For each unit:
 
-1. **If the candidate or unit hits the stop rule, halt `--fix` immediately and report.** Do not process further findings, do not commit anything for this run beyond fixes already applied. The candidate hard-stop check above applies this existing rule before the proportionality gate; re-evaluate it for each resulting unit. The stop rule fires when:
+1. **If the candidate or unit hits the stop rule, halt `--fix` immediately and report.** Do not process further findings, do not commit anything for this run beyond fixes already applied. The candidate hard-stop check above applies this existing rule after qualification and proportionality authorization; re-evaluate it for each resulting unit. The stop rule fires when:
    - `Anchor: out-of-diff` — the fix would require editing files outside the diff (e.g., Sub-check B cross-document drift, corpus-wide pattern propagation), or
    - any finding in the unit is a `play-review` hard-rule judgment-required blocker:
      `Blocking | Safety` from Code-quality Sub-check 1 (substitution audit) or
