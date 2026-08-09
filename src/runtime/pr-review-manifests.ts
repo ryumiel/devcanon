@@ -1,12 +1,14 @@
-import { execFile } from "node:child_process";
-import { createHash } from "node:crypto";
+import { execFile, spawn } from "node:child_process";
+import { createHash, randomUUID } from "node:crypto";
 import { constants } from "node:fs";
 import {
   access,
   chmod,
   lstat,
   mkdir,
+  open,
   readFile,
+  readdir,
   realpath,
   rm,
   stat,
@@ -19,6 +21,7 @@ import { runPrReviewLeasesCommand } from "./pr-review-leases.js";
 import {
   type PrReviewResultCommandAuthorityInput,
   validatePrReviewResultCommandAuthority,
+  validatePrReviewResultCommandAuthorityForFindingsPublication,
   validatePrReviewResultCommandAuthorityForReviewBodyRecovery,
 } from "./pr-review-result-validation.js";
 
@@ -29,6 +32,14 @@ type RuntimeCommandOutcome =
   | { exitCode: 1; stdout: string; stderr: string };
 
 type JsonObject = Record<string, unknown>;
+
+type FindingsPublicationGuard = {
+  schema: "pr-review/replace-findings-guard/v1";
+  result_file: string;
+  findings_sha256: string;
+  pid: number;
+  owner_token: string;
+};
 
 type LeaseStatus = {
   lease_state: "gated";
@@ -45,6 +56,8 @@ type LeaseStatus = {
   presentation_status: "preview-current" | "edited";
   presented_at: string;
 };
+
+const PRE_INPUT_FINDINGS_SHA256 = createHash("sha256").digest("hex");
 
 const FORBIDDEN_KEYS = new Set([
   "approval",
@@ -92,11 +105,14 @@ export async function runPrReviewManifestsCommand(
       case "recover-review-body-publication":
         requireNoCommandArgs(commandName, args);
         return ok(`${await recoverReviewBodyPublication()}\n`);
+      case "replace-findings":
+        requireNoCommandArgs(commandName, args);
+        return ok(`${await replaceFindings()}\n`);
       case "render-phase5-audit-summary":
         return ok(`${await renderPhase5AuditSummary()}\n`);
       default:
         throw new PrReviewManifestError(
-          "usage: review-manifests.sh prepare-handoff-write|write-handoff|validate-handoff|prepare-result-write|write-result|validate-result|read-result-for-preview|write-review-body|recover-review-body-publication|render-phase5-audit-summary",
+          "usage: review-manifests.sh prepare-handoff-write|write-handoff|validate-handoff|prepare-result-write|write-result|validate-result|read-result-for-preview|write-review-body|recover-review-body-publication|replace-findings|render-phase5-audit-summary",
         );
     }
   } catch (err) {
@@ -414,6 +430,237 @@ async function recoverReviewBodyPublication(): Promise<string> {
   return resultFile;
 }
 
+async function replaceFindings(): Promise<string> {
+  await requireRepoRoot();
+  for (const name of [
+    "PR_NUMBER",
+    "HEAD_SHA",
+    "REPOSITORY",
+    "RESULT_FILE",
+    "PLAY_REVIEW_HELPER",
+  ]) {
+    requireEnv(name);
+  }
+  const resultFile = requiredEnv("RESULT_FILE");
+  const releasePublicationGuard =
+    await acquireFindingsPublicationGuard(resultFile);
+  let publisherInvoked = false;
+  let reboundResultValidated = false;
+  try {
+    const input = await readStdinBytes();
+    try {
+      new TextDecoder("utf-8", { fatal: true }).decode(input);
+    } catch {
+      fail("findings stdin must be valid UTF-8");
+    }
+    const publishedFindingsSha256 = createHash("sha256")
+      .update(input)
+      .digest("hex");
+    const { result } =
+      await validatePrReviewResultCommandAuthorityForFindingsPublication(
+        readResultValidationInput(resultFile),
+        publishedFindingsSha256,
+      );
+    const findingsFile = stringField(result, "findings_file");
+    publisherInvoked = true;
+    await runBashHelperWithStdin(
+      requiredEnv("PLAY_REVIEW_HELPER"),
+      "publish-findings",
+      input,
+      {
+        ...process.env,
+        HEAD_SHA: readHeadSha(),
+        FINDINGS_FILE: findingsFile,
+      },
+    );
+    await validateDigest(
+      "published findings",
+      findingsFile,
+      publishedFindingsSha256,
+    );
+
+    const { result: currentResult } =
+      await validatePrReviewResultCommandAuthorityForFindingsPublication(
+        readResultValidationInput(resultFile),
+        publishedFindingsSha256,
+      );
+    const artifacts = objectField(currentResult, "artifacts");
+    const digests = objectField(currentResult, "digests");
+    const presentation = objectField(currentResult, "presentation");
+    const rebound = {
+      ...currentResult,
+      artifacts: {
+        ...artifacts,
+        rendered_preview_file: null,
+      },
+      digests: {
+        ...digests,
+        findings_sha256: publishedFindingsSha256,
+        rendered_preview_sha256: null,
+      },
+      presentation: {
+        ...presentation,
+        status: "edited",
+      },
+    };
+    validateResultObject(rebound, resultFile, resultFile);
+    await prepareWriteTarget("result", resultFile);
+    await prepareWriteTarget("result temp", tmpPathFor(resultFile));
+    await writeTextAtomically(
+      path.join(process.cwd(), resultFile),
+      `${json(rebound)}\n`,
+    );
+    await rm(path.join(process.cwd(), tmpPathFor(resultFile)), { force: true });
+    await validateResultFile(resultFile);
+    reboundResultValidated = true;
+    return resultFile;
+  } finally {
+    if (!publisherInvoked || reboundResultValidated) {
+      await releasePublicationGuard();
+    }
+  }
+}
+
+async function acquireFindingsPublicationGuard(
+  resultFile: string,
+): Promise<() => Promise<void>> {
+  validateDirectChildPath("result", resultFile, "-result.json");
+  const baseGuardFile = resultFile.replace(
+    /-result\.json$/,
+    "-replace-findings.lock",
+  );
+  await guardEphemeral();
+  await mkdir(path.join(process.cwd(), ".ephemeral"), { recursive: true });
+  if (await findingsPublicationGuardExists(baseGuardFile)) {
+    fail(`findings publication guard requires manual recovery: ${resultFile}`);
+  }
+  validateDirectChildPath("findings publication guard", baseGuardFile, ".lock");
+  const guard: FindingsPublicationGuard = {
+    schema: "pr-review/replace-findings-guard/v1",
+    result_file: resultFile,
+    findings_sha256: PRE_INPUT_FINDINGS_SHA256,
+    pid: process.pid,
+    owner_token: randomUUID(),
+  };
+  if (!(await publishFindingsPublicationGuard(baseGuardFile, guard))) {
+    fail(`findings publication guard requires manual recovery: ${resultFile}`);
+  }
+  return () => releaseFindingsPublicationGuard(baseGuardFile, guard);
+}
+
+async function findingsPublicationGuardExists(
+  baseGuardFile: string,
+): Promise<boolean> {
+  const baseName = path.basename(baseGuardFile);
+  const generationPrefix = `${baseName.slice(0, -".lock".length)}-`;
+  const entries = await readdir(path.join(process.cwd(), ".ephemeral"));
+  return entries.some((entry) => {
+    if (entry === baseName) return true;
+    if (!entry.startsWith(generationPrefix)) return false;
+    return /^[0-9a-f]{64}\.lock$/u.test(entry.slice(generationPrefix.length));
+  });
+}
+
+async function publishFindingsPublicationGuard(
+  guardFile: string,
+  guard: FindingsPublicationGuard,
+): Promise<boolean> {
+  const guardPath = path.join(process.cwd(), guardFile);
+  let handle: Awaited<ReturnType<typeof open>> | null = null;
+  let guardCreated = false;
+  try {
+    handle = await open(guardPath, "wx", 0o600);
+    guardCreated = true;
+    await handle.writeFile(`${JSON.stringify(guard)}\n`, "utf8");
+    await handle.sync();
+    await handle.close();
+    handle = null;
+    return true;
+  } catch (err) {
+    if (!guardCreated && (err as NodeJS.ErrnoException).code === "EEXIST") {
+      return false;
+    }
+    if (err instanceof PrReviewManifestError) throw err;
+    return fail(
+      `failed to acquire findings publication guard: ${guard.result_file}`,
+    );
+  } finally {
+    await handle?.close().catch(() => undefined);
+  }
+}
+
+async function readFindingsPublicationGuard(
+  guardFile: string,
+  resultFile: string,
+): Promise<FindingsPublicationGuard> {
+  const guardPath = path.join(process.cwd(), guardFile);
+  try {
+    const before = await lstat(guardPath, { bigint: true });
+    if (!before.isFile() || before.isSymbolicLink()) throw new Error("type");
+    const content = await readFile(guardPath, "utf8");
+    const after = await lstat(guardPath, { bigint: true });
+    if (
+      !after.isFile() ||
+      after.isSymbolicLink() ||
+      before.dev !== after.dev ||
+      before.ino !== after.ino
+    ) {
+      throw new Error("identity");
+    }
+    const value = JSON.parse(content) as unknown;
+    if (!isFindingsPublicationGuard(value, resultFile)) {
+      throw new Error("shape");
+    }
+    return value;
+  } catch {
+    fail(`findings publication guard is invalid: ${resultFile}`);
+  }
+}
+
+function isFindingsPublicationGuard(
+  value: unknown,
+  resultFile: string,
+): value is FindingsPublicationGuard {
+  if (!isObject(value)) return false;
+  const keys = Object.keys(value).sort();
+  return (
+    jsonEqual(keys, [
+      "findings_sha256",
+      "owner_token",
+      "pid",
+      "result_file",
+      "schema",
+    ]) &&
+    value.schema === "pr-review/replace-findings-guard/v1" &&
+    value.result_file === resultFile &&
+    typeof value.findings_sha256 === "string" &&
+    /^[0-9a-f]{64}$/u.test(value.findings_sha256) &&
+    typeof value.pid === "number" &&
+    Number.isSafeInteger(value.pid) &&
+    value.pid > 0 &&
+    typeof value.owner_token === "string" &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u.test(
+      value.owner_token,
+    )
+  );
+}
+
+async function releaseFindingsPublicationGuard(
+  guardFile: string,
+  expected: FindingsPublicationGuard,
+): Promise<void> {
+  const current = await readFindingsPublicationGuard(
+    guardFile,
+    expected.result_file,
+  );
+  if (!jsonEqual(current, expected)) {
+    fail(
+      `findings publication guard ownership changed: ${expected.result_file}`,
+    );
+  }
+  await rm(path.join(process.cwd(), guardFile));
+}
+
 async function readMarkdownFromStdin(): Promise<string> {
   try {
     const chunks: Buffer[] = [];
@@ -425,6 +672,18 @@ async function readMarkdownFromStdin(): Promise<string> {
     );
   } catch {
     fail("review body stdin must be valid UTF-8 Markdown");
+  }
+}
+
+async function readStdinBytes(): Promise<Buffer> {
+  try {
+    const chunks: Buffer[] = [];
+    for await (const chunk of process.stdin) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    }
+    return Buffer.concat(chunks);
+  } catch {
+    fail("failed to read findings stdin");
   }
 }
 
@@ -1565,6 +1824,71 @@ async function runBashHelper(
         : "";
     fail(stderr.length > 0 ? stderr : "helper command failed");
   }
+}
+
+async function runBashHelperWithStdin(
+  helper: string,
+  command: string,
+  input: Buffer,
+  env: NodeJS.ProcessEnv,
+): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    const child = spawn("bash", [helper, command], {
+      cwd: process.cwd(),
+      env,
+      stdio: ["pipe", "ignore", "pipe"],
+    });
+    let stderr = "";
+    let stdinError: Error | undefined;
+    let settled = false;
+    const rejectOnce = (error: Error) => {
+      if (!settled) {
+        settled = true;
+        reject(error);
+      }
+    };
+    const resolveOnce = () => {
+      if (!settled) {
+        settled = true;
+        resolve();
+      }
+    };
+    child.stderr.setEncoding("utf8").on("data", (chunk: string) => {
+      stderr += chunk;
+    });
+    child.on("error", (error) => {
+      rejectOnce(error);
+    });
+    child.stdin.on("error", (error) => {
+      stdinError = new Error(
+        `failed to write findings stdin: ${error.message || "write error"}`,
+      );
+    });
+    child.on("close", (code) => {
+      if (code === 0) {
+        if (stdinError !== undefined) {
+          rejectOnce(stdinError);
+          return;
+        }
+        resolveOnce();
+        return;
+      }
+      rejectOnce(
+        new Error(
+          stderr.trim() || stdinError?.message || "helper command failed",
+        ),
+      );
+    });
+    try {
+      child.stdin.end(input);
+    } catch (err) {
+      stdinError = new Error(
+        `failed to write findings stdin: ${err instanceof Error ? err.message : "write error"}`,
+      );
+    }
+  }).catch((err: unknown) => {
+    fail(err instanceof Error ? err.message : "helper command failed");
+  });
 }
 
 async function resolveScopeHelper(): Promise<string> {

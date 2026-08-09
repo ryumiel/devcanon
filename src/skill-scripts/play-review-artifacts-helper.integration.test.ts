@@ -1,10 +1,11 @@
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import {
   chmod,
   lstat,
   mkdir,
   mkdtemp,
   readFile,
+  readdir,
   rm,
   symlink,
   writeFile,
@@ -151,6 +152,65 @@ async function runHelper(
     cwd,
     env: { ...process.env, HEAD_SHA: headSha, ...env },
   });
+}
+
+async function runHelperWithStdin(
+  cwd: string,
+  command: string,
+  stdin: string | Uint8Array,
+  env: NodeJS.ProcessEnv = {},
+): Promise<{ stdout: string; stderr: string }> {
+  return new Promise((resolve, reject) => {
+    const child = spawn("bash", [helperScript, command], {
+      cwd,
+      env: { ...process.env, HEAD_SHA: headSha, ...env },
+    });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.setEncoding("utf8").on("data", (chunk: string) => {
+      stdout += chunk;
+    });
+    child.stderr.setEncoding("utf8").on("data", (chunk: string) => {
+      stderr += chunk;
+    });
+    child.on("error", reject);
+    child.on("close", (code) => {
+      if (code === 0) {
+        resolve({ stdout, stderr });
+        return;
+      }
+      reject(Object.assign(new Error(stderr), { code, stdout, stderr }));
+    });
+    child.stdin.end(stdin);
+  });
+}
+
+async function currentHeadSha(cwd: string): Promise<string> {
+  const { stdout } = await execFileAsync("git", ["rev-parse", "HEAD"], {
+    cwd,
+  });
+  return stdout.trim();
+}
+
+async function expectNoPublishStaging(cwd: string): Promise<void> {
+  const entries = await readdir(path.join(cwd, ".ephemeral"));
+  expect(
+    entries.filter((entry) => entry.startsWith(".publish-findings.")),
+  ).toEqual([]);
+}
+
+async function waitForPublishStaging(cwd: string): Promise<void> {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    if (
+      (await readdir(path.join(cwd, ".ephemeral"))).some((entry) =>
+        entry.startsWith(".publish-findings."),
+      )
+    ) {
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error("publish-findings did not create its staging file");
 }
 
 function previewBody(stdout: string): string {
@@ -1167,6 +1227,342 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
       await cleanupTempDir(cwd);
     }
   });
+
+  it("publishes a complete current-head envelope by atomically replacing only the canonical findings file", async () => {
+    const cwd = await makeTopicGitWorkspace();
+    try {
+      const reviewHeadSha = await currentHeadSha(cwd);
+      const canonicalFile = `.ephemeral/topic-${reviewHeadSha}-findings.json`;
+      const priorEnvelope = {
+        schema: "play-review/findings/v2",
+        findings: [],
+        carry_forward: [],
+        incomplete_topical_routes: [],
+      };
+      const replacementEnvelope = {
+        ...priorEnvelope,
+        findings: [finding()],
+      };
+      await writeRawEnvelope(cwd, canonicalFile, priorEnvelope);
+
+      await expect(
+        runHelperWithStdin(
+          cwd,
+          "publish-findings",
+          JSON.stringify(replacementEnvelope),
+          { HEAD_SHA: reviewHeadSha, FINDINGS_FILE: canonicalFile },
+        ),
+      ).resolves.toMatchObject({ stdout: `${canonicalFile}\n` });
+
+      expect(
+        JSON.parse(await readFile(path.join(cwd, canonicalFile), "utf-8")),
+      ).toEqual(replacementEnvelope);
+      expect((await lstat(path.join(cwd, canonicalFile))).isFile()).toBe(true);
+      await expectNoPublishStaging(cwd);
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("preserves the prior canonical envelope and cleans staging for malformed or trailing findings input", async () => {
+    const cwd = await makeTopicGitWorkspace();
+    try {
+      const reviewHeadSha = await currentHeadSha(cwd);
+      const canonicalFile = `.ephemeral/topic-${reviewHeadSha}-findings.json`;
+      const priorEnvelope = {
+        schema: "play-review/findings/v2",
+        findings: [],
+        carry_forward: [],
+        incomplete_topical_routes: [],
+      };
+      const priorContents = `${JSON.stringify(priorEnvelope)}\n`;
+      await writeFile(path.join(cwd, canonicalFile), priorContents);
+
+      for (const input of [
+        '{"schema":"play-review/findings/v2"',
+        `${JSON.stringify(priorEnvelope)} trailing`,
+      ]) {
+        await expect(
+          runHelperWithStdin(cwd, "publish-findings", input, {
+            HEAD_SHA: reviewHeadSha,
+            FINDINGS_FILE: canonicalFile,
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining(
+            "findings input must contain exactly one complete JSON envelope",
+          ),
+        });
+        expect(await readFile(path.join(cwd, canonicalFile), "utf-8")).toBe(
+          priorContents,
+        );
+        await expectNoPublishStaging(cwd);
+      }
+
+      await expect(
+        runHelperWithStdin(
+          cwd,
+          "publish-findings",
+          JSON.stringify({ ...priorEnvelope, schema: "wrong/v1" }),
+          { HEAD_SHA: reviewHeadSha, FINDINGS_FILE: canonicalFile },
+        ),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("envelope schema mismatch"),
+      });
+      expect(await readFile(path.join(cwd, canonicalFile), "utf-8")).toBe(
+        priorContents,
+      );
+      await expectNoPublishStaging(cwd);
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("refuses invalid UTF-8 before publishing findings and cleans staging", async () => {
+    const cwd = await makeTopicGitWorkspace();
+    try {
+      const reviewHeadSha = await currentHeadSha(cwd);
+      const canonicalFile = `.ephemeral/topic-${reviewHeadSha}-findings.json`;
+      const priorEnvelope = {
+        schema: "play-review/findings/v2",
+        findings: [],
+        carry_forward: [],
+        incomplete_topical_routes: [],
+      };
+      const priorContents = `${JSON.stringify(priorEnvelope)}\n`;
+      const input = Buffer.from(
+        JSON.stringify({ ...priorEnvelope, findings: [finding()] }),
+        "utf8",
+      );
+      const markerOffset = input.indexOf("skills/play-review/SKILL.md");
+      expect(markerOffset).toBeGreaterThanOrEqual(0);
+      input[markerOffset] = 0x80;
+      await writeFile(path.join(cwd, canonicalFile), priorContents);
+
+      await expect(
+        runHelperWithStdin(cwd, "publish-findings", input, {
+          HEAD_SHA: reviewHeadSha,
+          FINDINGS_FILE: canonicalFile,
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("findings input must be valid UTF-8"),
+      });
+      expect(await readFile(path.join(cwd, canonicalFile), "utf8")).toBe(
+        priorContents,
+      );
+      await expectNoPublishStaging(cwd);
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("requires one document and preserves valid bytes without ambient Node", async () => {
+    const cwd = await makeTopicGitWorkspace();
+    try {
+      const fakeBin = path.join(cwd, "test-bin");
+      const nodeShim = path.join(fakeBin, "node");
+      await mkdir(fakeBin);
+      await writeFile(nodeShim, "#!/usr/bin/env sh\nexit 97\n");
+      await chmod(nodeShim, 0o755);
+      const reviewHeadSha = await currentHeadSha(cwd);
+      const canonicalFile = `.ephemeral/topic-${reviewHeadSha}-findings.json`;
+      const priorEnvelope = {
+        schema: "play-review/findings/v2",
+        findings: [],
+        carry_forward: [],
+        incomplete_topical_routes: [],
+      };
+      const replacementEnvelope = {
+        ...priorEnvelope,
+        findings: [finding()],
+      };
+      const priorContents = JSON.stringify(priorEnvelope);
+      await writeFile(path.join(cwd, canonicalFile), priorContents);
+
+      for (const input of ["", `${priorContents}\n${priorContents}`]) {
+        await expect(
+          runHelperWithStdin(cwd, "publish-findings", input, {
+            HEAD_SHA: reviewHeadSha,
+            FINDINGS_FILE: canonicalFile,
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining(
+            "findings input must contain exactly one complete JSON envelope",
+          ),
+        });
+        expect(await readFile(path.join(cwd, canonicalFile), "utf-8")).toBe(
+          priorContents,
+        );
+        await expectNoPublishStaging(cwd);
+      }
+
+      await expect(
+        runHelperWithStdin(
+          cwd,
+          "publish-findings",
+          `${JSON.stringify(replacementEnvelope)}\n \t\n`,
+          {
+            HEAD_SHA: reviewHeadSha,
+            FINDINGS_FILE: canonicalFile,
+            PATH: `${fakeBin}${path.delimiter}${process.env.PATH ?? ""}`,
+          },
+        ),
+      ).resolves.toMatchObject({ stdout: `${canonicalFile}\n` });
+      expect(await readFile(path.join(cwd, canonicalFile), "utf-8")).toBe(
+        `${JSON.stringify(replacementEnvelope)}\n \t\n`,
+      );
+      await expectNoPublishStaging(cwd);
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("refuses stale or noncanonical publication inputs before replacing the existing findings file", async () => {
+    const cwd = await makeTopicGitWorkspace();
+    try {
+      const reviewHeadSha = await currentHeadSha(cwd);
+      const canonicalFile = `.ephemeral/topic-${reviewHeadSha}-findings.json`;
+      const priorEnvelope = {
+        schema: "play-review/findings/v2",
+        findings: [],
+        carry_forward: [],
+        incomplete_topical_routes: [],
+      };
+      const priorContents = JSON.stringify(priorEnvelope);
+      await writeFile(path.join(cwd, canonicalFile), priorContents);
+
+      await expect(
+        runHelperWithStdin(cwd, "publish-findings", priorContents, {
+          HEAD_SHA: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          FINDINGS_FILE: canonicalFile,
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining(
+          "HEAD_SHA is stale or does not match current HEAD",
+        ),
+      });
+      await expect(
+        runHelperWithStdin(cwd, "publish-findings", priorContents, {
+          HEAD_SHA: reviewHeadSha,
+          FINDINGS_FILE: `.ephemeral/wrong-${reviewHeadSha}-findings.json`,
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("findings path mismatch"),
+      });
+
+      expect(await readFile(path.join(cwd, canonicalFile), "utf-8")).toBe(
+        priorContents,
+      );
+      await expect(
+        lstat(
+          path.join(cwd, `.ephemeral/wrong-${reviewHeadSha}-findings.json`),
+        ),
+      ).rejects.toMatchObject({ code: "ENOENT" });
+      await expectNoPublishStaging(cwd);
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("refuses identity drift while findings input is still being staged", async () => {
+    const cwd = await makeTopicGitWorkspace();
+    try {
+      const reviewHeadSha = await currentHeadSha(cwd);
+      const canonicalFile = `.ephemeral/topic-${reviewHeadSha}-findings.json`;
+      const priorContents = JSON.stringify({
+        schema: "play-review/findings/v2",
+        findings: [],
+        carry_forward: [],
+        incomplete_topical_routes: [],
+      });
+      const replacement = JSON.stringify({
+        schema: "play-review/findings/v2",
+        findings: [finding()],
+        carry_forward: [],
+        incomplete_topical_routes: [],
+      });
+      await writeFile(path.join(cwd, canonicalFile), priorContents);
+
+      const child = spawn("bash", [helperScript, "publish-findings"], {
+        cwd,
+        env: {
+          ...process.env,
+          HEAD_SHA: reviewHeadSha,
+          FINDINGS_FILE: canonicalFile,
+        },
+      });
+      let stdout = "";
+      let stderr = "";
+      child.stdout.setEncoding("utf8").on("data", (chunk: string) => {
+        stdout += chunk;
+      });
+      child.stderr.setEncoding("utf8").on("data", (chunk: string) => {
+        stderr += chunk;
+      });
+      const outcome = new Promise<{ code: number | null }>(
+        (resolve, reject) => {
+          child.on("error", reject);
+          child.on("close", (code) => resolve({ code }));
+        },
+      );
+      const midpoint = Math.floor(replacement.length / 2);
+      child.stdin.write(replacement.slice(0, midpoint));
+      await waitForPublishStaging(cwd);
+      await writeFile(path.join(cwd, "README.md"), "changed identity\n");
+      await execFileAsync("git", ["add", "README.md"], { cwd });
+      await execFileAsync("git", ["commit", "-m", "test: drift head"], {
+        cwd,
+      });
+      child.stdin.end(replacement.slice(midpoint));
+
+      await expect(outcome).resolves.toEqual({ code: 1 });
+      expect(stdout).toBe("");
+      expect(stderr).toContain(
+        "HEAD_SHA is stale or does not match current HEAD",
+      );
+      expect(await readFile(path.join(cwd, canonicalFile), "utf8")).toBe(
+        priorContents,
+      );
+      await expectNoPublishStaging(cwd);
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it.skipIf(!symlinkAvailable)(
+    "refuses a symlinked canonical publication target without touching its referent",
+    async () => {
+      const cwd = await makeTopicGitWorkspace();
+      const outside = path.join(cwd, "outside-findings.json");
+      try {
+        const reviewHeadSha = await currentHeadSha(cwd);
+        const canonicalFile = `.ephemeral/topic-${reviewHeadSha}-findings.json`;
+        const envelope = {
+          schema: "play-review/findings/v2",
+          findings: [],
+          carry_forward: [],
+          incomplete_topical_routes: [],
+        };
+        const input = JSON.stringify(envelope);
+        await writeFile(outside, "do not overwrite\n");
+        await symlink(outside, path.join(cwd, canonicalFile));
+
+        await expect(
+          runHelperWithStdin(cwd, "publish-findings", input, {
+            HEAD_SHA: reviewHeadSha,
+            FINDINGS_FILE: canonicalFile,
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining(
+            "findings path must not be a symlink",
+          ),
+        });
+        expect(await readFile(outside, "utf-8")).toBe("do not overwrite\n");
+        await expectNoPublishStaging(cwd);
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    },
+  );
 
   it("computes and prepares the findings write path from the checked-out git branch", async () => {
     const cwd = await makeGitWorkspace();

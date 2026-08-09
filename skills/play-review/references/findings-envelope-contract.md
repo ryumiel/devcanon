@@ -59,6 +59,28 @@ FINDINGS_FILE=$(
 ) || exit 1
 ```
 
+### Publication
+
+`publish-findings` is the public publication boundary for a caller-authored
+replacement envelope. Run it from the target worktree root with exactly the
+immutable current `HEAD_SHA`, the canonical `FINDINGS_FILE`, and one complete
+envelope on standard input; it has no optional inputs:
+
+```bash
+printf '%s' "$FINDINGS_ENVELOPE" |
+  HEAD_SHA="$HEAD_SHA" \
+  FINDINGS_FILE="$FINDINGS_FILE" \
+  bash "$PLAY_REVIEW_HELPER" publish-findings || exit 1
+```
+
+The helper refuses a stale SHA, a noncanonical path, invalid UTF-8, malformed
+input, trailing non-whitespace data, unsafe file targets, and invalid envelopes
+before it replaces the canonical file. It stages standard input, reuses the
+findings-envelope validator, atomically replaces only the canonical findings
+file on success, cleans staging on every terminal path, and prints that
+canonical repo-relative path. This public command is additive; existing direct
+preparation/write flows remain unchanged until their owning workflows adopt it.
+
 Consumers validate parsed notice paths before opening or overwriting them:
 
 ```bash
@@ -135,6 +157,8 @@ The schema omits evidence code and a `side` field. Consumers re-read source via
   target path.
 - `play-review` writes the envelope JSON to the prepared path before emitting
   `Findings written to <repo-relative-path>.`.
+- `publish-findings` is available when a caller needs the helper to validate
+  and atomically publish a caller-authored complete replacement envelope.
 - `Write` follows symlinks, so rely on the helper's symlink and file-kind
   guards before any write.
 
