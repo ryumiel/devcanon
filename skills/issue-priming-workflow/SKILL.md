@@ -875,14 +875,14 @@ unless a concrete blocker stops `--auto`.
 
 ### Phase 7: Branch Review
 
-Invoke `branch-review --fix` to review the implementation before creating a PR.
-The first Phase 7 invocation keeps this existing full-diff route.
-If Phase 6 emitted `Risk signals written to <path>.`, invoke
-`branch-review --fix --risk-signals <path>` for default-base artifacts on the
-next branch-review run. If Phase 6 emitted detached issue-base risk signals
-whose reviewed range is `<full-base-sha>...HEAD`, invoke
-`branch-review --fix --risk-signals <path> <full-base-sha>` so branch-review
-validates the same full base SHA range. When those risk signals carry
+Invoke the installed Branch Review skill in `--fix` mode to review the
+implementation before creating a PR. The first Phase 7 invocation keeps the
+existing full-diff route. If Phase 6 emitted `Risk signals written to <path>`,
+include its existing `--risk-signals <path>` input in that skill briefing for
+default-base artifacts. If Phase 6 emitted detached issue-base risk signals
+whose reviewed range is `<full-base-sha>...HEAD`, include that same input and
+`<full-base-sha>` base in the skill briefing so Branch Review validates the
+same full base SHA range. When those risk signals carry
 `contract_example_discipline` context from an auto single-task executor run,
 Phase 7 still treats it as non-authoritative handoff data; branch-review
 validates it, escalates scrutiny when present, and passes only sanitized
