@@ -117,11 +117,12 @@ prior round may reopen its existing remediation route. A prior auto-fix does
 not make its already-available evidence newly discovered merely because the
 post-fix envelope no longer lists that finding. Repeated severity or critic
 labels, already available evidence, and wording or stable-marker-only
-corrections do not reopen unrelated review dimensions. This does not suppress
-an existing bounded proof-owner repair or genuinely qualifying behavior,
-authority, or executable-contract evidence. Phase 7 supplies the inputs and
-orchestration; it never applies a post-mutation veto. Branch Review remains the
-comparison, fix, and commit owner.
+corrections do not reopen unrelated review dimensions. An existing bounded
+proof-owner repair may proceed only when its own qualifying evidence meets that
+same freshness condition, as may genuinely qualifying behavior, authority, or
+executable-contract evidence. Phase 7 supplies the inputs and orchestration; it
+never applies a post-mutation veto. Branch Review remains the comparison, fix,
+and commit owner.
 
 Continue until a run reports zero blocking findings auto-fixed, no unresolved
 true Blocking findings, captures that final run's approval-summary notice path,

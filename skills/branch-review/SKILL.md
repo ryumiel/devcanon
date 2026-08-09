@@ -539,9 +539,9 @@ not newly discovered merely because a prior auto-fix removed it from the
 post-fix findings envelope when its concrete evidence was already available at
 the validated review head. Repeated severity or critic labels, already
 available evidence, and wording or stable-marker-only corrections do not reopen
-unrelated review dimensions. This does not suppress an existing bounded
-proof-owner repair or genuinely qualifying behavior, authority, or
-executable-contract evidence.
+unrelated review dimensions. An existing bounded proof-owner repair may proceed
+only when its own qualifying evidence meets that same freshness condition, as
+may genuinely qualifying behavior, authority, or executable-contract evidence.
 
 **Proportionality gate (Writing Skills):** Before any blocker or fixable-nit
 grouping or fix-unit construction,
