@@ -663,8 +663,12 @@ thread requires the separate eligibility gate below.
   ownership clearly enough to classify the thread as human-authored,
   bot-authored, or self-authored.
 - The thread maps to the same concern that you verified and addressed.
-- The pushed branch contains the fix, the in-thread reply explains why no code
-  change is required, or it reports the applicable verification evidence.
+- The pushed branch contains the fix, the in-thread reply carries returned
+  correction evidence, or it explains an explicit no-code disposition that
+  proves no code change is required.
+- An adjacent independently releasable defect handoff alone is not resolution
+  evidence; resolution requires returned correction evidence, an actual branch
+  fix, or that explicit no-code disposition.
 - For outdated unresolved threads, current code and current thread state show
   the underlying concern is stale, invalid, already addressed, or fully
   addressed by pushed or replied evidence.

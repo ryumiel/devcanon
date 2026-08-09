@@ -568,8 +568,12 @@ qualification and proportionality gates already permit to an existing bounded
 remediation route, evaluate it under the existing stop-rule contract below. If
 it fires, halt `--fix` immediately under that contract; do not skip or
 reclassify that mutation-capable candidate and continue with later fixes.
-Non-mutating classifications remain on the existing report and caller-handoff
-route. This check does not add a stop predicate or authority.
+Critic-verified `Blocking | Safety` Sub-check 1 or `Blocking | Contracts`
+Sub-check 2 candidates remain subject to that existing hard stop even when the
+proportionality disposition is non-mutating, so their judgment-required caller
+handoff occurs before later auto-fix commits. Other nonblocking report and
+handoff feedback remains exempt. This check does not add a stop predicate or
+authority.
 
 - Eligible blocking units are the remaining critic-verified blockers permitted
   by the proportionality gate.

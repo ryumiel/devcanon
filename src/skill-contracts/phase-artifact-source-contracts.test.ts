@@ -2772,6 +2772,9 @@ None
     expect(branchReview.indexOf(gateMarker)).toBeLessThan(
       branchReview.indexOf("same-invariant grouping pass"),
     );
+    expect(branchReview).toContain(
+      "proportionality disposition is non-mutating",
+    );
   });
 
   it("keeps bounded proportionality handoffs available through existing owners", async () => {
