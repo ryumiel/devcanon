@@ -57,6 +57,8 @@ type LeaseStatus = {
   presented_at: string;
 };
 
+const PRE_INPUT_FINDINGS_SHA256 = createHash("sha256").digest("hex");
+
 const FORBIDDEN_KEYS = new Set([
   "approval",
   "approved_review",
@@ -440,22 +442,20 @@ async function replaceFindings(): Promise<string> {
     requireEnv(name);
   }
   const resultFile = requiredEnv("RESULT_FILE");
-  const input = await readStdinBytes();
-  try {
-    new TextDecoder("utf-8", { fatal: true }).decode(input);
-  } catch {
-    fail("findings stdin must be valid UTF-8");
-  }
-  const publishedFindingsSha256 = createHash("sha256")
-    .update(input)
-    .digest("hex");
-  const releasePublicationGuard = await acquireFindingsPublicationGuard(
-    resultFile,
-    publishedFindingsSha256,
-  );
+  const releasePublicationGuard =
+    await acquireFindingsPublicationGuard(resultFile);
   let publisherInvoked = false;
   let reboundResultValidated = false;
   try {
+    const input = await readStdinBytes();
+    try {
+      new TextDecoder("utf-8", { fatal: true }).decode(input);
+    } catch {
+      fail("findings stdin must be valid UTF-8");
+    }
+    const publishedFindingsSha256 = createHash("sha256")
+      .update(input)
+      .digest("hex");
     const { result } =
       await validatePrReviewResultCommandAuthorityForFindingsPublication(
         readResultValidationInput(resultFile),
@@ -523,7 +523,6 @@ async function replaceFindings(): Promise<string> {
 
 async function acquireFindingsPublicationGuard(
   resultFile: string,
-  findingsSha256: string,
 ): Promise<() => Promise<void>> {
   validateDirectChildPath("result", resultFile, "-result.json");
   const baseGuardFile = resultFile.replace(
@@ -539,7 +538,7 @@ async function acquireFindingsPublicationGuard(
   const guard: FindingsPublicationGuard = {
     schema: "pr-review/replace-findings-guard/v1",
     result_file: resultFile,
-    findings_sha256: findingsSha256,
+    findings_sha256: PRE_INPUT_FINDINGS_SHA256,
     pid: process.pid,
     owner_token: randomUUID(),
   };

@@ -9,6 +9,7 @@ import { requireDirectEphemeralChild } from "./paths.js";
 import { runPrReviewLeasesCommand } from "./pr-review-leases.js";
 import { validatePrReviewResultCommandAuthority, validatePrReviewResultCommandAuthorityForFindingsPublication, validatePrReviewResultCommandAuthorityForReviewBodyRecovery, } from "./pr-review-result-validation.js";
 const execFileAsync = promisify(execFile);
+const PRE_INPUT_FINDINGS_SHA256 = createHash("sha256").digest("hex");
 const FORBIDDEN_KEYS = new Set([
     "approval",
     "approved_review",
@@ -311,20 +312,20 @@ async function replaceFindings() {
         requireEnv(name);
     }
     const resultFile = requiredEnv("RESULT_FILE");
-    const input = await readStdinBytes();
-    try {
-        new TextDecoder("utf-8", { fatal: true }).decode(input);
-    }
-    catch {
-        fail("findings stdin must be valid UTF-8");
-    }
-    const publishedFindingsSha256 = createHash("sha256")
-        .update(input)
-        .digest("hex");
-    const releasePublicationGuard = await acquireFindingsPublicationGuard(resultFile, publishedFindingsSha256);
+    const releasePublicationGuard = await acquireFindingsPublicationGuard(resultFile);
     let publisherInvoked = false;
     let reboundResultValidated = false;
     try {
+        const input = await readStdinBytes();
+        try {
+            new TextDecoder("utf-8", { fatal: true }).decode(input);
+        }
+        catch {
+            fail("findings stdin must be valid UTF-8");
+        }
+        const publishedFindingsSha256 = createHash("sha256")
+            .update(input)
+            .digest("hex");
         const { result } = await validatePrReviewResultCommandAuthorityForFindingsPublication(readResultValidationInput(resultFile), publishedFindingsSha256);
         const findingsFile = stringField(result, "findings_file");
         publisherInvoked = true;
@@ -369,7 +370,7 @@ async function replaceFindings() {
         }
     }
 }
-async function acquireFindingsPublicationGuard(resultFile, findingsSha256) {
+async function acquireFindingsPublicationGuard(resultFile) {
     validateDirectChildPath("result", resultFile, "-result.json");
     const baseGuardFile = resultFile.replace(/-result\.json$/, "-replace-findings.lock");
     await guardEphemeral();
@@ -381,7 +382,7 @@ async function acquireFindingsPublicationGuard(resultFile, findingsSha256) {
     const guard = {
         schema: "pr-review/replace-findings-guard/v1",
         result_file: resultFile,
-        findings_sha256: findingsSha256,
+        findings_sha256: PRE_INPUT_FINDINGS_SHA256,
         pid: process.pid,
         owner_token: randomUUID(),
     };

@@ -527,6 +527,17 @@ function spawnHelperWithStdin(
   env: NodeJS.ProcessEnv = {},
   script = helperScript,
 ) {
+  const spawned = spawnHelperWithOpenStdin(cwd, command, env, script);
+  spawned.child.stdin.end(input);
+  return spawned;
+}
+
+function spawnHelperWithOpenStdin(
+  cwd: string,
+  command: string,
+  env: NodeJS.ProcessEnv = {},
+  script = helperScript,
+) {
   const child = spawn("bash", [script, command], {
     cwd,
     env: {
@@ -561,7 +572,6 @@ function spawnHelperWithStdin(
       });
     },
   );
-  child.stdin.end(input);
   return { child, outcome };
 }
 
@@ -582,30 +592,6 @@ async function waitForFile(file: string): Promise<void> {
     await delay(10);
   }
   throw new Error(`timed out waiting for ${file}`);
-}
-
-async function writeBlockingPlayReviewHelper(
-  cwd: string,
-  realHelper: string,
-): Promise<string> {
-  const script = path.join(cwd, ".ephemeral/blocking-play-review.sh");
-  await writeFile(
-    script,
-    [
-      "#!/usr/bin/env bash",
-      "set -euo pipefail",
-      `real_helper=${JSON.stringify(realHelper)}`,
-      'if [[ "${1:-}" != "publish-findings" ]]; then exec bash "$real_helper" "$@"; fi',
-      ': "${BLOCK_MARKER:?}"',
-      ': "${RELEASE_MARKER:?}"',
-      'printf "started\\n" > "$BLOCK_MARKER"',
-      'while [[ ! -f "$RELEASE_MARKER" ]]; do sleep 0.01; done',
-      'exec bash "$real_helper" "$@"',
-      "",
-    ].join("\n"),
-  );
-  await chmod(script, 0o755);
-  return script;
 }
 
 async function writePostPublicationBlockingHelper(
@@ -1379,7 +1365,7 @@ describe("pr-review manifest helper", () => {
   );
 
   it.skipIf(isWindows)(
-    "refuses a concurrent public findings replacement before publication",
+    "owns publication before stdin and permits a new post-release caller",
     async () => {
       const { cwd, baseSha, headSha } = await makeGitWorkspace();
       try {
@@ -1390,34 +1376,41 @@ describe("pr-review manifest helper", () => {
           handoffEnv(cwd, baseSha, headSha),
         );
         await runHelper(cwd, "write-result", resultEnv(headSha));
-        const blockingHelper = await writeBlockingPlayReviewHelper(
+        const recordingHelper = await writePublisherEntryRecordingHelper(
           cwd,
           playReviewHelperScript,
         );
-        const firstMarker = path.join(cwd, ".ephemeral/first-started");
-        const secondMarker = path.join(cwd, ".ephemeral/second-started");
-        const releaseMarker = path.join(cwd, ".ephemeral/release-first");
+        const resultFile = resultPath(headSha);
+        const guardFile = path.join(
+          cwd,
+          resultFile.replace(/-result\.json$/, "-replace-findings.lock"),
+        );
+        const firstMarker = path.join(cwd, ".ephemeral/first-publisher");
+        const secondMarker = path.join(cwd, ".ephemeral/second-publisher");
+        const thirdMarker = path.join(cwd, ".ephemeral/third-publisher");
         const firstEnvelope = JSON.stringify(findingsEnvelope());
         const secondEnvelope = JSON.stringify(findingsEnvelope(), null, 2);
+        const thirdEnvelope = JSON.stringify({
+          ...findingsEnvelope(),
+          findings: [],
+        });
         const commonEnv = {
           HEAD_SHA: headSha,
-          RESULT_FILE: resultPath(headSha),
-          PLAY_REVIEW_HELPER: blockingHelper,
-          RELEASE_MARKER: releaseMarker,
+          RESULT_FILE: resultFile,
+          PLAY_REVIEW_HELPER: recordingHelper,
         };
 
-        const first = runHelperWithStdin(
-          cwd,
-          "replace-findings",
-          firstEnvelope,
-          { ...commonEnv, BLOCK_MARKER: firstMarker },
-        );
-        await waitForFile(firstMarker);
+        const first = spawnHelperWithOpenStdin(cwd, "replace-findings", {
+          ...commonEnv,
+          PUBLISHER_ENTRY_MARKER: firstMarker,
+        });
+        await waitForFile(guardFile);
+        expect(await lstat(firstMarker).catch(() => null)).toBeNull();
 
         await expect(
           runHelperWithStdin(cwd, "replace-findings", secondEnvelope, {
             ...commonEnv,
-            BLOCK_MARKER: secondMarker,
+            PUBLISHER_ENTRY_MARKER: secondMarker,
           }),
         ).rejects.toMatchObject({
           stdout: "",
@@ -1427,16 +1420,31 @@ describe("pr-review manifest helper", () => {
         });
         expect(await lstat(secondMarker).catch(() => null)).toBeNull();
 
-        await writeFile(releaseMarker, "release\n");
-        await expect(first).resolves.toEqual({
-          stdout: `${resultPath(headSha)}\n`,
+        first.child.stdin.end(firstEnvelope);
+        await expect(first.outcome).resolves.toEqual({
+          stdout: `${resultFile}\n`,
           stderr: "",
         });
+        await expect(lstat(firstMarker)).resolves.toBeDefined();
         await expect(
           readFile(path.join(cwd, findingsPath(headSha)), "utf8"),
         ).resolves.toBe(firstEnvelope);
-        const result = await readJson(cwd, resultPath(headSha));
-        expect(result.digests.findings_sha256).toBe(sha256(firstEnvelope));
+
+        await expect(
+          runHelperWithStdin(cwd, "replace-findings", thirdEnvelope, {
+            ...commonEnv,
+            PUBLISHER_ENTRY_MARKER: thirdMarker,
+          }),
+        ).resolves.toEqual({
+          stdout: `${resultFile}\n`,
+          stderr: "",
+        });
+        await expect(lstat(thirdMarker)).resolves.toBeDefined();
+        await expect(
+          readFile(path.join(cwd, findingsPath(headSha)), "utf8"),
+        ).resolves.toBe(thirdEnvelope);
+        const result = await readJson(cwd, resultFile);
+        expect(result.digests.findings_sha256).toBe(sha256(thirdEnvelope));
       } finally {
         await cleanupTempDir(cwd);
       }
