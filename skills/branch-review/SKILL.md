@@ -541,7 +541,9 @@ validated prior findings before grouping or mutation. Only a newly discovered
 concrete source fact, contradiction, invalid dependency, or material safety
 defect may proceed to the existing remediation route. Repeated severity or
 critic labels, already available evidence, and wording or stable-marker-only
-corrections retain their prior disposition and remain non-mutating.
+corrections do not reopen unrelated review dimensions. This does not suppress
+an existing bounded proof-owner repair or genuinely qualifying behavior,
+authority, or executable-contract evidence.
 
 **Proportionality gate (Writing Skills):** After the candidate hard-stop check
 and before any blocker or fixable-nit grouping or fix-unit construction,

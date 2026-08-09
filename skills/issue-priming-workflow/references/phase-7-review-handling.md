@@ -112,9 +112,11 @@ concrete source evidence with that validated prior evidence. Only a newly
 discovered concrete source fact, contradiction, invalid dependency, or material
 safety defect may reopen its existing remediation route. Repeated severity or
 critic labels, already available evidence, and wording or stable-marker-only
-corrections keep the prior disposition and remain non-mutating. Phase 7
-supplies the inputs and orchestration; it never applies a post-mutation veto.
-Branch Review remains the comparison, fix, and commit owner.
+corrections do not reopen unrelated review dimensions. This does not suppress
+an existing bounded proof-owner repair or genuinely qualifying behavior,
+authority, or executable-contract evidence. Phase 7 supplies the inputs and
+orchestration; it never applies a post-mutation veto. Branch Review remains the
+comparison, fix, and commit owner.
 
 Continue until a run reports zero blocking findings auto-fixed, no unresolved
 true Blocking findings, captures that final run's approval-summary notice path,

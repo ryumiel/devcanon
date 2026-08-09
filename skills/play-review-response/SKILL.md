@@ -195,6 +195,9 @@ Implementation selections:
 Non-implementation outcome:
 
 - **No-code response** - reply, report, or ask without changing code.
+- **Existing-owner handoff** - route a proof/test defect to its authoritative
+  owner; only that owner's repair evidence returns through the existing
+  closeout route.
 
 No-code response outcomes include technically invalid feedback, stale feedback,
 already-addressed feedback, explanation-only feedback, and
