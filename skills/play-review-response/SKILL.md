@@ -609,21 +609,32 @@ gate when the workflow has not yet seen the local-state, verification, and
 intended-action summary. After approval, perform only the listed side effects;
 new side effects require another gate summary.
 
-## Pushed-Fix Inline Thread Closure
+## Pushed-Fix and Outcome Thread Closure
 
-Use this sequence only after the classification and inline mode authorize a
-GitHub review response on an already-pushed or reviewed PR branch:
+Use this closeout sequence only after current classification and the applicable
+selected outcome confirm a GitHub reply or closure on an already-pushed or
+reviewed PR branch.
 
-1. Verify the current review comments and the existing inline authorization.
-2. Implement the already-authorized inline fix, or prepare the explanation
-   when no code change is required.
-3. Run the relevant checks.
-4. Commit the response work with a follow-up commit when the branch is already
-   pushed or reviewed.
+Applicable outcomes:
+
+- **Inline execution** - an already-authorized inline fix.
+- **Planned execution after executor returns** - the returned fix evidence.
+- **No-code response** - an evidence-backed explanation.
+
+1. Verify the current review comments, current classification, and applicable
+   selected outcome.
+2. For inline execution, implement the already-authorized inline fix. For
+   planned execution after executor returns, use the returned fix evidence. For
+   a no-code response, prepare the explanation.
+3. Run the relevant checks for the selected outcome.
+4. When the selected outcome changes code, commit the response work with a
+   follow-up commit when the branch is already pushed or reviewed.
 5. Run the Pre-Push Review Gate before push, reply, resolve, or comment side
    effects.
-6. Push normally only after the gate approves that push.
-7. Re-fetch PR review thread state after the push and before any reply.
+6. When the selected outcome requires a push, push normally only after the gate
+   approves that push.
+7. Re-fetch PR review thread state after any intended push, or immediately
+   before a no-code reply, and before any reply.
 8. Confirm GitHub writes are permitted by explicit user approval or the active
    workflow's approved posting gate.
 9. Reply in-thread with concise fix or explanation evidence.
@@ -785,7 +796,10 @@ You understand 1,2,3,6. Unclear on 4,5.
 
 ## GitHub Thread Replies
 
-When replying to inline review comments on GitHub, reply in the comment thread (`{{tool:github-cli}} api repos/{owner}/{repo}/pulls/{pr}/comments/{id}/replies`), not as a top-level PR comment.
+Before replying or closeout, confirm the current classification and applicable
+selected outcome. When replying to inline review comments on GitHub, reply in
+the comment thread (`{{tool:github-cli}} api repos/{owner}/{repo}/pulls/{pr}/comments/{id}/replies`),
+not as a top-level PR comment.
 
 Reference the follow-up commit or fix in that reply while preserving the
 existing thread context. When a follow-up commit exists, include its commit SHA.
@@ -795,7 +809,7 @@ summary. Because replies are shared comments, apply the `Agent-Local Evidence
 Reuse Boundary` in `docs/specs/afds-workflow-routing.md`. Do not include raw
 `.ephemeral` paths, transcripts, prompts, logs, validation-log dumps, stack
 traces, internal decision trails, or session chronology. Follow `Pushed-Fix
-Inline Thread Closure` before resolving any thread.
+and Outcome Thread Closure` before resolving any thread.
 Do not resolve continuity by replacing reviewed history unless the user
 explicitly asked for that cleanup or the repository workflow requires rewritten
 history.

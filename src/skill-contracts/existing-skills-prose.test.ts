@@ -4384,7 +4384,7 @@ describe("existing skills source prose contracts", () => {
     );
     const prePushGateIndex = skillSource.indexOf("## Pre-Push Review Gate");
     const threadClosureIndex = skillSource.indexOf(
-      "## Pushed-Fix Inline Thread Closure",
+      "## Pushed-Fix and Outcome Thread Closure",
     );
     const pushBackIndex = skillSource.indexOf("## When To Push Back");
 
@@ -4411,7 +4411,7 @@ describe("existing skills source prose contracts", () => {
     const normalizedPrePushGate = normalizeWhitespace(prePushGate);
     const threadClosure = getMarkdownSection(
       skillSource,
-      "Pushed-Fix Inline Thread Closure",
+      "Pushed-Fix and Outcome Thread Closure",
     );
     const normalizedThreadClosure = normalizeWhitespace(threadClosure);
     const githubReplies = getMarkdownSection(
@@ -4549,7 +4549,7 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedGithubReplies).toContain("concise verification summary");
     expect(normalizedGithubReplies).toMatch(/thread context/i);
     expect(normalizedGithubReplies).toContain(
-      "Pushed-Fix Inline Thread Closure",
+      "Pushed-Fix and Outcome Thread Closure",
     );
   });
 
@@ -4953,6 +4953,19 @@ describe("existing skills source prose contracts", () => {
       skillSource,
       "The Response Pattern",
     );
+    const executionMode = getMarkdownSection(
+      skillSource,
+      "Execution Mode Selection",
+    );
+    const normalizedExecutionMode = normalizeWhitespace(executionMode);
+    const threadClosure = getMarkdownSection(
+      skillSource,
+      "Pushed-Fix and Outcome Thread Closure",
+    );
+    const githubReplies = getMarkdownSection(
+      skillSource,
+      "GitHub Thread Replies",
+    );
     const staleInvalid = sliceBetween(
       structuralLifecycle,
       "**Stale/invalid**",
@@ -4983,6 +4996,13 @@ describe("existing skills source prose contracts", () => {
     expect(skillSource.indexOf(implementationGateMarker)).toBeLessThan(
       skillSource.indexOf(firstImplementationSelectionMarker),
     );
+    for (const boundaryMarker of [
+      "Writing Skills remains the classification owner",
+      "Only an in-scope product blocker reaches mode selection",
+      "Every other classification disposition bypasses inline/planned implementation selection",
+    ]) {
+      expect(normalizedExecutionMode).toContain(boundaryMarker);
+    }
     expectSubstringsInOrder(inlineExample, [
       exampleClassificationMarker,
       "Mode: Inline execution.",
@@ -5008,6 +5028,17 @@ describe("existing skills source prose contracts", () => {
     expect(responsePattern).toContain("EXECUTE:");
     expect(responsePattern).toContain("authorize it");
     expect(skillSource).toContain("already-authorized inline fix");
+    expectSubstringsInOrder(threadClosure, [
+      "current classification",
+      "Applicable outcomes:",
+      "Inline execution",
+      "Planned execution after executor returns",
+      "No-code response",
+    ]);
+    expectSubstringsInOrder(normalizeWhitespace(githubReplies), [
+      "current classification and applicable selected outcome",
+      "reply in the comment thread",
+    ]);
   });
 
   it("keeps review-response planning-input self-review semantic and structural", async () => {
