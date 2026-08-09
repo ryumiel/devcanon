@@ -1,7 +1,7 @@
 import { execFile, spawn } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { constants } from "node:fs";
-import { access, link, lstat, mkdir, open, readFile, readdir, realpath, rm, stat, } from "node:fs/promises";
+import { access, lstat, mkdir, open, readFile, readdir, realpath, rm, stat, } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import { writeTextAtomically } from "./artifacts.js";
@@ -316,7 +316,7 @@ async function replaceFindings() {
         .update(input)
         .digest("hex");
     const releasePublicationGuard = await acquireFindingsPublicationGuard(resultFile, publishedFindingsSha256);
-    let publicationValidated = false;
+    let publisherSucceeded = false;
     let reboundResultValidated = false;
     try {
         const { result } = await validatePrReviewResultCommandAuthorityForFindingsPublication(readResultValidationInput(resultFile), publishedFindingsSha256);
@@ -326,8 +326,8 @@ async function replaceFindings() {
             HEAD_SHA: readHeadSha(),
             FINDINGS_FILE: findingsFile,
         });
+        publisherSucceeded = true;
         await validateDigest("published findings", findingsFile, publishedFindingsSha256);
-        publicationValidated = true;
         const { result: currentResult } = await validatePrReviewResultCommandAuthorityForFindingsPublication(readResultValidationInput(resultFile), publishedFindingsSha256);
         const artifacts = objectField(currentResult, "artifacts");
         const digests = objectField(currentResult, "digests");
@@ -358,7 +358,7 @@ async function replaceFindings() {
         return resultFile;
     }
     finally {
-        if (!publicationValidated || reboundResultValidated) {
+        if (!publisherSucceeded || reboundResultValidated) {
             await releasePublicationGuard();
         }
     }
@@ -398,34 +398,27 @@ async function findingsPublicationGuardExists(baseGuardFile) {
 }
 async function publishFindingsPublicationGuard(guardFile, guard) {
     const guardPath = path.join(process.cwd(), guardFile);
-    const tempFile = `.ephemeral/.${path.basename(guardFile)}.${guard.owner_token}.tmp`;
-    validateDirectChildPath("findings publication guard temp", tempFile, ".tmp");
-    const tempPath = path.join(process.cwd(), tempFile);
     let handle = null;
+    let guardCreated = false;
     try {
-        handle = await open(tempPath, "wx", 0o600);
+        handle = await open(guardPath, "wx", 0o600);
+        guardCreated = true;
         await handle.writeFile(`${JSON.stringify(guard)}\n`, "utf8");
         await handle.sync();
         await handle.close();
         handle = null;
-        try {
-            await link(tempPath, guardPath);
-            return true;
-        }
-        catch (err) {
-            if (err.code === "EEXIST")
-                return false;
-            return fail(`failed to acquire findings publication guard: ${guard.result_file}`);
-        }
+        return true;
     }
     catch (err) {
+        if (!guardCreated && err.code === "EEXIST") {
+            return false;
+        }
         if (err instanceof PrReviewManifestError)
             throw err;
         return fail(`failed to acquire findings publication guard: ${guard.result_file}`);
     }
     finally {
         await handle?.close().catch(() => undefined);
-        await rm(tempPath, { force: true }).catch(() => undefined);
     }
 }
 async function readFindingsPublicationGuard(guardFile, resultFile) {

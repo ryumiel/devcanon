@@ -87,6 +87,7 @@ interface ManifestWorkspace {
 
 afterEach(async () => {
   await commandHarness.endTest();
+  vi.doUnmock("node:fs/promises");
   vi.doUnmock("./pr-review-leases.js");
   vi.doUnmock("./pr-review-result-validation.js");
   vi.resetModules();
@@ -1013,6 +1014,51 @@ describe("pr-review findings publication rebinder", () => {
     ).resolves.toBeNull();
   });
 
+  it("does not require hard-link support to acquire the publication guard", async () => {
+    const fsPromises =
+      await vi.importActual<typeof import("node:fs/promises")>(
+        "node:fs/promises",
+      );
+    const unsupportedLink = vi.fn().mockRejectedValue(
+      Object.assign(new Error("hard links unsupported"), {
+        code: "EOPNOTSUPP",
+      }),
+    );
+    vi.doMock("node:fs/promises", () => ({
+      ...fsPromises,
+      link: unsupportedLink,
+    }));
+    const workspace = await makeManifestWorkspace(
+      "pr-review-findings-no-link-",
+    );
+    setSummaryEnv(workspace);
+    process.env.PLAY_REVIEW_HELPER = await writePublishingPlayReviewHelper(
+      workspace.tempRoot,
+    );
+    process.chdir(workspace.worktree);
+    const replacement = JSON.stringify({
+      schema: "play-review/findings/v2",
+      findings: [{ id: "F2", title: "Portable guard acquisition" }],
+      carry_forward: [],
+    });
+
+    await expect(
+      runManifestCommandWithStdin(["replace-findings"], replacement),
+    ).resolves.toEqual({
+      exitCode: 0,
+      stdout: `${workspace.resultFile}\n`,
+      stderr: "",
+    });
+    expect(unsupportedLink).not.toHaveBeenCalled();
+    const guardFile = workspace.resultFile.replace(
+      /-result\.json$/,
+      "-replace-findings.lock",
+    );
+    await expect(
+      lstat(path.join(workspace.worktree, guardFile)).catch(() => null),
+    ).resolves.toBeNull();
+  });
+
   it("refuses a live findings publication guard before invoking the publisher", async () => {
     const workspace = await makeManifestWorkspace("pr-review-findings-live-");
     setSummaryEnv(workspace);
@@ -1224,6 +1270,67 @@ describe("pr-review findings publication rebinder", () => {
     await expect(
       readFile(path.join(workspace.worktree, workspace.resultFile), "utf8"),
     ).resolves.toBe(beforeResult);
+  });
+
+  it("retains the guard when findings verification fails after publisher success", async () => {
+    const workspace = await makeManifestWorkspace(
+      "pr-review-findings-verification-",
+    );
+    setSummaryEnv(workspace);
+    process.env.PLAY_REVIEW_HELPER = await writePublishingPlayReviewHelper(
+      workspace.tempRoot,
+    );
+    process.env.DRIFT_FILE = path.join(
+      workspace.worktree,
+      workspace.findingsFile,
+    );
+    process.chdir(workspace.worktree);
+    const beforeResult = await readFile(
+      path.join(workspace.worktree, workspace.resultFile),
+      "utf8",
+    );
+    const replacement = JSON.stringify({
+      schema: "play-review/findings/v2",
+      findings: [{ id: "F2", title: "Published before digest drift" }],
+      carry_forward: [],
+    });
+    const guardFile = workspace.resultFile.replace(
+      /-result\.json$/,
+      "-replace-findings.lock",
+    );
+
+    const outcome = await runManifestCommandWithStdin(
+      ["replace-findings"],
+      replacement,
+    );
+
+    expect(outcome.exitCode).toBe(1);
+    expect(outcome.stdout).toBe("");
+    expect(outcome.stderr).toContain("published findings digest mismatch");
+    await expect(
+      readFile(path.join(workspace.worktree, workspace.resultFile), "utf8"),
+    ).resolves.toBe(beforeResult);
+    await expect(
+      lstat(path.join(workspace.worktree, guardFile)).then((stat) =>
+        stat.isFile(),
+      ),
+    ).resolves.toBe(true);
+
+    const retryPublisherMarker = path.join(
+      workspace.tempRoot,
+      "verification-retry-publisher",
+    );
+    process.env.DRIFT_FILE = retryPublisherMarker;
+    await expect(
+      runManifestCommandWithStdin(["replace-findings"], replacement),
+    ).resolves.toEqual({
+      exitCode: 1,
+      stdout: "",
+      stderr: `findings publication guard requires manual recovery: ${workspace.resultFile}\n`,
+    });
+    await expect(
+      lstat(retryPublisherMarker).catch(() => null),
+    ).resolves.toBeNull();
   });
 
   it("retries after publication when only the canonical findings digest is stale", async () => {
