@@ -866,10 +866,14 @@ guard remains, regardless of the submitted envelope or whether the recorded
 PID appears live, dead, reused, stale, or ambiguous. Stop the Phase 5
 continuation and request explicit manual recovery outside this command. The
 command never reclaims retained guards or performs automatic crash recovery.
+Invalid UTF-8 refuses before guard creation, and an ordinary authority refusal
+before publisher dispatch releases its exact owned guard. After publisher
+dispatch, every refusal or ambiguous termination retains the guard, including
+publisher-side envelope validation before canonical publication is confirmed.
 Once canonical findings publication succeeds, every later authority, result
-write, or final-validation refusal retains the guard for manual recovery.
-An uninterrupted successful invocation removes only its exact owned guard
-after the rebound result validates.
+write, or final-validation refusal also retains the guard for manual recovery.
+An uninterrupted successful invocation removes only its exact owned guard after
+the rebound result validates.
 
 After that successful rebound, continue only through existing public owners in
 this order: `write-review-body`, `recover-review-body-publication` when needed,

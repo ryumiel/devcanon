@@ -1360,9 +1360,9 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
           { HEAD_SHA: reviewHeadSha, FINDINGS_FILE: canonicalFile },
         ),
       ).resolves.toMatchObject({ stdout: `${canonicalFile}\n` });
-      expect(
-        JSON.parse(await readFile(path.join(cwd, canonicalFile), "utf-8")),
-      ).toEqual(replacementEnvelope);
+      expect(await readFile(path.join(cwd, canonicalFile), "utf-8")).toBe(
+        `${JSON.stringify(replacementEnvelope)}\n \t\n`,
+      );
       await expectNoPublishStaging(cwd);
     } finally {
       await cleanupTempDir(cwd);
