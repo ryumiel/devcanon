@@ -2528,10 +2528,10 @@ None
       "preserve `carry_forward[]` from the validated `play-review` envelope unchanged",
     );
     expect(normalizedBranchReview).toContain(
-      "unresolved blocking carry-forward entries must additionally be copied into the post-`--fix` remaining `findings[]`",
+      "eligible unresolved nonblocking carry-forward entries must additionally be copied into the post-`--fix` remaining `findings[]` exactly once when absent",
     );
     expect(branchReview).toContain(
-      "mirror unresolved blocking carry-forward entries into `findings[]`",
+      "mirror eligible unresolved carry-forward entries into `findings[]` exactly once",
     );
     expect(branchReview).toContain(
       "detect remaining blockers, classify nits, and produce",
@@ -2766,11 +2766,34 @@ None
       "### Review and mutation routing",
     );
     expect(branchReview).toContain(
-      "[`docs/guidelines/writing-skills.md`](../../docs/guidelines/writing-skills.md#review-and-mutation-routing)",
+      "[`../play-review-response/references/finding-proportionality.md`](../play-review-response/references/finding-proportionality.md)",
     );
     expect(branchReview).toContain(gateMarker);
     expect(branchReview.indexOf(gateMarker)).toBeLessThan(
       branchReview.indexOf("same-invariant grouping pass"),
+    );
+  });
+
+  it("keeps bounded proportionality handoffs available through existing owners", async () => {
+    const playReview = await readSkillSource("play-review");
+    const reviewResponse = await readSkillSource("play-review-response");
+    const phase7Reference = await readRepoFile(
+      "skills/issue-priming-workflow/references/phase-7-review-handling.md",
+    );
+
+    expect(reviewResponse).toContain(
+      "independent-owner, parent, or manual-action handoff",
+    );
+    const normalizedPlayReview = normalizeWhitespace(playReview);
+
+    expect(normalizedPlayReview).toContain(
+      "GitHub `prior_threads` retain their existing blocking-only semantics",
+    );
+    expect(normalizedPlayReview).toContain(
+      "Nits remain out of critic cardinality and root-cause synthesis",
+    );
+    expect(phase7Reference).toContain(
+      "This is a target-neutral skill invocation, not a shell command.",
     );
   });
 

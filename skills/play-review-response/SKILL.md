@@ -175,14 +175,12 @@ explanation-only, or unclear feedback before selecting a mode.
 
 ### Proportionality gate (Writing Skills)
 
-Before choosing inline or planned implementation, apply the existing four-way
-classification in
-[`docs/guidelines/writing-skills.md`](../../docs/guidelines/writing-skills.md#review-and-mutation-routing).
-Writing Skills remains the classification owner; do not restate its policy
-here. Technical validity, severity, urgency, patch size, and reviewer or critic
-correctness are evidence only, never mutation authority. Only an in-scope
-product blocker, or a proof/test correction at its existing proof owner,
-reaches mode selection through the existing bounded route. Proof/test
+Before choosing inline or planned implementation, load the bundled
+[`references/finding-proportionality.md`](references/finding-proportionality.md).
+Writing Skills remains the classification owner; this runtime copy is its
+portable installed representation and does not add policy here. Only an
+in-scope product blocker, or a proof/test correction at its existing proof
+owner, reaches mode selection through the existing bounded route. Proof/test
 corrections remain proof/test-only and cannot expand production behavior. Every
 other classification disposition bypasses inline/planned implementation
 selection and retains its existing no-code disposition or independent route.
@@ -203,6 +201,11 @@ already-addressed feedback, explanation-only feedback, and
 needs-user-clarification feedback. No-code does not mean ignored: provide the
 verified evidence, keep unclear or unresolved concerns open, and follow the
 GitHub thread reply/refetching and resolution eligibility rules when applicable.
+
+For an adjacent independently releasable defect, produce an evidence-bearing
+independent-owner, parent, or manual-action handoff through this existing
+no-code outcome. Keep the active issue unchanged, do not auto-create follow-up
+tracker work, and preserve the review thread until the handoff is recorded.
 
 Inline execution is allowed only when every inline condition is true:
 

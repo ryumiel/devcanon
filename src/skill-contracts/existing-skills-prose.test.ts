@@ -4921,16 +4921,12 @@ describe("existing skills source prose contracts", () => {
 
   it("links the review-response proportionality gate before implementation selection", async () => {
     const skillSource = await readSkillSource("play-review-response");
-    const writingSkills = await readRepoFile(
-      "docs/guidelines/writing-skills.md",
-    );
     const executionMode = getMarkdownSection(
       skillSource,
       "Execution Mode Selection",
     );
-    expect(writingSkills).toContain("### Review and mutation routing");
     expect(executionMode).toContain(
-      "[`docs/guidelines/writing-skills.md`](../../docs/guidelines/writing-skills.md#review-and-mutation-routing)",
+      "[`references/finding-proportionality.md`](references/finding-proportionality.md)",
     );
     expectSubstringsInOrder(executionMode, [
       "### Proportionality gate (Writing Skills)",

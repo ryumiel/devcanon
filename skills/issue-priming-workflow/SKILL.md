@@ -921,15 +921,16 @@ Pass that set and downgraded findings that remain after the final branch-review
 run to Phase 8 via the helper-produced `-nits-pending.json` path. If the
 judgment-required set is empty, omit `nits_file`.
 
-After any branch-review-owned fix commit, rerun `branch-review --fix` on the
-new `HEAD` and restart Phase 7, passing only risk signals regenerated for that
-`HEAD` when using `--risk-signals`. Before that rerun, capture the prior run's
-validated review head and post-fix findings envelope, then invoke the existing
-paired `--last-reviewed`/`--prior-findings` route. Require its existing semantic
-scope selection to retain full base...HEAD review while it forwards the
-validated prior findings to `play-review`. Phase 7 owns those inputs and
-orchestration, while Branch Review remains the comparison, fix, and commit
-owner. For the run that will allow Phase 8 to start, capture that final run's exact
+The plain Branch Review route is first-run-only. After any branch-review-owned
+fix commit, restart Phase 7 by invoking the installed Branch Review skill on the
+new `HEAD` through its paired `--last-reviewed`/`--prior-findings` route,
+passing only risk signals regenerated for that `HEAD` when using
+`--risk-signals`. Before that rerun, capture the prior run's validated review
+head and post-fix findings envelope. Require its existing semantic scope
+selection to retain full base...HEAD review while it forwards the validated
+prior findings to `play-review`. Phase 7 owns those inputs and orchestration,
+while Branch Review remains the comparison, fix, and commit owner. For the run
+that will allow Phase 8 to start, capture that final run's exact
 `Approval summary written to <path>.` notice path alongside the review head and
 findings path evidence. A missing approval-summary notice from the final run is
 a hard stop before Phase 8. Do not carry an approval-summary path from an

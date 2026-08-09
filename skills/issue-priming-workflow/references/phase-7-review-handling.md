@@ -95,12 +95,11 @@ run's validated review head and post-fix findings envelope before it invokes
 the next round. On the new `HEAD`, invoke the existing paired route with those
 exact values:
 
-```bash
-SEMANTIC_ESCALATION_REASON=shared-workflow-policy \
-  branch-review --fix \
-  --last-reviewed "$PRIOR_REVIEW_HEAD" \
-  --prior-findings "$PRIOR_FINDINGS_FILE"
-```
+Invoke the installed `branch-review` skill in `--fix` mode with the paired
+`--last-reviewed "$PRIOR_REVIEW_HEAD"` and
+`--prior-findings "$PRIOR_FINDINGS_FILE"` inputs. Retain the existing base,
+risk-signal, and `shared-workflow-policy` full-scope escalation facts in that
+skill briefing. This is a target-neutral skill invocation, not a shell command.
 
 This uses no new input or artifact. The existing paired-input validation fails
 closed; missing or invalid paired evidence stops this follow-up without source

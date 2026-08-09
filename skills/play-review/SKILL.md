@@ -425,13 +425,15 @@ the source state visible, stop before applying critic state or writing final
 output, and never reset, check out, stage, repair, or otherwise hide source.
 Nits continue to skip critic verification.
 
-**Carry-forward (follow-up only):** when `prior_threads` or
-`prior_branch_findings` is provided, cross-reference each prior blocking finding
-against the new code in `working_directory`. Carry unresolved prior blocking
-feedback forward in `## Carry-forward` and `carry_forward[]` when the relevant
-code is unchanged or the critic cannot prove the new commits addressed it.
-Preserve `carry_forward[]` from the validated `play-review` envelope unchanged
-unless re-verification proves resolution.
+**Carry-forward (follow-up only):** GitHub `prior_threads` retain their existing
+blocking-only semantics. When validated `prior_branch_findings` is provided,
+also reverify unresolved branch-local judgment-required Nits,
+proportionality-withheld Nits, and applicable `DOWNGRADE` outcomes against the
+new code in `working_directory`. Carry each still-unresolved eligible branch
+finding forward in `## Carry-forward` and `carry_forward[]`; exclude `INVALID`,
+resolved, and auto-fixed entries. Preserve `carry_forward[]` from the validated
+envelope unchanged unless re-verification proves resolution. Nits remain out of
+critic cardinality and root-cause synthesis.
 
 ## Phase 5.5: Finding Pattern Synthesis
 

@@ -1146,6 +1146,47 @@ describe("existing skills render cleanly", () => {
       }
     }
 
+    const proportionalityReference = "finding-proportionality.md";
+    const proportionalitySource = path.join(
+      repoRoot,
+      "skills/play-review-response/references",
+      proportionalityReference,
+    );
+    const proportionalityContent = await readFile(
+      proportionalitySource,
+      "utf-8",
+    );
+
+    for (const target of ["claude", "codex"] as const) {
+      const localReference = path.join(
+        config.library.generatedDir,
+        target,
+        "skills",
+        "play-review-response",
+        "references",
+        proportionalityReference,
+      );
+      const siblingReference = path.join(
+        config.library.generatedDir,
+        target,
+        "skills",
+        "branch-review",
+        "..",
+        "play-review-response",
+        "references",
+        proportionalityReference,
+      );
+
+      expect(await pathExists(localReference)).toBe(true);
+      expect(await readFile(localReference, "utf-8")).toBe(
+        proportionalityContent,
+      );
+      expect(await pathExists(siblingReference)).toBe(true);
+      expect(await readFile(siblingReference, "utf-8")).toBe(
+        proportionalityContent,
+      );
+    }
+
     const playSubagentReferencesRoot = path.join(
       repoRoot,
       "skills/play-subagent-execution/references",

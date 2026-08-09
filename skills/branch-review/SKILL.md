@@ -546,7 +546,8 @@ may genuinely qualifying behavior, authority, or executable-contract evidence.
 **Proportionality gate (Writing Skills):** Before any blocker or fixable-nit
 grouping or fix-unit construction,
 classify every remaining mutation-capable candidate under
-[`docs/guidelines/writing-skills.md`](../../docs/guidelines/writing-skills.md#review-and-mutation-routing).
+the installed sibling
+[`../play-review-response/references/finding-proportionality.md`](../play-review-response/references/finding-proportionality.md).
 Use the current finding evidence, active-diff context, issue-scope evidence,
 and validated prior findings when the existing paired follow-up inputs provide
 them. Apply the guideline's four-way classification and its existing
@@ -684,19 +685,21 @@ flagged `DOWNGRADE`, hard-rule judgment-required blockers preserved in the
 remaining set (Sub-check 1 Safety or Sub-check 2 Contracts), the blocker or nit
 that triggered the halt (if any), any later blockers or fixable nits left
 unprocessed because an earlier stop-rule finding halted the loop, and unresolved
-blocking `carry_forward[]` entries from follow-up review. Auto-fixed blockers
+eligible `carry_forward[]` entries from follow-up review. Auto-fixed blockers
 and fixed nits do NOT appear — they're already committed in the worktree. In follow-up runs, also preserve
 `carry_forward[]` from the validated `play-review` envelope unchanged for audit
-continuity; unresolved blocking carry-forward entries must additionally be
-copied into the post-`--fix` remaining `findings[]` so downstream consumers that
-gate on `findings[]` do not mistake the run for clean. If the remaining set is
+continuity; unresolved blocking carry-forward entries and eligible unresolved
+nonblocking carry-forward entries must additionally be copied into the
+post-`--fix` remaining `findings[]` exactly once when absent so downstream
+consumers can gate and hand them off. If the remaining set is
 empty, `carry_forward[]` is also empty, and no selected topical route is
 incomplete, still write the canonical empty envelope
 (`{"schema":"play-review/findings/v2","findings":[],"carry_forward":[],"incomplete_topical_routes":[]}`) —
 never leave the file from `play-review`'s pre-fix run unchanged, and never
 delete it. If current-run findings are empty but `carry_forward[]` is
 non-empty, the post-`--fix` envelope must keep those carry-forward entries and
-mirror unresolved blocking carry-forward entries into `findings[]`. Re-emit the
+mirror eligible unresolved carry-forward entries into `findings[]` exactly once
+when absent. Re-emit the
 (unchanged) `Findings written to <path>.` notice line in conversation so
 callers see the path. `issue-priming-workflow` Phase 7 reads from this file to
 detect remaining blockers, classify nits, and produce `play-branch-finish`'s
@@ -731,9 +734,10 @@ pre-fix findings after auto-fix commits have changed the remaining set.
 **Overwrite contract (strict subset).** The post-`--fix` envelope is a strict
 subset of the pre-fix findings plus carry-forward set: this skill only removes
 auto-fixed blockers and fixed nits from `findings[]`; it preserves `carry_forward[]` unchanged,
-mirrors unresolved blocking carry-forward entries into `findings[]` for
-downstream blocker gates, never invents new entries, never re-anchors lines, and
-never edits `body` / `why` / `recommendation` text. It preserves
+mirrors eligible unresolved carry-forward entries into `findings[]` exactly
+once when absent for downstream gates and handoffs, never invents new entries,
+never re-anchors lines, and never edits `body` / `why` / `recommendation`
+text. It preserves
 `incomplete_topical_routes[]` unchanged; those entries are approval evidence,
 not auto-fix candidates.
 Downstream consumers (`pr-review` Phase 6, `issue-priming-workflow` Phase 7)
