@@ -16,7 +16,8 @@ This workflow is explicit-invocation-only. Do not select it from ordinary discus
 
 Code review requires technical evaluation, not emotional performance.
 
-**Core principle:** Verify before implementing. Ask before assuming. Technical correctness over social comfort.
+**Core principle:** Verify and classify before execution. Ask before assuming.
+Technical correctness over social comfort.
 
 ## The Response Pattern
 
@@ -28,8 +29,13 @@ WHEN receiving code review feedback:
 3. VERIFY: Check against codebase reality
 4. EVALUATE: Technically sound for THIS codebase?
 5. RESPOND: Technical acknowledgment or reasoned pushback
-6. IMPLEMENT: One item at a time, test each
+6. EXECUTE: Only after the earlier classification and selected execution mode
+   authorize it; work one item at a time and test each
 ```
+
+**Execution boundary:** Every instruction below to implement, fix, or execute
+assumes the earlier Writing Skills classification and selected execution mode
+have already authorized it.
 
 ## Forbidden Responses
 
@@ -37,14 +43,15 @@ WHEN receiving code review feedback:
 
 - "You're absolutely right!" (explicit CLAUDE.md violation)
 - "Great point!" / "Excellent feedback!" (performative)
-- "Let me implement that now" (before verification)
+- "Let me implement that now" (before verification, classification, and mode
+  selection)
 
 **INSTEAD:**
 
 - Restate the technical requirement
 - Ask clarifying questions
 - Push back with technical reasoning if wrong
-- Just start working (actions > words)
+- Proceed only through an authorized execution mode (actions > words)
 
 ## Handling Unclear Feedback
 
@@ -70,15 +77,16 @@ You understand 1,2,3,6. Unclear on 4,5.
 
 ### From the user
 
-- **Trusted** - implement after understanding
+- **Trusted** - understand first; still apply the classification and mode gate
+  before any mutation
 - **Still ask** if scope unclear
 - **No performative agreement**
-- **Skip to action** or technical acknowledgment
+- **Proceed through the authorized mode** or provide a technical acknowledgment
 
 ### From External Reviewers
 
 ```
-BEFORE implementing:
+BEFORE selecting a mode:
   1. Check: Technically correct for THIS codebase?
   2. Check: Breaks existing functionality?
   3. Check: Reason for current implementation?
@@ -107,11 +115,11 @@ cleanup, retries, cancellation, disposal, restart, reconnect, stale state,
 stale events, concurrent or same-tick bypasses, correlation, ownership, or
 authoritative completion signals.
 
-Structural-risk feedback defaults to planned execution. Do not downgrade a
-lifecycle-sensitive concern to inline execution merely because the reviewer's
-patch suggestion is small, the diff looks local, the user wants speed, or tests
-currently pass. Downgrade only after verification establishes one of these
-dispositions:
+Structural-risk feedback requires the Writing Skills proportionality gate before
+planned or inline selection. For a finding that reaches mode selection, do not
+select inline merely because the reviewer's patch suggestion is small, the diff
+looks local, the user wants speed, or tests currently pass. Select inline only
+after verification establishes one of these dispositions:
 
 - **Stale/invalid** - current code and current feedback-source state show the
   concern no longer applies or is technically incorrect; for
@@ -448,25 +456,21 @@ closeout.
 Inline example:
 
 ```text
-Reviewer: "A documented CLI invocation is rejected on its reachable command path."
-Verification: current code confirms an authoritative command contract violation,
-a meaningful user outcome, and a one-file minimal behavioral regression; a
-focused check covers the path.
+Reviewer: "This CLI feedback needs a local correction."
+Verification: current evidence supports the feedback and a focused check is
+available.
 Classification: in-scope product blocker (Writing Skills).
 Mode: Inline execution.
-Action: Fix directly, run the focused check, commit as follow-up if the PR was
-already pushed or reviewed.
+Action: Apply the selected inline route, run the focused check, and commit as a
+follow-up if the PR was already pushed or reviewed.
 ```
 
 Plan-plus-executor handoff example:
 
 ```text
-Reviewer: "This skill routing should cover schemas, lifecycle recovery, and
-thread closeout behavior."
-Verification: current code confirms a reachable product path violates its
-authoritative contract with a meaningful outcome and requires a minimal
-behavioral regression; the correction is policy-sensitive, contract-sensitive,
-and multi-surface with traceability needs.
+Reviewer: "This routed feedback needs a coordinated correction."
+Verification: current evidence identifies a policy-sensitive,
+contract-sensitive, multi-surface concern with traceability needs.
 Classification: in-scope product blocker (Writing Skills).
 Mode: Planned execution.
 Action: Apply the canonical `.ephemeral` write guard, write
@@ -493,9 +497,12 @@ unresolved thread open under the GitHub reply/refetching rules.
 GitHub closeout exclusion example:
 
 ```text
-Reviewer: "After the planned fix lands, reply and resolve these threads."
-Verification: implementation needs a plan, but GitHub replies, refetching,
-resolution, posting, push, and closeout remain outside executor tasks.
+Reviewer: "After this in-scope correction lands, reply and resolve these
+threads."
+Verification: the selected correction needs a plan, but GitHub replies,
+refetching, resolution, posting, push, and closeout remain outside executor
+tasks.
+Classification: in-scope product blocker (Writing Skills).
 Mode: Planned execution plus parent-owned closeout.
 Action: Leave GitHub side effects in the review-response planning input as
 outside executor scope. After the executor returns, this skill re-fetches
@@ -510,7 +517,7 @@ IF reviewer suggests "implementing properly":
   grep codebase for actual usage
 
   IF unused: "This endpoint isn't called. Remove it (YAGNI)?"
-  IF used: Then implement properly
+  IF used: Let the classification and selected execution mode determine any work
 ```
 
 **Rule:** "You and reviewer both report to me. If we don't need this feature, don't add it."
@@ -518,9 +525,9 @@ IF reviewer suggests "implementing properly":
 ## Implementation Order
 
 ```
-FOR multi-item feedback:
+FOR multi-item feedback whose classification and selected mode authorize execution:
   1. Clarify anything unclear FIRST
-  2. Then implement in this order:
+  2. Then execute in this order:
      - Blocking issues (breaks, security)
      - Simple fixes (typos, imports)
      - Complex fixes (refactoring, logic)
@@ -594,12 +601,12 @@ new side effects require another gate summary.
 
 ## Pushed-Fix Inline Thread Closure
 
-Use this sequence after addressing inline GitHub review feedback on an
-already-pushed or reviewed PR branch:
+Use this sequence only after the classification and inline mode authorize a
+GitHub review response on an already-pushed or reviewed PR branch:
 
-1. Verify the current review comments before changing code.
-2. Implement the fix, or prepare the explanation when no code change is
-   required.
+1. Verify the current review comments and the existing inline authorization.
+2. Implement the already-authorized inline fix, or prepare the explanation
+   when no code change is required.
 3. Run the relevant checks.
 4. Commit the response work with a follow-up commit when the branch is already
    pushed or reviewed.
@@ -694,7 +701,7 @@ When feedback IS correct:
 ```
 ✅ "Fixed. [Brief description of what changed]"
 ✅ "Good catch - [specific issue]. Fixed in [location]."
-✅ [Just fix it and show in the code]
+✅ [State the authorized outcome and show it in the code]
 
 ❌ "You're absolutely right!"
 ❌ "Great point!"
@@ -703,7 +710,8 @@ When feedback IS correct:
 ❌ ANY gratitude expression
 ```
 
-**Why no thanks:** Actions speak. Just fix it. The code itself shows you heard the feedback.
+**Why no thanks:** Actions speak. State the authorized outcome. The code itself
+shows you heard the feedback.
 
 **If you catch yourself about to write "Thanks":** DELETE IT. State the fix instead.
 
@@ -712,8 +720,8 @@ When feedback IS correct:
 If you pushed back and were wrong:
 
 ```
-✅ "You were right - I checked [X] and it does [Y]. Implementing now."
-✅ "Verified this and you're correct. My initial understanding was wrong because [reason]. Fixing."
+✅ "You were right - I checked [X] and it does [Y]. The selected mode authorizes the next step."
+✅ "Verified this and you're correct. My initial understanding was wrong because [reason]. I will follow the selected mode."
 
 ❌ Long apology
 ❌ Defending why you pushed back
@@ -809,6 +817,6 @@ reports or routes to the workflow that owns the specific gate.
 
 **External feedback = suggestions to evaluate, not orders to follow.**
 
-Verify. Question. Then implement.
+Verify. Question. Classify. Select a mode. Then execute.
 
 No performative agreement. Technical rigor always.

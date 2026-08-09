@@ -4579,10 +4579,10 @@ describe("existing skills source prose contracts", () => {
       /Treat lifecycle-sensitive review feedback as structural risk unless verification proves.*stale, invalid, already addressed, explanation-only, or safely inside the inline envelope/i,
     );
     expect(normalizedLifecycle).toMatch(
-      /Structural-risk feedback defaults to planned execution/i,
+      /Structural-risk feedback requires the Writing Skills proportionality gate before planned or inline selection/i,
     );
     expect(normalizedLifecycle).toMatch(
-      /Do not downgrade.*reviewer's patch suggestion is small.*diff looks local.*user wants speed.*tests currently pass/i,
+      /Do not select inline.*reviewer's patch suggestion is small.*diff looks local.*user wants speed.*tests currently pass/i,
     );
 
     for (const exceptionClass of [
@@ -4947,6 +4947,18 @@ describe("existing skills source prose contracts", () => {
       "Plan-plus-executor handoff example:",
       "No-code feedback example:",
     );
+    const githubCloseoutExample = sliceBetween(
+      skillSource,
+      "GitHub closeout exclusion example:",
+      '## YAGNI Check for "Professional" Features',
+    );
+    const structuralLifecycle = getMarkdownSection(
+      skillSource,
+      "Structural Lifecycle Feedback",
+    );
+    const normalizedResponsePattern = normalizeWhitespace(
+      getMarkdownSection(skillSource, "The Response Pattern"),
+    );
 
     expect(writingSkills).toContain("### Review and mutation routing");
     expect(skillSource).toContain(
@@ -4967,6 +4979,23 @@ describe("existing skills source prose contracts", () => {
       exampleClassificationMarker,
       "Mode: Planned execution.",
     ]);
+    expectSubstringsInOrder(githubCloseoutExample, [
+      exampleClassificationMarker,
+      "Mode: Planned execution plus parent-owned closeout.",
+    ]);
+    expect(structuralLifecycle).toContain(
+      "requires the Writing Skills proportionality gate",
+    );
+    expect(
+      structuralLifecycle.indexOf("Writing Skills proportionality gate"),
+    ).toBeLessThan(structuralLifecycle.indexOf("planned or inline selection"));
+    expect(normalizedResponsePattern).toContain(
+      "Only after the earlier classification and selected execution mode authorize it",
+    );
+    expect(normalizedSkillSource).toContain(
+      "Every instruction below to implement, fix, or execute assumes the earlier Writing Skills classification and selected execution mode have already authorized it",
+    );
+    expect(skillSource).toContain("already-authorized inline fix");
   });
 
   it("keeps review-response planning-input self-review semantic and structural", async () => {
