@@ -4935,6 +4935,18 @@ describe("existing skills source prose contracts", () => {
     const eligibilityMarker = "in-scope product blocker reaches mode selection";
     const bypassMarker = "bypasses inline/planned implementation selection";
     const firstImplementationSelectionMarker = "**Inline execution**";
+    const exampleClassificationMarker =
+      "Classification: in-scope product blocker";
+    const inlineExample = sliceBetween(
+      skillSource,
+      "Inline example:",
+      "Plan-plus-executor handoff example:",
+    );
+    const plannedExample = sliceBetween(
+      skillSource,
+      "Plan-plus-executor handoff example:",
+      "No-code feedback example:",
+    );
 
     expect(writingSkills).toContain("### Review and mutation routing");
     expect(skillSource).toContain(
@@ -4947,6 +4959,14 @@ describe("existing skills source prose contracts", () => {
     expect(skillSource.indexOf(classificationMarker)).toBeLessThan(
       skillSource.indexOf(firstImplementationSelectionMarker),
     );
+    expectSubstringsInOrder(inlineExample, [
+      exampleClassificationMarker,
+      "Mode: Inline execution.",
+    ]);
+    expectSubstringsInOrder(plannedExample, [
+      exampleClassificationMarker,
+      "Mode: Planned execution.",
+    ]);
   });
 
   it("keeps review-response planning-input self-review semantic and structural", async () => {

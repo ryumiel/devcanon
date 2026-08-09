@@ -448,8 +448,11 @@ closeout.
 Inline example:
 
 ```text
-Reviewer: "Typo in this private helper name."
-Verification: same file, clear local typo, no contract risk, quick test exists.
+Reviewer: "A documented CLI invocation is rejected on its reachable command path."
+Verification: current code confirms an authoritative command contract violation,
+a meaningful user outcome, and a one-file minimal behavioral regression; a
+focused check covers the path.
+Classification: in-scope product blocker (Writing Skills).
 Mode: Inline execution.
 Action: Fix directly, run the focused check, commit as follow-up if the PR was
 already pushed or reviewed.
@@ -460,8 +463,11 @@ Plan-plus-executor handoff example:
 ```text
 Reviewer: "This skill routing should cover schemas, lifecycle recovery, and
 thread closeout behavior."
-Verification: policy-sensitive, contract-sensitive, multi-surface workflow
-change with traceability needs.
+Verification: current code confirms a reachable product path violates its
+authoritative contract with a meaningful outcome and requires a minimal
+behavioral regression; the correction is policy-sensitive, contract-sensitive,
+and multi-surface with traceability needs.
+Classification: in-scope product blocker (Writing Skills).
 Mode: Planned execution.
 Action: Apply the canonical `.ephemeral` write guard, write
 `.ephemeral/<date>-review-response-design.md`, invoke `play-planning` with
