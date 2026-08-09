@@ -527,17 +527,63 @@ Before the per-fix-unit auto-fix loop, filter findings tagged
 `Critic: INVALID` out of auto-fix eligibility; note them in the report but do
 not group, iterate, auto-fix, or halt on them. Also filter blocking findings
 tagged `DOWNGRADE` out of blocking auto-fix eligibility; preserve them as
-non-blocking feedback. Then classify remaining fixable units:
+non-blocking feedback.
 
-- Eligible blocking units are the remaining blocking findings verified by the
-  critic.
-- Eligible fixable-nit units are nit findings with one obvious correct fix that
-  requires only a 1-3 line source change at the flagged line or immediately
-  adjacent lines, stays inside the active diff, does not change behavior beyond
-  the stated nit, and requires no naming, design, style, product, or reviewer
-  judgment. `Anchor: out-of-diff`, ambiguous, subjective, documentation-policy,
-  broad cleanup, and cross-file nits are judgment-required nits, not fixable
-  nit units.
+**Follow-up evidence qualification:** When the existing paired follow-up inputs
+are present, compare each current candidate's concrete evidence with the
+validated prior findings and the source at the validated review head before
+grouping or mutation. Only a newly discovered concrete source fact,
+contradiction, invalid dependency, or material safety defect unavailable to
+that prior round may proceed to the existing remediation route. A finding is
+not newly discovered merely because a prior auto-fix removed it from the
+post-fix findings envelope when its concrete evidence was already available at
+the validated review head. Repeated severity or critic labels, already
+available evidence, and wording or stable-marker-only corrections do not reopen
+unrelated review dimensions. An existing bounded proof-owner repair may proceed
+only when its own qualifying evidence meets that same freshness condition, as
+may genuinely qualifying behavior, authority, or executable-contract evidence.
+
+**Proportionality gate (Writing Skills):** Before any blocker or fixable-nit
+grouping or fix-unit construction,
+classify every remaining mutation-capable candidate under
+the installed sibling
+[`../play-review-response/references/finding-proportionality.md`](../play-review-response/references/finding-proportionality.md).
+Use the current finding evidence, active-diff context, issue-scope evidence,
+and validated prior findings when the existing paired follow-up inputs provide
+them. Apply the guideline's four-way classification and its existing
+dispositions without restating or extending them here. This consumes the
+guideline policy; it creates no new finding field, artifact, classifier, or
+recovery state, and Branch Review does not own that policy. Only candidates the
+guideline routes to existing bounded remediation may continue; every other
+candidate remains on the existing non-mutating report and caller-handoff route.
+
+Severity, critic validity, and technical fixability alone never authorize
+mutation. Apply this gate independently to every blocker and fixable-nit
+candidate, including each candidate proposed for a group; grouping cannot
+bypass it. Then classify the candidates permitted by that gate for existing
+bounded handling:
+
+**Candidate hard-stop check:** Before grouping or mutating a candidate that the
+qualification and proportionality gates already permit to an existing bounded
+remediation route, evaluate it under the existing stop-rule contract below. If
+it fires, halt `--fix` immediately under that contract; do not skip or
+reclassify that mutation-capable candidate and continue with later fixes.
+Critic-verified `Blocking | Safety` Sub-check 1 or `Blocking | Contracts`
+Sub-check 2 candidates remain subject to that existing hard stop even when the
+proportionality disposition is non-mutating, so their judgment-required caller
+handoff occurs before later auto-fix commits. Other nonblocking report and
+handoff feedback remains exempt. This check does not add a stop predicate or
+authority.
+
+- Eligible blocking units are the remaining critic-verified blockers permitted
+  by the proportionality gate.
+- Eligible fixable-nit units are proportionality-qualified proof-owner nits
+  with one obvious correct fix that requires only a 1-3 line source change at
+  the flagged line or immediately adjacent lines, stays inside the active diff,
+  does not change behavior beyond the stated nit, and requires no naming,
+  design, style, product, or reviewer judgment. `Anchor: out-of-diff`,
+  ambiguous, subjective, documentation-policy, broad cleanup, and cross-file
+  nits are judgment-required nits, not fixable nit units.
 
 Run a same-invariant grouping pass over the eligible blockers verified by the
 critic. Inspect the eligible blockers for a shared root invariant using only the
@@ -567,13 +613,14 @@ same stop-rule constraints; if any included finding or the combined grouped edit
 would trigger a stop rule, halt `--fix` under the existing stop-rule contract
 instead of applying the grouped fix.
 
-Iterate over fix units. Each unit is one ungrouped blocking finding verified by
-the critic (i.e., not `Critic: INVALID` or `DOWNGRADE`), one same-invariant
-grouped blocker set formed above, one ungrouped fixable nit, or one same-file
-same-scope grouped fixable-nit set formed above. Do not also process grouped
-members as individual findings. For each unit:
+Iterate over fix units. Each unit is one proportionality-qualified ungrouped
+blocking finding verified by the critic (i.e., not `Critic: INVALID` or
+`DOWNGRADE`), one same-invariant grouped blocker set formed above, one
+proportionality-qualified ungrouped fixable nit, or one same-file same-scope
+grouped fixable-nit set formed above. Do not also process grouped members as
+individual findings. For each unit:
 
-1. **If the unit hits the stop rule, halt `--fix` immediately and report.** Do not process further findings, do not commit anything for this run beyond fixes already applied. The stop rule fires when:
+1. **If the candidate or unit hits the stop rule, halt `--fix` immediately and report.** Do not process further findings, do not commit anything for this run beyond fixes already applied. The candidate hard-stop check above applies this existing rule after qualification and proportionality authorization; re-evaluate it for each resulting unit. The stop rule fires when:
    - `Anchor: out-of-diff` — the fix would require editing files outside the diff (e.g., Sub-check B cross-document drift, corpus-wide pattern propagation), or
    - any finding in the unit is a `play-review` hard-rule judgment-required blocker:
      `Blocking | Safety` from Code-quality Sub-check 1 (substitution audit) or
@@ -585,8 +632,8 @@ members as individual findings. For each unit:
 
 2. Otherwise: apply the fix, run local CI checks (`pnpm run check` for TypeScript repos; equivalent elsewhere), commit. When a grouped fix is applied and committed, every included finding counts as auto-fixed, is removed from the post-`--fix` remaining-set envelope, and must not be reprocessed individually. Fixable nits that are resolved by `--fix` are removed from the final findings envelope and do not become caller-owned mechanical-nit commits.
 
-Only judgment-required nits remain for caller handoff. Collect them for the
-report (including any with `Anchor: out-of-diff`).
+Non-mutating candidates and judgment-required nits remain for caller handoff.
+Collect them for the report (including any with `Anchor: out-of-diff`).
 
 **Commit message format:** Before composing fix commit messages, glob for `**/commit-guideline*.md` and follow its format. If none is found, use Conventional Commits: `fix(<scope>): <what was fixed>`. Preserve that policy for both blocker and nit fix commits. For every fixed nit, include a commit-message body trailer line of the form `Reported by branch-review at <path>:<line>`; grouped nit commits must include one such line for each fixed nit.
 
@@ -602,8 +649,8 @@ Then report:
 
 - Number of blocking findings auto-fixed
 - Number of fixable nit findings auto-fixed
-- Remaining judgment-required nits (left for user), including
-  `Anchor: out-of-diff` nits
+- Remaining non-mutating candidates and judgment-required nits (left for the
+  user), including `Anchor: out-of-diff` nits
 - The finding that triggered the halt, if any (cite file:line, severity,
   category, and which stop-rule branch fired)
 - Blocking findings skipped because the critic flagged `INVALID` or `DOWNGRADE`
@@ -635,25 +682,28 @@ The remaining-set `findings[]` contains all pre-fix findings except blockers
 and fixable nits that were successfully auto-fixed and committed. For a
 committed grouped fix, that exception covers every included finding in the
 grouped blocker set or grouped fixable-nit set, not only the lead anchor or
-first finding processed. The remaining set includes every judgment-required nit
-(regardless of anchor), invalid findings, blockers skipped because the critic
+first finding processed. The remaining set includes every candidate withheld by
+the proportionality gate, every judgment-required nit (regardless of anchor),
+invalid findings, blockers skipped because the critic
 flagged `DOWNGRADE`, hard-rule judgment-required blockers preserved in the
 remaining set (Sub-check 1 Safety or Sub-check 2 Contracts), the blocker or nit
 that triggered the halt (if any), any later blockers or fixable nits left
 unprocessed because an earlier stop-rule finding halted the loop, and unresolved
-blocking `carry_forward[]` entries from follow-up review. Auto-fixed blockers
+eligible `carry_forward[]` entries from follow-up review. Auto-fixed blockers
 and fixed nits do NOT appear — they're already committed in the worktree. In follow-up runs, also preserve
 `carry_forward[]` from the validated `play-review` envelope unchanged for audit
-continuity; unresolved blocking carry-forward entries must additionally be
-copied into the post-`--fix` remaining `findings[]` so downstream consumers that
-gate on `findings[]` do not mistake the run for clean. If the remaining set is
+continuity; unresolved blocking carry-forward entries and eligible unresolved
+nonblocking carry-forward entries must additionally be copied into the
+post-`--fix` remaining `findings[]` exactly once when absent so downstream
+consumers can gate and hand them off. If the remaining set is
 empty, `carry_forward[]` is also empty, and no selected topical route is
 incomplete, still write the canonical empty envelope
 (`{"schema":"play-review/findings/v2","findings":[],"carry_forward":[],"incomplete_topical_routes":[]}`) —
 never leave the file from `play-review`'s pre-fix run unchanged, and never
 delete it. If current-run findings are empty but `carry_forward[]` is
 non-empty, the post-`--fix` envelope must keep those carry-forward entries and
-mirror unresolved blocking carry-forward entries into `findings[]`. Re-emit the
+mirror eligible unresolved carry-forward entries into `findings[]` exactly once
+when absent. Re-emit the
 (unchanged) `Findings written to <path>.` notice line in conversation so
 callers see the path. `issue-priming-workflow` Phase 7 reads from this file to
 detect remaining blockers, classify nits, and produce `play-branch-finish`'s
@@ -688,9 +738,10 @@ pre-fix findings after auto-fix commits have changed the remaining set.
 **Overwrite contract (strict subset).** The post-`--fix` envelope is a strict
 subset of the pre-fix findings plus carry-forward set: this skill only removes
 auto-fixed blockers and fixed nits from `findings[]`; it preserves `carry_forward[]` unchanged,
-mirrors unresolved blocking carry-forward entries into `findings[]` for
-downstream blocker gates, never invents new entries, never re-anchors lines, and
-never edits `body` / `why` / `recommendation` text. It preserves
+mirrors eligible unresolved carry-forward entries into `findings[]` exactly
+once when absent for downstream gates and handoffs, never invents new entries,
+never re-anchors lines, and never edits `body` / `why` / `recommendation`
+text. It preserves
 `incomplete_topical_routes[]` unchanged; those entries are approval evidence,
 not auto-fix candidates.
 Downstream consumers (`pr-review` Phase 6, `issue-priming-workflow` Phase 7)
@@ -705,11 +756,11 @@ discriminator; the contract above is what guarantees consumers do not need one.
 | --------------------------------------------------------- | ------------------------------------------------------ |
 | Empty diff                                                | Report "no changes", stop                              |
 | All clean                                                 | Report "no issues found"                               |
-| Blocking findings + `--fix`                               | Auto-fix eligible, commit, report                      |
+| Proportionality-qualified blocking findings + `--fix`     | Auto-fix eligible, commit, report                      |
 | Blocking finding needs design change or out-of-diff edits | Stop, report to caller                                 |
 | Hard-rule judgment-required blocker                       | Stop, preserve in findings file                        |
-| Fixable nits + `--fix`                                    | Auto-fix eligible one-obvious-fix nits, commit, report |
-| Judgment-required nits + `--fix`                          | Leave for user, list in report                         |
+| Proportionality-qualified fixable nits + `--fix`          | Auto-fix eligible one-obvious-fix nits, commit, report |
+| Non-qualified or judgment-required nits + `--fix`         | Leave for user, list in report                         |
 
 ## Common Mistakes
 

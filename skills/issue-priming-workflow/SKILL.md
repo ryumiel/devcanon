@@ -875,21 +875,22 @@ unless a concrete blocker stops `--auto`.
 
 ### Phase 7: Branch Review
 
-Invoke `branch-review --fix` to review the implementation before creating a PR.
-If Phase 6 emitted `Risk signals written to <path>.`, invoke
-`branch-review --fix --risk-signals <path>` for default-base artifacts on the
-next branch-review run. If Phase 6 emitted detached issue-base risk signals
-whose reviewed range is `<full-base-sha>...HEAD`, invoke
-`branch-review --fix --risk-signals <path> <full-base-sha>` so branch-review
-validates the same full base SHA range. When those risk signals carry
+Invoke the installed Branch Review skill in `--fix` mode to review the
+implementation before creating a PR. The first Phase 7 invocation keeps the
+existing full-diff route. If Phase 6 emitted `Risk signals written to <path>`,
+include its existing `--risk-signals <path>` input in that skill briefing for
+default-base artifacts. If Phase 6 emitted detached issue-base risk signals
+whose reviewed range is `<full-base-sha>...HEAD`, include that same input and
+`<full-base-sha>` base in the skill briefing so Branch Review validates the
+same full base SHA range. When those risk signals carry
 `contract_example_discipline` context from an auto single-task executor run,
 Phase 7 still treats it as non-authoritative handoff data; branch-review
 validates it, escalates scrutiny when present, and passes only sanitized
 semantic notes into downstream reviewer context.
 If the run creates any branch-review-owned fix commit, regenerate risk signals
-for the new `HEAD` before rerunning
-`branch-review --fix --risk-signals <new-path>` with the same base-side rule, or
-rerun `branch-review --fix` while intentionally omitting stale risk signals.
+for the new `HEAD`, then use the paired post-fix Branch Review skill route
+defined below with the same base-side rule; intentionally omit stale risk
+signals rather than forwarding them.
 Continue until a run reports zero blocking findings auto-fixed and the
 remaining findings file contains no unresolved
 `severity: "Blocking"` entries except findings whose `critic` verdict is
@@ -914,15 +915,22 @@ details, branch-review-owned fix commit rules, remaining-nit selection, and the
 For the eager contract: ignore `critic: "INVALID"` for continuation and never
 pass it to Phase 8; treat `critic: "DOWNGRADE"` as non-blocking,
 judgment-required feedback; branch-review owns fixable feedback through
-`branch-review --fix`; pass only judgment-required nits and downgraded findings
-that remain after the final branch-review run to Phase 8 via the
-helper-produced `-nits-pending.json` path. If the judgment-required set is
-empty, omit `nits_file`.
+`branch-review --fix`; a fixable nit withheld by the proportionality gate
+remains non-mutating and is selected for caller handoff as judgment-required.
+Pass that set and downgraded findings that remain after the final branch-review
+run to Phase 8 via the helper-produced `-nits-pending.json` path. If the
+judgment-required set is empty, omit `nits_file`.
 
-After any branch-review-owned fix commit, rerun `branch-review --fix` on the
-new `HEAD` and restart Phase 7, passing only risk signals regenerated for that
-`HEAD` when using `--risk-signals`. For the run that will allow Phase 8 to
-start, capture that final run's exact
+The plain Branch Review route is first-run-only. After any branch-review-owned
+fix commit, restart Phase 7 by invoking the installed Branch Review skill on the
+new `HEAD` through its paired `--last-reviewed`/`--prior-findings` route,
+passing only risk signals regenerated for that `HEAD` when using
+`--risk-signals`. Before that rerun, capture the prior run's validated review
+head and post-fix findings envelope. Require its existing semantic scope
+selection to retain full base...HEAD review while it forwards the validated
+prior findings to `play-review`. Phase 7 owns those inputs and orchestration,
+while Branch Review remains the comparison, fix, and commit owner. For the run
+that will allow Phase 8 to start, capture that final run's exact
 `Approval summary written to <path>.` notice path alongside the review head and
 findings path evidence. A missing approval-summary notice from the final run is
 a hard stop before Phase 8. Do not carry an approval-summary path from an

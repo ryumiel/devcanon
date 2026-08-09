@@ -506,7 +506,7 @@ describe("play subagent routing source contracts", () => {
       "This final whole-diff review is the downstream guarantee that supports both reduced per-task routes and the single-task final-review carve-out",
     );
 
-    expect(phase7).toContain("branch-review --fix");
+    expect(phase7).toContain("installed Branch Review skill in `--fix` mode");
     expect(phase7).toContain("references/phase-7-review-handling.md");
     expect(phase7).toContain("prepare-judgment-nits");
     expect(phase7).toContain("-nits-pending.json");
@@ -517,13 +517,13 @@ describe("play subagent routing source contracts", () => {
       'treat `critic: "DOWNGRADE"` as non-blocking, judgment-required feedback',
     );
     expect(normalizedPhase7).toContain(
-      "If Phase 6 emitted `Risk signals written to <path>.`, invoke `branch-review --fix --risk-signals <path>` for default-base artifacts",
+      "include its existing `--risk-signals <path>` input in that skill briefing for default-base artifacts",
     );
     expect(normalizedPhase7).toContain(
-      "If Phase 6 emitted detached issue-base risk signals whose reviewed range is `<full-base-sha>...HEAD`, invoke `branch-review --fix --risk-signals <path> <full-base-sha>`",
+      "include that same input and `<full-base-sha>` base in the skill briefing",
     );
     expect(normalizedPhase7).toContain(
-      "regenerate risk signals for the new `HEAD` before rerunning `branch-review --fix --risk-signals <new-path>` with the same base-side rule",
+      "regenerate risk signals for the new `HEAD`, then use the paired post-fix Branch Review skill route defined below with the same base-side rule",
     );
     expect(normalizedPhase7).toContain(
       "This runs the full multi-agent review on `git diff <base>...HEAD` where `<base>` is branch-review's selected base: normally the repository's default branch, or the supplied full base SHA for detached issue-base risk signals that use that same base side",
@@ -2166,21 +2166,21 @@ describe("play subagent routing source contracts", () => {
       "That final whole-diff review satisfies the final-review guarantee required by any reduced per-task review route",
     );
 
-    expect(phase7).toContain("Invoke `branch-review --fix`");
+    expect(phase7).toContain("installed Branch Review skill in `--fix` mode");
     expect(normalizedPhase7).toContain(
-      "If Phase 6 emitted `Risk signals written to <path>.`, invoke `branch-review --fix --risk-signals <path>` for default-base artifacts",
+      "include its existing `--risk-signals <path>` input in that skill briefing for default-base artifacts",
     );
     expect(normalizedPhase7).toContain(
-      "If Phase 6 emitted detached issue-base risk signals whose reviewed range is `<full-base-sha>...HEAD`, invoke `branch-review --fix --risk-signals <path> <full-base-sha>`",
+      "include that same input and `<full-base-sha>` base in the skill briefing",
     );
     expect(normalizedPhase7).toContain(
-      "If the run creates any branch-review-owned fix commit, regenerate risk signals for the new `HEAD` before rerunning `branch-review --fix --risk-signals <new-path>` with the same base-side rule",
+      "The plain Branch Review route is first-run-only",
     );
     expect(normalizedPhase7).toContain(
       "This runs the full multi-agent review on `git diff <base>...HEAD` where `<base>` is branch-review's selected base: normally the repository's default branch, or the supplied full base SHA for detached issue-base risk signals that use that same base side",
     );
     expect(normalizedPhase7).toContain(
-      "After any branch-review-owned fix commit, rerun `branch-review --fix`",
+      "restart Phase 7 by invoking the installed Branch Review skill on the new `HEAD` through its paired `--last-reviewed`/`--prior-findings` route",
     );
     expect(phase7).toContain("references/phase-7-review-handling.md");
     expect(phase7).toContain("prepare-judgment-nits");
@@ -2195,7 +2195,7 @@ describe("play subagent routing source contracts", () => {
       'treat `critic: "DOWNGRADE"` as non-blocking, judgment-required feedback',
     );
     expect(normalizedPhase7).toContain(
-      "After any branch-review-owned fix commit, rerun `branch-review --fix`",
+      "After any branch-review-owned fix commit, restart Phase 7 by invoking the installed Branch Review skill on the new `HEAD` through its paired `--last-reviewed`/`--prior-findings` route",
     );
     expect(normalizedPhase7).toContain(
       "`skills/play-subagent-execution/references/snapshot-consumption.md` § Edit-Staleness Rule",

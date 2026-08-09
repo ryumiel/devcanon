@@ -4384,7 +4384,7 @@ describe("existing skills source prose contracts", () => {
     );
     const prePushGateIndex = skillSource.indexOf("## Pre-Push Review Gate");
     const threadClosureIndex = skillSource.indexOf(
-      "## Pushed-Fix Inline Thread Closure",
+      "## Pushed-Fix and Outcome Thread Closure",
     );
     const pushBackIndex = skillSource.indexOf("## When To Push Back");
 
@@ -4411,7 +4411,7 @@ describe("existing skills source prose contracts", () => {
     const normalizedPrePushGate = normalizeWhitespace(prePushGate);
     const threadClosure = getMarkdownSection(
       skillSource,
-      "Pushed-Fix Inline Thread Closure",
+      "Pushed-Fix and Outcome Thread Closure",
     );
     const normalizedThreadClosure = normalizeWhitespace(threadClosure);
     const githubReplies = getMarkdownSection(
@@ -4493,7 +4493,8 @@ describe("existing skills source prose contracts", () => {
       "reviewer identity or ownership",
       "same concern",
       "pushed branch contains the fix",
-      "reply explains why no code change is required",
+      "explicit no-code disposition",
+      "adjacent independently releasable defect handoff alone is not resolution evidence",
       "outdated unresolved threads",
       "current code and current thread state",
       "pushed or replied evidence",
@@ -4549,7 +4550,7 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedGithubReplies).toContain("concise verification summary");
     expect(normalizedGithubReplies).toMatch(/thread context/i);
     expect(normalizedGithubReplies).toContain(
-      "Pushed-Fix Inline Thread Closure",
+      "Pushed-Fix and Outcome Thread Closure",
     );
   });
 
@@ -4574,16 +4575,15 @@ describe("existing skills source prose contracts", () => {
       "Structural Lifecycle Feedback",
     );
     const normalizedLifecycle = normalizeWhitespace(lifecycleSection);
+    const structuralGateMarker = "Writing Skills proportionality gate";
+    const structuralSelectionMarker =
+      "inline or planned implementation selection";
 
-    expect(normalizedLifecycle).toMatch(
-      /Treat lifecycle-sensitive review feedback as structural risk unless verification proves.*stale, invalid, already addressed, explanation-only, or safely inside the inline envelope/i,
-    );
-    expect(normalizedLifecycle).toMatch(
-      /Structural-risk feedback defaults to planned execution/i,
-    );
-    expect(normalizedLifecycle).toMatch(
-      /Do not downgrade.*reviewer's patch suggestion is small.*diff looks local.*user wants speed.*tests currently pass/i,
-    );
+    expect(lifecycleSection).toContain(structuralGateMarker);
+    expectSubstringsInOrder(lifecycleSection, [
+      structuralGateMarker,
+      structuralSelectionMarker,
+    ]);
 
     for (const exceptionClass of [
       "Stale/invalid",
@@ -4593,10 +4593,6 @@ describe("existing skills source prose contracts", () => {
     ]) {
       expect(normalizedLifecycle).toContain(exceptionClass);
     }
-    expect(normalizedLifecycle).toMatch(
-      /Stale\/invalid.*current code and current feedback-source state.*GitHub\/PR-thread-backed feedback.*current thread state/i,
-    );
-
     for (const lifecycleTerm of [
       "operation start",
       "readiness",
@@ -4922,6 +4918,22 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedExecutionMode).toMatch(
       /plan-plus-executor handoff example/i,
     );
+  });
+
+  it("links the review-response proportionality gate before implementation selection", async () => {
+    const skillSource = await readSkillSource("play-review-response");
+    const executionMode = getMarkdownSection(
+      skillSource,
+      "Execution Mode Selection",
+    );
+    expect(executionMode).toContain(
+      "[`references/finding-proportionality.md`](references/finding-proportionality.md)",
+    );
+    expectSubstringsInOrder(executionMode, [
+      "### Proportionality gate (Writing Skills)",
+      "Before choosing inline or planned implementation",
+      "Implementation selections:",
+    ]);
   });
 
   it("keeps review-response planning-input self-review semantic and structural", async () => {

@@ -1407,7 +1407,7 @@ describe("rendered phase artifact smoke coverage", () => {
         'treat `critic: "DOWNGRADE"` as non-blocking, judgment-required feedback',
       );
       expect(normalizedPhase7).toContain(
-        "After any branch-review-owned fix commit, rerun `branch-review --fix`",
+        "The plain Branch Review route is first-run-only",
       );
       expect(normalizedPhase7).toContain(
         "Phase 8 may start only after the final Phase 7 run reports zero blocking findings auto-fixed",
@@ -2362,7 +2362,7 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(branchReview).toContain("prior_branch_findings");
       expect(branchReview).toContain("carry_forward[]");
       expect(branchReview).toContain(
-        "mirror unresolved blocking carry-forward entries into `findings[]`",
+        "mirror eligible unresolved carry-forward entries into `findings[]` exactly once",
       );
 
       const playReview = bodies[`play-review:${target}`];

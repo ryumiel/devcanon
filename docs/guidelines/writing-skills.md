@@ -376,6 +376,11 @@ This allocation applies the rationale in
 [ADR-0028](../adr/adr-0028-owner-driven-proportional-contract-testing.md), and
 [ADR-0029](../adr/adr-0029-normative-contract-ownership-topology.md).
 
+This guideline remains the durable source of origin. Installed review skills
+bundle the compact runtime copy at
+[`skills/play-review-response/references/finding-proportionality.md`](../../skills/play-review-response/references/finding-proportionality.md)
+so user-wide installations can apply this policy without repository-local docs.
+
 ## 7. Testing
 
 The general discipline lives in

@@ -2497,7 +2497,7 @@ None
       "if any included finding or the combined grouped edit would trigger a stop rule",
     );
     expect(normalizedBranchReview).toContain(
-      "Each unit is one ungrouped blocking finding verified by the critic",
+      "Each unit is one proportionality-qualified ungrouped blocking finding verified by the critic",
     );
     expect(normalizedBranchReview).toContain(
       "one same-invariant grouped blocker set formed above",
@@ -2506,7 +2506,7 @@ None
       "Do not also process grouped members as individual findings",
     );
     expect(normalizedBranchReview).toContain(
-      "one ungrouped fixable nit, or one same-file same-scope grouped fixable-nit set formed above",
+      "one proportionality-qualified ungrouped fixable nit, or one same-file same-scope grouped fixable-nit set formed above",
     );
     expect(normalizedBranchReview).toContain(
       "need context beyond the unit's flagged lines and any adjacent same-invariant active-diff surfaces selected by the scan for that grouped unit",
@@ -2528,10 +2528,10 @@ None
       "preserve `carry_forward[]` from the validated `play-review` envelope unchanged",
     );
     expect(normalizedBranchReview).toContain(
-      "unresolved blocking carry-forward entries must additionally be copied into the post-`--fix` remaining `findings[]`",
+      "eligible unresolved nonblocking carry-forward entries must additionally be copied into the post-`--fix` remaining `findings[]` exactly once when absent",
     );
     expect(branchReview).toContain(
-      "mirror unresolved blocking carry-forward entries into `findings[]`",
+      "mirror eligible unresolved carry-forward entries into `findings[]` exactly once",
     );
     expect(branchReview).toContain(
       "detect remaining blockers, classify nits, and produce",
@@ -2741,7 +2741,7 @@ None
       "Fixable nits that are resolved by `--fix` are removed from the final findings envelope",
     );
     expect(normalizedBranchReview).toContain(
-      "Only judgment-required nits remain for caller handoff",
+      "Non-mutating candidates and judgment-required nits remain for caller handoff",
     );
     expect(normalizedBranchReview).toContain(
       "one obvious correct fix that requires only a 1-3 line source change",
@@ -2751,6 +2751,52 @@ None
     );
     expect(normalizedBranchReview).toContain(
       "Reported by branch-review at <path>:<line>",
+    );
+  });
+
+  it("keeps the Branch Review proportionality owner link and ordering", async () => {
+    const branchReview = await readSkillSource("branch-review");
+    const writingSkills = await readRepoFile(
+      "docs/guidelines/writing-skills.md",
+    );
+    const normalizedWritingSkills = normalizeWhitespace(writingSkills);
+    const gateMarker = "Proportionality gate (Writing Skills)";
+
+    expect(normalizedWritingSkills).toContain(
+      "### Review and mutation routing",
+    );
+    expect(branchReview).toContain(
+      "[`../play-review-response/references/finding-proportionality.md`](../play-review-response/references/finding-proportionality.md)",
+    );
+    expect(branchReview).toContain(gateMarker);
+    expect(branchReview.indexOf(gateMarker)).toBeLessThan(
+      branchReview.indexOf("same-invariant grouping pass"),
+    );
+    expect(branchReview).toContain(
+      "proportionality disposition is non-mutating",
+    );
+  });
+
+  it("keeps bounded proportionality handoffs available through existing owners", async () => {
+    const playReview = await readSkillSource("play-review");
+    const reviewResponse = await readSkillSource("play-review-response");
+    const phase7Reference = await readRepoFile(
+      "skills/issue-priming-workflow/references/phase-7-review-handling.md",
+    );
+
+    expect(reviewResponse).toContain(
+      "independent-owner, parent, or manual-action handoff",
+    );
+    const normalizedPlayReview = normalizeWhitespace(playReview);
+
+    expect(normalizedPlayReview).toContain(
+      "GitHub `prior_threads` retain their existing blocking-only semantics",
+    );
+    expect(normalizedPlayReview).toContain(
+      "Nits remain out of critic cardinality and root-cause synthesis",
+    );
+    expect(phase7Reference).toContain(
+      "This is a target-neutral skill invocation, not a shell command.",
     );
   });
 
@@ -2765,10 +2811,43 @@ None
       "Fixable nits that are resolved by `--fix` are removed from the final findings envelope",
     );
     expect(normalizedBranchReview).toContain(
-      "Only judgment-required nits remain for caller handoff",
+      "Non-mutating candidates and judgment-required nits remain for caller handoff",
     );
     expect(normalizedBranchReview).not.toContain(
       "Nit findings are never auto-fixed",
+    );
+  });
+
+  it("keeps Phase 7 follow-up evidence full-range and pre-mutation", async () => {
+    const issuePrimingWorkflow = await readSkillSource(
+      "issue-priming-workflow",
+    );
+    const phase7Reference = await readRepoFile(
+      "skills/issue-priming-workflow/references/phase-7-review-handling.md",
+    );
+    const firstRunMarker = "First run: existing full-diff route";
+    const followUpMarker = "Follow-up: paired prior-review route";
+    const normalizedReference = normalizeWhitespace(phase7Reference);
+
+    expect(phase7Reference).toContain(firstRunMarker);
+    expect(phase7Reference).toContain(followUpMarker);
+    expect(phase7Reference.indexOf(firstRunMarker)).toBeLessThan(
+      phase7Reference.indexOf(followUpMarker),
+    );
+    expect(phase7Reference).toContain("--last-reviewed");
+    expect(phase7Reference).toContain("--prior-findings");
+    expect(normalizedReference).toContain("full base...HEAD semantic scope");
+    expect(normalizedReference).toContain("Before grouping or mutation");
+    const normalizedWorkflow = normalizeWhitespace(issuePrimingWorkflow);
+
+    expect(normalizedWorkflow).toContain(
+      "validated review head and post-fix findings envelope",
+    );
+    expect(normalizedWorkflow).toContain(
+      "The plain Branch Review route is first-run-only",
+    );
+    expect(normalizedWorkflow).toContain(
+      "then use the paired post-fix Branch Review skill route defined below",
     );
   });
 

@@ -16,7 +16,8 @@ This workflow is explicit-invocation-only. Do not select it from ordinary discus
 
 Code review requires technical evaluation, not emotional performance.
 
-**Core principle:** Verify before implementing. Ask before assuming. Technical correctness over social comfort.
+**Core principle:** Verify and classify before execution. Ask before assuming.
+Technical correctness over social comfort.
 
 ## The Response Pattern
 
@@ -28,8 +29,13 @@ WHEN receiving code review feedback:
 3. VERIFY: Check against codebase reality
 4. EVALUATE: Technically sound for THIS codebase?
 5. RESPOND: Technical acknowledgment or reasoned pushback
-6. IMPLEMENT: One item at a time, test each
+6. EXECUTE: Only after the earlier classification and selected execution mode
+   authorize it; work one item at a time and test each
 ```
+
+**Execution boundary:** Every instruction below to implement, fix, or execute
+assumes the earlier Writing Skills classification and selected execution mode
+have already authorized it.
 
 ## Forbidden Responses
 
@@ -37,14 +43,15 @@ WHEN receiving code review feedback:
 
 - "You're absolutely right!" (explicit CLAUDE.md violation)
 - "Great point!" / "Excellent feedback!" (performative)
-- "Let me implement that now" (before verification)
+- "Let me implement that now" (before verification, classification, and mode
+  selection)
 
 **INSTEAD:**
 
 - Restate the technical requirement
 - Ask clarifying questions
 - Push back with technical reasoning if wrong
-- Just start working (actions > words)
+- Proceed only through an authorized execution mode (actions > words)
 
 ## Handling Unclear Feedback
 
@@ -70,15 +77,16 @@ You understand 1,2,3,6. Unclear on 4,5.
 
 ### From the user
 
-- **Trusted** - implement after understanding
+- **Trusted** - understand first; still apply the classification and mode gate
+  before any mutation
 - **Still ask** if scope unclear
 - **No performative agreement**
-- **Skip to action** or technical acknowledgment
+- **Proceed through the authorized mode** or provide a technical acknowledgment
 
 ### From External Reviewers
 
 ```
-BEFORE implementing:
+BEFORE selecting a mode:
   1. Check: Technically correct for THIS codebase?
   2. Check: Breaks existing functionality?
   3. Check: Reason for current implementation?
@@ -107,23 +115,28 @@ cleanup, retries, cancellation, disposal, restart, reconnect, stale state,
 stale events, concurrent or same-tick bypasses, correlation, ownership, or
 authoritative completion signals.
 
-Structural-risk feedback defaults to planned execution. Do not downgrade a
-lifecycle-sensitive concern to inline execution merely because the reviewer's
+Structural-risk feedback requires the Writing Skills proportionality gate before
+inline or planned implementation selection. An in-scope product blocker that
+reaches implementation selection uses the existing planned route when
+structural risk requires it. Do not select inline merely because the reviewer's
 patch suggestion is small, the diff looks local, the user wants speed, or tests
-currently pass. Downgrade only after verification establishes one of these
-dispositions:
+currently pass.
 
-- **Stale/invalid** - current code and current feedback-source state show the
-  concern no longer applies or is technically incorrect; for
-  GitHub/PR-thread-backed feedback, current thread state also supports that
-  disposition.
-- **Already addressed** - the pushed branch or current local diff contains the
-  fix, and the same concern can be mapped to concrete evidence.
-- **Explanation-only** - no code change is required, and a concise reply can
-  explain why with source evidence.
-- **Safely inline** - every normal inline condition is true, and the lifecycle
-  concern does not affect operation boundaries, ownership, ordering,
-  correlation, cleanup, retry, failure, or externally visible behavior.
+- **Stale/invalid** - retain the existing no-code response; do not select
+  inline. Current code and current feedback-source state show the concern no
+  longer applies or is technically incorrect; for GitHub/PR-thread-backed
+  feedback, current thread state also supports that disposition.
+- **Already addressed** - retain the existing no-code response; do not select
+  inline. The pushed branch or current local diff contains the fix, and the
+  same concern can be mapped to concrete evidence.
+- **Explanation-only** - retain the existing no-code response; do not select
+  inline. No code change is required, and a concise reply can explain why with
+  source evidence.
+- **Safely inline** - continue toward inline selection only when the Writing
+  Skills proportionality gate authorizes inline selection and every normal
+  inline condition is true. The lifecycle concern must not affect operation
+  boundaries, ownership, ordering, correlation, cleanup, retry, failure, or
+  externally visible behavior.
 
 For executable lifecycle-sensitive concerns, check the operation lifecycle
 before writing code or a plan:
@@ -160,10 +173,27 @@ when feedback is GitHub/PR-thread-backed, mapping feedback to the same concern,
 and separating executable feedback from stale, already-addressed,
 explanation-only, or unclear feedback before selecting a mode.
 
+### Proportionality gate (Writing Skills)
+
+Before choosing inline or planned implementation, load the bundled
+[`references/finding-proportionality.md`](references/finding-proportionality.md).
+Writing Skills remains the classification owner; this runtime copy is its
+portable installed representation and does not add policy here. Only an
+in-scope product blocker, or a proof/test correction at its existing proof
+owner, reaches mode selection through the existing bounded route. Proof/test
+corrections remain proof/test-only and cannot expand production behavior. Every
+other classification disposition bypasses inline/planned implementation
+selection and retains its existing no-code disposition or independent route.
+
+Implementation selections:
+
 - **Inline execution** - handle directly in this skill.
 - **Planned execution** - write a verified review-response planning input,
   invoke `play-planning`, then hand the approved generated plan to
   `play-subagent-execution`.
+
+Non-implementation outcome:
+
 - **No-code response** - reply, report, or ask without changing code.
 
 No-code response outcomes include technically invalid feedback, stale feedback,
@@ -171,6 +201,11 @@ already-addressed feedback, explanation-only feedback, and
 needs-user-clarification feedback. No-code does not mean ignored: provide the
 verified evidence, keep unclear or unresolved concerns open, and follow the
 GitHub thread reply/refetching and resolution eligibility rules when applicable.
+
+For an adjacent independently releasable defect, produce an evidence-bearing
+independent-owner, parent, or manual-action handoff through this existing
+no-code outcome. Keep the active issue unchanged, do not auto-create follow-up
+tracker work, and preserve the review thread until the handoff is recorded.
 
 Inline execution is allowed only when every inline condition is true:
 
@@ -436,20 +471,22 @@ closeout.
 Inline example:
 
 ```text
-Reviewer: "Typo in this private helper name."
-Verification: same file, clear local typo, no contract risk, quick test exists.
+Reviewer: "This CLI feedback needs a local correction."
+Verification: current evidence supports the feedback and a focused check is
+available.
+Classification: in-scope product blocker (Writing Skills).
 Mode: Inline execution.
-Action: Fix directly, run the focused check, commit as follow-up if the PR was
-already pushed or reviewed.
+Action: Apply the selected inline route, run the focused check, and commit as a
+follow-up if the PR was already pushed or reviewed.
 ```
 
 Plan-plus-executor handoff example:
 
 ```text
-Reviewer: "This skill routing should cover schemas, lifecycle recovery, and
-thread closeout behavior."
-Verification: policy-sensitive, contract-sensitive, multi-surface workflow
-change with traceability needs.
+Reviewer: "This routed feedback needs a coordinated correction."
+Verification: current evidence identifies a policy-sensitive,
+contract-sensitive, multi-surface concern with traceability needs.
+Classification: in-scope product blocker (Writing Skills).
 Mode: Planned execution.
 Action: Apply the canonical `.ephemeral` write guard, write
 `.ephemeral/<date>-review-response-design.md`, invoke `play-planning` with
@@ -475,9 +512,12 @@ unresolved thread open under the GitHub reply/refetching rules.
 GitHub closeout exclusion example:
 
 ```text
-Reviewer: "After the planned fix lands, reply and resolve these threads."
-Verification: implementation needs a plan, but GitHub replies, refetching,
-resolution, posting, push, and closeout remain outside executor tasks.
+Reviewer: "After this in-scope correction lands, reply and resolve these
+threads."
+Verification: the selected correction needs a plan, but GitHub replies,
+refetching, resolution, posting, push, and closeout remain outside executor
+tasks.
+Classification: in-scope product blocker (Writing Skills).
 Mode: Planned execution plus parent-owned closeout.
 Action: Leave GitHub side effects in the review-response planning input as
 outside executor scope. After the executor returns, this skill re-fetches
@@ -492,7 +532,7 @@ IF reviewer suggests "implementing properly":
   grep codebase for actual usage
 
   IF unused: "This endpoint isn't called. Remove it (YAGNI)?"
-  IF used: Then implement properly
+  IF used: Let the classification and selected execution mode determine any work
 ```
 
 **Rule:** "You and reviewer both report to me. If we don't need this feature, don't add it."
@@ -500,9 +540,9 @@ IF reviewer suggests "implementing properly":
 ## Implementation Order
 
 ```
-FOR multi-item feedback:
+FOR multi-item feedback whose classification and selected mode authorize execution:
   1. Clarify anything unclear FIRST
-  2. Then implement in this order:
+  2. Then execute in this order:
      - Blocking issues (breaks, security)
      - Simple fixes (typos, imports)
      - Complex fixes (refactoring, logic)
@@ -574,21 +614,32 @@ gate when the workflow has not yet seen the local-state, verification, and
 intended-action summary. After approval, perform only the listed side effects;
 new side effects require another gate summary.
 
-## Pushed-Fix Inline Thread Closure
+## Pushed-Fix and Outcome Thread Closure
 
-Use this sequence after addressing inline GitHub review feedback on an
-already-pushed or reviewed PR branch:
+Use this closeout sequence only after current classification and the applicable
+selected outcome confirm a GitHub reply or closure on an already-pushed or
+reviewed PR branch.
 
-1. Verify the current review comments before changing code.
-2. Implement the fix, or prepare the explanation when no code change is
-   required.
-3. Run the relevant checks.
-4. Commit the response work with a follow-up commit when the branch is already
-   pushed or reviewed.
+Applicable outcomes:
+
+- **Inline execution** - an already-authorized inline fix.
+- **Planned execution after executor returns** - the returned fix evidence.
+- **No-code response** - an evidence-backed explanation.
+
+1. Verify the current review comments, current classification, and applicable
+   selected outcome.
+2. For inline execution, implement the already-authorized inline fix. For
+   planned execution after executor returns, use the returned fix evidence. For
+   a no-code response, prepare the explanation.
+3. Run the relevant checks for the selected outcome.
+4. When the selected outcome changes code, commit the response work with a
+   follow-up commit when the branch is already pushed or reviewed.
 5. Run the Pre-Push Review Gate before push, reply, resolve, or comment side
    effects.
-6. Push normally only after the gate approves that push.
-7. Re-fetch PR review thread state after the push and before any reply.
+6. When the selected outcome requires a push, push normally only after the gate
+   approves that push.
+7. Re-fetch PR review thread state after any intended push, or immediately
+   before a no-code reply, and before any reply.
 8. Confirm GitHub writes are permitted by explicit user approval or the active
    workflow's approved posting gate.
 9. Reply in-thread with concise fix or explanation evidence.
@@ -612,8 +663,12 @@ thread requires the separate eligibility gate below.
   ownership clearly enough to classify the thread as human-authored,
   bot-authored, or self-authored.
 - The thread maps to the same concern that you verified and addressed.
-- The pushed branch contains the fix, or the in-thread reply explains why no
-  code change is required.
+- The pushed branch contains the fix, the in-thread reply carries returned
+  correction evidence, or it explains an explicit no-code disposition that
+  proves no code change is required.
+- An adjacent independently releasable defect handoff alone is not resolution
+  evidence; resolution requires returned correction evidence, an actual branch
+  fix, or that explicit no-code disposition.
 - For outdated unresolved threads, current code and current thread state show
   the underlying concern is stale, invalid, already addressed, or fully
   addressed by pushed or replied evidence.
@@ -676,7 +731,7 @@ When feedback IS correct:
 ```
 ✅ "Fixed. [Brief description of what changed]"
 ✅ "Good catch - [specific issue]. Fixed in [location]."
-✅ [Just fix it and show in the code]
+✅ [State the authorized outcome and show it in the code]
 
 ❌ "You're absolutely right!"
 ❌ "Great point!"
@@ -685,7 +740,8 @@ When feedback IS correct:
 ❌ ANY gratitude expression
 ```
 
-**Why no thanks:** Actions speak. Just fix it. The code itself shows you heard the feedback.
+**Why no thanks:** Actions speak. State the authorized outcome. The code itself
+shows you heard the feedback.
 
 **If you catch yourself about to write "Thanks":** DELETE IT. State the fix instead.
 
@@ -694,8 +750,8 @@ When feedback IS correct:
 If you pushed back and were wrong:
 
 ```
-✅ "You were right - I checked [X] and it does [Y]. Implementing now."
-✅ "Verified this and you're correct. My initial understanding was wrong because [reason]. Fixing."
+✅ "You were right - I checked [X] and it does [Y]. The selected mode authorizes the next step."
+✅ "Verified this and you're correct. My initial understanding was wrong because [reason]. I will follow the selected mode."
 
 ❌ Long apology
 ❌ Defending why you pushed back
@@ -749,17 +805,22 @@ You understand 1,2,3,6. Unclear on 4,5.
 
 ## GitHub Thread Replies
 
-When replying to inline review comments on GitHub, reply in the comment thread (`{{tool:github-cli}} api repos/{owner}/{repo}/pulls/{pr}/comments/{id}/replies`), not as a top-level PR comment.
+Before replying or closeout, confirm the current classification and applicable
+selected outcome.
+When replying to inline review comments on GitHub, reply in the comment thread
+(`{{tool:github-cli}} api repos/{owner}/{repo}/pulls/{pr}/comments/{id}/replies`),
+not as a top-level PR comment.
 
 Reference the follow-up commit or fix in that reply while preserving the
 existing thread context. When a follow-up commit exists, include its commit SHA.
-Each reply should state the behavioral fix or no-code disposition, regression
-coverage or reason no code change was needed, and a concise verification
-summary. Because replies are shared comments, apply the `Agent-Local Evidence
-Reuse Boundary` in `docs/specs/afds-workflow-routing.md`. Do not include raw
-`.ephemeral` paths, transcripts, prompts, logs, validation-log dumps, stack
-traces, internal decision trails, or session chronology. Follow `Pushed-Fix
-Inline Thread Closure` before resolving any thread.
+Each reply should state the behavioral fix or no-code disposition; include
+regression coverage or reason no code change was needed and a concise
+verification summary. Because replies are shared comments, apply the
+`Agent-Local Evidence Reuse Boundary` in
+`docs/specs/afds-workflow-routing.md`. Do not include raw `.ephemeral` paths,
+transcripts, prompts, logs, validation-log dumps, stack traces, internal
+decision trails, or session chronology. Follow `Pushed-Fix and Outcome Thread
+Closure` before resolving any thread.
 Do not resolve continuity by replacing reviewed history unless the user
 explicitly asked for that cleanup or the repository workflow requires rewritten
 history.
@@ -791,6 +852,6 @@ reports or routes to the workflow that owns the specific gate.
 
 **External feedback = suggestions to evaluate, not orders to follow.**
 
-Verify. Question. Then implement.
+Verify. Question. Classify. Select a mode. Then execute.
 
 No performative agreement. Technical rigor always.

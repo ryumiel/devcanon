@@ -59,7 +59,9 @@ before this workflow prepares the handoff.
 
 - Fixable: a 1-3 line source change with one obvious correct fix, such as a
   typo, broken sentence with one reconstruction, or dead cross-reference.
-  Branch-review owns resolving this class when `--fix` can do so.
+  Branch-review owns resolving this class when `--fix` can do so. A fixable nit
+  withheld by the proportionality gate remains non-mutating and is selected as
+  judgment-required for caller handoff rather than being dropped.
 - Judgment-required: subjective wording, structural suggestions, multiple
   plausible fixes, or anything else where a competent reviewer could defend
   more than one answer. Only this class is selected for Phase 8.
@@ -82,11 +84,49 @@ one trailer per addressed nit:
 Reported by branch-review at <path>:<line>
 ```
 
-If `branch-review --fix` creates any fix commit, rerun `branch-review --fix` on
-the new `HEAD` and restart Phase 7. Continue until a run reports zero blocking
-findings auto-fixed, no unresolved true Blocking findings, captures that final
-run's approval-summary notice path, and carries fresh final approval-summary
-evidence after branch-review-owned fix commits.
+### First run: existing full-diff route
+
+The first Phase 7 run uses the existing full-diff `branch-review --fix` route.
+
+### Follow-up: paired prior-review route
+
+If that run creates a branch-review-owned fix commit, Phase 7 captures that
+run's validated review head and post-fix findings envelope before it invokes
+the next round. On the new `HEAD`, invoke the existing paired route with those
+exact values:
+
+Invoke the installed `branch-review` skill in `--fix` mode with the paired
+`--last-reviewed "$PRIOR_REVIEW_HEAD"` and
+`--prior-findings "$PRIOR_FINDINGS_FILE"` inputs. Retain the existing base,
+risk-signal, and `shared-workflow-policy` full-scope escalation facts in that
+skill briefing. This is a target-neutral skill invocation, not a shell command.
+
+This uses no new input or artifact. The existing paired-input validation fails
+closed; missing or invalid paired evidence stops this follow-up without source
+changes. `shared-workflow-policy` requires Branch Review to retain full
+base...HEAD semantic scope while it forwards the validated prior findings to
+`play-review`. Preserve any existing risk-signal and positional-base inputs
+under their current rules.
+
+Before grouping or mutation, Branch Review compares current findings and
+concrete source evidence with that validated prior evidence and the source at
+the validated review head. Only a newly discovered concrete source fact,
+contradiction, invalid dependency, or material safety defect unavailable to the
+prior round may reopen its existing remediation route. A prior auto-fix does
+not make its already-available evidence newly discovered merely because the
+post-fix envelope no longer lists that finding. Repeated severity or critic
+labels, already available evidence, and wording or stable-marker-only
+corrections do not reopen unrelated review dimensions. An existing bounded
+proof-owner repair may proceed only when its own qualifying evidence meets that
+same freshness condition, as may genuinely qualifying behavior, authority, or
+executable-contract evidence. Phase 7 supplies the inputs and orchestration; it
+never applies a post-mutation veto. Branch Review remains the comparison, fix,
+and commit owner.
+
+Continue until a run reports zero blocking findings auto-fixed, no unresolved
+true Blocking findings, captures that final run's approval-summary notice path,
+and carries fresh final approval-summary evidence after branch-review-owned fix
+commits.
 
 ## Judgment-Required Nits Envelope
 
