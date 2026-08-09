@@ -181,9 +181,11 @@ classification in
 Writing Skills remains the classification owner; do not restate its policy
 here. Technical validity, severity, urgency, patch size, and reviewer or critic
 correctness are evidence only, never mutation authority. Only an in-scope
-product blocker reaches mode selection and then only through the existing
-bounded route. Every other classification disposition bypasses inline/planned
-implementation selection and retains its existing no-code or owner handoff.
+product blocker, or a proof/test correction at its existing proof owner,
+reaches mode selection through the existing bounded route. Proof/test
+corrections remain proof/test-only and cannot expand production behavior. Every
+other classification disposition bypasses inline/planned implementation
+selection and retains its existing no-code disposition or independent route.
 
 Implementation selections:
 
@@ -195,9 +197,6 @@ Implementation selections:
 Non-implementation outcome:
 
 - **No-code response** - reply, report, or ask without changing code.
-- **Existing-owner handoff** - route a proof/test defect to its authoritative
-  owner; only that owner's repair evidence returns through the existing
-  closeout route.
 
 No-code response outcomes include technically invalid feedback, stale feedback,
 already-addressed feedback, explanation-only feedback, and
@@ -603,8 +602,7 @@ The gate summary must include:
 - Verification run and result, including regression coverage or a clear reason
   no code change was needed.
 - Thread disposition for each concern: behavioral fix, no-code explanation,
-  owner-return evidence, stale/invalid/already-addressed, unresolved, or needs
-  clarification.
+  stale/invalid/already-addressed, unresolved, or needs clarification.
 - Intended external actions, such as push, in-thread reply, top-level PR
   comment, thread resolution, or leaving a thread unresolved.
 
@@ -624,17 +622,12 @@ Applicable outcomes:
 - **Inline execution** - an already-authorized inline fix.
 - **Planned execution after executor returns** - the returned fix evidence.
 - **No-code response** - an evidence-backed explanation.
-- **Existing-owner return** - returned evidence from the existing proof/test
-  owner, without re-entering inline/planned selection or granting mutation
-  authority. Independently routed adjacent defects remain non-mutating and
-  retain their existing unresolved or routed ownership.
 
 1. Verify the current review comments, current classification, and applicable
    selected outcome.
 2. For inline execution, implement the already-authorized inline fix. For
    planned execution after executor returns, use the returned fix evidence. For
-   a no-code response, prepare the explanation. For an existing-owner return,
-   use returned evidence without mutation.
+   a no-code response, prepare the explanation.
 3. Run the relevant checks for the selected outcome.
 4. When the selected outcome changes code, commit the response work with a
    follow-up commit when the branch is already pushed or reviewed.
@@ -643,7 +636,7 @@ Applicable outcomes:
 6. When the selected outcome requires a push, push normally only after the gate
    approves that push.
 7. Re-fetch PR review thread state after any intended push, or immediately
-   before a no-code or existing-owner-return reply, and before any reply.
+   before a no-code reply, and before any reply.
 8. Confirm GitHub writes are permitted by explicit user approval or the active
    workflow's approved posting gate.
 9. Reply in-thread with concise fix or explanation evidence.
@@ -656,9 +649,9 @@ Applicable outcomes:
 
 Safe-to-resolve criteria:
 
-Permission to reply is not permission to resolve. Posting fix, no-code, or
-existing-owner returned evidence after GitHub write approval only authorizes the
-reply; resolving the thread requires the separate eligibility gate below.
+Permission to reply is not permission to resolve. Posting fix or no-code
+evidence after GitHub write approval only authorizes the reply; resolving the
+thread requires the separate eligibility gate below.
 
 - GitHub writes are permitted by explicit user approval or the active
   workflow's approved posting gate.
@@ -668,7 +661,7 @@ reply; resolving the thread requires the separate eligibility gate below.
   bot-authored, or self-authored.
 - The thread maps to the same concern that you verified and addressed.
 - The pushed branch contains the fix, the in-thread reply explains why no code
-  change is required, or it reports existing-owner returned evidence.
+  change is required, or it reports the applicable verification evidence.
 - For outdated unresolved threads, current code and current thread state show
   the underlying concern is stale, invalid, already addressed, or fully
   addressed by pushed or replied evidence.
@@ -806,17 +799,17 @@ You understand 1,2,3,6. Unclear on 4,5.
 ## GitHub Thread Replies
 
 Before replying or closeout, confirm the current classification and applicable
-selected outcome, including existing-owner returned evidence when applicable.
+selected outcome.
 When replying to inline review comments on GitHub, reply in the comment thread
 (`{{tool:github-cli}} api repos/{owner}/{repo}/pulls/{pr}/comments/{id}/replies`),
 not as a top-level PR comment.
 
 Reference the follow-up commit or fix in that reply while preserving the
 existing thread context. When a follow-up commit exists, include its commit SHA.
-Each reply should state the behavioral fix, no-code disposition, or
-existing-owner returned evidence; include regression coverage or reason no code
-change was needed and a concise verification summary. Because replies are shared
-comments, apply the `Agent-Local Evidence Reuse Boundary` in
+Each reply should state the behavioral fix or no-code disposition; include
+regression coverage or reason no code change was needed and a concise
+verification summary. Because replies are shared comments, apply the
+`Agent-Local Evidence Reuse Boundary` in
 `docs/specs/afds-workflow-routing.md`. Do not include raw `.ephemeral` paths,
 transcripts, prompts, logs, validation-log dumps, stack traces, internal
 decision trails, or session chronology. Follow `Pushed-Fix and Outcome Thread
