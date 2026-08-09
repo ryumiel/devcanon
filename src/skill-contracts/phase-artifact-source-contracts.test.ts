@@ -2754,37 +2754,29 @@ None
     );
   });
 
-  it("prevents the former severity-only branch-review auto-fix failure through the Writing Skills proportionality gate before grouping; source-contract coverage is primary proof and render coverage alone is insufficient", async () => {
+  it("prevents the former severity-only branch-review auto-fix failure by consuming the Writing Skills gate after candidate hard stops and before grouping", async () => {
     const branchReview = await readSkillSource("branch-review");
     const writingSkills = await readRepoFile(
       "docs/guidelines/writing-skills.md",
     );
-    const normalizedBranchReview = normalizeWhitespace(branchReview);
     const normalizedWritingSkills = normalizeWhitespace(writingSkills);
+    const hardStopMarker = "Candidate hard-stop check";
     const gateMarker = "Proportionality gate (Writing Skills)";
 
     expect(normalizedWritingSkills).toContain(
-      "Before mutating source in response to a finding, classify it",
+      "### Review and mutation routing",
     );
+    expect(branchReview).toContain(
+      "[`docs/guidelines/writing-skills.md`](../../docs/guidelines/writing-skills.md#review-and-mutation-routing)",
+    );
+    expect(branchReview).toContain(hardStopMarker);
     expect(branchReview).toContain(gateMarker);
-    expect(normalizedBranchReview).toContain(
-      "Severity, critic validity, and technical fixability alone never authorize mutation",
-    );
-    expect(normalizedBranchReview).toContain(
-      "Only an in-scope product blocker with a reachable production path, an authoritative contract violation, meaningful harm, and a minimal active-issue correction may enter the existing bounded production-fix path",
-    );
-    expect(normalizedBranchReview).toContain(
-      "A proof or test defect may use only its existing proof owner and must not expand production scope",
-    );
-    expect(normalizedBranchReview).toContain(
-      "Adjacent independently releasable defects, technically valid adjacent hardening, proof/test-driven production expansion, invalid, speculative, or unclear findings, and non-qualified fixable nits remain non-mutating",
-    );
-    expect(normalizedBranchReview).toContain(
-      "The remaining set includes every candidate withheld by the proportionality gate",
-    );
     expect(
       branchReview.indexOf("filter findings tagged `Critic: INVALID`"),
-    ).toBeLessThan(branchReview.indexOf(gateMarker));
+    ).toBeLessThan(branchReview.indexOf(hardStopMarker));
+    expect(branchReview.indexOf(hardStopMarker)).toBeLessThan(
+      branchReview.indexOf(gateMarker),
+    );
     expect(branchReview.indexOf(gateMarker)).toBeLessThan(
       branchReview.indexOf("same-invariant grouping pass"),
     );

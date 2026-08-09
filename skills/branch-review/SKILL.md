@@ -529,26 +529,24 @@ not group, iterate, auto-fix, or halt on them. Also filter blocking findings
 tagged `DOWNGRADE` out of blocking auto-fix eligibility; preserve them as
 non-blocking feedback.
 
-**Proportionality gate (Writing Skills):** After that existing technical
-filtering and before any blocker or fixable-nit grouping or fix-unit
-construction, classify every remaining mutation-capable candidate under
+**Candidate hard-stop check:** Before applying qualification or a non-mutating
+disposition to any remaining candidate, evaluate it under the existing stop-rule
+contract below. If it fires, halt `--fix` immediately under that contract; do
+not skip or reclassify the candidate and continue with later fixes. This check
+does not add a stop predicate or authority.
+
+**Proportionality gate (Writing Skills):** After the candidate hard-stop check
+and before any blocker or fixable-nit grouping or fix-unit construction,
+classify every remaining mutation-capable candidate under
 [`docs/guidelines/writing-skills.md`](../../docs/guidelines/writing-skills.md#review-and-mutation-routing).
 Use the current finding evidence, active-diff context, issue-scope evidence,
 and validated prior findings when the existing paired follow-up inputs provide
-them. This consumes the guideline's classification; it creates no new finding
-field, artifact, classifier, or recovery state, and Branch Review does not own
-or restate the guideline policy.
-
-- Only an in-scope product blocker with a reachable production path, an
-  authoritative contract violation, meaningful harm, and a minimal active-issue
-  correction may enter the existing bounded production-fix path.
-- A proof or test defect may use only its existing proof owner and must not
-  expand production scope.
-- Adjacent independently releasable defects, technically valid adjacent
-  hardening, proof/test-driven production expansion, invalid, speculative, or
-  unclear findings, and non-qualified fixable nits remain non-mutating. Do not
-  group or construct a fix unit for them; preserve the existing report and
-  caller-handoff route.
+them. Apply the guideline's four-way classification and its existing
+dispositions without restating or extending them here. This consumes the
+guideline policy; it creates no new finding field, artifact, classifier, or
+recovery state, and Branch Review does not own that policy. Only candidates the
+guideline routes to existing bounded remediation may continue; every other
+candidate remains on the existing non-mutating report and caller-handoff route.
 
 Severity, critic validity, and technical fixability alone never authorize
 mutation. Apply this gate independently to every blocker and fixable-nit
@@ -601,7 +599,7 @@ proportionality-qualified ungrouped fixable nit, or one same-file same-scope
 grouped fixable-nit set formed above. Do not also process grouped members as
 individual findings. For each unit:
 
-1. **If the unit hits the stop rule, halt `--fix` immediately and report.** Do not process further findings, do not commit anything for this run beyond fixes already applied. The stop rule fires when:
+1. **If the candidate or unit hits the stop rule, halt `--fix` immediately and report.** Do not process further findings, do not commit anything for this run beyond fixes already applied. The candidate hard-stop check above applies this existing rule before the proportionality gate; re-evaluate it for each resulting unit. The stop rule fires when:
    - `Anchor: out-of-diff` — the fix would require editing files outside the diff (e.g., Sub-check B cross-document drift, corpus-wide pattern propagation), or
    - any finding in the unit is a `play-review` hard-rule judgment-required blocker:
      `Blocking | Safety` from Code-quality Sub-check 1 (substitution audit) or
