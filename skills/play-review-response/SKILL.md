@@ -653,9 +653,9 @@ Applicable outcomes:
 
 Safe-to-resolve criteria:
 
-Permission to reply is not permission to resolve. Posting fix or no-code
-evidence after GitHub write approval only authorizes the reply; resolving the
-thread requires the separate eligibility gate below.
+Permission to reply is not permission to resolve. Posting fix, no-code, or
+existing-owner returned evidence after GitHub write approval only authorizes the
+reply; resolving the thread requires the separate eligibility gate below.
 
 - GitHub writes are permitted by explicit user approval or the active
   workflow's approved posting gate.
@@ -664,8 +664,8 @@ thread requires the separate eligibility gate below.
   ownership clearly enough to classify the thread as human-authored,
   bot-authored, or self-authored.
 - The thread maps to the same concern that you verified and addressed.
-- The pushed branch contains the fix, or the in-thread reply explains why no
-  code change is required.
+- The pushed branch contains the fix, the in-thread reply explains why no code
+  change is required, or it reports existing-owner returned evidence.
 - For outdated unresolved threads, current code and current thread state show
   the underlying concern is stale, invalid, already addressed, or fully
   addressed by pushed or replied evidence.

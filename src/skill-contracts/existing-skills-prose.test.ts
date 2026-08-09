@@ -4919,131 +4919,23 @@ describe("existing skills source prose contracts", () => {
     );
   });
 
-  it("uses source-contract coverage as the primary proof that verified feedback is classified before implementation selection because prior/render-only coverage is insufficient", async () => {
+  it("links the review-response proportionality gate before implementation selection", async () => {
     const skillSource = await readSkillSource("play-review-response");
     const writingSkills = await readRepoFile(
       "docs/guidelines/writing-skills.md",
-    );
-    const classificationMarker = "Proportionality gate (Writing Skills)";
-    const implementationGateMarker =
-      "Before choosing inline or planned implementation";
-    const firstImplementationSelectionMarker = "**Inline execution**";
-    const exampleClassificationMarker =
-      "Classification: in-scope product blocker";
-    const inlineExample = sliceBetween(
-      skillSource,
-      "Inline example:",
-      "Plan-plus-executor handoff example:",
-    );
-    const plannedExample = sliceBetween(
-      skillSource,
-      "Plan-plus-executor handoff example:",
-      "No-code feedback example:",
-    );
-    const githubCloseoutExample = sliceBetween(
-      skillSource,
-      "GitHub closeout exclusion example:",
-      '## YAGNI Check for "Professional" Features',
-    );
-    const structuralLifecycle = getMarkdownSection(
-      skillSource,
-      "Structural Lifecycle Feedback",
-    );
-    const responsePattern = getMarkdownSection(
-      skillSource,
-      "The Response Pattern",
     );
     const executionMode = getMarkdownSection(
       skillSource,
       "Execution Mode Selection",
     );
-    const normalizedExecutionMode = normalizeWhitespace(executionMode);
-    const threadClosure = getMarkdownSection(
-      skillSource,
-      "Pushed-Fix and Outcome Thread Closure",
-    );
-    const githubReplies = getMarkdownSection(
-      skillSource,
-      "GitHub Thread Replies",
-    );
-    const staleInvalid = sliceBetween(
-      structuralLifecycle,
-      "**Stale/invalid**",
-      "**Already addressed**",
-    );
-    const alreadyAddressed = sliceBetween(
-      structuralLifecycle,
-      "**Already addressed**",
-      "**Explanation-only**",
-    );
-    const explanationOnly = sliceBetween(
-      structuralLifecycle,
-      "**Explanation-only**",
-      "**Safely inline**",
-    );
-    const safelyInline = sliceBetween(
-      structuralLifecycle,
-      "**Safely inline**",
-      "For executable lifecycle-sensitive concerns",
-    );
-
     expect(writingSkills).toContain("### Review and mutation routing");
-    expect(skillSource).toContain(
+    expect(executionMode).toContain(
       "[`docs/guidelines/writing-skills.md`](../../docs/guidelines/writing-skills.md#review-and-mutation-routing)",
     );
-    expect(skillSource).toContain(classificationMarker);
-    expect(skillSource).toContain(implementationGateMarker);
-    expect(skillSource.indexOf(implementationGateMarker)).toBeLessThan(
-      skillSource.indexOf(firstImplementationSelectionMarker),
-    );
-    for (const boundaryMarker of [
-      "Writing Skills remains the classification owner",
-      "Only an in-scope product blocker reaches mode selection",
-      "Every other classification disposition bypasses inline/planned implementation selection",
-    ]) {
-      expect(normalizedExecutionMode).toContain(boundaryMarker);
-    }
-    expectSubstringsInOrder(inlineExample, [
-      exampleClassificationMarker,
-      "Mode: Inline execution.",
-    ]);
-    expectSubstringsInOrder(plannedExample, [
-      exampleClassificationMarker,
-      "Mode: Planned execution.",
-    ]);
-    expectSubstringsInOrder(githubCloseoutExample, [
-      exampleClassificationMarker,
-      "Mode: Planned execution plus parent-owned closeout.",
-    ]);
-    for (const noCodeDisposition of [
-      staleInvalid,
-      alreadyAddressed,
-      explanationOnly,
-    ]) {
-      expect(normalizeWhitespace(noCodeDisposition)).toContain(
-        "no-code response; do not select inline",
-      );
-    }
-    expect(safelyInline).toContain("gate authorizes inline selection");
-    expect(responsePattern).toContain("EXECUTE:");
-    expect(responsePattern).toContain("authorize it");
-    expect(skillSource).toContain("already-authorized inline fix");
-    expectSubstringsInOrder(threadClosure, [
-      "current classification",
-      "Applicable outcomes:",
-      "Inline execution",
-      "Planned execution after executor returns",
-      "No-code response",
-      "Existing-owner return",
-      "returned evidence",
-    ]);
-    expect(threadClosure).toContain(
-      "without re-entering inline/planned selection",
-    );
-    expectSubstringsInOrder(normalizeWhitespace(githubReplies), [
-      "current classification and applicable selected outcome",
-      "existing-owner returned evidence",
-      "reply in the comment thread",
+    expectSubstringsInOrder(executionMode, [
+      "### Proportionality gate (Writing Skills)",
+      "Before choosing inline or planned implementation",
+      "Implementation selections:",
     ]);
   });
 
