@@ -3904,7 +3904,7 @@ None
     expect(bodyRewriteIndex).toBeGreaterThanOrEqual(0);
     expectSubstringsInOrder(findingsEdit, [
       "write-review-body",
-      "recover-review-body-publication when needed",
+      "recover-review-body-publication",
       "render-review-preview",
       "result update",
       "gated lease write",

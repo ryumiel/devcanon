@@ -872,7 +872,7 @@ An uninterrupted successful invocation removes only its exact owned guard
 after the rebound result validates.
 
 After that successful rebound, continue only through existing public owners in
-this order: `write-review-body`, `recover-review-body-publication when needed`,
+this order: `write-review-body`, `recover-review-body-publication` when needed,
 `render-review-preview`, result update, gated lease write, then
 `render-phase5-audit-summary`. Do not move any of those later owners into
 `replace-findings`. If no synthesis remains, author the fallback narrative body
