@@ -116,22 +116,27 @@ stale events, concurrent or same-tick bypasses, correlation, ownership, or
 authoritative completion signals.
 
 Structural-risk feedback requires the Writing Skills proportionality gate before
-planned or inline selection. For a finding that reaches mode selection, do not
-select inline merely because the reviewer's patch suggestion is small, the diff
-looks local, the user wants speed, or tests currently pass. Select inline only
-after verification establishes one of these dispositions:
+inline or planned implementation selection. An in-scope product blocker that
+reaches implementation selection uses the existing planned route when
+structural risk requires it. Do not select inline merely because the reviewer's
+patch suggestion is small, the diff looks local, the user wants speed, or tests
+currently pass.
 
-- **Stale/invalid** - current code and current feedback-source state show the
-  concern no longer applies or is technically incorrect; for
-  GitHub/PR-thread-backed feedback, current thread state also supports that
-  disposition.
-- **Already addressed** - the pushed branch or current local diff contains the
-  fix, and the same concern can be mapped to concrete evidence.
-- **Explanation-only** - no code change is required, and a concise reply can
-  explain why with source evidence.
-- **Safely inline** - every normal inline condition is true, and the lifecycle
-  concern does not affect operation boundaries, ownership, ordering,
-  correlation, cleanup, retry, failure, or externally visible behavior.
+- **Stale/invalid** - retain the existing no-code response; do not select
+  inline. Current code and current feedback-source state show the concern no
+  longer applies or is technically incorrect; for GitHub/PR-thread-backed
+  feedback, current thread state also supports that disposition.
+- **Already addressed** - retain the existing no-code response; do not select
+  inline. The pushed branch or current local diff contains the fix, and the
+  same concern can be mapped to concrete evidence.
+- **Explanation-only** - retain the existing no-code response; do not select
+  inline. No code change is required, and a concise reply can explain why with
+  source evidence.
+- **Safely inline** - continue toward inline selection only when the Writing
+  Skills proportionality gate authorizes inline selection and every normal
+  inline condition is true. The lifecycle concern must not affect operation
+  boundaries, ownership, ordering, correlation, cleanup, retry, failure, or
+  externally visible behavior.
 
 For executable lifecycle-sensitive concerns, check the operation lifecycle
 before writing code or a plan:
@@ -170,8 +175,8 @@ explanation-only, or unclear feedback before selecting a mode.
 
 ### Proportionality gate (Writing Skills)
 
-Before choosing inline, planned, or no-code response, apply the existing
-four-way classification in
+Before choosing inline or planned implementation, apply the existing four-way
+classification in
 [`docs/guidelines/writing-skills.md`](../../docs/guidelines/writing-skills.md#review-and-mutation-routing).
 Writing Skills remains the classification owner; do not restate its policy
 here. Technical validity, severity, urgency, patch size, and reviewer or critic
@@ -180,10 +185,15 @@ product blocker reaches mode selection and then only through the existing
 bounded route. Every other classification disposition bypasses inline/planned
 implementation selection and retains its existing no-code or owner handoff.
 
+Implementation selections:
+
 - **Inline execution** - handle directly in this skill.
 - **Planned execution** - write a verified review-response planning input,
   invoke `play-planning`, then hand the approved generated plan to
   `play-subagent-execution`.
+
+Non-implementation outcome:
+
 - **No-code response** - reply, report, or ask without changing code.
 
 No-code response outcomes include technically invalid feedback, stale feedback,

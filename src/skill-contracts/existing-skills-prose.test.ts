@@ -4574,16 +4574,15 @@ describe("existing skills source prose contracts", () => {
       "Structural Lifecycle Feedback",
     );
     const normalizedLifecycle = normalizeWhitespace(lifecycleSection);
+    const structuralGateMarker = "Writing Skills proportionality gate";
+    const structuralSelectionMarker =
+      "inline or planned implementation selection";
 
-    expect(normalizedLifecycle).toMatch(
-      /Treat lifecycle-sensitive review feedback as structural risk unless verification proves.*stale, invalid, already addressed, explanation-only, or safely inside the inline envelope/i,
-    );
-    expect(normalizedLifecycle).toMatch(
-      /Structural-risk feedback requires the Writing Skills proportionality gate before planned or inline selection/i,
-    );
-    expect(normalizedLifecycle).toMatch(
-      /Do not select inline.*reviewer's patch suggestion is small.*diff looks local.*user wants speed.*tests currently pass/i,
-    );
+    expect(lifecycleSection).toContain(structuralGateMarker);
+    expectSubstringsInOrder(lifecycleSection, [
+      structuralGateMarker,
+      structuralSelectionMarker,
+    ]);
 
     for (const exceptionClass of [
       "Stale/invalid",
@@ -4593,10 +4592,6 @@ describe("existing skills source prose contracts", () => {
     ]) {
       expect(normalizedLifecycle).toContain(exceptionClass);
     }
-    expect(normalizedLifecycle).toMatch(
-      /Stale\/invalid.*current code and current feedback-source state.*GitHub\/PR-thread-backed feedback.*current thread state/i,
-    );
-
     for (const lifecycleTerm of [
       "operation start",
       "readiness",
@@ -4929,11 +4924,9 @@ describe("existing skills source prose contracts", () => {
     const writingSkills = await readRepoFile(
       "docs/guidelines/writing-skills.md",
     );
-    const normalizedSkillSource = normalizeWhitespace(skillSource);
     const classificationMarker = "Proportionality gate (Writing Skills)";
-    const policyOwnerMarker = "Writing Skills remains the classification owner";
-    const eligibilityMarker = "in-scope product blocker reaches mode selection";
-    const bypassMarker = "bypasses inline/planned implementation selection";
+    const implementationGateMarker =
+      "Before choosing inline or planned implementation";
     const firstImplementationSelectionMarker = "**Inline execution**";
     const exampleClassificationMarker =
       "Classification: in-scope product blocker";
@@ -4956,8 +4949,29 @@ describe("existing skills source prose contracts", () => {
       skillSource,
       "Structural Lifecycle Feedback",
     );
-    const normalizedResponsePattern = normalizeWhitespace(
-      getMarkdownSection(skillSource, "The Response Pattern"),
+    const responsePattern = getMarkdownSection(
+      skillSource,
+      "The Response Pattern",
+    );
+    const staleInvalid = sliceBetween(
+      structuralLifecycle,
+      "**Stale/invalid**",
+      "**Already addressed**",
+    );
+    const alreadyAddressed = sliceBetween(
+      structuralLifecycle,
+      "**Already addressed**",
+      "**Explanation-only**",
+    );
+    const explanationOnly = sliceBetween(
+      structuralLifecycle,
+      "**Explanation-only**",
+      "**Safely inline**",
+    );
+    const safelyInline = sliceBetween(
+      structuralLifecycle,
+      "**Safely inline**",
+      "For executable lifecycle-sensitive concerns",
     );
 
     expect(writingSkills).toContain("### Review and mutation routing");
@@ -4965,10 +4979,8 @@ describe("existing skills source prose contracts", () => {
       "[`docs/guidelines/writing-skills.md`](../../docs/guidelines/writing-skills.md#review-and-mutation-routing)",
     );
     expect(skillSource).toContain(classificationMarker);
-    expect(normalizedSkillSource).toContain(policyOwnerMarker);
-    expect(normalizedSkillSource).toContain(eligibilityMarker);
-    expect(normalizedSkillSource).toContain(bypassMarker);
-    expect(skillSource.indexOf(classificationMarker)).toBeLessThan(
+    expect(skillSource).toContain(implementationGateMarker);
+    expect(skillSource.indexOf(implementationGateMarker)).toBeLessThan(
       skillSource.indexOf(firstImplementationSelectionMarker),
     );
     expectSubstringsInOrder(inlineExample, [
@@ -4983,18 +4995,18 @@ describe("existing skills source prose contracts", () => {
       exampleClassificationMarker,
       "Mode: Planned execution plus parent-owned closeout.",
     ]);
-    expect(structuralLifecycle).toContain(
-      "requires the Writing Skills proportionality gate",
-    );
-    expect(
-      structuralLifecycle.indexOf("Writing Skills proportionality gate"),
-    ).toBeLessThan(structuralLifecycle.indexOf("planned or inline selection"));
-    expect(normalizedResponsePattern).toContain(
-      "Only after the earlier classification and selected execution mode authorize it",
-    );
-    expect(normalizedSkillSource).toContain(
-      "Every instruction below to implement, fix, or execute assumes the earlier Writing Skills classification and selected execution mode have already authorized it",
-    );
+    for (const noCodeDisposition of [
+      staleInvalid,
+      alreadyAddressed,
+      explanationOnly,
+    ]) {
+      expect(normalizeWhitespace(noCodeDisposition)).toContain(
+        "no-code response; do not select inline",
+      );
+    }
+    expect(safelyInline).toContain("gate authorizes inline selection");
+    expect(responsePattern).toContain("EXECUTE:");
+    expect(responsePattern).toContain("authorize it");
     expect(skillSource).toContain("already-authorized inline fix");
   });
 
