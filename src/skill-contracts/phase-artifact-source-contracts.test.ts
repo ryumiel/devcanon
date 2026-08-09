@@ -2754,7 +2754,7 @@ None
     );
   });
 
-  it("prevents the former severity-only branch-review auto-fix failure by consuming the Writing Skills gate after candidate hard stops and before grouping", async () => {
+  it("uses source-contract coverage as the primary proof that the Writing Skills gate follows candidate hard stops before grouping because prior/render-only coverage is insufficient", async () => {
     const branchReview = await readSkillSource("branch-review");
     const writingSkills = await readRepoFile(
       "docs/guidelines/writing-skills.md",
