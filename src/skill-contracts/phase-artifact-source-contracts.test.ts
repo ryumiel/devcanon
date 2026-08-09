@@ -2835,8 +2835,16 @@ None
     expect(phase7Reference).toContain("--prior-findings");
     expect(normalizedReference).toContain("full base...HEAD semantic scope");
     expect(normalizedReference).toContain("Before grouping or mutation");
-    expect(normalizeWhitespace(issuePrimingWorkflow)).toContain(
+    const normalizedWorkflow = normalizeWhitespace(issuePrimingWorkflow);
+
+    expect(normalizedWorkflow).toContain(
       "validated review head and post-fix findings envelope",
+    );
+    expect(normalizedWorkflow).toContain(
+      "The plain Branch Review route is first-run-only",
+    );
+    expect(normalizedWorkflow).toContain(
+      "then use the paired post-fix Branch Review skill route defined below",
     );
   });
 
