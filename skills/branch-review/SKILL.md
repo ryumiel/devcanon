@@ -535,6 +535,14 @@ contract below. If it fires, halt `--fix` immediately under that contract; do
 not skip or reclassify the candidate and continue with later fixes. This check
 does not add a stop predicate or authority.
 
+**Follow-up evidence qualification:** When the existing paired follow-up inputs
+are present, compare each current candidate's concrete evidence with the
+validated prior findings before grouping or mutation. Only a newly discovered
+concrete source fact, contradiction, invalid dependency, or material safety
+defect may proceed to the existing remediation route. Repeated severity or
+critic labels, already available evidence, and wording or stable-marker-only
+corrections retain their prior disposition and remain non-mutating.
+
 **Proportionality gate (Writing Skills):** After the candidate hard-stop check
 and before any blocker or fixable-nit grouping or fix-unit construction,
 classify every remaining mutation-capable candidate under

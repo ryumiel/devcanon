@@ -2765,6 +2765,7 @@ None
     const downgradeFilterMarker =
       "tagged `DOWNGRADE` out of blocking auto-fix eligibility";
     const hardStopMarker = "Candidate hard-stop check";
+    const followUpMarker = "Follow-up evidence qualification";
     const gateMarker = "Proportionality gate (Writing Skills)";
     const mutationBoundary =
       "Severity, critic validity, and technical fixability alone never authorize mutation";
@@ -2778,6 +2779,7 @@ None
     expect(branchReview).toContain(invalidFilterMarker);
     expect(branchReview).toContain(downgradeFilterMarker);
     expect(branchReview).toContain(hardStopMarker);
+    expect(branchReview).toContain(followUpMarker);
     expect(branchReview).toContain(gateMarker);
     expect(normalizedBranchReview).toContain(mutationBoundary);
     expect(branchReview.indexOf(invalidFilterMarker)).toBeLessThan(
@@ -2787,7 +2789,16 @@ None
       branchReview.indexOf(hardStopMarker),
     );
     expect(branchReview.indexOf(hardStopMarker)).toBeLessThan(
+      branchReview.indexOf(followUpMarker),
+    );
+    expect(branchReview.indexOf(followUpMarker)).toBeLessThan(
       branchReview.indexOf(gateMarker),
+    );
+    expect(branchReview.indexOf(followUpMarker)).toBeLessThan(
+      branchReview.indexOf("same-invariant grouping pass"),
+    );
+    expect(branchReview.indexOf(followUpMarker)).toBeLessThan(
+      branchReview.indexOf("Iterate over fix units"),
     );
     expect(branchReview.indexOf(gateMarker)).toBeLessThan(
       branchReview.indexOf("same-invariant grouping pass"),
