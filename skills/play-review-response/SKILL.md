@@ -600,7 +600,8 @@ The gate summary must include:
 - Verification run and result, including regression coverage or a clear reason
   no code change was needed.
 - Thread disposition for each concern: behavioral fix, no-code explanation,
-  stale/invalid/already-addressed, unresolved, or needs clarification.
+  owner-return evidence, stale/invalid/already-addressed, unresolved, or needs
+  clarification.
 - Intended external actions, such as push, in-thread reply, top-level PR
   comment, thread resolution, or leaving a thread unresolved.
 
@@ -620,12 +621,17 @@ Applicable outcomes:
 - **Inline execution** - an already-authorized inline fix.
 - **Planned execution after executor returns** - the returned fix evidence.
 - **No-code response** - an evidence-backed explanation.
+- **Existing-owner return** - returned evidence from the existing proof/test
+  owner, without re-entering inline/planned selection or granting mutation
+  authority. Independently routed adjacent defects remain non-mutating and
+  retain their existing unresolved or routed ownership.
 
 1. Verify the current review comments, current classification, and applicable
    selected outcome.
 2. For inline execution, implement the already-authorized inline fix. For
    planned execution after executor returns, use the returned fix evidence. For
-   a no-code response, prepare the explanation.
+   a no-code response, prepare the explanation. For an existing-owner return,
+   use returned evidence without mutation.
 3. Run the relevant checks for the selected outcome.
 4. When the selected outcome changes code, commit the response work with a
    follow-up commit when the branch is already pushed or reviewed.
@@ -634,7 +640,7 @@ Applicable outcomes:
 6. When the selected outcome requires a push, push normally only after the gate
    approves that push.
 7. Re-fetch PR review thread state after any intended push, or immediately
-   before a no-code reply, and before any reply.
+   before a no-code or existing-owner-return reply, and before any reply.
 8. Confirm GitHub writes are permitted by explicit user approval or the active
    workflow's approved posting gate.
 9. Reply in-thread with concise fix or explanation evidence.
@@ -797,19 +803,21 @@ You understand 1,2,3,6. Unclear on 4,5.
 ## GitHub Thread Replies
 
 Before replying or closeout, confirm the current classification and applicable
-selected outcome. When replying to inline review comments on GitHub, reply in
-the comment thread (`{{tool:github-cli}} api repos/{owner}/{repo}/pulls/{pr}/comments/{id}/replies`),
+selected outcome, including existing-owner returned evidence when applicable.
+When replying to inline review comments on GitHub, reply in the comment thread
+(`{{tool:github-cli}} api repos/{owner}/{repo}/pulls/{pr}/comments/{id}/replies`),
 not as a top-level PR comment.
 
 Reference the follow-up commit or fix in that reply while preserving the
 existing thread context. When a follow-up commit exists, include its commit SHA.
-Each reply should state the behavioral fix or no-code disposition, regression
-coverage or reason no code change was needed, and a concise verification
-summary. Because replies are shared comments, apply the `Agent-Local Evidence
-Reuse Boundary` in `docs/specs/afds-workflow-routing.md`. Do not include raw
-`.ephemeral` paths, transcripts, prompts, logs, validation-log dumps, stack
-traces, internal decision trails, or session chronology. Follow `Pushed-Fix
-and Outcome Thread Closure` before resolving any thread.
+Each reply should state the behavioral fix, no-code disposition, or
+existing-owner returned evidence; include regression coverage or reason no code
+change was needed and a concise verification summary. Because replies are shared
+comments, apply the `Agent-Local Evidence Reuse Boundary` in
+`docs/specs/afds-workflow-routing.md`. Do not include raw `.ephemeral` paths,
+transcripts, prompts, logs, validation-log dumps, stack traces, internal
+decision trails, or session chronology. Follow `Pushed-Fix and Outcome Thread
+Closure` before resolving any thread.
 Do not resolve continuity by replacing reviewed history unless the user
 explicitly asked for that cleanup or the repository workflow requires rewritten
 history.

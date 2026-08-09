@@ -5034,9 +5034,15 @@ describe("existing skills source prose contracts", () => {
       "Inline execution",
       "Planned execution after executor returns",
       "No-code response",
+      "Existing-owner return",
+      "returned evidence",
     ]);
+    expect(threadClosure).toContain(
+      "without re-entering inline/planned selection",
+    );
     expectSubstringsInOrder(normalizeWhitespace(githubReplies), [
       "current classification and applicable selected outcome",
+      "existing-owner returned evidence",
       "reply in the comment thread",
     ]);
   });
