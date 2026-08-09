@@ -4924,6 +4924,31 @@ describe("existing skills source prose contracts", () => {
     );
   });
 
+  it("uses source-contract coverage as the primary proof that verified feedback is classified before implementation selection because prior/render-only coverage is insufficient", async () => {
+    const skillSource = await readSkillSource("play-review-response");
+    const writingSkills = await readRepoFile(
+      "docs/guidelines/writing-skills.md",
+    );
+    const normalizedSkillSource = normalizeWhitespace(skillSource);
+    const classificationMarker = "Proportionality gate (Writing Skills)";
+    const policyOwnerMarker = "Writing Skills remains the classification owner";
+    const eligibilityMarker = "in-scope product blocker reaches mode selection";
+    const bypassMarker = "bypasses inline/planned implementation selection";
+    const firstImplementationSelectionMarker = "**Inline execution**";
+
+    expect(writingSkills).toContain("### Review and mutation routing");
+    expect(skillSource).toContain(
+      "[`docs/guidelines/writing-skills.md`](../../docs/guidelines/writing-skills.md#review-and-mutation-routing)",
+    );
+    expect(skillSource).toContain(classificationMarker);
+    expect(normalizedSkillSource).toContain(policyOwnerMarker);
+    expect(normalizedSkillSource).toContain(eligibilityMarker);
+    expect(normalizedSkillSource).toContain(bypassMarker);
+    expect(skillSource.indexOf(classificationMarker)).toBeLessThan(
+      skillSource.indexOf(firstImplementationSelectionMarker),
+    );
+  });
+
   it("keeps review-response planning-input self-review semantic and structural", async () => {
     const skillSource = await readSkillSource("play-review-response");
     const executionMode = getMarkdownSection(

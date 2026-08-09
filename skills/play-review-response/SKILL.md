@@ -160,6 +160,18 @@ when feedback is GitHub/PR-thread-backed, mapping feedback to the same concern,
 and separating executable feedback from stale, already-addressed,
 explanation-only, or unclear feedback before selecting a mode.
 
+### Proportionality gate (Writing Skills)
+
+Before choosing inline, planned, or no-code response, apply the existing
+four-way classification in
+[`docs/guidelines/writing-skills.md`](../../docs/guidelines/writing-skills.md#review-and-mutation-routing).
+Writing Skills remains the classification owner; do not restate its policy
+here. Technical validity, severity, urgency, patch size, and reviewer or critic
+correctness are evidence only, never mutation authority. Only an in-scope
+product blocker reaches mode selection and then only through the existing
+bounded route. Every other classification disposition bypasses inline/planned
+implementation selection and retains its existing no-code or owner handoff.
+
 - **Inline execution** - handle directly in this skill.
 - **Planned execution** - write a verified review-response planning input,
   invoke `play-planning`, then hand the approved generated plan to
