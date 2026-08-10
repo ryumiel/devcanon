@@ -5,8 +5,8 @@ commit policy, pull request policy, and shared hook usage.
 
 ## Prerequisites
 
-- [Node.js](https://nodejs.org/) >= 18
-- [pnpm](https://pnpm.io/)
+- [Node.js](https://nodejs.org/) >= 24.0.0
+- [pnpm](https://pnpm.io/) 10.33.0
 
 ## Getting Started
 
