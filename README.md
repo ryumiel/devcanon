@@ -23,10 +23,48 @@ Source files are authoritative. Generated outputs are disposable.
 
 ## Quick Start
 
+**Prerequisites:** Node.js `>=24.0.0` and pnpm `10.33.0`. The supported setup
+and verification scope is macOS and Linux.
+
+Before `pnpm run setup:cli`, pnpm's user-global bin directory must be
+configured and on `PATH`. If pnpm reports it missing, run `pnpm setup` and
+follow pnpm's shell-reload guidance before continuing. DevCanon does not run
+`pnpm setup` or modify `PATH`.
+
 ```sh
+# Clone into a stable location: the globally registered CLI points here, and
+# this checkout remains the source library and configuration root.
+git clone <repo-url> devcanon
+cd devcanon
+
 pnpm install
-pnpm run build
-pnpm run dev -- sync
+pnpm run setup:cli
+devcanon sync
+```
+
+`setup:cli` is a package setup script, not a `devcanon` application
+subcommand. It builds and globally registers the CLI from this checkout.
+`devcanon sync` is a separate application command that writes managed skills
+and agents; registering the CLI does not run sync.
+
+Keep the checkout at its stable path. To run the globally registered CLI from
+elsewhere, select that checkout's config explicitly:
+
+```sh
+devcanon --config /absolute/path/to/devcanon.config.yaml sync
+```
+
+### Refreshing an existing checkout
+
+Update the stable checkout, refresh dependencies, register the updated CLI,
+then refresh managed outputs:
+
+```sh
+cd /absolute/path/to/devcanon
+git pull
+pnpm install
+pnpm run setup:cli
+devcanon sync
 ```
 
 ## Breaking Rename From agents-manager

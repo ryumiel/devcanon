@@ -20,6 +20,20 @@ devcanon sync
 
 ---
 
+## CLI setup prerequisite
+
+The globally registered CLI is backed by a persistent DevCanon checkout.
+Operators install dependencies and run `pnpm run setup:cli` from that checkout
+root, then keep the checkout at a stable path because it remains both the CLI
+source and the default configuration root.
+
+CLI registration and managed-output synchronization are separate operations.
+`pnpm run setup:cli` builds and registers the CLI; it does not render or
+install skills or agents. `devcanon sync` renders and installs managed outputs
+from the selected configuration; it does not build or register the CLI.
+
+---
+
 ## Ownership Model
 
 `devcanon` owns only files and directories it installed as managed
