@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -136,9 +136,18 @@ describe.runIf(process.platform !== "win32")("setup:cli", () => {
         /^\.\.(?:\/|$)/,
       );
 
+      const commandCwd = path.join(xdgDataHome, "command");
+      await mkdir(commandCwd);
       const executable = path.join(globalBin, "devcanon");
-      const version = await execFileAsync(executable, ["--version"], { env });
-      const help = await execFileAsync(executable, ["--help"], { env });
+      const commandEnv = { ...env, PWD: commandCwd };
+      const version = await execFileAsync(executable, ["--version"], {
+        cwd: commandCwd,
+        env: commandEnv,
+      });
+      const help = await execFileAsync(executable, ["--help"], {
+        cwd: commandCwd,
+        env: commandEnv,
+      });
 
       expect(version.stdout.trim()).toBe("0.1.0");
       expect(help.stdout).toContain("Usage: devcanon");
