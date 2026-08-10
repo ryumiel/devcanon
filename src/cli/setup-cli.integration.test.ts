@@ -112,9 +112,10 @@ describe.runIf(process.platform !== "win32")("setup:cli", () => {
     const xdgDataHome = await mkdtemp(
       path.join(os.tmpdir(), "devcanon-pnpm-data-"),
     );
-    const env = isolatedPnpmEnvironment(xdgDataHome);
 
     try {
+      const env = isolatedPnpmEnvironment(xdgDataHome);
+
       await execFileAsync("pnpm", ["run", "setup:cli"], {
         cwd: process.cwd(),
         env,
