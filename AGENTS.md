@@ -35,6 +35,10 @@ For a new user-wide installation on macOS or Linux, clone DevCanon into a
 stable checkout, install dependencies, register the CLI, and then sync the
 managed outputs:
 
+Before `pnpm run setup:cli`, ensure pnpm's user-global bin directory is
+configured and on `PATH`. If it is missing, run `pnpm setup` and follow pnpm's
+shell-reload guidance; DevCanon does not run that command or modify `PATH`.
+
 ```sh
 git clone <repo-url> devcanon
 cd devcanon

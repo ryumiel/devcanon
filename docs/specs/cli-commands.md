@@ -9,6 +9,11 @@ globally registers the authoritative checkout as `devcanon`. Run it from the
 checkout root after dependencies are installed. It is not a `devcanon`
 application subcommand and does not render or install managed outputs.
 
+Before this operation, pnpm's user-global bin directory must be configured and
+on `PATH`. If pnpm reports it missing, the operator runs `pnpm setup` and
+follows pnpm's shell-reload guidance. DevCanon neither runs `pnpm setup` nor
+modifies `PATH`.
+
 The package manifest owns the exact script, the required Node.js version
 (`>=24.0.0`), and the pinned package manager (`pnpm@10.33.0`). The registered
 CLI points at the checkout, so operators must retain that checkout at a stable
