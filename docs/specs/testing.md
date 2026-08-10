@@ -26,7 +26,7 @@
 - doctor
 - focused macOS/Linux `setup:cli` coverage in an isolated pnpm environment:
   repeated registration, then the exact isolated global-bin `devcanon`
-  executable proves `--version` and `--help` from outside the checkout
+  executable proves `--version` and `--help`
 
 The setup integration test owns observable CLI-registration proof. It uses an
 isolated global location so an operator-global executable cannot satisfy the
