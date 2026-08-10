@@ -31,7 +31,24 @@ see [`docs/specs/`](docs/specs/).
 
 ## Golden Path
 
-The primary end-to-end workflow is:
+For a new user-wide installation on macOS or Linux, clone DevCanon into a
+stable checkout, install dependencies, register the CLI, and then sync the
+managed outputs:
+
+```sh
+git clone <repo-url> devcanon
+cd devcanon
+pnpm install
+pnpm run setup:cli
+devcanon sync
+```
+
+`setup:cli` is the package-level setup entry, distinct from `devcanon`
+subcommands. The global registration points to this checkout, which remains the
+source library and default configuration root; keep it at a stable path.
+`devcanon sync` separately renders and installs managed skills and agents.
+
+The primary library-authoring workflow is:
 
 1. Initialize a library with `devcanon init`.
 2. Create reusable skills under `skills/` with `devcanon new skill <name>`.
@@ -45,7 +62,8 @@ The primary end-to-end workflow is:
 
 ## Quick Start
 
-**Prerequisites:** Node.js >= 18, pnpm
+**Prerequisites:** Node.js `>=24.0.0`, pnpm `10.33.0`, and macOS or Linux.
+Windows setup and verification are deferred.
 
 ```sh
 # Clone the repo
@@ -58,11 +76,11 @@ pnpm install
 # Set up git hooks and commit template
 pnpm run setup
 
-# Build
-pnpm run build
+# Register the checkout as the global CLI source
+pnpm run setup:cli
 
-# Run the CLI in dev mode
-pnpm run dev -- <command>
+# Sync managed outputs from this checkout's config
+devcanon sync
 ```
 
 ---

@@ -2,6 +2,23 @@
 
 ---
 
+## Repository CLI setup
+
+`pnpm run setup:cli` is the package-level operation that builds DevCanon and
+globally registers the authoritative checkout as `devcanon`. Run it from the
+checkout root after dependencies are installed. It is not a `devcanon`
+application subcommand and does not render or install managed outputs.
+
+The package manifest owns the exact script, the required Node.js version
+(`>=24.0.0`), and the pinned package manager (`pnpm@10.33.0`). The registered
+CLI points at the checkout, so operators must retain that checkout at a stable
+path as the source library and default configuration root.
+
+This setup and its focused integration verification support macOS and Linux.
+Windows setup and verification are deferred.
+
+---
+
 ## `init`
 
 Initialize a new `devcanon` library.

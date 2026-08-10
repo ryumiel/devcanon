@@ -24,6 +24,15 @@
 - sync in symlink mode where supported
 - diff
 - doctor
+- focused macOS/Linux `setup:cli` coverage in an isolated pnpm environment:
+  repeated registration, then the exact isolated global-bin `devcanon`
+  executable proves `--version` and `--help` from outside the checkout
+
+The setup integration test owns observable CLI-registration proof. It uses an
+isolated global location so an operator-global executable cannot satisfy the
+test, and subprocess failures propagate without a repair path. It does not
+assert pnpm's internal layout or Windows shim behavior; Windows setup and
+verification are deferred.
 
 ---
 

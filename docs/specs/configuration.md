@@ -8,6 +8,28 @@
 
 ---
 
+## Discovery and explicit configuration
+
+Without an explicit selection, DevCanon resolves configuration in this order:
+
+1. the global `--config <path>` option
+2. the `DEVCANON_CONFIG` environment variable
+3. `devcanon.config.yaml` in the current working directory
+
+The stable DevCanon checkout is the normal configuration root, so running
+`devcanon sync` from its root uses its `devcanon.config.yaml`. To run the
+globally registered CLI from another directory, pass the checkout's config as
+an absolute path before the subcommand:
+
+```sh
+devcanon --config /absolute/path/to/devcanon.config.yaml sync
+```
+
+The selected config file remains the base for all relative configuration paths;
+the invoking directory does not change that resolution.
+
+---
+
 ## Example
 
 ```yaml
