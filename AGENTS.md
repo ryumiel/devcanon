@@ -65,22 +65,11 @@ The primary library-authoring workflow is:
 **Prerequisites:** Node.js `>=24.0.0`, pnpm `10.33.0`, and macOS or Linux.
 Windows setup and verification are deferred.
 
+For user-wide CLI setup, follow the Golden Path above. To set up the existing
+contributor hooks and commit template for this checkout, run:
+
 ```sh
-# Clone the repo
-git clone <repo-url> devcanon
-cd devcanon
-
-# Install dependencies
-pnpm install
-
-# Set up git hooks and commit template
 pnpm run setup
-
-# Register the checkout as the global CLI source
-pnpm run setup:cli
-
-# Sync managed outputs from this checkout's config
-devcanon sync
 ```
 
 ---

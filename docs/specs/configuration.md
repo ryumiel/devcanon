@@ -10,7 +10,7 @@
 
 ## Discovery and explicit configuration
 
-Without an explicit selection, DevCanon resolves configuration in this order:
+DevCanon resolves configuration in this order:
 
 1. the global `--config <path>` option
 2. the `DEVCANON_CONFIG` environment variable
