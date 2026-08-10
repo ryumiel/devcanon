@@ -40,7 +40,7 @@ describe.runIf(process.platform !== "win32")("setup:cli", () => {
         cwd: process.cwd(),
         env,
       });
-      await execFileAsync("pnpm", ["run", "setup:cli"], {
+      await execFileAsync("pnpm", ["add", "--global", process.cwd()], {
         cwd: process.cwd(),
         env,
       });
