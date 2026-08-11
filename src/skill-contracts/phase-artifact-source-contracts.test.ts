@@ -448,7 +448,6 @@ describe("phase artifact source contracts", () => {
     const normalizedHelperInvocationReference = normalizeWhitespace(
       helperInvocationReference,
     );
-    const normalizedPhase6Reference = normalizeWhitespace(phase6Reference);
     const normalizedPhase8Reference = normalizeWhitespace(phase8Reference);
 
     /*
@@ -518,7 +517,7 @@ describe("phase artifact source contracts", () => {
       "references/phase-6-auto-handoff.md",
     );
     expect(issuePrimingWorkflow).toContain("references/phase-8-pr-handoff.md");
-    expect(normalizedPhase6Reference).toContain("write-auto-handoff usage");
+    expect(phase6Reference).toContain("(write-auto-handoff-usage.md)");
     expect(normalizedPhase8Reference).toContain(
       "If a future design creates or changes a boundary, record the owner, contract surface, and non-owner responsibilities",
     );
@@ -1995,8 +1994,6 @@ None
     );
     expect(issuePrimingWorkflow).toContain("non-authoritative");
 
-    expect(helperInvocationReference).toContain("phase-artifacts usage");
-
     expect(issuePrimingWorkflow).toContain("worktree path missing");
     expect(issuePrimingWorkflow).toContain("worktree path must be absolute");
     expect(issuePrimingWorkflow).toContain("worktree missing or unreadable");
@@ -3011,7 +3008,7 @@ None
       },
     });
     expect(normalizedEnvelope).toContain("play-review/findings/v2");
-    expect(normalizedEnvelope).toContain("review-artifacts usage");
+    expect(envelopeContract).toContain("(review-artifacts-usage.md)");
   });
 
   it("keeps root-cause tracing linked to find-polluter usage", async () => {
@@ -3019,9 +3016,7 @@ None
       "skills/play-debug/references/root-cause-tracing.md",
     );
 
-    expect(rootCauseTracing).toContain(
-      "[find-polluter usage](find-polluter-usage.md)",
-    );
+    expect(rootCauseTracing).toContain("(find-polluter-usage.md)");
   });
 
   it("keeps wrapper review preview, approved payload, and no-GitHub source contracts", async () => {
@@ -3065,7 +3060,6 @@ None
     expect(playReview).toContain("REVIEW_EVENT");
     expect(wrapperHelperContract).toContain("review-artifacts-usage.md");
     expect(playReview).toContain("validate-nits-file");
-    expect(envelopeContract).toContain("review-artifacts usage");
     expect(wrapperHelperContract).toContain("review-artifacts-usage.md");
     expect(envelopeShape).not.toContain('"summary"');
     expect(envelopeShape).not.toContain("root_cause");
@@ -3206,7 +3200,7 @@ None
       "skills/play-subagent-execution/references/implementer-prompt.md",
     );
 
-    expect(implementerPrompt).toContain("write-snapshot-manifest usage");
+    expect(implementerPrompt).toContain("(write-snapshot-manifest-usage.md)");
     expect(implementerPrompt).toContain(
       "Review-routing hint fields (`Risk hint`, `Review hint`, and",
     );
@@ -3220,7 +3214,7 @@ None
       "skills/play-subagent-execution/references/executor-prompt.md",
     );
 
-    expect(executorPrompt).toContain("write-snapshot-manifest usage");
+    expect(executorPrompt).toContain("(write-snapshot-manifest-usage.md)");
     expect(executorPrompt).toContain(
       "Review-routing hint fields (`Risk hint`, `Review hint`, and",
     );

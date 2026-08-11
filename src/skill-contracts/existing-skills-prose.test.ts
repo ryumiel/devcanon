@@ -396,7 +396,7 @@ describe("existing skills source prose contracts", () => {
       "skills/play-review/references/findings-envelope-contract.md",
     );
     expect(envelopeReference).toContain("play-review/findings/v2");
-    expect(envelopeReference).toContain("review-artifacts usage");
+    expect(envelopeReference).toContain("(review-artifacts-usage.md)");
 
     const helperReference = await readRepoFile(
       "skills/play-review/references/wrapper-helper-contracts.md",
@@ -6567,7 +6567,6 @@ describe("existing skills source prose contracts", () => {
 
     const normalizedWorkflow = normalizeWhitespace(issuePrimingWorkflow);
     const normalizedPrompt = normalizeWhitespace(investigatorPrompt);
-    const normalizedHelper = normalizeWhitespace(helperContracts);
     const normalizedAgent = normalizeWhitespace(investigator);
     const normalizedAdr0013 = normalizeWhitespace(adr0013);
 
@@ -6577,7 +6576,7 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedWorkflow).toContain(
       "Write the root-synthesized final brief verbatim to that path",
     );
-    expect(normalizedHelper).toContain("write-research-brief usage");
+    expect(helperContracts).toContain("(write-research-brief-usage.md)");
     expect(normalizedPrompt).toContain(
       "Do not synthesize the final `## Issue Brief`, combine scopes, persist raw findings, or emit `Research brief written to <repo-relative-path>.`",
     );
