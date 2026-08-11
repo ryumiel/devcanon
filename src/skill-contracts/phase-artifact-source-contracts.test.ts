@@ -518,6 +518,7 @@ describe("phase artifact source contracts", () => {
     );
     expect(issuePrimingWorkflow).toContain("references/phase-8-pr-handoff.md");
     expect(phase6Reference).toContain("(write-auto-handoff-usage.md)");
+    expect(phase8Reference).toContain("(write-assumptions-comment-usage.md)");
     expect(normalizedPhase8Reference).toContain(
       "If a future design creates or changes a boundary, record the owner, contract surface, and non-owner responsibilities",
     );
