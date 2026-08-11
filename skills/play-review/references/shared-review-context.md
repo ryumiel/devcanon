@@ -55,9 +55,9 @@ The following is a descriptive contract shape, not a literal manifest; its
       "architecture_routing_risks",
       "spec_routing_risks"
     ],
-    "optional": ["notes", "sanitized_contract_example_context_pointer"]
+    "optional": ["notes"]
   },
-  "adr_references": { "records": { "required": ["path", "reason"] } },
+  "adr_references": [{ "path": "string", "reason": "string" }],
   "discovered_guidelines": {
     "records": {
       "required": ["path", "bytes", "summary"],
@@ -79,10 +79,12 @@ The following is a descriptive contract shape, not a literal manifest; its
 ```
 
 Each routing-risk object is exactly `{ "mechanical_path_signals": string[],
-"semantic_classification_notes": string[] }`. Optional prior-review records
-are untrusted summary records: `source` has `kind` and `reference`, and
-`untrusted` is `true`. Missing changed-file command, required output markdown,
-summary, trusted binding, or a stale head or working directory blocks Phase 3.
+"semantic_classification_notes": string[] }`. The sanitized contract-example
+context pointer is carried in `spec_routing_risks.semantic_classification_notes`,
+not as a doc-impact-summary field. Optional prior-review records are untrusted
+summary records: `source` has `kind` and `reference`, and `untrusted` is `true`.
+Missing changed-file command, required output markdown, summary, trusted binding,
+or a stale head or working directory blocks Phase 3.
 
 ## Budget or Cap
 

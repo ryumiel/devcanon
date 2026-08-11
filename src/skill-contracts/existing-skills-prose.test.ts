@@ -3625,16 +3625,20 @@ describe("existing skills source prose contracts", () => {
     );
     expect(normalizedPhase25).toContain("hard stop before Phase 3");
 
+    const sharedContextContract = JSON.parse(
+      sharedContextReference.match(/```json\n([\s\S]*?)\n```/u)?.[1] ?? "{}",
+    ) as { output_format?: { required?: string[] } };
+
     for (const field of [
       "working_directory",
       "base_ref",
       "head_sha",
       "changed_files",
       "doc_impact_summary",
-      "output_format.markdown",
     ]) {
       expect(sharedContextReference).toContain(field);
     }
+    expect(sharedContextContract.output_format?.required).toEqual(["markdown"]);
     expect(normalizedPhase25).toContain("64,000 bytes");
     expect(normalizedPhase25).toContain("untrusted");
 
