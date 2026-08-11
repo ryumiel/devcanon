@@ -6,11 +6,11 @@ Prepares deterministic branch-review input and scope-decision paths.
 
 ## Invocation
 
-Run `bash "$BRANCH_REVIEW_DIR/scripts/prepare-review-inputs.sh"` from the target repository root with its documented flags.
+Run `bash "$BRANCH_REVIEW_DIR/scripts/prepare-review-inputs.sh" [<base>] [--fix] [--last-reviewed <sha>] [--prior-findings <path>] [--risk-signals <path>]` from the target repository root.
 
 ## Inputs
 
-It requires the review base input; optional follow-up inputs and `PLAY_REVIEW_DIR` are supplied by the caller. It reads no stdin.
+The positional base is optional and otherwise resolves from repository defaults. `--fix`, `--last-reviewed <sha>`, `--prior-findings <path>`, and `--risk-signals <path>` are optional, with follow-up fields validated as a coherent set. `PLAY_REVIEW_DIR` is required for its sibling helper; it reads no stdin.
 
 ## Working directory
 
@@ -18,7 +18,7 @@ The target repository root is required.
 
 ## Outputs
 
-It emits parseable review facts and prepared artifact paths on stdout; diagnostics go to stderr.
+It emits parseable `KEY=VALUE` review facts, including `SCOPE_DECISION_FILE` and `APPROVAL_SUMMARY_FILE`; diagnostics go to stderr.
 
 ## Refusal and failures
 
@@ -26,7 +26,7 @@ Invalid ranges, paths, paired inputs, or unavailable bundle helpers exit nonzero
 
 ## Side effects
 
-It may prepare the documented `.ephemeral` scope-decision target; it does not write the final decision.
+It creates `.ephemeral` scratch changed-files data and prepares canonical scope-decision and approval-summary targets; it does not write either final artifact.
 
 ## Workflow boundary
 

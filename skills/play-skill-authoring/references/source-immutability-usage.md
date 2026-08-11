@@ -6,11 +6,11 @@ Runs the skill-authoring source-immutability lifecycle adapter.
 
 ## Invocation
 
-Run `bash "$PLAY_SKILL_AUTHORING_DIR/scripts/source-immutability.sh" <capture|verify|cleanup> ...`.
+Run `capture [--handoff .ephemeral/<file>]`, `verify --baseline .ephemeral/.devcanon-source-immutability-<hex>.json [--handoff .ephemeral/<file>]`, or `cleanup --baseline .ephemeral/.devcanon-source-immutability-<hex>.json [--handoff .ephemeral/<file>]` through `bash "$PLAY_SKILL_AUTHORING_DIR/scripts/source-immutability.sh"`.
 
 ## Inputs
 
-The selected operation requires its lifecycle inputs; `DEVCANON_RUNTIME_DIR` is an optional runtime override. It reads no stdin.
+`capture` accepts only the optional absent ignored direct-child handoff. `verify` and `cleanup` require the baseline printed by `capture` and accept the same handoff. `DEVCANON_RUNTIME_DIR` is optional. No command reads stdin.
 
 ## Working directory
 

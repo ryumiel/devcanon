@@ -10,7 +10,7 @@ Run `TARGET_FIELDS=<description|content|both> REPLACE_EXISTING=<true|false> bash
 
 ## Inputs
 
-`TARGET_FIELDS` and `REPLACE_EXISTING` are required; the workflow supplies the remaining project and target environment. It reads no stdin.
+`PROJECT_KEY`, `TARGET_FIELDS`, and `REPLACE_EXISTING` are required. `PROJECT_KEY` is a safe nonempty project identifier; `TARGET_FIELDS` is `description`, `content`, or `both`; `REPLACE_EXISTING` is `true` or `false`. It reads no stdin.
 
 ## Working directory
 
@@ -18,7 +18,7 @@ Run from the repository root that owns the draft artifact.
 
 ## Outputs
 
-It prints the prepared repo-relative draft path on stdout and diagnostics on stderr.
+It prints one validated repo-relative draft path for `description` or `content`, and two paths for `both`; diagnostics use stderr.
 
 ## Refusal and failures
 
@@ -26,7 +26,7 @@ Invalid field selection, missing required environment, unsafe target paths, or a
 
 ## Side effects
 
-It may create the validated local draft target; it does not mutate Linear.
+It creates `.ephemeral` and validates or reserves draft paths; it does not create draft content or mutate Linear.
 
 ## Workflow boundary
 

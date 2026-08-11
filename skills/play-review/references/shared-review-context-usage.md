@@ -10,7 +10,7 @@ Run `bash "$PLAY_REVIEW_DIR/scripts/shared-review-context.sh" write-review-conte
 
 ## Inputs
 
-The selected command requires its documented environment and input manifest; it reads no stdin. `DEVCANON_RUNTIME_DIR` is an optional runtime override.
+`write-review-context-input` requires the input fields accepted by the runtime and writes the input manifest. `build-review-context` requires that validated manifest path and writes the context file. Both take no stdin; `DEVCANON_RUNTIME_DIR` is an optional runtime override.
 
 ## Working directory
 

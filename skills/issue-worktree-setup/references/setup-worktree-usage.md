@@ -6,11 +6,11 @@ Invokes the native issue-worktree setup adapter.
 
 ## Invocation
 
-Run `node "$ISSUE_WORKTREE_SETUP_DIR/scripts/setup-worktree.mjs"` with the documented worktree environment.
+Run `node "$ISSUE_WORKTREE_SETUP_DIR/scripts/setup-worktree.mjs"` with no arguments.
 
 ## Inputs
 
-The setup environment, including `BRANCH_NAME`, supplies required worktree facts; `DEVCANON_RUNTIME_DIR` is an optional runtime diagnostic override. It reads no stdin.
+`BRANCH_NAME` and `WORKTREE_LEAF` are required environment values. `BASE_REF` is optional and defaults to `origin/<remote default branch>`. `DEVCANON_RUNTIME_DIR` is an optional runtime diagnostic override. It reads no stdin.
 
 ## Working directory
 
@@ -18,7 +18,7 @@ Run from the native host shell context selected by the owning skill.
 
 ## Outputs
 
-It forwards the runtime setup result on stdout and diagnostics on stderr.
+It emits one `MODE=...`, `WORKTREE_PATH=...`, and `MESSAGE=...` result on stdout; diagnostics use stderr.
 
 ## Refusal and failures
 

@@ -6,11 +6,11 @@ Prepares the deterministic automatic-handoff artifact destination.
 
 ## Invocation
 
-Run `PLAN_PATH=<path> ISSUE_PRIMING_AUTO_HEAD=<sha> bash "$ISSUE_PRIMING_WORKFLOW_DIR/scripts/write-auto-handoff.sh"`.
+Run `PLAN_PATH=<path> bash "$ISSUE_PRIMING_WORKFLOW_DIR/scripts/write-auto-handoff.sh"`.
 
 ## Inputs
 
-`PLAN_PATH` and `ISSUE_PRIMING_AUTO_HEAD` are required. No optional inputs or stdin are accepted.
+`PLAN_PATH` is required and must name a readable direct-child `.ephemeral/*-plan.md` file. The helper derives the current `HEAD`; it accepts no optional inputs or stdin.
 
 ## Working directory
 

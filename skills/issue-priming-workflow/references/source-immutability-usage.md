@@ -6,11 +6,11 @@ Runs the packaged source-immutability adapter for issue-priming leaves.
 
 ## Invocation
 
-Run `bash "$ISSUE_PRIMING_WORKFLOW_DIR/scripts/source-immutability.sh" <capture|verify|cleanup> ...`.
+Run `capture [--handoff .ephemeral/<file>]`, `verify --baseline .ephemeral/.devcanon-source-immutability-<hex>.json [--handoff .ephemeral/<file>]`, or `cleanup --baseline .ephemeral/.devcanon-source-immutability-<hex>.json [--handoff .ephemeral/<file>]` through `bash "$ISSUE_PRIMING_WORKFLOW_DIR/scripts/source-immutability.sh"`.
 
 ## Inputs
 
-The selected lifecycle operation requires its documented baseline and output inputs; runtime resolution may use `DEVCANON_RUNTIME_DIR`. It reads no stdin.
+`capture` needs no argument and optionally reserves one absent ignored direct-child handoff. `verify` and `cleanup` require the path printed by `capture` and accept the same optional handoff. `DEVCANON_RUNTIME_DIR` is an optional runtime override. No command reads stdin.
 
 ## Working directory
 

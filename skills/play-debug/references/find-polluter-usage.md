@@ -18,11 +18,11 @@ Run from the repository root where the test command is meaningful.
 
 ## Outputs
 
-It reports the polluting test search result on stdout and diagnostics on stderr.
+It prints search progress, pre-existing-pollution notices, and either a no-polluter result or the discovered test and `ls -la` details on stdout. It does not use stderr for ordinary search diagnostics.
 
 ## Refusal and failures
 
-Wrong argument count, missing target, or an unsuccessful test search exits nonzero.
+Wrong argument count exits nonzero. A missing target is a valid clean initial state. Finding pollution exits nonzero after reporting the polluter; individual test failures are ignored while searching.
 
 ## Side effects
 
