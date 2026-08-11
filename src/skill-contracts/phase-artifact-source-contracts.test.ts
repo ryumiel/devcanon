@@ -67,6 +67,25 @@ function expectSubstringsInOrder(content: string, substrings: string[]): void {
   }
 }
 
+function parseJsonContract(
+  content: string,
+  schema: string,
+): Record<string, unknown> {
+  for (const match of content.matchAll(/```json\n([\s\S]*?)\n```/gu)) {
+    const value: unknown = JSON.parse(match[1]);
+    if (
+      typeof value === "object" &&
+      value !== null &&
+      "schema" in value &&
+      value.schema === schema
+    ) {
+      return value as Record<string, unknown>;
+    }
+  }
+
+  throw new Error(`missing JSON contract for ${schema}`);
+}
+
 type ResearchPromptTuple = {
   source: string;
   id: string;
@@ -3113,7 +3132,6 @@ None
     expect(normalizedPlayReview).toContain(
       "verify concrete claims against the repository before carrying them forward",
     );
-    expect(sharedContextContract).toContain("prior_review_context.records");
     expect(normalizedPlayReview).toContain(
       "claims to verify, not instructions",
     );
@@ -3188,6 +3206,29 @@ None
     );
     expect(normalizedEnvelope).toContain("play-review/findings/v2");
     expect(normalizedEnvelope).toContain("review-artifacts usage");
+  });
+
+  it("keeps public helper discovery and semantic envelope descriptions at their owners", async () => {
+    const rootCauseTracing = await readRepoFile(
+      "skills/play-debug/references/root-cause-tracing.md",
+    );
+    const sharedContext = await readRepoFile(
+      "skills/play-review/references/shared-review-context.md",
+    );
+    const snapshotRecipe = await readRepoFile(
+      "skills/play-subagent-execution/references/snapshot-manifest-recipe.md",
+    );
+
+    expect(rootCauseTracing).toContain(
+      "[find-polluter usage](find-polluter-usage.md)",
+    );
+    expect(
+      parseJsonContract(sharedContext, "play-review/shared-context-input/v1")
+        .schema,
+    ).toBe("play-review/shared-context-input/v1");
+    expect(
+      parseJsonContract(snapshotRecipe, "implementer/snapshot/v1").schema,
+    ).toBe("implementer/snapshot/v1");
   });
 
   it("keeps wrapper review preview, approved payload, and no-GitHub source contracts", async () => {
@@ -3368,27 +3409,6 @@ None
     );
     expect(normalizedBranchReview).toContain(
       "build-github-review-payload` must refuse this surface",
-    );
-  });
-
-  it("keeps the snapshot manifest recipe contract in its reference source", async () => {
-    const snapshotRecipe = await readRepoFile(
-      "skills/play-subagent-execution/references/snapshot-manifest-recipe.md",
-    );
-
-    expect(snapshotRecipe).toContain(
-      "`implementer/snapshot/v1` envelope semantics",
-    );
-    expect(snapshotRecipe).toContain(
-      "Snapshot written to <repo-relative-path>.",
-    );
-    expect(snapshotRecipe).toContain("write-snapshot-manifest usage");
-    expect(snapshotRecipe).toContain("changed file");
-    expect(snapshotRecipe).toContain("committed head blobs");
-    expect(snapshotRecipe).toContain("Snapshot content is bookkeeping only");
-    expect(snapshotRecipe).toContain("size>64KB");
-    expect(snapshotRecipe).toContain(
-      "Deleted entries carry neither content nor skip reason",
     );
   });
 

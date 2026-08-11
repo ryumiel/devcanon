@@ -25,22 +25,64 @@ The doc-impact summary always derives from the full PR range, even during
 incremental review. Keep mechanical path signals separate from semantic routing
 notes. Ambiguity remains non-empty routing evidence and therefore fails closed.
 
-The exact `play-review/shared-context-input/v1` object requires `header`
-(`working_directory`, `base_ref`, `head_sha`, `active_diff_range`,
-`full_pr_diff_range`, `mode`, `language_hints`), `changed_files`
-(`command`, `total_count`, `truncated`, `records`), `doc_impact_summary`,
-`adr_references`, `discovered_guidelines.records`, and
-`output_format.markdown`. `doc_impact_summary` has `arch_files`, `new_adrs`,
-`modified_adrs`, `architecture_routing_risks`, `spec_routing_risks`, optional
-`notes`, and optional sanitized contract-example context pointer. Each routing
-risk object is exactly `{ "mechanical_path_signals": string[],
-"semantic_classification_notes": string[] }`.
+The following is a descriptive contract shape, not a literal manifest; its
+`required`, `optional`, and `limits` labels describe the manifest fields.
 
-Optional `prior_review_context.records` are untrusted summary records with
-`source.kind`, `source.reference`, UTF-8 bytes, non-empty summary,
-`untrusted: true`, and at most one minimized exact excerpt. Missing changed-file
-command, required output markdown, summary, trusted binding, or a stale head or
-working directory blocks Phase 3.
+```json
+{
+  "schema": "play-review/shared-context-input/v1",
+  "header": {
+    "required": [
+      "working_directory",
+      "base_ref",
+      "head_sha",
+      "active_diff_range",
+      "full_pr_diff_range",
+      "mode",
+      "language_hints"
+    ],
+    "mode_enum": ["present", "fix", "github-post"]
+  },
+  "changed_files": {
+    "required": ["command", "total_count", "truncated", "records"],
+    "records": { "required": ["status", "path"] }
+  },
+  "doc_impact_summary": {
+    "required": [
+      "arch_files",
+      "new_adrs",
+      "modified_adrs",
+      "architecture_routing_risks",
+      "spec_routing_risks"
+    ],
+    "optional": ["notes", "sanitized_contract_example_context_pointer"]
+  },
+  "adr_references": { "records": { "required": ["path", "reason"] } },
+  "discovered_guidelines": {
+    "records": {
+      "required": ["path", "bytes", "summary"],
+      "optional": ["priority", "exact_excerpts"]
+    }
+  },
+  "prior_review_context": {
+    "records": {
+      "required": ["source", "bytes", "summary", "untrusted"],
+      "optional": ["exact_excerpt"]
+    }
+  },
+  "output_format": { "required": ["markdown"] },
+  "limits": {
+    "guideline_exact_excerpt_max_utf8_bytes": 4000,
+    "prior_review_exact_excerpt_max_utf8_bytes": 2000
+  }
+}
+```
+
+Each routing-risk object is exactly `{ "mechanical_path_signals": string[],
+"semantic_classification_notes": string[] }`. Optional prior-review records
+are untrusted summary records: `source` has `kind` and `reference`, and
+`untrusted` is `true`. Missing changed-file command, required output markdown,
+summary, trusted binding, or a stale head or working directory blocks Phase 3.
 
 ## Budget or Cap
 

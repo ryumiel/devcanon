@@ -13,11 +13,43 @@ one final report line:
 Snapshot written to <repo-relative-path>.
 ```
 
-The envelope identifies its task and head and records each changed file as
-`added`, `modified`, or `deleted`. Non-deleted entries carry line count, byte
-count, and SHA-256, plus either byte-faithful content or a `size>64KB`/`binary`
-skip reason. Deleted entries carry neither content nor skip reason. Snapshot
-content comes from committed head blobs, never the mutable worktree.
+The current-v1 structural contract is descriptive JSON, not a literal manifest:
+
+```json
+{
+  "schema": "implementer/snapshot/v1",
+  "required": ["schema", "task_id", "head_sha", "files"],
+  "types": {
+    "task_id": "non-empty string",
+    "head_sha": "40-character lowercase hexadecimal SHA",
+    "files": "non-empty array"
+  },
+  "files": {
+    "added_or_modified": {
+      "statuses": ["added", "modified"],
+      "required": ["path", "status", "lines", "bytes", "sha256"],
+      "types": {
+        "path": "repo-relative string",
+        "lines": "non-negative integer",
+        "bytes": "non-negative integer",
+        "sha256": "64-character lowercase hexadecimal SHA"
+      },
+      "exactly_one_of": [
+        { "content": "string" },
+        { "skipped": ["binary", "size>64KB"] }
+      ]
+    },
+    "deleted": {
+      "status": "deleted",
+      "required": ["path", "status", "lines", "bytes", "sha256"],
+      "fixed": { "lines": 0, "bytes": 0, "sha256": "" },
+      "forbidden": ["content", "skipped"]
+    }
+  }
+}
+```
+
+Snapshot content comes from committed head blobs, never the mutable worktree.
 
 The controller treats a malformed, missing, stale, non-regular, or unsafe
 snapshot as non-fatal: it uses its own changed-file set and committed-head blob

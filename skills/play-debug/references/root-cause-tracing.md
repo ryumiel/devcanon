@@ -109,12 +109,13 @@ npm test 2>&1 | grep 'DEBUG git init'
 
 If something appears during tests but you don't know which test:
 
-Use the bisection script `../scripts/find-polluter.sh` (sibling subdir under the skill root):
-
-Its invocation and refusal mechanics are owned by the adjacent [find-polluter usage](find-polluter-usage.md).
+Resolve the installed skill bundle, then run the helper from the target
+repository root. Its invocation and refusal mechanics are owned by the adjacent
+[find-polluter usage](find-polluter-usage.md).
 
 ```bash
-../scripts/find-polluter.sh '.git' './src/**/*.test.ts'
+PLAY_DEBUG_DIR="<installed-play-debug-skill-bundle>"
+bash "$PLAY_DEBUG_DIR/scripts/find-polluter.sh" '.git' './src/**/*.test.ts'
 ```
 
 Runs tests one-by-one and stops at the first polluter. The adjacent usage
