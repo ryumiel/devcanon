@@ -14,11 +14,11 @@ Every command requires `HEAD_SHA`. `prepare-prior-threads-write`, `prepare-scope
 
 ## Working directory
 
-Run every command from the primary repository root.
+Run every command from the target review worktree root.
 
 ## Outputs
 
-It emits validated artifact paths or results on stdout and diagnostics on stderr.
+Each prepare command prints its validated repo-relative destination path; validation commands are silent on success. Diagnostics use stderr.
 
 ## Refusal and failures
 
@@ -26,7 +26,7 @@ Unknown commands, missing metadata, unsafe paths, or invalid support validation 
 
 ## Side effects
 
-Prepare commands write only their validated local artifact targets; validation commands are read-only.
+Prepare commands create or check `.ephemeral` and prepare destination paths without creating final artifact files; validation commands are read-only.
 
 ## Workflow boundary
 

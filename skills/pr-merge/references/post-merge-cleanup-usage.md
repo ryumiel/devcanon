@@ -10,7 +10,7 @@ Run `bash "$PR_MERGE_DIR/scripts/post-merge-cleanup.sh"` with no arguments.
 
 ## Inputs
 
-`PR_STATE`, `PR_HEAD_BRANCH`, `PR_BASE_BRANCH`, `PR_HEAD_SHA`, `PR_HEAD_REPO`, `PR_BASE_REPO`, `PR_BASE_DEFAULT_BRANCH`, `PR_BASE_REMOTE_URL`, `PRIMARY_WORKTREE`, `HEAD_WORKTREE`, and `CURRENT_WORKTREE` are required. `DEVCANON_RUNTIME_DIR` is optional. It reads no stdin.
+`PR_STATE`, `PR_HEAD_BRANCH`, `PR_BASE_BRANCH`, `PR_HEAD_SHA`, `PR_HEAD_REPO`, `PR_BASE_REPO`, `PR_BASE_DEFAULT_BRANCH`, `PR_BASE_REMOTE_URL`, and `PRIMARY_WORKTREE` are required. `HEAD_WORKTREE` and `CURRENT_WORKTREE` are optional and default to empty. `DEVCANON_RUNTIME_DIR` is optional. It reads no stdin.
 
 ## Working directory
 

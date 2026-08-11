@@ -10,23 +10,23 @@ Run `capture [--handoff .ephemeral/<file>]`, `verify --baseline .ephemeral/.devc
 
 ## Inputs
 
-`capture` takes no positional input and optionally takes `--handoff .ephemeral/<file>` for an absent, ignored, direct child of `.ephemeral/`; without it, the baseline records that no handoff is expected. `verify` and `cleanup` require the baseline path printed by `capture`. When that baseline records a handoff, both require the identical `--handoff` path; otherwise neither takes one. The baseline and handoff paths must differ. `DEVCANON_RUNTIME_DIR` is optional. No operation reads stdin.
+`capture` takes no positional input and optionally takes `--handoff .ephemeral/<file>` for an absent, ignored, untracked direct child; without it, the baseline records no handoff. `verify` requires the baseline path printed by `capture`; when its baseline declares a handoff, it also requires that identical `--handoff` path, which must now be a nonempty, readable, nonsymlinked regular file. `cleanup` requires a baseline path and accepts the matching handoff when a retained regular baseline exists; it also accepts already-missing baseline or handoff leaves for idempotent cleanup. Baseline and handoff paths must differ. `DEVCANON_RUNTIME_DIR` is optional. No operation reads stdin.
 
 ## Working directory
 
-The current merge worktree root is required.
+`capture` and `verify` require the merge worktree's real Git root and `.ephemeral`; `cleanup` uses its physical current directory as the cleanup root and accepts no Git-worktree requirement.
 
 ## Outputs
 
-`capture` writes the retained `.ephemeral/.devcanon-source-immutability-<hex>.json` baseline path to stdout. A successful `verify` writes `unchanged`; a successful `cleanup` writes `cleaned`. Diagnostics use stderr.
+`capture` prints the retained `.ephemeral/.devcanon-source-immutability-<hex>.json` path. Successful `verify` prints `unchanged`; successful `cleanup` prints `cleaned`. Diagnostics use stderr.
 
 ## Refusal and failures
 
-Unknown commands or flags, invalid or noncanonical paths, a handoff that differs from the baseline declaration, source drift during `verify`, a declared handoff that is missing, non-regular, nonempty, or unreadable, unavailable runtime support, an invalid worktree, and unsafe cleanup targets exit nonzero.
+Unknown commands or flags, invalid paths, a handoff that differs from a retained baseline declaration, source drift, or a missing, empty, unreadable, nonregular, or symlinked declared handoff make `verify` exit nonzero. `cleanup` rejects unsafe paths and non-file, non-symlink cleanup leaves; it accepts missing leaves and unlinks either regular-file or symlink baseline and handoff leaves.
 
 ## Side effects
 
-`capture` writes its retained baseline and `cleanup` removes only retained guard files; `verify` is read-only.
+`capture` writes retained guard state. `verify` is read-only. `cleanup` removes both retained guard state and the declared handoff when applicable, including safe symlink leaves.
 
 ## Workflow boundary
 

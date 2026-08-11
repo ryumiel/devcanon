@@ -10,7 +10,7 @@ Run `ISSUE_IDENTIFIER=<identifier> bash "$ISSUE_PRIMING_WORKFLOW_DIR/scripts/wri
 
 ## Inputs
 
-`ISSUE_IDENTIFIER` is required; `ASSUMPTIONS_COMMENT_FILE` is optional when an existing target is being checked. It reads no stdin.
+`ISSUE_IDENTIFIER` is required; `ASSUMPTIONS_COMMENT_FILE` optionally selects a direct-child `.ephemeral/*-assumptions-comment.md` destination. It reads no stdin.
 
 ## Working directory
 
@@ -22,11 +22,11 @@ It prints the repo-relative artifact path on stdout; diagnostics go to stderr.
 
 ## Refusal and failures
 
-Missing identifiers or unsafe, conflicting, or unreadable targets exit nonzero.
+Missing identifiers or unsafe, symlinked, directory, or nonregular existing targets exit nonzero.
 
 ## Side effects
 
-It may create the validated local artifact target; it does not publish an external comment.
+It creates or checks `.ephemeral` and prepares the validated destination path without creating the final artifact file or publishing an external comment.
 
 ## Workflow boundary
 

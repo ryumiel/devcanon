@@ -10,7 +10,7 @@ Run `bash "$BRANCH_REVIEW_DIR/scripts/prepare-review-inputs.sh" [<base>] [--fix]
 
 ## Inputs
 
-The positional base is optional and otherwise resolves from repository defaults. `--fix`, `--last-reviewed <sha>`, `--prior-findings <path>`, and `--risk-signals <path>` are optional, with follow-up fields validated as a coherent set. `PLAY_REVIEW_DIR` is required for its sibling helper; it reads no stdin.
+The positional base is optional and otherwise resolves from repository defaults. `--fix`, `--last-reviewed <sha>`, `--prior-findings <path>`, and `--risk-signals <path>` are optional; `--last-reviewed` and `--prior-findings` must be supplied together. `PLAY_REVIEW_DIR` is required only with `--prior-findings`; `BRANCH_REVIEW_FULL_REVIEW_PATH_PATTERN` is optional validator configuration. It reads no stdin.
 
 ## Working directory
 
@@ -18,7 +18,7 @@ The target repository root is required.
 
 ## Outputs
 
-It emits parseable `KEY=VALUE` review facts, including `SCOPE_DECISION_FILE` and `APPROVAL_SUMMARY_FILE`; diagnostics go to stderr.
+It emits exactly `BASE`, `FIX_MODE`, `RISK_SIGNALS_FILE`, `RISK_SIGNALS_STATUS`, `FULL_DIFF_RANGE`, `CANDIDATE_ACTIVE_DIFF_RANGE`, `MECHANICAL_ACTIVE_DIFF_RANGE`, `MECHANICAL_IS_FOLLOWUP_NARROW`, `MECHANICAL_ESCALATE_FULL`, `MECHANICAL_ESCALATION_REASON`, `FOLLOWUP_SHA_USABLE`, `CHANGED_FILE_COUNT`, `CHANGED_FILES_FILE`, `LANGUAGE_HINTS`, `LAST_REVIEWED_SHA`, `PRIOR_BRANCH_FINDINGS`, `SCOPE_DECISION_FILE`, and `APPROVAL_SUMMARY_FILE` as `KEY=VALUE` lines; diagnostics go to stderr.
 
 ## Refusal and failures
 

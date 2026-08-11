@@ -22,7 +22,7 @@ It prints the repo-relative handoff path on stdout; diagnostics go to stderr.
 
 ## Refusal and failures
 
-Missing, unsafe, stale, or mismatched plan inputs exit nonzero.
+Missing, unsafe, unreadable, nonregular, or symlinked plan paths exit nonzero. The helper does not parse plan content or bind plan metadata to the current `HEAD`.
 
 ## Side effects
 

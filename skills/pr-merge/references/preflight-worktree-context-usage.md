@@ -14,15 +14,15 @@ Run `PR_HEAD_BRANCH=<branch> PR_BASE_BRANCH=<branch> bash "$PR_MERGE_DIR/scripts
 
 ## Working directory
 
-Run from the primary repository root.
+Run from and inspect the caller's current registered Git worktree.
 
 ## Outputs
 
-It emits parseable `KEY=VALUE` facts on stdout and diagnostics on stderr.
+It emits `MODE`, `REASON_CODE`, `CURRENT_WORKTREE`, `CURRENT_BRANCH`, `CURRENT_DETACHED`, `PRIMARY_WORKTREE`, `HEAD_WORKTREE`, `BASE_WORKTREE`, and `REASON` as `KEY=VALUE` lines. Missing or invalid PR metadata and unclassifiable worktree context route through exit-zero `MODE=stop`; diagnostics use stderr only for runtime failure.
 
 ## Refusal and failures
 
-Missing branch facts, invalid worktree context, or unavailable runtime exits nonzero.
+Unavailable runtime exits nonzero. Missing branch facts and invalid or unavailable caller context are reported by the exit-zero `MODE=stop` route.
 
 ## Side effects
 

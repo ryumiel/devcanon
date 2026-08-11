@@ -26,7 +26,7 @@ Invalid identifiers, dates, or existing unsafe targets exit nonzero.
 
 ## Side effects
 
-It may create the validated local research-brief target; it makes no external mutation.
+It creates or checks `.ephemeral` and prepares the validated destination path without creating the final research-brief file or making an external mutation.
 
 ## Workflow boundary
 
