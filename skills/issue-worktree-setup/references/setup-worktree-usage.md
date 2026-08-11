@@ -14,11 +14,11 @@ Run `node "$ISSUE_WORKTREE_SETUP_DIR/scripts/setup-worktree.mjs"` with no argume
 
 ## Working directory
 
-Run from the native host shell context selected by the owning skill.
+Run from a native host shell in a Git worktree; POSIX/WSL execution against Windows Git metadata is refused.
 
 ## Outputs
 
-It emits one `MODE=...`, `WORKTREE_PATH=...`, and `MESSAGE=...` result on stdout; diagnostics use stderr.
+It emits `MODE=...`, `WORKTREE_PATH=...`, and `MESSAGE=...` on stdout. A valid no-action outcome such as unsupported submodule use returns exit zero with `MODE=stop`; diagnostics use stderr only for command failure.
 
 ## Refusal and failures
 

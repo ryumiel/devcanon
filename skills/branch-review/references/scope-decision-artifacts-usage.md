@@ -28,7 +28,7 @@ The helper rejects missing or malformed environment values, non-root cwd, unsafe
 
 ## Side effects
 
-Prepare commands create `.ephemeral` and reserve a validated target. `finalize-scope-decision` writes the canonical scope-decision JSON. `write-approval-summary` replaces the canonical approval-summary JSON only after validation. Classification and validation are read-only except for private temporary artifacts.
+Prepare commands create `.ephemeral` and reserve a validated target. `finalize-scope-decision` writes the canonical scope-decision JSON. `write-approval-summary` replaces the canonical approval-summary JSON only after validation. `classify-risk-signals` can persist the derived contract-example-discipline context artifact when the supplied risk signals contain that context; other classification and validation work is read-only except for private temporary artifacts.
 
 ## Workflow boundary
 

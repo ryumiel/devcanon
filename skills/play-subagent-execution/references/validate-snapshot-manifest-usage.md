@@ -18,7 +18,7 @@ The repository root is required.
 
 ## Outputs
 
-Successful validation is silent; diagnostics go to stderr and failures exit nonzero.
+Successful validation prints `SNAPSHOT_STATUS=valid`, `SNAPSHOT_FILE=<path>`, `SNAPSHOT_HEAD_SHA=<sha>`, and `SNAPSHOT_CHANGED_FILE_COUNT=<count>` on stdout. Diagnostics go to stderr and failures exit nonzero.
 
 ## Refusal and failures
 

@@ -10,7 +10,7 @@ Run `bash "$ISSUE_PRIMING_WORKFLOW_DIR/scripts/phase-artifacts.sh" validate-read
 
 ## Inputs
 
-The artifact kind and repo-relative path are required. No optional inputs or stdin are accepted.
+The artifact kind and repo-relative path are required. Kind is exactly one of `issue-body`, `comment-evidence`, `research`, `design`, or `plan`. No optional inputs or stdin are accepted.
 
 ## Working directory
 

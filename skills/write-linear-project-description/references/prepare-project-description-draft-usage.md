@@ -6,7 +6,7 @@ Prepares a validated target for a Linear project-description draft.
 
 ## Invocation
 
-Run `TARGET_FIELDS=<description|content|both> REPLACE_EXISTING=<true|false> bash "$WRITE_LINEAR_PROJECT_DESCRIPTION_DIR/scripts/prepare-project-description-draft.sh"`.
+Run `PROJECT_KEY=<key> TARGET_FIELDS=<description|content|both> REPLACE_EXISTING=<true|false> bash "$WRITE_LINEAR_PROJECT_DESCRIPTION_DIR/scripts/prepare-project-description-draft.sh"`.
 
 ## Inputs
 

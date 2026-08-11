@@ -6,11 +6,11 @@ Performs the deterministic cleanup operation for a selected Git repository.
 
 ## Invocation
 
-Run `bash "$SKILL_DIR/scripts/git-workspace-cleanup.sh" --repo "$TARGET_REPO" --dry-run` or the documented execute form.
+Run `bash "$SKILL_DIR/scripts/git-workspace-cleanup.sh" [--repo <path>] [--dry-run|--execute] [--force-branches] [--force-dirty-worktrees]`.
 
 ## Inputs
 
-`--repo` is required. `--dry-run` or `--execute` selects the mode; force flags are optional. It reads no stdin.
+`--repo <path>` is optional and defaults to the current directory. `--dry-run` is the default mode; `--execute` enables cleanup. `--force-branches` and `--force-dirty-worktrees` are optional execute-mode overrides. It reads no stdin.
 
 ## Working directory
 
@@ -22,11 +22,11 @@ It reports planned or completed cleanup outcomes on stdout and diagnostics on st
 
 ## Refusal and failures
 
-Missing repository input, invalid mode, or unsafe repository state exits nonzero; dry-run does not mutate.
+Unknown or incomplete flags, a non-worktree or bare repository, missing remote default branch, or a blocked cleanup state exits nonzero.
 
 ## Side effects
 
-`--execute` can remove worktrees and branches under its documented cleanup contract.
+`--dry-run` fetches `origin --prune` before reporting; `--execute` can prune worktrees and remove worktrees and branches. Dry-run is not mutation-free.
 
 ## Workflow boundary
 

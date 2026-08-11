@@ -77,6 +77,63 @@ const approvedExecutableById = {
 
 const expectedHelpers = Object.keys(approvedExecutableById).sort();
 
+const approvedRoleById = {
+  "branch-review/prepare-review-inputs":
+    "Prepares branch-review inputs and scope-decision inputs.",
+  "branch-review/scope-decision-artifacts":
+    "Validates and writes branch-review scope decisions.",
+  "git-workspace-cleanup/git-workspace-cleanup":
+    "Cleans managed Git worktrees and branches.",
+  "issue-priming-workflow/phase-artifacts":
+    "Guards issue-priming phase artifact reads.",
+  "issue-priming-workflow/source-immutability":
+    "Runs issue-priming source-immutability lifecycle operations.",
+  "issue-priming-workflow/write-assumptions-comment":
+    "Prepares an assumptions-comment artifact target.",
+  "issue-priming-workflow/write-auto-handoff":
+    "Writes a validated automatic-handoff artifact.",
+  "issue-priming-workflow/write-research-brief":
+    "Prepares a research-brief artifact target.",
+  "issue-worktree-setup/setup-worktree":
+    "Sets up an issue worktree through the native adapter.",
+  "play-agent-dispatch/source-immutability":
+    "Runs dispatch source-immutability lifecycle operations.",
+  "play-branch-finish/branch-review-approval-gate":
+    "Evaluates branch-review approval-gate inputs.",
+  "play-debug/find-polluter": "Locates the test that pollutes a target.",
+  "play-planning/source-immutability":
+    "Runs planning source-immutability lifecycle operations.",
+  "play-review/review-artifacts":
+    "Manages validated review artifact operations.",
+  "play-review/shared-review-context":
+    "Builds shared review-context artifacts.",
+  "play-review/source-immutability":
+    "Runs review source-immutability lifecycle operations.",
+  "play-skill-authoring/source-immutability":
+    "Runs skill-authoring source-immutability lifecycle operations.",
+  "play-subagent-execution/source-immutability":
+    "Runs subagent source-immutability lifecycle operations.",
+  "play-subagent-execution/validate-snapshot-manifest":
+    "Validates an implementer snapshot manifest.",
+  "play-subagent-execution/write-risk-signals":
+    "Writes a validated branch-review risk-signals artifact.",
+  "play-subagent-execution/write-snapshot-manifest":
+    "Writes an implementer snapshot manifest.",
+  "pr-merge/post-merge-cleanup": "Cleans local state after a verified merge.",
+  "pr-merge/preflight-worktree-context": "Reports merge worktree context.",
+  "pr-merge/source-immutability":
+    "Runs merge source-immutability lifecycle operations.",
+  "pr-review/approved-review-artifacts":
+    "Validates and materializes approved review artifacts.",
+  "pr-review/prior-thread-artifacts":
+    "Manages prior-thread and scope-decision artifacts.",
+  "pr-review/review-leases": "Manages PR-review lease lifecycle operations.",
+  "pr-review/review-manifests":
+    "Manages PR-review handoff and result manifests.",
+  "write-linear-project-description/prepare-project-description-draft":
+    "Prepares a Linear project-description draft target.",
+} as const;
+
 function catalogRows(markdown: string): CatalogRow[] {
   const lines = markdown.split("\n");
   const headerIndex = lines.findIndex((line) =>
@@ -211,6 +268,19 @@ async function assertExistingSources(
   }
 }
 
+async function assertUsageBacklinks(
+  rows: readonly CatalogRow[],
+  loadUsage = async (row: CatalogRow) =>
+    readFile(path.join(repositoryRoot, row.usageDocument), "utf8"),
+): Promise<void> {
+  for (const row of rows) {
+    const usage = await loadUsage(row);
+    if (!/\[[^\]]+\]\(\.\.\/SKILL\.md\)/.test(usage)) {
+      throw new Error(`owning SKILL backlink missing: ${row.helperId}`);
+    }
+  }
+}
+
 describe("public helper registry", () => {
   test("catalogs exactly the approved helpers with adjacent readable contracts", async () => {
     const rows = catalogRows(await readFile(catalogPath, "utf8"));
@@ -221,14 +291,38 @@ describe("public helper registry", () => {
     expect(
       Object.fromEntries(rows.map((row) => [row.helperId, row.executable])),
     ).toEqual(approvedExecutableById);
+    expect(
+      rows.map((row) => [
+        row.helperId,
+        row.role,
+        row.owningSkill,
+        row.executable,
+        row.usageDocument,
+      ]),
+    ).toEqual(
+      expectedHelpers.map((helperId) => {
+        const [owningSkill, stem] = helperId.split("/");
+        return [
+          helperId,
+          approvedRoleById[helperId as keyof typeof approvedRoleById],
+          owningSkill,
+          approvedExecutableById[
+            helperId as keyof typeof approvedExecutableById
+          ],
+          `skills/${owningSkill}/references/${stem}-usage.md`,
+        ];
+      }),
+    );
 
     await assertExistingSources(rows);
+    await assertUsageBacklinks(rows);
     for (const row of rows) {
       const usage = await readFile(
         path.join(repositoryRoot, row.usageDocument),
         "utf8",
       );
       for (const heading of [
+        "## Role",
         "## Invocation",
         "## Inputs",
         "## Working directory",
@@ -239,7 +333,6 @@ describe("public helper registry", () => {
       ]) {
         expect(usage).toContain(heading);
       }
-      expect(usage).toMatch(/\[[^\]]+\]\(\.\.\/SKILL\.md\)/);
       expect(usage).not.toMatch(
         /<operation>|documented environment|operation-specific/,
       );
@@ -314,32 +407,51 @@ describe("public helper registry", () => {
   });
 
   test("rejects a catalog row whose executable source does not exist", async () => {
+    const valid = (await catalogRows(await readFile(catalogPath, "utf8"))).find(
+      (row) => row.helperId === "play-debug/find-polluter",
+    );
+    if (!valid)
+      throw new Error("expected play-debug/find-polluter catalog row");
+
     await expect(
       assertExistingSources([
         {
-          helperId: "example-skill/example-helper",
-          role: "An example deterministic action.",
-          owningSkill: "example-skill",
-          executable: "skills/example-skill/scripts/missing-helper.sh",
-          usageDocument:
-            "skills/example-skill/references/example-helper-usage.md",
+          ...valid,
+          executable: "skills/play-debug/scripts/missing-polluter.sh",
         },
       ]),
     ).rejects.toMatchObject({ code: "ENOENT" });
   });
 
   test("rejects a catalog row whose usage document does not exist", async () => {
+    const valid = (await catalogRows(await readFile(catalogPath, "utf8"))).find(
+      (row) => row.helperId === "play-debug/find-polluter",
+    );
+    if (!valid)
+      throw new Error("expected play-debug/find-polluter catalog row");
+
     await expect(
       assertExistingSources([
         {
-          helperId: "example-skill/example-helper",
-          role: "An example deterministic action.",
-          owningSkill: "example-skill",
-          executable: "skills/play-debug/scripts/find-polluter.sh",
+          ...valid,
           usageDocument:
-            "skills/example-skill/references/missing-helper-usage.md",
+            "skills/play-debug/references/missing-polluter-usage.md",
         },
       ]),
     ).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  test("rejects missing and wrong owning-SKILL backlinks independently", async () => {
+    const valid = (await catalogRows(await readFile(catalogPath, "utf8")))[0];
+
+    await expect(
+      assertUsageBacklinks([valid], async () => "# Usage\n"),
+    ).rejects.toThrow("owning SKILL backlink missing");
+    await expect(
+      assertUsageBacklinks(
+        [valid],
+        async () => "[Wrong skill](../other-skill/SKILL.md)\n",
+      ),
+    ).rejects.toThrow("owning SKILL backlink missing");
   });
 });

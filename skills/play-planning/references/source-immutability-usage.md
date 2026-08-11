@@ -10,7 +10,7 @@ Run `capture [--handoff .ephemeral/<file>]`, `verify --baseline .ephemeral/.devc
 
 ## Inputs
 
-`capture` accepts only the optional absent ignored direct-child handoff. `verify` and `cleanup` require the baseline printed by `capture` and accept the same handoff. `DEVCANON_RUNTIME_DIR` is optional. No command reads stdin.
+`capture` takes no positional input and optionally takes `--handoff .ephemeral/<file>` for an absent, ignored, direct child of `.ephemeral/`; without it, the baseline records that no handoff is expected. `verify` and `cleanup` require the baseline path printed by `capture`. When that baseline records a handoff, both require the identical `--handoff` path; otherwise neither takes one. The baseline and handoff paths must differ. `DEVCANON_RUNTIME_DIR` is optional. No operation reads stdin.
 
 ## Working directory
 
@@ -18,11 +18,11 @@ The current planning worktree root is required.
 
 ## Outputs
 
-It emits operation results on stdout and diagnostics on stderr.
+`capture` writes the retained `.ephemeral/.devcanon-source-immutability-<hex>.json` baseline path to stdout. A successful `verify` writes `unchanged`; a successful `cleanup` writes `cleaned`. Diagnostics use stderr.
 
 ## Refusal and failures
 
-Invalid lifecycle inputs, runtime resolution failure, or source drift exits nonzero.
+Unknown commands or flags, invalid or noncanonical paths, a handoff that differs from the baseline declaration, source drift during `verify`, a declared handoff that is missing, non-regular, nonempty, or unreadable, unavailable runtime support, an invalid worktree, and unsafe cleanup targets exit nonzero.
 
 ## Side effects
 

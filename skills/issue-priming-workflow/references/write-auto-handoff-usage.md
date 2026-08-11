@@ -2,7 +2,7 @@
 
 ## Role
 
-Prepares the deterministic automatic-handoff artifact destination.
+Writes the validated automatic-handoff artifact.
 
 ## Invocation
 
@@ -26,7 +26,7 @@ Missing, unsafe, stale, or mismatched plan inputs exit nonzero.
 
 ## Side effects
 
-It may create the validated local handoff artifact target; it does not dispatch a child.
+It creates or replaces the derived local auto-handoff JSON artifact; it does not dispatch a child.
 
 ## Workflow boundary
 
