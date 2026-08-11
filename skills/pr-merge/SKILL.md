@@ -91,6 +91,10 @@ Run the [preflight worktree context helper](references/preflight-worktree-contex
 with the documented branch inputs, and parse its documented `KEY=VALUE` result
 without whitespace splitting.
 
+```bash
+bash "$PR_MERGE_DIR/scripts/preflight-worktree-context.sh" --help
+```
+
 Mode routing:
 
 | Mode          | Action                                                                                                                          |
@@ -117,6 +121,10 @@ invalidates the preflight result.
 After every verified remote merge, run the
 [post-merge cleanup helper](references/post-merge-cleanup-usage.md) with its
 documented inputs.
+
+```bash
+bash "$PR_MERGE_DIR/scripts/post-merge-cleanup.sh" --help
+```
 
 If the helper reports `retained`, `skipped`, or `failed`, do not hide it behind
 the successful remote merge. Report the remaining manual action.

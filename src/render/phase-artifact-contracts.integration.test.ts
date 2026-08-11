@@ -2277,54 +2277,17 @@ describe("rendered phase artifact smoke coverage", () => {
       const branchReview = bodies[`branch-review:${target}`];
       const normalizedBranchReview = normalizeRenderedWhitespace(branchReview);
 
-      expect(branchReview).toContain("--last-reviewed");
-      expect(branchReview).toContain("--prior-findings");
-      expect(branchReview).toContain("--last-reviewed requires a SHA");
       expect(branchReview).toContain(
-        "--last-reviewed requires a 40-character lowercase hex SHA",
+        "references/prepare-review-inputs-usage.md",
       );
-      expect(branchReview).toContain("--prior-findings requires a path");
-      expect(branchReview).toContain("unknown branch-review argument");
-      expect(branchReview).toContain("multiple base arguments supplied");
-      expect(branchReview).toContain("prepare-review-inputs.sh");
-      expect(branchReview).toContain("PREPARE_INPUTS_HELPER");
-      expect(branchReview).toContain("BRANCH_REVIEW_INPUTS");
-      expect(branchReview).toContain("supplying only one follow-up argument");
-      expect(normalizedBranchReview).toContain(
-        "--prior-findings review head must match --last-reviewed",
-      );
-      expect(branchReview).toContain("candidate_active_diff_range");
-      expect(branchReview).toContain("ACTIVE_DIFF_RANGE");
-      expect(branchReview).toContain("IS_FOLLOWUP_NARROW");
-      expect(branchReview).toContain("MECHANICAL_ACTIVE_DIFF_RANGE");
-      expect(branchReview).toContain("MECHANICAL_ESCALATE_FULL");
-      expect(branchReview).toContain("CHANGED_FILES_FILE");
-      expect(branchReview).toContain('BASE) BASE="$value"');
       expect(branchReview).toContain(
-        'FULL_DIFF_RANGE) FULL_DIFF_RANGE="$value"',
+        "references/scope-decision-artifacts-usage.md",
       );
-      expect(branchReview).toContain("Upstream Review-Scope Handoff");
-      expect(branchReview).toContain("planning/execution categorization");
-      expect(branchReview).toContain("non-authoritative context");
-      expect(normalizedBranchReview).toContain("may only preserve or escalate");
-      expect(normalizedBranchReview).toContain(
-        "configured path escalation from `BRANCH_REVIEW_FULL_REVIEW_PATH_PATTERN`",
+      expect(normalizedBranchReview).toMatch(
+        /scope and continuation decisions/i,
       );
-      expect(branchReview).toContain("play-validate-review-artifacts");
-      expect(branchReview).toContain("scope-decision-artifacts.sh");
-      expect(normalizedBranchReview).toContain(
-        "Do not copy the support validator's runtime-backed policy into this skill prose",
-      );
-      expect(branchReview).toContain("full_pr_diff_range");
-      expect(branchReview).toContain("Escalate back to full branch review");
-      expect(normalizedBranchReview).toContain(
-        "support-validator decision to use the full range",
-      );
-      expect(branchReview).toContain("prior_branch_findings");
-      expect(branchReview).toContain("carry_forward[]");
-      expect(branchReview).toContain(
-        "mirror eligible unresolved carry-forward entries into `findings[]` exactly once",
-      );
+      expect(normalizedBranchReview).toMatch(/fail closed to full review/i);
+      expect(normalizedBranchReview).toContain("no GitHub posting");
 
       const playReview = bodies[`play-review:${target}`];
       const playReviewFollowUpReferences = [

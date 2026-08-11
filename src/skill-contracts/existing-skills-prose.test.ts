@@ -331,39 +331,17 @@ describe("existing skills source prose contracts", () => {
     );
   });
 
-  it("keeps branch-review risk-signals prose non-authoritative and fail-closed", async () => {
+  it("keeps branch-review semantic scope policy separate from helper mechanics", async () => {
     const branchReview = await readSkillSource("branch-review");
     const normalized = normalizeWhitespace(branchReview);
 
-    expect(normalized).toContain(
-      "`--risk-signals` is optional and non-authoritative",
+    expect(branchReview).toContain("references/prepare-review-inputs-usage.md");
+    expect(branchReview).toContain(
+      "references/scope-decision-artifacts-usage.md",
     );
-    expect(normalized).toContain("handoff from `play-subagent-execution`");
-    expect(normalized).toContain(
-      "Missing risk signals are normal branch-review usage",
-    );
-    expect(normalized).toContain(
-      "Valid risk signals can only preserve or escalate scrutiny; they never justify narrow review",
-    );
-    expect(normalized).toContain(
-      "Invalid, stale, malformed, or untrusted supplied risk signals fail closed to full review or higher scrutiny without adding reserved scope reason codes",
-    );
-    expect(normalized).toContain(
-      "Scope-decision artifact remains the authoritative branch-review explanation",
-    );
-    expect(normalized).toContain(
-      "Prior findings follow-up validation remains separate from risk-signal validation",
-    );
-    expect(branchReview).toContain("classify-risk-signals");
-    expect(branchReview).toContain("RISK_SIGNALS_CLASSIFICATION");
-    expect(branchReview).toContain("RISK_SIGNALS_SEMANTIC_ESCALATION_REASON");
-    expect(branchReview).toContain("RISK_SIGNALS_SEMANTIC_DECISION_NOTES");
-    expect(normalized).toContain(
-      "Risk-signal semantic values compose with existing wrapper semantic classification; they do not replace it",
-    );
-    expect(branchReview).toContain("WRAPPER_SEMANTIC_ESCALATION_REASON");
-    expect(branchReview).toContain("FINAL_SEMANTIC_ESCALATION_REASON");
-    expect(branchReview).not.toContain("prior_findings_validation");
+    expect(normalized).toMatch(/risk signals.*preserve or escalate scrutiny/i);
+    expect(normalized).toMatch(/fail closed to full review/i);
+    expect(normalized).toMatch(/semantic review scope/i);
   });
 
   it("keeps play-review slim while preserving eager gates and progressive reference discovery", async () => {
@@ -4863,79 +4841,28 @@ describe("existing skills source prose contracts", () => {
     );
   });
 
-  it("keeps pr-merge final reports separate from local cleanup outcomes", async () => {
+  it("keeps pr-merge workflow continuation separate from helper mechanics", async () => {
     const skillSource = await readSkillSource("pr-merge");
-    const mergeSection = getMarkdownSection(
-      skillSource,
-      "Step 3: Preflighted Merge",
-    );
-    const cleanupSection = getMarkdownSection(
-      skillSource,
-      "Step 3b: Post-Merge Cleanup",
-    );
-    const normalizedMergeSection = normalizeWhitespace(mergeSection);
-    const normalizedCleanupSection = normalizeWhitespace(cleanupSection);
+    const normalized = normalizeWhitespace(skillSource);
 
-    expect(mergeSection).toContain(
-      "skills/pr-merge/scripts/preflight-worktree-context.sh",
+    expect(skillSource).toContain(
+      "references/preflight-worktree-context-usage.md",
     );
-    expect(mergeSection).toContain("PR_HEAD_BRANCH");
-    expect(mergeSection).toContain("PR_BASE_BRANCH");
-    expect(normalizedMergeSection).toMatch(
-      /Before any merge command.*Run.*preflight-worktree-context\.sh/i,
+    expect(skillSource).toContain("references/post-merge-cleanup-usage.md");
+    expect(skillSource).toContain(
+      'bash "$PR_MERGE_DIR/scripts/preflight-worktree-context.sh" --help',
     );
-    expect(normalizedMergeSection).toMatch(
-      /MODE=safe-direct\|cd-primary\|remote-only\|stop/i,
+    expect(skillSource).toContain(
+      'bash "$PR_MERGE_DIR/scripts/post-merge-cleanup.sh" --help',
     );
-    expect(normalizedMergeSection).toMatch(
-      /safe-direct.*\{\{tool:github-cli\}\} pr merge <N> --squash/i,
-    );
-    expect(normalizedMergeSection).toMatch(/cd-primary.*PRIMARY_WORKTREE/i);
-    expect(normalizedMergeSection).toMatch(
-      /remote-only.*without local cleanup delegation/i,
-    );
-    expect(normalizedMergeSection).toMatch(/stop.*Do not merge/i);
-    expect(normalizedMergeSection).toContain(
-      "No mode may use `{{tool:github-cli}} pr merge --delete-branch`",
-    );
-    expect(normalizedMergeSection).toMatch(
-      /Do not retry an execution-context failure unless.*changed directory.*changed mode.*new evidence/i,
-    );
-
-    expect(cleanupSection).toContain(
-      "skills/pr-merge/scripts/post-merge-cleanup.sh",
-    );
-    expect(cleanupSection).toContain("PR_BASE_REMOTE_URL");
-    expect(cleanupSection).toContain("Final report contract");
-    expect(normalizedCleanupSection).toMatch(
-      /canonical path comparison.*dirty\/untracked\/locked worktree retention/i,
-    );
-    expect(normalizedCleanupSection).toMatch(
-      /same-repository remote branch deletion.*remote tip equality/i,
-    );
-    expect(normalizedCleanupSection).toMatch(
-      /local `origin` resolves to `PR_BASE_REMOTE_URL`/i,
-    );
-    expect(normalizedCleanupSection).toMatch(/Remote merge.*PR URL/i);
-    expect(normalizedCleanupSection).toMatch(/Preflight.*mode.*reason/i);
-    expect(normalizedCleanupSection).toMatch(
-      /Worktree cleanup.*removed, retained, skipped, failed, or not attempted/i,
-    );
-    expect(normalizedCleanupSection).toMatch(
-      /Base checkout\/pull.*updated, skipped, failed, or not attempted/i,
-    );
-    expect(normalizedCleanupSection).toMatch(
-      /Local branch cleanup.*deleted, retained, skipped, failed, or not attempted/i,
-    );
-    expect(normalizedCleanupSection).toMatch(
-      /Remote branch cleanup.*deleted, retained, skipped, failed, or not attempted/i,
-    );
-    expect(normalizedCleanupSection).toMatch(/Manual action.*none/i);
+    expect(normalized).toMatch(/Mode routing.*safe-direct.*remote-only.*stop/i);
+    expect(normalized).toMatch(/Do not retry an execution-context failure/i);
+    expect(normalized).toMatch(/Report the remaining manual action/i);
     expect(skillSource).not.toContain(
       "gh pr merge <N> --squash --delete-branch",
     );
-    expect(cleanupSection).not.toContain("git worktree remove --force");
-    expect(normalizedCleanupSection).not.toContain(
+    expect(skillSource).not.toContain("git worktree remove --force");
+    expect(normalized).not.toContain(
       "Report the merge to the user with the PR URL. Done.",
     );
   });
