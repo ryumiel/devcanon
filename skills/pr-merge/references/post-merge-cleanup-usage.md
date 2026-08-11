@@ -22,7 +22,7 @@ Its primary result channel is structured `KEY=VALUE` stdout: `WORKTREE_CLEANUP`,
 
 ## Refusal and failures
 
-Missing merge evidence, a PR-not-merged result, dirty or locked worktrees, and individual Git cleanup-operation failures return exit zero with structured `skipped`, `retained`, `failed`, or manual-cleanup outcomes. Malformed or missing required inputs, invalid paths or branch names, and unavailable runtime are thrown errors that exit nonzero.
+A present `PR_STATE` other than `MERGED`, dirty or locked worktrees, and individual Git cleanup-operation failures return exit zero with structured `skipped`, `retained`, `failed`, or manual-cleanup outcomes. A missing required `PR_STATE` (or other required input), invalid paths or branch names, and unavailable runtime are thrown errors that exit nonzero (the runtime reports these as exit 2 on stderr).
 
 ## Side effects
 

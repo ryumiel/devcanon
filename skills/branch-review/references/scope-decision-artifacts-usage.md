@@ -20,11 +20,11 @@ Every operation requires the target repository root and a real `.ephemeral` dire
 
 ## Outputs
 
-The two prepare commands print the canonical repo-relative target path. Validation commands are silent on success. `finalize-scope-decision` validates the written scope decision and is otherwise silent. `classify-risk-signals` prints three `KEY=VALUE` lines. `write-approval-summary` prints `Approval summary written to <path>.`; diagnostics use stderr and every refusal exits nonzero.
+The two prepare commands print the canonical repo-relative target path. Validation commands are silent on success. `finalize-scope-decision` validates the written scope decision and is otherwise silent. `classify-risk-signals` prints three `KEY=VALUE` lines; `RISK_SIGNALS_STATUS=invalid-path` and a validator-rejected supplied artifact both yield exit-zero `RISK_SIGNALS_CLASSIFICATION=invalid-fail-closed` output. `write-approval-summary` prints `Approval summary written to <path>.`; diagnostics use stderr.
 
 ## Refusal and failures
 
-The helper rejects missing or malformed environment values, non-root cwd, unsafe, unreadable, symlinked, stale, mismatched, or schema-invalid artifacts, unavailable support validation, invalid JSON arrays, and incompatible selected ranges.
+Except for the exit-zero risk-signals classifications above, the helper rejects missing or malformed environment values, non-root cwd, unsafe, unreadable, symlinked, stale, mismatched, or schema-invalid artifacts, unavailable support validation, invalid JSON arrays, and incompatible selected ranges with nonzero failure.
 
 ## Side effects
 

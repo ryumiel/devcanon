@@ -343,11 +343,14 @@ it in [`contracts/public-helpers.md`](../../contracts/public-helpers.md). The
 catalog owns only identity, role, owner, executable, and usage-document link.
 Put reusable invocation mechanics in the one adjacent
 `references/<script-stem>-usage.md` document, and keep when-to-run, result
-interpretation, escalation, and continuation in `SKILL.md`. Do not duplicate
-authoritative invocation mechanics, input/output tables, refusal or error
-details, or explanatory help prose between these owners. A minimal command line
-at the owning workflow action point is permitted when needed to execute the
-action; it does not become a second mechanics owner. Apply the generic hardening rule in
+interpretation, escalation, and continuation in `SKILL.md`. Every required
+public script-backed action point must provide either the complete concrete
+invocation for that action or the exact local `<script> --help` discovery step
+for its executable; it retains workflow result and continuation judgment. Do
+not duplicate authoritative invocation mechanics, input/output tables, refusal
+or error details, or explanatory help prose between these owners. A minimal
+command line at the owning workflow action point is permitted when needed to
+execute the action; it does not become a second mechanics owner. Apply the generic hardening rule in
 [Implementation Proportionality](implementation-proportionality.md); this guide
 does not add a second trust-boundary policy.
 

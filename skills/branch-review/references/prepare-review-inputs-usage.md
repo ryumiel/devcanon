@@ -22,7 +22,7 @@ It emits exactly `BASE`, `FIX_MODE`, `RISK_SIGNALS_FILE`, `RISK_SIGNALS_STATUS`,
 
 ## Refusal and failures
 
-Invalid ranges, paths, paired inputs, or unavailable bundle helpers exit nonzero before a final scope decision is written.
+Thrown option, range, paired-input, or unavailable-helper errors exit nonzero before a final scope decision is written. An invalid `--risk-signals` path instead yields exit-zero complete structured output with `RISK_SIGNALS_STATUS=invalid-path`.
 
 ## Side effects
 

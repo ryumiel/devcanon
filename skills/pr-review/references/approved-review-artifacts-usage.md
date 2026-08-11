@@ -28,7 +28,7 @@ The helper rejects missing or invalid PR/head metadata, invalid events, unsafe o
 
 ## Side effects
 
-The two materialization commands create a new payload artifact. `freeze-approved-review` writes the approved-review JSON after all input and support checks pass. Validation and ownership inspection are read-only.
+`materialize-review-payload` accepts an existing regular payload target and atomically replaces it with `mv -f`; it therefore can overwrite that artifact. `materialize-validated-review-payload` refuses a preexisting validated-payload target. `freeze-approved-review` writes the approved-review JSON after all input and support checks pass. Validation and ownership inspection are read-only.
 
 ## Workflow boundary
 
