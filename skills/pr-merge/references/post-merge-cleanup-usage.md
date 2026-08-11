@@ -18,11 +18,11 @@ Run from the repository context selected by the preflight result.
 
 ## Outputs
 
-It emits separate cleanup outcomes on stdout and diagnostics on stderr.
+Its primary result channel is structured `KEY=VALUE` stdout: `WORKTREE_CLEANUP`, `BASE_UPDATE`, `LOCAL_BRANCH_CLEANUP`, and `REMOTE_BRANCH_CLEANUP`, each with a corresponding `_REASON`, plus `MANUAL_ACTION`. Thrown input or runtime errors are emitted on stderr.
 
 ## Refusal and failures
 
-Missing merge evidence, invalid preflight context, unavailable runtime, or unsafe cleanup state exits nonzero.
+Missing merge evidence, a PR-not-merged result, dirty or locked worktrees, and individual Git cleanup-operation failures return exit zero with structured `skipped`, `retained`, `failed`, or manual-cleanup outcomes. Malformed or missing required inputs, invalid paths or branch names, and unavailable runtime are thrown errors that exit nonzero.
 
 ## Side effects
 

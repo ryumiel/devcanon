@@ -26,7 +26,7 @@ It emits the command's structured lease result on stdout and diagnostics on stde
 
 ## Refusal and failures
 
-Unknown commands, invalid lease state, missing runtime, unsafe paths, or lifecycle conflicts exit nonzero.
+Command-validation failures—unknown commands, missing runtime, unsafe or missing paths, and invalid lifecycle state for validation or write operations—exit nonzero. `inspect-worktree` and `cleanup-worktree` instead classify invalid lease state and other non-removable worktree conditions as exit-zero structured results, including `REFUSAL_REASON=invalid-lease`; cleanup reports its `retained`, `skipped`, or `failed` outcome on stdout.
 
 ## Side effects
 

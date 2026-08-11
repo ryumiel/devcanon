@@ -26,7 +26,7 @@ Wrong argument count exits nonzero. A missing target is a valid clean initial st
 
 ## Side effects
 
-The search runs tests but does not intentionally modify repository source.
+The wrapper does not intentionally edit repository source or remove the pollution target. Each candidate `npm test` invocation can run arbitrary test code and therefore can cause repository or workspace side effects; when the target appears, the helper reports it and exits without removing it.
 
 ## Workflow boundary
 
