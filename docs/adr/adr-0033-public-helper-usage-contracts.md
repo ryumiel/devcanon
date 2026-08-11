@@ -35,13 +35,12 @@ result interpretation, escalation, and continuation. The catalog is
 identity/navigation only and does not copy commands, mechanics, output tables,
 or rollout status.
 
-A later implementation may expose local `--help` by projecting the exact fixed
-adjacent usage document from the cataloged script. That local discovery boundary
-does not introduce a global `devcanon helpers list` or `devcanon helpers
-describe` command, global PATH lookup, new runtime visibility, or caller-chosen
-documentation paths. This ADR establishes the source-side ownership contract;
-it does not itself add `--help`, migrate action points, or change runtime
-visibility.
+Cataloged helper scripts provide local `--help` by printing the exact fixed
+adjacent usage document. This local discovery boundary does not introduce a
+global `devcanon helpers list` or `devcanon helpers describe` command, global
+PATH lookup, new runtime visibility, or caller-chosen documentation paths.
+Workflow action points reference the adjacent usage owners, while runtime
+visibility remains unchanged.
 
 `CONTRIBUTING.md`, PR and review guidelines, the PR template, `WORKFLOW.md`,
 and the `AGENTS.md` command table remain unchanged: this decision adds no

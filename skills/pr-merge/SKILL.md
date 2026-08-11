@@ -87,21 +87,9 @@ Before any merge command, gather PR metadata:
 - verified base repository remote URL
 - PR URL
 
-Run `skills/pr-merge/scripts/preflight-worktree-context.sh` with
-`PR_HEAD_BRANCH` and `PR_BASE_BRANCH` set from that metadata. Parse its
-`KEY=VALUE` output without whitespace splitting.
-
-Preflight output:
-
-- `MODE=safe-direct|cd-primary|remote-only|stop`
-- `REASON_CODE=<stable reason>`
-- `CURRENT_WORKTREE=<absolute path or empty>`
-- `CURRENT_BRANCH=<branch name or empty>`
-- `CURRENT_DETACHED=true|false`
-- `PRIMARY_WORKTREE=<absolute path or empty>`
-- `HEAD_WORKTREE=<absolute path or empty>`
-- `BASE_WORKTREE=<absolute path or empty>`
-- `REASON=<operator-facing reason>`
+Run the [preflight worktree context helper](references/preflight-worktree-context-usage.md)
+with the documented branch inputs, and parse its documented `KEY=VALUE` result
+without whitespace splitting.
 
 Mode routing:
 
@@ -126,42 +114,9 @@ invalidates the preflight result.
 
 ## Step 3b: Post-Merge Cleanup
 
-After every verified remote merge, run
-`skills/pr-merge/scripts/post-merge-cleanup.sh`. Supply PR metadata plus the
-preflight paths:
-
-- `PR_STATE`
-- `PR_HEAD_BRANCH`
-- `PR_BASE_BRANCH`
-- `PR_HEAD_SHA`
-- `PR_HEAD_REPO`
-- `PR_BASE_REPO`
-- `PR_BASE_DEFAULT_BRANCH`
-- `PR_BASE_REMOTE_URL`
-- `PRIMARY_WORKTREE`
-- `HEAD_WORKTREE`
-- `CURRENT_WORKTREE`
-
-Cleanup helper output:
-
-- `WORKTREE_CLEANUP=removed|retained|skipped|failed`
-- `WORKTREE_CLEANUP_REASON=<reason>`
-- `BASE_UPDATE=updated|skipped|failed`
-- `BASE_UPDATE_REASON=<reason>`
-- `LOCAL_BRANCH_CLEANUP=deleted|retained|skipped|failed`
-- `LOCAL_BRANCH_CLEANUP_REASON=<reason>`
-- `REMOTE_BRANCH_CLEANUP=deleted|retained|skipped|failed`
-- `REMOTE_BRANCH_CLEANUP_REASON=<reason>`
-- `MANUAL_ACTION=<none or concise action>`
-
-The cleanup helper owns deterministic mechanics: canonical path comparison,
-safe relocation before worktree removal, dirty/untracked/locked worktree
-retention, base checkout and `git pull --ff-only`, local branch deletion gated
-by `MERGED` plus local tip equality with `PR_HEAD_SHA`, and same-repository
-remote branch deletion gated by non-base/default branch identity and remote tip
-equality with `PR_HEAD_SHA`. Remote branch deletion must also verify that local
-`origin` resolves to `PR_BASE_REMOTE_URL`; retain the branch for manual cleanup
-when the local remote cannot be proven to be the PR base repository.
+After every verified remote merge, run the
+[post-merge cleanup helper](references/post-merge-cleanup-usage.md) with its
+documented inputs.
 
 If the helper reports `retained`, `skipped`, or `failed`, do not hide it behind
 the successful remote merge. Report the remaining manual action.

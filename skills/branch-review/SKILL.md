@@ -43,8 +43,11 @@ into an incremental review.
 
 ## Phase 1: Gather
 
-Detect the base branch, validate any follow-up inputs, compute the review
-ranges, and collect the full branch diff.
+Run the [prepare-review-inputs helper](references/prepare-review-inputs-usage.md)
+from the repository root with the branch-review arguments. It prepares the
+review inputs and emits the documented `KEY=VALUE` facts; parse them without
+whitespace splitting, then collect the full branch diff with the reported full
+range.
 
 ```bash
 BRANCH_REVIEW_DIR="<installed-branch-review-skill-bundle>"
@@ -55,112 +58,15 @@ BRANCH_REVIEW_INPUTS=$(
   PLAY_REVIEW_DIR="$PLAY_REVIEW_DIR" \
     bash "$PREPARE_INPUTS_HELPER" "$@"
 ) || exit 1
-
-while IFS= read -r line; do
-  key=${line%%=*}
-  value=${line#*=}
-  case "$key" in
-    BASE) BASE="$value" ;;
-    FIX_MODE) FIX_MODE="$value" ;;
-    RISK_SIGNALS_FILE) RISK_SIGNALS_FILE="$value" ;;
-    RISK_SIGNALS_STATUS) RISK_SIGNALS_STATUS="$value" ;;
-    FULL_DIFF_RANGE) FULL_DIFF_RANGE="$value" ;;
-    CANDIDATE_ACTIVE_DIFF_RANGE) CANDIDATE_ACTIVE_DIFF_RANGE="$value" ;;
-    MECHANICAL_ACTIVE_DIFF_RANGE) MECHANICAL_ACTIVE_DIFF_RANGE="$value" ;;
-    MECHANICAL_IS_FOLLOWUP_NARROW) MECHANICAL_IS_FOLLOWUP_NARROW="$value" ;;
-    MECHANICAL_ESCALATE_FULL) MECHANICAL_ESCALATE_FULL="$value" ;;
-    MECHANICAL_ESCALATION_REASON) MECHANICAL_ESCALATION_REASON="$value" ;;
-    FOLLOWUP_SHA_USABLE) FOLLOWUP_SHA_USABLE="$value" ;;
-    CHANGED_FILE_COUNT) CHANGED_FILE_COUNT="$value" ;;
-    CHANGED_FILES_FILE) CHANGED_FILES_FILE="$value" ;;
-    SCOPE_DECISION_FILE) SCOPE_DECISION_FILE="$value" ;;
-    APPROVAL_SUMMARY_FILE) APPROVAL_SUMMARY_FILE="$value" ;;
-    LANGUAGE_HINTS) LANGUAGE_HINTS="$value" ;;
-    LAST_REVIEWED_SHA) LAST_REVIEWED_SHA="$value" ;;
-    PRIOR_BRANCH_FINDINGS) PRIOR_BRANCH_FINDINGS="$value" ;;
-  esac
-done <<EOF
-$BRANCH_REVIEW_INPUTS
-EOF
-
-# Get the diff and commit log
-git diff "$FULL_DIFF_RANGE"
-git log "$FULL_DIFF_RANGE" --oneline
-git diff "$FULL_DIFF_RANGE" --stat
 ```
 
 If the diff is empty, report "no changes to review" and stop.
 
-`prepare-review-inputs.sh` owns branch-specific Phase 1 adapter mechanics:
-argument parsing, base resolution, paired follow-up input validation,
-installed `play-review` helper validation, prior findings review-head matching,
-candidate range computation, changed-file fact emission, initial language-hint
-extraction, and preparing `SCOPE_DECISION_FILE` for the later semantic scope
-decision. `skills/branch-review/scripts/scope-decision-artifacts.sh
-finalize-scope-decision` validates the final scope decision artifact after
-semantic classification by translating branch-review inputs into explicit
-support-validator flags for
-`skills/play-validate-review-artifacts/scripts/review-artifacts.sh`. The helpers
-must run from the repository root. Preparation is not authoritative for semantic
-review scope and must not be treated as having written the final scope decision.
-
-The helper writes `KEY=VALUE` lines to stdout:
-
-- `BASE`
-- `FIX_MODE`
-- `RISK_SIGNALS_FILE`
-- `RISK_SIGNALS_STATUS`
-- `FULL_DIFF_RANGE`
-- `CANDIDATE_ACTIVE_DIFF_RANGE`
-- `MECHANICAL_ACTIVE_DIFF_RANGE`
-- `MECHANICAL_IS_FOLLOWUP_NARROW`
-- `MECHANICAL_ESCALATE_FULL`
-- `MECHANICAL_ESCALATION_REASON`
-- `FOLLOWUP_SHA_USABLE`
-- `CHANGED_FILE_COUNT`
-- `CHANGED_FILES_FILE`
-- `SCOPE_DECISION_FILE`
-- `APPROVAL_SUMMARY_FILE`
-- `LANGUAGE_HINTS`
-- `LAST_REVIEWED_SHA`
-- `PRIOR_BRANCH_FINDINGS`
-
-`APPROVAL_SUMMARY_FILE` is a prepared direct-child
-`.ephemeral/*-approval-summary.json` target for Phase 3. Preparation checks
-the deterministic path and write target; the summary is not written until the
-final findings envelope for present mode or `--fix` mode is known.
-
-For base resolution, an explicit base argument wins; otherwise resolve from
-`origin/HEAD`, then `origin/main`, then `origin/master`, then `main`.
-Flags may appear before or after the optional base argument. At most one positional base is accepted. Unknown flags or multiple base arguments stop before review.
-Follow-up input is invalid and stops before invoking `play-review` when only
-one follow-up argument is supplied, the prior findings path is unsafe, the
-40-character lowercase hex review head embedded in `--prior-findings` does not
-exactly match `--last-reviewed`, or the installed `play-review` helper rejects
-the prior findings file. Malformed follow-up SHAs stop with
-`--last-reviewed requires a 40-character lowercase hex SHA`. A mismatched review
-head stops with `--prior-findings review head must match --last-reviewed`.
-Missing values stop with `--last-reviewed requires a SHA` or
-`--prior-findings requires a path`; `--risk-signals` without a value stops with
-`--risk-signals requires a path`; unknown flags stop with
-`unknown branch-review argument`; duplicate positional bases stop with
-`multiple base arguments supplied`. The prior findings file is local review
-context, not GitHub thread state, and this skill still performs no GitHub
-posting.
-
-`--risk-signals` is optional and non-authoritative. Missing risk signals are
-normal branch-review usage. The prepare helper only classifies the supplied path
-as `absent`, `supplied`, or `invalid-path`; it does not read the artifact.
-Prior findings follow-up validation remains separate from risk-signal
-validation.
-
-The shared support validator owns deterministic review-artifact mechanics such
-as follow-up SHA usability, changed-file facts, language-hint derivation,
-portable governed-path escalation, configured path escalation from
-`BRANCH_REVIEW_FULL_REVIEW_PATH_PATTERN`, and range invariants. The
-branch-review adapter owns only branch-specific path derivation, environment
-translation, and compatibility with the `KEY=VALUE` stdout contract above. Do
-not copy the support validator's runtime-backed policy into this skill prose.
+Preparation is not authoritative for semantic review scope and does not write
+the final scope decision. Use the [scope-decision artifacts usage](references/scope-decision-artifacts-usage.md)
+when finalizing that artifact after semantic classification. Prior findings are
+local review context, not GitHub thread state; this skill still performs no
+GitHub posting.
 
 ## Upstream Review-Scope Handoff
 

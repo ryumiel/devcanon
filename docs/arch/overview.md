@@ -151,9 +151,9 @@ The catalog is not a command-reference table, rollout tracker, or source of
 runtime behavior. Public helper scripts remain local skill-bundle entrypoints;
 internal support runtime operations, optional scripts, and support-only
 adapters are not made public by file placement. Render and install mirror the
-source bundle and are derived transport consumers. A later local-help projection
-may read the fixed adjacent usage document, but this boundary adds no global
-DevCanon CLI command or PATH-based discovery.
+source bundle and are derived transport consumers. Cataloged helper scripts
+provide local `--help` by printing the fixed adjacent usage document; this
+boundary adds no global DevCanon CLI command or PATH-based discovery.
 
 ### Render Pipeline Boundary
 

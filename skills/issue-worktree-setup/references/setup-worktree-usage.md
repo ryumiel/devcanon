@@ -10,7 +10,7 @@ Run `node "$ISSUE_WORKTREE_SETUP_DIR/scripts/setup-worktree.mjs"` with no argume
 
 ## Inputs
 
-`BRANCH_NAME` and `WORKTREE_LEAF` are required environment values. `BASE_REF` is optional and defaults to `origin/<remote default branch>`. `DEVCANON_RUNTIME_DIR` is an optional runtime diagnostic override. It reads no stdin.
+`BRANCH_NAME` and `WORKTREE_LEAF` are required environment values. `BRANCH_NAME` must be a Git-valid, single-line branch name that does not begin with `-`. `WORKTREE_LEAF` must be one safe leaf name: it cannot be absolute, contain `/` or `\\`, contain `..`, begin with `-`, or contain a line break. `BASE_REF` is optional and defaults to `origin/<remote default branch>`; when supplied, it must be nonempty, single-line, not begin with `-`, and resolve to a commit. `DEVCANON_RUNTIME_DIR` is an optional runtime diagnostic override. It reads no stdin.
 
 ## Working directory
 
