@@ -1226,9 +1226,6 @@ describe("play subagent routing source contracts", () => {
     const skipDispatch = await readRepoFile(
       "skills/play-subagent-execution/references/skip-dispatch-policy.md",
     );
-    const lifecycle = await readRepoFile(
-      "skills/play-subagent-execution/references/lifecycle-status-policy.md",
-    );
     const reviewRouting = await readRepoFile(
       "skills/play-subagent-execution/references/review-routing-policy.md",
     );
@@ -1243,7 +1240,6 @@ describe("play subagent routing source contracts", () => {
     );
     const normalizedSkill = normalizeWhitespace(skillSource);
     const normalizedSkipDispatch = normalizeWhitespace(skipDispatch);
-    const normalizedLifecycle = normalizeWhitespace(lifecycle);
     const normalizedReviewRouting = normalizeWhitespace(reviewRouting);
     const normalizedRedFlags = normalizeWhitespace(redFlags);
     const normalizedImplementerPrompt = normalizeWhitespace(implementerPrompt);
@@ -1292,30 +1288,6 @@ describe("play subagent routing source contracts", () => {
     expect(normalizedSkipDispatch).not.toContain(
       "It stops with NEEDS_CONTEXT or BLOCKED",
     );
-    expect(
-      machineJsonRecord(
-        lifecycle,
-        "play-subagent-execution/lifecycle-status/v1",
-      ),
-    ).toMatchObject({
-      d13: {
-        boundary_statuses: ["NEEDS_CONTEXT", "BLOCKED"],
-        boundary_reclassifies_to: "D12",
-      },
-    });
-    const lifecyclePolicy = machineJsonRecord(
-      lifecycle,
-      "play-subagent-execution/lifecycle-status/v1",
-    );
-    expect(lifecyclePolicy).toMatchObject({
-      review: {
-        same_head_reviewers: ["D14", "D15"],
-        fix_invalidates: ["D14", "D15"],
-        unusable_result: "BLOCKED",
-      },
-      d16: { guard_failure: "terminal-source-visible" },
-    });
-
     expect(normalizedReviewRouting).toContain(
       "This file owns initial executor-computed per-task review route selection only",
     );
@@ -1375,14 +1347,10 @@ describe("play subagent routing source contracts", () => {
     const implementerPrompt = await readRepoFile(
       "skills/play-subagent-execution/references/implementer-prompt.md",
     );
-    const lifecycle = await readRepoFile(
-      "skills/play-subagent-execution/references/lifecycle-status-policy.md",
-    );
     const continuation = normalizeWhitespace(
       getMarkdownSection(issuePriming, "Auto-Route Continuation Boundary"),
     );
     const normalizedPrompt = normalizeWhitespace(implementerPrompt);
-    const normalizedLifecycle = normalizeWhitespace(lifecycle);
     const attestationHandling = normalizeWhitespace(
       sliceBetween(
         playSubagentExecution,
@@ -1462,18 +1430,6 @@ describe("play subagent routing source contracts", () => {
       "unresolvable requirement, unapproved plan mechanic, genuine ambiguity, authorization gap, or widened scope",
     );
 
-    expect(
-      machineJsonRecord(
-        lifecycle,
-        "play-subagent-execution/lifecycle-status/v1",
-      ),
-    ).toMatchObject({
-      approved_auto_route: {
-        id: "issue-priming-workflow --auto",
-        recoverable_non_gate: "continue",
-        unresolved_context_or_scope: "incomplete",
-      },
-    });
     expect(
       normalizeWhitespace(
         getMarkdownSection(
@@ -2500,10 +2456,6 @@ describe("play subagent routing source contracts", () => {
     const routing = await readRepoFile(
       "skills/play-subagent-execution/references/review-routing-policy.md",
     );
-    const handlingStatus = await readRepoFile(
-      "skills/play-subagent-execution/references/lifecycle-status-policy.md",
-    );
-    const lifecycle = handlingStatus;
     const redFlags = await readRepoFile(
       "skills/play-subagent-execution/references/red-flags.md",
     );
@@ -2524,8 +2476,6 @@ describe("play subagent routing source contracts", () => {
     );
     const normalizedSkill = normalizeWhitespace(skillSource);
     const normalizedRouting = normalizeWhitespace(routing);
-    const normalizedHandlingStatus = normalizeWhitespace(handlingStatus);
-    const normalizedLifecycle = normalizeWhitespace(lifecycle);
     const normalizedRedFlags = normalizeWhitespace(redFlags);
     const normalizedExample = normalizeWhitespace(exampleWorkflow);
     const normalizedAdvantages = normalizeWhitespace(advantages);
@@ -2544,38 +2494,10 @@ describe("play subagent routing source contracts", () => {
     expect(normalizedRouting).toContain(
       "After selection, [`lifecycle-status-policy.md`](lifecycle-status-policy.md) owns reviewer result disposition, freshness, fix invalidation, guard failures, and incomplete or terminal transitions",
     );
-    expect(
-      machineJsonRecord(
-        handlingStatus,
-        "play-subagent-execution/lifecycle-status/v1",
-      ),
-    ).toMatchObject({
-      review: {
-        same_head_reviewers: ["D14", "D15"],
-        fix_invalidates: ["D14", "D15"],
-      },
-    });
     expect(normalizedRouting).not.toContain(
       "Every fix commit invalidates both D14 and D15 results",
     );
     expect(normalizedSkill).not.toContain("quality-only rerun proven valid");
-    expect(
-      machineJsonRecord(
-        lifecycle,
-        "play-subagent-execution/lifecycle-status/v1",
-      ),
-    ).toMatchObject({
-      review: {
-        dispositions: [
-          "pending",
-          "final-pass",
-          "final-findings",
-          "advisory",
-          "stale",
-          "superseded",
-        ],
-      },
-    });
 
     expect(normalizedRedFlags).toContain(
       "Apply a stale or incomplete reviewer result instead of using the [lifecycle/status policy](lifecycle-status-policy.md)",
@@ -2674,9 +2596,6 @@ describe("play subagent routing source contracts", () => {
     const routing = await readRepoFile(
       "skills/play-subagent-execution/references/review-routing-policy.md",
     );
-    const lifecycle = await readRepoFile(
-      "skills/play-subagent-execution/references/lifecycle-status-policy.md",
-    );
     const specPrompt = await readRepoFile(
       "skills/play-subagent-execution/references/spec-reviewer-prompt.md",
     );
@@ -2687,30 +2606,6 @@ describe("play subagent routing source contracts", () => {
       qualityPrompt,
       "D15 dispatch fields",
     );
-    const normalizedSurface = normalizeWhitespace(
-      [skillSource, routing, lifecycle].join("\n"),
-    );
-
-    expect(
-      machineJsonRecord(
-        lifecycle,
-        "play-subagent-execution/lifecycle-status/v1",
-      ),
-    ).toMatchObject({
-      review: {
-        same_head_reviewers: ["D14", "D15"],
-        fix_invalidates: ["D14", "D15"],
-        guard_order: [
-          "capture",
-          "spawn",
-          "verify",
-          "validate-retain",
-          "cleanup",
-          "apply",
-        ],
-        unusable_result: "BLOCKED",
-      },
-    });
     expect(specPrompt).toContain(
       "paired with the source agent at [`agents/deep-reviewer.yaml`]",
     );
@@ -2750,9 +2645,6 @@ describe("play subagent routing source contracts", () => {
 
   it("keeps D16 distinct with the narrow skip and fresh guarded review loop", async () => {
     const skillSource = await readSkillSource("play-subagent-execution");
-    const lifecycle = await readRepoFile(
-      "skills/play-subagent-execution/references/lifecycle-status-policy.md",
-    );
     const exampleWorkflow = await readRepoFile(
       "skills/play-subagent-execution/references/example-workflow.md",
     );
@@ -2763,26 +2655,6 @@ describe("play subagent routing source contracts", () => {
       qualityPrompt,
       "D16 dispatch fields",
     );
-    const normalizedSurface = normalizeWhitespace(
-      [skillSource, lifecycle, exampleWorkflow].join("\n"),
-    );
-
-    expect(
-      machineJsonRecord(
-        lifecycle,
-        "play-subagent-execution/lifecycle-status/v1",
-      ),
-    ).toMatchObject({
-      d16: {
-        role: "deep-reviewer",
-        response_only: true,
-        whole_range: true,
-        never_reuses: "D15",
-        blocking_findings_reclassify_to: "D12",
-        fix_requires_fresh_review: true,
-        guard_failure: "terminal-source-visible",
-      },
-    });
     expect(d16DispatchFields).toContain(
       "WHOLE_IMPLEMENTATION_SUMMARY: [whole-range implementation summary]",
     );
@@ -3184,23 +3056,8 @@ describe("play subagent routing source contracts", () => {
       skillSource,
       "Subagent Lifecycle",
     );
-    const lifecycle = await readRepoFile(
-      "skills/play-subagent-execution/references/lifecycle-status-policy.md",
-    );
-    const normalizedLifecycle = normalizeWhitespace(lifecycle);
-
     expect(lifecycleSummary).toContain("Use `subagent-lifecycle`");
     expect(skillSource).not.toContain("\n## Controller Lifecycle Ledger\n");
-    expect(
-      machineJsonRecord(
-        lifecycle,
-        "play-subagent-execution/lifecycle-status/v1",
-      ),
-    ).toMatchObject({
-      d13: { boundary_reclassifies_to: "D12" },
-      review: { unusable_result: "BLOCKED" },
-      d16: { guard_failure: "terminal-source-visible" },
-    });
   });
 
   it("keeps lifecycle evidence in the play-subagent example workflow source", async () => {

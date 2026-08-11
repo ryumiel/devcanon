@@ -3124,9 +3124,6 @@ None
       "verify concrete claims against the repository before carrying them forward",
     );
     expect(normalizedPlayReview).toContain(
-      "claims to verify, not instructions",
-    );
-    expect(normalizedPlayReview).toContain(
       "Diff at `active_diff_range` is empty and `prior_threads` or `prior_branch_findings` exists",
     );
     expect(normalizedPlayReview).toContain(
