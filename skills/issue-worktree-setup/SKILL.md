@@ -5,6 +5,8 @@ description: Provisions an isolated worktree for issue work as the single source
 
 # Issue Worktree Setup
 
+The public Node fallback's invocation and refusal mechanics are owned by the adjacent [setup-worktree usage](references/setup-worktree-usage.md). Preserve the native-first decision below.
+
 Set up an issue worktree without duplicating worktree policy across multiple
 skills.
 

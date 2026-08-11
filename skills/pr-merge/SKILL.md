@@ -5,6 +5,8 @@ description: PR merge automation with CI polling and in-scope failure investigat
 
 # PR Merge
 
+Use the adjacent [preflight-worktree-context usage](references/preflight-worktree-context-usage.md), [source-immutability usage](references/source-immutability-usage.md), and [post-merge-cleanup usage](references/post-merge-cleanup-usage.md) for helper mechanics. This workflow owns CI investigation and merge continuation.
+
 Poll CI status on a pull request, merge when green, investigate and fix failures automatically.
 
 Keep deterministic mechanics out of this always-loaded skill when they become

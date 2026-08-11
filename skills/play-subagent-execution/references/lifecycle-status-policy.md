@@ -1,5 +1,7 @@
 # Lifecycle And Status Policy - `play-subagent-execution`
 
+Use the [source-immutability usage](source-immutability-usage.md) for D14-D16 guard mechanics; retain lifecycle status and escalation policy in this reference.
+
 This file is the sole normative owner of returned D12/D13 dispositions,
 D14/D15 result freshness and invalidation, D14-D16 guard capture and cleanup
 failure, and incomplete or terminal outcomes. Load it after initial route

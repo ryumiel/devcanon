@@ -11,6 +11,8 @@ codex_sidecar:
 
 # Write Linear Project Description
 
+The adjacent [prepare-project-description-draft usage](references/prepare-project-description-draft-usage.md) owns helper mechanics; callers retain publication control.
+
 Use this skill for durable Linear project summaries, descriptions, and content briefs.
 
 Do not use this skill for time-windowed project updates, health reports, or update history posts; use `write-linear-project-update` for those.

@@ -8,6 +8,8 @@ codex_sidecar:
 
 # Writing Skills
 
+Source-immutability invocation and failure mechanics are owned by the adjacent [source-immutability usage](references/source-immutability-usage.md); preserve the RED/GREEN/REFACTOR pressure-test policy below.
+
 ## Invocation Policy
 
 This workflow is explicit-invocation-only. Do not select it from ordinary discussion, review-shaped text, possible behavior-change wording, or implementation-adjacent language. Run it only when the user explicitly invokes `play-skill-authoring` or when an owning workflow explicitly hands off to `play-skill-authoring`.

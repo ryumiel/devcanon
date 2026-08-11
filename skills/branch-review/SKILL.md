@@ -5,6 +5,10 @@ description: Multi-agent code review of a local branch's commits against a base 
 
 # Branch Review
 
+## Public helper mechanics
+
+Use the adjacent [prepare-review-inputs usage](references/prepare-review-inputs-usage.md), [scope-decision-artifacts usage](references/scope-decision-artifacts-usage.md), and [play-review review-artifacts usage](../play-review/references/review-artifacts-usage.md) for reusable invocation mechanics. The workflow below retains scope and continuation decisions.
+
 Multi-agent code review on a local branch. Wrapper around `play-review`
 for the local-diff case.
 

@@ -1,5 +1,7 @@
 # Exact-Task Executor Subagent Prompt Template
 
+Use [write-snapshot-manifest usage](write-snapshot-manifest-usage.md) and [validate-snapshot-manifest usage](validate-snapshot-manifest-usage.md) for reusable snapshot-helper mechanics; preserve this prompt's blocking and notice policy.
+
 Use this template only for D13 after all five exact guardrails pass and the
 controller chooses dispatch instead of guarded inline execution. For
 judgment-bearing work, use [`implementer-prompt.md`](implementer-prompt.md).

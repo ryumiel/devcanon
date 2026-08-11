@@ -5,6 +5,8 @@ description: Deterministic cleanup of Git worktrees and local branches back to t
 
 # Git Workspace Cleanup
 
+Helper invocation, inputs, outputs, and refusal mechanics are owned by the adjacent [git-workspace-cleanup usage](references/git-workspace-cleanup-usage.md).
+
 Use this skill to return a Git repository to one primary checkout on the
 remote default branch.
 

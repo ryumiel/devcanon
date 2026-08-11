@@ -1,5 +1,7 @@
 # Shared Review Context - `play-review`
 
+Use [review-artifacts usage](review-artifacts-usage.md) for `prepare-findings-write` and [shared-review-context usage](shared-review-context-usage.md) for `write-review-context-input` and `build-review-context`; this reference retains context ordering and lifecycle policy.
+
 Phase 2.5 prepares bounded shared context for topical reviewers. `SKILL.md`
 owns when this phase runs and the hard stop before reviewer dispatch; this file
 owns the manifest shape, budgets, and helper details.

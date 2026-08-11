@@ -1,5 +1,7 @@
 # Implementer Subagent Prompt Template
 
+Use [write-snapshot-manifest usage](write-snapshot-manifest-usage.md) and [validate-snapshot-manifest usage](validate-snapshot-manifest-usage.md) for reusable snapshot-helper mechanics; preserve this prompt's blocking and notice policy.
+
 Use this template when dispatching an implementer subagent.
 
 **Promotion classification:** Workflow-local prompt template paired with the source agent at [`agents/implementer.yaml`](../../../agents/implementer.yaml) — referenced from `skills/play-subagent-execution/SKILL.md` for dispatch-time placeholder substitution. The role identity is already promoted; per [`docs/guidelines/agent-authoring-guide.md`](../../../docs/guidelines/agent-authoring-guide.md) §4, workflow-local prompt assembly stays as a template.

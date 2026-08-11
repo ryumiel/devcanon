@@ -11,6 +11,10 @@ codex_sidecar:
 
 # play-review
 
+## Public helper mechanics
+
+Use the adjacent [review-artifacts usage](references/review-artifacts-usage.md), [shared-review-context usage](references/shared-review-context-usage.md), and [source-immutability usage](references/source-immutability-usage.md) for reusable invocation, I/O, and refusal mechanics. This workflow owns review ordering and D7-D10 continuation.
+
 Internal multi-agent code review pipeline. Wrappers gather inputs, select the
 working directory and active diff, and dispose of findings; this skill reviews and emits a local findings envelope.
 

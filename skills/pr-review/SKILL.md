@@ -10,6 +10,10 @@ codex_sidecar:
 
 # PR Review
 
+## Public helper mechanics
+
+Use the adjacent [review-leases usage](references/review-leases-usage.md), [prior-thread-artifacts usage](references/prior-thread-artifacts-usage.md), [review-manifests usage](references/review-manifests-usage.md), [approved-review-artifacts usage](references/approved-review-artifacts-usage.md), and [play-review review-artifacts usage](../play-review/references/review-artifacts-usage.md). This workflow retains lifecycle, provider, and review decisions.
+
 Multi-agent PR review with critic verification and user-gated posting.
 Wrapper around `play-review` for the GitHub-PR case.
 

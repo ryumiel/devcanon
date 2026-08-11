@@ -1,5 +1,7 @@
 # Helper Invocation Contracts Reference
 
+Reusable helper invocation, input, output, cwd, and refusal mechanics are owned by the adjacent usage documents: [phase artifacts](phase-artifacts-usage.md), [source immutability](source-immutability-usage.md), [research brief](write-research-brief-usage.md), [automatic handoff](write-auto-handoff-usage.md), and [assumptions comment](write-assumptions-comment-usage.md). Preserve this reference's workflow and phase policy.
+
 Load this reference when `issue-priming-workflow` needs detailed helper
 interfaces, path vocabulary, stdout contracts, or diagnostic lookup material
 for its existing helper scripts. `SKILL.md` remains the eager authority for

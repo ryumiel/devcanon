@@ -1,5 +1,7 @@
 # Snapshot Manifest Recipe
 
+The [write-snapshot-manifest usage](write-snapshot-manifest-usage.md) owns reusable invocation and failure mechanics. This reference remains the snapshot manifest recipe and notice-policy owner.
+
 This is the canonical construction recipe for the dispatched D12 implementer
 or D13 executor `implementer/snapshot/v1` side-channel manifest. The role
 migration does not change the schema. Mutable task-worker prompts require this

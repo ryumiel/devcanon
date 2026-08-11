@@ -111,6 +111,8 @@ If something appears during tests but you don't know which test:
 
 Use the bisection script `../scripts/find-polluter.sh` (sibling subdir under the skill root):
 
+Its invocation and refusal mechanics are owned by the adjacent [find-polluter usage](find-polluter-usage.md).
+
 ```bash
 ../scripts/find-polluter.sh '.git' './src/**/*.test.ts'
 ```

@@ -1,5 +1,7 @@
 # Testing Skills With Subagents
 
+The [source-immutability usage](source-immutability-usage.md) owns capture, verify, and cleanup mechanics. This reference retains subagent pressure-test policy.
+
 **Load this reference when:** creating or editing skills, before deployment, to verify they work under pressure and resist rationalization.
 
 ## Overview

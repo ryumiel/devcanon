@@ -175,6 +175,84 @@ async function assertUsageBacklinks(
   }
 }
 
+async function assertOwningSkillUsageLinks(
+  rows: readonly CatalogRow[],
+): Promise<void> {
+  for (const row of rows) {
+    const skill = await readFile(
+      path.join(repositoryRoot, "skills", row.owningSkill, "SKILL.md"),
+      "utf8",
+    );
+    const usageName = path.posix.basename(row.usageDocument);
+    if (!skill.includes(`references/${usageName}`)) {
+      throw new Error(`owning SKILL usage link missing: ${row.helperId}`);
+    }
+  }
+}
+
+const legacyReferenceUsageLinks = [
+  [
+    "skills/issue-priming-workflow/references/helper-invocation-contracts.md",
+    "phase-artifacts-usage.md",
+  ],
+  [
+    "skills/issue-priming-workflow/references/phase-6-auto-handoff.md",
+    "write-auto-handoff-usage.md",
+  ],
+  [
+    "skills/issue-priming-workflow/references/phase-7-review-handling.md",
+    "review-artifacts-usage.md",
+  ],
+  [
+    "skills/issue-priming-workflow/references/phase-8-pr-handoff.md",
+    "write-assumptions-comment-usage.md",
+  ],
+  [
+    "skills/issue-priming-workflow/references/common-mistakes.md",
+    "phase-artifacts-usage.md",
+  ],
+  [
+    "skills/play-review/references/findings-envelope-contract.md",
+    "review-artifacts-usage.md",
+  ],
+  [
+    "skills/play-review/references/wrapper-helper-contracts.md",
+    "shared-review-context-usage.md",
+  ],
+  [
+    "skills/play-review/references/shared-review-context.md",
+    "shared-review-context-usage.md",
+  ],
+  [
+    "skills/play-skill-authoring/references/testing-skills-with-subagents.md",
+    "source-immutability-usage.md",
+  ],
+  [
+    "skills/play-subagent-execution/references/lifecycle-status-policy.md",
+    "source-immutability-usage.md",
+  ],
+  [
+    "skills/play-subagent-execution/references/implementer-prompt.md",
+    "write-snapshot-manifest-usage.md",
+  ],
+  [
+    "skills/play-subagent-execution/references/executor-prompt.md",
+    "write-snapshot-manifest-usage.md",
+  ],
+  [
+    "skills/play-subagent-execution/references/snapshot-manifest-recipe.md",
+    "write-snapshot-manifest-usage.md",
+  ],
+  [
+    "skills/play-subagent-execution/references/snapshot-consumption.md",
+    "validate-snapshot-manifest-usage.md",
+  ],
+  [
+    "skills/pr-review/references/review-lease-lifecycle-contract.md",
+    "review-leases-usage.md",
+  ],
+] as const;
+
 describe("public helper registry", () => {
   test("catalogs structurally valid public helpers with adjacent readable contracts", async () => {
     const rows = catalogRows(await readFile(catalogPath, "utf8"));
@@ -202,6 +280,7 @@ describe("public helper registry", () => {
 
     await assertExistingSources(rows);
     await assertUsageBacklinks(rows);
+    await assertOwningSkillUsageLinks(rows);
     for (const row of rows) {
       const usage = await readFile(
         path.join(repositoryRoot, row.usageDocument),
@@ -320,5 +399,15 @@ describe("public helper registry", () => {
     expect(() => assertRequiredUsageHeadings(malformed)).toThrow(
       "required usage section missing: ## Role",
     );
+  });
+
+  test("keeps selected legacy references pointed at local usage owners", async () => {
+    for (const [referencePath, usageName] of legacyReferenceUsageLinks) {
+      const reference = await readFile(
+        path.join(repositoryRoot, referencePath),
+        "utf8",
+      );
+      expect(reference, referencePath).toContain(usageName);
+    }
   });
 });

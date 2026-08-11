@@ -1,5 +1,7 @@
 # Snapshot Consumption - `play-subagent-execution`
 
+The [validate-snapshot-manifest usage](validate-snapshot-manifest-usage.md) owns reusable validator mechanics. This reference retains controller consumption, fallback, and notice policy.
+
 This file contains the detailed DONE-report snapshot request, validation,
 consumption, staleness, and failure policy. Load it when classifying snapshot
 state, assembling mutable task-worker prompts, validating snapshot manifests, or using

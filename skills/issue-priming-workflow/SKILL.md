@@ -11,6 +11,10 @@ codex_sidecar:
 
 # Issue Priming Workflow
 
+## Public helper mechanics
+
+Use the adjacent [phase-artifacts usage](references/phase-artifacts-usage.md), [source-immutability usage](references/source-immutability-usage.md), [write-research-brief usage](references/write-research-brief-usage.md), [write-auto-handoff usage](references/write-auto-handoff-usage.md), and [write-assumptions-comment usage](references/write-assumptions-comment-usage.md) for reusable helper mechanics. This workflow owns phase decisions and provider continuation.
+
 Continue an issue-priming workflow handed off by `linear-issue-priming` or `github-issue-priming`. The source entrypoint has already fetched the issue, provisioned or reused the issue worktree, and written the issue body to `.ephemeral/`. This workflow gates complexity, optionally researches, brainstorms, and (in `--auto` mode) plans, implements, reviews, and creates a PR.
 
 ## Inputs

@@ -1,5 +1,7 @@
 # Phase 6 Auto-Handoff Reference
 
+The [write-auto-handoff usage](write-auto-handoff-usage.md) owns reusable helper mechanics; this reference retains automatic-routing policy and phase continuation.
+
 Load this reference when `issue-priming-workflow` reaches Phase 6 and needs the
 detailed auto-handoff mechanics. `SKILL.md` remains the eager authority for
 parent workflow orchestration, lifecycle obligations, executor invocation, and

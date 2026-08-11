@@ -1,5 +1,7 @@
 # Phase 8 PR Handoff Reference
 
+The [write-assumptions-comment usage](write-assumptions-comment-usage.md) owns reusable helper mechanics; this reference retains Phase 8 provider and PR continuation policy.
+
 Load this reference when `issue-priming-workflow` reaches Phase 8 and is ready
 to invoke `play-branch-finish` Option 2. `SKILL.md` remains the eager authority
 for Phase 7 completion criteria, the no-auto-merge hard stop, branch/worktree

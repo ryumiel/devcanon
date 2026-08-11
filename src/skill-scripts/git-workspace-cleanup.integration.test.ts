@@ -1,5 +1,12 @@
 import { execFile } from "node:child_process";
-import { access, mkdir, realpath, rm, writeFile } from "node:fs/promises";
+import {
+  access,
+  mkdir,
+  readFile,
+  realpath,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
@@ -147,15 +154,23 @@ describe("git-workspace-cleanup skill helper", TEST_OPTIONS, () => {
     tempDirs.length = 0;
   });
 
-  it("prints help successfully", async () => {
+  it("prints the adjacent usage contract successfully", async () => {
     const rootDir = await createTempDir();
     tempDirs.push(rootDir);
 
     const result = await runScript(["--help"], rootDir);
 
     expect(result.code).toBe(0);
-    expect(result.stdout).toBe("");
-    expect(result.stderr).toContain("usage: git-workspace-cleanup.sh");
+    await expect(
+      readFile(
+        path.join(
+          process.cwd(),
+          "skills/git-workspace-cleanup/references/git-workspace-cleanup-usage.md",
+        ),
+        "utf8",
+      ),
+    ).resolves.toBe(result.stdout);
+    expect(result.stderr).toBe("");
   });
 
   it("reports dirty linked worktrees and local-only branch commits during dry-run", async () => {

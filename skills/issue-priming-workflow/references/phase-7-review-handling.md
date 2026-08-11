@@ -1,5 +1,7 @@
 # Phase 7 Review Handling
 
+Use [play-review review-artifacts usage](../../play-review/references/review-artifacts-usage.md) for `validate-findings` and `prepare-judgment-nits` mechanics; this reference retains review routing and provider policy.
+
 Detailed `issue-priming-workflow` Phase 7 mechanics live here so the eager
 workflow prompt can keep only orchestration and hard stops loaded by default.
 Load this reference before classifying remaining findings, checking

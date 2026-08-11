@@ -1,5 +1,7 @@
 # Findings Envelope Contract - `play-review`
 
+The [review-artifacts usage](review-artifacts-usage.md) owns reusable helper invocation and refusal mechanics. This reference remains the findings-envelope lifecycle and schema policy owner.
+
 This reference owns the detailed local side-channel contract for
 `play-review/findings/v2`. `SKILL.md` owns when the review runs, hard gates, and
 the exact notice line.

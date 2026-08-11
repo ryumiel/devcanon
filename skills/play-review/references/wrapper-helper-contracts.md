@@ -1,5 +1,7 @@
 # Wrapper Helper Contracts - `play-review`
 
+Use [review-artifacts usage](review-artifacts-usage.md), [shared-review-context usage](shared-review-context-usage.md), and [source-immutability usage](source-immutability-usage.md) for helper mechanics; retain wrapper ordering and workflow boundaries here.
+
 Wrappers use the installed `skills/play-review/scripts/review-artifacts.sh`
 helper for rendered review surfaces and GitHub payload construction. These are
 executable contracts, not examples to manually reimplement.

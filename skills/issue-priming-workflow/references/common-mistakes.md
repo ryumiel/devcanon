@@ -1,5 +1,7 @@
 # Common Mistakes — `issue-priming-workflow`
 
+When correcting helper usage, consult the adjacent [phase-artifacts usage](phase-artifacts-usage.md), [source-immutability usage](source-immutability-usage.md), [research-brief usage](write-research-brief-usage.md), [auto-handoff usage](write-auto-handoff-usage.md), and [assumptions-comment usage](write-assumptions-comment-usage.md) instead of duplicating mechanics here.
+
 Failure modes the skill exists to prevent. Each entry restates a Hard Rule or
 procedural step in `SKILL.md` from a "what goes wrong if you skip it" angle.
 

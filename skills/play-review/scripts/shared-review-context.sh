@@ -1,6 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+if [ "${1:-}" = "--help" ]; then
+  [ "$#" -eq 1 ] || { echo "--help does not accept additional arguments" >&2; exit 1; }
+  help_script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+  usage_document="$help_script_dir/../references/shared-review-context-usage.md"
+  [ -f "$usage_document" ] && [ -r "$usage_document" ] || { echo "usage document missing or unreadable: $usage_document" >&2; exit 1; }
+  cat "$usage_document"
+  exit 0
+fi
+
 runtime_error() {
   printf '%s\n' "$*" >&2
   exit 1
