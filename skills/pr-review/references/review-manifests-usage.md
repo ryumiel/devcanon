@@ -24,11 +24,11 @@ It emits validated manifest paths or structured results on stdout and diagnostic
 
 ## Refusal and failures
 
-Unknown operations, malformed stdin, invalid manifests, stale evidence, unsafe paths, or unavailable runtime exit nonzero.
+Unknown operations, malformed stdin, invalid manifests, stale evidence, unsafe paths, unavailable runtime, or an existing findings-publication guard exit nonzero. A retained guard after a failed findings publication requires manual recovery before a later `replace-findings` call.
 
 ## Side effects
 
-Write operations update only validated local manifests, artifacts, or result paths.
+Write operations update only validated local manifests, artifacts, or result paths. `replace-findings` creates a per-result publication guard before reading stdin and invoking publication. It removes that guard when publication did not run or when the result rebinding succeeds; if publication ran but rebinding fails, it intentionally retains the guard for manual recovery.
 
 ## Workflow boundary
 

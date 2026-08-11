@@ -26,7 +26,7 @@ Missing runtime, invalid setup inputs, or failed worktree setup exits nonzero.
 
 ## Side effects
 
-Successful setup may create or update Git worktree state through the runtime adapter.
+After the initial worktree and submodule checks, the adapter fetches `origin` before resolving `BASE_REF`; this can update remote-tracking state even when a later reuse, stop, or failure route is selected. Successful setup may additionally create, reuse, or update Git worktree state through the runtime adapter.
 
 ## Workflow boundary
 

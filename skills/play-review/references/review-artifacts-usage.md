@@ -28,7 +28,7 @@ The helper rejects unknown commands, bad cwd, missing environment, invalid head 
 
 ## Side effects
 
-Preparation creates `.ephemeral` and validates targets. `prepare-judgment-nits` and `publish-findings` write their artifact, with publication replacing the canonical findings path only after staging and validation. Rendering and validation are read-only.
+Preparation creates `.ephemeral` and validates targets; `derive-nits-pending`, `prepare-judgment-nits`, and `prepare-findings-write` may unlink an existing target symlink before later work. `prepare-judgment-nits` and `publish-findings` write their artifact, with publication replacing the canonical findings path only after staging and validation. Rendering and validation are read-only.
 
 ## Workflow boundary
 

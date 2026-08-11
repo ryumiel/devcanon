@@ -30,7 +30,7 @@ Unknown commands, invalid lease state, missing runtime, unsafe paths, or lifecyc
 
 ## Side effects
 
-`session-create` creates a reservation, registers a detached review worktree, publishes its lease, then removes its reservation on success. `write` and `record-audit-failure` write lease records; `cleanup-worktree` can remove a validated worktree. `inspect-worktree` can also write cleanup metadata when the lifecycle state requires recording it. `derive-path`, `discover`, `validate`, and `read-status` are read-only.
+`session-create` creates a reservation, registers a detached review worktree, publishes its lease, then removes its reservation on success. Failed creation attempts roll back where possible; if rollback or verification is incomplete, the command returns a manual-cleanup outcome and may retain its reservation, worktree, Git registration, or lease artifacts. `write` and `record-audit-failure` write lease records; `cleanup-worktree` can remove a validated worktree. `inspect-worktree` can also write cleanup metadata when the lifecycle state requires recording it. `derive-path`, `discover`, `validate`, and `read-status` are read-only.
 
 ## Workflow boundary
 

@@ -6,7 +6,7 @@ Creates, validates, classifies, and writes branch-review scope-decision and appr
 
 ## Invocation
 
-From the repository root, run `bash "$BRANCH_REVIEW_DIR/scripts/scope-decision-artifacts.sh"` followed by exactly one of: `prepare-scope-decision-write`, `prepare-approval-summary-write`, `validate-scope-decision`, `validate-approval-summary`, `finalize-scope-decision`, `classify-risk-signals`, or `write-approval-summary`. No operation reads stdin or accepts positional arguments after its command.
+From the repository root, run `bash "$BRANCH_REVIEW_DIR/scripts/scope-decision-artifacts.sh"` followed by one of: `prepare-scope-decision-write`, `prepare-approval-summary-write`, `validate-scope-decision`, `validate-approval-summary`, `finalize-scope-decision`, `classify-risk-signals`, or `write-approval-summary`. The current dispatcher selects the first positional command and ignores additional positional arguments. No operation reads stdin.
 
 ## Inputs
 

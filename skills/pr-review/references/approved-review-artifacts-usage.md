@@ -6,7 +6,7 @@ Materializes, freezes, validates, and inspects approved PR-review payload artifa
 
 ## Invocation
 
-From the target review worktree root, run `bash "$PR_REVIEW_DIR/scripts/approved-review-artifacts.sh"` followed by exactly one of: `materialize-review-payload`, `materialize-validated-review-payload`, `freeze-approved-review`, `validate-approved-review`, or `inspect-approved-review-ownership`. No operation accepts positional arguments after its command.
+From the target review worktree root, run `bash "$PR_REVIEW_DIR/scripts/approved-review-artifacts.sh"` followed by one of: `materialize-review-payload`, `materialize-validated-review-payload`, `freeze-approved-review`, `validate-approved-review`, or `inspect-approved-review-ownership`. The current dispatcher selects the first positional command and ignores additional positional arguments. No operation reads stdin.
 
 ## Inputs
 

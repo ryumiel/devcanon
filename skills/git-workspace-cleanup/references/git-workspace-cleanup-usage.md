@@ -26,7 +26,7 @@ Unknown or incomplete flags, a non-worktree or bare repository, missing remote d
 
 ## Side effects
 
-`--dry-run` fetches `origin --prune` before reporting; `--execute` can prune worktrees and remove worktrees and branches. Dry-run is not mutation-free.
+`--dry-run` fetches `origin --prune` before reporting. `--execute` can prune and remove worktrees and branches; it also checks out the local default branch (creating it from `origin/<default>` when absent) and fast-forwards it to `origin/<default>`. Dry-run is not mutation-free.
 
 ## Workflow boundary
 
