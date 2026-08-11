@@ -314,12 +314,12 @@ This skill does **not**:
 
 ### Importing conventions from another repo
 
-- **Problem:** You audited `devcanon` last week; now auditing
-  `shotloom`. You apply `devcanon`'s "Not used" list (no
-  `contracts/`, no `docs/ipc/`) to `shotloom`, which mandates both.
-- **Fix:** Re-read the target repo's own standard before each audit.
-  Cite section numbers from _that_ file. Each repo's standard is
-  authoritative for itself.
+- **Problem:** You audited one repository last week; now auditing another.
+  You apply the earlier repository's "Not used" inventory as a portable
+  rule, although the target standard mandates those locations.
+- **Fix:** Re-read the target repo's own standard and current navigation
+  owner before each audit. Cite section numbers from _that_ file. Each
+  repo's standard is authoritative for itself.
 
 ### Drafting an ADR for "obvious" decisions
 
