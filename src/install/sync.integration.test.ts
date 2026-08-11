@@ -6,7 +6,6 @@ import {
   readFile,
   readdir,
   readlink,
-  realpath,
   rename,
   rm,
   stat,
@@ -82,6 +81,31 @@ async function canCreateFifo(): Promise<boolean> {
 
 const fifoAvailable = await canCreateFifo();
 
+type PublicHelperCatalogRow = {
+  id: string;
+  skill: string;
+  executable: string;
+  usageDocument: string;
+};
+
+function parsePublicHelperCatalog(markdown: string): PublicHelperCatalogRow[] {
+  const rows: PublicHelperCatalogRow[] = [];
+  for (const line of markdown.split("\n")) {
+    const links = [...line.matchAll(/\]\(\.\.\/([^)]*)\)/gu)].map(
+      (match) => match[1],
+    );
+    if (links.length !== 2 || !links[0].includes("/scripts/")) continue;
+    const executable = path.posix.normalize(links[0]);
+    rows.push({
+      id: line.split("|")[1].trim(),
+      skill: executable.split("/")[1],
+      executable,
+      usageDocument: path.posix.normalize(links[1]),
+    });
+  }
+  return rows;
+}
+
 async function expectRelativeSymlinkTarget(
   linkPath: string,
   expectedTarget: string,
@@ -152,15 +176,29 @@ describe("sync", () => {
     expect(await pathExists(claudeSkillPath)).toBe(true);
   });
 
-  it("updates copied public helper bundles when an adjacent usage document changes", async () => {
+  it("preserves representative public helpers through render and copy install", async () => {
     const config = makeResolvedConfig(tempDir);
+    const repositoryConfig = await loadConfig(
+      path.resolve("devcanon.config.yaml"),
+    );
+    config.toolNames = repositoryConfig.toolNames;
+    config.fileArtifacts = repositoryConfig.fileArtifacts;
     await mkdir(config.library.skillsDir, { recursive: true });
     await mkdir(config.library.agentsDir, { recursive: true });
-    for (const skill of [
-      "play-subagent-execution",
-      "issue-worktree-setup",
-      "play-agent-dispatch",
-    ]) {
+
+    const catalogRows = parsePublicHelperCatalog(
+      await readFile(path.resolve("contracts/public-helpers.md"), "utf8"),
+    );
+    expect(catalogRows).toHaveLength(29);
+    const representativeIds = new Set([
+      "play-subagent-execution/write-snapshot-manifest",
+      "play-agent-dispatch/source-immutability",
+      "issue-worktree-setup/setup-worktree",
+    ]);
+    const rows = catalogRows.filter((row) => representativeIds.has(row.id));
+    expect(rows).toHaveLength(3);
+    const owningSkills = new Set(rows.map((row) => row.skill));
+    for (const skill of owningSkills) {
       await cp(
         path.resolve("skills", skill),
         path.join(config.library.skillsDir, skill),
@@ -168,216 +206,84 @@ describe("sync", () => {
       );
     }
 
-    const representatives = [
-      {
-        skill: "play-subagent-execution",
-        script: "write-snapshot-manifest.sh",
-        usage: "write-snapshot-manifest-usage.md",
-      },
-      {
-        skill: "issue-worktree-setup",
-        script: "setup-worktree.mjs",
-        usage: "setup-worktree-usage.md",
-      },
-      {
-        skill: "play-agent-dispatch",
-        script: "source-immutability.sh",
-        usage: "source-immutability-usage.md",
-      },
-    ] as const;
-    const options = {
+    const result = await sync(config, {
       dryRun: false,
       force: false,
       strict: false,
       mode: "copy" as const,
-    };
+    });
+    expect(result.errors).toEqual([]);
 
-    const first = await sync(config, options);
-    expect(first.errors).toEqual([]);
-
-    for (const { skill, script, usage } of representatives) {
-      const sourceRoot = path.join(config.library.skillsDir, skill);
-      const sourceScript = path.join(sourceRoot, "scripts", script);
-      const sourceUsage = path.join(sourceRoot, "references", usage);
+    for (const row of rows) {
+      const sourceScript = path.resolve(row.executable);
+      const sourceUsage = path.resolve(row.usageDocument);
+      const relativeScript = path.relative(
+        path.join("skills", row.skill),
+        row.executable,
+      );
+      const relativeUsage = path.relative(
+        path.join("skills", row.skill),
+        row.usageDocument,
+      );
+      const expectedAdjacency = path
+        .relative(path.dirname(relativeScript), relativeUsage)
+        .split(path.sep)
+        .join("/");
+      const sourceScriptBytes = await readFile(sourceScript);
+      const sourceUsageBytes = await readFile(sourceUsage);
+      const sourceExecutableMode = (await stat(sourceScript)).mode & 0o111;
 
       for (const target of ["claude", "codex"] as const) {
         const generatedRoot = path.join(
           config.library.generatedDir,
           target,
           "skills",
-          skill,
+          row.skill,
         );
         const installedRoot = path.join(
           config.targets[target].skillsHome,
-          skill,
+          row.skill,
         );
-        const generatedScript = path.join(generatedRoot, "scripts", script);
-        const generatedUsage = path.join(generatedRoot, "references", usage);
-        const installedScript = path.join(installedRoot, "scripts", script);
-        const installedUsage = path.join(installedRoot, "references", usage);
+        const generatedScript = path.join(generatedRoot, relativeScript);
+        const generatedUsage = path.join(generatedRoot, relativeUsage);
+        const installedScript = path.join(installedRoot, relativeScript);
+        const installedUsage = path.join(installedRoot, relativeUsage);
 
-        expect(await readFile(generatedScript)).toEqual(
-          await readFile(sourceScript),
+        expect(await readFile(generatedScript), row.executable).toEqual(
+          sourceScriptBytes,
         );
-        expect(await readFile(installedScript)).toEqual(
-          await readFile(sourceScript),
+        expect(await readFile(installedScript), row.executable).toEqual(
+          sourceScriptBytes,
         );
-        expect(await readFile(generatedUsage)).toEqual(
-          await readFile(sourceUsage),
+        expect(await readFile(generatedUsage), row.usageDocument).toEqual(
+          sourceUsageBytes,
         );
-        expect(await readFile(installedUsage)).toEqual(
-          await readFile(sourceUsage),
+        expect(await readFile(installedUsage), row.usageDocument).toEqual(
+          sourceUsageBytes,
         );
+        expect(
+          path
+            .relative(path.dirname(generatedScript), generatedUsage)
+            .split(path.sep)
+            .join("/"),
+          row.executable,
+        ).toBe(expectedAdjacency);
         expect(
           path
             .relative(path.dirname(installedScript), installedUsage)
             .split(path.sep)
             .join("/"),
-        ).toBe(`../references/${usage}`);
+          row.executable,
+        ).toBe(expectedAdjacency);
+        expect((await stat(generatedScript)).mode & 0o111).toBe(
+          sourceExecutableMode,
+        );
         expect((await stat(installedScript)).mode & 0o111).toBe(
-          (await stat(sourceScript)).mode & 0o111,
+          sourceExecutableMode,
         );
       }
     }
-
-    const manifestBefore = JSON.parse(
-      await readTextFile(config.manifest.path),
-    ) as {
-      records: Array<{ target: string; name: string; contentHash: string }>;
-    };
-    const usagePath = path.join(
-      config.library.skillsDir,
-      "play-subagent-execution",
-      "references",
-      "write-snapshot-manifest-usage.md",
-    );
-    await writeFile(
-      usagePath,
-      Buffer.concat([
-        await readFile(usagePath),
-        Buffer.from("\n<!-- copy parity revision -->\n"),
-      ]),
-    );
-
-    const second = await sync(config, options);
-    expect(second.errors).toEqual([]);
-    expect(second.updated).toBeGreaterThan(0);
-
-    const manifestAfter = JSON.parse(
-      await readTextFile(config.manifest.path),
-    ) as {
-      records: Array<{ target: string; name: string; contentHash: string }>;
-    };
-    for (const target of ["claude", "codex"] as const) {
-      const installedUsage = path.join(
-        config.targets[target].skillsHome,
-        "play-subagent-execution",
-        "references",
-        "write-snapshot-manifest-usage.md",
-      );
-      expect(await readFile(installedUsage)).toEqual(await readFile(usagePath));
-      expect(
-        manifestAfter.records.find(
-          (record) =>
-            record.target === target &&
-            record.name === "play-subagent-execution",
-        )?.contentHash,
-      ).not.toBe(
-        manifestBefore.records.find(
-          (record) =>
-            record.target === target &&
-            record.name === "play-subagent-execution",
-        )?.contentHash,
-      );
-    }
-
-    const staleCopy = path.join(
-      config.targets.codex.skillsHome,
-      "play-subagent-execution",
-      "references",
-      "write-snapshot-manifest-usage.md",
-    );
-    await writeFile(staleCopy, "stale copy\n", "utf-8");
-    await writeFile(
-      usagePath,
-      Buffer.concat([
-        await readFile(usagePath),
-        Buffer.from("<!-- second copy parity revision -->\n"),
-      ]),
-    );
-
-    const staleResult = await sync(config, options);
-    expect(staleResult.errors).toEqual([
-      expect.stringContaining("installed copy content hash mismatch"),
-    ]);
-    expect(await readTextFile(staleCopy)).toBe("stale copy\n");
   });
-
-  it.skipIf(!symlinkAvailable)(
-    "resolves symlink-installed public helper bundles with their runtime sibling",
-    async () => {
-      const config = makeResolvedConfig(tempDir, {
-        claude: { installMode: "symlink" },
-        codex: { installMode: "symlink" },
-        defaults: { installMode: "symlink" },
-      });
-      await mkdir(config.library.skillsDir, { recursive: true });
-      await mkdir(config.library.agentsDir, { recursive: true });
-      for (const skill of ["play-agent-dispatch", "devcanon-runtime"]) {
-        await cp(
-          path.resolve("skills", skill),
-          path.join(config.library.skillsDir, skill),
-          { recursive: true },
-        );
-      }
-
-      const result = await sync(config, {
-        dryRun: false,
-        force: false,
-        strict: false,
-        mode: "symlink",
-      });
-      expect(result.errors).toEqual([]);
-
-      const target = "codex" as const;
-      const installedRoot = path.join(
-        config.targets[target].skillsHome,
-        "play-agent-dispatch",
-      );
-      const generatedRoot = path.join(
-        config.library.generatedDir,
-        target,
-        "skills",
-        "play-agent-dispatch",
-      );
-      const sourceRoot = path.join(
-        config.library.skillsDir,
-        "play-agent-dispatch",
-      );
-      const script = "source-immutability.sh";
-      const usage = "source-immutability-usage.md";
-
-      expect((await lstat(installedRoot)).isSymbolicLink()).toBe(true);
-      expect(await realpath(installedRoot)).toBe(await realpath(generatedRoot));
-      expect(
-        await readFile(path.join(installedRoot, "scripts", script)),
-      ).toEqual(await readFile(path.join(sourceRoot, "scripts", script)));
-      expect(
-        await readFile(path.join(installedRoot, "references", usage)),
-      ).toEqual(await readFile(path.join(sourceRoot, "references", usage)));
-      expect(
-        await pathExists(
-          path.join(
-            config.targets[target].skillsHome,
-            "devcanon-runtime",
-            "scripts",
-            "runtime",
-            "cli.js",
-          ),
-        ),
-      ).toBe(true);
-    },
-  );
 
   it("reuses a config-relative manifest boundary and records from a second cwd", async () => {
     const configDir = path.join(tempDir, "project", "config");

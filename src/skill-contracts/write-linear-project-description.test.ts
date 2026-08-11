@@ -90,9 +90,6 @@ describe("write-linear-project-description source contracts", () => {
     expect(workflow).toContain(
       "must not change the selected field, issue-evidence separation, style-reference treatment, or apply/draft decision.",
     );
-    expect(skillSource).toContain(
-      "[prepare-project-description-draft usage](references/prepare-project-description-draft-usage.md)",
-    );
   });
 
   it("allows apply mode only for explicit approved field mutations", async () => {

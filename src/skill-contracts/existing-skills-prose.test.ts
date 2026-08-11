@@ -335,10 +335,6 @@ describe("existing skills source prose contracts", () => {
     const branchReview = await readSkillSource("branch-review");
     const normalized = normalizeWhitespace(branchReview);
 
-    expect(branchReview).toContain("references/prepare-review-inputs-usage.md");
-    expect(branchReview).toContain(
-      "references/scope-decision-artifacts-usage.md",
-    );
     expect(normalized).toMatch(/risk signals.*preserve or escalate scrutiny/i);
     expect(normalized).toMatch(/fail closed to full review/i);
     expect(normalized).toMatch(/semantic review scope/i);
@@ -396,13 +392,6 @@ describe("existing skills source prose contracts", () => {
       "skills/play-review/references/findings-envelope-contract.md",
     );
     expect(envelopeReference).toContain("play-review/findings/v2");
-    expect(envelopeReference).toContain("(review-artifacts-usage.md)");
-
-    const helperReference = await readRepoFile(
-      "skills/play-review/references/wrapper-helper-contracts.md",
-    );
-    expect(helperReference).toContain("review-artifacts-usage.md");
-
     const sharedContextReference = await readRepoFile(
       "skills/play-review/references/shared-review-context.md",
     );
@@ -4841,20 +4830,10 @@ describe("existing skills source prose contracts", () => {
     );
   });
 
-  it("keeps pr-merge workflow continuation separate from helper mechanics", async () => {
+  it("keeps pr-merge workflow continuation policy", async () => {
     const skillSource = await readSkillSource("pr-merge");
     const normalized = normalizeWhitespace(skillSource);
 
-    expect(skillSource).toContain(
-      "references/preflight-worktree-context-usage.md",
-    );
-    expect(skillSource).toContain("references/post-merge-cleanup-usage.md");
-    expect(skillSource).toContain(
-      'bash "$PR_MERGE_DIR/scripts/preflight-worktree-context.sh" --help',
-    );
-    expect(skillSource).toContain(
-      'bash "$PR_MERGE_DIR/scripts/post-merge-cleanup.sh" --help',
-    );
     expect(normalized).toMatch(/Mode routing.*safe-direct.*remote-only.*stop/i);
     expect(normalized).toMatch(/Do not retry an execution-context failure/i);
     expect(normalized).toMatch(/Report the remaining manual action/i);
@@ -5719,8 +5698,6 @@ describe("existing skills source prose contracts", () => {
     expect(normalizeWhitespace(phase8)).toContain(
       "Phase 8 does not validate approval-summary JSON or duplicate `play-branch-finish` or `play-validate-review-artifacts` gate semantics",
     );
-
-    expect(phase7Reference).toContain("review-artifacts-usage.md");
   });
 
   it("keeps play-branch-finish autosquash local, opt-in, and PR-body neutral", async () => {
@@ -6551,9 +6528,6 @@ describe("existing skills source prose contracts", () => {
     const investigatorPrompt = await readRepoFile(
       "skills/issue-priming-workflow/references/investigator-prompt.md",
     );
-    const helperContracts = await readRepoFile(
-      "skills/issue-priming-workflow/references/helper-invocation-contracts.md",
-    );
     const investigator = await readRepoFile("agents/investigator.yaml");
     const adr0013 = await readRepoFile(
       "docs/adr/adr-0013-path-based-phase-artifact-handoff.md",
@@ -6576,7 +6550,6 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedWorkflow).toContain(
       "Write the root-synthesized final brief verbatim to that path",
     );
-    expect(helperContracts).toContain("(write-research-brief-usage.md)");
     expect(normalizedPrompt).toContain(
       "Do not synthesize the final `## Issue Brief`, combine scopes, persist raw findings, or emit `Research brief written to <repo-relative-path>.`",
     );

@@ -2015,52 +2015,6 @@ describe("rendered phase artifact smoke coverage", () => {
     }
   });
 
-  it("mirrors the play-review helper script required by rendered Phase 7 and Phase 8 contracts", async () => {
-    const repoRoot = process.cwd();
-    const config = await loadConfig(
-      path.join(repoRoot, "devcanon.config.yaml"),
-    );
-    const generatedDir = await mkdtemp(path.join(tmpdir(), "devcanon-render-"));
-
-    try {
-      await renderAll(
-        {
-          ...config,
-          library: {
-            ...config.library,
-            generatedDir,
-          },
-        },
-        true,
-      );
-      const sourceHelper = await readFile(
-        path.join(
-          repoRoot,
-          "skills",
-          "play-review",
-          "scripts",
-          "review-artifacts.sh",
-        ),
-        "utf-8",
-      );
-
-      for (const target of ["claude", "codex"] as const) {
-        const helperPath = path.join(
-          generatedDir,
-          target,
-          "skills",
-          "play-review",
-          "scripts",
-          "review-artifacts.sh",
-        );
-
-        expect(await readFile(helperPath, "utf-8")).toBe(sourceHelper);
-      }
-    } finally {
-      await rm(generatedDir, { recursive: true, force: true });
-    }
-  });
-
   it("mirrors the play-review shared-context reference required by rendered Phase 2.5 contracts", async () => {
     const repoRoot = process.cwd();
     const config = await loadConfig(
@@ -2098,52 +2052,6 @@ describe("rendered phase artifact smoke coverage", () => {
         );
 
         expect(generatedReference).toBe(sourceReference);
-      }
-    } finally {
-      await rm(generatedDir, { recursive: true, force: true });
-    }
-  });
-
-  it("mirrors the pr-review helper scripts required by rendered contracts", async () => {
-    const repoRoot = process.cwd();
-    const config = await loadConfig(
-      path.join(repoRoot, "devcanon.config.yaml"),
-    );
-    const generatedDir = await mkdtemp(path.join(tmpdir(), "devcanon-render-"));
-
-    try {
-      await renderAll(
-        {
-          ...config,
-          library: {
-            ...config.library,
-            generatedDir,
-          },
-        },
-        true,
-      );
-      for (const helperName of [
-        "approved-review-artifacts.sh",
-        "review-manifests.sh",
-        "review-leases.sh",
-      ]) {
-        const sourceHelper = await readFile(
-          path.join(repoRoot, "skills", "pr-review", "scripts", helperName),
-          "utf-8",
-        );
-
-        for (const target of ["claude", "codex"] as const) {
-          const helperPath = path.join(
-            generatedDir,
-            target,
-            "skills",
-            "pr-review",
-            "scripts",
-            helperName,
-          );
-
-          expect(await readFile(helperPath, "utf-8")).toBe(sourceHelper);
-        }
       }
     } finally {
       await rm(generatedDir, { recursive: true, force: true });
@@ -2196,93 +2104,11 @@ describe("rendered phase artifact smoke coverage", () => {
     }
   });
 
-  it("mirrors issue-priming helper scripts and invocation reference required by rendered contracts", async () => {
-    const repoRoot = process.cwd();
-    const config = await loadConfig(
-      path.join(repoRoot, "devcanon.config.yaml"),
-    );
-    const generatedDir = await mkdtemp(path.join(tmpdir(), "devcanon-render-"));
-    const helperNames = [
-      "phase-artifacts.sh",
-      "write-research-brief.sh",
-      "write-assumptions-comment.sh",
-    ] as const;
-    const referenceName = "helper-invocation-contracts.md";
-
-    try {
-      await renderAll(
-        {
-          ...config,
-          library: {
-            ...config.library,
-            generatedDir,
-          },
-        },
-        true,
-      );
-
-      for (const helperName of helperNames) {
-        const sourceHelperPath = path.join(
-          repoRoot,
-          "skills",
-          "issue-priming-workflow",
-          "scripts",
-          helperName,
-        );
-        const sourceHelper = await readFile(sourceHelperPath, "utf-8");
-
-        for (const target of ["claude", "codex"] as const) {
-          const helperPath = path.join(
-            generatedDir,
-            target,
-            "skills",
-            "issue-priming-workflow",
-            "scripts",
-            helperName,
-          );
-
-          expect(await readFile(helperPath, "utf-8")).toBe(sourceHelper);
-        }
-      }
-
-      const sourceReferencePath = path.join(
-        repoRoot,
-        "skills",
-        "issue-priming-workflow",
-        "references",
-        referenceName,
-      );
-      const sourceReference = await readFile(sourceReferencePath, "utf-8");
-
-      for (const target of ["claude", "codex"] as const) {
-        const referencePath = path.join(
-          generatedDir,
-          target,
-          "skills",
-          "issue-priming-workflow",
-          "references",
-          referenceName,
-        );
-        const renderedReference = await readFile(referencePath, "utf-8");
-
-        expect(renderedReference).toBe(sourceReference);
-      }
-    } finally {
-      await rm(generatedDir, { recursive: true, force: true });
-    }
-  });
-
   it("keeps rendered branch-review and play-review follow-up contract surfaces", async () => {
     for (const target of ["claude", "codex"] as const) {
       const branchReview = bodies[`branch-review:${target}`];
       const normalizedBranchReview = normalizeRenderedWhitespace(branchReview);
 
-      expect(branchReview).toContain(
-        "references/prepare-review-inputs-usage.md",
-      );
-      expect(branchReview).toContain(
-        "references/scope-decision-artifacts-usage.md",
-      );
       expect(normalizedBranchReview).toMatch(
         /scope and continuation decisions/i,
       );

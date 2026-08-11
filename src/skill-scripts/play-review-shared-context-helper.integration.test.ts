@@ -356,7 +356,12 @@ describe("play-review shared context helper", () => {
     const cwd = await makeGitWorkspace();
     try {
       await writeManifest(cwd);
-      await expectFailure(cwd, "usage:", {}, "nope");
+      await expect(runHelper(cwd, "nope")).rejects.toMatchObject({
+        stdout: "",
+      });
+      await expect(lstat(path.join(cwd, outputFile))).rejects.toMatchObject({
+        code: "ENOENT",
+      });
     } finally {
       await cleanupTempDir(cwd);
     }

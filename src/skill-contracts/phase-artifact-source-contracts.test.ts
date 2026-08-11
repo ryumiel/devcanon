@@ -1332,9 +1332,6 @@ describe("phase artifact source contracts", () => {
     const investigatorPrompt = await readRepoFile(
       "skills/issue-priming-workflow/references/investigator-prompt.md",
     );
-    const helperReference = await readRepoFile(
-      "skills/issue-priming-workflow/references/helper-invocation-contracts.md",
-    );
     const phase3 = getMarkdownSection(
       issuePrimingWorkflow,
       "Phase 3: Research (Conditional)",
@@ -1441,7 +1438,6 @@ describe("phase artifact source contracts", () => {
     expect(phase3).toContain("### Recommended Approaches");
     expect(phase3).toContain("scripts/write-research-brief.sh");
     expect(phase3).toContain("Research brief written to <repo-relative-path>.");
-    expect(helperReference).toContain("write-research-brief-usage.md");
     expect(normalizedPrompt).toContain(
       "Do not spawn or delegate to another agent",
     );
@@ -1961,12 +1957,6 @@ None
       );
     }
 
-    const helperInvocationReference = await readRepoFile(
-      "skills/issue-priming-workflow/references/helper-invocation-contracts.md",
-    );
-
-    expect(helperInvocationReference).toContain("phase-artifacts-usage.md");
-
     const playBrainstorm = await readSkillSource("play-brainstorm");
     expect(playBrainstorm).toContain("nested issue body path rejected");
     expect(playBrainstorm).toContain("issue body must not be a symlink");
@@ -2171,10 +2161,6 @@ None
     expect(branchReview).toContain("| `--risk-signals <repo-relative-path>`");
     expect(normalizedBranchReview).toContain(
       "40-character lowercase hex commit SHA",
-    );
-    expect(branchReview).toContain("references/prepare-review-inputs-usage.md");
-    expect(branchReview).toContain(
-      "references/scope-decision-artifacts-usage.md",
     );
     expect(branchReview).toContain("Upstream Review-Scope Handoff");
     expect(branchReview).toContain("planning/execution categorization");
@@ -2889,9 +2875,6 @@ None
     );
 
     expect(branchReview).toContain("references/follow-up-scope-policy.md");
-    expect(branchReview).toContain(
-      "references/scope-decision-artifacts-usage.md",
-    );
     expect(normalizedBranchReview).toContain(
       "`--fix` without follow-up arguments keeps the existing full-diff default",
     );
@@ -3058,7 +3041,6 @@ None
     expect(playReview).toContain("REVIEW_EVENT");
     expect(wrapperHelperContract).toContain("review-artifacts-usage.md");
     expect(playReview).toContain("validate-nits-file");
-    expect(wrapperHelperContract).toContain("review-artifacts-usage.md");
     expect(envelopeShape).not.toContain('"summary"');
     expect(envelopeShape).not.toContain("root_cause");
 

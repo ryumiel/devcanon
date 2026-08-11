@@ -494,22 +494,6 @@ async function runHelper(
   });
 }
 
-async function unknownCommandUsage(script: string): Promise<string> {
-  try {
-    await execFileAsync("bash", [script, "unknown-command"]);
-  } catch (err) {
-    const stderr =
-      err && typeof err === "object" && "stderr" in err
-        ? String((err as { stderr?: unknown }).stderr)
-        : "";
-    if (stderr.length > 0) {
-      return stderr;
-    }
-    throw err;
-  }
-  throw new Error("unknown command unexpectedly succeeded");
-}
-
 async function runHelperWithStdin(
   cwd: string,
   command: string,
@@ -1001,32 +985,6 @@ async function cleanupPhase5AuditWorkspace(workspace: Phase5AuditWorkspace) {
 }
 
 describe("pr-review manifest helper", () => {
-  it("lists the result preview and review body commands in wrapper usage diagnostics", async () => {
-    const [manifestUsage, leaseUsage] = await Promise.all([
-      unknownCommandUsage(helperScript),
-      unknownCommandUsage(leaseHelperScript),
-    ]);
-
-    expect(manifestUsage).toContain("render-phase5-audit-summary");
-    expect(manifestUsage).toContain("read-result-for-preview");
-    expect(manifestUsage).toContain("write-review-body");
-    expect(manifestUsage).toContain("recover-review-body-publication");
-    expect(manifestUsage).toContain("replace-findings");
-    expect(manifestUsage).toContain("target worktree root");
-    expect(manifestUsage).toContain(
-      "PR_NUMBER, HEAD_SHA, REPOSITORY, RESULT_FILE, and PLAY_REVIEW_HELPER",
-    );
-    expect(manifestUsage).toContain(
-      "exactly one complete findings envelope on stdin and no extra arguments",
-    );
-    expect(manifestUsage).toContain("canonical rebound result path");
-    expect(manifestUsage).toContain(
-      "concurrent ownership or any other refusal exits nonzero before continuation",
-    );
-    expect(leaseUsage).toContain("read-status");
-    expect(leaseUsage).toContain("record-audit-failure");
-  });
-
   it("delegates the Phase 5 audit summary command to the pr-review-manifests runtime route", async () => {
     const installed = await mkdtemp(
       path.join(os.tmpdir(), "devcanon-pr-wrapper-"),

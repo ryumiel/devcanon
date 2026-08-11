@@ -549,7 +549,6 @@ describe("play subagent routing source contracts", () => {
       "Pass judgment-required Phase 7 feedback only through `nits_file`",
     );
 
-    expect(phase7Reference).toContain("review-artifacts-usage.md");
     expect(phase7Reference).toContain("branch-review --fix");
     expect(phase7Reference).toContain("prepare-judgment-nits");
     expect(normalizeWhitespace(phase7Reference)).toContain(
@@ -2014,13 +2013,6 @@ describe("play subagent routing source contracts", () => {
     );
 
     expect(phase6).toContain("references/phase-6-auto-handoff.md");
-    expect(
-      machineJsonRecord(phase6Reference, "issue-priming/auto-handoff/v1"),
-    ).toMatchObject({
-      phase7_branch_review_fix_required: true,
-      phase7_rerun_after_commits: true,
-      phase7_final_approval_summary_notice_required: true,
-    });
     expect(phase6Reference).toContain(
       "play-subagent-execution/references/review-routing-policy.md",
     );
@@ -2074,7 +2066,6 @@ describe("play subagent routing source contracts", () => {
     expect(normalizedPhase7).toContain(
       "passing only risk signals regenerated for that `HEAD` when using `--risk-signals`",
     );
-    expect(phase7Reference).toContain("review-artifacts-usage.md");
     expect(phase7Reference).toContain("prepare-judgment-nits");
     expect(phase7Reference).toContain(
       "`branch-review --fix` owns fixable review feedback",

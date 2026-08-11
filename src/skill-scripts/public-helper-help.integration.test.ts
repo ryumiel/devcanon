@@ -1,18 +1,10 @@
 import { execFile } from "node:child_process";
-import {
-  cp,
-  mkdir,
-  mkdtemp,
-  readFile,
-  readdir,
-  rename,
-} from "node:fs/promises";
-import os from "node:os";
+import { cp, mkdir, readFile, readdir, rename } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
-import { cleanupTempDir } from "../__test-helpers__/fixtures.js";
+import { cleanupTempDir, createTempDir } from "../__test-helpers__/fixtures.js";
 
 const execFileAsync = promisify(execFile);
 const repositoryRoot = path.resolve(
@@ -74,17 +66,16 @@ describe("cataloged public helper help", () => {
     );
     expect(rows).toHaveLength(29);
 
+    const fixtureRoot = await createTempDir();
+    tempDirs.push(fixtureRoot);
+    const unrelatedCwd = path.join(fixtureRoot, "unrelated-cwd");
+    await mkdir(unrelatedCwd);
+
     for (const row of rows) {
-      const fixtureRoot = await mkdtemp(
-        path.join(os.tmpdir(), "devcanon-public-helper-help-"),
-      );
-      tempDirs.push(fixtureRoot);
       const executable = path.join(fixtureRoot, row.executable);
       const usageDocument = path.join(fixtureRoot, row.usageDocument);
-      const unrelatedCwd = path.join(fixtureRoot, "unrelated-cwd");
       await mkdir(path.dirname(executable), { recursive: true });
       await mkdir(path.dirname(usageDocument), { recursive: true });
-      await mkdir(unrelatedCwd);
       await cp(path.join(repositoryRoot, row.executable), executable);
       await cp(path.join(repositoryRoot, row.usageDocument), usageDocument);
 
