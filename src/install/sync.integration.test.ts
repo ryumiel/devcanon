@@ -3,10 +3,13 @@ import {
   cp,
   lstat,
   mkdir,
+  readFile,
   readdir,
   readlink,
+  realpath,
   rename,
   rm,
+  stat,
   symlink,
   writeFile,
 } from "node:fs/promises";
@@ -148,6 +151,233 @@ describe("sync", () => {
     );
     expect(await pathExists(claudeSkillPath)).toBe(true);
   });
+
+  it("updates copied public helper bundles when an adjacent usage document changes", async () => {
+    const config = makeResolvedConfig(tempDir);
+    await mkdir(config.library.skillsDir, { recursive: true });
+    await mkdir(config.library.agentsDir, { recursive: true });
+    for (const skill of [
+      "play-subagent-execution",
+      "issue-worktree-setup",
+      "play-agent-dispatch",
+    ]) {
+      await cp(
+        path.resolve("skills", skill),
+        path.join(config.library.skillsDir, skill),
+        { recursive: true },
+      );
+    }
+
+    const representatives = [
+      {
+        skill: "play-subagent-execution",
+        script: "write-snapshot-manifest.sh",
+        usage: "write-snapshot-manifest-usage.md",
+      },
+      {
+        skill: "issue-worktree-setup",
+        script: "setup-worktree.mjs",
+        usage: "setup-worktree-usage.md",
+      },
+      {
+        skill: "play-agent-dispatch",
+        script: "source-immutability.sh",
+        usage: "source-immutability-usage.md",
+      },
+    ] as const;
+    const options = {
+      dryRun: false,
+      force: false,
+      strict: false,
+      mode: "copy" as const,
+    };
+
+    const first = await sync(config, options);
+    expect(first.errors).toEqual([]);
+
+    for (const { skill, script, usage } of representatives) {
+      const sourceRoot = path.join(config.library.skillsDir, skill);
+      const sourceScript = path.join(sourceRoot, "scripts", script);
+      const sourceUsage = path.join(sourceRoot, "references", usage);
+
+      for (const target of ["claude", "codex"] as const) {
+        const generatedRoot = path.join(
+          config.library.generatedDir,
+          target,
+          "skills",
+          skill,
+        );
+        const installedRoot = path.join(
+          config.targets[target].skillsHome,
+          skill,
+        );
+        const generatedScript = path.join(generatedRoot, "scripts", script);
+        const generatedUsage = path.join(generatedRoot, "references", usage);
+        const installedScript = path.join(installedRoot, "scripts", script);
+        const installedUsage = path.join(installedRoot, "references", usage);
+
+        expect(await readFile(generatedScript)).toEqual(
+          await readFile(sourceScript),
+        );
+        expect(await readFile(installedScript)).toEqual(
+          await readFile(sourceScript),
+        );
+        expect(await readFile(generatedUsage)).toEqual(
+          await readFile(sourceUsage),
+        );
+        expect(await readFile(installedUsage)).toEqual(
+          await readFile(sourceUsage),
+        );
+        expect(
+          path
+            .relative(path.dirname(installedScript), installedUsage)
+            .split(path.sep)
+            .join("/"),
+        ).toBe(`../references/${usage}`);
+        expect((await stat(installedScript)).mode & 0o111).toBe(
+          (await stat(sourceScript)).mode & 0o111,
+        );
+      }
+    }
+
+    const manifestBefore = JSON.parse(
+      await readTextFile(config.manifest.path),
+    ) as {
+      records: Array<{ target: string; name: string; contentHash: string }>;
+    };
+    const usagePath = path.join(
+      config.library.skillsDir,
+      "play-subagent-execution",
+      "references",
+      "write-snapshot-manifest-usage.md",
+    );
+    await writeFile(
+      usagePath,
+      Buffer.concat([
+        await readFile(usagePath),
+        Buffer.from("\n<!-- copy parity revision -->\n"),
+      ]),
+    );
+
+    const second = await sync(config, options);
+    expect(second.errors).toEqual([]);
+    expect(second.updated).toBeGreaterThan(0);
+
+    const manifestAfter = JSON.parse(
+      await readTextFile(config.manifest.path),
+    ) as {
+      records: Array<{ target: string; name: string; contentHash: string }>;
+    };
+    for (const target of ["claude", "codex"] as const) {
+      const installedUsage = path.join(
+        config.targets[target].skillsHome,
+        "play-subagent-execution",
+        "references",
+        "write-snapshot-manifest-usage.md",
+      );
+      expect(await readFile(installedUsage)).toEqual(await readFile(usagePath));
+      expect(
+        manifestAfter.records.find(
+          (record) =>
+            record.target === target &&
+            record.name === "play-subagent-execution",
+        )?.contentHash,
+      ).not.toBe(
+        manifestBefore.records.find(
+          (record) =>
+            record.target === target &&
+            record.name === "play-subagent-execution",
+        )?.contentHash,
+      );
+    }
+
+    const staleCopy = path.join(
+      config.targets.codex.skillsHome,
+      "play-subagent-execution",
+      "references",
+      "write-snapshot-manifest-usage.md",
+    );
+    await writeFile(staleCopy, "stale copy\n", "utf-8");
+    await writeFile(
+      usagePath,
+      Buffer.concat([
+        await readFile(usagePath),
+        Buffer.from("<!-- second copy parity revision -->\n"),
+      ]),
+    );
+
+    const staleResult = await sync(config, options);
+    expect(staleResult.errors).toEqual([
+      expect.stringContaining("installed copy content hash mismatch"),
+    ]);
+    expect(await readTextFile(staleCopy)).toBe("stale copy\n");
+  });
+
+  it.skipIf(!symlinkAvailable)(
+    "resolves symlink-installed public helper bundles with their runtime sibling",
+    async () => {
+      const config = makeResolvedConfig(tempDir, {
+        claude: { installMode: "symlink" },
+        codex: { installMode: "symlink" },
+        defaults: { installMode: "symlink" },
+      });
+      await mkdir(config.library.skillsDir, { recursive: true });
+      await mkdir(config.library.agentsDir, { recursive: true });
+      for (const skill of ["play-agent-dispatch", "devcanon-runtime"]) {
+        await cp(
+          path.resolve("skills", skill),
+          path.join(config.library.skillsDir, skill),
+          { recursive: true },
+        );
+      }
+
+      const result = await sync(config, {
+        dryRun: false,
+        force: false,
+        strict: false,
+        mode: "symlink",
+      });
+      expect(result.errors).toEqual([]);
+
+      const target = "codex" as const;
+      const installedRoot = path.join(
+        config.targets[target].skillsHome,
+        "play-agent-dispatch",
+      );
+      const generatedRoot = path.join(
+        config.library.generatedDir,
+        target,
+        "skills",
+        "play-agent-dispatch",
+      );
+      const sourceRoot = path.join(
+        config.library.skillsDir,
+        "play-agent-dispatch",
+      );
+      const script = "source-immutability.sh";
+      const usage = "source-immutability-usage.md";
+
+      expect((await lstat(installedRoot)).isSymbolicLink()).toBe(true);
+      expect(await realpath(installedRoot)).toBe(await realpath(generatedRoot));
+      expect(
+        await readFile(path.join(installedRoot, "scripts", script)),
+      ).toEqual(await readFile(path.join(sourceRoot, "scripts", script)));
+      expect(
+        await readFile(path.join(installedRoot, "references", usage)),
+      ).toEqual(await readFile(path.join(sourceRoot, "references", usage)));
+      expect(
+        await pathExists(
+          path.join(
+            config.targets[target].skillsHome,
+            "devcanon-runtime",
+            "scripts",
+            "runtime",
+            "cli.js",
+          ),
+        ),
+      ).toBe(true);
+    },
+  );
 
   it("reuses a config-relative manifest boundary and records from a second cwd", async () => {
     const configDir = path.join(tempDir, "project", "config");

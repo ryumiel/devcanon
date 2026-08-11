@@ -1,4 +1,4 @@
-import { readFile, readdir } from "node:fs/promises";
+import { readFile, readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { parse as parseYaml } from "yaml";
@@ -1416,6 +1416,76 @@ describe("existing skills render cleanly", () => {
 
         expect(await pathExists(generatedPath)).toBe(true);
         expect(await readFile(generatedPath, "utf-8")).toBe(sourceContent);
+      }
+    }
+  });
+
+  it("keeps representative public helper usage documents adjacent to their scripts on both targets", async () => {
+    const repoRoot = process.cwd();
+    const config = await loadConfig(
+      path.join(repoRoot, "devcanon.config.yaml"),
+    );
+    const representativeBundles = [
+      {
+        skill: "play-subagent-execution",
+        script: "write-snapshot-manifest.sh",
+        usage: "write-snapshot-manifest-usage.md",
+      },
+      {
+        skill: "issue-worktree-setup",
+        script: "setup-worktree.mjs",
+        usage: "setup-worktree-usage.md",
+      },
+      {
+        skill: "play-agent-dispatch",
+        script: "source-immutability.sh",
+        usage: "source-immutability-usage.md",
+      },
+    ] as const;
+
+    await renderAll(config, true);
+
+    for (const { skill, script, usage } of representativeBundles) {
+      const sourceScript = path.join(
+        repoRoot,
+        "skills",
+        skill,
+        "scripts",
+        script,
+      );
+      const sourceUsage = path.join(
+        repoRoot,
+        "skills",
+        skill,
+        "references",
+        usage,
+      );
+
+      for (const target of ["claude", "codex"] as const) {
+        const generatedRoot = path.join(
+          config.library.generatedDir,
+          target,
+          "skills",
+          skill,
+        );
+        const generatedScript = path.join(generatedRoot, "scripts", script);
+        const generatedUsage = path.join(generatedRoot, "references", usage);
+
+        expect(await readFile(generatedScript)).toEqual(
+          await readFile(sourceScript),
+        );
+        expect(await readFile(generatedUsage)).toEqual(
+          await readFile(sourceUsage),
+        );
+        expect(
+          path
+            .relative(path.dirname(generatedScript), generatedUsage)
+            .split(path.sep)
+            .join("/"),
+        ).toBe(`../references/${usage}`);
+        expect((await stat(generatedScript)).mode & 0o111).toBe(
+          (await stat(sourceScript)).mode & 0o111,
+        );
       }
     }
   });
