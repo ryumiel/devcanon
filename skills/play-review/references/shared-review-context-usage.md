@@ -10,7 +10,7 @@ Run `bash "$PLAY_REVIEW_DIR/scripts/shared-review-context.sh" write-review-conte
 
 ## Inputs
 
-`write-review-context-input` requires the input fields accepted by the runtime and writes the input manifest. `build-review-context` requires that validated manifest path and writes the context file. Both take no stdin; `DEVCANON_RUNTIME_DIR` is an optional runtime override.
+`write-review-context-input` requires `HEAD_SHA`, `FINDINGS_FILE`, and `REVIEW_CONTEXT_INPUT_JSON`, a JSON `play-review/shared-context-input/v1` manifest; it derives and writes the `-review-context-input.json` path. `build-review-context` requires `HEAD_SHA`, `FINDINGS_FILE`, and `REVIEW_CONTEXT_INPUT_FILE`, which must be that canonical input path; it derives and writes the paired `-review-context.md` path. Both take no stdin; `DEVCANON_RUNTIME_DIR` is an optional runtime override.
 
 ## Working directory
 

@@ -10,7 +10,9 @@ Run `bash "$PR_REVIEW_DIR/scripts/review-leases.sh"` followed by exactly one of 
 
 ## Inputs
 
-The forwarded runtime command consumes its named lease/worktree arguments and environment; this shell adapter adds no arguments or stdin protocol. `DEVCANON_RUNTIME_DIR` is optional for runtime diagnostics. It reads no stdin.
+`derive-path` requires `REPOSITORY`, `PR_NUMBER`, `PRIMARY_REPOSITORY_ROOT`, and `WORKTREE_PATH`; `LEASE_FILE` is optional. `discover` and `session-create` require `REPOSITORY`, `PR_NUMBER`, and `PRIMARY_REPOSITORY_ROOT`; `session-create` also requires `HEAD_SHA`, `BASE_REF`, `HEAD_REF`, and `UPDATED_AT`. `write`, `validate`, and `read-status` require `REPOSITORY`, `PR_NUMBER`, `PRIMARY_REPOSITORY_ROOT`, `WORKTREE_PATH`, and `LEASE_FILE`; `write` also requires `STATE`, `BASE_REF`, `HEAD_REF`, and `UPDATED_AT`, with lifecycle artifact, timestamp, presentation, failure, and GitHub-post fields optional; `read-status` also requires `RESULT_FILE` and `HEAD_SHA`.
+
+`record-audit-failure` requires the primary identity, `LEASE_FILE`, `STATE`, `BASE_REF`, `HEAD_REF`, `UPDATED_AT`, and the gated-failure fields. `inspect-worktree` and `cleanup-worktree` require `REPOSITORY`, `PR_NUMBER`, `PRIMARY_REPOSITORY_ROOT`, `WORKTREE_PATH`, and `LEASE_FILE`. No command reads stdin. `DEVCANON_RUNTIME_DIR` is optional for runtime diagnostics.
 
 ## Working directory
 
