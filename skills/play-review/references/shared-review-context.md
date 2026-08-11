@@ -89,10 +89,13 @@ or a stale head or working directory blocks Phase 3.
 ## Budget or Cap
 
 Rendered context is capped at 64,000 bytes: 20,000 core, 24,000 guidelines,
-16,000 prior context, and 4,000 reserved overhead. Keep at most 12 guideline
-records and 20 prior-review records; bounded exact excerpts are navigation aids,
-not authority. Required summaries and overflow references that cannot fit stop
-reviewer dispatch.
+16,000 prior context, and 4,000 reserved overhead. The 12-guideline and
+20-prior-review limits apply to full-detail rendering, including bounded exact
+excerpts; they do not limit influential-record membership. Every additional
+influential record remains in the manifest as a bounded summary/reference
+pointer under the same section and overall byte budgets. Exact excerpts are
+navigation aids, not authority. Required summaries or overflow pointers that
+cannot fit stop reviewer dispatch.
 
 ## Internal Rationale
 

@@ -38,11 +38,15 @@ never downgrade.
 
 For D14, D15, and D16, use the source-immutability lifecycle before consuming
 a response: capture → spawn → verify → validate/retain → cleanup → apply. A
-capture, response, verification, or cleanup failure leaves the task incomplete
-and `BLOCKED`; detected mutation or cleanup failure is guard-integrity terminal
-and source remains visible and unrepaired. D16 is a fresh whole-range reviewer
-after all tasks, except the exact verified ADR-0016 single-task auto carve-out.
-D16 findings route to D12 and require fresh D16.
+capture failure prevents spawn and records no invented cleanup evidence because
+there is no retained baseline. After capture succeeds, every terminal path
+attempts cleanup against that exact retained baseline before final disposition,
+including paths caused by spawn, response, verification, validation, retention,
+or apply failure. Any such failure leaves the task incomplete and `BLOCKED`;
+detected mutation or cleanup failure is guard-integrity terminal and source
+remains visible and unrepaired. D16 is a fresh whole-range reviewer after all
+tasks, except the exact verified ADR-0016 single-task auto carve-out. D16
+findings route to D12 and require fresh D16.
 
 ## D13 and D12 Recovery
 
