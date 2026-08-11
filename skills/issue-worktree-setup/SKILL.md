@@ -12,10 +12,16 @@ Node fallback's invocation, environment, cwd, output, and refusal mechanics.
 
 Use host-native worktree control before the fallback. If it provisions or adopts
 the checkout, continue from that worktree and do not run the fallback as well.
-When fallback discovery is needed, run its exact local `setup-worktree.mjs
---help` command from the installed bundle before action. On Windows, use native
-host tooling or the Node fallback from native shell tooling; never use the POSIX
-adapter through Bash/WSL for Windows Git metadata.
+When fallback discovery is needed, resolve the installed bundle's
+`issue-worktree-setup` skill directory as `ISSUE_WORKTREE_SETUP_DIR`, then run
+its help action before setup:
+
+```sh
+node "$ISSUE_WORKTREE_SETUP_DIR/scripts/setup-worktree.mjs" --help
+```
+
+On Windows, use native host tooling or the Node fallback from native shell
+tooling; never use the POSIX adapter through Bash/WSL for Windows Git metadata.
 
 ## Setup Policy
 

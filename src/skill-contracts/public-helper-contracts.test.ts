@@ -205,6 +205,14 @@ describe("public helper registry", () => {
     expect(rows.map((row) => row.executable)).not.toContain(
       "skills/issue-worktree-setup/scripts/setup-worktree.sh",
     );
+    expect(
+      await readFile(
+        path.join(repositoryRoot, "skills/issue-worktree-setup/SKILL.md"),
+        "utf8",
+      ),
+    ).toContain(
+      'node "$ISSUE_WORKTREE_SETUP_DIR/scripts/setup-worktree.mjs" --help',
+    );
     for (const excluded of [
       "skills/devcanon-runtime/scripts/",
       "skills/play-skill-authoring/scripts/render-graphs.js",
