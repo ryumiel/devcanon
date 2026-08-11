@@ -1823,6 +1823,27 @@ exec "$real_base64" "$@"
   it.skipIf(!jqAvailable)(
     "rejects malformed v1 file entry shapes",
     async () => {
+      const emptyTaskIdFixture = await writeSnapshotFixture();
+      try {
+        await mutateSnapshotFixture(
+          emptyTaskIdFixture.tempDir,
+          emptyTaskIdFixture.headSha,
+          (snapshot) => {
+            snapshot.task_id = "";
+          },
+        );
+
+        await expect(
+          runSnapshotValidator(
+            emptyTaskIdFixture.tempDir,
+            emptyTaskIdFixture.baseSha,
+            emptyTaskIdFixture.snapshotFile,
+          ),
+        ).rejects.toBeDefined();
+      } finally {
+        await cleanupTempDir(emptyTaskIdFixture.tempDir);
+      }
+
       const missingMetadataFixture = await writeSnapshotFixture();
       try {
         await mutateSnapshotFixture(

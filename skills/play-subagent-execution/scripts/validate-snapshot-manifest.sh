@@ -197,7 +197,7 @@ jq -e '
       (has("content") and (.content | type == "string") and (has("skipped") | not)) or
       ((has("content") | not) and (.skipped == "binary" or .skipped == "size>64KB"))
     );
-  (.task_id | type == "string") and
+  (.task_id | type == "string" and . != "") and
   (.files | type == "array") and
   (.files | length > 0) and
   all(.files[];

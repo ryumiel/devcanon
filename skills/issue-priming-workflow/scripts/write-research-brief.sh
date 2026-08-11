@@ -92,6 +92,10 @@ require_env ISSUE_PRIMING_TODAY
 require_repo_root
 
 identifier_slug="$(slug_identifier "$ISSUE_IDENTIFIER")"
+[ -n "$identifier_slug" ] || {
+  echo "ISSUE_IDENTIFIER must contain at least one slug character" >&2
+  exit 1
+}
 research_brief_path=".ephemeral/${ISSUE_PRIMING_TODAY}-${identifier_slug}-research.md"
 
 case "$ISSUE_PRIMING_TODAY" in
