@@ -3180,7 +3180,9 @@ None
       "skills/play-subagent-execution/references/implementer-prompt.md",
     );
 
-    expect(implementerPrompt).toContain("(write-snapshot-manifest-usage.md)");
+    expect(implementerPrompt).toContain(
+      'bash "$SNAPSHOT_HELPER_SCRIPT" --help',
+    );
     expect(implementerPrompt).toContain(
       "Review-routing hint fields (`Risk hint`, `Review hint`, and",
     );
@@ -3194,7 +3196,7 @@ None
       "skills/play-subagent-execution/references/executor-prompt.md",
     );
 
-    expect(executorPrompt).toContain("(write-snapshot-manifest-usage.md)");
+    expect(executorPrompt).toContain('bash "$SNAPSHOT_HELPER_SCRIPT" --help');
     expect(executorPrompt).toContain(
       "Review-routing hint fields (`Risk hint`, `Review hint`, and",
     );

@@ -21,8 +21,8 @@ canonical. Consumers validate notice paths before reading or overwriting them.
 The envelope contains `schema`, `findings`, `carry_forward`, and required
 `incomplete_topical_routes`. Finding and carry-forward entries retain
 repo-relative path, HEAD-side line/start-line, severity, category, critic,
-anchor, non-empty why and recommendation, and a ready-to-post body. The schema
-does not contain evidence code or a side field; consumers reread source.
+anchor, non-empty why and recommendation, and a derived ready-to-post body. The
+schema does not contain evidence code or a side field; consumers reread source.
 
 ### Machine contract
 
@@ -40,7 +40,7 @@ does not contain evidence code or a side field; consumers reread source.
       "anchor": "natural",
       "why": "<non-empty>",
       "recommendation": "<non-empty>",
-      "body": "<ready-to-post>"
+      "body": "**<severity> | <category>** — <why>\n\n**Recommendation:** <recommendation>"
     }
   ],
   "carry_forward": [],
@@ -58,6 +58,8 @@ integer or `null`; severity is `Blocking` or `Nit`; category is `Logic`,
 `null`, `VALID`, `INVALID`, or `DOWNGRADE`; anchor is `natural`, `missing-file`,
 or `out-of-diff`. Each route has unique route `D7`, `D8`, or `D9` and
 disposition `NEEDS_CONTEXT`, `FAILED`, or `CONTROLLER_OBSERVED_FAILURE`. The
+`body` value is derived exactly from that entry's `severity`, `category`, `why`,
+and `recommendation` using the formula above; those fields must agree. The
 canonical empty form is
 `{"schema":"play-review/findings/v2","findings":[],"carry_forward":[],"incomplete_topical_routes":[]}`.
 
