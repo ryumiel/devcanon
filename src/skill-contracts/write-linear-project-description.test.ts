@@ -77,6 +77,10 @@ describe("write-linear-project-description source contracts", () => {
     const workflow = normalizeWhitespace(
       getMarkdownSection(skillSource, "Workflow"),
     );
+    const helperBoundary = getMarkdownSection(
+      skillSource,
+      "Draft Helper Boundary",
+    );
 
     expect(workflow).toContain("Default to draft mode.");
     expect(workflow).toContain("Draft mode must not modify Linear.");
@@ -89,6 +93,9 @@ describe("write-linear-project-description source contracts", () => {
     expect(workflow).toContain("mutation mode");
     expect(workflow).toContain(
       "must not change the selected field, issue-evidence separation, style-reference treatment, or apply/draft decision.",
+    );
+    expect(helperBoundary).toContain(
+      'bash "$WRITE_LINEAR_PROJECT_DESCRIPTION_DIR/scripts/prepare-project-description-draft.sh" --help',
     );
   });
 

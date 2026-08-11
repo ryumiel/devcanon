@@ -56,9 +56,17 @@ This skill must not create project updates, mutate project lifecycle status, cre
 
 ## Draft Helper Boundary
 
-Before writing draft bodies, run the adjacent
+Resolve `WRITE_LINEAR_PROJECT_DESCRIPTION_DIR` to the loaded or installed
+`write-linear-project-description` skill bundle. Before writing draft bodies,
+discover the adjacent helper mechanics from the repository root:
+
+```bash
+bash "$WRITE_LINEAR_PROJECT_DESCRIPTION_DIR/scripts/prepare-project-description-draft.sh" --help
+```
+
+The adjacent
 [prepare-project-description-draft usage](references/prepare-project-description-draft-usage.md)
-from the repository root. The helper prepares the draft target; it does not
+is the sole mechanics owner. The helper prepares the draft target; it does not
 publish to Linear or write the body. A helper refusal stops drafting. The
 caller writes only after successful preparation and retains sole control over
 whether approved content is published.
