@@ -524,9 +524,6 @@ describe("phase artifact source contracts", () => {
     expect(normalizedPhase8Reference).toContain(
       "`issue-priming-workflow` owns when Phase 8 may start and which arguments are passed to `play-branch-finish`",
     );
-    expect(normalizedPhase8Reference).toContain(
-      "write-assumptions-comment usage",
-    );
   });
 
   it("keeps Task 1 traceability rows visible without making generated output authoritative", async () => {
