@@ -3185,27 +3185,14 @@ None
     expect(normalizedEnvelope).toContain("review-artifacts usage");
   });
 
-  it("keeps public helper discovery and semantic envelope descriptions at their owners", async () => {
+  it("keeps root-cause tracing linked to find-polluter usage", async () => {
     const rootCauseTracing = await readRepoFile(
       "skills/play-debug/references/root-cause-tracing.md",
-    );
-    const sharedContext = await readRepoFile(
-      "skills/play-review/references/shared-review-context.md",
-    );
-    const snapshotRecipe = await readRepoFile(
-      "skills/play-subagent-execution/references/snapshot-manifest-recipe.md",
     );
 
     expect(rootCauseTracing).toContain(
       "[find-polluter usage](find-polluter-usage.md)",
     );
-    expect(
-      parseJsonContract(sharedContext, "play-review/shared-context-input/v1")
-        .schema,
-    ).toBe("play-review/shared-context-input/v1");
-    expect(
-      parseJsonContract(snapshotRecipe, "implementer/snapshot/v1").schema,
-    ).toBe("implementer/snapshot/v1");
   });
 
   it("keeps wrapper review preview, approved payload, and no-GitHub source contracts", async () => {

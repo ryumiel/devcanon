@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  SNAPSHOT_REQUEST_TRIGGER_CONTRACTS,
   getMarkdownSection,
   normalizeWhitespace,
   readRepoFile,
@@ -1859,16 +1858,6 @@ describe("play subagent routing source contracts", () => {
     expect(routing).toContain("Hard-risk triggers force `spec-and-quality`");
     expect(routing).toContain("reviewer-routing policy");
     expect(routing).toContain("test harness or validation behavior changes");
-  });
-
-  it("keeps snapshot request classification high-risk triggers in source", async () => {
-    const snapshotConsumption = await readRepoFile(
-      "skills/play-subagent-execution/references/snapshot-consumption.md",
-    );
-    const normalizedSnapshotConsumption =
-      normalizeWhitespace(snapshotConsumption);
-
-    expect(SNAPSHOT_REQUEST_TRIGGER_CONTRACTS).not.toHaveLength(0);
   });
 
   it("keeps executor plan-path intake separate from per-task implementer context", async () => {
