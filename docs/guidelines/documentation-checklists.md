@@ -121,6 +121,13 @@ the complete allocation and admissibility rule. During review or gardening:
 - Does a delegating `SKILL.md` name the decision and owner, helper, required
   inputs and outputs, and success or refusal interpretation without narrating
   helper steps?
+- For a public per-skill helper, does `contracts/public-helpers.md` have one
+  unique five-field row and does its adjacent usage document own invocation,
+  inputs, cwd, outputs, and refusal mechanics without taking over workflow
+  continuation?
+- Is public classification based on a required owning-skill action rather than
+  file presence, and are internal, optional, or support-only helpers explicitly
+  excluded where needed?
 - Does coverage execute the owner or prove an intentional public interface,
   rather than rely on brittle prose, source-string, proof-matrix, or
   fixture-only assertions?

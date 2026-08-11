@@ -28,6 +28,8 @@ Quick navigation index for the DevCanon repository.
 - Where is the AFDS pilot checklist for target repositories? ->
   [`docs/guidelines/afds-pilot-checklist.md`](docs/guidelines/afds-pilot-checklist.md)
 - Where are AFDS document profiles defined? -> [`docs/guidelines/documentation-standard.md`](docs/guidelines/documentation-standard.md)
+- Where is the public per-skill helper registry? ->
+  [`contracts/public-helpers.md`](contracts/public-helpers.md)
 - Where is profile guidance for conditional `contracts/`, `docs/product-requirements/`, `docs/harness/`, `docs/knowledge/`, `docs/references/`, `docs/roadmap/`, `docs/tech-debt/`, and module breadcrumbs? -> [`docs/guidelines/documentation-standard.md`](docs/guidelines/documentation-standard.md)
 - Where are current issue/behavior-spec relationships and lightweight
   work-origin routing defined? ->
@@ -83,6 +85,8 @@ Quick navigation index for the DevCanon repository.
 - Where is the ADR template? -> [`docs/adr/adr-template.md`](docs/adr/adr-template.md)
 - Where is deterministic skill script authority recorded? ->
   [`docs/adr/adr-0019-script-authority-for-deterministic-skill-mechanics.md`](docs/adr/adr-0019-script-authority-for-deterministic-skill-mechanics.md)
+- Where is the public helper usage-contract decision recorded? ->
+  [`docs/adr/adr-0033-public-helper-usage-contracts.md`](docs/adr/adr-0033-public-helper-usage-contracts.md)
 - Where is subagent lifecycle ownership recorded? ->
   [`docs/adr/adr-0020-subagent-lifecycle-ownership.md`](docs/adr/adr-0020-subagent-lifecycle-ownership.md)
 - Where is the render loaded boundary decision recorded? ->

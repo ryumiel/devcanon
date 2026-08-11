@@ -336,6 +336,19 @@ It does not restate the helper algorithm as shell-like prose. Keep the
 workflow's judgment, routing, and operator escalation in the skill; execute
 the helper for deterministic mechanics.
 
+### Public helper usage contracts
+
+When a required script-backed action is public across owning workflows, classify
+it in [`contracts/public-helpers.md`](../../contracts/public-helpers.md). The
+catalog owns only identity, role, owner, executable, and usage-document link.
+Put reusable invocation mechanics in the one adjacent
+`references/<script-stem>-usage.md` document, and keep when-to-run, result
+interpretation, escalation, and continuation in `SKILL.md`. Do not duplicate
+commands, input tables, outputs, refusal mechanics, or embedded help prose
+between these owners. Apply the generic hardening rule in
+[Implementation Proportionality](implementation-proportionality.md); this guide
+does not add a second trust-boundary policy.
+
 ### Verification consequences of the boundary
 
 Prefer executing the owning helper or runtime and asserting its direct,
