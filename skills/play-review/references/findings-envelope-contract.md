@@ -54,10 +54,11 @@ does not contain evidence code or a side field; consumers reread source.
 have the same entry shape. `line` is a HEAD-side integer and `start_line` is an
 integer or `null`; severity is `Blocking` or `Nit`; category is `Logic`,
 `Safety`, `Architecture`, `Tests`, `Maintainability`, `Documentation`, or
-`Contracts`; critic is `VALID`, `INVALID`, `DOWNGRADE`, or `null`; anchor is
-`natural`, `missing-file`, or `out-of-diff`. Each route has unique route `D7`,
-`D8`, or `D9` and disposition `NEEDS_CONTEXT`, `FAILED`, or
-`CONTROLLER_OBSERVED_FAILURE`. The canonical empty form is
+`Contracts`; critic is `null` for a `Nit`, while a `Blocking` entry permits
+`null`, `VALID`, `INVALID`, or `DOWNGRADE`; anchor is `natural`, `missing-file`,
+or `out-of-diff`. Each route has unique route `D7`, `D8`, or `D9` and
+disposition `NEEDS_CONTEXT`, `FAILED`, or `CONTROLLER_OBSERVED_FAILURE`. The
+canonical empty form is
 `{"schema":"play-review/findings/v2","findings":[],"carry_forward":[],"incomplete_topical_routes":[]}`.
 
 ## Write Rules

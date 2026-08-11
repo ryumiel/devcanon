@@ -22,7 +22,10 @@ It writes one snapshot under `.ephemeral/` and prints its repo-relative notice o
 
 ## Refusal and failures
 
-Missing environment, unsafe paths, unsupported diff state, or unrepresentable content exits nonzero without a success notice.
+Missing environment, unsafe paths, or unsupported diff state exits nonzero
+without a success notice. Git binary and non-UTF-8 blobs remain representable:
+successful snapshots record those entries with `skipped: "binary"` rather than
+refusing them.
 
 ## Side effects
 

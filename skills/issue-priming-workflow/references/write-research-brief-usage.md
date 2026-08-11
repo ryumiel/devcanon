@@ -10,7 +10,9 @@ Run `ISSUE_IDENTIFIER=<identifier> ISSUE_PRIMING_TODAY=<YYYY-MM-DD> bash "$ISSUE
 
 ## Inputs
 
-`ISSUE_IDENTIFIER` and `ISSUE_PRIMING_TODAY` are required. It reads no stdin and accepts no optional caller-selected path.
+`ISSUE_IDENTIFIER` and `ISSUE_PRIMING_TODAY` are required.
+`ISSUE_PRIMING_TODAY` must have `YYYY-MM-DD` syntax; calendar validity is not
+checked. It reads no stdin and accepts no optional caller-selected path.
 
 ## Working directory
 
@@ -22,7 +24,8 @@ It prints the repo-relative research-brief path on stdout; diagnostics go to std
 
 ## Refusal and failures
 
-Invalid identifiers, dates, or existing unsafe targets exit nonzero.
+Invalid identifiers, missing or malformed date syntax, or existing unsafe
+targets exit nonzero.
 
 ## Side effects
 
