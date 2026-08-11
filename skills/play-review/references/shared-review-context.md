@@ -25,6 +25,28 @@ The doc-impact summary always derives from the full PR range, even during
 incremental review. Keep mechanical path signals separate from semantic routing
 notes. Ambiguity remains non-empty routing evidence and therefore fails closed.
 
+Populate the doc-impact fields from that full-range evidence as follows:
+
+- `arch_files` contains changed paths that touch architecture, workflow
+  authority, ownership, module boundaries, generated/source relationships,
+  dependency/configuration surfaces, or other durable decision surfaces.
+- `new_adrs` contains added `docs/adr/adr-*.md` paths. `modified_adrs` contains
+  modified existing ADR paths only; route deleted ADRs through
+  `architecture_routing_risks` rather than treating deletion as ADR coverage.
+- `architecture_routing_risks` records both mechanically triggering paths and
+  semantic notes for architecture, module-boundary, three-or-more-module,
+  ownership/responsibility, generated/source, or ambiguous architecture impact.
+- `spec_routing_risks` records both mechanically triggering paths and semantic
+  notes for specs, APIs, user-facing or CLI behavior, examples, public schemas,
+  files referenced by documentation, changes to a documented pattern's
+  canonical direction, or ambiguous specification impact.
+
+Mechanical arrays contain paths; semantic arrays contain concise reasons from
+the changed content, relevant documentation, discovered guidelines, and any
+supplied branch-review semantic-decision notes. Do not substitute one evidence
+kind for the other. Record ambiguity in the relevant risk field so downstream
+routing treats it as non-empty.
+
 The following is a descriptive contract shape, not a literal manifest; its
 `required`, `optional`, and `limits` labels describe the manifest fields.
 

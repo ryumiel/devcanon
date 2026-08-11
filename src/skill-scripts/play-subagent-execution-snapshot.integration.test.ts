@@ -415,6 +415,35 @@ describe("play-subagent-execution snapshot helper", () => {
   );
 
   it.skipIf(!jqAvailable)(
+    "rejects a nested working directory before writing snapshot state",
+    async () => {
+      const tempDir = await createTempGitRepo();
+      const nestedDir = path.join(tempDir, "nested");
+      try {
+        await writeFile(path.join(tempDir, "deleted.md"), "remove me\n");
+        const baseSha = await commitChanges(tempDir, "chore: baseline");
+        await rm(path.join(tempDir, "deleted.md"));
+        await commitChanges(tempDir, "feat: delete file", ["-A"]);
+        await mkdir(nestedDir);
+
+        await expect(
+          runSnapshotHelper(nestedDir, baseSha),
+        ).rejects.toMatchObject({
+          stdout: "",
+          stderr: expect.stringContaining(
+            "write-snapshot-manifest.sh must run from the repository root",
+          ),
+        });
+        expect(await readdir(tempDir)).not.toContain(".ephemeral");
+        expect(await readdir(nestedDir)).not.toContain(".ephemeral");
+      } finally {
+        await cleanupTempDir(tempDir);
+      }
+    },
+    30_000,
+  );
+
+  it.skipIf(!jqAvailable)(
     "rejects empty snapshot diffs",
     async () => {
       const tempDir = await createTempGitRepo();
@@ -533,6 +562,11 @@ describe("play-subagent-execution snapshot helper", () => {
 set -euo pipefail
 
 if [ "$1" = "rev-parse" ] && [ "$2" = "--verify" ]; then
+  exit 0
+fi
+
+if [ "$1" = "rev-parse" ] && [ "$2" = "--show-toplevel" ]; then
+  pwd -P
   exit 0
 fi
 
