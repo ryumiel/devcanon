@@ -21,8 +21,8 @@ creation.
   `play-branch-finish` Option 2 receives an explicit review gate.
 - `pr-authoring` owns PR title/body composition and validation through
   `play-branch-finish` Option 2.
-- `scripts/write-assumptions-comment.sh` owns assumptions comment path
-  preparation and deterministic path guards.
+- The [write-assumptions-comment usage](write-assumptions-comment-usage.md)
+  owns assumptions-comment mechanics.
 - Phase 7 owns selecting judgment-required remaining findings and preparing any
   `nits_file`.
 
@@ -75,9 +75,8 @@ review" sections, or any logbook content.
 
 When Phase 4 made reasonable auto-mode assumptions that reviewers need to see,
 write only those resolved, reviewer-relevant assumptions to the
-`assumptions_comment_file` prepared by
-`scripts/write-assumptions-comment.sh`, then pass that path to
-`play-branch-finish`.
+`assumptions_comment_file` prepared through its usage contract, then pass that
+path to `play-branch-finish`.
 
 If there are no auto-mode assumptions to surface, omit
 `assumptions_comment_file` entirely. Absence means "no assumptions comment,"

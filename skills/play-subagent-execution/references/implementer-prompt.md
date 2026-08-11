@@ -228,15 +228,11 @@ Task tool (general-purpose):
     - Snapshot Manifest Recipe path: <SNAPSHOT_MANIFEST_RECIPE_PATH>
       - Source: `references/snapshot-manifest-recipe.md`
     - Snapshot Manifest Helper Script path: <SNAPSHOT_HELPER_SCRIPT>
-      - Source: `scripts/write-snapshot-manifest.sh`
+      - Mechanics: [write-snapshot-manifest usage](write-snapshot-manifest-usage.md)
 
-    Before writing the snapshot, read the recipe file. Then run the helper
-    script with the captured `BASE_SHA` and the task header identifier as
-    `SNAPSHOT_TASK_ID`. The recipe is the canonical contract for the
-    `implementer/snapshot/v1` envelope, and the helper script is the canonical
-    implementation of the path rules, `head_sha`, file metadata, binary and
-    size behavior, deleted-file behavior, JSON-aware construction, `.ephemeral`
-    write guard, and write-verification check.
+    Before writing the snapshot, read the recipe and follow the linked usage
+    contract. The recipe owns envelope semantics; the usage document owns
+    helper mechanics.
 
     If the snapshot request state is `requested` but the dispatch does not
     include both a readable Snapshot Manifest Recipe path and a readable

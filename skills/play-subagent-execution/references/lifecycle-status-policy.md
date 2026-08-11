@@ -1,227 +1,50 @@
 # Lifecycle And Status Policy - `play-subagent-execution`
 
-Use the [source-immutability usage](source-immutability-usage.md) for D14-D16 guard mechanics; retain lifecycle status and escalation policy in this reference.
-
-This file is the sole normative owner of returned D12/D13 dispositions,
-D14/D15 result freshness and invalidation, D14-D16 guard capture and cleanup
-failure, and incomplete or terminal outcomes. Load it after initial route
-selection when updating the lifecycle ledger, interpreting returned statuses,
-or deciding whether sessions may be closed.
-
-Pre-dispatch D13 selection and fallback belong to
-[`skip-dispatch-policy.md`](skip-dispatch-policy.md). Initial per-task review
-selection belongs to
-[`review-routing-policy.md`](review-routing-policy.md). Child prompts own child
-actions and report schemas; they do not override the transitions below.
+The [source-immutability usage](source-immutability-usage.md) owns D14-D16
+guard commands, I/O, and refusal mechanics. This reference owns lifecycle
+ordering, status disposition, freshness, and escalation.
 
 ## Subagent Lifecycle
 
-Use `subagent-lifecycle` for the generic controller lifecycle ledger, target
-lifecycle capability classification, cleanup gate before spawns, target-honest
-cleanup outcomes, and slot-limit recovery. `play-subagent-execution` owns only
-the execution-specific lifecycle details below.
+Use `subagent-lifecycle` for shared cleanup and target capability state. Keep
+D12 implementers available through same-session D14/D15 fix loops when that
+follow-up is supported. Capture task reports, snapshot state, changed files,
+base/head and reviewed heads, routing, reviewer results, fixups, and blockers.
 
-For this workflow, role-specific captured state includes D12 implementer and
-D13 executor reports,
-changed files, test results, snapshot state (`requested`, `emitted`, `skipped`,
-or `malformed`), reviewer scope, reviewer report, concrete findings, reviewer
-result disposition (`pending`, `final-pass`, `final-findings`, `advisory`,
-`stale`, or `superseded`), routing target, re-review target, task base/head SHA,
-reviewed head SHA, fixup count, and blocker state when applicable. Run the
-shared cleanup gate before dispatching the next implementer, reviewer,
-re-reviewer, or final reviewer.
+## Mutable Task-Worker Status
 
-The cleanup gate must not close a task implementer while same-session D14 or
-D15 reviewer fix loops may still route fixups back to that implementer session.
-For multi-task plans, preserve the implementer
-session until every reviewer loop required by the task's effective route
-passes, unless the target lacks same-session follow-up and a fresh implementer
-can receive the complete captured state.
+For D12/D13 `DONE` or `DONE_WITH_CONCERNS`, capture report, snapshot state,
+changed files, base/head, and test evidence before review. `skipped` uses normal
+git/disk reads; `malformed` surfaces the incident and uses the same fallback.
+For `NEEDS_CONTEXT` and `BLOCKED`, record the available evidence and run the
+cleanup gate before the next session.
 
-The shared `subagent-lifecycle` owner and the Agent Routing and Mutation Policy
-adoption inventory own capability-escalation declarations. No current exact
-target transition is declared here: `D12 current exact target transition: none`
-and `D13 current exact target transition: none`. D13-to-D12 reclassification is not
-capability escalation. D12 context repair remains on the configured
-implementer, balanced/high; without a separately authorized future declaration,
-it returns through the existing blocker/manual-owner path without a model or
-effort override. D14-D16 freshness and fix loops remain unchanged.
+`DONE` follows the effective route: `spec-and-quality` requires fresh D14 and
+D15, `spec-only` requires D14, and `none-final-only` completes after self-review
+and commit. A single-task plan completes after its applicable route. Concerns
+about correctness or scope remain incomplete until addressed; observational
+concerns may continue.
 
-## Handling Mutable Task-Worker Status
+## Reviewer Freshness and Fixups
 
-Before acting on any returned D12 implementer or dispatched D13 executor
-status, update the lifecycle ledger for that session with the status and the
-artifacts that status actually provides. For
-`DONE` and `DONE_WITH_CONCERNS`, capture the report, snapshot state
-(`requested`, `emitted`, `skipped`, or `malformed`), changed-file list,
-base/head SHA, and test result before dispatching reviewers. When snapshot
-state is `skipped`, use the default DONE fields plus controller-computed git/disk
-reads. When snapshot state is `malformed`, surface the incident and still fall
-back to the default DONE fields plus controller-computed git/disk reads.
+D14/D15 results are separate evidence against the same task head. Quality is
+final only after same-head spec pass and current-head validation; otherwise it
+is advisory, stale, or superseded. Every fix commit invalidates both verdicts.
+Revalidate the route after each fixup: it may stay or escalate, never downgrade.
 
-For `NEEDS_CONTEXT` and `BLOCKED`, capture the status, report or
-blocker/context request, `agent_id`, and any available base/head SHA; do not
-wait for snapshot, changed-file, or test artifacts that were not produced. Run
-the cleanup gate before dispatching the next reviewer, re-reviewer,
-implementer, or final reviewer.
+For D14, D15, and D16, use the source-immutability lifecycle before consuming
+a response. A capture, response, verification, or cleanup failure leaves the
+task incomplete and `BLOCKED`; detected mutation or cleanup failure is
+guard-integrity terminal and source remains visible and unrepaired. D16 is a
+fresh whole-range reviewer after all tasks, except the exact verified ADR-0016
+single-task auto carve-out. D16 findings route to D12 and require fresh D16.
 
-Both a D12 implementer and a dispatched D13 executor with `DONE` or
-`DONE_WITH_CONCERNS` enter DONE-report and snapshot capture before task
-completion.
+## D13 and D12 Recovery
 
-### DONE
-
-For multi-task plans, apply the task's effective review route.
-`spec-and-quality` dispatches separate D14 and D15 deep-review sessions against
-the same captured task head when practical, then applies the same-head
-disposition rules. `spec-only` proceeds to D14 spec review and then marks
-the task complete after approval. `none-final-only` marks the task complete
-after implementer self-review and commit. For single-task plans, mark the task
-complete.
-
-### DONE_WITH_CONCERNS
-
-A D13 `DONE_WITH_CONCERNS` report with judgment-bearing concerns keeps the task
-incomplete and routes the report to D12; purely observational concerns may
-proceed through the selected route.
-
-The implementer completed the work but flagged doubts. Read the concerns before
-proceeding. If concerns are about correctness or scope, address them before
-continuing. For multi-task plans, then apply the task's effective review route;
-for single-task plans, mark the task complete after addressing concerns. If the
-concerns are observations, note them and proceed to the next route step.
-
-### Spec-And-Quality Reviewer Disposition
-
-For multi-task `spec-and-quality` routes, D14 is a separate response-only
-`deep-reviewer`, frontier/xhigh and source-immutable, with zero handoffs. D15 is
-a separate response-only `deep-reviewer`, frontier/xhigh and source-immutable,
-with zero handoffs. Dispatch both against the same captured task head when
-practical and record both as `pending` until their reports are integrated. A
-quality result may become final only after same-head spec pass and current
-task-head validation. A same-head quality pass becomes
-`final-pass` only when the spec reviewer also passes for that reviewed head;
-same-head quality findings become `final-findings` only after same-head spec
-pass and current task-head validation.
-
-If spec fails, concurrent quality findings may be routed with the spec findings
-as advisory same-head context, but the quality result remains `advisory` until a
-same-head spec pass exists. The advisory, stale, and superseded quality results
-remain lifecycle evidence but must not mark the task complete. Every fix commit
-invalidates both D14 and D15 results, including a previously passing or
-provisional result; both reviews must run fresh against the new same task head.
-
-### Fixup Route Revalidation
-
-When a reviewer routes findings back to the implementer and the implementer
-commits a fixup, refresh the task head SHA and revalidate the effective review
-route against the original task base before skipping any remaining reviewer or
-marking the task complete. The route may only stay the same or escalate
-(`none-final-only` -> `spec-only` or `spec-and-quality`; `spec-only` ->
-`spec-and-quality`). It must not downgrade after fixups.
-
-If revalidation escalates a `spec-only` task to `spec-and-quality` after a
-head-changing fix, rerun both D14 and D15 fresh against the new same task head
-before completion. If a `spec-and-quality` fixup lands, rerun both D14 and D15.
-A fix never preserves either review verdict.
-
-### Guarded Review Lifecycle
-
-D14 and D15 inspect the same captured task head but use separate sessions,
-separate prompts, separate baselines, and independent GUARD-001 lifecycles.
-Each route follows this exact order: capture before spawn verify before
-semantic validation or consumption validate and retain the response in
-controller memory cleanup the exact retained baseline apply the retained result
-only after cleanup. Every post-capture terminal path attempts cleanup.
-
-After safe cleanup, an unavailable, failed, malformed, or
-verification-rejected D14 or D15 keeps the task incomplete and returns
-`BLOCKED` naming the failed review; no verdict passes. Detected source mutation
-or cleanup failure is guard-integrity terminal. Keep the source visible and do
-not repair it. Capture failure prevents spawn and returns the same
-task-incomplete `BLOCKED` state without inventing cleanup evidence.
-
-### D16 Final Review Lifecycle
-
-D16 is a fresh response-only `deep-reviewer`, frontier/xhigh and
-source-immutable, with zero handoffs, after all tasks complete. D16 reviews the
-whole implementation range and never reuses or collapses the D15 task-quality
-session. The only D16 skip is the exact ADR-0016 verified
-`issue-priming-workflow --auto` single-task carve-out.
-
-A passing retained D16 result continues to the owning-caller or direct/manual
-terminal path only after cleanup. D16 blocking findings keep final review
-incomplete, route to the D12 implementer for a fix, and require a fresh D16
-capture, spawn, verify, validate, cleanup, and apply cycle after the fix commit.
-After safe cleanup, an unavailable, failed,
-malformed, or verification-rejected D16 keeps final review incomplete and
-returns `BLOCKED` to the owning caller or direct/manual terminal-status path;
-it never enters branch finish. D16 detected source mutation or cleanup failure
-is guard-integrity terminal. Capture failure prevents spawn and returns the
-same final-review-incomplete `BLOCKED` state without inventing cleanup evidence.
-
-### D13 Exact-Task Boundary Failure
-
-For a dispatched D13 executor, `NEEDS_CONTEXT` or `BLOCKED` caused by judgment,
-policy interpretation, a clarifying question, missing authorization, or widened
-scope stops D13 and reclassifies the task to D12. Do not redispatch D13 with
-more context or a more capable model. The controller applies this boundary
-check before the D12 status handling below.
-
-### D13 Non-Boundary Operational Blocker
-
-A non-boundary operational D13 `BLOCKED` also stops D13, keeps the task
-incomplete, and routes the blocker plus any available base/head SHA and
-snapshot state to D12 for judgment-bearing recovery. Never redispatch or
-model-escalate D13, and never mark a non-DONE D13 result complete.
-
-D13 selection, reclassification, and boundary failures remain governed by the
-unchanged D13 sections above.
-
-### D12 Auto-Route Continuation
-
-For the exact approved `issue-priming-workflow --auto` route, consume the
-canonical genuine-gate/non-gate vocabulary in
-[`issue-priming-workflow/SKILL.md`](../../issue-priming-workflow/SKILL.md); do
-not define a second classification here. A task-locally recoverable D12
-`NEEDS_CONTEXT` or `BLOCKED` status is non-gate continuation: provide the
-bounded missing context or recoverable unblock and redispatch the same D12
-route. A genuinely unresolvable context or scope gap remains incomplete and
-follows the existing owning-caller escalation path.
-
-### NEEDS_CONTEXT
-
-For a D12 implementer, `NEEDS_CONTEXT` means required information was not
-provided. Outside that exact verified auto route, when a D12 `NEEDS_CONTEXT`
-request can be resolved within the task's existing scope, the controller
-provides the missing context and redispatches the same D12 route. On the exact
-approved auto route,
-apply the canonical auto-route boundary: task-locally recoverable context
-continues the same D12 route, while a genuinely unresolvable context or scope
-gap remains incomplete and follows the existing owning-caller escalation path.
-
-### BLOCKED
-
-D12 remains the shipped `implementer`, balanced/high; no `BLOCKED` disposition
-changes its role, capability, or effort. Outside that exact verified auto route,
-D12 `BLOCKED` recovery retains existing context-problem semantics: provide
-context and redispatch the same D12 pair only when the context problem is
-resolvable within the task's existing scope. On the exact verified auto route,
-the canonical boundary may also continue a task-local recoverable unblock. Do
-not apply that automatic broadened recovery to manual/default D12 work.
-Otherwise keep the task incomplete and route the blocker through the owning
-caller's separately defined recovery or escalation policy. If no such route is
-available, return `BLOCKED`; do not invent a dispatch-time model or effort
-override.
-
-Record blocker state as a stable family plus brief detail, for example
-`context-missing: needs target install path` or `task-too-large: generated
-prompt exceeds context`. The family is the text before the first colon and is
-what repeated-blocker checks compare.
-
-If a spawned D12 implementer reports BLOCKED after slot-limit recovery succeeds
-and the blocker family already appears in the lifecycle ledger for that task,
-treat it as repeated blocker-family behavior and escalate through the existing
-path above instead of running another cleanup retry.
-
-Never ignore an escalation or force the same model to retry without changes.
+A D13 boundary failure (`NEEDS_CONTEXT` or `BLOCKED` from judgment, policy,
+authorization, clarification, or widened scope) reclassifies to D12; never
+redispatch or model-escalate D13. Other D13 blockers also route to D12 with
+available evidence. D12 may receive bounded recoverable context only within
+the existing task scope; unresolved gaps remain incomplete under the owning
+caller. Do not invent effort/model overrides. Record blockers as stable family
+plus detail and escalate repeated family behavior instead of retrying unchanged.

@@ -117,7 +117,9 @@ Its invocation and refusal mechanics are owned by the adjacent [find-polluter us
 ../scripts/find-polluter.sh '.git' './src/**/*.test.ts'
 ```
 
-Runs tests one-by-one, stops at first polluter. See script for usage.
+Runs tests one-by-one and stops at the first polluter. The adjacent usage
+document is the helper contract; do not inspect implementation source to
+reconstruct it.
 
 ## Real Example: Empty projectDir
 

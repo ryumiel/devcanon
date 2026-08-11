@@ -5,188 +5,28 @@ description: Provisions an isolated worktree for issue work as the single source
 
 # Issue Worktree Setup
 
-The public Node fallback's invocation and refusal mechanics are owned by the adjacent [setup-worktree usage](references/setup-worktree-usage.md). Preserve the native-first decision below.
+The [setup-worktree usage](references/setup-worktree-usage.md) owns the public
+Node fallback's invocation, environment, cwd, output, and refusal mechanics.
 
-Set up an issue worktree without duplicating worktree policy across multiple
-skills.
+## Prefer Native Worktree Tooling
 
-This helper is the single source of truth for:
+Use host-native worktree control before the fallback. If it provisions or adopts
+the checkout, continue from that worktree and do not run the fallback as well.
+When fallback discovery is needed, run its exact local `setup-worktree.mjs
+--help` command from the installed bundle before action. On Windows, use native
+host tooling or the Node fallback from native shell tooling; never use the POSIX
+adapter through Bash/WSL for Windows Git metadata.
 
-- detecting whether the current session is in the primary checkout or a managed
-  worktree
-- deciding whether branching in place is safe
-- refusing nested worktree creation from dirty or already-branched managed
-  worktrees
-- creating a fresh `.worktrees/...` checkout from the repository's default branch (resolved via `origin/HEAD`, falling back to `origin/main`)
-- returning the concrete worktree path for downstream phases
+## Setup Policy
 
-## Step 0: Prefer Native Worktree Tooling
+The fallback is the provider-independent policy owner for detecting primary
+versus managed checkouts, safe in-place branching, refusing unsafe nested
+worktrees, creating a fresh `.worktrees/...` checkout, and returning a concrete
+path. Resolve its bundle separately from the repository being primed.
 
-If the host environment already exposes native worktree lifecycle control, use
-that path before invoking the fallback helper below. Examples include Claude Code
-`EnterWorktree`, Codex worktree control, or equivalent host-managed worktree
-commands.
-
-If native tooling provisions or adopts the requested checkout, do not invoke
-the fallback helper below. Continue the caller workflow from that native-managed
-worktree, validate or populate `WORKTREE_PATH` using the same contract the
-helper returns, and stop here. Do not also run
-`$ISSUE_WORKTREE_SETUP_DIR/scripts/setup-worktree.mjs`; the helper below is the
-fallback contract for environments that do not provide native worktree
-control.
-
-On Windows-hosted sessions, do not invoke `scripts/setup-worktree.sh` through
-Bash or WSL and do not translate `D:\...` or `D:/...` Git metadata paths into a
-parallel POSIX state machine. Use native Codex/host worktree control first; if a
-fallback is required, run `node "<issue-worktree-setup-skill-dir>/scripts/setup-worktree.mjs"`
-from native Windows shell tooling such as PowerShell. The `.sh` file is a
-POSIX adapter only. If POSIX or WSL Git reports Windows-drive `.git` metadata,
-the typed helper stops before mutation and tells the operator to re-run from
-native Windows tooling.
-
-## Inputs
-
-Invoke the helper through environment variables:
-
-- `BRANCH_NAME` (required)
-- `WORKTREE_LEAF` (required)
-- `BASE_REF` (optional, defaults to the repository's default branch resolved via `origin/HEAD`, falling back to `origin/main`)
-
-Run the Node helper with platform-native environment variable and stdout
-capture. The fallback command itself is:
-
-```text
-node "<issue-worktree-setup-skill-dir>/scripts/setup-worktree.mjs"
-```
-
-POSIX shell example:
-
-```bash
-ISSUE_WORKTREE_SETUP_DIR="<issue-worktree-setup-skill-dir>"
-HELPER_SCRIPT="$ISSUE_WORKTREE_SETUP_DIR/scripts/setup-worktree.mjs"
-
-WORKTREE_SETUP_OUTPUT=$(
-  BRANCH_NAME="<branch-name>" \
-  WORKTREE_LEAF="<worktree-leaf>" \
-  node "$HELPER_SCRIPT"
-)
-```
-
-PowerShell example:
-
-```powershell
-$IssueWorktreeSetupDir = "<issue-worktree-setup-skill-dir>"
-$HelperScript = Join-Path $IssueWorktreeSetupDir "scripts/setup-worktree.mjs"
-
-$env:BRANCH_NAME = "<branch-name>"
-$env:WORKTREE_LEAF = "<worktree-leaf>"
-$WORKTREE_SETUP_OUTPUT = node $HelperScript
-if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-```
-
-Resolve `ISSUE_WORKTREE_SETUP_DIR` to the installed `issue-worktree-setup`
-skill bundle, not to the repository being primed.
-
-Callers should only pass single-line values. `BRANCH_NAME` must be a valid Git
-branch name, `WORKTREE_LEAF` must be a single path leaf, and `BASE_REF` must
-resolve to a commit after `git fetch origin`.
-
-## Output Contract
-
-The script writes `KEY=VALUE` lines to stdout:
-
-- `MODE=reuse|new|stop`
-- `WORKTREE_PATH=<absolute path>`
-- `MESSAGE=<operator-facing text>`
-
-Parse the result without whitespace-splitting:
-
-```bash
-while IFS= read -r line; do
-  key=${line%%=*}
-  value=${line#*=}
-  case "$key" in
-    MODE) MODE=$value ;;
-    WORKTREE_PATH) WORKTREE_PATH=$value ;;
-    MESSAGE) MESSAGE=$value ;;
-  esac
-done <<EOF
-$WORKTREE_SETUP_OUTPUT
-EOF
-```
-
-## Modes
-
-### `MODE=reuse`
-
-Returned when the current session is already inside a managed non-primary
-worktree whose state has no work to preserve:
-
-- clean (`git status --short` is empty)
-- `HEAD` is an ancestor of `BASE_REF` (no commits unique to the current branch)
-
-The current branch name is irrelevant — a Claude Code- or Codex-spawned scratch
-worktree on `claude/<slug>` at `origin/main` is reused identically to a
-worktree that happens to be on the default branch. The helper fetches `origin`,
-creates the requested feature branch directly at `BASE_REF` via
-`git checkout -b BRANCH_NAME BASE_REF`, and returns the current worktree path.
-The previously checked-out branch ref (if any) is left at its original commit;
-only the checkout moves.
-
-If `BRANCH_NAME` already exists as a local branch, or if it would collide with
-an existing ref namespace (e.g. `feat` when `feat/foo` already exists), the
-helper refuses without mutating any ref — the atomic `git checkout -b` check
-catches both cases.
-
-### `MODE=new`
-
-Returned when the current session is running from the primary checkout.
-
-The helper fetches `origin`, ensures `.worktrees/` exists, creates a fresh
-linked worktree from `BASE_REF`, and returns the new worktree path.
-
-Creating a fresh `.worktrees/...` checkout requires `.worktrees/` to be
-ignored in the host repo. The helper verifies this with a child-path probe
-before creating the directory.
-
-### `MODE=stop`
-
-Returned when the current session is already inside a managed worktree that is
-either dirty or holds commits not in `BASE_REF` — i.e., reuse would risk losing
-in-progress work.
-
-`MODE=stop` is also returned when the helper is run from inside a Git
-submodule checkout. Submodule-scoped worktree setup is unsupported; the
-helper reports both the current submodule path and the superproject path so
-the operator can re-run from the correct checkout.
-
-The helper performs no setup. The caller must surface `MESSAGE` and stop. Do
-not create another worktree from inside that session.
-
-## Path Safety
-
-The helper preserves spaces in paths by parsing
-`git worktree list --porcelain -z`, quoting path variables, and returning the
-full absolute `WORKTREE_PATH`.
-
-`WORKTREE_LEAF` must stay a single leaf name. Do not pass `/`, `..`, absolute
-paths, names beginning with `-`, or multiline values.
-
-The helper also requires `.worktrees/` to resolve to a normal directory inside
-the primary checkout. It rejects symlinks or any resolved path outside that
-checkout.
-
-Before creating `.worktrees/`, the helper also verifies that a synthetic child
-path under that directory is ignored by Git. This protects adopters from
-accidentally tracking fallback worktree contents.
-
-The target leaf path must not already exist. The helper rejects pre-existing
-files, directories, or symlinks at `.worktrees/<leaf>`.
-
-## Failure Model
-
-Policy refusals are reported as `MODE=stop`.
-
-Execution failures such as missing required inputs, failed `git fetch`, missing
-`.worktrees/` ignore coverage, failed branch creation, or failed `git worktree
-add` exit non-zero and write a concise error to stderr.
+Consume its documented result as `reuse`, `new`, or `stop`. `reuse` may branch
+in a clean managed worktree with no work to preserve; `new` provisions from the
+primary checkout; `stop` requires surfacing the helper message and ending the
+current setup path. Never create another worktree from a stopped managed
+session. The caller continues from the returned worktree only after the helper's
+documented success contract.

@@ -13,7 +13,8 @@ procedural step in `SKILL.md` from a "what goes wrong if you skip it" angle.
 ## Recreating path guards inline after helper extraction
 
 - **Problem:** A controller copies old shell fragments into the workflow, then misses a newer helper guard or diverges from script-runtime tests
-- **Fix:** Invoke `scripts/phase-artifacts.sh`, `scripts/write-research-brief.sh`, or `scripts/write-assumptions-comment.sh` from the issue worktree root. Treat a nonzero helper exit as a phase contract failure
+- **Fix:** Use the linked local usage contracts for the applicable helper and
+  treat a nonzero helper exit as a phase contract failure.
 
 ## Creating nested worktree in an already-managed session
 
@@ -32,13 +33,10 @@ procedural step in `SKILL.md` from a "what goes wrong if you skip it" angle.
 - **Problem:** The root validates or applies an assessor/investigator response
   before verifying Git-visible state, or leaves the retained baseline behind on
   a rejected branch
-- **Fix:** For every D1-D3 leaf, use
-  `scripts/source-immutability.sh` in this order: capture before spawn, verify
-  before semantic validation or consumption, retain a valid response in
-  controller memory, cleanup the exact baseline, then apply the result. These
-  response-only routes use zero handoffs. Ordinary rejection follows the
-  existing owner fallback after safe cleanup; detected source mutation or
-  cleanup failure is terminal and source is never repaired
+- **Fix:** Follow the source-immutability usage contract for the guard action.
+  Preserve the lifecycle order: capture before spawn, verify before consuming,
+  cleanup the exact baseline, then apply. Mutation or cleanup failure is
+  terminal; ordinary rejection follows the existing owner fallback.
 
 ## Bypassing shared PR authoring
 

@@ -253,6 +253,32 @@ const legacyReferenceUsageLinks = [
   ],
 ] as const;
 
+const retiredMechanicsHeadings = [
+  [
+    "skills/issue-priming-workflow/references/helper-invocation-contracts.md",
+    "## Shared Invocation Contract",
+  ],
+  [
+    "skills/issue-priming-workflow/references/phase-6-auto-handoff.md",
+    "## Helper Interface",
+  ],
+  [
+    "skills/play-review/references/wrapper-helper-contracts.md",
+    "## `render-review-preview`",
+  ],
+  ["skills/play-review/references/shared-review-context.md", "## Helper Flow"],
+  [
+    "skills/play-skill-authoring/references/testing-skills-with-subagents.md",
+    "## Guarded Evaluator Lifecycle",
+  ],
+  [
+    "skills/play-subagent-execution/references/snapshot-manifest-recipe.md",
+    "## Required Inputs",
+  ],
+  ["skills/issue-worktree-setup/SKILL.md", "## Output Contract"],
+  ["skills/write-linear-project-description/SKILL.md", "## Draft Helper\n"],
+] as const;
+
 describe("public helper registry", () => {
   test("catalogs structurally valid public helpers with adjacent readable contracts", async () => {
     const rows = catalogRows(await readFile(catalogPath, "utf8"));
@@ -408,6 +434,16 @@ describe("public helper registry", () => {
         "utf8",
       );
       expect(reference, referencePath).toContain(usageName);
+    }
+  });
+
+  test("does not retain selected reusable mechanics sections", async () => {
+    for (const [sourcePath, retiredHeading] of retiredMechanicsHeadings) {
+      const source = await readFile(
+        path.join(repositoryRoot, sourcePath),
+        "utf8",
+      );
+      expect(source, sourcePath).not.toContain(retiredHeading);
     }
   });
 });

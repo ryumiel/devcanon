@@ -54,33 +54,14 @@ This skill must not create project updates, mutate project lifecycle status, cre
    - Apply only the selected field or fields.
    - Stop before mutation if the project, target field, or approved body is missing or ambiguous.
 
-## Draft Helper
+## Draft Helper Boundary
 
-Run the bundled helper from the repository root before writing draft bodies.
-
-```bash
-WRITE_LINEAR_PROJECT_DESCRIPTION_DIR="<installed-write-linear-project-description-skill-bundle>"
-PROJECT_KEY="$PROJECT_KEY" \
-TARGET_FIELDS="$TARGET_FIELDS" \
-REPLACE_EXISTING="$REPLACE_EXISTING" \
-  bash "$WRITE_LINEAR_PROJECT_DESCRIPTION_DIR/scripts/prepare-project-description-draft.sh"
-```
-
-The helper prepares direct-child `.ephemeral/` paths and does not write draft body content. The controller writes draft content only after the helper returns paths successfully.
-
-Inputs:
-
-- `PROJECT_KEY`: safe project key used in draft filenames.
-- `TARGET_FIELDS`: `description`, `content`, or `both`.
-- `REPLACE_EXISTING`: `true` or `false`.
-
-Outputs:
-
-- `<project-key>-project-description-draft.md` for `description`.
-- `<project-key>-project-content-brief-draft.md` for `content`.
-- Both paths, one per line, for `both`.
-
-If the helper exits nonzero, stop instead of writing a draft.
+Before writing draft bodies, run the adjacent
+[prepare-project-description-draft usage](references/prepare-project-description-draft-usage.md)
+from the repository root. The helper prepares the draft target; it does not
+publish to Linear or write the body. A helper refusal stops drafting. The
+caller writes only after successful preparation and retains sole control over
+whether approved content is published.
 
 ## Apply Mode
 
