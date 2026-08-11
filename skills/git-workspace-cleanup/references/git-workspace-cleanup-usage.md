@@ -22,7 +22,7 @@ It reports planned or completed cleanup outcomes on stdout and diagnostics on st
 
 ## Refusal and failures
 
-Unknown or incomplete flags, a non-worktree or bare repository, missing remote default branch, or a blocked cleanup state exits nonzero.
+Unknown or incomplete flags, a non-worktree or bare repository, or a missing remote default branch exits nonzero. A dry run reports `STATUS=blocked` with exit zero; execute mode returns nonzero when its collected facts are blocked.
 
 ## Side effects
 

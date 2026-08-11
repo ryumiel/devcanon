@@ -12,7 +12,7 @@ From the target review worktree root, run `bash "$PR_REVIEW_DIR/scripts/approved
 
 All commands require 40-character `HEAD_SHA` and positive `PR_NUMBER`. `materialize-review-payload` additionally requires `FINDINGS_FILE`, `REVIEW_BODY_FILE`, `REVIEW_SURFACE`, and `REVIEW_EVENT`; `REVIEW_PAYLOAD_FILE` is optional and otherwise derives from the head. `materialize-validated-review-payload` requires `APPROVED_REVIEW_FILE`. `freeze-approved-review` requires `FINDINGS_FILE`, `REVIEW_BODY_FILE`, and `REVIEW_PAYLOAD_FILE`; its scope-decision path derives from `HEAD_SHA`. `validate-approved-review` and `inspect-approved-review-ownership` require `APPROVED_REVIEW_FILE`.
 
-`BASE_REF` is required for support-payload comparison. `PLAY_REVIEW_HELPER` and `PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT` are optional sibling-helper overrides. No command reads stdin.
+`BASE_REF` is required for support-payload comparison. `SCOPE_DECISION_FILE` is an optional normal binding, but when supplied it must equal the canonical path derived from `HEAD_SHA`; otherwise that canonical path is used, and its missing or unreadable artifact is refused. `PRIOR_THREADS_FILE` is also optional, but when supplied it must match the scope decision's `github-prior-threads` prior-context path. It may be omitted, while the scope decision must still carry a valid prior-context pair and support validation refuses any required prior artifact that is missing or invalid. `PLAY_REVIEW_HELPER` and `PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT` are optional sibling-helper overrides. No command reads stdin.
 
 ## Working directory
 

@@ -26,7 +26,7 @@ Missing merge evidence, invalid preflight context, unavailable runtime, or unsaf
 
 ## Side effects
 
-Successful cleanup may remove a linked worktree, update the local base branch, and delete a local head branch. For a merged same-repository PR whose remote origin matches the base repository and whose remote head still equals `PR_HEAD_SHA`, it can also delete that remote branch with `git push origin :refs/heads/<head>`; mismatched origins, protected, dirty, or locked worktrees, changed remote tips, and failed remote lookup or deletion retain the branch and report the corresponding outcome. It does not verify or perform the merge.
+Successful cleanup may remove a linked worktree, update the local base branch, and delete a local head branch. Independently of dirty, locked, or locally protected worktree state, it can delete the remote head branch with `git push origin :refs/heads/<head>` only when the PR is merged and same-repository, the head is neither the base nor default branch, the `origin` URL matches the base repository, and `ls-remote` reports exactly `PR_HEAD_SHA`; origin mismatch, remote lookup failure, a changed or absent remote tip, or failed deletion retain the remote branch and report the corresponding outcome. It does not verify or perform the merge.
 
 ## Workflow boundary
 
