@@ -7,8 +7,9 @@ fallback, and lifecycle policy.
 
 ## Request Classification
 
-Request snapshots for durable policy, behavior, contract, helper, schema,
-security-sensitive, broad, cross-skill, deletion/rename, audit, or unclear
+Request snapshots for durable policy, behavior, contract, helper, schema or type
+contracts, security-sensitive, governed outputs, generated-output behavior, broad,
+cross-skill, deletion/rename, audit, or unclear
 work. Skip only clearly localized low-risk work when ordinary DONE evidence and
 controller git/disk reads suffice. Plan hints are advisory; ambiguity requests a
 snapshot.

@@ -20,7 +20,7 @@ stops auto mode. Only then may Phase 7 classify remaining Nits.
 
 ## Remaining Nit Classification
 
-Branch Review owns objectively fixable feedback. Phase 7 passes only subjective
+`branch-review --fix` owns fixable review feedback. Phase 7 passes only subjective
 or otherwise judgment-required Nits, plus every `DOWNGRADE`, to Phase 8. A
 fixable nit withheld by a proportionality gate remains a non-mutating
 judgment-required handoff. Use `nit-classification.md` and
@@ -36,7 +36,8 @@ concrete source evidence may reopen remediation; Phase 7 never applies a
 post-mutation veto.
 
 Continue until the final run has no true Blocking finding, no new auto-fixed
-blocker, and fresh approval-summary evidence.
+blocker, and fresh final approval-summary evidence after branch-review-owned fix
+commits.
 
 ## Judgment-Required Nits Envelope
 

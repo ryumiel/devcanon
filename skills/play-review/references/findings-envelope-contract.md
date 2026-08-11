@@ -24,6 +24,42 @@ repo-relative path, HEAD-side line/start-line, severity, category, critic,
 anchor, non-empty why and recommendation, and a ready-to-post body. The schema
 does not contain evidence code or a side field; consumers reread source.
 
+### Machine contract
+
+```json
+{
+  "schema": "play-review/findings/v2",
+  "findings": [
+    {
+      "path": "<repo-relative>",
+      "line": 1,
+      "start_line": null,
+      "severity": "Blocking",
+      "category": "Logic",
+      "critic": "VALID",
+      "anchor": "natural",
+      "why": "<non-empty>",
+      "recommendation": "<non-empty>",
+      "body": "<ready-to-post>"
+    }
+  ],
+  "carry_forward": [],
+  "incomplete_topical_routes": [
+    { "route": "D7", "disposition": "NEEDS_CONTEXT" }
+  ]
+}
+```
+
+`schema` is exactly `play-review/findings/v2`; `findings` and `carry_forward`
+have the same entry shape. `line` is a HEAD-side integer and `start_line` is an
+integer or `null`; severity is `Blocking` or `Nit`; category is `Logic`,
+`Safety`, `Architecture`, `Tests`, `Maintainability`, `Documentation`, or
+`Contracts`; critic is `VALID`, `INVALID`, `DOWNGRADE`, or `null`; anchor is
+`natural`, `missing-file`, or `out-of-diff`. Each route has unique route `D7`,
+`D8`, or `D9` and disposition `NEEDS_CONTEXT`, `FAILED`, or
+`CONTROLLER_OBSERVED_FAILURE`. The canonical empty form is
+`{"schema":"play-review/findings/v2","findings":[],"carry_forward":[],"incomplete_topical_routes":[]}`.
+
 ## Write Rules
 
 Write even the canonical empty envelope. A non-empty

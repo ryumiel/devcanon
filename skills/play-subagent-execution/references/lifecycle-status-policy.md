@@ -10,6 +10,9 @@ Use `subagent-lifecycle` for shared cleanup and target capability state. Keep
 D12 implementers available through same-session D14/D15 fix loops when that
 follow-up is supported. Capture task reports, snapshot state, changed files,
 base/head and reviewed heads, routing, reviewer results, fixups, and blockers.
+It owns the generic controller lifecycle ledger, target lifecycle capability
+classification, cleanup gate before spawns, target-honest cleanup outcomes, and
+slot-limit recovery; this skill owns only execution-specific lifecycle details.
 
 ## Mutable Task-Worker Status
 
@@ -48,3 +51,56 @@ available evidence. D12 may receive bounded recoverable context only within
 the existing task scope; unresolved gaps remain incomplete under the owning
 caller. Do not invent effort/model overrides. Record blockers as stable family
 plus detail and escalate repeated family behavior instead of retrying unchanged.
+
+## Policy Record
+
+```json
+{
+  "schema": "play-subagent-execution/lifecycle-status/v1",
+  "d13": {
+    "boundary_statuses": ["NEEDS_CONTEXT", "BLOCKED"],
+    "boundary_reclassifies_to": "D12",
+    "non_boundary_reclassifies_to": "D12"
+  },
+  "approved_auto_route": {
+    "id": "issue-priming-workflow --auto",
+    "recoverable_non_gate": "continue",
+    "unresolved_context_or_scope": "incomplete"
+  },
+  "review": {
+    "dispositions": [
+      "pending",
+      "final-pass",
+      "final-findings",
+      "advisory",
+      "stale",
+      "superseded"
+    ],
+    "same_head_reviewers": ["D14", "D15"],
+    "fix_invalidates": ["D14", "D15"],
+    "guard_order": [
+      "capture",
+      "spawn",
+      "verify",
+      "validate-retain",
+      "cleanup",
+      "apply"
+    ],
+    "unusable_result": "BLOCKED"
+  },
+  "d16": {
+    "role": "deep-reviewer",
+    "response_only": true,
+    "whole_range": true,
+    "never_reuses": "D15",
+    "blocking_findings_reclassify_to": "D12",
+    "fix_requires_fresh_review": true,
+    "guard_failure": "terminal-source-visible"
+  }
+}
+```
+
+The record is the normative compact policy for D12-D16. D14 and D15 use
+separate sessions, prompts, and baselines for the same captured task head. D16
+is fresh after every fix and after all tasks; the ADR-0016 single-task verified
+auto carve-out remains the only documented exception.

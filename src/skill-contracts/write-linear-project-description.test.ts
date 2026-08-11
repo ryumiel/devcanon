@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   getMarkdownSection,
   normalizeWhitespace,
+  readRepoFile,
   readSkillSource,
 } from "../__test-helpers__/skill-contracts.js";
 
@@ -78,7 +79,10 @@ describe("write-linear-project-description source contracts", () => {
       getMarkdownSection(skillSource, "Workflow"),
     );
     const helperContract = normalizeWhitespace(
-      getMarkdownSection(skillSource, "Draft Helper"),
+      getMarkdownSection(skillSource, "Draft Helper Boundary"),
+    );
+    const helperUsage = await readRepoFile(
+      "skills/write-linear-project-description/references/prepare-project-description-draft-usage.md",
     );
 
     expect(workflow).toContain("Default to draft mode.");
@@ -94,23 +98,17 @@ describe("write-linear-project-description source contracts", () => {
       "must not change the selected field, issue-evidence separation, style-reference treatment, or apply/draft decision.",
     );
     expect(helperContract).toContain(
-      'WRITE_LINEAR_PROJECT_DESCRIPTION_DIR="<installed-write-linear-project-description-skill-bundle>"',
+      "prepare-project-description-draft-usage.md",
     );
+    expect(helperContract).toContain("A helper refusal stops drafting.");
     expect(helperContract).toContain(
-      'bash "$WRITE_LINEAR_PROJECT_DESCRIPTION_DIR/scripts/prepare-project-description-draft.sh"',
+      "it does not publish to Linear or write the body",
     );
-    expect(helperContract).toContain(
-      "The helper prepares direct-child `.ephemeral/` paths and does not write draft body content.",
-    );
-    expect(helperContract).toContain("PROJECT_KEY");
-    expect(helperContract).toContain("TARGET_FIELDS");
-    expect(helperContract).toContain("REPLACE_EXISTING");
-    expect(helperContract).toContain(
-      "<project-key>-project-description-draft.md",
-    );
-    expect(helperContract).toContain(
-      "<project-key>-project-content-brief-draft.md",
-    );
+    expect(helperUsage).toContain("PROJECT_KEY");
+    expect(helperUsage).toContain("TARGET_FIELDS");
+    expect(helperUsage).toContain("REPLACE_EXISTING");
+    expect(helperUsage).toContain("one validated repo-relative draft path");
+    expect(helperUsage).toContain("two paths for `both`");
   });
 
   it("allows apply mode only for explicit approved field mutations", async () => {

@@ -12,6 +12,19 @@ Phase 6 auto mode, the plan path, and the parent head, and records that Phase 7
 requires branch-review fix handling, rerun after branch-review commits, and a
 final approval-summary notice. It is audit evidence, not a bearer token.
 
+```json
+{
+  "schema": "issue-priming/auto-handoff/v1",
+  "phase": "issue-priming-workflow:6",
+  "mode": "auto",
+  "plan_path": "<PLAN_PATH>",
+  "head_sha": "<git HEAD sha>",
+  "phase7_branch_review_fix_required": true,
+  "phase7_rerun_after_commits": true,
+  "phase7_final_approval_summary_notice_required": true
+}
+```
+
 ## Parent State
 
 Phase 6 carries `ISSUE_PRIMING_AUTO_PARENT_ACTIVE=true` and a pre-handoff
