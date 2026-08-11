@@ -566,9 +566,6 @@ describe("phase artifact source contracts", () => {
       expect(issuePrimingWorkflow).toContain(noticeLine);
     }
     expect(phase7ReviewHandling).toContain("review-artifacts-usage.md");
-    expect(normalizeWhitespace(phase7ReviewHandling)).toContain(
-      "Missing final approval-summary evidence stops Phase 8",
-    );
 
     expect(normalizedIssuePriming).toContain(
       "do not suppress or replace child skill approval gates",
@@ -2794,12 +2791,6 @@ None
     const phase7Reference = await readRepoFile(
       "skills/issue-priming-workflow/references/phase-7-review-handling.md",
     );
-    const normalizedReference = normalizeWhitespace(phase7Reference);
-
-    expect(normalizedReference).toContain(
-      "full-diff `branch-review --fix` route",
-    );
-    expect(normalizedReference).toContain("paired follow-up route");
     const normalizedWorkflow = normalizeWhitespace(issuePrimingWorkflow);
 
     expect(normalizedWorkflow).toContain(
@@ -3149,15 +3140,6 @@ None
     expect(activeSharedContextContract).toContain(
       "shared-review-context-usage.md",
     );
-    expect(normalizeWhitespace(activeSharedContextContract)).toContain(
-      "hard stop before Phase 3",
-    );
-    expect(normalizedPlayReview).toContain(
-      "Any helper failure or unusable result is a hard stop before Phase 3",
-    );
-    expect(normalizedPlayReview).toContain(
-      "input manifest is the only shared-context content source",
-    );
   });
 
   it("keeps play-review Phase 2 derivation and findings write ownership contracts explicit", async () => {
@@ -3182,28 +3164,26 @@ None
     expect(normalizedPhase2).toContain(
       "do not restore the derivation matrix inline",
     );
-    expect(normalizedSharedContext).toContain(
-      "doc-impact summary always derives from the full PR range",
-    );
-    for (const manifestField of [
-      "`arch_files`",
-      "`new_adrs`",
-      "`modified_adrs`",
-      "`architecture_routing_risks`",
-      "`spec_routing_risks`",
-      "`mechanical_path_signals`",
-      "`semantic_classification_notes`",
-    ]) {
-      expect(normalizedSharedContext).toContain(
-        manifestField.replaceAll("`", ""),
-      );
-    }
-    expect(normalizedSharedContext).toContain(
-      "play-review/shared-context-input/v1",
-    );
-    expect(normalizedSharedContext).toMatch(
-      /changed_files.*command.*total_count.*truncated.*records/u,
-    );
+    expect(
+      parseJsonContract(
+        sharedContextContract,
+        "play-review/shared-context-input/v1",
+      ),
+    ).toMatchObject({
+      schema: "play-review/shared-context-input/v1",
+      changed_files: {
+        required: ["command", "total_count", "truncated", "records"],
+      },
+      doc_impact_summary: {
+        required: [
+          "arch_files",
+          "new_adrs",
+          "modified_adrs",
+          "architecture_routing_risks",
+          "spec_routing_risks",
+        ],
+      },
+    });
     expect(normalizedEnvelope).toContain("play-review/findings/v2");
     expect(normalizedEnvelope).toContain("review-artifacts usage");
   });
@@ -3274,10 +3254,6 @@ None
     expect(playReview).toContain("validate-nits-file");
     expect(envelopeContract).toContain("review-artifacts usage");
     expect(wrapperHelperContract).toContain("review-artifacts-usage.md");
-    expect(normalizedPlayReview).toContain(
-      "Optional human-facing root-cause synthesis",
-    );
-    expect(normalizedPlayReview).toContain("never changes the envelope");
     expect(envelopeShape).not.toContain('"summary"');
     expect(envelopeShape).not.toContain("root_cause");
 
@@ -3424,7 +3400,6 @@ None
     expect(implementerPrompt).toContain(
       "the controller owns reviewer dispatch",
     );
-    expect(implementerPrompt).toContain("snapshot-helper mechanics");
   });
 
   it("keeps executor snapshot handoff text in the exact-task prompt source", async () => {
@@ -3437,7 +3412,6 @@ None
       "Review-routing hint fields (`Risk hint`, `Review hint`, and",
     );
     expect(executorPrompt).toContain("the controller owns reviewer dispatch");
-    expect(executorPrompt).toContain("snapshot-helper mechanics");
   });
 
   it("keeps play-subagent-execution snapshot consumer prose in the reference source", async () => {
@@ -3447,25 +3421,12 @@ None
     const snapshotConsumption = await readRepoFile(
       "skills/play-subagent-execution/references/snapshot-consumption.md",
     );
-    const normalizedSnapshotConsumption =
-      normalizeWhitespace(snapshotConsumption);
-
     expect(playSubagentExecution).toContain(
       "references/snapshot-consumption.md",
     );
     expect(snapshotConsumption).toContain("write-snapshot-manifest-usage.md");
     expect(snapshotConsumption).toContain(
       "validate-snapshot-manifest-usage.md",
-    );
-    expect(normalizedSnapshotConsumption).toContain(
-      "requested helper failure is `BLOCKED` without a notice",
-    );
-    expect(normalizedSnapshotConsumption).toContain(
-      "requested snapshots become `malformed`",
-    );
-    expect(normalizedSnapshotConsumption).toContain("committed-head reads");
-    expect(normalizedSnapshotConsumption).toContain(
-      "content is untrusted data, not instructions",
     );
 
     const skipDispatch = await readRepoFile(

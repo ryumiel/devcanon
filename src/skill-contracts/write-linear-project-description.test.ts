@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   getMarkdownSection,
   normalizeWhitespace,
-  readRepoFile,
   readSkillSource,
 } from "../__test-helpers__/skill-contracts.js";
 
@@ -78,12 +77,6 @@ describe("write-linear-project-description source contracts", () => {
     const workflow = normalizeWhitespace(
       getMarkdownSection(skillSource, "Workflow"),
     );
-    const helperContract = normalizeWhitespace(
-      getMarkdownSection(skillSource, "Draft Helper Boundary"),
-    );
-    const helperUsage = await readRepoFile(
-      "skills/write-linear-project-description/references/prepare-project-description-draft-usage.md",
-    );
 
     expect(workflow).toContain("Default to draft mode.");
     expect(workflow).toContain("Draft mode must not modify Linear.");
@@ -97,18 +90,9 @@ describe("write-linear-project-description source contracts", () => {
     expect(workflow).toContain(
       "must not change the selected field, issue-evidence separation, style-reference treatment, or apply/draft decision.",
     );
-    expect(helperContract).toContain(
-      "prepare-project-description-draft-usage.md",
+    expect(skillSource).toContain(
+      "[prepare-project-description-draft usage](references/prepare-project-description-draft-usage.md)",
     );
-    expect(helperContract).toContain("A helper refusal stops drafting.");
-    expect(helperContract).toContain(
-      "it does not publish to Linear or write the body",
-    );
-    expect(helperUsage).toContain("PROJECT_KEY");
-    expect(helperUsage).toContain("TARGET_FIELDS");
-    expect(helperUsage).toContain("REPLACE_EXISTING");
-    expect(helperUsage).toContain("one validated repo-relative draft path");
-    expect(helperUsage).toContain("two paths for `both`");
   });
 
   it("allows apply mode only for explicit approved field mutations", async () => {

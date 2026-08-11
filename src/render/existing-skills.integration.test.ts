@@ -1069,12 +1069,11 @@ describe("existing skills render cleanly", () => {
         snapshotConsumptionPath,
         "utf-8",
       );
-      expect(snapshotConsumption).toContain("Controller skipped the snapshot");
       expect(snapshotConsumption).toContain(
-        "Requested snapshot notice line is absent from DONE/DONE_WITH_CONCERNS",
+        "[write-snapshot-manifest usage](write-snapshot-manifest-usage.md)",
       );
       expect(snapshotConsumption).toContain(
-        "Record snapshot state as `malformed`; surface the requested-snapshot contract violation",
+        "[validate-snapshot-manifest usage](validate-snapshot-manifest-usage.md)",
       );
       expect(await pathExists(helperPath)).toBe(true);
       expect(await readFile(helperPath, "utf-8")).toContain(

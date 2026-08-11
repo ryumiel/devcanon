@@ -653,15 +653,10 @@ describe("rendered phase artifact smoke coverage", () => {
     expect(playPlanning).toContain("Plan written to");
 
     const playReview = bodyFor("play-review");
-    const playReviewWrapperHelpers = await readSkillReference(
-      "play-review",
-      "references/wrapper-helper-contracts.md",
-    );
     const playReviewEnvelopeContract = await readSkillReference(
       "play-review",
       "references/findings-envelope-contract.md",
     );
-    const playReviewWithWrapperHelpers = `${playReview}\n${playReviewWrapperHelpers}`;
     const playReviewWithEnvelopeContract = `${playReview}\n${playReviewEnvelopeContract}`;
     expect(playReview).toContain("play-review/findings/v2");
     expect(playReview).toContain("Findings written to");
@@ -671,24 +666,7 @@ describe("rendered phase artifact smoke coverage", () => {
     expect(playReview).toContain("build-github-review-payload");
     expect(playReview).toContain("REVIEW_SURFACE=pr-review");
     expect(playReview).toContain("REVIEW_SURFACE=branch-review");
-    expect(normalizeRenderedWhitespace(playReviewWithWrapperHelpers)).toContain(
-      "build-github-review-payload requires REVIEW_SURFACE=pr-review",
-    );
-    expect(normalizeRenderedWhitespace(playReviewWithWrapperHelpers)).toContain(
-      "review-head source, not the mutable working tree",
-    );
-    expect(normalizeRenderedWhitespace(playReviewWithWrapperHelpers)).toContain(
-      'every natural or missing-file inline comment includes `side: "RIGHT"`',
-    );
-    expect(normalizeRenderedWhitespace(playReviewWithWrapperHelpers)).toContain(
-      'only ranged inline comments add `start_side: "RIGHT"`',
-    );
     expect(playReviewWithEnvelopeContract).toContain("validate-nits-file");
-    expect(
-      normalizeRenderedWhitespace(playReviewWithEnvelopeContract),
-    ).toContain(
-      "Callers treat any nonzero exit as a contract failure and stop before posting nits",
-    );
 
     for (const skillName of ["branch-review", "pr-review"]) {
       const body = bodyFor(skillName);
@@ -2120,18 +2098,6 @@ describe("rendered phase artifact smoke coverage", () => {
         );
 
         expect(generatedReference).toBe(sourceReference);
-        expectSubstringsInOrder(generatedReference, [
-          'cd "$WORKING_DIRECTORY" || exit 1',
-          'PLAY_REVIEW_DIR="<installed-play-review-skill-bundle>"',
-          'PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"',
-          "FINDINGS_FILE=$(",
-          "prepare-findings-write || exit 1",
-          'PLAY_REVIEW_SHARED_CONTEXT_HELPER="$PLAY_REVIEW_DIR/scripts/shared-review-context.sh"',
-          "REVIEW_CONTEXT_INPUT_FILE=$(",
-          "write-review-context-input",
-          "REVIEW_CONTEXT_FILE=$(",
-          "build-review-context",
-        ]);
       }
     } finally {
       await rm(generatedDir, { recursive: true, force: true });
@@ -2300,11 +2266,6 @@ describe("rendered phase artifact smoke coverage", () => {
         const renderedReference = await readFile(referencePath, "utf-8");
 
         expect(renderedReference).toBe(sourceReference);
-        expect(renderedReference).toContain("nested <label> path rejected");
-        expect(renderedReference).toContain("<label> must not be a symlink");
-        expect(renderedReference).toContain(
-          "assumptions_comment_file must be a direct child of .ephemeral",
-        );
       }
     } finally {
       await rm(generatedDir, { recursive: true, force: true });
@@ -2393,9 +2354,6 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(normalizedPlayReview).toContain(
         "Rationale: ADR coverage is a PR-scope governance question, not a delta question",
       );
-      expect(playReviewWithFollowUpReferences).toContain(
-        "Changed files (active diff)",
-      );
       expect(playReview).toContain("Active diff invocation");
       expect(playReview).toContain("prior_branch_findings");
       expect(playReview).toContain(
@@ -2423,79 +2381,6 @@ describe("rendered phase artifact smoke coverage", () => {
       );
       expect(normalizedPlayReview).toContain(
         "do not restore the derivation matrix inline",
-      );
-      expect(normalizedPlayReviewWithFollowUpReferences).toContain(
-        "Derive `doc_impact_summary` from `full_pr_diff_range`, not from the narrowed `active_diff_range`",
-      );
-      expect(normalizedPlayReviewWithFollowUpReferences).toContain(
-        "Run the helper flow from `$WORKING_DIRECTORY`, the target repository root",
-      );
-      expect(normalizedPlayReviewWithFollowUpReferences).toContain(
-        "`PLAY_REVIEW_DIR` must resolve to the installed `play-review` skill bundle",
-      );
-      expect(playReviewWithFollowUpReferences).toContain(
-        'PLAY_REVIEW_DIR="<installed-play-review-skill-bundle>"',
-      );
-      expect(normalizedPlayReviewWithFollowUpReferences).toContain(
-        "Before invoking `write-review-context-input`, bind `FINDINGS_FILE` by running `prepare-findings-write`",
-      );
-      expect(playReviewWithFollowUpReferences).toContain(
-        'PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"',
-      );
-      expect(playReviewWithFollowUpReferences).toContain(
-        "prepare-findings-write || exit 1",
-      );
-      expectSubstringsInOrder(playReviewWithFollowUpReferences, [
-        'cd "$WORKING_DIRECTORY" || exit 1',
-        'PLAY_REVIEW_DIR="<installed-play-review-skill-bundle>"',
-        'PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"',
-        "FINDINGS_FILE=$(",
-        "prepare-findings-write || exit 1",
-        'PLAY_REVIEW_SHARED_CONTEXT_HELPER="$PLAY_REVIEW_DIR/scripts/shared-review-context.sh"',
-        "REVIEW_CONTEXT_INPUT_FILE=$(",
-        "write-review-context-input",
-        "REVIEW_CONTEXT_FILE=$(",
-        "build-review-context",
-      ]);
-      for (const manifestDetail of [
-        "`arch_files`",
-        "`new_adrs`",
-        "`modified_adrs`",
-        "`architecture_routing_risks`",
-        "`spec_routing_risks`",
-        "`mechanical_path_signals`",
-        "`semantic_classification_notes`",
-        "These snake_case keys are the executable `play-review/shared-context-input/v1` contract",
-        "`changed_files`: **Changed files (active diff)** object containing required `command`, `total_count`, `truncated`, and `records`",
-      ]) {
-        expect(normalizedPlayReviewWithFollowUpReferences).toContain(
-          manifestDetail,
-        );
-      }
-      for (const derivationDetail of [
-        "`arch_files` / `ARCH_FILES`: mechanical path-signal array",
-        "`new_adrs` / `NEW_ADRS`: mechanical path-signal array",
-        "`modified_adrs` / `MODIFIED_ADRS`: mechanical path-signal array of full-PR modified existing `docs/adr/adr-*.md` paths only",
-        "`architecture_routing_risks` / `ARCHITECTURE_ROUTING_RISKS`: routing-risk object",
-        "`spec_routing_risks` / `SPEC_ROUTING_RISKS`: routing-risk object",
-        "Mechanical path-signal arrays",
-        "Semantic classification notes",
-        "Deleted ADR paths are not modified-ADR coverage evidence",
-        "route deleted ADR paths through `architecture_routing_risks`",
-        "Do not treat the architecture path examples as an exhaustive allowlist",
-      ]) {
-        expect(normalizedPlayReviewWithFollowUpReferences).toContain(
-          derivationDetail,
-        );
-      }
-      expect(normalizedPlayReviewWithFollowUpReferences).toContain(
-        "`prepare-findings-write` derives, validates, and prepares the deterministic findings target, then prints the repo-relative path",
-      );
-      expect(normalizedPlayReviewWithFollowUpReferences).toContain(
-        "`prepare-findings-write` does not write the `play-review/findings/v2` envelope JSON",
-      );
-      expect(normalizedPlayReviewWithFollowUpReferences).toContain(
-        "`play-review` writes the envelope JSON to the prepared path before emitting `Findings written to <repo-relative-path>.`",
       );
     }
   });

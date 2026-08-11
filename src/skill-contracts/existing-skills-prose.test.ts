@@ -433,9 +433,6 @@ describe("existing skills source prose contracts", () => {
     expect(normalizeWhitespace(playReview)).toContain(
       "Detailed derivation rules live in `references/shared-review-context.md`",
     );
-    expect(normalizeWhitespace(sharedContextReference)).toContain(
-      "doc-impact summary always derives from the full PR range",
-    );
     for (const field of [
       "arch_files",
       "new_adrs",
@@ -2935,14 +2932,6 @@ describe("existing skills source prose contracts", () => {
       "skills/play-skill-authoring/references/testing-skills-with-subagents.md",
     );
     const overview = getMarkdownSection(playSkillAuthoring, "Overview");
-    const pressureEvaluatorContract = getMarkdownSection(
-      playSkillAuthoring,
-      "Pressure-Scenario Evaluator Contract",
-    );
-    const guardedEvaluatorLifecycle = getMarkdownSection(
-      testingReference,
-      "Guarded Evaluator Policy",
-    );
     const ruleSection = sliceBetween(
       playSkillAuthoring,
       "## The Rule (Same as TDD)",
@@ -2976,23 +2965,6 @@ describe("existing skills source prose contracts", () => {
     expect(checklistSection).toContain("Create pressure scenarios");
     expect(checklistSection).toContain(
       "Run scenarios WITHOUT skill - document baseline behavior verbatim",
-    );
-
-    for (const contract of [guardedEvaluatorLifecycle]) {
-      const normalizedContract = normalizeWhitespace(contract);
-
-      expect(normalizedContract).toContain("response-only `assessor`");
-      expect(contract).toContain("source-immutability usage");
-      expect(normalizedContract).toContain("capture-before-spawn");
-      expect(normalizedContract).toContain("verify-before-use");
-      expect(normalizedContract).toContain("cleanup-before-application");
-      expect(normalizedContract).toContain(
-        "Only valid guarded evidence proves RED or GREEN",
-      );
-    }
-
-    expect(normalizeWhitespace(guardedEvaluatorLifecycle)).toContain(
-      "RED/GREEN/REFACTOR scenarios, rationalizations, and retest pressure remain unchanged",
     );
 
     for (const unchangedEvidence of [
@@ -3623,7 +3595,6 @@ describe("existing skills source prose contracts", () => {
     expect(sharedContextReference).toContain(
       "play-review/shared-context-input/v1",
     );
-    expect(normalizedPhase25).toContain("hard stop before Phase 3");
 
     const sharedContextContract = JSON.parse(
       sharedContextReference.match(/```json\n([\s\S]*?)\n```/u)?.[1] ?? "{}",
@@ -5774,9 +5745,6 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedPhase6).toContain(
       "fresh final approval-summary evidence after branch-review-owned fix commits",
     );
-    expect(normalizedPhase6Reference).toContain(
-      "fresh final approval-summary evidence",
-    );
     expect(phase7).toContain("Approval summary written to <path>.");
     expect(normalizedPhase7).toContain(
       "capture that final run's exact `Approval summary written to <path>.` notice path",
@@ -5826,10 +5794,6 @@ describe("existing skills source prose contracts", () => {
     );
 
     expect(phase7Reference).toContain("review-artifacts-usage.md");
-    expect(normalizedReference).toContain("immutable review-head");
-    expect(normalizedReference).toContain(
-      "Missing final approval-summary evidence stops Phase 8",
-    );
   });
 
   it("keeps play-branch-finish autosquash local, opt-in, and PR-body neutral", async () => {

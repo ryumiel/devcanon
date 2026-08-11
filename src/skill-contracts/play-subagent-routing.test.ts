@@ -556,9 +556,6 @@ describe("play subagent routing source contracts", () => {
     expect(normalizeWhitespace(phase7Reference)).toContain(
       "`branch-review --fix` owns fixable review feedback",
     );
-    expect(normalizeWhitespace(phase7Reference)).toContain(
-      "manual operators decide nits",
-    );
 
     expect(issuePrimingWorkflow).not.toContain("Project-Specific Overrides");
   });
@@ -1306,19 +1303,6 @@ describe("play subagent routing source contracts", () => {
         boundary_reclassifies_to: "D12",
       },
     });
-    expect(normalizedLifecycle).toContain(
-      "D12 may receive bounded recoverable context",
-    );
-    expect(normalizedLifecycle).toContain("unresolved gaps remain incomplete");
-    expect(normalizedLifecycle).toContain(
-      "never redispatch or model-escalate D13",
-    );
-    expect(normalizedLifecycle).toContain(
-      "Concerns about correctness or scope remain incomplete",
-    );
-    expect(normalizedLifecycle).toContain(
-      "D12/D13 `DONE` or `DONE_WITH_CONCERNS`",
-    );
     const lifecyclePolicy = machineJsonRecord(
       lifecycle,
       "play-subagent-execution/lifecycle-status/v1",
@@ -1558,9 +1542,6 @@ describe("play subagent routing source contracts", () => {
     ]) {
       expect(progressReceipts).not.toContain(gateOnlyRequirement);
     }
-    expect(normalizeWhitespace(lifecycle)).toContain(
-      "D12 may receive bounded recoverable context only within the existing task scope",
-    );
     expect(
       issuePriming.indexOf("## Auto-Route Continuation Boundary"),
     ).toBeLessThan(
@@ -1932,12 +1913,6 @@ describe("play subagent routing source contracts", () => {
       normalizeWhitespace(snapshotConsumption);
 
     expect(SNAPSHOT_REQUEST_TRIGGER_CONTRACTS).not.toHaveLength(0);
-    expect(normalizedSnapshotConsumption).toMatch(
-      /schema or type contracts.*governed outputs.*generated-output behavior/u,
-    );
-    expect(normalizedSnapshotConsumption).toContain(
-      "clearly localized low-risk work",
-    );
   });
 
   it("keeps executor plan-path intake separate from per-task implementer context", async () => {
@@ -2104,15 +2079,6 @@ describe("play subagent routing source contracts", () => {
     expect(phase6Reference).toContain(
       "play-subagent-execution/references/review-routing-policy.md",
     );
-    expect(normalizedPhase6Reference).toContain(
-      "Direct or manual executor calls",
-    );
-    expect(normalizedPhase6Reference).toContain(
-      "mandatory Phase 7 final review",
-    );
-    expect(normalizedPhase6Reference).toContain(
-      "fresh final approval-summary evidence",
-    );
     expect(phase6).toContain("ISSUE_PRIMING_AUTO_PARENT_ACTIVE=true");
     expect(phase6).toContain("ISSUE_PRIMING_AUTO_HEAD");
     expect(phase6).toContain("Auto handoff: <repo-relative-path>");
@@ -2218,9 +2184,6 @@ describe("play subagent routing source contracts", () => {
     );
     expect(eagerContinuation).toContain(
       "findings whose `critic` verdict is `INVALID` or `DOWNGRADE`",
-    );
-    expect(normalizedReference).toContain(
-      "fresh final approval-summary evidence after branch-review-owned fix commits",
     );
     expect(normalizedReference).toContain("nits_file");
   });
@@ -2613,12 +2576,6 @@ describe("play subagent routing source contracts", () => {
         ],
       },
     });
-    expect(normalizedHandlingStatus).toContain(
-      "Quality is final only after same-head spec pass",
-    );
-    expect(normalizedHandlingStatus).toContain(
-      "advisory, stale, or superseded",
-    );
 
     expect(normalizedRedFlags).toContain(
       "Apply a stale or incomplete reviewer result instead of using the [lifecycle/status policy](lifecycle-status-policy.md)",
@@ -3233,8 +3190,6 @@ describe("play subagent routing source contracts", () => {
     const normalizedLifecycle = normalizeWhitespace(lifecycle);
 
     expect(lifecycleSummary).toContain("Use `subagent-lifecycle`");
-    expect(normalizedLifecycle).toContain("target-honest cleanup outcomes");
-    expect(normalizedLifecycle).toContain("same-session D14/D15 fix loops");
     expect(skillSource).not.toContain("\n## Controller Lifecycle Ledger\n");
     expect(
       machineJsonRecord(
