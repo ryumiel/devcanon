@@ -18,16 +18,17 @@ signature, not a downgrade signal.
 
 Literal verification is the first part of a calibrated judgment, not evidence
 that a blocker is automatically valid. The critic first tries to falsify the
-unchanged finding `why` at the captured reviewed head, then asks whether it has
-a reachable consequence or an actual breach of an applicable repository-owned
-obligation and, separately, whether the supported candidate or obligation
-breach crosses the merge gate. This keeps a real but non-blocking concern
-distinct from an unsupported claim, while preserving obligation-backed
-architecture, documentation, safety, and consumer-owned test findings that do
-not reduce to one executable path. Duplicate retention comes only after those
-individual judgments. Only candidates with matching verdict, remediation, and
-effective anchor plus the same supported reachable consequence or the same
-violated obligation share a duplicate group, which retains its lowest current
-ordinal. Mixed `VALID`/`DOWNGRADE` verdicts remain separate so an independently
-blocking candidate remains retained; ambiguity, different anchors, and
-carry-forward items also stay separate.
+unchanged finding `why` at the captured reviewed head. It then determines
+whether a blocker has a reachable consequence or actual breach of an applicable
+repository-owned obligation and independently crosses the merge gate. A real,
+supported current concern below that gate is instead a Nit: the critic
+actionability-checks it as `RETAIN` or `INVALID`, never promotes it, and the
+retained final Nit keeps `critic: null`.
+
+Duplicate retention comes only after those individual outcomes. Only candidates
+with the same supported reachable consequence or violated obligation,
+remediation, effective anchor, and compatible severity/outcome class share a
+group. A group never mixes Nits with blockers or blocker verdicts; duplicate
+`RETAIN` Nits may collapse, while a `VALID` blocker retains a `VALID`
+representative. Ambiguity, different anchors, and carry-forward items also stay
+separate.

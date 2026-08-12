@@ -110,11 +110,14 @@ summary in its briefing:
 - Durable decision plus new covering `docs/adr/adr-NNNN-*.md`: pass.
 - Durable decision plus existing covering ADR modified: pass.
 - Deleted ADRs are never coverage evidence. Route deleted ADR paths as
-  architecture risk, and require a new or modified successor ADR when the diff
-  makes or removes a durable decision.
-- Durable decision with no new or modified covering ADR:
-  `Blocking | Documentation` recommending a covering ADR per
-  `docs/adr/adr-template.md`.
+  architecture risk. When an applicable authoritative consumer-repository
+  policy requires ADR coverage, a diff that makes or removes a durable decision
+  requires a new or modified successor ADR.
+- Durable decision with no new or modified covering ADR: emit a
+  `Blocking | Documentation` finding recommending a covering ADR per
+  `docs/adr/adr-template.md` only when an applicable authoritative
+  consumer-repository policy requires ADR coverage; otherwise, make no
+  workflow-owned ADR finding.
 - Implementation detail or refactor without durable decision: no finding.
 
 Apply the same judgment for `MAP.md` and `docs/arch/` when major file paths,

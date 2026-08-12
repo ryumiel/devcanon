@@ -25,23 +25,29 @@ or its envelope into a second policy owner.
 A blocking finding must establish a current issue through a supported reachable
 current-diff consequence or an actual breach of an applicable repository
 obligation, then independently cross the repository's merge gate. Obligation
-applicability alone is insufficient. A supported issue or actual obligation
-breach below that gate is a non-blocking concern. Hypothetical consumers,
-missing premises, preference-only refactors, proof-for-proof requests, and
-over-engineering do not establish a blocking finding.
+applicability alone is insufficient. A real, supported issue or actual
+obligation breach below that gate is a non-blocking concern and remains eligible
+as a `Nit`. Hypothetical consumers, missing premises, preference-only refactors,
+proof-for-proof requests, and over-engineering do not establish either severity.
+The consumer repository owns whether ADR coverage is an applicable obligation;
+`play-review` discovers and fails closed on that policy when it exists, but does
+not create an independent workflow-owned ADR requirement.
 
 The critic falsifies the unchanged finding `why`, rather than an undeclared
 assertion field. This retains the existing `play-review/findings/v2` contract
 and leaves the controller unable to repair or strengthen a finding during
 handoff.
 
-Candidates are calibrated independently before duplicate retention. Current
-candidates may share a duplicate group only when their calibrated verdict,
-remediation, and effective anchor match, and they rely on the same supported
-reachable consequence or the same violated obligation. The lowest stable
-ordinal is retained only within that verdict-homogeneous group. Mixed verdicts,
-ambiguous support, different anchors, and carry-forward candidates remain
-separate.
+Every current candidate is calibrated independently before duplicate retention.
+Blockers receive `VALID`, `DOWNGRADE`, or `INVALID`; Nits receive transient
+`RETAIN` or `INVALID` without promotion. Current candidates may share a
+duplicate group only when their compatible severity/outcome class, remediation,
+and effective anchor match, and they rely on the same supported reachable
+consequence or the same violated obligation. The lowest stable ordinal is
+retained only within that compatible group. A group never mixes Nits with
+blockers or blocker verdicts, so a `VALID` blocker retains a `VALID`
+representative; duplicate retained Nits may consolidate. Ambiguous support,
+different anchors, and carry-forward candidates remain separate.
 
 The DevCanon-local code-review guideline remains the normative owner of this
 judgment. `play-review` is the consumer-repository operational method, and its
@@ -51,12 +57,14 @@ existing envelope schema remains unchanged.
 
 - Reviewers can preserve obligation-backed findings without mistaking an
   applicable but unbreached rule for a defect.
-- A real, non-blocking concern can be retained as a `Nit` rather than inflated
-  into a merge gate.
-- Duplicate reports of the same consequence can consolidate, while mixed
-  `VALID` and `DOWNGRADE` outcomes cannot erase a blocker.
-- Critic handoff remains bounded to existing finding fields, at the cost of
-  requiring reviewers to express the claim clearly in `why`.
+- A real, non-blocking concern is checked for actionability and can be retained
+  as a `Nit` rather than inflated into a merge gate.
+- Duplicate reports of the same consequence can consolidate only in compatible
+  severity/outcome classes, while a `VALID` blocker retains a `VALID`
+  representative.
+- Critic handoff passes each complete current finding unchanged except for a
+  stable ordinal, so existing location and evidence stay available without a
+  second handoff schema.
 
 ## Alternatives considered
 
