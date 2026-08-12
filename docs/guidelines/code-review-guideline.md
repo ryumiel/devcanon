@@ -107,7 +107,8 @@ A test-coverage finding must identify:
 
 If the finding only asks a transparent consumer to repeat owner-level proof, it
 is invalid. If it asks for exhaustive primitive-failure injection without a
-concrete acceptance, safety, or production regression, it is nonblocking.
+concrete acceptance, safety, or production regression, it is invalid. A
+supported current test-design issue that stays below the merge gate is a Nit.
 
 Examples:
 
