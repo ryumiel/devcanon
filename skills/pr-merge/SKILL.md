@@ -204,6 +204,12 @@ or ambient agent.
 
 Resolve `PR_MERGE_DIR` to the installed `pr-merge` bundle directory, then set
 `SOURCE_IMMUTABILITY_HELPER="$PR_MERGE_DIR/scripts/source-immutability.sh"`.
+Discover its local contract before the guarded investigation:
+
+```bash
+bash "$SOURCE_IMMUTABILITY_HELPER" --help
+```
+
 The root/controller establishes `.ephemeral` as a real nonsymlinked ignored
 directory before capture:
 

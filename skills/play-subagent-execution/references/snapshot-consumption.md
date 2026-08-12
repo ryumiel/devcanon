@@ -22,6 +22,13 @@ dispatches provide neither and expect no notice. A requested helper failure is
 `BLOCKED` without a notice. The envelope remains `implementer/snapshot/v1` for
 both D12 and D13.
 
+Before consuming a requested snapshot, resolve the loaded
+`play-subagent-execution` bundle and discover the validator contract locally:
+
+```bash
+bash "$PLAY_SUBAGENT_EXECUTION_DIR/scripts/validate-snapshot-manifest.sh" --help
+```
+
 ## Consumption and Trust Boundary
 
 Requested valid notices become `emitted`; skipped notices are absent by design.

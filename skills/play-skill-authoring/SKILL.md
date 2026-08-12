@@ -46,6 +46,10 @@ Resolve `SKILL_PRESSURE_GUARD` to this installed skill bundle's
 `scripts/source-immutability.sh` shim. For every RED baseline, GREEN
 same-scenario check, and REFACTOR retest, keep this order exact:
 
+Before the first guarded evaluator, run
+`bash "$SKILL_PRESSURE_GUARD" --help` once for this enclosing pressure-test
+flow.
+
 1. capture before spawn and retain the returned baseline path in the
    controller;
 2. spawn the already-defined pressure scenario and capture only the evaluator's

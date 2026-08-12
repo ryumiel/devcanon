@@ -6,6 +6,14 @@ for `write-review-context-input` and `build-review-context`. These operations
 are ordered: prepare findings, write the input, then build context. Any helper
 failure or unusable result is a hard stop before Phase 3.
 
+At that executable action, resolve the installed `play-review` bundle and
+discover both local contracts before running the ordered operations:
+
+```bash
+bash "$PLAY_REVIEW_DIR/scripts/review-artifacts.sh" --help
+bash "$PLAY_REVIEW_DIR/scripts/shared-review-context.sh" --help
+```
+
 ## Context Policy
 
 Phase 2.5 creates bounded context for topical reviewers. `SKILL.md` owns when

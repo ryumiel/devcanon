@@ -73,6 +73,7 @@ Bind the lease helper before selecting a worktree path:
 ```bash
 PR_REVIEW_DIR="<installed-pr-review-skill-bundle>"
 PR_REVIEW_LEASE_HELPER="$PR_REVIEW_DIR/scripts/review-leases.sh"
+bash "$PR_REVIEW_LEASE_HELPER" --help
 ```
 
 Before session creation, run the read-only session planner from the primary

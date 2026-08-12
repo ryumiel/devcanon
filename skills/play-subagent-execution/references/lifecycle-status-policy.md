@@ -38,6 +38,20 @@ otherwise it is advisory, stale, or superseded. Every fix commit invalidates
 both verdicts. Revalidate the route after each fixup: it may stay or escalate,
 never downgrade.
 
+A fresh D14 pass plus every reviewer required by the effective route passing on
+that same head permits task completion. Any D14 finding, or any D15 finding
+after a same-head D14 pass, routes to D12 for a fix. After a head-changing fix,
+rerun every reviewer required by the revalidated route against the new same
+task head; no earlier verdict survives.
+
+Resolve the installed `play-subagent-execution` bundle before the first guarded
+review and discover the local guard contract once for the enclosing D14-D16
+flow:
+
+```bash
+bash "$PLAY_SUBAGENT_EXECUTION_DIR/scripts/source-immutability.sh" --help
+```
+
 For D14, D15, and D16, use the source-immutability lifecycle before consuming
 a response: capture → spawn → verify → validate/retain → cleanup → apply. A
 capture failure prevents spawn and records no invented cleanup evidence because
@@ -55,7 +69,12 @@ findings route to D12 and require fresh D16.
 A D13 boundary failure (`NEEDS_CONTEXT` or `BLOCKED` from judgment, policy,
 authorization, clarification, or widened scope) reclassifies to D12; never
 redispatch or model-escalate D13. Other D13 blockers also route to D12 with
-available evidence. D12 may receive bounded recoverable context only within
-the existing task scope; unresolved gaps remain incomplete under the owning
+available evidence.
+
+On the exact verified `issue-priming-workflow --auto` route, a task-local
+recoverable D12 `NEEDS_CONTEXT` or `BLOCKED` result is non-gate continuation:
+provide the bounded missing context or recoverable unblock and redispatch the
+same D12 route. Outside that route, automatic recovery is limited to a
+within-scope context repair; other blockers remain incomplete under the owning
 caller. Do not invent effort/model overrides. Record blockers as stable family
 plus detail and escalate repeated family behavior instead of retrying unchanged.

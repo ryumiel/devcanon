@@ -4,6 +4,13 @@ The [review-artifacts usage](review-artifacts-usage.md) owns helper invocation,
 I/O, path guards, and refusal mechanics. This reference owns the
 `play-review/findings/v2` envelope lifecycle and schema.
 
+Before a findings-file action, resolve the installed `play-review` bundle and
+discover the executable contract locally:
+
+```bash
+bash "$PLAY_REVIEW_DIR/scripts/review-artifacts.sh" --help
+```
+
 ## Human Markdown Shape
 
 Each finding records path, line or range, Blocking/Nit severity, category,

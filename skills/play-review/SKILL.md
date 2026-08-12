@@ -241,8 +241,9 @@ topical route is incomplete.
 Resolve `PLAY_REVIEW_DIR` to the loaded or installed `play-review` skill bundle,
 resolve `SOURCE_IMMUTABILITY_HELPER` to
 `$PLAY_REVIEW_DIR/scripts/source-immutability.sh`, and run it from
-`working_directory`. Give each selected topical reviewer its own retained
-baseline and apply GUARD-001 independently with no `--handoff`:
+`working_directory`. Run `bash "$SOURCE_IMMUTABILITY_HELPER" --help` once before
+the first guarded topical review. Give each selected topical reviewer its own
+retained baseline and apply GUARD-001 independently with no `--handoff`:
 
 1. **capture before spawn** and retain `TOPICAL_BASELINE` for only that selected
    D7, D8, or D9 route; capture failure prevents that route's spawn and treats

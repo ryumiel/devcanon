@@ -204,7 +204,9 @@ or effort and do not escalate this bounded gate into a different route.
 
 Resolve `SOURCE_IMMUTABILITY_HELPER` to
 `$ISSUE_PRIMING_WORKFLOW_DIR/scripts/source-immutability.sh` and run it from
-the Phase 1 worktree root. Apply the GUARD-001 lifecycle to this leaf:
+the Phase 1 worktree root. Before the first guarded leaf, run
+`bash "$SOURCE_IMMUTABILITY_HELPER" --help` once for this enclosing flow. Apply
+the GUARD-001 lifecycle to this leaf:
 
 1. **capture before spawn** with no `--handoff`; capture failure prevents the
    spawn and treats the assessor as unavailable under the existing gate

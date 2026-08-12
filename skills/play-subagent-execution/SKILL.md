@@ -449,6 +449,13 @@ surfaces and do not decide PR readiness, approve branch review, or narrow
 branch-review scope. Branch-review independently validates its inputs and owns
 branch-level review scope.
 
+At this terminal action, resolve the installed bundle and discover the writer
+contract before preparing the artifact:
+
+```bash
+bash "$PLAY_SUBAGENT_EXECUTION_DIR/scripts/write-risk-signals.sh" --help
+```
+
 Use `scripts/write-risk-signals.sh` to write the artifact. The success notice
 line is exactly:
 

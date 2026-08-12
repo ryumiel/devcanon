@@ -108,6 +108,8 @@ handoffs. Do not declare a named handoff, permit child persistence, or accept a
 filesystem path as its result. Resolve `SOURCE_IMMUTABILITY_HELPER` to the
 installed `play-agent-dispatch` bundle's
 `scripts/source-immutability.sh` shim and run it from the current worktree root.
+Before the first guarded specialist, run
+`bash "$SOURCE_IMMUTABILITY_HELPER" --help` once for this enclosing flow.
 The root/controller establishes `.ephemeral` as a real nonsymlinked ignored
 directory before capture:
 

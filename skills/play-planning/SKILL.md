@@ -707,6 +707,8 @@ target-honest cleanup, slot-limit, and recovery rules. Resolve
 fresh response-only `reviewer`, frontier/high and source-immutable sessions,
 with zero handoffs and external authority `none`. Do not reuse or collapse
 their sessions, questions, responses, baselines, or lifecycle state.
+Before the first guarded review, run
+`bash "$SOURCE_IMMUTABILITY_HELPER" --help` once for this enclosing D5/D6 flow.
 
 Apply GUARD-001 independently to each reviewer with no `--handoff`. The
 controller confirms that both independent GUARD-001 captures must succeed

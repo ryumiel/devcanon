@@ -55,6 +55,10 @@ GREEN; invalid evidence reruns the same scenario fresh. Mutation or cleanup
 failure is terminal and never repaired. RED/GREEN/REFACTOR scenarios,
 rationalizations, and retest pressure remain unchanged.
 
+Capture failure prevents the evaluator spawn. After capture succeeds, every
+terminal path attempts cleanup of that exact retained baseline; an ordinary
+invalid response may rerun the same scenario only after safe cleanup.
+
 ## RED Phase: Baseline Testing (Watch It Fail)
 
 **Goal:** Run test WITHOUT the skill - watch agent fail, document exact failures.
