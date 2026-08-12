@@ -40,7 +40,10 @@ superseding the session.
 Every pressure-scenario evaluator is a response-only `assessor`,
 balanced/medium and source-immutable, with zero handoffs. Use the scenario's
 existing closed acceptance condition as a bounded evaluation; do not substitute
-another role, capability, or effort.
+another role, capability, or effort. The controller retains the expected
+disposition and acceptance condition outside the spawned scenario input. Never
+include the expected answer, pass/fail criteria, or equivalent hints in that
+input.
 
 Resolve `SKILL_PRESSURE_GUARD` to this installed skill bundle's
 `scripts/source-immutability.sh` shim. For every RED baseline, GREEN

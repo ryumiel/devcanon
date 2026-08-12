@@ -1,7 +1,6 @@
 import { readdir } from "node:fs/promises";
 import path from "node:path";
 import { parse as parseToml } from "smol-toml";
-import { expect } from "vitest";
 import { parse as parseYaml } from "yaml";
 import {
   type ParsedFrontmatter,
@@ -28,10 +27,6 @@ export function getSkillOutput(
   return output;
 }
 
-export function normalizeWhitespace(content: string): string {
-  return content.replace(/\s+/g, " ").trim();
-}
-
 export function parseRenderedMarkdownArtifact(
   content: string,
 ): ParsedFrontmatter {
@@ -53,19 +48,6 @@ export function parseRenderedYamlArtifact(
     throw new Error("Rendered YAML artifact must parse to a mapping");
   }
   return parsed as Record<string, unknown>;
-}
-
-export function expectOrdered(
-  section: string,
-  beforeMarker: string,
-  afterMarker: string,
-) {
-  const beforeIndex = section.indexOf(beforeMarker);
-  const afterIndex = section.indexOf(afterMarker);
-
-  expect(beforeIndex).toBeGreaterThanOrEqual(0);
-  expect(afterIndex).toBeGreaterThanOrEqual(0);
-  expect(beforeIndex).toBeLessThan(afterIndex);
 }
 
 export async function listRelativeFiles(

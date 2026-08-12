@@ -91,11 +91,14 @@ wording, or helper algorithms into a render or source-text contract.
 
 Behavioral guarantees for public script commands belong in runtime and
 public-wrapper integration tests. Source-contract and render tests may assert
-only stable structure and short semantic markers needed for discoverability,
-composition, required inputs, refusal semantics, or generated parity. They must
-not pin complete prose sentences or editorial wording. When behavior could
-regress while those markers remain present, add executable coverage at the
-owning runtime or public wrapper instead of expanding prose assertions.
+only structurally parsed fields and relationships, canonical references, and
+intentional public or runtime tokens needed for discoverability, composition,
+required inputs, refusal semantics, or generated parity. They must not infer
+agent behavior from keyword presence or pin complete prose sentences or
+editorial wording. Route agent interpretation to behavioral evaluation. When
+behavior could regress while the structural or public tokens remain present,
+add executable coverage at the owning runtime or public wrapper instead of
+expanding source-text assertions.
 
 Each new regression test names the concrete failure, normative owner, primary
 test layer, and the gap in existing coverage. Use the smallest owner-derived
