@@ -20,10 +20,10 @@ Literal verification is the first part of a calibrated judgment, not evidence
 that a blocker is automatically valid. The critic first tries to falsify the
 unchanged finding `why` at the captured reviewed head. It then determines
 whether a blocker has a reachable consequence or actual breach of an applicable
-repository-owned obligation and independently crosses the merge gate. A real,
-supported current concern below that gate is instead a Nit: the critic
-actionability-checks it as `RETAIN` or `INVALID`, never promotes it, and the
-retained final Nit keeps `critic: null`.
+repository-owned obligation and independently crosses the merge gate. A blocker
+that remains a real concern below that gate receives `DOWNGRADE`. A candidate
+originally emitted as a Nit receives `RETAIN` or `INVALID`, is never promoted,
+and keeps `severity: "Nit", critic: null` when retained.
 
 Duplicate retention comes only after those individual outcomes. Only candidates
 with the same supported reachable consequence or violated obligation,
