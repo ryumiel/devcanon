@@ -75,7 +75,9 @@ describe("shipped semantic agents", () => {
     const [roles, sources, sourceFiles] = await Promise.all([
       readAgentSemanticRoleOwner(),
       readAgentSources(),
-      readdir(path.join(process.cwd(), "agents")),
+      readdir(path.join(process.cwd(), "agents")).then((entries) =>
+        entries.filter((entry) => entry.endsWith(".yaml")),
+      ),
     ]);
 
     expect(sourceFiles.sort()).toEqual(

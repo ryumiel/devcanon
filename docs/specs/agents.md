@@ -137,9 +137,11 @@ diagnostic artifact are outside the role contract.
 
 ### Instruction mutation boundaries
 
-This table is the normative owner of exact shared instruction text for mutation
-boundaries. Tests and rendered targets consume these clauses; they do not define
-parallel positive wording.
+This table is the normative owner of shared mutation-boundary semantics and
+records their canonical source wording. Source definitions under `agents/`
+remain authoritative for implementation state, and source/render parity
+preserves their instructions in both targets. Evaluate behavioral compliance
+through pressure scenarios rather than exact-sentence assertions.
 
 | Dimension               | Applies to         | Required instruction                                                                                                                                                                           | Forbidden opposite                                                     |
 | ----------------------- | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |

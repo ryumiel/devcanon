@@ -435,7 +435,7 @@ Choose one of these coverage routes:
   validator, or schema and assert its observable inputs, outputs, refusals, and
   stable public tokens. A render smoke test does not replace this coverage.
 - **Behavioral evaluation:** Use `play-skill-authoring` pressure scenarios for
-  agent judgment. Keep the expected disposition evaluator-side; never reveal it
+  agent judgment. Keep the expected disposition controller-side; never reveal it
   in the scenario input.
 - **Editorial prose:** Use review, linting, and documentation checks. Do not add
   an automated test when no authoritative consumer can observe the wording.

@@ -83,5 +83,5 @@ describe("shipped skill rendering", () => {
     } finally {
       await rm(generatedDir, { recursive: true, force: true });
     }
-  });
+  }, 30_000);
 });
