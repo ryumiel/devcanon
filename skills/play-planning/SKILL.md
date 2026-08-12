@@ -8,6 +8,8 @@ codex_sidecar:
 
 # Writing Plans
 
+Source-immutability invocation and failure mechanics are owned by the adjacent [source-immutability usage](references/source-immutability-usage.md); this skill owns the D5/D6 lifecycle decisions.
+
 ## Invocation Policy
 
 This workflow is explicit-invocation-only. Do not select it from ordinary discussion, review-shaped text, possible behavior-change wording, or implementation-adjacent language. Run it only when the user explicitly invokes `play-planning` or when an owning workflow explicitly hands off to `play-planning`.
@@ -705,6 +707,8 @@ target-honest cleanup, slot-limit, and recovery rules. Resolve
 fresh response-only `reviewer`, frontier/high and source-immutable sessions,
 with zero handoffs and external authority `none`. Do not reuse or collapse
 their sessions, questions, responses, baselines, or lifecycle state.
+Before the first guarded review, run
+`bash "$SOURCE_IMMUTABILITY_HELPER" --help` once for this enclosing D5/D6 flow.
 
 Apply GUARD-001 independently to each reviewer with no `--handoff`. The
 controller confirms that both independent GUARD-001 captures must succeed

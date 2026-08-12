@@ -8,6 +8,8 @@ codex_sidecar:
 
 # Finishing a Development Branch
 
+Use the adjacent [branch-review-approval-gate usage](references/branch-review-approval-gate-usage.md) and [play-review review-artifacts usage](../play-review/references/review-artifacts-usage.md) for helper mechanics; this workflow owns approval and posting decisions.
+
 ## Invocation Policy
 
 This workflow is explicit-invocation-only. Do not select it from ordinary discussion, review-shaped text, possible behavior-change wording, or implementation-adjacent language. Run it only when the user explicitly invokes `play-branch-finish` or when an owning workflow explicitly hands off to `play-branch-finish`.

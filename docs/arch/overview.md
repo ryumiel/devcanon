@@ -137,6 +137,24 @@ monitor, security sandbox, or durable evidence system. Ignored files other than
 the named handoff, outside-worktree paths, races, external systems, and
 provider-internal behavior remain outside coverage.
 
+### Public Helper Contract Boundary
+
+ADR-0033 separates public helper authority across three source surfaces.
+[`contracts/public-helpers.md`](../../contracts/public-helpers.md) classifies
+the approved required per-skill entrypoints and owns their identity, role,
+owner, executable location, and adjacent usage-contract link. Each listed
+helper's `references/<script-stem>-usage.md` document owns reusable invocation
+mechanics. The owning `SKILL.md` remains authoritative for workflow timing,
+interpretation, escalation, and continuation.
+
+The catalog is not a command-reference table, rollout tracker, or source of
+runtime behavior. Public helper scripts remain local skill-bundle entrypoints;
+internal support runtime operations, optional scripts, and support-only
+adapters are not made public by file placement. Render and install mirror the
+source bundle and are derived transport consumers. Cataloged helper scripts
+provide local `--help` by printing the fixed adjacent usage document; this
+boundary adds no global DevCanon CLI command or PATH-based discovery.
+
 ### Render Pipeline Boundary
 
 The render module exposes two orchestration levels:

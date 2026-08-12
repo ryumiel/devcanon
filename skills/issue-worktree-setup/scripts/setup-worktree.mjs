@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
-import { existsSync, lstatSync, realpathSync } from "node:fs";
+import { existsSync, lstatSync, readFileSync, realpathSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -68,6 +68,22 @@ function resolveRuntimeDir(scriptPath) {
 }
 
 const scriptPath = fileURLToPath(import.meta.url);
+if (process.argv[2] === "--help") {
+  if (process.argv.length !== 3)
+    fail("--help does not accept additional arguments");
+  const usageDocument = path.join(
+    path.dirname(scriptPath),
+    "..",
+    "references",
+    "setup-worktree-usage.md",
+  );
+  try {
+    process.stdout.write(readFileSync(usageDocument));
+  } catch {
+    fail(`usage document missing or unreadable: ${usageDocument}`);
+  }
+  process.exit(0);
+}
 const runtimeDir = resolveRuntimeDir(scriptPath);
 const cliPath = runtimeEntrypoint(runtimeDir);
 

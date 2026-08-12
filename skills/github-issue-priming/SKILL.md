@@ -16,6 +16,8 @@ codex_sidecar:
 
 # GitHub Issue Priming
 
+For the public Node fallback, use the [setup-worktree usage](../issue-worktree-setup/references/setup-worktree-usage.md); this entrypoint retains GitHub-specific continuation and native-first selection.
+
 Fetch a GitHub issue, provision or reuse the issue worktree, write the fetched
 issue body and any substantive comment evidence to `.ephemeral/`, and hand off
 to the shared `issue-priming-workflow` skill. This entrypoint owns the

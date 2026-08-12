@@ -1,6 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+if [ "${1:-}" = "--help" ]; then
+  [ "$#" -eq 1 ] || { echo "--help does not accept additional arguments" >&2; exit 1; }
+  script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+  usage_document="$script_dir/../references/validate-snapshot-manifest-usage.md"
+  [ -f "$usage_document" ] && [ -r "$usage_document" ] || { echo "usage document missing or unreadable: $usage_document" >&2; exit 1; }
+  cat "$usage_document"
+  exit 0
+fi
+
 require_env() {
   local name="$1"
   if [ -z "${!name:-}" ]; then
@@ -188,7 +197,7 @@ jq -e '
       (has("content") and (.content | type == "string") and (has("skipped") | not)) or
       ((has("content") | not) and (.skipped == "binary" or .skipped == "size>64KB"))
     );
-  (.task_id | type == "string") and
+  (.task_id | type == "string" and . != "") and
   (.files | type == "array") and
   (.files | length > 0) and
   all(.files[];

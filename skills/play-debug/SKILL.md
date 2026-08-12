@@ -8,6 +8,8 @@ codex_sidecar:
 
 # Systematic Debugging
 
+The [find-polluter usage](references/find-polluter-usage.md) owns reusable bisection-helper mechanics; this skill retains debugging workflow judgment.
+
 ## Invocation Policy
 
 This workflow is explicit-invocation-only. Do not select it from ordinary discussion, review-shaped text, possible behavior-change wording, or implementation-adjacent language. Run it only when the user explicitly invokes `play-debug` or when an owning workflow explicitly hands off to `play-debug`.

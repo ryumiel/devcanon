@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  SNAPSHOT_REQUEST_TRIGGER_CONTRACTS,
   getMarkdownSection,
   normalizeWhitespace,
   readRepoFile,
@@ -23,6 +22,25 @@ function markdownTableRow(content: string, firstCell: string): string {
 
   expect(row, `missing Markdown table row: ${firstCell}`).not.toBeNull();
   return normalizeWhitespace(row?.[0] ?? "");
+}
+
+function machineJsonRecord(
+  content: string,
+  schema: string,
+): Record<string, unknown> {
+  for (const block of content.matchAll(/```json\n([\s\S]*?)\n```/gu)) {
+    const value: unknown = JSON.parse(block[1]);
+    if (
+      typeof value === "object" &&
+      value !== null &&
+      !Array.isArray(value) &&
+      (value as Record<string, unknown>).schema === schema
+    ) {
+      return value as Record<string, unknown>;
+    }
+  }
+
+  throw new Error(`missing JSON record for ${schema}`);
 }
 
 function expectSubstringsInOrder(content: string, substrings: string[]): void {
@@ -465,46 +483,19 @@ describe("play subagent routing source contracts", () => {
       "Successful `play-subagent-execution` completion returns control to this owning workflow",
     );
 
-    for (const heading of [
-      "## Helper Interface",
-      "## Artifact Schema",
-      "## Parent State",
-      "## Executor Route Boundary",
-      "## Lifecycle Before Handoff",
-      "## Single-Task Final-Review Carve-Out",
-      "## Phase 7 Final-Review Guarantee",
-      "## Failure Modes",
-    ]) {
-      expect(phase6Reference).toContain(heading);
-    }
-    expect(phase6Reference).toContain("issue-priming/auto-handoff/v1");
-    expect(phase6Reference).toContain(
-      ".ephemeral/issue-priming-auto-handoff-<head_sha>.json",
-    );
-    expect(phase6Reference).toContain('"phase": "issue-priming-workflow:6"');
-    expect(phase6Reference).toContain('"plan_path": "<PLAN_PATH>"');
-    expect(phase6Reference).toContain(
-      '"phase7_branch_review_fix_required": true',
-    );
-    expect(phase6Reference).toContain('"phase7_rerun_after_commits": true');
-    expect(phase6Reference).toContain(
-      '"phase7_final_approval_summary_notice_required": true',
-    );
-    expect(normalizedPhase6Reference).toContain(
-      "controller-local because repository files and copied invocation prose can be forged or replayed",
-    );
-    expect(normalizedPhase6Reference).toContain(
-      "`issue-priming-workflow` provides the plan path, auto-handoff path, and controller-local parent state. It does not compute per-task review routes",
-    );
-    expect(normalizedPhase6Reference).toContain(
-      "missing, malformed, stale, ambiguous, unclear, invalid, or unverified reduced-route state uses `spec-and-quality`",
-    );
-    expect(normalizedPhase6Reference).toContain(
-      "The carve-out is not a standalone shortcut. Its safety depends on the mandatory Phase 7 whole-diff review guarantee",
-    );
-    expect(normalizedPhase6Reference).toContain(
-      "This final whole-diff review is the downstream guarantee that supports both reduced per-task routes and the single-task final-review carve-out",
-    );
+    expect(
+      machineJsonRecord(phase6Reference, "issue-priming/auto-handoff/v1"),
+    ).toMatchObject({
+      phase: "issue-priming-workflow:6",
+      mode: "auto",
+      plan_path: "<PLAN_PATH>",
+      phase7_branch_review_fix_required: true,
+      phase7_rerun_after_commits: true,
+      phase7_final_approval_summary_notice_required: true,
+    });
+    expect(phase6Reference).toContain("review-routing-policy.md");
+    expect(phase6Reference).toContain("subagent-lifecycle");
+    expect(phase6Reference).toContain("branch-review --fix");
 
     expect(phase7).toContain("installed Branch Review skill in `--fix` mode");
     expect(phase7).toContain("references/phase-7-review-handling.md");
@@ -558,32 +549,10 @@ describe("play subagent routing source contracts", () => {
       "Pass judgment-required Phase 7 feedback only through `nits_file`",
     );
 
-    for (const heading of [
-      "## Review Artifact Parsing",
-      "## Blocker Stop Rules",
-      "## Remaining Nit Classification",
-      "## Branch-Review-Owned Fix Commits",
-      "## Judgment-Required Nits Envelope",
-      "## Phase 8 Handoff",
-    ]) {
-      expect(phase7Reference).toContain(heading);
-    }
-    expect(phase7Reference).toContain("Review head: <40-hex-sha>.");
-    expect(phase7Reference).toContain("Findings written to <path>.");
-    expect(phase7Reference).toContain("PLAY_REVIEW_HELPER");
-    expect(phase7Reference).toContain("scripts/review-artifacts.sh");
+    expect(phase7Reference).toContain("branch-review --fix");
     expect(phase7Reference).toContain("prepare-judgment-nits");
-    expect(phase7Reference).toContain(
-      "Reported by branch-review at <path>:<line>",
-    );
-    expect(normalizeWhitespace(phase7Reference)).toContain(
-      "only after the final Phase 7 review run satisfies",
-    );
     expect(normalizeWhitespace(phase7Reference)).toContain(
       "`branch-review --fix` owns fixable review feedback",
-    );
-    expect(normalizeWhitespace(phase7Reference)).toContain(
-      "Manual operators decide nit handling case by case",
     );
 
     expect(issuePrimingWorkflow).not.toContain("Project-Specific Overrides");
@@ -1255,9 +1224,6 @@ describe("play subagent routing source contracts", () => {
     const skipDispatch = await readRepoFile(
       "skills/play-subagent-execution/references/skip-dispatch-policy.md",
     );
-    const lifecycle = await readRepoFile(
-      "skills/play-subagent-execution/references/lifecycle-status-policy.md",
-    );
     const reviewRouting = await readRepoFile(
       "skills/play-subagent-execution/references/review-routing-policy.md",
     );
@@ -1272,7 +1238,6 @@ describe("play subagent routing source contracts", () => {
     );
     const normalizedSkill = normalizeWhitespace(skillSource);
     const normalizedSkipDispatch = normalizeWhitespace(skipDispatch);
-    const normalizedLifecycle = normalizeWhitespace(lifecycle);
     const normalizedReviewRouting = normalizeWhitespace(reviewRouting);
     const normalizedRedFlags = normalizeWhitespace(redFlags);
     const normalizedImplementerPrompt = normalizeWhitespace(implementerPrompt);
@@ -1321,49 +1286,6 @@ describe("play subagent routing source contracts", () => {
     expect(normalizedSkipDispatch).not.toContain(
       "It stops with NEEDS_CONTEXT or BLOCKED",
     );
-    expect(normalizedLifecycle).toContain(
-      "For a dispatched D13 executor, `NEEDS_CONTEXT` or `BLOCKED` caused by judgment, policy interpretation, a clarifying question, missing authorization, or widened scope stops D13 and reclassifies the task to D12",
-    );
-    expect(normalizedLifecycle).toContain(
-      "Do not redispatch D13 with more context or a more capable model",
-    );
-    expect(normalizedLifecycle).toContain(
-      "For a D12 implementer, `NEEDS_CONTEXT` means required information was not provided. Outside that exact verified auto route, when a D12 `NEEDS_CONTEXT` request can be resolved within the task's existing scope, the controller provides the missing context and redispatches the same D12 route",
-    );
-    expect(normalizedLifecycle).toContain(
-      "A non-boundary operational D13 `BLOCKED` also stops D13, keeps the task incomplete, and routes the blocker plus any available base/head SHA and snapshot state to D12 for judgment-bearing recovery",
-    );
-    expect(normalizedLifecycle).toContain(
-      "Never redispatch or model-escalate D13, and never mark a non-DONE D13 result complete",
-    );
-    expect(normalizedLifecycle).toContain(
-      "A D13 `DONE_WITH_CONCERNS` report with judgment-bearing concerns keeps the task incomplete and routes the report to D12; purely observational concerns may proceed through the selected route",
-    );
-    expect(normalizedLifecycle).toContain(
-      "Both a D12 implementer and a dispatched D13 executor with `DONE` or `DONE_WITH_CONCERNS` enter DONE-report and snapshot capture before task completion",
-    );
-    expect(normalizedLifecycle).toContain(
-      "D12 remains the shipped `implementer`, balanced/high; no `BLOCKED` disposition changes its role, capability, or effort",
-    );
-    expect(normalizedLifecycle).not.toContain(
-      "re-dispatch with a more capable model",
-    );
-    expect(normalizedLifecycle).toContain(
-      "This file is the sole normative owner of returned D12/D13 dispositions, D14/D15 result freshness and invalidation, D14-D16 guard capture and cleanup failure, and incomplete or terminal outcomes",
-    );
-    expect(normalizedLifecycle).toContain(
-      "If revalidation escalates a `spec-only` task to `spec-and-quality` after a head-changing fix, rerun both D14 and D15 fresh against the new same task head before completion",
-    );
-    expect(normalizedLifecycle).toContain(
-      "Every fix commit invalidates both D14 and D15 results",
-    );
-    expect(normalizedLifecycle).toContain(
-      "Capture failure prevents spawn and returns the same task-incomplete `BLOCKED` state",
-    );
-    expect(normalizedLifecycle).toContain(
-      "D16 detected source mutation or cleanup failure is guard-integrity terminal",
-    );
-
     expect(normalizedReviewRouting).toContain(
       "This file owns initial executor-computed per-task review route selection only",
     );
@@ -1423,14 +1345,10 @@ describe("play subagent routing source contracts", () => {
     const implementerPrompt = await readRepoFile(
       "skills/play-subagent-execution/references/implementer-prompt.md",
     );
-    const lifecycle = await readRepoFile(
-      "skills/play-subagent-execution/references/lifecycle-status-policy.md",
-    );
     const continuation = normalizeWhitespace(
       getMarkdownSection(issuePriming, "Auto-Route Continuation Boundary"),
     );
     const normalizedPrompt = normalizeWhitespace(implementerPrompt);
-    const normalizedLifecycle = normalizeWhitespace(lifecycle);
     const attestationHandling = normalizeWhitespace(
       sliceBetween(
         playSubagentExecution,
@@ -1510,21 +1428,6 @@ describe("play subagent routing source contracts", () => {
       "unresolvable requirement, unapproved plan mechanic, genuine ambiguity, authorization gap, or widened scope",
     );
 
-    expect(normalizedLifecycle).toContain(
-      "For the exact approved `issue-priming-workflow --auto` route, consume the canonical genuine-gate/non-gate vocabulary in [`issue-priming-workflow/SKILL.md`](../../issue-priming-workflow/SKILL.md); do not define a second classification here",
-    );
-    expect(normalizedLifecycle).toContain(
-      "A task-locally recoverable D12 `NEEDS_CONTEXT` or `BLOCKED` status is non-gate continuation: provide the bounded missing context or recoverable unblock and redispatch the same D12 route",
-    );
-    expect(normalizedLifecycle).toContain(
-      "A genuinely unresolvable context or scope gap remains incomplete and follows the existing owning-caller escalation path",
-    );
-    expect(normalizedLifecycle).toContain(
-      "Outside that exact verified auto route, when a D12 `NEEDS_CONTEXT` request can be resolved within the task's existing scope, the controller provides the missing context and redispatches the same D12 route",
-    );
-    expect(normalizedLifecycle).toContain(
-      "D13 selection, reclassification, and boundary failures remain governed by the unchanged D13 sections above",
-    );
     expect(
       normalizeWhitespace(
         getMarkdownSection(
@@ -1593,9 +1496,6 @@ describe("play subagent routing source contracts", () => {
     ]) {
       expect(progressReceipts).not.toContain(gateOnlyRequirement);
     }
-    expect(normalizeWhitespace(lifecycle)).toContain(
-      "Outside that exact verified auto route, D12 `BLOCKED` recovery retains existing context-problem semantics: provide context and redispatch the same D12 pair only when the context problem is resolvable within the task's existing scope",
-    );
     expect(
       issuePriming.indexOf("## Auto-Route Continuation Boundary"),
     ).toBeLessThan(
@@ -1959,21 +1859,6 @@ describe("play subagent routing source contracts", () => {
     expect(routing).toContain("test harness or validation behavior changes");
   });
 
-  it("keeps snapshot request classification high-risk triggers in source", async () => {
-    const snapshotConsumption = await readRepoFile(
-      "skills/play-subagent-execution/references/snapshot-consumption.md",
-    );
-    const normalizedSnapshotConsumption =
-      normalizeWhitespace(snapshotConsumption);
-
-    for (const trigger of SNAPSHOT_REQUEST_TRIGGER_CONTRACTS) {
-      expect(normalizedSnapshotConsumption).toContain(trigger.skillPhrase);
-    }
-    expect(normalizedSnapshotConsumption).toContain(
-      "Skip snapshots only for clearly localized, low-risk work",
-    );
-  });
-
   it("keeps executor plan-path intake separate from per-task implementer context", async () => {
     const playSubagentExecution = await readSkillSource(
       "play-subagent-execution",
@@ -2129,29 +2014,7 @@ describe("play subagent routing source contracts", () => {
 
     expect(phase6).toContain("references/phase-6-auto-handoff.md");
     expect(phase6Reference).toContain(
-      '"phase7_branch_review_fix_required": true',
-    );
-    expect(phase6Reference).toContain('"phase7_rerun_after_commits": true');
-    expect(phase6Reference).toContain(
-      '"phase7_final_approval_summary_notice_required": true',
-    );
-    expect(phase6Reference).toContain(
       "play-subagent-execution/references/review-routing-policy.md",
-    );
-    expect(normalizedPhase6Reference).toContain(
-      "Direct or manual executor calls do not receive that carve-out",
-    );
-    expect(normalizedPhase6Reference).toContain(
-      "The carve-out is not a standalone shortcut. Its safety depends on the mandatory Phase 7 whole-diff review guarantee",
-    );
-    expect(normalizedPhase6Reference).toContain(
-      "Phase 8 may start only after the final Phase 7 run reports",
-    );
-    expect(normalizedPhase6Reference).toContain(
-      "a captured final approval-summary notice path",
-    );
-    expect(normalizedPhase6Reference).toContain(
-      "fresh final approval-summary evidence after branch-review-owned fix commits",
     );
     expect(phase6).toContain("ISSUE_PRIMING_AUTO_PARENT_ACTIVE=true");
     expect(phase6).toContain("ISSUE_PRIMING_AUTO_HEAD");
@@ -2203,19 +2066,9 @@ describe("play subagent routing source contracts", () => {
     expect(normalizedPhase7).toContain(
       "passing only risk signals regenerated for that `HEAD` when using `--risk-signals`",
     );
-    expect(phase7Reference).toContain("Review head: <40-hex-sha>.");
-    expect(phase7Reference).toContain("Findings written to <path>.");
-    expect(phase7Reference).toContain("PLAY_REVIEW_HELPER");
-    expect(phase7Reference).toContain("validate the findings path");
     expect(phase7Reference).toContain("prepare-judgment-nits");
-    expect(normalizeWhitespace(phase7Reference)).toContain(
-      "For fixed nit-severity findings, branch-review-owned fix commit bodies include one trailer per addressed nit",
-    );
     expect(phase7Reference).toContain(
-      "Reported by branch-review at <path>:<line>",
-    );
-    expect(normalizeWhitespace(phase7Reference)).toContain(
-      "normalizes selected `DOWNGRADE` copies to postable Nit form",
+      "`branch-review --fix` owns fixable review feedback",
     );
     expect(phase8).toContain("references/phase-8-pr-handoff.md");
     expect(normalizedPhase8).toContain(
@@ -2260,9 +2113,7 @@ describe("play subagent routing source contracts", () => {
         "This runs the full multi-agent review",
       ),
     );
-    const phase8Handoff = normalizeWhitespace(
-      getMarkdownSection(phase7Reference, "Phase 8 Handoff"),
-    );
+    const normalizedReference = normalizeWhitespace(phase7Reference);
 
     expect(eagerContinuation).toContain(
       "captures that final run's approval-summary notice path",
@@ -2270,15 +2121,7 @@ describe("play subagent routing source contracts", () => {
     expect(eagerContinuation).toContain(
       "findings whose `critic` verdict is `INVALID` or `DOWNGRADE`",
     );
-    expect(phase8Handoff).toContain(
-      "fresh final approval-summary evidence after any branch-review-owned fix commits",
-    );
-    expect(phase8Handoff).toContain(
-      "final approval-summary notice path captured from that same final run",
-    );
-    expect(phase8Handoff).toContain(
-      "Phase 8 receives only judgment-required items",
-    );
+    expect(normalizedReference).toContain("nits_file");
   });
 
   it("hands successful direct/manual execution off to play-branch-finish without copying finish choices", async () => {
@@ -2593,10 +2436,6 @@ describe("play subagent routing source contracts", () => {
     const routing = await readRepoFile(
       "skills/play-subagent-execution/references/review-routing-policy.md",
     );
-    const handlingStatus = await readRepoFile(
-      "skills/play-subagent-execution/references/lifecycle-status-policy.md",
-    );
-    const lifecycle = handlingStatus;
     const redFlags = await readRepoFile(
       "skills/play-subagent-execution/references/red-flags.md",
     );
@@ -2617,8 +2456,6 @@ describe("play subagent routing source contracts", () => {
     );
     const normalizedSkill = normalizeWhitespace(skillSource);
     const normalizedRouting = normalizeWhitespace(routing);
-    const normalizedHandlingStatus = normalizeWhitespace(handlingStatus);
-    const normalizedLifecycle = normalizeWhitespace(lifecycle);
     const normalizedRedFlags = normalizeWhitespace(redFlags);
     const normalizedExample = normalizeWhitespace(exampleWorkflow);
     const normalizedAdvantages = normalizeWhitespace(advantages);
@@ -2637,25 +2474,10 @@ describe("play subagent routing source contracts", () => {
     expect(normalizedRouting).toContain(
       "After selection, [`lifecycle-status-policy.md`](lifecycle-status-policy.md) owns reviewer result disposition, freshness, fix invalidation, guard failures, and incomplete or terminal transitions",
     );
-    expect(normalizedHandlingStatus).toContain(
-      "Every fix commit invalidates both D14 and D15 results, including a previously passing or provisional result; both reviews must run fresh against the new same task head",
-    );
     expect(normalizedRouting).not.toContain(
       "Every fix commit invalidates both D14 and D15 results",
     );
     expect(normalizedSkill).not.toContain("quality-only rerun proven valid");
-    expect(normalizedLifecycle).toContain(
-      "reviewer result disposition (`pending`, `final-pass`, `final-findings`, `advisory`, `stale`, or `superseded`)",
-    );
-    expect(normalizedHandlingStatus).toContain(
-      "A quality result may become final only after same-head spec pass and current task-head validation",
-    );
-    expect(normalizedHandlingStatus).toContain(
-      "concurrent quality findings may be routed with the spec findings as advisory same-head context",
-    );
-    expect(normalizedHandlingStatus).toContain(
-      "advisory, stale, and superseded quality results remain lifecycle evidence but must not mark the task complete",
-    );
 
     expect(normalizedRedFlags).toContain(
       "Apply a stale or incomplete reviewer result instead of using the [lifecycle/status policy](lifecycle-status-policy.md)",
@@ -2754,9 +2576,6 @@ describe("play subagent routing source contracts", () => {
     const routing = await readRepoFile(
       "skills/play-subagent-execution/references/review-routing-policy.md",
     );
-    const lifecycle = await readRepoFile(
-      "skills/play-subagent-execution/references/lifecycle-status-policy.md",
-    );
     const specPrompt = await readRepoFile(
       "skills/play-subagent-execution/references/spec-reviewer-prompt.md",
     );
@@ -2766,30 +2585,6 @@ describe("play subagent routing source contracts", () => {
     const d15DispatchFields = getMarkdownSection(
       qualityPrompt,
       "D15 dispatch fields",
-    );
-    const normalizedSurface = normalizeWhitespace(
-      [skillSource, routing, lifecycle].join("\n"),
-    );
-
-    for (const route of ["D14", "D15"]) {
-      expect(normalizedSurface).toContain(
-        `${route} is a separate response-only \`deep-reviewer\`, frontier/xhigh and source-immutable, with zero handoffs`,
-      );
-    }
-    expect(normalizedSurface).toContain(
-      "D14 and D15 inspect the same captured task head but use separate sessions, separate prompts, separate baselines, and independent GUARD-001 lifecycles",
-    );
-    expect(normalizedSurface).toContain(
-      "capture before spawn verify before semantic validation or consumption validate and retain the response in controller memory cleanup the exact retained baseline apply the retained result only after cleanup",
-    );
-    expect(normalizedSurface).toContain(
-      "Every fix commit invalidates both D14 and D15 results, including a previously passing or provisional result; both reviews must run fresh against the new same task head",
-    );
-    expect(normalizedSurface).toContain(
-      "After safe cleanup, an unavailable, failed, malformed, or verification-rejected D14 or D15 keeps the task incomplete and returns `BLOCKED` naming the failed review; no verdict passes",
-    );
-    expect(normalizedSurface).toContain(
-      "Detected source mutation or cleanup failure is guard-integrity terminal",
     );
     expect(specPrompt).toContain(
       "paired with the source agent at [`agents/deep-reviewer.yaml`]",
@@ -2830,9 +2625,6 @@ describe("play subagent routing source contracts", () => {
 
   it("keeps D16 distinct with the narrow skip and fresh guarded review loop", async () => {
     const skillSource = await readSkillSource("play-subagent-execution");
-    const lifecycle = await readRepoFile(
-      "skills/play-subagent-execution/references/lifecycle-status-policy.md",
-    );
     const exampleWorkflow = await readRepoFile(
       "skills/play-subagent-execution/references/example-workflow.md",
     );
@@ -2842,31 +2634,6 @@ describe("play subagent routing source contracts", () => {
     const d16DispatchFields = getMarkdownSection(
       qualityPrompt,
       "D16 dispatch fields",
-    );
-    const normalizedSurface = normalizeWhitespace(
-      [skillSource, lifecycle, exampleWorkflow].join("\n"),
-    );
-
-    expect(normalizedSurface).toContain(
-      "D16 is a fresh response-only `deep-reviewer`, frontier/xhigh and source-immutable, with zero handoffs, after all tasks complete",
-    );
-    expect(normalizedSurface).toContain(
-      "D16 reviews the whole implementation range and never reuses or collapses the D15 task-quality session",
-    );
-    expect(normalizedSurface).toContain(
-      "The only D16 skip is the exact ADR-0016 verified `issue-priming-workflow --auto` single-task carve-out",
-    );
-    expect(normalizedSurface).toContain(
-      "A passing retained D16 result continues to the owning-caller or direct/manual terminal path only after cleanup",
-    );
-    expect(normalizedSurface).toContain(
-      "D16 blocking findings keep final review incomplete, route to the D12 implementer for a fix, and require a fresh D16 capture, spawn, verify, validate, cleanup, and apply cycle after the fix commit",
-    );
-    expect(normalizedSurface).toContain(
-      "After safe cleanup, an unavailable, failed, malformed, or verification-rejected D16 keeps final review incomplete and returns `BLOCKED` to the owning caller or direct/manual terminal-status path; it never enters branch finish",
-    );
-    expect(normalizedSurface).toContain(
-      "D16 detected source mutation or cleanup failure is guard-integrity terminal",
     );
     expect(d16DispatchFields).toContain(
       "WHOLE_IMPLEMENTATION_SUMMARY: [whole-range implementation summary]",
@@ -3269,58 +3036,8 @@ describe("play subagent routing source contracts", () => {
       skillSource,
       "Subagent Lifecycle",
     );
-    const lifecycle = await readRepoFile(
-      "skills/play-subagent-execution/references/lifecycle-status-policy.md",
-    );
-    const handlingStatus = lifecycle;
-    const normalizedLifecycle = normalizeWhitespace(lifecycle);
-    const normalizedHandlingStatus = normalizeWhitespace(handlingStatus);
-
     expect(lifecycleSummary).toContain("Use `subagent-lifecycle`");
-    expect(normalizedLifecycle).toContain(
-      "generic controller lifecycle ledger, target lifecycle capability classification, cleanup gate before spawns, target-honest cleanup outcomes, and slot-limit recovery",
-    );
-    expect(normalizedLifecycle).toContain(
-      "`play-subagent-execution` owns only the execution-specific lifecycle details below",
-    );
-    expect(normalizedLifecycle).toContain(
-      "role-specific captured state includes D12 implementer and D13 executor reports, changed files, test results, snapshot state (`requested`, `emitted`, `skipped`, or `malformed`), reviewer scope, reviewer report, concrete findings, reviewer result disposition (`pending`, `final-pass`, `final-findings`, `advisory`, `stale`, or `superseded`), routing target, re-review target, task base/head SHA, reviewed head SHA, fixup count, and blocker state",
-    );
-    expect(normalizedLifecycle).toContain(
-      "Run the shared cleanup gate before dispatching the next implementer, reviewer, re-reviewer, or final reviewer",
-    );
-    expect(normalizedLifecycle).toContain(
-      "same-session D14 or D15 reviewer fix loops may still route fixups back to that implementer session",
-    );
-    expect(normalizedLifecycle).toContain(
-      "preserve the implementer session until every reviewer loop required by the task's effective route passes",
-    );
     expect(skillSource).not.toContain("\n## Controller Lifecycle Ledger\n");
-
-    expect(normalizedHandlingStatus).toContain(
-      "Before acting on any returned D12 implementer or dispatched D13 executor status, update the lifecycle ledger for that session with the status and the artifacts that status actually provides",
-    );
-    expect(normalizedHandlingStatus).toContain(
-      "For `DONE` and `DONE_WITH_CONCERNS`, capture the report, snapshot state (`requested`, `emitted`, `skipped`, or `malformed`), changed-file list, base/head SHA, and test result before dispatching reviewers",
-    );
-    expect(normalizedHandlingStatus).toContain(
-      "When snapshot state is `skipped`, use the default DONE fields plus controller-computed git/disk reads",
-    );
-    expect(normalizedHandlingStatus).toContain(
-      "When snapshot state is `malformed`, surface the incident and still fall back to the default DONE fields plus controller-computed git/disk reads",
-    );
-    expect(normalizedHandlingStatus).toContain(
-      "For `NEEDS_CONTEXT` and `BLOCKED`, capture the status, report or blocker/context request, `agent_id`, and any available base/head SHA",
-    );
-    expect(normalizedHandlingStatus).toContain(
-      "do not wait for snapshot, changed-file, or test artifacts that were not produced",
-    );
-    expect(normalizedHandlingStatus).toContain(
-      "The cleanup gate must not close a task implementer while same-session D14 or D15 reviewer fix loops may still route fixups back to that implementer session",
-    );
-    expect(normalizedHandlingStatus).toContain(
-      "If a spawned D12 implementer reports BLOCKED after slot-limit recovery succeeds and the blocker family already appears in the lifecycle ledger for that task",
-    );
   });
 
   it("keeps lifecycle evidence in the play-subagent example workflow source", async () => {

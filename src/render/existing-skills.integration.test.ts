@@ -573,18 +573,17 @@ describe("existing skills render cleanly", () => {
         renderedBySkill.get("pr-merge") ?? "",
       );
       for (const contract of [
-        "skills/pr-merge/scripts/preflight-worktree-context.sh",
-        "skills/pr-merge/scripts/post-merge-cleanup.sh",
+        "references/preflight-worktree-context-usage.md",
+        "references/post-merge-cleanup-usage.md",
+        'bash "$PR_MERGE_DIR/scripts/preflight-worktree-context.sh" --help',
+        'bash "$PR_MERGE_DIR/scripts/post-merge-cleanup.sh" --help',
         "No mode may use `gh pr merge --delete-branch`",
-        "WORKTREE_CLEANUP=removed|retained|skipped|failed",
-        "REMOTE_BRANCH_CLEANUP=deleted|retained|skipped|failed",
+        "Report the remaining manual action",
         "mutable child may edit only the authorized paths, run verification, and commit",
         "The controller/root alone owns push and merge",
       ])
         expect(prMerge).toContain(contract);
-      expect(prMerge).toMatch(
-        /Before any merge command.*preflight-worktree-context\.sh/i,
-      );
+      expect(prMerge).toMatch(/Mode routing.*safe-direct.*remote-only.*stop/i);
 
       const renderedPlanning = normalizeWhitespace(
         renderedBySkill.get("play-planning") ?? "",
@@ -1069,12 +1068,11 @@ describe("existing skills render cleanly", () => {
         snapshotConsumptionPath,
         "utf-8",
       );
-      expect(snapshotConsumption).toContain("Controller skipped the snapshot");
       expect(snapshotConsumption).toContain(
-        "Requested snapshot notice line is absent from DONE/DONE_WITH_CONCERNS",
+        "[write-snapshot-manifest usage](write-snapshot-manifest-usage.md)",
       );
       expect(snapshotConsumption).toContain(
-        "Record snapshot state as `malformed`; surface the requested-snapshot contract violation",
+        "[validate-snapshot-manifest usage](validate-snapshot-manifest-usage.md)",
       );
       expect(await pathExists(helperPath)).toBe(true);
       expect(await readFile(helperPath, "utf-8")).toContain(

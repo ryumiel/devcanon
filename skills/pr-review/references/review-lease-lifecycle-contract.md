@@ -1,10 +1,11 @@
 # Review Lease Lifecycle Contract
 
+The adjacent [review-leases usage](review-leases-usage.md) owns reusable public helper invocation, input, output, cwd, and refusal mechanics. This reference remains authoritative for lease state, lifecycle, and cleanup matrices.
+
 This reference is the authoritative lifecycle contract for
-`pr-review/lease/v1`. `skills/pr-review/scripts/review-leases.sh` owns the
-public helper command surface and delegates reducer-backed lifecycle writes to
-`devcanon-runtime`'s `pr-review-leases` command. `skills/pr-review/SKILL.md`
-owns operator flow.
+`pr-review/lease/v1`. The [review-leases usage](review-leases-usage.md) owns
+the public command surface and mechanics; `skills/pr-review/SKILL.md` owns
+operator flow.
 
 ## State Authority
 

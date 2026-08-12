@@ -77,8 +77,9 @@ describe("write-linear-project-description source contracts", () => {
     const workflow = normalizeWhitespace(
       getMarkdownSection(skillSource, "Workflow"),
     );
-    const helperContract = normalizeWhitespace(
-      getMarkdownSection(skillSource, "Draft Helper"),
+    const helperBoundary = getMarkdownSection(
+      skillSource,
+      "Draft Helper Boundary",
     );
 
     expect(workflow).toContain("Default to draft mode.");
@@ -93,23 +94,8 @@ describe("write-linear-project-description source contracts", () => {
     expect(workflow).toContain(
       "must not change the selected field, issue-evidence separation, style-reference treatment, or apply/draft decision.",
     );
-    expect(helperContract).toContain(
-      'WRITE_LINEAR_PROJECT_DESCRIPTION_DIR="<installed-write-linear-project-description-skill-bundle>"',
-    );
-    expect(helperContract).toContain(
-      'bash "$WRITE_LINEAR_PROJECT_DESCRIPTION_DIR/scripts/prepare-project-description-draft.sh"',
-    );
-    expect(helperContract).toContain(
-      "The helper prepares direct-child `.ephemeral/` paths and does not write draft body content.",
-    );
-    expect(helperContract).toContain("PROJECT_KEY");
-    expect(helperContract).toContain("TARGET_FIELDS");
-    expect(helperContract).toContain("REPLACE_EXISTING");
-    expect(helperContract).toContain(
-      "<project-key>-project-description-draft.md",
-    );
-    expect(helperContract).toContain(
-      "<project-key>-project-content-brief-draft.md",
+    expect(helperBoundary).toContain(
+      'bash "$WRITE_LINEAR_PROJECT_DESCRIPTION_DIR/scripts/prepare-project-description-draft.sh" --help',
     );
   });
 

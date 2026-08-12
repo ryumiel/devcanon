@@ -139,6 +139,11 @@ the source owner or explicitly own the external contract. Avoid maintaining a
 second hand-written contract that can drift from the artifact that actually
 owns enforcement.
 
+`contracts/public-helpers.md` is the current registry use of this conditional
+profile. It owns public helper membership and identity only; adjacent
+skill-local usage documents own invocation mechanics, and owning skills own
+workflow judgment. See ADR-0033 for the boundary decision.
+
 ### 2.5 Roadmaps are target-output frames
 
 Roadmap docs describe durable target output and outcome-level sequencing. They
@@ -191,7 +196,6 @@ evidence.
 
 ### Not used in current DevCanon
 
-- `contracts/` -- current contract authority is source-owned; see ADR-0004
 - `docs/ipc/` -- single CLI tool, no cross-service communication
 - `docs/harness/` -- no external harness
 - `docs/knowledge/` and `docs/references/` -- no curated external reference set

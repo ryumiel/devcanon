@@ -79,6 +79,9 @@ describe("issue-priming research brief helper", () => {
         stderr: expect.stringContaining("ISSUE_IDENTIFIER is required"),
       });
       await expect(
+        runHelper(cwd, { ISSUE_IDENTIFIER: "???" }),
+      ).rejects.toMatchObject({ stdout: "" });
+      await expect(
         runHelper(cwd, { ISSUE_PRIMING_TODAY: "2026/05/25" }),
       ).rejects.toMatchObject({
         stderr: expect.stringContaining(

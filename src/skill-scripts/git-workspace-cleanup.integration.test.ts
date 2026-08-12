@@ -147,17 +147,6 @@ describe("git-workspace-cleanup skill helper", TEST_OPTIONS, () => {
     tempDirs.length = 0;
   });
 
-  it("prints help successfully", async () => {
-    const rootDir = await createTempDir();
-    tempDirs.push(rootDir);
-
-    const result = await runScript(["--help"], rootDir);
-
-    expect(result.code).toBe(0);
-    expect(result.stdout).toBe("");
-    expect(result.stderr).toContain("usage: git-workspace-cleanup.sh");
-  });
-
   it("reports dirty linked worktrees and local-only branch commits during dry-run", async () => {
     const rootDir = await createTempDir();
     tempDirs.push(rootDir);

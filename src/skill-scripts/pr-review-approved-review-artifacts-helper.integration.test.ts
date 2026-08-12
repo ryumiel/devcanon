@@ -389,21 +389,6 @@ function expectArgValue(args: string[], flag: string, value: string) {
 describe.skipIf(!jqAvailable)(
   "pr-review approved review artifact helper",
   () => {
-    it("rejects the removed standalone payload write preparation command", async () => {
-      const cwd = await makeGitWorkspace();
-      try {
-        await expect(
-          runHelper(cwd, "prepare-review-payload-write"),
-        ).rejects.toMatchObject({
-          stderr: expect.stringContaining(
-            "usage: approved-review-artifacts.sh materialize-review-payload|",
-          ),
-        });
-      } finally {
-        await cleanupTempDir(cwd);
-      }
-    });
-
     it("derives the materialized payload path from the checked-out branch", async () => {
       const cwd = await makeGitWorkspace();
       try {

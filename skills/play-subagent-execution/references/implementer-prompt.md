@@ -1,5 +1,9 @@
 # Implementer Subagent Prompt Template
 
+Use the controller-supplied snapshot helper's local `--help` output for reusable
+snapshot-helper mechanics; preserve this prompt's blocking and notice policy.
+Snapshot validation remains controller-owned.
+
 Use this template when dispatching an implementer subagent.
 
 **Promotion classification:** Workflow-local prompt template paired with the source agent at [`agents/implementer.yaml`](../../../agents/implementer.yaml) — referenced from `skills/play-subagent-execution/SKILL.md` for dispatch-time placeholder substitution. The role identity is already promoted; per [`docs/guidelines/agent-authoring-guide.md`](../../../docs/guidelines/agent-authoring-guide.md) §4, workflow-local prompt assembly stays as a template.
@@ -226,15 +230,11 @@ Task tool (general-purpose):
     - Snapshot Manifest Recipe path: <SNAPSHOT_MANIFEST_RECIPE_PATH>
       - Source: `references/snapshot-manifest-recipe.md`
     - Snapshot Manifest Helper Script path: <SNAPSHOT_HELPER_SCRIPT>
-      - Source: `scripts/write-snapshot-manifest.sh`
 
-    Before writing the snapshot, read the recipe file. Then run the helper
-    script with the captured `BASE_SHA` and the task header identifier as
-    `SNAPSHOT_TASK_ID`. The recipe is the canonical contract for the
-    `implementer/snapshot/v1` envelope, and the helper script is the canonical
-    implementation of the path rules, `head_sha`, file metadata, binary and
-    size behavior, deleted-file behavior, JSON-aware construction, `.ephemeral`
-    write guard, and write-verification check.
+    Before writing the snapshot, read the recipe and run
+    `bash "$SNAPSHOT_HELPER_SCRIPT" --help`. The recipe owns envelope semantics;
+    the helper's local help owns invocation, inputs, working directory, output,
+    and refusal mechanics.
 
     If the snapshot request state is `requested` but the dispatch does not
     include both a readable Snapshot Manifest Recipe path and a readable

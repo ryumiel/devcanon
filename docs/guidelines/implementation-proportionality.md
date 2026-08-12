@@ -11,6 +11,13 @@ approved requirement names that framework and its guarantees. A hypothetical
 failure outside an owning contract is not authority to expand an implementation
 or its test surface.
 
+For a fixed bundle-local documentation or helper path, do not add canonical-path
+containment, symlink rejection, or file-kind policy merely because the file is
+read. Add those guards only when caller-controlled input, a documented threat
+model, or an explicit owning requirement establishes the relevant trust
+boundary. Consumers such as public helper usage contracts reference this rule
+instead of restating it.
+
 ## Test ownership boundary
 
 Each executable contract is proved at its owning boundary:

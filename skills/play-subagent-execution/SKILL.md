@@ -8,6 +8,10 @@ codex_sidecar:
 
 # Subagent-Driven Development
 
+## Public helper mechanics
+
+Use the adjacent [source-immutability usage](references/source-immutability-usage.md), [write-risk-signals usage](references/write-risk-signals-usage.md), [write-snapshot-manifest usage](references/write-snapshot-manifest-usage.md), and [validate-snapshot-manifest usage](references/validate-snapshot-manifest-usage.md). This skill retains D14-D16 lifecycle, blocking, and terminal-handoff policy.
+
 ## Invocation Policy
 
 This workflow is explicit-invocation-only. Do not select it from ordinary discussion, review-shaped text, possible behavior-change wording, or implementation-adjacent language. Run it only when the user explicitly invokes `play-subagent-execution` or when an owning workflow explicitly hands off to `play-subagent-execution`.
@@ -444,6 +448,13 @@ are non-authoritative branch-review input: they summarize executor-observed
 surfaces and do not decide PR readiness, approve branch review, or narrow
 branch-review scope. Branch-review independently validates its inputs and owns
 branch-level review scope.
+
+At this terminal action, resolve the installed bundle and discover the writer
+contract before preparing the artifact:
+
+```bash
+bash "$PLAY_SUBAGENT_EXECUTION_DIR/scripts/write-risk-signals.sh" --help
+```
 
 Use `scripts/write-risk-signals.sh` to write the artifact. The success notice
 line is exactly:

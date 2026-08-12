@@ -3,10 +3,12 @@ import {
   cp,
   lstat,
   mkdir,
+  readFile,
   readdir,
   readlink,
   rename,
   rm,
+  stat,
   symlink,
   writeFile,
 } from "node:fs/promises";
@@ -79,6 +81,31 @@ async function canCreateFifo(): Promise<boolean> {
 
 const fifoAvailable = await canCreateFifo();
 
+type PublicHelperCatalogRow = {
+  id: string;
+  skill: string;
+  executable: string;
+  usageDocument: string;
+};
+
+function parsePublicHelperCatalog(markdown: string): PublicHelperCatalogRow[] {
+  const rows: PublicHelperCatalogRow[] = [];
+  for (const line of markdown.split("\n")) {
+    const links = [...line.matchAll(/\]\(\.\.\/([^)]*)\)/gu)].map(
+      (match) => match[1],
+    );
+    if (links.length !== 2 || !links[0].includes("/scripts/")) continue;
+    const executable = path.posix.normalize(links[0]);
+    rows.push({
+      id: line.split("|")[1].trim(),
+      skill: executable.split("/")[1],
+      executable,
+      usageDocument: path.posix.normalize(links[1]),
+    });
+  }
+  return rows;
+}
+
 async function expectRelativeSymlinkTarget(
   linkPath: string,
   expectedTarget: string,
@@ -147,6 +174,115 @@ describe("sync", () => {
       "greet",
     );
     expect(await pathExists(claudeSkillPath)).toBe(true);
+  });
+
+  it("preserves representative public helpers through render and copy install", async () => {
+    const config = makeResolvedConfig(tempDir);
+    const repositoryConfig = await loadConfig(
+      path.resolve("devcanon.config.yaml"),
+    );
+    config.toolNames = repositoryConfig.toolNames;
+    config.fileArtifacts = repositoryConfig.fileArtifacts;
+    await mkdir(config.library.skillsDir, { recursive: true });
+    await mkdir(config.library.agentsDir, { recursive: true });
+
+    const catalogRows = parsePublicHelperCatalog(
+      await readFile(path.resolve("contracts/public-helpers.md"), "utf8"),
+    );
+    expect(catalogRows).toHaveLength(29);
+    const representativeIds = new Set([
+      "play-subagent-execution/write-snapshot-manifest",
+      "play-agent-dispatch/source-immutability",
+      "issue-worktree-setup/setup-worktree",
+    ]);
+    const rows = catalogRows.filter((row) => representativeIds.has(row.id));
+    expect(rows).toHaveLength(3);
+    const owningSkills = new Set(rows.map((row) => row.skill));
+    for (const skill of owningSkills) {
+      await cp(
+        path.resolve("skills", skill),
+        path.join(config.library.skillsDir, skill),
+        { recursive: true },
+      );
+    }
+
+    const result = await sync(config, {
+      dryRun: false,
+      force: false,
+      strict: false,
+      mode: "copy" as const,
+    });
+    expect(result.errors).toEqual([]);
+
+    for (const row of rows) {
+      const sourceScript = path.resolve(row.executable);
+      const sourceUsage = path.resolve(row.usageDocument);
+      const relativeScript = path.relative(
+        path.join("skills", row.skill),
+        row.executable,
+      );
+      const relativeUsage = path.relative(
+        path.join("skills", row.skill),
+        row.usageDocument,
+      );
+      const expectedAdjacency = path
+        .relative(path.dirname(relativeScript), relativeUsage)
+        .split(path.sep)
+        .join("/");
+      const sourceScriptBytes = await readFile(sourceScript);
+      const sourceUsageBytes = await readFile(sourceUsage);
+      const sourceExecutableMode = (await stat(sourceScript)).mode & 0o111;
+
+      for (const target of ["claude", "codex"] as const) {
+        const generatedRoot = path.join(
+          config.library.generatedDir,
+          target,
+          "skills",
+          row.skill,
+        );
+        const installedRoot = path.join(
+          config.targets[target].skillsHome,
+          row.skill,
+        );
+        const generatedScript = path.join(generatedRoot, relativeScript);
+        const generatedUsage = path.join(generatedRoot, relativeUsage);
+        const installedScript = path.join(installedRoot, relativeScript);
+        const installedUsage = path.join(installedRoot, relativeUsage);
+
+        expect(await readFile(generatedScript), row.executable).toEqual(
+          sourceScriptBytes,
+        );
+        expect(await readFile(installedScript), row.executable).toEqual(
+          sourceScriptBytes,
+        );
+        expect(await readFile(generatedUsage), row.usageDocument).toEqual(
+          sourceUsageBytes,
+        );
+        expect(await readFile(installedUsage), row.usageDocument).toEqual(
+          sourceUsageBytes,
+        );
+        expect(
+          path
+            .relative(path.dirname(generatedScript), generatedUsage)
+            .split(path.sep)
+            .join("/"),
+          row.executable,
+        ).toBe(expectedAdjacency);
+        expect(
+          path
+            .relative(path.dirname(installedScript), installedUsage)
+            .split(path.sep)
+            .join("/"),
+          row.executable,
+        ).toBe(expectedAdjacency);
+        expect((await stat(generatedScript)).mode & 0o111).toBe(
+          sourceExecutableMode,
+        );
+        expect((await stat(installedScript)).mode & 0o111).toBe(
+          sourceExecutableMode,
+        );
+      }
+    }
   });
 
   it("reuses a config-relative manifest boundary and records from a second cwd", async () => {

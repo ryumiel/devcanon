@@ -1,172 +1,60 @@
 # Phase 7 Review Handling
 
-Detailed `issue-priming-workflow` Phase 7 mechanics live here so the eager
-workflow prompt can keep only orchestration and hard stops loaded by default.
-Load this reference before classifying remaining findings, checking
-branch-review-owned fix commit reruns, or preparing the Phase 8 `nits_file`.
+Use [play-review review-artifacts usage](../../play-review/references/review-artifacts-usage.md)
+for `validate-findings` and `prepare-judgment-nits`. This reference owns
+Phase 7 classification, reruns, and Phase 8 continuation.
 
-## Review Artifact Parsing
+## Review Evidence
 
-After each `branch-review --fix` run, parse these exact notice lines from that
-run:
-
-- `Review head: <40-hex-sha>.`
-- `Findings written to <path>.`
-
-Use the immutable review head from the notice line as `HEAD_SHA` when reading
-that run's findings. Do not recompute from current `HEAD`; `branch-review --fix`
-may have committed auto-fixes after the findings file was created. Resolve
-`PLAY_REVIEW_HELPER` to the installed `play-review/scripts/review-artifacts.sh`
-helper and validate the findings path before reading the envelope.
-
-Do not re-parse human-readable review markdown. The side-channel
-`play-review/findings/v2` envelope is the consumer contract.
-
-Once a run is candidate-final because all Phase 7 blocker, nit, and rerun
-criteria are satisfied, also capture the approval-summary path from the exact
-`Approval summary written to <path>.` notice emitted by that same run. Do not
-parse approval-summary JSON fields, duplicate branch-review's
-`branch-review/approval-summary/v1` schema, or reinterpret approval state here.
-Branch-review owns producing and validating that artifact. Phase 7 owns
-carrying the final notice path forward as handoff evidence.
-
-Do not reuse an approval-summary path captured from an earlier branch-review
-run. Approval-summary notice paths are final-run-only; any branch-review-owned
-fix commit or other rerun invalidates earlier approval-summary paths for Phase
-8 handoff. A missing final approval-summary notice is a hard stop before Phase 8.
+After each `branch-review --fix` run, retain that run's immutable review-head,
+findings-notice, and candidate-final approval-summary notice as side-channel
+evidence. Do not parse human review prose, recompute a prior review head from
+current `HEAD`, duplicate the approval-summary schema, or reuse evidence after
+a branch-review rerun. Missing final approval-summary evidence stops Phase 8.
 
 ## Blocker Stop Rules
 
-Check remaining `findings[]` before nit classification.
-
-- `critic: "INVALID"` findings are critic-rejected false positives. Ignore
-  them for continuation and do not pass them to Phase 8.
-- `critic: "DOWNGRADE"` findings are valid non-blocking feedback. They do not
-  stop auto mode, but when selected for Phase 8 they are judgment-required nits.
-- Any remaining `severity: "Blocking"` finding whose critic is neither
-  `INVALID` nor `DOWNGRADE` stops `--auto`; surface those findings to the user.
-
-Only continue to nit handling when every remaining finding is a Nit, a
-`DOWNGRADE`, or an `INVALID`.
+`INVALID` findings are ignored; `DOWNGRADE` findings are non-blocking but
+judgment-required. Any remaining Blocking finding with another critic result
+stops auto mode. Only then may Phase 7 classify remaining Nits.
 
 ## Remaining Nit Classification
 
-Use the final `branch-review --fix` findings envelope to identify which
-`severity: "Nit"` findings still require judgment and therefore belong in the
-Phase 8 `nits_file`. Fixable feedback is branch-review-owned and should have
-been handled, removed, or left as judgment-required by `branch-review --fix`
-before this workflow prepares the handoff.
-
-- Fixable: a 1-3 line source change with one obvious correct fix, such as a
-  typo, broken sentence with one reconstruction, or dead cross-reference.
-  Branch-review owns resolving this class when `--fix` can do so. A fixable nit
-  withheld by the proportionality gate remains non-mutating and is selected as
-  judgment-required for caller handoff rather than being dropped.
-- Judgment-required: subjective wording, structural suggestions, multiple
-  plausible fixes, or anything else where a competent reviewer could defend
-  more than one answer. Only this class is selected for Phase 8.
-
-Treat every `critic: "DOWNGRADE"` finding as judgment-required without
-fixing. Use `references/nit-classification.md` for the full taxonomy and
-`references/auto-mode-discipline.md` for the conservative tie-breaker.
+`branch-review --fix` owns fixable review feedback. Phase 7 passes only subjective
+or otherwise judgment-required Nits, plus every `DOWNGRADE`, to Phase 8. A
+fixable nit withheld by a proportionality gate remains a non-mutating
+judgment-required handoff. Use `nit-classification.md` and
+`auto-mode-discipline.md` for the taxonomy and conservative tie-breaker.
 
 ## Branch-Review-Owned Fix Commits
 
-`branch-review --fix` owns fixable review feedback, including objectively
-fixable nit-severity findings. Branch-review may group, edit, and commit those
-fixes according to its own source contract before it emits the final findings
-and approval-summary notices that this workflow consumes.
+Branch Review may group, edit, and commit its fixes. The first Phase 7 pass is
+the full-diff `branch-review --fix` route. After a Branch Review fix commit,
+use its existing paired follow-up route with the validated prior evidence while
+preserving base, risk-signal, and full-scope facts. Only newly discovered
+concrete source evidence may reopen remediation; Phase 7 never applies a
+post-mutation veto.
 
-For fixed nit-severity findings, branch-review-owned fix commit bodies include
-one trailer per addressed nit:
-
-```text
-Reported by branch-review at <path>:<line>
-```
-
-### First run: existing full-diff route
-
-The first Phase 7 run uses the existing full-diff `branch-review --fix` route.
-
-### Follow-up: paired prior-review route
-
-If that run creates a branch-review-owned fix commit, Phase 7 captures that
-run's validated review head and post-fix findings envelope before it invokes
-the next round. On the new `HEAD`, invoke the existing paired route with those
-exact values:
-
-Invoke the installed `branch-review` skill in `--fix` mode with the paired
-`--last-reviewed "$PRIOR_REVIEW_HEAD"` and
-`--prior-findings "$PRIOR_FINDINGS_FILE"` inputs. Retain the existing base,
-risk-signal, and `shared-workflow-policy` full-scope escalation facts in that
-skill briefing. This is a target-neutral skill invocation, not a shell command.
-
-This uses no new input or artifact. The existing paired-input validation fails
-closed; missing or invalid paired evidence stops this follow-up without source
-changes. `shared-workflow-policy` requires Branch Review to retain full
-base...HEAD semantic scope while it forwards the validated prior findings to
-`play-review`. Preserve any existing risk-signal and positional-base inputs
-under their current rules.
-
-Before grouping or mutation, Branch Review compares current findings and
-concrete source evidence with that validated prior evidence and the source at
-the validated review head. Only a newly discovered concrete source fact,
-contradiction, invalid dependency, or material safety defect unavailable to the
-prior round may reopen its existing remediation route. A prior auto-fix does
-not make its already-available evidence newly discovered merely because the
-post-fix envelope no longer lists that finding. Repeated severity or critic
-labels, already available evidence, and wording or stable-marker-only
-corrections do not reopen unrelated review dimensions. An existing bounded
-proof-owner repair may proceed only when its own qualifying evidence meets that
-same freshness condition, as may genuinely qualifying behavior, authority, or
-executable-contract evidence. Phase 7 supplies the inputs and orchestration; it
-never applies a post-mutation veto. Branch Review remains the comparison, fix,
-and commit owner.
-
-Continue until a run reports zero blocking findings auto-fixed, no unresolved
-true Blocking findings, captures that final run's approval-summary notice path,
-and carries fresh final approval-summary evidence after branch-review-owned fix
+Continue until the final run has no true Blocking finding, no new auto-fixed
+blocker, and fresh final approval-summary evidence after branch-review-owned fix
 commits.
 
 ## Judgment-Required Nits Envelope
 
-For judgment-required nits and downgraded findings that remain after the final
-branch-review run, leave source files unchanged and prepare a Phase 8 nits
-envelope through the `play-review` helper. The controller supplies selected
-`.findings[]` indexes after classification.
+When selected items remain, resolve the installed `play-review` bundle and use
+its exact local help projection before preparing the handoff:
 
-Invoke the helper command `prepare-judgment-nits` with:
+```bash
+PLAY_REVIEW_DIR="<installed-play-review-skill-bundle>"
+bash "$PLAY_REVIEW_DIR/scripts/review-artifacts.sh" --help
+```
 
-- `HEAD_SHA`: immutable review head from the `Review head` notice.
-- `FINDINGS_FILE`: validated findings path from the `Findings written to`
-  notice.
-- `JUDGMENT_REQUIRED_FINDING_INDEXES`: comma-separated zero-based indexes for
-  selected judgment-required findings.
-
-The helper validates the findings envelope, rejects unresolved true blockers,
-rejects selected `INVALID` findings, preserves selected ordinary Nits,
-normalizes selected `DOWNGRADE` copies to postable Nit form, writes the derived
-`-nits-pending.json` envelope, and prints only the repo-relative nits path.
-
-If the judgment-required set is empty, skip the helper and omit `nits_file`.
-Empty selection is controller-owned; do not invoke the helper with an empty
-index list.
+Then use `prepare-judgment-nits` through that usage contract. An empty selection
+is controller-owned: omit `nits_file` rather than calling the helper. Leave
+source files unchanged during this handoff.
 
 ## Phase 8 Handoff
 
-Phase 8 receives only judgment-required items that remain after the final
-branch-review run. Pass the helper-produced
-`nits_file` to `play-branch-finish` Option 2 when present. Omit `nits_file`
-when no judgment-required nits remain.
-
-Phase 8 may start only after the final Phase 7 review run satisfies all of
-these conditions:
-
-- zero blocking findings auto-fixed in that final run;
-- no unresolved remaining Blocking findings except `INVALID` or `DOWNGRADE`;
-- final approval-summary notice path captured from that same final run;
-- fresh final approval-summary evidence after any branch-review-owned fix
-  commits.
-
-Manual operators decide nit handling case by case; this reference's automatic
-classification and helper handoff are for `--auto` only.
+Pass the produced `nits_file` to `play-branch-finish` Option 2 only when it
+exists. Phase 8 begins only after the final-run conditions above; manual
+operators decide nits case by case.

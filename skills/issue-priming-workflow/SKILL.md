@@ -11,6 +11,10 @@ codex_sidecar:
 
 # Issue Priming Workflow
 
+## Public helper mechanics
+
+Use the adjacent [phase-artifacts usage](references/phase-artifacts-usage.md), [source-immutability usage](references/source-immutability-usage.md), [write-research-brief usage](references/write-research-brief-usage.md), [write-auto-handoff usage](references/write-auto-handoff-usage.md), and [write-assumptions-comment usage](references/write-assumptions-comment-usage.md) for reusable helper mechanics. This workflow owns phase decisions and provider continuation.
+
 Continue an issue-priming workflow handed off by `linear-issue-priming` or `github-issue-priming`. The source entrypoint has already fetched the issue, provisioned or reused the issue worktree, and written the issue body to `.ephemeral/`. This workflow gates complexity, optionally researches, brainstorms, and (in `--auto` mode) plans, implements, reviews, and creates a PR.
 
 ## Inputs
@@ -186,6 +190,12 @@ The fixed assessor and investigator pairs remain exact.
 Ordinary gate and research outcomes remain their existing fallback and
 outcome-precedence routes; they are not capability retries.
 
+Resolve `SOURCE_IMMUTABILITY_HELPER` to
+`$ISSUE_PRIMING_WORKFLOW_DIR/scripts/source-immutability.sh` and run it from
+the Phase 1 worktree root. Before the first guarded Phase 2 assessor or forced
+Phase 3 investigator, run
+`bash "$SOURCE_IMMUTABILITY_HELPER" --help` once for this enclosing flow.
+
 ## Phase 2: Complexity Gate
 
 The gate is evaluated for `payload.research = gated`. Only the research phase
@@ -198,9 +208,9 @@ checks `AGENTS.md` for relevant rules. The route has external authority `none`,
 no network access, and zero handoffs. Do not substitute an ambient role, model,
 or effort and do not escalate this bounded gate into a different route.
 
-Resolve `SOURCE_IMMUTABILITY_HELPER` to
-`$ISSUE_PRIMING_WORKFLOW_DIR/scripts/source-immutability.sh` and run it from
-the Phase 1 worktree root. Apply the GUARD-001 lifecycle to this leaf:
+Use the enclosing flow's already-resolved
+`$ISSUE_PRIMING_WORKFLOW_DIR/scripts/source-immutability.sh` binding and apply
+the GUARD-001 lifecycle to this leaf:
 
 1. **capture before spawn** with no `--handoff`; capture failure prevents the
    spawn and treats the assessor as unavailable under the existing gate
@@ -284,10 +294,10 @@ external authority `none`, but the dispatch explicitly grants
 named network access for its one root-curated external question. Network access does not
 grant external mutation.
 
-Resolve `SOURCE_IMMUTABILITY_HELPER` to
-`$ISSUE_PRIMING_WORKFLOW_DIR/scripts/source-immutability.sh`. Give every
-internal, immediate-external, and late-external leaf its own retained baseline
-and apply this GUARD-001 lifecycle independently:
+Use the enclosing flow's already-resolved
+`$ISSUE_PRIMING_WORKFLOW_DIR/scripts/source-immutability.sh` binding. Give
+every internal, immediate-external, and late-external leaf its own retained
+baseline and apply this GUARD-001 lifecycle independently:
 
 1. **capture before spawn** with no `--handoff`; capture failure prevents only
    that spawn and treats that investigator as unavailable under the existing
