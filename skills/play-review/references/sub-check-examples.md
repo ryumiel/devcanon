@@ -46,4 +46,13 @@ emitted, and the code block is canonical, recommend rewriting prose to match.
 
 ## Spec reviewer — Sub-check B: Cross-document identifier drift — illustrative scenario
 
-Illustrative scenario (hypothetical): suppose a diff to one skill adds prose explicitly calling out that `gh api -f <field>=<value>` combined with `--input <file>` is broken because `-f` arguments become URL query parameters when `--input` is supplied. Sub-check B greps the corpus for the broken pattern. Any unchanged sibling files still demonstrating it would each be flagged as a blocking, out-of-diff finding.
+Illustrative scenario (hypothetical): suppose a diff to one skill adds prose
+explicitly calling out that `gh api -f <field>=<value>` combined with
+`--input <file>` is broken because `-f` arguments become URL query parameters
+when `--input` is supplied. Sub-check B greps the corpus for the broken
+pattern. Each unchanged sibling file still demonstrating it is a
+`Documentation` candidate that remains report-only, out-of-diff, and
+judgment-required. If the supported candidate or applicable breach crosses the
+repository merge gate, emit `Blocking | Documentation`; if it is a real
+supported issue below that gate, emit `Nit | Documentation`; otherwise emit no
+finding.
