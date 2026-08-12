@@ -15,3 +15,15 @@ pattern X appears within this diff, therefore X is illustrative."
 Fabricated citations are usually internally consistent precisely because
 they were generated together; co-occurrence within a diff is the failure
 signature, not a downgrade signal.
+
+Literal verification is the first part of a calibrated judgment, not evidence
+that a blocker is automatically valid. The critic first tries to falsify the
+unchanged current candidate at the captured reviewed head, then asks whether it
+has a reachable consequence or an applicable repository-owned obligation and,
+separately, whether that consequence crosses the merge gate. This keeps a real
+but non-blocking concern distinct from an unsupported claim, while preserving
+obligation-backed architecture, documentation, safety, and consumer-owned test
+findings that do not reduce to one executable path. Duplicate retention comes
+only after those individual judgments: matching obligation, remediation, and
+effective anchor retain the lowest current ordinal, while ambiguity, different
+anchors, and carry-forward items stay separate.

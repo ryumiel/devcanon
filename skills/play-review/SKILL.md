@@ -238,6 +238,17 @@ durable approval evidence, not a finding: it is not aggregated, posted, or
 given to D10, but it must prevent branch-review approval until no selected
 topical route is incomplete.
 
+Every selected D7-D9 prompt also carries the common candidate-admission filter
+in `references/agent-briefing-template.md`. It applies before emission without
+replacing a route's distinct question or Phase 4 sub-checks: a blocker needs a
+supported reachable current-diff consequence or an applicable repository-owned
+obligation, and must independently cross that repository's merge gate. Suppress
+proof-for-proof, hypothetical or unknown-consumer, preference-only,
+over-engineered, already-addressed, and premise-requiring claims. An applicable
+architecture, documentation, safety, or consumer-owned-test obligation remains
+eligible even without one executable path; a real current concern below the
+merge gate is not thereby false.
+
 Resolve `PLAY_REVIEW_DIR` to the loaded or installed `play-review` skill bundle,
 resolve `SOURCE_IMMUTABILITY_HELPER` to
 `$PLAY_REVIEW_DIR/scripts/source-immutability.sh`, and run it from
@@ -358,6 +369,44 @@ reference as a literal claim, not illustrative rhetoric: verify cited
 `file:line`, identifiers, commands, commit SHAs, and PR numbers by opening the
 cited artifact. Tag INVALID if the artifact does not exist or does not contain
 the cited text. See `references/critic-rationale.md`.
+
+The controller's D10 handoff is structural only. For each current merged
+blocker, it supplies a stable ordinal and otherwise passes the assertion,
+anchor, evidence, why-clause, recommendation, and severity framing unchanged.
+It must not paraphrase, strengthen, repair, add evidence or premises, or supply
+a disposition hint. Carry-forward candidates retain their existing content and
+are not assigned current-blocker ordinals. D10 receives repository authority
+source references to reread, never controller-authored facts, conclusions, or
+alternative remediation; the controller does not restate repository evidence in
+the handoff.
+
+D10 is falsification-first for every current blocker: seek counterevidence at
+the captured reviewed head, then verify literal references and assess the
+unchanged original claim. It must establish either a reachable current-diff
+consequence or an applicable authoritative repository obligation, then assess
+merge-gate severity independently of finding category. `VALID` means the
+original claim survives those checks and crosses the merge gate. `DOWNGRADE`
+means a real current issue or applicable obligation remains but does not cross
+that gate. `INVALID` means no actionable current issue or applicable obligation
+remains, including an unsupported hypothetical, already-addressed concern,
+preference-only over-engineering, proof-for-proof request with no consumer-owned
+gap, or claim needing added premises. Missing required workflow input retains
+the existing `NEEDS_CONTEXT` route; an incomplete candidate is not repaired by
+the controller.
+
+Only after every current blocker has an independent calibrated verdict, D10
+may identify true current duplicates. A group requires the same violated
+obligation, remediation, and effective anchor; any difference or ambiguity,
+including a shared root cause, preserves separate findings. D10 retains the
+lowest stable current-blocker ordinal as the transient representative while
+preserving every member's truthful `VALID` or `DOWNGRADE` verdict. It never
+groups carry-forward candidates, whose existing resolution or unresolved
+outcomes and cardinality remain unchanged. The existing D10 response therefore
+has one outcome for every input plus a transient retained-current selection; the
+controller consumes that selection before writing the unchanged findings/v2
+envelope and does not regroup candidates. This is retention, not truth
+calibration, creates no schema, field, registry, or artifact, and does not let
+Phase 5.5 merge findings or alter the envelope.
 
 Cardinality invariant: for a legitimately spawned D10 that returns a completed
 critic result, `input_blocker_count` is greater than zero and its combined
