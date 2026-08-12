@@ -46,18 +46,12 @@ Same cycle as code TDD, different test format.
 
 ## Guarded Evaluator Policy
 
-Every pressure evaluator is response-only `assessor`, balanced/medium,
-source-immutable, and zero-handoff. Use the adjacent
-[source-immutability usage](source-immutability-usage.md) for its guard
-mechanics. Apply guarded evidence in capture-before-spawn, verify-before-use,
-cleanup-before-application order. Only valid guarded evidence proves RED or
-GREEN; invalid evidence reruns the same scenario fresh. Mutation or cleanup
-failure is terminal and never repaired. RED/GREEN/REFACTOR scenarios,
+The owning skill's
+[Pressure-Scenario Evaluator Contract](../SKILL.md#pressure-scenario-evaluator-contract)
+is the sole normative owner for evaluator role, guard lifecycle, terminal
+cleanup, and rerun disposition. This methodology consumes only the valid
+guarded evidence produced by that contract. RED/GREEN/REFACTOR scenarios,
 rationalizations, and retest pressure remain unchanged.
-
-Capture failure prevents the evaluator spawn. After capture succeeds, every
-terminal path attempts cleanup of that exact retained baseline; an ordinary
-invalid response may rerun the same scenario only after safe cleanup.
 
 ## RED Phase: Baseline Testing (Watch It Fail)
 
