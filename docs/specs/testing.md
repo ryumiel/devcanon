@@ -82,12 +82,14 @@ Render tests prove generated artifact behavior:
 
 Render consumers preserve structural behavior for both supported targets:
 parseability, packaging and sidecars, target-native frontmatter, semantic agent
-identity, capability, effort, authority, and route evidence. Source-contract
-consumers prove stable source-owned interfaces, such as required handoff
-inputs, outputs, authority decisions, and helper references. Script-runtime
-consumers execute source scripts against focused fixtures. Each layer stays at
-its own boundary and does not turn broad skill prose, prompt wording, ADR
-wording, or helper algorithms into a render or source-text contract.
+identity, capability, effort, and authority. Where a source owner exposes a
+canonical structural route reference, render consumers preserve that reference;
+they do not infer route compliance from narrative wording. Source-contract
+consumers prove stable source-owned interfaces, such as required handoff inputs,
+outputs, authority decisions, and helper references. Script-runtime consumers
+execute source scripts against focused fixtures. Each layer stays at its own
+boundary and does not turn broad skill prose, prompt wording, ADR wording, or
+helper algorithms into a render or source-text contract.
 
 Behavioral guarantees for public script commands belong in runtime and
 public-wrapper integration tests. Source-contract and render tests may assert

@@ -9,8 +9,8 @@ import { renderAll } from "./pipeline.js";
 const OWNER_PATH = "docs/guidelines/agent-routing-and-mutation-policy.md";
 const TARGETS = ["claude", "codex"] as const;
 
-describe("routing-owner skill rendering", () => {
-  it("renders every route owner named by the structural policy inventory", async () => {
+describe("route-owner packaging smoke", () => {
+  it("packages every route owner named by the structural policy inventory", async () => {
     const [owner, config] = await Promise.all([
       readAgentRoutingPolicyOwner(OWNER_PATH),
       loadConfig(path.join(process.cwd(), "devcanon.config.yaml")),
