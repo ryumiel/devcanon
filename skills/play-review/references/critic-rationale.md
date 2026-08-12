@@ -25,6 +25,8 @@ merge gate. This keeps a real
 but non-blocking concern distinct from an unsupported claim, while preserving
 obligation-backed architecture, documentation, safety, and consumer-owned test
 findings that do not reduce to one executable path. Duplicate retention comes
-only after those individual judgments: matching obligation, remediation, and
-effective anchor retain the lowest current ordinal, while ambiguity, different
-anchors, and carry-forward items stay separate.
+only after those individual judgments. Only candidates with matching verdict,
+obligation, remediation, and effective anchor share a duplicate group, which
+retains its lowest current ordinal. Mixed `VALID`/`DOWNGRADE` verdicts remain
+separate so an independently blocking candidate remains retained; ambiguity,
+different anchors, and carry-forward items also stay separate.

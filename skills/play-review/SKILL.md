@@ -396,13 +396,17 @@ the controller.
 
 Only after every current blocker has an independent calibrated verdict, D10
 may identify true current duplicates. A group requires the same violated
-obligation, remediation, and effective anchor; any difference or ambiguity,
-including a shared root cause, preserves separate findings. D10 retains the
-lowest stable current-blocker ordinal as the transient representative while
-preserving every member's truthful `VALID` or `DOWNGRADE` verdict. It never
-groups carry-forward candidates, whose existing resolution or unresolved
-outcomes and cardinality remain unchanged. The existing D10 response therefore
-has one outcome for every input plus a transient retained-current selection; the
+obligation, remediation, effective anchor, and calibrated verdict. Any
+difference or ambiguity, including a shared root cause or mixed
+`VALID`/`DOWNGRADE` verdicts, preserves separate findings. Only within a
+verdict-homogeneous group does D10 retain the lowest stable current-blocker
+ordinal as the transient representative; mixed verdicts are each retained.
+Every input preserves its own verdict, and `INVALID` behavior remains
+unchanged. If any surviving current candidate is `VALID`, the final envelope
+contains a retained current finding with critic `VALID`. D10 never groups
+carry-forward candidates, whose existing resolution or unresolved outcomes and
+cardinality remain unchanged. The existing D10 response therefore has one
+outcome for every input plus a transient retained-current selection; the
 controller consumes that selection before writing the unchanged findings/v2
 envelope and does not regroup candidates. This is retention, not truth
 calibration, creates no schema, field, registry, or artifact, and does not let
