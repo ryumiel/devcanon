@@ -18,8 +18,12 @@ Procedure:
    old primitive enforced. Pull from `--help` or official docs when needed.
 3. For each property, classify the new code as PRESERVES, GUARDS, or SILENTLY
    DROPS.
-4. A SILENTLY DROPS finding is `Blocking | Safety` unless the diff or
-   surrounding spec explicitly waives the property with rationale.
+4. A SILENTLY DROPS candidate uses the `Safety` category. Apply common
+   admission: emit `Blocking | Safety` only when the supported candidate or an
+   applicable obligation breach independently crosses the repository merge
+   gate; emit `Nit | Safety` for a real supported issue below that gate; emit
+   no finding when it is inadmissible. An explicit rationale that waives the
+   property does not itself establish an unwaived breach.
 
 Bounding rule: apply only to external invocations, not internal-code refactors,
 literal renames, or mechanical formatting changes.
@@ -33,7 +37,10 @@ Worked example: a diff replaces `git branch -d` with `git branch -D` to silence
 a spurious squash-merge warning. The old primitive rejects deletion when the
 branch has unmerged commits relative to its upstream and HEAD. The new primitive
 accepts unconditionally, and the diff adds no surrounding guard. Verdict:
-SILENTLY DROPS the unmerged-commit rejection - `Blocking | Safety`.
+SILENTLY DROPS the unmerged-commit rejection. If the resulting supported
+`Safety` issue crosses the repository merge gate, emit `Blocking | Safety`; if
+it is supported but below the gate, emit `Nit | Safety`; otherwise emit no
+finding.
 
 ### Sub-check 2: Documented-Behavior Verification
 
@@ -48,8 +55,13 @@ Procedure:
    runtime behavior. Do not approve based only on prior knowledge.
 3. Flag divergence: ignored arguments, wrong defaults, body/query confusion, or
    behavior that will not match surrounding claims.
-4. Tag divergence as DOCUMENTED-BEHAVIOR MISMATCH:
-   `Blocking | Contracts` unless explicitly waived with rationale.
+4. Tag divergence as a DOCUMENTED-BEHAVIOR MISMATCH candidate in the
+   `Contracts` category. Apply common admission: emit `Blocking | Contracts`
+   only when the supported candidate or an applicable obligation breach
+   independently crosses the repository merge gate; emit `Nit | Contracts` for
+   a real supported issue below that gate; emit no finding when it is
+   inadmissible. An explicit rationale that waives the behavior does not itself
+   establish an unwaived breach.
 
 Disposition: judgment-required. Wrappers' auto-fix paths must not auto-fix
 Sub-check 2 findings.
@@ -58,7 +70,9 @@ Worked example: `gh api repos/{owner}/{repo}/pulls/<N>/reviews` mixed with
 `-f commit_id=...`, `-f event=...`, `-f body=...`, and `--input <file>`.
 `gh api --help` shows that with `--input`, sibling `-f` flags become URL query
 parameters, not body fields. Verdict: DOCUMENTED-BEHAVIOR MISMATCH -
-`Blocking | Contracts`.
+`Contracts` issue. If it crosses the repository merge gate, emit
+`Blocking | Contracts`; if it is supported but below the gate, emit
+`Nit | Contracts`; otherwise emit no finding.
 
 ### Data-Safety, Language, and Tests
 
@@ -83,9 +97,13 @@ contract changes, generated/source ownership, and durable decision indicators.
 ### Sub-check A: Within-Document Identifier Drift
 
 For each changed `*.md` file, compare backticked identifiers in prose against
-identifiers used in adjacent fenced code blocks within the same file. Flag
-divergence as `Blocking | Documentation`. Auto-fixable only when the code block
-is canonical; if the code block is wrong, route to judgment instead.
+identifiers used in adjacent fenced code blocks within the same file. Treat
+divergence as a `Documentation` candidate and apply common admission: emit
+`Blocking | Documentation` only when the supported candidate or an applicable
+obligation breach independently crosses the repository merge gate; emit
+`Nit | Documentation` for a real supported issue below that gate; emit no
+finding when it is inadmissible. Auto-fixable only when the code block is
+canonical; if the code block is wrong, route to judgment instead.
 
 Illustrative scenario: prose says "`git worktree prune` removes the directory"
 while the adjacent code block invokes `git worktree remove <path>`.
