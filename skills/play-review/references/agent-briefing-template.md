@@ -39,8 +39,9 @@ them forward.
 Candidate admission applies to every topical route before a finding is emitted.
 Emit a blocking candidate only when its original claim is supported by a
 reachable current-diff consequence or an applicable obligation from the
-reviewed repository's authoritative sources, and its consequence independently
-crosses that repository's merge gate. Do not emit proof-for-proof requests when
+reviewed repository's authoritative sources, and the supported candidate or
+obligation breach independently crosses that repository's merge gate. Do not
+emit proof-for-proof requests when
 coverage already exists at the executable owner and this consumer adds no
 independently fallible behavior; hypothetical or unknown-consumer concerns;
 preference-only abstraction, refactor, generalization, or over-engineering;
