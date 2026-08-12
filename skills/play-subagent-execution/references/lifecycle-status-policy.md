@@ -25,8 +25,10 @@ cleanup gate before the next session.
 `DONE` follows the effective route: `spec-and-quality` requires fresh D14 and
 D15, `spec-only` requires D14, and `none-final-only` completes after self-review
 and commit. A single-task plan completes after its applicable route. Concerns
-about correctness or scope remain incomplete until addressed; observational
-concerns may continue.
+about correctness or scope remain incomplete until addressed. A D13
+`DONE_WITH_CONCERNS` report with judgment-bearing correctness or scope concerns
+routes the captured report to D12; purely observational concerns may continue
+through the selected route.
 
 ## Reviewer Freshness and Fixups
 

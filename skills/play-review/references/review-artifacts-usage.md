@@ -24,7 +24,7 @@ Validation commands are silent on success. `derive-nits-pending`, `prepare-judgm
 
 ## Refusal and failures
 
-The helper rejects unknown commands, bad cwd, missing environment, invalid head or event, malformed envelopes, invalid judgment indexes, unsafe or unreadable paths, stale heads, invalid source anchors, and invalid stdin.
+The helper rejects unknown commands, bad cwd, missing environment, invalid head or event, malformed envelopes, invalid judgment indexes, unsafe or unreadable paths, stale heads during publication, invalid source anchors, and invalid stdin.
 
 ## Side effects
 

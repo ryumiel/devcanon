@@ -41,9 +41,17 @@ commits.
 
 ## Judgment-Required Nits Envelope
 
-When selected items remain, use `prepare-judgment-nits` through its usage
-contract. An empty selection is controller-owned: omit `nits_file` rather than
-calling the helper. Leave source files unchanged during this handoff.
+When selected items remain, resolve the installed `play-review` bundle and use
+its exact local help projection before preparing the handoff:
+
+```bash
+PLAY_REVIEW_DIR="<installed-play-review-skill-bundle>"
+bash "$PLAY_REVIEW_DIR/scripts/review-artifacts.sh" --help
+```
+
+Then use `prepare-judgment-nits` through that usage contract. An empty selection
+is controller-owned: omit `nits_file` rather than calling the helper. Leave
+source files unchanged during this handoff.
 
 ## Phase 8 Handoff
 
