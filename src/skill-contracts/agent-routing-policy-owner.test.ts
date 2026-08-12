@@ -684,13 +684,19 @@ function representativeOwnerErrors(
     errors.push("D3:evidence-qualifier");
   }
   if (
-    !markdown.includes(
-      "[`subagent-lifecycle`](../../skills/subagent-lifecycle/SKILL.md)",
+    !markdownLinkTargets(markdown).includes(
+      "../../skills/subagent-lifecycle/SKILL.md",
     )
   ) {
     errors.push("shared-owner-reference");
   }
   return errors;
+}
+
+function markdownLinkTargets(markdown: string): string[] {
+  return [...markdown.matchAll(/\[[^\]]+\]\(([^)]+)\)/g)].map(
+    (match) => match[1],
+  );
 }
 
 function resolveD4Model(

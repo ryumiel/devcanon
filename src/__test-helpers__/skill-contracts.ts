@@ -1,49 +1,8 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
-export const SNAPSHOT_REQUEST_TRIGGER_CONTRACTS = [
-  {
-    adrPhrase: "governed output",
-    skillPhrase: "governed outputs",
-  },
-  {
-    adrPhrase: "generated-output behavior",
-    skillPhrase: "generated-output behavior",
-  },
-  {
-    adrPhrase: "schema or type contract",
-    skillPhrase: "schema or type contracts",
-  },
-  {
-    adrPhrase: "cross-agent, or cross-skill handoff behavior",
-    skillPhrase: "cross-agent or cross-skill handoff behavior",
-  },
-  {
-    adrPhrase:
-      "Path-validation, filesystem-safety, or other security-sensitive behavior",
-    skillPhrase:
-      "path-validation, filesystem-safety, or other security-sensitive behavior",
-  },
-  {
-    adrPhrase: "explicit controller request for audit",
-    skillPhrase: "explicit controller audit",
-  },
-  {
-    adrPhrase: "unclear classification",
-    skillPhrase: "unclear classification",
-  },
-] as const;
-
 export async function readRepoFile(relativePath: string): Promise<string> {
   return readFile(path.join(process.cwd(), relativePath), "utf-8");
-}
-
-export async function readSkillSource(skillName: string): Promise<string> {
-  return readRepoFile(path.join("skills", skillName, "SKILL.md"));
-}
-
-export function normalizeWhitespace(content: string): string {
-  return content.replace(/\s+/g, " ").trim();
 }
 
 export function getMarkdownSection(content: string, heading: string): string {

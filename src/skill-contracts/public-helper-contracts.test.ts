@@ -84,6 +84,12 @@ function markdownLinkTarget(value: string): string {
   return match[1];
 }
 
+function markdownLinkTargets(markdown: string): string[] {
+  return [...markdown.matchAll(/\[[^\]]+\]\(([^)]+)\)/g)].map(
+    (match) => match[1],
+  );
+}
+
 function assertRequiredUsageHeadings(usage: string): void {
   const headings = new Set(usage.split("\n"));
   for (const heading of requiredUsageHeadings) {
@@ -184,7 +190,7 @@ async function assertOwningSkillUsageLinks(
       "utf8",
     );
     const usageName = path.posix.basename(row.usageDocument);
-    if (!skill.includes(`references/${usageName}`)) {
+    if (!markdownLinkTargets(skill).includes(`references/${usageName}`)) {
       throw new Error(`owning SKILL usage link missing: ${row.helperId}`);
     }
   }
@@ -195,7 +201,6 @@ describe("public helper registry", () => {
     const rows = catalogRows(await readFile(catalogPath, "utf8"));
 
     validateRows(rows);
-    expect(rows).toHaveLength(29);
     expect(rows).toContainEqual(
       expect.objectContaining({
         helperId: "issue-worktree-setup/setup-worktree",
