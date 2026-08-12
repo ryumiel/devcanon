@@ -38,19 +38,20 @@ them forward.
 
 Candidate admission applies to every topical route before a finding is emitted.
 Emit a blocking candidate only when its original claim is supported by a
-reachable current-diff consequence or an applicable obligation from the
-reviewed repository's authoritative sources, and the supported candidate or
-obligation breach independently crosses that repository's merge gate. Do not
+reachable current-diff consequence or an actual breach of an applicable
+obligation from the reviewed repository's authoritative sources, and the
+supported candidate or obligation breach independently crosses that
+repository's merge gate. Do not
 emit proof-for-proof requests when
 coverage already exists at the executable owner and this consumer adds no
 independently fallible behavior; hypothetical or unknown-consumer concerns;
 preference-only abstraction, refactor, generalization, or over-engineering;
 already-addressed concerns; or claims requiring premises or evidence not in the
 finding. A real current issue that does not cross the merge gate may remain a
-non-blocking concern. Repository obligations such as architecture,
-documentation, safety, or consumer-owned tests may support a finding even when
-there is no single executable path. This common filter supplements and does not
-replace the route's review question or sub-checks.
+non-blocking concern. Actual breaches of repository obligations such as
+architecture, documentation, safety, or consumer-owned tests may support a
+finding even when there is no single executable path. This common filter
+supplements and does not replace the route's review question or sub-checks.
 
 Open with one or two short narrative sentences naming what the
 implementation got right before the findings list.

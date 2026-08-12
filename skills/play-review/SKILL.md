@@ -241,13 +241,14 @@ topical route is incomplete.
 Every selected D7-D9 prompt also carries the common candidate-admission filter
 in `references/agent-briefing-template.md`. It applies before emission without
 replacing a route's distinct question or Phase 4 sub-checks: a blocker needs a
-supported reachable current-diff consequence or an applicable repository-owned
-obligation, and must independently cross that repository's merge gate. Suppress
+supported reachable current-diff consequence or an actual breach of an
+applicable repository-owned obligation, and must independently cross that
+repository's merge gate. Suppress
 proof-for-proof, hypothetical or unknown-consumer, preference-only,
-over-engineered, already-addressed, and premise-requiring claims. An applicable
-architecture, documentation, safety, or consumer-owned-test obligation remains
-eligible even without one executable path; a real current concern below the
-merge gate is not thereby false.
+over-engineered, already-addressed, and premise-requiring claims. A breach of
+an applicable architecture, documentation, safety, or consumer-owned-test
+obligation remains eligible even without one executable path; a real current
+concern below the merge gate is not thereby false.
 
 Resolve `PLAY_REVIEW_DIR` to the loaded or installed `play-review` skill bundle,
 resolve `SOURCE_IMMUTABILITY_HELPER` to
@@ -371,8 +372,10 @@ cited artifact. Tag INVALID if the artifact does not exist or does not contain
 the cited text. See `references/critic-rationale.md`.
 
 The controller's D10 handoff is structural only. For each current merged
-blocker, it supplies a stable ordinal and otherwise passes the assertion,
-anchor, evidence, why-clause, recommendation, and severity framing unchanged.
+blocker, it supplies a stable ordinal and otherwise passes the anchor, evidence,
+why-clause, recommendation, and severity framing unchanged. The unchanged
+why-clause is the original claim D10 must falsify; no separate `assertion`
+field or findings-envelope schema extension exists.
 It must not paraphrase, strengthen, repair, add evidence or premises, or supply
 a disposition hint. Carry-forward candidates retain their existing content and
 are not assigned current-blocker ordinals. D10 receives repository authority
@@ -382,22 +385,23 @@ the handoff.
 
 D10 is falsification-first for every current blocker: seek counterevidence at
 the captured reviewed head, then verify literal references and assess the
-unchanged original claim. It must establish either a reachable current-diff
-consequence or an applicable authoritative repository obligation, then assess
-merge-gate severity independently of finding category. `VALID` means the
-original claim survives those checks and crosses the merge gate. `DOWNGRADE`
-means a real current issue or applicable obligation remains but does not cross
-that gate. `INVALID` means no actionable current issue or applicable obligation
-remains, including an unsupported hypothetical, already-addressed concern,
-preference-only over-engineering, proof-for-proof request with no consumer-owned
-gap, or claim needing added premises. Missing required workflow input retains
-the existing `NEEDS_CONTEXT` route; an incomplete candidate is not repaired by
-the controller.
+unchanged why-clause. It must establish either a reachable current-diff
+consequence or an actual breach of an applicable authoritative repository
+obligation, then assess merge-gate severity independently of finding category.
+`VALID` means the original claim survives those checks and crosses the merge
+gate. `DOWNGRADE` means a real current issue or actual obligation breach remains
+but does not cross that gate. `INVALID` means no actionable current issue or
+actual obligation breach remains, including an unsupported hypothetical,
+already-addressed concern, preference-only over-engineering, proof-for-proof
+request with no consumer-owned gap, or claim needing added premises. Missing
+required workflow input retains the existing `NEEDS_CONTEXT` route; an
+incomplete candidate is not repaired by the controller.
 
 Only after every current blocker has an independent calibrated verdict, D10
-may identify true current duplicates. A group requires the same violated
-obligation, remediation, effective anchor, and calibrated verdict. Any
-difference or ambiguity, including a shared root cause or mixed
+may identify true current duplicates. A group requires the same supported
+reachable consequence or the same violated obligation, plus the same
+remediation, effective anchor, and calibrated verdict. Any difference or
+ambiguity, including a shared root cause or mixed
 `VALID`/`DOWNGRADE` verdicts, preserves separate findings. Only within a
 verdict-homogeneous group does D10 retain the lowest stable current-blocker
 ordinal as the transient representative; mixed verdicts are each retained.
