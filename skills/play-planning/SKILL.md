@@ -503,9 +503,21 @@ reject or override it. The detailed taxonomy (positive and negative examples)
 lives in the [mechanical task taxonomy](../play-subagent-execution/references/skip-dispatch-policy.md#mechanical-task-taxonomy)
 reference — consult it before setting the hint.
 
-Example mechanical-task header:
+Example mechanical-task plan fragment:
 
 ```markdown
+## Execution Projection
+
+- **Entry ID:** `EP-RENAME-EXAMPLE-TOKEN`
+  - **Affected surface:** `examples/demo-note.md`
+  - **Normative owner:** The example-token content in `examples/demo-note.md`.
+  - **Owner source:** The approved issue requirement for this exact rename.
+  - **Consumption mode:** `reference`
+  - **Task/no-code disposition:** Task `RENAME-EXAMPLE-TOKEN`
+  - **Proof owner:** The `RENAME-EXAMPLE-TOKEN` task implementer.
+  - **Proof boundary:** Focused inspection of `examples/demo-note.md` confirms
+    the approved before/after token replacement.
+
 ### Task N: Rename Example Token
 
 **Task ID:** RENAME-EXAMPLE-TOKEN
@@ -533,6 +545,8 @@ Example mechanical-task header:
 **Source-of-truth references:** The approved issue requirement for this exact rename.
 
 **Authority surfaces:** `examples/demo-note.md`
+
+**Execution Projection references:** `EP-RENAME-EXAMPLE-TOKEN`
 
 **NO-TRIGGER reason:** This exact token replacement is a single-file
 mechanical example that changes no behavior, authority, generated output,
