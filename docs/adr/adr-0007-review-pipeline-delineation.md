@@ -55,9 +55,10 @@ task. The implementer agent still runs and self-reviews. At the time this
 ADR landed, the skill's final whole-implementation code-quality reviewer
 still ran after the task completed. ADR-0016 later narrowed the
 `issue-priming-workflow --auto` single-task path so that when downstream
-`branch-review --fix` is explicitly guaranteed, that final reviewer is
-skipped; outside that caller-scoped carve-out, the final reviewer still
-runs.
+`branch-review --fix` is explicitly guaranteed and no retained undischarged
+no-code proof tuple remains, that final reviewer is skipped. Otherwise D16
+runs with the whole context before Phase 7; outside that caller-scoped
+carve-out, the final reviewer still runs.
 
 For plans with **two or more** tasks, `play-subagent-execution` computes the
 task's effective review route. The original per-task two-stage review
