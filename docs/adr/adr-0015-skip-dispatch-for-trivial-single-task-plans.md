@@ -14,6 +14,9 @@ that the final whole-implementation reviewer runs on every plan should now be
 read together with ADR-0016, and upstream planning-precondition statements
 should be read together with ADR-0023.
 
+Issue #611's user-approved admission refinement supersedes the legacy
+unreviewed-plan compatibility statements in this ADR.
+
 ## Context
 
 For single-task plans whose Task 1 is a verbatim file write — content fully
@@ -33,13 +36,17 @@ task is itself mechanical and fully specified in the plan body.
 ## Decision
 
 Add an internal optimization to `play-subagent-execution`: after plan
-extraction, evaluate five guardrails on the plan; if all hold, the
-controller executes the file change inline (Write/Edit + verify + commit),
-skipping the implementer subagent dispatch entirely.
+extraction, require execution admission before evaluating five guardrails. An
+admitted plan contains exactly one canonical `## Execution Projection` and
+identifiable same-digest D5 Plan Review and D6 Implementer Executability Review
+PASS provenance for the exact plan bytes. Admission failure returns
+`BLOCKED/NEEDS_CONTEXT` before any D12, D13, inline, or skip-dispatch route. If
+all five guardrails hold after admission, the controller executes the file
+change inline (Write/Edit + verify + commit), skipping the implementer subagent
+dispatch entirely.
 
-The five conditions (all must hold; #1, #2, #4, and #5 are evaluated at
-execution time by the controller, #3 is an upstream precondition rather
-than a runtime check):
+The five conditions all apply after admission and are evaluated at execution
+time by the controller:
 
 1. **Runtime guardrail.** The plan is single-task.
 2. **Runtime guardrail.** Task 1's header carries `**Mode:** mechanical`
@@ -47,14 +54,10 @@ than a runtime check):
    `play-subagent-execution/references/skip-dispatch-policy.md` § Mechanical
    Task Taxonomy; covers both positive shapes from that taxonomy — verbatim
    file create and unambiguous identifier replacement).
-3. **Upstream precondition.** No clarifying questions could plausibly
-   arise — implicit from the upstream two-gate `play-planning` return
-   introduced by ADR-0023, meaning both Plan Review and Implementer
-   Executability Review passed before `Plan written to <path>.` was emitted.
-   The controller does not re-verify this at execution time; direct invocations
-   of `play-subagent-execution` against a hand-written plan with no upstream
-   two-gate return fail this precondition and fall back to dispatched
-   implementation.
+3. **Runtime guardrail.** The admitted reviewed task needs no implementation
+   clarification: its exact mechanical operation, named authority, and bounded
+   verification leave no implementation choice. Paired-review provenance is
+   admission evidence, not this guardrail's fallback condition.
 4. **Runtime guardrail.** The task passes `play-subagent-execution`'s
    structural task-contract gate. The controller does not re-infer
    `play-planning` trigger applicability at execution time and does not
@@ -68,21 +71,19 @@ than a runtime check):
    closed compact fields, including named authority, every actual known
    participant and direct producer-consumer relationship, and an explicit
    reason every FULL trigger is absent. `NO-TRIGGER` requires a task-specific
-   reason. Both reduced tiers require the reviewed two-gate provenance for the
-   plan being executed. Direct, hand-written, copied, older, or otherwise
-   unreviewed plans without that provenance must use a structurally complete
-   `FULL` contract. If source inspection cannot confirm the tier-appropriate
-   owner, authority, source-of-truth, participant, direct relationship,
+   reason. If source inspection cannot confirm the tier-appropriate owner,
+   authority, source-of-truth, participant, direct relationship,
    consumer, generated-output, or evidence surface, the task contract is
    invalid.
 5. **Runtime guardrail.** Task body contains no TDD expectations or legacy
    TDD step-pair markers (`Step 1: Write the failing test` / `Step 3: Write
 minimal implementation`).
 
-If guardrail #4 fails, the controller stops before implementation and
-reports the missing or invalid task contract. Other guardrail failures fall
-back to the existing dispatched-implementer flow. Template choice is driven
-by `**Mode:** mechanical` in the task header, with one carve-out: when
+Admission failure and guardrail #4 failure stop before implementation and
+report `BLOCKED/NEEDS_CONTEXT`; neither selects D12, D13, or inline execution.
+After admission, ordinary guardrail #1, #2, #3, or #5 failures fall back to the
+existing D12 dispatched-implementer flow. Template choice is driven by
+`**Mode:** mechanical` in the task header, with one carve-out: when
 guardrail #5 fails (TDD expectation or legacy TDD step-pair present),
 `implementer-prompt.md` is used regardless of any `**Mode:** mechanical`
 hint, since TDD work needs the full prompt's judgment scaffolding. The
@@ -109,12 +110,13 @@ here.
   Token cost drops by the round-trip overhead of spawning and receiving a
   DONE report from an implementer. The benefit concentrates on docs-heavy
   plans (skills, ADRs, guidelines).
-- No new skip-dispatch coupling is added. Guardrail #3 leans on the upstream
-  two-gate `play-planning` return, and guardrail #4 consumes the upstream
-  literal Contract tier field and tier-appropriate task contract emitted by
-  `play-planning`. No skip-dispatch-specific eligibility field is added, while
-  the upstream literal Contract tier field is required. Guardrails #1, #2, #4,
-  and #5 read structural signals already present in the plan format.
+- No new skip-dispatch coupling is added. Admission consumes the canonical
+  projection and upstream same-digest D5/D6 PASS provenance, while guardrail
+  #4 consumes the upstream literal Contract tier field and tier-appropriate
+  task contract emitted by `play-planning`. No skip-dispatch-specific
+  eligibility field is added, while the upstream literal Contract tier field is
+  required. Guardrails #1, #2, #4, and #5 read structural signals already
+  present in the plan format; guardrail #3 evaluates admitted-task ambiguity.
 - The "Make per-task implementer subagent read the plan file" Red Flag in
   `play-subagent-execution` is amended: skip-dispatch is the
   explicitly-gated exception where the controller (not a subagent) does
@@ -156,8 +158,8 @@ here.
   do the inline write itself. Rejected: violates the issue's stated
   preference ("let `play-subagent-execution` decide"), leaks
   execution-tier logic into the orchestration workflow, and would require
-  duplicating the guardrail check for direct invocations of
-  `play-subagent-execution` outside `--auto`.
+  duplicating admission and guardrail enforcement outside
+  `play-subagent-execution`.
 - **Heuristic auto-detection of mechanical content** (no `**Mode:**` hint
   required). Rejected on the same grounds as the existing
   `**Mode:** mechanical` policy: hint-only is the conservative choice;
