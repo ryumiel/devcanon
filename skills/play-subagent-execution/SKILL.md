@@ -109,7 +109,7 @@ cleanup behavior, focused proof, every actual known participant and direct
 producer-consumer relationship, including guarded-inline D13 when it is an
 actual participant or direct consumer, and an explicit reason every FULL
 trigger is absent; `NO-TRIGGER` requires a task-specific reason. A read-only
-proof task may inspect and run permitted checks against its named proof boundary
+proof task may inspect and run permitted checks against its assigned proof boundaries
 but may not edit durable source or create a commit. The executor must not promote,
 demote, infer, or otherwise reclassify the tier from task prose, diff size,
 path spelling, or runtime risk routing. Present Contract Example
@@ -306,10 +306,11 @@ For the full selection and process diagrams, load
    when a required checklist or extracted context is missing, malformed, blank,
    unexplained, unsupported, internally inconsistent, or unverifiable by source
    inspection.
-4. Route every `read-only proof` task through the guarded proof-task lifecycle
-   owned by the lifecycle/status policy. Run it sequentially with only its
-   curated task/projection context, verify the named proof boundary, and prove
-   HEAD is unchanged. It never enters D12/D13 or creates a commit.
+4. Derive task order and proof readiness from each entry's implementation set
+   and proof assignments. No proof assignment is eligible until every
+   implementation member for that entry has completed. A source-mutating proof
+   assignee must be the final implementation member and prove after its own
+   commit; every other independent assignment uses a dedicated read-only task.
 5. For single-task mechanical source-mutating plans, evaluate the skip-dispatch guardrails.
    When all five guardrails hold, the controller either performs the Write/Edit,
    verification, and commit inline or dispatches the exact-task executor prompt.
@@ -329,8 +330,11 @@ For the full selection and process diagrams, load
    lifecycles. Load the
    [lifecycle/status policy](references/lifecycle-status-policy.md) for guard
    ordering and every returned review disposition.
-10. After any fixup commit, use the lifecycle/status policy for invalidation and
-    completion state, then load the
+10. After implementation members complete, route eligible `read-only proof`
+    tasks through the guarded proof-task lifecycle with only their curated
+    task/projection context. Bind summaries to the checked HEAD. After any later
+    relevant or fixup commit, use the lifecycle/status policy to invalidate and
+    rerun affected proof assignments and reviews, then load the
     [review-routing policy](references/review-routing-policy.md) only to
     recompute the effective route.
 11. After the lifecycle/status policy permits task completion, follow its D16
@@ -390,9 +394,10 @@ D13 dispositions. None of these surfaces permits the executor to guess or
 widen scope.
 
 A `read-only proof` task uses guarded inline inspection when the controller can
-perform its bounded check directly, or the existing source-immutable `assessor`,
+perform its bounded checks directly, or the existing source-immutable `assessor`,
 balanced/medium, with zero handoffs for Subagent-Driven execution. The lifecycle/status policy owns
-its capture, result, immutability verification, cleanup, and completion rules.
+its capture, per-boundary result, HEAD-bound freshness, immutability verification,
+cleanup, and completion rules.
 This route creates no commit, proof ledger, discharge state, or persistent
 handoff.
 

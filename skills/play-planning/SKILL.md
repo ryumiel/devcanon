@@ -244,7 +244,7 @@ For behavior- or contract-changing work, consume the approved design's
 ownership topology and expose its tier-appropriate mapping in the plan. `FULL`
 tasks require exhaustive topology, including the normative owner, optional
 non-overlapping supporting owner identities and partitions, topology roles,
-conflict precedence, task coverage, and proof owner. A family-local authority requires
+conflict precedence, task coverage, and proof assignments. A family-local authority requires
 additional complete or necessary topology only when it explicitly governs the
 ownership-topology mapping. `LIGHTWEIGHT` compact topology still names every
 actual known participant and direct producer-consumer relationship alongside
@@ -264,8 +264,8 @@ and generated skill packages remain derived consumers rather than edit targets.
 For every executable plan, produce exactly one semantic plan-local
 `## Execution Projection` with the exact heading required by the canonical
 criteria. Load the criteria for the common assignment core, tier-aware entry
-shapes, participation identity, implementation-task-set/proof-owner union, and
-task-linkage rules; do not create a persistent schema, registry, or second
+shapes, participation identity, implementation-task/proof-assignment union,
+proof freshness, and task-linkage rules; do not create a persistent schema, registry, or second
 policy owner. Invalid or unresolved producer facts block plan handoff.
 
 For generated artifacts, derived artifacts, helper I/O files, `.ephemeral`
@@ -397,7 +397,7 @@ criterion: <explicit inclusion rule>`
 **Authority surfaces:** <which source files, contracts, schemas, helpers, renderers, install/sync flows, or policies own the behavior; generated outputs are derived evidence, not authority>
 
 **Execution Projection references:** <every applicable projection Entry ID in
-this Task ID's exact implementation-membership-and-proof-owner union; or `None — no
+this Task ID's exact implementation-membership-and-proof-assignment union; or `None — no
 projection entry names this task`. Required whenever the plan has an Execution
 Projection.>
 
@@ -453,8 +453,9 @@ diff, private implementation name, or `.ephemeral/` path does not by itself
 authorize `LIGHTWEIGHT` or `NO-TRIGGER`.
 
 Every task also declares exactly one `source-mutating` or `read-only proof`
-execution route. The canonical criteria own route validity; no-code and other
-non-diff proof uses a dedicated read-only proof task.
+execution route. The canonical criteria own route validity, proof-assignment
+ordering, and freshness; no-code and other non-diff proof uses a dedicated
+read-only proof task.
 
 Select exactly one tier-specific block from the template and remove the other
 two. The ordinary task fields, acceptance criteria, verification expectations,
@@ -650,16 +651,18 @@ Review in this order:
    size or path spelling. Require exactly one `source-mutating` or `read-only
 proof` route. A no-code or otherwise non-diff proof obligation must use a
    dedicated read-only proof task.
-4. Validate the semantic Execution Projection and every task's exact reference coverage
+4. Validate the semantic Execution Projection, every task's exact reference
+   coverage, and every proof assignment's dependency order and freshness rule
    against the canonical criteria. Any incomplete, duplicate, ambiguous,
-   mismatched, or unauthorized projection fact blocks review.
+   mismatched, stale, or unauthorized projection fact blocks review.
 5. Confirm optional comment evidence remains non-authoritative.
 6. Classify every finding as `CURRENT`, `BLOCKER`, `FOLLOW-UP`, or
    `OPTIONAL` before changing the plan.
 
 For `FULL`, also confirm that every ownership topology row has complete task and
 proof coverage and that no task asks an implementer to choose an owner,
-supporting owner identity, partition, topology role, precedence, or proof owner. When
+supporting owner identity, partition, topology role, precedence, proof task, or
+proof boundary. When
 a family-local authority governs ownership topology, confirm its additional
 complete or necessary topology detail. For `LIGHTWEIGHT`, confirm the compact
 record does not leave any actual known participant, direct relationship,
@@ -1159,12 +1162,24 @@ Otherwise, offer execution choice:
 
 **If Inline Execution chosen:**
 
+- **REQUIRED CONSUMER RULE:** Resolve the installed
+  `play-subagent-execution` bundle and load its
+  `references/execution-projection-consumer-rule.md`. Apply that rule's uniform
+  same-byte execution admission: capture the guarded saved-plan bytes once,
+  hash that capture, compare it with the preserved reviewed digest, and derive
+  every task and projection entry only from that capture. A missing or unreadable
+  rule blocks execution. A capture/read/hash failure, malformed digest, or
+  mismatch returns to fresh D5/D6; never reread the plan path for execution.
 - Execute every authored task sequentially in this session with review
   checkpoints. A `source-mutating` task uses the ordinary edit, verify, commit,
   and review path. A `read-only proof` task captures HEAD, inspects or runs
-  permitted checks against its named proof boundary, returns `VERIFIED`,
+  permitted checks against its assigned proof boundaries, returns `VERIFIED`,
   `BLOCKED`, `NEEDS_CONTEXT`, or `FAILED`, then proves HEAD is unchanged and
-  creates no commit. Before each task, use
-  its exact `Execution Projection references` union and honor proof-owned
+  creates no commit. Run each proof assignment only after all implementation
+  members for its entry; a source-mutating proof assignee must be the final
+  member and prove after its own commit. Invalidate and rerun affected proof
+  assignments after any later relevant commit. Before each task, use
+  its exact `Execution Projection references` union and honor proof-assigned
   entries; a `No code` implementation disposition never authorizes skipping its
-  required verification task.
+  required verification tasks. Retain only controller-local summaries bound to
+  the checked HEAD.

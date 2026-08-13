@@ -48,8 +48,9 @@ Comparative notes on why this skill exists. Per-turn instruction lives in
   carve-out relies on the downstream `branch-review --fix` whole-diff gate only
   for exactly one completed mutating task with no read-only or other non-diff
   proof obligation
-- Dedicated read-only proof tasks reuse the source-immutable assessor and retain
-  ordinary D16 without creating proof ledgers or commits
+- Dedicated read-only proof tasks reuse the source-immutable assessor; their
+  HEAD-bound summaries rerun after relevant commits and retain ordinary D16
+  without creating proof ledgers or commits
 - Review loops ensure fixes actually work
 - Spec compliance prevents over/under-building
 - Code quality ensures implementation is well-built

@@ -33,13 +33,16 @@ through the selected route.
 
 ## Read-Only Proof Task Status
 
-Execute each `read-only proof` task serially after its dependencies and before
-final whole-implementation review. For Subagent-Driven execution, dispatch the
-existing source-immutable `assessor`, balanced/medium, with the captured task
-text, resolved task-relevant projection entries, named proof boundary, and
-permitted inspection/check scope, with zero handoffs. For Inline Execution, the controller performs
-the same bounded inspection and checks directly. Neither route may edit durable
-source, create a commit, or mutate an external system.
+Execute each `read-only proof` task serially only after every implementation
+member for each assigned projection entry and all other declared dependencies
+have completed. Before final whole-implementation review, verify every proof
+assignment is current at the final implementation HEAD. For Subagent-Driven
+execution, dispatch the existing source-immutable `assessor`, balanced/medium,
+with the captured task text, resolved task-relevant projection entries, assigned
+proof boundaries, and permitted inspection/check scope, with zero handoffs. For
+Inline Execution, the controller performs the same bounded inspection and checks
+directly. Neither route may edit durable source, create a commit, or mutate an
+external system.
 
 Use the guard lifecycle capture → run → verify → validate/retain → cleanup →
 apply. Capture HEAD and the source-immutability baseline before the task. Accept
@@ -49,18 +52,35 @@ unchanged and the source guard passes; cleanup the exact baseline on every
 terminal path. Mutation, a new commit, malformed status, guard failure, or
 cleanup failure is terminal `BLOCKED` and remains visible rather than repaired.
 `VERIFIED` is ordinary controller-local task-completion evidence, not a receipt,
-ledger entry, persistent discharge state, or new artifact. Retain its summary in
+ledger entry, persistent discharge state, or new artifact. Retain its summary,
+including the checked HEAD and concise evidence for every assigned boundary, in
 the existing whole-implementation context for D16.
 
-The response-only result contains exactly the status, named proof boundary,
-checks performed, and concise evidence or blocker. The controller supplies and
-validates HEAD separately; the child does not create a receipt or handoff.
+The response-only result contains exactly the overall status, assigned proof
+boundaries, checks performed, and concise per-boundary evidence or blocker. The
+controller supplies and validates HEAD separately; the child does not create a
+receipt or handoff. Any non-pass boundary makes the overall task non-pass.
+
+A source-mutating proof assignee is handled by its ordinary implementation
+route. It must be an implementation member, must be the final implementation
+member for each entry it proves, must depend on every other implementation
+member, and performs the assigned proof only after its own commit. At most one
+proof assignment per entry may use this form. All other independent proof
+assignments use dedicated read-only proof tasks.
+
+Any later relevant commit affecting an assigned entry's relationship,
+participation, implementation member, or proof boundary invalidates its retained
+proof summary. Before D16, rerun every invalidated assignment against the new
+HEAD in dependency order. This invalidation is controller-local lifecycle state;
+it creates no ledger, persistent discharge record, or projection-specific D16
+reporting contract. Rerunning a source-mutating assignee's proof checkpoint does
+not require an empty or unrelated commit when no source change is authorized.
 
 `BLOCKED` or `NEEDS_CONTEXT` caused by a bounded inspection input may be
 recovered within the task's existing authority. A false no-code disposition,
-wrong implementation set, wrong tier or topology, missing proof owner, or other
-reviewed-plan defect returns to planning under the authority-based recovery rule
-below. `FAILED` means the named proof boundary did not pass; route an
+wrong implementation set, wrong tier or topology, missing proof assignment, or
+other reviewed-plan defect returns to planning under the authority-based
+recovery rule below. `FAILED` means at least one assigned proof boundary did not pass; route an
 implementation defect to D12 and a reviewed-plan defect to planning.
 
 ## Reviewer Freshness and Fixups
@@ -117,10 +137,11 @@ Classify each Blocking D16 finding by the authority that can correct it:
 
 - An implementation defect within an existing task's authorized scope routes to
   D12. A fix commit invalidates affected review results and requires fresh
-  applicable task review, reruns every affected read-only proof task, and then
+  applicable task review, reruns every affected proof assignment, and then
   requires fresh D16.
 - A false no-code disposition, wrong implementation task set, incorrect tier,
-  topology, participation identity or partition, missing/incorrect proof owner,
+  topology, participation identity or partition, missing/incorrect proof
+  assignment,
   or other reviewed-plan defect returns to planning. The corrected plan receives
   a new digest, fresh D5/D6 review, fresh execution admission, reruns every
   affected task or proof route, and then receives fresh D16. Existing unaffected
