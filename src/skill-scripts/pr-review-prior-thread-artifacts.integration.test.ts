@@ -790,6 +790,43 @@ describe.skipIf(!jqAvailable)("pr-review prior-thread adapter", () => {
     }
   });
 
+  it("uses the runtime ASCII branch slug for a Unicode provider capture path", async () => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    const capturePath = `.ephemeral/feat--${headSha}-provider-scope-capture.json`;
+    const evidencePath = `.ephemeral/feat--${headSha}-provider-scope-evidence.json`;
+    try {
+      await execFileAsync("git", ["switch", "-C", "feat/한글"], { cwd });
+      await expect(
+        readFile(path.join(process.cwd(), "skills/pr-review/SKILL.md"), "utf8"),
+      ).resolves.toContain("LC_ALL=C tr -cd '[:alnum:]._-'");
+      const { stdout: documentedSlug } = await execFileAsync("bash", [
+        "-c",
+        'LC_ALL=C printf "%s" "$1" | LC_ALL=C tr "/" "-" | LC_ALL=C tr -cd "[:alnum:]._-"',
+        "bash",
+        "feat/한글",
+      ]);
+      expect(documentedSlug).toBe("feat-");
+      await writeJson(
+        cwd,
+        capturePath,
+        await providerScopeCapture(cwd, baseSha, headSha),
+      );
+      await expect(
+        runHelper(cwd, helperScript, "prepare-provider-scope-evidence-write", {
+          HEAD_SHA: headSha,
+        }),
+      ).resolves.toMatchObject({ stdout: `${evidencePath}\n` });
+      await expect(
+        runHelper(cwd, helperScript, "write-provider-scope-evidence", {
+          HEAD_SHA: headSha,
+          PROVIDER_SCOPE_CAPTURE_FILE: capturePath,
+        }),
+      ).resolves.toMatchObject({ stdout: `${evidencePath}\n`, stderr: "" });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
   it.each([{ name: "copied" }, { name: "symlinked" }])(
     "resolves a $name installed sibling runtime for provider production",
     async ({ name }) => {

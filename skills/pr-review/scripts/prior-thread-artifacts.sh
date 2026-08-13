@@ -55,7 +55,7 @@ validate_head_sha() {
 slug_branch() {
   local branch_name="$1"
   local slug
-  slug=$(printf '%s' "$branch_name" | tr '/' '-' | tr -cd '[:alnum:]._-')
+  slug=$(LC_ALL=C printf '%s' "$branch_name" | LC_ALL=C tr '/' '-' | LC_ALL=C tr -cd '[:alnum:]._-')
   case "$slug" in
     "" | "." | ".." | -* | .*) slug="unnamed" ;;
   esac

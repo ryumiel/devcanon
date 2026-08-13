@@ -332,7 +332,7 @@ bind_scope_decision_artifact() {
   cd "$WORKING_DIRECTORY" || return 1
   HEAD_SHA="$(git rev-parse HEAD)" || return 1
   raw_branch="$(git rev-parse --abbrev-ref HEAD)" || return 1
-  branch_slug="$(printf '%s' "$raw_branch" | tr '/' '-' | tr -cd '[:alnum:]._-')"
+  branch_slug="$(LC_ALL=C printf '%s' "$raw_branch" | LC_ALL=C tr '/' '-' | LC_ALL=C tr -cd '[:alnum:]._-')"
   [ "$raw_branch" != HEAD ] || branch_slug="detached"
   case "$branch_slug" in "" | . | .. | -* | .*) branch_slug="unnamed" ;; esac
   PROVIDER_SCOPE_CAPTURE_FILE=".ephemeral/$branch_slug-$HEAD_SHA-provider-scope-capture.json"
