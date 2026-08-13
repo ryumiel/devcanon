@@ -178,12 +178,13 @@ export async function runPrReviewProviderScopeEvidenceCommand(args, operations =
         if (captureFile !== expectedCaptureFile) {
             fail("provider scope capture path mismatch");
         }
+        const capture = await readSingleJsonObject(captureFile, "provider scope capture JSON validation failed");
+        validateProviderScopeCaptureShape(capture);
         await assertProviderBoundGitPreflight();
         const currentHead = (await providerBoundGit(["rev-parse", "HEAD"])).trim();
         if (currentHead !== headSha) {
             fail("--head-sha must match current repository HEAD");
         }
-        const capture = await readSingleJsonObject(captureFile, "provider scope capture JSON validation failed");
         const evidence = await providerScopeEvidenceFromCapture(capture, headSha);
         const evidenceFile = await expectedProviderScopeEvidencePath(headSha);
         await assertWritableProviderScopeEvidenceTarget(evidenceFile);

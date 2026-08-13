@@ -889,7 +889,17 @@ describe.skipIf(!jqAvailable)("documented provider capture retries", () => {
       await writeFile(path.join(cwd, capturePath), malformed);
       const run = await runDocumentedProviderFetch(cwd, baseSha, root, []);
 
-      await expect(run.result).rejects.toMatchObject({ code: 1 });
+      await expect(run.result).rejects.toMatchObject({
+        code: 1,
+        stderr: expect.stringContaining(
+          `preserved provider scope capture ${capturePath}`,
+        ),
+      });
+      await expect(run.result).rejects.toMatchObject({
+        stderr: expect.stringContaining(
+          `remove only ${capturePath} and rerun Phase 1/binding.`,
+        ),
+      });
       await expect(readFile(path.join(cwd, capturePath), "utf8")).resolves.toBe(
         malformed,
       );
@@ -928,7 +938,17 @@ describe.skipIf(!jqAvailable)("documented provider capture retries", () => {
         true,
       );
 
-      await expect(run.result).rejects.toMatchObject({ code: 1 });
+      await expect(run.result).rejects.toMatchObject({
+        code: 1,
+        stderr: expect.stringContaining(
+          `preserved provider scope capture ${capturePath}`,
+        ),
+      });
+      await expect(run.result).rejects.toMatchObject({
+        stderr: expect.stringContaining(
+          `remove only ${capturePath} and rerun Phase 1/binding.`,
+        ),
+      });
       await expect(readFile(path.join(cwd, capturePath), "utf8")).resolves.toBe(
         JSON.stringify(
           {

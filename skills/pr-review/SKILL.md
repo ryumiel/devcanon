@@ -393,6 +393,7 @@ bind_scope_decision_artifact() {
       [ "$capture_attempt" -lt 2 ] && continue
       return 1
     else
+      echo "preserved provider scope capture $PROVIDER_SCOPE_CAPTURE_FILE because it is unreadable, malformed, or unclassifiable; inspect it; to restart provider capture, remove only $PROVIDER_SCOPE_CAPTURE_FILE and rerun Phase 1/binding." >&2
       return 1
     fi
   fi
