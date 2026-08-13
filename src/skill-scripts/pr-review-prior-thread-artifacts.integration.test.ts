@@ -682,6 +682,53 @@ describe("documented provider-scope capture materialization", () => {
     }
   });
 
+  it("rejects copied GitHub files with a precise unsupported-status diagnostic", async () => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    const scratch = path.join(
+      cwd,
+      ".ephemeral",
+      "provider-scope-capture.fixture",
+    );
+    await mkdir(scratch);
+    const capturePath = path.join(
+      cwd,
+      `.ephemeral/topic-${headSha}-provider-scope-capture.json`,
+    );
+    try {
+      const inputs = await writeRawGithubCaptureInputs(
+        scratch,
+        baseSha,
+        headSha,
+      );
+      const pages = JSON.parse(await readFile(inputs.filesPath, "utf8"));
+      pages[0][0] = {
+        ...pages[0][0],
+        status: "copied",
+        previous_filename: "src/original.ts",
+      };
+      await writeFile(inputs.filesPath, JSON.stringify(pages));
+
+      await expect(
+        runRawGithubCaptureMaterializer(
+          cwd,
+          capturePath,
+          path.join(scratch, "capture.json"),
+          inputs,
+          headSha,
+        ),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining(
+          "GitHub copied file status is unsupported",
+        ),
+      });
+      await expect(readFile(capturePath, "utf8")).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
   it("leaves no canonical capture when materialization stops before publication", async () => {
     const { cwd, baseSha, headSha } = await makeGitWorkspace();
     const scratch = path.join(

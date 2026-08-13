@@ -378,9 +378,13 @@ async function materializeProviderScopeCapture(
   }
   const providerFiles = pages.flat().map((value) => {
     const file = value as JsonObject;
+    const status = stringField(file, "status");
+    if (status === "copied") {
+      fail("GitHub copied file status is unsupported");
+    }
     return {
       path: stringField(file, "filename"),
-      status: stringField(file, "status"),
+      status,
       previous_path:
         typeof file.previous_filename === "string"
           ? file.previous_filename
