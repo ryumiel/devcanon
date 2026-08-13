@@ -347,6 +347,27 @@ async function writeMarkerValidator(root: string, marker: string) {
   return script;
 }
 
+async function writeMarkerRuntime(root: string) {
+  const script = path.join(root, "scripts/devcanon-runtime.sh");
+  await mkdir(path.dirname(script), { recursive: true });
+  await writeFile(
+    script,
+    [
+      "#!/usr/bin/env bash",
+      "set -euo pipefail",
+      'if [ "${3:-}" = "contract" ]; then',
+      '  printf "%b" "${RUNTIME_CONTRACT_OUTPUT:-}"',
+      '  exit "${RUNTIME_CONTRACT_EXIT:-0}"',
+      "fi",
+      '[ -z "${RUNTIME_DISPATCH_MARKER:-}" ] || : > "$RUNTIME_DISPATCH_MARKER"',
+      'printf "%s\\n" ".ephemeral/runtime-provider-scope-evidence.json"',
+      "",
+    ].join("\n"),
+  );
+  await chmod(script, 0o755);
+  return root;
+}
+
 async function copyInstalledPrAdapter(root: string) {
   const script = path.join(root, "pr-review/scripts/prior-thread-artifacts.sh");
   await mkdir(path.dirname(script), { recursive: true });
@@ -356,6 +377,76 @@ async function copyInstalledPrAdapter(root: string) {
 }
 
 describe.skipIf(!jqAvailable)("pr-review prior-thread adapter", () => {
+  it.each([
+    {
+      name: "extra blank output",
+      output:
+        '{"command_group":"pr-review-provider-scope-evidence","major_version":1}\\n\\n',
+    },
+    {
+      name: "extra text output",
+      output:
+        '{"command_group":"pr-review-provider-scope-evidence","major_version":1}\\nextra\\n',
+    },
+    {
+      name: "wrong descriptor",
+      output: '{"command_group":"wrong","major_version":1}\\n',
+    },
+    { name: "malformed output", output: "not JSON\\n" },
+    {
+      name: "unknown major",
+      output:
+        '{"command_group":"pr-review-provider-scope-evidence","major_version":2}\\n',
+    },
+    {
+      name: "nonzero output",
+      output: "",
+      exit: "7",
+      stderr: "runtime contract check failed",
+    },
+  ])(
+    "rejects runtime compatibility $name before producer dispatch",
+    async ({ output, exit, stderr }) => {
+      const { cwd, baseSha, headSha } = await makeGitWorkspace();
+      const root = await mkdtemp(
+        path.join(os.tmpdir(), "devcanon-pr-runtime-"),
+      );
+      const capturePath = `.ephemeral/topic-${headSha}-provider-scope-capture.json`;
+      const marker = path.join(root, "dispatch");
+      try {
+        await writeJson(
+          cwd,
+          capturePath,
+          await providerScopeCapture(cwd, baseSha, headSha),
+        );
+        await writeMarkerRuntime(root);
+        await expect(
+          runHelper(cwd, helperScript, "write-provider-scope-evidence", {
+            HEAD_SHA: headSha,
+            PROVIDER_SCOPE_CAPTURE_FILE: capturePath,
+            DEVCANON_RUNTIME_DIR: root,
+            RUNTIME_CONTRACT_OUTPUT: output,
+            RUNTIME_CONTRACT_EXIT: exit ?? "0",
+            RUNTIME_DISPATCH_MARKER: marker,
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining(
+            stderr ?? "runtime contract is incompatible",
+          ),
+        });
+        await expect(readFile(marker, "utf8")).rejects.toMatchObject({
+          code: "ENOENT",
+        });
+        await expect(
+          readFile(path.join(cwd, capturePath), "utf8"),
+        ).resolves.toContain("provider-scope-capture/v1");
+      } finally {
+        await cleanupTempDir(cwd);
+        await cleanupTempDir(root);
+      }
+    },
+  );
+
   it("produces provider scope evidence through the compatible distinct runtime route", async () => {
     const { cwd, baseSha, headSha } = await makeGitWorkspace();
     const capturePath = `.ephemeral/topic-${headSha}-provider-scope-capture.json`;

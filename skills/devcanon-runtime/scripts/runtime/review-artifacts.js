@@ -254,7 +254,13 @@ async function providerScopeEvidenceFromCapture(capture, headSha) {
         fail("provider/local file evidence mismatch");
     }
     const providerFiles = captureFiles.map((entry) => providerEvidenceEntry(entry));
-    validateProviderPatchEvidence(providerFiles, localFiles, localFiles);
+    const unavailableOnly = providerFiles.length > 0 && providerFiles.every(isUnavailablePatchEntry);
+    const projectedLocalFiles = unavailableOnly
+        ? localFiles.map(unavailablePatchProjection)
+        : localFiles;
+    if (!unavailableOnly) {
+        validateProviderPatchEvidence(providerFiles, projectedLocalFiles, localFiles);
+    }
     const providerDiff = objectField(capture, "provider_diff");
     const providerDiffBytes = strictBase64Bytes(stringField(providerDiff, "content_base64"), "provider diff bytes are invalid");
     const providerDiffDigest = createHash("sha256")
@@ -262,7 +268,6 @@ async function providerScopeEvidenceFromCapture(capture, headSha) {
         .digest("hex");
     const localDiffDigest = await canonicalGitDiffSha256(range);
     const providerDiffDialect = stringField(providerDiff, "dialect");
-    const unavailableOnly = providerFiles.length > 0 && providerFiles.every(isUnavailablePatchEntry);
     if (providerDiffDigest !== localDiffDigest &&
         (!unavailableOnly || providerDiffDialect !== GITHUB_PROVIDER_DIFF_DIALECT)) {
         fail("provider/local diff digest mismatch");
@@ -291,10 +296,13 @@ async function providerScopeEvidenceFromCapture(capture, headSha) {
             local_patches: CANONICAL_GIT_DIFF_DIALECT,
         },
         provider_files: providerFiles,
-        local_files: localFiles,
+        local_files: projectedLocalFiles,
         provider_diff_sha256: providerDiffDigest,
         local_diff_sha256: localDiffDigest,
     };
+}
+function unavailablePatchProjection(entry) {
+    return { ...entry, patch_available: false, patch_sha256: null };
 }
 function parseCommonArgs(args) {
     const options = {
@@ -851,6 +859,9 @@ async function validatePrReviewProviderEvidence(scope, options) {
     const expectedLocalFiles = await normalizedLocalFileEntries(localRange);
     const providerFiles = normalizedEvidenceEntries(arrayField(evidence, "provider_files"));
     const localFiles = normalizedEvidenceEntries(arrayField(evidence, "local_files"));
+    const unavailableOnly = providerFiles.length > 0 &&
+        providerFiles.every(isUnavailablePatchEntry) &&
+        localFiles.every(isUnavailablePatchEntry);
     validateNoDuplicateFileEntries(providerFiles);
     validateNoDuplicateFileEntries(localFiles);
     if (!jsonEqual(fileEntryMetadata(providerFiles), fileEntryMetadata(localFiles))) {
@@ -859,7 +870,9 @@ async function validatePrReviewProviderEvidence(scope, options) {
     if (!jsonEqual(fileEntryMetadata(localFiles), fileEntryMetadata(expectedLocalFiles))) {
         fail("local provider evidence does not match git");
     }
-    validateProviderPatchEvidence(providerFiles, localFiles, expectedLocalFiles);
+    if (!unavailableOnly) {
+        validateProviderPatchEvidence(providerFiles, localFiles, expectedLocalFiles);
+    }
     const localDiffDigest = await canonicalGitDiffSha256(localRange);
     if (stringField(evidence, "local_diff_sha256") !== localDiffDigest) {
         fail("local diff digest does not match git");
@@ -868,9 +881,6 @@ async function validatePrReviewProviderEvidence(scope, options) {
         fail("provider evidence schema mismatch");
     }
     validatePatchDigestProvenance(digestProvenance);
-    const unavailableOnly = providerFiles.length > 0 &&
-        providerFiles.every(isUnavailablePatchEntry) &&
-        localFiles.every(isUnavailablePatchEntry);
     if (stringField(evidence, "provider_diff_sha256") !==
         stringField(evidence, "local_diff_sha256")) {
         if (!unavailableOnly ||

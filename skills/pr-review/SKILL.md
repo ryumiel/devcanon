@@ -329,32 +329,35 @@ with those selected-range facts before invoking `play-review`.
 
 Before invoking `play-review`, produce, validate, and bind the canonical
 Phase 3 provider-scope evidence and scope-decision artifacts from the target
-worktree. Phase 1 first writes one complete bound GitHub
-`pr-review/provider-scope-capture/v1` direct-child capture; Phase 3 is the
-only point that converts it to evidence. `PR_REVIEW_DIR` must
+worktree. Phase 1 captures only raw GitHub authority: repository and PR
+identity, base/head OIDs, the complete provider file records with raw patch
+bytes or unavailable markers, and exact provider diff bytes with its dialect.
+After entering the review worktree, materialize those raw facts as one guarded
+`pr-review/provider-scope-capture/v1` direct child; Phase 3 is the only point
+that derives local facts or converts it to evidence. `PR_REVIEW_DIR` must
 resolve to the installed `pr-review` skill bundle. The adapter must pass an
 explicit provider scope evidence artifact through
-`PROVIDER_SCOPE_EVIDENCE_FILE`; the scope-decision artifact's `full_range` must
-be `"$PROVIDER_PR_DIFF_BASE_SHA..$REVIEW_HEAD_SHA"` from that evidence.
+`PROVIDER_SCOPE_EVIDENCE_FILE`; read its validated range facts only after the
+producer returns it.
 
 ```bash
 PR_REVIEW_DIR="<installed-pr-review-skill-bundle>"
 PR_REVIEW_ARTIFACT_HELPER="$PR_REVIEW_DIR/scripts/prior-thread-artifacts.sh"
-PR_BASE_REF="<base-ref>"
-PROVIDER_PR_DIFF_BASE_SHA="<provider_pr_diff_base_sha>"
-REVIEW_SCOPE_BASE_REF="$PROVIDER_PR_DIFF_BASE_SHA"
 REVIEW_CALLER_DIR="$(pwd -P)" || exit 1
 
 bind_scope_decision_artifact() {
   cd "$WORKING_DIRECTORY" || return 1
   HEAD_SHA="$(git rev-parse HEAD)" || return 1
-  FULL_PR_DIFF_RANGE="$PROVIDER_PR_DIFF_BASE_SHA..$HEAD_SHA"
   : "${PROVIDER_SCOPE_CAPTURE_FILE:?Phase 1 provider scope capture is required}"
+  # Materialize the Phase 1 raw GitHub capture at this exact guarded path.
+  # Do not add local file lists, digests, provenance, or merge-base claims.
   PROVIDER_SCOPE_EVIDENCE_FILE=$(
     HEAD_SHA="$HEAD_SHA" \
     PROVIDER_SCOPE_CAPTURE_FILE="$PROVIDER_SCOPE_CAPTURE_FILE" \
       bash "$PR_REVIEW_ARTIFACT_HELPER" write-provider-scope-evidence || return 1
   ) || return 1
+  REVIEW_SCOPE_BASE_REF="$(node -e 'const fs=require("node:fs"); const x=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); process.stdout.write(x.provider_pr_diff_base_sha)' "$PROVIDER_SCOPE_EVIDENCE_FILE")" || return 1
+  FULL_PR_DIFF_RANGE="$(node -e 'const fs=require("node:fs"); const x=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); process.stdout.write(x.full_pr_diff_range)' "$PROVIDER_SCOPE_EVIDENCE_FILE")" || return 1
   SCOPE_DECISION_FILE=$(
     HEAD_SHA="$HEAD_SHA" \
       bash "$PR_REVIEW_ARTIFACT_HELPER" prepare-scope-decision-write || return 1

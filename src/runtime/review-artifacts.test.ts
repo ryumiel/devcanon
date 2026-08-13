@@ -3067,6 +3067,131 @@ describe.skipIf(isWindows)("review artifact runtime reducers", () => {
     }
   });
 
+  it("accepts all-unavailable provider patches for an ordinary text change", async () => {
+    const { cwd, baseSha, headSha } = await makeProviderScopeWorkspace();
+    const capturePath = `.ephemeral/topic-${headSha}-provider-scope-capture.json`;
+    const evidencePath = providerScopeEvidencePath(headSha);
+    try {
+      const capture = await providerScopeCapture(cwd, baseSha, headSha);
+      const files = capture.provider_files as JsonObject[];
+      files[0] = { ...files[0], patch_base64: null };
+      await writeJson(cwd, capturePath, {
+        ...capture,
+        provider_files: files,
+        provider_diff: {
+          dialect: GITHUB_PROVIDER_DIFF_DIALECT,
+          content_base64: (capture.provider_diff as JsonObject).content_base64,
+        },
+      });
+
+      await expect(
+        runPrReviewProviderScopeEvidenceCommand([
+          "write",
+          "--head-sha",
+          headSha,
+          "--capture-file",
+          capturePath,
+        ]),
+      ).resolves.toMatchObject({
+        exitCode: 0,
+        stdout: `${evidencePath}\n`,
+      });
+      const evidence = JSON.parse(
+        await readFile(path.join(cwd, evidencePath), "utf8"),
+      ) as JsonObject;
+      expect((evidence.provider_files as JsonObject[])[0]).toMatchObject({
+        patch_available: false,
+        patch_sha256: null,
+      });
+      expect((evidence.local_files as JsonObject[])[0]).toMatchObject({
+        patch_available: false,
+        patch_sha256: null,
+      });
+    } finally {
+      await cleanupRiskSignalsWorkspace(cwd);
+    }
+  });
+
+  it.each([
+    {
+      name: "extra capture key",
+      mutate: (capture: JsonObject) => ({ ...capture, extra: true }),
+    },
+    {
+      name: "stale head",
+      mutate: (capture: JsonObject) => ({
+        ...capture,
+        headRefOid: "a".repeat(40),
+      }),
+    },
+    {
+      name: "incomplete evidence",
+      mutate: (capture: JsonObject) => ({
+        ...capture,
+        evidence_complete: false,
+      }),
+    },
+    {
+      name: "duplicate provider file",
+      mutate: (capture: JsonObject) => ({
+        ...capture,
+        provider_files: [
+          ...(capture.provider_files as JsonObject[]),
+          (capture.provider_files as JsonObject[])[0],
+        ],
+      }),
+    },
+    {
+      name: "unsupported diff dialect",
+      mutate: (capture: JsonObject) => ({
+        ...capture,
+        provider_diff: {
+          ...(capture.provider_diff as JsonObject),
+          dialect: "other",
+        },
+      }),
+    },
+    {
+      name: "invalid patch base64",
+      mutate: (capture: JsonObject) => ({
+        ...capture,
+        provider_files: [
+          {
+            ...(capture.provider_files as JsonObject[])[0],
+            patch_base64: "***",
+          },
+        ],
+      }),
+    },
+  ])(
+    "rejects provider capture $name without consuming it",
+    async ({ mutate }) => {
+      const { cwd, baseSha, headSha } = await makeProviderScopeWorkspace();
+      const capturePath = `.ephemeral/topic-${headSha}-provider-scope-capture.json`;
+      try {
+        await writeJson(
+          cwd,
+          capturePath,
+          mutate(await providerScopeCapture(cwd, baseSha, headSha)),
+        );
+        await expect(
+          runPrReviewProviderScopeEvidenceCommand([
+            "write",
+            "--head-sha",
+            headSha,
+            "--capture-file",
+            capturePath,
+          ]),
+        ).resolves.toMatchObject({ exitCode: 1, stdout: "" });
+        await expect(
+          readFile(path.join(cwd, capturePath), "utf8"),
+        ).resolves.toContain("provider-scope-capture/v1");
+      } finally {
+        await cleanupRiskSignalsWorkspace(cwd);
+      }
+    },
+  );
+
   it("preserves the existing evidence and exact capture when atomic publication is interrupted", async () => {
     const { cwd, baseSha, headSha } = await makeProviderScopeWorkspace();
     const capturePath = `.ephemeral/topic-${headSha}-provider-scope-capture.json`;

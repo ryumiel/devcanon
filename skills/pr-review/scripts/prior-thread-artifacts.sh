@@ -189,16 +189,17 @@ validate_provider_scope_capture_path() {
 }
 
 write_provider_scope_evidence() {
-  local capture runtime contract
+  local capture runtime contract expected_contract
   require_repo_root
   validate_head_sha
   require_env PROVIDER_SCOPE_CAPTURE_FILE
   capture="$PROVIDER_SCOPE_CAPTURE_FILE"
   validate_provider_scope_capture_path "$capture"
   runtime="$(resolve_runtime)"
-  contract="$("$runtime" runtime pr-review-provider-scope-evidence contract)" ||
+  contract="$("$runtime" runtime pr-review-provider-scope-evidence contract | { cat; printf '\001'; })" ||
     fail "provider scope evidence runtime contract check failed"
-  [ "$contract" = '{"command_group":"pr-review-provider-scope-evidence","major_version":1}' ] ||
+  expected_contract=$'{"command_group":"pr-review-provider-scope-evidence","major_version":1}\n\001'
+  [ "$contract" = "$expected_contract" ] ||
     fail "provider scope evidence runtime contract is incompatible"
   "$runtime" runtime pr-review-provider-scope-evidence write \
     --head-sha "$HEAD_SHA" \
