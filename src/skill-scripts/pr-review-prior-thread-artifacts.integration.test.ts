@@ -25,6 +25,21 @@ const jqAvailable = await commandAvailable("jq");
 const PROVIDER_EVIDENCE_SCHEMA = "pr-review/provider-scope-evidence/v2";
 const DIGEST_PROVENANCE_SCHEMA = "pr-review/digest-provenance/v1";
 const CANONICAL_GIT_DIFF_DIALECT = "canonical-git-diff/v1";
+const RAW_GITHUB_CAPTURE_MATERIALIZER = String.raw`
+const fs=require("node:fs");
+const p=process.env.PROVIDER_SCOPE_CAPTURE_FILE;
+const pr=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));
+const pages=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
+const files=pages.flat().map(f=>({path:f.filename,status:f.status,
+  previous_path:f.previous_filename??null,additions:f.additions,deletions:f.deletions,
+  changes:f.changes,patch_base64:null}));
+const capture={schema:"pr-review/provider-scope-capture/v1",provider:"github",
+  repository:process.env.PR_REPOSITORY,pr_number:pr.number,baseRefOid:pr.baseRefOid,
+  headRefOid:pr.headRefOid,evidence_complete:true,provider_files:files,
+  provider_diff:{dialect:"github-provider-diff/v1",
+    content_base64:fs.readFileSync(process.argv[3]).toString("base64")}};
+fs.writeFileSync(p,JSON.stringify(capture)+"\n",{encoding:"utf8",flag:"wx"});
+`;
 
 async function commandAvailable(command: string): Promise<boolean> {
   try {
@@ -368,6 +383,113 @@ async function writeMarkerRuntime(root: string) {
   await chmod(script, 0o755);
   return root;
 }
+
+describe("documented provider-scope capture materialization", () => {
+  it("writes the closed canonical capture with a real newline and reuses it", async () => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    const scratch = await mkdtemp(
+      path.join(os.tmpdir(), "devcanon-pr-capture-"),
+    );
+    const capturePath = path.join(
+      cwd,
+      `.ephemeral/topic-${headSha}-provider-scope-capture.json`,
+    );
+    const prPath = path.join(scratch, "pr.json");
+    const filesPath = path.join(scratch, "files.json");
+    const diffPath = path.join(scratch, "full.diff");
+    const environment = {
+      ...process.env,
+      PROVIDER_SCOPE_CAPTURE_FILE: capturePath,
+      PR_REPOSITORY: "owner/repo",
+    };
+    try {
+      await writeFile(
+        prPath,
+        JSON.stringify({
+          number: 390,
+          baseRefOid: baseSha,
+          headRefOid: headSha,
+        }),
+      );
+      await writeFile(
+        filesPath,
+        JSON.stringify([
+          [
+            {
+              filename: "src/app.ts",
+              status: "added",
+              additions: 1,
+              deletions: 0,
+              changes: 1,
+            },
+          ],
+        ]),
+      );
+      await writeFile(diffPath, "diff --git a/src/app.ts b/src/app.ts\n");
+
+      await execFileAsync(
+        "node",
+        ["-e", RAW_GITHUB_CAPTURE_MATERIALIZER, prPath, filesPath, diffPath],
+        { cwd, env: environment },
+      );
+
+      const captureText = await readFile(capturePath, "utf8");
+      expect(captureText).toMatch(/\n$/);
+      expect(captureText).not.toContain("\\\\n");
+      const capture = JSON.parse(captureText);
+      expect(Object.keys(capture).sort()).toEqual([
+        "baseRefOid",
+        "evidence_complete",
+        "headRefOid",
+        "pr_number",
+        "provider",
+        "provider_diff",
+        "provider_files",
+        "repository",
+        "schema",
+      ]);
+      expect(Object.keys(capture.provider_files[0]).sort()).toEqual([
+        "additions",
+        "changes",
+        "deletions",
+        "patch_base64",
+        "path",
+        "previous_path",
+        "status",
+      ]);
+      expect(Object.keys(capture.provider_diff).sort()).toEqual([
+        "content_base64",
+        "dialect",
+      ]);
+      expect(capture.provider_files[0].patch_base64).toBeNull();
+      expect(capture.provider_diff.content_base64).toBe(
+        Buffer.from("diff --git a/src/app.ts b/src/app.ts\n").toString(
+          "base64",
+        ),
+      );
+
+      await writeFile(prPath, "not json");
+      await execFileAsync(
+        "bash",
+        [
+          "-c",
+          'capture="$1"; shift; if [ ! -e "$capture" ]; then node -e "$@"; fi',
+          "bash",
+          capturePath,
+          RAW_GITHUB_CAPTURE_MATERIALIZER,
+          prPath,
+          filesPath,
+          diffPath,
+        ],
+        { cwd, env: environment },
+      );
+      await expect(readFile(capturePath, "utf8")).resolves.toBe(captureText);
+    } finally {
+      await cleanupTempDir(scratch);
+      await cleanupTempDir(cwd);
+    }
+  });
+});
 
 async function copyInstalledPrAdapter(root: string) {
   const script = path.join(root, "pr-review/scripts/prior-thread-artifacts.sh");

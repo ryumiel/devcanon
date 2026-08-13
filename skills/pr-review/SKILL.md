@@ -359,7 +359,7 @@ bind_scope_decision_artifact() {
         repository:process.env.PR_REPOSITORY,pr_number:pr.number,baseRefOid:pr.baseRefOid,
         headRefOid:pr.headRefOid,evidence_complete:true,provider_files:files,
         provider_diff:{dialect:"github-provider-diff/v1",content_base64:fs.readFileSync(process.argv[3]).toString("base64")}};
-      fs.writeFileSync(p,JSON.stringify(capture)+"\\n",{encoding:"utf8",flag:"wx"});
+      fs.writeFileSync(p,JSON.stringify(capture)+"\n",{encoding:"utf8",flag:"wx"});
     ' "$capture_tmp/pr.json" "$capture_tmp/files.json" "$capture_tmp/full.diff" || return 1
     rm -rf "$capture_tmp"; trap - RETURN
   else

@@ -252,6 +252,11 @@ async function providerScopeEvidenceFromCapture(capture, headSha) {
     await requireProviderBoundRangeExists(range);
     const captureFiles = normalizedCaptureEntries(arrayField(capture, "provider_files"));
     validateNoDuplicateCaptureFileEntries(captureFiles);
+    if (captureFiles.length > 0 &&
+        captureFiles.some((entry) => entry.patch_base64 === null) &&
+        captureFiles.some((entry) => entry.patch_base64 !== null)) {
+        fail("provider scope capture has mixed patch availability");
+    }
     const localFiles = await normalizedLocalFileEntries(range);
     if (!jsonEqual(fileEntryMetadata(captureFiles), fileEntryMetadata(localFiles))) {
         fail("provider/local file evidence mismatch");

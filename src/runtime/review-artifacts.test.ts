@@ -2021,6 +2021,77 @@ describe.skipIf(isWindows)("review artifact runtime reducers", () => {
     },
   );
 
+  it("rejects mixed provider patch availability before publication", async () => {
+    const { cwd, baseSha, headSha } = await makeProviderMultiFileWorkspace();
+    const capturePath = `.ephemeral/topic-${headSha}-provider-scope-capture.json`;
+    const evidencePath = providerScopeEvidencePath(headSha);
+    try {
+      const app = await providerEvidenceFileEntry(
+        cwd,
+        baseSha,
+        headSha,
+        "src/app.ts",
+      );
+      const other = await providerEvidenceFileEntry(
+        cwd,
+        baseSha,
+        headSha,
+        "src/other.ts",
+      );
+      const fullDiff = await canonicalGitDiffRaw(cwd, `${baseSha}..${headSha}`);
+      await writeJson(cwd, capturePath, {
+        schema: "pr-review/provider-scope-capture/v1",
+        provider: "github",
+        repository: "owner/repo",
+        pr_number: 480,
+        baseRefOid: baseSha,
+        headRefOid: headSha,
+        evidence_complete: true,
+        provider_files: [
+          {
+            ...app,
+            patch_base64: Buffer.from(
+              await canonicalGitDiffRaw(cwd, `${baseSha}..${headSha}`, [
+                "src/app.ts",
+              ]),
+            ).toString("base64"),
+          },
+          { ...other, patch_base64: null },
+        ].map(
+          ({ patch_sha256: _digest, patch_available: _available, ...entry }) =>
+            entry,
+        ),
+        provider_diff: {
+          dialect: CANONICAL_GIT_DIFF_DIALECT,
+          content_base64: Buffer.from(fullDiff).toString("base64"),
+        },
+      });
+      await expect(
+        runPrReviewProviderScopeEvidenceCommand([
+          "write",
+          "--head-sha",
+          headSha,
+          "--capture-file",
+          capturePath,
+        ]),
+      ).resolves.toMatchObject({
+        exitCode: 1,
+        stdout: "",
+        stderr: expect.stringContaining("mixed patch availability"),
+      });
+      await expect(
+        readFile(path.join(cwd, capturePath), "utf8"),
+      ).resolves.toContain("provider-scope-capture/v1");
+      await expect(
+        readFile(path.join(cwd, evidencePath), "utf8"),
+      ).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+    } finally {
+      await cleanupRiskSignalsWorkspace(cwd);
+    }
+  });
+
   it("validates usable PR follow-up changed counts through provider-bound Git", async () => {
     const { cwd, baseSha, headSha } = await makeProviderRenameWorkspace(true);
     const evidencePath = providerScopeEvidencePath(headSha);
