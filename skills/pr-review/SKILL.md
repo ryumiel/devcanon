@@ -340,6 +340,7 @@ bind_scope_decision_artifact() {
   mkdir -p .ephemeral || return 1
   # Reuse the exact preserved capture after a producer failure; never overwrite
   # or refetch it. Otherwise terminal Phase 1 fetches each raw evidence family.
+  for capture_attempt in 1 2; do
   if [ ! -e "$PROVIDER_SCOPE_CAPTURE_FILE" ]; then
     capture_tmp="$(mktemp -d .ephemeral/provider-scope-capture.XXXXXX)" || return 1
     trap 'rm -rf "$capture_tmp"' RETURN
@@ -351,8 +352,13 @@ bind_scope_decision_artifact() {
       --jq '{baseRefOid:.base.sha,headRefOid:.head.sha}' > "$capture_tmp/recheck.json" || return 1
     # A changed provider binding invalidates this private attempt only; discard
     # its scratch and restart terminal Phase 1 rather than publishing it.
-    cmp -s <(jq -c '{baseRefOid,headRefOid}' "$capture_tmp/pr.json") \
-      <(jq -c '{baseRefOid,headRefOid}' "$capture_tmp/recheck.json") || return 1
+    if ! cmp -s <(jq -c '{baseRefOid,headRefOid}' "$capture_tmp/pr.json") \
+      <(jq -c '{baseRefOid,headRefOid}' "$capture_tmp/recheck.json"); then
+      rm -rf "$capture_tmp" || return 1
+      trap - RETURN
+      [ "$capture_attempt" -lt 2 ] && continue
+      return 1
+    fi
     HEAD_SHA="$HEAD_SHA" PR_REPOSITORY="$PR_REPOSITORY" \
     PROVIDER_SCOPE_CAPTURE_FILE="$PROVIDER_SCOPE_CAPTURE_FILE" \
     PROVIDER_SCOPE_CAPTURE_TMP_FILE="$capture_tmp/capture.json" \
@@ -364,16 +370,23 @@ bind_scope_decision_artifact() {
       return 1
     fi
     trap - RETURN
+    break
   else
     [ -f "$PROVIDER_SCOPE_CAPTURE_FILE" ] && [ ! -L "$PROVIDER_SCOPE_CAPTURE_FILE" ] || return 1
     # If its base/head deterministically no longer binds this HEAD/worktree,
     # remove exactly this capture and restart Phase 1. Preserve it for all
     # producer, runtime, or transient failures.
-    if ! HEAD_SHA="$HEAD_SHA" node -e 'const fs=require("node:fs"); const x=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); process.exit(x.headRefOid===process.env.HEAD_SHA?0:1)' "$PROVIDER_SCOPE_CAPTURE_FILE"; then
+    if HEAD_SHA="$HEAD_SHA" node -e 'const fs=require("node:fs"); const x=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); process.exit(x.headRefOid===process.env.HEAD_SHA?0:1)' "$PROVIDER_SCOPE_CAPTURE_FILE"; then
+      break
+    elif [ -r "$PROVIDER_SCOPE_CAPTURE_FILE" ]; then
       rm -f "$PROVIDER_SCOPE_CAPTURE_FILE" || return 1
+      [ "$capture_attempt" -lt 2 ] && continue
+      return 1
+    else
       return 1
     fi
   fi
+  done
   # files[].patch is only a hunk fragment. It is never recorded as an available
   # patch; patch_base64 remains null unless complete per-file sections are
   # extracted byte-for-byte from this full diff in the canonical dialect.

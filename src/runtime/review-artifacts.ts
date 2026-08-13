@@ -343,8 +343,14 @@ async function materializeProviderScopeCapture(
   }
   await requireRepoRoot();
   await validateHeadShaCommit(headSha);
+  await assertEphemeralDirectory();
   if (captureFile !== (await expectedProviderScopeCapturePath(headSha))) {
     fail("provider scope capture path mismatch");
+  }
+  validateDirectChildPath("provider scope capture", captureFile);
+  const existingCapture = await lstat(captureFile).catch(() => null);
+  if (existingCapture !== null) {
+    fail("provider scope capture target already exists");
   }
   const pr = await readSingleJsonObject(
     prFile,
@@ -388,6 +394,7 @@ async function materializeProviderScopeCapture(
       content_base64: (await readFile(diffFile)).toString("base64"),
     },
   };
+  validateProviderScopeCaptureShape(capture);
   await writeFile(captureTmpFile, `${JSON.stringify(capture)}\n`, {
     encoding: "utf8",
     flag: "wx",

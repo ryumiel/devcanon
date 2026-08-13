@@ -20,6 +20,8 @@ Run every command from the target review worktree root.
 
 Each prepare command prints its validated repo-relative destination path; materialization and validation commands are silent on success. `write-provider-scope-evidence` prints exactly the canonical repo-relative `-provider-scope-evidence.json` path plus newline after successful production and capture deletion. Its output is the exact closed `pr-review/provider-scope-evidence/v2` schema with required provider identity, bound base/head/range, completeness, digest provenance, provider/local file arrays, and provider/local full-diff digests. Diagnostics use stderr.
 
+The v2 top-level keys are `schema`, `provider`, `repository`, `pr_number`, `baseRefOid`, `headRefOid`, `provider_pr_diff_base_sha`, `local_review_head_sha`, `full_pr_diff_range`, `evidence_complete`, `digest_provenance`, `provider_files`, `local_files`, `provider_diff_sha256`, and `local_diff_sha256`. `digest_provenance` keys are `schema`, `provider_diff`, `local_diff`, `provider_patches`, and `local_patches`; each provider/local file entry keys are `path`, `status`, `previous_path`, `additions`, `deletions`, `changes`, `patch_sha256`, and `patch_available`.
+
 ## Refusal and failures
 
 Unknown commands, missing metadata, unsafe paths, incompatible or malformed runtime contracts, invalid captures, Git-derived evidence mismatches, or invalid support validation exit nonzero without a success path. The existing prepare-only command remains compatible and does not produce evidence.
