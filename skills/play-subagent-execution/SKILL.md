@@ -99,16 +99,18 @@ bypass. Children never receive the full plan to resolve entries.
 
 Do not infer trigger applicability inside `play-subagent-execution`;
 `play-planning` owns the trigger taxonomy and tier classification. Do not
-reclassify a declared tier. For every current task in a reviewed plan, the gate requires
-exactly one declared `**Contract tier:** FULL`, `LIGHTWEIGHT`, or
-`NO-TRIGGER` and validates only its declared tier structure. `FULL` requires a
+reclassify a declared tier. For every current task in a reviewed plan, the gate
+requires exactly one declared `**Contract tier:** FULL`, `LIGHTWEIGHT`, or
+`NO-TRIGGER` and exactly one `**Execution route:** source-mutating` or
+`read-only proof`. It validates only the declared tier structure. `FULL` requires a
 structurally complete checklist; `LIGHTWEIGHT` requires named authority, owner,
 purpose, inputs and outputs, material write or side-effect owner, failure and
 cleanup behavior, focused proof, every actual known participant and direct
 producer-consumer relationship, including guarded-inline D13 when it is an
 actual participant or direct consumer, and an explicit reason every FULL
-trigger is absent;
-`NO-TRIGGER` requires a task-specific reason. The executor must not promote,
+trigger is absent; `NO-TRIGGER` requires a task-specific reason. A read-only
+proof task may inspect and run permitted checks against its named proof boundary
+but may not edit durable source or create a commit. The executor must not promote,
 demote, infer, or otherwise reclassify the tier from task prose, diff size,
 path spelling, or runtime risk routing. Present Contract Example
 Discipline obligations are part of the task contract; the executor only
@@ -288,8 +290,8 @@ For the full selection and process diagrams, load
    authored tasks only after that gate, retaining their full text, surrounding context,
    declared contract tier, tier-appropriate contract fields, verification
    expectations, and any mode or route hints.
-3. Assemble the extracted plan/task execution context before implementer
-   dispatch, reviewer dispatch, final whole-implementation review, or
+3. Assemble the extracted plan/task execution context before mutating-task,
+   read-only-proof, reviewer, or final whole-implementation dispatch, or
    skip-dispatch evaluation. Include plan-level Contract Example Discipline
    obligations or equivalent clearly labeled sections/obligations when present,
    task-local declared tier and tier-appropriate structure, and any task-local example or proof
@@ -304,30 +306,34 @@ For the full selection and process diagrams, load
    when a required checklist or extracted context is missing, malformed, blank,
    unexplained, unsupported, internally inconsistent, or unverifiable by source
    inspection.
-4. For single-task mechanical plans, evaluate the skip-dispatch guardrails.
+4. Route every `read-only proof` task through the guarded proof-task lifecycle
+   owned by the lifecycle/status policy. Run it sequentially with only its
+   curated task/projection context, verify the named proof boundary, and prove
+   HEAD is unchanged. It never enters D12/D13 or creates a commit.
+5. For single-task mechanical source-mutating plans, evaluate the skip-dispatch guardrails.
    When all five guardrails hold, the controller either performs the Write/Edit,
    verification, and commit inline or dispatches the exact-task executor prompt.
    A contract-gate failure blocks; another missing guardrail reclassifies to D12
    and dispatches the implementer prompt.
-5. Before implementer dispatch, classify snapshot state as `requested` or
+6. Before implementer dispatch, classify snapshot state as `requested` or
    `skipped`. Snapshot hints in plans are advisory only; the assembled prompt
    must make exactly one concrete state visible.
-6. Dispatch one implementer at a time with the selected prompt template and the
+7. Dispatch one implementer at a time with the selected prompt template and the
    full task text. Keep controller state as structured status, changed files,
    verification result, blockers, base/head SHAs, and artifact paths.
-7. For multi-task plans, compute the effective review route from the actual task
+8. For multi-task plans, compute the effective review route from the actual task
    diff after the implementer commits. Hard-risk, unclear, stale, malformed,
    conflicting, or untrusted classifications fail closed to `spec-and-quality`.
-8. Dispatch reviewers according to the effective route. D14 and D15 are
+9. Dispatch reviewers according to the effective route. D14 and D15 are
    separate response-only `deep-reviewer` sessions with independent GUARD-001
    lifecycles. Load the
    [lifecycle/status policy](references/lifecycle-status-policy.md) for guard
    ordering and every returned review disposition.
-9. After any fixup commit, use the lifecycle/status policy for invalidation and
-   completion state, then load the
-   [review-routing policy](references/review-routing-policy.md) only to
-   recompute the effective route.
-10. After the lifecycle/status policy permits task completion, follow its D16
+10. After any fixup commit, use the lifecycle/status policy for invalidation and
+    completion state, then load the
+    [review-routing policy](references/review-routing-policy.md) only to
+    recompute the effective route.
+11. After the lifecycle/status policy permits task completion, follow its D16
     and terminal disposition. This index does not restate those transitions.
 
 **Trust-boundary summaries:**
@@ -361,8 +367,9 @@ capability.
 
 Preserve the capability and effort configured by a shipped role instead of
 overriding either at dispatch time. D12 uses `implementer`, balanced/high; D13
-uses `executor`, efficient/medium; and D14-D16 use `deep-reviewer`,
-frontier/xhigh. These pairs do not grant external mutation authority.
+uses `executor`, efficient/medium; read-only proof tasks use `assessor`,
+balanced/medium; and D14-D16 use `deep-reviewer`, frontier/xhigh. These pairs do
+not grant external mutation authority.
 
 ## Execution Route Classification
 
@@ -381,6 +388,13 @@ owns child action and report shape, and the
 [lifecycle/status policy](references/lifecycle-status-policy.md) owns returned
 D13 dispositions. None of these surfaces permits the executor to guess or
 widen scope.
+
+A `read-only proof` task uses guarded inline inspection when the controller can
+perform its bounded check directly, or the existing source-immutable `assessor`,
+balanced/medium, with zero handoffs for Subagent-Driven execution. The lifecycle/status policy owns
+its capture, result, immutability verification, cleanup, and completion rules.
+This route creates no commit, proof ledger, discharge state, or persistent
+handoff.
 
 ## Mechanical Task Hint
 
@@ -452,7 +466,10 @@ range and the D16-specific question from
 
 The [lifecycle/status policy](references/lifecycle-status-policy.md) is the
 normative owner of D16 dispatch timing, the exact skip, guard ordering, cleanup,
-fix-loop freshness, and final incomplete or terminal outcomes.
+fix-loop freshness, authority-based recovery to D12 versus planning, and final
+incomplete or terminal outcomes. The auto carve-out requires exactly one
+completed source-mutating task and no read-only or other non-diff proof
+obligation.
 
 ## Single-Task Plans
 

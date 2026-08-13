@@ -29,9 +29,11 @@ owning-workflow or explicit operator authority allows auto-committing fixes;
 otherwise hand off to branch-review without auto-fix authority, wait for review
 approval evidence, or invoke `play-branch-finish` only when branch-level review
 is not required.
-On the `issue-priming-workflow --auto` single-task path, the flow returns
-directly to the caller when the verified ADR-0016 carve-out applies, before
-Phase 7 `branch-review --fix`.
+On the `issue-priming-workflow --auto` path, the flow returns directly to the
+caller only when the verified ADR-0016 carve-out finds exactly one completed
+source-mutating task and no read-only or other non-diff proof obligation. A
+single read-only task or any separate proof route retains D16 before Phase 7
+`branch-review --fix`.
 
 ```
 You: I'm using Subagent-Driven Development to execute this plan.
@@ -51,6 +53,13 @@ efficient/medium, only when all five exact guardrails pass. A D13 executor
 performs the exact validated operation and stops for controller reclassification
 if judgment or a missing guardrail appears. Source-mutable task execution stays
 serial.
+
+[When an authored task declares `Execution route: read-only proof`]
+Capture HEAD and a source-immutability baseline -> run the bounded check inline
+or dispatch the existing source-immutable assessor with its curated task and
+projection context -> retain `VERIFIED | BLOCKED | NEEDS_CONTEXT | FAILED` plus
+the check summary -> verify HEAD unchanged -> cleanup the exact baseline ->
+apply the result. The route makes no source edit and creates no commit.
 
 Task 1: Hook lifecycle
 
@@ -270,9 +279,11 @@ captured, report captured, reviewer result=PASS, observed close result=success,
 closed=yes after final verdict recorded and guard cleanup succeeded.
 
 [D16 alternate finding loop]
-D16 blocking findings route to a final fix, and any fix commit requires a fresh
-D16 capture, spawn, verify, validate, cleanup, and apply cycle. The fresh D16
-reviews the refreshed whole implementation range; it never reuses D15 or the
+An implementation defect inside an existing task's authority routes to D12; its
+fix commit requires fresh affected task review and D16. A false no-code
+disposition, wrong task set, incorrect tier/topology, missing proof owner, or
+other reviewed-plan defect returns to planning for a new digest, D5/D6,
+admission, affected execution, and D16. The fresh D16 never reuses D15 or the
 pre-fix D16 response.
 
 [D16 alternate ordinary failure]

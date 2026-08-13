@@ -261,12 +261,12 @@ planning instead of adding a synchronized restatement. Repeated detail does not
 make a reference or summary normative, verification does not define policy,
 and generated skill packages remain derived consumers rather than edit targets.
 
-For every executable plan, produce exactly one exhaustive semantic
-plan-local `## Execution Projection` with the exact heading required by the
-canonical criteria. Load the criteria for the relationship-based role grammar,
-grouping, proof-task union, and task-linkage rules; do not create a persistent
-schema, registry, or second policy owner. Invalid or unresolved producer facts
-block plan handoff.
+For every executable plan, produce exactly one semantic plan-local
+`## Execution Projection` with the exact heading required by the canonical
+criteria. Load the criteria for the common assignment core, tier-aware entry
+shapes, participation identity, implementation-task-set/proof-owner union, and
+task-linkage rules; do not create a persistent schema, registry, or second
+policy owner. Invalid or unresolved producer facts block plan handoff.
 
 For generated artifacts, derived artifacts, helper I/O files, `.ephemeral`
 handoffs, cross-skill handoffs, or side-channel data, plan against the
@@ -367,6 +367,8 @@ before starting.
 
 **Contract tier:** FULL | LIGHTWEIGHT | NO-TRIGGER
 
+**Execution route:** source-mutating | read-only proof
+
 <!-- Optional review-routing hints, when present, go here:
 **Risk hint:** low | medium | high
 **Review hint:** none-final-only | spec-only | spec-and-quality
@@ -395,7 +397,7 @@ criterion: <explicit inclusion rule>`
 **Authority surfaces:** <which source files, contracts, schemas, helpers, renderers, install/sync flows, or policies own the behavior; generated outputs are derived evidence, not authority>
 
 **Execution Projection references:** <every applicable projection Entry ID in
-this Task ID's exact implementation-and-proof-owner union; or `None — no
+this Task ID's exact implementation-membership-and-proof-owner union; or `None — no
 projection entry names this task`. Required whenever the plan has an Execution
 Projection.>
 
@@ -449,6 +451,10 @@ all FULL triggers are absent, and `NO-TRIGGER` tasks carry a task-specific
 reason no contract trigger applies. Ambiguity defaults to `FULL`. A compact
 diff, private implementation name, or `.ephemeral/` path does not by itself
 authorize `LIGHTWEIGHT` or `NO-TRIGGER`.
+
+Every task also declares exactly one `source-mutating` or `read-only proof`
+execution route. The canonical criteria own route validity; no-code and other
+non-diff proof uses a dedicated read-only proof task.
 
 Select exactly one tier-specific block from the template and remove the other
 two. The ordinary task fields, acceptance criteria, verification expectations,
@@ -511,6 +517,8 @@ Example mechanical task within a plan whose Execution Projection defines
 **Task ID:** RENAME-EXAMPLE-TOKEN
 
 **Contract tier:** NO-TRIGGER
+
+**Execution route:** source-mutating
 
 **Mode:** mechanical
 
@@ -631,14 +639,17 @@ Review in this order:
    authoritative scope and necessity. Unauthorized additions fail review.
 2. Check requirements, contract decisions, boundary participants, hard
    requirements, and documentation impact for current task and proof coverage.
-3. Check task completeness, placeholders, citations, dependencies, mechanical
+3. Check task completeness, placeholders, citations, dependencies, execution
+   route, mechanical
    and review-routing hints, and minimum-sufficient proof. Confirm every
    current task declares exactly one canonical contract tier and carries the
    tier-appropriate structure owned by the criteria: complete FULL fields,
    complete LIGHTWEIGHT compact fields plus the all-FULL-triggers-absent
    reason, or a task-specific NO-TRIGGER reason. Reject missing, ambiguous, or
    under-specified tier declarations; do not infer proportionality from diff
-   size or path spelling.
+   size or path spelling. Require exactly one `source-mutating` or `read-only
+proof` route. A no-code or otherwise non-diff proof obligation must use a
+   dedicated read-only proof task.
 4. Validate the semantic Execution Projection and every task's exact reference coverage
    against the canonical criteria. Any incomplete, duplicate, ambiguous,
    mismatched, or unauthorized projection fact blocks review.
@@ -1149,7 +1160,11 @@ Otherwise, offer execution choice:
 **If Inline Execution chosen:**
 
 - Execute every authored task sequentially in this session with review
-  checkpoints, including verification-only proof tasks. Before each task, use
+  checkpoints. A `source-mutating` task uses the ordinary edit, verify, commit,
+  and review path. A `read-only proof` task captures HEAD, inspects or runs
+  permitted checks against its named proof boundary, returns `VERIFIED`,
+  `BLOCKED`, `NEEDS_CONTEXT`, or `FAILED`, then proves HEAD is unchanged and
+  creates no commit. Before each task, use
   its exact `Execution Projection references` union and honor proof-owned
   entries; a `No code` implementation disposition never authorizes skipping its
   required verification task.

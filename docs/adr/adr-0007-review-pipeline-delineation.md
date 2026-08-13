@@ -55,7 +55,9 @@ task. The implementer agent still runs and self-reviews. At the time this
 ADR landed, the skill's final whole-implementation code-quality reviewer
 still ran after the task completed. ADR-0016 later narrowed the
 `issue-priming-workflow --auto` single-task path so that when downstream
-`branch-review --fix` is explicitly guaranteed, that final reviewer is skipped.
+`branch-review --fix` is explicitly guaranteed, exactly one mutating task is
+complete, and no read-only or other non-diff proof obligation remains, that
+final reviewer is skipped.
 Outside that caller-scoped carve-out, the final reviewer still runs.
 
 For plans with **two or more** tasks, `play-subagent-execution` computes the
@@ -131,8 +133,9 @@ notice path plus any judgment-required remaining nits into branch finish.
   mode, no clarifying choice, valid task contract, and no TDD markers.
   Task-contract failure blocks; ordinary other misses go to D12; when all five
   pass, the controller executes Write/Edit, verification, and commit inline.
-- ADR-0016 allows its auto single-task D16 skip with the downstream
-  `branch-review --fix` guarantee.
+- ADR-0016 allows its auto single-mutating-task D16 skip only with the downstream
+  `branch-review --fix` guarantee and no read-only or other non-diff proof
+  obligation.
 - Future changes touching review-pipeline delineation must update this ADR
   per the ADR governance rule.
 - Reviewer cost increases for routes that dispatch per-task reviewers. The

@@ -26,8 +26,9 @@ Write the failing test` and `Step 3: Write minimal implementation` markers.
 
 ## Conditions
 
-For the single-task subset of plans that are also fully mechanical approved
-verbatim artifact work or unambiguous identifier replacement, D13 permits
+For the single-task `source-mutating` subset of plans that are also fully
+mechanical approved verbatim artifact work or unambiguous identifier
+replacement, D13 permits
 guarded inline execution or a dispatched `executor`, efficient/medium. All five
 guardrails pass before either guarded inline execution or executor dispatch.
 The controller chooses inline only when it can perform the exact operation
@@ -42,7 +43,9 @@ attestation, parsing that same capture, one canonical
 not provenance, and admission does not demand independent D5/D6 leaf identity
 or guard evidence. Direct, hand-written, copied, older, missing-attestation, or
 otherwise unreviewed plans fail admission with `BLOCKED/NEEDS_CONTEXT` before
-guardrail evaluation; they never fall back to D12. For an admitted plan, all five guardrails must hold
+guardrail evaluation; they never fall back to D12. A `read-only proof` task uses
+the guarded proof lifecycle instead of D12/D13. For an admitted source-mutating
+plan, all five guardrails must hold
 for D13. Guardrail #4 failure blocks before source mutation; any other ordinary
 guardrail miss reclassifies to D12 and uses `implementer-prompt.md`. Do not
 dispatch the executor on a partial guard set.

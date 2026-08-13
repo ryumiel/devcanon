@@ -21,9 +21,9 @@ means two whole-diff review stages still run back-to-back:
 2. `branch-review --fix`
 
 This decision narrows the question deliberately: keep multi-task review
-behavior unchanged, keep `branch-review --fix` mandatory, and only remove
-the redundant final-review step on the `issue-priming-workflow --auto`
-single-task path.
+behavior unchanged, keep `branch-review --fix` mandatory, and remove the
+redundant final-review step only when one mutating task completes every
+executable route and all proof is visible in its committed diff.
 
 ## Decision
 
@@ -38,11 +38,18 @@ When all of the following hold:
    current `play-planning` return through the direct executor handoff
 3. that parent state guarantees downstream `branch-review --fix` is the
    mandatory next step
-4. the extracted plan has exactly one task
+4. the extracted plan has exactly one completed `source-mutating` task
+5. the plan has no `read-only proof` task and no other proof obligation outside
+   the committed implementation diff
 
 then `play-subagent-execution` skips its final whole-implementation
 code-quality reviewer and returns directly to the caller after the
-single-task implementation path completes.
+single-task implementation path completes. A single read-only task, any plan
+with a read-only proof task, and any non-diff proof obligation retain ordinary
+D16 before Phase 7. D16 consumes the existing whole-plan and whole-
+implementation context, including controller-curated proof-task result
+summaries; this decision adds no projection-specific D16 report or Phase 7
+risk-signal field.
 
 All other paths remain unchanged:
 
@@ -64,7 +71,10 @@ remains unchanged.
 ## Consequences
 
 - The common `issue-priming-workflow --auto` single-task path drops one
-  redundant whole-diff review pass.
+  redundant whole-diff review pass only when that one mutating route and its
+  committed diff are complete.
+- Read-only and other non-diff proof stays visible to ordinary D16 without a
+  per-entry ledger, discharge state, or special recovery protocol.
 - Review-policy ownership stays inside `play-subagent-execution`, the skill
   that already owns reviewer dispatch.
 - Manual/direct callers are not weakened; they keep the final

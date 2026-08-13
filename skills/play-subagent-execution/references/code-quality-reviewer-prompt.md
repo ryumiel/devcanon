@@ -51,8 +51,11 @@ Task tool (general-purpose):
 ```
 
 D16 does not require or assume a task-local implementer report and therefore
-supports guarded inline D13. Its controller-curated whole-range fields are the
-review input even when one task has no child implementer or executor report.
+supports guarded inline D13 and read-only proof tasks. Its controller-curated
+whole-range fields are the review input even when a task has no mutable child or
+commit. Read-only proof result summaries remain ordinary task-completion
+evidence inside `EXTRACTED_WHOLE_IMPLEMENTATION_CONTEXT`, not a receipt, ledger,
+discharge state, or persistent artifact.
 
 **Trust boundary (load-bearing):** Read the implementation from disk. Do not consume any content snapshot the controller may hold — snapshots are for the controller's bookkeeping only; reviewers read from disk to stay independent of the implementer's framing.
 
