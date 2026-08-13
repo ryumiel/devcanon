@@ -222,6 +222,7 @@ async function materializeProviderScopeCapture(args) {
     }
     await requireRepoRoot();
     await validateHeadShaCommit(headSha);
+    await validateCurrentHead(headSha);
     await assertEphemeralDirectory();
     if (captureFile !== (await expectedProviderScopeCapturePath(headSha))) {
         fail("provider scope capture path mismatch");

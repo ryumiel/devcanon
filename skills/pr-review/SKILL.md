@@ -326,6 +326,7 @@ PR_REVIEW_DIR="<installed-pr-review-skill-bundle>"
 PR_REVIEW_ARTIFACT_HELPER="$PR_REVIEW_DIR/scripts/prior-thread-artifacts.sh"
 PR_REPOSITORY="<owner/repo>"
 PR_NUMBER="<N>"
+PR_BASE_OID="<Phase-1-provider-base-oid>"
 REVIEW_CALLER_DIR="$(pwd -P)" || exit 1
 
 bind_scope_decision_artifact() {
@@ -346,6 +347,7 @@ bind_scope_decision_artifact() {
     trap 'rm -rf "$capture_tmp"' RETURN
     gh api "repos/$PR_REPOSITORY/pulls/$PR_NUMBER" \
       --jq '{number,baseRefOid:.base.sha,headRefOid:.head.sha}' > "$capture_tmp/pr.json" || return 1
+    PR_BASE_OID="$(jq -r '.baseRefOid' "$capture_tmp/pr.json")" || return 1
     gh api --paginate --slurp "repos/$PR_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" > "$capture_tmp/files.json" || return 1
     gh api -H 'Accept: application/vnd.github.diff' "repos/$PR_REPOSITORY/pulls/$PR_NUMBER" > "$capture_tmp/full.diff" || return 1
     gh api "repos/$PR_REPOSITORY/pulls/$PR_NUMBER" \
@@ -376,9 +378,17 @@ bind_scope_decision_artifact() {
     # If its base/head deterministically no longer binds this HEAD/worktree,
     # remove exactly this capture and restart Phase 1. Preserve it for all
     # producer, runtime, or transient failures.
-    if HEAD_SHA="$HEAD_SHA" node -e 'const fs=require("node:fs"); const x=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); process.exit(x.headRefOid===process.env.HEAD_SHA?0:1)' "$PROVIDER_SCOPE_CAPTURE_FILE"; then
+    PR_BASE_OID="$PR_BASE_OID" HEAD_SHA="$HEAD_SHA" node -e '
+      const fs=require("node:fs");
+      try { const x=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));
+        if(typeof x.baseRefOid!=="string"||typeof x.headRefOid!=="string") process.exit(3);
+        process.exit(x.baseRefOid===process.env.PR_BASE_OID&&x.headRefOid===process.env.HEAD_SHA?0:2);
+      } catch { process.exit(3); }
+    ' "$PROVIDER_SCOPE_CAPTURE_FILE"
+    capture_state=$?
+    if [ "$capture_state" -eq 0 ]; then
       break
-    elif [ -r "$PROVIDER_SCOPE_CAPTURE_FILE" ]; then
+    elif [ "$capture_state" -eq 2 ]; then
       rm -f "$PROVIDER_SCOPE_CAPTURE_FILE" || return 1
       [ "$capture_attempt" -lt 2 ] && continue
       return 1

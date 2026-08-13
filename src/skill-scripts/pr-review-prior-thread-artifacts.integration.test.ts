@@ -457,6 +457,38 @@ async function writeMarkerRuntime(root: string) {
 }
 
 describe("documented provider-scope capture materialization", () => {
+  it("refuses a historical reviewed HEAD before materialization", async () => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    const scratch = path.join(
+      cwd,
+      ".ephemeral",
+      "provider-scope-capture.fixture",
+    );
+    await mkdir(scratch);
+    const capturePath = path.join(
+      cwd,
+      `.ephemeral/topic-${baseSha}-provider-scope-capture.json`,
+    );
+    try {
+      await expect(
+        materializeRawGithubCapture(
+          cwd,
+          capturePath,
+          scratch,
+          baseSha,
+          baseSha,
+        ),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("current repository HEAD"),
+      });
+      await expect(readFile(capturePath, "utf8")).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
   it("publishes a complete closed canonical capture without direct target writes", async () => {
     const { cwd, baseSha, headSha } = await makeGitWorkspace();
     const scratch = path.join(
