@@ -348,8 +348,10 @@ bind_scope_decision_artifact() {
     gh api --paginate --slurp "repos/$PR_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" > "$capture_tmp/files.json" || return 1
     gh api -H 'Accept: application/vnd.github.diff' "repos/$PR_REPOSITORY/pulls/$PR_NUMBER" > "$capture_tmp/full.diff" || return 1
     PROVIDER_SCOPE_CAPTURE_FILE="$PROVIDER_SCOPE_CAPTURE_FILE" \
+    PROVIDER_SCOPE_CAPTURE_TMP_FILE="$capture_tmp/capture.json" \
     PR_REPOSITORY="$PR_REPOSITORY" node -e '
-      const fs=require("node:fs"), p=process.env.PROVIDER_SCOPE_CAPTURE_FILE;
+      const fs=require("node:fs"), p=process.env.PROVIDER_SCOPE_CAPTURE_FILE,
+        tmp=process.env.PROVIDER_SCOPE_CAPTURE_TMP_FILE;
       const pr=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));
       const pages=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
       const files=pages.flat().map(f=>({path:f.filename,status:f.status,
@@ -359,9 +361,13 @@ bind_scope_decision_artifact() {
         repository:process.env.PR_REPOSITORY,pr_number:pr.number,baseRefOid:pr.baseRefOid,
         headRefOid:pr.headRefOid,evidence_complete:true,provider_files:files,
         provider_diff:{dialect:"github-provider-diff/v1",content_base64:fs.readFileSync(process.argv[3]).toString("base64")}};
-      fs.writeFileSync(p,JSON.stringify(capture)+"\n",{encoding:"utf8",flag:"wx"});
+      fs.writeFileSync(tmp,JSON.stringify(capture)+"\n",{encoding:"utf8",flag:"wx"});
+      fs.linkSync(tmp,p);
     ' "$capture_tmp/pr.json" "$capture_tmp/files.json" "$capture_tmp/full.diff" || return 1
-    rm -rf "$capture_tmp"; trap - RETURN
+    if ! rm -rf "$capture_tmp"; then
+      return 1
+    fi
+    trap - RETURN
   else
     [ -f "$PROVIDER_SCOPE_CAPTURE_FILE" ] && [ ! -L "$PROVIDER_SCOPE_CAPTURE_FILE" ] || return 1
   fi
