@@ -84,33 +84,15 @@ guarded-inline D13; prompt-mediated consumers receive it through their curated
 prompt. Subagents do not read the full plan file or resolve controller-relative
 rule paths.
 
-When the exact plan contains a canonically labeled **Execution Projection**,
-structurally validate every projection entry before resolving its task-owned
-references, the structural gate, or any dispatch, including direct or
-unreviewed FULL execution. Then require every current task
-to declare `**Execution Projection references:**`, then derive the exact
-expected ID set from the projection entries whose task-coverage dispositions
-name that task's Task ID. A no-code disposition names no current implementation
-task. Reject before dispatch when a task field is absent, an expected reference
-is absent, a declared reference is duplicate, an ID resolves zero or multiple
-times, a declared and expected ID set differs, or the task/reference/entry
-relationship is ambiguous or mismatched.
-
-For every projection entry, structurally validate the complete tuple: its unique
-nonblank semantic ID; affected surface or explicit equivalent set; normative
-owner and owner source; closed consumption mode; task/no-code disposition; and
-both a proof owner and concrete proof boundary. A missing, duplicate,
-ambiguous, or semantically mismatched tuple fact fails closed with
-BLOCKED/NEEDS_CONTEXT and returns to planning for correction and fresh review.
-Do not infer a row, silently deduplicate, resolve from another plan or source,
-or let an implementer/reviewer resolve controller-owned references. Add only
-the resolved task-relevant entries to curated execution context; never give
-children the full plan merely to provide projection context.
-
-A plan without a canonically labeled Execution Projection, including unknown
-or legacy plan metadata, does not enter this projection-specific gate. It
-continues through the existing paired-review and direct/unreviewed FULL route;
-do not require the new field, invent a projection, or infer task references.
+When the exact plan contains a canonical `## Execution Projection`, load and
+apply the full
+[execution-projection consumer rule](references/execution-projection-consumer-rule.md)
+before the structural gate or any dispatch. Fail closed on any invalid entry or
+task linkage and add only resolved task-relevant entries to curated execution
+context. A missing or unreadable bundled rule blocks with
+`BLOCKED/NEEDS_CONTEXT` before any gate or dispatch. Plans without that exact
+heading retain the existing legacy route and do not acquire inferred projection
+requirements.
 
 Do not infer trigger applicability inside `play-subagent-execution`;
 `play-planning` owns the trigger taxonomy and tier classification. Do not
@@ -288,13 +270,8 @@ For the full selection and process diagrams, load
    implementers receive curated inlined task text, not the plan path.
 2. Extract all authored tasks with their full text, surrounding context,
    declared contract tier, tier-appropriate contract fields, verification expectations, and any mode or route
-   hints. When the plan has a canonically labeled Execution Projection, require
-   every current task's explicit projection-reference field, validate total
-   task-reference coverage, and resolve every expected reference from that
-   same exact plan. Missing, duplicate, ambiguous, or semantically mismatched
-   task references or tuple facts stop before dispatch. Plans without a
-   recognized projection retain the existing paired-review/direct-FULL route;
-   do not infer projection metadata or references.
+   hints. When the exact plan has `## Execution Projection`, apply its consumer
+   rule before continuing; otherwise retain the legacy route.
 3. Assemble the extracted plan/task execution context before implementer
    dispatch, reviewer dispatch, final whole-implementation review, or
    skip-dispatch evaluation. Include plan-level Contract Example Discipline
@@ -705,6 +682,9 @@ subagent prompt; do not inline their full bodies into this skill source.
   policy. The controller loads this file and inlines its content under
   `Contract Example Discipline Consumer Rule` when the extracted plan/task
   execution context contains present obligations.
+- `references/execution-projection-consumer-rule.md` — conditional structural
+  validation and task-context derivation rule for plans containing the exact
+  canonical `## Execution Projection` heading.
 
 ## Branch Policy Reference Map
 
@@ -712,15 +692,16 @@ Load these branch-policy references lazily. Keep this source file as the eager
 controller contract and trust-boundary summary; load the detailed references
 only when the trigger applies.
 
-| Reference                                                           | Load when                                                                                                                                                                      |
-| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| review routing - `references/review-routing-policy.md`              | Computing initial effective per-task routes, validating reduced-route auto-handoff, or checking hard-risk triggers.                                                            |
-| skip-dispatch behavior - `references/skip-dispatch-policy.md`       | Evaluating single-task inline execution, mechanical-task taxonomy, fallback behavior, or skip-dispatch examples.                                                               |
-| lifecycle/status handling - `references/lifecycle-status-policy.md` | Updating lifecycle ledger state, interpreting returned worker statuses, resolving same-head reviewer disposition, handling fixups/blockers, guard failures, or cleanup timing. |
-| snapshot consumption - `references/snapshot-consumption.md`         | Classifying snapshot request state, assembling snapshot prompt fields, validating or consuming snapshot manifests, or handling malformed/stale snapshots.                      |
-| diagrams - `references/process-diagrams.md`                         | Needing full DOT diagrams or diagram interpretation notes for the controller flow.                                                                                             |
-| examples - `references/example-workflow.md`                         | Needing an end-to-end illustrative execution trace.                                                                                                                            |
-| rationale - `references/advantages.md`                              | Needing rationale, quality gates, cost, or comparison context.                                                                                                                 |
+| Reference                                                                 | Load when                                                                                                                                                                      |
+| ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| review routing - `references/review-routing-policy.md`                    | Computing initial effective per-task routes, validating reduced-route auto-handoff, or checking hard-risk triggers.                                                            |
+| skip-dispatch behavior - `references/skip-dispatch-policy.md`             | Evaluating single-task inline execution, mechanical-task taxonomy, fallback behavior, or skip-dispatch examples.                                                               |
+| lifecycle/status handling - `references/lifecycle-status-policy.md`       | Updating lifecycle ledger state, interpreting returned worker statuses, resolving same-head reviewer disposition, handling fixups/blockers, guard failures, or cleanup timing. |
+| snapshot consumption - `references/snapshot-consumption.md`               | Classifying snapshot request state, assembling snapshot prompt fields, validating or consuming snapshot manifests, or handling malformed/stale snapshots.                      |
+| execution projection - `references/execution-projection-consumer-rule.md` | Validating and resolving a canonical `## Execution Projection` before structural gating or dispatch.                                                                           |
+| diagrams - `references/process-diagrams.md`                               | Needing full DOT diagrams or diagram interpretation notes for the controller flow.                                                                                             |
+| examples - `references/example-workflow.md`                               | Needing an end-to-end illustrative execution trace.                                                                                                                            |
+| rationale - `references/advantages.md`                                    | Needing rationale, quality gates, cost, or comparison context.                                                                                                                 |
 
 ## Prompt Support Assets
 

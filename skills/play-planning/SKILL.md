@@ -260,15 +260,11 @@ planning instead of adding a synchronized restatement. Repeated detail does not
 make a reference or summary normative, verification does not define policy,
 and generated skill packages remain derived consumers rather than edit targets.
 
-For every plan with affected surfaces, produce the one exhaustive plan-local
-Execution Projection required by the canonical criteria. Give each entry its
-stable semantic ID and complete owner/source, mode, task/no-code, and
-proof-boundary tuple. Group surfaces only under the criteria's closed
-identical-tuple rule. Other topology, traceability, checklist, and operation
-views reference those IDs and add detail only when it is independently needed
-for their own participant, lifecycle, side-effect, failure, recovery, cleanup,
-trust, example, or startability contract. Do not create a persistent schema or
-registry, and do not make a duplicate view a second policy owner.
+For every plan with affected surfaces, produce exactly one exhaustive plan-local
+`## Execution Projection` required by the canonical criteria. Apply that
+reference's entry, grouping, cross-view, and task-linkage rules; do not create a
+persistent schema, registry, or second policy owner. Invalid or unresolved
+projection facts block plan handoff.
 
 For generated artifacts, derived artifacts, helper I/O files, `.ephemeral`
 handoffs, cross-skill handoffs, or side-channel data, plan against the
@@ -503,21 +499,10 @@ reject or override it. The detailed taxonomy (positive and negative examples)
 lives in the [mechanical task taxonomy](../play-subagent-execution/references/skip-dispatch-policy.md#mechanical-task-taxonomy)
 reference — consult it before setting the hint.
 
-Example mechanical-task plan fragment:
+Example mechanical task within a plan whose Execution Projection defines
+`EP-RENAME-EXAMPLE-TOKEN`:
 
 ```markdown
-## Execution Projection
-
-- **Entry ID:** `EP-RENAME-EXAMPLE-TOKEN`
-  - **Affected surface:** `examples/demo-note.md`
-  - **Normative owner:** The example-token content in `examples/demo-note.md`.
-  - **Owner source:** The approved issue requirement for this exact rename.
-  - **Consumption mode:** `reference`
-  - **Task/no-code disposition:** Task `RENAME-EXAMPLE-TOKEN`
-  - **Proof owner:** The `RENAME-EXAMPLE-TOKEN` task implementer.
-  - **Proof boundary:** Focused inspection of `examples/demo-note.md` confirms
-    the approved before/after token replacement.
-
 ### Task N: Rename Example Token
 
 **Task ID:** RENAME-EXAMPLE-TOKEN
@@ -651,14 +636,9 @@ Review in this order:
    reason, or a task-specific NO-TRIGGER reason. Reject missing, ambiguous, or
    under-specified tier declarations; do not infer proportionality from diff
    size or path spelling.
-4. Confirm the Execution Projection is exhaustive and each semantic ID is
-   unique, nonblank, and plan-local; grouped entries have identical complete
-   tuples, duplicate-prone views reference them, and every current task
-   declares the explicit `Execution Projection references` field. Validate
-   total task-reference coverage: each task's declared IDs are exactly all
-   entries whose task-coverage disposition names that Task ID, and every
-   declared reference resolves exactly once in the same reviewed plan. Confirm
-   any specialized view fact is independently necessary and authoritative.
+4. Validate the Execution Projection and every task's exact reference coverage
+   against the canonical criteria. Any incomplete, duplicate, ambiguous,
+   mismatched, or unauthorized projection fact blocks review.
 5. Confirm optional comment evidence remains non-authoritative.
 6. Classify every finding as `CURRENT`, `BLOCKER`, `FOLLOW-UP`, or
    `OPTIONAL` before changing the plan.
@@ -946,13 +926,11 @@ The reviewer independently validates the Scope Envelope, Scope Delta,
 authoritative requirement coverage, unjustified tasks, dependency order,
 contract and boundary traceability, task contracts, documentation impact, and
 minimum-sufficient proof. It validates every current task's declared canonical
-tier and tier-appropriate structure against the criteria. It also validates
-the one Execution Projection, its closed grouping rule, and total
-task-reference coverage: every current task declares its explicit reference
-field and its IDs exactly match the entries whose dispositions name that Task
-ID. It does so without treating repeated table shape as policy. It checks
-citations and applicable review-routing hints. The canonical reference owns the
-detailed criteria.
+tier and tier-appropriate structure against the criteria. It also validates the
+Execution Projection and exact task-reference coverage against the canonical
+criteria without treating repeated table shape as policy. It checks citations
+and applicable review-routing hints. The canonical reference owns the detailed
+criteria.
 
 The reviewer reports every concrete in-remit finding and classifies it as
 `CURRENT`, `BLOCKER`, `FOLLOW-UP`, or `OPTIONAL`. CURRENT and BLOCKER

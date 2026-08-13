@@ -568,12 +568,32 @@ the owning design or decision surface, not invitations to guess.
 
 ### Execution projection
 
-For every plan with affected surfaces, maintain one exhaustive plan-local
-**Execution Projection**. It is the referenceable execution view of the
-approved topology, not a new design authority, persistent schema, registry, or
-artifact lifecycle. Each entry has one unique, nonblank, stable semantic ID;
-the ID is a navigation key only within that reviewed plan and has no
-cross-plan meaning.
+For every plan with affected surfaces, maintain exactly one exhaustive
+plan-local section whose heading is the exact Markdown H2 line
+`## Execution Projection`. Fenced examples, prose mentions, differently labeled
+metadata, and unknown or legacy headings are not projections. It is the
+referenceable execution view of the approved topology, not a new design
+authority, persistent schema, registry, or artifact lifecycle. Each entry has
+one unique, nonblank, stable semantic ID; the ID is a navigation key only within
+that reviewed plan and has no cross-plan meaning.
+
+Use this field grammar for each projection entry:
+
+```markdown
+- **Entry ID:** `<semantic ID>`
+  - **Affected surface:** `<one surface>`
+  - **Normative owner:** `<owner>`
+  - **Owner source:** `<authority>`
+  - **Consumption mode:** `reference` | `derived representation` | `non-normative summary` | `verification`
+  - **Task/no-code disposition:** Task `<TASK-ID>` | No code — `<task-specific reason>`
+  - **Proof owner:** `<owner>`
+  - **Proof boundary:** `<concrete boundary>`
+```
+
+Replace `**Affected surface:**` with `**Equivalent surface set:**` followed by
+an explicit list when grouping surfaces. Field labels are exact; angle-bracket
+values are placeholders, not literal plan content. Multiple canonical sections,
+missing fields, both surface fields, or neither surface field are invalid.
 
 Record each affected surface, or an explicit equivalent surface set, exactly
 once in the projection. Every entry supplies this complete semantic tuple:
