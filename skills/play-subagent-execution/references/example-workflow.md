@@ -29,14 +29,16 @@ owning-workflow or explicit operator authority allows auto-committing fixes;
 otherwise hand off to branch-review without auto-fix authority, wait for review
 approval evidence, or invoke `play-branch-finish` only when branch-level review
 is not required.
-On the `issue-priming-workflow --auto` single-task path, the flow instead
-returns to the caller after task completion so Phase 7 `branch-review --fix`
-becomes the whole-diff gate.
+On the `issue-priming-workflow --auto` single-task path, the flow returns
+directly to the caller only when the verified ADR-0016 carve-out applies and
+no retained undischarged no-code proof tuple remains. Otherwise D16 runs with
+`EXTRACTED_WHOLE_IMPLEMENTATION_CONTEXT` before Phase 7 `branch-review --fix`.
 
 ```
 You: I'm using Subagent-Driven Development to execute this plan.
 
-[Read plan file once: .ephemeral/feature-plan.md]
+[Guarded plan-byte intake: .ephemeral/feature-plan.md]
+[Execution admission succeeds: exactly one canonical `## Execution Projection` + same-digest D5/D6 PASS]
 [Extract all 3 coherent authored tasks with full text and context]
 [Create TodoWrite with all tasks]
 [Use subagent-lifecycle to detect target lifecycle capability]

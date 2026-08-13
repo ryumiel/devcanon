@@ -97,8 +97,9 @@ The skill's existing final whole-implementation code-quality reviewer
 (scope explicitly out of ADR-0007 at the time) still runs on the
 skip-dispatch path unless the caller-scoped ADR-0016 carve-out applies
 (`issue-priming-workflow --auto`, single-task plan, downstream
-`branch-review --fix` explicitly guaranteed). On that narrower path,
-`branch-review --fix` supplies the whole-diff gate.
+`branch-review --fix` explicitly guaranteed, and no retained undischarged
+no-code proof tuple). Otherwise D16 runs with the whole context before Phase 7;
+on that narrower path, `branch-review --fix` supplies the whole-diff gate.
 
 This is positioned as an internal optimization within Phase 6 of
 `issue-priming-workflow`, not a phase removal — Phase 6 still runs, Phase
