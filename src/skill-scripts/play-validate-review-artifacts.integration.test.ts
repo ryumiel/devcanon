@@ -756,6 +756,18 @@ async function writeMarkerValidator(
 }
 
 describe("play-validate-review-artifacts validator", () => {
+  it("rejects the provider scope producer command because it is validation-only", async () => {
+    const { cwd } = await makeGitWorkspace();
+    try {
+      await expectRejectsWith(
+        runValidator(cwd, "write-provider-scope-evidence"),
+        "usage: review-artifacts.sh",
+      );
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
   it("validates risk-signals artifacts without stdout", async () => {
     const { cwd, baseSha, headSha } = await makeRiskSignalsWorkspace();
     try {

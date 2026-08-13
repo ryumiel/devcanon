@@ -11,6 +11,23 @@ describe("runtime command helpers", () => {
     });
   });
 
+  it("routes the provider scope producer through its distinct command group", async () => {
+    await expect(
+      runRuntimeCommand(["pr-review-provider-scope-evidence", "contract"]),
+    ).resolves.toEqual({
+      exitCode: 0,
+      stdout:
+        '{"command_group":"pr-review-provider-scope-evidence","major_version":1}\n',
+      stderr: "",
+    });
+    await expect(
+      runRuntimeCommand(["review-artifacts", "write-provider-scope-evidence"]),
+    ).resolves.toMatchObject({
+      exitCode: 1,
+      stderr: expect.stringContaining("usage: review-artifacts.sh"),
+    });
+  });
+
   it("returns parseable path facts", async () => {
     const result = await runRuntimeCommand([
       "path-info",

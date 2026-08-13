@@ -6,7 +6,9 @@ import {
   mkdir,
   mkdtemp,
   readFile,
+  readdir,
   rm,
+  symlink,
   writeFile,
 } from "node:fs/promises";
 import os from "node:os";
@@ -24,6 +26,20 @@ const jqAvailable = await commandAvailable("jq");
 const PROVIDER_EVIDENCE_SCHEMA = "pr-review/provider-scope-evidence/v2";
 const DIGEST_PROVENANCE_SCHEMA = "pr-review/digest-provenance/v1";
 const CANONICAL_GIT_DIFF_DIALECT = "canonical-git-diff/v1";
+const CAPTURE_CLEANUP_SEQUENCE = String.raw`
+capture_tmp="$1"
+finish_capture_materialization() {
+  trap 'rm -rf "$capture_tmp"' RETURN
+  if ! rm -rf "$capture_tmp"; then
+    return 1
+  fi
+  trap - RETURN
+  : > "$PRODUCER_DISPATCH_MARKER"
+}
+status=0
+finish_capture_materialization || status=$?
+exit "$status"
+`;
 
 async function commandAvailable(command: string): Promise<boolean> {
   try {
@@ -63,6 +79,79 @@ async function git(cwd: string, ...args: string[]) {
 async function gitRaw(cwd: string, ...args: string[]) {
   const { stdout } = await execFileAsync("git", args, { cwd });
   return stdout;
+}
+
+async function writeRawGithubCaptureInputs(
+  scratch: string,
+  baseSha: string,
+  headSha: string,
+) {
+  const prPath = path.join(scratch, "pr.json");
+  const filesPath = path.join(scratch, "files.json");
+  const diffPath = path.join(scratch, "full.diff");
+  await writeFile(
+    prPath,
+    JSON.stringify({ number: 390, baseRefOid: baseSha, headRefOid: headSha }),
+  );
+  await writeFile(
+    filesPath,
+    JSON.stringify([
+      [
+        {
+          filename: "src/app.ts",
+          status: "added",
+          additions: 1,
+          deletions: 0,
+          changes: 1,
+        },
+      ],
+    ]),
+  );
+  await writeFile(diffPath, "diff --git a/src/app.ts b/src/app.ts\n");
+  return { prPath, filesPath, diffPath };
+}
+
+async function materializeRawGithubCapture(
+  cwd: string,
+  capturePath: string,
+  scratch: string,
+  baseSha: string,
+  headSha: string,
+  interrupted = false,
+) {
+  const { prPath, filesPath, diffPath } = await writeRawGithubCaptureInputs(
+    scratch,
+    baseSha,
+    headSha,
+  );
+  return runHelper(cwd, helperScript, "materialize-provider-scope-capture", {
+    HEAD_SHA: headSha,
+    PROVIDER_SCOPE_CAPTURE_FILE: path.relative(cwd, capturePath),
+    PROVIDER_SCOPE_CAPTURE_TMP_FILE: path.join(scratch, "capture.json"),
+    PROVIDER_SCOPE_CAPTURE_PR_FILE: prPath,
+    PROVIDER_SCOPE_CAPTURE_FILES_FILE: filesPath,
+    PROVIDER_SCOPE_CAPTURE_DIFF_FILE: diffPath,
+    PR_REPOSITORY: "owner/repo",
+    ...(interrupted ? { CAPTURE_MATERIALIZER_STOP_BEFORE_PUBLISH: "1" } : {}),
+  });
+}
+
+async function runRawGithubCaptureMaterializer(
+  cwd: string,
+  capturePath: string,
+  captureTmpPath: string,
+  inputs: { prPath: string; filesPath: string; diffPath: string },
+  headSha: string,
+) {
+  return runHelper(cwd, helperScript, "materialize-provider-scope-capture", {
+    HEAD_SHA: headSha,
+    PROVIDER_SCOPE_CAPTURE_FILE: path.relative(cwd, capturePath),
+    PROVIDER_SCOPE_CAPTURE_TMP_FILE: captureTmpPath,
+    PROVIDER_SCOPE_CAPTURE_PR_FILE: inputs.prPath,
+    PROVIDER_SCOPE_CAPTURE_FILES_FILE: inputs.filesPath,
+    PROVIDER_SCOPE_CAPTURE_DIFF_FILE: inputs.diffPath,
+    PR_REPOSITORY: "owner/repo",
+  });
 }
 
 async function canonicalGitDiffRaw(
@@ -208,6 +297,41 @@ async function providerScopeEvidence(
   };
 }
 
+async function providerScopeCapture(
+  cwd: string,
+  baseSha: string,
+  headSha: string,
+) {
+  const patch = await canonicalGitDiffRaw(cwd, `${baseSha}..${headSha}`, [
+    "src/app.ts",
+  ]);
+  const fullDiff = await canonicalGitDiffRaw(cwd, `${baseSha}..${headSha}`);
+  return {
+    schema: "pr-review/provider-scope-capture/v1",
+    provider: "github",
+    repository: "owner/repo",
+    pr_number: 390,
+    baseRefOid: baseSha,
+    headRefOid: headSha,
+    evidence_complete: true,
+    provider_files: [
+      {
+        path: "src/app.ts",
+        status: "added",
+        previous_path: null,
+        additions: 1,
+        deletions: 0,
+        changes: 1,
+        patch_base64: Buffer.from(patch).toString("base64"),
+      },
+    ],
+    provider_diff: {
+      dialect: CANONICAL_GIT_DIFF_DIALECT,
+      content_base64: Buffer.from(fullDiff).toString("base64"),
+    },
+  };
+}
+
 async function writeInitialScope(
   cwd: string,
   baseSha: string,
@@ -312,6 +436,1081 @@ async function writeMarkerValidator(root: string, marker: string) {
   return script;
 }
 
+async function writeMarkerRuntime(root: string) {
+  const script = path.join(root, "scripts/devcanon-runtime.sh");
+  await mkdir(path.dirname(script), { recursive: true });
+  await writeFile(
+    script,
+    [
+      "#!/usr/bin/env bash",
+      "set -euo pipefail",
+      'if [ "${3:-}" = "contract" ]; then',
+      '  printf "%b" "${RUNTIME_CONTRACT_OUTPUT:-}"',
+      '  exit "${RUNTIME_CONTRACT_EXIT:-0}"',
+      "fi",
+      '[ -z "${RUNTIME_DISPATCH_MARKER:-}" ] || : > "$RUNTIME_DISPATCH_MARKER"',
+      'printf "%s\\n" ".ephemeral/runtime-provider-scope-evidence.json"',
+      "",
+    ].join("\n"),
+  );
+  await chmod(script, 0o755);
+  return root;
+}
+
+async function documentedBindScopeDecisionArtifact(): Promise<string> {
+  const skill = await readFile(
+    path.join(process.cwd(), "skills/pr-review/SKILL.md"),
+    "utf8",
+  );
+  const start = skill.indexOf("bind_scope_decision_artifact() {");
+  const end = skill.indexOf("\n}\n\nSCOPE_DECISION_STATUS=0", start);
+  if (start < 0 || end < 0) {
+    throw new Error("documented bind_scope_decision_artifact block missing");
+  }
+  return skill.slice(start, end + 2);
+}
+
+async function writeProviderFetchHarness(root: string) {
+  const bin = path.join(root, "bin");
+  const gh = path.join(bin, "gh");
+  const helper = path.join(root, "artifact-helper");
+  const runner = path.join(root, "run-documented-bind");
+  await mkdir(bin, { recursive: true });
+  await writeFile(
+    gh,
+    [
+      "#!/usr/bin/env bash",
+      "set -euo pipefail",
+      'case " $* " in',
+      '  *" --jq "*)',
+      '    count=0; [ ! -f "$GH_BINDING_COUNT" ] || count="$(cat "$GH_BINDING_COUNT")"',
+      '    count="$((count + 1))"; printf "%s\\n" "$count" > "$GH_BINDING_COUNT"',
+      '    sed -n "${count}p" "$GH_BINDINGS_FILE"',
+      "    ;;",
+      '  *" --paginate "*)',
+      '    printf \'[[{"filename":"src/app.ts","status":"added","additions":1,"deletions":0,"changes":1}]]\\n\'',
+      "    ;;",
+      "  *)",
+      "    printf 'diff --git a/src/app.ts b/src/app.ts\\n'",
+      "    ;;",
+      "esac",
+      "",
+    ].join("\n"),
+  );
+  await writeFile(
+    helper,
+    [
+      "#!/usr/bin/env bash",
+      "set -euo pipefail",
+      'case "$1" in',
+      "  materialize-provider-scope-capture)",
+      '    printf "%s\\n" "$PROVIDER_SCOPE_CAPTURE_TMP_FILE" >> "$MATERIALIZE_CALLS"',
+      '    [ "${MATERIALIZE_MODE:-real}" = "real" ] || exit 91',
+      '    exec bash "$REAL_ARTIFACT_HELPER" "$@"',
+      "    ;;",
+      "  write-provider-scope-evidence)",
+      '    evidence="${PROVIDER_SCOPE_CAPTURE_FILE%-capture.json}-evidence.json"',
+      '    printf \'{"provider_pr_diff_base_sha":"%s","full_pr_diff_range":"%s..%s"}\\n\' "$PR_BASE_OID" "$PR_BASE_OID" "$HEAD_SHA" > "$evidence"',
+      '    printf "%s\\n" "$evidence"',
+      "    ;;",
+      "  prepare-scope-decision-write)",
+      "    printf '.ephemeral/stub-scope-decision.json\\n'",
+      "    ;;",
+      "  validate-scope-decision)",
+      "    ;;",
+      "  *)",
+      '    printf "unexpected helper command: %s\\n" "$1" >&2',
+      "    exit 1",
+      "    ;;",
+      "esac",
+      "",
+    ].join("\n"),
+  );
+  await writeFile(
+    runner,
+    [
+      "#!/usr/bin/env bash",
+      "set -uo pipefail",
+      await documentedBindScopeDecisionArtifact(),
+      "bind_scope_decision_artifact",
+      "",
+    ].join("\n"),
+  );
+  await Promise.all([
+    chmod(gh, 0o755),
+    chmod(helper, 0o755),
+    chmod(runner, 0o755),
+  ]);
+  return { bin, runner };
+}
+
+async function runDocumentedProviderFetch(
+  cwd: string,
+  baseSha: string,
+  root: string,
+  bindings: readonly string[],
+  materializer = "real",
+  failClassifierRead = false,
+) {
+  const { bin, runner } = await writeProviderFetchHarness(root);
+  const bindingFile = path.join(root, "bindings.jsonl");
+  const bindingCount = path.join(root, "binding-count");
+  const materializeCalls = path.join(root, "materialize-calls");
+  await writeFile(bindingFile, `${bindings.join("\n")}\n`);
+  if (failClassifierRead) {
+    const node = path.join(bin, "node");
+    await writeFile(node, "#!/usr/bin/env bash\nexit 3\n");
+    await chmod(node, 0o755);
+  }
+  return {
+    result: execFileAsync("bash", [runner], {
+      cwd,
+      env: {
+        ...process.env,
+        PATH: `${bin}:${process.env.PATH}`,
+        WORKING_DIRECTORY: cwd,
+        PR_REVIEW_ARTIFACT_HELPER: path.join(root, "artifact-helper"),
+        REAL_ARTIFACT_HELPER: helperScript,
+        PR_REPOSITORY: "owner/repo",
+        PR_NUMBER: "390",
+        PR_BASE_OID: baseSha,
+        GH_BINDINGS_FILE: bindingFile,
+        GH_BINDING_COUNT: bindingCount,
+        MATERIALIZE_CALLS: materializeCalls,
+        MATERIALIZE_MODE: materializer,
+      },
+      maxBuffer: 1024 * 1024,
+    }),
+    bindingCount,
+    materializeCalls,
+  };
+}
+
+describe("documented provider-scope capture materialization", () => {
+  it("refuses a historical reviewed HEAD before materialization", async () => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    const scratch = path.join(
+      cwd,
+      ".ephemeral",
+      "provider-scope-capture.fixture",
+    );
+    await mkdir(scratch);
+    const capturePath = path.join(
+      cwd,
+      `.ephemeral/topic-${baseSha}-provider-scope-capture.json`,
+    );
+    try {
+      await expect(
+        materializeRawGithubCapture(
+          cwd,
+          capturePath,
+          scratch,
+          baseSha,
+          baseSha,
+        ),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("current repository HEAD"),
+      });
+      await expect(readFile(capturePath, "utf8")).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("publishes a complete closed canonical capture without direct target writes", async () => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    const scratch = path.join(
+      cwd,
+      ".ephemeral",
+      "provider-scope-capture.fixture",
+    );
+    await mkdir(scratch);
+    const capturePath = path.join(
+      cwd,
+      `.ephemeral/topic-${headSha}-provider-scope-capture.json`,
+    );
+    try {
+      await materializeRawGithubCapture(
+        cwd,
+        capturePath,
+        scratch,
+        baseSha,
+        headSha,
+      );
+
+      const captureText = await readFile(capturePath, "utf8");
+      await expect(
+        readFile(path.join(scratch, "capture.json"), "utf8"),
+      ).resolves.toBe(captureText);
+      expect(captureText).toMatch(/\n$/);
+      expect(captureText).not.toContain("\\\\n");
+      const capture = JSON.parse(captureText);
+      expect(Object.keys(capture).sort()).toEqual([
+        "baseRefOid",
+        "evidence_complete",
+        "headRefOid",
+        "pr_number",
+        "provider",
+        "provider_diff",
+        "provider_files",
+        "repository",
+        "schema",
+      ]);
+      expect(Object.keys(capture.provider_files[0]).sort()).toEqual([
+        "additions",
+        "changes",
+        "deletions",
+        "patch_base64",
+        "path",
+        "previous_path",
+        "status",
+      ]);
+      expect(Object.keys(capture.provider_diff).sort()).toEqual([
+        "content_base64",
+        "dialect",
+      ]);
+      expect(capture.provider_files[0].patch_base64).toBeNull();
+      expect(capture.provider_diff.content_base64).toBe(
+        Buffer.from("diff --git a/src/app.ts b/src/app.ts\n").toString(
+          "base64",
+        ),
+      );
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("rejects copied GitHub files with a precise unsupported-status diagnostic", async () => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    const scratch = path.join(
+      cwd,
+      ".ephemeral",
+      "provider-scope-capture.fixture",
+    );
+    await mkdir(scratch);
+    const capturePath = path.join(
+      cwd,
+      `.ephemeral/topic-${headSha}-provider-scope-capture.json`,
+    );
+    try {
+      const inputs = await writeRawGithubCaptureInputs(
+        scratch,
+        baseSha,
+        headSha,
+      );
+      const pages = JSON.parse(await readFile(inputs.filesPath, "utf8"));
+      pages[0][0] = {
+        ...pages[0][0],
+        status: "copied",
+        previous_filename: "src/original.ts",
+      };
+      await writeFile(inputs.filesPath, JSON.stringify(pages));
+
+      await expect(
+        runRawGithubCaptureMaterializer(
+          cwd,
+          capturePath,
+          path.join(scratch, "capture.json"),
+          inputs,
+          headSha,
+        ),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining(
+          "GitHub copied file status is unsupported",
+        ),
+      });
+      await expect(readFile(capturePath, "utf8")).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("leaves no canonical capture when materialization stops before publication", async () => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    const scratch = path.join(
+      cwd,
+      ".ephemeral",
+      "provider-scope-capture.fixture",
+    );
+    await mkdir(scratch);
+    const capturePath = path.join(
+      cwd,
+      `.ephemeral/topic-${headSha}-provider-scope-capture.json`,
+    );
+    try {
+      await expect(
+        materializeRawGithubCapture(
+          cwd,
+          capturePath,
+          scratch,
+          baseSha,
+          headSha,
+          true,
+        ),
+      ).rejects.toMatchObject({ code: 1 });
+      await expect(readFile(capturePath, "utf8")).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+      await expect(
+        readFile(path.join(scratch, "capture.json"), "utf8"),
+      ).resolves.toContain("provider-scope-capture/v1");
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+});
+
+describe.skipIf(!jqAvailable)("documented provider capture retries", () => {
+  it("discards an unstable private attempt and publishes only the second stable capture", async () => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    const root = await mkdtemp(path.join(os.tmpdir(), "devcanon-pr-provider-"));
+    const binding = (baseRefOid: string, headRefOid: string) =>
+      JSON.stringify({ number: 390, baseRefOid, headRefOid });
+    try {
+      const run = await runDocumentedProviderFetch(cwd, baseSha, root, [
+        binding(baseSha, headSha),
+        binding(baseSha, "a".repeat(40)),
+        binding(baseSha, headSha),
+        binding(baseSha, headSha),
+      ]);
+
+      await expect(run.result).resolves.toMatchObject({ stderr: "" });
+      await expect(readFile(run.bindingCount, "utf8")).resolves.toBe("4\n");
+      const materialized = await readFile(run.materializeCalls, "utf8");
+      expect(materialized.trim().split("\n")).toHaveLength(1);
+      await expect(
+        readFile(
+          path.join(
+            cwd,
+            `.ephemeral/topic-${headSha}-provider-scope-capture.json`,
+          ),
+          "utf8",
+        ),
+      ).resolves.toContain(`"headRefOid":"${headSha}"`);
+      expect(
+        (await readdir(path.join(cwd, ".ephemeral"))).filter((entry) =>
+          entry.startsWith("provider-scope-capture."),
+        ),
+      ).toEqual([]);
+    } finally {
+      await cleanupTempDir(cwd);
+      await cleanupTempDir(root);
+    }
+  });
+
+  it("refuses when both provider snapshots are unstable without canonical publication", async () => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    const root = await mkdtemp(path.join(os.tmpdir(), "devcanon-pr-provider-"));
+    const binding = (headRefOid: string) =>
+      JSON.stringify({ number: 390, baseRefOid: baseSha, headRefOid });
+    try {
+      const run = await runDocumentedProviderFetch(cwd, baseSha, root, [
+        binding(headSha),
+        binding("a".repeat(40)),
+        binding(headSha),
+        binding("b".repeat(40)),
+      ]);
+
+      await expect(run.result).rejects.toMatchObject({ code: 1 });
+      await expect(
+        readFile(run.materializeCalls, "utf8"),
+      ).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+      await expect(
+        readFile(
+          path.join(
+            cwd,
+            `.ephemeral/topic-${headSha}-provider-scope-capture.json`,
+          ),
+          "utf8",
+        ),
+      ).rejects.toMatchObject({ code: "ENOENT" });
+      expect(await readdir(path.join(cwd, ".ephemeral"))).toEqual([]);
+    } finally {
+      await cleanupTempDir(cwd);
+      await cleanupTempDir(root);
+    }
+  });
+
+  it.each([
+    {
+      name: "baseRefOid",
+      capture: (baseSha: string, headSha: string) => ({
+        provider: "github",
+        repository: "owner/repo",
+        pr_number: 390,
+        baseRefOid: "a".repeat(40),
+        headRefOid: headSha,
+      }),
+    },
+    {
+      name: "headRefOid",
+      capture: (baseSha: string, _headSha: string) => ({
+        provider: "github",
+        repository: "owner/repo",
+        pr_number: 390,
+        baseRefOid: baseSha,
+        headRefOid: "a".repeat(40),
+      }),
+    },
+    {
+      name: "provider",
+      capture: (baseSha: string, headSha: string) => ({
+        provider: "other",
+        repository: "owner/repo",
+        pr_number: 390,
+        baseRefOid: baseSha,
+        headRefOid: headSha,
+      }),
+    },
+    {
+      name: "repository",
+      capture: (baseSha: string, headSha: string) => ({
+        provider: "github",
+        repository: "other/repo",
+        pr_number: 390,
+        baseRefOid: baseSha,
+        headRefOid: headSha,
+      }),
+    },
+    {
+      name: "pr_number",
+      capture: (baseSha: string, headSha: string) => ({
+        provider: "github",
+        repository: "owner/repo",
+        pr_number: 391,
+        baseRefOid: baseSha,
+        headRefOid: headSha,
+      }),
+    },
+  ])(
+    "deletes only a stale canonical $name before recapturing",
+    async ({ capture }) => {
+      const { cwd, baseSha, headSha } = await makeGitWorkspace();
+      const root = await mkdtemp(
+        path.join(os.tmpdir(), "devcanon-pr-provider-"),
+      );
+      const capturePath = `.ephemeral/topic-${headSha}-provider-scope-capture.json`;
+      const unrelatedPath = ".ephemeral/keep.txt";
+      try {
+        await writeJson(cwd, capturePath, capture(baseSha, headSha));
+        await writeFile(path.join(cwd, unrelatedPath), "preserve\n");
+        const stable = JSON.stringify({
+          number: 390,
+          baseRefOid: baseSha,
+          headRefOid: headSha,
+        });
+        const run = await runDocumentedProviderFetch(cwd, baseSha, root, [
+          stable,
+          stable,
+        ]);
+
+        await expect(run.result).resolves.toMatchObject({ stderr: "" });
+        await expect(readFile(run.materializeCalls, "utf8")).resolves.toContain(
+          "capture.json",
+        );
+        await expect(
+          readFile(path.join(cwd, unrelatedPath), "utf8"),
+        ).resolves.toBe("preserve\n");
+        await expect(
+          readFile(path.join(cwd, capturePath), "utf8"),
+        ).resolves.toContain(`"baseRefOid":"${baseSha}"`);
+      } finally {
+        await cleanupTempDir(cwd);
+        await cleanupTempDir(root);
+      }
+    },
+  );
+
+  it("preserves malformed canonical JSON without refetching or deleting it", async () => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    const root = await mkdtemp(path.join(os.tmpdir(), "devcanon-pr-provider-"));
+    const capturePath = `.ephemeral/topic-${headSha}-provider-scope-capture.json`;
+    const malformed = "{ not JSON\n";
+    try {
+      await writeFile(path.join(cwd, capturePath), malformed);
+      const run = await runDocumentedProviderFetch(cwd, baseSha, root, []);
+
+      await expect(run.result).rejects.toMatchObject({
+        code: 1,
+        stderr: expect.stringContaining(
+          `preserved provider scope capture ${capturePath}`,
+        ),
+      });
+      await expect(run.result).rejects.toMatchObject({
+        stderr: expect.stringContaining(
+          `remove only ${capturePath} and rerun Phase 1/binding.`,
+        ),
+      });
+      await expect(readFile(path.join(cwd, capturePath), "utf8")).resolves.toBe(
+        malformed,
+      );
+      await expect(readFile(run.bindingCount, "utf8")).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+      await expect(
+        readFile(run.materializeCalls, "utf8"),
+      ).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+    } finally {
+      await cleanupTempDir(cwd);
+      await cleanupTempDir(root);
+    }
+  });
+
+  it("preserves a canonical capture when its classifier read fails without refetching", async () => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    const root = await mkdtemp(path.join(os.tmpdir(), "devcanon-pr-provider-"));
+    const capturePath = `.ephemeral/topic-${headSha}-provider-scope-capture.json`;
+    try {
+      await writeJson(cwd, capturePath, {
+        provider: "github",
+        repository: "owner/repo",
+        pr_number: 390,
+        baseRefOid: baseSha,
+        headRefOid: headSha,
+      });
+      const run = await runDocumentedProviderFetch(
+        cwd,
+        baseSha,
+        root,
+        [],
+        "real",
+        true,
+      );
+
+      await expect(run.result).rejects.toMatchObject({
+        code: 1,
+        stderr: expect.stringContaining(
+          `preserved provider scope capture ${capturePath}`,
+        ),
+      });
+      await expect(run.result).rejects.toMatchObject({
+        stderr: expect.stringContaining(
+          `remove only ${capturePath} and rerun Phase 1/binding.`,
+        ),
+      });
+      await expect(readFile(path.join(cwd, capturePath), "utf8")).resolves.toBe(
+        JSON.stringify(
+          {
+            provider: "github",
+            repository: "owner/repo",
+            pr_number: 390,
+            baseRefOid: baseSha,
+            headRefOid: headSha,
+          },
+          null,
+          2,
+        ),
+      );
+      await expect(readFile(run.bindingCount, "utf8")).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+      await expect(
+        readFile(run.materializeCalls, "utf8"),
+      ).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+    } finally {
+      await cleanupTempDir(cwd);
+      await cleanupTempDir(root);
+    }
+  });
+
+  it("reuses a valid canonical capture without invoking the materializer", async () => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    const root = await mkdtemp(path.join(os.tmpdir(), "devcanon-pr-provider-"));
+    const capturePath = `.ephemeral/topic-${headSha}-provider-scope-capture.json`;
+    try {
+      await writeJson(cwd, capturePath, {
+        provider: "github",
+        repository: "owner/repo",
+        pr_number: 390,
+        baseRefOid: baseSha,
+        headRefOid: headSha,
+      });
+      const original = await readFile(path.join(cwd, capturePath), "utf8");
+      const run = await runDocumentedProviderFetch(
+        cwd,
+        baseSha,
+        root,
+        [],
+        "fail",
+      );
+
+      await expect(run.result).resolves.toMatchObject({ stderr: "" });
+      await expect(readFile(path.join(cwd, capturePath), "utf8")).resolves.toBe(
+        original,
+      );
+      await expect(
+        readFile(run.materializeCalls, "utf8"),
+      ).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+    } finally {
+      await cleanupTempDir(cwd);
+      await cleanupTempDir(root);
+    }
+  });
+});
+
+describe("provider-scope capture materializer guards", () => {
+  it.each([
+    { name: "wrong scratch leaf", temp: "wrong.json", mutate: async () => {} },
+    {
+      name: "pre-existing temp",
+      temp: "capture.json",
+      mutate: async (scratch: string) =>
+        writeFile(path.join(scratch, "capture.json"), "old\n"),
+    },
+  ])("refuses $name before canonical publication", async ({ temp, mutate }) => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    const scratch = path.join(
+      cwd,
+      ".ephemeral",
+      "provider-scope-capture.fixture",
+    );
+    const capturePath = path.join(
+      cwd,
+      `.ephemeral/topic-${headSha}-provider-scope-capture.json`,
+    );
+    try {
+      await mkdir(scratch);
+      const inputs = await writeRawGithubCaptureInputs(
+        scratch,
+        baseSha,
+        headSha,
+      );
+      await mutate(scratch);
+      await expect(
+        runHelper(cwd, helperScript, "materialize-provider-scope-capture", {
+          HEAD_SHA: headSha,
+          PROVIDER_SCOPE_CAPTURE_FILE: path.relative(cwd, capturePath),
+          PROVIDER_SCOPE_CAPTURE_TMP_FILE: path.join(scratch, temp),
+          PROVIDER_SCOPE_CAPTURE_PR_FILE: inputs.prPath,
+          PROVIDER_SCOPE_CAPTURE_FILES_FILE: inputs.filesPath,
+          PROVIDER_SCOPE_CAPTURE_DIFF_FILE: inputs.diffPath,
+          PR_REPOSITORY: "owner/repo",
+        }),
+      ).rejects.toMatchObject({ code: 1 });
+      await expect(readFile(capturePath, "utf8")).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it.each([
+    {
+      name: "an outside scratch directory",
+      scratchPath: (cwd: string, root: string) =>
+        path.join(root, "provider-scope-capture.outside"),
+      createScratch: async (cwd: string, root: string) =>
+        mkdir(path.join(root, "provider-scope-capture.outside")),
+    },
+    {
+      name: "a traversal scratch directory",
+      scratchPath: () => ".ephemeral/../outside",
+      createScratch: async (cwd: string) => mkdir(path.join(cwd, "outside")),
+    },
+  ])(
+    "refuses $name without publishing or writing outside .ephemeral",
+    async ({ scratchPath, createScratch }) => {
+      const { cwd, baseSha, headSha } = await makeGitWorkspace();
+      const root = await mkdtemp(
+        path.join(os.tmpdir(), "devcanon-pr-provider-"),
+      );
+      const scratch = scratchPath(cwd, root);
+      const capturePath = path.join(
+        cwd,
+        `.ephemeral/topic-${headSha}-provider-scope-capture.json`,
+      );
+      try {
+        await createScratch(cwd, root);
+        const physicalScratch = path.resolve(cwd, scratch);
+        const inputs = await writeRawGithubCaptureInputs(
+          physicalScratch,
+          baseSha,
+          headSha,
+        );
+        const originalPr = await readFile(inputs.prPath, "utf8");
+
+        await expect(
+          runRawGithubCaptureMaterializer(
+            cwd,
+            capturePath,
+            `${scratch}/capture.json`,
+            scratch.startsWith(".")
+              ? {
+                  prPath: `${scratch}/pr.json`,
+                  filesPath: `${scratch}/files.json`,
+                  diffPath: `${scratch}/full.diff`,
+                }
+              : inputs,
+            headSha,
+          ),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining(
+            "provider capture scratch directory is invalid",
+          ),
+        });
+        await expect(readFile(capturePath, "utf8")).rejects.toMatchObject({
+          code: "ENOENT",
+        });
+        await expect(readFile(inputs.prPath, "utf8")).resolves.toBe(originalPr);
+        await expect(
+          readFile(path.join(physicalScratch, "capture.json"), "utf8"),
+        ).rejects.toMatchObject({ code: "ENOENT" });
+      } finally {
+        await cleanupTempDir(cwd);
+        await cleanupTempDir(root);
+      }
+    },
+  );
+
+  it("refuses a symlinked provider scratch parent without publication", async () => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    const scratch = path.join(cwd, ".ephemeral", "provider-scope-capture.link");
+    const realScratch = path.join(
+      cwd,
+      ".ephemeral",
+      "provider-scope-capture.real",
+    );
+    const capturePath = path.join(
+      cwd,
+      `.ephemeral/topic-${headSha}-provider-scope-capture.json`,
+    );
+    try {
+      await mkdir(realScratch);
+      await symlink(realScratch, scratch);
+      const inputs = await writeRawGithubCaptureInputs(
+        realScratch,
+        baseSha,
+        headSha,
+      );
+      const originalFiles = await readFile(inputs.filesPath, "utf8");
+
+      await expect(
+        runRawGithubCaptureMaterializer(
+          cwd,
+          capturePath,
+          path.join(scratch, "capture.json"),
+          {
+            prPath: path.join(scratch, "pr.json"),
+            filesPath: path.join(scratch, "files.json"),
+            diffPath: path.join(scratch, "full.diff"),
+          },
+          headSha,
+        ),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining(
+          "provider capture scratch directory is invalid",
+        ),
+      });
+      await expect(readFile(capturePath, "utf8")).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+      await expect(readFile(inputs.filesPath, "utf8")).resolves.toBe(
+        originalFiles,
+      );
+      await expect(
+        readFile(path.join(realScratch, "capture.json"), "utf8"),
+      ).rejects.toMatchObject({ code: "ENOENT" });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("refuses a symlinked raw PR input before canonical publication", async () => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    const scratch = path.join(
+      cwd,
+      ".ephemeral",
+      "provider-scope-capture.fixture",
+    );
+    const capturePath = path.join(
+      cwd,
+      `.ephemeral/topic-${headSha}-provider-scope-capture.json`,
+    );
+    try {
+      await mkdir(scratch);
+      const inputs = await writeRawGithubCaptureInputs(
+        scratch,
+        baseSha,
+        headSha,
+      );
+      const target = path.join(scratch, "pr-target.json");
+      const originalPr = await readFile(inputs.prPath, "utf8");
+      await writeFile(target, originalPr);
+      await rm(inputs.prPath);
+      await symlink(target, inputs.prPath);
+
+      await expect(
+        runRawGithubCaptureMaterializer(
+          cwd,
+          capturePath,
+          path.join(scratch, "capture.json"),
+          inputs,
+          headSha,
+        ),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("provider capture PR file is invalid"),
+      });
+      await expect(readFile(capturePath, "utf8")).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+      await expect(readFile(target, "utf8")).resolves.toBe(originalPr);
+      await expect(
+        readFile(path.join(scratch, "capture.json"), "utf8"),
+      ).rejects.toMatchObject({ code: "ENOENT" });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("refuses a noncanonical raw PR leaf before canonical publication", async () => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    const scratch = path.join(
+      cwd,
+      ".ephemeral",
+      "provider-scope-capture.fixture",
+    );
+    const capturePath = path.join(
+      cwd,
+      `.ephemeral/topic-${headSha}-provider-scope-capture.json`,
+    );
+    try {
+      await mkdir(scratch);
+      const inputs = await writeRawGithubCaptureInputs(
+        scratch,
+        baseSha,
+        headSha,
+      );
+      const wrongPr = path.join(scratch, "wrong-pr.json");
+      const originalPr = await readFile(inputs.prPath, "utf8");
+      await writeFile(wrongPr, originalPr);
+
+      await expect(
+        runRawGithubCaptureMaterializer(
+          cwd,
+          capturePath,
+          path.join(scratch, "capture.json"),
+          { ...inputs, prPath: wrongPr },
+          headSha,
+        ),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("provider capture PR file is invalid"),
+      });
+      await expect(readFile(capturePath, "utf8")).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+      await expect(readFile(wrongPr, "utf8")).resolves.toBe(originalPr);
+      await expect(
+        readFile(path.join(scratch, "capture.json"), "utf8"),
+      ).rejects.toMatchObject({ code: "ENOENT" });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("refuses a symlinked .ephemeral directory without publication", async () => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    const root = await mkdtemp(path.join(os.tmpdir(), "devcanon-pr-provider-"));
+    const scratch = path.join(root, "scratch");
+    const capturePath = path.join(
+      cwd,
+      `.ephemeral/topic-${headSha}-provider-scope-capture.json`,
+    );
+    try {
+      await rm(path.join(cwd, ".ephemeral"), { recursive: true });
+      await symlink(root, path.join(cwd, ".ephemeral"));
+      await mkdir(scratch);
+      await expect(
+        materializeRawGithubCapture(
+          cwd,
+          capturePath,
+          scratch,
+          baseSha,
+          headSha,
+        ),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining(
+          ".ephemeral must be a directory, not a symlink",
+        ),
+      });
+      await expect(
+        readFile(path.join(root, path.basename(capturePath)), "utf8"),
+      ).rejects.toMatchObject({ code: "ENOENT" });
+    } finally {
+      await cleanupTempDir(cwd);
+      await cleanupTempDir(root);
+    }
+  });
+
+  it("refuses an existing canonical capture target without overwriting it", async () => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    const scratch = path.join(
+      cwd,
+      ".ephemeral",
+      "provider-scope-capture.fixture",
+    );
+    const capturePath = path.join(
+      cwd,
+      `.ephemeral/topic-${headSha}-provider-scope-capture.json`,
+    );
+    const original = "retain this exact capture\n";
+    try {
+      await mkdir(scratch);
+      await writeFile(capturePath, original);
+      await expect(
+        materializeRawGithubCapture(
+          cwd,
+          capturePath,
+          scratch,
+          baseSha,
+          headSha,
+        ),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining(
+          "provider scope capture target already exists",
+        ),
+      });
+      await expect(readFile(capturePath, "utf8")).resolves.toBe(original);
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it.each([
+    {
+      name: "PR JSON",
+      corrupt: async ({ prPath }: { prPath: string }) =>
+        writeFile(prPath, "not JSON\n"),
+      stderr: "provider capture PR JSON validation failed",
+    },
+    {
+      name: "files JSON",
+      corrupt: async ({ filesPath }: { filesPath: string }) =>
+        writeFile(filesPath, '{"not":"pages"}\n'),
+      stderr: "provider capture files JSON validation failed",
+    },
+    {
+      name: "diff input",
+      corrupt: async ({ diffPath }: { diffPath: string }) => {
+        await rm(diffPath);
+        await mkdir(diffPath);
+      },
+      stderr: "provider capture diff file is invalid",
+    },
+  ])(
+    "rejects malformed raw $name before canonical publication",
+    async ({ corrupt, stderr }) => {
+      const { cwd, baseSha, headSha } = await makeGitWorkspace();
+      const scratch = path.join(
+        cwd,
+        ".ephemeral",
+        "provider-scope-capture.fixture",
+      );
+      const capturePath = path.join(
+        cwd,
+        `.ephemeral/topic-${headSha}-provider-scope-capture.json`,
+      );
+      try {
+        await mkdir(scratch);
+        const inputs = await writeRawGithubCaptureInputs(
+          scratch,
+          baseSha,
+          headSha,
+        );
+        await corrupt(inputs);
+        await expect(
+          runHelper(cwd, helperScript, "materialize-provider-scope-capture", {
+            HEAD_SHA: headSha,
+            PROVIDER_SCOPE_CAPTURE_FILE: path.relative(cwd, capturePath),
+            PROVIDER_SCOPE_CAPTURE_TMP_FILE: path.join(scratch, "capture.json"),
+            PROVIDER_SCOPE_CAPTURE_PR_FILE: inputs.prPath,
+            PROVIDER_SCOPE_CAPTURE_FILES_FILE: inputs.filesPath,
+            PROVIDER_SCOPE_CAPTURE_DIFF_FILE: inputs.diffPath,
+            PR_REPOSITORY: "owner/repo",
+          }),
+        ).rejects.toMatchObject({ stderr: expect.stringContaining(stderr) });
+        await expect(readFile(capturePath, "utf8")).rejects.toMatchObject({
+          code: "ENOENT",
+        });
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    },
+  );
+});
+
+describe("documented provider-scope capture cleanup", () => {
+  it("fails closed and retains its RETURN cleanup trap when exact cleanup fails", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "devcanon-pr-cleanup-"));
+    const stubBin = path.join(root, "bin");
+    const captureTmp = path.join(root, "provider-scope-capture.fixture");
+    const cleanupCount = path.join(root, "cleanup-count");
+    const cleanupCalls = path.join(root, "cleanup-calls");
+    const dispatchMarker = path.join(root, "producer-dispatched");
+    try {
+      await mkdir(stubBin);
+      await mkdir(captureTmp);
+      await writeFile(path.join(captureTmp, "capture.json"), "complete");
+      const stubRm = path.join(stubBin, "rm");
+      await writeFile(
+        stubRm,
+        [
+          "#!/usr/bin/env bash",
+          "set -eu",
+          'count=0; [ ! -f "$CLEANUP_COUNT" ] || count="$(cat "$CLEANUP_COUNT")"',
+          'count="$((count + 1))"; printf "%s\\n" "$count" > "$CLEANUP_COUNT"',
+          'printf "%s\\n" "$*" >> "$CLEANUP_CALLS"',
+          '[ "$count" -eq 1 ] && exit 1',
+          'exec /bin/rm "$@"',
+          "",
+        ].join("\n"),
+      );
+      await chmod(stubRm, 0o755);
+
+      await expect(
+        execFileAsync(
+          "bash",
+          ["-c", CAPTURE_CLEANUP_SEQUENCE, "bash", captureTmp],
+          {
+            env: {
+              ...process.env,
+              PATH: `${stubBin}:${process.env.PATH}`,
+              CAPTURE_TMP: captureTmp,
+              CLEANUP_COUNT: cleanupCount,
+              CLEANUP_CALLS: cleanupCalls,
+              PRODUCER_DISPATCH_MARKER: dispatchMarker,
+            },
+          },
+        ),
+      ).rejects.toMatchObject({ code: 1 });
+      await expect(readFile(cleanupCount, "utf8")).resolves.toBe("2\n");
+      await expect(readFile(cleanupCalls, "utf8")).resolves.toBe(
+        `-rf ${captureTmp}\n-rf ${captureTmp}\n`,
+      );
+      await expect(readFile(captureTmp, "utf8")).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+      await expect(readFile(dispatchMarker, "utf8")).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+    } finally {
+      await cleanupTempDir(root);
+    }
+  });
+});
+
 async function copyInstalledPrAdapter(root: string) {
   const script = path.join(root, "pr-review/scripts/prior-thread-artifacts.sh");
   await mkdir(path.dirname(script), { recursive: true });
@@ -321,6 +1520,192 @@ async function copyInstalledPrAdapter(root: string) {
 }
 
 describe.skipIf(!jqAvailable)("pr-review prior-thread adapter", () => {
+  it.each([
+    { name: "empty output", output: "" },
+    {
+      name: "missing required newline",
+      output:
+        '{"command_group":"pr-review-provider-scope-evidence","major_version":1}',
+    },
+    {
+      name: "extra blank output",
+      output:
+        '{"command_group":"pr-review-provider-scope-evidence","major_version":1}\\n\\n',
+    },
+    {
+      name: "extra text output",
+      output:
+        '{"command_group":"pr-review-provider-scope-evidence","major_version":1}\\nextra\\n',
+    },
+    {
+      name: "wrong descriptor",
+      output: '{"command_group":"wrong","major_version":1}\\n',
+    },
+    { name: "malformed output", output: "not JSON\\n" },
+    {
+      name: "unknown major",
+      output:
+        '{"command_group":"pr-review-provider-scope-evidence","major_version":2}\\n',
+    },
+    {
+      name: "nonzero output",
+      output: "",
+      exit: "7",
+      stderr: "runtime contract check failed",
+    },
+  ])(
+    "rejects runtime compatibility $name before producer dispatch",
+    async ({ output, exit, stderr }) => {
+      const { cwd, baseSha, headSha } = await makeGitWorkspace();
+      const root = await mkdtemp(
+        path.join(os.tmpdir(), "devcanon-pr-runtime-"),
+      );
+      const capturePath = `.ephemeral/topic-${headSha}-provider-scope-capture.json`;
+      const marker = path.join(root, "dispatch");
+      try {
+        await writeJson(
+          cwd,
+          capturePath,
+          await providerScopeCapture(cwd, baseSha, headSha),
+        );
+        await writeMarkerRuntime(root);
+        await expect(
+          runHelper(cwd, helperScript, "write-provider-scope-evidence", {
+            HEAD_SHA: headSha,
+            PROVIDER_SCOPE_CAPTURE_FILE: capturePath,
+            DEVCANON_RUNTIME_DIR: root,
+            RUNTIME_CONTRACT_OUTPUT: output,
+            RUNTIME_CONTRACT_EXIT: exit ?? "0",
+            RUNTIME_DISPATCH_MARKER: marker,
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining(
+            stderr ?? "runtime contract is incompatible",
+          ),
+        });
+        await expect(readFile(marker, "utf8")).rejects.toMatchObject({
+          code: "ENOENT",
+        });
+        await expect(
+          readFile(path.join(cwd, capturePath), "utf8"),
+        ).resolves.toContain("provider-scope-capture/v1");
+      } finally {
+        await cleanupTempDir(cwd);
+        await cleanupTempDir(root);
+      }
+    },
+  );
+
+  it("produces provider scope evidence through the compatible distinct runtime route", async () => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    const capturePath = `.ephemeral/topic-${headSha}-provider-scope-capture.json`;
+    try {
+      await writeJson(
+        cwd,
+        capturePath,
+        await providerScopeCapture(cwd, baseSha, headSha),
+      );
+      await expect(
+        runHelper(cwd, helperScript, "write-provider-scope-evidence", {
+          HEAD_SHA: headSha,
+          PROVIDER_SCOPE_CAPTURE_FILE: capturePath,
+        }),
+      ).resolves.toMatchObject({
+        stdout: `${providerScopePath(headSha)}\n`,
+        stderr: "",
+      });
+      await expect(
+        readFile(path.join(cwd, capturePath), "utf8"),
+      ).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("uses the runtime ASCII branch slug for a Unicode provider capture path", async () => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    const capturePath = `.ephemeral/feat--${headSha}-provider-scope-capture.json`;
+    const evidencePath = `.ephemeral/feat--${headSha}-provider-scope-evidence.json`;
+    try {
+      await execFileAsync("git", ["switch", "-C", "feat/한글"], { cwd });
+      await expect(
+        readFile(path.join(process.cwd(), "skills/pr-review/SKILL.md"), "utf8"),
+      ).resolves.toContain("LC_ALL=C tr -cd '[:alnum:]._-'");
+      const { stdout: documentedSlug } = await execFileAsync("bash", [
+        "-c",
+        'LC_ALL=C printf "%s" "$1" | LC_ALL=C tr "/" "-" | LC_ALL=C tr -cd "[:alnum:]._-"',
+        "bash",
+        "feat/한글",
+      ]);
+      expect(documentedSlug).toBe("feat-");
+      await writeJson(
+        cwd,
+        capturePath,
+        await providerScopeCapture(cwd, baseSha, headSha),
+      );
+      await expect(
+        runHelper(cwd, helperScript, "prepare-provider-scope-evidence-write", {
+          HEAD_SHA: headSha,
+        }),
+      ).resolves.toMatchObject({ stdout: `${evidencePath}\n` });
+      await expect(
+        runHelper(cwd, helperScript, "write-provider-scope-evidence", {
+          HEAD_SHA: headSha,
+          PROVIDER_SCOPE_CAPTURE_FILE: capturePath,
+        }),
+      ).resolves.toMatchObject({ stdout: `${evidencePath}\n`, stderr: "" });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it.each([{ name: "copied" }, { name: "symlinked" }])(
+    "resolves a $name installed sibling runtime for provider production",
+    async ({ name }) => {
+      const { cwd, baseSha, headSha } = await makeGitWorkspace();
+      const root = await mkdtemp(
+        path.join(os.tmpdir(), "devcanon-pr-installed-"),
+      );
+      const capturePath = `.ephemeral/topic-${headSha}-provider-scope-capture.json`;
+      const marker = path.join(root, "dispatch");
+      try {
+        const script = await copyInstalledPrAdapter(root);
+        const runtimeSource = await mkdtemp(
+          path.join(os.tmpdir(), "devcanon-runtime-source-"),
+        );
+        await writeMarkerRuntime(runtimeSource);
+        if (name === "symlinked") {
+          await symlink(runtimeSource, path.join(root, "devcanon-runtime"));
+        } else {
+          await writeMarkerRuntime(path.join(root, "devcanon-runtime"));
+        }
+        await writeJson(
+          cwd,
+          capturePath,
+          await providerScopeCapture(cwd, baseSha, headSha),
+        );
+        await expect(
+          runHelper(cwd, script, "write-provider-scope-evidence", {
+            HEAD_SHA: headSha,
+            PROVIDER_SCOPE_CAPTURE_FILE: capturePath,
+            RUNTIME_CONTRACT_OUTPUT:
+              '{"command_group":"pr-review-provider-scope-evidence","major_version":1}\\n',
+            RUNTIME_DISPATCH_MARKER: marker,
+          }),
+        ).resolves.toMatchObject({
+          stdout: ".ephemeral/runtime-provider-scope-evidence.json\n",
+        });
+        await expect(readFile(marker, "utf8")).resolves.toBe("");
+        await cleanupTempDir(runtimeSource);
+      } finally {
+        await cleanupTempDir(cwd);
+        await cleanupTempDir(root);
+      }
+    },
+  );
+
   it("preserves prepare and validate commands in the source skill layout", async () => {
     const { cwd, baseSha, headSha } = await makeGitWorkspace();
     try {

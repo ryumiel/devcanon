@@ -48,15 +48,14 @@ Run in parallel:
 - `{{tool:github-cli}} api repos/{owner}/{repo}/pulls/<N>/comments` — inline review threads
 - `{{tool:github-cli}} api repos/{owner}/{repo}/pulls/<N>/reviews` — review states
 
-Phase 1 must fetch and record provider `baseRefOid` and `headRefOid`, but
-provider `baseRefOid` is metadata, not proof that the base branch ref is the PR
-diff base. Also gather the complete provider file/diff evidence needed to prove
-full PR scope: paginated provider file metadata, provider diff bytes or digest,
-the provider PR diff-base proof, and the local file list and local diff digest
-for the candidate full range. Here provider PR diff-base proof is shorthand
-for `provider_pr_diff_base_sha` plus bound provider/local file and diff
-evidence. Phase 3 binds those facts into the provider scope evidence artifact
-before any review dispatch.
+Phase 1 retains only raw provider authority: repository and PR identity,
+provider `baseRefOid` and `headRefOid`, complete paginated provider file
+metadata, and the exact full provider diff bytes plus dialect. `baseRefOid` is
+metadata, not proof that a base branch ref is the PR diff base. Do not request
+or compute a provider diff base, local file list, local patch digest, local
+diff digest, or provenance claim in this phase. The terminal Phase 1 capture
+step below runs inside the target worktree; once it binds the capture, the
+producer does not refetch provider data.
 
 <!-- Bare body intentional: responses feed Phase 4's prior_threads parsing. -->
 <!-- See docs/guidelines/gh-api-hygiene.md § 3. -->
@@ -239,7 +238,8 @@ is the immutable SHA passed to scope-decision and approved-review validators
 because the canonical full range is
 `"$PROVIDER_PR_DIFF_BASE_SHA..$REVIEW_HEAD_SHA"`.
 
-Apply the shared follow-up scope policy in
+After the producer has returned the validated evidence and this wrapper has
+read its full range, apply the shared follow-up scope policy in
 `skills/play-review/references/follow-up-scope-policy.md` before invoking
 `play-review`. Phase 3 owns GitHub-specific facts and final range selection.
 The `pr-review` adapter
@@ -308,51 +308,110 @@ guards or ambient environment variables do not prove full range.
 The key boundary is that play-review remains provider-agnostic and consumes
 only the explicit final scope facts supplied by this wrapper.
 
-`active_diff_range` depends on mode:
-
-- **Initial:** `active_diff_range = full_pr_diff_range`; `is_followup_narrow = false`.
-- **Follow-up:** apply the shared follow-up scope policy and validated
-  scope-decision artifact to choose narrow vs full.
-  - **Narrow** (incremental): `active_diff_range = "<last_reviewed_sha>..HEAD"`; `is_followup_narrow = true`.
-  - **Full** (escalate): `active_diff_range = full_pr_diff_range`; `is_followup_narrow = false`.
-
-When classification is ambiguous, fail closed to full review. If the shared
-policy or support validator escalates, keep `prior_threads` in the
-`play-review` handoff so unresolved prior GitHub comments can still be verified
-and carried forward.
-
-**Unaddressed prior findings:** If a prior blocking finding was NOT addressed by the new commits (the flagged code is unchanged), `play-review`'s critic will carry it forward into the `## Carry-forward` section.
-
-After final active range selection, compute `language_hints` from that selected
-active diff only. The scope-decision artifact and adapter validation must agree
-with those selected-range facts before invoking `play-review`.
-
-Before invoking `play-review`, prepare, write, validate, and bind the canonical
-Phase 3 scope-decision artifact from the target worktree. `PR_REVIEW_DIR` must
+Before invoking `play-review`, produce, validate, and bind the canonical
+Phase 3 provider-scope evidence and scope-decision artifacts from the target
+worktree. Phase 1 captures only raw GitHub authority: repository and PR
+identity, base/head OIDs, the complete provider file records with raw patch
+bytes or unavailable markers, and exact provider diff bytes with its dialect.
+After entering the review worktree, materialize those raw facts as one guarded
+`pr-review/provider-scope-capture/v1` direct child; Phase 3 is the only point
+that derives local facts or converts it to evidence. `PR_REVIEW_DIR` must
 resolve to the installed `pr-review` skill bundle. The adapter must pass an
 explicit provider scope evidence artifact through
-`PROVIDER_SCOPE_EVIDENCE_FILE`; the scope-decision artifact's `full_range` must
-be `"$PROVIDER_PR_DIFF_BASE_SHA..$REVIEW_HEAD_SHA"` from that evidence.
+`PROVIDER_SCOPE_EVIDENCE_FILE`; read its validated range facts only after the
+producer returns it.
 
 ```bash
 PR_REVIEW_DIR="<installed-pr-review-skill-bundle>"
 PR_REVIEW_ARTIFACT_HELPER="$PR_REVIEW_DIR/scripts/prior-thread-artifacts.sh"
-PR_BASE_REF="<base-ref>"
-PROVIDER_PR_DIFF_BASE_SHA="<provider_pr_diff_base_sha>"
-REVIEW_SCOPE_BASE_REF="$PROVIDER_PR_DIFF_BASE_SHA"
+PR_REPOSITORY="<owner/repo>"
+PR_NUMBER="<N>"
+PR_BASE_OID="<Phase-1-provider-base-oid>"
 REVIEW_CALLER_DIR="$(pwd -P)" || exit 1
 
 bind_scope_decision_artifact() {
   cd "$WORKING_DIRECTORY" || return 1
   HEAD_SHA="$(git rev-parse HEAD)" || return 1
-  FULL_PR_DIFF_RANGE="$PROVIDER_PR_DIFF_BASE_SHA..$HEAD_SHA"
+  raw_branch="$(git rev-parse --abbrev-ref HEAD)" || return 1
+  branch_slug="$(LC_ALL=C printf '%s' "$raw_branch" | LC_ALL=C tr '/' '-' | LC_ALL=C tr -cd '[:alnum:]._-')"
+  [ "$raw_branch" != HEAD ] || branch_slug="detached"
+  case "$branch_slug" in "" | . | .. | -* | .*) branch_slug="unnamed" ;; esac
+  PROVIDER_SCOPE_CAPTURE_FILE=".ephemeral/$branch_slug-$HEAD_SHA-provider-scope-capture.json"
+  [ ! -L .ephemeral ] || return 1
+  mkdir -p .ephemeral || return 1
+  # Reuse the exact preserved capture after a producer failure; never overwrite
+  # or refetch it. Otherwise terminal Phase 1 fetches each raw evidence family.
+  for capture_attempt in 1 2; do
+  if [ ! -e "$PROVIDER_SCOPE_CAPTURE_FILE" ]; then
+    capture_tmp="$(mktemp -d .ephemeral/provider-scope-capture.XXXXXX)" || return 1
+    trap 'rm -rf "$capture_tmp"' RETURN
+    gh api "repos/$PR_REPOSITORY/pulls/$PR_NUMBER" \
+      --jq '{number,baseRefOid:.base.sha,headRefOid:.head.sha}' > "$capture_tmp/pr.json" || return 1
+    PR_BASE_OID="$(jq -r '.baseRefOid' "$capture_tmp/pr.json")" || return 1
+    gh api --paginate --slurp "repos/$PR_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" > "$capture_tmp/files.json" || return 1
+    gh api -H 'Accept: application/vnd.github.diff' "repos/$PR_REPOSITORY/pulls/$PR_NUMBER" > "$capture_tmp/full.diff" || return 1
+    gh api "repos/$PR_REPOSITORY/pulls/$PR_NUMBER" \
+      --jq '{baseRefOid:.base.sha,headRefOid:.head.sha}' > "$capture_tmp/recheck.json" || return 1
+    # A changed provider binding invalidates this private attempt only; discard
+    # its scratch and restart terminal Phase 1 rather than publishing it.
+    if ! cmp -s <(jq -c '{baseRefOid,headRefOid}' "$capture_tmp/pr.json") \
+      <(jq -c '{baseRefOid,headRefOid}' "$capture_tmp/recheck.json"); then
+      rm -rf "$capture_tmp" || return 1
+      trap - RETURN
+      [ "$capture_attempt" -lt 2 ] && continue
+      return 1
+    fi
+    HEAD_SHA="$HEAD_SHA" PR_REPOSITORY="$PR_REPOSITORY" \
+    PROVIDER_SCOPE_CAPTURE_FILE="$PROVIDER_SCOPE_CAPTURE_FILE" \
+    PROVIDER_SCOPE_CAPTURE_TMP_FILE="$capture_tmp/capture.json" \
+    PROVIDER_SCOPE_CAPTURE_PR_FILE="$capture_tmp/pr.json" \
+    PROVIDER_SCOPE_CAPTURE_FILES_FILE="$capture_tmp/files.json" \
+    PROVIDER_SCOPE_CAPTURE_DIFF_FILE="$capture_tmp/full.diff" \
+      bash "$PR_REVIEW_ARTIFACT_HELPER" materialize-provider-scope-capture || return 1
+    if ! rm -rf "$capture_tmp"; then
+      return 1
+    fi
+    trap - RETURN
+    break
+  else
+    [ -f "$PROVIDER_SCOPE_CAPTURE_FILE" ] && [ ! -L "$PROVIDER_SCOPE_CAPTURE_FILE" ] || return 1
+    # If its base/head deterministically no longer binds this HEAD/worktree,
+    # remove exactly this capture and restart Phase 1. Preserve it for all
+    # producer, runtime, or transient failures.
+    PR_BASE_OID="$PR_BASE_OID" PR_REPOSITORY="$PR_REPOSITORY" PR_NUMBER="$PR_NUMBER" HEAD_SHA="$HEAD_SHA" node -e '
+      const fs=require("node:fs");
+      try { const x=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));
+        if(typeof x.provider!=="string"||typeof x.repository!=="string"||!Number.isInteger(x.pr_number)||typeof x.baseRefOid!=="string"||typeof x.headRefOid!=="string") process.exit(3);
+        process.exit(x.provider==="github"&&x.repository===process.env.PR_REPOSITORY&&x.pr_number===Number(process.env.PR_NUMBER)&&x.baseRefOid===process.env.PR_BASE_OID&&x.headRefOid===process.env.HEAD_SHA?0:2);
+      } catch { process.exit(3); }
+    ' "$PROVIDER_SCOPE_CAPTURE_FILE"
+    capture_state=$?
+    if [ "$capture_state" -eq 0 ]; then
+      break
+    elif [ "$capture_state" -eq 2 ]; then
+      rm -f "$PROVIDER_SCOPE_CAPTURE_FILE" || return 1
+      [ "$capture_attempt" -lt 2 ] && continue
+      return 1
+    else
+      echo "preserved provider scope capture $PROVIDER_SCOPE_CAPTURE_FILE because it is unreadable, malformed, or unclassifiable; inspect it; to restart provider capture, remove only $PROVIDER_SCOPE_CAPTURE_FILE and rerun Phase 1/binding." >&2
+      return 1
+    fi
+  fi
+  done
+  # files[].patch is only a hunk fragment. It is never recorded as an available
+  # patch; patch_base64 remains null unless complete per-file sections are
+  # extracted byte-for-byte from this full diff in the canonical dialect.
   PROVIDER_SCOPE_EVIDENCE_FILE=$(
     HEAD_SHA="$HEAD_SHA" \
-      bash "$PR_REVIEW_ARTIFACT_HELPER" prepare-provider-scope-evidence-write || return 1
+    PROVIDER_SCOPE_CAPTURE_FILE="$PROVIDER_SCOPE_CAPTURE_FILE" \
+      bash "$PR_REVIEW_ARTIFACT_HELPER" write-provider-scope-evidence || return 1
   ) || return 1
-  # Write the pr-review/provider-scope-evidence/v2 envelope to
-  # "$PROVIDER_SCOPE_EVIDENCE_FILE" using provider PR file and diff evidence.
-  # The full_pr_diff_range must be "$PROVIDER_PR_DIFF_BASE_SHA..$HEAD_SHA".
+  REVIEW_SCOPE_BASE_REF="$(node -e 'const fs=require("node:fs"); const x=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); process.stdout.write(x.provider_pr_diff_base_sha)' "$PROVIDER_SCOPE_EVIDENCE_FILE")" || return 1
+  FULL_PR_DIFF_RANGE="$(node -e 'const fs=require("node:fs"); const x=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); process.stdout.write(x.full_pr_diff_range)' "$PROVIDER_SCOPE_EVIDENCE_FILE")" || return 1
+  # Now apply the existing initial/follow-up policy to FULL_PR_DIFF_RANGE.
+  # Initial uses it in full; follow-up chooses last_reviewed_sha..HEAD only
+  # when that policy permits narrow review, otherwise uses it in full.
+  # Derive language_hints from the resulting active_diff_range only.
   SCOPE_DECISION_FILE=$(
     HEAD_SHA="$HEAD_SHA" \
       bash "$PR_REVIEW_ARTIFACT_HELPER" prepare-scope-decision-write || return 1
