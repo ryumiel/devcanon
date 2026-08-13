@@ -289,6 +289,12 @@ async function materializeProviderScopeCapture(args) {
 async function assertProviderCaptureScratchFiles(captureTmpFile, prFile, filesFile, diffFile) {
     const ephemeral = await realpath(".ephemeral").catch(() => fail(".ephemeral must be a real directory"));
     const scratchParent = path.dirname(captureTmpFile);
+    const scratchEntry = await lstat(scratchParent).catch(() => null);
+    if (scratchEntry === null ||
+        scratchEntry.isSymbolicLink() ||
+        !scratchEntry.isDirectory()) {
+        fail("provider capture scratch directory is invalid");
+    }
     const scratch = await realpath(scratchParent).catch(() => fail("provider capture scratch directory is invalid"));
     if (path.dirname(scratch) !== ephemeral ||
         !path.basename(scratch).startsWith("provider-scope-capture.")) {

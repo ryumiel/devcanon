@@ -427,6 +427,14 @@ async function assertProviderCaptureScratchFiles(
     fail(".ephemeral must be a real directory"),
   );
   const scratchParent = path.dirname(captureTmpFile);
+  const scratchEntry = await lstat(scratchParent).catch(() => null);
+  if (
+    scratchEntry === null ||
+    scratchEntry.isSymbolicLink() ||
+    !scratchEntry.isDirectory()
+  ) {
+    fail("provider capture scratch directory is invalid");
+  }
   const scratch = await realpath(scratchParent).catch(() =>
     fail("provider capture scratch directory is invalid"),
   );

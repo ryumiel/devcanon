@@ -3261,6 +3261,85 @@ describe.skipIf(isWindows)("review artifact runtime reducers", () => {
     }
   });
 
+  it("produces empty provider evidence with matching GitHub full-diff provenance", async () => {
+    const { cwd, baseSha, headSha } = await makeProviderEmptyDiffWorkspace();
+    const capturePath = `.ephemeral/topic-${headSha}-provider-scope-capture.json`;
+    const evidencePath = providerScopeEvidencePath(headSha);
+    try {
+      await writeJson(cwd, capturePath, {
+        schema: "pr-review/provider-scope-capture/v1",
+        provider: "github",
+        repository: "owner/repo",
+        pr_number: 480,
+        baseRefOid: baseSha,
+        headRefOid: headSha,
+        evidence_complete: true,
+        provider_files: [],
+        provider_diff: {
+          dialect: GITHUB_PROVIDER_DIFF_DIALECT,
+          content_base64: "",
+        },
+      });
+      await expect(
+        runPrReviewProviderScopeEvidenceCommand([
+          "write",
+          "--head-sha",
+          headSha,
+          "--capture-file",
+          capturePath,
+        ]),
+      ).resolves.toMatchObject({ exitCode: 0, stdout: `${evidencePath}\n` });
+      await expect(
+        readFile(path.join(cwd, capturePath), "utf8"),
+      ).rejects.toMatchObject({ code: "ENOENT" });
+    } finally {
+      await cleanupRiskSignalsWorkspace(cwd);
+    }
+  });
+
+  it("rejects empty provider evidence when its GitHub full diff differs", async () => {
+    const { cwd, baseSha, headSha } = await makeProviderEmptyDiffWorkspace();
+    const capturePath = `.ephemeral/topic-${headSha}-provider-scope-capture.json`;
+    const evidencePath = providerScopeEvidencePath(headSha);
+    try {
+      await writeJson(cwd, capturePath, {
+        schema: "pr-review/provider-scope-capture/v1",
+        provider: "github",
+        repository: "owner/repo",
+        pr_number: 480,
+        baseRefOid: baseSha,
+        headRefOid: headSha,
+        evidence_complete: true,
+        provider_files: [],
+        provider_diff: {
+          dialect: GITHUB_PROVIDER_DIFF_DIALECT,
+          content_base64: Buffer.from("not empty\n").toString("base64"),
+        },
+      });
+      await expect(
+        runPrReviewProviderScopeEvidenceCommand([
+          "write",
+          "--head-sha",
+          headSha,
+          "--capture-file",
+          capturePath,
+        ]),
+      ).resolves.toMatchObject({
+        exitCode: 1,
+        stdout: "",
+        stderr: expect.stringContaining("provider/local diff digest mismatch"),
+      });
+      await expect(
+        readFile(path.join(cwd, capturePath), "utf8"),
+      ).resolves.toContain("provider-scope-capture/v1");
+      await expect(
+        readFile(path.join(cwd, evidencePath), "utf8"),
+      ).rejects.toMatchObject({ code: "ENOENT" });
+    } finally {
+      await cleanupRiskSignalsWorkspace(cwd);
+    }
+  });
+
   it("accepts all-unavailable provider patches for an ordinary text change", async () => {
     const { cwd, baseSha, headSha } = await makeProviderScopeWorkspace();
     const capturePath = `.ephemeral/topic-${headSha}-provider-scope-capture.json`;

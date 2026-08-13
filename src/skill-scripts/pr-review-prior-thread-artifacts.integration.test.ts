@@ -976,6 +976,52 @@ describe.skipIf(!jqAvailable)("documented provider capture retries", () => {
 });
 
 describe("provider-scope capture materializer guards", () => {
+  it.each([
+    { name: "wrong scratch leaf", temp: "wrong.json", mutate: async () => {} },
+    {
+      name: "pre-existing temp",
+      temp: "capture.json",
+      mutate: async (scratch: string) =>
+        writeFile(path.join(scratch, "capture.json"), "old\n"),
+    },
+  ])("refuses $name before canonical publication", async ({ temp, mutate }) => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    const scratch = path.join(
+      cwd,
+      ".ephemeral",
+      "provider-scope-capture.fixture",
+    );
+    const capturePath = path.join(
+      cwd,
+      `.ephemeral/topic-${headSha}-provider-scope-capture.json`,
+    );
+    try {
+      await mkdir(scratch);
+      const inputs = await writeRawGithubCaptureInputs(
+        scratch,
+        baseSha,
+        headSha,
+      );
+      await mutate(scratch);
+      await expect(
+        runHelper(cwd, helperScript, "materialize-provider-scope-capture", {
+          HEAD_SHA: headSha,
+          PROVIDER_SCOPE_CAPTURE_FILE: path.relative(cwd, capturePath),
+          PROVIDER_SCOPE_CAPTURE_TMP_FILE: path.join(scratch, temp),
+          PROVIDER_SCOPE_CAPTURE_PR_FILE: inputs.prPath,
+          PROVIDER_SCOPE_CAPTURE_FILES_FILE: inputs.filesPath,
+          PROVIDER_SCOPE_CAPTURE_DIFF_FILE: inputs.diffPath,
+          PR_REPOSITORY: "owner/repo",
+        }),
+      ).rejects.toMatchObject({ code: 1 });
+      await expect(readFile(capturePath, "utf8")).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
   it("refuses a symlinked .ephemeral directory without publication", async () => {
     const { cwd, baseSha, headSha } = await makeGitWorkspace();
     const root = await mkdtemp(path.join(os.tmpdir(), "devcanon-pr-provider-"));
