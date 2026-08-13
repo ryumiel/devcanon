@@ -58,15 +58,18 @@ Both supporting fields are mandatory for that role and forbidden for every
 other role. Angle-bracket values and `|` alternatives explain the grammar and
 are not literal plan content.
 
-Require each Relationship ID + surface + topology-role participation exactly
-once. Entry IDs must also resolve exactly once. A physical surface may recur
-for a distinct relationship or role; reject only duplicate identical
-relationship + surface + role participation. Owner roles must truthfully prove
-the approved normative or non-overlapping supporting owner invariants. The
-other roles retain reference-validity, derived-parity, summary, and verification
-semantics. Reject unknown roles, role-incompatible supporting fields, missing
-or duplicate IDs, absent or unapproved relationships, false owner roles, and
-any ambiguous or malformed value.
+Require the projection to exactly cover every approved relationship + surface or
+equivalent surface set + topology-role participation in the reviewed plan's
+approved topology, with no omitted or extra participation. Each represented
+Relationship ID + surface + topology-role participation occurs exactly once.
+Entry IDs must also resolve exactly once. A physical surface may recur for a
+distinct relationship or role; reject only duplicate identical relationship +
+surface + role participation. Owner roles must truthfully prove the approved
+normative or non-overlapping supporting owner invariants. The other roles retain
+reference-validity, derived-parity, summary, and verification semantics. Reject
+unknown roles, role-incompatible supporting fields, missing or duplicate IDs,
+absent or unapproved relationships, false owner roles, and any ambiguous or
+malformed value.
 
 Grouping is valid only within one relationship and only when topology role,
 normative owner, owner source, implementation disposition, proof owner, and
@@ -75,9 +78,10 @@ identical partition and conflict precedence. Any differing dimension requires
 separate entries. Reject grouped entries that obscure different proof owners,
 partitions, precedence, task coverage, or other required dimensions.
 
-`Proof owner` is exactly `Task <TASK-ID>` or `Non-task owner — <concrete
-owner>`. For each current task, derive its expected Entry ID set as the union
-of entries whose task/no-code disposition names that Task ID and entries whose
+`Proof owner` uses only `Task <TASK-ID>` or
+`Non-task owner — <concrete owner>`. For each current task, derive its expected
+Entry ID set as the union of entries whose task/no-code disposition names that
+Task ID and entries whose
 task-valued proof owner names it. Deduplicate an ID when the same task owns both
 forms. Every task-valued implementation disposition and proof owner must
 resolve exactly once to a current task in the same plan; non-task owners create

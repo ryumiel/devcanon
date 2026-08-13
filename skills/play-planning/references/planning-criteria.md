@@ -530,7 +530,7 @@ a required exhaustive topology field is missing, including when:
 - a supporting responsibility overlaps another partition, leaves an approved
   responsibility uncovered, or lacks conflict precedence;
 - a changed behavior, affected surface, owner source, topology role, task,
-  or verification owner is missing; or
+  or proof owner is missing; or
 - a derived representation lacks an owner or proportional parity proof.
 
 A `LIGHTWEIGHT` mapping is not ready when it omits any actual known participant
@@ -639,8 +639,9 @@ it must name that distinct fact and its authority. A view without a distinct
 fact is a reference, not a second projection. References cannot redefine
 topology, select owners, or supersede the approved design.
 
-`Proof owner` is exactly `Task <TASK-ID>` or `Non-task owner — <concrete
-owner>`. A task's expected projection ID set is the set union of entries whose
+`Proof owner` uses only `Task <TASK-ID>` or
+`Non-task owner — <concrete owner>`. A task's expected projection ID set is the
+set union of entries whose
 Task ID appears in its task/no-code disposition and entries whose task-valued
 proof owner names it. Deduplicate an Entry ID when the same task owns both
 forms. Every task-valued implementation disposition and task-valued proof owner
@@ -654,7 +655,7 @@ task` when the union is empty. This total task-reference coverage is required in
 addition to exhaustive projection coverage; a task may not rely on an entry
 merely because the projection itself names that task.
 
-A task-owned projection reference is valid only when its declared ID is
+A task-relevant projection reference is valid only when its declared ID is
 expected for that task, identifies the expected semantic entry, and resolves
 exactly once in the same exact reviewed plan. Its resolved entry must retain
 the complete tuple: relationship ID; affected surface or explicit equivalent
@@ -924,8 +925,10 @@ CURRENT and BLOCKER findings prevent PASS. FOLLOW-UP and OPTIONAL findings do
 not. Explicitly fail missing design Contract Decision and Documentation impact
 item mappings. For a plan with an Execution Projection, D5 also validates total
 task-reference coverage: every current task has its explicit reference field,
-and each task's declared IDs are exactly the IDs whose projection dispositions
-name that Task ID. D5 owns ordinary defects in approved-scope coverage,
+and each task's declared IDs are exactly the union of IDs whose implementation
+disposition names that Task ID and whose task-valued proof owner names it,
+deduplicating an ID when the same task owns both. D5 owns ordinary defects in
+approved-scope coverage,
 normative authority, boundary and consumer completeness, requirement
 traceability, dependency intent, documentation impact, and proof
 proportionality. It does not repeat task-local executability review or invent

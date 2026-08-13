@@ -243,7 +243,7 @@ For behavior- or contract-changing work, consume the approved design's
 ownership topology and expose its tier-appropriate mapping in the plan. `FULL`
 tasks require exhaustive topology, including the normative owner, optional
 non-overlapping supporting partitions, topology roles, conflict precedence,
-task coverage, and verification owner. A family-local authority requires
+task coverage, and proof owner. A family-local authority requires
 additional complete or necessary topology only when it explicitly governs the
 ownership-topology mapping. `LIGHTWEIGHT` compact topology still names every
 actual known participant and direct producer-consumer relationship alongside
@@ -647,7 +647,7 @@ Review in this order:
 
 For `FULL`, also confirm that every ownership topology row has complete task and
 proof coverage and that no task asks an implementer to choose an owner,
-supporting partition, topology role, precedence, or verification owner. When
+supporting partition, topology role, precedence, or proof owner. When
 a family-local authority governs ownership topology, confirm its additional
 complete or necessary topology detail. For `LIGHTWEIGHT`, confirm the compact
 record does not leave any actual known participant, direct relationship,

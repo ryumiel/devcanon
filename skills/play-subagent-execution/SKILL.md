@@ -643,17 +643,18 @@ artifact work or unambiguous identifier replacement, the controller may execute
 Write/Edit, verification, and commit inline or dispatch D13's `executor`. This
 path sits on top of the single-task per-task-review skip.
 
-All five guardrails must hold: the plan is single-task, the task is explicitly
-mechanical, no clarifying questions could plausibly arise under the upstream
-two-gate `play-planning` return, the structural task-contract gate is
-satisfied, and no tests need to be authored. Direct, hand-written, copied, or
-older plans without the upstream two-gate return fail the clarifying-question
-guardrail and fall back to dispatched implementation. A task-contract failure
-stops before implementation; other guardrail misses fall back to dispatched
-implementation. After all five guardrails pass, keep the chosen branch
-explicit. The guarded inline branch produces no child DONE report and no child
-snapshot request; the controller verifies and records its own inline commit.
-The dispatched-executor branch preserves the unchanged DONE-report and snapshot
+Admission requires the canonical projection and identifiable same-digest D5/D6
+PASS provenance before guardrail evaluation. A missing, malformed, unreviewed,
+or mismatched admission fact stops with `BLOCKED/NEEDS_CONTEXT`; it never
+selects D12 or D13. For an admitted plan, all five guardrails must hold: the
+plan is single-task, the task is explicitly mechanical, no clarifying questions
+could plausibly arise, the structural task-contract gate is satisfied, and no
+tests need to be authored. A task-contract failure stops before implementation;
+ordinary non-contract guardrail misses after admission fall back to dispatched
+implementation. After all five guardrails pass, keep the chosen branch explicit.
+The guarded inline branch produces no child DONE report and no child snapshot
+request; the controller verifies and records its own inline commit. The
+dispatched-executor branch preserves the unchanged DONE-report and snapshot
 request/skip contract from `references/executor-prompt.md` and the status rules
 below.
 
