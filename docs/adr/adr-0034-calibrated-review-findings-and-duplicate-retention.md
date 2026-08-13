@@ -38,6 +38,16 @@ assertion field. This retains the existing `play-review/findings/v2` contract
 and leaves the controller unable to repair or strengthen a finding during
 handoff.
 
+For the critic-run mutation boundary, `play-review` produces exactly one
+private same-controller invocation outcome: `completed-verification`,
+`unavailable-fallback`, or `not-required-zero-input`. `branch-review` is the
+sole consumer. Only `completed-verification` authorizes its existing
+current-Nit mutation path; every other received state, including an
+unavailable, zero-input, missing, or ambiguous state, fails closed and remains
+non-mutating. This outcome has no schema, notice, artifact, renderer input, or
+persistence. The source skills define this operational behavior and mutation
+authority; this ADR records the decision and yields if those sources conflict.
+
 Every current candidate is calibrated independently before duplicate retention.
 Blockers receive `VALID`, `DOWNGRADE`, or `INVALID`; Nits receive transient
 `RETAIN` or `INVALID` without promotion. Current candidates may share a
@@ -65,6 +75,8 @@ existing envelope schema remains unchanged.
 - Critic handoff passes each complete current finding unchanged except for a
   stable ordinal, so existing location and evidence stay available without a
   second handoff schema.
+- `play-review/findings/v2` remains intentionally insufficient as mutation
+  authorization because it does not carry the private critic-run outcome.
 
 ## Alternatives considered
 
