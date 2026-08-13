@@ -484,7 +484,7 @@ detail from its contract tier. An exhaustive mapping is required for `FULL` or
 when a separately named material authority requires it. That table or
 equivalent structured mapping names the stable approved relationship and
 governing design decision, exactly one normative owner and the responsibility
-it defines, each optional supporting owner with its explicitly non-overlapping
+it defines, each optional supporting owner identity with its explicitly non-overlapping
 partition and conflict precedence, every affected surface, its owner source,
 its closed topology role, current task coverage, and the proof owner and
 boundary it proves. The closed roles are `normative owner`, `supporting owner`,
@@ -494,7 +494,7 @@ surface or a repeated owner description.
 
 For `FULL`, the mapping is exhaustive over the approved relationships and
 affected surfaces authorized by the design, including supporting-owner
-partitions and precedence, every affected surface and topology role, current
+identities, partitions, and precedence, every affected surface and topology role, current
 task coverage, and proof ownership. A valid `LIGHTWEIGHT` compact record satisfies
 topology by naming every actual known participant and direct producer-consumer
 relationship, plus its owner, purpose, inputs and outputs, material write or
@@ -527,8 +527,9 @@ Planning is not ready at every tier when:
 For `FULL` or a separately named material authority, planning is not ready when
 a required exhaustive topology field is missing, including when:
 
-- a supporting responsibility overlaps another partition, leaves an approved
-  responsibility uncovered, or lacks conflict precedence;
+- a supporting owner identity is missing, its responsibility overlaps another
+  partition, leaves an approved responsibility uncovered, or lacks conflict
+  precedence;
 - a changed behavior, affected surface, owner source, topology role, task,
   or proof owner is missing; or
 - a derived representation lacks an owner or proportional parity proof.
@@ -586,7 +587,7 @@ Use this exact field grammar for each ungrouped projection entry:
   - **Normative owner:** `<owner>`
   - **Owner source:** `<authority>`
   - **Task/no-code disposition:** Task `<TASK-ID>` | No code — `<task-specific reason>`
-  - **Proof owner:** Task `<TASK-ID>` | Non-task owner — `<concrete owner>`
+  - **Proof owner:** Task `<TASK-ID>`
   - **Proof boundary:** `<concrete boundary>`
 ```
 
@@ -602,11 +603,12 @@ For `supporting owner` only, insert these exact fields immediately after
 `**Owner source:**`:
 
 ```text
+  - **Supporting owner:** `<concrete supporting owner>`
   - **Supporting partition:** `<approved non-overlapping responsibility>`
   - **Conflict precedence:** `<approved precedence against other owners>`
 ```
 
-Those two fields are mandatory for `supporting owner` and forbidden for every
+Those three fields are mandatory for `supporting owner` and forbidden for every
 other role. Field labels are exact; angle-bracket values and `|` alternatives
 are explanatory placeholders, not literal plan content. Multiple canonical
 sections, missing fields, both surface forms, neither surface form, an unknown
@@ -621,10 +623,21 @@ invariants truthfully. `reference`, `derived representation`,
 `non-normative summary`, and `verification` retain their existing
 reference-validity, parity, summary, and verification semantics.
 
+When multiple supporting owners participate in one relationship and physical
+artifact, each owner must already have a distinct approved non-overlapping
+semantic surface or surface-set boundary that corresponds to its supporting
+partition. Record those approved sub-surfaces as separate entries even though
+their physical artifact is the same. Planning must not invent a sub-surface from
+an owner name or partition merely to avoid a duplicate key. If the approved
+topology exposes only one undifferentiated relationship + surface + supporting-
+owner-role participation, return a `BLOCKER` to the design owner rather than
+dropping an owner or changing the semantic identity.
+
 Group only surfaces in one relationship when topology role, normative owner,
 owner source, implementation disposition, proof owner, and proof boundary are
-identical. A supporting-owner group also requires identical supporting partition
-and conflict precedence. Any differing dimension requires separate entries.
+identical. A supporting-owner group also requires identical supporting owner
+identity, partition, and conflict precedence. Any differing dimension requires
+separate entries.
 Grouping never allows a plan to omit an actual consumer, task, proof, execution
 input, or safety boundary. Missing, duplicate, ambiguous, or conflicting
 approved topology remains a `BLOCKER` returned to the design owner; planning
@@ -639,23 +652,22 @@ it must name that distinct fact and its authority. A view without a distinct
 fact is a reference, not a second projection. References cannot redefine
 topology, select owners, or supersede the approved design.
 
-`Proof owner` uses only `Task <TASK-ID>` or
-`Non-task owner — <concrete owner>`. A task's expected projection ID set is the
+`Proof owner` uses only `Task <TASK-ID>`. A task's expected projection ID set is the
 set union of entries whose disposition uses the exact `Task <TASK-ID>` branch
-for that Task ID and entries whose task-valued proof owner names it. `No code —
+for that Task ID and entries whose proof owner names it. `No code —
 <task-specific reason>` never contributes an implementation-task reference,
 regardless of reason text. Deduplicate an Entry ID when the same task owns both
-forms. Every task-valued implementation disposition and task-valued proof owner
-resolves to exactly one current task in the same plan; a non-task owner creates
-no task reference.
+forms. Every task-valued implementation disposition and proof owner resolves
+to exactly one current task in the same plan.
 
 Every `No code — <task-specific reason>` entry still names its complete proof
-tuple. A task-valued proof owner receives that entry through the existing task
-union. A non-task proof owner must be concrete. Any no-code entry requires D16
-with the whole implementation context; it creates no additional lifecycle
-state. The planner must name a route that the active execution flow can
-represent and reach; otherwise the entry is a `BLOCKER`, not an invitation to
-drop or infer the obligation.
+tuple. Its required proof-owner task is ordinary verification-task work and
+receives that entry through the existing task union. The planner must name a
+current verification task that the active execution flow can execute; otherwise
+the entry is a `BLOCKER`, not an invitation to drop or infer the obligation.
+Every proof-owner task's verification expectations or checklist must cite its
+resolved projection reference and execute the named proof boundary; the task
+does not satisfy proof ownership merely by listing the Entry ID.
 
 Every current task in a plan with an Execution Projection declares an explicit
 `**Execution Projection references:**` field. The field lists every and only
@@ -668,19 +680,14 @@ A task-relevant projection reference is valid only when its declared ID is
 expected for that task, identifies the expected semantic entry, and resolves
 exactly once in the same exact reviewed plan. Its resolved entry must retain
 the complete tuple: relationship ID; affected surface or explicit equivalent
-set; topology role; normative owner and owner source; required supporting
-partition and precedence when applicable; task/no-code disposition; and both
+set; topology role; normative owner and owner source; required supporting owner
+identity, partition, and precedence when applicable; task/no-code disposition; and both
 proof owner and concrete proof boundary. Missing, duplicate, ambiguous, extra,
 incomplete, or semantically mismatched task references or tuple facts are
 `CURRENT` planning gaps until corrected and freshly reviewed. The executor
 consumes only its resolved task-relevant entries in curated execution context;
 it must not infer absent rows, silently deduplicate, or give children the full
 plan to resolve references themselves.
-
-After validation and exhaustiveness succeed, any plan with a no-code entry
-requires D16/the final whole-implementation reviewer with the whole
-implementation context. This is separate from task-specific curated contexts
-and does not make the full plan available to children.
 
 When Contract Example Discipline is triggered, one valid family must contain a
 relationship with a normative-owner surface, a reference consumer, and a
@@ -691,18 +698,23 @@ families change only one named dimension unless intentionally identified as
 multi-fault: false owner role, repeated physical surface in a distinct
 relationship (valid), duplicate identical relationship + surface + role,
 grouped surfaces with different proof owners, omitted proof-task reference,
-and a nonexistent task-valued proof owner. Verify the valid family passes and
+and a nonexistent proof-owner task. Verify the valid family passes and
 each named invalid family fails for its intended dimension by source inspection
 and response-only behavioral evidence; do not add a parser or harness merely
 to test prose. Unsupported, inconsistent, or unverifiable examples are a
 `BLOCKER`, not permission to guess.
 
-Extend that response-only evidence with no-code entries: one with a task-valued
-proof owner and one with a concrete non-task proof owner. The task-valued entry
-appears in that task's existing union. An unreachable named owner or proof
-boundary blocks rather than dropping either entry. An invalid family uses a
-no-code reason containing a Task ID: it must not add that entry to the task's
-implementation union.
+Extend that response-only evidence with a no-code entry whose proof owner is a
+current verification task. The entry appears in that task's existing union. An
+invalid family uses a no-code reason containing a Task ID: it must not add that
+entry to the task's implementation union. Also cover one valid supporting-owner
+entry with an explicit supporting owner, partition, and precedence; reject a
+missing supporting-owner identity, any supporting-owner field on another role,
+grouped supporting surfaces with different supporting owners, and every generic
+non-task proof-owner form. Accept one physical artifact represented by separate
+entries for distinct approved supporting-owner sub-surfaces; reject the same
+semantic surface under different supporting identities, overlapping alleged
+partitions, and ad hoc sub-surface boundaries absent from approved topology.
 
 Portable criteria distinguish target-owned contributor overlays from this
 source library's local policy. Apply a repository contributor overlay only when
@@ -948,7 +960,7 @@ item mappings. For a plan with an Execution Projection, D5 also validates total
 task-reference coverage: every current task has its explicit reference field,
 and each task's declared IDs are exactly the union of IDs whose implementation
 disposition uses the exact `Task <TASK-ID>` branch for that Task ID and whose
-task-valued proof owner names it; a `No code — <reason>` entry never contributes
+proof owner names it; a `No code — <reason>` entry never contributes
 implementation ownership regardless of reason text. Deduplicate an ID when the
 same task owns both. D5 owns ordinary defects in
 approved-scope coverage,

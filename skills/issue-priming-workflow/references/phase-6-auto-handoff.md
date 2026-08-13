@@ -48,12 +48,12 @@ first; close only when automatic close is supported, otherwise record
 ## Single-Task Final-Review Carve-Out
 
 The narrow carve-out applies only to a verified live auto parent, a validated
-matching auto-handoff artifact, exactly one extracted task, the mandatory Phase
-7 guarantee, and zero no-code entries. It skips only the executor's final
-whole-implementation code-quality reviewer. Any no-code entry requires D16 with
-the whole implementation context before Phase 7. Direct or manual executor
-calls do not receive the carve-out. Sanitized contract-example context may be
-included in terminal risk signals, but never replaces Phase 7 review.
+matching auto-handoff artifact, exactly one extracted task, and the mandatory
+Phase 7 guarantee. It skips only the executor's final whole-implementation
+code-quality reviewer because this workflow immediately requires Phase 7
+whole-branch review. Direct or manual executor calls do not receive the
+carve-out. Sanitized contract-example context may be included in terminal risk
+signals, but never replaces Phase 7 review.
 
 ## Phase 7 Final-Review Guarantee
 

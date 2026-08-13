@@ -39,12 +39,10 @@ When all of the following hold:
 3. that parent state guarantees downstream `branch-review --fix` is the
    mandatory next step
 4. the extracted plan has exactly one task
-5. the plan has zero no-code entries
 
 then `play-subagent-execution` skips its final whole-implementation
 code-quality reviewer and returns directly to the caller after the
-single-task implementation path completes. Any no-code entry requires D16 with
-the whole implementation context before returning to Phase 7.
+single-task implementation path completes.
 
 All other paths remain unchanged:
 
@@ -66,8 +64,7 @@ remains unchanged.
 ## Consequences
 
 - The common `issue-priming-workflow --auto` single-task path drops one
-  redundant whole-diff review pass only with zero no-code entries; otherwise
-  D16 reviews the whole implementation context before Phase 7.
+  redundant whole-diff review pass.
 - Review-policy ownership stays inside `play-subagent-execution`, the skill
   that already owns reviewer dispatch.
 - Manual/direct callers are not weakened; they keep the final

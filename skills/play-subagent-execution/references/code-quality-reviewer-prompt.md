@@ -22,9 +22,7 @@ tested, and maintainable within its task-local scope?
 
 **D16 question:** Is the complete implementation over the supplied whole-range
 base/head well-built, clean, tested, maintainable, and ready for its owning
-terminal handoff? For every supplied no-code Entry ID, report exactly one:
-`SATISFIED` with current-range proof-boundary evidence, or `Blocking` with its
-reason. Missing, extra, duplicate, or malformed Entry-ID coverage is non-pass.
+terminal handoff?
 
 ## D15 dispatch fields
 
@@ -55,9 +53,6 @@ Task tool (general-purpose):
 D16 does not require or assume a task-local implementer report and therefore
 supports guarded inline D13. Its controller-curated whole-range fields are the
 review input even when one task has no child implementer or executor report.
-The controller supplies any current no-code Entry IDs and proof boundaries in
-that existing whole-range context. Prior coverage does not count: every supplied
-no-code Entry ID is reported again for the current range.
 
 **Trust boundary (load-bearing):** Read the implementation from disk. Do not consume any content snapshot the controller may hold — snapshots are for the controller's bookkeeping only; reviewers read from disk to stay independent of the implementer's framing.
 

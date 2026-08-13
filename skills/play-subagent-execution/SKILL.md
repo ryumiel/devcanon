@@ -85,10 +85,11 @@ prompt. Subagents do not read the full plan file or resolve controller-relative
 rule paths.
 
 Admission is linear and precedes all extraction and routes: validate the
-source/path, hash the exact bytes, match `Expected digest`, confirm the active
-controller retains the live matching `play-planning` return pair, read the
-guarded bytes, require exactly one literal `## Execution Projection` H2 outside
-fenced code, validate the semantic projection, then extract context and route.
+source/path, capture guarded bytes once, hash that exact capture, match
+`Expected digest`, confirm the active controller retains the live matching
+`play-planning` return pair, parse the same capture, require exactly one literal
+`## Execution Projection` H2 outside fenced code, validate the semantic
+projection, then extract context and route.
 The retained return pair is one aggregate admission attestation for the current
 digest; copied text is not provenance. Do not demand independent D5/D6 leaf
 identity or guard evidence. A missing or unreadable bundled rule, failed
@@ -177,15 +178,16 @@ esac
 [ -r "$PLAN_PATH" ] || { echo "plan missing or unreadable: $PLAN_PATH" >&2; exit 1; }
 ```
 
-Immediately after those guards and before reading, extracting, routing, or
-dispatching any task, compute SHA-256 over the exact saved plan bytes with
-`shasum -a 256` when available, otherwise `sha256sum`, and pipe either result
-through `awk '{print $1}'`. Validate the extracted field as lowercase 64-hex
-and compare it with `Expected digest: <sha256>`. A missing or malformed expected
-digest, unavailable hasher, hashing failure, or mismatch stops before plan
-extraction and must return to the owning planning workflow; never replace the
-expected digest with the current file digest. Keep both values controller-local
-and do not create a digest artifact, helper, parser, or registry.
+Immediately after those guards, capture the plan bytes once in controller-local
+state. Before extracting, routing, or dispatching any task, compute SHA-256
+over that exact capture with `shasum -a 256` when available, otherwise
+`sha256sum`, and pipe either result through `awk '{print $1}'`. Validate the
+extracted field as lowercase 64-hex and compare it with `Expected digest:
+<sha256>`. A missing or malformed expected digest, unavailable hasher, hashing
+failure, or mismatch stops before plan extraction and must return to the owning
+planning workflow; never replace the expected digest with the current file
+digest. Keep the capture and both digest values controller-local and do not
+create a digest artifact, helper, parser, or registry.
 
 This bash uses the generic phase-artifact read guard shape: narrow the suffix to
 the expected artifact, reject traversal, reject symlinked `.ephemeral` and
@@ -195,8 +197,9 @@ direct-child `.ephemeral/` guard because those paths are echoed through review
 output and reused by wrappers before read or overwrite.
 
 Only after the digest comparison and aggregate attestation both pass does the
-controller read the plan from the path. It then performs the exact-heading and
-semantic-projection checks before context extraction and task routing.
+controller parse the retained byte capture. It then performs the exact-heading
+and semantic-projection checks on that same capture before context extraction
+and task routing; it does not reread the path.
 Per-task implementer subagents receive curated, inlined task text — they do
 NOT receive the path. See § Red Flags below.
 
@@ -248,12 +251,13 @@ attestation from prior task text, a returned status, or copied invocation prose.
 
 A `## Plan` heading followed by content body, or an entire plan document
 pasted into the invocation prose. No path validation is required — content
-is consumed verbatim from the prose. Inline content still requires
-controller-identifiable exact bytes, digest, and the active controller's live
-matching `play-planning` return-pair aggregate attestation before semantic
-consumption, projection validation, extraction, or execution; a direct paste is not a
-compatibility bypass. Direct human invocations that cannot supply that state
-block with `BLOCKED/NEEDS_CONTEXT`.
+is captured once and consumed verbatim from the prose. Inline content still
+requires a controller-identifiable digest over that exact capture and the active
+controller's live matching `play-planning` return-pair aggregate attestation
+before the same capture is semantically consumed for projection validation,
+extraction, or execution; a direct paste is not a compatibility bypass. Direct
+human invocations that cannot supply that state block with
+`BLOCKED/NEEDS_CONTEXT`.
 
 The path reference is consumed by the controller; the inline form is preserved for direct human invocations that paste a plan into the prose.
 
@@ -271,11 +275,12 @@ For the full selection and process diagrams, load
 
 ## The Process
 
-1. Validate the source/path, hash exact bytes, and match `Expected digest`.
-   Confirm the active controller retains the live matching `play-planning`
-   return-pair aggregate attestation; copied text is not provenance. Only then
-   read guarded bytes. Keep path handling controller-owned; implementers receive
-   curated inlined task text, not the plan path.
+1. Validate the source/path, capture guarded bytes once, hash that exact
+   capture, and match `Expected digest`. Confirm the active controller retains
+   the live matching `play-planning` return-pair aggregate attestation; copied
+   text is not provenance. Only then parse the same capture. Keep path handling
+   controller-owned; implementers receive curated inlined task text, not the
+   plan path.
 2. Require exactly one canonical heading, load and apply the execution-projection
    consumer rule, and validate the semantic projection. Only then extract
    context and route. Missing, malformed, unreviewed, or mismatched admission
@@ -290,10 +295,7 @@ For the full selection and process diagrams, load
    task-local declared tier and tier-appropriate structure, and any task-local example or proof
    obligations that refine the plan-level section, plus only the resolved
    task-relevant Execution Projection entries, including proof-task-owned
-   entries. Separately retain every validated no-code proof tuple in
-   `EXTRACTED_WHOLE_IMPLEMENTATION_CONTEXT` for D16/final whole-
-   implementation review; do not add them to child context unless task-relevant.
-   When Contract Example
+   entries. When Contract Example
    Discipline or an equivalent clearly labeled section/obligation is present,
    also inline the full shared consumer rule under
    `Contract Example Discipline Consumer Rule` so prompt consumers can enforce
@@ -462,11 +464,6 @@ came from `issue-priming-workflow --auto` and identifies
 [lifecycle/status policy](references/lifecycle-status-policy.md) for task
 completion, exact D16 skip eligibility, final-review timing, and returned
 terminal disposition. This index does not restate those transitions.
-
-On that verified auto carve-out, skip D16 only when the supplied no-code Entry
-ID set is zero. Any no-code entry forces D16 with the current whole-
-implementation context before return to the mandatory Phase 7
-`branch-review --fix` loop.
 
 For direct/manual runs, continue to the
 [Direct/manual terminal handoff](#directmanual-terminal-handoff); that section

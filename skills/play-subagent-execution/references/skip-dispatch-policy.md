@@ -35,8 +35,9 @@ directly; otherwise it dispatches `executor-prompt.md` with the same validated
 authorization.
 
 Admission precedes D13/D12 route selection. It requires guarded source/path
-validation, exact-byte digest matching, the active controller's live matching
-`play-planning` return-pair aggregate attestation, guarded read, one canonical
+validation, one captured byte sequence with exact-byte digest matching, the
+active controller's live matching `play-planning` return-pair aggregate
+attestation, parsing that same capture, one canonical
 `## Execution Projection`, and semantic projection validation. Copied text is
 not provenance, and admission does not demand independent D5/D6 leaf identity
 or guard evidence. Direct, hand-written, copied, older, missing-attestation, or

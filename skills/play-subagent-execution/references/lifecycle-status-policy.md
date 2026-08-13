@@ -61,23 +61,11 @@ including paths caused by spawn, response, verification, validation, retention,
 or apply failure. Any such failure leaves the task incomplete and `BLOCKED`;
 detected mutation or cleanup failure is guard-integrity terminal and source
 remains visible and unrepaired. D16 is a fresh whole-range reviewer after all
-tasks. The exact verified ADR-0016 single-task auto carve-out skips D16 only
-when the supplied no-code Entry ID set is zero. Any no-code entry forces D16;
-there is no pre-D16 discharge state.
-
-D16 must report exactly once for every supplied no-code Entry ID. Each report
-is either `SATISFIED` with current-range proof-boundary evidence or `Blocking`
-with a reason. Missing, extra, duplicate, or malformed coverage is non-pass.
-Only a D16 result with exact valid coverage for every supplied no-code Entry ID
-and no Blocking findings, including one with only Nit findings, may continue
-after safe cleanup.
-
-Route a D16 `Blocking` finding to D12 only when it uniquely maps inside an
-existing current task's authorized scope. An invalid No code claim, new work,
-topology issue, or absent or ambiguous task returns to planning and requires
-fresh D5/D6. A reachable concrete non-task owner routes to that owner; an
-unreachable owner returns to planning and blocks. Any change requires a fresh
-D16 capture, review, and coverage report before final disposition.
+tasks, except the exact verified ADR-0016 single-task auto carve-out. A D16
+result with no Blocking findings, including one with only Nit findings, may
+continue after safe cleanup. Blocking D16 findings keep final review
+incomplete, route to D12 for a fix, and require a fresh D16 after the fix
+commit.
 
 ## D13 and D12 Recovery
 
