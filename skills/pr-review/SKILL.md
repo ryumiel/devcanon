@@ -48,15 +48,14 @@ Run in parallel:
 - `{{tool:github-cli}} api repos/{owner}/{repo}/pulls/<N>/comments` — inline review threads
 - `{{tool:github-cli}} api repos/{owner}/{repo}/pulls/<N>/reviews` — review states
 
-Phase 1 must retain only raw provider authority: repository and PR identity,
+Phase 1 retains only raw provider authority: repository and PR identity,
 provider `baseRefOid` and `headRefOid`, complete paginated provider file
-metadata with raw patch bytes or unavailable markers, and the exact full
-provider diff bytes plus dialect. `baseRefOid` is metadata, not proof that a
-base branch ref is the PR diff base. Do not request or compute a provider diff
-base, local file list, local patch digest, local diff digest, or provenance
-claim in this phase. Preserve raw patch and diff response bytes as strict
-base64 fields (encode directly from the API response bytes, never by copying
-binary or patch text through a prompt) for the target-worktree capture below.
+metadata, and the exact full provider diff bytes plus dialect. `baseRefOid` is
+metadata, not proof that a base branch ref is the PR diff base. Do not request
+or compute a provider diff base, local file list, local patch digest, local
+diff digest, or provenance claim in this phase. The terminal Phase 1 capture
+step below runs inside the target worktree; once it binds the capture, the
+producer does not refetch provider data.
 
 <!-- Bare body intentional: responses feed Phase 4's prior_threads parsing. -->
 <!-- See docs/guidelines/gh-api-hygiene.md § 3. -->
@@ -325,6 +324,8 @@ producer returns it.
 ```bash
 PR_REVIEW_DIR="<installed-pr-review-skill-bundle>"
 PR_REVIEW_ARTIFACT_HELPER="$PR_REVIEW_DIR/scripts/prior-thread-artifacts.sh"
+PR_REPOSITORY="<owner/repo>"
+PR_NUMBER="<N>"
 REVIEW_CALLER_DIR="$(pwd -P)" || exit 1
 
 bind_scope_decision_artifact() {
@@ -337,21 +338,36 @@ bind_scope_decision_artifact() {
   PROVIDER_SCOPE_CAPTURE_FILE=".ephemeral/$branch_slug-$HEAD_SHA-provider-scope-capture.json"
   [ ! -L .ephemeral ] || return 1
   mkdir -p .ephemeral || return 1
-  # Phase 1 retains these raw, byte-faithful values. Each patch_base64 and
-  # provider_diff_base64 is strict base64 encoded directly from API bytes.
-  : "${PHASE1_REPOSITORY:?required}" "${PHASE1_PR_NUMBER:?required}"
-  : "${PHASE1_BASE_REF_OID:?required}" "${PHASE1_HEAD_REF_OID:?required}"
-  : "${PHASE1_PROVIDER_FILES_JSON:?required}"
-  : "${PHASE1_PROVIDER_DIFF_DIALECT:?required}" "${PHASE1_PROVIDER_DIFF_BASE64:?required}"
-  PROVIDER_SCOPE_CAPTURE_FILE="$PROVIDER_SCOPE_CAPTURE_FILE" node -e '
-    const fs=require("node:fs");
-    const capture={schema:"pr-review/provider-scope-capture/v1",provider:"github",
-      repository:process.env.PHASE1_REPOSITORY,pr_number:Number(process.env.PHASE1_PR_NUMBER),
-      baseRefOid:process.env.PHASE1_BASE_REF_OID,headRefOid:process.env.PHASE1_HEAD_REF_OID,
-      evidence_complete:true,provider_files:JSON.parse(process.env.PHASE1_PROVIDER_FILES_JSON),
-      provider_diff:{dialect:process.env.PHASE1_PROVIDER_DIFF_DIALECT,content_base64:process.env.PHASE1_PROVIDER_DIFF_BASE64}};
-    fs.writeFileSync(process.env.PROVIDER_SCOPE_CAPTURE_FILE,JSON.stringify(capture)+"\\n",{encoding:"utf8",flag:"wx"});
-  ' || return 1
+  # Reuse the exact preserved capture after a producer failure; never overwrite
+  # or refetch it. Otherwise terminal Phase 1 fetches each raw evidence family.
+  if [ ! -e "$PROVIDER_SCOPE_CAPTURE_FILE" ]; then
+    capture_tmp="$(mktemp -d .ephemeral/provider-scope-capture.XXXXXX)" || return 1
+    trap 'rm -rf "$capture_tmp"' RETURN
+    gh api "repos/$PR_REPOSITORY/pulls/$PR_NUMBER" \
+      --jq '{number,baseRefOid:.base.sha,headRefOid:.head.sha}' > "$capture_tmp/pr.json" || return 1
+    gh api --paginate --slurp "repos/$PR_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" > "$capture_tmp/files.json" || return 1
+    gh api -H 'Accept: application/vnd.github.diff' "repos/$PR_REPOSITORY/pulls/$PR_NUMBER" > "$capture_tmp/full.diff" || return 1
+    PROVIDER_SCOPE_CAPTURE_FILE="$PROVIDER_SCOPE_CAPTURE_FILE" \
+    PR_REPOSITORY="$PR_REPOSITORY" node -e '
+      const fs=require("node:fs"), p=process.env.PROVIDER_SCOPE_CAPTURE_FILE;
+      const pr=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));
+      const pages=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
+      const files=pages.flat().map(f=>({path:f.filename,status:f.status,
+        previous_path:f.previous_filename??null,additions:f.additions,deletions:f.deletions,
+        changes:f.changes,patch_base64:null}));
+      const capture={schema:"pr-review/provider-scope-capture/v1",provider:"github",
+        repository:process.env.PR_REPOSITORY,pr_number:pr.number,baseRefOid:pr.baseRefOid,
+        headRefOid:pr.headRefOid,evidence_complete:true,provider_files:files,
+        provider_diff:{dialect:"github-provider-diff/v1",content_base64:fs.readFileSync(process.argv[3]).toString("base64")}};
+      fs.writeFileSync(p,JSON.stringify(capture)+"\\n",{encoding:"utf8",flag:"wx"});
+    ' "$capture_tmp/pr.json" "$capture_tmp/files.json" "$capture_tmp/full.diff" || return 1
+    rm -rf "$capture_tmp"; trap - RETURN
+  else
+    [ -f "$PROVIDER_SCOPE_CAPTURE_FILE" ] && [ ! -L "$PROVIDER_SCOPE_CAPTURE_FILE" ] || return 1
+  fi
+  # files[].patch is only a hunk fragment. It is never recorded as an available
+  # patch; patch_base64 remains null unless complete per-file sections are
+  # extracted byte-for-byte from this full diff in the canonical dialect.
   PROVIDER_SCOPE_EVIDENCE_FILE=$(
     HEAD_SHA="$HEAD_SHA" \
     PROVIDER_SCOPE_CAPTURE_FILE="$PROVIDER_SCOPE_CAPTURE_FILE" \

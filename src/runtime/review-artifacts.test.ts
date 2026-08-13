@@ -926,10 +926,50 @@ async function providerScopeCapture(
   headSha: string,
 ): Promise<JsonObject> {
   const entry = await providerEvidenceFileEntry(cwd, baseSha, headSha);
-  const patch = await canonicalGitDiffRaw(cwd, `${baseSha}..${headSha}`, [
+  const patch = await gitRaw(cwd, [
+    "-c",
+    "core.abbrev=40",
+    "-c",
+    "diff.abbrev=40",
+    "-c",
+    "diff.mnemonicPrefix=false",
+    "-c",
+    "diff.indentHeuristic=false",
+    "diff",
+    "--no-ext-diff",
+    "--no-textconv",
+    "--no-color",
+    "--src-prefix=a/",
+    "--dst-prefix=b/",
+    "--find-renames",
+    "--diff-algorithm=myers",
+    "--unified=3",
+    "--inter-hunk-context=0",
+    `${baseSha}..${headSha}`,
+    "--",
     "src/app.ts",
   ]);
-  const providerDiff = await canonicalGitDiffRaw(cwd, `${baseSha}..${headSha}`);
+  const providerDiff = await gitRaw(cwd, [
+    "-c",
+    "core.abbrev=40",
+    "-c",
+    "diff.abbrev=40",
+    "-c",
+    "diff.mnemonicPrefix=false",
+    "-c",
+    "diff.indentHeuristic=false",
+    "diff",
+    "--no-ext-diff",
+    "--no-textconv",
+    "--no-color",
+    "--src-prefix=a/",
+    "--dst-prefix=b/",
+    "--find-renames",
+    "--diff-algorithm=myers",
+    "--unified=3",
+    "--inter-hunk-context=0",
+    `${baseSha}..${headSha}`,
+  ]);
   return {
     schema: "pr-review/provider-scope-capture/v1",
     provider: "github",
@@ -3159,6 +3199,20 @@ describe.skipIf(isWindows)("review artifact runtime reducers", () => {
           {
             ...(capture.provider_files as JsonObject[])[0],
             patch_base64: "***",
+          },
+        ],
+      }),
+    },
+    {
+      name: "GitHub file hunk fragment as available patch",
+      mutate: (capture: JsonObject) => ({
+        ...capture,
+        provider_files: [
+          {
+            ...(capture.provider_files as JsonObject[])[0],
+            patch_base64: Buffer.from(
+              "@@ -0,0 +1 @@\n+export const value = 1;\n",
+            ).toString("base64"),
           },
         ],
       }),
