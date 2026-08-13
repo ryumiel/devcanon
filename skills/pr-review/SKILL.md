@@ -327,8 +327,11 @@ After final active range selection, compute `language_hints` from that selected
 active diff only. The scope-decision artifact and adapter validation must agree
 with those selected-range facts before invoking `play-review`.
 
-Before invoking `play-review`, prepare, write, validate, and bind the canonical
-Phase 3 scope-decision artifact from the target worktree. `PR_REVIEW_DIR` must
+Before invoking `play-review`, produce, validate, and bind the canonical
+Phase 3 provider-scope evidence and scope-decision artifacts from the target
+worktree. Phase 1 first writes one complete bound GitHub
+`pr-review/provider-scope-capture/v1` direct-child capture; Phase 3 is the
+only point that converts it to evidence. `PR_REVIEW_DIR` must
 resolve to the installed `pr-review` skill bundle. The adapter must pass an
 explicit provider scope evidence artifact through
 `PROVIDER_SCOPE_EVIDENCE_FILE`; the scope-decision artifact's `full_range` must
@@ -346,13 +349,12 @@ bind_scope_decision_artifact() {
   cd "$WORKING_DIRECTORY" || return 1
   HEAD_SHA="$(git rev-parse HEAD)" || return 1
   FULL_PR_DIFF_RANGE="$PROVIDER_PR_DIFF_BASE_SHA..$HEAD_SHA"
+  : "${PROVIDER_SCOPE_CAPTURE_FILE:?Phase 1 provider scope capture is required}"
   PROVIDER_SCOPE_EVIDENCE_FILE=$(
     HEAD_SHA="$HEAD_SHA" \
-      bash "$PR_REVIEW_ARTIFACT_HELPER" prepare-provider-scope-evidence-write || return 1
+    PROVIDER_SCOPE_CAPTURE_FILE="$PROVIDER_SCOPE_CAPTURE_FILE" \
+      bash "$PR_REVIEW_ARTIFACT_HELPER" write-provider-scope-evidence || return 1
   ) || return 1
-  # Write the pr-review/provider-scope-evidence/v2 envelope to
-  # "$PROVIDER_SCOPE_EVIDENCE_FILE" using provider PR file and diff evidence.
-  # The full_pr_diff_range must be "$PROVIDER_PR_DIFF_BASE_SHA..$HEAD_SHA".
   SCOPE_DECISION_FILE=$(
     HEAD_SHA="$HEAD_SHA" \
       bash "$PR_REVIEW_ARTIFACT_HELPER" prepare-scope-decision-write || return 1

@@ -4,6 +4,7 @@ import { access, lstat, mkdtemp, readFile, readdir, realpath, rm, stat, writeFil
 import os from "node:os";
 import path from "node:path";
 import { TextDecoder } from "node:util";
+import { writeTextAtomically } from "./artifacts.js";
 import { gitPathPairKey, isRepoPathIdentity, parseGitChangedFilesZ, parseGitNameStatusZ, parseGitNumstatZ, } from "./git-diff-parser.js";
 import { providerBoundGitArgs, providerBoundGitEnv, runGit, runGitRaw, runGitStatus, runGitStdoutSha256, } from "./git.js";
 import { requireDirectEphemeralChild } from "./paths.js";
@@ -79,12 +80,17 @@ const INITIAL_FULL_ALLOWED_EXTRA_REASONS = new Set([
     "ambiguous-classification",
 ]);
 const PROVIDER_EVIDENCE_SCHEMA = "pr-review/provider-scope-evidence/v2";
+const PROVIDER_SCOPE_CAPTURE_SCHEMA = "pr-review/provider-scope-capture/v1";
 const DIGEST_PROVENANCE_SCHEMA = "pr-review/digest-provenance/v1";
 const CANONICAL_GIT_DIFF_DIALECT = "canonical-git-diff/v1";
 const GITHUB_PROVIDER_DIFF_DIALECT = "github-provider-diff/v1";
 const LOCAL_INTERPRETATION_HARDENING_FAILURE = "canonical Git local interpretation hardening failed";
 const OBJECT_GRAPH_HARDENING_FAILURE = "canonical Git object graph hardening failed";
 const UTF8_DECODER = new TextDecoder("utf-8", { fatal: true });
+export const PR_REVIEW_PROVIDER_SCOPE_EVIDENCE_CONTRACT = {
+    command_group: "pr-review-provider-scope-evidence",
+    major_version: 1,
+};
 const ACCEPTED_BRANCH_SCOPE_REASON_CODES = new Set([
     "governed_path",
     "file_count",
@@ -144,6 +150,148 @@ export async function runReviewArtifactsCommand(args) {
         const message = err instanceof Error ? err.message : String(err);
         return { exitCode: 1, stdout: "", stderr: `${message}\n` };
     }
+}
+export async function runPrReviewProviderScopeEvidenceCommand(args) {
+    try {
+        if (args[0] === "contract") {
+            if (args.length !== 1) {
+                fail("contract does not accept arguments");
+            }
+            return ok(`${JSON.stringify(PR_REVIEW_PROVIDER_SCOPE_EVIDENCE_CONTRACT)}\n`);
+        }
+        if (args[0] !== "write") {
+            fail("usage: pr-review-provider-scope-evidence contract|write --head-sha <sha> --capture-file <path>");
+        }
+        const headSha = requiredProducerOption(args.slice(1), "--head-sha");
+        const captureFile = requiredProducerOption(args.slice(1), "--capture-file");
+        if (args.length !== 5) {
+            fail("write accepts only --head-sha and --capture-file");
+        }
+        await requireRepoRoot();
+        await validateHeadShaCommit(headSha);
+        await assertReadableFile("--capture-file", captureFile);
+        validateSuffix("--capture-file", captureFile, "-provider-scope-capture.json");
+        const expectedCaptureFile = await expectedProviderScopeCapturePath(headSha);
+        if (captureFile !== expectedCaptureFile) {
+            fail("provider scope capture path mismatch");
+        }
+        await assertProviderBoundGitPreflight();
+        const currentHead = (await providerBoundGit(["rev-parse", "HEAD"])).trim();
+        if (currentHead !== headSha) {
+            fail("--head-sha must match current repository HEAD");
+        }
+        const capture = await readSingleJsonObject(captureFile, "provider scope capture JSON validation failed");
+        const evidence = await providerScopeEvidenceFromCapture(capture, headSha);
+        const evidenceFile = await expectedProviderScopeEvidencePath(headSha);
+        await assertWritableProviderScopeEvidenceTarget(evidenceFile);
+        const evidenceText = `${JSON.stringify(evidence, null, 2)}\n`;
+        await writeTextAtomically(evidenceFile, evidenceText);
+        try {
+            await validatePrReviewProviderEvidence({
+                artifacts: {
+                    provider_scope_evidence_file: evidenceFile,
+                    provider_scope_evidence_sha256: createHash("sha256")
+                        .update(evidenceText)
+                        .digest("hex"),
+                },
+            }, {
+                ...EMPTY_OPTIONS,
+                headSha,
+                baseRef: stringField(evidence, "provider_pr_diff_base_sha"),
+                providerScopeEvidenceFile: evidenceFile,
+            });
+        }
+        catch (err) {
+            await rm(evidenceFile, { force: true });
+            throw err;
+        }
+        try {
+            await rm(captureFile);
+        }
+        catch {
+            fail("provider scope capture deletion failed after evidence publication");
+        }
+        return ok(`${evidenceFile}\n`);
+    }
+    catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        return { exitCode: 1, stdout: "", stderr: `${message}\n` };
+    }
+}
+function requiredProducerOption(args, flag) {
+    const index = args.indexOf(flag);
+    if (index === -1 || index + 1 >= args.length || args[index + 1] === "") {
+        fail(`${flag} is required`);
+    }
+    if (args.indexOf(flag, index + 1) !== -1) {
+        fail(`${flag} may be supplied only once`);
+    }
+    return args[index + 1];
+}
+async function providerScopeEvidenceFromCapture(capture, headSha) {
+    validateProviderScopeCaptureShape(capture);
+    if (stringField(capture, "headRefOid") !== headSha) {
+        fail("provider scope capture head mismatch");
+    }
+    const baseRefOid = stringField(capture, "baseRefOid");
+    if (!(await providerBoundGitRefExists(`${baseRefOid}^{commit}`))) {
+        fail("provider scope capture baseRefOid does not resolve");
+    }
+    const mergeBases = await providerBoundGitMergeBases(baseRefOid, headSha);
+    if (mergeBases.length !== 1 || mergeBases[0] === headSha) {
+        fail("provider PR diff base must equal single merge base");
+    }
+    const providerPrDiffBase = mergeBases[0];
+    const range = `${providerPrDiffBase}..${headSha}`;
+    await requireProviderBoundRangeExists(range);
+    const captureFiles = normalizedCaptureEntries(arrayField(capture, "provider_files"));
+    validateNoDuplicateCaptureFileEntries(captureFiles);
+    const localFiles = await normalizedLocalFileEntries(range);
+    if (!jsonEqual(fileEntryMetadata(captureFiles), fileEntryMetadata(localFiles))) {
+        fail("provider/local file evidence mismatch");
+    }
+    const providerFiles = captureFiles.map((entry) => providerEvidenceEntry(entry));
+    validateProviderPatchEvidence(providerFiles, localFiles, localFiles);
+    const providerDiff = objectField(capture, "provider_diff");
+    const providerDiffBytes = strictBase64Bytes(stringField(providerDiff, "content_base64"), "provider diff bytes are invalid");
+    const providerDiffDigest = createHash("sha256")
+        .update(providerDiffBytes)
+        .digest("hex");
+    const localDiffDigest = await canonicalGitDiffSha256(range);
+    const providerDiffDialect = stringField(providerDiff, "dialect");
+    const unavailableOnly = providerFiles.length > 0 && providerFiles.every(isUnavailablePatchEntry);
+    if (providerDiffDigest !== localDiffDigest &&
+        (!unavailableOnly || providerDiffDialect !== GITHUB_PROVIDER_DIFF_DIALECT)) {
+        fail("provider/local diff digest mismatch");
+    }
+    if (providerDiffDigest === localDiffDigest &&
+        providerDiffDialect !== CANONICAL_GIT_DIFF_DIALECT &&
+        (!unavailableOnly || providerDiffDialect !== GITHUB_PROVIDER_DIFF_DIALECT)) {
+        fail("provider/local diff digest mismatch");
+    }
+    return {
+        schema: PROVIDER_EVIDENCE_SCHEMA,
+        provider: "github",
+        repository: stringField(capture, "repository"),
+        pr_number: capture.pr_number,
+        baseRefOid,
+        headRefOid: headSha,
+        provider_pr_diff_base_sha: providerPrDiffBase,
+        local_review_head_sha: headSha,
+        full_pr_diff_range: range,
+        evidence_complete: true,
+        digest_provenance: {
+            schema: DIGEST_PROVENANCE_SCHEMA,
+            provider_diff: providerDiffDialect,
+            local_diff: CANONICAL_GIT_DIFF_DIALECT,
+            provider_patches: CANONICAL_GIT_DIFF_DIALECT,
+            local_patches: CANONICAL_GIT_DIFF_DIALECT,
+        },
+        provider_files: providerFiles,
+        local_files: localFiles,
+        provider_diff_sha256: providerDiffDigest,
+        local_diff_sha256: localDiffDigest,
+    };
 }
 function parseCommonArgs(args) {
     const options = {
@@ -850,6 +998,134 @@ function isProviderFileEntry(entry) {
         ((file.patch_available === true &&
             isSha256(stringField(file, "patch_sha256"))) ||
             (file.patch_available === false && file.patch_sha256 === null)));
+}
+function validateProviderScopeCaptureShape(capture) {
+    if (!hasExactKeys(capture, [
+        "schema",
+        "provider",
+        "repository",
+        "pr_number",
+        "baseRefOid",
+        "headRefOid",
+        "evidence_complete",
+        "provider_files",
+        "provider_diff",
+    ]) ||
+        stringField(capture, "schema") !== PROVIDER_SCOPE_CAPTURE_SCHEMA ||
+        stringField(capture, "provider") !== "github" ||
+        !isRepository(stringField(capture, "repository")) ||
+        !isPositiveInteger(capture.pr_number) ||
+        !isSha(stringField(capture, "baseRefOid")) ||
+        !isSha(stringField(capture, "headRefOid")) ||
+        capture.evidence_complete !== true ||
+        !Array.isArray(capture.provider_files) ||
+        !isProviderScopeCaptureDiff(capture.provider_diff)) {
+        fail("provider scope capture schema mismatch");
+    }
+    for (const entry of arrayField(capture, "provider_files")) {
+        if (!isProviderScopeCaptureFileEntry(entry)) {
+            fail("provider scope capture schema mismatch");
+        }
+    }
+}
+function isRepository(value) {
+    return /^[^/\s]+\/[^/\s]+$/u.test(value);
+}
+function isProviderScopeCaptureDiff(value) {
+    if (value === null || typeof value !== "object" || Array.isArray(value)) {
+        return false;
+    }
+    const diff = value;
+    return (hasExactKeys(diff, ["dialect", "content_base64"]) &&
+        [CANONICAL_GIT_DIFF_DIALECT, GITHUB_PROVIDER_DIFF_DIALECT].includes(stringField(diff, "dialect")) &&
+        isStrictBase64(stringField(diff, "content_base64")));
+}
+function isProviderScopeCaptureFileEntry(value) {
+    if (value === null || typeof value !== "object" || Array.isArray(value)) {
+        return false;
+    }
+    const entry = value;
+    const status = stringField(entry, "status");
+    return (hasExactKeys(entry, [
+        "path",
+        "status",
+        "previous_path",
+        "additions",
+        "deletions",
+        "changes",
+        "patch_base64",
+    ]) &&
+        isRepoPath(stringField(entry, "path")) &&
+        ["added", "modified", "removed", "renamed"].includes(status) &&
+        ((status === "renamed" &&
+            typeof entry.previous_path === "string" &&
+            isRepoPath(entry.previous_path)) ||
+            (status !== "renamed" && entry.previous_path === null)) &&
+        isNonNegativeInteger(entry.additions) &&
+        isNonNegativeInteger(entry.deletions) &&
+        isNonNegativeInteger(entry.changes) &&
+        numberField(entry, "changes") ===
+            numberField(entry, "additions") + numberField(entry, "deletions") &&
+        (entry.patch_base64 === null ||
+            (typeof entry.patch_base64 === "string" &&
+                isStrictBase64(entry.patch_base64))));
+}
+function isStrictBase64(value) {
+    if (value.length % 4 !== 0) {
+        return false;
+    }
+    if (!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/u.test(value)) {
+        return false;
+    }
+    return Buffer.from(value, "base64").toString("base64") === value;
+}
+function strictBase64Bytes(value, failure) {
+    if (!isStrictBase64(value)) {
+        fail(failure);
+    }
+    return Buffer.from(value, "base64");
+}
+function normalizedCaptureEntries(entries) {
+    return entries
+        .map((entry) => entry)
+        .sort(compareCaptureFileEntries);
+}
+function compareCaptureFileEntries(left, right) {
+    return captureFileEntryKey(left).localeCompare(captureFileEntryKey(right));
+}
+function captureFileEntryKey(entry) {
+    return fileEntryKeyFromParts({
+        path: stringField(entry, "path"),
+        previousPath: nullableStringField(entry, "previous_path"),
+        status: stringField(entry, "status"),
+    });
+}
+function validateNoDuplicateCaptureFileEntries(entries) {
+    const seen = new Set();
+    for (const entry of entries) {
+        const key = captureFileEntryKey(entry);
+        if (seen.has(key)) {
+            fail("provider scope capture contains duplicate file entries");
+        }
+        seen.add(key);
+    }
+}
+function providerEvidenceEntry(captureEntry) {
+    const patchBase64 = captureEntry.patch_base64;
+    return {
+        path: stringField(captureEntry, "path"),
+        status: stringField(captureEntry, "status"),
+        previous_path: nullableStringField(captureEntry, "previous_path"),
+        additions: numberField(captureEntry, "additions"),
+        deletions: numberField(captureEntry, "deletions"),
+        changes: numberField(captureEntry, "changes"),
+        patch_sha256: patchBase64 === null
+            ? null
+            : createHash("sha256")
+                .update(strictBase64Bytes(stringField(captureEntry, "patch_base64"), "provider patch bytes are invalid"))
+                .digest("hex"),
+        patch_available: patchBase64 !== null,
+    };
 }
 function normalizedEvidenceEntries(entries) {
     return entries.map((entry) => entry).sort(compareFileEntries);
@@ -2225,6 +2501,18 @@ async function assertReadableFile(label, file) {
         fail(`${label} missing or unreadable: ${file}`);
     }
 }
+async function assertWritableProviderScopeEvidenceTarget(file) {
+    validateDirectChildPath("provider scope evidence", file);
+    validateSuffix("provider scope evidence", file, "-provider-scope-evidence.json");
+    await assertEphemeralDirectory();
+    const target = await lstat(file).catch(() => null);
+    if (target?.isSymbolicLink()) {
+        fail(`provider scope evidence path must not be a symlink: ${file}`);
+    }
+    if (target !== null && !target.isFile()) {
+        fail(`provider scope evidence path exists but is not a regular file: ${file}`);
+    }
+}
 async function assertReadableReviewBodyFile(file) {
     validateReviewBodyPath(file);
     await assertEphemeralDirectory();
@@ -2314,6 +2602,11 @@ async function expectedProviderScopeEvidencePath(headSha) {
     const rawBranch = (await git(["rev-parse", "--abbrev-ref", "HEAD"])).trim();
     const branchSlug = rawBranch === "HEAD" ? "detached" : slugBranchForFindings(rawBranch);
     return `.ephemeral/${branchSlug}-${headSha}-provider-scope-evidence.json`;
+}
+async function expectedProviderScopeCapturePath(headSha) {
+    const rawBranch = (await git(["rev-parse", "--abbrev-ref", "HEAD"])).trim();
+    const branchSlug = rawBranch === "HEAD" ? "detached" : slugBranchForFindings(rawBranch);
+    return `.ephemeral/${branchSlug}-${headSha}-provider-scope-capture.json`;
 }
 function slugBranchForFindings(branchName) {
     const slug = branchName.replaceAll("/", "-").replace(/[^A-Za-z0-9._-]/gu, "");

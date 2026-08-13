@@ -145,6 +145,66 @@ resolve_validator() {
   fail "play-validate-review-artifacts validator missing"
 }
 
+runtime_from_dir() {
+  local script_path="$1"
+  local script_dir
+  script_dir="$(cd "$(dirname "$script_path")" && pwd)" || return 1
+  printf '%s\n' "$(cd "$script_dir/../.." && pwd)/devcanon-runtime/scripts/devcanon-runtime.sh"
+}
+
+resolve_runtime() {
+  local logical_candidate=""
+  local physical_source=""
+  local physical_candidate=""
+
+  if [ -n "${DEVCANON_RUNTIME_DIR:-}" ]; then
+    logical_candidate="$DEVCANON_RUNTIME_DIR/scripts/devcanon-runtime.sh"
+    [ -f "$logical_candidate" ] && [ -x "$logical_candidate" ] ||
+      fail "devcanon-runtime support skill missing"
+    printf '%s\n' "$logical_candidate"
+    return
+  fi
+
+  logical_candidate="$(runtime_from_dir "${BASH_SOURCE[0]}")" || true
+  if [ -n "$logical_candidate" ] && [ -f "$logical_candidate" ] && [ -x "$logical_candidate" ]; then
+    printf '%s\n' "$logical_candidate"
+    return
+  fi
+
+  physical_source="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/$(basename "${BASH_SOURCE[0]}")"
+  physical_candidate="$(runtime_from_dir "$physical_source")" || true
+  if [ -n "$physical_candidate" ] && [ -f "$physical_candidate" ] && [ -x "$physical_candidate" ]; then
+    printf '%s\n' "$physical_candidate"
+    return
+  fi
+
+  fail "devcanon-runtime support skill missing"
+}
+
+validate_provider_scope_capture_path() {
+  local file="$1"
+  validate_direct_child_path "provider scope capture" "$file" "-provider-scope-capture.json"
+  [ -f "$file" ] && [ ! -L "$file" ] ||
+    fail "provider scope capture missing or not a regular file: $file"
+}
+
+write_provider_scope_evidence() {
+  local capture runtime contract
+  require_repo_root
+  validate_head_sha
+  require_env PROVIDER_SCOPE_CAPTURE_FILE
+  capture="$PROVIDER_SCOPE_CAPTURE_FILE"
+  validate_provider_scope_capture_path "$capture"
+  runtime="$(resolve_runtime)"
+  contract="$("$runtime" runtime pr-review-provider-scope-evidence contract)" ||
+    fail "provider scope evidence runtime contract check failed"
+  [ "$contract" = '{"command_group":"pr-review-provider-scope-evidence","major_version":1}' ] ||
+    fail "provider scope evidence runtime contract is incompatible"
+  "$runtime" runtime pr-review-provider-scope-evidence write \
+    --head-sha "$HEAD_SHA" \
+    --capture-file "$capture"
+}
+
 prepare_prior_threads_write() {
   local file
   require_repo_root
@@ -247,10 +307,13 @@ case "$command_name" in
   prepare-provider-scope-evidence-write)
     prepare_provider_scope_evidence_write
     ;;
+  write-provider-scope-evidence)
+    write_provider_scope_evidence
+    ;;
   validate-scope-decision)
     validate_scope_decision
     ;;
   *)
-    fail "usage: prior-thread-artifacts.sh prepare-prior-threads-write|validate-prior-threads|prepare-scope-decision-write|prepare-provider-scope-evidence-write|validate-scope-decision"
+    fail "usage: prior-thread-artifacts.sh prepare-prior-threads-write|validate-prior-threads|prepare-scope-decision-write|prepare-provider-scope-evidence-write|write-provider-scope-evidence|validate-scope-decision"
     ;;
 esac

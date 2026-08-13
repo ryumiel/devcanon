@@ -208,6 +208,41 @@ async function providerScopeEvidence(
   };
 }
 
+async function providerScopeCapture(
+  cwd: string,
+  baseSha: string,
+  headSha: string,
+) {
+  const patch = await canonicalGitDiffRaw(cwd, `${baseSha}..${headSha}`, [
+    "src/app.ts",
+  ]);
+  const fullDiff = await canonicalGitDiffRaw(cwd, `${baseSha}..${headSha}`);
+  return {
+    schema: "pr-review/provider-scope-capture/v1",
+    provider: "github",
+    repository: "owner/repo",
+    pr_number: 390,
+    baseRefOid: baseSha,
+    headRefOid: headSha,
+    evidence_complete: true,
+    provider_files: [
+      {
+        path: "src/app.ts",
+        status: "added",
+        previous_path: null,
+        additions: 1,
+        deletions: 0,
+        changes: 1,
+        patch_base64: Buffer.from(patch).toString("base64"),
+      },
+    ],
+    provider_diff: {
+      dialect: CANONICAL_GIT_DIFF_DIALECT,
+      content_base64: Buffer.from(fullDiff).toString("base64"),
+    },
+  };
+}
+
 async function writeInitialScope(
   cwd: string,
   baseSha: string,
@@ -321,6 +356,34 @@ async function copyInstalledPrAdapter(root: string) {
 }
 
 describe.skipIf(!jqAvailable)("pr-review prior-thread adapter", () => {
+  it("produces provider scope evidence through the compatible distinct runtime route", async () => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    const capturePath = `.ephemeral/topic-${headSha}-provider-scope-capture.json`;
+    try {
+      await writeJson(
+        cwd,
+        capturePath,
+        await providerScopeCapture(cwd, baseSha, headSha),
+      );
+      await expect(
+        runHelper(cwd, helperScript, "write-provider-scope-evidence", {
+          HEAD_SHA: headSha,
+          PROVIDER_SCOPE_CAPTURE_FILE: capturePath,
+        }),
+      ).resolves.toMatchObject({
+        stdout: `${providerScopePath(headSha)}\n`,
+        stderr: "",
+      });
+      await expect(
+        readFile(path.join(cwd, capturePath), "utf8"),
+      ).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
   it("preserves prepare and validate commands in the source skill layout", async () => {
     const { cwd, baseSha, headSha } = await makeGitWorkspace();
     try {

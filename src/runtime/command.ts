@@ -10,7 +10,10 @@ import { runPlayReviewSharedContextCommand } from "./play-review-shared-context.
 import { runPrMergeWorktreeCommand } from "./pr-merge-worktree.js";
 import { runPrReviewLeasesCommand } from "./pr-review-leases.js";
 import { runPrReviewManifestsCommand } from "./pr-review-manifests.js";
-import { runReviewArtifactsCommand } from "./review-artifacts.js";
+import {
+  runPrReviewProviderScopeEvidenceCommand,
+  runReviewArtifactsCommand,
+} from "./review-artifacts.js";
 import { runSourceImmutabilityCommand } from "./source-immutability.js";
 
 export const RUNTIME_COMMAND_CONTRACT = {
@@ -41,6 +44,8 @@ export async function runRuntimeCommand(
         return validateJson(rest);
       case "review-artifacts":
         return await runReviewArtifactsCommand(rest);
+      case "pr-review-provider-scope-evidence":
+        return await runPrReviewProviderScopeEvidenceCommand(rest);
       case "play-review-shared-context":
         return await runPlayReviewSharedContextCommand(rest);
       case "issue-worktree-setup":
