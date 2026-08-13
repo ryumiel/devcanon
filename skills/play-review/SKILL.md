@@ -199,8 +199,8 @@ durable artifact boundary is allowed.
 
 Contract-example discipline:
 
-- Valid: a Code-quality reviewer completes all checks and returns `COMPLETE_WITH_FINDINGS` with checks, report, and count; the controller captures it before cleanup; after all selected topical routes settle, blockers lead to D10 and zero blockers lead to `critic_not_required: zero blockers`.
-- Invalid single-dimension cases: a nonterminal observation presented as a child result; a completed disposition without completed-check evidence; cleanup or supersession before capture; early D10 while a selected reviewer lacks terminal capture or controller-observed failure; or D10 spawned for zero blockers.
+- Valid: a Code-quality reviewer completes all checks and returns `COMPLETE_WITH_FINDINGS` with checks, report, and count; the controller captures it before cleanup; after all selected topical routes settle, findings lead to D10 and zero combined inputs lead to `critic_not_required: zero findings`.
+- Invalid single-dimension cases: a nonterminal observation presented as a child result; a completed disposition without completed-check evidence; cleanup or supersession before capture; early D10 while a selected reviewer lacks terminal capture or controller-observed failure; or D10 spawned for zero combined inputs.
 
 Risk-triggered reviewers fail closed: `Architecture` and `Spec` are risk-triggered by the active diff and full-PR routing summary in `references/reviewer-routing-policy.md`. If either classification is ambiguous, spawn the relevant reviewer. Tiny-diff is the only exception, after all Phase 2.75 checks pass. Full-PR checks apply even with an incremental active diff; `is_followup_narrow` may suppress a route only through those fail-closed overrides, and a path-only empty list cannot override semantic risk—use mechanical path-signal evidence and semantic classification notes.
 
@@ -237,6 +237,18 @@ disposition in the findings envelope's `incomplete_topical_routes[]`. This is
 durable approval evidence, not a finding: it is not aggregated, posted, or
 given to D10, but it must prevent branch-review approval until no selected
 topical route is incomplete.
+
+Every selected D7-D9 prompt also carries the common candidate-admission filter
+in `references/agent-briefing-template.md`. It applies before emission without
+replacing a route's distinct question or Phase 4 sub-checks: a blocker needs a
+supported reachable current-diff consequence or an actual breach of an
+applicable repository-owned obligation, and must independently cross that
+repository's merge gate. Suppress
+proof-for-proof, hypothetical or unknown-consumer, preference-only,
+over-engineered, already-addressed, and premise-requiring claims. A breach of
+an applicable architecture, documentation, safety, or consumer-owned-test
+obligation remains eligible even without one executable path; a real current
+concern below the merge gate is not thereby false.
 
 Resolve `PLAY_REVIEW_DIR` to the loaded or installed `play-review` skill bundle,
 resolve `SOURCE_IMMUTABILITY_HELPER` to
@@ -304,7 +316,8 @@ sub-checks. Keep this eager routing summary:
 
 - Architecture reviewer: evaluate AFDS v2 ADR-coverage for durable
   architectural decisions; use Documentation findings for missing ADR/MAP/arch
-  coverage.
+  coverage only when an applicable authoritative consumer-repository policy
+  requires that coverage.
 - Code-quality reviewer: run Substitution audit, Documented-behavior
   verification, data-safety, language quality, and tests checks. Reject
   duplicate proof requests when the invariant is already tested at its
@@ -312,9 +325,12 @@ sub-checks. Keep this eager routing summary:
 - Spec reviewer: run Within-document identifier drift, Cross-document
   identifier drift, and documentation guidance checks.
 
-Durable decision + new covering `docs/adr/adr-NNNN-*.md` added: pass. Durable
-decision + existing covering ADR modified: pass. Durable decision + no
-new/modified covering ADR: emit a `Blocking | Documentation` finding.
+When an applicable authoritative consumer-repository policy requires ADR
+coverage for a durable decision, a new covering `docs/adr/adr-NNNN-*.md` or a
+modified existing covering ADR satisfies the obligation. A durable decision
+without that coverage is then a `Blocking | Documentation` finding for the
+actual policy breach. Otherwise, discover and assess ADR coverage without
+inventing a workflow-owned ADR obligation or a finding.
 
 Substitution audit and documented-behavior verification findings are
 judgment-required and wrappers' auto-fix paths must not auto-fix them. Spec
@@ -327,13 +343,26 @@ Critic eligibility is a terminal topical fanout gate: start D10 only after every
 selected topical route has captured an allowed terminal child result or
 controller-observed orchestration failure. Successful sibling findings remain
 usable in partial fanout while final output names missing or incomplete sessions.
-`input_blocker_count` is the combined count of current merged blockers plus
-unresolved prior blocking carry-forward candidates. The
-`critic_not_required: zero blockers` shortcut applies only when that combined
-count is zero; otherwise D10 may start under the existing verification policy
-below. A follow-up with zero new blockers and one unresolved prior blocking
-carry-forward candidate therefore has `input_blocker_count` of one and must
-spawn D10.
+`input_finding_count` is the combined count of all current merged findings
+(blockers and Nits) plus unresolved prior blocking carry-forward candidates.
+The `critic_not_required: zero findings` shortcut applies only when that
+combined count is zero; otherwise D10 may start under the existing verification
+policy below. A follow-up with zero new findings and one unresolved prior
+blocking carry-forward candidate therefore has `input_finding_count` of one and
+must spawn D10.
+
+For this controller invocation, retain one closed, private
+`critic_verification_run_outcome` for the invoking wrapper. Set it only after
+the applicable D10 lifecycle decision: `completed-verification` after safely
+cleaned, verified, semantically valid D10 verdicts are applied;
+`unavailable-fallback` after the ordinary unverified-critic fallback is chosen;
+or `not-required-zero-input` after the zero-input shortcut. This is
+controller-local invocation state, discarded with the controller; it is not a
+fourth public output, rendered representation, findings-envelope field, or
+durable artifact. Guard-integrity terminal cases remain terminal and set no
+outcome. Make the closed outcome available only to the invoking wrapper, which
+must preserve it without inferring it from a final Nit's `critic: null` value
+or rendered prose.
 
 Before spawning the critic agent, run the `subagent-lifecycle` cleanup gate for
 completed or superseded reviewer sessions, preserving target-honest cleanup
@@ -353,21 +382,72 @@ only under the guarded sequence below, with all findings merged. The D10 child
 is a leaf and cannot recurse: it must
 never spawn another critic or reviewer, and its prompt grants no recursive
 review dispatch. The critic reads actual code in `working_directory` and tags
-each blocking finding `VALID`, `INVALID`, or `DOWNGRADE`. Treat every concrete
-reference as a literal claim, not illustrative rhetoric: verify cited
+each current blocker `VALID`, `INVALID`, or `DOWNGRADE`, and each current Nit
+`RETAIN` or `INVALID`. Treat every concrete reference as a literal claim, not
+illustrative rhetoric: verify cited
 `file:line`, identifiers, commands, commit SHAs, and PR numbers by opening the
 cited artifact. Tag INVALID if the artifact does not exist or does not contain
 the cited text. See `references/critic-rationale.md`.
 
+The controller's D10 handoff is structural only. For each current merged
+finding, it adds a stable ordinal and otherwise passes the complete finding
+unchanged. The unchanged `why` is the original claim D10 must falsify; no
+separate `assertion` field, second handoff schema, or findings-envelope schema
+extension exists.
+It must not paraphrase, strengthen, repair, add evidence or premises, or supply
+a disposition hint. Carry-forward candidates retain their existing content and
+are not assigned current-finding ordinals. D10 receives repository authority
+source references to reread, never controller-authored facts, conclusions, or
+alternative remediation; the controller does not restate repository evidence in
+the handoff.
+
+D10 is falsification-first for every current finding: seek counterevidence at
+the captured reviewed head, then verify literal references and assess the
+unchanged `why`. A blocker must establish either a reachable current-diff
+consequence or an actual breach of an applicable authoritative repository
+obligation, then independently cross the merge gate. `VALID` means the original
+blocker claim survives those checks and crosses that gate; `DOWNGRADE` means a
+real current issue or actual obligation breach remains but does not cross it.
+
+A Nit is admitted as a real, supported current issue that does not cross the
+merge gate; D10 actionability-checks it without promoting it. `RETAIN` means
+that Nit remains actionable and nonblocking. `INVALID` means no actionable
+current issue or actual obligation breach remains for either severity, including
+an unsupported hypothetical, already-addressed concern, preference-only
+over-engineering, proof-for-proof request with no consumer-owned gap, or claim
+needing added premises. A retained Nit stays `severity: "Nit"` with
+`critic: null` in the final envelope. Missing required workflow input retains
+the existing `NEEDS_CONTEXT` route; an incomplete candidate is not repaired by
+the controller.
+
+Only after every current finding has an independent outcome, D10 may identify
+true current duplicates. A group requires the same supported reachable
+consequence or the same violated obligation, plus the same remediation,
+effective anchor, and compatible severity/outcome class. A group never mixes a
+Nit with a blocker or mixes blocker verdicts; ambiguity, a shared root cause,
+or any other difference preserves separate findings. Only within a compatible
+class does D10 retain the lowest stable current-finding ordinal as the transient
+representative. `RETAIN` Nits may collapse with duplicate `RETAIN` Nits;
+`VALID` blockers retain a `VALID` representative and cannot disappear through
+deduplication. Every input preserves its own outcome, and `INVALID` behavior
+remains unchanged. D10 never groups carry-forward candidates, whose existing
+resolution or unresolved outcomes and cardinality remain unchanged. The existing
+D10 response therefore has one outcome for every input plus a transient
+retained-current selection; the controller consumes that selection before
+writing the unchanged findings/v2 envelope and does not regroup candidates.
+This is retention, not truth calibration, creates no schema, field, registry,
+or artifact, and does not let Phase 5.5 merge findings or alter the envelope.
+
 Cardinality invariant: for a legitimately spawned D10 that returns a completed
-critic result, `input_blocker_count` is greater than zero and its combined
-outcome count equals `input_blocker_count`. It returns one unique critic verdict
+critic result, `input_finding_count` is greater than zero and its combined
+outcome count equals `input_finding_count`. It returns one unique critic outcome
 or carry-forward verification for every combined input: `VALID`, `INVALID`, or
-`DOWNGRADE` for each current merged blocker, and a resolution or unresolved
-verification for each prior blocking carry-forward candidate. The combined
-outcome vector is therefore nonempty. `COMPLETE_NO_FINDINGS` is unreachable for
-a spawned D10. If every current merged blocker is `INVALID` or `DOWNGRADE`, or
-every combined input is an unresolved carry-forward candidate, D10 still returns
+`DOWNGRADE` for each current blocker; `RETAIN` or `INVALID` for each current
+Nit; and a resolution or unresolved verification for each prior blocking
+carry-forward candidate. The combined outcome vector is therefore nonempty.
+`COMPLETE_NO_FINDINGS` is unreachable for a spawned D10. If every current
+finding is `INVALID`, `DOWNGRADE`, or a retained Nit, or every combined input is
+an unresolved carry-forward candidate, D10 still returns
 `COMPLETE_WITH_FINDINGS` because its combined outcome vector is nonempty.
 
 The D10 prompt must say: “Immediately after the required checks, return exactly
@@ -418,17 +498,24 @@ terminal before applying critic state or writing final output. Only after source
 mutation has been ruled out and exact cleanup succeeds is verification rejection
 ordinary. A verified, semantically valid critic `NEEDS_CONTEXT` or `FAILED`
 retains its required missing-context or failure and completed-partial-check
-diagnostics in the final report while contributing no verdicts. A timeout,
+diagnostics in the final report while contributing no verdicts and uses the
+unverified-critic fallback. A timeout,
 nonreturn, controller-observed failure, malformed response, semantic rejection,
 or ordinary verification rejection rejects the critic response and uses the
 unverified-critic fallback. A failed, invalid, malformed, or
 verification-rejected critic response contributes no verdicts. After safe
 cleanup, preserve the existing fallback: report the retained topical findings
-without critic verdicts and mark them unverified.
+without critic verdicts and mark them unverified, then set
+`critic_verification_run_outcome` to `unavailable-fallback`. A successfully
+verified D10 result is `completed-verification` only after its verdicts are
+applied; the zero-input shortcut is `not-required-zero-input` only after that
+shortcut is selected.
 Detected source mutation or cleanup failure is guard-integrity terminal: leave
 the source state visible, stop before applying critic state or writing final
 output, and never reset, check out, stage, repair, or otherwise hide source.
-Nits continue to skip critic verification.
+Current Nits are included in critic verification as transient `RETAIN` or
+`INVALID` outcomes; D10 never promotes them and the final retained Nit has
+`critic: null`.
 
 **Carry-forward (follow-up only):** GitHub `prior_threads` retain their existing
 blocking-only semantics. When validated `prior_branch_findings` is provided,
@@ -437,8 +524,9 @@ proportionality-withheld Nits, and applicable `DOWNGRADE` outcomes against the
 new code in `working_directory`. Carry each still-unresolved eligible branch
 finding forward in `## Carry-forward` and `carry_forward[]`; exclude `INVALID`,
 resolved, and auto-fixed entries. Preserve `carry_forward[]` from the validated
-envelope unchanged unless re-verification proves resolution. Nits remain out of
-critic cardinality and root-cause synthesis.
+envelope unchanged unless re-verification proves resolution. Carry-forward Nits
+remain out of critic cardinality and root-cause synthesis; current Nits are in
+critic cardinality but remain out of root-cause synthesis.
 
 ## Phase 5.5: Finding Pattern Synthesis
 

@@ -337,6 +337,10 @@ side-channel `play-review/findings/v2` envelope file at
 `Findings written to <path>.` notice. The detailed envelope and transport
 contract lives in `skills/play-review/references/findings-envelope-contract.md`;
 `skills/play-review/SKILL.md` owns the workflow and notice-line hook.
+Preserve the private controller-local `critic_verification_run_outcome` from
+this exact `play-review` invocation in wrapper-local state. It is a closed
+run-level fact, not a findings-envelope field or public output; do not infer it
+from rendered prose or a Nit's `critic: null` value.
 
 In `--fix` mode, `branch-review --fix` owns fixable review feedback, including
 objectively fixable nit-severity findings. Capture the Phase 2 `head_sha` and
@@ -432,6 +436,18 @@ Branch review is a local surface: no GitHub posting, no `{{tool:github-cli}}` co
 `build-github-review-payload` must refuse this surface.
 
 **With `--fix` (autonomous mode, used by `issue-priming-workflow --auto`):**
+
+Before any current Nit enters the existing qualification, proportionality,
+fixable-nit grouping, or fix-unit construction sequence, require the preserved
+`critic_verification_run_outcome` to be exactly `completed-verification`.
+`unavailable-fallback`, missing, or ambiguous state withholds every current Nit
+from autonomous mutation: retain each in the existing non-mutating,
+judgment-required caller handoff and identify it as unverified. Do not infer a
+completed outcome from `critic: null`, and do not let this withholding alter
+blocker handling, carry-forward, approval summaries, duplicate retention, or
+the existing stop-rule sequence. The zero-input `not-required-zero-input`
+outcome has no current Nit to authorize; if one is nevertheless present, fail
+closed and keep it in that same unverified non-mutating handoff.
 
 Before the per-fix-unit auto-fix loop, filter findings tagged
 `Critic: INVALID` out of auto-fix eligibility; note them in the report but do

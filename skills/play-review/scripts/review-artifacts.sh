@@ -503,7 +503,7 @@ render_entry() {
   start_line="$(jq -r '.start_line' <<<"$entry_json")"
   severity="$(jq -r '.severity' <<<"$entry_json")"
   category="$(jq -r '.category' <<<"$entry_json")"
-  critic="$(jq -r 'if .critic != null then .critic elif .severity == "Nit" then "(skipped — nit)" else "(unverified — critic unavailable)" end' <<<"$entry_json")"
+  critic="$(jq -r 'if .critic != null then .critic elif .severity == "Nit" then "(not recorded)" else "(unverified — critic unavailable)" end' <<<"$entry_json")"
   anchor="$(jq -r '.anchor' <<<"$entry_json")"
   body="$(jq -r '.body' <<<"$entry_json")"
   if [ "${REVIEW_SURFACE:-}" = "pr-review" ] && [ "$anchor" = "missing-file" ]; then

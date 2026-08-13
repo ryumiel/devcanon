@@ -7,16 +7,52 @@ and live here to keep `SKILL.md` lean.
 
 ## Sub-check 1: Substitution audit — worked example
 
-Worked example: a diff replaces `git branch -d` with `git branch -D` to silence a spurious squash-merge warning. The OLD primitive's safety properties include rejecting deletion when the branch has unmerged commits relative to its upstream and HEAD. The NEW primitive (`-D`) accepts unconditionally, and the diff adds no surrounding guard. Verdict: SILENTLY DROPS the unmerged-commit rejection — `Blocking | Safety`, with the recommendation to add a tip-equality check (local tip == PR head OID) before `-D` runs.
+Worked example: a diff replaces `git branch -d` with `git branch -D` to
+silence a spurious squash-merge warning. The OLD primitive's safety properties
+include rejecting deletion when the branch has unmerged commits relative to its
+upstream and HEAD. The NEW primitive (`-D`) accepts unconditionally, and the
+diff adds no surrounding guard. Verdict: SILENTLY DROPS the unmerged-commit
+rejection as a `Safety` candidate. If the supported candidate or applicable
+breach crosses the repository merge gate, emit `Blocking | Safety`; if it is a
+real supported issue below that gate, emit `Nit | Safety`; otherwise emit no
+finding. When a finding is emitted, recommend adding a tip-equality check
+(local tip == PR head OID) before `-D` runs.
 
 ## Sub-check 2: Documented-behavior verification — worked example
 
-Worked example: a diff adds a `gh api repos/{owner}/{repo}/pulls/<N>/reviews` invocation that mixes `-f commit_id=...`, `-f event=...`, `-f body=...` with `--input <file>`. The `Code-quality` reviewer reads `gh api --help` and identifies that when `--input` is supplied, sibling `-f` flags become URL query parameters, not body fields — so `commit_id`, `event`, and `body` are silently dropped from the POST body. Verdict: DOCUMENTED-BEHAVIOR MISMATCH — `Blocking | Contracts`, with the recommendation to build the entire payload inside `jq -n` so all fields land in the JSON body.
+Worked example: a diff adds a `gh api repos/{owner}/{repo}/pulls/<N>/reviews`
+invocation that mixes `-f commit_id=...`, `-f event=...`, `-f body=...` with
+`--input <file>`. The `Code-quality` reviewer reads `gh api --help` and
+identifies that when `--input` is supplied, sibling `-f` flags become URL query
+parameters, not body fields — so `commit_id`, `event`, and `body` are silently
+dropped from the POST body. Verdict: DOCUMENTED-BEHAVIOR MISMATCH as a
+`Contracts` candidate. If the supported candidate or applicable breach crosses
+the repository merge gate, emit `Blocking | Contracts`; if it is a real
+supported issue below that gate, emit `Nit | Contracts`; otherwise emit no
+finding. When a finding is emitted, recommend building the entire payload
+inside `jq -n` so all fields land in the JSON body.
 
 ## Spec reviewer — Sub-check A: Within-document identifier drift — illustrative scenario
 
-Illustrative scenario: a single `.md` file describes a worktree-cleanup procedure where the prose narrates "`git worktree prune` removes the directory" while the adjacent code block invokes `git worktree remove <path>`. The two identifiers diverged across review rounds — code was updated; prose was not. Sub-check A flags this as `Blocking | Documentation`, with the recommendation "the code block is canonical; rewrite prose to match."
+Illustrative scenario: a single `.md` file describes a worktree-cleanup
+procedure where the prose narrates "`git worktree prune` removes the directory"
+while the adjacent code block invokes `git worktree remove <path>`. The two
+identifiers diverged across review rounds — code was updated; prose was not.
+Sub-check A treats this as a `Documentation` candidate. If the supported
+candidate or applicable breach crosses the repository merge gate, emit
+`Blocking | Documentation`; if it is a real supported issue below that gate,
+emit `Nit | Documentation`; otherwise emit no finding. When a finding is
+emitted, and the code block is canonical, recommend rewriting prose to match.
 
 ## Spec reviewer — Sub-check B: Cross-document identifier drift — illustrative scenario
 
-Illustrative scenario (hypothetical): suppose a diff to one skill adds prose explicitly calling out that `gh api -f <field>=<value>` combined with `--input <file>` is broken because `-f` arguments become URL query parameters when `--input` is supplied. Sub-check B greps the corpus for the broken pattern. Any unchanged sibling files still demonstrating it would each be flagged as a blocking, out-of-diff finding.
+Illustrative scenario (hypothetical): suppose a diff to one skill adds prose
+explicitly calling out that `gh api -f <field>=<value>` combined with
+`--input <file>` is broken because `-f` arguments become URL query parameters
+when `--input` is supplied. Sub-check B greps the corpus for the broken
+pattern. Each unchanged sibling file still demonstrating it is a
+`Documentation` candidate that remains report-only, out-of-diff, and
+judgment-required. If the supported candidate or applicable breach crosses the
+repository merge gate, emit `Blocking | Documentation`; if it is a real
+supported issue below that gate, emit `Nit | Documentation`; otherwise emit no
+finding.

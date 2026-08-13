@@ -2,7 +2,27 @@
 
 ## Status
 
-Accepted. Followed up by [ADR-0009](adr-0009-review-pipeline-consolidation.md), which closes the deferred wrapper-refactor cycle and the Sub-check B asymmetry called out in Consequences.
+Partially superseded by
+[ADR-0034](adr-0034-calibrated-review-findings-and-duplicate-retention.md) for
+the current ADR-coverage gate policy; accepted history for AFDS v2
+routing/discovery enforcement and pipeline integration. Followed up by
+[ADR-0009](adr-0009-review-pipeline-consolidation.md), which closes the
+deferred wrapper-refactor cycle and the Sub-check B asymmetry called out in
+Consequences.
+
+## Current-policy note
+
+ADR-0034 supersedes only this record's unconditional ADR-coverage gate: Decision
+item 5 and the Consequences claim that ADR coverage is always an enforced review
+gate. A missing ADR is currently `Blocking | Documentation` only when it is an
+actual breach of an applicable authoritative consumer-repository policy;
+`play-review` does not create an independent workflow-owned ADR requirement.
+
+The routing and discovery decisions remain accepted: the pipeline still gathers
+documentation-impact context, routes durable-decision risk to Architecture, and
+checks ADR coverage when the consumer repository makes it applicable. The
+following Context and Decision prose records the historical unconditional gate
+that ADR-0034 narrowed; it is not current policy.
 
 ## Context
 

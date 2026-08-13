@@ -23,6 +23,36 @@ review modes:
 Severity is the merge gate. Review skills, prompts, and human reviewers should
 all treat `Blocking` vs `Nit` as the primary decision boundary.
 
+### Finding Admission and Retention
+
+This DevCanon-local guideline owns the repository's review judgment: a
+blocking finding must identify a current issue supported by either a reachable
+current-diff consequence or an actual breach of an applicable repository
+obligation, and must independently cross the repository's merge gate. Mere
+obligation applicability is not a finding. A real, supported current issue or
+actual obligation breach that does not cross the merge gate is a `Nit`, not a
+blocker; it remains eligible for retention. Findings that depend on hypothetical
+consumers, new premises, preference-only design, proof-for-proof, or
+over-engineering are invalid unless they establish that support.
+
+Judge every candidate independently before retaining duplicates. Retain one
+representative only when candidates have the same compatible severity/outcome
+class, remediation and effective anchor, and the same supported reachable
+consequence or the same violated obligation. Retain the lowest stable ordinal
+only within that compatible group. Different, ambiguous, or mixed classes remain
+separate; in particular, a `VALID` blocker must retain a `VALID`
+representative, while duplicate retained Nits may consolidate.
+
+[`play-review`](../../skills/play-review/SKILL.md) operationalizes this judgment
+for consumer repositories. It sends every current candidate through retention:
+blockers receive `VALID`, `DOWNGRADE`, or `INVALID`; Nits receive transient
+`RETAIN` or `INVALID` without severity promotion, and retained final Nits keep
+`critic: null`. It must preserve this decision boundary and its existing
+`play-review/findings/v2` schema; it does not become a second owner of
+DevCanon-local review policy. In particular, the consumer repository owns
+whether ADR coverage is an applicable obligation; `play-review` discovers and
+checks that policy when present but does not invent an independent ADR gate.
+
 ### Categories
 
 - **Logic**: incorrect behavior, missing guards, wrong control flow, bad
@@ -77,7 +107,8 @@ A test-coverage finding must identify:
 
 If the finding only asks a transparent consumer to repeat owner-level proof, it
 is invalid. If it asks for exhaustive primitive-failure injection without a
-concrete acceptance, safety, or production regression, it is nonblocking.
+concrete acceptance, safety, or production regression, it is invalid. A
+supported current test-design issue that stays below the merge gate is a Nit.
 
 Examples:
 

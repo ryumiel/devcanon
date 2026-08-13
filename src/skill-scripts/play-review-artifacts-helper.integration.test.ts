@@ -304,7 +304,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
       expect(preview.stdout).toContain(`Findings file: ${findingsFile}`);
       expect(preview.stdout).toContain("## Findings");
       expect(preview.stdout).toContain("## Carry-forward");
-      expect(preview.stdout).toContain("- **Critic:** (skipped — nit)");
+      expect(preview.stdout).toContain("- **Critic:** (not recorded)");
       expect(preview.stdout).toContain("// src/review-target.ts:3-5");
       expect(preview.stdout).toContain("  const second = 2;");
       expect(preview.stdout).not.toContain("working tree content");
@@ -627,7 +627,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
 
       expect(stdout).toContain("## Findings");
       expect(stdout).toContain("src/review-target.ts");
-      expect(stdout).toContain("- **Critic:** (skipped — nit)");
+      expect(stdout).toContain("- **Critic:** (not recorded)");
       expect(stdout).toContain(
         "- **Critic:** (unverified — critic unavailable)",
       );
