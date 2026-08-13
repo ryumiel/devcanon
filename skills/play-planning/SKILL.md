@@ -242,7 +242,7 @@ tier selection and detailed readiness.
 For behavior- or contract-changing work, consume the approved design's
 ownership topology and expose its tier-appropriate mapping in the plan. `FULL`
 tasks require exhaustive topology, including the normative owner, optional
-non-overlapping supporting partitions, consumption modes, conflict precedence,
+non-overlapping supporting partitions, topology roles, conflict precedence,
 task coverage, and verification owner. A family-local authority requires
 additional complete or necessary topology only when it explicitly governs the
 ownership-topology mapping. `LIGHTWEIGHT` compact topology still names every
@@ -260,11 +260,12 @@ planning instead of adding a synchronized restatement. Repeated detail does not
 make a reference or summary normative, verification does not define policy,
 and generated skill packages remain derived consumers rather than edit targets.
 
-For every plan with affected surfaces, produce exactly one exhaustive plan-local
-`## Execution Projection` required by the canonical criteria. Apply that
-reference's entry, grouping, cross-view, and task-linkage rules; do not create a
-persistent schema, registry, or second policy owner. Invalid or unresolved
-projection facts block plan handoff.
+For every executable plan, produce exactly one exhaustive
+plan-local `## Execution Projection` with the exact heading required by the
+canonical criteria. Load the criteria for the relationship-based role grammar,
+grouping, proof-task union, and task-linkage rules; do not create a persistent
+schema, registry, or second policy owner. Invalid or unresolved producer facts
+block plan handoff.
 
 For generated artifacts, derived artifacts, helper I/O files, `.ephemeral`
 handoffs, cross-skill handoffs, or side-channel data, plan against the
@@ -392,9 +393,10 @@ criterion: <explicit inclusion rule>`
 
 **Authority surfaces:** <which source files, contracts, schemas, helpers, renderers, install/sync flows, or policies own the behavior; generated outputs are derived evidence, not authority>
 
-**Execution Projection references:** <every applicable projection Entry ID
-whose task/no-code disposition names this Task ID; or `None — no projection
-entry names this task`. Required whenever the plan has an Execution Projection.>
+**Execution Projection references:** <every applicable projection Entry ID in
+this Task ID's exact implementation-and-proof-owner union; or `None — no
+projection entry names this task`. Required whenever the plan has an Execution
+Projection.>
 
 Include exactly one of the following tier-specific blocks and delete the other
 two.
@@ -645,7 +647,7 @@ Review in this order:
 
 For `FULL`, also confirm that every ownership topology row has complete task and
 proof coverage and that no task asks an implementer to choose an owner,
-supporting partition, consumption mode, precedence, or verification owner. When
+supporting partition, topology role, precedence, or verification owner. When
 a family-local authority governs ownership topology, confirm its additional
 complete or necessary topology detail. For `LIGHTWEIGHT`, confirm the compact
 record does not leave any actual known participant, direct relationship,
@@ -770,9 +772,9 @@ findings. A reviewer may report a shared-fact contradiction only by naming the
 concrete defect it causes in that reviewer's own remit.
 
 For execution-projection grouping or normalization, require the canonical
-criteria's concrete omitted-or-ambiguous owner, consumer, task/no-code,
-proof, execution-input, or safety-boundary consequence before accepting a
-blocking gap. A requested table shape or duplicate restatement alone is
+criteria's concrete omitted-or-ambiguous relationship role, consumer,
+task/no-code, proof, execution-input, or safety-boundary consequence before
+accepting a blocking gap. A requested table shape or duplicate restatement alone is
 FOLLOW-UP or OPTIONAL. D6 additionally names the concrete task-local
 startability defect; it does not turn D5 coverage preference into an execution
 gap.
@@ -1057,7 +1059,7 @@ own remit; the shared fact alone does not transfer ordinary finding ownership.
 The reviewer must not broaden the Scope Envelope or proof obligations. Apply
 minimum-sufficient proof.
 
-For a task-owned Execution Projection reference, D6 checks only whether a
+For a task-relevant Execution Projection reference, D6 checks only whether a
 missing, duplicate, ambiguous, or semantically mismatched resolution leaves
 that named task without curated inputs needed to start. It does not originate a
 grouping, normalization, consumer-coverage, or table-shape objection without
