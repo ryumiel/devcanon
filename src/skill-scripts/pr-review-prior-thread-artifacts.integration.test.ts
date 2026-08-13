@@ -136,6 +136,24 @@ async function materializeRawGithubCapture(
   });
 }
 
+async function runRawGithubCaptureMaterializer(
+  cwd: string,
+  capturePath: string,
+  captureTmpPath: string,
+  inputs: { prPath: string; filesPath: string; diffPath: string },
+  headSha: string,
+) {
+  return runHelper(cwd, helperScript, "materialize-provider-scope-capture", {
+    HEAD_SHA: headSha,
+    PROVIDER_SCOPE_CAPTURE_FILE: path.relative(cwd, capturePath),
+    PROVIDER_SCOPE_CAPTURE_TMP_FILE: captureTmpPath,
+    PROVIDER_SCOPE_CAPTURE_PR_FILE: inputs.prPath,
+    PROVIDER_SCOPE_CAPTURE_FILES_FILE: inputs.filesPath,
+    PROVIDER_SCOPE_CAPTURE_DIFF_FILE: inputs.diffPath,
+    PR_REPOSITORY: "owner/repo",
+  });
+}
+
 async function canonicalGitDiffRaw(
   cwd: string,
   range: string,
@@ -1017,6 +1035,219 @@ describe("provider-scope capture materializer guards", () => {
       await expect(readFile(capturePath, "utf8")).rejects.toMatchObject({
         code: "ENOENT",
       });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it.each([
+    {
+      name: "an outside scratch directory",
+      scratchPath: (cwd: string, root: string) =>
+        path.join(root, "provider-scope-capture.outside"),
+      createScratch: async (cwd: string, root: string) =>
+        mkdir(path.join(root, "provider-scope-capture.outside")),
+    },
+    {
+      name: "a traversal scratch directory",
+      scratchPath: () => ".ephemeral/../outside",
+      createScratch: async (cwd: string) => mkdir(path.join(cwd, "outside")),
+    },
+  ])(
+    "refuses $name without publishing or writing outside .ephemeral",
+    async ({ scratchPath, createScratch }) => {
+      const { cwd, baseSha, headSha } = await makeGitWorkspace();
+      const root = await mkdtemp(
+        path.join(os.tmpdir(), "devcanon-pr-provider-"),
+      );
+      const scratch = scratchPath(cwd, root);
+      const capturePath = path.join(
+        cwd,
+        `.ephemeral/topic-${headSha}-provider-scope-capture.json`,
+      );
+      try {
+        await createScratch(cwd, root);
+        const physicalScratch = path.resolve(cwd, scratch);
+        const inputs = await writeRawGithubCaptureInputs(
+          physicalScratch,
+          baseSha,
+          headSha,
+        );
+        const originalPr = await readFile(inputs.prPath, "utf8");
+
+        await expect(
+          runRawGithubCaptureMaterializer(
+            cwd,
+            capturePath,
+            `${scratch}/capture.json`,
+            scratch.startsWith(".")
+              ? {
+                  prPath: `${scratch}/pr.json`,
+                  filesPath: `${scratch}/files.json`,
+                  diffPath: `${scratch}/full.diff`,
+                }
+              : inputs,
+            headSha,
+          ),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining(
+            "provider capture scratch directory is invalid",
+          ),
+        });
+        await expect(readFile(capturePath, "utf8")).rejects.toMatchObject({
+          code: "ENOENT",
+        });
+        await expect(readFile(inputs.prPath, "utf8")).resolves.toBe(originalPr);
+        await expect(
+          readFile(path.join(physicalScratch, "capture.json"), "utf8"),
+        ).rejects.toMatchObject({ code: "ENOENT" });
+      } finally {
+        await cleanupTempDir(cwd);
+        await cleanupTempDir(root);
+      }
+    },
+  );
+
+  it("refuses a symlinked provider scratch parent without publication", async () => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    const scratch = path.join(cwd, ".ephemeral", "provider-scope-capture.link");
+    const realScratch = path.join(
+      cwd,
+      ".ephemeral",
+      "provider-scope-capture.real",
+    );
+    const capturePath = path.join(
+      cwd,
+      `.ephemeral/topic-${headSha}-provider-scope-capture.json`,
+    );
+    try {
+      await mkdir(realScratch);
+      await symlink(realScratch, scratch);
+      const inputs = await writeRawGithubCaptureInputs(
+        realScratch,
+        baseSha,
+        headSha,
+      );
+      const originalFiles = await readFile(inputs.filesPath, "utf8");
+
+      await expect(
+        runRawGithubCaptureMaterializer(
+          cwd,
+          capturePath,
+          path.join(scratch, "capture.json"),
+          {
+            prPath: path.join(scratch, "pr.json"),
+            filesPath: path.join(scratch, "files.json"),
+            diffPath: path.join(scratch, "full.diff"),
+          },
+          headSha,
+        ),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining(
+          "provider capture scratch directory is invalid",
+        ),
+      });
+      await expect(readFile(capturePath, "utf8")).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+      await expect(readFile(inputs.filesPath, "utf8")).resolves.toBe(
+        originalFiles,
+      );
+      await expect(
+        readFile(path.join(realScratch, "capture.json"), "utf8"),
+      ).rejects.toMatchObject({ code: "ENOENT" });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("refuses a symlinked raw PR input before canonical publication", async () => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    const scratch = path.join(
+      cwd,
+      ".ephemeral",
+      "provider-scope-capture.fixture",
+    );
+    const capturePath = path.join(
+      cwd,
+      `.ephemeral/topic-${headSha}-provider-scope-capture.json`,
+    );
+    try {
+      await mkdir(scratch);
+      const inputs = await writeRawGithubCaptureInputs(
+        scratch,
+        baseSha,
+        headSha,
+      );
+      const target = path.join(scratch, "pr-target.json");
+      const originalPr = await readFile(inputs.prPath, "utf8");
+      await writeFile(target, originalPr);
+      await rm(inputs.prPath);
+      await symlink(target, inputs.prPath);
+
+      await expect(
+        runRawGithubCaptureMaterializer(
+          cwd,
+          capturePath,
+          path.join(scratch, "capture.json"),
+          inputs,
+          headSha,
+        ),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("provider capture PR file is invalid"),
+      });
+      await expect(readFile(capturePath, "utf8")).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+      await expect(readFile(target, "utf8")).resolves.toBe(originalPr);
+      await expect(
+        readFile(path.join(scratch, "capture.json"), "utf8"),
+      ).rejects.toMatchObject({ code: "ENOENT" });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("refuses a noncanonical raw PR leaf before canonical publication", async () => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    const scratch = path.join(
+      cwd,
+      ".ephemeral",
+      "provider-scope-capture.fixture",
+    );
+    const capturePath = path.join(
+      cwd,
+      `.ephemeral/topic-${headSha}-provider-scope-capture.json`,
+    );
+    try {
+      await mkdir(scratch);
+      const inputs = await writeRawGithubCaptureInputs(
+        scratch,
+        baseSha,
+        headSha,
+      );
+      const wrongPr = path.join(scratch, "wrong-pr.json");
+      const originalPr = await readFile(inputs.prPath, "utf8");
+      await writeFile(wrongPr, originalPr);
+
+      await expect(
+        runRawGithubCaptureMaterializer(
+          cwd,
+          capturePath,
+          path.join(scratch, "capture.json"),
+          { ...inputs, prPath: wrongPr },
+          headSha,
+        ),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("provider capture PR file is invalid"),
+      });
+      await expect(readFile(capturePath, "utf8")).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+      await expect(readFile(wrongPr, "utf8")).resolves.toBe(originalPr);
+      await expect(
+        readFile(path.join(scratch, "capture.json"), "utf8"),
+      ).rejects.toMatchObject({ code: "ENOENT" });
     } finally {
       await cleanupTempDir(cwd);
     }

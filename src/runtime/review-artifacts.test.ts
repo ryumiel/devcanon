@@ -3292,6 +3292,16 @@ describe.skipIf(isWindows)("review artifact runtime reducers", () => {
       await expect(
         readFile(path.join(cwd, capturePath), "utf8"),
       ).rejects.toMatchObject({ code: "ENOENT" });
+      const evidence = JSON.parse(
+        await readFile(path.join(cwd, evidencePath), "utf8"),
+      ) as JsonObject;
+      expect(evidence.provider_files).toEqual([]);
+      expect(evidence.local_files).toEqual([]);
+      expect(evidence.digest_provenance).toMatchObject({
+        provider_diff: GITHUB_PROVIDER_DIFF_DIALECT,
+        local_diff: CANONICAL_GIT_DIFF_DIALECT,
+      });
+      expect(evidence.provider_diff_sha256).toBe(sha256(""));
     } finally {
       await cleanupRiskSignalsWorkspace(cwd);
     }
