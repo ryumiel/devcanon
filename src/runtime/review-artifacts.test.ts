@@ -1310,6 +1310,53 @@ describe.skipIf(isWindows)("review artifact runtime reducers", () => {
     }
   });
 
+  it("rejects mixed provider/local patch availability in v2 evidence", async () => {
+    const { cwd, baseSha, headSha } = await makeProviderMultiFileWorkspace();
+    const evidencePath = providerScopeEvidencePath(headSha);
+    try {
+      const availableEntry = await providerEvidenceFileEntry(
+        cwd,
+        baseSha,
+        headSha,
+        "src/app.ts",
+      );
+      const unavailableEntry = unavailablePatchEntry(
+        await providerEvidenceFileEntry(cwd, baseSha, headSha, "src/other.ts"),
+      );
+      await writeJson(
+        cwd,
+        evidencePath,
+        await providerScopeEvidence(cwd, baseSha, headSha, {
+          provider_files: [availableEntry, unavailableEntry],
+          local_files: [availableEntry, unavailableEntry],
+        }),
+      );
+      await writeJson(
+        cwd,
+        ".ephemeral/topic-scope-decision.json",
+        await providerScopeDecision(cwd, baseSha, headSha, undefined, {
+          changed_files: ["src/app.ts", "src/other.ts"],
+          mechanical_facts: {
+            changed_file_count: 2,
+            followup_sha_usable: false,
+            mechanical_escalate_full: true,
+            mechanical_escalation_reason: "not-followup",
+          },
+        }),
+      );
+
+      await expect(
+        runReviewArtifactsCommand(providerScopeArgs(headSha, baseSha)),
+      ).resolves.toMatchObject({
+        exitCode: 1,
+        stdout: "",
+        stderr: "provider/local patch evidence mismatch\n",
+      });
+    } finally {
+      await cleanupRiskSignalsWorkspace(cwd);
+    }
+  });
+
   it("accepts provider-pinned initial review scope when the local base ref has advanced", async () => {
     const { cwd, baseSha, advancedBaseSha, headSha } =
       await makeProviderMovingBaseWorkspace();

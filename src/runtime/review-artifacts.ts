@@ -1150,12 +1150,19 @@ async function validatePrReviewProviderEvidence(
   const localFiles = normalizedEvidenceEntries(
     arrayField(evidence, "local_files"),
   );
+  validateNoDuplicateFileEntries(providerFiles);
+  validateNoDuplicateFileEntries(localFiles);
   const unavailableOnly =
     providerFiles.length > 0 &&
     providerFiles.every(isUnavailablePatchEntry) &&
     localFiles.every(isUnavailablePatchEntry);
-  validateNoDuplicateFileEntries(providerFiles);
-  validateNoDuplicateFileEntries(localFiles);
+  const availableOnly =
+    providerFiles.length > 0 &&
+    providerFiles.every(isAvailablePatchEntry) &&
+    localFiles.every(isAvailablePatchEntry);
+  if (providerFiles.length > 0 && !availableOnly && !unavailableOnly) {
+    fail("provider/local patch evidence mismatch");
+  }
   if (
     !jsonEqual(fileEntryMetadata(providerFiles), fileEntryMetadata(localFiles))
   ) {
@@ -1563,6 +1570,10 @@ function validateProviderPatchEvidence(
 
 function isUnavailablePatchEntry(entry: JsonObject): boolean {
   return !booleanField(entry, "patch_available") && entry.patch_sha256 === null;
+}
+
+function isAvailablePatchEntry(entry: JsonObject): boolean {
+  return booleanField(entry, "patch_available") && entry.patch_sha256 !== null;
 }
 
 function validateNoDuplicateFileEntries(entries: readonly JsonObject[]): void {
