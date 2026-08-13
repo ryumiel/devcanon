@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { constants } from "node:fs";
-import { access, lstat, mkdtemp, readFile, readdir, realpath, rm, stat, writeFile, } from "node:fs/promises";
+import { access, link, lstat, mkdtemp, readFile, readdir, realpath, rm, stat, writeFile, } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { TextDecoder } from "node:util";
@@ -159,8 +159,11 @@ export async function runPrReviewProviderScopeEvidenceCommand(args, operations =
             }
             return ok(`${JSON.stringify(PR_REVIEW_PROVIDER_SCOPE_EVIDENCE_CONTRACT)}\n`);
         }
+        if (args[0] === "materialize-capture") {
+            return await materializeProviderScopeCapture(args.slice(1));
+        }
         if (args[0] !== "write") {
-            fail("usage: pr-review-provider-scope-evidence contract|write --head-sha <sha> --capture-file <path>");
+            fail("usage: pr-review-provider-scope-evidence contract|materialize-capture|write --head-sha <sha> --capture-file <path>");
         }
         const headSha = requiredProducerOption(args.slice(1), "--head-sha");
         const captureFile = requiredProducerOption(args.slice(1), "--capture-file");
@@ -205,6 +208,74 @@ export async function runPrReviewProviderScopeEvidenceCommand(args, operations =
         const message = err instanceof Error ? err.message : String(err);
         return { exitCode: 1, stdout: "", stderr: `${message}\n` };
     }
+}
+async function materializeProviderScopeCapture(args) {
+    const headSha = requiredProducerOption(args, "--head-sha");
+    const captureFile = requiredProducerOption(args, "--capture-file");
+    const captureTmpFile = requiredProducerOption(args, "--capture-tmp-file");
+    const prFile = requiredProducerOption(args, "--pr-file");
+    const filesFile = requiredProducerOption(args, "--files-file");
+    const diffFile = requiredProducerOption(args, "--diff-file");
+    const repository = requiredProducerOption(args, "--repository");
+    if (args.length !== 14) {
+        fail("materialize-capture accepts seven options");
+    }
+    await requireRepoRoot();
+    await validateHeadShaCommit(headSha);
+    if (captureFile !== (await expectedProviderScopeCapturePath(headSha))) {
+        fail("provider scope capture path mismatch");
+    }
+    const pr = await readSingleJsonObject(prFile, "provider capture PR JSON validation failed");
+    const pages = JSON.parse(await readFile(filesFile, "utf8"));
+    if (!Array.isArray(pages) || !pages.every(Array.isArray)) {
+        fail("provider capture files JSON validation failed");
+    }
+    const baseRefOid = stringField(pr, "baseRefOid");
+    const headRefOid = stringField(pr, "headRefOid");
+    if (!isSha(baseRefOid) || headRefOid !== headSha || !isSha(headRefOid)) {
+        fail("provider capture PR binding mismatch");
+    }
+    const providerFiles = pages.flat().map((value) => {
+        const file = value;
+        return {
+            path: stringField(file, "filename"),
+            status: stringField(file, "status"),
+            previous_path: typeof file.previous_filename === "string"
+                ? file.previous_filename
+                : null,
+            additions: numberField(file, "additions"),
+            deletions: numberField(file, "deletions"),
+            changes: numberField(file, "changes"),
+            patch_base64: null,
+        };
+    });
+    const capture = {
+        schema: PROVIDER_SCOPE_CAPTURE_SCHEMA,
+        provider: "github",
+        repository,
+        pr_number: numberField(pr, "number"),
+        baseRefOid,
+        headRefOid,
+        evidence_complete: true,
+        provider_files: providerFiles,
+        provider_diff: {
+            dialect: GITHUB_PROVIDER_DIFF_DIALECT,
+            content_base64: (await readFile(diffFile)).toString("base64"),
+        },
+    };
+    await writeFile(captureTmpFile, `${JSON.stringify(capture)}\n`, {
+        encoding: "utf8",
+        flag: "wx",
+    });
+    if (process.env.CAPTURE_MATERIALIZER_STOP_BEFORE_PUBLISH === "1") {
+        return {
+            exitCode: 1,
+            stdout: "",
+            stderr: "capture publication interrupted\n",
+        };
+    }
+    await link(captureTmpFile, captureFile);
+    return ok("");
 }
 async function validateWrittenProviderScopeEvidence(evidenceFile, evidenceText, headSha, evidence) {
     await validatePrReviewProviderEvidence({

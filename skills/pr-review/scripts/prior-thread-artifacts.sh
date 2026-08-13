@@ -206,6 +206,30 @@ write_provider_scope_evidence() {
     --capture-file "$capture"
 }
 
+materialize_provider_scope_capture() {
+  local runtime contract expected_contract
+  require_repo_root
+  validate_head_sha
+  require_env PROVIDER_SCOPE_CAPTURE_FILE
+  require_env PROVIDER_SCOPE_CAPTURE_TMP_FILE
+  require_env PROVIDER_SCOPE_CAPTURE_PR_FILE
+  require_env PROVIDER_SCOPE_CAPTURE_FILES_FILE
+  require_env PROVIDER_SCOPE_CAPTURE_DIFF_FILE
+  require_env PR_REPOSITORY
+  runtime="$(resolve_runtime)"
+  contract="$("$runtime" runtime pr-review-provider-scope-evidence contract | { cat; printf '\001'; })" ||
+    fail "provider scope evidence runtime contract check failed"
+  expected_contract=$'{"command_group":"pr-review-provider-scope-evidence","major_version":1}\n\001'
+  [ "$contract" = "$expected_contract" ] ||
+    fail "provider scope evidence runtime contract is incompatible"
+  "$runtime" runtime pr-review-provider-scope-evidence materialize-capture \
+    --head-sha "$HEAD_SHA" --capture-file "$PROVIDER_SCOPE_CAPTURE_FILE" \
+    --capture-tmp-file "$PROVIDER_SCOPE_CAPTURE_TMP_FILE" \
+    --pr-file "$PROVIDER_SCOPE_CAPTURE_PR_FILE" \
+    --files-file "$PROVIDER_SCOPE_CAPTURE_FILES_FILE" \
+    --diff-file "$PROVIDER_SCOPE_CAPTURE_DIFF_FILE" --repository "$PR_REPOSITORY"
+}
+
 prepare_prior_threads_write() {
   local file
   require_repo_root
@@ -311,10 +335,13 @@ case "$command_name" in
   write-provider-scope-evidence)
     write_provider_scope_evidence
     ;;
+  materialize-provider-scope-capture)
+    materialize_provider_scope_capture
+    ;;
   validate-scope-decision)
     validate_scope_decision
     ;;
   *)
-    fail "usage: prior-thread-artifacts.sh prepare-prior-threads-write|validate-prior-threads|prepare-scope-decision-write|prepare-provider-scope-evidence-write|write-provider-scope-evidence|validate-scope-decision"
+    fail "usage: prior-thread-artifacts.sh prepare-prior-threads-write|validate-prior-threads|prepare-scope-decision-write|prepare-provider-scope-evidence-write|materialize-provider-scope-capture|write-provider-scope-evidence|validate-scope-decision"
     ;;
 esac

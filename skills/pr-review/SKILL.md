@@ -347,29 +347,32 @@ bind_scope_decision_artifact() {
       --jq '{number,baseRefOid:.base.sha,headRefOid:.head.sha}' > "$capture_tmp/pr.json" || return 1
     gh api --paginate --slurp "repos/$PR_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" > "$capture_tmp/files.json" || return 1
     gh api -H 'Accept: application/vnd.github.diff' "repos/$PR_REPOSITORY/pulls/$PR_NUMBER" > "$capture_tmp/full.diff" || return 1
+    gh api "repos/$PR_REPOSITORY/pulls/$PR_NUMBER" \
+      --jq '{baseRefOid:.base.sha,headRefOid:.head.sha}' > "$capture_tmp/recheck.json" || return 1
+    # A changed provider binding invalidates this private attempt only; discard
+    # its scratch and restart terminal Phase 1 rather than publishing it.
+    cmp -s <(jq -c '{baseRefOid,headRefOid}' "$capture_tmp/pr.json") \
+      <(jq -c '{baseRefOid,headRefOid}' "$capture_tmp/recheck.json") || return 1
+    HEAD_SHA="$HEAD_SHA" PR_REPOSITORY="$PR_REPOSITORY" \
     PROVIDER_SCOPE_CAPTURE_FILE="$PROVIDER_SCOPE_CAPTURE_FILE" \
     PROVIDER_SCOPE_CAPTURE_TMP_FILE="$capture_tmp/capture.json" \
-    PR_REPOSITORY="$PR_REPOSITORY" node -e '
-      const fs=require("node:fs"), p=process.env.PROVIDER_SCOPE_CAPTURE_FILE,
-        tmp=process.env.PROVIDER_SCOPE_CAPTURE_TMP_FILE;
-      const pr=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));
-      const pages=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
-      const files=pages.flat().map(f=>({path:f.filename,status:f.status,
-        previous_path:f.previous_filename??null,additions:f.additions,deletions:f.deletions,
-        changes:f.changes,patch_base64:null}));
-      const capture={schema:"pr-review/provider-scope-capture/v1",provider:"github",
-        repository:process.env.PR_REPOSITORY,pr_number:pr.number,baseRefOid:pr.baseRefOid,
-        headRefOid:pr.headRefOid,evidence_complete:true,provider_files:files,
-        provider_diff:{dialect:"github-provider-diff/v1",content_base64:fs.readFileSync(process.argv[3]).toString("base64")}};
-      fs.writeFileSync(tmp,JSON.stringify(capture)+"\n",{encoding:"utf8",flag:"wx"});
-      fs.linkSync(tmp,p);
-    ' "$capture_tmp/pr.json" "$capture_tmp/files.json" "$capture_tmp/full.diff" || return 1
+    PROVIDER_SCOPE_CAPTURE_PR_FILE="$capture_tmp/pr.json" \
+    PROVIDER_SCOPE_CAPTURE_FILES_FILE="$capture_tmp/files.json" \
+    PROVIDER_SCOPE_CAPTURE_DIFF_FILE="$capture_tmp/full.diff" \
+      bash "$PR_REVIEW_ARTIFACT_HELPER" materialize-provider-scope-capture || return 1
     if ! rm -rf "$capture_tmp"; then
       return 1
     fi
     trap - RETURN
   else
     [ -f "$PROVIDER_SCOPE_CAPTURE_FILE" ] && [ ! -L "$PROVIDER_SCOPE_CAPTURE_FILE" ] || return 1
+    # If its base/head deterministically no longer binds this HEAD/worktree,
+    # remove exactly this capture and restart Phase 1. Preserve it for all
+    # producer, runtime, or transient failures.
+    if ! HEAD_SHA="$HEAD_SHA" node -e 'const fs=require("node:fs"); const x=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); process.exit(x.headRefOid===process.env.HEAD_SHA?0:1)' "$PROVIDER_SCOPE_CAPTURE_FILE"; then
+      rm -f "$PROVIDER_SCOPE_CAPTURE_FILE" || return 1
+      return 1
+    fi
   fi
   # files[].patch is only a hunk fragment. It is never recorded as an available
   # patch; patch_base64 remains null unless complete per-file sections are

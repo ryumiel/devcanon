@@ -141,22 +141,16 @@ async function materializeRawGithubCapture(
     baseSha,
     headSha,
   );
-  return execFileAsync(
-    "node",
-    ["-e", RAW_GITHUB_CAPTURE_MATERIALIZER, prPath, filesPath, diffPath],
-    {
-      cwd,
-      env: {
-        ...process.env,
-        PROVIDER_SCOPE_CAPTURE_FILE: capturePath,
-        PROVIDER_SCOPE_CAPTURE_TMP_FILE: path.join(scratch, "capture.json"),
-        PR_REPOSITORY: "owner/repo",
-        ...(interrupted
-          ? { CAPTURE_MATERIALIZER_STOP_BEFORE_PUBLISH: "1" }
-          : {}),
-      },
-    },
-  );
+  return runHelper(cwd, helperScript, "materialize-provider-scope-capture", {
+    HEAD_SHA: headSha,
+    PROVIDER_SCOPE_CAPTURE_FILE: path.relative(cwd, capturePath),
+    PROVIDER_SCOPE_CAPTURE_TMP_FILE: path.join(scratch, "capture.json"),
+    PROVIDER_SCOPE_CAPTURE_PR_FILE: prPath,
+    PROVIDER_SCOPE_CAPTURE_FILES_FILE: filesPath,
+    PROVIDER_SCOPE_CAPTURE_DIFF_FILE: diffPath,
+    PR_REPOSITORY: "owner/repo",
+    ...(interrupted ? { CAPTURE_MATERIALIZER_STOP_BEFORE_PUBLISH: "1" } : {}),
+  });
 }
 
 async function canonicalGitDiffRaw(
@@ -603,7 +597,7 @@ describe("documented provider-scope capture materialization", () => {
           headSha,
           true,
         ),
-      ).rejects.toMatchObject({ code: 75 });
+      ).rejects.toMatchObject({ code: 1 });
       await expect(readFile(capturePath, "utf8")).rejects.toMatchObject({
         code: "ENOENT",
       });
