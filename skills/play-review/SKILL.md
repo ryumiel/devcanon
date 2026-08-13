@@ -351,6 +351,19 @@ policy below. A follow-up with zero new findings and one unresolved prior
 blocking carry-forward candidate therefore has `input_finding_count` of one and
 must spawn D10.
 
+For this controller invocation, retain one closed, private
+`critic_verification_run_outcome` for the invoking wrapper. Set it only after
+the applicable D10 lifecycle decision: `completed-verification` after safely
+cleaned, verified, semantically valid D10 verdicts are applied;
+`unavailable-fallback` after the ordinary unverified-critic fallback is chosen;
+or `not-required-zero-input` after the zero-input shortcut. This is
+controller-local invocation state, discarded with the controller; it is not a
+fourth public output, rendered representation, findings-envelope field, or
+durable artifact. Guard-integrity terminal cases remain terminal and set no
+outcome. Make the closed outcome available only to the invoking wrapper, which
+must preserve it without inferring it from a final Nit's `critic: null` value
+or rendered prose.
+
 Before spawning the critic agent, run the `subagent-lifecycle` cleanup gate for
 completed or superseded reviewer sessions, preserving target-honest cleanup
 outcomes, slot-limit recovery, and the controller-local lifecycle ledger. Then
@@ -485,13 +498,18 @@ terminal before applying critic state or writing final output. Only after source
 mutation has been ruled out and exact cleanup succeeds is verification rejection
 ordinary. A verified, semantically valid critic `NEEDS_CONTEXT` or `FAILED`
 retains its required missing-context or failure and completed-partial-check
-diagnostics in the final report while contributing no verdicts. A timeout,
+diagnostics in the final report while contributing no verdicts and uses the
+unverified-critic fallback. A timeout,
 nonreturn, controller-observed failure, malformed response, semantic rejection,
 or ordinary verification rejection rejects the critic response and uses the
 unverified-critic fallback. A failed, invalid, malformed, or
 verification-rejected critic response contributes no verdicts. After safe
 cleanup, preserve the existing fallback: report the retained topical findings
-without critic verdicts and mark them unverified.
+without critic verdicts and mark them unverified, then set
+`critic_verification_run_outcome` to `unavailable-fallback`. A successfully
+verified D10 result is `completed-verification` only after its verdicts are
+applied; the zero-input shortcut is `not-required-zero-input` only after that
+shortcut is selected.
 Detected source mutation or cleanup failure is guard-integrity terminal: leave
 the source state visible, stop before applying critic state or writing final
 output, and never reset, check out, stage, repair, or otherwise hide source.
