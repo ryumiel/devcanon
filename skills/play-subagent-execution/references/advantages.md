@@ -43,10 +43,11 @@ Comparative notes on why this skill exists. Per-turn instruction lives in
   `Blocking` findings except findings whose `critic` verdict is `INVALID` or
   `DOWNGRADE`, has a captured final approval-summary notice path, and provides
   fresh final approval-summary evidence after branch-review-owned fix commits
-- Single-task plans skip per-task reviewer dispatch and rely on the final
-  code-quality reviewer plus direct/manual branch-level review status resolution,
-  or downstream `branch-review --fix` on the `issue-priming-workflow --auto`
-  path
+- Single-task plans skip per-task reviewer dispatch and normally rely on the
+  final code-quality reviewer. The verified `issue-priming-workflow --auto`
+  carve-out relies on downstream `branch-review --fix` only when no retained
+  undischarged no-code proof tuple remains; otherwise D16 reviews the whole
+  context before Phase 7
 - Review loops ensure fixes actually work
 - Spec compliance prevents over/under-building
 - Code quality ensures implementation is well-built
