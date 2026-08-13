@@ -84,6 +84,18 @@ guarded-inline D13; prompt-mediated consumers receive it through their curated
 prompt. Subagents do not read the full plan file or resolve controller-relative
 rule paths.
 
+When the reviewed plan contains task-owned Execution Projection references,
+resolve every applicable reference from that same exact reviewed plan before
+the structural gate or any dispatch. A valid reference resolves exactly once to
+the expected semantic entry and required owner/source, consumption mode,
+task/no-code disposition, and proof boundary. Missing, duplicate, ambiguous,
+or semantically mismatched references fail closed with BLOCKED/NEEDS_CONTEXT
+and return to planning for correction and fresh review. Do not infer a row,
+silently deduplicate, resolve from another plan or source, or let an
+implementer/reviewer resolve controller-owned references. Add only the resolved
+task-relevant entries to curated execution context; never give children the
+full plan merely to provide projection context.
+
 Do not infer trigger applicability inside `play-subagent-execution`;
 `play-planning` owns the trigger taxonomy and tier classification. Do not
 reclassify a declared tier. For every current task in a reviewed plan, the gate requires
@@ -260,13 +272,16 @@ For the full selection and process diagrams, load
    implementers receive curated inlined task text, not the plan path.
 2. Extract all authored tasks with their full text, surrounding context,
    declared contract tier, tier-appropriate contract fields, verification expectations, and any mode or route
-   hints.
+   hints. Resolve every task-owned Execution Projection reference from that
+   same reviewed plan; a missing, duplicate, ambiguous, or semantically
+   mismatched resolution stops before dispatch.
 3. Assemble the extracted plan/task execution context before implementer
    dispatch, reviewer dispatch, final whole-implementation review, or
    skip-dispatch evaluation. Include plan-level Contract Example Discipline
    obligations or equivalent clearly labeled sections/obligations when present,
    task-local declared tier and tier-appropriate structure, and any task-local example or proof
-   obligations that refine the plan-level section. When Contract Example
+   obligations that refine the plan-level section, plus only the resolved
+   task-owned Execution Projection entries. When Contract Example
    Discipline or an equivalent clearly labeled section/obligation is present,
    also inline the full shared consumer rule under
    `Contract Example Discipline Consumer Rule` so prompt consumers can enforce

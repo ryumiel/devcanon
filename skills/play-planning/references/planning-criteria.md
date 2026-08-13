@@ -14,6 +14,7 @@ workflow stays in `../SKILL.md`; do not copy these criteria back into each gate.
 - [Blocking materiality and review convergence](#blocking-materiality-and-review-convergence)
 - [Contract and traceability criteria](#contract-and-traceability-criteria)
 - [Ownership-topology mapping](#ownership-topology-mapping)
+- [Execution projection](#execution-projection)
 - [Task contract criteria](#task-contract-criteria)
 - [Minimum-sufficient proof](#minimum-sufficient-proof)
 - [Finding classifications](#finding-classifications)
@@ -351,6 +352,15 @@ personal preference, generic risk, or a possible improvement as a substitute
 for any field. If named source inspection or normal implementation discovery
 is sufficient, the finding is not a blocking execution gap.
 
+For execution-projection grouping or normalization, a blocking finding must
+identify a concrete omitted or ambiguous normative owner, consumer, current
+task or no-code disposition, proof boundary, execution input, or safety
+boundary. A preference for a one-row-per-surface table, a different table
+shape, or duplicated restatement is not blocking materiality. D5 applies this
+rule to its ordinary coverage and alignment remit. D6 may apply it only when
+the identified fact leaves a named task unable to start from its curated
+inputs; the shared fact alone is not a D6 finding.
+
 Wave one is exhaustive: D5 and D6 each report every concrete blocking gap in
 their distinct remit for the current digest. Wave two verifies every prior
 blocking gap against the revised plan and checks for regressions introduced by
@@ -555,6 +565,58 @@ matrix. Merely expressing a valid `LIGHTWEIGHT` compact topology as an example
 does not trigger canonical invalid families or positive and negative FULL
 proof. Unsupported or inconsistent example facts are a `BLOCKER` returned to
 the owning design or decision surface, not invitations to guess.
+
+### Execution projection
+
+For every plan with affected surfaces, maintain one exhaustive plan-local
+**Execution Projection**. It is the referenceable execution view of the
+approved topology, not a new design authority, persistent schema, registry, or
+artifact lifecycle. Each entry has one unique, nonblank, stable semantic ID;
+the ID is a navigation key only within that reviewed plan and has no
+cross-plan meaning.
+
+Record each affected surface, or an explicit equivalent surface set, exactly
+once in the projection. Every entry supplies this complete semantic tuple:
+
+- normative owner and owner source, including any approved partition that
+  controls the surface;
+- one closed consumption mode: `reference`, `derived representation`,
+  `non-normative summary`, or `verification`;
+- current implementation task coverage or an explicit no-code disposition; and
+- proof owner and the owner, reference-validity, derived-parity, or other
+  concrete proof boundary it proves.
+
+An entry may group affected surfaces only when all four tuple dimensions are
+identical. A difference in owner or owner source, consumption mode, task/no-code
+disposition, or proof owner/boundary requires separate entries. Grouping never
+allows a plan to omit an actual consumer, task, proof, execution input, or
+safety boundary. Missing, duplicate, ambiguous, or conflicting approved
+topology remains a `BLOCKER` returned to the design owner; planning must not
+repair it by inferring an owner, collapsing a conflict, or grouping around it.
+
+Duplicate-prone topology, boundary-traceability, checklist, and operation-map
+views reference projection IDs rather than restating their tuples. Such a view
+may add only independently necessary task-local participant, lifecycle,
+side-effect, failure, recovery, cleanup, trust, example, or startability fact;
+it must name that distinct fact and its authority. A view without a distinct
+fact is a reference, not a second projection. References cannot redefine
+topology, select owners, or supersede the approved design.
+
+A task-owned projection reference is valid only when it identifies the
+expected semantic entry and resolves exactly once in the same exact reviewed
+plan. Missing, duplicate, ambiguous, or semantically mismatched IDs or tuple
+facts are `CURRENT` planning gaps until corrected and freshly reviewed. The
+executor consumes only its resolved task-owned entries in curated execution
+context; it must not infer absent rows, silently deduplicate, or give children
+the full plan to resolve the reference themselves.
+
+Portable criteria distinguish target-owned contributor overlays from this
+source library's local policy. Apply a repository contributor overlay only when
+the target repository owns an equivalent requirement. DevCanon-local
+`AGENTS.md` and `docs/guidelines/writing-skills.md` retain ownership of its
+source-versus-derived and dual-target contributor obligations; those obligations
+do not become portable consumer-repository defaults. When DevCanon is the
+target, both the portable criteria and its own target-owned overlay apply.
 
 ### Boundary-contract traceability
 

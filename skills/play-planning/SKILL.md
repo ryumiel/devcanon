@@ -260,6 +260,16 @@ planning instead of adding a synchronized restatement. Repeated detail does not
 make a reference or summary normative, verification does not define policy,
 and generated skill packages remain derived consumers rather than edit targets.
 
+For every plan with affected surfaces, produce the one exhaustive plan-local
+Execution Projection required by the canonical criteria. Give each entry its
+stable semantic ID and complete owner/source, mode, task/no-code, and
+proof-boundary tuple. Group surfaces only under the criteria's closed
+identical-tuple rule. Other topology, traceability, checklist, and operation
+views reference those IDs and add detail only when it is independently needed
+for their own participant, lifecycle, side-effect, failure, recovery, cleanup,
+trust, example, or startability contract. Do not create a persistent schema or
+registry, and do not make a duplicate view a second policy owner.
+
 For generated artifacts, derived artifacts, helper I/O files, `.ephemeral`
 handoffs, cross-skill handoffs, or side-channel data, plan against the
 Side-Channel Artifact Contract Checklist in
@@ -623,8 +633,13 @@ Review in this order:
    reason, or a task-specific NO-TRIGGER reason. Reject missing, ambiguous, or
    under-specified tier declarations; do not infer proportionality from diff
    size or path spelling.
-4. Confirm optional comment evidence remains non-authoritative.
-5. Classify every finding as `CURRENT`, `BLOCKER`, `FOLLOW-UP`, or
+4. Confirm the Execution Projection is exhaustive and each semantic ID is
+   unique, nonblank, and plan-local; grouped entries have identical complete
+   tuples, duplicate-prone views reference them, and every task-owned reference
+   resolves exactly once in the same reviewed plan. Confirm any specialized
+   view fact is independently necessary and authoritative.
+5. Confirm optional comment evidence remains non-authoritative.
+6. Classify every finding as `CURRENT`, `BLOCKER`, `FOLLOW-UP`, or
    `OPTIONAL` before changing the plan.
 
 For `FULL`, also confirm that every ownership topology row has complete task and
@@ -752,6 +767,14 @@ consolidation: only D5 originates ordinary alignment, scope, proportionality,
 and coverage findings; only D6 originates ordinary task-local startability
 findings. A reviewer may report a shared-fact contradiction only by naming the
 concrete defect it causes in that reviewer's own remit.
+
+For execution-projection grouping or normalization, require the canonical
+criteria's concrete omitted-or-ambiguous owner, consumer, task/no-code,
+proof, execution-input, or safety-boundary consequence before accepting a
+blocking gap. A requested table shape or duplicate restatement alone is
+FOLLOW-UP or OPTIONAL. D6 additionally names the concrete task-local
+startability defect; it does not turn D5 coverage preference into an execution
+gap.
 
 Planning has a maximum of two paired review waves. Wave one is exhaustive in
 each distinct remit. An unchanged fresh-pair retry after wave one is allowed
@@ -902,8 +925,11 @@ The reviewer independently validates the Scope Envelope, Scope Delta,
 authoritative requirement coverage, unjustified tasks, dependency order,
 contract and boundary traceability, task contracts, documentation impact, and
 minimum-sufficient proof. It validates every current task's declared canonical
-tier and tier-appropriate structure against the criteria. It also checks citations and applicable
-review-routing hints. The canonical reference owns the detailed criteria.
+tier and tier-appropriate structure against the criteria. It also validates
+the one Execution Projection, its closed grouping rule, and reference coverage
+without treating repeated table shape as policy. It checks citations and
+applicable review-routing hints. The canonical reference owns the detailed
+criteria.
 
 The reviewer reports every concrete in-remit finding and classifies it as
 `CURRENT`, `BLOCKER`, `FOLLOW-UP`, or `OPTIONAL`. CURRENT and BLOCKER
@@ -1029,6 +1055,12 @@ fact only by naming a concrete task-local startability defect caused in D6's
 own remit; the shared fact alone does not transfer ordinary finding ownership.
 The reviewer must not broaden the Scope Envelope or proof obligations. Apply
 minimum-sufficient proof.
+
+For a task-owned Execution Projection reference, D6 checks only whether a
+missing, duplicate, ambiguous, or semantically mismatched resolution leaves
+that named task without curated inputs needed to start. It does not originate a
+grouping, normalization, consumer-coverage, or table-shape objection without
+that concrete task-local consequence.
 
 **Output:** the first line is exactly `PASS — digest=<sha256>` or
 `FAIL — digest=<sha256>`, followed by findings classified as `CURRENT`,
