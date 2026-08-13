@@ -31,14 +31,15 @@ approval evidence, or invoke `play-branch-finish` only when branch-level review
 is not required.
 On the `issue-priming-workflow --auto` single-task path, the flow returns
 directly to the caller only when the verified ADR-0016 carve-out applies and
-no retained undischarged no-code proof tuple remains. Otherwise D16 runs with
+the supplied no-code Entry ID set is zero. Any no-code entry forces D16 with
 `EXTRACTED_WHOLE_IMPLEMENTATION_CONTEXT` before Phase 7 `branch-review --fix`.
 
 ```
 You: I'm using Subagent-Driven Development to execute this plan.
 
-[Guarded plan-byte intake: .ephemeral/feature-plan.md]
-[Execution admission succeeds: exactly one canonical `## Execution Projection` + same-digest D5/D6 PASS]
+[Validate plan source/path -> hash exact bytes -> Expected digest matches]
+[Active controller retains the live matching play-planning return-pair aggregate attestation; copied text is not provenance]
+[Read guarded bytes -> exactly one canonical `## Execution Projection` -> semantic projection validates]
 [Extract all 3 coherent authored tasks with full text and context]
 [Create TodoWrite with all tasks]
 [Use subagent-lifecycle to detect target lifecycle capability]
@@ -262,7 +263,8 @@ Capture a fresh baseline -> spawn D16 and retain raw response/status -> verify
 before semantic validation -> validate and retain the whole-range response in
 memory -> cleanup the exact baseline -> apply only after cleanup.
 [Ledger post-dispatch: D16 deep-reviewer, agent_id=final-quality]
-D16 reviewer: All requirements met, ready for terminal handoff
+D16 reviewer: All requirements met, ready for terminal handoff.
+No-code coverage: no supplied Entry IDs.
 
 [Lifecycle cleanup checkpoint]
 D16 deep-reviewer: agent_id=final-quality, review scope captured, base/head SHA
@@ -270,8 +272,14 @@ captured, report captured, reviewer result=PASS, observed close result=success,
 closed=yes after final verdict recorded and guard cleanup succeeded.
 
 [D16 alternate finding loop]
-D16 blocking findings route to a final fix, and any fix commit requires a fresh
-D16 capture, spawn, verify, validate, cleanup, and apply cycle. The fresh D16
+For every supplied no-code Entry ID, D16 reports exactly once: `SATISFIED` with
+current-range proof-boundary evidence or `Blocking` with a reason. Missing,
+extra, duplicate, or malformed coverage is non-pass. A Blocking finding routes
+to D12 only when it uniquely maps inside an existing current task's authorized
+scope. Invalid No code, new work, topology, absent or ambiguous task routes to
+planning for fresh D5/D6; a reachable concrete non-task owner routes there;
+an unreachable owner blocks through planning. Any change requires a fresh D16
+capture, spawn, verify, validate, cleanup, and coverage cycle. The fresh D16
 reviews the refreshed whole implementation range; it never reuses D15 or the
 pre-fix D16 response.
 

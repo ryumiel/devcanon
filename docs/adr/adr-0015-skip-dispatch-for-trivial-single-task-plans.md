@@ -38,9 +38,11 @@ task is itself mechanical and fully specified in the plan body.
 Add an internal optimization to `play-subagent-execution`: after guarded
 plan-byte intake and before task extraction, require execution admission before
 evaluating five guardrails. An admitted plan contains exactly one canonical
-`## Execution Projection` and
-identifiable same-digest D5 Plan Review and D6 Implementer Executability Review
-PASS provenance for the exact plan bytes. Admission failure returns
+semantic `## Execution Projection` and a live aggregate planning attestation
+from the current parent handoff for the exact plan bytes. The attestation covers
+same-digest D5 Plan Review and D6 Implementer Executability Review PASS, both
+guard cleanups, join, and final rehash; copied or replayed notices are not
+provenance. Admission failure returns
 `BLOCKED/NEEDS_CONTEXT` before any D12, D13, inline, or skip-dispatch route. If
 all five guardrails hold after admission, the controller executes the file
 change inline (Write/Edit + verify + commit), skipping the implementer subagent
@@ -57,8 +59,8 @@ time by the controller:
    file create and unambiguous identifier replacement).
 3. **Runtime guardrail.** The admitted reviewed task needs no implementation
    clarification: its exact mechanical operation, named authority, and bounded
-   verification leave no implementation choice. Paired-review provenance is
-   admission evidence, not this guardrail's fallback condition.
+   verification leave no implementation choice. The aggregate return-pair
+   attestation is admission evidence, not this guardrail's fallback condition.
 4. **Runtime guardrail.** The task passes `play-subagent-execution`'s
    structural task-contract gate. The controller does not re-infer
    `play-planning` trigger applicability at execution time and does not
@@ -97,8 +99,8 @@ The skill's existing final whole-implementation code-quality reviewer
 (scope explicitly out of ADR-0007 at the time) still runs on the
 skip-dispatch path unless the caller-scoped ADR-0016 carve-out applies
 (`issue-priming-workflow --auto`, single-task plan, downstream
-`branch-review --fix` explicitly guaranteed, and no retained undischarged
-no-code proof tuple). Otherwise D16 runs with the whole context before Phase 7;
+`branch-review --fix` explicitly guaranteed, and zero no-code entries).
+Otherwise D16 runs with the whole context before Phase 7;
 on that narrower path, `branch-review --fix` supplies the whole-diff gate.
 
 This is positioned as an internal optimization within Phase 6 of
@@ -113,7 +115,7 @@ here.
   DONE report from an implementer. The benefit concentrates on docs-heavy
   plans (skills, ADRs, guidelines).
 - No new skip-dispatch coupling is added. Admission consumes the canonical
-  projection and upstream same-digest D5/D6 PASS provenance, while guardrail
+  semantic projection and upstream live aggregate planning attestation, while guardrail
   #4 consumes the upstream literal Contract tier field and tier-appropriate
   task contract emitted by `play-planning`. No skip-dispatch-specific
   eligibility field is added, while the upstream literal Contract tier field is

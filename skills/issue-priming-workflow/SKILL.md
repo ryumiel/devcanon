@@ -772,9 +772,12 @@ Do not wait for user review of the plan — proceed directly to implementation a
 
 After `play-planning` returns, capture its literal
 `Plan written to <path>.` and `Reviewed digest: <sha256>` lines. That return
-means both planning review gates passed. Preserve the reviewed digest in
-controller-local state, validate it as lowercase 64-hex, and stop if either
-line is missing or malformed. Failed, missing, or unreadable executability
+is an aggregate attestation only when this controller actively observes it
+from the current `play-planning` invocation: D5 and D6 passed the same digest,
+both guards cleaned up, and the join and final rehash matched. Preserve the
+path and reviewed digest in controller-local state, validate the digest as
+lowercase 64-hex, and stop if either line is missing or malformed. Copied or
+replayed text is not provenance. Failed, missing, or unreadable executability
 review must stop inside `play-planning` and must not reach this phase. Validate
 the captured path:
 
@@ -856,7 +859,7 @@ Execute the implementation plan for <source-noun> issue <ID>: <TITLE>.
 
 `--auto` flow active (invoked by `issue-priming-workflow`). Apply `play-subagent-execution`'s executor-owned risk-based per-task review routing for multi-task plans (single-task plans skip per-task review; see `play-subagent-execution` § Single-Task Plans).
 
-Parent-owned review contract: this invocation comes from `issue-priming-workflow --auto`, and the Phase 7 `branch-review --fix` loop is mandatory. If `branch-review --fix` creates any branch-review-owned fix commit, Phase 7 reruns on the new `HEAD` until a run reports zero blocking findings auto-fixed, no unresolved remaining `Blocking` findings except findings whose `critic` verdict is `INVALID` or `DOWNGRADE`, a captured final approval-summary notice path, and fresh final approval-summary evidence after branch-review-owned fix commits. That final whole-diff review satisfies the final-review guarantee required by any reduced per-task review route. If the extracted plan has exactly one task, skip D16 only when `EXTRACTED_WHOLE_IMPLEMENTATION_CONTEXT` has no retained undischarged no-code proof tuple. Otherwise, run D16 normally with that context before returning to this workflow's mandatory Phase 7; discharged tuples do not require a redundant D16.
+Parent-owned review contract: this invocation comes from `issue-priming-workflow --auto`, and the Phase 7 `branch-review --fix` loop is mandatory. If `branch-review --fix` creates any branch-review-owned fix commit, Phase 7 reruns on the new `HEAD` until a run reports zero blocking findings auto-fixed, no unresolved remaining `Blocking` findings except findings whose `critic` verdict is `INVALID` or `DOWNGRADE`, a captured final approval-summary notice path, and fresh final approval-summary evidence after branch-review-owned fix commits. That final whole-diff review satisfies the final-review guarantee required by any reduced per-task review route. For exactly one extracted task, skip D16 only when the plan has zero no-code entries. Any no-code entry requires D16 before returning to this workflow's mandatory Phase 7.
 
 Plan: <PLAN_PATH captured above>
 Expected digest: <reviewed lowercase 64-hex digest captured above>
@@ -867,10 +870,9 @@ Verified auto-route attestation: <controller-validated exact-route attestation>
 All `play-subagent-execution` rules apply (fresh subagent per task,
 executor-owned risk-based per-task review routing for multi-task plans;
 single-task plans skip per-task review). The parent-owned contract above
-activates its narrow single-task final-review carve-out only when no retained
-undischarged no-code proof tuple remains in
-`EXTRACTED_WHOLE_IMPLEMENTATION_CONTEXT`; this workflow still guarantees the
-mandatory Phase 7 `branch-review --fix` loop. The same Phase 7 loop is also the
+activates its narrow single-task final-review carve-out only for a plan with
+zero no-code entries; this workflow still guarantees the mandatory Phase 7
+`branch-review --fix` loop. The same Phase 7 loop is also the
 final whole-diff no-Blocking guarantee for reduced per-task routes. If any
 Phase 7 run creates a branch-review-owned fix commit, rerun Phase 7 on the new
 `HEAD`. Only a run that reports zero blocking findings auto-fixed and leaves no
@@ -884,8 +886,9 @@ commits, satisfies the final-review guarantee.
 Phase 6 itself remains "invoke `play-subagent-execution`" — the inline
 optimization is internal to that skill. After guarded plan-byte intake and
 before task extraction, admission requires exactly one canonical
-`## Execution Projection` and identifiable same-digest D5/D6 PASS provenance;
-admission failure blocks. For an admitted plan, five post-admission runtime
+`## Execution Projection` and the live aggregate planning attestation from this
+Phase 6 handoff; copied notices do not satisfy admission. Admission failure
+blocks. For an admitted plan, five post-admission runtime
 guardrails govern D13. An ordinary admitted-plan non-contract guardrail miss
 falls to D12; a task-contract failure blocks before implementation.
 

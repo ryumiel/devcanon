@@ -32,20 +32,19 @@ Add a caller-scoped carve-out to `play-subagent-execution`.
 When all of the following hold:
 
 1. the controller is already executing verified controller-local
-   `issue-priming-workflow --auto` state
-2. the invocation carries a validated `issue-priming/auto-handoff/v1` artifact
-   from that same parent state
+   `issue-priming-workflow --auto` state with a validated matching
+   `issue-priming/auto-handoff/v1` artifact
+2. the parent actively carries the plan path and digest it observed from the
+   current `play-planning` return through the direct executor handoff
 3. that parent state guarantees downstream `branch-review --fix` is the
    mandatory next step
 4. the extracted plan has exactly one task
-5. `EXTRACTED_WHOLE_IMPLEMENTATION_CONTEXT` has no retained undischarged
-   no-code proof tuple
+5. the plan has zero no-code entries
 
 then `play-subagent-execution` skips its final whole-implementation
 code-quality reviewer and returns directly to the caller after the
-single-task implementation path completes. A discharged tuple does not require
-a redundant D16. If any no-code proof tuple remains undischarged, D16 must run
-normally with that context before returning to Phase 7.
+single-task implementation path completes. Any no-code entry requires D16 with
+the whole implementation context before returning to Phase 7.
 
 All other paths remain unchanged:
 
@@ -58,17 +57,17 @@ All other paths remain unchanged:
   inherits this caller-scoped carve-out instead of implying the final
   reviewer runs on every plan
 
-The caller signal is not bearer prose. ADR-0013 and ADR-0018 harden this
-carve-out so `play-subagent-execution` verifies controller-local parent state
-plus the `issue-priming/auto-handoff/v1` audit artifact before skipping the
-final reviewer. No new plan schema field or workflow-side plan-shape branching
-is introduced.
+The caller signal is not bearer prose. The active parent retains its observed
+planning return through the direct handoff; copied or replayed text cannot
+recreate it. No new provenance receipt, artifact, schema, leaf identity, or
+plan-shape branching is introduced; the existing auto-handoff audit artifact
+remains unchanged.
 
 ## Consequences
 
 - The common `issue-priming-workflow --auto` single-task path drops one
-  redundant whole-diff review pass only when no no-code proof tuple remains
-  undischarged; otherwise D16 retains and reviews that context before Phase 7.
+  redundant whole-diff review pass only with zero no-code entries; otherwise
+  D16 reviews the whole implementation context before Phase 7.
 - Review-policy ownership stays inside `play-subagent-execution`, the skill
   that already owns reviewer dispatch.
 - Manual/direct callers are not weakened; they keep the final

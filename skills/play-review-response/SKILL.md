@@ -283,8 +283,11 @@ resolution eligibility, and final PR closeout. It also owns the verified
 review-response planning input.
 
 After `play-planning` emits `Plan written to <path>.` and
-`Reviewed digest: <sha256>`, capture the path and exact reviewed digest in
-controller-local state, present the generated plan for user approval, and
+`Reviewed digest: <sha256>`, actively observe the pair from the current
+invocation and capture the path and exact reviewed digest in controller-local
+state. The pair attests the internal D5/D6 same-digest PASS, both guard
+cleanups, join, and final rehash; copied or replayed text is not provenance.
+Present the generated plan for user approval, and
 invoke `play-subagent-execution` only after approval with:
 
 ```text
@@ -303,8 +306,8 @@ expected digest to match changed bytes.
 The generated plan remains a valid direct/manual `play-subagent-execution`
 handoff under the executor's current structural task-contract gate. It must not
 rely on issue-priming `--auto` reduced-route behavior, because direct/manual
-review-response plans do not carry parent-owned issue-priming state, validated
-auto-handoff evidence, or a guaranteed downstream `branch-review --fix` loop.
+review-response plans do not carry the live parent-owned issue-priming `--auto`
+handoff or a guaranteed downstream `branch-review --fix` loop.
 For `Route: review-response-parent-owned`, `play-planning` emits the plan path
 only after both Plan Review and Implementer Executability Review pass. A failed,
 missing, or unreadable executability review remains inside `play-planning` and
@@ -328,9 +331,10 @@ For planned review-response work, create and self-review the written
 `Route: review-response-parent-owned` and `Design: <path>`, and capture the
 emitted `Plan written to <path>.` and `Reviewed digest: <sha256>` lines before
 implementation, only after `play-planning` has completed both Plan Review and
-Implementer Executability Review. This gate borrows the approval-gate shape from `play-brainstorm`
-without invoking `play-brainstorm` and without making it a dependency of
-`play-review-response`.
+Implementer Executability Review. Capture only the pair actively observed from
+that invocation; copied or replayed notices stop the gate. This gate borrows the
+approval-gate shape from `play-brainstorm` without invoking `play-brainstorm`
+and without making it a dependency of `play-review-response`.
 
 Before handing the generated plan to `play-subagent-execution`, present the
 plan to the user with a distinct producer notice and approval prompt. Use the
@@ -491,11 +495,12 @@ Mode: Planned execution.
 Action: Apply the canonical `.ephemeral` write guard, write
 `.ephemeral/<date>-review-response-design.md`, invoke `play-planning` with
 `Route: review-response-parent-owned` and `Design: <path>`, wait for both
-planning review gates to pass, capture `Plan written to <path>.` and
-`Reviewed digest: <sha256>`, ask for approval using `{captured-plan-path}`
-replaced with the captured path, wait for approval, rehash the exact saved plan
-bytes, then invoke `play-subagent-execution` with `Plan: <path>` and
-`Expected digest: <sha256>` only when the digest still matches.
+planning review gates to pass, actively observe and capture `Plan written to
+<path>.` and `Reviewed digest: <sha256>`, ask for approval using
+`{captured-plan-path}` replaced with the captured path, wait for approval,
+rehash the exact saved plan bytes, then invoke `play-subagent-execution` with
+`Plan: <path>` and `Expected digest: <sha256>` only when the digest still
+matches.
 ```
 
 No-code feedback example:

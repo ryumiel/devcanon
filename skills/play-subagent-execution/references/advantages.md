@@ -45,9 +45,8 @@ Comparative notes on why this skill exists. Per-turn instruction lives in
   fresh final approval-summary evidence after branch-review-owned fix commits
 - Single-task plans skip per-task reviewer dispatch and normally rely on the
   final code-quality reviewer. The verified `issue-priming-workflow --auto`
-  carve-out relies on downstream `branch-review --fix` only when no retained
-  undischarged no-code proof tuple remains; otherwise D16 reviews the whole
-  context before Phase 7
+  carve-out applies only with zero supplied no-code Entry IDs; any no-code entry
+  forces D16 to recheck current-range proof-boundary evidence before Phase 7
 - Review loops ensure fixes actually work
 - Spec compliance prevents over/under-building
 - Code quality ensures implementation is well-built

@@ -1,21 +1,23 @@
 # Execution Projection Consumer Rule
 
-Apply this conditional rule after the eager executor detects exactly one literal
-Markdown H2 line `## Execution Projection` outside fenced code. Prose mentions,
-fenced examples, differently labeled metadata, renamed headings, and legacy
-headings are not canonical sections. This rule enforces the planning criteria;
-it does not redefine producer authority, create a parser, schema, registry, or
-compatibility route.
+Apply this conditional rule after linear admission reads the guarded plan bytes
+and detects exactly one literal Markdown H2 line `## Execution Projection`
+outside fenced code. Prose mentions, fenced examples, differently labeled
+metadata, renamed headings, and legacy headings are not canonical sections.
+This rule enforces the planning criteria; it does not redefine producer
+authority, authorize mutation, create a parser, schema, registry, or
+compatibility route. Its validated dispositions and proof owners derive
+execution context and candidate route resolution only.
 
 Before the structural task-contract gate, skip-dispatch evaluation, inline
 execution, implementer/reviewer dispatch, or any other execution route, require
-identifiable D5 Plan Review and D6 Implementer Executability Review PASS
-provenance for the exact same lowercase 64-hex digest as the exact plan bytes
-being executed. Each review must be independently identifiable, must report
-PASS for that digest, and must have completed its required guard lifecycle.
-Absent, unknown, malformed, stale, unreviewed, cross-digest, or otherwise
-unverifiable provenance fails closed with `BLOCKED/NEEDS_CONTEXT`; never infer
-or substitute a digest, review, plan, or legacy route.
+the active controller to retain the live matching `play-planning` return pair as
+one aggregate attestation for the exact same lowercase 64-hex digest as the
+exact plan bytes being executed. Copied text is not provenance. Do not demand
+independent D5/D6 leaf identity or guard evidence. Absent, unknown, malformed,
+stale, unreviewed, cross-digest, or otherwise unverifiable aggregate attestation
+fails closed with `BLOCKED/NEEDS_CONTEXT`; never infer or substitute a digest,
+review, plan, or legacy route.
 
 Require every projection entry to use the exact planning-criteria labels and to
 contain one nonblank Entry ID, one nonblank Relationship ID that identifies an
@@ -106,15 +108,14 @@ validation, and exhaustiveness succeed, derive contexts in this order:
 2. Retain every validated `No code — <task-specific reason>` entry and its full
    proof tuple in `EXTRACTED_WHOLE_IMPLEMENTATION_CONTEXT`, the controller-
    curated whole-range context supplied to D16/the final whole-implementation
-   reviewer until its proof boundary is discharged.
+   reviewer.
 
 For each no-code entry, a task-valued proof owner receives it through the
 existing task union. A non-task proof owner must be concrete; the controller
 keeps its named proof boundary visible in the relevant whole-range/final-review
-context until discharged. If either named owner or proof boundary cannot be
-represented or reached in the active execution flow, block rather than drop or
-infer the obligation. Never give children the full plan merely to resolve
-entries.
+context. If either named owner or proof boundary cannot be represented or
+reached in the active execution flow, block rather than drop or infer the
+obligation. Never give children the full plan merely to resolve entries.
 
 For Contract Example Discipline, accept a valid relationship family containing
 a normative-owner surface, reference consumer, and verification surface with

@@ -32,8 +32,9 @@ digraph when_to_use {
 digraph process {
     rankdir=TB;
 
-    "Guarded plan-byte intake" [shape=box];
-    "Execution admission: exactly one canonical projection + same-digest D5/D6 PASS?" [shape=diamond];
+    "Validate source/path -> hash bytes -> expected digest match" [shape=box];
+    "Live matching play-planning return-pair attestation retained?" [shape=diamond];
+    "Read guarded bytes -> exactly one H2 -> semantic projection valid?" [shape=diamond];
     "Extract authored tasks" [shape=box];
     "Task contract structurally valid?" [shape=diamond];
     "Plan has exactly one task?" [shape=diamond];
@@ -64,12 +65,14 @@ digraph process {
     "Revalidate effective review route" [shape=box];
     "Mark task complete" [shape=box];
     "More tasks remain?" [shape=diamond];
-    "Verified auto single-task D16 skip: branch-review guaranteed and no retained undischarged no-code tuple?" [shape=diamond];
+    "Verified auto single-task D16 skip: branch-review guaranteed and zero no-code Entry IDs?" [shape=diamond];
     "Dispatch final whole-implementation code-quality reviewer with whole context" [shape=box];
     "Fresh D16 capture" [shape=box];
     "D16 verify-validate-cleanup-apply" [shape=box];
     "Final whole-implementation review passes?" [shape=diamond];
-    "Implementer fixes final-review findings" [shape=box];
+    "Route D16 Blocking finding" [shape=box];
+    "Reachable non-task owner supplies bounded evidence or correction" [shape=box];
+    "Return to planning or block" [shape=box];
     "Owning caller final whole-diff gate present?" [shape=diamond];
     "Return to caller" [shape=box];
     "Report implementation and final review status; resolve branch-level review status" [shape=box];
@@ -80,9 +83,11 @@ digraph process {
     "Stop: BLOCKED/NEEDS_CONTEXT for admission" [shape=box];
     "Stop: BLOCKED/NEEDS_CONTEXT for task contract" [shape=box];
 
-    "Guarded plan-byte intake" -> "Execution admission: exactly one canonical projection + same-digest D5/D6 PASS?";
-    "Execution admission: exactly one canonical projection + same-digest D5/D6 PASS?" -> "Stop: BLOCKED/NEEDS_CONTEXT for admission" [label="no"];
-    "Execution admission: exactly one canonical projection + same-digest D5/D6 PASS?" -> "Extract authored tasks" [label="yes"];
+    "Validate source/path -> hash bytes -> expected digest match" -> "Live matching play-planning return-pair attestation retained?";
+    "Live matching play-planning return-pair attestation retained?" -> "Stop: BLOCKED/NEEDS_CONTEXT for admission" [label="no"];
+    "Live matching play-planning return-pair attestation retained?" -> "Read guarded bytes -> exactly one H2 -> semantic projection valid?" [label="yes"];
+    "Read guarded bytes -> exactly one H2 -> semantic projection valid?" -> "Stop: BLOCKED/NEEDS_CONTEXT for admission" [label="no"];
+    "Read guarded bytes -> exactly one H2 -> semantic projection valid?" -> "Extract authored tasks" [label="yes"];
     "Extract authored tasks" -> "Task contract structurally valid?";
     "Task contract structurally valid?" -> "Stop: BLOCKED/NEEDS_CONTEXT for task contract" [label="no"];
     "Task contract structurally valid?" -> "Plan has exactly one task?" [label="yes"];
@@ -126,14 +131,17 @@ digraph process {
     "Inline branch: no child DONE report or snapshot request" -> "Mark task complete";
     "Mark task complete" -> "More tasks remain?";
     "More tasks remain?" -> "Dispatch implementer prompt" [label="yes"];
-    "More tasks remain?" -> "Verified auto single-task D16 skip: branch-review guaranteed and no retained undischarged no-code tuple?" [label="no"];
-    "Verified auto single-task D16 skip: branch-review guaranteed and no retained undischarged no-code tuple?" -> "Return to caller" [label="yes"];
-    "Verified auto single-task D16 skip: branch-review guaranteed and no retained undischarged no-code tuple?" -> "Fresh D16 capture" [label="no"];
+    "More tasks remain?" -> "Verified auto single-task D16 skip: branch-review guaranteed and zero no-code Entry IDs?" [label="no"];
+    "Verified auto single-task D16 skip: branch-review guaranteed and zero no-code Entry IDs?" -> "Return to caller" [label="yes"];
+    "Verified auto single-task D16 skip: branch-review guaranteed and zero no-code Entry IDs?" -> "Fresh D16 capture" [label="no"];
     "Fresh D16 capture" -> "Dispatch final whole-implementation code-quality reviewer with whole context" [label="capture succeeds"];
     "Dispatch final whole-implementation code-quality reviewer with whole context" -> "D16 verify-validate-cleanup-apply";
     "D16 verify-validate-cleanup-apply" -> "Final whole-implementation review passes?";
-    "Final whole-implementation review passes?" -> "Implementer fixes final-review findings" [label="no"];
-    "Implementer fixes final-review findings" -> "Fresh D16 capture";
+    "Final whole-implementation review passes?" -> "Route D16 Blocking finding" [label="no"];
+    "Route D16 Blocking finding" -> "Fresh D16 capture" [label="unique existing-task scope: D12 fix; any change"];
+    "Route D16 Blocking finding" -> "Reachable non-task owner supplies bounded evidence or correction" [label="within named non-task authority"];
+    "Reachable non-task owner supplies bounded evidence or correction" -> "Fresh D16 capture";
+    "Route D16 Blocking finding" -> "Return to planning or block" [label="invalid No code, new work, topology, absent/ambiguous task, or unreachable owner"];
     "Final whole-implementation review passes?" -> "Owning caller final whole-diff gate present?" [label="yes"];
     "Owning caller final whole-diff gate present?" -> "Return to caller" [label="yes"];
     "Owning caller final whole-diff gate present?" -> "Report implementation and final review status; resolve branch-level review status" [label="no"];

@@ -34,22 +34,25 @@ The controller chooses inline only when it can perform the exact operation
 directly; otherwise it dispatches `executor-prompt.md` with the same validated
 authorization.
 
-Admission precedes D13/D12 route selection. It requires exactly one canonical
-`## Execution Projection` and identifiable same-digest D5/D6 PASS provenance.
-Direct, hand-written, copied, older, missing-provenance, or otherwise unreviewed
-plans fail admission with `BLOCKED/NEEDS_CONTEXT` before guardrail evaluation;
-they never fall back to D12. For an admitted plan, all five guardrails must hold
+Admission precedes D13/D12 route selection. It requires guarded source/path
+validation, exact-byte digest matching, the active controller's live matching
+`play-planning` return-pair aggregate attestation, guarded read, one canonical
+`## Execution Projection`, and semantic projection validation. Copied text is
+not provenance, and admission does not demand independent D5/D6 leaf identity
+or guard evidence. Direct, hand-written, copied, older, missing-attestation, or
+otherwise unreviewed plans fail admission with `BLOCKED/NEEDS_CONTEXT` before
+guardrail evaluation; they never fall back to D12. For an admitted plan, all five guardrails must hold
 for D13. Guardrail #4 failure blocks before source mutation; any other ordinary
 guardrail miss reclassifies to D12 and uses `implementer-prompt.md`. Do not
 dispatch the executor on a partial guard set.
 
-| #   | Guardrail                                     | Detection signal                                                                                                                                                                                                                                                   |
-| --- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 1   | Plan is single-task                           | Task count from plan extraction = 1.                                                                                                                                                                                                                               |
-| 2   | Task is fully mechanical                      | Task header carries `**Mode:** mechanical`.                                                                                                                                                                                                                        |
-| 3   | No clarifying questions could plausibly arise | For the admitted reviewed plan, the exact approved mechanical operation, its named authority, and its bounded verification need no implementation choice or clarification. Paired-review provenance is admission evidence, not a D12-fallback guardrail condition. |
-| 4   | Task contract gate is satisfied               | The task declares `FULL`, `LIGHTWEIGHT`, or `NO-TRIGGER` and satisfies that tier's structure. Contract Example Discipline obligations are additive and do not satisfy guardrail #4 by themselves.                                                                  |
-| 5   | No tests need to be authored                  | Task body contains no `**TDD expectation:**` field and no legacy TDD step-pair markers.                                                                                                                                                                            |
+| #   | Guardrail                                     | Detection signal                                                                                                                                                                                                                                                                |
+| --- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Plan is single-task                           | Task count from plan extraction = 1.                                                                                                                                                                                                                                            |
+| 2   | Task is fully mechanical                      | Task header carries `**Mode:** mechanical`.                                                                                                                                                                                                                                     |
+| 3   | No clarifying questions could plausibly arise | For the admitted reviewed plan, the exact approved mechanical operation, its named authority, and its bounded verification need no implementation choice or clarification. The return-pair aggregate attestation is admission evidence, not a D12-fallback guardrail condition. |
+| 4   | Task contract gate is satisfied               | The task declares `FULL`, `LIGHTWEIGHT`, or `NO-TRIGGER` and satisfies that tier's structure. Contract Example Discipline obligations are additive and do not satisfy guardrail #4 by themselves.                                                                               |
+| 5   | No tests need to be authored                  | Task body contains no `**TDD expectation:**` field and no legacy TDD step-pair markers.                                                                                                                                                                                         |
 
 In the case when extracted plan/task execution context includes Contract
 Example Discipline or an equivalent clearly labeled section/obligation, present

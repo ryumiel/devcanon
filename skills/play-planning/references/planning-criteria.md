@@ -649,13 +649,13 @@ forms. Every task-valued implementation disposition and task-valued proof owner
 resolves to exactly one current task in the same plan; a non-task owner creates
 no task reference.
 
-Every `No code — <task-specific reason>` entry still routes its complete proof
+Every `No code — <task-specific reason>` entry still names its complete proof
 tuple. A task-valued proof owner receives that entry through the existing task
-union. A non-task proof owner must be concrete, and its named proof boundary
-remains a controller-owned whole-range/final-review obligation until discharged.
-The planner must name a route that the active execution flow can represent and
-reach; otherwise the entry is a `BLOCKER`, not an invitation to drop or infer
-the obligation.
+union. A non-task proof owner must be concrete. Any no-code entry requires D16
+with the whole implementation context; it creates no additional lifecycle
+state. The planner must name a route that the active execution flow can
+represent and reach; otherwise the entry is a `BLOCKER`, not an invitation to
+drop or infer the obligation.
 
 Every current task in a plan with an Execution Projection declares an explicit
 `**Execution Projection references:**` field. The field lists every and only
@@ -677,12 +677,10 @@ consumes only its resolved task-relevant entries in curated execution context;
 it must not infer absent rows, silently deduplicate, or give children the full
 plan to resolve references themselves.
 
-After provenance, validation, and exhaustiveness succeed, the controller also
-retains every validated no-code entry and its complete proof tuple in its
-`EXTRACTED_WHOLE_IMPLEMENTATION_CONTEXT` supplied to D16/the final
-whole-implementation reviewer until its proof boundary is discharged. This is
-separate from task-specific curated contexts and does not make the full plan
-available to children.
+After validation and exhaustiveness succeed, any plan with a no-code entry
+requires D16/the final whole-implementation reviewer with the whole
+implementation context. This is separate from task-specific curated contexts
+and does not make the full plan available to children.
 
 When Contract Example Discipline is triggered, one valid family must contain a
 relationship with a normative-owner surface, a reference consumer, and a
@@ -701,8 +699,7 @@ to test prose. Unsupported, inconsistent, or unverifiable examples are a
 
 Extend that response-only evidence with no-code entries: one with a task-valued
 proof owner and one with a concrete non-task proof owner. The task-valued entry
-appears in that task's existing union; the controller whole-range/final-review
-context retains both complete proof tuples. An unreachable named owner or proof
+appears in that task's existing union. An unreachable named owner or proof
 boundary blocks rather than dropping either entry. An invalid family uses a
 no-code reason containing a Task ID: it must not add that entry to the task's
 implementation union.

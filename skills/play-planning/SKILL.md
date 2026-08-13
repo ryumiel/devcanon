@@ -63,9 +63,10 @@ Review run. Emit the literal line
 `Reviewed digest: <sha256>` only after the applicable review gates have passed
 and the plan is ready for the next handoff. The reviewed digest is the exact
 lowercase 64-hex digest that passed D5, D6, the join, and the pre-handoff
-rehash. These two lines are the controller-local handoff contract that parent
-workflows preserve for `play-subagent-execution` — do not reword them or write
-the digest into a persistent artifact.
+rehash. These two lines are an aggregate attestation only for a parent that
+actively observes them from this `play-planning` invocation: D5 and D6 passed
+the same digest, both guards cleaned up, and the join and final rehash matched.
+Do not reword or persist them; copied or replayed text is not provenance.
 
 After these notices, saved plan artifacts should not be re-inlined or restated
 in controller conversation by default. Carry the plan path and exact reviewed
@@ -260,7 +261,7 @@ planning instead of adding a synchronized restatement. Repeated detail does not
 make a reference or summary normative, verification does not define policy,
 and generated skill packages remain derived consumers rather than edit targets.
 
-For every executable plan, produce exactly one exhaustive
+For every executable plan, produce exactly one exhaustive semantic
 plan-local `## Execution Projection` with the exact heading required by the
 canonical criteria. Load the criteria for the relationship-based role grammar,
 grouping, proof-task union, and task-linkage rules; do not create a persistent
@@ -638,7 +639,7 @@ Review in this order:
    reason, or a task-specific NO-TRIGGER reason. Reject missing, ambiguous, or
    under-specified tier declarations; do not infer proportionality from diff
    size or path spelling.
-4. Validate the Execution Projection and every task's exact reference coverage
+4. Validate the semantic Execution Projection and every task's exact reference coverage
    against the canonical criteria. Any incomplete, duplicate, ambiguous,
    mismatched, or unauthorized projection fact blocks review.
 5. Confirm optional comment evidence remains non-authoritative.
@@ -771,7 +772,7 @@ and coverage findings; only D6 originates ordinary task-local startability
 findings. A reviewer may report a shared-fact contradiction only by naming the
 concrete defect it causes in that reviewer's own remit.
 
-For execution-projection grouping or normalization, require the canonical
+For semantic execution-projection grouping or normalization, require the canonical
 criteria's concrete omitted-or-ambiguous relationship role, consumer,
 task/no-code, proof, execution-input, or safety-boundary consequence before
 accepting a blocking gap. A requested table shape or duplicate restatement alone is
@@ -1089,12 +1090,13 @@ an execution mode. Return after saving the plan so the parent skill can invoke
 Executability Review have returned PASS for the same current exact-byte digest.
 Failed, missing, or unreadable executability review blocks this return and must
 not be bypassed by parent-owned execution. Malformed, cross-digest, or stale
-review evidence also blocks. The parent skill receives the plan path and exact
-reviewed digest from the `Plan written to <path>.` and
-`Reviewed digest: <sha256>` lines emitted after the save. It preserves both in
+review evidence also blocks. The parent skill must actively observe the plan
+path and reviewed digest from the `Plan written to <path>.` and
+`Reviewed digest: <sha256>` lines of this invocation. It preserves both in
 controller-local state and passes them to `play-subagent-execution` as
 `Plan: <path>` and `Expected digest: <sha256>` only after both independent
 review gates have passed that digest and both guard cleanups have succeeded.
+Copied or replayed notices are not an observed return and must not hand off.
 
 **In review-response parent-owned handoffs**: This route is selected only when
 the invocation includes `Route: review-response-parent-owned`. When
@@ -1109,7 +1111,7 @@ Do not prompt for an execution mode.
 In this route, failed, missing, or unreadable executability review blocks the
 parent-owned return and cannot be bypassed by approval of the saved plan path.
 `play-review-response` owns presenting the generated plan for approval,
-capturing the approved plan path and reviewed digest, rehashing the exact saved
+retaining the actively observed plan path and reviewed digest, rehashing the exact saved
 plan bytes immediately before the implementation handoff, and rejecting any
 mismatch. It must invoke `play-subagent-execution` only after approval and after
 both planning review gates have passed the same current digest, with
@@ -1128,7 +1130,7 @@ Otherwise, offer execution choice:
 **If Subagent-Driven chosen:**
 
 - **REQUIRED SUB-SKILL:** Use play-subagent-execution
-- Fresh subagent per task + executor-owned risk-based per-task review routing. Reduced routes require the verified shared `issue-priming-workflow --auto` Phase 6 path with controller-local parent state and a valid `issue-priming/auto-handoff/v1` artifact for the final whole-diff gate; otherwise execution fails closed to `spec-and-quality`.
+- Fresh subagent per task + executor-owned risk-based per-task review routing. Reduced routes require the verified live `issue-priming-workflow --auto` parent handoff and its mandatory final whole-diff gate; otherwise execution fails closed to `spec-and-quality`.
 - Immediately before invoking `play-subagent-execution`, compute SHA-256 over
   the exact saved plan bytes with the same portable `shasum -a 256` /
   `sha256sum` plus `awk '{print $1}'` pattern used for the paired wave. Validate
