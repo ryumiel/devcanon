@@ -378,11 +378,11 @@ bind_scope_decision_artifact() {
     # If its base/head deterministically no longer binds this HEAD/worktree,
     # remove exactly this capture and restart Phase 1. Preserve it for all
     # producer, runtime, or transient failures.
-    PR_BASE_OID="$PR_BASE_OID" HEAD_SHA="$HEAD_SHA" node -e '
+    PR_BASE_OID="$PR_BASE_OID" PR_REPOSITORY="$PR_REPOSITORY" PR_NUMBER="$PR_NUMBER" HEAD_SHA="$HEAD_SHA" node -e '
       const fs=require("node:fs");
       try { const x=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));
-        if(typeof x.baseRefOid!=="string"||typeof x.headRefOid!=="string") process.exit(3);
-        process.exit(x.baseRefOid===process.env.PR_BASE_OID&&x.headRefOid===process.env.HEAD_SHA?0:2);
+        if(typeof x.provider!=="string"||typeof x.repository!=="string"||!Number.isInteger(x.pr_number)||typeof x.baseRefOid!=="string"||typeof x.headRefOid!=="string") process.exit(3);
+        process.exit(x.provider==="github"&&x.repository===process.env.PR_REPOSITORY&&x.pr_number===Number(process.env.PR_NUMBER)&&x.baseRefOid===process.env.PR_BASE_OID&&x.headRefOid===process.env.HEAD_SHA?0:2);
       } catch { process.exit(3); }
     ' "$PROVIDER_SCOPE_CAPTURE_FILE"
     capture_state=$?

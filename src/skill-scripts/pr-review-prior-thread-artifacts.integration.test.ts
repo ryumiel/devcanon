@@ -776,6 +776,9 @@ describe.skipIf(!jqAvailable)("documented provider capture retries", () => {
     {
       name: "baseRefOid",
       capture: (baseSha: string, headSha: string) => ({
+        provider: "github",
+        repository: "owner/repo",
+        pr_number: 390,
         baseRefOid: "a".repeat(40),
         headRefOid: headSha,
       }),
@@ -783,8 +786,41 @@ describe.skipIf(!jqAvailable)("documented provider capture retries", () => {
     {
       name: "headRefOid",
       capture: (baseSha: string, _headSha: string) => ({
+        provider: "github",
+        repository: "owner/repo",
+        pr_number: 390,
         baseRefOid: baseSha,
         headRefOid: "a".repeat(40),
+      }),
+    },
+    {
+      name: "provider",
+      capture: (baseSha: string, headSha: string) => ({
+        provider: "other",
+        repository: "owner/repo",
+        pr_number: 390,
+        baseRefOid: baseSha,
+        headRefOid: headSha,
+      }),
+    },
+    {
+      name: "repository",
+      capture: (baseSha: string, headSha: string) => ({
+        provider: "github",
+        repository: "other/repo",
+        pr_number: 390,
+        baseRefOid: baseSha,
+        headRefOid: headSha,
+      }),
+    },
+    {
+      name: "pr_number",
+      capture: (baseSha: string, headSha: string) => ({
+        provider: "github",
+        repository: "owner/repo",
+        pr_number: 391,
+        baseRefOid: baseSha,
+        headRefOid: headSha,
       }),
     },
   ])(
@@ -859,6 +895,9 @@ describe.skipIf(!jqAvailable)("documented provider capture retries", () => {
     const capturePath = `.ephemeral/topic-${headSha}-provider-scope-capture.json`;
     try {
       await writeJson(cwd, capturePath, {
+        provider: "github",
+        repository: "owner/repo",
+        pr_number: 390,
         baseRefOid: baseSha,
         headRefOid: headSha,
       });
@@ -873,7 +912,17 @@ describe.skipIf(!jqAvailable)("documented provider capture retries", () => {
 
       await expect(run.result).rejects.toMatchObject({ code: 1 });
       await expect(readFile(path.join(cwd, capturePath), "utf8")).resolves.toBe(
-        JSON.stringify({ baseRefOid: baseSha, headRefOid: headSha }, null, 2),
+        JSON.stringify(
+          {
+            provider: "github",
+            repository: "owner/repo",
+            pr_number: 390,
+            baseRefOid: baseSha,
+            headRefOid: headSha,
+          },
+          null,
+          2,
+        ),
       );
       await expect(readFile(run.bindingCount, "utf8")).rejects.toMatchObject({
         code: "ENOENT",
@@ -895,6 +944,9 @@ describe.skipIf(!jqAvailable)("documented provider capture retries", () => {
     const capturePath = `.ephemeral/topic-${headSha}-provider-scope-capture.json`;
     try {
       await writeJson(cwd, capturePath, {
+        provider: "github",
+        repository: "owner/repo",
+        pr_number: 390,
         baseRefOid: baseSha,
         headRefOid: headSha,
       });

@@ -2104,10 +2104,14 @@ describe.skipIf(isWindows)("review artifact runtime reducers", () => {
             ).toString("base64"),
           },
           { ...other, patch_base64: null },
-        ].map(
-          ({ patch_sha256: _digest, patch_available: _available, ...entry }) =>
-            entry,
-        ),
+        ].map((entry) => {
+          const {
+            patch_sha256: _digest,
+            patch_available: _available,
+            ...captureEntry
+          } = entry as JsonObject;
+          return captureEntry;
+        }),
         provider_diff: {
           dialect: CANONICAL_GIT_DIFF_DIALECT,
           content_base64: Buffer.from(fullDiff).toString("base64"),
