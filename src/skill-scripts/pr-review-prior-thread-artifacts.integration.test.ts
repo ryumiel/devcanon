@@ -25,7 +25,6 @@ const jqAvailable = await commandAvailable("jq");
 const PROVIDER_EVIDENCE_SCHEMA = "pr-review/provider-scope-evidence/v2";
 const DIGEST_PROVENANCE_SCHEMA = "pr-review/digest-provenance/v1";
 const CANONICAL_GIT_DIFF_DIALECT = "canonical-git-diff/v1";
-const CAPTURE_PUBLICATION_INTERRUPTED_STATUS = 75;
 const RAW_GITHUB_CAPTURE_MATERIALIZER = String.raw`
 const fs=require("node:fs");
 const p=process.env.PROVIDER_SCOPE_CAPTURE_FILE;

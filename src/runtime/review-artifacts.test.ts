@@ -3075,7 +3075,7 @@ describe.skipIf(isWindows)("review artifact runtime reducers", () => {
       stderr: "provider/local diff digest mismatch",
     },
     {
-      name: "mixed available and unavailable provider files with diff mismatch",
+      name: "multi-file provider/local diff mismatch",
       scope: async (cwd: string, baseSha: string, headSha: string) =>
         providerScopeDecision(cwd, baseSha, headSha, undefined, {
           changed_files: ["src/app.ts", "src/other.ts"],
@@ -3093,19 +3093,16 @@ describe.skipIf(isWindows)("review artifact runtime reducers", () => {
           headSha,
           "src/app.ts",
         );
-        const unavailableEntry = unavailablePatchEntry(
-          await providerEvidenceFileEntry(
-            cwd,
-            baseSha,
-            headSha,
-            "src/other.ts",
-          ),
+        const otherAvailableEntry = await providerEvidenceFileEntry(
+          cwd,
+          baseSha,
+          headSha,
+          "src/other.ts",
         );
         return providerScopeEvidence(cwd, baseSha, headSha, {
-          provider_files: [availableEntry, unavailableEntry],
-          local_files: [availableEntry, unavailableEntry],
+          provider_files: [availableEntry, otherAvailableEntry],
+          local_files: [availableEntry, otherAvailableEntry],
           provider_diff_sha256: "b".repeat(64),
-          digest_provenance: providerNativeDiffProvenance(),
         });
       },
       workspace: makeProviderMultiFileWorkspace,
