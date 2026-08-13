@@ -3234,6 +3234,46 @@ describe.skipIf(isWindows)("review artifact runtime reducers", () => {
     }
   });
 
+  it("removes only the written candidate and preserves capture when final validation fails", async () => {
+    const { cwd, baseSha, headSha } = await makeProviderScopeWorkspace();
+    const capturePath = `.ephemeral/topic-${headSha}-provider-scope-capture.json`;
+    const evidencePath = providerScopeEvidencePath(headSha);
+    try {
+      await writeJson(
+        cwd,
+        capturePath,
+        await providerScopeCapture(cwd, baseSha, headSha),
+      );
+      await expect(
+        runPrReviewProviderScopeEvidenceCommand(
+          ["write", "--head-sha", headSha, "--capture-file", capturePath],
+          {
+            validate: async () => {
+              throw new Error("written evidence validation failed");
+            },
+          },
+        ),
+      ).resolves.toEqual({
+        exitCode: 1,
+        stdout: "",
+        stderr: "written evidence validation failed\n",
+      });
+      await expect(
+        readFile(path.join(cwd, evidencePath), "utf8"),
+      ).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+      await expect(
+        readFile(path.join(cwd, capturePath), "utf8"),
+      ).resolves.toContain("provider-scope-capture/v1");
+      await expect(readdir(path.join(cwd, ".ephemeral"))).resolves.toEqual([
+        path.basename(capturePath),
+      ]);
+    } finally {
+      await cleanupRiskSignalsWorkspace(cwd);
+    }
+  });
+
   it("preserves validated evidence and capture when capture deletion fails, then retries", async () => {
     const { cwd, baseSha, headSha } = await makeProviderScopeWorkspace();
     const capturePath = `.ephemeral/topic-${headSha}-provider-scope-capture.json`;

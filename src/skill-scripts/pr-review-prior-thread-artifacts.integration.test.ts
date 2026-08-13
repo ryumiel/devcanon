@@ -7,6 +7,7 @@ import {
   mkdtemp,
   readFile,
   rm,
+  symlink,
   writeFile,
 } from "node:fs/promises";
 import os from "node:os";
@@ -378,6 +379,12 @@ async function copyInstalledPrAdapter(root: string) {
 
 describe.skipIf(!jqAvailable)("pr-review prior-thread adapter", () => {
   it.each([
+    { name: "empty output", output: "" },
+    {
+      name: "missing required newline",
+      output:
+        '{"command_group":"pr-review-provider-scope-evidence","major_version":1}',
+    },
     {
       name: "extra blank output",
       output:
@@ -474,6 +481,51 @@ describe.skipIf(!jqAvailable)("pr-review prior-thread adapter", () => {
       await cleanupTempDir(cwd);
     }
   });
+
+  it.each([{ name: "copied" }, { name: "symlinked" }])(
+    "resolves a $name installed sibling runtime for provider production",
+    async ({ name }) => {
+      const { cwd, baseSha, headSha } = await makeGitWorkspace();
+      const root = await mkdtemp(
+        path.join(os.tmpdir(), "devcanon-pr-installed-"),
+      );
+      const capturePath = `.ephemeral/topic-${headSha}-provider-scope-capture.json`;
+      const marker = path.join(root, "dispatch");
+      try {
+        const script = await copyInstalledPrAdapter(root);
+        const runtimeSource = await mkdtemp(
+          path.join(os.tmpdir(), "devcanon-runtime-source-"),
+        );
+        await writeMarkerRuntime(runtimeSource);
+        if (name === "symlinked") {
+          await symlink(runtimeSource, path.join(root, "devcanon-runtime"));
+        } else {
+          await writeMarkerRuntime(path.join(root, "devcanon-runtime"));
+        }
+        await writeJson(
+          cwd,
+          capturePath,
+          await providerScopeCapture(cwd, baseSha, headSha),
+        );
+        await expect(
+          runHelper(cwd, script, "write-provider-scope-evidence", {
+            HEAD_SHA: headSha,
+            PROVIDER_SCOPE_CAPTURE_FILE: capturePath,
+            RUNTIME_CONTRACT_OUTPUT:
+              '{"command_group":"pr-review-provider-scope-evidence","major_version":1}\\n',
+            RUNTIME_DISPATCH_MARKER: marker,
+          }),
+        ).resolves.toMatchObject({
+          stdout: ".ephemeral/runtime-provider-scope-evidence.json\n",
+        });
+        await expect(readFile(marker, "utf8")).resolves.toBe("");
+        await cleanupTempDir(runtimeSource);
+      } finally {
+        await cleanupTempDir(cwd);
+        await cleanupTempDir(root);
+      }
+    },
+  );
 
   it("preserves prepare and validate commands in the source skill layout", async () => {
     const { cwd, baseSha, headSha } = await makeGitWorkspace();

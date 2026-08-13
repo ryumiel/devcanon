@@ -187,19 +187,7 @@ export async function runPrReviewProviderScopeEvidenceCommand(args, operations =
         const evidenceText = `${JSON.stringify(evidence, null, 2)}\n`;
         await (operations.publish ?? writeTextAtomically)(evidenceFile, evidenceText);
         try {
-            await validatePrReviewProviderEvidence({
-                artifacts: {
-                    provider_scope_evidence_file: evidenceFile,
-                    provider_scope_evidence_sha256: createHash("sha256")
-                        .update(evidenceText)
-                        .digest("hex"),
-                },
-            }, {
-                ...EMPTY_OPTIONS,
-                headSha,
-                baseRef: stringField(evidence, "provider_pr_diff_base_sha"),
-                providerScopeEvidenceFile: evidenceFile,
-            });
+            await (operations.validate ?? validateWrittenProviderScopeEvidence)(evidenceFile, evidenceText, headSha, evidence);
         }
         catch (err) {
             await (operations.remove ?? removeProviderScopeEvidenceFile)(evidenceFile);
@@ -217,6 +205,21 @@ export async function runPrReviewProviderScopeEvidenceCommand(args, operations =
         const message = err instanceof Error ? err.message : String(err);
         return { exitCode: 1, stdout: "", stderr: `${message}\n` };
     }
+}
+async function validateWrittenProviderScopeEvidence(evidenceFile, evidenceText, headSha, evidence) {
+    await validatePrReviewProviderEvidence({
+        artifacts: {
+            provider_scope_evidence_file: evidenceFile,
+            provider_scope_evidence_sha256: createHash("sha256")
+                .update(evidenceText)
+                .digest("hex"),
+        },
+    }, {
+        ...EMPTY_OPTIONS,
+        headSha,
+        baseRef: stringField(evidence, "provider_pr_diff_base_sha"),
+        providerScopeEvidenceFile: evidenceFile,
+    });
 }
 async function removeProviderScopeEvidenceFile(file) {
     await rm(file);

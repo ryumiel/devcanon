@@ -48,15 +48,15 @@ Run in parallel:
 - `{{tool:github-cli}} api repos/{owner}/{repo}/pulls/<N>/comments` — inline review threads
 - `{{tool:github-cli}} api repos/{owner}/{repo}/pulls/<N>/reviews` — review states
 
-Phase 1 must fetch and record provider `baseRefOid` and `headRefOid`, but
-provider `baseRefOid` is metadata, not proof that the base branch ref is the PR
-diff base. Also gather the complete provider file/diff evidence needed to prove
-full PR scope: paginated provider file metadata, provider diff bytes or digest,
-the provider PR diff-base proof, and the local file list and local diff digest
-for the candidate full range. Here provider PR diff-base proof is shorthand
-for `provider_pr_diff_base_sha` plus bound provider/local file and diff
-evidence. Phase 3 binds those facts into the provider scope evidence artifact
-before any review dispatch.
+Phase 1 must retain only raw provider authority: repository and PR identity,
+provider `baseRefOid` and `headRefOid`, complete paginated provider file
+metadata with raw patch bytes or unavailable markers, and the exact full
+provider diff bytes plus dialect. `baseRefOid` is metadata, not proof that a
+base branch ref is the PR diff base. Do not request or compute a provider diff
+base, local file list, local patch digest, local diff digest, or provenance
+claim in this phase. Preserve raw patch and diff response bytes as strict
+base64 fields (encode directly from the API response bytes, never by copying
+binary or patch text through a prompt) for the target-worktree capture below.
 
 <!-- Bare body intentional: responses feed Phase 4's prior_threads parsing. -->
 <!-- See docs/guidelines/gh-api-hygiene.md § 3. -->
@@ -239,7 +239,8 @@ is the immutable SHA passed to scope-decision and approved-review validators
 because the canonical full range is
 `"$PROVIDER_PR_DIFF_BASE_SHA..$REVIEW_HEAD_SHA"`.
 
-Apply the shared follow-up scope policy in
+After the producer has returned the validated evidence and this wrapper has
+read its full range, apply the shared follow-up scope policy in
 `skills/play-review/references/follow-up-scope-policy.md` before invoking
 `play-review`. Phase 3 owns GitHub-specific facts and final range selection.
 The `pr-review` adapter
@@ -308,25 +309,6 @@ guards or ambient environment variables do not prove full range.
 The key boundary is that play-review remains provider-agnostic and consumes
 only the explicit final scope facts supplied by this wrapper.
 
-`active_diff_range` depends on mode:
-
-- **Initial:** `active_diff_range = full_pr_diff_range`; `is_followup_narrow = false`.
-- **Follow-up:** apply the shared follow-up scope policy and validated
-  scope-decision artifact to choose narrow vs full.
-  - **Narrow** (incremental): `active_diff_range = "<last_reviewed_sha>..HEAD"`; `is_followup_narrow = true`.
-  - **Full** (escalate): `active_diff_range = full_pr_diff_range`; `is_followup_narrow = false`.
-
-When classification is ambiguous, fail closed to full review. If the shared
-policy or support validator escalates, keep `prior_threads` in the
-`play-review` handoff so unresolved prior GitHub comments can still be verified
-and carried forward.
-
-**Unaddressed prior findings:** If a prior blocking finding was NOT addressed by the new commits (the flagged code is unchanged), `play-review`'s critic will carry it forward into the `## Carry-forward` section.
-
-After final active range selection, compute `language_hints` from that selected
-active diff only. The scope-decision artifact and adapter validation must agree
-with those selected-range facts before invoking `play-review`.
-
 Before invoking `play-review`, produce, validate, and bind the canonical
 Phase 3 provider-scope evidence and scope-decision artifacts from the target
 worktree. Phase 1 captures only raw GitHub authority: repository and PR
@@ -348,9 +330,28 @@ REVIEW_CALLER_DIR="$(pwd -P)" || exit 1
 bind_scope_decision_artifact() {
   cd "$WORKING_DIRECTORY" || return 1
   HEAD_SHA="$(git rev-parse HEAD)" || return 1
-  : "${PROVIDER_SCOPE_CAPTURE_FILE:?Phase 1 provider scope capture is required}"
-  # Materialize the Phase 1 raw GitHub capture at this exact guarded path.
-  # Do not add local file lists, digests, provenance, or merge-base claims.
+  raw_branch="$(git rev-parse --abbrev-ref HEAD)" || return 1
+  branch_slug="$(printf '%s' "$raw_branch" | tr '/' '-' | tr -cd '[:alnum:]._-')"
+  [ "$raw_branch" != HEAD ] || branch_slug="detached"
+  case "$branch_slug" in "" | . | .. | -* | .*) branch_slug="unnamed" ;; esac
+  PROVIDER_SCOPE_CAPTURE_FILE=".ephemeral/$branch_slug-$HEAD_SHA-provider-scope-capture.json"
+  [ ! -L .ephemeral ] || return 1
+  mkdir -p .ephemeral || return 1
+  # Phase 1 retains these raw, byte-faithful values. Each patch_base64 and
+  # provider_diff_base64 is strict base64 encoded directly from API bytes.
+  : "${PHASE1_REPOSITORY:?required}" "${PHASE1_PR_NUMBER:?required}"
+  : "${PHASE1_BASE_REF_OID:?required}" "${PHASE1_HEAD_REF_OID:?required}"
+  : "${PHASE1_PROVIDER_FILES_JSON:?required}"
+  : "${PHASE1_PROVIDER_DIFF_DIALECT:?required}" "${PHASE1_PROVIDER_DIFF_BASE64:?required}"
+  PROVIDER_SCOPE_CAPTURE_FILE="$PROVIDER_SCOPE_CAPTURE_FILE" node -e '
+    const fs=require("node:fs");
+    const capture={schema:"pr-review/provider-scope-capture/v1",provider:"github",
+      repository:process.env.PHASE1_REPOSITORY,pr_number:Number(process.env.PHASE1_PR_NUMBER),
+      baseRefOid:process.env.PHASE1_BASE_REF_OID,headRefOid:process.env.PHASE1_HEAD_REF_OID,
+      evidence_complete:true,provider_files:JSON.parse(process.env.PHASE1_PROVIDER_FILES_JSON),
+      provider_diff:{dialect:process.env.PHASE1_PROVIDER_DIFF_DIALECT,content_base64:process.env.PHASE1_PROVIDER_DIFF_BASE64}};
+    fs.writeFileSync(process.env.PROVIDER_SCOPE_CAPTURE_FILE,JSON.stringify(capture)+"\\n",{encoding:"utf8",flag:"wx"});
+  ' || return 1
   PROVIDER_SCOPE_EVIDENCE_FILE=$(
     HEAD_SHA="$HEAD_SHA" \
     PROVIDER_SCOPE_CAPTURE_FILE="$PROVIDER_SCOPE_CAPTURE_FILE" \
@@ -358,6 +359,10 @@ bind_scope_decision_artifact() {
   ) || return 1
   REVIEW_SCOPE_BASE_REF="$(node -e 'const fs=require("node:fs"); const x=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); process.stdout.write(x.provider_pr_diff_base_sha)' "$PROVIDER_SCOPE_EVIDENCE_FILE")" || return 1
   FULL_PR_DIFF_RANGE="$(node -e 'const fs=require("node:fs"); const x=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); process.stdout.write(x.full_pr_diff_range)' "$PROVIDER_SCOPE_EVIDENCE_FILE")" || return 1
+  # Now apply the existing initial/follow-up policy to FULL_PR_DIFF_RANGE.
+  # Initial uses it in full; follow-up chooses last_reviewed_sha..HEAD only
+  # when that policy permits narrow review, otherwise uses it in full.
+  # Derive language_hints from the resulting active_diff_range only.
   SCOPE_DECISION_FILE=$(
     HEAD_SHA="$HEAD_SHA" \
       bash "$PR_REVIEW_ARTIFACT_HELPER" prepare-scope-decision-write || return 1

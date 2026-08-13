@@ -41,6 +41,12 @@ type JsonObject = Record<string, unknown>;
 interface ProviderScopeEvidenceOperations {
   publish?: (targetPath: string, content: string) => Promise<unknown>;
   remove?: (targetPath: string) => Promise<void>;
+  validate?: (
+    evidenceFile: string,
+    evidenceText: string,
+    headSha: string,
+    evidence: JsonObject,
+  ) => Promise<void>;
 }
 
 interface ReviewArtifactOptions {
@@ -294,21 +300,11 @@ export async function runPrReviewProviderScopeEvidenceCommand(
       evidenceText,
     );
     try {
-      await validatePrReviewProviderEvidence(
-        {
-          artifacts: {
-            provider_scope_evidence_file: evidenceFile,
-            provider_scope_evidence_sha256: createHash("sha256")
-              .update(evidenceText)
-              .digest("hex"),
-          },
-        },
-        {
-          ...EMPTY_OPTIONS,
-          headSha,
-          baseRef: stringField(evidence, "provider_pr_diff_base_sha"),
-          providerScopeEvidenceFile: evidenceFile,
-        },
+      await (operations.validate ?? validateWrittenProviderScopeEvidence)(
+        evidenceFile,
+        evidenceText,
+        headSha,
+        evidence,
       );
     } catch (err) {
       await (operations.remove ?? removeProviderScopeEvidenceFile)(
@@ -326,6 +322,30 @@ export async function runPrReviewProviderScopeEvidenceCommand(
     const message = err instanceof Error ? err.message : String(err);
     return { exitCode: 1, stdout: "", stderr: `${message}\n` };
   }
+}
+
+async function validateWrittenProviderScopeEvidence(
+  evidenceFile: string,
+  evidenceText: string,
+  headSha: string,
+  evidence: JsonObject,
+): Promise<void> {
+  await validatePrReviewProviderEvidence(
+    {
+      artifacts: {
+        provider_scope_evidence_file: evidenceFile,
+        provider_scope_evidence_sha256: createHash("sha256")
+          .update(evidenceText)
+          .digest("hex"),
+      },
+    },
+    {
+      ...EMPTY_OPTIONS,
+      headSha,
+      baseRef: stringField(evidence, "provider_pr_diff_base_sha"),
+      providerScopeEvidenceFile: evidenceFile,
+    },
+  );
 }
 
 async function removeProviderScopeEvidenceFile(file: string): Promise<void> {
