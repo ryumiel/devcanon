@@ -641,9 +641,10 @@ topology, select owners, or supersede the approved design.
 
 `Proof owner` uses only `Task <TASK-ID>` or
 `Non-task owner — <concrete owner>`. A task's expected projection ID set is the
-set union of entries whose
-Task ID appears in its task/no-code disposition and entries whose task-valued
-proof owner names it. Deduplicate an Entry ID when the same task owns both
+set union of entries whose disposition uses the exact `Task <TASK-ID>` branch
+for that Task ID and entries whose task-valued proof owner names it. `No code —
+<task-specific reason>` never contributes an implementation-task reference,
+regardless of reason text. Deduplicate an Entry ID when the same task owns both
 forms. Every task-valued implementation disposition and task-valued proof owner
 resolves to exactly one current task in the same plan; a non-task owner creates
 no task reference.
@@ -678,8 +679,10 @@ plan to resolve references themselves.
 
 After provenance, validation, and exhaustiveness succeed, the controller also
 retains every validated no-code entry and its complete proof tuple in its
-whole-range/final-review context. This is separate from task-specific curated
-contexts and does not make the full plan available to children.
+`EXTRACTED_WHOLE_IMPLEMENTATION_CONTEXT` supplied to D16/the final
+whole-implementation reviewer until its proof boundary is discharged. This is
+separate from task-specific curated contexts and does not make the full plan
+available to children.
 
 When Contract Example Discipline is triggered, one valid family must contain a
 relationship with a normative-owner surface, a reference consumer, and a
@@ -700,7 +703,9 @@ Extend that response-only evidence with no-code entries: one with a task-valued
 proof owner and one with a concrete non-task proof owner. The task-valued entry
 appears in that task's existing union; the controller whole-range/final-review
 context retains both complete proof tuples. An unreachable named owner or proof
-boundary blocks rather than dropping either entry.
+boundary blocks rather than dropping either entry. An invalid family uses a
+no-code reason containing a Task ID: it must not add that entry to the task's
+implementation union.
 
 Portable criteria distinguish target-owned contributor overlays from this
 source library's local policy. Apply a repository contributor overlay only when
@@ -945,8 +950,10 @@ not. Explicitly fail missing design Contract Decision and Documentation impact
 item mappings. For a plan with an Execution Projection, D5 also validates total
 task-reference coverage: every current task has its explicit reference field,
 and each task's declared IDs are exactly the union of IDs whose implementation
-disposition names that Task ID and whose task-valued proof owner names it,
-deduplicating an ID when the same task owns both. D5 owns ordinary defects in
+disposition uses the exact `Task <TASK-ID>` branch for that Task ID and whose
+task-valued proof owner names it; a `No code — <reason>` entry never contributes
+implementation ownership regardless of reason text. Deduplicate an ID when the
+same task owns both. D5 owns ordinary defects in
 approved-scope coverage,
 normative authority, boundary and consumer completeness, requirement
 traceability, dependency intent, documentation impact, and proof

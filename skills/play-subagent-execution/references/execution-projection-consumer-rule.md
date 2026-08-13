@@ -80,12 +80,13 @@ partitions, precedence, task coverage, or other required dimensions.
 
 `Proof owner` uses only `Task <TASK-ID>` or
 `Non-task owner — <concrete owner>`. For each current task, derive its expected
-Entry ID set as the union of entries whose task/no-code disposition names that
-Task ID and entries whose
-task-valued proof owner names it. Deduplicate an ID when the same task owns both
-forms. Every task-valued implementation disposition and proof owner must
-resolve exactly once to a current task in the same plan; non-task owners create
-no task reference.
+Entry ID set as the union of entries whose disposition uses the exact
+`Task <TASK-ID>` branch for that Task ID and entries whose task-valued proof
+owner names it. `No code — <task-specific reason>` never contributes an
+implementation-task reference, regardless of reason text. Deduplicate an ID
+when the same task owns both forms. Every task-valued implementation disposition
+and proof owner must resolve exactly once to a current task in the same plan;
+non-task owners create no task reference.
 
 Require every current task to declare `**Execution Projection references:**`.
 It must list exactly its derived union, without duplicates, or use `None — no
@@ -103,7 +104,9 @@ validation, and exhaustiveness succeed, derive contexts in this order:
 1. Add only resolved task-relevant entries—whether implementation-owned,
    proof-owned, or both—to each curated implementer and reviewer context.
 2. Retain every validated `No code — <task-specific reason>` entry and its full
-   proof tuple in the controller-owned whole-range/final-review context.
+   proof tuple in `EXTRACTED_WHOLE_IMPLEMENTATION_CONTEXT`, the controller-
+   curated whole-range context supplied to D16/the final whole-implementation
+   reviewer until its proof boundary is discharged.
 
 For each no-code entry, a task-valued proof owner receives it through the
 existing task union. A non-task proof owner must be concrete; the controller
@@ -129,4 +132,5 @@ The no-code response-only family contains one task-valued proof owner and one
 concrete non-task proof owner: the former appears through the task union, while
 the controller whole-range/final-review context retains both complete proof
 tuples. An unreachable named owner or proof boundary blocks rather than drops
-the entry.
+the entry. An invalid no-code reason containing a Task ID does not contribute
+implementation ownership to that task's union.

@@ -35,9 +35,10 @@ task is itself mechanical and fully specified in the plan body.
 
 ## Decision
 
-Add an internal optimization to `play-subagent-execution`: after plan
-extraction, require execution admission before evaluating five guardrails. An
-admitted plan contains exactly one canonical `## Execution Projection` and
+Add an internal optimization to `play-subagent-execution`: after guarded
+plan-byte intake and before task extraction, require execution admission before
+evaluating five guardrails. An admitted plan contains exactly one canonical
+`## Execution Projection` and
 identifiable same-digest D5 Plan Review and D6 Implementer Executability Review
 PASS provenance for the exact plan bytes. Admission failure returns
 `BLOCKED/NEEDS_CONTEXT` before any D12, D13, inline, or skip-dispatch route. If

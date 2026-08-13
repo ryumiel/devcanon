@@ -290,8 +290,9 @@ For the full selection and process diagrams, load
    obligations that refine the plan-level section, plus only the resolved
    task-relevant Execution Projection entries, including proof-task-owned
    entries. Separately retain the consumer rule's validated no-code proof
-   obligations for controller-owned whole-range/final review; do not add them
-   to child context unless task-relevant. When Contract Example
+   obligations in `EXTRACTED_WHOLE_IMPLEMENTATION_CONTEXT` for D16/final
+   whole-implementation review until discharged; do not add them to child
+   context unless task-relevant. When Contract Example
    Discipline or an equivalent clearly labeled section/obligation is present,
    also inline the full shared consumer rule under
    `Contract Example Discipline Consumer Rule` so prompt consumers can enforce
