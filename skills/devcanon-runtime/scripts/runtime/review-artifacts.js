@@ -232,6 +232,7 @@ async function materializeProviderScopeCapture(args) {
     if (existingCapture !== null) {
         fail("provider scope capture target already exists");
     }
+    await assertProviderCaptureScratchFiles(captureTmpFile, prFile, filesFile, diffFile);
     const pr = await readSingleJsonObject(prFile, "provider capture PR JSON validation failed");
     const pages = JSON.parse(await readFile(filesFile, "utf8"));
     if (!Array.isArray(pages) || !pages.every(Array.isArray)) {
@@ -284,6 +285,33 @@ async function materializeProviderScopeCapture(args) {
     }
     await link(captureTmpFile, captureFile);
     return ok("");
+}
+async function assertProviderCaptureScratchFiles(captureTmpFile, prFile, filesFile, diffFile) {
+    const ephemeral = await realpath(".ephemeral").catch(() => fail(".ephemeral must be a real directory"));
+    const scratchParent = path.dirname(captureTmpFile);
+    const scratch = await realpath(scratchParent).catch(() => fail("provider capture scratch directory is invalid"));
+    if (path.dirname(scratch) !== ephemeral ||
+        !path.basename(scratch).startsWith("provider-scope-capture.")) {
+        fail("provider capture scratch directory is invalid");
+    }
+    const temporary = await lstat(captureTmpFile).catch(() => null);
+    if (temporary !== null || path.basename(captureTmpFile) !== "capture.json") {
+        fail("provider capture temp file is invalid");
+    }
+    for (const [label, file, leaf] of [
+        ["PR", prFile, "pr.json"],
+        ["files", filesFile, "files.json"],
+        ["diff", diffFile, "full.diff"],
+    ]) {
+        if (path.dirname(file) !== scratchParent || path.basename(file) !== leaf) {
+            fail(`provider capture ${label} file is invalid`);
+        }
+        const entry = await lstat(file).catch(() => null);
+        if (entry === null || entry.isSymbolicLink() || !entry.isFile()) {
+            fail(`provider capture ${label} file is invalid`);
+        }
+        await access(file, constants.R_OK).catch(() => fail(`provider capture ${label} file is unreadable`));
+    }
 }
 async function validateWrittenProviderScopeEvidence(evidenceFile, evidenceText, headSha, evidence) {
     await validatePrReviewProviderEvidence({
@@ -342,6 +370,7 @@ async function providerScopeEvidenceFromCapture(capture, headSha) {
     }
     const providerFiles = captureFiles.map((entry) => providerEvidenceEntry(entry));
     const unavailableOnly = providerFiles.length > 0 && providerFiles.every(isUnavailablePatchEntry);
+    const emptyFiles = providerFiles.length === 0;
     const projectedLocalFiles = unavailableOnly
         ? localFiles.map(unavailablePatchProjection)
         : localFiles;
@@ -361,7 +390,8 @@ async function providerScopeEvidenceFromCapture(capture, headSha) {
     }
     if (providerDiffDigest === localDiffDigest &&
         providerDiffDialect !== CANONICAL_GIT_DIFF_DIALECT &&
-        (!unavailableOnly || providerDiffDialect !== GITHUB_PROVIDER_DIFF_DIALECT)) {
+        (!(unavailableOnly || emptyFiles) ||
+            providerDiffDialect !== GITHUB_PROVIDER_DIFF_DIALECT)) {
         fail("provider/local diff digest mismatch");
     }
     return {
@@ -951,6 +981,7 @@ async function validatePrReviewProviderEvidence(scope, options) {
     const unavailableOnly = providerFiles.length > 0 &&
         providerFiles.every(isUnavailablePatchEntry) &&
         localFiles.every(isUnavailablePatchEntry);
+    const emptyFiles = providerFiles.length === 0 && localFiles.length === 0;
     const availableOnly = providerFiles.length > 0 &&
         providerFiles.every(isAvailablePatchEntry) &&
         localFiles.every(isAvailablePatchEntry);
@@ -983,7 +1014,7 @@ async function validatePrReviewProviderEvidence(scope, options) {
         }
     }
     else if (!hasCompatibleFullDiffProvenance(digestProvenance)) {
-        if (!unavailableOnly ||
+        if (!(unavailableOnly || emptyFiles) ||
             stringField(digestProvenance, "provider_diff") !==
                 GITHUB_PROVIDER_DIFF_DIALECT) {
             fail("provider/local diff digest mismatch");

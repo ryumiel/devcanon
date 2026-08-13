@@ -1063,7 +1063,7 @@ describe("provider-scope capture materializer guards", () => {
         await rm(diffPath);
         await mkdir(diffPath);
       },
-      stderr: "EISDIR",
+      stderr: "provider capture diff file is invalid",
     },
   ])(
     "rejects malformed raw $name before canonical publication",

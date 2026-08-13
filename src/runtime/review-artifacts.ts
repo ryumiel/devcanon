@@ -353,6 +353,12 @@ async function materializeProviderScopeCapture(
   if (existingCapture !== null) {
     fail("provider scope capture target already exists");
   }
+  await assertProviderCaptureScratchFiles(
+    captureTmpFile,
+    prFile,
+    filesFile,
+    diffFile,
+  );
   const pr = await readSingleJsonObject(
     prFile,
     "provider capture PR JSON validation failed",
@@ -409,6 +415,47 @@ async function materializeProviderScopeCapture(
   }
   await link(captureTmpFile, captureFile);
   return ok("");
+}
+
+async function assertProviderCaptureScratchFiles(
+  captureTmpFile: string,
+  prFile: string,
+  filesFile: string,
+  diffFile: string,
+): Promise<void> {
+  const ephemeral = await realpath(".ephemeral").catch(() =>
+    fail(".ephemeral must be a real directory"),
+  );
+  const scratchParent = path.dirname(captureTmpFile);
+  const scratch = await realpath(scratchParent).catch(() =>
+    fail("provider capture scratch directory is invalid"),
+  );
+  if (
+    path.dirname(scratch) !== ephemeral ||
+    !path.basename(scratch).startsWith("provider-scope-capture.")
+  ) {
+    fail("provider capture scratch directory is invalid");
+  }
+  const temporary = await lstat(captureTmpFile).catch(() => null);
+  if (temporary !== null || path.basename(captureTmpFile) !== "capture.json") {
+    fail("provider capture temp file is invalid");
+  }
+  for (const [label, file, leaf] of [
+    ["PR", prFile, "pr.json"],
+    ["files", filesFile, "files.json"],
+    ["diff", diffFile, "full.diff"],
+  ] as const) {
+    if (path.dirname(file) !== scratchParent || path.basename(file) !== leaf) {
+      fail(`provider capture ${label} file is invalid`);
+    }
+    const entry = await lstat(file).catch(() => null);
+    if (entry === null || entry.isSymbolicLink() || !entry.isFile()) {
+      fail(`provider capture ${label} file is invalid`);
+    }
+    await access(file, constants.R_OK).catch(() =>
+      fail(`provider capture ${label} file is unreadable`),
+    );
+  }
 }
 
 async function validateWrittenProviderScopeEvidence(
@@ -491,6 +538,7 @@ async function providerScopeEvidenceFromCapture(
   );
   const unavailableOnly =
     providerFiles.length > 0 && providerFiles.every(isUnavailablePatchEntry);
+  const emptyFiles = providerFiles.length === 0;
   const projectedLocalFiles = unavailableOnly
     ? localFiles.map(unavailablePatchProjection)
     : localFiles;
@@ -520,7 +568,8 @@ async function providerScopeEvidenceFromCapture(
   if (
     providerDiffDigest === localDiffDigest &&
     providerDiffDialect !== CANONICAL_GIT_DIFF_DIALECT &&
-    (!unavailableOnly || providerDiffDialect !== GITHUB_PROVIDER_DIFF_DIALECT)
+    (!(unavailableOnly || emptyFiles) ||
+      providerDiffDialect !== GITHUB_PROVIDER_DIFF_DIALECT)
   ) {
     fail("provider/local diff digest mismatch");
   }
@@ -1243,6 +1292,7 @@ async function validatePrReviewProviderEvidence(
     providerFiles.length > 0 &&
     providerFiles.every(isUnavailablePatchEntry) &&
     localFiles.every(isUnavailablePatchEntry);
+  const emptyFiles = providerFiles.length === 0 && localFiles.length === 0;
   const availableOnly =
     providerFiles.length > 0 &&
     providerFiles.every(isAvailablePatchEntry) &&
@@ -1294,7 +1344,7 @@ async function validatePrReviewProviderEvidence(
     }
   } else if (!hasCompatibleFullDiffProvenance(digestProvenance)) {
     if (
-      !unavailableOnly ||
+      !(unavailableOnly || emptyFiles) ||
       stringField(digestProvenance, "provider_diff") !==
         GITHUB_PROVIDER_DIFF_DIALECT
     ) {

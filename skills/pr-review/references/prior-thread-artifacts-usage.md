@@ -22,6 +22,8 @@ Each prepare command prints its validated repo-relative destination path; materi
 
 The v2 top-level keys are `schema`, `provider`, `repository`, `pr_number`, `baseRefOid`, `headRefOid`, `provider_pr_diff_base_sha`, `local_review_head_sha`, `full_pr_diff_range`, `evidence_complete`, `digest_provenance`, `provider_files`, `local_files`, `provider_diff_sha256`, and `local_diff_sha256`. `digest_provenance` keys are `schema`, `provider_diff`, `local_diff`, `provider_patches`, and `local_patches`; each provider/local file entry keys are `path`, `status`, `previous_path`, `additions`, `deletions`, `changes`, `patch_sha256`, and `patch_available`.
 
+An empty `provider_files`/`local_files` pair may retain `github-provider-diff/v1` only when its provider full-diff digest equals the canonical local full-diff digest.
+
 ## Refusal and failures
 
 Unknown commands, missing metadata, unsafe paths, incompatible or malformed runtime contracts, invalid captures, Git-derived evidence mismatches, or invalid support validation exit nonzero without a success path. The existing prepare-only command remains compatible and does not produce evidence.

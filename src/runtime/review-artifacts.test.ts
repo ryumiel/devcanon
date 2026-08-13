@@ -1310,6 +1310,41 @@ describe.skipIf(isWindows)("review artifact runtime reducers", () => {
     }
   });
 
+  it("accepts empty provider files with matching GitHub full-diff provenance", async () => {
+    const { cwd, baseSha, headSha } = await makeProviderEmptyDiffWorkspace();
+    const evidencePath = providerScopeEvidencePath(headSha);
+    try {
+      await writeJson(
+        cwd,
+        evidencePath,
+        await providerScopeEvidence(cwd, baseSha, headSha, {
+          provider_files: [],
+          local_files: [],
+          digest_provenance: providerNativeDiffProvenance(),
+        }),
+      );
+      await writeJson(
+        cwd,
+        ".ephemeral/topic-scope-decision.json",
+        await providerScopeDecision(cwd, baseSha, headSha, undefined, {
+          changed_files: [],
+          language_hints: [],
+          mechanical_facts: {
+            changed_file_count: 0,
+            followup_sha_usable: false,
+            mechanical_escalate_full: true,
+            mechanical_escalation_reason: "not-followup",
+          },
+        }),
+      );
+      await expect(
+        runReviewArtifactsCommand(providerScopeArgs(headSha, baseSha)),
+      ).resolves.toMatchObject({ exitCode: 0, stderr: "" });
+    } finally {
+      await cleanupRiskSignalsWorkspace(cwd);
+    }
+  });
+
   it("rejects mixed provider/local patch availability in v2 evidence", async () => {
     const { cwd, baseSha, headSha } = await makeProviderMultiFileWorkspace();
     const evidencePath = providerScopeEvidencePath(headSha);
