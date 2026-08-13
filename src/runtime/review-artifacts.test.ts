@@ -1,6 +1,13 @@
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -3055,6 +3062,105 @@ describe.skipIf(isWindows)("review artifact runtime reducers", () => {
       await expect(
         runReviewArtifactsCommand(providerScopeArgs(headSha, baseSha)),
       ).resolves.toMatchObject({ exitCode: 0 });
+    } finally {
+      await cleanupRiskSignalsWorkspace(cwd);
+    }
+  });
+
+  it("preserves the existing evidence and exact capture when atomic publication is interrupted", async () => {
+    const { cwd, baseSha, headSha } = await makeProviderScopeWorkspace();
+    const capturePath = `.ephemeral/topic-${headSha}-provider-scope-capture.json`;
+    const evidencePath = providerScopeEvidencePath(headSha);
+    const originalEvidence = "existing evidence\n";
+    try {
+      await writeJson(
+        cwd,
+        capturePath,
+        await providerScopeCapture(cwd, baseSha, headSha),
+      );
+      await writeFile(path.join(cwd, evidencePath), originalEvidence);
+
+      await expect(
+        runPrReviewProviderScopeEvidenceCommand(
+          ["write", "--head-sha", headSha, "--capture-file", capturePath],
+          {
+            publish: async () => {
+              throw new Error("atomic publication interrupted");
+            },
+          },
+        ),
+      ).resolves.toEqual({
+        exitCode: 1,
+        stdout: "",
+        stderr: "atomic publication interrupted\n",
+      });
+      await expect(
+        readFile(path.join(cwd, evidencePath), "utf8"),
+      ).resolves.toBe(originalEvidence);
+      await expect(
+        readFile(path.join(cwd, capturePath), "utf8"),
+      ).resolves.toContain("provider-scope-capture/v1");
+      await expect(readdir(path.join(cwd, ".ephemeral"))).resolves.toEqual([
+        path.basename(capturePath),
+        path.basename(evidencePath),
+      ]);
+    } finally {
+      await cleanupRiskSignalsWorkspace(cwd);
+    }
+  });
+
+  it("preserves validated evidence and capture when capture deletion fails, then retries", async () => {
+    const { cwd, baseSha, headSha } = await makeProviderScopeWorkspace();
+    const capturePath = `.ephemeral/topic-${headSha}-provider-scope-capture.json`;
+    const evidencePath = providerScopeEvidencePath(headSha);
+    try {
+      await writeJson(
+        cwd,
+        capturePath,
+        await providerScopeCapture(cwd, baseSha, headSha),
+      );
+      await expect(
+        runPrReviewProviderScopeEvidenceCommand(
+          ["write", "--head-sha", headSha, "--capture-file", capturePath],
+          {
+            remove: async (file) => {
+              if (file === capturePath) {
+                throw new Error("capture deletion interrupted");
+              }
+              await rm(file, { force: true });
+            },
+          },
+        ),
+      ).resolves.toEqual({
+        exitCode: 1,
+        stdout: "",
+        stderr:
+          "provider scope capture deletion failed after evidence publication\n",
+      });
+      await expect(
+        readFile(path.join(cwd, evidencePath), "utf8"),
+      ).resolves.toContain(PROVIDER_EVIDENCE_SCHEMA);
+      await expect(
+        readFile(path.join(cwd, capturePath), "utf8"),
+      ).resolves.toContain("provider-scope-capture/v1");
+      await expect(
+        runPrReviewProviderScopeEvidenceCommand([
+          "write",
+          "--head-sha",
+          headSha,
+          "--capture-file",
+          capturePath,
+        ]),
+      ).resolves.toEqual({
+        exitCode: 0,
+        stdout: `${evidencePath}\n`,
+        stderr: "",
+      });
+      await expect(
+        readFile(path.join(cwd, capturePath), "utf8"),
+      ).rejects.toMatchObject({
+        code: "ENOENT",
+      });
     } finally {
       await cleanupRiskSignalsWorkspace(cwd);
     }

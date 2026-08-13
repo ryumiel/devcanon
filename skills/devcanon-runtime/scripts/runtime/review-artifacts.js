@@ -151,7 +151,7 @@ export async function runReviewArtifactsCommand(args) {
         return { exitCode: 1, stdout: "", stderr: `${message}\n` };
     }
 }
-export async function runPrReviewProviderScopeEvidenceCommand(args) {
+export async function runPrReviewProviderScopeEvidenceCommand(args, operations = {}) {
     try {
         if (args[0] === "contract") {
             if (args.length !== 1) {
@@ -185,7 +185,7 @@ export async function runPrReviewProviderScopeEvidenceCommand(args) {
         const evidenceFile = await expectedProviderScopeEvidencePath(headSha);
         await assertWritableProviderScopeEvidenceTarget(evidenceFile);
         const evidenceText = `${JSON.stringify(evidence, null, 2)}\n`;
-        await writeTextAtomically(evidenceFile, evidenceText);
+        await (operations.publish ?? writeTextAtomically)(evidenceFile, evidenceText);
         try {
             await validatePrReviewProviderEvidence({
                 artifacts: {
@@ -202,11 +202,11 @@ export async function runPrReviewProviderScopeEvidenceCommand(args) {
             });
         }
         catch (err) {
-            await rm(evidenceFile, { force: true });
+            await (operations.remove ?? removeProviderScopeEvidenceFile)(evidenceFile);
             throw err;
         }
         try {
-            await rm(captureFile);
+            await (operations.remove ?? removeProviderScopeEvidenceFile)(captureFile);
         }
         catch {
             fail("provider scope capture deletion failed after evidence publication");
@@ -217,6 +217,9 @@ export async function runPrReviewProviderScopeEvidenceCommand(args) {
         const message = err instanceof Error ? err.message : String(err);
         return { exitCode: 1, stdout: "", stderr: `${message}\n` };
     }
+}
+async function removeProviderScopeEvidenceFile(file) {
+    await rm(file);
 }
 function requiredProducerOption(args, flag) {
     const index = args.indexOf(flag);

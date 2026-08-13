@@ -38,6 +38,11 @@ type RuntimeCommandOutcome =
 
 type JsonObject = Record<string, unknown>;
 
+interface ProviderScopeEvidenceOperations {
+  publish?: (targetPath: string, content: string) => Promise<unknown>;
+  remove?: (targetPath: string) => Promise<void>;
+}
+
 interface ReviewArtifactOptions {
   surface: string;
   headSha: string;
@@ -237,6 +242,7 @@ export async function runReviewArtifactsCommand(
 
 export async function runPrReviewProviderScopeEvidenceCommand(
   args: readonly string[],
+  operations: ProviderScopeEvidenceOperations = {},
 ): Promise<RuntimeCommandOutcome> {
   try {
     if (args[0] === "contract") {
@@ -283,7 +289,10 @@ export async function runPrReviewProviderScopeEvidenceCommand(
     const evidenceFile = await expectedProviderScopeEvidencePath(headSha);
     await assertWritableProviderScopeEvidenceTarget(evidenceFile);
     const evidenceText = `${JSON.stringify(evidence, null, 2)}\n`;
-    await writeTextAtomically(evidenceFile, evidenceText);
+    await (operations.publish ?? writeTextAtomically)(
+      evidenceFile,
+      evidenceText,
+    );
     try {
       await validatePrReviewProviderEvidence(
         {
@@ -302,11 +311,13 @@ export async function runPrReviewProviderScopeEvidenceCommand(
         },
       );
     } catch (err) {
-      await rm(evidenceFile, { force: true });
+      await (operations.remove ?? removeProviderScopeEvidenceFile)(
+        evidenceFile,
+      );
       throw err;
     }
     try {
-      await rm(captureFile);
+      await (operations.remove ?? removeProviderScopeEvidenceFile)(captureFile);
     } catch {
       fail("provider scope capture deletion failed after evidence publication");
     }
@@ -315,6 +326,10 @@ export async function runPrReviewProviderScopeEvidenceCommand(
     const message = err instanceof Error ? err.message : String(err);
     return { exitCode: 1, stdout: "", stderr: `${message}\n` };
   }
+}
+
+async function removeProviderScopeEvidenceFile(file: string): Promise<void> {
+  await rm(file);
 }
 
 function requiredProducerOption(args: readonly string[], flag: string): string {
