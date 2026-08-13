@@ -462,6 +462,12 @@ came from `issue-priming-workflow --auto` and identifies
 completion, exact D16 skip eligibility, final-review timing, and returned
 terminal disposition. This index does not restate those transitions.
 
+On that verified auto carve-out, skip D16 only when
+`EXTRACTED_WHOLE_IMPLEMENTATION_CONTEXT` has no retained undischarged no-code
+proof tuple. Otherwise, run D16 normally with that context before returning to
+the mandatory Phase 7 `branch-review --fix` loop; discharged tuples do not
+require a redundant D16.
+
 For direct/manual runs, continue to the
 [Direct/manual terminal handoff](#directmanual-terminal-handoff); that section
 owns branch-level review status resolution and pre-finish reporting.

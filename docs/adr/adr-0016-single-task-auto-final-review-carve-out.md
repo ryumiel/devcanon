@@ -38,10 +38,14 @@ When all of the following hold:
 3. that parent state guarantees downstream `branch-review --fix` is the
    mandatory next step
 4. the extracted plan has exactly one task
+5. `EXTRACTED_WHOLE_IMPLEMENTATION_CONTEXT` has no retained undischarged
+   no-code proof tuple
 
 then `play-subagent-execution` skips its final whole-implementation
 code-quality reviewer and returns directly to the caller after the
-single-task implementation path completes.
+single-task implementation path completes. A discharged tuple does not require
+a redundant D16. If any no-code proof tuple remains undischarged, D16 must run
+normally with that context before returning to Phase 7.
 
 All other paths remain unchanged:
 
@@ -63,7 +67,8 @@ is introduced.
 ## Consequences
 
 - The common `issue-priming-workflow --auto` single-task path drops one
-  redundant whole-diff review pass.
+  redundant whole-diff review pass only when no no-code proof tuple remains
+  undischarged; otherwise D16 retains and reviews that context before Phase 7.
 - Review-policy ownership stays inside `play-subagent-execution`, the skill
   that already owns reviewer dispatch.
 - Manual/direct callers are not weakened; they keep the final

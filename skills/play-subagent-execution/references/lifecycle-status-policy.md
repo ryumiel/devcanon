@@ -61,11 +61,14 @@ including paths caused by spawn, response, verification, validation, retention,
 or apply failure. Any such failure leaves the task incomplete and `BLOCKED`;
 detected mutation or cleanup failure is guard-integrity terminal and source
 remains visible and unrepaired. D16 is a fresh whole-range reviewer after all
-tasks, except the exact verified ADR-0016 single-task auto carve-out. A D16
-result with no Blocking findings, including one with only Nit findings, may
-continue after safe cleanup. Blocking D16 findings keep final review
-incomplete, route to D12 for a fix, and require a fresh D16 after the fix
-commit.
+tasks. The exact verified ADR-0016 single-task auto carve-out skips D16 only
+when `EXTRACTED_WHOLE_IMPLEMENTATION_CONTEXT` has no retained undischarged
+no-code proof tuple. If any such tuple remains, D16 must run normally with that
+context before returning to Phase 7; discharged tuples do not require a
+redundant D16. A D16 result with no Blocking findings, including one with only
+Nit findings, may continue after safe cleanup. Blocking D16 findings keep final
+review incomplete, route to D12 for a fix, and require a fresh D16 after the
+fix commit.
 
 ## D13 and D12 Recovery
 

@@ -856,7 +856,7 @@ Execute the implementation plan for <source-noun> issue <ID>: <TITLE>.
 
 `--auto` flow active (invoked by `issue-priming-workflow`). Apply `play-subagent-execution`'s executor-owned risk-based per-task review routing for multi-task plans (single-task plans skip per-task review; see `play-subagent-execution` § Single-Task Plans).
 
-Parent-owned review contract: this invocation comes from `issue-priming-workflow --auto`, and the Phase 7 `branch-review --fix` loop is mandatory. If `branch-review --fix` creates any branch-review-owned fix commit, Phase 7 reruns on the new `HEAD` until a run reports zero blocking findings auto-fixed, no unresolved remaining `Blocking` findings except findings whose `critic` verdict is `INVALID` or `DOWNGRADE`, a captured final approval-summary notice path, and fresh final approval-summary evidence after branch-review-owned fix commits. That final whole-diff review satisfies the final-review guarantee required by any reduced per-task review route. If the extracted plan has exactly one task, skip the final whole-implementation code-quality reviewer and return to this workflow after implementation completes.
+Parent-owned review contract: this invocation comes from `issue-priming-workflow --auto`, and the Phase 7 `branch-review --fix` loop is mandatory. If `branch-review --fix` creates any branch-review-owned fix commit, Phase 7 reruns on the new `HEAD` until a run reports zero blocking findings auto-fixed, no unresolved remaining `Blocking` findings except findings whose `critic` verdict is `INVALID` or `DOWNGRADE`, a captured final approval-summary notice path, and fresh final approval-summary evidence after branch-review-owned fix commits. That final whole-diff review satisfies the final-review guarantee required by any reduced per-task review route. If the extracted plan has exactly one task, skip D16 only when `EXTRACTED_WHOLE_IMPLEMENTATION_CONTEXT` has no retained undischarged no-code proof tuple. Otherwise, run D16 normally with that context before returning to this workflow's mandatory Phase 7; discharged tuples do not require a redundant D16.
 
 Plan: <PLAN_PATH captured above>
 Expected digest: <reviewed lowercase 64-hex digest captured above>
@@ -867,17 +867,27 @@ Verified auto-route attestation: <controller-validated exact-route attestation>
 All `play-subagent-execution` rules apply (fresh subagent per task,
 executor-owned risk-based per-task review routing for multi-task plans;
 single-task plans skip per-task review). The parent-owned contract above
-activates its narrow single-task final-review carve-out because this workflow
-guarantees the mandatory Phase 7 `branch-review --fix` loop. The same Phase 7
-loop is also the final whole-diff no-Blocking guarantee for reduced per-task
-routes. If any Phase 7 run creates a branch-review-owned fix commit, rerun
-Phase 7 on the new `HEAD`. Only a run that reports zero blocking findings
-auto-fixed and leaves no unresolved remaining `Blocking` findings except
-findings whose `critic` verdict is `INVALID` or `DOWNGRADE`, captures a final
-approval-summary notice path, and carries fresh final approval-summary evidence
-after branch-review-owned fix commits, satisfies the final-review guarantee.
+activates its narrow single-task final-review carve-out only when no retained
+undischarged no-code proof tuple remains in
+`EXTRACTED_WHOLE_IMPLEMENTATION_CONTEXT`; this workflow still guarantees the
+mandatory Phase 7 `branch-review --fix` loop. The same Phase 7 loop is also the
+final whole-diff no-Blocking guarantee for reduced per-task routes. If any
+Phase 7 run creates a branch-review-owned fix commit, rerun Phase 7 on the new
+`HEAD`. Only a run that reports zero blocking findings auto-fixed and leaves no
+unresolved remaining `Blocking` findings except findings whose `critic` verdict
+is `INVALID` or `DOWNGRADE`, captures a final approval-summary notice path, and
+carries fresh final approval-summary evidence after branch-review-owned fix
+commits, satisfies the final-review guarantee.
 
-`play-subagent-execution` may execute trivial single-task plans inline (skip-dispatch path; see its [skip-dispatch policy](../play-subagent-execution/references/skip-dispatch-policy.md)). Phase 6 itself remains "invoke `play-subagent-execution`" — the inline optimization is internal to that skill. Four runtime guardrails (single-task, `**Mode:** mechanical`, structural task-contract gate satisfied, no TDD expectations or legacy TDD step-pair markers) plus one upstream precondition (the two-gate `play-planning` return from Phase 5) gate the path; the runtime guardrails are checked by the skill's controller after plan extraction. A missing or invalid required contract checklist stops before implementation rather than falling back to mechanical dispatch.
+`play-subagent-execution` may execute trivial single-task plans inline
+(skip-dispatch path; see its [skip-dispatch policy](../play-subagent-execution/references/skip-dispatch-policy.md)).
+Phase 6 itself remains "invoke `play-subagent-execution`" — the inline
+optimization is internal to that skill. After guarded plan-byte intake and
+before task extraction, admission requires exactly one canonical
+`## Execution Projection` and identifiable same-digest D5/D6 PASS provenance;
+admission failure blocks. For an admitted plan, five post-admission runtime
+guardrails govern D13. An ordinary admitted-plan non-contract guardrail miss
+falls to D12; a task-contract failure blocks before implementation.
 
 Successful `play-subagent-execution` completion returns control to this owning
 workflow. Phase 6 completion is not terminal; continue to Phase 7 and Phase 8
