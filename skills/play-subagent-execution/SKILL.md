@@ -84,17 +84,32 @@ guarded-inline D13; prompt-mediated consumers receive it through their curated
 prompt. Subagents do not read the full plan file or resolve controller-relative
 rule paths.
 
-When the reviewed plan contains task-owned Execution Projection references,
-resolve every applicable reference from that same exact reviewed plan before
-the structural gate or any dispatch. A valid reference resolves exactly once to
-the expected semantic entry and required owner/source, consumption mode,
-task/no-code disposition, and proof boundary. Missing, duplicate, ambiguous,
-or semantically mismatched references fail closed with BLOCKED/NEEDS_CONTEXT
-and return to planning for correction and fresh review. Do not infer a row,
-silently deduplicate, resolve from another plan or source, or let an
-implementer/reviewer resolve controller-owned references. Add only the resolved
-task-relevant entries to curated execution context; never give children the
-full plan merely to provide projection context.
+When the exact plan contains a canonically labeled **Execution Projection**,
+resolve its task-owned references before the structural gate or any dispatch,
+including direct or unreviewed FULL execution. First require every current task
+to declare `**Execution Projection references:**`, then derive the exact
+expected ID set from the projection entries whose task-coverage dispositions
+name that task's Task ID. A no-code disposition names no current implementation
+task. Reject before dispatch when a task field is absent, an expected reference
+is absent, a declared reference is duplicate, an ID resolves zero or multiple
+times, a declared and expected ID set differs, or the task/reference/entry
+relationship is ambiguous or mismatched.
+
+For every resolved entry, structurally validate the complete tuple: its unique
+nonblank semantic ID; affected surface or explicit equivalent set; normative
+owner and owner source; closed consumption mode; task/no-code disposition; and
+both a proof owner and concrete proof boundary. A missing, duplicate,
+ambiguous, or semantically mismatched tuple fact fails closed with
+BLOCKED/NEEDS_CONTEXT and returns to planning for correction and fresh review.
+Do not infer a row, silently deduplicate, resolve from another plan or source,
+or let an implementer/reviewer resolve controller-owned references. Add only
+the resolved task-relevant entries to curated execution context; never give
+children the full plan merely to provide projection context.
+
+A plan without a canonically labeled Execution Projection, including unknown
+or legacy plan metadata, does not enter this projection-specific gate. It
+continues through the existing paired-review and direct/unreviewed FULL route;
+do not require the new field, invent a projection, or infer task references.
 
 Do not infer trigger applicability inside `play-subagent-execution`;
 `play-planning` owns the trigger taxonomy and tier classification. Do not
@@ -272,9 +287,13 @@ For the full selection and process diagrams, load
    implementers receive curated inlined task text, not the plan path.
 2. Extract all authored tasks with their full text, surrounding context,
    declared contract tier, tier-appropriate contract fields, verification expectations, and any mode or route
-   hints. Resolve every task-owned Execution Projection reference from that
-   same reviewed plan; a missing, duplicate, ambiguous, or semantically
-   mismatched resolution stops before dispatch.
+   hints. When the plan has a canonically labeled Execution Projection, require
+   every current task's explicit projection-reference field, validate total
+   task-reference coverage, and resolve every expected reference from that
+   same exact plan. Missing, duplicate, ambiguous, or semantically mismatched
+   task references or tuple facts stop before dispatch. Plans without a
+   recognized projection retain the existing paired-review/direct-FULL route;
+   do not infer projection metadata or references.
 3. Assemble the extracted plan/task execution context before implementer
    dispatch, reviewer dispatch, final whole-implementation review, or
    skip-dispatch evaluation. Include plan-level Contract Example Discipline

@@ -602,13 +602,26 @@ it must name that distinct fact and its authority. A view without a distinct
 fact is a reference, not a second projection. References cannot redefine
 topology, select owners, or supersede the approved design.
 
-A task-owned projection reference is valid only when it identifies the
-expected semantic entry and resolves exactly once in the same exact reviewed
-plan. Missing, duplicate, ambiguous, or semantically mismatched IDs or tuple
-facts are `CURRENT` planning gaps until corrected and freshly reviewed. The
-executor consumes only its resolved task-owned entries in curated execution
-context; it must not infer absent rows, silently deduplicate, or give children
-the full plan to resolve the reference themselves.
+Every current task in a plan with an Execution Projection declares an explicit
+`**Execution Projection references:**` field. The field lists every and only
+the projection entry IDs whose task-coverage disposition names that task's Task
+ID, or states `None — no projection entry names this task` when none does. A
+no-code disposition names no current implementation task. This total
+task-reference coverage is required in addition to exhaustive projection
+coverage; a task may not rely on an entry merely because the projection itself
+names that task.
+
+A task-owned projection reference is valid only when its declared ID is
+expected for that task, identifies the expected semantic entry, and resolves
+exactly once in the same exact reviewed plan. Its resolved entry must retain
+the complete tuple: affected surface or explicit equivalent set; normative
+owner and owner source; consumption mode; task/no-code disposition; and both
+proof owner and concrete proof boundary. Missing, duplicate, ambiguous,
+extra, or semantically mismatched task references or tuple facts are `CURRENT`
+planning gaps until corrected and freshly reviewed. The executor consumes only
+its resolved task-owned entries in curated execution context; it must not infer
+absent rows, silently deduplicate, or give children the full plan to resolve
+the reference themselves.
 
 Portable criteria distinguish target-owned contributor overlays from this
 source library's local policy. Apply a repository contributor overlay only when
@@ -850,10 +863,14 @@ contract and traceability coverage, documentation impact, and proof
 proportionality. Report all concrete in-remit findings. Classify each finding.
 CURRENT and BLOCKER findings prevent PASS. FOLLOW-UP and OPTIONAL findings do
 not. Explicitly fail missing design Contract Decision and Documentation impact
-item mappings. D5 owns ordinary defects in approved-scope coverage, normative
-authority, boundary and consumer completeness, requirement traceability,
-dependency intent, documentation impact, and proof proportionality. It does not
-repeat task-local executability review or invent new requirements.
+item mappings. For a plan with an Execution Projection, D5 also validates total
+task-reference coverage: every current task has its explicit reference field,
+and each task's declared IDs are exactly the IDs whose projection dispositions
+name that Task ID. D5 owns ordinary defects in approved-scope coverage,
+normative authority, boundary and consumer completeness, requirement
+traceability, dependency intent, documentation impact, and proof
+proportionality. It does not repeat task-local executability review or invent
+new requirements.
 
 ### Implementer Executability Review
 

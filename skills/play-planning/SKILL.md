@@ -396,6 +396,10 @@ criterion: <explicit inclusion rule>`
 
 **Authority surfaces:** <which source files, contracts, schemas, helpers, renderers, install/sync flows, or policies own the behavior; generated outputs are derived evidence, not authority>
 
+**Execution Projection references:** <every applicable projection Entry ID
+whose task/no-code disposition names this Task ID; or `None — no projection
+entry names this task`. Required whenever the plan has an Execution Projection.>
+
 Include exactly one of the following tier-specific blocks and delete the other
 two.
 
@@ -635,9 +639,12 @@ Review in this order:
    size or path spelling.
 4. Confirm the Execution Projection is exhaustive and each semantic ID is
    unique, nonblank, and plan-local; grouped entries have identical complete
-   tuples, duplicate-prone views reference them, and every task-owned reference
-   resolves exactly once in the same reviewed plan. Confirm any specialized
-   view fact is independently necessary and authoritative.
+   tuples, duplicate-prone views reference them, and every current task
+   declares the explicit `Execution Projection references` field. Validate
+   total task-reference coverage: each task's declared IDs are exactly all
+   entries whose task-coverage disposition names that Task ID, and every
+   declared reference resolves exactly once in the same reviewed plan. Confirm
+   any specialized view fact is independently necessary and authoritative.
 5. Confirm optional comment evidence remains non-authoritative.
 6. Classify every finding as `CURRENT`, `BLOCKER`, `FOLLOW-UP`, or
    `OPTIONAL` before changing the plan.
@@ -926,10 +933,12 @@ authoritative requirement coverage, unjustified tasks, dependency order,
 contract and boundary traceability, task contracts, documentation impact, and
 minimum-sufficient proof. It validates every current task's declared canonical
 tier and tier-appropriate structure against the criteria. It also validates
-the one Execution Projection, its closed grouping rule, and reference coverage
-without treating repeated table shape as policy. It checks citations and
-applicable review-routing hints. The canonical reference owns the detailed
-criteria.
+the one Execution Projection, its closed grouping rule, and total
+task-reference coverage: every current task declares its explicit reference
+field and its IDs exactly match the entries whose dispositions name that Task
+ID. It does so without treating repeated table shape as policy. It checks
+citations and applicable review-routing hints. The canonical reference owns the
+detailed criteria.
 
 The reviewer reports every concrete in-remit finding and classifies it as
 `CURRENT`, `BLOCKER`, `FOLLOW-UP`, or `OPTIONAL`. CURRENT and BLOCKER
