@@ -3524,6 +3524,41 @@ describe.skipIf(isWindows)("review artifact runtime reducers", () => {
     }
   });
 
+  it("rejects a stale capture head before hostile Git preflight", async () => {
+    const { cwd, baseSha, headSha } = await makeProviderScopeWorkspace();
+    const capturePath = `.ephemeral/topic-${headSha}-provider-scope-capture.json`;
+    const evidencePath = providerScopeEvidencePath(headSha);
+    try {
+      const capture = await providerScopeCapture(cwd, baseSha, headSha);
+      await writeJson(cwd, capturePath, {
+        ...capture,
+        headRefOid: "a".repeat(40),
+      });
+      await writeFile(path.join(cwd, ".git", "info", "attributes"), "* text\n");
+      await expect(
+        runPrReviewProviderScopeEvidenceCommand([
+          "write",
+          "--head-sha",
+          headSha,
+          "--capture-file",
+          capturePath,
+        ]),
+      ).resolves.toMatchObject({
+        exitCode: 1,
+        stdout: "",
+        stderr: "provider scope capture head mismatch\n",
+      });
+      await expect(
+        readFile(path.join(cwd, capturePath), "utf8"),
+      ).resolves.toContain("provider-scope-capture/v1");
+      await expect(
+        readFile(path.join(cwd, evidencePath), "utf8"),
+      ).rejects.toMatchObject({ code: "ENOENT" });
+    } finally {
+      await cleanupRiskSignalsWorkspace(cwd);
+    }
+  });
+
   it("preserves the existing evidence and exact capture when atomic publication is interrupted", async () => {
     const { cwd, baseSha, headSha } = await makeProviderScopeWorkspace();
     const capturePath = `.ephemeral/topic-${headSha}-provider-scope-capture.json`;

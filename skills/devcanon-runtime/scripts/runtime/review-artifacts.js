@@ -180,6 +180,9 @@ export async function runPrReviewProviderScopeEvidenceCommand(args, operations =
         }
         const capture = await readSingleJsonObject(captureFile, "provider scope capture JSON validation failed");
         validateProviderScopeCaptureShape(capture);
+        if (stringField(capture, "headRefOid") !== headSha) {
+            fail("provider scope capture head mismatch");
+        }
         await assertProviderBoundGitPreflight();
         const currentHead = (await providerBoundGit(["rev-parse", "HEAD"])).trim();
         if (currentHead !== headSha) {
@@ -350,9 +353,6 @@ function requiredProducerOption(args, flag) {
 }
 async function providerScopeEvidenceFromCapture(capture, headSha) {
     validateProviderScopeCaptureShape(capture);
-    if (stringField(capture, "headRefOid") !== headSha) {
-        fail("provider scope capture head mismatch");
-    }
     const baseRefOid = stringField(capture, "baseRefOid");
     if (!(await providerBoundGitRefExists(`${baseRefOid}^{commit}`))) {
         fail("provider scope capture baseRefOid does not resolve");
