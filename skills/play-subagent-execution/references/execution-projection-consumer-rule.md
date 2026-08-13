@@ -97,10 +97,21 @@ from another plan or source, or let a child resolve controller-owned mappings.
 
 Any missing, renamed, unknown, malformed, duplicate, incomplete, mismatched,
 or unreviewed projection fact blocks with `BLOCKED/NEEDS_CONTEXT` and returns to
-planning for correction and fresh paired review. After all validation succeeds,
-add only resolved task-relevant entries—whether implementation-owned,
-proof-owned, or both—to each curated implementer and reviewer context. Never
-give children the full plan merely to resolve entries.
+planning for correction and fresh paired review. Only after provenance,
+validation, and exhaustiveness succeed, derive contexts in this order:
+
+1. Add only resolved task-relevant entries—whether implementation-owned,
+   proof-owned, or both—to each curated implementer and reviewer context.
+2. Retain every validated `No code — <task-specific reason>` entry and its full
+   proof tuple in the controller-owned whole-range/final-review context.
+
+For each no-code entry, a task-valued proof owner receives it through the
+existing task union. A non-task proof owner must be concrete; the controller
+keeps its named proof boundary visible in the relevant whole-range/final-review
+context until discharged. If either named owner or proof boundary cannot be
+represented or reached in the active execution flow, block rather than drop or
+infer the obligation. Never give children the full plan merely to resolve
+entries.
 
 For Contract Example Discipline, accept a valid relationship family containing
 a normative-owner surface, reference consumer, and verification surface with
@@ -113,3 +124,9 @@ justified; unsupported, inconsistent, or unverifiable examples block rather
 than invite guessing. Verify these outcomes by source inspection and
 response-only behavioral evidence, without adding a parser or harness merely
 for prose.
+
+The no-code response-only family contains one task-valued proof owner and one
+concrete non-task proof owner: the former appears through the task union, while
+the controller whole-range/final-review context retains both complete proof
+tuples. An unreachable named owner or proof boundary blocks rather than drops
+the entry.

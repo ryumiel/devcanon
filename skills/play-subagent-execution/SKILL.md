@@ -289,7 +289,9 @@ For the full selection and process diagrams, load
    task-local declared tier and tier-appropriate structure, and any task-local example or proof
    obligations that refine the plan-level section, plus only the resolved
    task-relevant Execution Projection entries, including proof-task-owned
-   entries. When Contract Example
+   entries. Separately retain the consumer rule's validated no-code proof
+   obligations for controller-owned whole-range/final review; do not add them
+   to child context unless task-relevant. When Contract Example
    Discipline or an equivalent clearly labeled section/obligation is present,
    also inline the full shared consumer rule under
    `Contract Example Discipline Consumer Rule` so prompt consumers can enforce
