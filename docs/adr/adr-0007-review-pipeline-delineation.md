@@ -124,15 +124,16 @@ notice path plus any judgment-required remaining nits into branch finish.
 - The "Skip reviews (spec compliance OR code quality)" Red Flag in
   `play-subagent-execution` no longer flatly forbids skipping; ADR-0018 later
   narrows it to "skip or weaken the executor-computed review route."
-- ADR-0015 introduces a further optimization within the single-task path: when
-  four runtime guardrails (single-task plan, `**Mode:** mechanical`, structural
-  task-contract gate satisfied, no TDD expectations or legacy TDD step-pair
-  markers) plus one upstream precondition (the two-gate `play-planning` return
-  introduced by ADR-0023) all hold, the implementer dispatch itself is also
-  skipped — the controller executes Write/Edit + verify + commit inline. ADR-0016
-  later narrows the `issue-priming-workflow --auto` single-task subset of
-  that path further by skipping the final whole-implementation reviewer when
-  downstream `branch-review --fix` is guaranteed.
+- ADR-0015 requires admission after guarded plan-byte intake and before task
+  extraction: exactly one canonical `## Execution Projection` plus identifiable
+  same-digest D5/D6 PASS provenance; admission failure blocks.
+- After admission, five D13 runtime guardrails apply: single task, mechanical
+  mode, no clarifying choice, valid task contract, and no TDD markers.
+  Task-contract failure blocks; ordinary other misses go to D12; when all five
+  pass, the controller executes Write/Edit, verification, and commit inline.
+- ADR-0016 allows its auto single-task D16 skip only with the downstream
+  `branch-review --fix` guarantee and no retained undischarged no-code proof
+  tuple. Otherwise D16 runs with the whole context before Phase 7.
 - Future changes touching review-pipeline delineation must update this ADR
   per the ADR governance rule.
 - Reviewer cost increases for routes that dispatch per-task reviewers. The
