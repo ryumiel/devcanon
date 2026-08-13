@@ -85,8 +85,9 @@ prompt. Subagents do not read the full plan file or resolve controller-relative
 rule paths.
 
 When the exact plan contains a canonically labeled **Execution Projection**,
-resolve its task-owned references before the structural gate or any dispatch,
-including direct or unreviewed FULL execution. First require every current task
+structurally validate every projection entry before resolving its task-owned
+references, the structural gate, or any dispatch, including direct or
+unreviewed FULL execution. Then require every current task
 to declare `**Execution Projection references:**`, then derive the exact
 expected ID set from the projection entries whose task-coverage dispositions
 name that task's Task ID. A no-code disposition names no current implementation
@@ -95,7 +96,7 @@ is absent, a declared reference is duplicate, an ID resolves zero or multiple
 times, a declared and expected ID set differs, or the task/reference/entry
 relationship is ambiguous or mismatched.
 
-For every resolved entry, structurally validate the complete tuple: its unique
+For every projection entry, structurally validate the complete tuple: its unique
 nonblank semantic ID; affected surface or explicit equivalent set; normative
 owner and owner source; closed consumption mode; task/no-code disposition; and
 both a proof owner and concrete proof boundary. A missing, duplicate,
