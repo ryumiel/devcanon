@@ -49,11 +49,8 @@ call site and no standalone identity beyond that planning boundary.
 ## Consequences
 
 - Planning gains one additional review phase for implementation readiness.
-- Parent workflows can treat the live `Plan written to <path>.` plus
-  `Reviewed digest: <sha256>` return pair as aggregate two-gate planning
-  attestation for their owned routes. It covers same-digest D5/D6 PASS, both
-  guard cleanups, join, and final rehash; copied or replayed text is not
-  provenance.
+- Parent workflows can treat `Plan written to <path>.` as a two-gate planning
+  return for their owned routes.
 - Execution routing remains owned by `play-subagent-execution`; the new gate
   does not choose per-task review routes or replace executor validation.
 - Plans that are requirement-aligned but non-executable fail earlier, while the

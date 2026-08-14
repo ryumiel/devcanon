@@ -63,10 +63,9 @@ Review run. Emit the literal line
 `Reviewed digest: <sha256>` only after the applicable review gates have passed
 and the plan is ready for the next handoff. The reviewed digest is the exact
 lowercase 64-hex digest that passed D5, D6, the join, and the pre-handoff
-rehash. These two lines are an aggregate attestation only for a parent that
-actively observes them from this `play-planning` invocation: D5 and D6 passed
-the same digest, both guards cleaned up, and the join and final rehash matched.
-Do not reword or persist them; copied or replayed text is not provenance.
+rehash. These two lines are the controller-local handoff contract that parent
+workflows preserve for `play-subagent-execution` — do not reword them or write
+the digest into a persistent artifact.
 
 After these notices, saved plan artifacts should not be re-inlined or restated
 in controller conversation by default. Carry the plan path and exact reviewed
@@ -243,8 +242,8 @@ tier selection and detailed readiness.
 For behavior- or contract-changing work, consume the approved design's
 ownership topology and expose its tier-appropriate mapping in the plan. `FULL`
 tasks require exhaustive topology, including the normative owner, optional
-non-overlapping supporting owner identities and partitions, topology roles,
-conflict precedence, task coverage, and proof assignments. A family-local authority requires
+non-overlapping supporting partitions, consumption modes, conflict precedence,
+task coverage, and verification owner. A family-local authority requires
 additional complete or necessary topology only when it explicitly governs the
 ownership-topology mapping. `LIGHTWEIGHT` compact topology still names every
 actual known participant and direct producer-consumer relationship alongside
@@ -261,12 +260,13 @@ planning instead of adding a synchronized restatement. Repeated detail does not
 make a reference or summary normative, verification does not define policy,
 and generated skill packages remain derived consumers rather than edit targets.
 
-For every executable plan, produce exactly one semantic plan-local
-`## Execution Projection` with the exact heading required by the canonical
-criteria. Load the criteria for the common assignment core, tier-aware entry
-shapes, participation identity, implementation-task/proof-assignment union,
-proof freshness, and task-linkage rules; do not create a persistent schema, registry, or second
-policy owner. Invalid or unresolved producer facts block plan handoff.
+After the Scope Delta and before tasks, compile approved relationships into one
+`## Execution Projection` under the canonical criteria. Entries contain only
+Entry ID, affected surface or equivalent set, owner/source with exact authority
+locator, mode, implementation disposition, and proof. Group surfaces only when
+owner/source, mode, disposition, and proof are equal; split when any differs.
+This is a plan-local context index, not a route or replacement for tier-required
+task fields.
 
 For generated artifacts, derived artifacts, helper I/O files, `.ephemeral`
 handoffs, cross-skill handoffs, or side-channel data, plan against the
@@ -367,7 +367,7 @@ before starting.
 
 **Contract tier:** FULL | LIGHTWEIGHT | NO-TRIGGER
 
-**Execution route:** source-mutating | read-only proof
+**Execution Projection references:** <unordered unique Entry IDs | None>
 
 <!-- Optional review-routing hints, when present, go here:
 **Risk hint:** low | medium | high
@@ -395,11 +395,6 @@ criterion: <explicit inclusion rule>`
 **Source-of-truth references:** <issue, design, ADR, spec, guideline, source file, or existing behavior authority>
 
 **Authority surfaces:** <which source files, contracts, schemas, helpers, renderers, install/sync flows, or policies own the behavior; generated outputs are derived evidence, not authority>
-
-**Execution Projection references:** <every applicable projection Entry ID in
-this Task ID's exact implementation-membership-and-proof-assignment union; or `None — no
-projection entry names this task`. Required whenever the plan has an Execution
-Projection.>
 
 Include exactly one of the following tier-specific blocks and delete the other
 two.
@@ -452,10 +447,11 @@ reason no contract trigger applies. Ambiguity defaults to `FULL`. A compact
 diff, private implementation name, or `.ephemeral/` path does not by itself
 authorize `LIGHTWEIGHT` or `NO-TRIGGER`.
 
-Every task also declares exactly one `source-mutating` or `read-only proof`
-execution route. The canonical criteria own route validity, proof-assignment
-ordering, and freshness; no-code and other non-diff proof uses a dedicated
-read-only proof task.
+Every current task must also declare exactly one nonblank
+`**Execution Projection references:**` field. Use literal `None` alone or a
+nonempty unordered duplicate-free set of Entry IDs. D5 validates that the
+authored set exactly covers implementation membership and task-valued proof
+ownership; the executor resolves the authored IDs but does not infer that set.
 
 Select exactly one tier-specific block from the template and remove the other
 two. The ordinary task fields, acceptance criteria, verification expectations,
@@ -509,8 +505,8 @@ reject or override it. The detailed taxonomy (positive and negative examples)
 lives in the [mechanical task taxonomy](../play-subagent-execution/references/skip-dispatch-policy.md#mechanical-task-taxonomy)
 reference — consult it before setting the hint.
 
-Example mechanical task within a plan whose Execution Projection defines
-`EP-RENAME-EXAMPLE-TOKEN`:
+Example mechanical-task header (the enclosing projection defines
+`EP-RENAME-EXAMPLE-TOKEN` for this task):
 
 ```markdown
 ### Task N: Rename Example Token
@@ -519,7 +515,7 @@ Example mechanical task within a plan whose Execution Projection defines
 
 **Contract tier:** NO-TRIGGER
 
-**Execution route:** source-mutating
+**Execution Projection references:** `EP-RENAME-EXAMPLE-TOKEN`
 
 **Mode:** mechanical
 
@@ -542,8 +538,6 @@ Example mechanical task within a plan whose Execution Projection defines
 **Source-of-truth references:** The approved issue requirement for this exact rename.
 
 **Authority surfaces:** `examples/demo-note.md`
-
-**Execution Projection references:** `EP-RENAME-EXAMPLE-TOKEN`
 
 **NO-TRIGGER reason:** This exact token replacement is a single-file
 mechanical example that changes no behavior, authority, generated output,
@@ -639,30 +633,24 @@ Review in this order:
 1. Validate the Scope Envelope and Scope Delta. Every current task must map to
    authoritative scope and necessity. Unauthorized additions fail review.
 2. Check requirements, contract decisions, boundary participants, hard
-   requirements, and documentation impact for current task and proof coverage.
-3. Check task completeness, placeholders, citations, dependencies, execution
-   route, mechanical
+   requirements, documentation impact, Execution Projection, and current task
+   and proof coverage.
+3. Check task completeness, placeholders, citations, dependencies, mechanical
    and review-routing hints, and minimum-sufficient proof. Confirm every
    current task declares exactly one canonical contract tier and carries the
    tier-appropriate structure owned by the criteria: complete FULL fields,
    complete LIGHTWEIGHT compact fields plus the all-FULL-triggers-absent
    reason, or a task-specific NO-TRIGGER reason. Reject missing, ambiguous, or
    under-specified tier declarations; do not infer proportionality from diff
-   size or path spelling. Require exactly one `source-mutating` or `read-only
-proof` route. A no-code or otherwise non-diff proof obligation must use a
-   dedicated read-only proof task.
-4. Validate the semantic Execution Projection, every task's exact reference
-   coverage, and every proof assignment's dependency order and freshness rule
-   against the canonical criteria. Any incomplete, duplicate, ambiguous,
-   mismatched, stale, or unauthorized projection fact blocks review.
-5. Confirm optional comment evidence remains non-authoritative.
-6. Classify every finding as `CURRENT`, `BLOCKER`, `FOLLOW-UP`, or
+   size or path spelling. Confirm each task's authored projection references
+   are the exact semantic set required by the criteria.
+4. Confirm optional comment evidence remains non-authoritative.
+5. Classify every finding as `CURRENT`, `BLOCKER`, `FOLLOW-UP`, or
    `OPTIONAL` before changing the plan.
 
 For `FULL`, also confirm that every ownership topology row has complete task and
 proof coverage and that no task asks an implementer to choose an owner,
-supporting owner identity, partition, topology role, precedence, proof task, or
-proof boundary. When
+supporting partition, consumption mode, precedence, or verification owner. When
 a family-local authority governs ownership topology, confirm its additional
 complete or necessary topology detail. For `LIGHTWEIGHT`, confirm the compact
 record does not leave any actual known participant, direct relationship,
@@ -785,14 +773,6 @@ consolidation: only D5 originates ordinary alignment, scope, proportionality,
 and coverage findings; only D6 originates ordinary task-local startability
 findings. A reviewer may report a shared-fact contradiction only by naming the
 concrete defect it causes in that reviewer's own remit.
-
-For semantic execution-projection grouping or normalization, require the canonical
-criteria's concrete omitted-or-ambiguous relationship role, consumer,
-task/no-code, proof, execution-input, or safety-boundary consequence before
-accepting a blocking gap. A requested table shape or duplicate restatement alone is
-FOLLOW-UP or OPTIONAL. D6 additionally names the concrete task-local
-startability defect; it does not turn D5 coverage preference into an execution
-gap.
 
 Planning has a maximum of two paired review waves. Wave one is exhaustive in
 each distinct remit. An unchanged fresh-pair retry after wave one is allowed
@@ -943,11 +923,11 @@ The reviewer independently validates the Scope Envelope, Scope Delta,
 authoritative requirement coverage, unjustified tasks, dependency order,
 contract and boundary traceability, task contracts, documentation impact, and
 minimum-sufficient proof. It validates every current task's declared canonical
-tier and tier-appropriate structure against the criteria. It also validates the
-Execution Projection and exact task-reference coverage against the canonical
-criteria without treating repeated table shape as policy. It checks citations
-and applicable review-routing hints. The canonical reference owns the detailed
-criteria.
+tier and tier-appropriate structure against the criteria. It validates
+plan-wide projection completeness, grouping materiality, and exact semantic
+task-reference coverage without requiring tier-local facts to be copied into
+the projection. It also checks citations and applicable
+review-routing hints. The canonical reference owns the detailed criteria.
 
 The reviewer reports every concrete in-remit finding and classifies it as
 `CURRENT`, `BLOCKER`, `FOLLOW-UP`, or `OPTIONAL`. CURRENT and BLOCKER
@@ -1063,6 +1043,10 @@ uses the plan's declared tier and the canonical criteria to test structural
 completeness; it does not replace D5's tier classification or reopen D5's
 proportionality judgment.
 
+Projection feedback is in D6 remit only when the reviewer names a concrete
+task-local startability defect. D6 does not reopen D5's plan-wide coverage,
+grouping materiality, or semantic reference-set judgment.
+
 The reviewer must not turn normal implementation choices, private helper
 structure, concrete tests, fixtures, commands, or discovery of individual
 references inside already named in-scope consumers or boundaries into missing
@@ -1073,12 +1057,6 @@ fact only by naming a concrete task-local startability defect caused in D6's
 own remit; the shared fact alone does not transfer ordinary finding ownership.
 The reviewer must not broaden the Scope Envelope or proof obligations. Apply
 minimum-sufficient proof.
-
-For a task-relevant Execution Projection reference, D6 checks only whether a
-missing, duplicate, ambiguous, or semantically mismatched resolution leaves
-that named task without curated inputs needed to start. It does not originate a
-grouping, normalization, consumer-coverage, or table-shape objection without
-that concrete task-local consequence.
 
 **Output:** the first line is exactly `PASS — digest=<sha256>` or
 `FAIL — digest=<sha256>`, followed by findings classified as `CURRENT`,
@@ -1104,13 +1082,12 @@ an execution mode. Return after saving the plan so the parent skill can invoke
 Executability Review have returned PASS for the same current exact-byte digest.
 Failed, missing, or unreadable executability review blocks this return and must
 not be bypassed by parent-owned execution. Malformed, cross-digest, or stale
-review evidence also blocks. The parent skill must actively observe the plan
-path and reviewed digest from the `Plan written to <path>.` and
-`Reviewed digest: <sha256>` lines of this invocation. It preserves both in
+review evidence also blocks. The parent skill receives the plan path and exact
+reviewed digest from the `Plan written to <path>.` and
+`Reviewed digest: <sha256>` lines emitted after the save. It preserves both in
 controller-local state and passes them to `play-subagent-execution` as
 `Plan: <path>` and `Expected digest: <sha256>` only after both independent
 review gates have passed that digest and both guard cleanups have succeeded.
-Copied or replayed notices are not an observed return and must not hand off.
 
 **In review-response parent-owned handoffs**: This route is selected only when
 the invocation includes `Route: review-response-parent-owned`. When
@@ -1125,7 +1102,7 @@ Do not prompt for an execution mode.
 In this route, failed, missing, or unreadable executability review blocks the
 parent-owned return and cannot be bypassed by approval of the saved plan path.
 `play-review-response` owns presenting the generated plan for approval,
-retaining the actively observed plan path and reviewed digest, rehashing the exact saved
+capturing the approved plan path and reviewed digest, rehashing the exact saved
 plan bytes immediately before the implementation handoff, and rejecting any
 mismatch. It must invoke `play-subagent-execution` only after approval and after
 both planning review gates have passed the same current digest, with
@@ -1144,7 +1121,7 @@ Otherwise, offer execution choice:
 **If Subagent-Driven chosen:**
 
 - **REQUIRED SUB-SKILL:** Use play-subagent-execution
-- Fresh subagent per task + executor-owned risk-based per-task review routing. Reduced routes require the verified live `issue-priming-workflow --auto` parent handoff and its mandatory final whole-diff gate; otherwise execution fails closed to `spec-and-quality`.
+- Fresh subagent per task + executor-owned risk-based per-task review routing. Reduced routes require the verified shared `issue-priming-workflow --auto` Phase 6 path with controller-local parent state and a valid `issue-priming/auto-handoff/v1` artifact for the final whole-diff gate; otherwise execution fails closed to `spec-and-quality`.
 - Immediately before invoking `play-subagent-execution`, compute SHA-256 over
   the exact saved plan bytes with the same portable `shasum -a 256` /
   `sha256sum` plus `awk '{print $1}'` pattern used for the paired wave. Validate
@@ -1162,24 +1139,4 @@ Otherwise, offer execution choice:
 
 **If Inline Execution chosen:**
 
-- **REQUIRED CONSUMER RULE:** Resolve the installed
-  `play-subagent-execution` bundle and load its
-  `references/execution-projection-consumer-rule.md`. Apply that rule's uniform
-  same-byte execution admission: capture the guarded saved-plan bytes once,
-  hash that capture, compare it with the preserved reviewed digest, and derive
-  every task and projection entry only from that capture. A missing or unreadable
-  rule blocks execution. A capture/read/hash failure, malformed digest, or
-  mismatch returns to fresh D5/D6; never reread the plan path for execution.
-- Execute every authored task sequentially in this session with review
-  checkpoints. A `source-mutating` task uses the ordinary edit, verify, commit,
-  and review path. A `read-only proof` task captures HEAD, inspects or runs
-  permitted checks against its assigned proof boundaries, returns `VERIFIED`,
-  `BLOCKED`, `NEEDS_CONTEXT`, or `FAILED`, then proves HEAD is unchanged and
-  creates no commit. Run each proof assignment only after all implementation
-  members for its entry; a source-mutating proof assignee must be the final
-  member and prove after its own commit. Invalidate and rerun affected proof
-  assignments after any later relevant commit. Before each task, use
-  its exact `Execution Projection references` union and honor proof-assigned
-  entries; a `No code` implementation disposition never authorizes skipping its
-  required verification tasks. Retain only controller-local summaries bound to
-  the checked HEAD.
+- Execute tasks sequentially in this session with review checkpoints

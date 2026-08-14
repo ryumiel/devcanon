@@ -26,37 +26,25 @@ Write the failing test` and `Step 3: Write minimal implementation` markers.
 
 ## Conditions
 
-For the single-task `source-mutating` subset of plans that are also fully
-mechanical approved verbatim artifact work or unambiguous identifier
-replacement, D13 permits
+For the single-task subset of plans that are also fully mechanical approved
+verbatim artifact work or unambiguous identifier replacement, D13 permits
 guarded inline execution or a dispatched `executor`, efficient/medium. All five
 guardrails pass before either guarded inline execution or executor dispatch.
 The controller chooses inline only when it can perform the exact operation
 directly; otherwise it dispatches `executor-prompt.md` with the same validated
 authorization.
 
-Admission precedes D13/D12 route selection. It requires guarded source/path
-validation, one captured byte sequence with exact-byte digest matching, the
-active controller's live matching `play-planning` return-pair aggregate
-attestation, parsing that same capture, one canonical
-`## Execution Projection`, and semantic projection validation. Copied text is
-not provenance, and admission does not demand independent D5/D6 leaf identity
-or guard evidence. Direct, hand-written, copied, older, missing-attestation, or
-otherwise unreviewed plans fail admission with `BLOCKED/NEEDS_CONTEXT` before
-guardrail evaluation; they never fall back to D12. A `read-only proof` task uses
-the guarded proof lifecycle instead of D12/D13. For an admitted source-mutating
-plan, all five guardrails must hold
-for D13. Guardrail #4 failure blocks before source mutation; any other ordinary
-guardrail miss reclassifies to D12 and uses `implementer-prompt.md`. Do not
-dispatch the executor on a partial guard set.
+All five guardrails must hold for D13. Guardrail #4 failure blocks before source
+mutation; any other missing guardrail reclassifies to D12 and uses
+`implementer-prompt.md`. Do not dispatch the executor on a partial guard set.
 
-| #   | Guardrail                                     | Detection signal                                                                                                                                                                                                                                                                |
-| --- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | Plan is single-task                           | Task count from plan extraction = 1.                                                                                                                                                                                                                                            |
-| 2   | Task is fully mechanical                      | Task header carries `**Mode:** mechanical`.                                                                                                                                                                                                                                     |
-| 3   | No clarifying questions could plausibly arise | For the admitted reviewed plan, the exact approved mechanical operation, its named authority, and its bounded verification need no implementation choice or clarification. The return-pair aggregate attestation is admission evidence, not a D12-fallback guardrail condition. |
-| 4   | Task contract gate is satisfied               | The task declares `FULL`, `LIGHTWEIGHT`, or `NO-TRIGGER` and satisfies that tier's structure. Contract Example Discipline obligations are additive and do not satisfy guardrail #4 by themselves.                                                                               |
-| 5   | No tests need to be authored                  | Task body contains no `**TDD expectation:**` field and no legacy TDD step-pair markers.                                                                                                                                                                                         |
+| #   | Guardrail                                     | Detection signal                                                                                                                                                                                                                                                                                                                                                   |
+| --- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | Plan is single-task                           | Task count from plan extraction = 1.                                                                                                                                                                                                                                                                                                                               |
+| 2   | Task is fully mechanical                      | Task header carries `**Mode:** mechanical`.                                                                                                                                                                                                                                                                                                                        |
+| 3   | No clarifying questions could plausibly arise | Implicit: the upstream two-gate `play-planning` return completed, meaning both Plan Review and Implementer Executability Review passed before `Plan written to <path>.` was emitted. Direct invocations without that upstream return fail this guardrail and fall back to dispatched implementation.                                                               |
+| 4   | Task contract gate is satisfied               | The task declares `FULL`, `LIGHTWEIGHT`, or `NO-TRIGGER` and satisfies that tier's structure. Both `LIGHTWEIGHT` and `NO-TRIGGER` require the upstream two-gate `play-planning` return; without it, the task must use a structurally complete `FULL` contract. Contract Example Discipline obligations are additive and do not satisfy guardrail #4 by themselves. |
+| 5   | No tests need to be authored                  | Task body contains no `**TDD expectation:**` field and no legacy TDD step-pair markers.                                                                                                                                                                                                                                                                            |
 
 In the case when extracted plan/task execution context includes Contract
 Example Discipline or an equivalent clearly labeled section/obligation, present
@@ -99,22 +87,19 @@ makes no final-review or terminal-routing decision.
 
 ## Fallback
 
-Admission failures stop before D13/D12 route selection and report
-`BLOCKED/NEEDS_CONTEXT`; do not execute inline, dispatch an executor, or
-dispatch an implementer. If guardrail #4 fails after admission, also stop before
-implementation and report the contract gap. Other ordinary admitted-plan
-guardrail misses reclassify to D12 and use `implementer-prompt.md`; the
-`**Mode:** mechanical` hint alone never selects the executor.
+If guardrail #4 fails, stop before implementation and report the contract gap;
+do not execute inline, dispatch an executor, or dispatch an implementer against
+a missing or invalid task contract. Other guardrail misses reclassify to D12
+and use `implementer-prompt.md`; the `**Mode:** mechanical` hint alone never
+selects the executor.
 
 - Guardrail #1 fails: standard multi-task D12 flow with executor-computed
   per-task review routing.
 - Guardrail #2 fails: single-task D12 flow with `implementer-prompt.md`.
-- Guardrail #3 fails: single-task D12 flow with `implementer-prompt.md` because
-  the admitted plan's mechanical operation still needs clarification; admission
-  provenance failure is not this guardrail.
+- Guardrail #3 fails: single-task D12 flow with `implementer-prompt.md`.
 - Guardrail #4 fails: stop before implementation and report
   BLOCKED/NEEDS_CONTEXT with the exact missing or invalid tier structure,
-  unexplained `N/A`, or unconfirmed owner,
+  absent reduced-tier provenance, unexplained `N/A`, or unconfirmed owner,
   authority, source-of-truth, consumer, generated-output, or evidence surface.
 - Guardrail #5 fails: single-task D12 flow with `implementer-prompt.md`,
   overriding any `**Mode:** mechanical` hint.

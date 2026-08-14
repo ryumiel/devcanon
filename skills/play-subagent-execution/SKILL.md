@@ -69,12 +69,35 @@ BLOCKED/NEEDS_CONTEXT with the exact contract gap instead of silently treating
 the missing contract as satisfied.
 
 Before any implementer dispatch or inline execution, run a structural
-task-contract gate against the extracted plan/task execution context. Before
+projection gate before fallback or route selection. Require one literal
+Markdown H2 `## Execution Projection` outside fenced code and one or more
+uniquely identified entries containing exactly `Entry ID`, `Affected surface or
+equivalent set`, `Owner/source`, `Mode`, `Implementation disposition`, and
+`Proof`; alternate headings, renamed, duplicate, or unknown projection metadata
+do not substitute. Values are nonblank: surface is one item or a nonempty
+duplicate-free set; Mode is `authority`, `reference`, `derived representation`,
+`non-normative summary`, or `verification`; disposition is a nonempty
+duplicate-free `Tasks [...]` ID set or `No code — <reason>`; and Proof is one
+owner-boundary pair or a nonempty duplicate-free set of such pairs. These are
+structural checks, not authority-truth or topology-completeness review.
+Every current task has one nonblank
+`Execution Projection references` field: literal `None` alone or a nonempty,
+unordered, duplicate-free Entry ID set whose members each resolve to one
+definition in that section. Any missing, duplicate, mixed, unknown, or
+ambiguous structure returns BLOCKED/NEEDS_CONTEXT to planning. Legacy and
+pre-projection plans receive no inference or bypass.
+
+Append only resolved entries to the existing curated task context. Do not send
+the full plan for child resolution, infer references, derive semantic coverage,
+validate topology exhaustiveness, or route from the projection.
+
+Then run the structural task-contract gate against the extracted plan/task
+execution context. Before
 implementer dispatch, reviewer dispatch, final whole-implementation review, or
 skip-dispatch evaluation, assemble the extracted plan/task execution context
-from plan-level Contract Example Discipline obligations or equivalent clearly
-labeled sections/obligations when present, task-local checklist or no-trigger
-status, and any task-local example or proof obligations that refine the
+from resolved projection entries, plan-level Contract Example Discipline
+obligations or equivalent clearly labeled sections/obligations when present,
+task-local checklist or no-trigger status, and any task-local example or proof obligations that refine the
 plan-level section. When Contract Example Discipline or an equivalent clearly
 labeled section/obligation is present, inline the full shared
 `references/contract-example-discipline-consumer-rule.md` content in that
@@ -84,33 +107,18 @@ guarded-inline D13; prompt-mediated consumers receive it through their curated
 prompt. Subagents do not read the full plan file or resolve controller-relative
 rule paths.
 
-Admission is linear and precedes all extraction and routes: validate the
-source/path, capture guarded bytes once, hash that exact capture, match
-`Expected digest`, confirm the active controller retains the live matching
-`play-planning` return pair, parse the same capture, require exactly one literal
-`## Execution Projection` H2 outside fenced code, validate the semantic
-projection, then extract context and route.
-The retained return pair is one aggregate admission attestation for the current
-digest; copied text is not provenance. Do not demand independent D5/D6 leaf
-identity or guard evidence. A missing or unreadable bundled rule, failed
-aggregate attestation, invalid semantic projection, or malformed heading blocks
-with `BLOCKED/NEEDS_CONTEXT`; there is no legacy, direct, or unreviewed `FULL`
-bypass. Children never receive the full plan to resolve entries.
-
 Do not infer trigger applicability inside `play-subagent-execution`;
 `play-planning` owns the trigger taxonomy and tier classification. Do not
-reclassify a declared tier. For every current task in a reviewed plan, the gate
-requires exactly one declared `**Contract tier:** FULL`, `LIGHTWEIGHT`, or
-`NO-TRIGGER` and exactly one `**Execution route:** source-mutating` or
-`read-only proof`. It validates only the declared tier structure. `FULL` requires a
+reclassify a declared tier. For every current task in a reviewed plan, the gate requires
+exactly one declared `**Contract tier:** FULL`, `LIGHTWEIGHT`, or
+`NO-TRIGGER` and validates only its declared tier structure. `FULL` requires a
 structurally complete checklist; `LIGHTWEIGHT` requires named authority, owner,
 purpose, inputs and outputs, material write or side-effect owner, failure and
 cleanup behavior, focused proof, every actual known participant and direct
 producer-consumer relationship, including guarded-inline D13 when it is an
 actual participant or direct consumer, and an explicit reason every FULL
-trigger is absent; `NO-TRIGGER` requires a task-specific reason. A read-only
-proof task may inspect and run permitted checks against its assigned proof boundaries
-but may not edit durable source or create a commit. The executor must not promote,
+trigger is absent;
+`NO-TRIGGER` requires a task-specific reason. The executor must not promote,
 demote, infer, or otherwise reclassify the tier from task prose, diff size,
 path spelling, or runtime risk routing. Present Contract Example
 Discipline obligations are part of the task contract; the executor only
@@ -126,10 +134,12 @@ known participant or direct producer-consumer relationship fails closed with
 the exact contract gap; the controller must not treat prompt-mediated consumers
 as the only consumers or omit guarded-inline D13 merely because no child prompt
 is dispatched.
-Every tier and execution route is trusted only when the active controller
-retains the live matching `play-planning` return pair as aggregate attestation
-for the exact verified plan digest. Direct, hand-written, copied, older, or
-otherwise unreviewed plans block rather than falling back to `FULL`. When a FULL checklist is present,
+Both `LIGHTWEIGHT` and `NO-TRIGGER` are trusted only when this controller can
+identify the upstream two-gate `play-planning` return for the plan being
+executed, meaning both Plan Review and Implementer Executability Review passed
+before `Plan written to <path>.` was emitted. Direct, hand-written, copied,
+older, or otherwise unreviewed plans without that upstream two-gate return must
+use a structurally complete `FULL` contract. When a FULL checklist is present,
 it must explicitly name trigger criteria, owner/authority, affected
 consumers/generated outputs, must-preserve, required behavior, spec/procedure
 work, risk surfaces, and proof obligations, with no blank field or unexplained
@@ -180,16 +190,15 @@ esac
 [ -r "$PLAN_PATH" ] || { echo "plan missing or unreadable: $PLAN_PATH" >&2; exit 1; }
 ```
 
-Immediately after those guards, capture the plan bytes once in controller-local
-state. Before extracting, routing, or dispatching any task, compute SHA-256
-over that exact capture with `shasum -a 256` when available, otherwise
-`sha256sum`, and pipe either result through `awk '{print $1}'`. Validate the
-extracted field as lowercase 64-hex and compare it with `Expected digest:
-<sha256>`. A missing or malformed expected digest, unavailable hasher, hashing
-failure, or mismatch stops before plan extraction and must return to the owning
-planning workflow; never replace the expected digest with the current file
-digest. Keep the capture and both digest values controller-local and do not
-create a digest artifact, helper, parser, or registry.
+Immediately after those guards and before reading, extracting, routing, or
+dispatching any task, compute SHA-256 over the exact saved plan bytes with
+`shasum -a 256` when available, otherwise `sha256sum`, and pipe either result
+through `awk '{print $1}'`. Validate the extracted field as lowercase 64-hex
+and compare it with `Expected digest: <sha256>`. A missing or malformed expected
+digest, unavailable hasher, hashing failure, or mismatch stops before plan
+extraction and must return to the owning planning workflow; never replace the
+expected digest with the current file digest. Keep both values controller-local
+and do not create a digest artifact, helper, parser, or registry.
 
 This bash uses the generic phase-artifact read guard shape: narrow the suffix to
 the expected artifact, reject traversal, reject symlinked `.ephemeral` and
@@ -198,12 +207,9 @@ opening the file. `play-review` findings/nits envelopes use a stricter
 direct-child `.ephemeral/` guard because those paths are echoed through review
 output and reused by wrappers before read or overwrite.
 
-Only after the digest comparison and aggregate attestation both pass does the
-controller parse the retained byte capture. It then performs the exact-heading
-and semantic-projection checks on that same capture before context extraction
-and task routing; it does not reread the path.
-Per-task implementer subagents receive curated, inlined task text — they do
-NOT receive the path. See § Red Flags below.
+Only after the digest comparison passes does the controller read the plan from the path and proceed with task
+extraction. Per-task implementer subagents continue to receive curated,
+inlined task text — they do NOT receive the path. See § Red Flags below.
 
 After each implementer or reviewer return, controller state carries status,
 changed files, verification result, blockers, and artifact paths instead of
@@ -253,13 +259,8 @@ attestation from prior task text, a returned status, or copied invocation prose.
 
 A `## Plan` heading followed by content body, or an entire plan document
 pasted into the invocation prose. No path validation is required — content
-is captured once and consumed verbatim from the prose. Inline content still
-requires a controller-identifiable digest over that exact capture and the active
-controller's live matching `play-planning` return-pair aggregate attestation
-before the same capture is semantically consumed for projection validation,
-extraction, or execution; a direct paste is not a compatibility bypass. Direct
-human invocations that cannot supply that state block with
-`BLOCKED/NEEDS_CONTEXT`.
+is consumed verbatim from the prose. Direct human invocations that paste a
+plan inline use this shape.
 
 The path reference is consumed by the controller; the inline form is preserved for direct human invocations that paste a plan into the prose.
 
@@ -277,27 +278,18 @@ For the full selection and process diagrams, load
 
 ## The Process
 
-1. Validate the source/path, capture guarded bytes once, hash that exact
-   capture, and match `Expected digest`. Confirm the active controller retains
-   the live matching `play-planning` return-pair aggregate attestation; copied
-   text is not provenance. Only then parse the same capture. Keep path handling
-   controller-owned; implementers receive curated inlined task text, not the
-   plan path.
-2. Require exactly one canonical heading, load and apply the execution-projection
-   consumer rule, and validate the semantic projection. Only then extract
-   context and route. Missing, malformed, unreviewed, or mismatched admission
-   facts stop with `BLOCKED/NEEDS_CONTEXT`, with no legacy route. Extract all
-   authored tasks only after that gate, retaining their full text, surrounding context,
-   declared contract tier, tier-appropriate contract fields, verification
-   expectations, and any mode or route hints.
-3. Assemble the extracted plan/task execution context before mutating-task,
-   read-only-proof, reviewer, or final whole-implementation dispatch, or
+1. Read the plan from a validated `Plan: <path>` reference or from inline
+   invocation content. Keep plan-path handling controller-owned; per-task
+   implementers receive curated inlined task text, not the plan path.
+2. Extract all authored tasks with their full text, surrounding context,
+   resolved projection entries, declared contract tier, tier-appropriate
+   contract fields, verification expectations, and any mode or route hints.
+3. Assemble the extracted plan/task execution context before implementer
+   dispatch, reviewer dispatch, final whole-implementation review, or
    skip-dispatch evaluation. Include plan-level Contract Example Discipline
    obligations or equivalent clearly labeled sections/obligations when present,
    task-local declared tier and tier-appropriate structure, and any task-local example or proof
-   obligations that refine the plan-level section, plus only the resolved
-   task-relevant Execution Projection entries, including proof-task-owned
-   entries. When Contract Example
+   obligations that refine the plan-level section. When Contract Example
    Discipline or an equivalent clearly labeled section/obligation is present,
    also inline the full shared consumer rule under
    `Contract Example Discipline Consumer Rule` so prompt consumers can enforce
@@ -306,38 +298,30 @@ For the full selection and process diagrams, load
    when a required checklist or extracted context is missing, malformed, blank,
    unexplained, unsupported, internally inconsistent, or unverifiable by source
    inspection.
-4. Derive task order and proof readiness from each entry's implementation set
-   and proof assignments. No proof assignment is eligible until every
-   implementation member for that entry has completed. A source-mutating proof
-   assignee must be the final implementation member and prove after its own
-   commit; every other independent assignment uses a dedicated read-only task.
-5. For single-task mechanical source-mutating plans, evaluate the skip-dispatch guardrails.
+4. For single-task mechanical plans, evaluate the skip-dispatch guardrails.
    When all five guardrails hold, the controller either performs the Write/Edit,
    verification, and commit inline or dispatches the exact-task executor prompt.
    A contract-gate failure blocks; another missing guardrail reclassifies to D12
    and dispatches the implementer prompt.
-6. Before implementer dispatch, classify snapshot state as `requested` or
+5. Before implementer dispatch, classify snapshot state as `requested` or
    `skipped`. Snapshot hints in plans are advisory only; the assembled prompt
    must make exactly one concrete state visible.
-7. Dispatch one implementer at a time with the selected prompt template and the
+6. Dispatch one implementer at a time with the selected prompt template and the
    full task text. Keep controller state as structured status, changed files,
    verification result, blockers, base/head SHAs, and artifact paths.
-8. For multi-task plans, compute the effective review route from the actual task
+7. For multi-task plans, compute the effective review route from the actual task
    diff after the implementer commits. Hard-risk, unclear, stale, malformed,
    conflicting, or untrusted classifications fail closed to `spec-and-quality`.
-9. Dispatch reviewers according to the effective route. D14 and D15 are
+8. Dispatch reviewers according to the effective route. D14 and D15 are
    separate response-only `deep-reviewer` sessions with independent GUARD-001
    lifecycles. Load the
    [lifecycle/status policy](references/lifecycle-status-policy.md) for guard
    ordering and every returned review disposition.
-10. After implementation members complete, route eligible `read-only proof`
-    tasks through the guarded proof-task lifecycle with only their curated
-    task/projection context. Bind summaries to the checked HEAD. After any later
-    relevant or fixup commit, use the lifecycle/status policy to invalidate and
-    rerun affected proof assignments and reviews, then load the
-    [review-routing policy](references/review-routing-policy.md) only to
-    recompute the effective route.
-11. After the lifecycle/status policy permits task completion, follow its D16
+9. After any fixup commit, use the lifecycle/status policy for invalidation and
+   completion state, then load the
+   [review-routing policy](references/review-routing-policy.md) only to
+   recompute the effective route.
+10. After the lifecycle/status policy permits task completion, follow its D16
     and terminal disposition. This index does not restate those transitions.
 
 **Trust-boundary summaries:**
@@ -371,9 +355,8 @@ capability.
 
 Preserve the capability and effort configured by a shipped role instead of
 overriding either at dispatch time. D12 uses `implementer`, balanced/high; D13
-uses `executor`, efficient/medium; read-only proof tasks use `assessor`,
-balanced/medium; and D14-D16 use `deep-reviewer`, frontier/xhigh. These pairs do
-not grant external mutation authority.
+uses `executor`, efficient/medium; and D14-D16 use `deep-reviewer`,
+frontier/xhigh. These pairs do not grant external mutation authority.
 
 ## Execution Route Classification
 
@@ -392,14 +375,6 @@ owns child action and report shape, and the
 [lifecycle/status policy](references/lifecycle-status-policy.md) owns returned
 D13 dispositions. None of these surfaces permits the executor to guess or
 widen scope.
-
-A `read-only proof` task uses guarded inline inspection when the controller can
-perform its bounded checks directly, or the existing source-immutable `assessor`,
-balanced/medium, with zero handoffs for Subagent-Driven execution. The lifecycle/status policy owns
-its capture, per-boundary result, HEAD-bound freshness, immutability verification,
-cleanup, and completion rules.
-This route creates no commit, proof ledger, discharge state, or persistent
-handoff.
 
 ## Mechanical Task Hint
 
@@ -471,10 +446,7 @@ range and the D16-specific question from
 
 The [lifecycle/status policy](references/lifecycle-status-policy.md) is the
 normative owner of D16 dispatch timing, the exact skip, guard ordering, cleanup,
-fix-loop freshness, authority-based recovery to D12 versus planning, and final
-incomplete or terminal outcomes. The auto carve-out requires exactly one
-completed source-mutating task and no read-only or other non-diff proof
-obligation.
+fix-loop freshness, and final incomplete or terminal outcomes.
 
 ## Single-Task Plans
 
@@ -671,19 +643,17 @@ artifact work or unambiguous identifier replacement, the controller may execute
 Write/Edit, verification, and commit inline or dispatch D13's `executor`. This
 path sits on top of the single-task per-task-review skip.
 
-Admission requires the canonical semantic projection and the active
-controller's live matching `play-planning` return-pair aggregate attestation
-for the verified digest before guardrail evaluation. A missing, malformed,
-unreviewed, or mismatched admission fact stops with `BLOCKED/NEEDS_CONTEXT`; it never
-selects D12 or D13. For an admitted plan, all five guardrails must hold: the
-plan is single-task, the task is explicitly mechanical, no clarifying questions
-could plausibly arise, the structural task-contract gate is satisfied, and no
-tests need to be authored. A task-contract failure stops before implementation;
-ordinary non-contract guardrail misses after admission fall back to dispatched
-implementation. After all five guardrails pass, keep the chosen branch explicit.
-The guarded inline branch produces no child DONE report and no child snapshot
-request; the controller verifies and records its own inline commit. The
-dispatched-executor branch preserves the unchanged DONE-report and snapshot
+All five guardrails must hold: the plan is single-task, the task is explicitly
+mechanical, no clarifying questions could plausibly arise under the upstream
+two-gate `play-planning` return, the structural task-contract gate is
+satisfied, and no tests need to be authored. Direct, hand-written, copied, or
+older plans without the upstream two-gate return fail the clarifying-question
+guardrail and fall back to dispatched implementation. A task-contract failure
+stops before implementation; other guardrail misses fall back to dispatched
+implementation. After all five guardrails pass, keep the chosen branch
+explicit. The guarded inline branch produces no child DONE report and no child
+snapshot request; the controller verifies and records its own inline commit.
+The dispatched-executor branch preserves the unchanged DONE-report and snapshot
 request/skip contract from `references/executor-prompt.md` and the status rules
 below.
 
@@ -723,9 +693,6 @@ subagent prompt; do not inline their full bodies into this skill source.
   policy. The controller loads this file and inlines its content under
   `Contract Example Discipline Consumer Rule` when the extracted plan/task
   execution context contains present obligations.
-- `references/execution-projection-consumer-rule.md` — conditional structural
-  validation and task-context derivation rule for plans containing the exact
-  canonical `## Execution Projection` heading.
 
 ## Branch Policy Reference Map
 
@@ -733,16 +700,15 @@ Load these branch-policy references lazily. Keep this source file as the eager
 controller contract and trust-boundary summary; load the detailed references
 only when the trigger applies.
 
-| Reference                                                                 | Load when                                                                                                                                                                      |
-| ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| review routing - `references/review-routing-policy.md`                    | Computing initial effective per-task routes, validating reduced-route auto-handoff, or checking hard-risk triggers.                                                            |
-| skip-dispatch behavior - `references/skip-dispatch-policy.md`             | Evaluating single-task inline execution, mechanical-task taxonomy, fallback behavior, or skip-dispatch examples.                                                               |
-| lifecycle/status handling - `references/lifecycle-status-policy.md`       | Updating lifecycle ledger state, interpreting returned worker statuses, resolving same-head reviewer disposition, handling fixups/blockers, guard failures, or cleanup timing. |
-| snapshot consumption - `references/snapshot-consumption.md`               | Classifying snapshot request state, assembling snapshot prompt fields, validating or consuming snapshot manifests, or handling malformed/stale snapshots.                      |
-| execution projection - `references/execution-projection-consumer-rule.md` | After guarded bytes contain the one canonical heading, validating the semantic projection and extracting curated context before routes.                                        |
-| diagrams - `references/process-diagrams.md`                               | Needing full DOT diagrams or diagram interpretation notes for the controller flow.                                                                                             |
-| examples - `references/example-workflow.md`                               | Needing an end-to-end illustrative execution trace.                                                                                                                            |
-| rationale - `references/advantages.md`                                    | Needing rationale, quality gates, cost, or comparison context.                                                                                                                 |
+| Reference                                                           | Load when                                                                                                                                                                      |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| review routing - `references/review-routing-policy.md`              | Computing initial effective per-task routes, validating reduced-route auto-handoff, or checking hard-risk triggers.                                                            |
+| skip-dispatch behavior - `references/skip-dispatch-policy.md`       | Evaluating single-task inline execution, mechanical-task taxonomy, fallback behavior, or skip-dispatch examples.                                                               |
+| lifecycle/status handling - `references/lifecycle-status-policy.md` | Updating lifecycle ledger state, interpreting returned worker statuses, resolving same-head reviewer disposition, handling fixups/blockers, guard failures, or cleanup timing. |
+| snapshot consumption - `references/snapshot-consumption.md`         | Classifying snapshot request state, assembling snapshot prompt fields, validating or consuming snapshot manifests, or handling malformed/stale snapshots.                      |
+| diagrams - `references/process-diagrams.md`                         | Needing full DOT diagrams or diagram interpretation notes for the controller flow.                                                                                             |
+| examples - `references/example-workflow.md`                         | Needing an end-to-end illustrative execution trace.                                                                                                                            |
+| rationale - `references/advantages.md`                              | Needing rationale, quality gates, cost, or comparison context.                                                                                                                 |
 
 ## Prompt Support Assets
 

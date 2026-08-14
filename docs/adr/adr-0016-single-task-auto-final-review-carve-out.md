@@ -21,9 +21,9 @@ means two whole-diff review stages still run back-to-back:
 2. `branch-review --fix`
 
 This decision narrows the question deliberately: keep multi-task review
-behavior unchanged, keep `branch-review --fix` mandatory, and remove the
-redundant final-review step only when one mutating task completes every
-executable route and all proof is visible in its committed diff.
+behavior unchanged, keep `branch-review --fix` mandatory, and only remove
+the redundant final-review step on the `issue-priming-workflow --auto`
+single-task path.
 
 ## Decision
 
@@ -32,24 +32,16 @@ Add a caller-scoped carve-out to `play-subagent-execution`.
 When all of the following hold:
 
 1. the controller is already executing verified controller-local
-   `issue-priming-workflow --auto` state with a validated matching
-   `issue-priming/auto-handoff/v1` artifact
-2. the parent actively carries the plan path and digest it observed from the
-   current `play-planning` return through the direct executor handoff
+   `issue-priming-workflow --auto` state
+2. the invocation carries a validated `issue-priming/auto-handoff/v1` artifact
+   from that same parent state
 3. that parent state guarantees downstream `branch-review --fix` is the
    mandatory next step
-4. the extracted plan has exactly one completed `source-mutating` task
-5. the plan has no `read-only proof` task and no other proof obligation outside
-   the committed implementation diff
+4. the extracted plan has exactly one task
 
 then `play-subagent-execution` skips its final whole-implementation
 code-quality reviewer and returns directly to the caller after the
-single-task implementation path completes. A single read-only task, any plan
-with a read-only proof task, and any non-diff proof obligation retain ordinary
-D16 before Phase 7. D16 consumes the existing whole-plan and whole-
-implementation context, including controller-curated proof-task result
-summaries; this decision adds no projection-specific D16 report or Phase 7
-risk-signal field.
+single-task implementation path completes.
 
 All other paths remain unchanged:
 
@@ -62,19 +54,16 @@ All other paths remain unchanged:
   inherits this caller-scoped carve-out instead of implying the final
   reviewer runs on every plan
 
-The caller signal is not bearer prose. The active parent retains its observed
-planning return through the direct handoff; copied or replayed text cannot
-recreate it. No new provenance receipt, artifact, schema, leaf identity, or
-plan-shape branching is introduced; the existing auto-handoff audit artifact
-remains unchanged.
+The caller signal is not bearer prose. ADR-0013 and ADR-0018 harden this
+carve-out so `play-subagent-execution` verifies controller-local parent state
+plus the `issue-priming/auto-handoff/v1` audit artifact before skipping the
+final reviewer. No new plan schema field or workflow-side plan-shape branching
+is introduced.
 
 ## Consequences
 
 - The common `issue-priming-workflow --auto` single-task path drops one
-  redundant whole-diff review pass only when that one mutating route and its
-  committed diff are complete.
-- Read-only and other non-diff proof stays visible to ordinary D16 without a
-  per-entry ledger, discharge state, or special recovery protocol.
+  redundant whole-diff review pass.
 - Review-policy ownership stays inside `play-subagent-execution`, the skill
   that already owns reviewer dispatch.
 - Manual/direct callers are not weakened; they keep the final

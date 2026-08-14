@@ -37,12 +37,7 @@ only after both results settle through their source-immutability lifecycle.
 Any edit changes the reviewed artifact and invalidates both verdicts. The
 revised plan therefore needs a fresh pair of results for its new digest. A plan
 may cross the execution-handoff boundary only when both distinct reviewers pass
-the same current digest. Every execution route consumes one controller-local
-capture of the guarded saved-plan bytes: hash that capture, compare it with the
-reviewed digest, and derive task and projection execution only from the same
-capture. Inline execution and downstream executor handoff share this admission
-rule; neither may re-read mutable plan bytes after validation. The capture is
-transient controller state, not a provenance artifact or persistent protocol.
+the same current digest.
 
 The paired gate is bounded: the first wave is exhaustive and the second wave is
 convergent. The second pair verifies prior material gaps, checks that the

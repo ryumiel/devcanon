@@ -1,9 +1,8 @@
 # Lifecycle And Status Policy - `play-subagent-execution`
 
-The [source-immutability usage](source-immutability-usage.md) owns guard
-commands, I/O, and refusal mechanics for read-only proof tasks and D14-D16.
-This reference owns lifecycle ordering, status disposition, freshness, and
-escalation.
+The [source-immutability usage](source-immutability-usage.md) owns D14-D16
+guard commands, I/O, and refusal mechanics. This reference owns lifecycle
+ordering, status disposition, freshness, and escalation.
 
 ## Subagent Lifecycle
 
@@ -31,58 +30,6 @@ about correctness or scope remain incomplete until addressed. A D13
 routes the captured report to D12; purely observational concerns may continue
 through the selected route.
 
-## Read-Only Proof Task Status
-
-Execute each `read-only proof` task serially only after every implementation
-member for each assigned projection entry and all other declared dependencies
-have completed. Before final whole-implementation review, verify every proof
-assignment is current at the final implementation HEAD. For Subagent-Driven
-execution, dispatch the existing source-immutable `assessor`, balanced/medium,
-with the captured task text, resolved task-relevant projection entries, assigned
-proof boundaries, and permitted inspection/check scope, with zero handoffs. For
-Inline Execution, the controller performs the same bounded inspection and checks
-directly. Neither route may edit durable source, create a commit, or mutate an
-external system.
-
-Use the guard lifecycle capture → run → verify → validate/retain → cleanup →
-apply. Capture HEAD and the source-immutability baseline before the task. Accept
-only `VERIFIED`, `BLOCKED`, `NEEDS_CONTEXT`, or `FAILED` with a concise evidence
-summary and the checks performed. Before consuming the result, verify HEAD is
-unchanged and the source guard passes; cleanup the exact baseline on every
-terminal path. Mutation, a new commit, malformed status, guard failure, or
-cleanup failure is terminal `BLOCKED` and remains visible rather than repaired.
-`VERIFIED` is ordinary controller-local task-completion evidence, not a receipt,
-ledger entry, persistent discharge state, or new artifact. Retain its summary,
-including the checked HEAD and concise evidence for every assigned boundary, in
-the existing whole-implementation context for D16.
-
-The response-only result contains exactly the overall status, assigned proof
-boundaries, checks performed, and concise per-boundary evidence or blocker. The
-controller supplies and validates HEAD separately; the child does not create a
-receipt or handoff. Any non-pass boundary makes the overall task non-pass.
-
-A source-mutating proof assignee is handled by its ordinary implementation
-route. It must be an implementation member, must be the final implementation
-member for each entry it proves, must depend on every other implementation
-member, and performs the assigned proof only after its own commit. At most one
-proof assignment per entry may use this form. All other independent proof
-assignments use dedicated read-only proof tasks.
-
-Any later relevant commit affecting an assigned entry's relationship,
-participation, implementation member, or proof boundary invalidates its retained
-proof summary. Before D16, rerun every invalidated assignment against the new
-HEAD in dependency order. This invalidation is controller-local lifecycle state;
-it creates no ledger, persistent discharge record, or projection-specific D16
-reporting contract. Rerunning a source-mutating assignee's proof checkpoint does
-not require an empty or unrelated commit when no source change is authorized.
-
-`BLOCKED` or `NEEDS_CONTEXT` caused by a bounded inspection input may be
-recovered within the task's existing authority. A false no-code disposition,
-wrong implementation set, wrong tier or topology, missing proof assignment, or
-other reviewed-plan defect returns to planning under the authority-based
-recovery rule below. `FAILED` means at least one assigned proof boundary did not pass; route an
-implementation defect to D12 and a reviewed-plan defect to planning.
-
 ## Reviewer Freshness and Fixups
 
 D14 and D15 use independent sessions and prompts against the same task head.
@@ -98,16 +45,15 @@ rerun every reviewer required by the revalidated route against the new same
 task head; no earlier verdict survives.
 
 Resolve the installed `play-subagent-execution` bundle before the first guarded
-review or proof task and discover the local guard contract once for the
-enclosing source-immutable flow:
+review and discover the local guard contract once for the enclosing D14-D16
+flow:
 
 ```bash
 bash "$PLAY_SUBAGENT_EXECUTION_DIR/scripts/source-immutability.sh" --help
 ```
 
-For every read-only proof task, D14, D15, and D16, use the source-immutability
-lifecycle before consuming a response: capture → spawn → verify →
-validate/retain → cleanup → apply. A
+For D14, D15, and D16, use the source-immutability lifecycle before consuming
+a response: capture → spawn → verify → validate/retain → cleanup → apply. A
 capture failure prevents spawn and records no invented cleanup evidence because
 there is no retained baseline. After capture succeeds, every terminal path
 attempts cleanup against that exact retained baseline before final disposition,
@@ -115,42 +61,11 @@ including paths caused by spawn, response, verification, validation, retention,
 or apply failure. Any such failure leaves the task incomplete and `BLOCKED`;
 detected mutation or cleanup failure is guard-integrity terminal and source
 remains visible and unrepaired. D16 is a fresh whole-range reviewer after all
-mutating and read-only tasks, except the exact verified ADR-0016
-executable-route-complete carve-out. A D16
+tasks, except the exact verified ADR-0016 single-task auto carve-out. A D16
 result with no Blocking findings, including one with only Nit findings, may
 continue after safe cleanup. Blocking D16 findings keep final review
-incomplete. Route them by authority as defined below, then require a fresh D16
-after the affected implementation or reviewed plan is current again.
-
-## D16 Eligibility And Authority-Based Recovery
-
-The ADR-0016 carve-out applies only to a verified auto handoff with mandatory
-Phase 7, exactly one completed `source-mutating` task, no read-only proof task,
-and no proof obligation outside the committed implementation diff. A single
-read-only task, any plan with a read-only proof task, multiple tasks, or any
-other non-diff proof obligation retains ordinary D16. D16 receives the existing
-whole-plan and whole-implementation context, including controller-curated
-read-only proof result summaries; do not add projection-specific reporting or
-expand Phase 7 risk-signal contracts.
-
-Classify each Blocking D16 finding by the authority that can correct it:
-
-- An implementation defect within an existing task's authorized scope routes to
-  D12. A fix commit invalidates affected review results and requires fresh
-  applicable task review, reruns every affected proof assignment, and then
-  requires fresh D16.
-- A false no-code disposition, wrong implementation task set, incorrect tier,
-  topology, participation identity or partition, missing/incorrect proof
-  assignment,
-  or other reviewed-plan defect returns to planning. The corrected plan receives
-  a new digest, fresh D5/D6 review, fresh execution admission, reruns every
-  affected task or proof route, and then receives fresh D16. Existing unaffected
-  commits may remain only when the freshly reviewed plan authorizes the current
-  state; no stale task or proof result survives a changed governing tuple.
-
-When ownership is unclear, return `NEEDS_CONTEXT` to the planning boundary; do
-not let D12 rewrite reviewed plan authority and do not let planning prescribe an
-implementation fix inside already authorized task scope.
+incomplete, route to D12 for a fix, and require a fresh D16 after the fix
+commit.
 
 ## D13 and D12 Recovery
 

@@ -73,11 +73,6 @@ mirroring ADR-0012's `Findings written to <path>.` pattern verbatim:
 | `play-planning`                      | `Plan written to <repo-relative-path>.`           |
 
 Controllers parse the path off this exact line. Producers MUST NOT reword.
-For `play-planning`, the immediately following literal `Reviewed digest:
-<sha256>` line is aggregate attestation only when the parent actively observes
-the pair from that current invocation. It attests D5/D6 same-digest PASS, both
-guard cleanups, join, and final rehash; copied or replayed lines are not
-provenance.
 
 ### Invocation-only child handoff lines
 

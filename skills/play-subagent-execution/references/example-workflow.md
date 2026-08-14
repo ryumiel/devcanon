@@ -29,18 +29,14 @@ owning-workflow or explicit operator authority allows auto-committing fixes;
 otherwise hand off to branch-review without auto-fix authority, wait for review
 approval evidence, or invoke `play-branch-finish` only when branch-level review
 is not required.
-On the `issue-priming-workflow --auto` path, the flow returns directly to the
-caller only when the verified ADR-0016 carve-out finds exactly one completed
-source-mutating task and no read-only or other non-diff proof obligation. A
-single read-only task or any separate proof route retains D16 before Phase 7
-`branch-review --fix`.
+On the `issue-priming-workflow --auto` single-task path, the flow instead
+returns to the caller after task completion so Phase 7 `branch-review --fix`
+becomes the whole-diff gate.
 
 ```
 You: I'm using Subagent-Driven Development to execute this plan.
 
-[Validate plan source/path -> capture guarded bytes once -> hash that capture -> Expected digest matches]
-[Active controller retains the live matching play-planning return-pair aggregate attestation; copied text is not provenance]
-[Parse the same captured bytes -> exactly one canonical `## Execution Projection` -> semantic projection validates]
+[Read plan file once: .ephemeral/feature-plan.md]
 [Extract all 3 coherent authored tasks with full text and context]
 [Create TodoWrite with all tasks]
 [Use subagent-lifecycle to detect target lifecycle capability]
@@ -53,17 +49,6 @@ efficient/medium, only when all five exact guardrails pass. A D13 executor
 performs the exact validated operation and stops for controller reclassification
 if judgment or a missing guardrail appears. Source-mutable task execution stays
 serial.
-
-[When an authored task declares `Execution route: read-only proof`]
-Wait until every implementation member for each assigned entry has completed at
-the current HEAD. Then
-Capture HEAD and a source-immutability baseline -> run the bounded check inline
-or dispatch the existing source-immutable assessor with its curated task and
-projection context -> retain `VERIFIED | BLOCKED | NEEDS_CONTEXT | FAILED` plus
-the per-boundary check summary bound to that HEAD -> verify HEAD unchanged ->
-cleanup the exact baseline -> apply the result. The route makes no source edit
-and creates no commit. A later relevant commit invalidates the summary and
-reruns the affected proof assignments before D16.
 
 Task 1: Hook lifecycle
 
@@ -283,12 +268,9 @@ captured, report captured, reviewer result=PASS, observed close result=success,
 closed=yes after final verdict recorded and guard cleanup succeeded.
 
 [D16 alternate finding loop]
-An implementation defect inside an existing task's authority routes to D12; its
-fix commit requires fresh affected task review and D16. A false no-code
-disposition, wrong task set, incorrect tier/topology, missing proof assignment,
-invalid proof order, or
-other reviewed-plan defect returns to planning for a new digest, D5/D6,
-admission, affected execution, and D16. The fresh D16 never reuses D15 or the
+D16 blocking findings route to a final fix, and any fix commit requires a fresh
+D16 capture, spawn, verify, validate, cleanup, and apply cycle. The fresh D16
+reviews the refreshed whole implementation range; it never reuses D15 or the
 pre-fix D16 response.
 
 [D16 alternate ordinary failure]
