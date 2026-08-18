@@ -80,10 +80,10 @@ are nonblank: surface is one item or a nonempty duplicate-free set; Mode is
 `authority`, `reference`,
 `derived representation`, `non-normative summary`, or `verification`;
 disposition is a nonempty duplicate-free `Tasks [...]` ID set or
-`No code — <reason>`; and Proof is one or a nonempty duplicate-free set of
-`Task <TASK-ID>`, `Reviewer <responsibility>`, or
-`Controller <responsibility>` owner-boundary pairs. Every Task ID in disposition
-or Proof resolves to exactly one current task. These are structural checks, not
+`No code — <reason>`; and Proof is exactly one `Task <TASK-ID>`,
+`Reviewer <responsibility>`, or `Controller <responsibility>` owner paired with
+one nonblank boundary. Every Task ID in disposition or Proof resolves to exactly
+one current task. These are structural checks, not
 authority-truth or topology-completeness review.
 For each current task, mechanically select entries whose explicit implementation
 disposition or task-valued proof names that Task ID. Any missing, duplicate,
@@ -115,15 +115,18 @@ rule paths.
 
 Do not infer trigger applicability inside `play-subagent-execution`;
 `play-planning` owns the trigger taxonomy and tier classification. Do not
-reclassify a declared tier. For every current task in a reviewed plan, the gate requires
-exactly one declared `**Contract tier:** FULL`, `LIGHTWEIGHT`, or
-`NO-TRIGGER` and validates only its declared tier structure. `FULL` requires a
-structurally complete checklist; `LIGHTWEIGHT` requires named authority, owner,
-purpose, inputs and outputs, material write or side-effect owner, failure and
-cleanup behavior, focused proof, every actual known participant and direct
-producer-consumer relationship, including guarded-inline D13 when it is an
-actual participant or direct consumer, and an explicit reason every FULL
-trigger is absent;
+reclassify a declared tier. For every current task in a reviewed plan, the gate
+requires exactly one declared `**Contract tier:** FULL`, `LIGHTWEIGHT`, or
+`NO-TRIGGER` and validates only its declared tier structure from the assembled
+context. Selected projection entries supply the common relationship-level
+owner/source, affected participation, implementation membership, and proof
+allocation without restatement in the task. `FULL` requires a structurally
+complete task-local checklist for the remaining execution facts; `LIGHTWEIGHT`
+requires its remaining task-local purpose, inputs and outputs, material write or
+side-effect owner, failure and cleanup behavior, and explicit reason every FULL
+trigger is absent. The selected projection entries must cover every actual
+known participant and direct producer-consumer relationship, including
+guarded-inline D13 when it is an actual participant or direct consumer;
 `NO-TRIGGER` requires a task-specific reason. The executor must not promote,
 demote, infer, or otherwise reclassify the tier from task prose, diff size,
 path spelling, or runtime risk routing. Present Contract Example
@@ -145,11 +148,13 @@ identify the upstream two-gate `play-planning` return for the plan being
 executed, meaning both Plan Review and Implementer Executability Review passed
 before `Plan written to <path>.` was emitted. Direct, hand-written, copied,
 older, or otherwise unreviewed plans without that upstream two-gate return must
-use a structurally complete `FULL` contract. When a FULL checklist is present,
-it must explicitly name trigger criteria, owner/authority, affected
-consumers/generated outputs, must-preserve, required behavior, spec/procedure
-work, risk surfaces, and proof obligations, with no blank field or unexplained
-`N/A`. If this
+use a structurally complete `FULL` contract. For `FULL`, the assembled
+context—not the task-local checklist alone—must explicitly name trigger
+criteria, relationship owner/source, task-local mutation authority, affected
+consumers/generated outputs, must-preserve and required behavior,
+spec/procedure work, risk surfaces, proof allocation, and task-local
+verification expectations, with no blank field or unexplained `N/A`. The
+checklist must not restate the selected projection tuple. If this
 structural gate or the extracted plan/task execution context is missing,
 malformed, unsupported, internally inconsistent, or unverifiable, stop before
 implementation and report BLOCKED/NEEDS_CONTEXT for plan repair; do not dispatch

@@ -471,30 +471,24 @@ when its existing trigger applies.
 ### Ownership-topology mapping
 
 For every changed behavior or contract in an approved design, select topology
-detail from its contract tier. An exhaustive mapping is required for `FULL` or
-when a separately named material authority requires it. That table or
-equivalent structured mapping names:
+detail from its contract tier. In an executable plan, the Execution Projection
+is the single common mapping for the stable relationship and governing decision,
+affected surface or equivalent set, normative owner/source and responsibility,
+consumption mode, current task or no-code disposition, and proof owner/boundary.
+Do not repeat those fields in a second topology table.
 
-- the stable behavior or contract name and governing design decision;
-- exactly one normative owner and the responsibility it defines;
-- each optional supporting owner, its explicitly non-overlapping normative
-  partition, and conflict precedence;
-- every other affected surface, its owner source, and exactly one consumption
-  mode: reference, derived representation, non-normative summary, or
-  verification;
-- current task coverage for the owner and every consumer; and
-- the verification owner and the owner invariant, reference-validity boundary,
-  or derived-parity boundary it proves.
-
-For `FULL`, the mapping is exhaustive over the changed behaviors and affected
-surfaces authorized by the design, including supporting-owner partitions and
-precedence, every affected surface and consumption mode, current task coverage,
-and verification ownership. A valid `LIGHTWEIGHT` compact record satisfies
-topology by naming every actual known participant and direct producer-consumer
-relationship, plus its owner, purpose, inputs and outputs, material write or
-side-effect owner, failure and cleanup behavior, focused proof, and explicit
-reason every FULL trigger is absent. It need not manufacture supporting owners,
-partitions, consumers, or example families that do not exist.
+`FULL`, or a separately named material authority, requires that common mapping
+to be exhaustive over every changed behavior and affected surface authorized by
+the design. When an approved relationship has supporting owners, add only an
+Entry-ID-keyed supplement naming each supporting owner, its explicitly
+non-overlapping normative partition, and conflict precedence. The supplement
+must not restate the projection tuple. A valid `LIGHTWEIGHT` compact record adds
+only its independently necessary task-local purpose, inputs and outputs,
+material write or side-effect owner, failure and cleanup behavior, and explicit
+reason every FULL trigger is absent; its selected projection entries supply the
+common participant, relationship, owner, and proof facts. It need not
+manufacture supporting owners, partitions, consumers, or example families that
+do not exist.
 
 Repetition never grants authority. References and non-normative summaries yield
 to the normative owner on conflict; derived representations preserve owner
@@ -519,12 +513,14 @@ Planning is not ready at every tier when:
 - a reviewer or implementer would have to choose ownership or precedence.
 
 For `FULL` or a separately named material authority, planning is not ready when
-a required exhaustive topology field is missing, including when:
+a required exhaustive projection or Entry-ID-keyed topology supplement field is
+missing, including when:
 
 - a supporting responsibility overlaps another partition, leaves an approved
   responsibility uncovered, or lacks conflict precedence;
-- a changed behavior, affected surface, owner source, consumption mode, task,
-  or verification owner is missing; or
+- a changed behavior, affected surface, owner source or responsibility,
+  consumption mode, implementation disposition, or proof owner/boundary is
+  missing from its projection entry; or
 - a derived representation lacks an owner or proportional parity proof.
 
 A `LIGHTWEIGHT` mapping is not ready when it omits any actual known participant
@@ -562,12 +558,13 @@ the owning design or decision surface, not invitations to guess.
 Every executable plan contains exactly one literal Markdown H2
 `## Execution Projection` outside fenced code, followed by the peer H2
 `## Tasks` before any `### Task` heading. The peer heading terminates the
-projection section. The projection is a descriptive, plan-local index over
-facts already owned by the approved design and current task contracts. It does
-not create authority, execution order, task routes, proof actors, retained
-evidence, or review state. The same entry shape applies to `FULL`,
-`LIGHTWEIGHT`, and `NO-TRIGGER`; tier-required fields remain mandatory exactly
-once in their task contracts and are not copied into this index.
+projection section. The approved design owns the project-specific truth; the
+projection is its single plan-local representation of the common relationship
+tuple. It does not create authority, execution order, task routes, proof actors,
+retained evidence, or review state. The same entry shape applies to `FULL`,
+`LIGHTWEIGHT`, and `NO-TRIGGER`; independently necessary tier-specific execution
+fields remain mandatory exactly once in task contracts and are not copied into
+this index.
 
 The section contains one or more entries. Each entry contains exactly these six
 fields and no renamed, duplicate, or additional projection-scoped metadata:
@@ -576,24 +573,28 @@ fields and no renamed, duplicate, or additional projection-scoped metadata:
    same identifier form as `Task ID`.
 2. `Affected surface or equivalent set`: one surface or an explicit set of
    surfaces that share the complete descriptive tuple.
-3. `Owner/source`: the normative owner plus the exact approved decision,
-   contract, or relationship-specific authority locator.
+3. `Owner/source`: the normative owner, the responsibility it defines, and the
+   exact approved decision, contract, or relationship-specific authority
+   locator.
 4. `Mode`: exactly one of `authority`, `reference`, `derived representation`,
    `non-normative summary`, or `verification`.
 5. `Implementation disposition`: either `Tasks [...]`, containing a nonempty,
    unordered, duplicate-free set of current stable Task IDs, or
    `No code — <task-specific reason>`.
-6. `Proof`: one `Task <TASK-ID> — <boundary>`,
+6. `Proof`: exactly one `Task <TASK-ID> — <boundary>`,
    `Reviewer <existing responsibility> — <boundary>`, or
-   `Controller <existing responsibility> — <boundary>` pair, or an unordered
-   duplicate-free set of such pairs.
+   `Controller <existing responsibility> — <boundary>` pair.
 
 Every Task ID in `Tasks [...]` and every `Task <TASK-ID>` proof owner resolves
 to exactly one current task in the plan. Reviewer and controller forms must name
 an existing responsibility; no form can invent an actor, route, dependency, or
-lifecycle. Task and proof-set display order has no semantic meaning. A physical
-surface may occur in different entries when it participates in different
-approved relationships, distinguished by their exact authority locators.
+lifecycle. Task-set display order has no semantic meaning. Multiple checks owned
+by the same proof actor belong in its one concrete boundary. Independently owned
+proof responsibilities require distinct approved relationships and separate
+entries; planning must not invent a relationship merely to serialize another
+proof owner. A physical surface may occur in different entries when it
+participates in different approved relationships, distinguished by their exact
+authority locators.
 Implementation disposition and task-valued proof ownership are the canonical
 plan-local membership facts; they do not establish project authority or an
 execution route. Entry IDs remain available for optional references from other
@@ -638,7 +639,7 @@ Example of a valid grouped entry:
 
 From this valid entry, changing only owner/source, mode, implementation
 disposition, or proof for `source-b` requires a separate entry. Merely
-reordering the same task or proof set does not. Keeping two otherwise complete,
+reordering the same task set does not. Keeping two otherwise complete,
 tuple-equal entries may invite a non-blocking compaction suggestion, but is not
 by itself a semantic defect.
 
@@ -762,19 +763,30 @@ compatibility or versioning. A trivial task may omit the checklist only with a
 task-specific reason explaining why no contract fields are triggered.
 
 For `FULL` or a separately named material authority, use the complete
-non-trivial-task checklist. It covers trigger criteria, owner and authority,
-affected consumers or generated outputs, must-preserve behavior, required state
-and failure behavior, applicable spec or procedure work, relevant risks, and
-proof obligations. Each field is populated or marked `N/A` with a task-specific
-reason. Unknown authority becomes a BLOCKER, not an invented contract.
+non-trivial-task checklist. Selected projection entries cover the common
+relationship tuple. The checklist adds trigger criteria, task-local mutation
+authority, affected execution consumers or generated outputs not already
+represented by that tuple, must-preserve behavior, required state and failure
+behavior, applicable spec or procedure work, relevant risks, and task-local
+verification expectations. Each field is populated or marked `N/A` with a
+task-specific reason. Unknown authority becomes a BLOCKER, not an invented
+contract.
 
-A valid `LIGHTWEIGHT` task uses its closed compact fields: every actual known
-participant and direct producer-consumer relationship, owner, purpose, inputs
-and outputs, material write or side-effect owner, failure and cleanup behavior,
-focused proof, and the explicit reason every FULL trigger is absent. A valid
-`LIGHTWEIGHT` task does not acquire FULL-only checklist fields or `N/A` entries.
-Add checklist detail only for a concrete approved task-local need or an
-independently applicable material authority.
+Selected projection entries satisfy the relationship-level owner/source,
+affected participation, implementation membership, and proof-allocation facts.
+The task checklist remains the executable owner of task-local mutation
+authority, required behavior, acceptance, and verification expectations; it
+references or consumes the selected entries and does not restate their tuple.
+
+A valid `LIGHTWEIGHT` task consumes its selected projection entries for every
+actual known participant, direct producer-consumer relationship, normative
+owner/source, and proof allocation. Its closed compact task-local fields add
+purpose, inputs and outputs, material write or side-effect owner, failure and
+cleanup behavior, focused verification expectations, and the explicit reason
+every FULL trigger is absent. It does not restate the projection tuple or
+acquire FULL-only checklist fields or `N/A` entries. Add checklist detail only
+for a concrete approved task-local need or an independently applicable material
+authority.
 
 For `FULL` or a separately named material authority, include the complete
 task-local operation map when needed to make approved boundary behavior

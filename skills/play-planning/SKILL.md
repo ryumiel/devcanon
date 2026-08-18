@@ -240,25 +240,25 @@ generalize. The canonical planning criteria remain the fail-closed owner of
 tier selection and detailed readiness.
 
 For behavior- or contract-changing work, consume the approved design's
-ownership topology and expose its tier-appropriate mapping in the plan. `FULL`
-tasks require exhaustive topology, including the normative owner, optional
-non-overlapping supporting partitions, consumption modes, conflict precedence,
-task coverage, and verification owner. A family-local authority requires
-additional complete or necessary topology only when it explicitly governs the
-ownership-topology mapping. `LIGHTWEIGHT` compact topology still names every
-actual known participant and direct producer-consumer relationship alongside
-its compact owner, purpose, I/O, material side-effect ownership, failure,
-cleanup, proof, and all-trigger absence record. Known omissions and
-independently triggered obligations remain blocking at every tier. Every
-changed behavior and affected surface must reach a current task with its
-normative owner. The canonical planning criteria own the detailed topology and
-task-mapping rules, including tier-aware example-discipline triggers; the
-readiness reference exclusively owns audit and readiness rules. Stop when
-authority is duplicated, contradictory, or incomplete: return missing
-project-specific decisions to the owning design and broken task mappings to
-planning instead of adding a synchronized restatement. Repeated detail does not
-make a reference or summary normative, verification does not define policy,
-and generated skill packages remain derived consumers rather than edit targets.
+ownership topology and expose its tier-appropriate mapping in the plan. The
+Execution Projection below is the single common mapping for relationship,
+surface, normative owner/source, mode, task/no-code disposition, and proof.
+`FULL` requires that mapping to be exhaustive and adds only Entry-ID-keyed
+supporting-owner partitions and conflict precedence when they exist; do not
+repeat the common tuple in another topology table. `LIGHTWEIGHT` adds only its
+independently necessary compact task-local facts. A family-local authority
+requires additional complete or necessary topology only when it explicitly
+governs the ownership-topology mapping. Known omissions and independently
+triggered obligations remain blocking at every tier. Every changed behavior
+and affected surface must reach a current task with its normative owner. The
+canonical planning criteria own the detailed topology and task-mapping rules,
+including tier-aware example-discipline triggers; the readiness reference
+exclusively owns audit and readiness rules. Stop when authority is duplicated,
+contradictory, or incomplete: return missing project-specific decisions to the
+owning design and broken task mappings to planning instead of adding a
+synchronized restatement. Repeated detail does not make a reference or summary
+normative, verification does not define policy, and generated skill packages
+remain derived consumers rather than edit targets.
 
 After the Scope Delta and before tasks, compile approved relationships into one
 `## Execution Projection` under the canonical criteria. Entries contain only
@@ -269,8 +269,9 @@ disposition, and proof are equal; split when any differs. Disposition and
 task-valued proof are the sole plan-local task-membership facts. Entry IDs may
 be referenced by other plan sections when that avoids restating the tuple, but
 tasks carry no required Entry-ID field. This is a plan-local context index, not
-a route or replacement for tier-required task fields. Terminate the projection
-with the peer H2 `## Tasks` before any `### Task` heading.
+a route. It owns the common relationship tuple; task contracts own independently
+necessary tier-specific execution facts. Terminate the projection with the peer
+H2 `## Tasks` before any `### Task` heading.
 
 For generated artifacts, derived artifacts, helper I/O files, `.ephemeral`
 handoffs, cross-skill handoffs, or side-channel data, plan against the
@@ -403,15 +404,18 @@ two.
 
 For `FULL` only:
 
-**Contract checklist:** <every complete FULL checklist field; populate each
-field or use task-specific N/A only where the canonical criteria permit it>
+**Contract checklist:** <every independently necessary FULL task-local field;
+consume the selected projection entries for their common relationship tuple,
+and populate each remaining field or use task-specific N/A only where the
+canonical criteria permit it>
 
 For `LIGHTWEIGHT` only:
 
-**Compact contract:** <owner, purpose, inputs and outputs, material write or
-side-effect owner, failure and cleanup behavior, focused proof, every actual
-known participant and direct relationship, and the explicit task-specific
-reason every FULL trigger is absent>
+**Compact contract:** <purpose, inputs and outputs, material write or side-effect
+owner, failure and cleanup behavior, focused verification expectations, and the
+explicit task-specific reason every FULL trigger is absent; consume selected
+projection entries for owner/source, participants, direct relationships, and
+proof allocation without restating them>
 
 For `NO-TRIGGER` only:
 
@@ -453,6 +457,12 @@ Projection disposition and task-valued proof are the sole plan-local membership
 facts. D5 validates their semantic truth and completeness. The executor
 mechanically selects entries that explicitly name the current Task ID without
 inferring missing entries, topology, or semantic applicability.
+
+Selected projection entries satisfy their relationship-level owner/source,
+affected participation, implementation membership, and proof allocation. Task
+contracts do not restate that tuple; they remain executable authority for
+task-local scope, dependencies, required behavior, acceptance, and verification
+expectations.
 
 Select exactly one tier-specific block from the template and remove the other
 two. The ordinary task fields, acceptance criteria, verification expectations,
@@ -646,9 +656,10 @@ Review in this order:
 5. Classify every finding as `CURRENT`, `BLOCKER`, `FOLLOW-UP`, or
    `OPTIONAL` before changing the plan.
 
-For `FULL`, also confirm that every ownership topology row has complete task and
-proof coverage and that no task asks an implementer to choose an owner,
-supporting partition, consumption mode, precedence, or verification owner. When
+For `FULL`, also confirm that every ownership relationship has one exhaustive
+projection entry, any supporting-owner supplement references its Entry ID, and
+no task asks an implementer to choose an owner, supporting partition,
+consumption mode, precedence, or proof owner. When
 a family-local authority governs ownership topology, confirm its additional
 complete or necessary topology detail. For `LIGHTWEIGHT`, confirm the compact
 record does not leave any actual known participant, direct relationship,
