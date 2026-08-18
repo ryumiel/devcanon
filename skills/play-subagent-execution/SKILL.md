@@ -56,10 +56,11 @@ labels that content as approved verbatim artifact content and names the
 authority source. Implementers choose concrete code, tests, docs, and
 verification commands only after reading the relevant source files directly.
 
-When a task includes a contract tier and its tier-appropriate contract
-structure, treat its owner/authority,
-affected consumers/generated outputs, must-preserve, required behavior,
-spec/procedure work, risk surfaces, and proof obligations as task constraints.
+When a task includes a contract tier and its tier-appropriate assembled context,
+treat the selected projection's common relationship tuple and the task-local
+mutation authority, affected execution consumers/generated outputs,
+must-preserve and required behavior, spec/procedure work, risk surfaces, and
+verification expectations as task constraints.
 These fields constrain what the implementation must satisfy; they do not make
 plan-authored implementation mechanics authoritative. If a checklist field is
 blank, an `N/A` lacks a task-specific reason, or the task appears to invent an
@@ -69,12 +70,47 @@ BLOCKED/NEEDS_CONTEXT with the exact contract gap instead of silently treating
 the missing contract as satisfied.
 
 Before any implementer dispatch or inline execution, run a structural
-task-contract gate against the extracted plan/task execution context. Before
+projection gate before fallback or route selection. Require one literal
+Markdown H2 `## Execution Projection` outside fenced code, followed by peer H2
+`## Tasks` before any `### Task` heading, and one or more uniquely identified
+entries containing exactly `Entry ID`, `Affected surface or equivalent set`,
+`Owner/source`, `Mode`, `Implementation disposition`, and `Proof`; alternate
+headings, renamed, duplicate, or unknown projection metadata do not substitute.
+Each Entry ID uses the same `UPPER-ASCII-KEBAB` form as Task ID. Other values
+are nonblank: the surface value is a JSON array containing one or more unique,
+nonempty strings, where one member is a singleton and two or more members are
+an equivalent set, array order is non-semantic, and uniqueness uses exact
+decoded-string equality; Mode is `authority`, `reference`,
+`derived representation`, `non-normative summary`, or `verification`;
+disposition is a nonempty duplicate-free `Tasks [...]` ID set or
+`No code — <reason>`; and Proof is exactly one `Task <TASK-ID>`,
+`Reviewer <responsibility>`, or `Controller <responsibility>` owner paired with
+one nonblank boundary. Every Task ID in disposition or Proof resolves to exactly
+one current task. These are structural checks, not
+authority-truth or topology-completeness review.
+For each current task, mechanically select entries whose explicit implementation
+disposition or task-valued proof names that Task ID. Any missing, duplicate,
+unknown, or ambiguous projection structure returns BLOCKED/NEEDS_CONTEXT to
+planning. This selection does not decide whether membership or topology is
+semantically truthful or complete. Legacy and pre-projection plans receive no
+inference or bypass.
+
+Append only selected entries and plan-level supporting-owner supplements or
+boundary records that the current task directly cites by their existing Entry-ID
+key or stable boundary row ID. Each cited key or row ID must resolve to exactly
+one record. Do not discover records merely because they mention a selected Entry
+ID, send the full plan for child resolution, recursively follow references,
+infer missing entries or semantic applicability, validate semantic coverage or
+topology exhaustiveness, or route from the projection.
+
+Then run the structural task-contract gate against the extracted plan/task
+execution context. Before
 implementer dispatch, reviewer dispatch, final whole-implementation review, or
 skip-dispatch evaluation, assemble the extracted plan/task execution context
-from plan-level Contract Example Discipline obligations or equivalent clearly
+from resolved projection entries, their directly task-cited plan-level records,
+plan-level Contract Example Discipline obligations or equivalent clearly
 labeled sections/obligations when present, task-local checklist or no-trigger
-status, and any task-local example or proof obligations that refine the
+status, and any task-local example or verification obligations that refine the
 plan-level section. When Contract Example Discipline or an equivalent clearly
 labeled section/obligation is present, inline the full shared
 `references/contract-example-discipline-consumer-rule.md` content in that
@@ -86,15 +122,19 @@ rule paths.
 
 Do not infer trigger applicability inside `play-subagent-execution`;
 `play-planning` owns the trigger taxonomy and tier classification. Do not
-reclassify a declared tier. For every current task in a reviewed plan, the gate requires
-exactly one declared `**Contract tier:** FULL`, `LIGHTWEIGHT`, or
-`NO-TRIGGER` and validates only its declared tier structure. `FULL` requires a
-structurally complete checklist; `LIGHTWEIGHT` requires named authority, owner,
-purpose, inputs and outputs, material write or side-effect owner, failure and
-cleanup behavior, focused proof, every actual known participant and direct
-producer-consumer relationship, including guarded-inline D13 when it is an
-actual participant or direct consumer, and an explicit reason every FULL
-trigger is absent;
+reclassify a declared tier. For every current task in a reviewed plan, the gate
+requires exactly one declared `**Contract tier:** FULL`, `LIGHTWEIGHT`, or
+`NO-TRIGGER` and validates only its declared tier structure from the assembled
+context. Selected projection entries supply the common relationship-level
+owner/source, affected participation, implementation membership, and proof
+allocation without restatement in the task. `FULL` requires a structurally
+complete task-local checklist for the remaining execution facts; `LIGHTWEIGHT`
+requires its remaining task-local purpose, inputs and outputs, material write or
+side-effect owner, failure and cleanup behavior, and explicit reason every FULL
+trigger is absent. Selected projection entries are the only common participant
+and relationship representation. For reviewed plans, D5 owns whether they cover
+every actual participant and direct relationship, including guarded-inline D13
+when it is an actual participant or direct consumer;
 `NO-TRIGGER` requires a task-specific reason. The executor must not promote,
 demote, infer, or otherwise reclassify the tier from task prose, diff size,
 path spelling, or runtime risk routing. Present Contract Example
@@ -105,22 +145,28 @@ Discipline should have been required. In the case when extracted plan/task
 execution context includes Contract Example Discipline or an equivalent clearly
 labeled section/obligation, apply the shared consumer rule in
 [`references/contract-example-discipline-consumer-rule.md`](references/contract-example-discipline-consumer-rule.md).
-Validate the `LIGHTWEIGHT` fields from the assembled context and named authority
-sources without reclassifying the declared tier. Missing named authority or any
-known participant or direct producer-consumer relationship fails closed with
-the exact contract gap; the controller must not treat prompt-mediated consumers
-as the only consumers or omit guarded-inline D13 merely because no child prompt
-is dispatched.
+Validate the `LIGHTWEIGHT` structure from the assembled context without
+reclassifying the declared tier. The executor checks the selected entries,
+linked records, and task-local fields structurally; D5 owns semantic coverage
+for reviewed plans. The controller must not treat
+prompt-mediated consumers as the only consumers or omit guarded-inline D13
+merely because no child prompt is dispatched.
 Both `LIGHTWEIGHT` and `NO-TRIGGER` are trusted only when this controller can
 identify the upstream two-gate `play-planning` return for the plan being
 executed, meaning both Plan Review and Implementer Executability Review passed
 before `Plan written to <path>.` was emitted. Direct, hand-written, copied,
 older, or otherwise unreviewed plans without that upstream two-gate return must
-use a structurally complete `FULL` contract. When a FULL checklist is present,
-it must explicitly name trigger criteria, owner/authority, affected
-consumers/generated outputs, must-preserve, required behavior, spec/procedure
-work, risk surfaces, and proof obligations, with no blank field or unexplained
-`N/A`. If this
+use a structurally complete `FULL` contract. That direct `FULL` route is
+caller-authorized and receives structural validation only; the executor does
+not claim, infer, or synthesize D5-equivalent semantic completeness for it. A
+caller that requires planning-review assurance must use the reviewed
+`play-planning` route. For `FULL`, the assembled
+context—not the task-local checklist alone—must explicitly name trigger
+criteria, relationship owner/source, task-local mutation authority, affected
+consumers/generated outputs, must-preserve and required behavior,
+spec/procedure work, risk surfaces, proof allocation, and task-local
+verification expectations, with no blank field or unexplained `N/A`. The
+checklist must not restate the selected projection tuple. If this
 structural gate or the extracted plan/task execution context is missing,
 malformed, unsupported, internally inconsistent, or unverifiable, stop before
 implementation and report BLOCKED/NEEDS_CONTEXT for plan repair; do not dispatch
@@ -259,13 +305,17 @@ For the full selection and process diagrams, load
    invocation content. Keep plan-path handling controller-owned; per-task
    implementers receive curated inlined task text, not the plan path.
 2. Extract all authored tasks with their full text, surrounding context,
-   declared contract tier, tier-appropriate contract fields, verification expectations, and any mode or route
-   hints.
+   resolved projection entries, directly task-cited plan-level records, declared
+   contract tier, tier-appropriate contract fields, verification expectations,
+   and any mode or route hints.
 3. Assemble the extracted plan/task execution context before implementer
    dispatch, reviewer dispatch, final whole-implementation review, or
-   skip-dispatch evaluation. Include plan-level Contract Example Discipline
-   obligations or equivalent clearly labeled sections/obligations when present,
-   task-local declared tier and tier-appropriate structure, and any task-local example or proof
+   skip-dispatch evaluation. Include complete supporting-owner supplements or
+   boundary records that the task directly cites by their existing Entry-ID key
+   or stable boundary row ID. Require each cited key or row ID to resolve to
+   exactly one record. Include plan-level Contract Example Discipline obligations
+   or equivalent clearly labeled sections/obligations when present, task-local declared tier and
+   tier-appropriate structure, and any task-local example or verification
    obligations that refine the plan-level section. When Contract Example
    Discipline or an equivalent clearly labeled section/obligation is present,
    also inline the full shared consumer rule under
