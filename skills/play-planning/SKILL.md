@@ -245,8 +245,12 @@ Execution Projection below is the single common mapping for relationship,
 surface, normative owner/source, mode, task/no-code disposition, and proof.
 `FULL` requires that mapping to be exhaustive and adds only Entry-ID-keyed
 supporting-owner partitions and conflict precedence when they exist; do not
-repeat the common tuple in another topology table. `LIGHTWEIGHT` adds only its
-independently necessary compact task-local facts. A family-local authority
+repeat the common tuple in another topology table. Represent each approved
+relationship once in the direction needed to give its assigned task curated
+execution context. Add an inverse producer, consumer, or reference entry only
+when it adds a different owner/source, mode, implementation disposition, proof
+boundary, or independently necessary execution fact. `LIGHTWEIGHT` adds only
+its independently necessary compact task-local facts. A family-local authority
 requires additional complete or necessary topology only when it explicitly
 governs the ownership-topology mapping. Known omissions and independently
 triggered obligations remain blocking at every tier. Every changed behavior
@@ -489,9 +493,9 @@ fields in the task spec. Use the complete shape for `FULL`. A family-local
 authority selects additional complete or necessary I/O-contract detail only
 when it explicitly governs the contract-heavy table family. A valid
 `LIGHTWEIGHT` task consumes selected projection entries for every actual known
-participant and direct producer-consumer relationship and adds only its closed
-compact task-local I/O fields. The assembled context makes the task executable
-without prescribing concrete code, test bodies, shell recipes, helper names,
+participant and independently necessary execution relationship and adds only
+its closed compact task-local I/O fields. The assembled context makes the task
+executable without prescribing concrete code, test bodies, shell recipes, helper names,
 line edits, or exact command sequences. The complete shape retains
 validation-before-write ordering when that obligation applies.
 
@@ -663,12 +667,14 @@ Review in this order:
    `OPTIONAL` before changing the plan.
 
 For `FULL`, also confirm that every ownership relationship is exhaustively
-covered by one or more projection entries, every supporting-owner supplement
-references the applicable Entry IDs, and no task asks an implementer to choose
-an owner, supporting partition, consumption mode, precedence, or proof owner. When
-a family-local authority governs ownership topology, confirm its additional
-complete or necessary topology detail. For `LIGHTWEIGHT`, confirm the compact
-record does not leave any actual known participant, direct relationship,
+covered by one directional projection entry or by entries that add distinct
+execution facts, every supporting-owner supplement references the applicable
+Entry IDs, and no task asks an implementer to choose an owner, supporting
+partition, consumption mode, precedence, or proof owner. Do not require an
+equivalent inverse producer, consumer, or reference entry. When a family-local
+authority governs ownership topology, confirm its additional complete or
+necessary topology detail. For `LIGHTWEIGHT`, confirm the compact record does
+not leave any actual known participant, independently necessary relationship,
 compact field, or triggered obligation for the implementer to choose.
 
 Then self-review each of those four families against the selected contract tier:
@@ -679,10 +685,11 @@ concrete approved task-local need, or independently applicable material
 authority or trigger that explicitly governs one family. For an otherwise
 valid `LIGHTWEIGHT` record, a family-local authority selects additional complete
 or necessary detail only for the family it explicitly governs; it never
-promotes unrelated families. Verify every actual known participant and direct
-producer-consumer relationship, every closed compact field, and explicit
-absence of every FULL trigger. Ambiguity defaults to `FULL`; known omissions and
-independently triggered obligations remain blocking.
+promotes unrelated families. Verify every actual known participant and every
+independently necessary execution relationship, every closed compact field, and
+explicit absence of every FULL trigger. Do not require an equivalent inverse
+edge solely to duplicate the projection's curated context. Ambiguity defaults to
+`FULL`; known omissions and independently triggered obligations remain blocking.
 
 Only verified CURRENT findings may be fixed inline. A BLOCKER stops and returns
 to its owning decision surface. FOLLOW-UP and OPTIONAL findings remain in
