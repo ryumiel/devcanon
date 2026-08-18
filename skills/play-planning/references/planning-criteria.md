@@ -580,8 +580,11 @@ fields and no renamed, duplicate, or additional projection-scoped metadata:
 
 1. `Entry ID`: a unique, plan-local stable `UPPER-ASCII-KEBAB` token using the
    same identifier form as `Task ID`.
-2. `Affected surface or equivalent set`: one surface or an explicit set of
-   surfaces that share the complete descriptive tuple.
+2. `Affected surface or equivalent set`: a nonempty JSON array of unique,
+   nonempty strings. One member is a singleton surface; two or more members
+   declare an equivalent set that shares the complete descriptive tuple. Array
+   order has no semantic meaning, and uniqueness uses exact decoded-string
+   equality.
 3. `Owner/source`: the normative owner, the responsibility it defines, and the
    exact approved decision, contract, or relationship-specific authority
    locator.
@@ -641,7 +644,7 @@ Example of a valid grouped entry:
 
 ```markdown
 - **Entry ID:** `EP-1`
-  - **Affected surface or equivalent set:** [`source-a`, `source-b`]
+  - **Affected surface or equivalent set:** ["source-a", "source-b"]
   - **Owner/source:** `owner.md` — owns source-to-rendered parity under decision `REL-1`
   - **Mode:** `derived representation`
   - **Implementation disposition:** Tasks [`EDIT-SOURCES`]

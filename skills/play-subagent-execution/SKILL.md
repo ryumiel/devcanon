@@ -77,8 +77,10 @@ entries containing exactly `Entry ID`, `Affected surface or equivalent set`,
 `Owner/source`, `Mode`, `Implementation disposition`, and `Proof`; alternate
 headings, renamed, duplicate, or unknown projection metadata do not substitute.
 Each Entry ID uses the same `UPPER-ASCII-KEBAB` form as Task ID. Other values
-are nonblank: surface is one item or a nonempty duplicate-free set; Mode is
-`authority`, `reference`,
+are nonblank: the surface value is a JSON array containing one or more unique,
+nonempty strings, where one member is a singleton and two or more members are
+an equivalent set, array order is non-semantic, and uniqueness uses exact
+decoded-string equality; Mode is `authority`, `reference`,
 `derived representation`, `non-normative summary`, or `verification`;
 disposition is a nonempty duplicate-free `Tasks [...]` ID set or
 `No code — <reason>`; and Proof is exactly one `Task <TASK-ID>`,
