@@ -70,16 +70,19 @@ the missing contract as satisfied.
 
 Before any implementer dispatch or inline execution, run a structural
 projection gate before fallback or route selection. Require one literal
-Markdown H2 `## Execution Projection` outside fenced code and one or more
-uniquely identified entries containing exactly `Entry ID`, `Affected surface or
-equivalent set`, `Owner/source`, `Mode`, `Implementation disposition`, and
-`Proof`; alternate headings, renamed, duplicate, or unknown projection metadata
-do not substitute. Values are nonblank: surface is one item or a nonempty
-duplicate-free set; Mode is `authority`, `reference`, `derived representation`,
-`non-normative summary`, or `verification`; disposition is a nonempty
-duplicate-free `Tasks [...]` ID set or `No code — <reason>`; and Proof is one
-owner-boundary pair or a nonempty duplicate-free set of such pairs. These are
-structural checks, not authority-truth or topology-completeness review.
+Markdown H2 `## Execution Projection` outside fenced code, followed by peer H2
+`## Tasks` before any `### Task` heading, and one or more uniquely identified
+entries containing exactly `Entry ID`, `Affected surface or equivalent set`,
+`Owner/source`, `Mode`, `Implementation disposition`, and `Proof`; alternate
+headings, renamed, duplicate, or unknown projection metadata do not substitute.
+Values are nonblank: surface is one item or a nonempty duplicate-free set; Mode
+is `authority`, `reference`, `derived representation`, `non-normative summary`,
+or `verification`; disposition is a nonempty duplicate-free `Tasks [...]` ID
+set or `No code — <reason>`; and Proof is one or a nonempty duplicate-free set
+of `Task <TASK-ID>`, `Reviewer <responsibility>`, or
+`Controller <responsibility>` owner-boundary pairs. Every Task ID in disposition
+or Proof resolves to exactly one current task. These are structural checks, not
+authority-truth or topology-completeness review.
 Every current task has one nonblank
 `Execution Projection references` field: literal `None` alone or a nonempty,
 unordered, duplicate-free Entry ID set whose members each resolve to one

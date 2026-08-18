@@ -52,9 +52,10 @@ than a runtime check):
    introduced by ADR-0023, meaning both Plan Review and Implementer
    Executability Review passed before `Plan written to <path>.` was emitted.
    The controller does not re-verify this at execution time; direct invocations
-   of `play-subagent-execution` against a hand-written plan with no upstream
-   two-gate return fail this precondition and fall back to dispatched
-   implementation.
+   of `play-subagent-execution` first satisfy the universal canonical Execution
+   Projection gate. A conforming hand-written `FULL` plan with no upstream
+   two-gate return then fails this precondition and falls back to dispatched
+   implementation; a pre-projection plan blocks and returns to planning.
 4. **Runtime guardrail.** The task passes `play-subagent-execution`'s
    structural task-contract gate. The controller does not re-infer
    `play-planning` trigger applicability at execution time and does not

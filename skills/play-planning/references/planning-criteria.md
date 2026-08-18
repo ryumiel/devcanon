@@ -560,12 +560,14 @@ the owning design or decision surface, not invitations to guess.
 ### Execution projection
 
 Every executable plan contains exactly one literal Markdown H2
-`## Execution Projection` outside fenced code. It is a descriptive, plan-local
-index over facts already owned by the approved design and current task
-contracts. It does not create authority, execution order, task routes, proof
-actors, retained evidence, or review state. The same entry shape applies to
-`FULL`, `LIGHTWEIGHT`, and `NO-TRIGGER`; tier-required fields remain mandatory
-exactly once in their task contracts and are not copied into this index.
+`## Execution Projection` outside fenced code, followed by the peer H2
+`## Tasks` before any `### Task` heading. The peer heading terminates the
+projection section. The projection is a descriptive, plan-local index over
+facts already owned by the approved design and current task contracts. It does
+not create authority, execution order, task routes, proof actors, retained
+evidence, or review state. The same entry shape applies to `FULL`,
+`LIGHTWEIGHT`, and `NO-TRIGGER`; tier-required fields remain mandatory exactly
+once in their task contracts and are not copied into this index.
 
 The section contains one or more entries. Each entry contains exactly these six
 fields and no renamed, duplicate, or additional projection-scoped metadata:
@@ -580,15 +582,17 @@ fields and no renamed, duplicate, or additional projection-scoped metadata:
 5. `Implementation disposition`: either `Tasks [...]`, containing a nonempty,
    unordered, duplicate-free set of current stable Task IDs, or
    `No code — <task-specific reason>`.
-6. `Proof`: one existing task, reviewer, or controller responsibility plus a
-   concrete boundary, or an unordered duplicate-free set of such pairs.
+6. `Proof`: one `Task <TASK-ID> — <boundary>`,
+   `Reviewer <existing responsibility> — <boundary>`, or
+   `Controller <existing responsibility> — <boundary>` pair, or an unordered
+   duplicate-free set of such pairs.
 
-Task-valued proof owners use current stable Task IDs. Other proof owners must
-name an existing review or controller responsibility; the field cannot invent
-an actor, route, dependency, or lifecycle. Task and proof-set display order has
-no semantic meaning. A physical surface may occur in different entries when it
-participates in different approved relationships, distinguished by their exact
-authority locators.
+Every Task ID in `Tasks [...]` and every `Task <TASK-ID>` proof owner resolves
+to exactly one current task in the plan. Reviewer and controller forms must name
+an existing responsibility; no form can invent an actor, route, dependency, or
+lifecycle. Task and proof-set display order has no semantic meaning. A physical
+surface may occur in different entries when it participates in different
+approved relationships, distinguished by their exact authority locators.
 
 Multiple affected surfaces may share one entry only when owner/source, mode,
 implementation disposition, and proof are all equal. If any one differs,
@@ -607,14 +611,15 @@ gap. D6 may report the shared fact only when it identifies the concrete
 task-local startability defect it causes.
 
 The execution consumer performs structural resolution only. A missing or
-duplicate canonical section, an alternate heading used in its place, a second
-section purporting to be a projection, a fenced-only heading, a missing or
-duplicate task reference field, mixed `None` and IDs, duplicate ID tokens,
-unknown projection-scoped metadata, or an ID that resolves to zero or multiple
-Entry ID definitions blocks before execution and returns to planning. It
-resolves IDs only against definitions inside the canonical section and appends
-only those entries to the existing curated task context. It does not infer
-missing references, derive the semantic task-entry union, validate topology
+duplicate canonical section, missing `## Tasks` terminator, task heading before
+that terminator, alternate heading used in its place, second section purporting
+to be a projection, fenced-only heading, missing or duplicate task reference
+field, mixed `None` and IDs, duplicate ID tokens, unknown projection-scoped
+metadata, or an Entry or Task ID that resolves to zero or multiple definitions
+blocks before execution and returns to planning. It resolves Entry IDs only
+against definitions inside the canonical section and appends only those
+entries to the existing curated task context. It does not infer missing
+references, derive the semantic task-entry union, validate topology
 exhaustiveness, or route execution or review. Pre-projection plans are
 unsupported and receive no compatibility bypass.
 
@@ -626,7 +631,7 @@ Example of a valid grouped entry:
   - **Owner/source:** `owner.md` — decision `REL-1`
   - **Mode:** `derived representation`
   - **Implementation disposition:** Tasks [`EDIT-SOURCES`]
-  - **Proof:** `EDIT-SOURCES` — rendered parity
+  - **Proof:** Task `EDIT-SOURCES` — rendered parity
 ```
 
 From this valid entry, changing only owner/source, mode, implementation
@@ -873,12 +878,8 @@ authority, boundary and consumer completeness, requirement traceability,
 dependency intent, documentation impact, and proof proportionality. It does not
 repeat task-local executability review or invent new requirements.
 
-D5 also owns projection completeness and materiality: every approved affected
-relationship is represented, grouping preserves the complete descriptive
-tuple, and each task's authored references are the exact semantic set required
-by implementation membership and task-valued proof ownership. It validates the
-declared task tier independently; it does not require tier-local contract facts
-to be duplicated into the projection.
+D5 also owns projection completeness, grouping materiality, exact semantic task
+references, and tier validation; tier-local facts remain in task contracts.
 
 ### Implementer Executability Review
 
@@ -902,10 +903,8 @@ dependency order, required I/O and failure behavior, mutation ownership,
 cleanup safety, and implementer-visible acceptance proof. It does not reopen
 D5's approved-scope or proportionality judgment.
 
-D6 checks projection facts only when a missing, malformed, or contradictory
-fact causes a concrete task-local startability defect. It does not act as a
-second reviewer of plan-wide projection coverage, grouping materiality, tier
-classification, or semantic task-reference equality.
+D6 reports projection facts only for concrete task-local startability defects;
+it does not reopen D5's plan-wide judgment.
 
 The remits are orthogonal rather than successive approval levels. D5 may PASS
 while D6 reports a material task-local execution gap, such as an invalid named

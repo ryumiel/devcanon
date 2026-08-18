@@ -266,7 +266,8 @@ Entry ID, affected surface or equivalent set, owner/source with exact authority
 locator, mode, implementation disposition, and proof. Group surfaces only when
 owner/source, mode, disposition, and proof are equal; split when any differs.
 This is a plan-local context index, not a route or replacement for tier-required
-task fields.
+task fields. Terminate the projection with the peer H2 `## Tasks` before any
+`### Task` heading.
 
 For generated artifacts, derived artifacts, helper I/O files, `.ephemeral`
 handoffs, cross-skill handoffs, or side-channel data, plan against the
@@ -923,10 +924,9 @@ The reviewer independently validates the Scope Envelope, Scope Delta,
 authoritative requirement coverage, unjustified tasks, dependency order,
 contract and boundary traceability, task contracts, documentation impact, and
 minimum-sufficient proof. It validates every current task's declared canonical
-tier and tier-appropriate structure against the criteria. It validates
-plan-wide projection completeness, grouping materiality, and exact semantic
-task-reference coverage without requiring tier-local facts to be copied into
-the projection. It also checks citations and applicable
+tier and tier-appropriate structure against the criteria. It validates D5-owned
+projection completeness, grouping, and task-reference coverage without copying
+tier-local facts. It also checks citations and applicable
 review-routing hints. The canonical reference owns the detailed criteria.
 
 The reviewer reports every concrete in-remit finding and classifies it as
@@ -1043,9 +1043,8 @@ uses the plan's declared tier and the canonical criteria to test structural
 completeness; it does not replace D5's tier classification or reopen D5's
 proportionality judgment.
 
-Projection feedback is in D6 remit only when the reviewer names a concrete
-task-local startability defect. D6 does not reopen D5's plan-wide coverage,
-grouping materiality, or semantic reference-set judgment.
+Projection feedback is in D6 remit only for a concrete task-local startability
+defect; D6 does not reopen D5's plan-wide judgment.
 
 The reviewer must not turn normal implementation choices, private helper
 structure, concrete tests, fixtures, commands, or discovery of individual
