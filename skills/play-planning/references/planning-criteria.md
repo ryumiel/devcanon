@@ -572,7 +572,8 @@ once in their task contracts and are not copied into this index.
 The section contains one or more entries. Each entry contains exactly these six
 fields and no renamed, duplicate, or additional projection-scoped metadata:
 
-1. `Entry ID`: a nonblank, unique, plan-local stable ID.
+1. `Entry ID`: a unique, plan-local stable `UPPER-ASCII-KEBAB` token using the
+   same identifier form as `Task ID`.
 2. `Affected surface or equivalent set`: one surface or an explicit set of
    surfaces that share the complete descriptive tuple.
 3. `Owner/source`: the normative owner plus the exact approved decision,
@@ -593,6 +594,11 @@ an existing responsibility; no form can invent an actor, route, dependency, or
 lifecycle. Task and proof-set display order has no semantic meaning. A physical
 surface may occur in different entries when it participates in different
 approved relationships, distinguished by their exact authority locators.
+Implementation disposition and task-valued proof ownership are the canonical
+plan-local membership facts; they do not establish project authority or an
+execution route. Entry IDs remain available for optional references from other
+plan sections when that avoids restating the tuple. Tasks carry no required
+Entry-ID field.
 
 Multiple affected surfaces may share one entry only when owner/source, mode,
 implementation disposition, and proof are all equal. If any one differs,
@@ -600,28 +606,24 @@ split the entry. Reviewers may block a grouping that hides a semantic
 difference or omits a required fact, but a preference for another table shape,
 row order, or otherwise equivalent normalization is non-blocking.
 
-Each current task contains exactly one nonblank
-`**Execution Projection references:**` field. Its value is either literal
-`None` alone or a nonempty, unordered, duplicate-free set of Entry IDs. D5 owns
-semantic completeness: the task names exactly the entries whose implementation
-disposition contains its Task ID plus the entries whose proof names that task
-as an owner. Omitted applicable IDs, irrelevant extra IDs, false `None`, or a
-reference that conflicts with the entry relationships is a `CURRENT` planning
-gap. D6 may report the shared fact only when it identifies the concrete
-task-local startability defect it causes.
+D5 owns semantic completeness: it validates whether projection membership is
+truthful and complete against approved design and task contracts. An omitted,
+extra, or conflicting task membership is a `CURRENT` planning gap. D6 may
+report the shared fact only when it identifies the concrete task-local
+startability defect it causes.
 
 The execution consumer performs structural resolution only. A missing or
 duplicate canonical section, missing `## Tasks` terminator, task heading before
 that terminator, alternate heading used in its place, second section purporting
-to be a projection, fenced-only heading, missing or duplicate task reference
-field, mixed `None` and IDs, duplicate ID tokens, unknown projection-scoped
-metadata, or an Entry or Task ID that resolves to zero or multiple definitions
-blocks before execution and returns to planning. It resolves Entry IDs only
-against definitions inside the canonical section and appends only those
-entries to the existing curated task context. It does not infer missing
-references, derive the semantic task-entry union, validate topology
-exhaustiveness, or route execution or review. Pre-projection plans are
-unsupported and receive no compatibility bypass.
+to be a projection, fenced-only heading, unknown projection-scoped metadata,
+or an Entry or Task ID that resolves to zero or multiple definitions blocks
+before execution and returns to planning. For each task, the consumer
+mechanically selects the entries whose explicit implementation disposition or
+task-valued proof names that Task ID and appends only those entries to the
+existing curated task context. It does not infer missing entries or semantic
+applicability, validate whether membership or topology is truthful or
+exhaustive, or route execution or review. Pre-projection plans are unsupported
+and receive no compatibility bypass.
 
 Example of a valid grouped entry:
 
@@ -808,9 +810,8 @@ Review-routing hints remain non-authoritative inputs to
 `skills/play-subagent-execution/references/review-routing-policy.md` are not
 under-classified; unclear cases default to `spec-and-quality`, and
 foundation-producing tasks are not below `spec-only`. Field order is the task
-heading, required `**Task ID:**`, required `**Contract tier:**`, required
-`**Execution Projection references:**`, optional `**Mode:** mechanical`,
-optional review-routing hints, then `**Files:**`.
+heading, required `**Task ID:**`, required `**Contract tier:**`, optional
+`**Mode:** mechanical`, optional review-routing hints, then `**Files:**`.
 
 ## Minimum-sufficient proof
 
@@ -878,8 +879,8 @@ authority, boundary and consumer completeness, requirement traceability,
 dependency intent, documentation impact, and proof proportionality. It does not
 repeat task-local executability review or invent new requirements.
 
-D5 also owns projection completeness, grouping materiality, exact semantic task
-references, and tier validation; tier-local facts remain in task contracts.
+D5 also owns projection completeness, grouping materiality, semantic task
+membership, and tier validation; tier-local facts remain in task contracts.
 
 ### Implementer Executability Review
 

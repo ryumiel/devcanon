@@ -75,24 +75,27 @@ Markdown H2 `## Execution Projection` outside fenced code, followed by peer H2
 entries containing exactly `Entry ID`, `Affected surface or equivalent set`,
 `Owner/source`, `Mode`, `Implementation disposition`, and `Proof`; alternate
 headings, renamed, duplicate, or unknown projection metadata do not substitute.
-Values are nonblank: surface is one item or a nonempty duplicate-free set; Mode
-is `authority`, `reference`, `derived representation`, `non-normative summary`,
-or `verification`; disposition is a nonempty duplicate-free `Tasks [...]` ID
-set or `No code — <reason>`; and Proof is one or a nonempty duplicate-free set
-of `Task <TASK-ID>`, `Reviewer <responsibility>`, or
+Each Entry ID uses the same `UPPER-ASCII-KEBAB` form as Task ID. Other values
+are nonblank: surface is one item or a nonempty duplicate-free set; Mode is
+`authority`, `reference`,
+`derived representation`, `non-normative summary`, or `verification`;
+disposition is a nonempty duplicate-free `Tasks [...]` ID set or
+`No code — <reason>`; and Proof is one or a nonempty duplicate-free set of
+`Task <TASK-ID>`, `Reviewer <responsibility>`, or
 `Controller <responsibility>` owner-boundary pairs. Every Task ID in disposition
 or Proof resolves to exactly one current task. These are structural checks, not
 authority-truth or topology-completeness review.
-Every current task has one nonblank
-`Execution Projection references` field: literal `None` alone or a nonempty,
-unordered, duplicate-free Entry ID set whose members each resolve to one
-definition in that section. Any missing, duplicate, mixed, unknown, or
-ambiguous structure returns BLOCKED/NEEDS_CONTEXT to planning. Legacy and
-pre-projection plans receive no inference or bypass.
+For each current task, mechanically select entries whose explicit implementation
+disposition or task-valued proof names that Task ID. Any missing, duplicate,
+unknown, or ambiguous projection structure returns BLOCKED/NEEDS_CONTEXT to
+planning. This selection does not decide whether membership or topology is
+semantically truthful or complete. Legacy and pre-projection plans receive no
+inference or bypass.
 
-Append only resolved entries to the existing curated task context. Do not send
-the full plan for child resolution, infer references, derive semantic coverage,
-validate topology exhaustiveness, or route from the projection.
+Append only selected entries to the existing curated task context. Do not send
+the full plan for child resolution, infer missing entries or semantic
+applicability, validate semantic coverage or topology exhaustiveness, or route
+from the projection.
 
 Then run the structural task-contract gate against the extracted plan/task
 execution context. Before

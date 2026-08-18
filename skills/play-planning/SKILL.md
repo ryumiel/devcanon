@@ -262,12 +262,15 @@ and generated skill packages remain derived consumers rather than edit targets.
 
 After the Scope Delta and before tasks, compile approved relationships into one
 `## Execution Projection` under the canonical criteria. Entries contain only
-Entry ID, affected surface or equivalent set, owner/source with exact authority
-locator, mode, implementation disposition, and proof. Group surfaces only when
-owner/source, mode, disposition, and proof are equal; split when any differs.
-This is a plan-local context index, not a route or replacement for tier-required
-task fields. Terminate the projection with the peer H2 `## Tasks` before any
-`### Task` heading.
+Entry ID using the same `UPPER-ASCII-KEBAB` form as Task ID, affected surface or
+equivalent set, owner/source with exact authority locator, mode, implementation
+disposition, and proof. Group surfaces only when owner/source, mode,
+disposition, and proof are equal; split when any differs. Disposition and
+task-valued proof are the sole plan-local task-membership facts. Entry IDs may
+be referenced by other plan sections when that avoids restating the tuple, but
+tasks carry no required Entry-ID field. This is a plan-local context index, not
+a route or replacement for tier-required task fields. Terminate the projection
+with the peer H2 `## Tasks` before any `### Task` heading.
 
 For generated artifacts, derived artifacts, helper I/O files, `.ephemeral`
 handoffs, cross-skill handoffs, or side-channel data, plan against the
@@ -368,8 +371,6 @@ before starting.
 
 **Contract tier:** FULL | LIGHTWEIGHT | NO-TRIGGER
 
-**Execution Projection references:** <unordered unique Entry IDs | None>
-
 <!-- Optional review-routing hints, when present, go here:
 **Risk hint:** low | medium | high
 **Review hint:** none-final-only | spec-only | spec-and-quality
@@ -448,11 +449,10 @@ reason no contract trigger applies. Ambiguity defaults to `FULL`. A compact
 diff, private implementation name, or `.ephemeral/` path does not by itself
 authorize `LIGHTWEIGHT` or `NO-TRIGGER`.
 
-Every current task must also declare exactly one nonblank
-`**Execution Projection references:**` field. Use literal `None` alone or a
-nonempty unordered duplicate-free set of Entry IDs. D5 validates that the
-authored set exactly covers implementation membership and task-valued proof
-ownership; the executor resolves the authored IDs but does not infer that set.
+Projection disposition and task-valued proof are the sole plan-local membership
+facts. D5 validates their semantic truth and completeness. The executor
+mechanically selects entries that explicitly name the current Task ID without
+inferring missing entries, topology, or semantic applicability.
 
 Select exactly one tier-specific block from the template and remove the other
 two. The ordinary task fields, acceptance criteria, verification expectations,
@@ -506,8 +506,8 @@ reject or override it. The detailed taxonomy (positive and negative examples)
 lives in the [mechanical task taxonomy](../play-subagent-execution/references/skip-dispatch-policy.md#mechanical-task-taxonomy)
 reference — consult it before setting the hint.
 
-Example mechanical-task header (the enclosing projection defines
-`EP-RENAME-EXAMPLE-TOKEN` for this task):
+Example mechanical-task header (the enclosing projection assigns
+`EP-RENAME-EXAMPLE-TOKEN` to this task):
 
 ```markdown
 ### Task N: Rename Example Token
@@ -515,8 +515,6 @@ Example mechanical-task header (the enclosing projection defines
 **Task ID:** RENAME-EXAMPLE-TOKEN
 
 **Contract tier:** NO-TRIGGER
-
-**Execution Projection references:** `EP-RENAME-EXAMPLE-TOKEN`
 
 **Mode:** mechanical
 
@@ -643,8 +641,7 @@ Review in this order:
    complete LIGHTWEIGHT compact fields plus the all-FULL-triggers-absent
    reason, or a task-specific NO-TRIGGER reason. Reject missing, ambiguous, or
    under-specified tier declarations; do not infer proportionality from diff
-   size or path spelling. Confirm each task's authored projection references
-   are the exact semantic set required by the criteria.
+   size or path spelling.
 4. Confirm optional comment evidence remains non-authoritative.
 5. Classify every finding as `CURRENT`, `BLOCKER`, `FOLLOW-UP`, or
    `OPTIONAL` before changing the plan.
@@ -925,9 +922,9 @@ authoritative requirement coverage, unjustified tasks, dependency order,
 contract and boundary traceability, task contracts, documentation impact, and
 minimum-sufficient proof. It validates every current task's declared canonical
 tier and tier-appropriate structure against the criteria. It validates D5-owned
-projection completeness, grouping, and task-reference coverage without copying
-tier-local facts. It also checks citations and applicable
-review-routing hints. The canonical reference owns the detailed criteria.
+projection completeness, grouping, and task membership without copying
+tier-local facts. It also checks citations and applicable review-routing hints.
+The canonical reference owns the detailed criteria.
 
 The reviewer reports every concrete in-remit finding and classifies it as
 `CURRENT`, `BLOCKER`, `FOLLOW-UP`, or `OPTIONAL`. CURRENT and BLOCKER
