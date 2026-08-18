@@ -684,17 +684,20 @@ requires stable boundary row IDs and the complete participant-specific
 traceability shape. Each row names its governing projection Entry ID, boundary
 name and authoritative source, independently necessary required input tuple,
 boundary-specific validator or policy authority, ordering and failure behavior,
-and observable verification conditions. The governing entry supplies common
-producer/consumer relationships and proof allocation; do not repeat them in the
-row.
+and observable verification conditions. When producer or consumer direction is
+an independently necessary execution fact that the projection tuple does not
+identify, the row also names that direction. The governing entry supplies the
+shared affected-participant association and proof allocation; do not repeat
+them in the row.
 
 For `FULL` or a separately named material authority, downstream boundary-row
 consumers reference the governing projection Entry IDs for task or no-code
 disposition, common participant relationships, owner/source, and proof
-allocation. Boundary rows add only participant-specific inputs, validation,
-failure behavior, and observable verification conditions not already present
-in the projection tuple. Task checklists consume the selected projection and
-applicable boundary rows without repeating either mapping. The execution
+allocation. Boundary rows add only participant-specific inputs, direction when
+independently necessary, validation, failure behavior, and observable
+verification conditions not already present in the projection tuple. Task
+checklists consume the selected projection and applicable boundary rows without
+repeating either mapping. The execution
 consumer includes only supporting-owner supplements or boundary records that
 the task directly cites by their existing Entry-ID key or stable boundary row ID;
 each cited key or row ID resolves to exactly one record. The consumer does not

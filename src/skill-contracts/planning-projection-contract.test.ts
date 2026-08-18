@@ -18,6 +18,7 @@ type ProjectionFixture = {
   owner: string;
   participant: string;
   taskId: string;
+  requiresBoundaryCitation?: boolean;
   boundaryCitation?: string;
   hardRequirements: readonly string[];
   traceability: readonly string[];
@@ -31,7 +32,10 @@ function projectionFixtureBlockers(fixture: ProjectionFixture): string[] {
   if (!fixture.participant)
     blockers.push("missing execution-relevant participant");
   if (!fixture.taskId) blockers.push("missing task membership");
-  if (fixture.boundaryCitation !== fixture.entryId)
+  if (
+    fixture.requiresBoundaryCitation &&
+    fixture.boundaryCitation !== fixture.entryId
+  )
     blockers.push("missing required task citation");
   for (const requirement of fixture.hardRequirements) {
     if (!fixture.traceability.includes(requirement))
@@ -78,19 +82,24 @@ describe("play-planning execution projection contract", () => {
     }
   });
 
-  it("covers a one-directional fixture and isolated blocking mutations", () => {
+  it("covers projection-only and boundary-citation fixtures with isolated blocking mutations", () => {
     const valid: ProjectionFixture = {
       entryId: "EP-RENDER-PARITY",
       knownEntryIds: ["EP-RENDER-PARITY"],
       owner: "skills/play-planning/SKILL.md",
       participant: "generated Codex bundle",
       taskId: "VERIFY-PARITY",
-      boundaryCitation: "EP-RENDER-PARITY",
       hardRequirements: ["HR-PARITY"],
       traceability: ["HR-PARITY"],
     };
 
     expect(projectionFixtureBlockers(valid)).toEqual([]);
+    const citedBoundary: ProjectionFixture = {
+      ...valid,
+      requiresBoundaryCitation: true,
+      boundaryCitation: "EP-RENDER-PARITY",
+    };
+    expect(projectionFixtureBlockers(citedBoundary)).toEqual([]);
     expect(
       projectionFixtureBlockers({ ...valid, entryId: "EP-STALE-ENTRY" }),
     ).toContain("unresolvable Entry ID");
@@ -104,7 +113,10 @@ describe("play-planning execution projection contract", () => {
       "missing task membership",
     );
     expect(
-      projectionFixtureBlockers({ ...valid, boundaryCitation: undefined }),
+      projectionFixtureBlockers({
+        ...citedBoundary,
+        boundaryCitation: undefined,
+      }),
     ).toContain("missing required task citation");
     expect(projectionFixtureBlockers({ ...valid, traceability: [] })).toContain(
       "uncovered hard requirement: HR-PARITY",
