@@ -118,17 +118,21 @@ Task tool (general-purpose):
       specifically authorized extra detail or independently triggered material
       obligation already present in curated context.
     - Verify owner and authority against the source files, docs, ADRs, schemas,
-      renderers, prompts, or policies that actually own the behavior. Verify
-      every known participant and direct producer-consumer relationship named
-      or discoverable in those task-scoped sources. Unsupported authority or a
-      known omission is a spec-compliance issue.
+      renderers, prompts, or policies that actually own the behavior. Verify the
+      participants and direct relationships already present in the selected
+      projection entries. A contradiction that creates a concrete task-local
+      specification defect is in remit; an additional plan-wide participant or
+      relationship discovered in source returns to D5-owned planning instead of
+      becoming a D14 finding.
     - For `FULL`, verify all must-preserve, behavior, spec/procedure, risk, and
-      proof fields are complete. For `LIGHTWEIGHT`, do not demand intentionally
+      task-local verification expectations are complete. Consume projection
+      `Proof` only as descriptive allocation to its named owner and boundary; it
+      is not executable evidence. For `LIGHTWEIGHT`, do not demand intentionally
       absent FULL-only detail or `N/A` placeholders. For `NO-TRIGGER`, do not
       invent a checklist.
     - Verify the implementation addresses the declared tier's acceptance and
-      proof obligations using the actual source and diff, not the implementer
-      report.
+      task-local verification expectations using the actual source and diff,
+      not the implementer report.
     - In the case when extracted plan/task execution context includes Contract
       Example Discipline or an equivalent clearly labeled section/obligation,
       independently verify the controller-supplied `Contract Example Discipline
