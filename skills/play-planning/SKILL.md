@@ -483,11 +483,12 @@ touch boundaries, include the tier-appropriate I/O contract table or equivalent
 fields in the task spec. Use the complete shape for `FULL`. A family-local
 authority selects additional complete or necessary I/O-contract detail only
 when it explicitly governs the contract-heavy table family. A valid
-`LIGHTWEIGHT` task uses its closed compact fields and every actual known
-participant and direct producer-consumer relationship. These fields make the
-task executable without prescribing concrete code, test bodies, shell recipes,
-helper names, line edits, or exact command sequences. The complete shape
-retains validation-before-write ordering when that obligation applies.
+`LIGHTWEIGHT` task consumes selected projection entries for every actual known
+participant and direct producer-consumer relationship and adds only its closed
+compact task-local I/O fields. The assembled context makes the task executable
+without prescribing concrete code, test bodies, shell recipes, helper names,
+line edits, or exact command sequences. The complete shape retains
+validation-before-write ordering when that obligation applies.
 
 For boundary-touching tasks that change or depend on source, adapter, handler,
 side-effect, validation, rollback, or guardrail behavior, include

@@ -302,8 +302,8 @@ For the full selection and process diagrams, load
    dispatch, reviewer dispatch, final whole-implementation review, or
    skip-dispatch evaluation. Include plan-level Contract Example Discipline
    obligations or equivalent clearly labeled sections/obligations when present,
-   task-local declared tier and tier-appropriate structure, and any task-local example or proof
-   obligations that refine the plan-level section. When Contract Example
+   task-local declared tier and tier-appropriate structure, and any task-local
+   example or verification obligations that refine the plan-level section. When Contract Example
    Discipline or an equivalent clearly labeled section/obligation is present,
    also inline the full shared consumer rule under
    `Contract Example Discipline Consumer Rule` so prompt consumers can enforce

@@ -61,15 +61,16 @@ Task tool (general-purpose):
     - `NO-TRIGGER` requires the literal tier, a task-specific reason, ordinary
       task fields, acceptance, and minimum proof without a checklist.
 
-    Missing, malformed, or unsupported tier, missing required authority, an
-    omitted actual known participant or direct producer-consumer relationship,
-    or an independently triggered material obligation fails closed as a
-    spec-compliance issue. Do not guess or reclassify. A canonical valid example
+    Missing, malformed, or unsupported tier, a structurally invalid supplied
+    context, missing task-local authority, or a source-confirmed contradiction
+    that prevents this task from being specified or accepted fails closed as a
+    spec-compliance issue. Do not rejudge plan-wide participant or relationship
+    completeness, which D5 owns, and do not guess or reclassify. A canonical valid example
     is the valid reviewed `LIGHTWEIGHT` context above: it does not add FULL-only
     matrices, spec or risk rows, or `N/A` placeholders. For invalid family 1,
     changing only that example's tier to missing or unsupported must fail
-    closed; for invalid family 2, removing one known direct consumer must remain
-    blocking.
+    closed; for invalid family 2, removing one task-local required input must
+    remain blocking.
 
     Enforce present Contract Example Discipline obligations using the
     controller-supplied `Contract Example Discipline Consumer Rule` subsection
