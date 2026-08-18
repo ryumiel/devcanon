@@ -599,11 +599,13 @@ to exactly one current task in the plan. Reviewer and controller forms must name
 an existing responsibility; no form can invent an actor, route, dependency, or
 lifecycle. Task-set display order has no semantic meaning. Multiple checks owned
 by the same proof actor belong in its one concrete boundary. Independently owned
-proof responsibilities require distinct approved relationships and separate
-entries; planning must not invent a relationship merely to serialize another
-proof owner. A physical surface may occur in different entries when it
-participates in different approved relationships, distinguished by their exact
-authority locators.
+proof responsibilities for different surfaces in one approved relationship use
+separate entries with the same authority locator. A second independently owned
+proof responsibility for the same relationship and semantic surface requires a
+distinct approved relationship; planning must not invent one merely to
+serialize another proof owner. A physical surface may occur in different
+entries when it participates in different approved relationships,
+distinguished by their exact authority locators.
 Implementation disposition and task-valued proof ownership are the canonical
 plan-local membership facts; they do not establish project authority or an
 execution route. Entry IDs remain available for optional references from other
