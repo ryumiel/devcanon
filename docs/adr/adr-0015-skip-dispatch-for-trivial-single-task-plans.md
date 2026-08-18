@@ -55,7 +55,10 @@ than a runtime check):
    of `play-subagent-execution` first satisfy the universal canonical Execution
    Projection gate. A conforming hand-written `FULL` plan with no upstream
    two-gate return then fails this precondition and falls back to dispatched
-   implementation; a pre-projection plan blocks and returns to planning.
+   implementation; a pre-projection plan blocks and returns to planning. The
+   direct `FULL` route is caller-authorized and structurally validated; it does
+   not claim, infer, or synthesize the D5 semantic-completeness assurance of a
+   reviewed `play-planning` handoff.
 4. **Runtime guardrail.** The task passes `play-subagent-execution`'s
    structural task-contract gate. The controller does not re-infer
    `play-planning` trigger applicability at execution time and does not

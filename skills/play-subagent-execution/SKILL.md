@@ -93,19 +93,23 @@ planning. This selection does not decide whether membership or topology is
 semantically truthful or complete. Legacy and pre-projection plans receive no
 inference or bypass.
 
-Append only selected entries to the existing curated task context. Do not send
-the full plan for child resolution, infer missing entries or semantic
-applicability, validate semantic coverage or topology exhaustiveness, or route
-from the projection.
+Append only selected entries and their explicitly linked plan-level records to
+the existing curated task context. A linked record is a complete
+supporting-owner supplement, boundary row, or other existing contract record
+that the task names directly or that explicitly names one of the selected Entry
+IDs. Resolve this bounded one-hop linkage only; do not send the full plan for
+child resolution, recursively follow references, infer missing entries or
+semantic applicability, validate semantic coverage or topology exhaustiveness,
+or route from the projection.
 
 Then run the structural task-contract gate against the extracted plan/task
 execution context. Before
 implementer dispatch, reviewer dispatch, final whole-implementation review, or
 skip-dispatch evaluation, assemble the extracted plan/task execution context
-from resolved projection entries, plan-level Contract Example Discipline
-obligations or equivalent clearly labeled sections/obligations when present,
-task-local checklist or no-trigger status, and any task-local example or
-verification obligations that refine the
+from resolved projection entries, their explicitly linked plan-level records,
+plan-level Contract Example Discipline obligations or equivalent clearly
+labeled sections/obligations when present, task-local checklist or no-trigger
+status, and any task-local example or verification obligations that refine the
 plan-level section. When Contract Example Discipline or an equivalent clearly
 labeled section/obligation is present, inline the full shared
 `references/contract-example-discipline-consumer-rule.md` content in that
@@ -127,9 +131,9 @@ complete task-local checklist for the remaining execution facts; `LIGHTWEIGHT`
 requires its remaining task-local purpose, inputs and outputs, material write or
 side-effect owner, failure and cleanup behavior, and explicit reason every FULL
 trigger is absent. Selected projection entries are the only common participant
-and relationship representation. D5 owns whether they cover every actual
-participant and direct relationship, including guarded-inline D13 when it is an
-actual participant or direct consumer;
+and relationship representation. For reviewed plans, D5 owns whether they cover
+every actual participant and direct relationship, including guarded-inline D13
+when it is an actual participant or direct consumer;
 `NO-TRIGGER` requires a task-specific reason. The executor must not promote,
 demote, infer, or otherwise reclassify the tier from task prose, diff size,
 path spelling, or runtime risk routing. Present Contract Example
@@ -141,9 +145,9 @@ execution context includes Contract Example Discipline or an equivalent clearly
 labeled section/obligation, apply the shared consumer rule in
 [`references/contract-example-discipline-consumer-rule.md`](references/contract-example-discipline-consumer-rule.md).
 Validate the `LIGHTWEIGHT` structure from the assembled context without
-reclassifying the declared tier. The executor checks the selected entries and
-task-local fields structurally; D5 owns whether the entries semantically cover
-every actual participant and relationship. The controller must not treat
+reclassifying the declared tier. The executor checks the selected entries,
+linked records, and task-local fields structurally; D5 owns semantic coverage
+for reviewed plans. The controller must not treat
 prompt-mediated consumers as the only consumers or omit guarded-inline D13
 merely because no child prompt is dispatched.
 Both `LIGHTWEIGHT` and `NO-TRIGGER` are trusted only when this controller can
@@ -151,7 +155,11 @@ identify the upstream two-gate `play-planning` return for the plan being
 executed, meaning both Plan Review and Implementer Executability Review passed
 before `Plan written to <path>.` was emitted. Direct, hand-written, copied,
 older, or otherwise unreviewed plans without that upstream two-gate return must
-use a structurally complete `FULL` contract. For `FULL`, the assembled
+use a structurally complete `FULL` contract. That direct `FULL` route is
+caller-authorized and receives structural validation only; the executor does
+not claim, infer, or synthesize D5-equivalent semantic completeness for it. A
+caller that requires planning-review assurance must use the reviewed
+`play-planning` route. For `FULL`, the assembled
 context—not the task-local checklist alone—must explicitly name trigger
 criteria, relationship owner/source, task-local mutation authority, affected
 consumers/generated outputs, must-preserve and required behavior,
@@ -296,14 +304,17 @@ For the full selection and process diagrams, load
    invocation content. Keep plan-path handling controller-owned; per-task
    implementers receive curated inlined task text, not the plan path.
 2. Extract all authored tasks with their full text, surrounding context,
-   resolved projection entries, declared contract tier, tier-appropriate
-   contract fields, verification expectations, and any mode or route hints.
+   resolved projection entries, explicitly linked plan-level records, declared
+   contract tier, tier-appropriate contract fields, verification expectations,
+   and any mode or route hints.
 3. Assemble the extracted plan/task execution context before implementer
    dispatch, reviewer dispatch, final whole-implementation review, or
-   skip-dispatch evaluation. Include plan-level Contract Example Discipline
-   obligations or equivalent clearly labeled sections/obligations when present,
-   task-local declared tier and tier-appropriate structure, and any task-local
-   example or verification obligations that refine the plan-level section. When Contract Example
+   skip-dispatch evaluation. Include complete plan-level records directly named
+   by the task or explicitly keyed to its selected Entry IDs, plan-level Contract
+   Example Discipline obligations or equivalent clearly labeled
+   sections/obligations when present, task-local declared tier and
+   tier-appropriate structure, and any task-local example or verification
+   obligations that refine the plan-level section. When Contract Example
    Discipline or an equivalent clearly labeled section/obligation is present,
    also inline the full shared consumer rule under
    `Contract Example Discipline Consumer Rule` so prompt consumers can enforce

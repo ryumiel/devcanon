@@ -657,10 +657,10 @@ Review in this order:
 5. Classify every finding as `CURRENT`, `BLOCKER`, `FOLLOW-UP`, or
    `OPTIONAL` before changing the plan.
 
-For `FULL`, also confirm that every ownership relationship has one exhaustive
-projection entry, any supporting-owner supplement references its Entry ID, and
-no task asks an implementer to choose an owner, supporting partition,
-consumption mode, precedence, or proof owner. When
+For `FULL`, also confirm that every ownership relationship is exhaustively
+covered by one or more projection entries, every supporting-owner supplement
+references the applicable Entry IDs, and no task asks an implementer to choose
+an owner, supporting partition, consumption mode, precedence, or proof owner. When
 a family-local authority governs ownership topology, confirm its additional
 complete or necessary topology detail. For `LIGHTWEIGHT`, confirm the compact
 record does not leave any actual known participant, direct relationship,

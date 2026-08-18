@@ -640,7 +640,7 @@ Example of a valid grouped entry:
 ```markdown
 - **Entry ID:** `EP-1`
   - **Affected surface or equivalent set:** [`source-a`, `source-b`]
-  - **Owner/source:** `owner.md` — decision `REL-1`
+  - **Owner/source:** `owner.md` — owns source-to-rendered parity under decision `REL-1`
   - **Mode:** `derived representation`
   - **Implementation disposition:** Tasks [`EDIT-SOURCES`]
   - **Proof:** Task `EDIT-SOURCES` — rendered parity
@@ -673,9 +673,12 @@ disposition, common participant relationships, owner/source, and proof
 allocation. Boundary rows add only participant-specific inputs, validation,
 failure behavior, and observable verification conditions not already present
 in the projection tuple. Task checklists consume the selected projection and
-applicable boundary rows without repeating either mapping. Plan Review fails an
-omitted governing Entry ID or independently necessary boundary fact, but not a
-checklist merely because it declines to restate those details. Each governed row
+applicable boundary rows without repeating either mapping. The execution
+consumer includes complete plan-level records that a task names directly or
+that explicitly reference one of its selected Entry IDs; it follows no further
+reference chain and makes no semantic-applicability inference. Plan Review
+fails an omitted governing Entry ID or independently necessary boundary fact,
+but not a checklist merely because it declines to restate those details. Each governed row
 cites the relevant design contract decision or records why that decision is
 non-applicable. A no-code projection disposition names that governing decision
 and explains why implementation work is unnecessary.

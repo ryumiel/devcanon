@@ -35,8 +35,9 @@ Task tool (general-purpose):
 
     This controller-curated context contains selected Execution Projection
     entries, the literal declared `Contract tier` plus its independently
-    necessary task-local structure, any present plan-level Contract Example
-    Discipline obligations, and task-local example or verification obligations.
+    necessary task-local structure, explicitly linked plan-level records, any
+    present plan-level Contract Example Discipline obligations, and task-local
+    example or verification obligations.
     You consume the declared tier and never reclassify it. Do not promote,
     demote, or infer a tier from implementer claims, task prose, diff size, path
     spelling, or runtime risk routing.
@@ -121,9 +122,8 @@ Task tool (general-purpose):
       renderers, prompts, or policies that actually own the behavior. Verify the
       participants and direct relationships already present in the selected
       projection entries. A contradiction that creates a concrete task-local
-      specification defect is in remit; an additional plan-wide participant or
-      relationship discovered in source returns to D5-owned planning instead of
-      becoming a D14 finding.
+      specification defect is in remit. Do not assess, originate, or route
+      plan-wide projection completeness; D5 owns that review on reviewed plans.
     - For `FULL`, verify all must-preserve, behavior, spec/procedure, risk, and
       task-local verification expectations are complete. Consume projection
       `Proof` only as descriptive allocation to its named owner and boundary; it

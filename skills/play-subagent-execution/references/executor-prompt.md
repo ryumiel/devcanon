@@ -45,8 +45,9 @@ Task tool (general-purpose):
 
     This controller-curated context contains selected Execution Projection
     entries, the literal declared `Contract tier` plus its independently
-    necessary task-local structure, any present plan-level Contract Example
-    Discipline obligations, and task-local example or verification obligations.
+    necessary task-local structure, explicitly linked plan-level records, any
+    present plan-level Contract Example Discipline obligations, and task-local
+    example or verification obligations.
     You consume the declared tier and never reclassify it. Do not promote,
     demote, or infer a tier from task prose, diff size, path spelling, or runtime
     risk routing.
