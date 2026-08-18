@@ -56,10 +56,11 @@ labels that content as approved verbatim artifact content and names the
 authority source. Implementers choose concrete code, tests, docs, and
 verification commands only after reading the relevant source files directly.
 
-When a task includes a contract tier and its tier-appropriate contract
-structure, treat its owner/authority,
-affected consumers/generated outputs, must-preserve, required behavior,
-spec/procedure work, risk surfaces, and proof obligations as task constraints.
+When a task includes a contract tier and its tier-appropriate assembled context,
+treat the selected projection's common relationship tuple and the task-local
+mutation authority, affected execution consumers/generated outputs,
+must-preserve and required behavior, spec/procedure work, risk surfaces, and
+verification expectations as task constraints.
 These fields constrain what the implementation must satisfy; they do not make
 plan-authored implementation mechanics authoritative. If a checklist field is
 blank, an `N/A` lacks a task-specific reason, or the task appears to invent an
@@ -103,7 +104,8 @@ implementer dispatch, reviewer dispatch, final whole-implementation review, or
 skip-dispatch evaluation, assemble the extracted plan/task execution context
 from resolved projection entries, plan-level Contract Example Discipline
 obligations or equivalent clearly labeled sections/obligations when present,
-task-local checklist or no-trigger status, and any task-local example or proof obligations that refine the
+task-local checklist or no-trigger status, and any task-local example or
+verification obligations that refine the
 plan-level section. When Contract Example Discipline or an equivalent clearly
 labeled section/obligation is present, inline the full shared
 `references/contract-example-discipline-consumer-rule.md` content in that
@@ -124,9 +126,10 @@ allocation without restatement in the task. `FULL` requires a structurally
 complete task-local checklist for the remaining execution facts; `LIGHTWEIGHT`
 requires its remaining task-local purpose, inputs and outputs, material write or
 side-effect owner, failure and cleanup behavior, and explicit reason every FULL
-trigger is absent. The selected projection entries must cover every actual
-known participant and direct producer-consumer relationship, including
-guarded-inline D13 when it is an actual participant or direct consumer;
+trigger is absent. Selected projection entries are the only common participant
+and relationship representation. D5 owns whether they cover every actual
+participant and direct relationship, including guarded-inline D13 when it is an
+actual participant or direct consumer;
 `NO-TRIGGER` requires a task-specific reason. The executor must not promote,
 demote, infer, or otherwise reclassify the tier from task prose, diff size,
 path spelling, or runtime risk routing. Present Contract Example
@@ -137,12 +140,12 @@ Discipline should have been required. In the case when extracted plan/task
 execution context includes Contract Example Discipline or an equivalent clearly
 labeled section/obligation, apply the shared consumer rule in
 [`references/contract-example-discipline-consumer-rule.md`](references/contract-example-discipline-consumer-rule.md).
-Validate the `LIGHTWEIGHT` fields from the assembled context and named authority
-sources without reclassifying the declared tier. Missing named authority or any
-known participant or direct producer-consumer relationship fails closed with
-the exact contract gap; the controller must not treat prompt-mediated consumers
-as the only consumers or omit guarded-inline D13 merely because no child prompt
-is dispatched.
+Validate the `LIGHTWEIGHT` structure from the assembled context without
+reclassifying the declared tier. The executor checks the selected entries and
+task-local fields structurally; D5 owns whether the entries semantically cover
+every actual participant and relationship. The controller must not treat
+prompt-mediated consumers as the only consumers or omit guarded-inline D13
+merely because no child prompt is dispatched.
 Both `LIGHTWEIGHT` and `NO-TRIGGER` are trusted only when this controller can
 identify the upstream two-gate `play-planning` return for the plan being
 executed, meaning both Plan Review and Implementer Executability Review passed

@@ -127,13 +127,16 @@ what counts as a blocking defect. Ambiguous classification defaults to `FULL`.
   outputs; every participant and its traceability; material side-effect
   ownership; lifecycle, failure, recovery, cleanup, and trust-boundary
   behavior; every applicable side-channel obligation; canonical valid and
-  invalid examples; and participant-specific proof.
+  invalid examples; projection-owned proof allocation; and task-local
+  verification expectations.
 - `LIGHTWEIGHT`: allowed only when all dimensions are true: the mechanism is
   private, transient, used by the same controller, and has no durable schema
-  consumer. Record its owner, purpose, inputs and outputs, material write or
-  side-effect owner, failure and cleanup behavior, focused proof, and the
-  explicit reason every FULL trigger is absent. Any changed dimension that
-  triggers `FULL` makes LIGHTWEIGHT invalid.
+  consumer. Selected projection entries record its common owner/source,
+  participants, relationships, and proof allocation. The compact task record
+  adds purpose, inputs and outputs, material write or side-effect owner, failure
+  and cleanup behavior, focused verification expectations, and the explicit
+  reason every FULL trigger is absent. Any changed dimension that triggers
+  `FULL` makes LIGHTWEIGHT invalid.
 - `NO-TRIGGER`: allowed only when the task changes no contract, boundary,
   lifecycle, side effect, generated or side-channel artifact, interface,
   policy, or other non-trivial task-contract trigger. State a task-specific
@@ -150,13 +153,14 @@ cross-session, untrusted, security-sensitive, and cross-owner contracts.
 
 - **Valid `LIGHTWEIGHT` example:** a private transient helper used only by the
   current controller transforms an already validated in-memory value and has
-  no durable schema consumer. Its compact contract names the controller as
-  owner, the transformation purpose, inputs and outputs, confirms the
+  no durable schema consumer. Its projection entry names the controller as
+  owner and records the common participation and proof allocation. Its compact
+  contract adds the transformation purpose, inputs and outputs, confirms the
   controller owns its only material in-memory write or side effect, names
-  failure and cleanup behavior and focused proof, and states that FULL is
-  absent because the helper is private, transient, same-controller, trusted,
-  non-security-sensitive, and neither durable, public, cross-session, nor
-  cross-owner.
+  failure and cleanup behavior and focused verification expectations, and
+  states that FULL is absent because the helper is private, transient,
+  same-controller, trusted, non-security-sensitive, and neither durable,
+  public, cross-session, nor cross-owner.
 - **Invalid durability mutation:** relative to that valid example, change only
   the output so it persists for a later session. The contract is cross-session
   and requires `FULL`; retaining LIGHTWEIGHT is blocking.
@@ -165,7 +169,8 @@ cross-session, untrusted, security-sensitive, and cross-owner contracts.
   validator, adapter, and consumer with participant traceability; the material
   side-effect owner; lifecycle, failure, recovery, cleanup, and trust-boundary
   behavior; every applicable side-channel obligation; canonical valid and
-  invalid examples; and participant-specific proof for every participant.
+  invalid examples; projection-owned proof allocation; and task-local
+  verification expectations for every participant.
 - **Invalid consumer-omission mutation:** relative to that valid example,
   remove exactly one known consumer and its proof while preserving all other
   facts. The omitted known consumer remains a blocking gap; a final-consumer
@@ -435,7 +440,8 @@ Select contract-heavy detail from the task's contract tier. For `FULL` or a
 separately named material authority, use the complete contract-heavy or
 helper-I/O table when work depends on cross-skill handoffs, generated or
 derived paths, helper scripts, source-owned policy, schemas, interfaces,
-execution roots, state transitions, or fail-closed behavior. Name:
+execution roots, state transitions, or fail-closed behavior. Reference the
+governing projection Entry IDs for the common relationship tuple, then add:
 
 - inputs and optional inputs;
 - execution root or cwd;
@@ -444,15 +450,17 @@ execution roots, state transitions, or fail-closed behavior. Name:
 - outputs, derived paths, and allowed overrides;
 - mutation or side-effect owner;
 - missing, invalid, failure, recovery, and cleanup behavior; and
-- observable proof.
+- observable task-local verification conditions without restating proof
+  allocation.
 
-A valid `LIGHTWEIGHT` contract-heavy record uses the closed compact fields:
-every actual known participant and direct producer-consumer relationship,
-owner, purpose, inputs and outputs, material write or side-effect owner,
-failure and cleanup behavior, focused proof, and the explicit reason every
-FULL trigger is absent. It does not acquire the complete table merely because
-it has private transient helper I/O. Add family detail only for a concrete
-approved task-local need or an independently applicable material authority.
+A valid `LIGHTWEIGHT` contract-heavy record consumes selected projection
+entries for every actual known participant, direct producer-consumer
+relationship, owner/source, and proof allocation. It adds only purpose, inputs
+and outputs, material write or side-effect owner, failure and cleanup behavior,
+focused verification expectations, and the explicit reason every FULL trigger
+is absent. It does not acquire the complete table merely because it has private
+transient helper I/O. Add family detail only for a concrete approved task-local
+need or an independently applicable material authority.
 Ambiguity defaults to `FULL`. Known omissions remain blocking, as do every
 independently triggered side-channel, generated, safety, untrusted, durable,
 public, cross-session, cross-owner, or governance obligation.
@@ -523,12 +531,13 @@ missing, including when:
   missing from its projection entry; or
 - a derived representation lacks an owner or proportional parity proof.
 
-A `LIGHTWEIGHT` mapping is not ready when it omits any actual known participant
-or direct producer-consumer relationship, or when it omits its owner, purpose,
-inputs and outputs, material write or side-effect owner, failure and cleanup
-behavior, focused proof, or explicit absence of every FULL trigger. Unclear
-tier eligibility defaults to `FULL`; the compact route never excuses a known
-consumer or an independently triggered obligation.
+A `LIGHTWEIGHT` mapping is not ready when its selected projection entries omit
+any actual known participant, direct producer-consumer relationship,
+owner/source, or proof allocation, or when its compact task-local record omits
+purpose, inputs and outputs, material write or side-effect owner, failure and
+cleanup behavior, focused verification expectations, or explicit absence of
+every FULL trigger. Unclear tier eligibility defaults to `FULL`; the compact
+route never excuses a known consumer or an independently triggered obligation.
 
 Missing, duplicated, or conflicting project-specific topology is a `BLOCKER`
 returned to the owning design; planning must not repair it by inventing an
@@ -659,32 +668,32 @@ traceability shape. Each row names:
 - observable proof per participant.
 
 For `FULL` or a separately named material authority, downstream boundary-row
-consumers require task or no-code mapping, participant coverage and proof,
-applicable checklist row-ID and ownership references, and design-decision or
-non-applicability citations. Under either trigger, each row maps to a current
-task or an explicit no-code disposition, every participant has coverage and
-proof, and each applicable task contract checklist references the governing
-row IDs or explicitly names the rows that own its participant obligations. Plan
-Review fails a checklist that omits relevant row IDs or row ownership, even
-when it precisely restates the boundary details. Each governed row cites the
-relevant design contract decision or records why that decision is
-non-applicable. A no-code disposition still names the governing decision and
-explains why implementation work is unnecessary.
+consumers reference the governing projection Entry IDs for task or no-code
+disposition, common participant relationships, owner/source, and proof
+allocation. Boundary rows add only participant-specific inputs, validation,
+failure behavior, and observable verification conditions not already present
+in the projection tuple. Task checklists consume the selected projection and
+applicable boundary rows without repeating either mapping. Plan Review fails an
+omitted governing Entry ID or independently necessary boundary fact, but not a
+checklist merely because it declines to restate those details. Each governed row
+cites the relevant design contract decision or records why that decision is
+non-applicable. A no-code projection disposition names that governing decision
+and explains why implementation work is unnecessary.
 
-A valid `LIGHTWEIGHT` boundary record instead uses the closed compact fields:
-every actual known participant and direct producer-consumer relationship,
-owner, purpose, inputs and outputs, material write or side-effect owner,
-failure and cleanup behavior, focused proof, and the explicit reason every
-FULL trigger is absent. For `LIGHTWEIGHT`, the compact boundary record is
-sufficient unless specifically authorized applicable extra detail is required
-by a concrete approved task-local need or an independently applicable material
-authority. Only that named detail applies; it does not activate the complete
-downstream row-consumer shape. A final consumer test does not cover a missing
-producer, validator, or adapter obligation, and it cannot excuse any other
-known consumer omission. Ambiguity defaults to `FULL`. Known omissions remain
-blocking, as do every independently triggered side-channel, generated, safety,
-untrusted, durable, public, cross-session, cross-owner, or governance
-obligation.
+A valid `LIGHTWEIGHT` boundary record consumes selected projection entries for
+every actual known participant, direct producer-consumer relationship,
+owner/source, and proof allocation. It adds the closed compact task-local
+purpose, inputs and outputs, material write or side-effect owner, failure and
+cleanup behavior, focused verification expectations, and explicit reason every
+FULL trigger is absent. It is sufficient unless specifically authorized
+applicable extra detail is required by a concrete approved task-local need or an
+independently applicable material authority. Only that named detail applies; it
+does not activate the complete downstream row-consumer shape. A final consumer
+test does not cover a missing producer, validator, or adapter obligation, and it
+cannot excuse any other known consumer omission. Ambiguity defaults to `FULL`.
+Known omissions remain blocking, as do every independently triggered
+side-channel, generated, safety, untrusted, durable, public, cross-session,
+cross-owner, or governance obligation.
 
 Proof must be executable without prescribing implementation. Name diagnostic
 shape, validation ordering, source inspection target or discovery criteria,
@@ -707,7 +716,8 @@ shapes, artifacts, CLI output, helper I/O, or cross-skill contracts include
 
 A valid `LIGHTWEIGHT` compact record does not require canonical valid and
 invalid example families merely because its private transient mechanism has
-helper I/O. Its focused proof covers its named compact contract. A known
+helper I/O. Its focused verification expectations cover its named compact
+contract. A known
 participant or direct producer-consumer relationship still cannot be omitted,
 and every independently triggered side-channel, generated, safety, untrusted,
 durable, public, cross-session, or cross-owner obligation remains blocking and
@@ -795,12 +805,12 @@ inputs, missing or empty behavior, outputs, errors, explicit write targets or
 side-effect owner, validation-before-write or other validation-order
 requirements, failure behavior, forbidden side effects, dirty or rollback
 behavior, and required verification. A valid `LIGHTWEIGHT` boundary-touching
-task satisfies operation mapping through its closed compact fields, including
-every actual known participant and direct producer-consumer relationship. A
-valid `LIGHTWEIGHT` boundary-touching task does not acquire FULL-only
-operation-map detail unless a concrete approved task-local need or an
-independently applicable material authority requires it. It must not prescribe
-private implementation choices discoverable from the named sources.
+task satisfies common participation and relationship mapping through its
+selected projection entries and adds only its closed compact task-local
+operation facts. It does not acquire FULL-only operation-map detail unless a
+concrete approved task-local need or an independently applicable material
+authority requires it. It must not prescribe private implementation choices
+discoverable from the named sources.
 
 Across checklist and operation-map selection, ambiguity defaults to `FULL`.
 Known omissions remain blocking, as do every independently triggered

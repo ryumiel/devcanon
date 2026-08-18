@@ -61,21 +61,22 @@ than a runtime check):
    `play-planning` trigger applicability at execution time and does not
    reclassify the declared tier. Every task must carry the literal
    `**Contract tier:** FULL`, `LIGHTWEIGHT`, or `NO-TRIGGER` field, and the
-   controller validates only the declared tier's required structure. `FULL`
-   requires a structurally complete checklist naming trigger criteria,
-   owner/authority, affected consumers/generated outputs, must-preserve,
-   required behavior, spec/procedure work, risk surfaces, and proof obligations
+   controller validates only the declared tier's required assembled context.
+   Selected Execution Projection entries supply the common relationship
+   owner/source, affected participation, task/no-code disposition, and proof
+   allocation without restatement in the task. `FULL` requires a structurally
+   complete task-local checklist for trigger criteria, mutation authority,
+   affected execution consumers/generated outputs, must-preserve and required
+   behavior, spec/procedure work, risk surfaces, and verification expectations,
    with no blank fields or unexplained `N/A` fields. `LIGHTWEIGHT` requires its
-   closed compact fields, including named authority, every actual known
-   participant and direct producer-consumer relationship, and an explicit
-   reason every FULL trigger is absent. `NO-TRIGGER` requires a task-specific
-   reason. Both reduced tiers require the reviewed two-gate provenance for the
-   plan being executed. Direct, hand-written, copied, older, or otherwise
-   unreviewed plans without that provenance must use a structurally complete
-   `FULL` contract. If source inspection cannot confirm the tier-appropriate
-   owner, authority, source-of-truth, participant, direct relationship,
-   consumer, generated-output, or evidence surface, the task contract is
-   invalid.
+   remaining compact task-local fields and an explicit reason every FULL trigger
+   is absent. `NO-TRIGGER` requires a task-specific reason. Both reduced tiers
+   require the reviewed two-gate provenance for the plan being executed. Direct,
+   hand-written, copied, older, or otherwise unreviewed plans without that
+   provenance must use a structurally complete assembled `FULL` context. If
+   source inspection cannot confirm the tier-appropriate authority,
+   source-of-truth, participant, direct relationship, consumer,
+   generated-output, or evidence surface, the task contract is invalid.
 5. **Runtime guardrail.** Task body contains no TDD expectations or legacy
    TDD step-pair markers (`Step 1: Write the failing test` / `Step 3: Write
 minimal implementation`).
