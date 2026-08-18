@@ -95,10 +95,11 @@ inference or bypass.
 
 Append only selected entries and plan-level supporting-owner supplements or
 boundary records that the current task directly cites by their existing Entry-ID
-key or boundary name. Do not discover records merely because they mention a
-selected Entry ID, send the full plan for child resolution, recursively follow
-references, infer missing entries or semantic applicability, validate semantic
-coverage or topology exhaustiveness, or route from the projection.
+key or stable boundary row ID. Each cited key or row ID must resolve to exactly
+one record. Do not discover records merely because they mention a selected Entry
+ID, send the full plan for child resolution, recursively follow references,
+infer missing entries or semantic applicability, validate semantic coverage or
+topology exhaustiveness, or route from the projection.
 
 Then run the structural task-contract gate against the extracted plan/task
 execution context. Before
@@ -309,8 +310,9 @@ For the full selection and process diagrams, load
    dispatch, reviewer dispatch, final whole-implementation review, or
    skip-dispatch evaluation. Include complete supporting-owner supplements or
    boundary records that the task directly cites by their existing Entry-ID key
-   or boundary name, plan-level Contract Example Discipline obligations or equivalent clearly labeled
-   sections/obligations when present, task-local declared tier and
+   or stable boundary row ID. Require each cited key or row ID to resolve to
+   exactly one record. Include plan-level Contract Example Discipline obligations
+   or equivalent clearly labeled sections/obligations when present, task-local declared tier and
    tier-appropriate structure, and any task-local example or verification
    obligations that refine the plan-level section. When Contract Example
    Discipline or an equivalent clearly labeled section/obligation is present,

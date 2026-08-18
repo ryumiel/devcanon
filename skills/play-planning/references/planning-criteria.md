@@ -677,11 +677,12 @@ failure behavior, and observable verification conditions not already present
 in the projection tuple. Task checklists consume the selected projection and
 applicable boundary rows without repeating either mapping. The execution
 consumer includes only supporting-owner supplements or boundary records that
-the task directly cites by their existing Entry-ID key or boundary name; it
-does not discover inverse references, follow another reference, or infer
-semantic applicability. Plan Review fails a missing task citation, omitted
-governing Entry ID, or independently necessary boundary fact, but not a
-checklist merely because it declines to restate those details. Each governed row
+the task directly cites by their existing Entry-ID key or stable boundary row ID;
+each cited key or row ID resolves to exactly one record. The consumer does not
+discover inverse references, follow another reference, or infer semantic
+applicability. Plan Review fails a missing task citation, omitted governing Entry
+ID, or independently necessary boundary fact, but not a checklist merely because
+it declines to restate those details. Each governed row
 cites the relevant design contract decision or records why that decision is
 non-applicable. A no-code projection disposition names that governing decision
 and explains why implementation work is unnecessary.
