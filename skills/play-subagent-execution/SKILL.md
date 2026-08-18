@@ -93,20 +93,18 @@ planning. This selection does not decide whether membership or topology is
 semantically truthful or complete. Legacy and pre-projection plans receive no
 inference or bypass.
 
-Append only selected entries and their explicitly linked plan-level records to
-the existing curated task context. A linked record is a complete
-supporting-owner supplement, boundary row, or other existing contract record
-that the task names directly or that explicitly names one of the selected Entry
-IDs. Resolve this bounded one-hop linkage only; do not send the full plan for
-child resolution, recursively follow references, infer missing entries or
-semantic applicability, validate semantic coverage or topology exhaustiveness,
-or route from the projection.
+Append only selected entries and plan-level supporting-owner supplements or
+boundary records that the current task directly cites by their existing Entry-ID
+key or boundary name. Do not discover records merely because they mention a
+selected Entry ID, send the full plan for child resolution, recursively follow
+references, infer missing entries or semantic applicability, validate semantic
+coverage or topology exhaustiveness, or route from the projection.
 
 Then run the structural task-contract gate against the extracted plan/task
 execution context. Before
 implementer dispatch, reviewer dispatch, final whole-implementation review, or
 skip-dispatch evaluation, assemble the extracted plan/task execution context
-from resolved projection entries, their explicitly linked plan-level records,
+from resolved projection entries, their directly task-cited plan-level records,
 plan-level Contract Example Discipline obligations or equivalent clearly
 labeled sections/obligations when present, task-local checklist or no-trigger
 status, and any task-local example or verification obligations that refine the
@@ -304,14 +302,14 @@ For the full selection and process diagrams, load
    invocation content. Keep plan-path handling controller-owned; per-task
    implementers receive curated inlined task text, not the plan path.
 2. Extract all authored tasks with their full text, surrounding context,
-   resolved projection entries, explicitly linked plan-level records, declared
+   resolved projection entries, directly task-cited plan-level records, declared
    contract tier, tier-appropriate contract fields, verification expectations,
    and any mode or route hints.
 3. Assemble the extracted plan/task execution context before implementer
    dispatch, reviewer dispatch, final whole-implementation review, or
-   skip-dispatch evaluation. Include complete plan-level records directly named
-   by the task or explicitly keyed to its selected Entry IDs, plan-level Contract
-   Example Discipline obligations or equivalent clearly labeled
+   skip-dispatch evaluation. Include complete supporting-owner supplements or
+   boundary records that the task directly cites by their existing Entry-ID key
+   or boundary name, plan-level Contract Example Discipline obligations or equivalent clearly labeled
    sections/obligations when present, task-local declared tier and
    tier-appropriate structure, and any task-local example or verification
    obligations that refine the plan-level section. When Contract Example

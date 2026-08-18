@@ -464,6 +464,11 @@ contracts do not restate that tuple; they remain executable authority for
 task-local scope, dependencies, required behavior, acceptance, and verification
 expectations.
 
+When a task needs a plan-level supporting-owner supplement or boundary record,
+cite that existing record in the task text by its Entry-ID key or boundary name.
+The executor includes the cited record in curated context; do not copy it into
+the task contract.
+
 Select exactly one tier-specific block from the template and remove the other
 two. The ordinary task fields, acceptance criteria, verification expectations,
 and proof sufficiency remain required for every tier. A `NO-TRIGGER` task has
