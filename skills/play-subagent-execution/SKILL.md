@@ -57,10 +57,13 @@ authority source. Implementers choose concrete code, tests, docs, and
 verification commands only after reading the relevant source files directly.
 
 When a task includes a contract tier and its tier-appropriate assembled context,
-treat the selected projection's common relationship tuple and the task-local
-mutation authority, affected execution consumers/generated outputs,
-must-preserve and required behavior, spec/procedure work, risk surfaces, and
-verification expectations as task constraints.
+treat the selected projection's common relationship tuple, any independently
+necessary producer or consumer direction that the tier-appropriate context
+assigns to an applicable directly cited boundary row or task-local tier fields
+when absent from that tuple, and the task-local mutation authority, affected
+execution consumers/generated outputs, must-preserve and required behavior,
+spec/procedure work, risk surfaces, and verification expectations as task
+constraints. Consume each fact from its single carrier without restating it.
 These fields constrain what the implementation must satisfy; they do not make
 plan-authored implementation mechanics authoritative. If a checklist field is
 blank, an `N/A` lacks a task-specific reason, or the task appears to invent an
@@ -96,12 +99,15 @@ semantically truthful or complete. Legacy and pre-projection plans receive no
 inference or bypass.
 
 Append only selected entries and plan-level supporting-owner supplements or
-boundary records that the current task directly cites by their existing Entry-ID
-key or stable boundary row ID. Each cited key or row ID must resolve to exactly
-one record. Do not discover records merely because they mention a selected Entry
-ID, send the full plan for child resolution, recursively follow references,
-infer missing entries or semantic applicability, validate semantic coverage or
-topology exhaustiveness, or route from the projection.
+boundary records that the current task directly cites as
+`supporting-owner supplement <Entry ID>` or
+`boundary row <stable row ID>`. Resolve the identifier only within the named
+record kind; projection-entry selection is separate. Each cited identifier must
+resolve to exactly one record in that domain. Do not discover records merely
+because they mention a selected Entry ID, send the full plan for child
+resolution, recursively follow references, infer missing entries or semantic
+applicability, validate semantic coverage or topology exhaustiveness, or route
+from the projection.
 
 Then run the structural task-contract gate against the extracted plan/task
 execution context. Before
@@ -127,14 +133,22 @@ requires exactly one declared `**Contract tier:** FULL`, `LIGHTWEIGHT`, or
 `NO-TRIGGER` and validates only its declared tier structure from the assembled
 context. Selected projection entries supply the common relationship-level
 owner/source, affected participation, implementation membership, and proof
-allocation without restatement in the task. `FULL` requires a structurally
-complete task-local checklist for the remaining execution facts; `LIGHTWEIGHT`
-requires its remaining task-local purpose, inputs and outputs, material write or
-side-effect owner, failure and cleanup behavior, and explicit reason every FULL
-trigger is absent. Selected projection entries are the only common participant
-and relationship representation. For reviewed plans, D5 owns whether they cover
-every actual participant and direct relationship, including guarded-inline D13
-when it is an actual participant or direct consumer;
+allocation without restatement in the task. For `FULL`, an applicable directly
+cited boundary row supplies independently necessary producer or consumer
+direction absent from the selected projection tuple; when no distinct boundary
+row applies, the structurally complete task-local checklist supplies that
+direction. The checklist consumes any applicable row without restatement and
+supplies the remaining execution facts. `LIGHTWEIGHT` requires its remaining
+task-local purpose, inputs and outputs, producer or
+consumer direction when independently necessary and absent from both the
+selected projection tuple and an applicable directly cited boundary row,
+material write or side-effect owner, failure and cleanup behavior, and explicit
+reason every FULL trigger is absent. Selected projection
+entries are the only common participant and relationship representation. For
+reviewed plans, D5 owns whether they cover every actual participant and
+independently necessary execution
+relationship, including guarded-inline D13 when it is an actual participant or
+direct consumer;
 `NO-TRIGGER` requires a task-specific reason. The executor must not promote,
 demote, infer, or otherwise reclassify the tier from task prose, diff size,
 path spelling, or runtime risk routing. Present Contract Example
@@ -311,10 +325,12 @@ For the full selection and process diagrams, load
 3. Assemble the extracted plan/task execution context before implementer
    dispatch, reviewer dispatch, final whole-implementation review, or
    skip-dispatch evaluation. Include complete supporting-owner supplements or
-   boundary records that the task directly cites by their existing Entry-ID key
-   or stable boundary row ID. Require each cited key or row ID to resolve to
-   exactly one record. Include plan-level Contract Example Discipline obligations
-   or equivalent clearly labeled sections/obligations when present, task-local declared tier and
+   boundary records that the task directly cites as
+   `supporting-owner supplement <Entry ID>` or
+   `boundary row <stable row ID>`. Resolve each identifier only within its named
+   record kind and require exactly one matching record. Include plan-level
+   Contract Example Discipline obligations or equivalent clearly labeled
+   sections/obligations when present, task-local declared tier and
    tier-appropriate structure, and any task-local example or verification
    obligations that refine the plan-level section. When Contract Example
    Discipline or an equivalent clearly labeled section/obligation is present,

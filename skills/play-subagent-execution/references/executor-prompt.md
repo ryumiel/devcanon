@@ -56,13 +56,21 @@ Task tool (general-purpose):
     reading the named authority sources:
     - For `FULL`, selected projection entries supply the common relationship
       owner/source, participation, implementation membership, and proof
-      allocation. The task-local checklist supplies trigger criteria, mutation
-      authority, affected execution consumers/generated outputs, must-preserve
-      and required behavior, spec/procedure work, risk surfaces, and verification
-      expectations, with every field populated or a task-specific `N/A`.
-    - For reviewed `LIGHTWEIGHT`, selected projection entries supply
-      owner/source, participants, direct relationships, and proof allocation.
-      The compact task-local fields supply purpose, inputs and outputs, material
+      allocation. An applicable directly cited boundary row supplies independently
+      necessary producer or consumer direction absent from the projection tuple.
+      When no distinct boundary row applies, the task-local checklist supplies
+      that direction. The checklist consumes any applicable row without restating
+      it and supplies trigger criteria, mutation authority, affected execution
+      consumers/generated outputs, must-preserve and required behavior,
+      spec/procedure work, risk surfaces, and verification expectations, with
+      every field populated or a task-specific `N/A`.
+    - For reviewed `LIGHTWEIGHT`, selected projection entries supply the common
+      owner/source, participants, relationships, and proof allocation. An
+      applicable directly cited boundary row supplies independently necessary
+      producer or consumer direction absent from the projection tuple. When no
+      distinct boundary row applies, the compact task-local fields supply that
+      direction. The role consumes any applicable row without restating it. The
+      compact task-local fields also supply purpose, inputs and outputs, material
       write or side-effect owner, failure and cleanup behavior, focused
       verification expectations, and why every FULL trigger is absent.
       `LIGHTWEIGHT` does not require intentionally absent FULL-only
