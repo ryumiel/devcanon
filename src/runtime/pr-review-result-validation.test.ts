@@ -124,6 +124,101 @@ describe("PR-review result validation context", () => {
     }
   });
 
+  it("does not reuse cached scope authority after a byte-identical path substitution", async () => {
+    const workspace = await makeWorkspace();
+    try {
+      const context = createPrReviewResultValidationContext();
+      const input = authorityInput(workspace, context);
+      await validatePrReviewResultCommandAuthority(input);
+      await substituteScopePath(workspace);
+      await validatePrReviewResultCommandAuthority(input);
+      expect(await readFile(workspace.countFile, "utf8")).toBe(
+        "scope\nscope\n",
+      );
+    } finally {
+      await rm(workspace.root, { recursive: true, force: true });
+    }
+  });
+
+  it("does not reuse no-prior authority after the canonical prior artifact appears", async () => {
+    const workspace = await makeWorkspace();
+    try {
+      const context = createPrReviewResultValidationContext();
+      const input = authorityInput(workspace, context);
+      await validatePrReviewResultCommandAuthority(input);
+      await writeJson(
+        workspace.root,
+        `.ephemeral/topic-${workspace.headSha}-prior-threads.json`,
+        { schema: "github-prior-threads/v1" },
+      );
+      await validatePrReviewResultCommandAuthority(input);
+      expect(await readFile(workspace.countFile, "utf8")).toBe(
+        "scope\nscope\n",
+      );
+    } finally {
+      await rm(workspace.root, { recursive: true, force: true });
+    }
+  });
+
+  it("does not reuse authority after hardened Git inputs change", async () => {
+    const workspace = await makeWorkspace();
+    try {
+      const context = createPrReviewResultValidationContext();
+      const input = authorityInput(workspace, context);
+      await validatePrReviewResultCommandAuthority(input);
+      await writeFile(
+        path.join(workspace.root, ".git", "info", "attributes"),
+        "*.ts diff=custom\n",
+      );
+      await validatePrReviewResultCommandAuthority(input);
+      await execFileAsync(
+        "git",
+        ["config", "--local", "diff.external", "false"],
+        { cwd: workspace.root },
+      );
+      await validatePrReviewResultCommandAuthority(input);
+      expect(await readFile(workspace.countFile, "utf8")).toBe(
+        "scope\nscope\nscope\n",
+      );
+    } finally {
+      await rm(workspace.root, { recursive: true, force: true });
+    }
+  });
+
+  it("coalesces overlapping identical authority checks and retains rejection", async () => {
+    const workspace = await makeWorkspace();
+    try {
+      const context = createPrReviewResultValidationContext();
+      const delayed = {
+        ...authorityInput(workspace, context),
+        helperEnv: { COUNT_FILE: workspace.countFile, DELAY_SCOPE: "1" },
+      };
+      await Promise.all([
+        validatePrReviewResultCommandAuthority(delayed),
+        validatePrReviewResultCommandAuthority(delayed),
+      ]);
+      expect(await readFile(workspace.countFile, "utf8")).toBe("scope\n");
+
+      const rejectedContext = createPrReviewResultValidationContext();
+      const rejected = {
+        ...authorityInput(workspace, rejectedContext),
+        helperEnv: { COUNT_FILE: workspace.countFile, FAIL_SCOPE: "1" },
+      };
+      await expect(
+        validatePrReviewResultCommandAuthority(rejected),
+      ).rejects.toThrow("helper command failed");
+      await expect(
+        validatePrReviewResultCommandAuthority({
+          ...rejected,
+          helperEnv: { COUNT_FILE: workspace.countFile },
+        }),
+      ).rejects.toThrow("helper command failed");
+      expect(await readFile(workspace.countFile, "utf8")).toBe("scope\n");
+    } finally {
+      await rm(workspace.root, { recursive: true, force: true });
+    }
+  });
+
   it("validates a prior-bound scope decision once before reusing its proof", async () => {
     const workspace = await makeWorkspace({ withPriorThreads: true });
     try {
@@ -431,6 +526,8 @@ async function makeWorkspace(
       'case "$1" in',
       "  validate-scope-decision)",
       '    [ "${EXPECT_PRIOR_SCOPE:-}" != "1" ] || [ -n "${PRIOR_THREADS_FILE:-}" ]',
+      '    [ "${DELAY_SCOPE:-}" != "1" ] || sleep 0.1',
+      '    [ "${FAIL_SCOPE:-}" != "1" ] || exit 1',
       '    [ -z "${DRIFT_DURING_SCOPE_FILE:-}" ] || printf "drift\\n" > "$DRIFT_DURING_SCOPE_FILE"',
       '    printf "scope\\n" >> "$COUNT_FILE"',
       "    ;;",
@@ -527,6 +624,23 @@ async function bindPriorThreads(workspace: Workspace): Promise<void> {
   };
   await writeJson(workspace.root, workspace.scopeFile, scope);
   await synchronizeBindings(workspace);
+}
+
+async function substituteScopePath(workspace: Workspace): Promise<void> {
+  const replacement = `.ephemeral/substitute-${workspace.headSha}-scope-decision.json`;
+  await cp(
+    path.join(workspace.root, workspace.scopeFile),
+    path.join(workspace.root, replacement),
+  );
+  const handoff = await readJson(workspace.root, workspace.handoffFile);
+  (handoff.artifacts as JsonObject).scope_decision_file = replacement;
+  await writeJson(workspace.root, workspace.handoffFile, handoff);
+  const result = await readJson(workspace.root, workspace.resultFile);
+  (result.artifacts as JsonObject).scope_decision_file = replacement;
+  (result.digests as JsonObject).handoff_sha256 = await sha256File(
+    path.join(workspace.root, workspace.handoffFile),
+  );
+  await writeJson(workspace.root, workspace.resultFile, result);
 }
 
 async function rewriteHandoffBase(
