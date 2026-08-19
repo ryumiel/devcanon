@@ -899,10 +899,12 @@ Claude/Codex consumers. Run one bounded read-only impact scan for stale
 consumers or contradictory ownership; run focused behavioral or structural
 proof and fresh render parity appropriate to the changed surfaces; and route
 any correction to its existing mutation owner. Every in-scope correction must
-be committed. Require a clean worktree and retain the exact current `HEAD` as
-the frozen candidate. Missing authority, unresolved impact, ownership conflict,
-failed proof or render parity, a dirty worktree, or a missing/changing head
-fails closed before downstream evidence.
+be committed, then return to the beginning of this checkpoint on the new
+`HEAD`; do not freeze a correction using impact, proof, or render evidence from
+the pre-correction candidate. Require a clean worktree and retain the exact
+current `HEAD` as the frozen candidate. Missing authority, unresolved impact,
+ownership conflict, failed proof or render parity, a dirty worktree, or a
+missing/changing head fails closed before downstream evidence.
 
 Only the frozen candidate may enter downstream evidence. Run an
 issue- or repository-required acceptance scenario only when its authority
