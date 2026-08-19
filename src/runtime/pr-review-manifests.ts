@@ -20,6 +20,8 @@ import { requireDirectEphemeralChild } from "./paths.js";
 import { runPrReviewLeasesCommand } from "./pr-review-leases.js";
 import {
   type PrReviewResultCommandAuthorityInput,
+  type PrReviewResultValidationContext,
+  createPrReviewResultValidationContext,
   validatePrReviewResultCommandAuthority,
   validatePrReviewResultCommandAuthorityForFindingsPublication,
   validatePrReviewResultCommandAuthorityForReviewBodyRecovery,
@@ -333,13 +335,27 @@ async function validateHandoffCommand(): Promise<void> {
 async function validateResultCommand(): Promise<void> {
   requireEnv("REPOSITORY");
   requireEnv("RESULT_FILE");
-  await validateResultFile(requiredEnv("RESULT_FILE"));
+  const validationContext = await createPrReviewResultValidationContext({
+    worktreeRoot: process.cwd(),
+  });
+  await validateResultFile(
+    requiredEnv("RESULT_FILE"),
+    undefined,
+    validationContext,
+  );
 }
 
 async function readResultForPreview(): Promise<string> {
   requireEnv("REPOSITORY");
   const resultFile = requiredEnv("RESULT_FILE");
-  const { result, handoff } = await validateResultFile(resultFile);
+  const validationContext = await createPrReviewResultValidationContext({
+    worktreeRoot: process.cwd(),
+  });
+  const { result, handoff } = await validateResultFile(
+    resultFile,
+    resultFile,
+    validationContext,
+  );
   const artifacts = objectField(result, "artifacts");
 
   return json({
@@ -361,7 +377,14 @@ async function readResultForPreview(): Promise<string> {
 async function writeReviewBody(): Promise<string> {
   requireEnv("REPOSITORY");
   const resultFile = requiredEnv("RESULT_FILE");
-  const { result } = await validateResultFile(resultFile);
+  const validationContext = await createPrReviewResultValidationContext({
+    worktreeRoot: process.cwd(),
+  });
+  const { result } = await validateResultFile(
+    resultFile,
+    resultFile,
+    validationContext,
+  );
   const prNumber = readPrNumber();
   const headSha = readHeadSha();
   const reviewBodyFile =
@@ -380,10 +403,14 @@ async function writeReviewBody(): Promise<string> {
 async function recoverReviewBodyPublication(): Promise<string> {
   requireEnv("REPOSITORY");
   const resultFile = requiredEnv("RESULT_FILE");
+  const validationContext = await createPrReviewResultValidationContext({
+    worktreeRoot: process.cwd(),
+  });
   const { result } =
-    await validatePrReviewResultCommandAuthorityForReviewBodyRecovery(
-      readResultValidationInput(resultFile),
-    );
+    await validatePrReviewResultCommandAuthorityForReviewBodyRecovery({
+      ...readResultValidationInput(resultFile),
+      validationContext,
+    });
   const reviewBodyFile =
     nullableStringField(result, "review_body_file") ??
     canonicalReviewBodyPath(readPrNumber(), readHeadSha());
@@ -400,6 +427,7 @@ async function recoverReviewBodyPublication(): Promise<string> {
   const artifacts = objectField(result, "artifacts");
   const digests = objectField(result, "digests");
   const presentation = objectField(result, "presentation");
+  const reviewBodySha256 = await sha256File(reviewBodyFile);
   const recovered = {
     ...result,
     review_body_file: reviewBodyFile,
@@ -409,7 +437,7 @@ async function recoverReviewBodyPublication(): Promise<string> {
     },
     digests: {
       ...digests,
-      review_body_sha256: await sha256File(reviewBodyFile),
+      review_body_sha256: reviewBodySha256,
       rendered_preview_sha256: null,
     },
     presentation: {
@@ -418,7 +446,6 @@ async function recoverReviewBodyPublication(): Promise<string> {
     },
   };
   validateResultObject(recovered, resultFile, resultFile);
-  await validateResultFacts(recovered, resultFile);
   await prepareWriteTarget("result", resultFile);
   await prepareWriteTarget("result temp", tmpPathFor(resultFile));
   await writeTextAtomically(
@@ -426,7 +453,7 @@ async function recoverReviewBodyPublication(): Promise<string> {
     `${json(recovered)}\n`,
   );
   await rm(path.join(process.cwd(), tmpPathFor(resultFile)), { force: true });
-  await validateResultFile(resultFile);
+  await validateResultFile(resultFile, resultFile, validationContext);
   return resultFile;
 }
 
@@ -442,6 +469,9 @@ async function replaceFindings(): Promise<string> {
     requireEnv(name);
   }
   const resultFile = requiredEnv("RESULT_FILE");
+  const validationContext = await createPrReviewResultValidationContext({
+    worktreeRoot: process.cwd(),
+  });
   const releasePublicationGuard =
     await acquireFindingsPublicationGuard(resultFile);
   let publisherInvoked = false;
@@ -458,7 +488,7 @@ async function replaceFindings(): Promise<string> {
       .digest("hex");
     const { result } =
       await validatePrReviewResultCommandAuthorityForFindingsPublication(
-        readResultValidationInput(resultFile),
+        { ...readResultValidationInput(resultFile), validationContext },
         publishedFindingsSha256,
       );
     const findingsFile = stringField(result, "findings_file");
@@ -481,7 +511,7 @@ async function replaceFindings(): Promise<string> {
 
     const { result: currentResult } =
       await validatePrReviewResultCommandAuthorityForFindingsPublication(
-        readResultValidationInput(resultFile),
+        { ...readResultValidationInput(resultFile), validationContext },
         publishedFindingsSha256,
       );
     const artifacts = objectField(currentResult, "artifacts");
@@ -511,7 +541,7 @@ async function replaceFindings(): Promise<string> {
       `${json(rebound)}\n`,
     );
     await rm(path.join(process.cwd(), tmpPathFor(resultFile)), { force: true });
-    await validateResultFile(resultFile);
+    await validateResultFile(resultFile, resultFile, validationContext);
     reboundResultValidated = true;
     return resultFile;
   } finally {
@@ -713,11 +743,14 @@ async function renderPhase5AuditSummary(): Promise<string> {
     "WORKTREE_PATH",
     requiredEnv("WORKTREE_PATH"),
   );
+  const validationContext = await createPrReviewResultValidationContext({
+    worktreeRoot,
+  });
 
   const { result, handoff, findings } = await withCwd(
     worktreeRoot,
     async () => {
-      await validateResultFile(resultFile);
+      await validateResultFile(resultFile, resultFile, validationContext);
       const result = await readJsonObject(resultFile, "result file");
       const handoffFile = stringField(
         objectField(result, "artifacts"),
@@ -742,7 +775,12 @@ async function renderPhase5AuditSummary(): Promise<string> {
     fail("review head mismatch");
   }
 
-  const status = await readLeaseStatus(primaryRoot, worktreeRoot, result);
+  const status = await readLeaseStatus(
+    primaryRoot,
+    worktreeRoot,
+    result,
+    validationContext,
+  );
   const validation = objectField(result, "validation");
   const artifacts = objectField(result, "artifacts");
   const scope = objectField(result, "scope_decision");
@@ -777,9 +815,10 @@ async function readLeaseStatus(
   primaryRoot: string,
   worktreeRoot: string,
   result: JsonObject,
+  validationContext: PrReviewResultValidationContext,
 ): Promise<LeaseStatus> {
   const outcome = await withCwd(primaryRoot, () =>
-    runPrReviewLeasesCommand(["read-status"]),
+    runPrReviewLeasesCommand(["read-status"], { validationContext }),
   );
   if (outcome.exitCode !== 0) {
     const diagnostic = outcome.stderr.trim();
@@ -1026,10 +1065,15 @@ async function validateHandoffFile(file: string, identityFile = file) {
   await validateHandoffFacts(handoff, identityFile);
 }
 
-async function validateResultFile(file: string, identityFile = file) {
-  return validatePrReviewResultCommandAuthority(
-    readResultValidationInput(file, identityFile),
-  );
+async function validateResultFile(
+  file: string,
+  identityFile = file,
+  validationContext?: PrReviewResultValidationContext,
+) {
+  return validatePrReviewResultCommandAuthority({
+    ...readResultValidationInput(file, identityFile),
+    validationContext,
+  });
 }
 
 function readResultValidationInput(

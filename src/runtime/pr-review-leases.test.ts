@@ -4049,6 +4049,47 @@ describe("pr-review lease read-status", () => {
     }
   });
 
+  it("uses a fresh root-bound authority context for each Phase 6 status gate", async () => {
+    const workspace = await makeGatedStatusWorkspace(
+      "pr-review-status-validation-reuse-",
+    );
+    const scopeValidationLog = path.join(
+      workspace.tempRoot,
+      "scope-validation.log",
+    );
+    const helpers = await writeCountingReviewHelperScripts(
+      workspace.tempRoot,
+      scopeValidationLog,
+    );
+
+    try {
+      process.chdir(workspace.physicalPrimary);
+      setReadStatusEnv(workspace);
+      setHelperAuthorityEnv(helpers);
+
+      await expect(
+        runPrReviewLeasesCommand(["read-status"]),
+      ).resolves.toMatchObject({
+        exitCode: 0,
+      });
+      await expect(readFile(scopeValidationLog, "utf8")).resolves.toBe(
+        "validate-scope-decision\n",
+      );
+
+      await expect(
+        runPrReviewLeasesCommand(["read-status"]),
+      ).resolves.toMatchObject({
+        exitCode: 0,
+      });
+      await expect(readFile(scopeValidationLog, "utf8")).resolves.toBe(
+        "validate-scope-decision\nvalidate-scope-decision\n",
+      );
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
+    }
+  });
+
   it("inspects worktree dirtiness with optional git locks disabled", async () => {
     const workspace = await makeGatedStatusWorkspace("pr-review-status-locks-");
 
@@ -6399,6 +6440,41 @@ async function writeReviewHelperScripts(tempRoot: string): Promise<{
     prReviewLeaseHelperScript,
     playReviewHelper,
   };
+}
+
+async function writeCountingReviewHelperScripts(
+  tempRoot: string,
+  scopeValidationLog: string,
+): Promise<Awaited<ReturnType<typeof writeReviewHelperScripts>>> {
+  const helpers = await writeReviewHelperScripts(
+    path.join(tempRoot, "counting-helpers"),
+  );
+  const scopeHelper = path.join(
+    helpers.prReviewDir,
+    "scripts",
+    "prior-thread-artifacts.sh",
+  );
+  await writeFile(
+    scopeHelper,
+    [
+      "#!/usr/bin/env bash",
+      "set -euo pipefail",
+      'case "${1:-}" in',
+      "  validate-scope-decision)",
+      `    printf 'validate-scope-decision\\n' >> ${JSON.stringify(scopeValidationLog)}`,
+      "    ;;",
+      "  validate-prior-threads)",
+      "    ;;",
+      "  *)",
+      '    echo "unexpected helper command" >&2',
+      "    exit 1",
+      "    ;;",
+      "esac",
+      "",
+    ].join("\n"),
+  );
+  await chmod(scopeHelper, 0o755);
+  return helpers;
 }
 
 async function writeResultArtifact(

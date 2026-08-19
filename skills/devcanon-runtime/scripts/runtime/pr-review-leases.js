@@ -7,7 +7,7 @@ import { promisify } from "node:util";
 import { writeTextAtomically } from "./artifacts.js";
 import { requireDirectEphemeralChild } from "./paths.js";
 import { validateSharedContextFamilyBinding } from "./play-review-shared-context.js";
-import { validatePrReviewResultCommandAuthority } from "./pr-review-result-validation.js";
+import { createPrReviewResultValidationContext, validatePrReviewResultCommandAuthority, } from "./pr-review-result-validation.js";
 const execFileAsync = promisify(execFile);
 const SHA_RE = /^[0-9a-f]{40}$/u;
 const SHA256_RE = /^[0-9a-f]{64}$/u;
@@ -19,7 +19,7 @@ const DIRECT_SUFFIXES = {
     payload: "-validated-review-payload.json",
     lease: "-lease.json",
 };
-export async function runPrReviewLeasesCommand(args) {
+export async function runPrReviewLeasesCommand(args, options = {}) {
     try {
         const [commandName, ...commandArgs] = args;
         switch (commandName) {
@@ -36,14 +36,14 @@ export async function runPrReviewLeasesCommand(args) {
                 }
                 return await sessionCreatePreflight();
             case "write":
-                return ok(`${await writeLease()}\n`);
+                return ok(`${await writeLease(options)}\n`);
             case "record-audit-failure":
-                return ok(`${await recordAuditFailure()}\n`);
+                return ok(`${await recordAuditFailure(options)}\n`);
             case "validate":
-                await validateLeaseCommand();
+                await validateLeaseCommand(options);
                 return ok("");
             case "read-status":
-                return ok(`${await readStatus()}\n`);
+                return ok(`${await readStatus(options)}\n`);
             case "inspect-worktree":
                 return ok(await inspectWorktree());
             case "cleanup-worktree":
@@ -1004,8 +1004,12 @@ export function reducePrReviewLease(previous, identity, inputs, options = {}) {
             };
     }
 }
-async function writeLease() {
+async function writeLease(options) {
     const identity = await readIdentity(true);
+    const validationContext = options.validationContext ??
+        (await createPrReviewResultValidationContext({
+            worktreeRoot: identity.worktreePath,
+        }));
     const previous = await readExistingLease(identity.leaseFile);
     assertExistingLeaseIdentity(previous, identity);
     const inputs = await readInputsForWrite(previous, identity.worktreePath);
@@ -1013,13 +1017,14 @@ async function writeLease() {
     const row = transitionId(previous, inputs);
     let reduced = reducePrReviewLease(previous, identity, inputs);
     if (previous !== null && inputs.state === "failed") {
-        reduced = await clearInvalidFailureRecoveryArtifacts(reduced, previous, identity.primaryRoot, identity.worktreePath, recoveryPolicyForPreviousState(previous.state));
+        reduced = await clearInvalidFailureRecoveryArtifacts(reduced, previous, identity.primaryRoot, identity.worktreePath, recoveryPolicyForPreviousState(previous.state), validationContext);
     }
     else {
         validateLeaseShape(reduced);
         await validateReferencedArtifacts(reduced, identity.worktreePath, {
             validateResultAuthority: true,
             policy: policyForLifecycleWrite(row),
+            validationContext,
         });
         if (archive !== null &&
             !(await hasPostCleanupArchiveAuthority(previous, identity))) {
@@ -1030,6 +1035,7 @@ async function writeLease() {
             await validateReferencedArtifacts(previous, identity.worktreePath, {
                 validateResultAuthority: true,
                 policy: "validate-stored-lease",
+                validationContext,
             });
         }
     }
@@ -1076,7 +1082,7 @@ async function inspectTerminalArchive(lease, identity, leaseFile) {
     const active = await readFile(path.join(identity.primaryRoot, leaseFile));
     return archive.equals(active) ? "equal" : "divergent";
 }
-async function recordAuditFailure() {
+async function recordAuditFailure(options) {
     const { identity, previous } = await readAuditFailureIdentity();
     const inputs = readInputs();
     if (!isPostGatedPreviewRenderFailure(previous, inputs)) {
@@ -1089,14 +1095,18 @@ async function recordAuditFailure() {
         allowMissingGatedPresentationTimestamp: true,
         allowMissingGatedPresentationStatus: true,
     });
-    reduced = await clearInvalidFailureRecoveryArtifacts(reduced, previous, identity.primaryRoot, identity.worktreePath, "preserve-gated-recovery");
+    reduced = await clearInvalidFailureRecoveryArtifacts(reduced, previous, identity.primaryRoot, identity.worktreePath, "preserve-gated-recovery", options.validationContext);
     validateLeaseShape(reduced);
     await assertWritableDirectChild(identity.primaryRoot, identity.leaseFile, "lease");
     await writeTextAtomically(path.join(identity.primaryRoot, identity.leaseFile), `${JSON.stringify(reduced, null, 2)}\n`);
     return identity.leaseFile;
 }
-async function validateLeaseCommand() {
+async function validateLeaseCommand(options) {
     const identity = await readIdentity(true);
+    const validationContext = options.validationContext ??
+        (await createPrReviewResultValidationContext({
+            worktreeRoot: identity.worktreePath,
+        }));
     const lease = await readRequiredJson(identity.primaryRoot, identity.leaseFile, "lease file");
     validateLeaseShape(lease);
     if (lease.repository !== identity.repository) {
@@ -1117,9 +1127,10 @@ async function validateLeaseCommand() {
     await validateReferencedArtifacts(lease, identity.worktreePath, {
         validateResultAuthority: true,
         policy: "validate-stored-lease",
+        validationContext,
     });
 }
-async function readStatus() {
+async function readStatus(options) {
     const identity = await readIdentity(true);
     await assertReadableWorktree(identity.worktreePath);
     const lease = await readRequiredJson(identity.primaryRoot, identity.leaseFile, "lease file");
@@ -1131,6 +1142,11 @@ async function readStatus() {
     if (!(await isRegisteredWorktree(identity.primaryRoot, identity.worktreePath))) {
         throw new PrReviewLeaseError("worktree path is not registered for the primary repository");
     }
+    const worktreeDirty = await isWorktreeDirty(identity.worktreePath);
+    const validationContext = options.validationContext ??
+        (await createPrReviewResultValidationContext({
+            worktreeRoot: identity.worktreePath,
+        }));
     const resultFile = requiredEnv("RESULT_FILE");
     validateDirectChild("result", resultFile, DIRECT_SUFFIXES.result);
     if (resultFile !== lease.artifacts.result_file) {
@@ -1168,6 +1184,7 @@ async function readStatus() {
     await validateReferencedArtifacts(lease, identity.worktreePath, {
         validateResultAuthority: true,
         policy: "validate-live-gated-status",
+        validationContext,
     });
     return JSON.stringify({
         lease_state: lease.state,
@@ -1175,7 +1192,7 @@ async function readStatus() {
         worktree_digest: identity.worktreeDigest,
         worktree_exists: true,
         worktree_registered: true,
-        worktree_dirty: await isWorktreeDirty(identity.worktreePath),
+        worktree_dirty: worktreeDirty,
         identity_match: true,
         result_file: resultFile,
         result_sha256: resultSha256,
@@ -1985,16 +2002,20 @@ function clearPreviewRenderRecoveryArtifacts(lease) {
         presentation: emptyPresentation(),
     };
 }
-async function clearInvalidFailureRecoveryArtifacts(reduced, previous, primaryRoot, worktreePath, policy) {
+async function clearInvalidFailureRecoveryArtifacts(reduced, previous, primaryRoot, worktreePath, policy, validationContext) {
     if (!(await isPlainDirectory(worktreePath)) ||
         !(await isRegisteredWorktree(primaryRoot, worktreePath))) {
         const cleared = clearPreviewRenderRecoveryArtifacts(reduced);
         validateLeaseShape(cleared);
         return cleared;
     }
-    return classifyRecoveryEvidence(reduced, previous, worktreePath, policy);
+    const rootedValidationContext = validationContext ??
+        (await createPrReviewResultValidationContext({
+            worktreeRoot: worktreePath,
+        }));
+    return classifyRecoveryEvidence(reduced, previous, worktreePath, policy, rootedValidationContext);
 }
-async function classifyRecoveryEvidence(reduced, previous, worktreePath, policy) {
+async function classifyRecoveryEvidence(reduced, previous, worktreePath, policy, validationContext) {
     const freshnessTimestamp = policy === "preserve-gated-recovery" ? previous.updated_at : undefined;
     let sanitized = clearPreviewRenderRecoveryArtifacts(reduced);
     if (reduced.artifacts.handoff_file !== null) {
@@ -2009,6 +2030,7 @@ async function classifyRecoveryEvidence(reduced, previous, worktreePath, policy)
             validateLeaseShape(handoffCandidate);
             await validateReferencedArtifacts(handoffCandidate, worktreePath, {
                 policy,
+                validationContext,
             });
             sanitized = handoffCandidate;
         }
@@ -2038,6 +2060,7 @@ async function classifyRecoveryEvidence(reduced, previous, worktreePath, policy)
             validateResultAuthority: true,
             policy,
             freshnessTimestamp,
+            validationContext,
         });
         sanitized = resultCandidate;
     }
@@ -2063,6 +2086,7 @@ async function classifyRecoveryEvidence(reduced, previous, worktreePath, policy)
             validateResultAuthority: true,
             policy,
             freshnessTimestamp,
+            validationContext,
         });
         sanitized = approvalCandidate;
     }
@@ -2087,6 +2111,7 @@ async function classifyRecoveryEvidence(reduced, previous, worktreePath, policy)
             validateResultAuthority: true,
             policy,
             freshnessTimestamp,
+            validationContext,
         });
         sanitized = payloadCandidate;
     }
@@ -2134,6 +2159,10 @@ async function isPlainDirectory(value) {
     }
 }
 async function validateReferencedArtifacts(lease, worktreePath, options = {}) {
+    const validationContext = options.validationContext ??
+        (await createPrReviewResultValidationContext({
+            worktreeRoot: worktreePath,
+        }));
     const policy = options.policy ?? "validate-stored-lease";
     let resultReviewHead = null;
     let resultArtifact = null;
@@ -2166,12 +2195,12 @@ async function validateReferencedArtifacts(lease, worktreePath, options = {}) {
                 throw new PrReviewLeaseError("validated payload approved-review mismatch");
             }
         }
-        await validateResultCommandAuthority(lease, worktreePath);
+        await validateResultCommandAuthority(lease, worktreePath, validationContext);
         const scopeBaseRef = await scopeBaseRefFromValidatedResult(resultArtifact, worktreePath);
         await validateApprovedReviewOwnership(lease, worktreePath, approvedReviewHead, scopeBaseRef);
     }
     if (options.validateResultAuthority === true) {
-        await validateResultCommandAuthority(lease, worktreePath);
+        await validateResultCommandAuthority(lease, worktreePath, validationContext);
     }
 }
 function validateResultFreshness(lease, policy, freshnessTimestamp) {
@@ -2259,7 +2288,7 @@ async function validateResultDigest(lease, worktreePath, resultFile) {
         throw new PrReviewLeaseError("result manifest digest mismatch");
     }
 }
-async function validateResultCommandAuthority(lease, worktreePath) {
+async function validateResultCommandAuthority(lease, worktreePath, validationContext) {
     if (lease.artifacts.result_file === null ||
         lease.validation.result_manifest.status !== "valid") {
         return;
@@ -2278,6 +2307,7 @@ async function validateResultCommandAuthority(lease, worktreePath) {
         prReviewLeaseHelperScript: optionalEnv("PR_REVIEW_LEASE_HELPER_SCRIPT"),
         playReviewHelper: optionalEnv("PLAY_REVIEW_HELPER"),
         helperEnv: inheritedHelperEnv(),
+        validationContext,
     });
 }
 async function validateApprovedReviewOwnership(lease, worktreePath, reviewHeadSha, scopeBaseRef) {

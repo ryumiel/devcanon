@@ -91,6 +91,32 @@ describe("devcanon-runtime rendering", () => {
     expect(await readFile(runtimeScriptPath, "utf-8")).toContain(
       "resolve-entrypoint",
     );
+
+    for (const runtimeModule of [
+      "pr-review-result-validation.js",
+      "pr-review-manifests.js",
+      "pr-review-leases.js",
+    ]) {
+      const source = await readFile(
+        path.join(
+          config.library.skillsDir,
+          "devcanon-runtime",
+          "scripts",
+          "runtime",
+          runtimeModule,
+        ),
+      );
+      await expect(
+        readFile(
+          path.join(claudeRuntimeDir, "scripts", "runtime", runtimeModule),
+        ),
+      ).resolves.toStrictEqual(source);
+      await expect(
+        readFile(
+          path.join(codexRuntimeDir, "scripts", "runtime", runtimeModule),
+        ),
+      ).resolves.toStrictEqual(source);
+    }
   });
 
   it("includes runtime files in rendered content hashes", async () => {
