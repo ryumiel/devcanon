@@ -264,6 +264,35 @@ describe("pr-review Phase 5 audit summary renderer", () => {
     );
   });
 
+  it("uses one fresh scope authority context per Phase 5 audit", async () => {
+    const workspace = await makeManifestWorkspace(
+      "pr-review-summary-validation-reuse-",
+    );
+    const scopeValidationLog = path.join(
+      workspace.tempRoot,
+      "scope-validation.log",
+    );
+    setSummaryEnv(workspace);
+    process.env.PR_REVIEW_DIR = await writeCountingPrReviewHelper(
+      workspace.tempRoot,
+      scopeValidationLog,
+    );
+
+    await expect(
+      runManifestCommand(["render-phase5-audit-summary"]),
+    ).resolves.toMatchObject({ exitCode: 0 });
+    await expect(readFile(scopeValidationLog, "utf8")).resolves.toBe(
+      "validate-scope-decision\n",
+    );
+
+    await expect(
+      runManifestCommand(["render-phase5-audit-summary"]),
+    ).resolves.toMatchObject({ exitCode: 0 });
+    await expect(readFile(scopeValidationLog, "utf8")).resolves.toBe(
+      "validate-scope-decision\nvalidate-scope-decision\n",
+    );
+  });
+
   it("uses WORKTREE_PATH for result artifacts and PRIMARY_REPOSITORY_ROOT for lease status", async () => {
     const workspace = await makeManifestWorkspace("pr-review-distinct-roots-");
     setSummaryEnv(workspace);
@@ -845,6 +874,39 @@ describe("pr-review manifest review body writer", () => {
     });
   });
 
+  it("reuses unchanged scope authority while recovering a published body", async () => {
+    const workspace = await makeManifestWorkspace(
+      "pr-review-body-recovery-validation-reuse-",
+    );
+    const scopeValidationLog = path.join(
+      workspace.tempRoot,
+      "scope-validation.log",
+    );
+    setSummaryEnv(workspace);
+    process.env.PR_REVIEW_DIR = await writeCountingPrReviewHelper(
+      workspace.tempRoot,
+      scopeValidationLog,
+    );
+    process.chdir(workspace.worktree);
+
+    await expect(
+      runManifestCommandWithStdin(
+        ["write-review-body"],
+        "Published before interruption.\n",
+      ),
+    ).resolves.toMatchObject({ exitCode: 0 });
+    await expect(
+      runManifestCommand(["recover-review-body-publication"]),
+    ).resolves.toEqual({
+      exitCode: 0,
+      stdout: `${workspace.resultFile}\n`,
+      stderr: "",
+    });
+    await expect(readFile(scopeValidationLog, "utf8")).resolves.toBe(
+      "validate-scope-decision\nvalidate-scope-decision\n",
+    );
+  });
+
   it.each([
     {
       name: "stale findings authority",
@@ -1012,6 +1074,42 @@ describe("pr-review findings publication rebinder", () => {
     await expect(
       lstat(path.join(workspace.worktree, guardFile)).catch(() => null),
     ).resolves.toBeNull();
+  });
+
+  it("reuses unchanged scope authority across a guarded findings rebind", async () => {
+    const workspace = await makeManifestWorkspace(
+      "pr-review-findings-validation-reuse-",
+    );
+    const scopeValidationLog = path.join(
+      workspace.tempRoot,
+      "scope-validation.log",
+    );
+    setSummaryEnv(workspace);
+    process.env.PR_REVIEW_DIR = await writeCountingPrReviewHelper(
+      workspace.tempRoot,
+      scopeValidationLog,
+    );
+    process.env.PLAY_REVIEW_HELPER = await writePublishingPlayReviewHelper(
+      workspace.tempRoot,
+    );
+    process.chdir(workspace.worktree);
+
+    const replacement = JSON.stringify({
+      schema: "play-review/findings/v2",
+      findings: [{ id: "F2", title: "Replacement finding" }],
+      carry_forward: [],
+    });
+
+    await expect(
+      runManifestCommandWithStdin(["replace-findings"], replacement),
+    ).resolves.toEqual({
+      exitCode: 0,
+      stdout: `${workspace.resultFile}\n`,
+      stderr: "",
+    });
+    await expect(readFile(scopeValidationLog, "utf8")).resolves.toBe(
+      "validate-scope-decision\n",
+    );
   });
 
   it("does not require hard-link support to acquire the publication guard", async () => {
@@ -1985,6 +2083,34 @@ async function writePrReviewHelper(tempRoot: string): Promise<string> {
   await writeExecutable(
     path.join(prReviewDir, "scripts/prior-thread-artifacts.sh"),
     ["#!/usr/bin/env bash", "set -euo pipefail", "exit 0", ""].join("\n"),
+  );
+  return prReviewDir;
+}
+
+async function writeCountingPrReviewHelper(
+  tempRoot: string,
+  scopeValidationLog: string,
+): Promise<string> {
+  const prReviewDir = path.join(tempRoot, "counting-pr-review");
+  await mkdir(path.join(prReviewDir, "scripts"), { recursive: true });
+  await writeExecutable(
+    path.join(prReviewDir, "scripts/prior-thread-artifacts.sh"),
+    [
+      "#!/usr/bin/env bash",
+      "set -euo pipefail",
+      'case "${1:-}" in',
+      "  validate-scope-decision)",
+      `    printf 'validate-scope-decision\\n' >> ${JSON.stringify(scopeValidationLog)}`,
+      "    ;;",
+      "  validate-prior-threads)",
+      "    ;;",
+      "  *)",
+      '    echo "unexpected helper command" >&2',
+      "    exit 1",
+      "    ;;",
+      "esac",
+      "",
+    ].join("\n"),
   );
   return prReviewDir;
 }

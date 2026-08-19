@@ -18,7 +18,11 @@ import { promisify } from "node:util";
 import { writeTextAtomically } from "./artifacts.js";
 import { requireDirectEphemeralChild } from "./paths.js";
 import { validateSharedContextFamilyBinding } from "./play-review-shared-context.js";
-import { validatePrReviewResultCommandAuthority } from "./pr-review-result-validation.js";
+import {
+  type PrReviewResultValidationContext,
+  createPrReviewResultValidationContext,
+  validatePrReviewResultCommandAuthority,
+} from "./pr-review-result-validation.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -235,8 +239,13 @@ const DIRECT_SUFFIXES = {
   lease: "-lease.json",
 } as const;
 
+interface PrReviewLeasesCommandOptions {
+  validationContext?: PrReviewResultValidationContext;
+}
+
 export async function runPrReviewLeasesCommand(
   args: readonly string[],
+  options: PrReviewLeasesCommandOptions = {},
 ): Promise<RuntimeCommandOutcome> {
   try {
     const [commandName, ...commandArgs] = args;
@@ -258,14 +267,14 @@ export async function runPrReviewLeasesCommand(
         }
         return await sessionCreatePreflight();
       case "write":
-        return ok(`${await writeLease()}\n`);
+        return ok(`${await writeLease(options)}\n`);
       case "record-audit-failure":
-        return ok(`${await recordAuditFailure()}\n`);
+        return ok(`${await recordAuditFailure(options)}\n`);
       case "validate":
-        await validateLeaseCommand();
+        await validateLeaseCommand(options);
         return ok("");
       case "read-status":
-        return ok(`${await readStatus()}\n`);
+        return ok(`${await readStatus(options)}\n`);
       case "inspect-worktree":
         return ok(await inspectWorktree());
       case "cleanup-worktree":
@@ -1707,8 +1716,15 @@ interface ReductionOptions {
   allowMissingGatedPresentationStatus?: boolean;
 }
 
-async function writeLease(): Promise<string> {
+async function writeLease(
+  options: PrReviewLeasesCommandOptions,
+): Promise<string> {
   const identity = await readIdentity(true);
+  const validationContext =
+    options.validationContext ??
+    (await createPrReviewResultValidationContext({
+      worktreeRoot: identity.worktreePath,
+    }));
   const previous = await readExistingLease(identity.leaseFile);
   assertExistingLeaseIdentity(previous, identity);
   const inputs = await readInputsForWrite(previous, identity.worktreePath);
@@ -1723,12 +1739,14 @@ async function writeLease(): Promise<string> {
       identity.primaryRoot,
       identity.worktreePath,
       recoveryPolicyForPreviousState(previous.state),
+      validationContext,
     );
   } else {
     validateLeaseShape(reduced);
     await validateReferencedArtifacts(reduced, identity.worktreePath, {
       validateResultAuthority: true,
       policy: policyForLifecycleWrite(row),
+      validationContext,
     });
     if (
       archive !== null &&
@@ -1741,6 +1759,7 @@ async function writeLease(): Promise<string> {
       await validateReferencedArtifacts(previous, identity.worktreePath, {
         validateResultAuthority: true,
         policy: "validate-stored-lease",
+        validationContext,
       });
     }
   }
@@ -1810,7 +1829,9 @@ async function inspectTerminalArchive(
   return archive.equals(active) ? "equal" : "divergent";
 }
 
-async function recordAuditFailure(): Promise<string> {
+async function recordAuditFailure(
+  options: PrReviewLeasesCommandOptions,
+): Promise<string> {
   const { identity, previous } = await readAuditFailureIdentity();
   const inputs = readInputs();
   if (!isPostGatedPreviewRenderFailure(previous, inputs)) {
@@ -1832,6 +1853,7 @@ async function recordAuditFailure(): Promise<string> {
     identity.primaryRoot,
     identity.worktreePath,
     "preserve-gated-recovery",
+    options.validationContext,
   );
   validateLeaseShape(reduced);
 
@@ -1847,8 +1869,15 @@ async function recordAuditFailure(): Promise<string> {
   return identity.leaseFile;
 }
 
-async function validateLeaseCommand(): Promise<void> {
+async function validateLeaseCommand(
+  options: PrReviewLeasesCommandOptions,
+): Promise<void> {
   const identity = await readIdentity(true);
+  const validationContext =
+    options.validationContext ??
+    (await createPrReviewResultValidationContext({
+      worktreeRoot: identity.worktreePath,
+    }));
   const lease = await readRequiredJson<PrReviewLease>(
     identity.primaryRoot,
     identity.leaseFile,
@@ -1873,10 +1902,13 @@ async function validateLeaseCommand(): Promise<void> {
   await validateReferencedArtifacts(lease, identity.worktreePath, {
     validateResultAuthority: true,
     policy: "validate-stored-lease",
+    validationContext,
   });
 }
 
-async function readStatus(): Promise<string> {
+async function readStatus(
+  options: PrReviewLeasesCommandOptions,
+): Promise<string> {
   const identity = await readIdentity(true);
   await assertReadableWorktree(identity.worktreePath);
   const lease = await readRequiredJson<PrReviewLease>(
@@ -1896,6 +1928,12 @@ async function readStatus(): Promise<string> {
       "worktree path is not registered for the primary repository",
     );
   }
+  const worktreeDirty = await isWorktreeDirty(identity.worktreePath);
+  const validationContext =
+    options.validationContext ??
+    (await createPrReviewResultValidationContext({
+      worktreeRoot: identity.worktreePath,
+    }));
 
   const resultFile = requiredEnv("RESULT_FILE");
   validateDirectChild("result", resultFile, DIRECT_SUFFIXES.result);
@@ -1945,6 +1983,7 @@ async function readStatus(): Promise<string> {
   await validateReferencedArtifacts(lease, identity.worktreePath, {
     validateResultAuthority: true,
     policy: "validate-live-gated-status",
+    validationContext,
   });
 
   return JSON.stringify({
@@ -1953,7 +1992,7 @@ async function readStatus(): Promise<string> {
     worktree_digest: identity.worktreeDigest,
     worktree_exists: true,
     worktree_registered: true,
-    worktree_dirty: await isWorktreeDirty(identity.worktreePath),
+    worktree_dirty: worktreeDirty,
     identity_match: true,
     result_file: resultFile,
     result_sha256: resultSha256,
@@ -3054,6 +3093,7 @@ async function clearInvalidFailureRecoveryArtifacts(
   primaryRoot: string,
   worktreePath: string,
   policy: EvidencePolicy,
+  validationContext?: PrReviewResultValidationContext,
 ): Promise<PrReviewLease> {
   if (
     !(await isPlainDirectory(worktreePath)) ||
@@ -3063,7 +3103,18 @@ async function clearInvalidFailureRecoveryArtifacts(
     validateLeaseShape(cleared);
     return cleared;
   }
-  return classifyRecoveryEvidence(reduced, previous, worktreePath, policy);
+  const rootedValidationContext =
+    validationContext ??
+    (await createPrReviewResultValidationContext({
+      worktreeRoot: worktreePath,
+    }));
+  return classifyRecoveryEvidence(
+    reduced,
+    previous,
+    worktreePath,
+    policy,
+    rootedValidationContext,
+  );
 }
 
 async function classifyRecoveryEvidence(
@@ -3071,6 +3122,7 @@ async function classifyRecoveryEvidence(
   previous: PrReviewLease,
   worktreePath: string,
   policy: EvidencePolicy,
+  validationContext: PrReviewResultValidationContext,
 ): Promise<PrReviewLease> {
   const freshnessTimestamp =
     policy === "preserve-gated-recovery" ? previous.updated_at : undefined;
@@ -3088,6 +3140,7 @@ async function classifyRecoveryEvidence(
       validateLeaseShape(handoffCandidate);
       await validateReferencedArtifacts(handoffCandidate, worktreePath, {
         policy,
+        validationContext,
       });
       sanitized = handoffCandidate;
     } catch {
@@ -3118,6 +3171,7 @@ async function classifyRecoveryEvidence(
       validateResultAuthority: true,
       policy,
       freshnessTimestamp,
+      validationContext,
     });
     sanitized = resultCandidate;
   } catch {
@@ -3144,6 +3198,7 @@ async function classifyRecoveryEvidence(
       validateResultAuthority: true,
       policy,
       freshnessTimestamp,
+      validationContext,
     });
     sanitized = approvalCandidate;
   } catch {
@@ -3169,6 +3224,7 @@ async function classifyRecoveryEvidence(
       validateResultAuthority: true,
       policy,
       freshnessTimestamp,
+      validationContext,
     });
     sanitized = payloadCandidate;
   } catch {
@@ -3227,8 +3283,14 @@ async function validateReferencedArtifacts(
     validateResultAuthority?: boolean;
     policy?: EvidencePolicy;
     freshnessTimestamp?: string;
+    validationContext?: PrReviewResultValidationContext;
   } = {},
 ): Promise<void> {
+  const validationContext =
+    options.validationContext ??
+    (await createPrReviewResultValidationContext({
+      worktreeRoot: worktreePath,
+    }));
   const policy = options.policy ?? "validate-stored-lease";
   let resultReviewHead: string | null = null;
   let resultArtifact: JsonObject | null = null;
@@ -3290,7 +3352,11 @@ async function validateReferencedArtifacts(
         );
       }
     }
-    await validateResultCommandAuthority(lease, worktreePath);
+    await validateResultCommandAuthority(
+      lease,
+      worktreePath,
+      validationContext,
+    );
     const scopeBaseRef = await scopeBaseRefFromValidatedResult(
       resultArtifact,
       worktreePath,
@@ -3303,7 +3369,11 @@ async function validateReferencedArtifacts(
     );
   }
   if (options.validateResultAuthority === true) {
-    await validateResultCommandAuthority(lease, worktreePath);
+    await validateResultCommandAuthority(
+      lease,
+      worktreePath,
+      validationContext,
+    );
   }
 }
 
@@ -3442,6 +3512,7 @@ async function validateResultDigest(
 async function validateResultCommandAuthority(
   lease: PrReviewLease,
   worktreePath: string,
+  validationContext: PrReviewResultValidationContext,
 ): Promise<void> {
   if (
     lease.artifacts.result_file === null ||
@@ -3465,6 +3536,7 @@ async function validateResultCommandAuthority(
     prReviewLeaseHelperScript: optionalEnv("PR_REVIEW_LEASE_HELPER_SCRIPT"),
     playReviewHelper: optionalEnv("PLAY_REVIEW_HELPER"),
     helperEnv: inheritedHelperEnv(),
+    validationContext,
   });
 }
 
