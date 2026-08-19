@@ -28,11 +28,32 @@ export interface PrReviewResultCommandAuthorityInput
   prReviewLeaseHelperScript?: string;
   playReviewHelper?: string;
   helperEnv?: Record<string, string>;
+  validationContext?: PrReviewResultValidationContext;
 }
 
 export interface PrReviewResultCommandAuthorityEvidence {
   result: JsonObject;
   handoff: JsonObject;
+}
+
+const validationContextCache = new WeakMap<
+  PrReviewResultValidationContext,
+  Map<string, Promise<void>>
+>();
+
+/**
+ * Creates transient state for sharing unchanged scope/provider authority within
+ * one public PR-review command. Consumers must discard it when that command
+ * completes.
+ */
+export interface PrReviewResultValidationContext {
+  readonly __prReviewResultValidationContext: unique symbol;
+}
+
+export function createPrReviewResultValidationContext(): PrReviewResultValidationContext {
+  const context = {} as PrReviewResultValidationContext;
+  validationContextCache.set(context, new Map());
+  return context;
 }
 
 const FORBIDDEN_KEYS = new Set([
@@ -805,6 +826,47 @@ async function validateScopeAuthority(
   if (expectedBaseRef !== providerEvidence.providerDiffBaseSha) {
     fail("scope decision review scope base mismatch");
   }
+  const validateCommonAuthority = () =>
+    validateScopeProviderAuthority(
+      scopeDecisionFile,
+      expectedBaseRef,
+      manifestPriorPath,
+      providerEvidence.file,
+      input,
+    );
+  const cache =
+    input.validationContext === undefined
+      ? undefined
+      : validationContextCache.get(input.validationContext);
+  if (cache === undefined) {
+    await validateCommonAuthority();
+    return;
+  }
+  const authorityFingerprint = await scopeAuthorityFingerprint({
+    scopeDecisionFile,
+    scopeDecisionSha256: await sha256File(scopeDecisionFile),
+    providerScopeEvidenceSha256: providerEvidence.sha256,
+    priorThreadsFile: manifestPriorPath,
+    expectedBaseRef,
+    reviewHeadSha: input.reviewHeadSha,
+  });
+  const existing = cache.get(authorityFingerprint);
+  if (existing !== undefined) {
+    await existing;
+    return;
+  }
+  const authority = validateCommonAuthority();
+  cache.set(authorityFingerprint, authority);
+  await authority;
+}
+
+async function validateScopeProviderAuthority(
+  scopeDecisionFile: string,
+  expectedBaseRef: string,
+  manifestPriorPath: string | null,
+  providerScopeEvidenceFile: string,
+  input: PrReviewResultCommandAuthorityInput,
+): Promise<void> {
   const scopeHelper = await resolveScopeHelper(input);
   const baseEnv = input.helperEnv ?? {};
   const env = {
@@ -812,19 +874,60 @@ async function validateScopeAuthority(
     HEAD_SHA: input.reviewHeadSha,
     BASE_REF: expectedBaseRef,
     SCOPE_DECISION_FILE: scopeDecisionFile,
-    PROVIDER_SCOPE_EVIDENCE_FILE: providerEvidence.file,
+    PROVIDER_SCOPE_EVIDENCE_FILE: providerScopeEvidenceFile,
+    ...(manifestPriorPath === null
+      ? {}
+      : { PRIOR_THREADS_FILE: manifestPriorPath }),
   };
   await runBashHelper(scopeHelper, "validate-scope-decision", env);
   if (manifestPriorPath !== null) {
-    await runBashHelper(scopeHelper, "validate-scope-decision", {
-      ...env,
-      PRIOR_THREADS_FILE: manifestPriorPath,
-    });
     await runBashHelper(scopeHelper, "validate-prior-threads", {
       ...baseEnv,
       HEAD_SHA: input.reviewHeadSha,
       PRIOR_THREADS_FILE: manifestPriorPath,
     });
+  }
+}
+
+async function scopeAuthorityFingerprint(input: {
+  scopeDecisionFile: string;
+  scopeDecisionSha256: string;
+  providerScopeEvidenceSha256: string;
+  priorThreadsFile: string | null;
+  expectedBaseRef: string;
+  reviewHeadSha: string;
+}): Promise<string> {
+  const physicalWorktree = await realpath(process.cwd());
+  const priorThreadsSha256 =
+    input.priorThreadsFile === null
+      ? null
+      : await sha256File(input.priorThreadsFile);
+  const dirtyWorktreeEvidenceSha256 = await dirtyWorktreeSha256();
+  return createHash("sha256")
+    .update(
+      JSON.stringify([
+        physicalWorktree,
+        input.reviewHeadSha,
+        input.expectedBaseRef,
+        input.scopeDecisionSha256,
+        input.providerScopeEvidenceSha256,
+        input.priorThreadsFile === null ? null : priorThreadsSha256,
+        dirtyWorktreeEvidenceSha256,
+      ]),
+    )
+    .digest("hex");
+}
+
+async function dirtyWorktreeSha256(): Promise<string> {
+  try {
+    const { stdout } = await execFileAsync(
+      "git",
+      ["diff", "--no-ext-diff", "--no-textconv", "--binary", "HEAD", "--"],
+      { encoding: "buffer" },
+    );
+    return createHash("sha256").update(stdout).digest("hex");
+  } catch {
+    fail("failed to determine worktree dirty state");
   }
 }
 
