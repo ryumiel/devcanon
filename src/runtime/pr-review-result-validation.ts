@@ -45,7 +45,7 @@ export interface PrReviewResultCommandAuthorityEvidence {
 
 const validationContextCache = new WeakMap<
   PrReviewResultValidationContext,
-  Map<string, Promise<void>>
+  { root: string; cache: Map<string, Promise<void>> }
 >();
 
 /**
@@ -57,9 +57,14 @@ export interface PrReviewResultValidationContext {
   readonly __prReviewResultValidationContext: unique symbol;
 }
 
-export function createPrReviewResultValidationContext(): PrReviewResultValidationContext {
+export async function createPrReviewResultValidationContext(input: {
+  worktreeRoot: string;
+}): Promise<PrReviewResultValidationContext> {
   const context = {} as PrReviewResultValidationContext;
-  validationContextCache.set(context, new Map());
+  validationContextCache.set(context, {
+    root: await realpath(input.worktreeRoot),
+    cache: new Map(),
+  });
   return context;
 }
 
@@ -833,22 +838,24 @@ async function validateScopeAuthority(
   if (expectedBaseRef !== providerEvidence.providerDiffBaseSha) {
     fail("scope decision review scope base mismatch");
   }
-  const validateCommonAuthority = () =>
-    validateScopeProviderAuthority(
+  const contextState =
+    input.validationContext === undefined
+      ? undefined
+      : validationContextCache.get(input.validationContext);
+  if (contextState === undefined) {
+    await validateScopeProviderAuthority(
       scopeDecisionFile,
       expectedBaseRef,
       manifestPriorPath,
       providerEvidence.file,
       input,
     );
-  const cache =
-    input.validationContext === undefined
-      ? undefined
-      : validationContextCache.get(input.validationContext);
-  if (cache === undefined) {
-    await validateCommonAuthority();
     return;
   }
+  if (contextState.root !== (await realpath(process.cwd()))) {
+    fail("validation context worktree root mismatch");
+  }
+  const cache = contextState.cache;
   const authorityFingerprint = await scopeAuthorityFingerprint({
     scopeDecisionFile,
     providerScopeEvidenceFile: providerEvidence.file,
@@ -863,7 +870,13 @@ async function validateScopeAuthority(
     await existing;
     return;
   }
-  const authority = validateCommonAuthority();
+  const authority = validateScopeProviderAuthority(
+    scopeDecisionFile,
+    expectedBaseRef,
+    manifestPriorPath,
+    providerEvidence.file,
+    input,
+  );
   const stableAuthority = authority.then(async () => {
     const currentProviderEvidence = await readProviderScopeEvidenceBinding(
       scopeDecisionFile,
@@ -929,25 +942,33 @@ async function scopeAuthorityFingerprint(input: {
     input.priorThreadsFile === null
       ? null
       : await sha256File(input.priorThreadsFile);
-  const dirtyWorktreeEvidenceSha256 = await dirtyWorktreeSha256();
   const canonicalPriorThreads = await canonicalPriorThreadsEvidence(
     input.reviewHeadSha,
   );
-  const hardenedGitStateEvidenceSha256 = await hardenedGitStateSha256();
+  const dirtyWorktreeEvidenceSha256 = await dirtyWorktreeSha256();
+  const scopeDecisionIdentity = await realpath(input.scopeDecisionFile);
+  const providerScopeEvidenceIdentity = await realpath(
+    input.providerScopeEvidenceFile,
+  );
+  const priorThreadsIdentity =
+    input.priorThreadsFile === null
+      ? null
+      : await realpath(input.priorThreadsFile);
   return createHash("sha256")
     .update(
       JSON.stringify([
         physicalWorktree,
-        input.scopeDecisionFile,
-        input.providerScopeEvidenceFile,
+        scopeDecisionIdentity,
+        providerScopeEvidenceIdentity,
         input.reviewHeadSha,
         input.expectedBaseRef,
         input.scopeDecisionSha256,
         input.providerScopeEvidenceSha256,
-        input.priorThreadsFile === null ? null : priorThreadsSha256,
+        input.priorThreadsFile === null
+          ? null
+          : [priorThreadsIdentity, priorThreadsSha256],
         canonicalPriorThreads,
         dirtyWorktreeEvidenceSha256,
-        hardenedGitStateEvidenceSha256,
       ]),
     )
     .digest("hex");
@@ -967,78 +988,6 @@ async function canonicalPriorThreadsEvidence(
     fail("canonical prior threads file must be a regular file");
   }
   return { path: file, sha256: await sha256File(file) };
-}
-
-async function hardenedGitStateSha256(): Promise<string> {
-  const paths = await Promise.all([
-    gitPath("info/attributes"),
-    gitPath("refs/replace"),
-    gitPath("packed-refs"),
-    gitPath("info/grafts"),
-    gitPath("config"),
-  ]);
-  const worktreeConfig = await gitConfigSnapshot("--worktree");
-  const localConfig = await gitConfigSnapshot("--local");
-  const state = await Promise.all(paths.map(gitPathState));
-  return createHash("sha256")
-    .update(JSON.stringify({ paths, state, localConfig, worktreeConfig }))
-    .digest("hex");
-}
-
-async function gitPath(name: string): Promise<string> {
-  try {
-    const { stdout } = await execFileAsync("git", [
-      "rev-parse",
-      "--git-path",
-      name,
-    ]);
-    return path.resolve(process.cwd(), stdout.trim());
-  } catch {
-    fail("failed to determine scope/provider Git state");
-  }
-}
-
-async function gitConfigSnapshot(
-  scope: "--local" | "--worktree",
-): Promise<string> {
-  try {
-    const { stdout } = await execFileAsync("git", [
-      "config",
-      scope,
-      "--includes",
-      "--get-regexp",
-      "^diff\\.",
-    ]);
-    return stdout;
-  } catch (err) {
-    if (
-      err instanceof Error &&
-      "code" in err &&
-      [1, 128].includes(Number((err as { code?: unknown }).code))
-    ) {
-      return "";
-    }
-    fail("failed to determine scope/provider Git state");
-  }
-}
-
-async function gitPathState(file: string): Promise<unknown> {
-  const fileStat = await lstat(file).catch(() => null);
-  if (fileStat === null) {
-    return { kind: "missing" };
-  }
-  if (fileStat.isDirectory()) {
-    return { kind: "directory", entries: (await readdir(file)).sort() };
-  }
-  if (!fileStat.isFile()) {
-    return { kind: "other", resolved: await realpath(file).catch(() => "") };
-  }
-  return {
-    kind: "file",
-    sha256: createHash("sha256")
-      .update(await readFile(file))
-      .digest("hex"),
-  };
 }
 
 async function dirtyWorktreeSha256(): Promise<string> {

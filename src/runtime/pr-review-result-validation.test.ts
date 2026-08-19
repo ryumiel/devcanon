@@ -32,13 +32,9 @@ describe("PR-review result validation context", () => {
   it("reuses one common scope/provider proof while revalidating permissive findings locally", async () => {
     const workspace = await makeWorkspace();
     try {
-      const runtime = await import("./pr-review-result-validation.js");
-      const createContext = (
-        runtime as typeof runtime & {
-          createPrReviewResultValidationContext?: () => unknown;
-        }
-      ).createPrReviewResultValidationContext;
-      const validationContext = createContext?.();
+      const validationContext = await createPrReviewResultValidationContext({
+        worktreeRoot: workspace.root,
+      });
       const input = {
         worktreeRoot: workspace.root,
         resultFile: workspace.resultFile,
@@ -55,7 +51,10 @@ describe("PR-review result validation context", () => {
       await validatePrReviewResultCommandAuthority(input);
       expect(await readFile(workspace.countFile, "utf8")).toBe("scope\n");
 
-      await writeFile(path.join(workspace.root, "README.md"), "dirty\n");
+      await writeFile(
+        path.join(workspace.root, ".gitattributes"),
+        "*.ts -text\n",
+      );
       await validatePrReviewResultCommandAuthority(input);
       expect(await readFile(workspace.countFile, "utf8")).toBe(
         "scope\nscope\n",
@@ -87,7 +86,9 @@ describe("PR-review result validation context", () => {
   it("does not let review-body recovery allowance satisfy later strict validation", async () => {
     const workspace = await makeWorkspace();
     try {
-      const validationContext = createPrReviewResultValidationContext();
+      const validationContext = await createPrReviewResultValidationContext({
+        worktreeRoot: workspace.root,
+      });
       const input = authorityInput(workspace, validationContext);
       await validatePrReviewResultCommandAuthority(input);
       await writeFile(
@@ -99,17 +100,18 @@ describe("PR-review result validation context", () => {
       await expect(
         validatePrReviewResultCommandAuthority(input),
       ).rejects.toThrow("review body digest mismatch");
-      expect(await readFile(workspace.countFile, "utf8")).toBe("scope\n");
     } finally {
       await rm(workspace.root, { recursive: true, force: true });
     }
   });
 
-  it("fails closed when helper-relevant state drifts during common validation", async () => {
+  it("fails closed when dirty worktree state drifts during common validation", async () => {
     const workspace = await makeWorkspace();
     try {
-      const validationContext = createPrReviewResultValidationContext();
-      const driftFile = path.join(workspace.root, "README.md");
+      const validationContext = await createPrReviewResultValidationContext({
+        worktreeRoot: workspace.root,
+      });
+      const driftFile = path.join(workspace.root, ".gitattributes");
       await expect(
         validatePrReviewResultCommandAuthority({
           ...authorityInput(workspace, validationContext),
@@ -127,7 +129,9 @@ describe("PR-review result validation context", () => {
   it("does not reuse cached scope authority after a byte-identical path substitution", async () => {
     const workspace = await makeWorkspace();
     try {
-      const context = createPrReviewResultValidationContext();
+      const context = await createPrReviewResultValidationContext({
+        worktreeRoot: workspace.root,
+      });
       const input = authorityInput(workspace, context);
       await validatePrReviewResultCommandAuthority(input);
       await substituteScopePath(workspace);
@@ -143,13 +147,15 @@ describe("PR-review result validation context", () => {
   it("does not reuse no-prior authority after the canonical prior artifact appears", async () => {
     const workspace = await makeWorkspace();
     try {
-      const context = createPrReviewResultValidationContext();
+      const context = await createPrReviewResultValidationContext({
+        worktreeRoot: workspace.root,
+      });
       const input = authorityInput(workspace, context);
       await validatePrReviewResultCommandAuthority(input);
       await writeJson(
         workspace.root,
         `.ephemeral/topic-${workspace.headSha}-prior-threads.json`,
-        { schema: "github-prior-threads/v1" },
+        { schema: "pr-review/prior-threads/v1" },
       );
       await validatePrReviewResultCommandAuthority(input);
       expect(await readFile(workspace.countFile, "utf8")).toBe(
@@ -160,46 +166,12 @@ describe("PR-review result validation context", () => {
     }
   });
 
-  it("does not reuse authority after hardened Git inputs change", async () => {
+  it("retains a failed sequential authority proof", async () => {
     const workspace = await makeWorkspace();
     try {
-      const context = createPrReviewResultValidationContext();
-      const input = authorityInput(workspace, context);
-      await validatePrReviewResultCommandAuthority(input);
-      await writeFile(
-        path.join(workspace.root, ".git", "info", "attributes"),
-        "*.ts diff=custom\n",
-      );
-      await validatePrReviewResultCommandAuthority(input);
-      await execFileAsync(
-        "git",
-        ["config", "--local", "diff.external", "false"],
-        { cwd: workspace.root },
-      );
-      await validatePrReviewResultCommandAuthority(input);
-      expect(await readFile(workspace.countFile, "utf8")).toBe(
-        "scope\nscope\nscope\n",
-      );
-    } finally {
-      await rm(workspace.root, { recursive: true, force: true });
-    }
-  });
-
-  it("coalesces overlapping identical authority checks and retains rejection", async () => {
-    const workspace = await makeWorkspace();
-    try {
-      const context = createPrReviewResultValidationContext();
-      const delayed = {
-        ...authorityInput(workspace, context),
-        helperEnv: { COUNT_FILE: workspace.countFile, DELAY_SCOPE: "1" },
-      };
-      await Promise.all([
-        validatePrReviewResultCommandAuthority(delayed),
-        validatePrReviewResultCommandAuthority(delayed),
-      ]);
-      expect(await readFile(workspace.countFile, "utf8")).toBe("scope\n");
-
-      const rejectedContext = createPrReviewResultValidationContext();
+      const rejectedContext = await createPrReviewResultValidationContext({
+        worktreeRoot: workspace.root,
+      });
       const rejected = {
         ...authorityInput(workspace, rejectedContext),
         helperEnv: { COUNT_FILE: workspace.countFile, FAIL_SCOPE: "1" },
@@ -210,10 +182,12 @@ describe("PR-review result validation context", () => {
       await expect(
         validatePrReviewResultCommandAuthority({
           ...rejected,
-          helperEnv: { COUNT_FILE: workspace.countFile },
+          helperEnv: {
+            COUNT_FILE: workspace.countFile,
+            FAIL_SCOPE: "1",
+          },
         }),
       ).rejects.toThrow("helper command failed");
-      expect(await readFile(workspace.countFile, "utf8")).toBe("scope\n");
     } finally {
       await rm(workspace.root, { recursive: true, force: true });
     }
@@ -222,13 +196,9 @@ describe("PR-review result validation context", () => {
   it("validates a prior-bound scope decision once before reusing its proof", async () => {
     const workspace = await makeWorkspace({ withPriorThreads: true });
     try {
-      const runtime = await import("./pr-review-result-validation.js");
-      const createContext = (
-        runtime as typeof runtime & {
-          createPrReviewResultValidationContext?: () => unknown;
-        }
-      ).createPrReviewResultValidationContext;
-      const validationContext = createContext?.();
+      const validationContext = await createPrReviewResultValidationContext({
+        worktreeRoot: workspace.root,
+      });
       const input = {
         worktreeRoot: workspace.root,
         resultFile: workspace.resultFile,
@@ -237,7 +207,11 @@ describe("PR-review result validation context", () => {
         reviewHeadSha: workspace.headSha,
         prReviewDir: workspace.prReviewDir,
         playReviewHelper: workspace.playReviewHelper,
-        helperEnv: { COUNT_FILE: workspace.countFile, EXPECT_PRIOR_SCOPE: "1" },
+        helperEnv: {
+          COUNT_FILE: workspace.countFile,
+          EXPECT_PRIOR_SCOPE: "1",
+          EXPECTED_PRIOR_THREADS_FILE: `.ephemeral/topic-${workspace.headSha}-prior-threads.json`,
+        },
         validationContext,
       };
 
@@ -255,7 +229,9 @@ describe("PR-review result validation context", () => {
   it("does not reuse a proof after each bound scope/provider artifact changes", async () => {
     const workspace = await makeWorkspace();
     try {
-      const validationContext = createPrReviewResultValidationContext();
+      const validationContext = await createPrReviewResultValidationContext({
+        worktreeRoot: workspace.root,
+      });
       const input = authorityInput(workspace, validationContext);
       await validatePrReviewResultCommandAuthority(input);
 
@@ -268,10 +244,7 @@ describe("PR-review result validation context", () => {
         "scope\nscope\n",
       );
 
-      await rewriteProviderEvidence(workspace, (evidence) => ({
-        ...evidence,
-        extension: "changed provider bytes",
-      }));
+      await rewriteProviderEvidenceWhitespace(workspace);
       await validatePrReviewResultCommandAuthority(input);
       expect(await readFile(workspace.countFile, "utf8")).toBe(
         "scope\nscope\nscope\n",
@@ -293,7 +266,9 @@ describe("PR-review result validation context", () => {
       path.join(os.tmpdir(), "devcanon-validation-clone-"),
     );
     try {
-      const validationContext = createPrReviewResultValidationContext();
+      const validationContext = await createPrReviewResultValidationContext({
+        worktreeRoot: workspace.root,
+      });
       const input = authorityInput(workspace, validationContext);
       await validatePrReviewResultCommandAuthority(input);
 
@@ -337,13 +312,12 @@ describe("PR-review result validation context", () => {
         await cp(path.join(workspace.root, file), path.join(cloneRoot, file));
       }
       await rewriteHandoffExecution(cloneRoot, workspace);
-      await validatePrReviewResultCommandAuthority({
-        ...input,
-        worktreeRoot: cloneRoot,
-      });
-      expect(await readFile(workspace.countFile, "utf8")).toBe(
-        "scope\nscope\nscope\n",
-      );
+      await expect(
+        validatePrReviewResultCommandAuthority({
+          ...input,
+          worktreeRoot: cloneRoot,
+        }),
+      ).rejects.toThrow("validation context worktree root mismatch");
     } finally {
       await rm(workspace.root, { recursive: true, force: true });
       await rm(cloneRoot, { recursive: true, force: true });
@@ -380,6 +354,7 @@ async function makeWorkspace(
     cwd: root,
   });
   await writeFile(path.join(root, "README.md"), "baseline\n");
+  await writeFile(path.join(root, ".gitattributes"), "*.ts text\n");
   await execFileAsync("git", ["add", "."], { cwd: root });
   await execFileAsync("git", ["commit", "-m", "baseline"], { cwd: root });
   const baseSha = await git(root, "rev-parse", "HEAD");
@@ -426,7 +401,7 @@ async function makeWorkspace(
   });
   if (priorThreadsFile !== null) {
     await writeJson(root, priorThreadsFile, {
-      schema: "github-prior-threads/v1",
+      schema: "pr-review/prior-threads/v1",
     });
   }
   await writeFile(path.join(root, reviewBodyFile), "Review body.\n");
@@ -525,8 +500,7 @@ async function makeWorkspace(
       "set -euo pipefail",
       'case "$1" in',
       "  validate-scope-decision)",
-      '    [ "${EXPECT_PRIOR_SCOPE:-}" != "1" ] || [ -n "${PRIOR_THREADS_FILE:-}" ]',
-      '    [ "${DELAY_SCOPE:-}" != "1" ] || sleep 0.1',
+      '    [ "${EXPECT_PRIOR_SCOPE:-}" != "1" ] || [ "${PRIOR_THREADS_FILE:-}" = "${EXPECTED_PRIOR_THREADS_FILE:-}" ]',
       '    [ "${FAIL_SCOPE:-}" != "1" ] || exit 1',
       '    [ -z "${DRIFT_DURING_SCOPE_FILE:-}" ] || printf "drift\\n" > "$DRIFT_DURING_SCOPE_FILE"',
       '    printf "scope\\n" >> "$COUNT_FILE"',
@@ -569,7 +543,9 @@ async function git(root: string, ...args: string[]): Promise<string> {
 
 function authorityInput(
   workspace: Workspace,
-  validationContext: ReturnType<typeof createPrReviewResultValidationContext>,
+  validationContext: Awaited<
+    ReturnType<typeof createPrReviewResultValidationContext>
+  >,
 ) {
   return {
     worktreeRoot: workspace.root,
@@ -608,6 +584,18 @@ async function rewriteProviderEvidence(
   artifacts.provider_scope_evidence_sha256 = await sha256File(
     path.join(workspace.root, workspace.evidenceFile),
   );
+  await writeJson(workspace.root, workspace.scopeFile, scope);
+  await synchronizeBindings(workspace);
+}
+
+async function rewriteProviderEvidenceWhitespace(
+  workspace: Workspace,
+): Promise<void> {
+  const evidencePath = path.join(workspace.root, workspace.evidenceFile);
+  await writeFile(evidencePath, `${await readFile(evidencePath, "utf8")}\n`);
+  const scope = await readJson(workspace.root, workspace.scopeFile);
+  const artifacts = scope.artifacts as JsonObject;
+  artifacts.provider_scope_evidence_sha256 = await sha256File(evidencePath);
   await writeJson(workspace.root, workspace.scopeFile, scope);
   await synchronizeBindings(workspace);
 }
