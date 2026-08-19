@@ -138,7 +138,8 @@ selected projection tuple and an applicable directly cited boundary row,
 material write or side-effect owner, failure and cleanup behavior, and explicit
 reason every FULL trigger is absent. Selected projection
 entries are the only common participant and relationship representation. For
-reviewed plans, D5 owns whether they cover every actual participant and direct
+reviewed plans, D5 owns whether they cover every actual participant and
+independently necessary execution
 relationship, including guarded-inline D13 when it is an actual participant or
 direct consumer;
 `NO-TRIGGER` requires a task-specific reason. The executor must not promote,
