@@ -37,8 +37,10 @@ Comparative notes on why this skill exists. Per-turn instruction lives in
   validation. Medium-risk tasks may run `spec-only` and low-risk tasks may use
   `none-final-only` only on the verified shared
   `issue-priming-workflow --auto` Phase 6 path with controller-local parent
-  state and a valid `issue-priming/auto-handoff/v1` artifact, where Phase 7 reruns
-  `branch-review --fix` after any branch-review-owned fix commit until the
+  state and a valid `issue-priming/auto-handoff/v1` artifact, where a
+  branch-review-owned fix commit invalidates downstream evidence and returns
+  through Candidate Closure and Source Freeze before the paired Phase 7 rerun
+  of `branch-review --fix`, until the
   final run reports zero blocking findings auto-fixed, no unresolved remaining
   `Blocking` findings except findings whose `critic` verdict is `INVALID` or
   `DOWNGRADE`, has a captured final approval-summary notice path, and provides

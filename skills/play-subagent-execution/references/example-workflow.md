@@ -12,8 +12,9 @@ review route: hard-risk and unclear tasks run `spec-and-quality`, medium-risk
 tasks may run `spec-only`, and low-risk tasks may use `none-final-only` only
 on the verified shared `issue-priming-workflow --auto` Phase 6 path with
 controller-local parent state and a valid `issue-priming/auto-handoff/v1`
-artifact, where Phase 7 reruns
-`branch-review --fix` after any branch-review-owned fix commit until the
+artifact, where a branch-review-owned fix commit invalidates downstream evidence
+and returns through Candidate Closure and Source Freeze before the paired Phase
+7 rerun of `branch-review --fix`, until the
 final run reports zero blocking findings auto-fixed, no unresolved remaining
 `Blocking` findings except findings whose `critic` verdict is `INVALID` or
 `DOWNGRADE`, has a captured final approval-summary notice path, and provides
@@ -287,8 +288,9 @@ guard-integrity terminal and leaves source visible.
 `issue-priming-workflow` Phase 7 runs `branch-review --fix` until a run
 reports zero blocking findings auto-fixed and captures that final run's
 approval-summary notice path. If a branch-review-owned fix commit lands after
-that review, Phase 7 reruns on the new `HEAD` and captures fresh final
-approval-summary evidence.
+that review, it invalidates downstream evidence and returns through Candidate
+Closure and Source Freeze before the paired Phase 7 rerun on the new `HEAD`,
+which captures fresh final approval-summary evidence.
 Branch review: no unresolved remaining `Blocking` findings except `INVALID` or
 `DOWNGRADE` critic verdicts.
 

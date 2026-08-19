@@ -856,7 +856,7 @@ Execute the implementation plan for <source-noun> issue <ID>: <TITLE>.
 
 `--auto` flow active (invoked by `issue-priming-workflow`). Apply `play-subagent-execution`'s executor-owned risk-based per-task review routing for multi-task plans (single-task plans skip per-task review; see `play-subagent-execution` § Single-Task Plans).
 
-Parent-owned review contract: this invocation comes from `issue-priming-workflow --auto`, and the Phase 7 `branch-review --fix` loop is mandatory. If `branch-review --fix` creates any branch-review-owned fix commit, Phase 7 reruns on the new `HEAD` until a run reports zero blocking findings auto-fixed, no unresolved remaining `Blocking` findings except findings whose `critic` verdict is `INVALID` or `DOWNGRADE`, a captured final approval-summary notice path, and fresh final approval-summary evidence after branch-review-owned fix commits. That final whole-diff review satisfies the final-review guarantee required by any reduced per-task review route. If the extracted plan has exactly one task, skip the final whole-implementation code-quality reviewer and return to this workflow after implementation completes.
+Parent-owned review contract: this invocation comes from `issue-priming-workflow --auto`, and the Phase 7 `branch-review --fix` loop is mandatory. A branch-review-owned fix commit invalidates downstream evidence and returns through Candidate Closure and Source Freeze before the paired Phase 7 rerun on the new `HEAD`; continue until a run reports zero blocking findings auto-fixed, no unresolved remaining `Blocking` findings except findings whose `critic` verdict is `INVALID` or `DOWNGRADE`, a captured final approval-summary notice path, and fresh final approval-summary evidence after branch-review-owned fix commits. That final whole-diff review satisfies the final-review guarantee required by any reduced per-task review route. If the extracted plan has exactly one task, skip the final whole-implementation code-quality reviewer and return to this workflow after implementation completes.
 
 Plan: <PLAN_PATH captured above>
 Expected digest: <reviewed lowercase 64-hex digest captured above>
@@ -870,8 +870,9 @@ single-task plans skip per-task review). The parent-owned contract above
 activates its narrow single-task final-review carve-out because this workflow
 guarantees the mandatory Phase 7 `branch-review --fix` loop. The same Phase 7
 loop is also the final whole-diff no-Blocking guarantee for reduced per-task
-routes. If any Phase 7 run creates a branch-review-owned fix commit, rerun
-Phase 7 on the new `HEAD`. Only a run that reports zero blocking findings
+routes. If any Phase 7 run creates a branch-review-owned fix commit, invalidate
+downstream evidence and return through Candidate Closure and Source Freeze
+before the paired Phase 7 rerun on the new `HEAD`. Only a run that reports zero blocking findings
 auto-fixed and leaves no unresolved remaining `Blocking` findings except
 findings whose `critic` verdict is `INVALID` or `DOWNGRADE`, captures a final
 approval-summary notice path, and carries fresh final approval-summary evidence

@@ -15,8 +15,8 @@ single-task plans while keeping that same final reviewer in place.
 In the `issue-priming-workflow --auto` path, Phase 6 invokes
 `play-subagent-execution`; Candidate Closure and Source Freeze then prepares
 one clean exact candidate before Phase 7 invokes `branch-review --fix` on the
-resulting diff. For single-task plans, that means two whole-diff review stages
-still run for the same frozen candidate:
+resulting diff. For single-task plans, that historically meant two whole-diff
+review stages over the same implementation result:
 
 1. `play-subagent-execution`'s final whole-implementation reviewer
 2. `branch-review --fix`
