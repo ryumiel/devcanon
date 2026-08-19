@@ -597,7 +597,8 @@ projection is its single plan-local representation of the common relationship
 tuple. It does not create authority, execution order, task routes, proof actors,
 retained evidence, or review state. The same entry shape applies to `FULL`,
 `LIGHTWEIGHT`, and `NO-TRIGGER`; independently necessary tier-specific execution
-fields remain mandatory exactly once in task contracts and are not copied into
+fields remain mandatory exactly once in the tier-specific task context,
+including an applicable directly cited boundary row, and are not copied into
 this index.
 
 The section contains one or more entries. Each entry contains exactly these six
