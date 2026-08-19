@@ -1,7 +1,14 @@
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import { constants } from "node:fs";
-import { access, lstat, readFile, realpath, stat } from "node:fs/promises";
+import {
+  access,
+  lstat,
+  readFile,
+  readdir,
+  realpath,
+  stat,
+} from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import { requireDirectEphemeralChild } from "./paths.js";
@@ -844,6 +851,7 @@ async function validateScopeAuthority(
   }
   const authorityFingerprint = await scopeAuthorityFingerprint({
     scopeDecisionFile,
+    providerScopeEvidenceFile: providerEvidence.file,
     scopeDecisionSha256: await sha256File(scopeDecisionFile),
     providerScopeEvidenceSha256: providerEvidence.sha256,
     priorThreadsFile: manifestPriorPath,
@@ -856,8 +864,26 @@ async function validateScopeAuthority(
     return;
   }
   const authority = validateCommonAuthority();
-  cache.set(authorityFingerprint, authority);
-  await authority;
+  const stableAuthority = authority.then(async () => {
+    const currentProviderEvidence = await readProviderScopeEvidenceBinding(
+      scopeDecisionFile,
+      { repository: input.repository, prNumber: input.prNumber },
+    );
+    const currentFingerprint = await scopeAuthorityFingerprint({
+      scopeDecisionFile,
+      providerScopeEvidenceFile: currentProviderEvidence.file,
+      scopeDecisionSha256: await sha256File(scopeDecisionFile),
+      providerScopeEvidenceSha256: currentProviderEvidence.sha256,
+      priorThreadsFile: manifestPriorPath,
+      expectedBaseRef,
+      reviewHeadSha: input.reviewHeadSha,
+    });
+    if (currentFingerprint !== authorityFingerprint) {
+      fail("scope/provider authority changed during validation");
+    }
+  });
+  cache.set(authorityFingerprint, stableAuthority);
+  await stableAuthority;
 }
 
 async function validateScopeProviderAuthority(
@@ -891,6 +917,7 @@ async function validateScopeProviderAuthority(
 
 async function scopeAuthorityFingerprint(input: {
   scopeDecisionFile: string;
+  providerScopeEvidenceFile: string;
   scopeDecisionSha256: string;
   providerScopeEvidenceSha256: string;
   priorThreadsFile: string | null;
@@ -903,19 +930,115 @@ async function scopeAuthorityFingerprint(input: {
       ? null
       : await sha256File(input.priorThreadsFile);
   const dirtyWorktreeEvidenceSha256 = await dirtyWorktreeSha256();
+  const canonicalPriorThreads = await canonicalPriorThreadsEvidence(
+    input.reviewHeadSha,
+  );
+  const hardenedGitStateEvidenceSha256 = await hardenedGitStateSha256();
   return createHash("sha256")
     .update(
       JSON.stringify([
         physicalWorktree,
+        input.scopeDecisionFile,
+        input.providerScopeEvidenceFile,
         input.reviewHeadSha,
         input.expectedBaseRef,
         input.scopeDecisionSha256,
         input.providerScopeEvidenceSha256,
         input.priorThreadsFile === null ? null : priorThreadsSha256,
+        canonicalPriorThreads,
         dirtyWorktreeEvidenceSha256,
+        hardenedGitStateEvidenceSha256,
       ]),
     )
     .digest("hex");
+}
+
+async function canonicalPriorThreadsEvidence(
+  reviewHeadSha: string,
+): Promise<{ path: string; sha256: string } | null> {
+  const file = `.ephemeral/${slugBranch(await currentBranchName())}-${reviewHeadSha}-prior-threads.json`;
+  const fileStat = await lstat(path.join(process.cwd(), file)).catch(
+    () => null,
+  );
+  if (fileStat === null) {
+    return null;
+  }
+  if (fileStat.isSymbolicLink() || !fileStat.isFile()) {
+    fail("canonical prior threads file must be a regular file");
+  }
+  return { path: file, sha256: await sha256File(file) };
+}
+
+async function hardenedGitStateSha256(): Promise<string> {
+  const paths = await Promise.all([
+    gitPath("info/attributes"),
+    gitPath("refs/replace"),
+    gitPath("packed-refs"),
+    gitPath("info/grafts"),
+    gitPath("config"),
+  ]);
+  const worktreeConfig = await gitConfigSnapshot("--worktree");
+  const localConfig = await gitConfigSnapshot("--local");
+  const state = await Promise.all(paths.map(gitPathState));
+  return createHash("sha256")
+    .update(JSON.stringify({ paths, state, localConfig, worktreeConfig }))
+    .digest("hex");
+}
+
+async function gitPath(name: string): Promise<string> {
+  try {
+    const { stdout } = await execFileAsync("git", [
+      "rev-parse",
+      "--git-path",
+      name,
+    ]);
+    return path.resolve(process.cwd(), stdout.trim());
+  } catch {
+    fail("failed to determine scope/provider Git state");
+  }
+}
+
+async function gitConfigSnapshot(
+  scope: "--local" | "--worktree",
+): Promise<string> {
+  try {
+    const { stdout } = await execFileAsync("git", [
+      "config",
+      scope,
+      "--includes",
+      "--get-regexp",
+      "^diff\\.",
+    ]);
+    return stdout;
+  } catch (err) {
+    if (
+      err instanceof Error &&
+      "code" in err &&
+      [1, 128].includes(Number((err as { code?: unknown }).code))
+    ) {
+      return "";
+    }
+    fail("failed to determine scope/provider Git state");
+  }
+}
+
+async function gitPathState(file: string): Promise<unknown> {
+  const fileStat = await lstat(file).catch(() => null);
+  if (fileStat === null) {
+    return { kind: "missing" };
+  }
+  if (fileStat.isDirectory()) {
+    return { kind: "directory", entries: (await readdir(file)).sort() };
+  }
+  if (!fileStat.isFile()) {
+    return { kind: "other", resolved: await realpath(file).catch(() => "") };
+  }
+  return {
+    kind: "file",
+    sha256: createHash("sha256")
+      .update(await readFile(file))
+      .digest("hex"),
+  };
 }
 
 async function dirtyWorktreeSha256(): Promise<string> {

@@ -18,6 +18,7 @@ import {
   createPrReviewResultValidationContext,
   validatePrReviewResultCommandAuthority,
   validatePrReviewResultCommandAuthorityForFindingsPublication,
+  validatePrReviewResultCommandAuthorityForReviewBodyRecovery,
 } from "./pr-review-result-validation.js";
 
 const execFileAsync = promisify(execFile);
@@ -83,6 +84,46 @@ describe("PR-review result validation context", () => {
     }
   });
 
+  it("does not let review-body recovery allowance satisfy later strict validation", async () => {
+    const workspace = await makeWorkspace();
+    try {
+      const validationContext = createPrReviewResultValidationContext();
+      const input = authorityInput(workspace, validationContext);
+      await validatePrReviewResultCommandAuthority(input);
+      await writeFile(
+        path.join(workspace.root, workspace.reviewBodyFile),
+        "Recovered body.\n",
+      );
+
+      await validatePrReviewResultCommandAuthorityForReviewBodyRecovery(input);
+      await expect(
+        validatePrReviewResultCommandAuthority(input),
+      ).rejects.toThrow("review body digest mismatch");
+      expect(await readFile(workspace.countFile, "utf8")).toBe("scope\n");
+    } finally {
+      await rm(workspace.root, { recursive: true, force: true });
+    }
+  });
+
+  it("fails closed when helper-relevant state drifts during common validation", async () => {
+    const workspace = await makeWorkspace();
+    try {
+      const validationContext = createPrReviewResultValidationContext();
+      const driftFile = path.join(workspace.root, "README.md");
+      await expect(
+        validatePrReviewResultCommandAuthority({
+          ...authorityInput(workspace, validationContext),
+          helperEnv: {
+            COUNT_FILE: workspace.countFile,
+            DRIFT_DURING_SCOPE_FILE: driftFile,
+          },
+        }),
+      ).rejects.toThrow("scope/provider authority changed during validation");
+    } finally {
+      await rm(workspace.root, { recursive: true, force: true });
+    }
+  });
+
   it("validates a prior-bound scope decision once before reusing its proof", async () => {
     const workspace = await makeWorkspace({ withPriorThreads: true });
     try {
@@ -101,7 +142,7 @@ describe("PR-review result validation context", () => {
         reviewHeadSha: workspace.headSha,
         prReviewDir: workspace.prReviewDir,
         playReviewHelper: workspace.playReviewHelper,
-        helperEnv: { COUNT_FILE: workspace.countFile },
+        helperEnv: { COUNT_FILE: workspace.countFile, EXPECT_PRIOR_SCOPE: "1" },
         validationContext,
       };
 
@@ -388,7 +429,11 @@ async function makeWorkspace(
       "#!/usr/bin/env bash",
       "set -euo pipefail",
       'case "$1" in',
-      '  validate-scope-decision) printf "scope\\n" >> "$COUNT_FILE" ;;',
+      "  validate-scope-decision)",
+      '    [ "${EXPECT_PRIOR_SCOPE:-}" != "1" ] || [ -n "${PRIOR_THREADS_FILE:-}" ]',
+      '    [ -z "${DRIFT_DURING_SCOPE_FILE:-}" ] || printf "drift\\n" > "$DRIFT_DURING_SCOPE_FILE"',
+      '    printf "scope\\n" >> "$COUNT_FILE"',
+      "    ;;",
       '  validate-prior-threads) printf "prior\\n" >> "$COUNT_FILE" ;;',
       "  *) exit 1 ;;",
       "esac",
