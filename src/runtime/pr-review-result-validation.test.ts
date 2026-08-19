@@ -2,9 +2,11 @@ import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
   chmod,
+  cp,
   mkdir,
   mkdtemp,
   readFile,
+  realpath,
   rm,
   writeFile,
 } from "node:fs/promises";
@@ -13,6 +15,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  createPrReviewResultValidationContext,
   validatePrReviewResultCommandAuthority,
   validatePrReviewResultCommandAuthorityForFindingsPublication,
 } from "./pr-review-result-validation.js";
@@ -112,19 +115,124 @@ describe("PR-review result validation context", () => {
       await rm(workspace.root, { recursive: true, force: true });
     }
   });
+
+  it("does not reuse a proof after each bound scope/provider artifact changes", async () => {
+    const workspace = await makeWorkspace();
+    try {
+      const validationContext = createPrReviewResultValidationContext();
+      const input = authorityInput(workspace, validationContext);
+      await validatePrReviewResultCommandAuthority(input);
+
+      await rewriteScopeDecision(workspace, (scope) => ({
+        ...scope,
+        selection_reason: "Changed selection reason.",
+      }));
+      await validatePrReviewResultCommandAuthority(input);
+      expect(await readFile(workspace.countFile, "utf8")).toBe(
+        "scope\nscope\n",
+      );
+
+      await rewriteProviderEvidence(workspace, (evidence) => ({
+        ...evidence,
+        extension: "changed provider bytes",
+      }));
+      await validatePrReviewResultCommandAuthority(input);
+      expect(await readFile(workspace.countFile, "utf8")).toBe(
+        "scope\nscope\nscope\n",
+      );
+
+      await bindPriorThreads(workspace);
+      await validatePrReviewResultCommandAuthority(input);
+      expect(await readFile(workspace.countFile, "utf8")).toBe(
+        "scope\nscope\nscope\nscope\nprior\n",
+      );
+    } finally {
+      await rm(workspace.root, { recursive: true, force: true });
+    }
+  });
+
+  it("does not consume cached authority after base, head, or worktree identity drift", async () => {
+    const workspace = await makeWorkspace();
+    const cloneRoot = await mkdtemp(
+      path.join(os.tmpdir(), "devcanon-validation-clone-"),
+    );
+    try {
+      const validationContext = createPrReviewResultValidationContext();
+      const input = authorityInput(workspace, validationContext);
+      await validatePrReviewResultCommandAuthority(input);
+
+      await rewriteScopeDecision(workspace, (scope) => ({
+        ...scope,
+        full_range: `${workspace.headSha}..${workspace.headSha}`,
+        selected_range: `${workspace.headSha}..${workspace.headSha}`,
+      }));
+      await rewriteProviderEvidence(workspace, (evidence) => ({
+        ...evidence,
+        provider_pr_diff_base_sha: workspace.headSha,
+        full_pr_diff_range: `${workspace.headSha}..${workspace.headSha}`,
+      }));
+      await rewriteHandoffBase(workspace, workspace.headSha);
+      await validatePrReviewResultCommandAuthority(input);
+      expect(await readFile(workspace.countFile, "utf8")).toBe(
+        "scope\nscope\n",
+      );
+
+      await expect(
+        validatePrReviewResultCommandAuthority({
+          ...input,
+          reviewHeadSha: "f".repeat(40),
+        }),
+      ).rejects.toThrow("review head mismatch");
+      expect(await readFile(workspace.countFile, "utf8")).toBe(
+        "scope\nscope\n",
+      );
+
+      await execFileAsync("git", ["clone", workspace.root, cloneRoot]);
+      await execFileAsync("git", ["switch", "topic"], { cwd: cloneRoot });
+      await mkdir(path.join(cloneRoot, ".ephemeral"));
+      for (const file of [
+        workspace.findingsFile,
+        workspace.scopeFile,
+        workspace.evidenceFile,
+        workspace.handoffFile,
+        workspace.resultFile,
+        workspace.reviewBodyFile,
+      ]) {
+        await cp(path.join(workspace.root, file), path.join(cloneRoot, file));
+      }
+      await rewriteHandoffExecution(cloneRoot, workspace);
+      await validatePrReviewResultCommandAuthority({
+        ...input,
+        worktreeRoot: cloneRoot,
+      });
+      expect(await readFile(workspace.countFile, "utf8")).toBe(
+        "scope\nscope\nscope\n",
+      );
+    } finally {
+      await rm(workspace.root, { recursive: true, force: true });
+      await rm(cloneRoot, { recursive: true, force: true });
+    }
+  });
 });
 
-async function makeWorkspace(
-  options: { withPriorThreads?: boolean } = {},
-): Promise<{
+interface Workspace {
   root: string;
+  baseSha: string;
   headSha: string;
   resultFile: string;
+  handoffFile: string;
+  scopeFile: string;
+  evidenceFile: string;
+  reviewBodyFile: string;
   findingsFile: string;
   countFile: string;
   prReviewDir: string;
   playReviewHelper: string;
-}> {
+}
+
+async function makeWorkspace(
+  options: { withPriorThreads?: boolean } = {},
+): Promise<Workspace> {
   const root = await mkdtemp(
     path.join(os.tmpdir(), "devcanon-validation-context-"),
   );
@@ -161,9 +269,7 @@ async function makeWorkspace(
     ? `.ephemeral/topic-${headSha}-prior-threads.json`
     : null;
   const range = `${baseSha}..${headSha}`;
-  const physicalRoot = await import("node:fs/promises").then(({ realpath }) =>
-    realpath(root),
-  );
+  const physicalRoot = await realpath(root);
 
   await writeJson(root, evidenceFile, {
     schema: "pr-review/provider-scope-evidence/v2",
@@ -300,8 +406,13 @@ async function makeWorkspace(
   );
   return {
     root,
+    baseSha,
     headSha,
     resultFile,
+    handoffFile,
+    scopeFile,
+    evidenceFile,
+    reviewBodyFile,
     findingsFile,
     countFile,
     prReviewDir,
@@ -312,6 +423,136 @@ async function makeWorkspace(
 async function git(root: string, ...args: string[]): Promise<string> {
   const { stdout } = await execFileAsync("git", args, { cwd: root });
   return stdout.trim();
+}
+
+function authorityInput(
+  workspace: Workspace,
+  validationContext: ReturnType<typeof createPrReviewResultValidationContext>,
+) {
+  return {
+    worktreeRoot: workspace.root,
+    resultFile: workspace.resultFile,
+    repository: "owner/repo",
+    prNumber: 42,
+    reviewHeadSha: workspace.headSha,
+    prReviewDir: workspace.prReviewDir,
+    playReviewHelper: workspace.playReviewHelper,
+    helperEnv: { COUNT_FILE: workspace.countFile },
+    validationContext,
+  };
+}
+
+type JsonObject = Record<string, unknown>;
+
+async function rewriteScopeDecision(
+  workspace: Workspace,
+  rewrite: (scope: JsonObject) => JsonObject,
+): Promise<void> {
+  const scope = rewrite(await readJson(workspace.root, workspace.scopeFile));
+  await writeJson(workspace.root, workspace.scopeFile, scope);
+  await synchronizeBindings(workspace);
+}
+
+async function rewriteProviderEvidence(
+  workspace: Workspace,
+  rewrite: (evidence: JsonObject) => JsonObject,
+): Promise<void> {
+  const evidence = rewrite(
+    await readJson(workspace.root, workspace.evidenceFile),
+  );
+  await writeJson(workspace.root, workspace.evidenceFile, evidence);
+  const scope = await readJson(workspace.root, workspace.scopeFile);
+  const artifacts = scope.artifacts as JsonObject;
+  artifacts.provider_scope_evidence_sha256 = await sha256File(
+    path.join(workspace.root, workspace.evidenceFile),
+  );
+  await writeJson(workspace.root, workspace.scopeFile, scope);
+  await synchronizeBindings(workspace);
+}
+
+async function bindPriorThreads(workspace: Workspace): Promise<void> {
+  const priorThreadsFile = `.ephemeral/topic-${workspace.headSha}-prior-threads.json`;
+  await writeJson(workspace.root, priorThreadsFile, {
+    schema: "github-prior-threads/v1",
+  });
+  const scope = await readJson(workspace.root, workspace.scopeFile);
+  scope.prior_context = {
+    kind: "github-prior-threads",
+    path: priorThreadsFile,
+  };
+  await writeJson(workspace.root, workspace.scopeFile, scope);
+  await synchronizeBindings(workspace);
+}
+
+async function rewriteHandoffBase(
+  workspace: Workspace,
+  baseSha: string,
+): Promise<void> {
+  const handoff = await readJson(workspace.root, workspace.handoffFile);
+  const range = `${baseSha}..${workspace.headSha}`;
+  handoff.review_scope_base_ref = baseSha;
+  handoff.active_diff_range = range;
+  handoff.full_pr_diff_range = range;
+  await writeJson(workspace.root, workspace.handoffFile, handoff);
+  await synchronizeBindings(workspace);
+}
+
+async function rewriteHandoffExecution(
+  cloneRoot: string,
+  workspace: Workspace,
+): Promise<void> {
+  const handoff = await readJson(cloneRoot, workspace.handoffFile);
+  (handoff.execution as JsonObject).working_directory =
+    await realpath(cloneRoot);
+  await writeJson(cloneRoot, workspace.handoffFile, handoff);
+  const result = await readJson(cloneRoot, workspace.resultFile);
+  (result.digests as JsonObject).handoff_sha256 = await sha256File(
+    path.join(cloneRoot, workspace.handoffFile),
+  );
+  await writeJson(cloneRoot, workspace.resultFile, result);
+}
+
+async function synchronizeBindings(workspace: Workspace): Promise<void> {
+  const scope = await readJson(workspace.root, workspace.scopeFile);
+  const evidenceDigest = await sha256File(
+    path.join(workspace.root, workspace.evidenceFile),
+  );
+  const scopeDigest = await sha256File(
+    path.join(workspace.root, workspace.scopeFile),
+  );
+  const priorContext = scope.prior_context as JsonObject;
+  const priorThreadsFile = priorContext.path as string | null;
+  const handoff = await readJson(workspace.root, workspace.handoffFile);
+  const handoffArtifacts = handoff.artifacts as JsonObject;
+  handoffArtifacts.prior_threads_file = priorThreadsFile;
+  handoffArtifacts.provider_scope_evidence_sha256 = evidenceDigest;
+  await writeJson(workspace.root, workspace.handoffFile, handoff);
+
+  const result = await readJson(workspace.root, workspace.resultFile);
+  const artifacts = result.artifacts as JsonObject;
+  const digests = result.digests as JsonObject;
+  const summary = result.scope_decision as JsonObject;
+  artifacts.prior_threads_file = priorThreadsFile;
+  digests.handoff_sha256 = await sha256File(
+    path.join(workspace.root, workspace.handoffFile),
+  );
+  digests.scope_decision_sha256 = scopeDigest;
+  digests.provider_scope_evidence_sha256 = evidenceDigest;
+  digests.prior_threads_sha256 =
+    priorThreadsFile === null
+      ? null
+      : await sha256File(path.join(workspace.root, priorThreadsFile));
+  summary.summary = scope.selection_reason;
+  summary.selected_range = scope.selected_range;
+  summary.full_range = scope.full_range;
+  summary.is_followup_narrow = scope.is_followup_narrow;
+  await writeJson(workspace.root, workspace.resultFile, result);
+}
+
+async function readJson(root: string, file: string): Promise<JsonObject> {
+  return JSON.parse(
+    await readFile(path.join(root, file), "utf8"),
+  ) as JsonObject;
 }
 
 async function writeJson(
