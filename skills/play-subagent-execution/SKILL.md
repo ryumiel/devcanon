@@ -135,9 +135,10 @@ context. Selected projection entries supply the common relationship-level
 owner/source, affected participation, implementation membership, and proof
 allocation without restatement in the task. For `FULL`, an applicable directly
 cited boundary row supplies independently necessary producer or consumer
-direction absent from the selected projection tuple, and the structurally
-complete task-local checklist consumes that row without restatement while
-supplying the remaining execution facts. `LIGHTWEIGHT` requires its remaining
+direction absent from the selected projection tuple; when no distinct boundary
+row applies, the structurally complete task-local checklist supplies that
+direction. The checklist consumes any applicable row without restatement and
+supplies the remaining execution facts. `LIGHTWEIGHT` requires its remaining
 task-local purpose, inputs and outputs, producer or
 consumer direction when independently necessary and absent from both the
 selected projection tuple and an applicable directly cited boundary row,

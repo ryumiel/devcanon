@@ -48,8 +48,9 @@ Task tool (general-purpose):
       owner/source, participation, implementation membership, and proof
       allocation. An applicable directly cited boundary row supplies independently
       necessary producer or consumer direction absent from the projection tuple.
-      The task-local checklist consumes that row without restating it and supplies
-      trigger criteria, mutation authority, affected execution
+      When no distinct boundary row applies, the task-local checklist supplies
+      that direction. The checklist consumes any applicable row without restating
+      it and supplies trigger criteria, mutation authority, affected execution
       consumers/generated outputs, must-preserve and required behavior,
       spec/procedure work, risk surfaces, and verification expectations, with
       every field populated or a task-specific `N/A`.
