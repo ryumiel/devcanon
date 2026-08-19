@@ -56,10 +56,13 @@ Task tool (general-purpose):
     reading the named authority sources:
     - For `FULL`, selected projection entries supply the common relationship
       owner/source, participation, implementation membership, and proof
-      allocation. The task-local checklist supplies trigger criteria, mutation
-      authority, affected execution consumers/generated outputs, must-preserve
-      and required behavior, spec/procedure work, risk surfaces, and verification
-      expectations, with every field populated or a task-specific `N/A`.
+      allocation. An applicable directly cited boundary row supplies independently
+      necessary producer or consumer direction absent from the projection tuple.
+      The task-local checklist consumes that row without restating it and supplies
+      trigger criteria, mutation authority, affected execution
+      consumers/generated outputs, must-preserve and required behavior,
+      spec/procedure work, risk surfaces, and verification expectations, with
+      every field populated or a task-specific `N/A`.
     - For reviewed `LIGHTWEIGHT`, selected projection entries supply the common
       owner/source, participants, relationships, and proof allocation. The
       compact task-local fields or an applicable directly cited boundary row

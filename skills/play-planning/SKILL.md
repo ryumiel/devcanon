@@ -415,9 +415,11 @@ two.
 For `FULL` only:
 
 **Contract checklist:** <every independently necessary FULL task-local field;
-consume the selected projection entries for their common relationship tuple,
-and populate each remaining field or use task-specific N/A only where the
-canonical criteria permit it>
+consume the selected projection entries for their common relationship tuple
+and any applicable directly cited boundary row for independently necessary
+producer or consumer direction absent from that tuple, without restating
+either mapping; populate each remaining field or use task-specific N/A only
+where the canonical criteria permit it>
 
 For `LIGHTWEIGHT` only:
 

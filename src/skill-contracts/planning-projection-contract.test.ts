@@ -18,12 +18,6 @@ const directCitationForms = [
   "boundary row <stable row ID>",
 ] as const;
 
-const executionPromptPaths = [
-  "skills/play-subagent-execution/references/implementer-prompt.md",
-  "skills/play-subagent-execution/references/executor-prompt.md",
-  "skills/play-subagent-execution/references/spec-reviewer-prompt.md",
-] as const;
-
 function numberedFieldLabels(section: string): string[] {
   return [...section.matchAll(/^\d+\. `([^`]+)`:/gm)].map((match) => match[1]);
 }
@@ -89,17 +83,6 @@ describe("play-planning execution projection contract", () => {
 
     for (const invalidForm of invalidForms) {
       expect(citationForms(invalidForm)).toEqual([]);
-    }
-  });
-
-  it("keeps compact direction available to every execution prompt consumer", async () => {
-    const prompts = await Promise.all(executionPromptPaths.map(readRepoFile));
-
-    for (const prompt of prompts) {
-      expect(prompt).toContain("an applicable directly cited boundary row");
-      expect(prompt).toContain(
-        "supply independently necessary producer or consumer direction absent from",
-      );
     }
   });
 

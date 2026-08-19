@@ -57,10 +57,13 @@ authority source. Implementers choose concrete code, tests, docs, and
 verification commands only after reading the relevant source files directly.
 
 When a task includes a contract tier and its tier-appropriate assembled context,
-treat the selected projection's common relationship tuple and the task-local
-mutation authority, affected execution consumers/generated outputs,
-must-preserve and required behavior, spec/procedure work, risk surfaces, and
-verification expectations as task constraints.
+treat the selected projection's common relationship tuple, any independently
+necessary producer or consumer direction that the tier-appropriate context
+assigns to an applicable directly cited boundary row or task-local tier fields
+when absent from that tuple, and the task-local mutation authority, affected
+execution consumers/generated outputs, must-preserve and required behavior,
+spec/procedure work, risk surfaces, and verification expectations as task
+constraints. Consume each fact from its single carrier without restating it.
 These fields constrain what the implementation must satisfy; they do not make
 plan-authored implementation mechanics authoritative. If a checklist field is
 blank, an `N/A` lacks a task-specific reason, or the task appears to invent an
@@ -130,9 +133,12 @@ requires exactly one declared `**Contract tier:** FULL`, `LIGHTWEIGHT`, or
 `NO-TRIGGER` and validates only its declared tier structure from the assembled
 context. Selected projection entries supply the common relationship-level
 owner/source, affected participation, implementation membership, and proof
-allocation without restatement in the task. `FULL` requires a structurally
-complete task-local checklist for the remaining execution facts; `LIGHTWEIGHT`
-requires its remaining task-local purpose, inputs and outputs, producer or
+allocation without restatement in the task. For `FULL`, an applicable directly
+cited boundary row supplies independently necessary producer or consumer
+direction absent from the selected projection tuple, and the structurally
+complete task-local checklist consumes that row without restatement while
+supplying the remaining execution facts. `LIGHTWEIGHT` requires its remaining
+task-local purpose, inputs and outputs, producer or
 consumer direction when independently necessary and absent from both the
 selected projection tuple and an applicable directly cited boundary row,
 material write or side-effect owner, failure and cleanup behavior, and explicit
