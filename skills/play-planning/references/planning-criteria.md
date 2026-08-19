@@ -133,10 +133,12 @@ what counts as a blocking defect. Ambiguous classification defaults to `FULL`.
   private, transient, used by the same controller, and has no durable schema
   consumer. Selected projection entries record its common owner/source,
   participants, relationships, and proof allocation. The compact task record
-  adds purpose, inputs and outputs, material write or side-effect owner, failure
-  and cleanup behavior, focused verification expectations, and the explicit
-  reason every FULL trigger is absent. Any changed dimension that triggers
-  `FULL` makes LIGHTWEIGHT invalid.
+  adds purpose, inputs and outputs, producer or consumer direction when it is an
+  independently necessary execution fact not identified by the selected
+  projection tuple, material write or side-effect owner, failure and cleanup
+  behavior, focused verification expectations, and the explicit reason every
+  FULL trigger is absent. Any changed dimension that triggers `FULL` makes
+  LIGHTWEIGHT invalid.
 - `NO-TRIGGER`: allowed only when the task changes no contract, boundary,
   lifecycle, side effect, generated or side-channel artifact, interface,
   policy, or other non-trivial task-contract trigger. State a task-specific
@@ -155,12 +157,13 @@ cross-session, untrusted, security-sensitive, and cross-owner contracts.
   current controller transforms an already validated in-memory value and has
   no durable schema consumer. Its projection entry names the controller as
   owner and records the common participation and proof allocation. Its compact
-  contract adds the transformation purpose, inputs and outputs, confirms the
-  controller owns its only material in-memory write or side effect, names
-  failure and cleanup behavior and focused verification expectations, and
-  states that FULL is absent because the helper is private, transient,
-  same-controller, trusted, non-security-sensitive, and neither durable,
-  public, cross-session, nor cross-owner.
+  contract adds the transformation purpose, inputs and outputs, identifies any
+  independently necessary producer or consumer direction not carried by the
+  projection tuple, confirms the controller owns its only material in-memory
+  write or side effect, names failure and cleanup behavior and focused
+  verification expectations, and states that FULL is absent because the helper
+  is private, transient, same-controller, trusted, non-security-sensitive, and
+  neither durable, public, cross-session, nor cross-owner.
 - **Invalid durability mutation:** relative to that valid example, change only
   the output so it persists for a later session. The contract is cross-session
   and requires `FULL`; retaining LIGHTWEIGHT is blocking.
@@ -446,7 +449,9 @@ governing projection Entry IDs for the common relationship tuple, then add:
 - inputs and optional inputs;
 - execution root or cwd;
 - source-of-truth and precedence;
-- producers, validators, adapters, and consumers;
+- producer, validator, adapter, or consumer roles and direction only when they
+  are independently necessary and not identified by the governing projection
+  tuple;
 - outputs, derived paths, and allowed overrides;
 - mutation or side-effect owner;
 - missing, invalid, failure, recovery, and cleanup behavior; and
@@ -456,12 +461,13 @@ governing projection Entry IDs for the common relationship tuple, then add:
 A valid `LIGHTWEIGHT` contract-heavy record consumes selected projection
 entries for every actual known participant and independently necessary
 execution relationship, owner/source, and proof allocation. It adds only
-purpose, inputs and outputs, material write or side-effect owner, failure and
-cleanup behavior, focused verification expectations, and the explicit reason
-every FULL trigger is absent. It does not acquire the complete table merely
-because it has private transient helper I/O. Add family detail only for a
-concrete approved task-local need or an independently applicable material
-authority.
+purpose, inputs and outputs, producer or consumer direction when independently
+necessary and absent from the projection tuple, material write or side-effect
+owner, failure and cleanup behavior, focused verification expectations, and
+the explicit reason every FULL trigger is absent. It does not acquire the
+complete table merely because it has private transient helper I/O. Add family
+detail only for a concrete approved task-local need or an independently
+applicable material authority.
 Ambiguity defaults to `FULL`. Known omissions remain blocking, as do every
 independently triggered side-channel, generated, safety, untrusted, durable,
 public, cross-session, cross-owner, or governance obligation.
@@ -488,20 +494,23 @@ Do not repeat those fields in a second topology table.
 
 `FULL`, or a separately named material authority, requires that common mapping
 to be exhaustive over every changed behavior and affected surface authorized by
-the design. Represent each approved relationship once in the direction needed
-for an assigned task's curated execution context. Add an inverse producer,
-consumer, or reference entry only when it adds a different owner/source, mode,
+the design. Represent each approved relationship once for an assigned task's
+curated execution context. Carry independently necessary producer or consumer
+direction in the projection tuple when it identifies that fact, or otherwise in
+the tier-specific task or boundary record. Add an inverse producer, consumer,
+or reference entry only when it adds a different owner/source, mode,
 implementation disposition, proof boundary, or independently necessary
 execution fact. When an approved relationship has supporting owners, add only
 an Entry-ID-keyed supplement naming each supporting owner, its explicitly
 non-overlapping normative partition, and conflict precedence. The supplement
 must not restate the projection tuple. A valid `LIGHTWEIGHT` compact record adds
 only its independently necessary task-local purpose, inputs and outputs,
-material write or side-effect owner, failure and cleanup behavior, and explicit
-reason every FULL trigger is absent; its selected projection entries supply the
-common participant, relationship, owner, and proof facts. It need not
-manufacture inverse entries, supporting owners, partitions, consumers, or
-example families that do not exist.
+producer or consumer direction when absent from the projection tuple, material
+write or side-effect owner, failure and cleanup behavior, and explicit reason
+every FULL trigger is absent; its selected projection entries supply the common
+participant, relationship, owner, and proof facts. It need not manufacture
+inverse entries, supporting owners, partitions, consumers, or example families
+that do not exist.
 
 Repetition never grants authority. References and non-normative summaries yield
 to the normative owner on conflict; derived representations preserve owner
@@ -540,12 +549,13 @@ missing, including when:
 A `LIGHTWEIGHT` mapping is not ready when its selected projection entries omit
 an actual known participant, owner/source, proof allocation, or independently
 necessary execution relationship, or when its compact task-local record omits
-purpose, inputs and outputs, material write or side-effect owner, failure and
-cleanup behavior, focused verification expectations, or explicit absence of
-every FULL trigger. An absent equivalent inverse producer-consumer or reference
-entry alone is not an omission. Unclear tier eligibility defaults to `FULL`; the
-compact route never excuses a known consumer or an independently triggered
-obligation.
+purpose, inputs and outputs, independently necessary producer or consumer
+direction absent from the projection tuple, material write or side-effect
+owner, failure and cleanup behavior, focused verification expectations, or
+explicit absence of every FULL trigger. An absent equivalent inverse
+producer-consumer or reference entry alone is not an omission. Unclear tier
+eligibility defaults to `FULL`; the compact route never excuses a known
+consumer or an independently triggered obligation.
 
 Missing, duplicated, or conflicting project-specific topology is a `BLOCKER`
 returned to the owning design; planning must not repair it by inventing an
@@ -623,13 +633,14 @@ execution route. Entry IDs remain available for optional references from other
 plan sections when that avoids restating the tuple. Tasks carry no required
 Entry-ID field.
 
-The projection represents each relationship directionally as the curated task
-context needs it. A reverse producer, consumer, or reference entry is required
-only when it contributes a different owner/source, mode, implementation
-disposition, proof boundary, or independently necessary execution fact. An
-equivalent inverse relationship or duplicate proof allocation in a boundary
-record, task contract, or traceability matrix is not required and must not be a
-review blocker.
+The projection represents each relationship once for the curated task context.
+When independently necessary producer or consumer direction is not identified
+by the projection tuple, the tier-specific task or boundary record carries it.
+A reverse producer, consumer, or reference entry is required only when it
+contributes a different owner/source, mode, implementation disposition, proof
+boundary, or independently necessary execution fact. An equivalent inverse
+relationship or duplicate proof allocation in a boundary record, task contract,
+or traceability matrix is not required and must not be a review blocker.
 
 Multiple affected surfaces may share one entry only when owner/source, mode,
 implementation disposition, and proof are all equal. If any one differs,
@@ -699,12 +710,15 @@ verification conditions not already present in the projection tuple. Task
 checklists consume the selected projection and applicable boundary rows without
 repeating either mapping. The execution
 consumer includes only supporting-owner supplements or boundary records that
-the task directly cites by their existing Entry-ID key or stable boundary row ID;
-each cited key or row ID resolves to exactly one record. The consumer does not
-discover inverse references, follow another reference, or infer semantic
-applicability. Plan Review fails a missing required task citation when a task
-needs a distinct supporting-owner supplement or boundary record, an
-unresolvable cited Entry ID or boundary row ID, a missing governing Entry ID
+the task directly cites as `supporting-owner supplement <Entry ID>` or
+`boundary row <stable row ID>`. The literal record-kind label selects the
+resolution domain, so supplement lookup does not include projection entries and
+boundary-row lookup does not include supplements. Each cited identifier resolves
+to exactly one record within its named kind. The consumer does not discover
+inverse references, follow another reference, or infer semantic applicability.
+Plan Review fails a missing or unlabeled required task citation when a task needs
+a distinct supporting-owner supplement or boundary record, an unresolvable or
+ambiguous identifier within the named record kind, a missing governing Entry ID
 when a distinct boundary record depends on it, or an independently necessary
 boundary fact, but not a checklist merely because it declines to restate those
 details or omit an equivalent inverse relationship.
@@ -716,18 +730,20 @@ and explains why implementation work is unnecessary.
 A valid `LIGHTWEIGHT` boundary record consumes the selected projection entries
 for every actual known participant and independently necessary execution
 relationship, owner/source, and proof allocation. It adds the closed compact
-task-local purpose, inputs and outputs, material write or side-effect owner,
-failure and cleanup behavior, focused verification expectations, and explicit
-reason every FULL trigger is absent. It does not require an equivalent inverse
-producer-consumer or reference entry. It is sufficient unless specifically
-authorized applicable extra detail is required by a concrete approved task-local need or an
-independently applicable material authority. Only that named detail applies; it
-does not activate the complete downstream row-consumer shape. A final consumer
-test does not cover a missing producer, validator, or adapter obligation, and it
-cannot excuse any other known consumer omission. Ambiguity defaults to `FULL`.
-Known omissions remain blocking, as do every independently triggered
-side-channel, generated, safety, untrusted, durable, public, cross-session,
-cross-owner, or governance obligation.
+task-local purpose, inputs and outputs, producer or consumer direction when it
+is independently necessary and not identified by the projection tuple,
+material write or side-effect owner, failure and cleanup behavior, focused
+verification expectations, and explicit reason every FULL trigger is absent.
+It does not require an equivalent inverse producer-consumer or reference entry.
+It is sufficient unless specifically authorized applicable extra detail is
+required by a concrete approved task-local need or an independently applicable
+material authority. Only that named detail applies; it does not activate the
+complete downstream row-consumer shape. A final consumer test does not cover a
+missing producer, validator, or adapter obligation, and it cannot excuse any
+other known consumer omission. Ambiguity defaults to `FULL`. Known omissions
+remain blocking, as do every independently triggered side-channel, generated,
+safety, untrusted, durable, public, cross-session, cross-owner, or governance
+obligation.
 
 Proof must be executable without prescribing implementation. Name diagnostic
 shape, validation ordering, source inspection target or discovery criteria,
@@ -828,12 +844,14 @@ references or consumes the selected entries and does not restate their tuple.
 A valid `LIGHTWEIGHT` task consumes its selected projection entries for every
 actual known participant and independently necessary execution relationship,
 normative owner/source, and proof allocation. Its closed compact task-local
-fields add purpose, inputs and outputs, material write or side-effect owner,
-failure and cleanup behavior, focused verification expectations, and the
-explicit reason every FULL trigger is absent. It does not restate the projection
-tuple, duplicate an equivalent inverse relationship, or acquire FULL-only
-checklist fields or `N/A` entries. Add checklist detail only for a concrete
-approved task-local need or an independently applicable material authority.
+fields add purpose, inputs and outputs, producer or consumer direction when
+independently necessary and absent from the projection tuple, material write or
+side-effect owner, failure and cleanup behavior, focused verification
+expectations, and the explicit reason every FULL trigger is absent. It does not
+restate the projection tuple, duplicate an equivalent inverse relationship, or
+acquire FULL-only checklist fields or `N/A` entries. Add checklist detail only
+for a concrete approved task-local need or an independently applicable material
+authority.
 
 For `FULL` or a separately named material authority, include the complete
 task-local operation map when needed to make approved boundary behavior
