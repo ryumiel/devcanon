@@ -80,8 +80,8 @@ describe("PR-review result validation context", () => {
       expect(await readFile(workspace.countFile, "utf8")).toBe("scope\n");
 
       await writeFile(
-        path.join(workspace.root, ".gitattributes"),
-        "*.ts -text\n",
+        path.join(workspace.root, "README.md"),
+        "tracked dirty state\n",
       );
       await validatePrReviewResultCommandAuthority(input);
       expect(await readFile(workspace.countFile, "utf8")).toBe(
@@ -105,6 +105,69 @@ describe("PR-review result validation context", () => {
 
       expect(await readFile(workspace.countFile, "utf8")).toBe(
         "scope\nscope\n",
+      );
+    } finally {
+      await rm(workspace.root, { recursive: true, force: true });
+    }
+  });
+
+  it("streams large dirty-worktree evidence without rejecting valid reviews", async () => {
+    const workspace = await makeWorkspace();
+    try {
+      const context = await createPrReviewResultValidationContext({
+        worktreeRoot: workspace.root,
+      });
+      const input = authorityInput(workspace, context);
+      await validatePrReviewResultCommandAuthority(input);
+
+      await writeFile(
+        path.join(workspace.root, "README.md"),
+        `${"x".repeat(1_200_000)}\n`,
+      );
+      await validatePrReviewResultCommandAuthority(input);
+
+      expect(await readFile(workspace.countFile, "utf8")).toBe(
+        "scope\nscope\n",
+      );
+    } finally {
+      await rm(workspace.root, { recursive: true, force: true });
+    }
+  });
+
+  it("binds successful reuse to the resolved helper and helper environment", async () => {
+    const workspace = await makeWorkspace();
+    try {
+      const context = await createPrReviewResultValidationContext({
+        worktreeRoot: workspace.root,
+      });
+      const input = {
+        ...authorityInput(workspace, context),
+        helperEnv: {
+          COUNT_FILE: workspace.countFile,
+          PATH: process.env.PATH ?? "",
+        },
+      };
+      await validatePrReviewResultCommandAuthority(input);
+
+      const scopeHelper = path.join(
+        workspace.prReviewDir,
+        "scripts/prior-thread-artifacts.sh",
+      );
+      await writeFile(
+        scopeHelper,
+        `${await readFile(scopeHelper, "utf8")}# changed helper bytes\n`,
+      );
+      await validatePrReviewResultCommandAuthority(input);
+      await validatePrReviewResultCommandAuthority({
+        ...input,
+        helperEnv: {
+          ...input.helperEnv,
+          PATH: `${input.helperEnv.PATH}${path.delimiter}/changed`,
+        },
+      });
+
+      expect(await readFile(workspace.countFile, "utf8")).toBe(
+        "scope\nscope\nscope\n",
       );
     } finally {
       await rm(workspace.root, { recursive: true, force: true });

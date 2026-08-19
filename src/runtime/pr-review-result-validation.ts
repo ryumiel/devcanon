@@ -11,6 +11,7 @@ import {
 } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
+import { runGitStdoutSha256 } from "./git.js";
 import { requireDirectEphemeralChild } from "./paths.js";
 
 const execFileAsync = promisify(execFile);
@@ -45,7 +46,11 @@ export interface PrReviewResultCommandAuthorityEvidence {
 
 const validationContextCache = new WeakMap<
   PrReviewResultValidationContext,
-  { root: string; cache: Map<string, Promise<void>> }
+  {
+    root: string;
+    cache: Map<string, Promise<void>>;
+    rejectedAuthorityError?: unknown;
+  }
 >();
 
 /**
@@ -855,6 +860,10 @@ async function validateScopeAuthority(
   if (contextState.root !== (await realpath(process.cwd()))) {
     fail("validation context worktree root mismatch");
   }
+  if (contextState.rejectedAuthorityError !== undefined) {
+    throw contextState.rejectedAuthorityError;
+  }
+  const scopeHelper = await resolveScopeHelper(input);
   const cache = contextState.cache;
   const authorityFingerprint = await scopeAuthorityFingerprint({
     scopeDecisionFile,
@@ -864,6 +873,8 @@ async function validateScopeAuthority(
     priorThreadsFile: manifestPriorPath,
     expectedBaseRef,
     reviewHeadSha: input.reviewHeadSha,
+    scopeHelper,
+    helperEnv: input.helperEnv ?? {},
   });
   const existing = cache.get(authorityFingerprint);
   if (existing !== undefined) {
@@ -876,25 +887,33 @@ async function validateScopeAuthority(
     manifestPriorPath,
     providerEvidence.file,
     input,
+    scopeHelper,
   );
-  const stableAuthority = authority.then(async () => {
-    const currentProviderEvidence = await readProviderScopeEvidenceBinding(
-      scopeDecisionFile,
-      { repository: input.repository, prNumber: input.prNumber },
-    );
-    const currentFingerprint = await scopeAuthorityFingerprint({
-      scopeDecisionFile,
-      providerScopeEvidenceFile: currentProviderEvidence.file,
-      scopeDecisionSha256: await sha256File(scopeDecisionFile),
-      providerScopeEvidenceSha256: currentProviderEvidence.sha256,
-      priorThreadsFile: manifestPriorPath,
-      expectedBaseRef,
-      reviewHeadSha: input.reviewHeadSha,
+  const stableAuthority = authority
+    .then(async () => {
+      const currentProviderEvidence = await readProviderScopeEvidenceBinding(
+        scopeDecisionFile,
+        { repository: input.repository, prNumber: input.prNumber },
+      );
+      const currentFingerprint = await scopeAuthorityFingerprint({
+        scopeDecisionFile,
+        providerScopeEvidenceFile: currentProviderEvidence.file,
+        scopeDecisionSha256: await sha256File(scopeDecisionFile),
+        providerScopeEvidenceSha256: currentProviderEvidence.sha256,
+        priorThreadsFile: manifestPriorPath,
+        expectedBaseRef,
+        reviewHeadSha: input.reviewHeadSha,
+        scopeHelper,
+        helperEnv: input.helperEnv ?? {},
+      });
+      if (currentFingerprint !== authorityFingerprint) {
+        fail("scope/provider authority changed during validation");
+      }
+    })
+    .catch((error: unknown) => {
+      contextState.rejectedAuthorityError = error;
+      throw error;
     });
-    if (currentFingerprint !== authorityFingerprint) {
-      fail("scope/provider authority changed during validation");
-    }
-  });
   cache.set(authorityFingerprint, stableAuthority);
   await stableAuthority;
 }
@@ -905,8 +924,9 @@ async function validateScopeProviderAuthority(
   manifestPriorPath: string | null,
   providerScopeEvidenceFile: string,
   input: PrReviewResultCommandAuthorityInput,
+  resolvedScopeHelper?: string,
 ): Promise<void> {
-  const scopeHelper = await resolveScopeHelper(input);
+  const scopeHelper = resolvedScopeHelper ?? (await resolveScopeHelper(input));
   const baseEnv = input.helperEnv ?? {};
   const env = {
     ...baseEnv,
@@ -936,6 +956,8 @@ async function scopeAuthorityFingerprint(input: {
   priorThreadsFile: string | null;
   expectedBaseRef: string;
   reviewHeadSha: string;
+  scopeHelper: string;
+  helperEnv: Record<string, string>;
 }): Promise<string> {
   const physicalWorktree = await realpath(process.cwd());
   const priorThreadsSha256 =
@@ -946,6 +968,10 @@ async function scopeAuthorityFingerprint(input: {
     input.reviewHeadSha,
   );
   const dirtyWorktreeEvidenceSha256 = await dirtyWorktreeSha256();
+  const helperExecution = await scopeHelperExecutionEvidence(
+    input.scopeHelper,
+    input.helperEnv,
+  );
   const scopeDecisionIdentity = await realpath(input.scopeDecisionFile);
   const providerScopeEvidenceIdentity = await realpath(
     input.providerScopeEvidenceFile,
@@ -969,6 +995,7 @@ async function scopeAuthorityFingerprint(input: {
           : [priorThreadsIdentity, priorThreadsSha256],
         canonicalPriorThreads,
         dirtyWorktreeEvidenceSha256,
+        helperExecution,
       ]),
     )
     .digest("hex");
@@ -994,15 +1021,41 @@ async function canonicalPriorThreadsEvidence(
 
 async function dirtyWorktreeSha256(): Promise<string> {
   try {
-    const { stdout } = await execFileAsync(
-      "git",
+    const { stdoutSha256 } = await runGitStdoutSha256(
       ["diff", "--no-ext-diff", "--no-textconv", "--binary", "HEAD", "--"],
-      { encoding: "buffer" },
+      { cwd: process.cwd() },
     );
-    return createHash("sha256").update(stdout).digest("hex");
+    return stdoutSha256;
   } catch {
     fail("failed to determine worktree dirty state");
   }
+}
+
+async function scopeHelperExecutionEvidence(
+  scopeHelper: string,
+  helperEnv: Record<string, string>,
+): Promise<string> {
+  const authorityEnvironmentKeys = [
+    "PATH",
+    "HOME",
+    "TMPDIR",
+    "TEMP",
+    "TMP",
+    "SystemRoot",
+    "ComSpec",
+    "PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT",
+    "DEVCANON_RUNTIME_DIR",
+  ] as const;
+  const physicalHelper = await realpath(scopeHelper);
+  return createHash("sha256")
+    .update(
+      JSON.stringify([
+        physicalHelper,
+        await sha256File(physicalHelper),
+        authorityEnvironmentKeys.map((key) => [key, helperEnv[key] ?? null]),
+      ]),
+    )
+    .digest("hex");
 }
 
 async function validateScopePriorContext(
@@ -1276,7 +1329,11 @@ async function validateOptionalDigest(
 
 async function sha256File(file: string): Promise<string> {
   const hash = createHash("sha256");
-  hash.update(await readFile(path.join(process.cwd(), file)));
+  hash.update(
+    await readFile(
+      path.isAbsolute(file) ? file : path.join(process.cwd(), file),
+    ),
+  );
   return hash.digest("hex");
 }
 
