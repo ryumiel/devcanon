@@ -261,6 +261,39 @@ describe("PR-review result validation context", () => {
   it("validates a prior-bound scope decision once before reusing its proof", async () => {
     const workspace = await makeWorkspace({ withPriorThreads: true });
     try {
+      await configurePriorFollowup(workspace);
+      const priorThreadsFile = `.ephemeral/topic-${workspace.headSha}-prior-threads.json`;
+      await expect(
+        execFileAsync(
+          "bash",
+          [realPriorThreadAdapter, "validate-scope-decision"],
+          {
+            cwd: workspace.root,
+            env: {
+              ...process.env,
+              HEAD_SHA: workspace.headSha,
+              BASE_REF: workspace.baseSha,
+              SCOPE_DECISION_FILE: workspace.scopeFile,
+              PROVIDER_SCOPE_EVIDENCE_FILE: workspace.evidenceFile,
+              PRIOR_THREADS_FILE: priorThreadsFile,
+            },
+          },
+        ),
+      ).resolves.toMatchObject({ stdout: "" });
+      await expect(
+        execFileAsync(
+          "bash",
+          [realPriorThreadAdapter, "validate-prior-threads"],
+          {
+            cwd: workspace.root,
+            env: {
+              ...process.env,
+              HEAD_SHA: workspace.headSha,
+              PRIOR_THREADS_FILE: priorThreadsFile,
+            },
+          },
+        ),
+      ).resolves.toMatchObject({ stdout: "" });
       const validationContext = await createPrReviewResultValidationContext({
         worktreeRoot: workspace.root,
       });
@@ -275,7 +308,7 @@ describe("PR-review result validation context", () => {
         helperEnv: {
           COUNT_FILE: workspace.countFile,
           EXPECT_PRIOR_SCOPE: "1",
-          EXPECTED_PRIOR_THREADS_FILE: `.ephemeral/topic-${workspace.headSha}-prior-threads.json`,
+          EXPECTED_PRIOR_THREADS_FILE: priorThreadsFile,
         },
         validationContext,
       };
@@ -339,15 +372,15 @@ describe("PR-review result validation context", () => {
 
       await rewriteScopeDecision(workspace, (scope) => ({
         ...scope,
-        full_range: `${workspace.headSha}..${workspace.headSha}`,
-        selected_range: `${workspace.headSha}..${workspace.headSha}`,
+        full_range: `${workspace.alternateBaseSha}..${workspace.headSha}`,
+        selected_range: `${workspace.alternateBaseSha}..${workspace.headSha}`,
+        candidate_narrow_range: `${workspace.alternateBaseSha}..${workspace.headSha}`,
       }));
-      await rewriteProviderEvidence(workspace, (evidence) => ({
-        ...evidence,
-        provider_pr_diff_base_sha: workspace.headSha,
-        full_pr_diff_range: `${workspace.headSha}..${workspace.headSha}`,
-      }));
-      await rewriteHandoffBase(workspace, workspace.headSha);
+      await rewriteProviderEvidenceCanonical(
+        workspace,
+        workspace.alternateBaseSha,
+      );
+      await rewriteHandoffBase(workspace, workspace.alternateBaseSha);
       await validatePrReviewResultCommandAuthority(input);
       expect(await readFile(workspace.countFile, "utf8")).toBe(
         "scope\nscope\n",
@@ -393,6 +426,7 @@ describe("PR-review result validation context", () => {
 interface Workspace {
   root: string;
   baseSha: string;
+  alternateBaseSha: string;
   headSha: string;
   resultFile: string;
   handoffFile: string;
@@ -422,6 +456,10 @@ async function makeWorkspace(
   await writeFile(path.join(root, ".gitattributes"), "*.ts text\n");
   await execFileAsync("git", ["add", "."], { cwd: root });
   await execFileAsync("git", ["commit", "-m", "baseline"], { cwd: root });
+  const alternateBaseSha = await git(root, "rev-parse", "HEAD");
+  await execFileAsync("git", ["commit", "--allow-empty", "-m", "base marker"], {
+    cwd: root,
+  });
   const baseSha = await git(root, "rev-parse", "HEAD");
   await execFileAsync("git", ["switch", "-c", "topic"], { cwd: root });
   await writeFile(
@@ -595,6 +633,7 @@ async function makeWorkspace(
   return {
     root,
     baseSha,
+    alternateBaseSha,
     headSha,
     resultFile,
     handoffFile,
@@ -774,6 +813,108 @@ async function rewriteProviderEvidenceWhitespace(
   artifacts.provider_scope_evidence_sha256 = await sha256File(evidencePath);
   await writeJson(workspace.root, workspace.scopeFile, scope);
   await synchronizeBindings(workspace);
+}
+
+async function rewriteProviderEvidenceCanonical(
+  workspace: Workspace,
+  baseSha: string,
+): Promise<void> {
+  await writeJson(
+    workspace.root,
+    workspace.evidenceFile,
+    await canonicalProviderScopeEvidence(
+      workspace.root,
+      baseSha,
+      workspace.headSha,
+    ),
+  );
+  const scope = await readJson(workspace.root, workspace.scopeFile);
+  const artifacts = scope.artifacts as JsonObject;
+  artifacts.provider_scope_evidence_sha256 = await sha256File(
+    path.join(workspace.root, workspace.evidenceFile),
+  );
+  await writeJson(workspace.root, workspace.scopeFile, scope);
+  await synchronizeBindings(workspace);
+}
+
+async function configurePriorFollowup(workspace: Workspace): Promise<void> {
+  const priorThreadsFile = `.ephemeral/topic-${workspace.headSha}-prior-threads.json`;
+  await writeJson(
+    workspace.root,
+    priorThreadsFile,
+    priorThreadsEnvelope(workspace.headSha),
+  );
+  const scope = await readJson(workspace.root, workspace.scopeFile);
+  const narrowRange = `${workspace.baseSha}..HEAD`;
+  scope.mode = "follow-up";
+  scope.last_reviewed_sha = workspace.baseSha;
+  scope.is_followup_narrow = true;
+  scope.selected_range = narrowRange;
+  scope.candidate_narrow_range = narrowRange;
+  scope.escalation_reasons = [];
+  scope.prior_context = {
+    kind: "github-prior-threads",
+    path: priorThreadsFile,
+  };
+  scope.mechanical_facts = {
+    changed_file_count: 1,
+    followup_sha_usable: true,
+    mechanical_escalate_full: false,
+    mechanical_escalation_reason: "",
+  };
+  await writeJson(workspace.root, workspace.scopeFile, scope);
+  const handoff = await readJson(workspace.root, workspace.handoffFile);
+  handoff.follow_up = {
+    state: "follow-up-narrow",
+    last_reviewed_sha: workspace.baseSha,
+    is_followup_narrow: true,
+  };
+  handoff.active_diff_range = narrowRange;
+  await writeJson(workspace.root, workspace.handoffFile, handoff);
+  await synchronizeBindings(workspace);
+}
+
+function priorThreadsEnvelope(headSha: string): JsonObject {
+  return {
+    schema: "pr-review/prior-threads/v1",
+    provider: "github",
+    pr_number: 42,
+    head_sha: headSha,
+    threads: [
+      {
+        thread_id: "PRRT_kwDOExample",
+        is_resolved: false,
+        is_outdated: false,
+        path: "reviewed.ts",
+        line: 1,
+        original_line: 1,
+        start_line: null,
+        original_start_line: null,
+        classification: "actionable",
+        model_context: "include",
+        staleness_reason: "",
+        comments: [
+          {
+            author: "reviewer",
+            author_association: "MEMBER",
+            created_at: "2026-01-01T00:00:00Z",
+            updated_at: "2026-01-01T00:00:01Z",
+            body: "Please check this.",
+            is_bot: false,
+            minimized_reason: null,
+          },
+        ],
+        summary: "",
+      },
+    ],
+    dropped: [
+      {
+        thread_id: "PRRT_kwDODropped",
+        classification: "resolved",
+        reason: "Thread is resolved.",
+      },
+    ],
+  };
 }
 
 async function bindPriorThreads(workspace: Workspace): Promise<void> {
