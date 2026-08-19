@@ -44,13 +44,13 @@ those six dimensions applies, default to FULL. When any applies, retain every
 question below. For private, transient, same-controller mechanics with no
 durable schema consumer, use the LIGHTWEIGHT planning tier: record task-local
 purpose, inputs and outputs, producer or consumer direction when independently
-necessary and absent from the projection tuple, material write or side-effect
-owner, failure and cleanup, focused verification, and the explicit reason every
-FULL trigger is absent. The canonical Execution Projection records common
+necessary and absent from both the projection tuple and an applicable directly
+cited boundary row, material write or side-effect owner, failure and cleanup,
+focused verification, and the explicit reason every FULL trigger is absent. The canonical Execution Projection records common
 affected surfaces, normative owner/source, mode, task/no-code disposition, and
 proof allocation once for curated task context. If independently necessary
-producer or consumer direction is absent from that tuple, record it once in the
-compact task record; do not add an equivalent inverse producer-consumer edge. A
+producer or consumer direction is absent from both carriers, record it once in
+the compact task record; do not add an equivalent inverse producer-consumer edge. A
 distinct or independently necessary participant or execution fact remains
 required. That single explicit reason also collectively establishes that every
 remaining FULL-only question is
