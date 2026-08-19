@@ -977,7 +977,9 @@ async function scopeAuthorityFingerprint(input: {
 async function canonicalPriorThreadsEvidence(
   reviewHeadSha: string,
 ): Promise<{ path: string; sha256: string } | null> {
-  const file = `.ephemeral/${slugBranch(await currentBranchName())}-${reviewHeadSha}-prior-threads.json`;
+  const rawBranch = await currentBranchName();
+  const branchSlug = rawBranch === "HEAD" ? "detached" : slugBranch(rawBranch);
+  const file = `.ephemeral/${branchSlug}-${reviewHeadSha}-prior-threads.json`;
   const fileStat = await lstat(path.join(process.cwd(), file)).catch(
     () => null,
   );

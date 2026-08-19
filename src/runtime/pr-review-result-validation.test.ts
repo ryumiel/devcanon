@@ -23,12 +23,40 @@ import {
 
 const execFileAsync = promisify(execFile);
 const originalCwd = process.cwd();
+const realPriorThreadAdapter = path.join(
+  originalCwd,
+  "skills/pr-review/scripts/prior-thread-artifacts.sh",
+);
 
 afterEach(async () => {
   process.chdir(originalCwd);
 });
 
 describe("PR-review result validation context", () => {
+  it("accepts a canonical scope/provider fixture through the real adapter", async () => {
+    const workspace = await makeWorkspace();
+    try {
+      await expect(
+        execFileAsync(
+          "bash",
+          [realPriorThreadAdapter, "validate-scope-decision"],
+          {
+            cwd: workspace.root,
+            env: {
+              ...process.env,
+              HEAD_SHA: workspace.headSha,
+              BASE_REF: workspace.baseSha,
+              SCOPE_DECISION_FILE: workspace.scopeFile,
+              PROVIDER_SCOPE_EVIDENCE_FILE: workspace.evidenceFile,
+            },
+          },
+        ),
+      ).resolves.toMatchObject({ stdout: "" });
+    } finally {
+      await rm(workspace.root, { recursive: true, force: true });
+    }
+  });
+
   it("reuses one common scope/provider proof while revalidating permissive findings locally", async () => {
     const workspace = await makeWorkspace();
     try {
@@ -62,7 +90,7 @@ describe("PR-review result validation context", () => {
 
       await writeFile(
         path.join(workspace.root, workspace.findingsFile),
-        '{"schema":"play-review/findings/v2","findings":[{"id":"F1"}],"carry_forward":[]}\n',
+        '{"schema":"play-review/findings/v2","findings":[],"carry_forward":[],"incomplete_topical_routes":[{"route":"D7","disposition":"NEEDS_CONTEXT"}]}\n',
       );
       const publishedDigest = await sha256File(
         path.join(workspace.root, workspace.findingsFile),
@@ -166,6 +194,46 @@ describe("PR-review result validation context", () => {
     }
   });
 
+  it("uses the detached branch slug when canonical prior state appears", async () => {
+    const workspace = await makeWorkspace();
+    try {
+      await execFileAsync("git", ["checkout", "--detach", workspace.headSha], {
+        cwd: workspace.root,
+      });
+      const detachedFindings = `.ephemeral/detached-${workspace.headSha}-findings.json`;
+      await cp(
+        path.join(workspace.root, workspace.findingsFile),
+        path.join(workspace.root, detachedFindings),
+      );
+      const result = await readJson(workspace.root, workspace.resultFile);
+      result.findings_file = detachedFindings;
+      (result.digests as JsonObject).findings_sha256 = await sha256File(
+        path.join(workspace.root, detachedFindings),
+      );
+      await writeJson(workspace.root, workspace.resultFile, result);
+
+      const context = await createPrReviewResultValidationContext({
+        worktreeRoot: workspace.root,
+      });
+      const input = authorityInput(workspace, context);
+      await validatePrReviewResultCommandAuthority({
+        ...input,
+        resultFile: workspace.resultFile,
+      });
+      await writeJson(
+        workspace.root,
+        `.ephemeral/detached-${workspace.headSha}-prior-threads.json`,
+        { schema: "pr-review/prior-threads/v1" },
+      );
+      await validatePrReviewResultCommandAuthority(input);
+      expect(await readFile(workspace.countFile, "utf8")).toBe(
+        "scope\nscope\n",
+      );
+    } finally {
+      await rm(workspace.root, { recursive: true, force: true });
+    }
+  });
+
   it("retains a failed sequential authority proof", async () => {
     const workspace = await makeWorkspace();
     try {
@@ -182,10 +250,7 @@ describe("PR-review result validation context", () => {
       await expect(
         validatePrReviewResultCommandAuthority({
           ...rejected,
-          helperEnv: {
-            COUNT_FILE: workspace.countFile,
-            FAIL_SCOPE: "1",
-          },
+          helperEnv: { COUNT_FILE: workspace.countFile },
         }),
       ).rejects.toThrow("helper command failed");
     } finally {
@@ -382,22 +447,17 @@ async function makeWorkspace(
   const range = `${baseSha}..${headSha}`;
   const physicalRoot = await realpath(root);
 
-  await writeJson(root, evidenceFile, {
-    schema: "pr-review/provider-scope-evidence/v2",
-    provider: "github",
-    repository: "owner/repo",
-    pr_number: 42,
-    baseRefOid: baseSha,
-    headRefOid: headSha,
-    provider_pr_diff_base_sha: baseSha,
-    local_review_head_sha: headSha,
-    full_pr_diff_range: range,
-  });
+  await writeJson(
+    root,
+    evidenceFile,
+    await canonicalProviderScopeEvidence(root, baseSha, headSha),
+  );
   const evidenceDigest = await sha256File(path.join(root, evidenceFile));
   await writeJson(root, findingsFile, {
     schema: "play-review/findings/v2",
     findings: [],
     carry_forward: [],
+    incomplete_topical_routes: [],
   });
   if (priorThreadsFile !== null) {
     await writeJson(root, priorThreadsFile, {
@@ -406,18 +466,30 @@ async function makeWorkspace(
   }
   await writeFile(path.join(root, reviewBodyFile), "Review body.\n");
   await writeJson(root, scopeFile, {
+    schema: "pr-review/scope-decision/v1",
+    surface: "pr-review",
     head_sha: headSha,
     selection_reason: "Initial review.",
     selected_range: range,
     full_range: range,
     is_followup_narrow: false,
-    language_hints: [],
+    language_hints: ["ts"],
+    changed_files: ["reviewed.ts"],
+    escalation_reasons: ["not-followup"],
+    candidate_narrow_range: range,
     mode: "initial",
     last_reviewed_sha: null,
     prior_context:
       priorThreadsFile === null
         ? { kind: "none", path: null }
         : { kind: "github-prior-threads", path: priorThreadsFile },
+    mechanical_facts: {
+      changed_file_count: 1,
+      followup_sha_usable: false,
+      mechanical_escalate_full: true,
+      mechanical_escalation_reason: "not-followup",
+    },
+    semantic_decision: { checked: true, ambiguous: false, notes: "" },
     artifacts: {
       provider_scope_evidence_file: evidenceFile,
       provider_scope_evidence_sha256: evidenceDigest,
@@ -435,7 +507,7 @@ async function makeWorkspace(
     full_pr_diff_range: range,
     review_head_sha: headSha,
     mode: "github-post",
-    language_hints: [],
+    language_hints: ["ts"],
     follow_up: {
       state: "initial",
       last_reviewed_sha: null,
@@ -541,6 +613,110 @@ async function git(root: string, ...args: string[]): Promise<string> {
   return stdout.trim();
 }
 
+async function canonicalProviderScopeEvidence(
+  root: string,
+  baseSha: string,
+  headSha: string,
+): Promise<JsonObject> {
+  const range = `${baseSha}..${headSha}`;
+  const patch = await canonicalGitDiff(root, range, ["reviewed.ts"]);
+  const fullDiff = await canonicalGitDiff(root, range);
+  const entry = {
+    path: "reviewed.ts",
+    status: "added",
+    previous_path: null,
+    additions: 1,
+    deletions: 0,
+    changes: 1,
+    patch_sha256: createHash("sha256").update(patch).digest("hex"),
+    patch_available: true,
+  };
+  const fullDigest = createHash("sha256").update(fullDiff).digest("hex");
+  return {
+    schema: "pr-review/provider-scope-evidence/v2",
+    provider: "github",
+    repository: "owner/repo",
+    pr_number: 42,
+    baseRefOid: baseSha,
+    headRefOid: headSha,
+    provider_pr_diff_base_sha: baseSha,
+    local_review_head_sha: headSha,
+    full_pr_diff_range: range,
+    evidence_complete: true,
+    digest_provenance: {
+      schema: "pr-review/digest-provenance/v1",
+      provider_diff: "canonical-git-diff/v1",
+      local_diff: "canonical-git-diff/v1",
+      provider_patches: "canonical-git-diff/v1",
+      local_patches: "canonical-git-diff/v1",
+    },
+    provider_files: [entry],
+    local_files: [entry],
+    provider_diff_sha256: fullDigest,
+    local_diff_sha256: fullDigest,
+  };
+}
+
+async function canonicalGitDiff(
+  root: string,
+  range: string,
+  pathspecs: readonly string[] = [],
+): Promise<string> {
+  const { stdout } = await execFileAsync(
+    "git",
+    [
+      "-c",
+      "diff.noprefix=false",
+      "-c",
+      "diff.mnemonicPrefix=false",
+      "-c",
+      "diff.srcPrefix=a/",
+      "-c",
+      "diff.dstPrefix=b/",
+      "-c",
+      "diff.relative=false",
+      "-c",
+      "core.abbrev=40",
+      "-c",
+      "diff.abbrev=40",
+      "-c",
+      "diff.context=3",
+      "-c",
+      "diff.interHunkContext=0",
+      "-c",
+      "diff.algorithm=myers",
+      "-c",
+      "diff.renames=true",
+      "-c",
+      "diff.renameLimit=0",
+      "-c",
+      "diff.color=false",
+      "-c",
+      "color.ui=false",
+      "-c",
+      "core.quotePath=true",
+      "-c",
+      "diff.suppressBlankEmpty=false",
+      "-c",
+      "diff.indentHeuristic=false",
+      "diff",
+      "--no-ext-diff",
+      "--no-textconv",
+      "--no-color",
+      "--src-prefix=a/",
+      "--dst-prefix=b/",
+      "--find-renames",
+      "--diff-algorithm=myers",
+      "--unified=3",
+      "--inter-hunk-context=0",
+      range,
+      ...(pathspecs.length === 0 ? [] : ["--", ...pathspecs]),
+    ],
+    { cwd: root },
+  );
+  return stdout;
+}
+
 function authorityInput(
   workspace: Workspace,
   validationContext: Awaited<
@@ -603,7 +779,7 @@ async function rewriteProviderEvidenceWhitespace(
 async function bindPriorThreads(workspace: Workspace): Promise<void> {
   const priorThreadsFile = `.ephemeral/topic-${workspace.headSha}-prior-threads.json`;
   await writeJson(workspace.root, priorThreadsFile, {
-    schema: "github-prior-threads/v1",
+    schema: "pr-review/prior-threads/v1",
   });
   const scope = await readJson(workspace.root, workspace.scopeFile);
   scope.prior_context = {
