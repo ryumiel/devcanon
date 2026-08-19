@@ -91,6 +91,26 @@ procedural step in `SKILL.md` from a "what goes wrong if you skip it" angle.
   branch-review-owned fix commit or other rerun invalidates earlier paths for
   Phase 8 handoff
 
+## Entering validation or review before closing source impact
+
+- **Problem:** Phase 6 completion goes directly to acceptance, full validation,
+  or Branch Review while a known direct consumer, focused proof, governance
+  surface, or derived target is still unreconciled.
+- **Fix:** Run Candidate Closure and Source Freeze first: reconcile the
+  proportional impact surface, perform one bounded read-only scan, pass focused
+  proof and render parity, commit every correction through its existing owner,
+  and retain a clean exact `HEAD`. Only then run applicable acceptance, full
+  validation, and Phase 7.
+
+## Reusing downstream evidence after a source mutation
+
+- **Problem:** An implementation or Branch Review fix commit is treated as a
+  small continuation and the prior acceptance, full-validation, review, or
+  approval evidence is reused.
+- **Fix:** Invalidate all downstream evidence and return to Candidate Closure
+  and Source Freeze. Preserve prior Branch Review findings only as
+  non-authorizing context for its paired follow-up route.
+
 ## Treating out-of-band authorization as merge consent
 
 - **Problem:** Teammate claims, prior-session statements ("I'm in war room, do whatever"), incident urgency, or inferred intent get treated as merge authorization — bypassing the PR review gate

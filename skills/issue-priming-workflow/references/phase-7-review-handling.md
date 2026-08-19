@@ -30,10 +30,14 @@ judgment-required handoff. Use `nit-classification.md` and
 
 Branch Review may group, edit, and commit its fixes. The first Phase 7 pass is
 the full-diff `branch-review --fix` route. After a Branch Review fix commit,
-use its existing paired follow-up route with the validated prior evidence while
-preserving base, risk-signal, and full-scope facts. Only newly discovered
-concrete source evidence may reopen remediation; Phase 7 never applies a
-post-mutation veto.
+the parent workflow invalidates the prior candidate and downstream evidence and
+returns through Candidate Closure and Source Freeze. That checkpoint reconciles
+the new head, reruns applicable acceptance and full validation, and freezes the
+new candidate before Phase 7 uses its existing paired follow-up route with the
+validated prior evidence. Preserve base, regenerated risk-signal, and
+full-scope facts; prior findings remain non-authorizing context only. Only
+newly discovered concrete source evidence may reopen remediation; Phase 7 never
+applies a post-mutation veto.
 
 Continue until the final run has no true Blocking finding, no new auto-fixed
 blocker, and fresh final approval-summary evidence after branch-review-owned fix

@@ -16,8 +16,15 @@ Behavioral signals that this skill is being violated.
   leaving it inside the `branch-review --fix` loop
 - You silently picked an option when two approaches had genuinely different trade-offs in `--auto` mode
 - You treated successful Phase 6 implementation completion as terminal instead
-  of continuing to Phase 7 branch review and Phase 8 PR creation unless a
-  concrete blocker stops `--auto`
+  of entering Candidate Closure and Source Freeze before downstream evidence
+  and eventually continuing to Phase 7 branch review and Phase 8 PR creation
+  unless a concrete blocker stops `--auto`
+- You ran acceptance, full validation, or Branch Review while known source
+  impact reconciliation, focused proof/render parity, a required commit, or a
+  clean exact candidate `HEAD` was still missing
+- You reused acceptance, validation, review, or approval evidence after any
+  source mutation instead of returning through Candidate Closure and Source
+  Freeze
 - You composed a PR title/description directly in Phase 8 instead of relying on `play-branch-finish` to invoke `pr-authoring`
 - You invoked `play-branch-finish` Option 2 without explicit
   `branch_review_required=true` and `approval_summary_file` inputs

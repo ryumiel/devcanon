@@ -33,6 +33,8 @@ digraph priming {
   auto_check [label="--auto?", shape=diamond];
   plan [label="5. Plan\nWrite implementation plan"];
   implement [label="6. Implement\nplay-subagent-execution"];
+  candidate_closure [label="Candidate Closure and Source Freeze\nreconcile direct consumers + focused proof/render\nclean exact HEAD"];
+  downstream_evidence [label="Applicable acceptance + full validation\nonly for frozen candidate"];
   stop_interactive [label="STOP\nReturn to user"];
 
   worktree -> helpers -> immutable_guard -> gate -> decide;
@@ -63,8 +65,9 @@ digraph priming {
   referral_check -> auto_check [label="no"];
   auto_check -> plan [label="yes"];
   auto_check -> stop_interactive [label="no"];
-  plan -> implement -> review -> create_pr -> done;
+  plan -> implement -> candidate_closure -> downstream_evidence -> review -> create_pr -> done;
   review [label="7. Branch Review\nbranch-review --fix\n+ remaining nits"];
+  review -> candidate_closure [label="branch-review-owned fix commit\ninvalidate downstream evidence"];
   create_pr [label="8. Create PR\npush + gh pr create"];
   done [label="Complete\nPR ready for user", shape=doublecircle];
 }

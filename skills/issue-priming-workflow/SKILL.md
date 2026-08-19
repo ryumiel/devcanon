@@ -880,8 +880,42 @@ after branch-review-owned fix commits, satisfies the final-review guarantee.
 `play-subagent-execution` may execute trivial single-task plans inline (skip-dispatch path; see its [skip-dispatch policy](../play-subagent-execution/references/skip-dispatch-policy.md)). Phase 6 itself remains "invoke `play-subagent-execution`" — the inline optimization is internal to that skill. Four runtime guardrails (single-task, `**Mode:** mechanical`, structural task-contract gate satisfied, no TDD expectations or legacy TDD step-pair markers) plus one upstream precondition (the two-gate `play-planning` return from Phase 5) gate the path; the runtime guardrails are checked by the skill's controller after plan extraction. A missing or invalid required contract checklist stops before implementation rather than falling back to mechanical dispatch.
 
 Successful `play-subagent-execution` completion returns control to this owning
-workflow. Phase 6 completion is not terminal; continue to Phase 7 and Phase 8
-unless a concrete blocker stops `--auto`.
+workflow. Phase 6 completion is not terminal; it enters Candidate Closure and
+Source Freeze before any expensive downstream evidence.
+
+### Candidate Closure and Source Freeze
+
+The shared workflow owns one proportional **Candidate Closure and Source
+Freeze** checkpoint between Phase 6 and downstream evidence. It is the only
+route from completed implementation, or any later source mutation, to
+acceptance, full validation, or Phase 7. It records no artifact, schema,
+registry, cache, helper result, or persistent lifecycle state: the controller
+retains only the exact frozen candidate `HEAD` and readiness disposition.
+
+Before downstream evidence, reconcile the authoritative source owner and the
+directly affected skill, reference, prompt, test, governance, and generated
+Claude/Codex consumers. Run one bounded read-only impact scan for stale
+consumers or contradictory ownership; run focused behavioral or structural
+proof and fresh render parity appropriate to the changed surfaces; and route
+any correction to its existing mutation owner. Every in-scope correction must
+be committed. Require a clean worktree and retain the exact current `HEAD` as
+the frozen candidate. Missing authority, unresolved impact, ownership conflict,
+failed proof or render parity, a dirty worktree, or a missing/changing head
+fails closed before downstream evidence.
+
+Only the frozen candidate may enter downstream evidence. Run an
+issue- or repository-required acceptance scenario only when its authority
+requires it; absence of that authority skips the scenario. Then run the
+existing full repository suite with `pnpm run check`, verify the worktree and
+`HEAD` still match the frozen candidate, and invoke mandatory Phase 7 Branch
+Review. A command failure without source mutation follows its existing command
+policy; any corrective source edit invalidates the frozen candidate and all
+later acceptance, validation, review, and approval evidence, then returns here.
+Do not infer freshness from timestamps, prose claims, or prior-session state.
+
+Phase 6 implementers retain implementation and commit authority. Branch Review
+retains comparison, findings, approval-summary, and review-fix authority. This
+checkpoint owns only readiness ordering, invalidation, and continuation.
 
 ### Phase 7: Branch Review
 
@@ -897,10 +931,12 @@ same full base SHA range. When those risk signals carry
 Phase 7 still treats it as non-authoritative handoff data; branch-review
 validates it, escalates scrutiny when present, and passes only sanitized
 semantic notes into downstream reviewer context.
-If the run creates any branch-review-owned fix commit, regenerate risk signals
-for the new `HEAD`, then use the paired post-fix Branch Review skill route
-defined below with the same base-side rule; intentionally omit stale risk
-signals rather than forwarding them.
+If the run creates any branch-review-owned fix commit, treat the earlier frozen
+candidate and all downstream evidence as stale. Regenerate risk signals for the
+new `HEAD`, return through Candidate Closure and Source Freeze, rerun applicable
+acceptance and full validation for the new frozen candidate, then use the paired
+post-fix Branch Review skill route defined below with the same base-side rule.
+Intentionally omit stale risk signals rather than forwarding them.
 Continue until a run reports zero blocking findings auto-fixed and the
 remaining findings file contains no unresolved
 `severity: "Blocking"` entries except findings whose `critic` verdict is
@@ -932,11 +968,12 @@ run to Phase 8 via the helper-produced `-nits-pending.json` path. If the
 judgment-required set is empty, omit `nits_file`.
 
 The plain Branch Review route is first-run-only. After any branch-review-owned
-fix commit, restart Phase 7 by invoking the installed Branch Review skill on the
-new `HEAD` through its paired `--last-reviewed`/`--prior-findings` route,
-passing only risk signals regenerated for that `HEAD` when using
-`--risk-signals`. Before that rerun, capture the prior run's validated review
-head and post-fix findings envelope. Require its existing semantic scope
+fix commit, Candidate Closure and Source Freeze is the required re-entry point
+before Phase 7 invokes the installed Branch Review skill on the new `HEAD`
+through its paired `--last-reviewed`/`--prior-findings` route, passing only
+risk signals regenerated for that `HEAD` when using `--risk-signals`. Before
+that rerun, capture the prior run's validated review head and post-fix findings
+envelope as non-authorizing context. Require its existing semantic scope
 selection to retain full base...HEAD review while it forwards the validated
 prior findings to `play-review`. Phase 7 owns those inputs and orchestration,
 while Branch Review remains the comparison, fix, and commit owner. For the run

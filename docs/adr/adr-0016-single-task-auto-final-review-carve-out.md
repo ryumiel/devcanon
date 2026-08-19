@@ -13,9 +13,10 @@ ADR-0015 later added the skip-dispatch optimization for fully mechanical
 single-task plans while keeping that same final reviewer in place.
 
 In the `issue-priming-workflow --auto` path, Phase 6 invokes
-`play-subagent-execution` and Phase 7 immediately invokes
-`branch-review --fix` on the resulting diff. For single-task plans, that
-means two whole-diff review stages still run back-to-back:
+`play-subagent-execution`; Candidate Closure and Source Freeze then prepares
+one clean exact candidate before Phase 7 invokes `branch-review --fix` on the
+resulting diff. For single-task plans, that means two whole-diff review stages
+still run for the same frozen candidate:
 
 1. `play-subagent-execution`'s final whole-implementation reviewer
 2. `branch-review --fix`
@@ -35,8 +36,8 @@ When all of the following hold:
    `issue-priming-workflow --auto` state
 2. the invocation carries a validated `issue-priming/auto-handoff/v1` artifact
    from that same parent state
-3. that parent state guarantees downstream `branch-review --fix` is the
-   mandatory next step
+3. that parent state guarantees Candidate Closure and Source Freeze followed by
+   downstream `branch-review --fix` as the mandatory route
 4. the extracted plan has exactly one task
 
 then `play-subagent-execution` skips its final whole-implementation
