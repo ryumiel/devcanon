@@ -782,6 +782,34 @@ async function copyInstalledPhase5AuditLayout(root: string) {
   return { manifestScript, leaseScript };
 }
 
+async function instrumentInstalledScopeValidator(
+  root: string,
+  scopeValidationLog: string,
+): Promise<void> {
+  const scopeHelper = path.join(
+    root,
+    "pr-review/scripts/prior-thread-artifacts.sh",
+  );
+  const realScopeHelper = path.join(
+    root,
+    "pr-review/scripts/prior-thread-artifacts-real.sh",
+  );
+  await rename(scopeHelper, realScopeHelper);
+  await writeFile(
+    scopeHelper,
+    [
+      "#!/usr/bin/env bash",
+      "set -euo pipefail",
+      'if [[ "${1:-}" = "validate-scope-decision" ]]; then',
+      `  printf 'validate-scope-decision\\n' >> ${JSON.stringify(scopeValidationLog)}`,
+      "fi",
+      `exec bash ${JSON.stringify(realScopeHelper)} "$@"`,
+      "",
+    ].join("\n"),
+  );
+  await chmod(scopeHelper, 0o755);
+}
+
 function phase5AuditEnv(workspace: Phase5AuditWorkspace) {
   return {
     REPOSITORY: "owner/repo",
@@ -1693,6 +1721,58 @@ describe("pr-review manifest helper", () => {
         if (workspace !== undefined) {
           await cleanupPhase5AuditWorkspace(workspace);
         }
+      }
+    },
+    phase5InstalledLayoutTestTimeout,
+  );
+
+  it(
+    "runs Phase 6 preview validation as a fresh operation after Phase 5 preview validation",
+    async () => {
+      const workspace = await makePhase5AuditWorkspace();
+      const scopeValidationLog = path.join(
+        workspace.installedRoot,
+        "scope-validation.log",
+      );
+      try {
+        await instrumentInstalledScopeValidator(
+          workspace.installedRoot,
+          scopeValidationLog,
+        );
+
+        await expect(
+          runPhase5Helper(
+            workspace.worktree,
+            "read-result-for-preview",
+            phase5AuditEnv(workspace),
+            workspace.manifestScript,
+          ),
+        ).resolves.toMatchObject({
+          stdout: expect.stringContaining(
+            '"schema": "pr-review/result-preview/v1"',
+          ),
+        });
+        await expect(readFile(scopeValidationLog, "utf8")).resolves.toBe(
+          "validate-scope-decision\n",
+        );
+
+        await expect(
+          runPhase5Helper(
+            workspace.worktree,
+            "read-result-for-preview",
+            phase5AuditEnv(workspace),
+            workspace.manifestScript,
+          ),
+        ).resolves.toMatchObject({
+          stdout: expect.stringContaining(
+            '"schema": "pr-review/result-preview/v1"',
+          ),
+        });
+        await expect(readFile(scopeValidationLog, "utf8")).resolves.toBe(
+          "validate-scope-decision\nvalidate-scope-decision\n",
+        );
+      } finally {
+        await cleanupPhase5AuditWorkspace(workspace);
       }
     },
     phase5InstalledLayoutTestTimeout,
