@@ -591,10 +591,10 @@ auto-fix loop, `branch-review --fix --risk-signals <path>`. Detached issue-base
 artifacts whose reviewed range is `<full-base-sha>...HEAD` must pass that same
 full base SHA as branch-review's positional base:
 `branch-review --risk-signals <path> <full-base-sha>` or, in an auto-fix loop,
-`branch-review --fix --risk-signals <path> <full-base-sha>`. If a branch-review
-run or branch-review-owned fix commit changes `HEAD`, regenerate risk signals
-for the new `HEAD` before rerunning branch review, or omit the stale
-risk-signals path intentionally.
+`branch-review --fix --risk-signals <path> <full-base-sha>`. If any later
+source mutation, including a branch-review-owned fix commit, changes `HEAD`,
+regenerate risk signals for the new `HEAD` before the next branch review, or
+omit the stale risk-signals path intentionally.
 
 Direct/manual terminal handoff otherwise remains unchanged. This skill did not
 run branch-level review; run `branch-review` before `play-branch-finish` when

@@ -922,12 +922,14 @@ checkpoint owns only readiness ordering, invalidation, and continuation.
 
 Invoke the installed Branch Review skill in `--fix` mode to review the
 implementation before creating a PR. The first Phase 7 invocation keeps the
-existing full-diff route. If Phase 6 emitted `Risk signals written to <path>`,
-include its existing `--risk-signals <path>` input in that skill briefing for
-default-base artifacts. If Phase 6 emitted detached issue-base risk signals
-whose reviewed range is `<full-base-sha>...HEAD`, include that same input and
-`<full-base-sha>` base in the skill briefing so Branch Review validates the
-same full base SHA range. When those risk signals carry
+existing full-diff route. Include a Phase 6 `Risk signals written to <path>`
+input only when its reviewed head and full range still match the frozen
+candidate; otherwise regenerate it through the existing producer for that
+candidate or intentionally omit the stale path. For current default-base
+artifacts, include `--risk-signals <path>` in that skill briefing. For current
+detached issue-base risk signals whose reviewed range is
+`<full-base-sha>...HEAD`, include that same input and `<full-base-sha>` base so
+Branch Review validates the same full base SHA range. When those risk signals carry
 `contract_example_discipline` context from an auto single-task executor run,
 Phase 7 still treats it as non-authoritative handoff data; branch-review
 validates it, escalates scrutiny when present, and passes only sanitized
