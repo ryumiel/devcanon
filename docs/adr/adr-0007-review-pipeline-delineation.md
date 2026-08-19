@@ -34,7 +34,10 @@ chains two reviewers on the same diff:
    executor-computed per-task route on each multi-task plan task. ADR-0018
    later narrows the original two-stage route to hard-risk and fail-closed
    cases.
-2. `branch-review --fix` (`issue-priming-workflow` Phase 7) runs a
+2. Candidate Closure and Source Freeze closes the proportional source-impact
+   surface, passes focused proof/render parity, and retains a clean exact
+   candidate `HEAD` before expensive downstream evidence.
+3. `branch-review --fix` (`issue-priming-workflow` Phase 7) runs a
    whole-branch review (correctness, data-safety, dynamic
    language/architecture/docs agents, and a critic verification pass) on
    `git diff <base>...HEAD` where `<base>` is the repository's default
@@ -78,10 +81,12 @@ When the final whole-implementation code-quality reviewer runs, it uses the
 same `code-quality-reviewer` agent, so the floor raise applies to that
 dispatch too — see Consequences for the cost rationale.
 
-This change is internal to `play-subagent-execution`. The
-`issue-priming-workflow` Phase 6 → Phase 7 call sequence (driven by
-`github-issue-priming --auto` and `linear-issue-priming --auto`) is
-unchanged.
+This change is internal to `play-subagent-execution`. The shared
+`issue-priming-workflow` owns the Phase 6 → Candidate Closure and Source Freeze
+→ downstream evidence → Phase 7 sequence (driven by
+`github-issue-priming --auto` and `linear-issue-priming --auto`). The
+checkpoint changes no reviewer or mutation ownership; it prevents incomplete
+source impact from entering expensive evidence gates.
 
 Branch-level review stays upstream of branch finish. Review-required caller
 workflows run branch review before handing off to branch finish, and branch

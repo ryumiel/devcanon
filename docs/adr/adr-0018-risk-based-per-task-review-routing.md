@@ -61,13 +61,14 @@ handoff artifact plus controller-local parent state. `none-final-only` is
 allowed for low-risk tasks under the same contract and hard-risk conditions.
 The contract is verified only when `issue-priming-workflow --auto` owns the
 Phase 6 invocation, writes an `issue-priming/auto-handoff/v1` audit artifact
-that matches the current plan path and stable invocation head, and Phase 7
-immediately runs `branch-review --fix` on the full branch diff, rerunning after
-any branch-review-owned fix commit until a run reports zero blocking findings
-auto-fixed, no unresolved remaining `Blocking` findings except findings whose
-`critic` verdict is `INVALID` or `DOWNGRADE`, has a captured final
-approval-summary notice path, and carries fresh final approval-summary evidence
-after branch-review-owned fix commits. `INVALID` findings count as neither
+that matches the current plan path and stable invocation head, and the parent
+then runs Candidate Closure and Source Freeze before Phase 7 runs
+`branch-review --fix` on the full branch diff. Any source mutation re-enters
+candidate closure before the next review. The final run reports zero blocking
+findings auto-fixed, no unresolved remaining `Blocking` findings except
+findings whose `critic` verdict is `INVALID` or `DOWNGRADE`, has a captured
+final approval-summary notice path, and carries fresh final approval-summary
+evidence after branch-review-owned fix commits. `INVALID` findings count as neither
 blockers nor postable nits for this continuation rule. This covers the GitHub
 and Linear
 entrypoints because both delegate to the shared issue-priming workflow before

@@ -12,8 +12,9 @@ review route: hard-risk and unclear tasks run `spec-and-quality`, medium-risk
 tasks may run `spec-only`, and low-risk tasks may use `none-final-only` only
 on the verified shared `issue-priming-workflow --auto` Phase 6 path with
 controller-local parent state and a valid `issue-priming/auto-handoff/v1`
-artifact, where Phase 7 reruns
-`branch-review --fix` after any branch-review-owned fix commit until the
+artifact, where a branch-review-owned fix commit invalidates downstream evidence
+and returns through Candidate Closure and Source Freeze before the paired Phase
+7 rerun of `branch-review --fix`, until the
 final run reports zero blocking findings auto-fixed, no unresolved remaining
 `Blocking` findings except findings whose `critic` verdict is `INVALID` or
 `DOWNGRADE`, has a captured final approval-summary notice path, and provides
@@ -29,9 +30,10 @@ owning-workflow or explicit operator authority allows auto-committing fixes;
 otherwise hand off to branch-review without auto-fix authority, wait for review
 approval evidence, or invoke `play-branch-finish` only when branch-level review
 is not required.
-On the `issue-priming-workflow --auto` single-task path, the flow instead
-returns to the caller after task completion so Phase 7 `branch-review --fix`
-becomes the whole-diff gate.
+On the `issue-priming-workflow --auto` single-task path, the flow returns to
+the caller after task completion for Candidate Closure and Source Freeze, then
+applicable downstream evidence, before Phase 7 `branch-review --fix` becomes
+the whole-diff gate.
 
 ```
 You: I'm using Subagent-Driven Development to execute this plan.
@@ -283,12 +285,14 @@ guard-integrity terminal and leaves source visible.
 [Return to owning caller]
 `play-subagent-execution` returns to `issue-priming-workflow --auto`.
 
-[Caller runs final whole-diff gate]
-`issue-priming-workflow` Phase 7 runs `branch-review --fix` until a run
+[Caller closes the candidate, then runs the final whole-diff gate]
+`issue-priming-workflow` completes Candidate Closure and Source Freeze plus
+applicable downstream evidence, then Phase 7 runs `branch-review --fix` until a run
 reports zero blocking findings auto-fixed and captures that final run's
 approval-summary notice path. If a branch-review-owned fix commit lands after
-that review, Phase 7 reruns on the new `HEAD` and captures fresh final
-approval-summary evidence.
+that review, it invalidates downstream evidence and returns through Candidate
+Closure and Source Freeze before the paired Phase 7 rerun on the new `HEAD`,
+which captures fresh final approval-summary evidence.
 Branch review: no unresolved remaining `Blocking` findings except `INVALID` or
 `DOWNGRADE` critic verdicts.
 

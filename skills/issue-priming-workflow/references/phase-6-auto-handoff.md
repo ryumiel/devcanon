@@ -49,21 +49,26 @@ first; close only when automatic close is supported, otherwise record
 
 The narrow carve-out applies only to a verified auto parent, matching handoff,
 and exactly one extracted task. It skips only the executor's final
-whole-implementation code-quality reviewer because this workflow immediately
-requires Phase 7 whole-branch review. Direct or manual executor calls do not
-receive it. Sanitized contract-example context may be included in terminal risk
-signals, but never replaces Phase 7 review.
+whole-implementation code-quality reviewer because this workflow requires
+Candidate Closure and Source Freeze followed by mandatory Phase 7 whole-branch
+review. Direct or manual executor calls do not receive it. Sanitized
+contract-example context may be included in terminal risk signals, but never
+replaces Phase 7 review.
 
 ## Phase 7 Final-Review Guarantee
 
-Successful execution returns here for Phase 7 and then Phase 8 unless blocked.
-Phase 7 runs `branch-review --fix` on the full branch diff and reruns after any
-branch-review-owned fix commit. Phase 8 starts only after final evidence shows
-zero blocking findings auto-fixed, no unresolved blocking finding except
-`INVALID` or `DOWNGRADE`, and fresh final approval-summary evidence.
+Successful execution returns here for Candidate Closure and Source Freeze, then
+applicable acceptance, full validation, Phase 7, and Phase 8 unless blocked.
+Phase 7 runs `branch-review --fix` on the full branch diff. A
+branch-review-owned fix commit invalidates downstream evidence and returns
+through candidate closure before the paired follow-up review. Phase 8 starts
+only after final evidence shows zero blocking findings auto-fixed, no unresolved
+blocking finding except `INVALID` or `DOWNGRADE`, and fresh final
+approval-summary evidence for the current frozen candidate.
 
 ## Failure Modes
 
 Missing plan evidence or writer failure stops Phase 6. An invalid handoff or
 copied direct/manual handoff prose uses `spec-and-quality`. Successful executor
-completion returns to the mandatory Phase 7 final review.
+completion returns to the parent-owned candidate-closure sequence and mandatory
+Phase 7 final review.

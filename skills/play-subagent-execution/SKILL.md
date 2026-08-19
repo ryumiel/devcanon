@@ -36,8 +36,9 @@ post-selection disposition, freshness, invalidation, and incomplete or
 terminal outcomes. Reduced
 per-task routes require a mandatory final whole-diff gate. Single-task plans
 skip per-task review and use the final whole-implementation reviewer plus
-direct/manual branch-level review status resolution, or downstream
-`branch-review --fix` on the `issue-priming-workflow --auto` path; bounded fast
+direct/manual branch-level review status resolution, or parent-owned Candidate
+Closure and Source Freeze followed by downstream `branch-review --fix` on the
+`issue-priming-workflow --auto` path; bounded fast
 paths for single-task and mechanical cases reduce specific overhead without
 changing the review contract.
 
@@ -496,8 +497,9 @@ fix-loop freshness, and final incomplete or terminal outcomes.
 Single-task per-task review selection is part of the initial route contract.
 Use the [review-routing policy](references/review-routing-policy.md) for route
 selection and verified auto-handoff eligibility, including proof that the run
-came from `issue-priming-workflow --auto` and identifies
-`branch-review --fix` as the mandatory next step. Use the
+came from `issue-priming-workflow --auto` and identifies Candidate Closure and
+Source Freeze followed by `branch-review --fix` as the mandatory downstream
+route. Use the
 [lifecycle/status policy](references/lifecycle-status-policy.md) for task
 completion, exact D16 skip eligibility, final-review timing, and returned
 terminal disposition. This index does not restate those transitions.
@@ -589,10 +591,10 @@ auto-fix loop, `branch-review --fix --risk-signals <path>`. Detached issue-base
 artifacts whose reviewed range is `<full-base-sha>...HEAD` must pass that same
 full base SHA as branch-review's positional base:
 `branch-review --risk-signals <path> <full-base-sha>` or, in an auto-fix loop,
-`branch-review --fix --risk-signals <path> <full-base-sha>`. If a branch-review
-run or branch-review-owned fix commit changes `HEAD`, regenerate risk signals
-for the new `HEAD` before rerunning branch review, or omit the stale
-risk-signals path intentionally.
+`branch-review --fix --risk-signals <path> <full-base-sha>`. If any later
+source mutation, including a branch-review-owned fix commit, changes `HEAD`,
+regenerate risk signals for the new `HEAD` before the next branch review, or
+omit the stale risk-signals path intentionally.
 
 Direct/manual terminal handoff otherwise remains unchanged. This skill did not
 run branch-level review; run `branch-review` before `play-branch-finish` when
