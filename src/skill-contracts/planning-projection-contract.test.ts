@@ -18,15 +18,23 @@ const directCitationForms = [
   "boundary row <stable row ID>",
 ] as const;
 
+const executionPromptPaths = [
+  "skills/play-subagent-execution/references/implementer-prompt.md",
+  "skills/play-subagent-execution/references/executor-prompt.md",
+  "skills/play-subagent-execution/references/spec-reviewer-prompt.md",
+] as const;
+
 function numberedFieldLabels(section: string): string[] {
   return [...section.matchAll(/^\d+\. `([^`]+)`:/gm)].map((match) => match[1]);
 }
 
+function citationTokens(markdown: string): string[] {
+  return [...markdown.matchAll(/`([^`\r\n]+)`/g)].map((match) => match[1]);
+}
+
 function citationForms(markdown: string): string[] {
   const knownForms = new Set<string>(directCitationForms);
-  return [...markdown.matchAll(/`([^`\r\n]+)`/g)]
-    .map((match) => match[1])
-    .filter((token) => knownForms.has(token));
+  return citationTokens(markdown).filter((token) => knownForms.has(token));
 }
 
 describe("play-planning execution projection contract", () => {
@@ -81,6 +89,36 @@ describe("play-planning execution projection contract", () => {
 
     for (const invalidForm of invalidForms) {
       expect(citationForms(invalidForm)).toEqual([]);
+    }
+  });
+
+  it("keeps compact direction available to every execution prompt consumer", async () => {
+    const prompts = await Promise.all(executionPromptPaths.map(readRepoFile));
+
+    for (const prompt of prompts) {
+      expect(prompt).toContain("an applicable directly cited boundary row");
+      expect(prompt).toContain(
+        "supply independently necessary producer or consumer direction absent from",
+      );
+    }
+  });
+
+  it("rejects forbidden citation forms in actual contract sources", async () => {
+    const sources = await Promise.all([
+      readRepoFile("skills/play-planning/SKILL.md"),
+      readRepoFile("skills/play-planning/references/planning-criteria.md"),
+      readRepoFile("skills/play-subagent-execution/SKILL.md"),
+    ]);
+    const invalidForms = [
+      "<Entry ID>",
+      "supporting-owner supplement <stable row ID>",
+      "boundary row <Entry ID>",
+    ];
+
+    for (const source of sources) {
+      for (const invalidForm of invalidForms) {
+        expect(citationTokens(source)).not.toContain(invalidForm);
+      }
     }
   });
 });
