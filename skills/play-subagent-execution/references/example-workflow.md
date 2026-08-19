@@ -30,9 +30,10 @@ owning-workflow or explicit operator authority allows auto-committing fixes;
 otherwise hand off to branch-review without auto-fix authority, wait for review
 approval evidence, or invoke `play-branch-finish` only when branch-level review
 is not required.
-On the `issue-priming-workflow --auto` single-task path, the flow instead
-returns to the caller after task completion so Phase 7 `branch-review --fix`
-becomes the whole-diff gate.
+On the `issue-priming-workflow --auto` single-task path, the flow returns to
+the caller after task completion for Candidate Closure and Source Freeze, then
+applicable downstream evidence, before Phase 7 `branch-review --fix` becomes
+the whole-diff gate.
 
 ```
 You: I'm using Subagent-Driven Development to execute this plan.
@@ -284,8 +285,9 @@ guard-integrity terminal and leaves source visible.
 [Return to owning caller]
 `play-subagent-execution` returns to `issue-priming-workflow --auto`.
 
-[Caller runs final whole-diff gate]
-`issue-priming-workflow` Phase 7 runs `branch-review --fix` until a run
+[Caller closes the candidate, then runs the final whole-diff gate]
+`issue-priming-workflow` completes Candidate Closure and Source Freeze plus
+applicable downstream evidence, then Phase 7 runs `branch-review --fix` until a run
 reports zero blocking findings auto-fixed and captures that final run's
 approval-summary notice path. If a branch-review-owned fix commit lands after
 that review, it invalidates downstream evidence and returns through Candidate
