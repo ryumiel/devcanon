@@ -248,12 +248,15 @@ supporting-owner partitions and conflict precedence when they exist; do not
 repeat the common tuple in another topology table. Represent each approved
 relationship once for its assigned task's curated execution context. Carry
 independently necessary producer or consumer direction in the projection tuple
-when it identifies that fact, or otherwise in the tier-specific task or boundary
-record. Add an inverse producer, consumer, or reference entry only when it adds
+when it identifies that fact. Otherwise carry it exactly once in the applicable
+directly cited boundary row, or in the tier-specific task record when no
+distinct boundary row applies. Other task-local structures consume that carrier
+without repeating it. Add an inverse producer, consumer, or reference entry only when it adds
 a different owner/source, mode, implementation disposition, proof boundary, or
 independently necessary execution fact. `LIGHTWEIGHT` adds only
 its independently necessary compact task-local facts, including producer or
-consumer direction when the selected projection tuple does not identify it. A
+consumer direction when neither the selected projection tuple nor an applicable
+directly cited boundary row identifies it. A
 family-local authority requires additional complete or necessary topology only
 when it explicitly governs the ownership-topology mapping. Known omissions and
 independently triggered obligations remain blocking at every tier. Every changed behavior
@@ -419,11 +422,12 @@ canonical criteria permit it>
 For `LIGHTWEIGHT` only:
 
 **Compact contract:** <purpose, inputs and outputs, producer or consumer
-direction when independently necessary and absent from the selected projection
-tuple, material write or side-effect owner, failure and cleanup behavior,
+direction when independently necessary and absent from both the selected
+projection tuple and an applicable directly cited boundary row, material write
+or side-effect owner, failure and cleanup behavior,
 focused verification expectations, and the explicit task-specific reason every
 FULL trigger is absent; consume selected projection entries for owner/source,
-participants, direct relationships, and proof allocation without restating
+participants, common relationships, and proof allocation without restating
 them>
 
 For `NO-TRIGGER` only:
@@ -502,7 +506,8 @@ when it explicitly governs the contract-heavy table family. A valid
 `LIGHTWEIGHT` task consumes selected projection entries for every actual known
 participant and independently necessary execution relationship and adds only
 its closed compact task-local I/O fields, including producer or consumer
-direction when independently necessary and absent from the projection tuple.
+direction when independently necessary and absent from both the projection
+tuple and an applicable directly cited boundary row.
 The assembled context makes the task executable without prescribing concrete
 code, test bodies, shell recipes, helper names, line edits, or exact command
 sequences. The complete shape retains validation-before-write ordering when
@@ -677,7 +682,8 @@ Review in this order:
 
 For `FULL`, also confirm that every ownership relationship is exhaustively
 covered by one projection entry plus any independently necessary direction in
-its tier-specific record, or by entries that add distinct execution facts,
+exactly one tier-specific task or directly cited boundary record, or by entries
+that add distinct execution facts,
 every supporting-owner supplement references the applicable Entry IDs, and no
 task asks an implementer to choose an owner, supporting partition, consumption
 mode, precedence, or proof owner. Do not require an equivalent inverse

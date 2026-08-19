@@ -50,11 +50,14 @@ Task tool (general-purpose):
       authority, affected execution consumers/generated outputs, must-preserve
       and required behavior, spec/procedure work, risk surfaces, and verification
       expectations, with every field populated or a task-specific `N/A`.
-    - For reviewed `LIGHTWEIGHT`, selected projection entries supply
-      owner/source, participants, direct relationships, and proof allocation.
-      The compact task-local fields supply purpose, inputs and outputs, material
-      write or side-effect owner, failure and cleanup behavior, focused
-      verification expectations, and why every FULL trigger is absent.
+    - For reviewed `LIGHTWEIGHT`, selected projection entries supply the common
+      owner/source, participants, relationships, and proof allocation. The
+      compact task-local fields or an applicable directly cited boundary row
+      supply independently necessary producer or consumer direction absent from
+      the projection tuple. The compact task-local fields also supply purpose,
+      inputs and outputs, material write or side-effect owner, failure and
+      cleanup behavior, focused verification expectations, and why every FULL
+      trigger is absent.
       `LIGHTWEIGHT` does not require intentionally absent FULL-only
       fields or `N/A` entries and does not add FULL-only matrices, spec or risk
       rows, or `N/A` placeholders. Specifically authorized applicable extra
@@ -120,8 +123,10 @@ Task tool (general-purpose):
       obligation already present in curated context.
     - Verify owner and authority against the source files, docs, ADRs, schemas,
       renderers, prompts, or policies that actually own the behavior. Verify the
-      participants and direct relationships already present in the selected
-      projection entries. A contradiction that creates a concrete task-local
+      participants and common relationships present in the selected projection
+      entries, plus independently necessary producer or consumer direction from
+      the tier-specific task context or an applicable directly cited boundary
+      row. A contradiction that creates a concrete task-local
       specification defect is in remit. Do not assess, originate, or route
       plan-wide projection completeness; D5 owns that review on reviewed plans.
     - For `FULL`, verify all must-preserve, behavior, spec/procedure, risk, and

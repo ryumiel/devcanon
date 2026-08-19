@@ -42,6 +42,22 @@ describe("play-planning execution projection contract", () => {
     expect(numberedFieldLabels(projection)).toEqual(projectionFields);
   });
 
+  it("rejects drift in the source-owned projection field structure", async () => {
+    const criteria = await readRepoFile(
+      "skills/play-planning/references/planning-criteria.md",
+    );
+    const projection = getMarkdownSection(
+      criteria,
+      "Contract and traceability criteria",
+    );
+    const missingAuthority = projection.replace(
+      "3. `Owner/source`:",
+      "3. `Reference`:",
+    );
+
+    expect(numberedFieldLabels(missingAuthority)).not.toEqual(projectionFields);
+  });
+
   it("shares distinct supplement and boundary-row citation forms with the execution consumer", async () => {
     const [skill, criteria, execution] = await Promise.all([
       readRepoFile("skills/play-planning/SKILL.md"),
@@ -53,6 +69,18 @@ describe("play-planning execution projection contract", () => {
       expect(new Set(citationForms(source))).toEqual(
         new Set(directCitationForms),
       );
+    }
+  });
+
+  it("rejects unlabeled or cross-kind citation syntax", () => {
+    const invalidForms = [
+      "`<Entry ID>`",
+      "`supporting-owner supplement <stable row ID>`",
+      "`boundary row <Entry ID>`",
+    ];
+
+    for (const invalidForm of invalidForms) {
+      expect(citationForms(invalidForm)).toEqual([]);
     }
   });
 });

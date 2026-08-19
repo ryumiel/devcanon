@@ -133,9 +133,10 @@ owner/source, affected participation, implementation membership, and proof
 allocation without restatement in the task. `FULL` requires a structurally
 complete task-local checklist for the remaining execution facts; `LIGHTWEIGHT`
 requires its remaining task-local purpose, inputs and outputs, producer or
-consumer direction when independently necessary and absent from the selected
-projection tuple, material write or side-effect owner, failure and cleanup
-behavior, and explicit reason every FULL trigger is absent. Selected projection
+consumer direction when independently necessary and absent from both the
+selected projection tuple and an applicable directly cited boundary row,
+material write or side-effect owner, failure and cleanup behavior, and explicit
+reason every FULL trigger is absent. Selected projection
 entries are the only common participant and relationship representation. For
 reviewed plans, D5 owns whether they cover every actual participant and direct
 relationship, including guarded-inline D13 when it is an actual participant or
