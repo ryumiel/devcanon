@@ -146,19 +146,19 @@ jobs:
         include:
           - name: Ubuntu unit
             os: ubuntu-latest
-            test-command: timeout 75s pnpm run test:unit
+            test-command: timeout --kill-after=5s 75s pnpm run test:unit
             timeout_minutes: 3
           - name: Ubuntu POSIX integration
             os: ubuntu-latest
-            test-command: timeout 75s pnpm run test:integration:posix
+            test-command: timeout --kill-after=5s 75s pnpm run test:integration:posix
             timeout_minutes: 3
           - name: Ubuntu render/install integration
             os: ubuntu-latest
-            test-command: timeout 75s pnpm run test:integration:render-install
+            test-command: timeout --kill-after=5s 75s pnpm run test:integration:render-install
             timeout_minutes: 3
           - name: Ubuntu Windows-helper integration
             os: ubuntu-latest
-            test-command: timeout 75s pnpm run test:integration:windows
+            test-command: timeout --kill-after=5s 75s pnpm run test:integration:windows
             timeout_minutes: 3
           - name: Windows PR-review behavior
             os: windows-latest

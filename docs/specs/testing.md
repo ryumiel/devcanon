@@ -14,6 +14,10 @@ and source-immutability behaviors; its Ubuntu unit contract proves that exact
 lane selection. Each test job—including checkout, setup, dependency
 installation, and cleanup—has a three-minute hard limit.
 
+Each Ubuntu test command receives `SIGTERM` when its 75-second budget expires
+and `SIGKILL` five seconds later if it has not exited, so a trapped or ignored
+termination signal cannot extend execution to the job-level timeout.
+
 The practical required PR test wall-clock target is 60 seconds or less,
 excluding runner queueing. The 75-second per-Ubuntu-leg budget and three-minute
 job hard cap bound normal variance and cleanup without replacing the target.
