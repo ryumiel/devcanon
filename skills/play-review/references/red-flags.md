@@ -11,7 +11,7 @@ Rules in `SKILL.md` from a "what does the failure look like" angle.
 - You treated a skill-local topical label as its own source-agent identity
   instead of routing D7-D9 through the configured semantic `reviewer`
 - You routed D7-D9 through anything other than `reviewer` frontier/high, or
-  routed D10 through anything other than `deep-reviewer` frontier/xhigh
+  routed D10 through anything other than `reviewer` frontier/high
 - You spawned any D7-D10 child without its own no-handoff source-immutability
   capture, or consumed a response before verify, retain, and exact cleanup
 - You let a failed, invalid, malformed, or verification-rejected child contribute

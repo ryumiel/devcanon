@@ -94,10 +94,10 @@ const FRESH_SPAWNS = [
   [
     "D10",
     "play-review",
-    "deep-reviewer",
+    "reviewer",
     "frontier",
     "D10_MODEL",
-    "xhigh",
+    "high",
     "source-immutable",
     "D10_CRITIC_PROMPT",
   ],

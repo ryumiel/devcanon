@@ -445,9 +445,9 @@ Lifecycle sentinel: subagent-lifecycle, target-honest cleanup outcomes, and
 slot-limit recovery remain required around the critic; the critic report remains
 part of the captured critic role-specific state.
 
-D10 is one response-only `deep-reviewer`, frontier/xhigh and source-immutable,
-with zero handoffs. Use the configured `deep-reviewer` role and effort; do not
-substitute the ordinary `reviewer`, an ambient role, model, or effort. Spawn it
+D10 is one response-only `reviewer`, frontier/high and source-immutable,
+with zero handoffs. Use the configured `reviewer` role and effort; do not
+substitute `deep-reviewer`, an ambient role, model, or effort. Spawn it
 only under the guarded sequence below, with all findings merged. The D10 child
 is a leaf and cannot recurse: it must
 never spawn another critic or reviewer, and its prompt grants no recursive
@@ -460,9 +460,9 @@ cited artifact. Tag INVALID if the artifact does not exist or does not contain
 the cited text. See `references/critic-rationale.md`.
 
 Before D10 capture, resolve and validate its complete fresh-Codex tuple:
-`semantic_role: deep-reviewer`; `capability: frontier`; full `model` resolved
+`semantic_role: reviewer`; `capability: frontier`; full `model` resolved
 exactly from `devcanon.config.yaml` `capabilityProfiles.frontier.codex`;
-independent `reasoning_effort: xhigh`; `source_authority: source-immutable`;
+independent `reasoning_effort: high`; `source_authority: source-immutable`;
 `external_authority: none`; zero handoffs; and no recursion. Build one
 self-contained critic prompt from the current working directory, captured
 reviewed head/diff, complete unchanged merged findings with stable ordinals,
@@ -480,7 +480,7 @@ head identity in the existing ledger dimensions, not in `task_name`.
 
 Codex-only route binding: `D10_MODEL` resolves from
 `capabilityProfiles.frontier.codex`. Target capability marker:
-`{{model:frontier}}`. The independent effort remains `xhigh`.
+`{{model:frontier}}`. The independent effort remains `high`.
 
 After validation and the existing capture, make exactly one fresh critic
 creation:
@@ -489,9 +489,9 @@ creation:
 # D10_MODEL = capabilityProfiles.frontier.codex
 Codex.spawn_agent({
   task_name: d10_<instance_ordinal>,
-  agent_type: "deep-reviewer",
+  agent_type: "reviewer",
   model: D10_MODEL,
-  reasoning_effort: "xhigh",
+  reasoning_effort: "high",
   fork_turns: "none",
   message: D10_CRITIC_PROMPT,
 })
@@ -499,7 +499,7 @@ Codex.spawn_agent({
 
 `fork_turns: "none"` supplies no inherited history. A missing or mismatched
 tuple blocks D10. If native Codex rejects the requested pair, report
-`model=<D10_MODEL> effort=xhigh`, perform existing cleanup, and use only the
+`model=<D10_MODEL> effort=high`, perform existing cleanup, and use only the
 existing unverified-critic fallback. Do not retry, alias, alter effort,
 escalate, or substitute a role.
 
