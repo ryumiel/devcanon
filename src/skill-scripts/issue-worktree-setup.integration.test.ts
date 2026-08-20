@@ -864,56 +864,68 @@ describe(
       );
     });
 
-    it("falls back to origin/main when origin/HEAD is unset", async () => {
+    it("discovers an advertised trunk default when local origin refs are absent", async () => {
       const rootDir = await createTrackedTempDir(tempDirs);
-      const { primaryDir } = await createOriginRepo(rootDir);
+      const { primaryDir } = await createOriginRepo(rootDir, "trunk");
+      const trunkSha = await runGit(["rev-parse", "HEAD"], primaryDir);
+
       await runGit(
-        ["update-ref", "-d", "refs/remotes/origin/HEAD"],
+        ["symbolic-ref", "-d", "refs/remotes/origin/HEAD"],
         primaryDir,
       );
-      const mainSha = await runGit(["rev-parse", "HEAD"], primaryDir);
+      for (const ref of ["trunk", "main", "master"]) {
+        await runGit(
+          ["update-ref", "-d", `refs/remotes/origin/${ref}`],
+          primaryDir,
+        );
+      }
 
-      // BASE_REF intentionally unset; origin/HEAD removed to force fallback.
-      const result = await runSetup(helperScript, primaryDir, {
-        BRANCH_NAME: "feat/fallback-main",
-        WORKTREE_LEAF: "fallback-main",
+      const result = await runNodeSetup(nodeHelperScript, primaryDir, {
+        BRANCH_NAME: "feat/discovered-trunk",
+        WORKTREE_LEAF: "discovered-trunk",
       });
 
       const expectedPath = await realpath(
-        path.join(primaryDir, ".worktrees", "fallback-main"),
+        path.join(primaryDir, ".worktrees", "discovered-trunk"),
       );
 
       expect(result.MODE).toBe("new");
       expect(normalizeFsPath(result.WORKTREE_PATH)).toBe(
         normalizeFsPath(expectedPath),
       );
-      expect(await runGit(["rev-parse", "HEAD"], expectedPath)).toBe(mainSha);
+      expect(await runGit(["rev-parse", "HEAD"], expectedPath)).toBe(trunkSha);
     });
 
-    it("falls back to origin/master when origin/HEAD is unset and only master exists", async () => {
+    it("refuses when origin does not advertise a symbolic default branch", async () => {
       const rootDir = await createTrackedTempDir(tempDirs);
-      const { primaryDir } = await createOriginRepo(rootDir, "master");
+      const { primaryDir } = await createOriginRepo(rootDir, "trunk");
+      const trunkSha = await runGit(["rev-parse", "HEAD"], primaryDir);
+      const originDir = path.join(rootDir, "origin.git");
+
       await runGit(
-        ["update-ref", "-d", "refs/remotes/origin/HEAD"],
+        ["--git-dir", originDir, "update-ref", "--no-deref", "HEAD", trunkSha],
+        rootDir,
+      );
+      await runGit(
+        ["symbolic-ref", "-d", "refs/remotes/origin/HEAD"],
         primaryDir,
       );
-      const masterSha = await runGit(["rev-parse", "HEAD"], primaryDir);
 
-      // BASE_REF intentionally unset; origin/HEAD removed to force fallback.
-      const result = await runSetup(helperScript, primaryDir, {
-        BRANCH_NAME: "feat/fallback-master",
-        WORKTREE_LEAF: "fallback-master",
-      });
+      await expect(
+        runCommand(process.execPath, [nodeHelperScript], primaryDir, {
+          BRANCH_NAME: "feat/unusable-default",
+          WORKTREE_LEAF: "unusable-default",
+        }),
+      ).rejects.toThrow(/Unable to determine origin's default branch:/u);
 
-      const expectedPath = await realpath(
-        path.join(primaryDir, ".worktrees", "fallback-master"),
-      );
-
-      expect(result.MODE).toBe("new");
-      expect(normalizeFsPath(result.WORKTREE_PATH)).toBe(
-        normalizeFsPath(expectedPath),
-      );
-      expect(await runGit(["rev-parse", "HEAD"], expectedPath)).toBe(masterSha);
+      expect(
+        await pathExists(
+          path.join(primaryDir, ".worktrees", "unusable-default"),
+        ),
+      ).toBe(false);
+      await expect(
+        runGit(["rev-parse", "--verify", "feat/unusable-default"], primaryDir),
+      ).rejects.toThrow();
     });
 
     it.skipIf(!symlinkAvailable)(

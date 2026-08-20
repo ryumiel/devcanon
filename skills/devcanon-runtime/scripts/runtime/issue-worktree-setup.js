@@ -27,8 +27,10 @@ async function runIssueWorktreeSetup(args, env) {
         return plainFail(`issue-worktree-setup cannot run POSIX/WSL Git against Windows Git metadata (${gitCommonDir}). Re-run from native Windows Codex/worktree tooling or from a native Windows shell with node setup-worktree.mjs.`);
     }
     const currentStatus = (await git(["status", "--short"], currentWorktree)).stdout.trim();
-    const baseRef = env.BASE_REF ?? `origin/${await defaultBranch(currentWorktree)}`;
-    validateBaseRef(baseRef);
+    const suppliedBaseRef = env.BASE_REF;
+    if (suppliedBaseRef !== undefined) {
+        validateBaseRef(suppliedBaseRef);
+    }
     const superproject = stripGitLineEnding((await git(["rev-parse", "--show-superproject-working-tree"], currentWorktree, [0, 128])).stdout);
     if (superproject.length > 0) {
         const superprojectReal = await realpath(superproject);
@@ -37,6 +39,32 @@ async function runIssueWorktreeSetup(args, env) {
             WORKTREE_PATH: currentWorktree,
             MESSAGE: `Running issue-worktree-setup from inside submodule ${currentWorktreeReal} is unsupported; re-run from superproject ${superprojectReal}.`,
         });
+    }
+    let baseRef = suppliedBaseRef;
+    if (baseRef === undefined) {
+        const defaultBranchResult = await git(["ls-remote", "--symref", "--exit-code", "origin", "HEAD"], currentWorktree, [0, 1, 2, 128]);
+        if (defaultBranchResult.exitCode !== 0) {
+            return plainFail(`Unable to determine origin's default branch: ${defaultBranchResult.stderr.trim() || "git ls-remote --symref --exit-code origin HEAD failed"}`);
+        }
+        const symbolicHeadTargets = defaultBranchResult.stdout
+            .split(/\r?\n/u)
+            .flatMap((line) => {
+            const match = /^ref: ([^\t]+)\tHEAD$/u.exec(line);
+            return match === null ? [] : [match[1]];
+        });
+        if (symbolicHeadTargets.length === 0) {
+            return plainFail("Unable to determine origin's default branch: origin did not advertise a symbolic HEAD target");
+        }
+        if (symbolicHeadTargets.length !== 1) {
+            return plainFail("Unable to determine origin's default branch: origin advertised multiple symbolic HEAD targets");
+        }
+        const symbolicHeadTarget = symbolicHeadTargets[0];
+        const branchPrefix = "refs/heads/";
+        if (!symbolicHeadTarget.startsWith(branchPrefix) ||
+            symbolicHeadTarget.length === branchPrefix.length) {
+            return plainFail(`Unable to determine origin's default branch: origin advertised an invalid symbolic HEAD target: ${symbolicHeadTarget}`);
+        }
+        baseRef = `origin/${symbolicHeadTarget.slice(branchPrefix.length)}`;
     }
     const mainWorktree = await primaryWorktree(currentWorktree);
     const mainWorktreeReal = await realpath(mainWorktree);
@@ -97,20 +125,6 @@ async function runIssueWorktreeSetup(args, env) {
         WORKTREE_PATH: newWorktreePath,
         MESSAGE: "Created new managed worktree.",
     });
-}
-async function defaultBranch(cwd) {
-    const symbolicRef = await git(["symbolic-ref", "--short", "refs/remotes/origin/HEAD"], cwd, [0, 1]);
-    const symbolicBranch = symbolicRef.stdout.trim();
-    if (symbolicBranch.length > 0) {
-        return symbolicBranch.replace(/^origin\//u, "");
-    }
-    for (const fallback of ["main", "master"]) {
-        const result = await git(["show-ref", "--verify", "--quiet", `refs/remotes/origin/${fallback}`], cwd, [0, 1]);
-        if (result.exitCode === 0) {
-            return fallback;
-        }
-    }
-    return "main";
 }
 async function primaryWorktree(cwd) {
     const result = await git(["worktree", "list", "--porcelain", "-z"], cwd);
