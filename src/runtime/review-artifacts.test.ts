@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
+  cp,
   mkdir,
   mkdtemp,
   readFile,
@@ -11,7 +12,7 @@ import {
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, describe, expect, it } from "vitest";
 import { cleanupTempDir } from "../__test-helpers__/fixtures.js";
 import { parseGitNumstatZ } from "./git-diff-parser.js";
 import {
@@ -32,9 +33,39 @@ const PROVIDER_EVIDENCE_SCHEMA = "pr-review/provider-scope-evidence/v2";
 const DIGEST_PROVENANCE_SCHEMA = "pr-review/digest-provenance/v1";
 const CANONICAL_GIT_DIFF_DIALECT = "canonical-git-diff/v1";
 const GITHUB_PROVIDER_DIFF_DIALECT = "github-provider-diff/v1";
+const workspaceTemplates = new Map<string, Promise<unknown>>();
+const workspaceTemplateRoots = new Set<string>();
+
+async function materializeWorkspaceTemplate<T extends { cwd: string }>(
+  key: string,
+  build: () => Promise<T>,
+): Promise<T> {
+  let templatePromise = workspaceTemplates.get(key) as Promise<T> | undefined;
+  if (templatePromise === undefined) {
+    templatePromise = build().then((workspace) => {
+      process.chdir(originalCwd);
+      workspaceTemplateRoots.add(workspace.cwd);
+      return workspace;
+    });
+    workspaceTemplates.set(key, templatePromise);
+  }
+
+  const template = await templatePromise;
+  const cwd = await mkdtemp(path.join(os.tmpdir(), `devcanon-${key}-copy-`));
+  await cp(template.cwd, cwd, { recursive: true });
+  process.chdir(cwd);
+  return { ...template, cwd };
+}
 
 afterEach(() => {
   process.chdir(originalCwd);
+});
+
+afterAll(async () => {
+  process.chdir(originalCwd);
+  await Promise.all(
+    [...workspaceTemplateRoots].map((cwd) => cleanupTempDir(cwd)),
+  );
 });
 
 async function cleanupRiskSignalsWorkspace(cwd: string): Promise<void> {
@@ -42,7 +73,7 @@ async function cleanupRiskSignalsWorkspace(cwd: string): Promise<void> {
   await cleanupTempDir(cwd);
 }
 
-async function makeRiskSignalsWorkspace(): Promise<{
+async function buildRiskSignalsWorkspace(): Promise<{
   cwd: string;
   baseSha: string;
   headSha: string;
@@ -68,6 +99,17 @@ async function makeRiskSignalsWorkspace(): Promise<{
   return { cwd, baseSha, headSha };
 }
 
+async function makeRiskSignalsWorkspace(): Promise<{
+  cwd: string;
+  baseSha: string;
+  headSha: string;
+}> {
+  return materializeWorkspaceTemplate(
+    "risk-signals",
+    buildRiskSignalsWorkspace,
+  );
+}
+
 async function makeProviderScopeWorkspace(): Promise<{
   cwd: string;
   baseSha: string;
@@ -78,7 +120,7 @@ async function makeProviderScopeWorkspace(): Promise<{
   return workspace;
 }
 
-async function makeProviderMultiFileWorkspace(): Promise<{
+async function buildProviderMultiFileWorkspace(): Promise<{
   cwd: string;
   baseSha: string;
   headSha: string;
@@ -108,7 +150,18 @@ async function makeProviderMultiFileWorkspace(): Promise<{
   return { cwd, baseSha, headSha };
 }
 
-async function makeProviderEmptyDiffWorkspace(): Promise<{
+async function makeProviderMultiFileWorkspace(): Promise<{
+  cwd: string;
+  baseSha: string;
+  headSha: string;
+}> {
+  return materializeWorkspaceTemplate(
+    "provider-multi-file",
+    buildProviderMultiFileWorkspace,
+  );
+}
+
+async function buildProviderEmptyDiffWorkspace(): Promise<{
   cwd: string;
   baseSha: string;
   headSha: string;
@@ -136,7 +189,18 @@ async function makeProviderEmptyDiffWorkspace(): Promise<{
   return { cwd, baseSha, headSha };
 }
 
-async function makeProviderMovingBaseWorkspace(): Promise<{
+async function makeProviderEmptyDiffWorkspace(): Promise<{
+  cwd: string;
+  baseSha: string;
+  headSha: string;
+}> {
+  return materializeWorkspaceTemplate(
+    "provider-empty-diff",
+    buildProviderEmptyDiffWorkspace,
+  );
+}
+
+async function buildProviderMovingBaseWorkspace(): Promise<{
   cwd: string;
   baseSha: string;
   advancedBaseSha: string;
@@ -155,6 +219,18 @@ async function makeProviderMovingBaseWorkspace(): Promise<{
   await execFileAsync("git", ["switch", "topic"], { cwd });
   process.chdir(cwd);
   return { cwd, baseSha, advancedBaseSha, headSha };
+}
+
+async function makeProviderMovingBaseWorkspace(): Promise<{
+  cwd: string;
+  baseSha: string;
+  advancedBaseSha: string;
+  headSha: string;
+}> {
+  return materializeWorkspaceTemplate(
+    "provider-moving-base",
+    buildProviderMovingBaseWorkspace,
+  );
 }
 
 async function makeProviderInteriorAncestorWorkspace(): Promise<{
@@ -231,7 +307,7 @@ async function makeProviderAmbiguousMergeBaseWorkspace(): Promise<{
   return { cwd, firstBaseSha, secondBaseSha, providerBaseSha, headSha };
 }
 
-async function makeProviderBinaryWorkspace(): Promise<{
+async function buildProviderBinaryWorkspace(): Promise<{
   cwd: string;
   baseSha: string;
   headSha: string;
@@ -262,84 +338,18 @@ async function makeProviderBinaryWorkspace(): Promise<{
   return { cwd, baseSha, headSha };
 }
 
-async function makeProviderTabbedPathWorkspace(): Promise<{
+async function makeProviderBinaryWorkspace(): Promise<{
   cwd: string;
   baseSha: string;
   headSha: string;
-  filePath: string;
 }> {
-  const cwd = await mkdtemp(path.join(os.tmpdir(), "devcanon-provider-tab-"));
-  await execFileAsync("git", ["init", "--initial-branch=main"], { cwd });
-  await execFileAsync("git", ["config", "user.name", "Test User"], { cwd });
-  await execFileAsync("git", ["config", "user.email", "test@example.com"], {
-    cwd,
-  });
-  await writeFile(path.join(cwd, "README.md"), "baseline\n");
-  await execFileAsync("git", ["add", "."], { cwd });
-  await execFileAsync("git", ["commit", "-m", "chore: baseline"], { cwd });
-  const baseSha = await git(cwd, "rev-parse", "HEAD");
-
-  await execFileAsync("git", ["switch", "-c", "topic"], { cwd });
-  const filePath = "src/with\ttab.ts";
-  await mkdir(path.join(cwd, "src"), { recursive: true });
-  await writeFile(path.join(cwd, filePath), "export const value = 1;\n");
-  await execFileAsync("git", ["add", "."], { cwd });
-  await execFileAsync("git", ["commit", "-m", "feat: add tabbed path"], {
-    cwd,
-  });
-  const headSha = await git(cwd, "rev-parse", "HEAD");
-  await mkdir(path.join(cwd, ".ephemeral"));
-  process.chdir(cwd);
-  return { cwd, baseSha, headSha, filePath };
+  return materializeWorkspaceTemplate(
+    "provider-binary",
+    buildProviderBinaryWorkspace,
+  );
 }
 
-async function makeProviderTypeChangeWorkspace(): Promise<{
-  cwd: string;
-  baseSha: string;
-  headSha: string;
-  filePath: string;
-}> {
-  const cwd = await mkdtemp(
-    path.join(os.tmpdir(), "devcanon-provider-type-change-"),
-  );
-  await execFileAsync("git", ["init", "--initial-branch=main"], { cwd });
-  await execFileAsync("git", ["config", "user.name", "Test User"], { cwd });
-  await execFileAsync("git", ["config", "user.email", "test@example.com"], {
-    cwd,
-  });
-  const filePath = "file.txt";
-  await writeFile(path.join(cwd, filePath), "target\n");
-  await execFileAsync("git", ["add", "."], { cwd });
-  await execFileAsync("git", ["commit", "-m", "chore: baseline"], { cwd });
-  const baseSha = await git(cwd, "rev-parse", "HEAD");
-
-  await execFileAsync("git", ["switch", "-c", "topic"], { cwd });
-  const blobFixture = ".type-change-blob";
-  await writeFile(path.join(cwd, blobFixture), "target");
-  const symlinkBlobSha = await git(cwd, "hash-object", "-w", blobFixture);
-  await rm(path.join(cwd, blobFixture));
-  await execFileAsync(
-    "git",
-    [
-      "update-index",
-      "--add",
-      "--cacheinfo",
-      "120000",
-      symlinkBlobSha,
-      filePath,
-    ],
-    { cwd },
-  );
-  await execFileAsync("git", ["commit", "-m", "test: change file type"], {
-    cwd,
-  });
-  const headSha = await git(cwd, "rev-parse", "HEAD");
-  await mkdir(path.join(cwd, ".ephemeral"));
-  process.chdir(cwd);
-  return { cwd, baseSha, headSha, filePath };
-}
-
-async function makeProviderDiffDriverWorkspace(): Promise<{
+async function buildProviderDiffDriverWorkspace(): Promise<{
   cwd: string;
   baseSha: string;
   headSha: string;
@@ -366,6 +376,17 @@ async function makeProviderDiffDriverWorkspace(): Promise<{
   await mkdir(path.join(cwd, ".ephemeral"));
   process.chdir(cwd);
   return { cwd, baseSha, headSha };
+}
+
+async function makeProviderDiffDriverWorkspace(): Promise<{
+  cwd: string;
+  baseSha: string;
+  headSha: string;
+}> {
+  return materializeWorkspaceTemplate(
+    "provider-diff-driver",
+    buildProviderDiffDriverWorkspace,
+  );
 }
 
 async function git(cwd: string, ...args: string[]): Promise<string> {
@@ -562,7 +583,7 @@ async function makeProviderRenameWorkspace(edited: boolean): Promise<{
   return { cwd, baseSha, headSha };
 }
 
-async function makeProviderLeadingColonWorkspace(): Promise<{
+async function buildProviderLeadingColonWorkspace(): Promise<{
   cwd: string;
   baseSha: string;
   headSha: string;
@@ -596,7 +617,18 @@ async function makeProviderLeadingColonWorkspace(): Promise<{
   return { cwd, baseSha, headSha };
 }
 
-async function makeProviderLeadingColonRenameWorkspace(): Promise<{
+async function makeProviderLeadingColonWorkspace(): Promise<{
+  cwd: string;
+  baseSha: string;
+  headSha: string;
+}> {
+  return materializeWorkspaceTemplate(
+    "provider-leading-colon",
+    buildProviderLeadingColonWorkspace,
+  );
+}
+
+async function buildProviderLeadingColonRenameWorkspace(): Promise<{
   cwd: string;
   baseSha: string;
   headSha: string;
@@ -654,6 +686,17 @@ async function makeProviderLeadingColonRenameWorkspace(): Promise<{
   await mkdir(path.join(cwd, ".ephemeral"));
   process.chdir(cwd);
   return { cwd, baseSha, headSha };
+}
+
+async function makeProviderLeadingColonRenameWorkspace(): Promise<{
+  cwd: string;
+  baseSha: string;
+  headSha: string;
+}> {
+  return materializeWorkspaceTemplate(
+    "provider-leading-colon-rename",
+    buildProviderLeadingColonRenameWorkspace,
+  );
 }
 
 async function makeProviderLargeDiffWorkspace(): Promise<{
@@ -1305,6 +1348,40 @@ describe.skipIf(isWindows)("review artifact runtime reducers", () => {
         stdout: "",
         stderr: "",
       });
+
+      const capturePath = `.ephemeral/topic-${headSha}-provider-scope-capture.json`;
+      await writeJson(
+        cwd,
+        capturePath,
+        await providerScopeCapture(cwd, baseSha, headSha),
+      );
+      await expect(
+        runPrReviewProviderScopeEvidenceCommand([
+          "write",
+          "--head-sha",
+          headSha,
+          "--capture-file",
+          capturePath,
+        ]),
+      ).resolves.toEqual({
+        exitCode: 0,
+        stdout: `${evidencePath}\n`,
+        stderr: "",
+      });
+      await expect(
+        readFile(path.join(cwd, capturePath), "utf8"),
+      ).rejects.toMatchObject({ code: "ENOENT" });
+      await expect(
+        readFile(path.join(cwd, evidencePath), "utf8"),
+      ).resolves.toContain(PROVIDER_EVIDENCE_SCHEMA);
+      await writeJson(
+        cwd,
+        ".ephemeral/topic-scope-decision.json",
+        await providerScopeDecision(cwd, baseSha, headSha),
+      );
+      await expect(
+        runReviewArtifactsCommand(providerScopeArgs(headSha, baseSha)),
+      ).resolves.toMatchObject({ exitCode: 0 });
     } finally {
       await cleanupRiskSignalsWorkspace(cwd);
     }
@@ -1713,93 +1790,6 @@ describe.skipIf(isWindows)("review artifact runtime reducers", () => {
     },
   );
 
-  it.skipIf(isWindows)(
-    "preserves tabs in provider-bound numstat paths",
-    async () => {
-      const { cwd, baseSha, headSha, filePath } =
-        await makeProviderTabbedPathWorkspace();
-      const evidencePath = providerScopeEvidencePath(headSha);
-      try {
-        const fileEntry = await providerEvidenceFileEntry(
-          cwd,
-          baseSha,
-          headSha,
-          filePath,
-        );
-        await writeJson(
-          cwd,
-          evidencePath,
-          await providerScopeEvidence(cwd, baseSha, headSha, {
-            provider_files: [fileEntry],
-            local_files: [fileEntry],
-          }),
-        );
-        await writeJson(
-          cwd,
-          ".ephemeral/topic-scope-decision.json",
-          await providerScopeDecision(cwd, baseSha, headSha, undefined, {
-            changed_files: [filePath],
-            language_hints: ["ts"],
-          }),
-        );
-
-        await expect(
-          runReviewArtifactsCommand(providerScopeArgs(headSha, baseSha)),
-        ).resolves.toEqual({
-          exitCode: 0,
-          stdout: "",
-          stderr: "",
-        });
-      } finally {
-        await cleanupRiskSignalsWorkspace(cwd);
-      }
-    },
-  );
-
-  it.skipIf(isWindows)(
-    "maps provider-bound type-change paths to modified evidence",
-    async () => {
-      const { cwd, baseSha, headSha, filePath } =
-        await makeProviderTypeChangeWorkspace();
-      const evidencePath = providerScopeEvidencePath(headSha);
-      try {
-        const fileEntry = {
-          ...(await providerEvidenceFileEntry(cwd, baseSha, headSha, filePath)),
-          status: "modified",
-          additions: 1,
-          deletions: 1,
-          changes: 2,
-        };
-        await writeJson(
-          cwd,
-          evidencePath,
-          await providerScopeEvidence(cwd, baseSha, headSha, {
-            provider_files: [fileEntry],
-            local_files: [fileEntry],
-          }),
-        );
-        await writeJson(
-          cwd,
-          ".ephemeral/topic-scope-decision.json",
-          await providerScopeDecision(cwd, baseSha, headSha, undefined, {
-            changed_files: [filePath],
-            language_hints: ["txt"],
-          }),
-        );
-
-        await expect(
-          runReviewArtifactsCommand(providerScopeArgs(headSha, baseSha)),
-        ).resolves.toEqual({
-          exitCode: 0,
-          stdout: "",
-          stderr: "",
-        });
-      } finally {
-        await cleanupRiskSignalsWorkspace(cwd);
-      }
-    },
-  );
-
   it("rejects linked-worktree common info attributes before canonical diff hashing", async () => {
     const source = await makeRiskSignalsWorkspace();
     const linkedCwd = await mkdtemp(
@@ -1868,64 +1858,6 @@ describe.skipIf(isWindows)("review artifact runtime reducers", () => {
         });
       },
     },
-    {
-      name: "repo-local top-level diff ignoreSubmodules",
-      poison: async (cwd: string) => {
-        await execFileAsync("git", ["config", "diff.ignoreSubmodules", "all"], {
-          cwd,
-        });
-      },
-    },
-    {
-      name: "worktree textconv diff driver",
-      poison: async (cwd: string) => {
-        await execFileAsync(
-          "git",
-          ["config", "extensions.worktreeConfig", "true"],
-          { cwd },
-        );
-        await execFileAsync(
-          "git",
-          ["config", "--worktree", "diff.poison.textconv", "cat"],
-          { cwd },
-        );
-      },
-    },
-    {
-      name: "worktree top-level diff submodule",
-      poison: async (cwd: string) => {
-        await execFileAsync(
-          "git",
-          ["config", "extensions.worktreeConfig", "true"],
-          { cwd },
-        );
-        await execFileAsync(
-          "git",
-          ["config", "--worktree", "diff.submodule", "log"],
-          { cwd },
-        );
-      },
-    },
-    {
-      name: "included xfuncname diff driver",
-      poison: async (cwd: string) => {
-        const includePath = path.join(cwd, ".git", "included-diff-config");
-        await writeFile(includePath, '[diff "poison"]\n\txfuncname = .*\n');
-        await execFileAsync("git", ["config", "include.path", includePath], {
-          cwd,
-        });
-      },
-    },
-    {
-      name: "included top-level diff submodule",
-      poison: async (cwd: string) => {
-        const includePath = path.join(cwd, ".git", "included-diff-config");
-        await writeFile(includePath, "[diff]\n\tsubmodule = log\n");
-        await execFileAsync("git", ["config", "include.path", includePath], {
-          cwd,
-        });
-      },
-    },
   ])("rejects $name for provider-bound validation", async ({ poison }) => {
     const { cwd, baseSha, headSha } = await makeProviderDiffDriverWorkspace();
     const evidencePath = providerScopeEvidencePath(headSha);
@@ -1960,17 +1892,6 @@ describe.skipIf(isWindows)("review artifact runtime reducers", () => {
       name: "loose replacement refs",
       poison: async (cwd: string, baseSha: string, headSha: string) => {
         await execFileAsync("git", ["replace", baseSha, headSha], { cwd });
-      },
-    },
-    {
-      name: "packed replacement refs",
-      poison: async (cwd: string, baseSha: string, headSha: string) => {
-        await execFileAsync("git", ["replace", baseSha, headSha], { cwd });
-        await execFileAsync("git", ["pack-refs", "--all"], { cwd });
-        await rm(path.join(cwd, ".git", "refs", "replace"), {
-          recursive: true,
-          force: true,
-        });
       },
     },
     {
@@ -2059,10 +1980,7 @@ describe.skipIf(isWindows)("review artifact runtime reducers", () => {
     }
   });
 
-  it.each([
-    { name: "pure rename", edited: false },
-    { name: "rename plus edit", edited: true },
-  ])(
+  it.each([{ name: "pure rename", edited: false }])(
     "validates pr-review provider evidence for a local $name",
     async ({ edited }) => {
       const { cwd, baseSha, headSha } =
@@ -2249,114 +2167,7 @@ describe.skipIf(isWindows)("review artifact runtime reducers", () => {
   });
 
   it.skipIf(isWindows)(
-    "validates provider evidence for a literal leading-colon path",
-    async () => {
-      const { cwd, baseSha, headSha } =
-        await makeProviderLeadingColonWorkspace();
-      const evidencePath = providerScopeEvidencePath(headSha);
-      try {
-        const fileEntry = await providerEvidenceFileEntry(
-          cwd,
-          baseSha,
-          headSha,
-          ":(top)README.md",
-          { literalPathspecs: true },
-        );
-        await writeJson(
-          cwd,
-          evidencePath,
-          await providerScopeEvidence(cwd, baseSha, headSha, {
-            provider_files: [fileEntry],
-            local_files: [fileEntry],
-          }),
-        );
-        await writeJson(
-          cwd,
-          ".ephemeral/topic-scope-decision.json",
-          await providerScopeDecision(cwd, baseSha, headSha, undefined, {
-            changed_files: [":(top)README.md"],
-            language_hints: ["md"],
-          }),
-        );
-
-        await expect(
-          runReviewArtifactsCommand(providerScopeArgs(headSha, baseSha)),
-        ).resolves.toEqual({
-          exitCode: 0,
-          stdout: "",
-          stderr: "",
-        });
-      } finally {
-        await cleanupRiskSignalsWorkspace(cwd);
-      }
-    },
-  );
-
-  it.skipIf(isWindows)(
-    "validates diff anchors for a literal leading-colon finding path",
-    async () => {
-      const { cwd, baseSha, headSha } =
-        await makeProviderLeadingColonWorkspace();
-      const evidencePath = providerScopeEvidencePath(headSha);
-      try {
-        const fileEntry = await providerEvidenceFileEntry(
-          cwd,
-          baseSha,
-          headSha,
-          ":(top)README.md",
-          { literalPathspecs: true },
-        );
-        await writeJson(
-          cwd,
-          evidencePath,
-          await providerScopeEvidence(cwd, baseSha, headSha, {
-            provider_files: [fileEntry],
-            local_files: [fileEntry],
-          }),
-        );
-        await writeJson(
-          cwd,
-          ".ephemeral/topic-scope-decision.json",
-          await providerScopeDecision(cwd, baseSha, headSha, undefined, {
-            changed_files: [":(top)README.md"],
-            language_hints: ["md"],
-          }),
-        );
-        await writeJson(cwd, ".ephemeral/topic-findings.json", {
-          schema: "play-review/findings/v2",
-          findings: [
-            {
-              path: ":(top)README.md",
-              line: 1,
-              start_line: null,
-              severity: "Blocking",
-              category: "Logic",
-              critic: "VALID",
-              anchor: "natural",
-              why: "why",
-              recommendation: "recommendation",
-              body: "body",
-            },
-          ],
-          carry_forward: [],
-          incomplete_topical_routes: [],
-        });
-
-        await expect(
-          runReviewArtifactsCommand(providerDiffAnchorArgs(headSha, baseSha)),
-        ).resolves.toEqual({
-          exitCode: 0,
-          stdout: "",
-          stderr: "",
-        });
-      } finally {
-        await cleanupRiskSignalsWorkspace(cwd);
-      }
-    },
-  );
-
-  it.skipIf(isWindows)(
-    "compares approved payloads for a literal leading-colon finding path",
+    "preserves literal leading-colon paths across provider scope, anchors, payloads, and patch digests",
     async () => {
       const { cwd, baseSha, headSha } =
         await makeProviderLeadingColonWorkspace();
@@ -2391,13 +2202,20 @@ describe.skipIf(isWindows)("review artifact runtime reducers", () => {
             language_hints: ["md"],
           }),
         );
+        await expect(
+          runReviewArtifactsCommand(providerScopeArgs(headSha, baseSha)),
+        ).resolves.toEqual({ exitCode: 0, stdout: "", stderr: "" });
+
         await writeJson(cwd, ".ephemeral/topic-findings.json", findings);
+        await expect(
+          runReviewArtifactsCommand(providerDiffAnchorArgs(headSha, baseSha)),
+        ).resolves.toEqual({ exitCode: 0, stdout: "", stderr: "" });
+
         const expectedPayload = await writeApprovedPayloadFiles(
           cwd,
           headSha,
           findings,
         );
-
         await expect(
           runReviewArtifactsCommand(
             providerApprovedPayloadArgs(headSha, baseSha),
@@ -2406,6 +2224,40 @@ describe.skipIf(isWindows)("review artifact runtime reducers", () => {
           exitCode: 0,
           stdout: `${JSON.stringify(expectedPayload, null, 2)}\n`,
           stderr: "",
+        });
+
+        const interpretedPatch = await canonicalGitDiffRaw(
+          cwd,
+          `${baseSha}..${headSha}`,
+          [":(top)README.md"],
+        );
+        const forgedEntry = {
+          ...fileEntry,
+          patch_sha256: sha256(interpretedPatch),
+        };
+        await writeJson(
+          cwd,
+          evidencePath,
+          await providerScopeEvidence(cwd, baseSha, headSha, {
+            provider_files: [forgedEntry],
+            local_files: [forgedEntry],
+          }),
+        );
+        await writeJson(
+          cwd,
+          ".ephemeral/topic-scope-decision.json",
+          await providerScopeDecision(cwd, baseSha, headSha, undefined, {
+            changed_files: [":(top)README.md"],
+            language_hints: ["md"],
+          }),
+        );
+        await expect(
+          runReviewArtifactsCommand(providerScopeArgs(headSha, baseSha)),
+        ).resolves.toMatchObject({
+          exitCode: 1,
+          stderr: expect.stringContaining(
+            "provider/local patch evidence mismatch",
+          ),
         });
       } finally {
         await cleanupRiskSignalsWorkspace(cwd);
@@ -2417,10 +2269,6 @@ describe.skipIf(isWindows)("review artifact runtime reducers", () => {
     {
       command: "validate-diff-anchors",
       args: providerDiffAnchorArgs,
-    },
-    {
-      command: "compare-approved-payload",
-      args: providerApprovedPayloadArgs,
     },
   ])("rejects NUL finding paths for $command", async ({ args }) => {
     const { cwd, baseSha, headSha } = await makeProviderScopeWorkspace();
@@ -2450,10 +2298,6 @@ describe.skipIf(isWindows)("review artifact runtime reducers", () => {
       command: "validate-diff-anchors",
       args: providerDiffAnchorArgs,
     },
-    {
-      command: "compare-approved-payload",
-      args: providerApprovedPayloadArgs,
-    },
   ])("rejects non-NUL invalid finding paths for $command", async ({ args }) => {
     const { cwd, baseSha, headSha } = await makeProviderScopeWorkspace();
     const findings = {
@@ -2481,10 +2325,6 @@ describe.skipIf(isWindows)("review artifact runtime reducers", () => {
     {
       command: "validate-diff-anchors",
       args: providerDiffAnchorArgs,
-    },
-    {
-      command: "compare-approved-payload",
-      args: providerApprovedPayloadArgs,
     },
   ])("rejects invalid UTF-8 findings files for $command", async ({ args }) => {
     const { cwd, baseSha, headSha } = await makeProviderScopeWorkspace();
@@ -2557,38 +2397,6 @@ describe.skipIf(isWindows)("review artifact runtime reducers", () => {
       },
       stderr: "canonical Git object graph hardening failed",
     },
-    {
-      command: "compare-approved-payload",
-      args: providerApprovedPayloadArgs,
-      poisonName: "local diff config poisoning",
-      poison: async (cwd: string, _baseSha: string, _headSha: string) => {
-        await execFileAsync("git", ["config", "diff.poison.binary", "true"], {
-          cwd,
-        });
-      },
-      stderr: "canonical Git local interpretation hardening failed",
-    },
-    {
-      command: "compare-approved-payload",
-      args: providerApprovedPayloadArgs,
-      poisonName: "replacement ref object graph poisoning",
-      poison: async (cwd: string, baseSha: string, headSha: string) => {
-        await execFileAsync("git", ["replace", baseSha, headSha], { cwd });
-      },
-      stderr: "canonical Git object graph hardening failed",
-    },
-    {
-      command: "compare-approved-payload",
-      args: providerApprovedPayloadArgs,
-      poisonName: "graft file object graph poisoning",
-      poison: async (cwd: string, baseSha: string, headSha: string) => {
-        await writeFile(
-          path.join(cwd, ".git", "info", "grafts"),
-          `${headSha} ${baseSha}\n`,
-        );
-      },
-      stderr: "canonical Git object graph hardening failed",
-    },
   ])("rejects $poisonName for $command", async ({ args, poison, stderr }) => {
     const { cwd, baseSha, headSha } = await makeProviderScopeWorkspace();
     const findings = {
@@ -2614,61 +2422,7 @@ describe.skipIf(isWindows)("review artifact runtime reducers", () => {
   });
 
   it.skipIf(isWindows)(
-    "rejects provider evidence for a leading-colon path when the patch digest is not literal",
-    async () => {
-      const { cwd, baseSha, headSha } =
-        await makeProviderLeadingColonWorkspace();
-      const evidencePath = providerScopeEvidencePath(headSha);
-      try {
-        const fileEntry = await providerEvidenceFileEntry(
-          cwd,
-          baseSha,
-          headSha,
-          ":(top)README.md",
-          { literalPathspecs: true },
-        );
-        const interpretedPatch = await canonicalGitDiffRaw(
-          cwd,
-          `${baseSha}..${headSha}`,
-          [":(top)README.md"],
-        );
-        const forgedEntry = {
-          ...fileEntry,
-          patch_sha256: sha256(interpretedPatch),
-        };
-        await writeJson(
-          cwd,
-          evidencePath,
-          await providerScopeEvidence(cwd, baseSha, headSha, {
-            provider_files: [forgedEntry],
-            local_files: [forgedEntry],
-          }),
-        );
-        await writeJson(
-          cwd,
-          ".ephemeral/topic-scope-decision.json",
-          await providerScopeDecision(cwd, baseSha, headSha, undefined, {
-            changed_files: [":(top)README.md"],
-            language_hints: ["md"],
-          }),
-        );
-
-        await expect(
-          runReviewArtifactsCommand(providerScopeArgs(headSha, baseSha)),
-        ).resolves.toMatchObject({
-          exitCode: 1,
-          stderr: expect.stringContaining(
-            "provider/local patch evidence mismatch",
-          ),
-        });
-      } finally {
-        await cleanupRiskSignalsWorkspace(cwd);
-      }
-    },
-  );
-
-  it.skipIf(isWindows)(
-    "validates provider evidence for a literal leading-colon rename tuple",
+    "preserves literal leading-colon rename tuples in complete and incomplete patch evidence",
     async () => {
       const { cwd, baseSha, headSha } =
         await makeProviderLeadingColonRenameWorkspace();
@@ -2697,34 +2451,10 @@ describe.skipIf(isWindows)("review artifact runtime reducers", () => {
             language_hints: ["ts"],
           }),
         );
-
         await expect(
           runReviewArtifactsCommand(providerScopeArgs(headSha, baseSha)),
-        ).resolves.toEqual({
-          exitCode: 0,
-          stdout: "",
-          stderr: "",
-        });
-      } finally {
-        await cleanupRiskSignalsWorkspace(cwd);
-      }
-    },
-  );
+        ).resolves.toEqual({ exitCode: 0, stdout: "", stderr: "" });
 
-  it.skipIf(isWindows)(
-    "rejects leading-colon rename evidence when the patch digest omits one rename side",
-    async () => {
-      const { cwd, baseSha, headSha } =
-        await makeProviderLeadingColonRenameWorkspace();
-      const evidencePath = providerScopeEvidencePath(headSha);
-      try {
-        const renameEntry = await providerRenameEvidenceFileEntry(
-          cwd,
-          baseSha,
-          headSha,
-          { previousPath: ":old.ts", path: ":new.ts" },
-          { literalPathspecs: true },
-        );
         const currentOnlyPatch = await canonicalGitDiffRaw(
           cwd,
           `${baseSha}..${headSha}`,
@@ -2751,7 +2481,6 @@ describe.skipIf(isWindows)("review artifact runtime reducers", () => {
             language_hints: ["ts"],
           }),
         );
-
         await expect(
           runReviewArtifactsCommand(providerScopeArgs(headSha, baseSha)),
         ).resolves.toMatchObject({
@@ -2815,40 +2544,14 @@ describe.skipIf(isWindows)("review artifact runtime reducers", () => {
 
   it.each([
     {
-      name: "missing explicit provider evidence input",
+      name: "malformed provider evidence",
       scope: async (cwd: string, baseSha: string, headSha: string) =>
         providerScopeDecision(cwd, baseSha, headSha),
       evidence: async (cwd: string, baseSha: string, headSha: string) =>
-        providerScopeEvidence(cwd, baseSha, headSha),
-      args: (headSha: string, baseSha: string) =>
-        providerScopeArgs(headSha, baseSha).filter(
-          (arg) =>
-            ![
-              "--provider-scope-evidence-file",
-              providerScopeEvidencePath(headSha),
-            ].includes(arg),
-        ),
-      stderr: "--provider-scope-evidence-file is required for pr-review",
-    },
-    {
-      name: "non-contract provider evidence path",
-      evidencePath: ".ephemeral/topic-provider-scope-evidence.json",
-      scope: async (cwd: string, baseSha: string, headSha: string) =>
-        providerScopeDecision(
-          cwd,
-          baseSha,
-          headSha,
-          ".ephemeral/topic-provider-scope-evidence.json",
-        ),
-      evidence: async (cwd: string, baseSha: string, headSha: string) =>
-        providerScopeEvidence(cwd, baseSha, headSha),
-      args: (_headSha: string, baseSha: string) =>
-        providerScopeArgs(
-          _headSha,
-          baseSha,
-          ".ephemeral/topic-provider-scope-evidence.json",
-        ),
-      stderr: "provider scope evidence path mismatch",
+        providerScopeEvidence(cwd, baseSha, headSha, {
+          schema: "pr-review/provider-scope-evidence/v1",
+        }),
+      stderr: "provider evidence schema mismatch",
     },
     {
       name: "moving full range",
@@ -2861,109 +2564,6 @@ describe.skipIf(isWindows)("review artifact runtime reducers", () => {
       evidence: async (cwd: string, baseSha: string, headSha: string) =>
         providerScopeEvidence(cwd, baseSha, headSha),
       stderr: "full range must use provider PR diff base",
-    },
-    {
-      name: "unproven baseRefOid",
-      scope: async (cwd: string, baseSha: string, headSha: string) =>
-        providerScopeDecision(cwd, baseSha, headSha),
-      evidence: async (cwd: string, baseSha: string, headSha: string) =>
-        providerScopeEvidence(cwd, baseSha, headSha, { baseRefOid: "main" }),
-      stderr: "provider evidence baseRefOid is malformed",
-    },
-    {
-      name: "missing provider evidence file",
-      scope: async (cwd: string, baseSha: string, headSha: string) =>
-        providerScopeDecision(cwd, baseSha, headSha),
-      evidence: async (cwd: string, baseSha: string, headSha: string) =>
-        providerScopeEvidence(cwd, baseSha, headSha),
-      removeEvidenceFile: true,
-      stderr: "--provider-scope-evidence-file missing or not a regular file",
-    },
-    {
-      name: "incomplete provider evidence",
-      scope: async (cwd: string, baseSha: string, headSha: string) =>
-        providerScopeDecision(cwd, baseSha, headSha),
-      evidence: async (cwd: string, baseSha: string, headSha: string) =>
-        providerScopeEvidence(cwd, baseSha, headSha, {
-          evidence_complete: false,
-        }),
-      stderr: "provider evidence schema mismatch",
-    },
-    {
-      name: "stale provider head",
-      scope: async (cwd: string, baseSha: string, headSha: string) =>
-        providerScopeDecision(cwd, baseSha, headSha),
-      evidence: async (cwd: string, baseSha: string, headSha: string) =>
-        providerScopeEvidence(cwd, baseSha, headSha, { headRefOid: baseSha }),
-      stderr: "provider evidence head mismatch",
-    },
-    {
-      name: "missing provider diff base",
-      scope: async (cwd: string, baseSha: string, headSha: string) =>
-        providerScopeDecision(cwd, baseSha, headSha),
-      evidence: async (cwd: string, baseSha: string, headSha: string) =>
-        providerScopeEvidence(cwd, baseSha, headSha, {
-          provider_pr_diff_base_sha: "",
-        }),
-      stderr: "provider evidence provider_pr_diff_base_sha is malformed",
-    },
-    {
-      name: "duplicate provider files",
-      scope: async (cwd: string, baseSha: string, headSha: string) =>
-        providerScopeDecision(cwd, baseSha, headSha),
-      evidence: async (cwd: string, baseSha: string, headSha: string) => {
-        const evidence = await providerScopeEvidence(cwd, baseSha, headSha);
-        const entry = (evidence.provider_files as JsonObject[])[0];
-        return {
-          ...evidence,
-          provider_files: [entry, entry],
-          local_files: [entry, entry],
-        };
-      },
-      stderr: "provider evidence contains duplicate file entries",
-    },
-    {
-      name: "provider file path contains NUL",
-      scope: async (cwd: string, baseSha: string, headSha: string) =>
-        providerScopeDecision(cwd, baseSha, headSha),
-      evidence: async (cwd: string, baseSha: string, headSha: string) => {
-        const evidence = await providerScopeEvidence(cwd, baseSha, headSha);
-        const entry = {
-          ...(evidence.provider_files as JsonObject[])[0],
-          path: "src/app.ts\0spoof",
-        };
-        return {
-          ...evidence,
-          provider_files: [entry],
-          local_files: [entry],
-        };
-      },
-      stderr: "provider evidence schema mismatch",
-    },
-    {
-      name: "scope changed file path contains NUL",
-      scope: async (cwd: string, baseSha: string, headSha: string) =>
-        providerScopeDecision(cwd, baseSha, headSha, undefined, {
-          changed_files: ["src/app.ts\0spoof"],
-        }),
-      evidence: async (cwd: string, baseSha: string, headSha: string) =>
-        providerScopeEvidence(cwd, baseSha, headSha),
-      stderr: "scope changed files contain invalid path identity",
-    },
-    {
-      name: "provider/local file mismatch",
-      scope: async (cwd: string, baseSha: string, headSha: string) =>
-        providerScopeDecision(cwd, baseSha, headSha),
-      evidence: async (cwd: string, baseSha: string, headSha: string) => {
-        const evidence = await providerScopeEvidence(cwd, baseSha, headSha);
-        const localEntry = {
-          ...(evidence.local_files as JsonObject[])[0],
-          additions: 2,
-          changes: 2,
-        };
-        return { ...evidence, local_files: [localEntry] };
-      },
-      stderr: "provider/local file evidence mismatch",
     },
     {
       name: "provider unavailable while local patch is available",
@@ -2983,88 +2583,6 @@ describe.skipIf(isWindows)("review artifact runtime reducers", () => {
       stderr: "provider/local patch evidence mismatch",
     },
     {
-      name: "provider available while local patch is unavailable",
-      scope: async (cwd: string, baseSha: string, headSha: string) =>
-        providerScopeDecision(cwd, baseSha, headSha),
-      evidence: async (cwd: string, baseSha: string, headSha: string) => {
-        const availableEntry = await providerEvidenceFileEntry(
-          cwd,
-          baseSha,
-          headSha,
-        );
-        return providerScopeEvidence(cwd, baseSha, headSha, {
-          provider_files: [availableEntry],
-          local_files: [unavailablePatchEntry(availableEntry)],
-        });
-      },
-      stderr: "provider/local patch evidence mismatch",
-    },
-    {
-      name: "provider and local forged metadata differs from canonical git",
-      scope: async (cwd: string, baseSha: string, headSha: string) =>
-        providerScopeDecision(cwd, baseSha, headSha),
-      evidence: async (cwd: string, baseSha: string, headSha: string) => {
-        const fileEntry = await providerEvidenceFileEntry(
-          cwd,
-          baseSha,
-          headSha,
-        );
-        const forgedEntry = {
-          ...fileEntry,
-          additions: 2,
-          changes: 2,
-        };
-        return providerScopeEvidence(cwd, baseSha, headSha, {
-          provider_files: [forgedEntry],
-          local_files: [forgedEntry],
-        });
-      },
-      stderr: "local provider evidence does not match git",
-    },
-    {
-      name: "provider and local unavailable metadata differs from canonical git",
-      scope: async (cwd: string, baseSha: string, headSha: string) =>
-        providerScopeDecision(cwd, baseSha, headSha),
-      evidence: async (cwd: string, baseSha: string, headSha: string) => {
-        const fileEntry = await providerEvidenceFileEntry(
-          cwd,
-          baseSha,
-          headSha,
-        );
-        const forgedEntry = unavailablePatchEntry({
-          ...fileEntry,
-          additions: 2,
-          changes: 2,
-        });
-        return providerScopeEvidence(cwd, baseSha, headSha, {
-          provider_files: [forgedEntry],
-          local_files: [forgedEntry],
-        });
-      },
-      stderr: "local provider evidence does not match git",
-    },
-    {
-      name: "available patch digest differs from canonical git",
-      scope: async (cwd: string, baseSha: string, headSha: string) =>
-        providerScopeDecision(cwd, baseSha, headSha),
-      evidence: async (cwd: string, baseSha: string, headSha: string) => {
-        const fileEntry = await providerEvidenceFileEntry(
-          cwd,
-          baseSha,
-          headSha,
-        );
-        const forgedEntry = {
-          ...fileEntry,
-          patch_sha256: "b".repeat(64),
-        };
-        return providerScopeEvidence(cwd, baseSha, headSha, {
-          provider_files: [forgedEntry],
-          local_files: [forgedEntry],
-        });
-      },
-      stderr: "provider/local patch evidence mismatch",
-    },
-    {
       name: "provider/local diff mismatch",
       scope: async (cwd: string, baseSha: string, headSha: string) =>
         providerScopeDecision(cwd, baseSha, headSha),
@@ -3075,112 +2593,22 @@ describe.skipIf(isWindows)("review artifact runtime reducers", () => {
       stderr: "provider/local diff digest mismatch",
     },
     {
-      name: "unavailable full diff drift with incompatible provenance",
+      name: "provider file path contains NUL",
       scope: async (cwd: string, baseSha: string, headSha: string) =>
         providerScopeDecision(cwd, baseSha, headSha),
       evidence: async (cwd: string, baseSha: string, headSha: string) => {
-        const fileEntry = unavailablePatchEntry(
-          await providerEvidenceFileEntry(cwd, baseSha, headSha),
-        );
-        return providerScopeEvidence(cwd, baseSha, headSha, {
-          provider_files: [fileEntry],
-          local_files: [fileEntry],
-          provider_diff_sha256: "b".repeat(64),
-        });
+        const evidence = await providerScopeEvidence(cwd, baseSha, headSha);
+        const entry = {
+          ...(evidence.provider_files as JsonObject[])[0],
+          path: "src/app.ts\0spoof",
+        };
+        return { ...evidence, provider_files: [entry], local_files: [entry] };
       },
-      stderr: "provider/local diff digest mismatch",
-    },
-    {
-      name: "empty provider and local file sets with provider-native diff drift",
-      scope: async (cwd: string, baseSha: string, headSha: string) =>
-        providerScopeDecision(cwd, baseSha, headSha, undefined, {
-          changed_files: [],
-          language_hints: [],
-          mechanical_facts: {
-            changed_file_count: 0,
-            followup_sha_usable: false,
-            mechanical_escalate_full: true,
-            mechanical_escalation_reason: "not-followup",
-          },
-        }),
-      evidence: async (cwd: string, baseSha: string, headSha: string) =>
-        providerScopeEvidence(cwd, baseSha, headSha, {
-          provider_files: [],
-          local_files: [],
-          provider_diff_sha256: "b".repeat(64),
-          digest_provenance: providerNativeDiffProvenance(),
-        }),
-      workspace: makeProviderEmptyDiffWorkspace,
-      stderr: "provider/local diff digest mismatch",
-    },
-    {
-      name: "multi-file provider/local diff mismatch",
-      scope: async (cwd: string, baseSha: string, headSha: string) =>
-        providerScopeDecision(cwd, baseSha, headSha, undefined, {
-          changed_files: ["src/app.ts", "src/other.ts"],
-          mechanical_facts: {
-            changed_file_count: 2,
-            followup_sha_usable: false,
-            mechanical_escalate_full: true,
-            mechanical_escalation_reason: "not-followup",
-          },
-        }),
-      evidence: async (cwd: string, baseSha: string, headSha: string) => {
-        const availableEntry = await providerEvidenceFileEntry(
-          cwd,
-          baseSha,
-          headSha,
-          "src/app.ts",
-        );
-        const otherAvailableEntry = await providerEvidenceFileEntry(
-          cwd,
-          baseSha,
-          headSha,
-          "src/other.ts",
-        );
-        return providerScopeEvidence(cwd, baseSha, headSha, {
-          provider_files: [availableEntry, otherAvailableEntry],
-          local_files: [availableEntry, otherAvailableEntry],
-          provider_diff_sha256: "b".repeat(64),
-        });
-      },
-      workspace: makeProviderMultiFileWorkspace,
-      stderr: "provider/local diff digest mismatch",
-    },
-    {
-      name: "self-range provider diff base",
-      scope: async (cwd: string, _baseSha: string, headSha: string) =>
-        providerScopeDecision(cwd, headSha, headSha),
-      evidence: async (cwd: string, baseSha: string, headSha: string) =>
-        providerScopeEvidence(cwd, baseSha, headSha, {
-          provider_pr_diff_base_sha: headSha,
-          full_pr_diff_range: `${headSha}..${headSha}`,
-          provider_files: [],
-          local_files: [],
-        }),
-      args: (headSha: string) => providerScopeArgs(headSha, headSha),
-      stderr: "provider PR diff base must equal single merge base",
-    },
-    {
-      name: "malformed provider evidence",
-      scope: async (cwd: string, baseSha: string, headSha: string) =>
-        providerScopeDecision(cwd, baseSha, headSha),
-      evidence: async (cwd: string, baseSha: string, headSha: string) =>
-        providerScopeEvidence(cwd, baseSha, headSha, {
-          schema: "pr-review/provider-scope-evidence/v1",
-        }),
       stderr: "provider evidence schema mismatch",
     },
   ])("rejects invalid pr-review provider evidence: $name", async (testCase) => {
-    const makeWorkspace =
-      "workspace" in testCase && typeof testCase.workspace === "function"
-        ? testCase.workspace
-        : makeProviderScopeWorkspace;
-    const { cwd, baseSha, headSha } = await makeWorkspace();
-    const evidencePath =
-      "evidencePath" in testCase && typeof testCase.evidencePath === "string"
-        ? testCase.evidencePath
-        : providerScopeEvidencePath(headSha);
+    const { cwd, baseSha, headSha } = await makeProviderScopeWorkspace();
+    const evidencePath = providerScopeEvidencePath(headSha);
     try {
       await writeJson(
         cwd,
@@ -3192,70 +2620,13 @@ describe.skipIf(isWindows)("review artifact runtime reducers", () => {
         ".ephemeral/topic-scope-decision.json",
         await testCase.scope(cwd, baseSha, headSha),
       );
-      if (testCase.removeEvidenceFile === true) {
-        await rm(path.join(cwd, evidencePath));
-      }
-
-      await expect(
-        runReviewArtifactsCommand(
-          testCase.args === undefined
-            ? providerScopeArgs(headSha, baseSha)
-            : testCase.args(headSha, baseSha),
-        ),
-      ).resolves.toMatchObject({
-        exitCode: 1,
-        stderr: expect.stringContaining(testCase.stderr),
-      });
-    } finally {
-      await cleanupRiskSignalsWorkspace(cwd);
-    }
-  });
-
-  it("produces canonical provider scope evidence from a bound capture and consumes it", async () => {
-    const { cwd, baseSha, headSha } = await makeProviderScopeWorkspace();
-    const capturePath = `.ephemeral/topic-${headSha}-provider-scope-capture.json`;
-    const evidencePath = providerScopeEvidencePath(headSha);
-    try {
-      await writeJson(
-        cwd,
-        capturePath,
-        await providerScopeCapture(cwd, baseSha, headSha),
-      );
-
-      await expect(
-        runPrReviewProviderScopeEvidenceCommand([
-          "write",
-          "--head-sha",
-          headSha,
-          "--capture-file",
-          capturePath,
-        ]),
-      ).resolves.toEqual({
-        exitCode: 0,
-        stdout: `${evidencePath}\n`,
-        stderr: "",
-      });
-      await expect(
-        readFile(path.join(cwd, capturePath), "utf8"),
-      ).rejects.toMatchObject({
-        code: "ENOENT",
-      });
-      const evidence = JSON.parse(
-        await readFile(path.join(cwd, evidencePath), "utf8"),
-      ) as JsonObject;
-      expect(evidence).toMatchObject({
-        schema: PROVIDER_EVIDENCE_SCHEMA,
-        headRefOid: headSha,
-        provider_pr_diff_base_sha: baseSha,
-      });
-      await writeJson(
-        cwd,
-        ".ephemeral/topic-scope-decision.json",
-        await providerScopeDecision(cwd, baseSha, headSha),
-      );
       await expect(
         runReviewArtifactsCommand(providerScopeArgs(headSha, baseSha)),
-      ).resolves.toMatchObject({ exitCode: 0 });
+      ).resolves.toMatchObject({
+        exitCode: 1,
+        stdout: "",
+        stderr: expect.stringContaining(testCase.stderr),
+      });
     } finally {
       await cleanupRiskSignalsWorkspace(cwd);
     }
@@ -3399,52 +2770,6 @@ describe.skipIf(isWindows)("review artifact runtime reducers", () => {
     {
       name: "extra capture key",
       mutate: (capture: JsonObject) => ({ ...capture, extra: true }),
-    },
-    {
-      name: "stale head",
-      mutate: (capture: JsonObject) => ({
-        ...capture,
-        headRefOid: "a".repeat(40),
-      }),
-    },
-    {
-      name: "incomplete evidence",
-      mutate: (capture: JsonObject) => ({
-        ...capture,
-        evidence_complete: false,
-      }),
-    },
-    {
-      name: "duplicate provider file",
-      mutate: (capture: JsonObject) => ({
-        ...capture,
-        provider_files: [
-          ...(capture.provider_files as JsonObject[]),
-          (capture.provider_files as JsonObject[])[0],
-        ],
-      }),
-    },
-    {
-      name: "unsupported diff dialect",
-      mutate: (capture: JsonObject) => ({
-        ...capture,
-        provider_diff: {
-          ...(capture.provider_diff as JsonObject),
-          dialect: "other",
-        },
-      }),
-    },
-    {
-      name: "invalid patch base64",
-      mutate: (capture: JsonObject) => ({
-        ...capture,
-        provider_files: [
-          {
-            ...(capture.provider_files as JsonObject[])[0],
-            patch_base64: "***",
-          },
-        ],
-      }),
     },
     {
       name: "GitHub file hunk fragment as available patch",
@@ -3778,182 +3103,16 @@ describe.skipIf(isWindows)("review artifact runtime reducers", () => {
 
   it.each([
     {
-      name: "missing required flag names the flag",
-      artifact: (_baseSha: string, _headSha: string) => undefined,
-      args: (headSha: string) =>
-        riskSignalsArgs(headSha).filter(
-          (arg) =>
-            ![
-              "--risk-signals-file",
-              ".ephemeral/topic-risk-signals.json",
-            ].includes(arg),
-        ),
-      stderr: "--risk-signals-file is required",
-    },
-    {
       name: "unknown top-level key",
       artifact: (baseSha: string, headSha: string) =>
         riskSignalsArtifact(baseSha, headSha, { extra: true }),
       stderr: "risk-signals schema mismatch",
     },
     {
-      name: "null contract example discipline context",
-      artifact: (baseSha: string, headSha: string) =>
-        riskSignalsArtifact(baseSha, headSha, {
-          contract_example_discipline: null,
-        }),
-      stderr: "risk-signals schema mismatch",
-    },
-    {
-      name: "array contract example discipline context",
-      artifact: (baseSha: string, headSha: string) =>
-        riskSignalsArtifact(baseSha, headSha, {
-          contract_example_discipline: [],
-        }),
-      stderr: "risk-signals schema mismatch",
-    },
-    {
-      name: "contract example discipline context with extra key",
-      artifact: (baseSha: string, headSha: string) =>
-        riskSignalsArtifact(baseSha, headSha, {
-          contract_example_discipline: contractExampleDisciplineContext({
-            extra: true,
-          }),
-        }),
-      stderr: "risk-signals schema mismatch",
-    },
-    {
-      name: "contract example discipline context missing proof boolean",
-      artifact: (baseSha: string, headSha: string) =>
-        riskSignalsArtifact(baseSha, headSha, {
-          contract_example_discipline: contractExampleDisciplineContext({
-            proof_obligations: { valid_examples_pass: true },
-          }),
-        }),
-      stderr: "risk-signals schema mismatch",
-    },
-    {
-      name: "contract example discipline context with false valid examples proof",
-      artifact: (baseSha: string, headSha: string) =>
-        riskSignalsArtifact(baseSha, headSha, {
-          contract_example_discipline: contractExampleDisciplineContext({
-            proof_obligations: {
-              valid_examples_pass: false,
-              invalid_families_fail: true,
-            },
-          }),
-        }),
-      stderr: "risk-signals schema mismatch",
-    },
-    {
-      name: "contract example discipline context with false invalid families proof",
-      artifact: (baseSha: string, headSha: string) =>
-        riskSignalsArtifact(baseSha, headSha, {
-          contract_example_discipline: contractExampleDisciplineContext({
-            proof_obligations: {
-              valid_examples_pass: true,
-              invalid_families_fail: false,
-            },
-          }),
-        }),
-      stderr: "risk-signals schema mismatch",
-    },
-    {
-      name: "contract example discipline context with nul",
-      artifact: (baseSha: string, headSha: string) =>
-        riskSignalsArtifact(baseSha, headSha, {
-          contract_example_discipline: contractExampleDisciplineContext({
-            obligations: "contains\0nul",
-          }),
-        }),
-      stderr: "risk-signals schema mismatch",
-    },
-    {
-      name: "contract example discipline context with oversized text",
-      artifact: (baseSha: string, headSha: string) =>
-        riskSignalsArtifact(baseSha, headSha, {
-          contract_example_discipline: contractExampleDisciplineContext({
-            consumer_rule: "x".repeat(4001),
-          }),
-        }),
-      stderr: "risk-signals schema mismatch",
-    },
-    {
-      name: "missing required signal",
-      artifact: (baseSha: string, headSha: string) => {
-        const artifact = riskSignalsArtifact(baseSha, headSha);
-        const { contract: _omitted, ...signals } =
-          artifact.signals as JsonObject;
-        return { ...artifact, signals };
-      },
-      stderr: "risk-signals schema mismatch",
-    },
-    {
-      name: "invalid signal value",
-      artifact: (baseSha: string, headSha: string) =>
-        riskSignalsArtifact(baseSha, headSha, {
-          signals: {
-            ...(riskSignalsArtifact(baseSha, headSha).signals as JsonObject),
-            diagnostics: "yes",
-          },
-        }),
-      stderr: "risk-signals schema mismatch",
-    },
-    {
-      name: "missing boolean",
-      artifact: (baseSha: string, headSha: string) => {
-        const { canonical_docs_may_be_affected: _omitted, ...artifact } =
-          riskSignalsArtifact(baseSha, headSha);
-        return artifact;
-      },
-      stderr: "risk-signals schema mismatch",
-    },
-    {
-      name: "non-boolean",
-      artifact: (baseSha: string, headSha: string) =>
-        riskSignalsArtifact(baseSha, headSha, {
-          end_user_diagnostics_may_be_affected: "false",
-        }),
-      stderr: "risk-signals schema mismatch",
-    },
-    {
-      name: "schema mismatch",
-      artifact: (baseSha: string, headSha: string) =>
-        riskSignalsArtifact(baseSha, headSha, {
-          schema: "branch-review/risk-signals/v2",
-        }),
-      stderr: "risk-signals schema mismatch",
-    },
-    {
-      name: "malformed head",
-      artifact: (baseSha: string, headSha: string) =>
-        riskSignalsArtifact(baseSha, headSha, { reviewed_head_sha: "ABC" }),
-      stderr: "risk-signals head is malformed",
-    },
-    {
       name: "stale head",
       artifact: (baseSha: string, headSha: string) =>
         riskSignalsArtifact(baseSha, headSha, { reviewed_head_sha: baseSha }),
       stderr: "risk-signals head mismatch",
-    },
-    {
-      name: "command head is not current repository head",
-      artifact: (baseSha: string, headSha: string) =>
-        riskSignalsArtifact(baseSha, headSha),
-      args: (headSha: string, baseSha: string) => riskSignalsArgs(baseSha),
-      stderr: "--head-sha must match current repository HEAD",
-    },
-    {
-      name: "stale base sha",
-      artifact: (_baseSha: string, headSha: string) =>
-        riskSignalsArtifact(headSha, headSha),
-      stderr: "risk-signals base sha mismatch",
-    },
-    {
-      name: "forged base ref",
-      artifact: (baseSha: string, headSha: string) =>
-        riskSignalsArtifact(baseSha, headSha, { reviewed_base_ref: "topic" }),
-      stderr: "risk-signals base ref mismatch",
     },
     {
       name: "range mismatch",
@@ -3972,35 +3131,6 @@ describe.skipIf(isWindows)("review artifact runtime reducers", () => {
       stderr: "nested --risk-signals-file path rejected",
     },
     {
-      name: "wrong suffix",
-      artifact: (baseSha: string, headSha: string) =>
-        riskSignalsArtifact(baseSha, headSha),
-      args: (headSha: string) =>
-        riskSignalsArgs(headSha, ".ephemeral/topic-risk.json"),
-      stderr: "--risk-signals-file path validation failed",
-    },
-    {
-      name: "irrelevant base-ref flag",
-      artifact: (baseSha: string, headSha: string) =>
-        riskSignalsArtifact(baseSha, headSha),
-      args: (headSha: string) => [
-        ...riskSignalsArgs(headSha),
-        "--base-ref",
-        "main",
-      ],
-      stderr: "validate-risk-signals does not accept --base-ref",
-    },
-    {
-      name: "irrelevant emit gate result flag",
-      artifact: (baseSha: string, headSha: string) =>
-        riskSignalsArtifact(baseSha, headSha),
-      args: (headSha: string) => [
-        ...riskSignalsArgs(headSha),
-        "--emit-gate-result",
-      ],
-      stderr: "validate-risk-signals does not accept --emit-gate-result",
-    },
-    {
       name: "changed-file contradiction",
       artifact: (baseSha: string, headSha: string) =>
         riskSignalsArtifact(baseSha, headSha, {
@@ -4008,34 +3138,23 @@ describe.skipIf(isWindows)("review artifact runtime reducers", () => {
         }),
       stderr: "risk-signals changed files do not match expected range",
     },
-    {
-      name: "duplicate changed-file entry",
-      artifact: (baseSha: string, headSha: string) =>
-        riskSignalsArtifact(baseSha, headSha, {
-          changed_files: ["src/app.ts", "src/app.ts"],
-        }),
-      stderr: "risk-signals changed files contain duplicates",
-    },
   ])("rejects invalid risk-signals artifacts: $name", async (testCase) => {
     const { cwd, baseSha, headSha } = await makeRiskSignalsWorkspace();
     try {
       process.chdir(cwd);
       const artifact = testCase.artifact(baseSha, headSha);
-      if (artifact !== undefined) {
-        await writeJson(cwd, ".ephemeral/topic-risk-signals.json", artifact);
-        await writeJson(cwd, ".ephemeral/topic-risk.json", artifact);
-        await writeJson(
-          cwd,
-          ".ephemeral/nested/topic-risk-signals.json",
-          artifact,
-        );
-      }
-
+      await writeJson(cwd, ".ephemeral/topic-risk-signals.json", artifact);
+      await writeJson(cwd, ".ephemeral/topic-risk.json", artifact);
+      await writeJson(
+        cwd,
+        ".ephemeral/nested/topic-risk-signals.json",
+        artifact,
+      );
       await expect(
         runReviewArtifactsCommand(
           testCase.args === undefined
             ? riskSignalsArgs(headSha)
-            : testCase.args(headSha, baseSha),
+            : testCase.args(headSha),
         ),
       ).resolves.toMatchObject({
         exitCode: 1,

@@ -84,6 +84,7 @@ const refreshedResultDigest =
   "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc";
 
 const originalCwd = process.cwd();
+const windowsLaneCollectionDeadlineMs = 4_800;
 const managedEnvKeys = [
   "REPOSITORY",
   "PR_NUMBER",
@@ -217,54 +218,9 @@ it("selects the exact issue-578 Windows PR-review lane", async () => {
     path.dirname(fileURLToPath(import.meta.url)),
     "../..",
   );
-  const [
-    packageSource,
-    harnessSource,
-    lifecycleSource,
-    leaseSource,
-    manifestSource,
-    rootIdentitySource,
-    sourceImmutabilitySource,
-  ] = await Promise.all([
-    readFile(path.join(repositoryRoot, "package.json"), "utf8"),
-    readFile(
-      path.join(
-        repositoryRoot,
-        "src/__test-helpers__/pr-review-command-harness.test.ts",
-      ),
-      "utf8",
-    ),
-    readFile(
-      path.join(
-        repositoryRoot,
-        "src/__test-helpers__/pr-review-process-lifecycle.test.ts",
-      ),
-      "utf8",
-    ),
-    readFile(
-      path.join(repositoryRoot, "src/runtime/pr-review-leases.test.ts"),
-      "utf8",
-    ),
-    readFile(
-      path.join(repositoryRoot, "src/runtime/pr-review-manifests.test.ts"),
-      "utf8",
-    ),
-    readFile(
-      path.join(
-        repositoryRoot,
-        "src/__test-helpers__/pr-review-root-identity.test.ts",
-      ),
-      "utf8",
-    ),
-    readFile(
-      path.join(repositoryRoot, "src/runtime/source-immutability.test.ts"),
-      "utf8",
-    ),
-  ]);
-  const packageJson = JSON.parse(packageSource) as {
-    scripts?: Record<string, string>;
-  };
-  const command = packageJson.scripts?.["test:ci:windows:pr-review"];
+  const packageJson = JSON.parse(
+    await readFile(path.join(repositoryRoot, "package.json"), "utf8"),
+  ) as { scripts?: Record<string, string> };
   const laneFiles = [
     "src/__test-helpers__/pr-review-command-harness.test.ts",
     "src/__test-helpers__/pr-review-process-protocol.test.ts",
@@ -274,23 +230,23 @@ it("selects the exact issue-578 Windows PR-review lane", async () => {
     "src/runtime/pr-review-manifests.test.ts",
     "src/runtime/source-immutability.test.ts",
   ];
-  const commandPrefix = [
-    "vitest run --project unit --testTimeout 12000 --no-file-parallelism",
-    ...laneFiles,
-  ].join(" ");
-  expect(command).toBeTypeOf("string");
-  const focusedTestTimeoutMs = Number(
-    /--testTimeout (\d+)/u.exec(command ?? "")?.[1],
+  const selector =
+    "PR-review command harness|pr-review process protocol|pr-review root identity|pr-review process lifecycle|(?:rejects stale or mismatched gated result evidence: (?:stale-timestamp|presentation-mismatch)|requires explicit provider evidence input for adapter scope validation|rejects noncanonical retained fingerprint path (?:\\.\\./outside|/absolute) before verify or cleanup deletion)$";
+
+  expect(packageJson.scripts?.["test:ci:windows:pr-review"]).toBe(
+    [
+      "vitest run --project unit --testTimeout 12000 --no-file-parallelism",
+      ...laneFiles,
+      `--testNamePattern "${selector}"`,
+    ].join(" "),
   );
-  expect(focusedTestTimeoutMs).toBeGreaterThan(4_999 + 4_999 + 250);
-  const selectorRecord = new RegExp(
-    `^${commandPrefix.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")} --testNamePattern "([^"]+)"$`,
-    "u",
-  ).exec(command ?? "");
-  expect(selectorRecord).not.toBeNull();
-  const selector = new RegExp(selectorRecord?.[1] ?? "(?!)", "u");
-  const windowsExecutableTitle =
-    "enrolls a real Windows executable and rejects a wrong extension";
+  const rootIdentitySource = await readFile(
+    path.join(
+      repositoryRoot,
+      "src/__test-helpers__/pr-review-root-identity.test.ts",
+    ),
+    "utf8",
+  );
   const rootIdentitySourceFile = ts.createSourceFile(
     "pr-review-root-identity.test.ts",
     rootIdentitySource,
@@ -298,520 +254,73 @@ it("selects the exact issue-578 Windows PR-review lane", async () => {
     true,
     ts.ScriptKind.TS,
   );
-  const windowsExecutableRegistrations: string[] = [];
-  const visitRootIdentity = (node: ts.Node): void => {
+  const windowsExecutableTitle =
+    "enrolls a real Windows executable and rejects a wrong extension";
+  let rootSuiteCount = 0;
+  const windowsRegistrations: Array<{
+    insideRootSuite: boolean;
+    title: string;
+  }> = [];
+  const isWindowsRunIf = (node: ts.CallExpression): boolean => {
+    if (!ts.isCallExpression(node.expression)) return false;
+    const runIf = node.expression;
+    if (
+      !ts.isPropertyAccessExpression(runIf.expression) ||
+      !ts.isIdentifier(runIf.expression.expression) ||
+      runIf.expression.expression.text !== "test" ||
+      runIf.expression.name.text !== "runIf"
+    ) {
+      return false;
+    }
+    const condition = runIf.arguments[0];
+    return (
+      condition !== undefined &&
+      ts.isBinaryExpression(condition) &&
+      condition.operatorToken.kind === ts.SyntaxKind.EqualsEqualsEqualsToken &&
+      ts.isPropertyAccessExpression(condition.left) &&
+      ts.isIdentifier(condition.left.expression) &&
+      condition.left.expression.text === "process" &&
+      condition.left.name.text === "platform" &&
+      ts.isStringLiteral(condition.right) &&
+      condition.right.text === "win32"
+    );
+  };
+  const visitRootIdentity = (node: ts.Node, insideRootSuite = false): void => {
     if (
       ts.isCallExpression(node) &&
-      ts.isCallExpression(node.expression) &&
-      ts.isPropertyAccessExpression(node.expression.expression) &&
-      ts.isIdentifier(node.expression.expression.expression) &&
-      node.expression.expression.expression.text === "test" &&
-      node.expression.expression.name.text === "runIf" &&
-      node.expression.arguments[0]?.getText(rootIdentitySourceFile) ===
-        'process.platform === "win32"'
+      ts.isIdentifier(node.expression) &&
+      node.expression.text === "describe" &&
+      ts.isStringLiteral(node.arguments[0]) &&
+      node.arguments[0].text === "pr-review root identity" &&
+      node.arguments[1] !== undefined &&
+      (ts.isArrowFunction(node.arguments[1]) ||
+        ts.isFunctionExpression(node.arguments[1]))
     ) {
-      const title = node.arguments[0];
-      windowsExecutableRegistrations.push(
-        title !== undefined &&
-          (ts.isStringLiteral(title) ||
-            ts.isNoSubstitutionTemplateLiteral(title))
-          ? title.text
-          : "<nonliteral>",
+      rootSuiteCount += 1;
+      ts.forEachChild(node.arguments[1].body, (child) =>
+        visitRootIdentity(child, true),
       );
+      return;
     }
-    ts.forEachChild(node, visitRootIdentity);
+    if (ts.isCallExpression(node) && isWindowsRunIf(node)) {
+      const title = node.arguments[0];
+      windowsRegistrations.push({
+        insideRootSuite,
+        title:
+          title !== undefined && ts.isStringLiteral(title)
+            ? title.text
+            : "<nonliteral>",
+      });
+    }
+    ts.forEachChild(node, (child) => visitRootIdentity(child, insideRootSuite));
   };
   visitRootIdentity(rootIdentitySourceFile);
-  expect(windowsExecutableRegistrations).toEqual([windowsExecutableTitle]);
-  const literalTestTitles = (source: string, fileName: string): string[] => {
-    const sourceFile = ts.createSourceFile(
-      fileName,
-      source,
-      ts.ScriptTarget.Latest,
-      true,
-      ts.ScriptKind.TS,
-    );
-    const registrars = new Set<string>();
-    const unsupported: string[] = [];
-    for (const statement of sourceFile.statements) {
-      if (
-        !ts.isImportDeclaration(statement) ||
-        !ts.isStringLiteral(statement.moduleSpecifier) ||
-        statement.moduleSpecifier.text !== "vitest"
-      ) {
-        continue;
-      }
-      const bindings = statement.importClause?.namedBindings;
-      if (bindings === undefined) continue;
-      if (!ts.isNamedImports(bindings)) {
-        unsupported.push(bindings.getText(sourceFile));
-        continue;
-      }
-      for (const element of bindings.elements) {
-        const imported = element.propertyName?.text ?? element.name.text;
-        if (imported === "it" || imported === "test") {
-          registrars.add(element.name.text);
-        }
-      }
-    }
-    const titles: string[] = [];
-    const visit = (node: ts.Node): void => {
-      if (
-        ts.isIdentifier(node) &&
-        registrars.has(node.text) &&
-        !(
-          ts.isImportSpecifier(node.parent) &&
-          (node.parent.name === node || node.parent.propertyName === node)
-        ) &&
-        !(ts.isCallExpression(node.parent) && node.parent.expression === node)
-      ) {
-        unsupported.push(node.parent.getText(sourceFile));
-      }
-      if (
-        ts.isCallExpression(node) &&
-        ts.isIdentifier(node.expression) &&
-        registrars.has(node.expression.text)
-      ) {
-        const title = node.arguments[0];
-        if (
-          title !== undefined &&
-          (ts.isStringLiteral(title) ||
-            ts.isNoSubstitutionTemplateLiteral(title))
-        ) {
-          titles.push(title.text);
-        }
-      }
-      ts.forEachChild(node, visit);
-    };
-    visit(sourceFile);
-    return titles;
-  };
-  const strictHarnessRegistrations = (
-    source: string,
-    fileName: string,
-  ): Array<{ fullTitle: string; title: string }> => {
-    const sourceFile = ts.createSourceFile(
-      fileName,
-      source,
-      ts.ScriptTarget.Latest,
-      true,
-      ts.ScriptKind.TS,
-    );
-    const registrars = new Set<string>();
-    const unsupported: string[] = [];
-    let vitestImportCount = 0;
-    for (const statement of sourceFile.statements) {
-      if (
-        !ts.isImportDeclaration(statement) ||
-        !ts.isStringLiteral(statement.moduleSpecifier) ||
-        statement.moduleSpecifier.text !== "vitest"
-      ) {
-        continue;
-      }
-      vitestImportCount += 1;
-      const bindings = statement.importClause?.namedBindings;
-      if (bindings === undefined || !ts.isNamedImports(bindings)) {
-        unsupported.push(statement.getText(sourceFile));
-        continue;
-      }
-      for (const element of bindings.elements) {
-        const imported = element.propertyName?.text ?? element.name.text;
-        if (imported === "test") {
-          unsupported.push(element.getText(sourceFile));
-        }
-        if (imported !== "describe" && imported !== "it") continue;
-        if (element.name.text !== imported) {
-          unsupported.push(element.getText(sourceFile));
-          continue;
-        }
-        registrars.add(imported);
-      }
-    }
-
-    const literalTitle = (node: ts.Node | undefined): string | undefined =>
-      node !== undefined &&
-      (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node))
-        ? node.text
-        : undefined;
-    const registrations: Array<{ fullTitle: string; title: string }> = [];
-    const suiteForTest = (
-      call: ts.CallExpression,
-    ): ts.CallExpression | undefined => {
-      const statement = call.parent;
-      const block = statement.parent;
-      const callback = block.parent;
-      const suiteCall = callback.parent;
-      if (
-        !ts.isExpressionStatement(statement) ||
-        !ts.isBlock(block) ||
-        !(ts.isArrowFunction(callback) || ts.isFunctionExpression(callback)) ||
-        !ts.isCallExpression(suiteCall) ||
-        suiteCall.arguments[1] !== callback ||
-        !ts.isIdentifier(suiteCall.expression) ||
-        suiteCall.expression.text !== "describe" ||
-        !ts.isExpressionStatement(suiteCall.parent) ||
-        !ts.isSourceFile(suiteCall.parent.parent)
-      ) {
-        return undefined;
-      }
-      return suiteCall;
-    };
-    const visit = (node: ts.Node): void => {
-      if (
-        ts.isCallExpression(node) &&
-        (node.expression.kind === ts.SyntaxKind.ImportKeyword ||
-          (ts.isIdentifier(node.expression) &&
-            node.expression.text === "require"))
-      ) {
-        unsupported.push(node.getText(sourceFile));
-      }
-      if (
-        ts.isIdentifier(node) &&
-        registrars.has(node.text) &&
-        !(
-          ts.isImportSpecifier(node.parent) &&
-          (node.parent.name === node || node.parent.propertyName === node)
-        ) &&
-        !(ts.isCallExpression(node.parent) && node.parent.expression === node)
-      ) {
-        unsupported.push(node.parent.getText(sourceFile));
-      }
-      if (
-        ts.isCallExpression(node) &&
-        ts.isIdentifier(node.expression) &&
-        node.expression.text === "describe"
-      ) {
-        const callback = node.arguments[1];
-        if (
-          literalTitle(node.arguments[0]) === undefined ||
-          !(
-            callback !== undefined &&
-            (ts.isArrowFunction(callback) ||
-              ts.isFunctionExpression(callback)) &&
-            ts.isBlock(callback.body)
-          ) ||
-          !ts.isExpressionStatement(node.parent) ||
-          !ts.isSourceFile(node.parent.parent)
-        ) {
-          unsupported.push(node.getText(sourceFile));
-        }
-      }
-      if (
-        ts.isCallExpression(node) &&
-        ts.isIdentifier(node.expression) &&
-        node.expression.text === "it"
-      ) {
-        const title = literalTitle(node.arguments[0]);
-        const suiteCall = suiteForTest(node);
-        const suiteTitle = literalTitle(suiteCall?.arguments[0]);
-        if (
-          title === undefined ||
-          suiteCall === undefined ||
-          suiteTitle === undefined
-        ) {
-          unsupported.push(node.getText(sourceFile));
-        } else {
-          registrations.push({
-            fullTitle: `${suiteTitle} > ${title}`,
-            title,
-          });
-        }
-      }
-      ts.forEachChild(node, visit);
-    };
-    visit(sourceFile);
-    expect(vitestImportCount).toBe(1);
-    expect([...registrars]).toEqual(["describe", "it"]);
-    expect(unsupported).toEqual([]);
-    return registrations;
-  };
-  const assertNoModifiedRegistrationSurfaces = (
-    source: string,
-    fileName: string,
-    selectedMarkers: readonly string[],
-  ): void => {
-    const sourceFile = ts.createSourceFile(
-      fileName,
-      source,
-      ts.ScriptTarget.Latest,
-      true,
-      ts.ScriptKind.TS,
-    );
-    const unsupported: string[] = [];
-    const registrationRoot = (node: ts.Expression): string | undefined => {
-      if (ts.isIdentifier(node)) return node.text;
-      if (ts.isCallExpression(node)) return registrationRoot(node.expression);
-      if (ts.isPropertyAccessExpression(node)) {
-        return registrationRoot(node.expression);
-      }
-      if (ts.isElementAccessExpression(node)) {
-        return registrationRoot(node.expression);
-      }
-      return undefined;
-    };
-    const visit = (node: ts.Node): void => {
-      if (
-        ts.isImportDeclaration(node) &&
-        ts.isStringLiteral(node.moduleSpecifier) &&
-        node.moduleSpecifier.text === "vitest" &&
-        node.importClause?.namedBindings !== undefined &&
-        ts.isNamedImports(node.importClause.namedBindings)
-      ) {
-        for (const element of node.importClause.namedBindings.elements) {
-          const imported = element.propertyName?.text ?? element.name.text;
-          if (
-            (imported === "describe" ||
-              imported === "it" ||
-              imported === "test") &&
-            element.name.text !== imported
-          ) {
-            unsupported.push(element.getText(sourceFile));
-          }
-        }
-      }
-      if (
-        (ts.isPropertyAccessExpression(node) ||
-          ts.isElementAccessExpression(node)) &&
-        ["describe", "it", "test"].includes(
-          registrationRoot(node.expression) ?? "",
-        )
-      ) {
-        const property = ts.isPropertyAccessExpression(node)
-          ? node.name.text
-          : undefined;
-        const root = registrationRoot(node.expression);
-        let registrationSurface: ts.Node = node;
-        while (
-          ts.isCallExpression(registrationSurface.parent) &&
-          (registrationSurface.parent.expression === registrationSurface ||
-            registrationSurface.parent.arguments.includes(
-              registrationSurface as ts.Expression,
-            ))
-        ) {
-          registrationSurface = registrationSurface.parent;
-        }
-        if (
-          root === "describe" ||
-          (property !== "each" &&
-            selectedMarkers.some((marker) =>
-              registrationSurface.getText(sourceFile).includes(marker),
-            ))
-        ) {
-          unsupported.push(node.getText(sourceFile));
-        }
-      }
-      ts.forEachChild(node, visit);
-    };
-    visit(sourceFile);
-    expect(unsupported).toEqual([]);
-  };
-
-  const expectedHarnessTitles = [
-    "copies immutable history into independent short registered worktrees",
-    "removes a healthy registered worktree before its case root",
-    "prunes a registered worktree whose directory is missing",
-    "prunes a registered worktree whose .git marker is missing",
-    "skips Git removal for an already-unregistered worktree",
-    "skips Git removal for an unregistered worktree with a stale regular .git marker",
-    "surfaces Git cleanup failures after removing the case root",
-    "tracks outer work and restores exact cwd and environment state",
-    "fails fast when a generated suffix exceeds the path budget",
-    "provides committed, unborn, and no-ephemeral independent copies",
-    "uses the 4500ms normal deadline for outer operations",
-    "preserves constructor deadline comparison guards",
-    "preserves child deadline comparison guards before child start",
-    "reports bounded taskkill diagnostics after a simulated Windows direct-child fallback",
-    "preserves output overflow when simulated Windows cleanup also fails",
-    "preserves output overflow when delayed Windows cleanup crosses the deadline",
-    "reports a failed Windows fallback before a non-closing child is released",
-    "retains a late outer-operation rejection until drain",
-    "does not report an outer rejection already delivered before its deadline",
-    "terminates an over-deadline child and drains it through close",
-    "terminates a child whose output exceeds the bounded buffer",
-  ];
-  for (const unsupportedRegistration of [
-    'import { describe, it as caseIt } from "vitest"; describe("suite", () => { caseIt("case", () => {}); });',
-    'import { describe, it } from "vitest"; describe.skip("suite", () => { it("case", () => {}); });',
-    'import { describe, it } from "vitest"; describe("suite", () => { for (const value of [1, 2]) { it("case", () => value); } });',
-    'import { describe, it } from "vitest"; void import("vitest"); describe("suite", () => { it("case", () => {}); });',
-  ]) {
-    expect(() =>
-      strictHarnessRegistrations(
-        unsupportedRegistration,
-        "unsupported-registration.test.ts",
-      ),
-    ).toThrow();
-  }
-  const harnessRegistrations = strictHarnessRegistrations(
-    harnessSource,
-    "pr-review-command-harness.test.ts",
-  );
-  const harnessTitles = harnessRegistrations.map(({ title }) => title);
-  expect(harnessTitles).toEqual(expectedHarnessTitles);
-  expect(harnessSource).not.toMatch(/descendant/iu);
-  expect(
-    harnessRegistrations.filter(({ fullTitle }) => selector.test(fullTitle)),
-  ).toHaveLength(21);
-  const lifecycleRegistrations = strictHarnessRegistrations(
-    lifecycleSource,
-    "pr-review-process-lifecycle.test.ts",
-  );
-  const lifecycleTitles = lifecycleRegistrations.map(({ title }) => title);
-  expect(lifecycleTitles).toEqual([
-    "observes a normal root-process exit",
-    "records cooperative cancellation acknowledgement",
-    "attempts root termination after the shared deadline phase",
-    "reports an incomplete root observation without claiming descendant absence",
-    "caps and redacts incremental output overflow evidence",
-    "redacts across chunks before the retained-byte boundary",
-    "uses a synchronous request snapshot after launch begins",
-    "rejects a forged generated-root object even when its path is helper-created",
-    "records a real spawn failure without claiming the root process spawned",
-    "records protocol failure and a false root kill without overstating cleanup",
-    "restores controller cwd before generated-root disposition",
-    "enforces every finite request boundary with exact and plus-one cases",
-    "restores harness-owned global state",
-    "removes a safe helper-created generated root after root close",
-    "preserves a changed, aliased, or unsafe generated root",
-  ]);
-  expect(
-    lifecycleRegistrations.filter(({ fullTitle }) => selector.test(fullTitle)),
-  ).toHaveLength(15);
-
-  const leaseTemplate =
-    /it\(`rejects stale or mismatched gated result evidence: \$\{testCase\.name\}`/gu;
-  const leaseTemplateRecords = [...leaseSource.matchAll(leaseTemplate)];
-  expect(leaseTemplateRecords).toHaveLength(1);
-  const leaseTemplateOffset = leaseTemplateRecords[0]?.index ?? -1;
-  const leaseCasesStart = leaseSource.lastIndexOf(
-    "for (const testCase of [",
-    leaseTemplateOffset,
-  );
-  const leaseCasesEnd = leaseSource.indexOf("] as const) {", leaseCasesStart);
-  expect(leaseCasesStart).toBeGreaterThanOrEqual(0);
-  expect(leaseCasesEnd).toBeGreaterThan(leaseCasesStart);
-  expect(leaseCasesEnd).toBeLessThan(leaseTemplateOffset);
-  const leaseCaseNames = [
-    ...leaseSource
-      .slice(leaseCasesStart, leaseCasesEnd)
-      .matchAll(/^\s*name: "([^"]+)",$/gmu),
-  ].map((match) => match[1]);
-  expect(leaseCaseNames).toEqual([
-    "wrong-result-file",
-    "stale-digest",
-    "stale-timestamp",
-    "presentation-mismatch",
-    "null-presented-at",
-    "missing-digest",
-    "wrong-review-head",
-  ]);
-  const renderedLeaseTitles = leaseCaseNames.map(
-    (name) => `rejects stale or mismatched gated result evidence: ${name}`,
-  );
-
-  const retainedTemplate =
-    /\]\)\(\s*"rejects noncanonical retained fingerprint path %s before verify or cleanup deletion"/gu;
-  const retainedTemplateRecords = [
-    ...sourceImmutabilitySource.matchAll(retainedTemplate),
-  ];
-  expect(retainedTemplateRecords).toHaveLength(1);
-  const retainedTemplateOffset = retainedTemplateRecords[0]?.index ?? -1;
-  const retainedCasesStart = sourceImmutabilitySource.lastIndexOf(
-    "it.each([",
-    retainedTemplateOffset,
-  );
-  const retainedCasesEnd = sourceImmutabilitySource.indexOf(
-    "])(",
-    retainedCasesStart,
-  );
-  expect(retainedCasesStart).toBeGreaterThanOrEqual(0);
-  expect(retainedCasesEnd).toBeGreaterThan(retainedCasesStart);
-  expect(retainedCasesEnd).toBe(retainedTemplateOffset);
-  const retainedCases = [
-    ...sourceImmutabilitySource
-      .slice(retainedCasesStart, retainedCasesEnd)
-      .matchAll(/^\s*"([^"]+)",$/gmu),
-  ].map((match) => match[1]);
-  expect(retainedCases).toEqual([
-    "../outside",
-    "/absolute",
-    "nested/./file",
-    "nested/../file",
-    "nested//file",
-    "nested/file/",
-  ]);
-  const renderedRetainedTitles = retainedCases.map((invalidPath) =>
-    "rejects noncanonical retained fingerprint path %s before verify or cleanup deletion".replace(
-      "%s",
-      invalidPath,
-    ),
-  );
-
-  const manifestTitle =
-    "requires explicit provider evidence input for adapter scope validation";
-  const manifestTitles = literalTestTitles(
-    manifestSource,
-    "pr-review-manifests.test.ts",
-  );
-  expect(
-    manifestTitles.filter((title) => title === manifestTitle),
-  ).toHaveLength(1);
-
-  const contractTitle = [
-    "selects the exact issue-578 Windows PR-review",
-    "lane",
-  ].join(" ");
-  const leaseLiteralTitles = literalTestTitles(
-    leaseSource,
-    "pr-review-leases.test.ts",
-  );
-  expect(
-    leaseLiteralTitles.filter((title) => title === contractTitle),
-  ).toHaveLength(1);
-  expect(selector.test(contractTitle)).toBe(true);
-
-  const runtimeInventory = [
-    ...leaseLiteralTitles,
-    ...renderedLeaseTitles,
-    ...manifestTitles,
-    ...literalTestTitles(
-      sourceImmutabilitySource,
-      "source-immutability.test.ts",
-    ),
-    ...renderedRetainedTitles,
-  ];
-  const selectedRuntimeTitles = runtimeInventory.filter((title) =>
-    selector.test(`runtime suite ${title}`),
-  );
-  expect(selectedRuntimeTitles).toEqual([
-    contractTitle,
-    "rejects stale or mismatched gated result evidence: stale-timestamp",
-    "rejects stale or mismatched gated result evidence: presentation-mismatch",
-    manifestTitle,
-    "rejects noncanonical retained fingerprint path ../outside before verify or cleanup deletion",
-    "rejects noncanonical retained fingerprint path /absolute before verify or cleanup deletion",
+  expect(rootSuiteCount).toBe(1);
+  expect(windowsRegistrations).toEqual([
+    { insideRootSuite: true, title: windowsExecutableTitle },
   ]);
 
-  for (const [fileName, source, selectedMarkers] of [
-    ["pr-review-command-harness.test.ts", harnessSource, []],
-    ["pr-review-process-lifecycle.test.ts", lifecycleSource, []],
-    [
-      "pr-review-leases.test.ts",
-      leaseSource,
-      [contractTitle, "rejects stale or mismatched gated result evidence:"],
-    ],
-    ["pr-review-manifests.test.ts", manifestSource, [manifestTitle]],
-    [
-      "source-immutability.test.ts",
-      sourceImmutabilitySource,
-      [
-        "rejects noncanonical retained fingerprint path %s before verify or cleanup deletion",
-      ],
-    ],
-  ] as const) {
-    assertNoModifiedRegistrationSurfaces(source, fileName, selectedMarkers);
-  }
-  const collection = await execFileAsync(
+  const collection = await commandHarness.run(
     process.execPath,
     [
       path.join(repositoryRoot, "node_modules/vitest/vitest.mjs"),
@@ -822,102 +331,318 @@ it("selects the exact issue-578 Windows PR-review lane", async () => {
       "--no-file-parallelism",
       ...laneFiles,
       "--testNamePattern",
-      selectorRecord?.[1] ?? "(?!)",
+      selector,
     ],
-    { cwd: repositoryRoot },
+    { cwd: repositoryRoot, deadlineMs: windowsLaneCollectionDeadlineMs },
   );
-  expect(collection.exitCode).toBe(0);
-  const collectedTests = JSON.parse(collection.stdout) as Array<{
+  expect(collection.exitCode, collection.stderr).toBe(0);
+  expect(collection.stderr).toBe("");
+  type LaneTestInventory = {
     file: string;
     name: string;
     projectName: string;
-  }>;
-  const collectedInventory = collectedTests
-    .map(({ file, name, projectName }) => ({
+  };
+  const compareInventory = (
+    left: LaneTestInventory,
+    right: LaneTestInventory,
+  ): number => {
+    const leftKey = `${left.file}\0${left.name}\0${left.projectName}`;
+    const rightKey = `${right.file}\0${right.name}\0${right.projectName}`;
+    return leftKey < rightKey ? -1 : leftKey > rightKey ? 1 : 0;
+  };
+  const sortInventory = (inventory: LaneTestInventory[]) =>
+    [...inventory].sort(compareInventory);
+  const collectedInventory = sortInventory(
+    (
+      JSON.parse(collection.stdout) as Array<{
+        file: string;
+        name: string;
+        projectName: string;
+      }>
+    ).map(({ file, name, projectName }) => ({
       file: path.relative(repositoryRoot, file).split(path.sep).join("/"),
       name,
       projectName,
-    }))
-    .sort((left, right) =>
-      `${left.file}\0${left.name}`.localeCompare(
-        `${right.file}\0${right.name}`,
-      ),
-    );
-  const expectedCollectedInventory = [
-    ...harnessRegistrations.map(({ fullTitle }) => ({
-      file: laneFiles[0],
-      name: fullTitle,
-      projectName: "unit",
     })),
-    ...[
-      "round trips each checked-in closed V1 message through raw-byte framing",
-      "rejects malformed JSON messages before framing them as lifecycle evidence",
-      "enforces the exact byte boundary before copying sender payload bytes",
-      "uses intrinsic byte-view metadata and rejects non-ArrayBuffer and Proxy views",
-      "is invariant to coalescing and commits an accepted prefix exactly once",
-      "keeps exact-limit and malformed-suffix outcomes invariant across frame partitions",
-      "fails closed at EOF and checks terminal state before inspecting later input",
-    ].map((title) => ({
-      file: laneFiles[1],
-      name: `pr-review process protocol > ${title}`,
-      projectName: "unit",
-    })),
-    ...[
-      "enrolls distinct logical, normalized, physical, and stable directory identity",
-      "accepts only a component-contained generated-root working directory and detects replacement",
-      "fails closed for raw symlink-plus-dot-dot components before normalization",
-      "uses only Windows-equivalent volume comparison and preserves original spellings",
-      "preserves exact three-way redaction variants for a physical parent alias",
-      ...(process.platform === "win32"
-        ? [windowsExecutableTitle]
-        : [
-            "enrolls only a POSIX executable regular file and rejects a non-executable alias",
-          ]),
-    ].map((title) => ({
-      file: laneFiles[2],
-      name: `pr-review root identity > ${title}`,
-      projectName: "unit",
-    })),
-    ...lifecycleRegistrations.map(({ fullTitle }) => ({
-      file: laneFiles[3],
-      name: fullTitle,
-      projectName: "unit",
-    })),
+  );
+  const expectedCollectedInventory: LaneTestInventory[] = [
     {
-      file: laneFiles[4],
-      name: contractTitle,
+      file: "src/__test-helpers__/pr-review-command-harness.test.ts",
+      name: "PR-review command harness process ownership > does not report an outer rejection already delivered before its deadline",
       projectName: "unit",
     },
     {
-      file: laneFiles[4],
-      name: "pr-review lease read-status > rejects stale or mismatched gated result evidence: stale-timestamp",
+      file: "src/__test-helpers__/pr-review-command-harness.test.ts",
+      name: "PR-review command harness process ownership > preserves child deadline comparison guards before child start",
       projectName: "unit",
     },
     {
-      file: laneFiles[4],
+      file: "src/__test-helpers__/pr-review-command-harness.test.ts",
+      name: "PR-review command harness process ownership > preserves constructor deadline comparison guards",
+      projectName: "unit",
+    },
+    {
+      file: "src/__test-helpers__/pr-review-command-harness.test.ts",
+      name: "PR-review command harness process ownership > preserves output overflow when delayed Windows cleanup crosses the deadline",
+      projectName: "unit",
+    },
+    {
+      file: "src/__test-helpers__/pr-review-command-harness.test.ts",
+      name: "PR-review command harness process ownership > preserves output overflow when simulated Windows cleanup also fails",
+      projectName: "unit",
+    },
+    {
+      file: "src/__test-helpers__/pr-review-command-harness.test.ts",
+      name: "PR-review command harness process ownership > reports a failed Windows fallback before a non-closing child is released",
+      projectName: "unit",
+    },
+    {
+      file: "src/__test-helpers__/pr-review-command-harness.test.ts",
+      name: "PR-review command harness process ownership > reports bounded taskkill diagnostics after a simulated Windows direct-child fallback",
+      projectName: "unit",
+    },
+    {
+      file: "src/__test-helpers__/pr-review-command-harness.test.ts",
+      name: "PR-review command harness process ownership > retains a late outer-operation rejection until drain",
+      projectName: "unit",
+    },
+    {
+      file: "src/__test-helpers__/pr-review-command-harness.test.ts",
+      name: "PR-review command harness process ownership > terminates a child whose output exceeds the bounded buffer",
+      projectName: "unit",
+    },
+    {
+      file: "src/__test-helpers__/pr-review-command-harness.test.ts",
+      name: "PR-review command harness process ownership > terminates an over-deadline child and drains it through close",
+      projectName: "unit",
+    },
+    {
+      file: "src/__test-helpers__/pr-review-command-harness.test.ts",
+      name: "PR-review command harness process ownership > uses the 4500ms normal deadline for outer operations",
+      projectName: "unit",
+    },
+    {
+      file: "src/__test-helpers__/pr-review-command-harness.test.ts",
+      name: "PR-review command harness seeded workspaces > copies immutable history into independent short registered worktrees",
+      projectName: "unit",
+    },
+    {
+      file: "src/__test-helpers__/pr-review-command-harness.test.ts",
+      name: "PR-review command harness seeded workspaces > fails fast when a generated suffix exceeds the path budget",
+      projectName: "unit",
+    },
+    {
+      file: "src/__test-helpers__/pr-review-command-harness.test.ts",
+      name: "PR-review command harness seeded workspaces > prunes a registered worktree whose .git marker is missing",
+      projectName: "unit",
+    },
+    {
+      file: "src/__test-helpers__/pr-review-command-harness.test.ts",
+      name: "PR-review command harness seeded workspaces > prunes a registered worktree whose directory is missing",
+      projectName: "unit",
+    },
+    {
+      file: "src/__test-helpers__/pr-review-command-harness.test.ts",
+      name: "PR-review command harness seeded workspaces > removes a healthy registered worktree before its case root",
+      projectName: "unit",
+    },
+    {
+      file: "src/__test-helpers__/pr-review-command-harness.test.ts",
+      name: "PR-review command harness seeded workspaces > skips Git removal for an already-unregistered worktree",
+      projectName: "unit",
+    },
+    {
+      file: "src/__test-helpers__/pr-review-command-harness.test.ts",
+      name: "PR-review command harness seeded workspaces > skips Git removal for an unregistered worktree with a stale regular .git marker",
+      projectName: "unit",
+    },
+    {
+      file: "src/__test-helpers__/pr-review-command-harness.test.ts",
+      name: "PR-review command harness seeded workspaces > surfaces Git cleanup failures after removing the case root",
+      projectName: "unit",
+    },
+    {
+      file: "src/__test-helpers__/pr-review-command-harness.test.ts",
+      name: "PR-review command harness seeded workspaces > tracks outer work and restores exact cwd and environment state",
+      projectName: "unit",
+    },
+    {
+      file: "src/__test-helpers__/pr-review-command-harness.test.ts",
+      name: "PR-review command harness source seeds > provides committed, unborn, and no-ephemeral independent copies",
+      projectName: "unit",
+    },
+    {
+      file: "src/__test-helpers__/pr-review-process-lifecycle.test.ts",
+      name: "pr-review process lifecycle > attempts root termination after the shared deadline phase",
+      projectName: "unit",
+    },
+    {
+      file: "src/__test-helpers__/pr-review-process-lifecycle.test.ts",
+      name: "pr-review process lifecycle > caps and redacts incremental output overflow evidence",
+      projectName: "unit",
+    },
+    {
+      file: "src/__test-helpers__/pr-review-process-lifecycle.test.ts",
+      name: "pr-review process lifecycle > enforces every finite request boundary with exact and plus-one cases",
+      projectName: "unit",
+    },
+    {
+      file: "src/__test-helpers__/pr-review-process-lifecycle.test.ts",
+      name: "pr-review process lifecycle > observes a normal root-process exit",
+      projectName: "unit",
+    },
+    {
+      file: "src/__test-helpers__/pr-review-process-lifecycle.test.ts",
+      name: "pr-review process lifecycle > preserves a changed, aliased, or unsafe generated root",
+      projectName: "unit",
+    },
+    {
+      file: "src/__test-helpers__/pr-review-process-lifecycle.test.ts",
+      name: "pr-review process lifecycle > records a real spawn failure without claiming the root process spawned",
+      projectName: "unit",
+    },
+    {
+      file: "src/__test-helpers__/pr-review-process-lifecycle.test.ts",
+      name: "pr-review process lifecycle > records cooperative cancellation acknowledgement",
+      projectName: "unit",
+    },
+    {
+      file: "src/__test-helpers__/pr-review-process-lifecycle.test.ts",
+      name: "pr-review process lifecycle > records protocol failure and a false root kill without overstating cleanup",
+      projectName: "unit",
+    },
+    {
+      file: "src/__test-helpers__/pr-review-process-lifecycle.test.ts",
+      name: "pr-review process lifecycle > redacts across chunks before the retained-byte boundary",
+      projectName: "unit",
+    },
+    {
+      file: "src/__test-helpers__/pr-review-process-lifecycle.test.ts",
+      name: "pr-review process lifecycle > rejects a forged generated-root object even when its path is helper-created",
+      projectName: "unit",
+    },
+    {
+      file: "src/__test-helpers__/pr-review-process-lifecycle.test.ts",
+      name: "pr-review process lifecycle > removes a safe helper-created generated root after root close",
+      projectName: "unit",
+    },
+    {
+      file: "src/__test-helpers__/pr-review-process-lifecycle.test.ts",
+      name: "pr-review process lifecycle > reports an incomplete root observation without claiming descendant absence",
+      projectName: "unit",
+    },
+    {
+      file: "src/__test-helpers__/pr-review-process-lifecycle.test.ts",
+      name: "pr-review process lifecycle > restores controller cwd before generated-root disposition",
+      projectName: "unit",
+    },
+    {
+      file: "src/__test-helpers__/pr-review-process-lifecycle.test.ts",
+      name: "pr-review process lifecycle > restores harness-owned global state",
+      projectName: "unit",
+    },
+    {
+      file: "src/__test-helpers__/pr-review-process-lifecycle.test.ts",
+      name: "pr-review process lifecycle > uses a synchronous request snapshot after launch begins",
+      projectName: "unit",
+    },
+    {
+      file: "src/__test-helpers__/pr-review-process-protocol.test.ts",
+      name: "pr-review process protocol > enforces the exact byte boundary before copying sender payload bytes",
+      projectName: "unit",
+    },
+    {
+      file: "src/__test-helpers__/pr-review-process-protocol.test.ts",
+      name: "pr-review process protocol > fails closed at EOF and checks terminal state before inspecting later input",
+      projectName: "unit",
+    },
+    {
+      file: "src/__test-helpers__/pr-review-process-protocol.test.ts",
+      name: "pr-review process protocol > is invariant to coalescing and commits an accepted prefix exactly once",
+      projectName: "unit",
+    },
+    {
+      file: "src/__test-helpers__/pr-review-process-protocol.test.ts",
+      name: "pr-review process protocol > keeps exact-limit and malformed-suffix outcomes invariant across frame partitions",
+      projectName: "unit",
+    },
+    {
+      file: "src/__test-helpers__/pr-review-process-protocol.test.ts",
+      name: "pr-review process protocol > rejects malformed JSON messages before framing them as lifecycle evidence",
+      projectName: "unit",
+    },
+    {
+      file: "src/__test-helpers__/pr-review-process-protocol.test.ts",
+      name: "pr-review process protocol > round trips each checked-in closed V1 message through raw-byte framing",
+      projectName: "unit",
+    },
+    {
+      file: "src/__test-helpers__/pr-review-process-protocol.test.ts",
+      name: "pr-review process protocol > uses intrinsic byte-view metadata and rejects non-ArrayBuffer and Proxy views",
+      projectName: "unit",
+    },
+    {
+      file: "src/__test-helpers__/pr-review-root-identity.test.ts",
+      name: "pr-review root identity > accepts only a component-contained generated-root working directory and detects replacement",
+      projectName: "unit",
+    },
+    {
+      file: "src/__test-helpers__/pr-review-root-identity.test.ts",
+      name: "pr-review root identity > enrolls distinct logical, normalized, physical, and stable directory identity",
+      projectName: "unit",
+    },
+    {
+      file: "src/__test-helpers__/pr-review-root-identity.test.ts",
+      name:
+        process.platform === "win32"
+          ? "pr-review root identity > enrolls a real Windows executable and rejects a wrong extension"
+          : "pr-review root identity > enrolls only a POSIX executable regular file and rejects a non-executable alias",
+      projectName: "unit",
+    },
+    {
+      file: "src/__test-helpers__/pr-review-root-identity.test.ts",
+      name: "pr-review root identity > fails closed for raw symlink-plus-dot-dot components before normalization",
+      projectName: "unit",
+    },
+    {
+      file: "src/__test-helpers__/pr-review-root-identity.test.ts",
+      name: "pr-review root identity > preserves exact three-way redaction variants for a physical parent alias",
+      projectName: "unit",
+    },
+    {
+      file: "src/__test-helpers__/pr-review-root-identity.test.ts",
+      name: "pr-review root identity > uses only Windows-equivalent volume comparison and preserves original spellings",
+      projectName: "unit",
+    },
+    {
+      file: "src/runtime/pr-review-leases.test.ts",
       name: "pr-review lease read-status > rejects stale or mismatched gated result evidence: presentation-mismatch",
       projectName: "unit",
     },
     {
-      file: laneFiles[5],
-      name: `pr-review Phase 5 audit summary renderer > ${manifestTitle}`,
+      file: "src/runtime/pr-review-leases.test.ts",
+      name: "pr-review lease read-status > rejects stale or mismatched gated result evidence: stale-timestamp",
       projectName: "unit",
     },
     {
-      file: laneFiles[6],
+      file: "src/runtime/pr-review-manifests.test.ts",
+      name: "pr-review Phase 5 audit summary renderer > requires explicit provider evidence input for adapter scope validation",
+      projectName: "unit",
+    },
+    {
+      file: "src/runtime/source-immutability.test.ts",
       name: "source-immutability runtime > rejects noncanonical retained fingerprint path ../outside before verify or cleanup deletion",
       projectName: "unit",
     },
     {
-      file: laneFiles[6],
+      file: "src/runtime/source-immutability.test.ts",
       name: "source-immutability runtime > rejects noncanonical retained fingerprint path /absolute before verify or cleanup deletion",
       projectName: "unit",
     },
-  ].sort((left, right) =>
-    `${left.file}\0${left.name}`.localeCompare(`${right.file}\0${right.name}`),
-  );
-  expect(collectedInventory).toHaveLength(55);
-  expect(collectedInventory).toEqual(expectedCollectedInventory);
+  ];
+
+  expect(collectedInventory).toHaveLength(54);
+  expect(collectedInventory).toEqual(sortInventory(expectedCollectedInventory));
 });
 
 function createLease(): PrReviewLease {

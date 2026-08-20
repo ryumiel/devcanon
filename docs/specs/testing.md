@@ -2,6 +2,41 @@
 
 ---
 
+## Required Validation Budget
+
+`pnpm test` runs every retained test locally. On pull requests that change code,
+every retained test remains required; documentation-only changes run their
+applicable documentation checks. There is no separate exhaustive, scheduled,
+manual, or main-only test lane. Hosted Ubuntu CI runs the four existing Vitest
+projects as parallel required legs, each with a 75-second runtime budget. The
+focused Windows PR-review lane runs its 54 actual lifecycle, lease, manifest,
+and source-immutability behaviors; its Ubuntu unit contract proves that exact
+lane selection. Each test job—including checkout, setup, dependency
+installation, and cleanup—has a three-minute hard limit.
+
+Each Ubuntu test command receives `SIGTERM` when its 75-second budget expires
+and `SIGKILL` five seconds later if it has not exited, so a trapped or ignored
+termination signal cannot extend execution to the job-level timeout.
+
+The practical required PR test wall-clock target is 60 seconds or less,
+excluding runner queueing. The 75-second per-Ubuntu-leg budget and three-minute
+job hard cap bound normal variance and cleanup without replacing the target.
+
+An individual required test should normally finish within one second. Vitest
+reports tests above that threshold as slow. Longer tests require a documented
+critical integration boundary and must use finite test, hook, and teardown
+timeouts plus explicit cleanup for subprocesses they start.
+
+Coverage belongs at the closest stable boundary: unit and component tests own
+validation permutations, while public wrappers retain only their independent
+input translation, routing, output/exit propagation, installed-layout
+discovery, and cleanup behavior. The required end-to-end safety net covers CLI
+registration, copy and symlink sync where supported, runtime bootstrap and
+termination, source-immutability capture/verify/cleanup plus mutation failure,
+and PR-review success with a failure or cleanup path.
+
+---
+
 ## Unit tests
 
 - config parsing
