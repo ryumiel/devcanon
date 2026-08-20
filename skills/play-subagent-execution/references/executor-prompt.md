@@ -15,12 +15,9 @@ before capture: `executor`, `efficient`, the nonblank full model resolved from
 `devcanon.config.yaml` `capabilityProfiles.efficient.codex`, independent
 `medium`, source-mutable/external-none authority, `d13_<instance_ordinal>`,
 `fork_turns: "none"`, this fully substituted prompt, report output, and the
-existing five-guardrail stop/reclassify termination. `subagent-lifecycle`
-allocates the ordinal and owns continuity. A same-D13 continuation may use only
-an incremental task-local follow-up message. If judgment, policy, authority, or
-another required tuple value changes, capture the D13 result and use the
-existing reclassification/cleanup path to make a complete fresh D12 creation;
-never override a D13 follow-up.
+existing five-guardrail stop/reclassify termination. Apply
+`subagent-lifecycle` for allocation and continuation. A D13 boundary
+reclassification uses the existing fresh D12 lifecycle path.
 
 ````
 Task tool (general-purpose):

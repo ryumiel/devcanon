@@ -55,9 +55,8 @@ serial.
 [Fresh configuration examples]
 Before each fresh D12-D16 capture, resolve the full model from the named
 capability profile and validate the route's complete tuple, authority,
-self-contained prompt/context, output, and termination. The lifecycle owner
-allocates the next retained-ledger-safe route name. For this run the controller
-uses:
+self-contained prompt/context, output, and termination. Apply the shared
+`subagent-lifecycle` rule before creation. For this run the controller uses:
 
 D12: task_name=d12_1, agent_type=implementer,
      model=capabilityProfiles.balanced.codex, reasoning_effort=high,
@@ -76,9 +75,7 @@ D16: task_name=d16_1, agent_type=deep-reviewer,
      fork_turns=none, message=fresh D16 whole-range response-only prompt
 
 Each `model` value above is the full nonblank configured resolution, not a
-literal capability name. A native rejection reports that exact requested
-model/effort and follows the existing unavailable/blocked terminal without
-fallback, alias, retry, escalation, effort change, or role substitution.
+literal capability name.
 
 Task 1: Hook lifecycle
 
@@ -307,14 +304,15 @@ reviews the refreshed whole implementation range; it never reuses D15 or the
 pre-fix D16 response.
 
 [Changed-tuple continuation example]
-A D14 finding routes work to D12, so the controller first captures the D14
-report, records its supersession decision, and applies the lifecycle cleanup
-gate. Only after successful or target-honest cleanup does it create a complete
-fresh `d12_<instance_ordinal>` implementer child. It never sends the D14 session
-a follow-up with `agent_type=implementer`, a different model, or a different
-effort. On an inventory-only target the recorded cleanup outcome is exactly
-`close-unavailable: inventory-only; no close operation`; cleanup failure stops
-the route before replacement.
+A D14 finding routes to the compatible original D12 `impl-2` session, so the
+controller sends only incremental findings/task context with `followup_task`.
+The D12 tuple and stable task identity remain unchanged. The head-changing fix
+makes the D14/D15 verdicts stale, then fresh one-shot D14 and D15 reviewers
+inspect the refreshed head. By contrast, a D13 boundary reclassification or D16
+final whole-implementation fix captures its role-specific result, records the
+supersession decision, applies the lifecycle cleanup gate, and creates a
+complete fresh `d12_<instance_ordinal>` child. If no compatible original D12
+session exists, that fresh-child path also applies.
 
 [D16 alternate ordinary failure]
 After safe cleanup, an unavailable, failed, malformed, or

@@ -25,12 +25,10 @@ Codex.followup_task({
 ```
 
 Do not include `agent_type`, `model`, `reasoning_effort`, `fork_turns`, or an
-equivalent override. D13-to-D12 reclassification and every D14/D15/D16 finding
-that routes to D12 change the required tuple, so they must capture the
-role-specific result, record the supersession decision, pass the existing
-target-honest cleanup gate, and create a complete fresh D12 child. On an
-inventory-only target, record `close-unavailable: inventory-only; no close
-operation`; cleanup failure is terminal and does not permit a replacement.
+equivalent override. This D12 continuation is available only for the original
+stable task identity and unchanged D12 tuple. D13-to-D12 reclassification and a
+D16 final whole-implementation fix instead use the shared fresh-child lifecycle
+path. If no compatible reusable D12 session exists, use that path as well.
 
 ## Mutable Task-Worker Status
 
@@ -50,7 +48,11 @@ through the selected route.
 
 ## Reviewer Freshness and Fixups
 
-D14 and D15 use independent sessions and prompts against the same task head.
+D14 and D15 use independent fresh one-shot sessions and prompts against the
+same task head; they never receive a follow-up or reuse a prior reviewer
+session. A D14/D15 finding routes to the original stable D12 session through
+the incremental-only follow-up above when it remains compatible and the route
+permits it. Otherwise it uses the shared fresh-child lifecycle path.
 Quality is final only after same-head spec pass and current-head validation;
 otherwise it is advisory, stale, or superseded. Every fix commit invalidates
 both verdicts. Revalidate the route after each fixup: it may stay or escalate,
@@ -59,8 +61,8 @@ never downgrade.
 A fresh D14 pass plus every reviewer required by the effective route passing on
 that same head permits task completion. Any D14 finding, or any D15 finding
 after a same-head D14 pass, routes to D12 for a fix. After a head-changing fix,
-rerun every reviewer required by the revalidated route against the new same
-task head; no earlier verdict survives.
+rerun every reviewer required by the revalidated route as fresh one-shot
+reviewers against the new same task head; no earlier verdict survives.
 
 Resolve the installed `play-subagent-execution` bundle before the first guarded
 review and discover the local guard contract once for the enclosing D14-D16
@@ -83,7 +85,8 @@ tasks, except the exact verified ADR-0016 single-task auto carve-out. A D16
 result with no Blocking findings, including one with only Nit findings, may
 continue after safe cleanup. Blocking D16 findings keep final review
 incomplete, route to D12 for a fix, and require a fresh D16 after the fix
-commit.
+commit. D16 is one-shot and never receives a follow-up or reuses a prior final
+reviewer session.
 
 ## D13 and D12 Recovery
 

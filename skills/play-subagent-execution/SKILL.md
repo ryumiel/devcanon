@@ -397,10 +397,13 @@ Capability selects only the model. It never implies effort, authority, tools,
 sandbox, approvals, or `**Mode:** mechanical`. Mechanical mode does not select a
 capability.
 
-Preserve the capability and effort configured by a shipped role instead of
-overriding either at dispatch time. D12 uses `implementer`, balanced/high; D13
-uses `executor`, efficient/medium; and D14-D16 use `deep-reviewer`,
-frontier/xhigh. These pairs do not grant external mutation authority.
+The route owner supplies the capability and independent effort. Every fresh
+Codex dispatch resolves its full model from `devcanon.config.yaml`
+`capabilityProfiles.<capability>.codex` and passes both model and effort
+explicitly. Semantic role TOML omits those target-local dispatch values. D12
+uses `implementer`, balanced/high; D13 uses `executor`, efficient/medium; and
+D14-D16 use `deep-reviewer`, frontier/xhigh. These pairs do not grant external
+mutation authority.
 
 ### D12-D16 fresh-Codex dispatch contract
 
@@ -411,10 +414,9 @@ validate the complete route tuple: route, semantic role, capability, nonblank
 configured full model, independent effort, source and external authority,
 runtime `task_name`, `fork_turns: "none"`, self-contained prompt/context,
 expected output, and termination. Any missing or mismatched field blocks before
-creation. `subagent-lifecycle` owns route-local ordinal allocation, global
-retained-ledger name absence, same-session reuse, changed-tuple supersession,
-cleanup, native rejection, and same-pair slot recovery; this workflow supplies
-only the route-specific values below.
+creation. Apply the shared allocation, continuity, rejection, cleanup, and
+slot-recovery rule in `subagent-lifecycle`; this workflow supplies only the
+route-specific values below.
 
 | Route | Semantic role / capability / effort    | Authority                       | Self-contained prompt and output                                              | Termination                                                      |
 | ----- | -------------------------------------- | ------------------------------- | ----------------------------------------------------------------------------- | ---------------------------------------------------------------- |
@@ -475,13 +477,13 @@ Codex.spawn_agent({
 })
 ```
 
-The route prompt references below own task-local content. A same-session D12
-fixup carries only the incremental findings/context through `followup_task`; it
-does not repeat or override the creation tuple. D13-to-D12 reclassification,
-any reviewer-to-D12 fix, and every D16 final fix require the lifecycle
-changed-tuple path and a complete new D12 creation. A target rejection reports
-the exact requested `model=<Dn_MODEL> effort=<Dn_EFFORT>` and stops through the
-existing route terminal without substitution.
+The route prompt references below own task-local content. An explicitly
+permitted same-session D12 fixup for the original stable task carries only
+incremental findings/context. D13-to-D12 reclassification and a D16 final
+whole-implementation fix use the lifecycle fresh-child path. D14/D15 are
+always fresh one-shot reviewers after a head-changing fix. A target rejection
+reports the exact requested `model=<Dn_MODEL> effort=<Dn_EFFORT>` and stops
+through the existing route terminal without substitution.
 
 ## Execution Route Classification
 

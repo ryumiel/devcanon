@@ -78,10 +78,12 @@ identity in the existing separate ledger dimensions, not in `task_name`.
 The running configuration tuple is fixed for the stable session identity:
 semantic role, capability, resolved full model, independent effort,
 source/external authority, and the original fresh no-history boundary. When
-the owning route needs only more task-local context and this tuple is unchanged,
-reuse that stable identity with `followup_task` and an incremental message only.
-Do not send `agent_type`, `model`, `reasoning_effort`, `fork_turns`, or an
-equivalent configuration override in a follow-up.
+the tuple is unchanged, reuse is permitted only when the owning route explicitly
+allows same-session continuation for that stable task identity. That permitted
+continuation uses `followup_task` with an incremental message only. Do not send
+`agent_type`, `model`, `reasoning_effort`, `fork_turns`, or an equivalent
+configuration override in a follow-up. A route that does not explicitly permit
+reuse requires a fresh creation even when its tuple is unchanged.
 
 When a required tuple value changes, a follow-up is prohibited. Capture the
 role-specific state/result, record the controller supersession decision with
