@@ -584,6 +584,11 @@ function parseRouteRow(
   const explicitOwners = [...ownerSurface.matchAll(/`([a-z][a-z0-9-]*)`/g)]
     .map((match) => match[1])
     .filter((name) => knownSkills.has(name));
+  if (explicitOwners.length > 1) {
+    throw new Error(
+      `Agent routing policy owner direct-route ${id} must resolve exactly one explicit owner skill`,
+    );
+  }
   const ownerSkill =
     explicitOwners.length === 1
       ? explicitOwners[0]

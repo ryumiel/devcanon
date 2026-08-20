@@ -359,6 +359,47 @@ describe("agent routing and mutation policy owner", () => {
         ),
       }),
     ).toEqual(["D1:capability-model"]);
+    expect(
+      routeOwnerContractErrors(owner, roles, config, {
+        ...ownerSources,
+        "issue-priming-workflow": ownerSources[
+          "issue-priming-workflow"
+        ].replace("For each D2 or D3 leaf", "For each D3 leaf"),
+      }),
+    ).toEqual(["D2:capability-model"]);
+    expect(
+      routeOwnerContractErrors(owner, roles, config, {
+        ...ownerSources,
+        "play-planning": ownerSources["play-planning"].replace(
+          "Both use `semantic_role: reviewer`",
+          "They use `semantic_role: reviewer`",
+        ),
+      }),
+    ).toEqual(["D5:capability-model", "D6:capability-model"]);
+    expect(
+      routeOwnerContractErrors(owner, roles, config, {
+        ...ownerSources,
+        "play-review": ownerSources["play-review"].replace(
+          "For each selected D7, D8, or D9 route",
+          "For each selected D8 or D9 route",
+        ),
+      }),
+    ).toEqual(["D7:capability-model"]);
+    for (const [model, capability] of [
+      ["D17_DIAGNOSIS_MODEL", "balanced"],
+      ["D17_EXACT_FIX_MODEL", "efficient"],
+      ["D17_JUDGMENT_FIX_MODEL", "balanced"],
+    ] as const) {
+      expect(
+        routeOwnerContractErrors(owner, roles, config, {
+          ...ownerSources,
+          "pr-merge": ownerSources["pr-merge"].replace(
+            `model: ${model}, # capabilityProfiles.${capability}.codex`,
+            `model: ${model}, # capabilityProfiles.frontier.codex`,
+          ),
+        }),
+      ).toEqual(["D17:capability-model"]);
+    }
   });
 
   it("rejects route-local affirmative retries while preserving wrapped prohibitions", async () => {
@@ -381,6 +422,45 @@ describe("agent routing and mutation policy owner", () => {
         ),
       }),
     ).toEqual(["D10:rejection"]);
+    for (const affirmation of [
+      "Retry with a fallback model.",
+      "Substitute a role with reviewer.",
+    ]) {
+      expect(
+        routeOwnerContractErrors(owner, roles, config, {
+          ...ownerSources,
+          "pr-merge": ownerSources["pr-merge"].replace(
+            "```\n\nThe resolved `D17_*_MODEL`",
+            `\`\`\`\n\n${affirmation}\n\nThe resolved \`D17_*_MODEL\``,
+          ),
+        }),
+      ).toEqual(["D17:rejection"]);
+    }
+  });
+
+  it("rejects ambiguous explicit route owners before fallback inference", async () => {
+    const { markdown, sourceSkills } = await ownerInputs();
+    for (const [id, surface] of [
+      [
+        "D2",
+        "Internal research — `play-review` / `pr-merge` issue priming Phase 3",
+      ],
+      [
+        "D14",
+        "Per-task spec review — `play-review` / `pr-merge` execution review routing",
+      ],
+    ] as const) {
+      const mutated = mutateRouteRow(markdown, id, (cells) => {
+        cells[1] = surface;
+        return cells;
+      });
+      expect(() => parseAgentRoutingPolicyOwner(mutated, sourceSkills)).toThrow(
+        new RegExp(
+          `direct-route ${id} must resolve exactly one explicit owner skill`,
+          "i",
+        ),
+      );
+    }
   });
 
   it("rejects locally isolated spawn opener, message, and cardinality drift", async () => {
@@ -1316,7 +1396,31 @@ function modelBindsToRouteCapability(
   if (routeId >= "D12" && routeId <= "D16") {
     return section.includes(`# ${routeId}: ${model} = ${profile}`);
   }
-  return section.includes(profile);
+  const declaration = routeModelDeclaration(section, routeId);
+  return declaration?.includes(profile) ?? false;
+}
+
+function routeModelDeclaration(
+  section: string,
+  routeId: `D${number}`,
+): string | undefined {
+  const patterns: Partial<Record<`D${number}`, RegExp>> = {
+    D1: /Before D1 capture/,
+    D2: /For each D2(?: or D3)? leaf/,
+    D3: /For each (?:D2 or )?D3 leaf/,
+    D5: /Both use `semantic_role: reviewer`/,
+    D6: /Both use `semantic_role: reviewer`/,
+    D7: /For each selected D7(?:, D8, or D9)? route/,
+    D8: /For each selected (?:D7, )?D8(?:,? or D9)? route/,
+    D9: /For each selected (?:(?:D7, )?D8(?:,? or )?)?D9 route/,
+    D10: /Before D10 capture/,
+    D11: /Every pressure-scenario evaluator/,
+  };
+  const pattern = patterns[routeId];
+  if (!pattern) return undefined;
+  const match = pattern.exec(section);
+  if (!match || match.index === undefined) return undefined;
+  return section.slice(match.index, match.index + 1_024);
 }
 
 function escapeRegularExpression(value: string): string {
@@ -1328,7 +1432,11 @@ function addError(errors: string[], error: string): void {
 }
 
 function routeFailClosed(source: string): boolean {
-  const normalized = source.replace(/\s+/g, " ").trim();
+  const normalized = source
+    .split(/\n[ \t]*\n/)
+    .map((paragraph) => paragraph.replace(/[ \t\r\n]+/g, " ").trim())
+    .filter((paragraph) => paragraph !== "")
+    .join("\n\n");
   const requiresProhibition = /(?:do not\s+retry|without\s+substitution)/i.test(
     normalized,
   );
@@ -1337,7 +1445,7 @@ function routeFailClosed(source: string): boolean {
       normalized,
     ) &&
     requiresProhibition &&
-    !/(?:^|[.!?]\s+)(?:retry\s+(?:using|with)|substitute\s+(?:a|the))\b/i.test(
+    !/(?:^|[.!?]\s+|\n{2,})(?:retry\s+(?:using|with)|substitute\s+(?:a|the))\b/i.test(
       normalized,
     )
   );
