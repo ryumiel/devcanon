@@ -144,6 +144,60 @@ describe("shipped skill rendering", () => {
     }
   });
 
+  it("renders D10 through reviewer frontier/high without changing deep-reviewer routes", async () => {
+    const config = await loadConfig(
+      path.join(process.cwd(), "devcanon.config.yaml"),
+    );
+    const { outputs } = await renderAll(config, false, true);
+    const d10Spawn = [
+      "Codex.spawn_agent({",
+      "  task_name: d10_<instance_ordinal>,",
+      '  agent_type: "reviewer",',
+      "  model: D10_MODEL,",
+      '  reasoning_effort: "high",',
+      '  fork_turns: "none",',
+      "  message: D10_CRITIC_PROMPT,",
+      "})",
+    ].join("\n");
+
+    for (const target of TARGETS) {
+      const { body: playReview } = parseFrontmatter(
+        getSkillOutput(outputs, "play-review", target).content,
+      );
+      expect(playReview).toContain(
+        "D10 is one response-only `reviewer`, frontier/high and source-immutable",
+      );
+      expect(playReview).toContain("`semantic_role: reviewer`");
+      expect(playReview).toContain(d10Spawn);
+      expect(playReview).toContain(config.capabilityProfiles.frontier[target]);
+      expect(playReview).not.toContain(
+        "D10 is one response-only `deep-reviewer`, frontier/xhigh",
+      );
+      expect(playReview).not.toContain(
+        "`semantic_role: deep-reviewer`; `capability: frontier`",
+      );
+
+      const { body: execution } = parseFrontmatter(
+        getSkillOutput(outputs, "play-subagent-execution", target).content,
+      );
+      for (const route of ["D14", "D15", "D16"] as const) {
+        expect(execution).toContain(
+          [
+            `# ${route}: ${route}_MODEL = capabilityProfiles.frontier.codex`,
+            "Codex.spawn_agent({",
+            `  task_name: ${route.toLowerCase()}_<instance_ordinal>,`,
+            '  agent_type: "deep-reviewer",',
+            `  model: ${route}_MODEL,`,
+            '  reasoning_effort: "xhigh",',
+            '  fork_turns: "none",',
+            `  message: ${route}_SELF_CONTAINED_PROMPT,`,
+            "})",
+          ].join("\n"),
+        );
+      }
+    }
+  });
+
   it("renders every validated source skill once for each enabled target", async () => {
     const config = await loadConfig(
       path.join(process.cwd(), "devcanon.config.yaml"),

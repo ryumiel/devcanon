@@ -85,11 +85,13 @@ ambiguity, trade-offs, or a cross-module conclusion. Inherited work must be
 resolved by its active phase before dispatch and may not use ambient model or
 effort selection.
 
-Adversarial stance is independent of cognitive demand. `deep-reviewer` is
-reserved for the existing critic, per-task high-assurance reviews, and final
-whole-implementation review. This decision establishes no capability or effort
-escalation rule. The shared `subagent-lifecycle` procedure owns declaration,
-support, invariants, evidence, budget, and terminal semantics; the
+Adversarial stance is independent of cognitive demand. The shared `reviewer`
+role covers ordinary synthesis and adversarial review; workflows may pair it
+with a task-local critic prompt. `deep-reviewer` is reserved for independently
+justified high-assurance gates, including per-task high-assurance reviews and
+final whole-implementation review. This decision establishes no capability or
+effort escalation rule. The shared `subagent-lifecycle` procedure owns
+declaration, support, invariants, evidence, budget, and terminal semantics; the
 [Agent Routing and Mutation Policy](../guidelines/agent-routing-and-mutation-policy.md)
 owns the current adoption inventory. Controllers consume those sources without
 claiming current target support or duplicating their policy.

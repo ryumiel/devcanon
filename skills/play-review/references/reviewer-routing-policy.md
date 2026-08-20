@@ -20,14 +20,14 @@ self-contained prompt, and creates exactly one fresh `reviewer` with that
 model, effort, and `fork_turns: "none"`. No inherited history, fallback model,
 effort change, retry, escalation, or role substitution is permitted.
 
-D10 remains a separate `deep-reviewer`, frontier/xhigh critic route after
+D10 remains a separate `reviewer`, frontier/high critic route after
 topical aggregation. It preserves the existing verdict and unverified-fallback
 contracts and never recursively dispatches another reviewer or critic. Every
 selected D7-D10 route independently uses the no-handoff GUARD-001 lifecycle in
 `SKILL.md`; the guard changes neither a topical trigger nor a critic verdict.
 
 D10 resolves the full Codex model through the same `frontier` profile while its
-route-owned effort remains `xhigh`; its complete critic prompt and fresh
+route-owned effort remains `high`; its complete critic prompt and fresh
 `fork_turns: "none"` creation are owned by `SKILL.md`.
 
 ## Guarded Tiny-Diff Mode
