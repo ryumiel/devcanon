@@ -96,10 +96,13 @@ never semantic authorities; their target-local literal fields are governed
 values under the agent spec, but D4's fresh-Codex selection still resolves its
 full model through the configured capability profile.
 
-For the selected D4 role, the complete capability-to-model bindings are
-`efficient` → `{{model:efficient}}`, `balanced` → `{{model:balanced}}`, and
-`frontier` → `{{model:frontier}}`. These bindings select only the configured
-full model; the separately validated role effort remains independent.
+For the selected D4 role, the complete Codex-only model bindings are
+`efficient` → `capabilityProfiles.efficient.codex`, `balanced` →
+`capabilityProfiles.balanced.codex`, and `frontier` →
+`capabilityProfiles.frontier.codex`. Target capability markers:
+`{{model:efficient}}`, `{{model:balanced}}`, and `{{model:frontier}}`. The
+bindings select only the configured full model; the separately validated role
+effort remains independent.
 
 Classify each independent problem domain separately. The controller selects one
 of the policy-owned six-role set before spawn; a generic or inherited workflow

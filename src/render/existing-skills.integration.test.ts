@@ -132,9 +132,13 @@ describe("shipped skill rendering", () => {
       const { body } = parseFrontmatter(
         getSkillOutput(outputs, "play-agent-dispatch", target).content,
       );
+      expect(body).toContain("Codex-only model bindings");
+      expect(body).toContain("Target capability markers:");
       for (const capability of ["efficient", "balanced", "frontier"] as const) {
-        expect(body).toContain(
-          `\`${capability}\` → \`${config.capabilityProfiles[capability][target]}\``,
+        expect(body).toContain(`capabilityProfiles.${capability}.codex`);
+        expect(body).toContain(config.capabilityProfiles[capability][target]);
+        expect(body).not.toContain(
+          `\`${capability}\` → \`${config.capabilityProfiles[capability].claude}\``,
         );
       }
     }
