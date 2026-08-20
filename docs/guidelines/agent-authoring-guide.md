@@ -161,6 +161,14 @@ tools, sandbox, source-immutable instructions, and external default. Do not copy
 the YAML into this guide; keeping one exact example prevents the authoring
 procedure from becoming a competing role-envelope owner.
 
+Use target-local `codex.model: null` when an agent source must intentionally
+suppress Codex model resolution and emission. This is appropriate for the six
+thin semantic roles because fresh controller routes supply their configured full
+model and independent route effort. Do not add source
+`codex.model_reasoning_effort` to recreate precedence over the route. Literal
+models remain for a stable target-local source constraint; absent models permit
+ordinary capability resolution. The agent spec owns these three source states.
+
 Reusable methods still stay in skills. The owning workflow must guard a
 source-immutable dispatch before consuming the result; the spec-owned
 write-capable envelope permits the optional named handoff and does not grant
@@ -191,9 +199,11 @@ a security proof.
    expectations need to be described in prose instructions.
 6. Start with least privilege: minimum tools, minimum sandbox, and no new
    schema knobs for coordination behavior.
-7. Choose model capability independently from target-native effort. Capability
-   does not imply tools, sandbox, approval policy, context, authority,
-   orchestration, retries, or escalation behavior.
+7. Choose model capability independently from target-native effort. For thin
+   semantic roles, keep fresh Codex model and effort selection in the routing
+   policy rather than a source default. Capability does not imply tools, sandbox,
+   approval policy, context, authority, orchestration, retries, or escalation
+   behavior.
 8. Declare source authority using the closed policy vocabulary. Keep every
    semantic child's external authority at `none`; reserve separately authorized
    `external-mutable` authority for the owning root/controller. For

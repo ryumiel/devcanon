@@ -129,12 +129,26 @@ must not use ambient model or effort, infer a route from the owning skill's
 highest mutation authority, collapse distinct review sessions because they
 share a semantic agent, or dispatch when the route is unresolved.
 
-For D4, resolve the complete pre-spawn declaration through the
-[D4 Declaration Obligation](../guidelines/agent-routing-and-mutation-policy.md#d4-declaration-obligation),
-the sole complete declaration authority. Observable semantic direct-child
-dispatch selects exactly one resolved route, and any unresolved route or
-declaration state blocks before spawn. Under the B3 routing boundary, a
-source-immutable D4 selection is response-only.
+For D4 and every other fresh semantic direct child, resolve the complete
+pre-spawn declaration through the
+[Fresh Codex Route Contract](../guidelines/agent-routing-and-mutation-policy.md#fresh-codex-route-contract)
+and the [D4 Declaration Obligation](../guidelines/agent-routing-and-mutation-policy.md#d4-declaration-obligation),
+the sole complete declaration authorities. The fresh child receives the
+route-owned semantic role, configured full model, independent effort,
+`fork_turns: "none"`, and self-contained context including authority, output,
+and termination. Observable semantic direct-child dispatch selects exactly one
+resolved route, and any unresolved route or declaration state blocks before
+spawn. Under the B3 routing boundary, a source-immutable D4 selection is
+response-only.
+
+Where a route explicitly permits continuity, a same stable task and unchanged
+tuple may receive only incremental follow-up context, plus the verified-auto
+attestation when applicable. A changed tuple or task identity follows lifecycle
+capture, supersession, cleanup, and complete fresh spawn. D14-D16 are fresh
+one-shot reviewers. Native model/effort rejection reports the exact selected
+pair and reaches the route-local unavailable or `BLOCKED` terminal without
+fallback, alias, effort change, retry, escalation, or role substitution. Slot
+exhaustion remains the distinct lifecycle-owned exact-pair recovery case.
 
 D4 contract verification is bounded to the canonical repository-authored
 policy, producer, routing-spec, and rendered forms. It does not establish a
@@ -143,10 +157,11 @@ arbitrary CommonMark-equivalent representations. The repository-wide
 [Markdown contract-testing boundary](../guidelines/documentation-standard.md#55-markdown-contract-testing-boundary)
 governs review and acceptance.
 
-Task-specific prompts, schemas, network authorization, failure fallbacks, skip
-criteria, retry loops, and termination remain owned by the source skill. A
-shared role provides stable work identity and target-native constraints, not
-workflow method.
+Task-specific prompts, schemas, network authorization, route-local failure,
+skip criteria, retry loops, and termination remain owned by the source skill.
+A shared role provides stable work identity and target-native constraints, not
+workflow method. This spec does not duplicate the D1-D17 fresh-route tuple or
+continuity rules.
 
 Capability-escalation adoption is not owned by this spec. For routing context,
 the shared [`subagent-lifecycle`](../../skills/subagent-lifecycle/SKILL.md)

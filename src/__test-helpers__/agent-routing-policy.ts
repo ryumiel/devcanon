@@ -27,7 +27,7 @@ const SEMANTIC_ROLE_HEADERS = [
   "Agent",
   "Capability",
   "Claude effort",
-  "Codex effort",
+  "Route effort",
   "Source default",
   "External default",
   "Primary use",
@@ -120,7 +120,7 @@ export interface AgentSemanticRoleContract {
   readonly name: string;
   readonly capability: (typeof ROUTE_CAPABILITIES)[number];
   readonly claudeEffort: (typeof ROUTE_EFFORTS)[number];
-  readonly codexEffort: (typeof ROUTE_EFFORTS)[number];
+  readonly routeEffort: (typeof ROUTE_EFFORTS)[number];
   readonly sourceAuthority: SourceAuthority;
   readonly externalAuthority: "none";
   readonly primaryUse: string;
@@ -178,10 +178,10 @@ export function parseAgentSemanticRoleOwner(
       ROUTE_EFFORTS,
       "semantic-role Claude effort",
     ),
-    codexEffort: closedValue(
+    routeEffort: closedValue(
       row[3],
       ROUTE_EFFORTS,
-      "semantic-role Codex effort",
+      "semantic-role route effort",
     ),
     sourceAuthority: exactCodeClosedValue(
       row[4],

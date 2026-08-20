@@ -14,12 +14,12 @@ import { resolveCapabilityModel } from "../render/capability-profiles.js";
 const OWNER_PATH = "docs/guidelines/agent-routing-and-mutation-policy.md";
 const AGENT_SPEC_PATH = "docs/specs/agents.md";
 
-interface D4AgentSource {
+interface SemanticAgentSource {
   readonly capability?: string;
   readonly claude?: { readonly effort?: string; readonly model?: string };
   readonly codex?: {
     readonly model_reasoning_effort?: string;
-    readonly model?: string;
+    readonly model?: string | null;
   };
 }
 
@@ -135,7 +135,22 @@ describe("agent routing and mutation policy owner", () => {
     );
   });
 
-  it("derives canonical D4 target tuples with literal-first model precedence", async () => {
+  it("keeps the six source agents target-neutral for Codex while preserving Claude", async () => {
+    const roles = await readAgentSemanticRoleOwner(AGENT_SPEC_PATH);
+
+    for (const role of roles) {
+      const source = parseYaml(
+        await readRepoFile(`agents/${role.name}.yaml`),
+      ) as SemanticAgentSource;
+
+      expect(source.capability).toBe(role.capability);
+      expect(source.claude?.effort).toBe(role.claudeEffort);
+      expect(source.codex?.model).toBeNull();
+      expect(source.codex).not.toHaveProperty("model_reasoning_effort");
+    }
+  });
+
+  it("derives fresh Codex route model from capability and effort from the route", async () => {
     const [roles, config] = await Promise.all([
       readAgentSemanticRoleOwner(AGENT_SPEC_PATH),
       loadConfig("devcanon.config.yaml", true),
@@ -144,43 +159,60 @@ describe("agent routing and mutation policy owner", () => {
     for (const role of roles) {
       const source = parseYaml(
         await readRepoFile(`agents/${role.name}.yaml`),
-      ) as D4AgentSource;
-      for (const target of ["claude", "codex"] as const) {
-        expect(
-          d4AlignmentErrors(role, source, target, config.capabilityProfiles),
-        ).toEqual([]);
+      ) as SemanticAgentSource;
+      expect(source.capability).toBe(role.capability);
+      expect(resolveFreshCodexModel(source, config.capabilityProfiles)).toBe(
+        config.capabilityProfiles[role.capability].codex,
+      );
+      expect(role.routeEffort).toMatch(/^(medium|high|xhigh)$/);
+    }
+  });
 
-        const literal = `${target}-literal-model`;
-        const withTargetLiteral = {
-          ...source,
-          [target]: { ...source[target], model: literal },
-        };
-        expect(
-          resolveD4Model(withTargetLiteral, target, config.capabilityProfiles),
-        ).toBe(literal);
+  it("reconciles every static D1-D17 tuple to its semantic role without source Codex overrides", async () => {
+    const [owner, roles, config] = await Promise.all([
+      readAgentRoutingPolicyOwner(OWNER_PATH),
+      readAgentSemanticRoleOwner(AGENT_SPEC_PATH),
+      loadConfig("devcanon.config.yaml", true),
+    ]);
+    const rolesByName = new Map(roles.map((role) => [role.name, role]));
 
-        const opposite = target === "claude" ? "codex" : "claude";
-        const withOppositeLiteral = {
-          ...source,
-          [opposite]: { ...source[opposite], model: "opposite-target-model" },
-        };
-        expect(
-          resolveD4Model(
-            withOppositeLiteral,
-            target,
-            config.capabilityProfiles,
-          ),
-        ).toBe(config.capabilityProfiles[role.capability][target]);
-
-        expect(
-          d4AlignmentErrors(
-            role,
-            { ...source, capability: "frontier-nearby" },
-            target,
-            config.capabilityProfiles,
-          ),
-        ).toEqual(["source-capability-parity"]);
+    for (const route of owner.directChildRoutes) {
+      for (const clause of route.clauses) {
+        const role = rolesByName.get(clause.role);
+        expect(role, `${route.id} has a known semantic role`).toBeDefined();
+        expect(clause.capability).toBe(role?.capability);
+        expect(clause.effort).toBe(role?.routeEffort);
+        expect(clause.sourceAuthority).toBe(role?.sourceAuthority);
+        expect(config.capabilityProfiles[clause.capability].codex).toMatch(
+          /\S/,
+        );
       }
+    }
+  });
+
+  it("requires the policy-owned fresh, follow-up, changed-tuple, and rejection contract", async () => {
+    const markdown = await readRepoFile(OWNER_PATH);
+
+    for (const requirement of [
+      "task_name",
+      "agent_type",
+      "configured full model",
+      "reasoning_effort",
+      'fork_turns: "none"',
+      "self-contained message",
+      "authority, output, and termination",
+      "incremental context",
+      "verified-auto attestation",
+      "must not include `agent_type`",
+      "`model`, `reasoning_effort`, or `fork_turns`",
+      "capture, supersession, and cleanup",
+      "complete fresh spawn",
+      "model=<configured-full-model> effort=<route-effort>",
+      "No fallback, alias, effort change, retry,",
+      "escalation, or role substitution",
+      "exact same pair",
+    ]) {
+      expect(markdown).toContain(requirement);
     }
   });
 
@@ -527,7 +559,7 @@ describe("agent routing and mutation policy owner", () => {
       [
         "| medium       | `source-immutable`",
         "| ultra        | `source-immutable`",
-        /semantic-role Codex effort/i,
+        /semantic-role route effort/i,
       ],
       [
         "`source-immutable` | `none`",
@@ -699,41 +731,16 @@ function markdownLinkTargets(markdown: string): string[] {
   );
 }
 
-function resolveD4Model(
-  source: D4AgentSource,
-  target: "claude" | "codex",
+function resolveFreshCodexModel(
+  source: SemanticAgentSource,
   capabilityProfiles: Awaited<
     ReturnType<typeof loadConfig>
   >["capabilityProfiles"],
 ): string | undefined {
-  const literal =
-    target === "claude" ? source.claude?.model : source.codex?.model;
   return resolveCapabilityModel(
-    literal,
+    undefined,
     source.capability as "efficient" | "balanced" | "frontier" | undefined,
-    target,
+    "codex",
     capabilityProfiles,
   );
-}
-
-function d4AlignmentErrors(
-  role: Awaited<ReturnType<typeof readAgentSemanticRoleOwner>>[number],
-  source: D4AgentSource,
-  target: "claude" | "codex",
-  capabilityProfiles: Awaited<
-    ReturnType<typeof loadConfig>
-  >["capabilityProfiles"],
-): string[] {
-  if (source.capability !== role.capability)
-    return ["source-capability-parity"];
-  const effort =
-    target === "claude"
-      ? source.claude?.effort
-      : source.codex?.model_reasoning_effort;
-  const expectedEffort =
-    target === "claude" ? role.claudeEffort : role.codexEffort;
-  if (effort !== expectedEffort) return [`${target}-effort`];
-  return resolveD4Model(source, target, capabilityProfiles) === undefined
-    ? [`${target}-model`]
-    : [];
 }

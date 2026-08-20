@@ -3,10 +3,12 @@
 This guideline is the current inventory owner for shared semantic agent routing
 and mutation authority. The stable decision and rationale live in
 [ADR-0027](../adr/adr-0027-semantic-agent-routing-and-mutation-authority.md).
-The [agent spec](../specs/agents.md) owns the exact six-role envelope and
-observable target fields. The AFDS workflow spec owns observable dispatch and
-guard behavior. Source skills retain task-local prompts, phase mechanics,
-fallbacks, and termination.
+The [agent spec](../specs/agents.md) owns the exact six-role envelope,
+source-level model omission, and observable target fields. This policy owns the
+complete fresh-Codex route tuple and continuity contract. The AFDS workflow spec
+references that routing owner and owns observable dispatch and guard behavior.
+Source skills retain task-local prompts, phase mechanics, route-local output,
+failure, and termination.
 
 This is a target contract, not a claim that every source-agent, skill, runtime,
 test, or generated-output migration has already landed. Deployment remains
@@ -16,9 +18,9 @@ blocked until the ADR's complete acceptance gate passes.
 
 The [agent spec](../specs/agents.md#semantic-role-catalog) is the single
 owner of the six semantic identities and their exact capability, Claude effort,
-Codex effort, tools, sandbox, network, source default, and external default.
-This policy does not repeat that envelope. Its matrices below reference the
-spec-owned roles and record only skill- and route-specific classification.
+route effort, tools, sandbox, network, source default, and external default.
+This policy consumes that envelope and records the complete D1-D17 route tuple;
+it does not add a source-level Codex model or effort default.
 
 ## Closed Classifications
 
@@ -32,7 +34,8 @@ This policy consumes those classifications in the inventories below without
 redefining their meanings or default routes.
 
 Direct-child rows use their exact recorded capability and effort pair. An
-unresolved route blocks rather than escalating by guesswork.
+unresolved route blocks rather than escalating by guesswork. Capability resolves
+only the full native model; route effort is explicit and independent.
 
 ### Mutation axes
 
@@ -171,6 +174,42 @@ Task-specific prompts, schemas, skip criteria, retries, fallbacks, and
 termination remain owned by the source skill. A route may not collapse two
 distinct sessions just because they share a semantic agent.
 
+## Fresh Codex Route Contract
+
+This policy is the sole owner of the complete fresh-Codex spawn contract for
+D1-D17. For every fresh child, the controller validates and supplies all of the
+following from the selected policy route and existing configuration:
+
+- a lifecycle-owned, route-local `task_name`;
+- the selected semantic `agent_type`;
+- the configured full model resolved from the route capability through
+  `capabilityProfiles.<capability>.codex`;
+- the exact independent route `reasoning_effort`;
+- `fork_turns: "none"`; and
+- a self-contained message that includes the task context and the route's
+  authority, output, and termination.
+
+The controller must not derive a fresh Codex model or effort from source-agent
+Codex fields. The existing lifecycle owner retains task-name grammar, capture,
+supersession, cleanup, slot recovery, and session reuse mechanics; this policy
+does not create a naming schema or lifecycle registry. D14, D15, and D16 are
+one-shot fresh reviewers.
+
+A follow-up is permitted only where the selected route explicitly allows it,
+the stable task identity and complete tuple are unchanged, and the existing
+session remains compatible. The follow-up contains incremental context and the
+verified-auto attestation when applicable. It must not include `agent_type`,
+`model`, `reasoning_effort`, or `fork_turns`. A changed tuple or task identity
+uses lifecycle capture, supersession, and cleanup, then a complete fresh spawn;
+it never converts a follow-up into a configuration override.
+
+If native Codex rejects the selected pair, report exactly
+`model=<configured-full-model> effort=<route-effort>` and use the route-local
+unavailable or `BLOCKED` terminal. No fallback, alias, effort change, retry,
+escalation, or role substitution is permitted. Slot exhaustion is distinct: the
+lifecycle owner may retry only the exact same pair under its existing slot
+recovery rules.
+
 ### D4 Declaration Obligation
 
 This policy is the sole D4 route owner: it owns the D4 route identity, exact
@@ -185,15 +224,16 @@ planner-selected `selected_role_id`, `scope`, `termination`, `context_ref`, and
 `approval_ref`; `termination` includes the declared output behavior. The
 [agent spec](../specs/agents.md) is the sole semantic-role catalog and
 role-envelope owner. For the exact selected role and target, it derives
-`capability`, target-native `effort`, `source_authority`,
+`capability`, route `effort`, `source_authority`,
 `external_authority`, ordered duplicate-free `claude_tools`, `codex_sandbox`,
-and `default_network`. The selected governed agent source supplies its
-target-local literal `claude.model` or `codex.model` when present;
-[`devcanon.config.yaml`](../../devcanon.config.yaml) supplies the
-exact-target/capability `model` only as fallback. The selected source must
-match the selected role's capability before model resolution; a
-capability-less or mismatched source fails that parity check rather than
-entering model resolution.
+and `default_network`. A fresh Codex D4 model is the configured full model from
+the selected route capability and
+[`devcanon.config.yaml`](../../devcanon.config.yaml); its effort is the
+independent selected route effort. The selected source must match the selected
+role's capability before that resolution; a capability-less or mismatched source
+fails that parity check rather than entering model resolution. Source-level
+explicit-null suppression remains a source-to-render contract and does not
+override the fresh-route tuple.
 
 `agents/*.yaml` are governed declarations/instances and parity inputs, never
 peer semantic authorities. Cognitive demand and stance remain planner

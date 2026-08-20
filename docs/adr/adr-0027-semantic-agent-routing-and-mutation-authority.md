@@ -34,11 +34,29 @@ The architectural decision is that shared roles describe stable reusable work
 identity rather than provider models, effort levels, or workflow phases.
 Capability and effort, tools, sandbox, authority, orchestration, retries, and
 escalation remain separate choices. Tool or sandbox availability never grants
-durable source or external mutation.
+durable source or external mutation. Source-agent explicit-null Codex model
+suppression is a source-to-render choice; it does not replace fresh-route model
+or effort selection.
 
 Skills remain the reusable method owner. They assemble task-local prompts,
 inputs, output contracts, retry and fallback behavior, skip criteria, and
 termination conditions. Agent definitions remain thin role wrappers.
+
+### Fresh route selection and running-task continuity
+
+The [Agent Routing and Mutation Policy](../guidelines/agent-routing-and-mutation-policy.md#fresh-codex-route-contract)
+owns selection of every fresh Codex role, configured full model from route
+capability, independent route effort, complete spawn inputs, and native-pair
+rejection. A fresh child never inherits ambient model or effort, and its route
+contract fails closed when native Codex rejects that exact pair.
+
+The shared [`subagent-lifecycle`](../../skills/subagent-lifecycle/SKILL.md)
+owns compatible-session reuse, supersession, cleanup, and slot recovery. A
+route skill owns only task-local continuation: it may send incremental context
+to a stable unchanged tuple where its route permits, but may not override a
+running child's role, model, effort, or fork setting. Changed tuple or task
+identity uses the lifecycle path and a complete fresh child. D14, D15, and D16
+remain one-shot fresh reviewers.
 
 ### Closed mutation vocabulary
 
