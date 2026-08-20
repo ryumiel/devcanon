@@ -152,17 +152,22 @@ role-specific state has already been captured.
 
 1. Capture the role-specific state needed by the owning workflow before
    closing any session or recording its supersession decision.
-2. When the target is `automatic-close-supported`, attempt to close completed
-   sessions or sessions with a captured supersession decision after the
-   required state is recorded. Mark `closed=yes` only after observing a
-   successful close result for that stable session identity and exposed usable
-   close operation.
-3. When the target is `inventory-only` or `cleanup-unavailable`, first capture
+2. Before any closure attempt, keep a session open when its owning route
+   explicitly authorizes unchanged-tuple continuation for the same stable task
+   identity and that continuation window is pending, such as D12 awaiting the
+   applicable reviewer/fix-loop final disposition. This keep-open decision runs
+   before automatic closure.
+3. When the target is `automatic-close-supported`, attempt to close only a
+   completed session whose continuation window ended or a session with a
+   captured supersession decision, after the required state is recorded. Mark
+   `closed=yes` only after observing a successful close result for that stable
+   session identity and exposed usable close operation.
+4. When the target is `inventory-only` or `cleanup-unavailable`, first capture
    the same role-specific state, then record the `close-unavailable` reason
    before spawning instead of claiming closure.
-4. Keep sessions open when the owning workflow still requires same-session
-   follow-up and the captured state is not sufficient for a replacement
-   session.
+
+Close only after final disposition, explicit supersession, or the end of the
+route-authorized continuation window.
 
 Target-honest outcomes matter more than a clean-looking ledger. Waiting,
 interruption, completion, inventory, reuse, and a runtime's capability class do

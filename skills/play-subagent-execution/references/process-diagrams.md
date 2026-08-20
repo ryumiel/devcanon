@@ -45,6 +45,7 @@ digraph process {
     "Dispatch D13 executor for exact validated operation" [shape=box];
     "Dispatched D13: capture DONE report and snapshot state" [shape=box];
     "Dispatch implementer prompt" [shape=box];
+    "Send incremental D12 follow-up to stable session" [shape=box];
     "Implementer asks questions?" [shape=diamond];
     "Answer questions and provide context" [shape=box];
     "Implementer implements, verifies, commits, self-reviews" [shape=box];
@@ -70,7 +71,6 @@ digraph process {
     "Fresh D16 capture" [shape=box];
     "D16 verify-validate-cleanup-apply" [shape=box];
     "Final whole-implementation review passes?" [shape=diamond];
-    "Implementer fixes final-review findings" [shape=box];
     "Owning caller final whole-diff gate present?" [shape=diamond];
     "Return to caller" [shape=box];
     "Report implementation and final review status; resolve branch-level review status" [shape=box];
@@ -91,7 +91,8 @@ digraph process {
     "Plan has exactly one task?" -> "Dispatch implementer prompt" [label="no"];
     "Dispatch implementer prompt" -> "Implementer asks questions?";
     "Implementer asks questions?" -> "Answer questions and provide context" [label="yes"];
-    "Answer questions and provide context" -> "Dispatch implementer prompt";
+    "Answer questions and provide context" -> "Send incremental D12 follow-up to stable session";
+    "Send incremental D12 follow-up to stable session" -> "Implementer implements, verifies, commits, self-reviews";
     "Implementer asks questions?" -> "Implementer implements, verifies, commits, self-reviews" [label="no"];
     "Implementer implements, verifies, commits, self-reviews" -> "Mark task complete" [label="single-task plan"];
     "Implementer implements, verifies, commits, self-reviews" -> "Compute effective review route" [label="multi-task plan"];
@@ -108,14 +109,17 @@ digraph process {
     "Dispatch spec reviewer" -> "D14 verify-validate-cleanup-apply";
     "D14 verify-validate-cleanup-apply" -> "Spec-only review passes?";
     "Join same-head review results" -> "Spec passes for reviewed head?";
-    "Spec-only review passes?" -> "Implementer fixes findings" [label="no"];
+    "Spec-only review passes?" -> "Send incremental D12 follow-up to stable session" [label="no; compatible stable D12"];
+    "Spec-only review passes?" -> "Dispatch implementer prompt" [label="no; fresh D12 required"];
     "Spec-only review passes?" -> "Mark task complete" [label="yes"];
-    "Spec passes for reviewed head?" -> "Implementer fixes findings" [label="no"];
+    "Spec passes for reviewed head?" -> "Send incremental D12 follow-up to stable session" [label="no; compatible stable D12"];
+    "Spec passes for reviewed head?" -> "Dispatch implementer prompt" [label="no; fresh D12 required"];
     "Spec passes for reviewed head?" -> "Quality result final for same reviewed head?" [label="yes"];
     "Quality result final for same reviewed head?" -> "Resolve quality disposition or rerun quality" [label="no"];
     "Resolve quality disposition or rerun quality" -> "Join same-head review results";
     "Quality result final for same reviewed head?" -> "Quality findings present?" [label="yes"];
-    "Quality findings present?" -> "Implementer fixes findings" [label="yes"];
+    "Quality findings present?" -> "Send incremental D12 follow-up to stable session" [label="yes; compatible stable D12"];
+    "Quality findings present?" -> "Dispatch implementer prompt" [label="yes; fresh D12 required"];
     "Quality findings present?" -> "Mark task complete" [label="no"];
     "Implementer fixes findings" -> "Revalidate effective review route";
     "Revalidate effective review route" -> "Compute effective review route";
@@ -129,8 +133,7 @@ digraph process {
     "Fresh D16 capture" -> "Dispatch final whole-implementation code-quality reviewer" [label="capture succeeds"];
     "Dispatch final whole-implementation code-quality reviewer" -> "D16 verify-validate-cleanup-apply";
     "D16 verify-validate-cleanup-apply" -> "Final whole-implementation review passes?";
-    "Final whole-implementation review passes?" -> "Implementer fixes final-review findings" [label="no"];
-    "Implementer fixes final-review findings" -> "Fresh D16 capture";
+    "Final whole-implementation review passes?" -> "Dispatch implementer prompt" [label="no; fresh D12 final fix"];
     "Final whole-implementation review passes?" -> "Owning caller final whole-diff gate present?" [label="yes"];
     "Owning caller final whole-diff gate present?" -> "Return to caller" [label="yes"];
     "Owning caller final whole-diff gate present?" -> "Report implementation and final review status; resolve branch-level review status" [label="no"];

@@ -43,7 +43,9 @@ Task tool (general-purpose):
   REVIEW_SURFACE: D15 per-task
   WORKING_DIRECTORY: [repository root]
   WHAT_WAS_IMPLEMENTED: [from implementer's report]
-  PLAN_OR_REQUIREMENTS: Task N from [plan-file]
+  TASK_REQUIREMENTS: |
+    [FULL INLINE TEXT of Task N requirements]
+  TASK_SOURCE_LOCATOR: [optional plan-file or authoritative source path]
   EXTRACTED_PLAN_TASK_EXECUTION_CONTEXT: [EXTRACTED PLAN/TASK EXECUTION CONTEXT]
   BASE_SHA: [commit before task]
   HEAD_SHA: [captured task head]
@@ -73,7 +75,9 @@ when one task has no child implementer or executor report.
 **Trust boundary (load-bearing):** Read the implementation from disk. Do not consume any content snapshot the controller may hold — snapshots are for the controller's bookkeeping only; reviewers read from disk to stay independent of the implementer's framing.
 
 When `REVIEW_SURFACE` is D15, inspect only the captured task base/head from
-`WORKING_DIRECTORY` and answer the D15 question.
+`WORKING_DIRECTORY` and answer the D15 question using the inline
+`TASK_REQUIREMENTS`; `TASK_SOURCE_LOCATOR` is provenance, not required child
+context.
 
 When `REVIEW_SURFACE` is D16, inspect the complete whole-implementation range
 from `WORKING_DIRECTORY` and answer the D16 question. D16 is distinct from D15
