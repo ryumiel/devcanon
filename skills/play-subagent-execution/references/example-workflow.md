@@ -191,8 +191,11 @@ Task 2 implementer: closed=no because routed same-head findings need same-sessio
 
 [Implementer fixes issues]
 The D12 tuple is unchanged, so the controller keeps `impl-2` and sends only the
-incremental reviewer findings/task context with `followup_task`; it does not
-send role, model, effort, fork, or an equivalent configuration override.
+incremental reviewer findings/task context with `followup_task`. When this is a
+verified-auto route, the message also carries the freshly revalidated
+controller-provided auto-route attestation as structured context; direct/manual
+routes do not invent it. It does not resend the full implementer prompt, full
+task context, role, model, effort, fork, or an equivalent configuration override.
 Implementer: Removed --json flag, added progress reporting, extracted PROGRESS_INTERVAL constant
 
 [Lifecycle ledger update]

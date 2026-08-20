@@ -15,17 +15,19 @@ classification, cleanup gate before spawns, target-honest cleanup outcomes, and
 slot-limit recovery; this skill owns only execution-specific lifecycle details.
 
 For a same-tuple D12 fixup, keep the stable D12 session identity and send only
-the new task-local findings/context:
+the incremental findings/task context. On the verified-auto route, include the
+freshly revalidated controller-provided auto-route attestation as structured
+context; it is not task prose. Direct/manual routes do not invent an attestation.
 
 ```text
 Codex.followup_task({
   target: D12_STABLE_SESSION_ID,
-  message: D12_INCREMENTAL_FINDINGS_AND_TASK_CONTEXT,
+  message: D12_INCREMENTAL_FINDINGS_AND_TASK_CONTEXT_PLUS_VERIFIED_AUTO_ROUTE_ATTESTATION_WHEN_APPLICABLE,
 })
 ```
 
 Do not include `agent_type`, `model`, `reasoning_effort`, `fork_turns`, or an
-equivalent override. This D12 continuation is available only for the original
+equivalent override, the full implementer prompt, or full task context. This D12 continuation is available only for the original
 stable task identity and unchanged D12 tuple. D13-to-D12 reclassification and a
 D16 final whole-implementation fix instead use the shared fresh-child lifecycle
 path. If no compatible reusable D12 session exists, use that path as well.
