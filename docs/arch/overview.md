@@ -67,12 +67,13 @@ not as a claim that the dependency direction is ideal:
 ### Capability Profile Boundary
 
 `src/config/schema.ts` owns the strict version 2 source contract and required
-`capabilityProfiles` shape. `src/render/capability-profiles.ts` owns the small
-model-only resolver used by both agent renderers: explicit `codex.model: null`
-suppresses Codex resolution, a literal target model emits literally, otherwise a
-top-level capability maps to a model, otherwise the target model is omitted.
-Claude model selection remains literal-or-absent; the agent spec rejects Claude
-null and owns both target-specific source rules.
+`capabilityProfiles` shape. `src/render/codex.ts` owns explicit
+`codex.model: null` suppression, so that target emits no Codex model. The
+shared `src/render/capability-profiles.ts` resolver maps a literal target model
+or an absent target model through the normal capability/omission path used by
+both renderers; it does not decide explicit-null suppression. Claude model
+selection remains literal-or-absent; the agent spec rejects Claude null and
+owns both target-specific source rules.
 
 Capability resolution does not own target-native effort, tools, sandbox,
 approval policy, context, authority, orchestration, retries, or escalation.

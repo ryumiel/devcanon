@@ -75,7 +75,7 @@ export interface AgentRoutingDirectChildRouteRow {
   readonly id: `D${number}`;
   readonly surfaceAndOwner: string;
   readonly route: string;
-  readonly existingOutputOrTermination: string;
+  readonly sourceOwnerLocatorOrSummary: string;
   readonly ownerSkill: string;
   readonly evidenceLabel: string;
   readonly evidenceLocator?: string;
@@ -603,7 +603,7 @@ function parseRouteRow(
     id: id as `D${number}`,
     surfaceAndOwner: cells[1],
     route: cells[2],
-    existingOutputOrTermination: cells[3],
+    sourceOwnerLocatorOrSummary: cells[3],
     ownerSkill,
     evidenceLabel,
     evidenceLocator,

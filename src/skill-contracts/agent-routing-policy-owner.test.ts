@@ -234,23 +234,64 @@ describe("agent routing and mutation policy owner", () => {
     expect(
       routeOwnerContractErrors(owner, roles, config, {
         ...ownerSources,
+        "issue-priming-workflow": ownerSources[
+          "issue-priming-workflow"
+        ].replace(
+          "Use the enclosing flow's already-resolved",
+          "Retry using a fallback model.\n\nUse the enclosing flow's already-resolved",
+        ),
+      }),
+    ).toEqual(["D1:rejection"]);
+    expect(
+      routeOwnerContractErrors(owner, roles, config, {
+        ...ownerSources,
+        "issue-priming-workflow": ownerSources[
+          "issue-priming-workflow"
+        ].replace(
+          "Use the enclosing flow's already-resolved",
+          "Substitute a role with reviewer.\n\nUse the enclosing flow's already-resolved",
+        ),
+      }),
+    ).toEqual(["D1:rejection"]);
+    expect(
+      routeOwnerContractErrors(owner, roles, config, {
+        ...ownerSources,
         "play-agent-dispatch": ownerSources["play-agent-dispatch"].replace(
           "agent_type: SELECTED_ROLE_ID,",
           'agent_type: "assessor",',
         ),
       }),
     ).toEqual(["D4:selector"]);
+    for (const override of [
+      "agent_type",
+      "model",
+      "reasoning_effort",
+      "fork_turns",
+    ]) {
+      expect(
+        routeOwnerContractErrors(owner, roles, config, {
+          ...ownerSources,
+          "D12:continuity-reference": ownerSources[
+            "D12:continuity-reference"
+          ].replace(
+            "message: D12_INCREMENTAL_FINDINGS_AND_TASK_CONTEXT_PLUS_VERIFIED_AUTO_ROUTE_ATTESTATION_WHEN_APPLICABLE,",
+            `message: D12_INCREMENTAL_FINDINGS_AND_TASK_CONTEXT_PLUS_VERIFIED_AUTO_ROUTE_ATTESTATION_WHEN_APPLICABLE,\n    ${override}: OVERRIDE,`,
+          ),
+        }),
+      ).toEqual(["D12:followup-override"]);
+    }
     expect(
       routeOwnerContractErrors(owner, roles, config, {
         ...ownerSources,
-        "D12:continuity-reference": ownerSources[
-          "D12:continuity-reference"
-        ].replace(
-          "message: D12_INCREMENTAL_FINDINGS_AND_TASK_CONTEXT_PLUS_VERIFIED_AUTO_ROUTE_ATTESTATION_WHEN_APPLICABLE,",
-          "message: D12_INCREMENTAL_FINDINGS_AND_TASK_CONTEXT_PLUS_VERIFIED_AUTO_ROUTE_ATTESTATION_WHEN_APPLICABLE,\n  model: OVERRIDE,",
-        ),
+        "D12:continuity-reference": `${ownerSources["D12:continuity-reference"]}\nCodex.followup_task({\n  target: D12_STABLE_SESSION_ID,\n  message: D12_INCREMENTAL_FINDINGS,\n})`,
       }),
-    ).toEqual(["D12:followup-override"]);
+    ).toEqual(["D12:followup-block"]);
+    expect(
+      routeOwnerContractErrors(owner, roles, config, {
+        ...ownerSources,
+        "D12:continuity-reference": `${ownerSources["D12:continuity-reference"]}\n\tCodex.followup_task({\n\t  target: D12_STABLE_SESSION_ID,\n\t  message: D12_INCREMENTAL_FINDINGS_AND_TASK_CONTEXT_PLUS_VERIFIED_AUTO_ROUTE_ATTESTATION_WHEN_APPLICABLE,\n\t})`,
+      }),
+    ).toEqual(["D12:followup-block"]);
     expect(
       routeOwnerContractErrors(owner, roles, config, {
         ...ownerSources,
@@ -271,6 +312,15 @@ describe("agent routing and mutation policy owner", () => {
         ),
       }),
     ).toEqual(["D4:rejection"]);
+    expect(
+      routeOwnerContractErrors(owner, roles, config, {
+        ...ownerSources,
+        "play-agent-dispatch": ownerSources["play-agent-dispatch"].replace(
+          "policy-owned six-role set",
+          "policy-owned seven-role set",
+        ),
+      }),
+    ).toEqual(["D4:selector"]);
     expect(
       routeOwnerContractErrors(owner, roles, config, {
         ...ownerSources,
@@ -297,7 +347,56 @@ describe("agent routing and mutation policy owner", () => {
           "issue-priming-workflow"
         ].replace("model: D1_MODEL,", "model: D2_MODEL,"),
       }),
-    ).toContain("D1:model-binding");
+    ).toEqual(["D1:model-binding"]);
+  });
+
+  it("rejects locally isolated spawn opener, message, and cardinality drift", async () => {
+    const [owner, roles, config] = await Promise.all([
+      readAgentRoutingPolicyOwner(OWNER_PATH),
+      readAgentSemanticRoleOwner(AGENT_SPEC_PATH),
+      loadConfig("devcanon.config.yaml", true),
+    ]);
+    const ownerSources = await readRouteOwnerSources(owner);
+    const d1Source = ownerSources["issue-priming-workflow"];
+
+    expect(
+      routeOwnerContractErrors(owner, roles, config, {
+        ...ownerSources,
+        "issue-priming-workflow": d1Source.replace(
+          "Codex.spawn_agent({\n  task_name: d1_<instance_ordinal>",
+          "Codex.spawn_agent_removed({\n  task_name: d1_<instance_ordinal>",
+        ),
+      }),
+    ).toEqual(["D1:spawn"]);
+    expect(
+      routeOwnerContractErrors(owner, roles, config, {
+        ...ownerSources,
+        "issue-priming-workflow": d1Source.replace(
+          "message: D1_PROMPT,",
+          "message: D2_PROMPT,",
+        ),
+      }),
+    ).toEqual(["D1:message"]);
+    expect(
+      routeOwnerContractErrors(owner, roles, config, {
+        ...ownerSources,
+        "issue-priming-workflow": d1Source.replace(
+          '```\n\n`fork_turns: "none"` is required',
+          '```\nCodex.spawn_agent({\n  task_name: d1_<instance_ordinal>,\n  agent_type: "assessor",\n  model: D1_MODEL,\n  reasoning_effort: "medium",\n  fork_turns: "none",\n  message: D1_PROMPT,\n})\n\n`fork_turns: "none"` is required',
+        ),
+      }),
+    ).toEqual(["D1:spawn"]);
+    const d17Source = ownerSources["pr-merge"];
+    const d17Diagnosis = d17Source.match(
+      /Codex\.spawn_agent\(\{\n {2}task_name: d17_<instance_ordinal>,\n {2}agent_type: "investigator",[\s\S]*?\n\}\)/,
+    )?.[0];
+    expect(d17Diagnosis).toBeDefined();
+    expect(
+      routeOwnerContractErrors(owner, roles, config, {
+        ...ownerSources,
+        "pr-merge": `${d17Source}\n${d17Diagnosis}`,
+      }),
+    ).toEqual(["D17:spawn"]);
   });
 
   it("rejects a malformed inventory row in the inventory dimension", async () => {
@@ -879,11 +978,12 @@ function routeOwnerContractErrors(
     }
 
     if (route.id === "D4") {
-      const block = findSpawnBlock(source, route.id, "SELECTED_ROLE_ID");
-      if (!block) {
-        errors.push("D4:spawn");
+      const blocks = routeSpawnBlocks(source, route.id);
+      if (blocks.length !== 1) {
+        addError(errors, "D4:spawn");
         continue;
       }
+      const block = blocks[0];
       const fields = parseInvocationFields(block);
       for (const [field, expected] of [
         ["task_name", "d4_<instance_ordinal>"],
@@ -892,32 +992,40 @@ function routeOwnerContractErrors(
         ["fork_turns", '"none"'],
         ["message", "SELF_CONTAINED_PROMPT"],
       ]) {
-        if (fields[field] !== expected) errors.push(`D4:${field}`);
+        if (fields[field] !== expected) addError(errors, `D4:${field}`);
       }
       const section = canonicalRouteSection(source, block.start);
       if (
         fields.agent_type !== "SELECTED_ROLE_ID" ||
-        !/six(?:-| )role(?:s| set)/i.test(section)
+        !/policy-owned six-role set/i.test(section) ||
+        !section.includes(
+          "[agent spec `docs/specs/agents.md`](../../docs/specs/agents.md)",
+        ) ||
+        !section.includes(
+          "[Agent Routing and Mutation Policy](../../docs/guidelines/agent-routing-and-mutation-policy.md#d4-declaration-obligation)",
+        ) ||
+        roles.length !== 6 ||
+        roles.length !== route.d4Contract?.roleCardinality
       ) {
-        errors.push("D4:selector");
+        addError(errors, "D4:selector");
       }
-      if (!/selected_role_id/i.test(section)) errors.push("D4:selector");
+      if (!/selected_role_id/i.test(section)) addError(errors, "D4:selector");
       if (!section.includes("capabilityProfiles.<capability>.codex")) {
-        errors.push("D4:capability-model");
+        addError(errors, "D4:capability-model");
       }
       if (
         !section.includes(
           "selected source capability to match the selected semantic role",
         )
       ) {
-        errors.push("D4:source-capability-parity");
+        addError(errors, "D4:source-capability-parity");
       }
       if (
         !section.includes(
           "matching Codex effort from the semantic-role catalog",
         )
       ) {
-        errors.push("D4:catalog-effort");
+        addError(errors, "D4:catalog-effort");
       }
       for (const role of roles) {
         if (
@@ -926,19 +1034,25 @@ function routeOwnerContractErrors(
             config.capabilityProfiles,
           ) !== config.capabilityProfiles[role.capability].codex
         ) {
-          errors.push(`D4:${role.name}:model`);
+          addError(errors, `D4:${role.name}:model`);
         }
       }
-      if (!routeContextPresent(section)) errors.push("D4:context");
-      if (!routePrevalidates(section)) errors.push("D4:prevalidation");
-      if (!routeFailClosed(section)) errors.push("D4:rejection");
+      if (!routeContextPresent(section)) addError(errors, "D4:context");
+      if (!routePrevalidates(section)) addError(errors, "D4:prevalidation");
+      if (!routeFailClosed(section)) addError(errors, "D4:rejection");
       continue;
     }
 
+    const blocks = routeSpawnBlocks(source, route.id);
+    const expectedCardinality = route.id === "D17" ? 3 : 1;
+    if (blocks.length !== expectedCardinality) {
+      addError(errors, `${route.id}:spawn`);
+      continue;
+    }
     for (const clause of route.clauses) {
       const role = rolesByName.get(clause.role);
       if (!role) {
-        errors.push(`${route.id}:role`);
+        addError(errors, `${route.id}:role`);
         continue;
       }
       if (
@@ -946,16 +1060,23 @@ function routeOwnerContractErrors(
         role.routeEffort !== clause.effort ||
         role.sourceAuthority !== clause.sourceAuthority
       ) {
-        errors.push(`${route.id}:tuple`);
+        addError(errors, `${route.id}:tuple`);
       }
       if (!config.capabilityProfiles[clause.capability].codex) {
-        errors.push(`${route.id}:configured-model`);
+        addError(errors, `${route.id}:configured-model`);
       }
-      const block = findSpawnBlock(source, route.id, clause.role);
-      if (!block) {
-        errors.push(`${route.id}:spawn`);
+      const matchingBlocks =
+        route.id === "D17"
+          ? blocks.filter(
+              (block) =>
+                parseInvocationFields(block).agent_type === `"${clause.role}"`,
+            )
+          : blocks;
+      if (matchingBlocks.length !== 1) {
+        addError(errors, `${route.id}:spawn`);
         continue;
       }
+      const block = matchingBlocks[0];
       const fields = parseInvocationFields(block);
       const expectedModel = expectedRouteModel(route.id, clause.role);
       const expectedFields: Record<string, string> = {
@@ -967,50 +1088,45 @@ function routeOwnerContractErrors(
       };
       for (const [field, expected] of Object.entries(expectedFields)) {
         if (fields[field] !== expected) {
-          errors.push(
+          addError(
+            errors,
             field === "model"
               ? `${route.id}:model-binding`
               : `${route.id}:${field}`,
           );
         }
       }
-      if (!fields.message) errors.push(`${route.id}:message`);
+      if (fields.message !== expectedRouteMessage(route.id, clause.role)) {
+        addError(errors, `${route.id}:message`);
+      }
       const section = canonicalRouteSection(source, block.start);
-      if (!section.includes(route.id)) errors.push(`${route.id}:section`);
-      const groupMembers = routesInSection(
-        owner,
-        route.ownerSkill,
-        source,
-        section,
-      );
-      for (const member of groupMembers) {
-        if (!section.includes(member.id)) errors.push(`${route.id}:group`);
-      }
-      if (!modelResolvesInSection(section, expectedModel, clause.capability)) {
-        errors.push(`${route.id}:capability-model`);
-      }
-      if (!routeContextPresent(section)) errors.push(`${route.id}:context`);
+      if (!routeContextPresent(section))
+        addError(errors, `${route.id}:context`);
       if (!routePrevalidates(section)) {
-        errors.push(`${route.id}:prevalidation`);
+        addError(errors, `${route.id}:prevalidation`);
       }
-      if (!routeFailClosed(section)) errors.push(`${route.id}:rejection`);
+      if (route.id === "D1" && !routeFailClosed(section)) {
+        addError(errors, "D1:rejection");
+      }
     }
   }
 
   const d12Continuity = ownerSources["D12:continuity-reference"];
-  const followup = findInvocationBlock(
+  const followups = collectInvocationBlocks(
     d12Continuity ?? "",
     "Codex.followup_task",
   );
-  if (!followup) {
-    errors.push("D12:followup-block");
+  const followup = followups[0];
+  if (followups.length !== 1 || !followup) {
+    addError(errors, "D12:followup-block");
   } else {
     const fields = parseInvocationFields(followup);
     if (
       fields.target !== "D12_STABLE_SESSION_ID" ||
-      !fields.message?.includes("D12_INCREMENTAL_FINDINGS")
+      fields.message !==
+        "D12_INCREMENTAL_FINDINGS_AND_TASK_CONTEXT_PLUS_VERIFIED_AUTO_ROUTE_ATTESTATION_WHEN_APPLICABLE"
     ) {
-      errors.push("D12:followup-block");
+      addError(errors, "D12:followup-block");
     }
     for (const field of [
       "agent_type",
@@ -1018,7 +1134,8 @@ function routeOwnerContractErrors(
       "reasoning_effort",
       "fork_turns",
     ]) {
-      if (fields[field] !== undefined) errors.push("D12:followup-override");
+      if (fields[field] !== undefined)
+        addError(errors, "D12:followup-override");
     }
   }
   if (
@@ -1033,7 +1150,7 @@ function routeOwnerContractErrors(
         : "",
     )
   ) {
-    errors.push("D16:changed-tuple-fresh");
+    addError(errors, "D16:changed-tuple-fresh");
   }
   const d14Anchor = d12Continuity?.indexOf("D14 and D15 use independent");
   if (
@@ -1043,12 +1160,10 @@ function routeOwnerContractErrors(
       "D14 and D15 use independent fresh one-shot",
     )
   ) {
-    errors.push("D14-D15:one-shot");
+    addError(errors, "D14-D15:one-shot");
   }
   const merge = ownerSources["pr-merge"];
-  const d17Block = merge
-    ? findSpawnBlock(merge, "D17", "investigator")
-    : undefined;
+  const d17Block = merge ? routeSpawnBlocks(merge, "D17")[0] : undefined;
   const d17Section = d17Block
     ? canonicalRouteSection(merge ?? "", d17Block.start)
     : "";
@@ -1058,7 +1173,7 @@ function routeOwnerContractErrors(
     ) ||
     /(?:continue in place|configuration-changing followup)/i.test(d17Section)
   ) {
-    errors.push("D17:changed-tuple-fresh");
+    addError(errors, "D17:changed-tuple-fresh");
   }
   return errors;
 }
@@ -1068,48 +1183,36 @@ interface InvocationBlock {
   readonly text: string;
 }
 
-function findSpawnBlock(
+function collectInvocationBlocks(
   source: string,
-  routeId: `D${number}`,
-  role: string,
-): InvocationBlock | undefined {
-  const taskName = `task_name: ${routeId.toLowerCase()}_<instance_ordinal>`;
-  let start = source.indexOf(taskName);
-  let firstBlock: InvocationBlock | undefined;
+  invocation: "Codex.spawn_agent" | "Codex.followup_task",
+): readonly InvocationBlock[] {
+  const opener = `${invocation}({`;
+  const blocks: InvocationBlock[] = [];
+  let start = source.indexOf(opener);
   while (start !== -1) {
-    const invocationStart = source.lastIndexOf("Codex.spawn_agent({", start);
-    const end = source.indexOf("\n})", start);
-    const text = source.slice(
-      invocationStart,
-      end === -1 ? undefined : end + 3,
-    );
-    const block = { start: invocationStart, text };
-    if (!firstBlock) firstBlock = block;
-    if (
-      text.includes(
-        `agent_type: ${role === "SELECTED_ROLE_ID" ? role : `"${role}"`}`,
-      )
-    ) {
-      return block;
-    }
-    start = source.indexOf(taskName, start + taskName.length);
+    const closing = /\n[ \t]*\}\)/.exec(source.slice(start + opener.length));
+    if (!closing || closing.index === undefined) break;
+    const end = start + opener.length + closing.index + closing[0].length;
+    blocks.push({ start, text: source.slice(start, end) });
+    start = source.indexOf(opener, end);
   }
-  return firstBlock;
+  return blocks;
 }
 
-function findInvocationBlock(
+function routeSpawnBlocks(
   source: string,
-  invocation: string,
-): InvocationBlock | undefined {
-  const start = source.indexOf(`${invocation}({`);
-  if (start === -1) return undefined;
-  const end = source.indexOf("\n})", start);
-  return { start, text: source.slice(start, end === -1 ? undefined : end + 3) };
+  routeId: `D${number}`,
+): readonly InvocationBlock[] {
+  const taskName = `${routeId.toLowerCase()}_<instance_ordinal>`;
+  return collectInvocationBlocks(source, "Codex.spawn_agent").filter(
+    (block) => parseInvocationFields(block).task_name === taskName,
+  );
 }
 
 function parseInvocationFields(block: InvocationBlock): Record<string, string> {
   return Object.fromEntries(
-    [...block.text.matchAll(/^ {2}([a-z_]+):\s*(.+?),?$/gm)].map((match) => [
+    [...block.text.matchAll(/^[ \t]*([a-z_]+):\s*(.+?),?$/gm)].map((match) => [
       match[1],
       match[2].replace(/,?\s+#.*$/, "").replace(/,$/, ""),
     ]),
@@ -1130,21 +1233,6 @@ function canonicalRouteSection(source: string, anchor: number): string {
   return source.slice(start === -1 ? 0 : start, end);
 }
 
-function routesInSection(
-  owner: Awaited<ReturnType<typeof readAgentRoutingPolicyOwner>>,
-  ownerSkill: string,
-  source: string,
-  section: string,
-) {
-  return owner.directChildRoutes.filter((route) => {
-    if (route.ownerSkill !== ownerSkill) return false;
-    return route.clauses.some((clause) => {
-      const block = findSpawnBlock(source, route.id, clause.role);
-      return block !== undefined && section.includes(block.text);
-    });
-  });
-}
-
 function expectedRouteModel(routeId: `D${number}`, role: string): string {
   if (routeId !== "D17") return `${routeId.toUpperCase()}_MODEL`;
   if (role === "investigator") return "D17_DIAGNOSIS_MODEL";
@@ -1152,28 +1240,36 @@ function expectedRouteModel(routeId: `D${number}`, role: string): string {
   return "D17_JUDGMENT_FIX_MODEL";
 }
 
-function modelResolvesInSection(
-  section: string,
-  model: string,
-  capability: string,
-): boolean {
-  const modelLine = new RegExp(
-    `model:\\s+${model.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&")}[^\\n]*capabilityProfiles\\.${capability}\\.codex`,
-  );
-  return (
-    modelLine.test(section) ||
-    (section.includes(model) &&
-      section.includes(`capabilityProfiles.${capability}.codex`))
-  );
+function expectedRouteMessage(routeId: `D${number}`, role: string): string {
+  if (routeId === "D5") return "D5_PLAN_REVIEW_PROMPT";
+  if (routeId === "D6") return "D6_EXECUTABILITY_REVIEW_PROMPT";
+  if (routeId === "D10") return "D10_CRITIC_PROMPT";
+  if (routeId === "D11") return "D11_SCENARIO_PROMPT";
+  if (routeId >= "D12" && routeId <= "D16") {
+    return `${routeId}_SELF_CONTAINED_PROMPT`;
+  }
+  if (routeId !== "D17") return `${routeId}_PROMPT`;
+  if (role === "investigator") return "D17_DIAGNOSIS_SELF_CONTAINED_PROMPT";
+  if (role === "executor") return "D17_EXACT_FIX_SELF_CONTAINED_PROMPT";
+  return "D17_JUDGMENT_FIX_SELF_CONTAINED_PROMPT";
+}
+
+function addError(errors: string[], error: string): void {
+  if (!errors.includes(error)) errors.push(error);
 }
 
 function routeFailClosed(source: string): boolean {
+  const requiresProhibition = /(?:do not\s+retry|without\s+substitution)/i.test(
+    source,
+  );
   return (
     /(?:native Codex (?:rejects|rejection)|target rejection|Native rejection)/i.test(
       source,
     ) &&
-    /(?:Do not\s+retry|without\s+substitution)/i.test(source) &&
-    !/(?:retry with|fallback alias)/i.test(source)
+    requiresProhibition &&
+    !/(?:^|\n|[.!?]\s+)[ \t]*(?:retry\s+(?:using|with)|substitute\s+(?:a|the))\b/im.test(
+      source,
+    )
   );
 }
 
