@@ -62,8 +62,6 @@ digraph process {
     "Quality result final for same reviewed head?" [shape=diamond];
     "Quality findings present?" [shape=diamond];
     "Resolve quality disposition or rerun quality" [shape=box];
-    "Implementer fixes findings" [shape=box];
-    "Revalidate effective review route" [shape=box];
     "Mark task complete" [shape=box];
     "More tasks remain?" [shape=diamond];
     "Single-task caller-scoped final-review skip applies?" [shape=diamond];
@@ -71,6 +69,8 @@ digraph process {
     "Fresh D16 capture" [shape=box];
     "D16 verify-validate-cleanup-apply" [shape=box];
     "Final whole-implementation review passes?" [shape=diamond];
+    "Fresh D12 final whole-implementation fix" [shape=box];
+    "Final fix commits and verifies" [shape=box];
     "Owning caller final whole-diff gate present?" [shape=diamond];
     "Return to caller" [shape=box];
     "Report implementation and final review status; resolve branch-level review status" [shape=box];
@@ -121,8 +121,6 @@ digraph process {
     "Quality findings present?" -> "Send incremental D12 follow-up to stable session" [label="yes; compatible stable D12"];
     "Quality findings present?" -> "Dispatch implementer prompt" [label="yes; fresh D12 required"];
     "Quality findings present?" -> "Mark task complete" [label="no"];
-    "Implementer fixes findings" -> "Revalidate effective review route";
-    "Revalidate effective review route" -> "Compute effective review route";
     "Controller executes Write/Edit + verify + commit inline" -> "Inline branch: no child DONE report or snapshot request";
     "Inline branch: no child DONE report or snapshot request" -> "Mark task complete";
     "Mark task complete" -> "More tasks remain?";
@@ -133,7 +131,9 @@ digraph process {
     "Fresh D16 capture" -> "Dispatch final whole-implementation code-quality reviewer" [label="capture succeeds"];
     "Dispatch final whole-implementation code-quality reviewer" -> "D16 verify-validate-cleanup-apply";
     "D16 verify-validate-cleanup-apply" -> "Final whole-implementation review passes?";
-    "Final whole-implementation review passes?" -> "Dispatch implementer prompt" [label="no; fresh D12 final fix"];
+    "Final whole-implementation review passes?" -> "Fresh D12 final whole-implementation fix" [label="no"];
+    "Fresh D12 final whole-implementation fix" -> "Final fix commits and verifies" [label="complete fresh D12 prompt/creation"];
+    "Final fix commits and verifies" -> "Fresh D16 capture";
     "Final whole-implementation review passes?" -> "Owning caller final whole-diff gate present?" [label="yes"];
     "Owning caller final whole-diff gate present?" -> "Return to caller" [label="yes"];
     "Owning caller final whole-diff gate present?" -> "Report implementation and final review status; resolve branch-level review status" [label="no"];
