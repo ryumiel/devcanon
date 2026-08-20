@@ -11,6 +11,16 @@ source-immutable, with zero handoffs. The controller supplies the captured task
 head and applies GUARD-001 outside this prompt. Do not change source, tests,
 configuration, documentation, or external systems; return only the response.
 
+**Fresh configuration:** Before D14 capture, validate `deep-reviewer`,
+`frontier`, the nonblank full model resolved from `devcanon.config.yaml`
+`capabilityProfiles.frontier.codex`, independent `xhigh`, source-immutable and
+external-none authority, `d14_<instance_ordinal>`, `fork_turns: "none"`, this
+independent fully substituted prompt, response-only output, and the existing
+same-head/fix-loop termination. `subagent-lifecycle` allocates the ordinal and
+owns cleanup and continuity. D14 does not receive a configuration-changing
+follow-up: a changed tuple captures its report, records supersession, passes
+cleanup, then creates a complete fresh route child.
+
 **D14 question:** Does the implementation at the supplied task head satisfy
 Task N exactly, including its extracted contract, without missing or extra
 behavior?

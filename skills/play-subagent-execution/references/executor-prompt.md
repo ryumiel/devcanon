@@ -10,6 +10,18 @@ judgment-bearing work, use [`implementer-prompt.md`](implementer-prompt.md).
 
 **Promotion classification:** Workflow-local prompt template paired with the source agent at [`agents/executor.yaml`](../../../agents/executor.yaml) — referenced from `skills/play-subagent-execution/SKILL.md` for dispatch-time placeholder substitution. The role identity is already promoted; per [`docs/guidelines/agent-authoring-guide.md`](../../../docs/guidelines/agent-authoring-guide.md) §4, workflow-local prompt assembly stays as a template.
 
+**Fresh configuration:** The controller validates D13's complete fresh tuple
+before capture: `executor`, `efficient`, the nonblank full model resolved from
+`devcanon.config.yaml` `capabilityProfiles.efficient.codex`, independent
+`medium`, source-mutable/external-none authority, `d13_<instance_ordinal>`,
+`fork_turns: "none"`, this fully substituted prompt, report output, and the
+existing five-guardrail stop/reclassify termination. `subagent-lifecycle`
+allocates the ordinal and owns continuity. A same-D13 continuation may use only
+an incremental task-local follow-up message. If judgment, policy, authority, or
+another required tuple value changes, capture the D13 result and use the
+existing reclassification/cleanup path to make a complete fresh D12 creation;
+never override a D13 follow-up.
+
 ````
 Task tool (general-purpose):
   description: "Implement Task N: [task name]"

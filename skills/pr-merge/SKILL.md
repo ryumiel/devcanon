@@ -202,6 +202,67 @@ with zero handoffs. This bounded B3 diagnosis route has external authority
 `none`; do not substitute another role, capability, effort, mutation default,
 or ambient agent.
 
+Before every fresh D17 diagnosis or classified fix, validate the complete route
+tuple: route, semantic role, capability, nonblank full model resolved exactly
+from `devcanon.config.yaml` `capabilityProfiles.<capability>.codex`, independent
+effort, source/external authority, runtime `task_name`, `fork_turns: "none"`,
+self-contained prompt/context, expected output, and termination. Missing or
+mismatched values block before capture or spawn. `subagent-lifecycle` owns the
+route-local `d17_<instance_ordinal>` allocation, global retained-ledger name
+absence check, same-session reuse, changed-tuple supersession/cleanup, native
+rejection, and same-pair slot recovery; D17 supplies the exact route values.
+
+The fully substituted prompt names the anchored PR head, bounded repository and
+authorized paths, collected CI evidence, response-only or mutable constraint,
+expected diagnosis/fix report, and the termination below. After validation and
+the existing lifecycle/capture gate, use the actual Codex fields:
+
+```text
+# Diagnosis: source-immutable, response-only; output is the evidence-only
+# diagnosis. Termination is diagnosis validation, cleanup, then classification.
+Codex.spawn_agent({
+  task_name: d17_<instance_ordinal>,
+  agent_type: "investigator",
+  model: D17_DIAGNOSIS_MODEL, # capabilityProfiles.balanced.codex
+  reasoning_effort: "high",
+  fork_turns: "none",
+  message: D17_DIAGNOSIS_SELF_CONTAINED_PROMPT,
+})
+# Exact mechanical fix: source-mutable; output is scoped committed fix/report.
+# Termination returns the committed result to the root for verification/push.
+Codex.spawn_agent({
+  task_name: d17_<instance_ordinal>,
+  agent_type: "executor",
+  model: D17_EXACT_FIX_MODEL, # capabilityProfiles.efficient.codex
+  reasoning_effort: "medium",
+  fork_turns: "none",
+  message: D17_EXACT_FIX_SELF_CONTAINED_PROMPT,
+})
+# Judgment-bearing fix: source-mutable; output is scoped committed fix/report.
+# Termination returns the committed result to the root for verification/push.
+Codex.spawn_agent({
+  task_name: d17_<instance_ordinal>,
+  agent_type: "implementer",
+  model: D17_JUDGMENT_FIX_MODEL, # capabilityProfiles.balanced.codex
+  reasoning_effort: "high",
+  fork_turns: "none",
+  message: D17_JUDGMENT_FIX_SELF_CONTAINED_PROMPT,
+})
+```
+
+The resolved `D17_*_MODEL` is the full configured model, never an ambient,
+alias, or universal hard-coded capability string. For unchanged tuple and
+stable identity, a D17 continuation sends only incremental task-local CI
+evidence through `followup_task`; it omits `agent_type`, `model`,
+`reasoning_effort`, `fork_turns`, and equivalent overrides. Diagnosis-to-fix
+classification necessarily changes the tuple: capture the diagnosis result,
+record supersession, run the existing target-honest cleanup gate, and then make
+one complete fresh classified-fix creation. On inventory-only targets record
+`close-unavailable: inventory-only; no close operation`; cleanup failure is
+terminal. Native rejection reports the exact requested model/effort and uses
+the existing unavailable/blocked terminal with no fallback, alias, effort
+change, retry, escalation, or role substitution.
+
 Resolve `PR_MERGE_DIR` to the installed `pr-merge` bundle directory, then set
 `SOURCE_IMMUTABILITY_HELPER="$PR_MERGE_DIR/scripts/source-immutability.sh"`.
 Discover its local contract before the guarded investigation:

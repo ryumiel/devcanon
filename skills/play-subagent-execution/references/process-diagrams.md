@@ -5,6 +5,10 @@ These diagrams are non-normative summaries of the controller flow in
 owned by [`review-routing-policy.md`](review-routing-policy.md); returned
 status, freshness, guard-failure, cleanup, and terminal transitions are owned
 by [`lifecycle-status-policy.md`](lifecycle-status-policy.md).
+Fresh D12-D16 tuple validation and creation fields are owned by `SKILL.md`;
+route-local allocation, follow-up continuity, changed-tuple supersession, native
+rejection, and same-pair slot recovery are owned by `subagent-lifecycle`. The
+diagram never implies an inherited or configuration-changing dispatch.
 
 ## When to Use
 

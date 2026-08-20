@@ -17,6 +17,19 @@ applies GUARD-001 independently around each session. Do not change source,
 tests, configuration, documentation, or external systems; return only the
 response. Never reuse a D15 session or result as D16.
 
+**Fresh configuration:** Before either capture, validate `deep-reviewer`,
+`frontier`, the nonblank full model resolved from `devcanon.config.yaml`
+`capabilityProfiles.frontier.codex`, independent `xhigh`, source-immutable and
+external-none authority, a route-local `d15_<instance_ordinal>` or
+`d16_<instance_ordinal>`, `fork_turns: "none"`, the fully substituted
+route-specific prompt, response-only output, and its distinct termination.
+D15 terminates through its independent/provisional same-head loop; D16 uses its
+fresh whole-range review and exact ADR-0016 skip or final
+fix/fresh-review/terminal route. `subagent-lifecycle` allocates the ordinal and
+owns continuity. D15 and D16 are never reused across routes; a changed tuple
+captures the result, records supersession, passes cleanup, then creates a
+complete fresh child rather than sending a configuration override.
+
 **D15 question:** Is Task N at the supplied task head well-built, clean,
 tested, and maintainable within its task-local scope?
 

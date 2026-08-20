@@ -58,6 +58,45 @@ Update the ledger before and after every dispatch. A pre-dispatch row may use
 source for controller recovery after orchestration failures; git remains the
 source for repository state.
 
+## Fresh Allocation And Configuration Continuity
+
+Route owners select and validate their exact semantic role, capability, full
+target model, independent effort, authority, output, termination, and
+self-contained task context. This lifecycle owner supplies the shared narrow
+allocation and continuity rules; it does not create a resolver, registry,
+schema, durable session artifact, or a new operational state.
+
+Before capture for every fresh Codex child, the controller chooses the route's
+`<instance_ordinal>` as the next positive base-10 integer not already used by a
+retained lifecycle-ledger row for that route. Completed and rows with a captured
+supersession decision remain retained, so an ordinal is never reused in the
+controller flow. The route-local `task_name` is `dN_<instance_ordinal>`; it
+must be nonblank, match `^[a-z0-9_]+$`, and be absent from every retained ledger
+task name before capture. Keep task, scope, wave, branch, head, and role
+identity in the existing separate ledger dimensions, not in `task_name`.
+
+The running configuration tuple is fixed for the stable session identity:
+semantic role, capability, resolved full model, independent effort,
+source/external authority, and the original fresh no-history boundary. When
+the owning route needs only more task-local context and this tuple is unchanged,
+reuse that stable identity with `followup_task` and an incremental message only.
+Do not send `agent_type`, `model`, `reasoning_effort`, `fork_turns`, or an
+equivalent configuration override in a follow-up.
+
+When a required tuple value changes, a follow-up is prohibited. Capture the
+role-specific state/result, record the controller supersession decision with
+that result, run the existing target-honest cleanup gate, and then have the
+route validate and create a new fresh child with its complete replacement
+tuple. On Responses API inventory-only targets, record exactly
+`close-unavailable: inventory-only; no close operation`; do not invent a close
+operation or operational state. Cleanup failure is terminal under the owning
+route: do not create the replacement child.
+
+A native target rejection reports the exact requested `model` and
+`reasoning_effort` and takes the owning route's existing unavailable or blocked
+terminal. It authorizes no fallback, alias, effort change, retry, escalation,
+or role substitution.
+
 ## Target Lifecycle Capability
 
 Before promising automatic cleanup, identify what lifecycle controls the
@@ -146,8 +185,10 @@ When a spawn fails because of a slot/session limit:
 4. Reconstruct active workflow state from the lifecycle ledger and the
    repository state anchors the owning workflow uses, such as `git status`,
    current branch, and relevant base/head SHAs.
-5. Retry the spawn exactly once after automatic cleanup completes or after the
-   operator confirms manual cleanup.
+5. Retry the exact same already-validated tuple exactly once after automatic
+   cleanup completes or after the operator confirms manual cleanup. Slot
+   recovery never authorizes a different role, model, effort, or other tuple
+   value.
 6. If the retry still fails, stop and escalate to the user with a sanitized
    summary of the reconstructed state and remaining open-agent inventory, or
    with a clear statement that inventory is unavailable. Include only session

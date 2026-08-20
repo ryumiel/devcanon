@@ -402,6 +402,87 @@ overriding either at dispatch time. D12 uses `implementer`, balanced/high; D13
 uses `executor`, efficient/medium; and D14-D16 use `deep-reviewer`,
 frontier/xhigh. These pairs do not grant external mutation authority.
 
+### D12-D16 fresh-Codex dispatch contract
+
+For every fresh D12-D16 child, resolve the full model exactly from
+`devcanon.config.yaml` `capabilityProfiles.<capability>.codex`; capability
+selects the model, while effort remains independent. Before lifecycle capture,
+validate the complete route tuple: route, semantic role, capability, nonblank
+configured full model, independent effort, source and external authority,
+runtime `task_name`, `fork_turns: "none"`, self-contained prompt/context,
+expected output, and termination. Any missing or mismatched field blocks before
+creation. `subagent-lifecycle` owns route-local ordinal allocation, global
+retained-ledger name absence, same-session reuse, changed-tuple supersession,
+cleanup, native rejection, and same-pair slot recovery; this workflow supplies
+only the route-specific values below.
+
+| Route | Semantic role / capability / effort    | Authority                       | Self-contained prompt and output                                              | Termination                                                      |
+| ----- | -------------------------------------- | ------------------------------- | ----------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| D12   | `implementer` / `balanced` / `high`    | source-mutable; external none   | Full task/context, authorized paths, snapshot request, report/status          | Existing scoped commit, report, snapshot, and status disposition |
+| D13   | `executor` / `efficient` / `medium`    | source-mutable; external none   | Exact guarded task/context, authorized paths, snapshot request, report/status | Existing five-guardrail stop/reclassify disposition              |
+| D14   | `deep-reviewer` / `frontier` / `xhigh` | source-immutable; external none | Independent D14 prompt, captured task head, response-only report              | Same-head D14 disposition/fix loop                               |
+| D15   | `deep-reviewer` / `frontier` / `xhigh` | source-immutable; external none | Independent D15 prompt, captured task head, response-only report              | Provisional/final same-head disposition/fix loop                 |
+| D16   | `deep-reviewer` / `frontier` / `xhigh` | source-immutable; external none | Fresh D16 whole-range prompt, base/head, response-only report                 | Exact ADR-0016 skip or final fix/fresh-review/terminal route     |
+
+After validation and the existing route-local capture, create exactly one fresh
+child with the actual Codex fields:
+
+```text
+# D12: D12_MODEL = capabilityProfiles.balanced.codex
+Codex.spawn_agent({
+  task_name: d12_<instance_ordinal>,
+  agent_type: "implementer",
+  model: D12_MODEL,
+  reasoning_effort: "high",
+  fork_turns: "none",
+  message: D12_SELF_CONTAINED_PROMPT,
+})
+# D13: D13_MODEL = capabilityProfiles.efficient.codex
+Codex.spawn_agent({
+  task_name: d13_<instance_ordinal>,
+  agent_type: "executor",
+  model: D13_MODEL,
+  reasoning_effort: "medium",
+  fork_turns: "none",
+  message: D13_SELF_CONTAINED_PROMPT,
+})
+# D14: D14_MODEL = capabilityProfiles.frontier.codex
+Codex.spawn_agent({
+  task_name: d14_<instance_ordinal>,
+  agent_type: "deep-reviewer",
+  model: D14_MODEL,
+  reasoning_effort: "xhigh",
+  fork_turns: "none",
+  message: D14_SELF_CONTAINED_PROMPT,
+})
+# D15: D15_MODEL = capabilityProfiles.frontier.codex
+Codex.spawn_agent({
+  task_name: d15_<instance_ordinal>,
+  agent_type: "deep-reviewer",
+  model: D15_MODEL,
+  reasoning_effort: "xhigh",
+  fork_turns: "none",
+  message: D15_SELF_CONTAINED_PROMPT,
+})
+# D16: D16_MODEL = capabilityProfiles.frontier.codex
+Codex.spawn_agent({
+  task_name: d16_<instance_ordinal>,
+  agent_type: "deep-reviewer",
+  model: D16_MODEL,
+  reasoning_effort: "xhigh",
+  fork_turns: "none",
+  message: D16_SELF_CONTAINED_PROMPT,
+})
+```
+
+The route prompt references below own task-local content. A same-session D12
+fixup carries only the incremental findings/context through `followup_task`; it
+does not repeat or override the creation tuple. D13-to-D12 reclassification,
+any reviewer-to-D12 fix, and every D16 final fix require the lifecycle
+changed-tuple path and a complete new D12 creation. A target rejection reports
+the exact requested `model=<Dn_MODEL> effort=<Dn_EFFORT>` and stops through the
+existing route terminal without substitution.
+
 ## Execution Route Classification
 
 D12 uses the source-mutable `implementer`, balanced/high, for judgment-bearing

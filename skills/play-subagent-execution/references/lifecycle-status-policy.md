@@ -14,6 +14,24 @@ It owns the generic controller lifecycle ledger, target lifecycle capability
 classification, cleanup gate before spawns, target-honest cleanup outcomes, and
 slot-limit recovery; this skill owns only execution-specific lifecycle details.
 
+For a same-tuple D12 fixup, keep the stable D12 session identity and send only
+the new task-local findings/context:
+
+```text
+Codex.followup_task({
+  target: D12_STABLE_SESSION_ID,
+  message: D12_INCREMENTAL_FINDINGS_AND_TASK_CONTEXT,
+})
+```
+
+Do not include `agent_type`, `model`, `reasoning_effort`, `fork_turns`, or an
+equivalent override. D13-to-D12 reclassification and every D14/D15/D16 finding
+that routes to D12 change the required tuple, so they must capture the
+role-specific result, record the supersession decision, pass the existing
+target-honest cleanup gate, and create a complete fresh D12 child. On an
+inventory-only target, record `close-unavailable: inventory-only; no close
+operation`; cleanup failure is terminal and does not permit a replacement.
+
 ## Mutable Task-Worker Status
 
 For D12/D13 `DONE` or `DONE_WITH_CONCERNS`, capture report, snapshot state,
@@ -72,7 +90,9 @@ commit.
 A D13 boundary failure (`NEEDS_CONTEXT` or `BLOCKED` from judgment, policy,
 authorization, clarification, or widened scope) reclassifies to D12; never
 redispatch or model-escalate D13. Other D13 blockers also route to D12 with
-available evidence.
+available evidence. This reclassification changes the tuple and therefore uses
+the fresh-child lifecycle path above, not a D13 follow-up with an altered role,
+model, or effort.
 
 On the exact verified `issue-priming-workflow --auto` route, a task-local
 recoverable D12 `NEEDS_CONTEXT` or `BLOCKED` result is non-gate continuation:
@@ -81,3 +101,6 @@ same D12 route. Outside that route, automatic recovery is limited to a
 within-scope context repair; other blockers remain incomplete under the owning
 caller. Do not invent effort/model overrides. Record blockers as stable family
 plus detail and escalate repeated family behavior instead of retrying unchanged.
+When that redispatch is a same-tuple D12 continuation, use the incremental-only
+follow-up above; any tuple change instead follows the fresh-child lifecycle
+path.
