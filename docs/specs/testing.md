@@ -2,6 +2,29 @@
 
 ---
 
+## Required Validation Budget
+
+`pnpm test` runs every retained test locally and on pull requests. It has no
+separate exhaustive, scheduled, manual, or main-only lane. On hosted Ubuntu
+CI, the required test command has a 75-second runtime budget and the complete
+test job—including checkout, setup, dependency installation, and cleanup—has
+a three-minute hard limit.
+
+An individual required test should normally finish within one second. Vitest
+reports tests above that threshold as slow. Longer tests require a documented
+critical integration boundary and must use finite test, hook, and teardown
+timeouts plus explicit cleanup for subprocesses they start.
+
+Coverage belongs at the closest stable boundary: unit and component tests own
+validation permutations, while public wrappers retain only their independent
+input translation, routing, output/exit propagation, installed-layout
+discovery, and cleanup behavior. The required end-to-end safety net covers CLI
+registration, copy and symlink sync where supported, runtime bootstrap and
+termination, source-immutability capture/verify/cleanup plus mutation failure,
+and PR-review success with a failure or cleanup path.
+
+---
+
 ## Unit tests
 
 - config parsing

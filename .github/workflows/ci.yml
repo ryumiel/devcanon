@@ -145,11 +145,11 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-            test-command: pnpm run test:ci:ubuntu
-            timeout_minutes: 15
+            test-command: timeout 75s pnpm run test:ci:ubuntu
+            timeout_minutes: 3
           - os: windows-latest
             test-command: pnpm run test:ci:windows:pr-review
-            timeout_minutes: 5
+            timeout_minutes: 3
     steps:
       - uses: actions/checkout@v6
 

@@ -1,8 +1,11 @@
 import { defineConfig } from "vitest/config";
 
-const integrationTestTimeout = process.platform === "win32" ? 60000 : 10000;
+const unitTestTimeout = 10000;
+const integrationTestTimeout = process.platform === "win32" ? 60000 : 30000;
 const windowsHelperIntegrationTestTimeout =
   process.platform === "win32" ? 60000 : 30000;
+const teardownTimeout = 10000;
+const slowTestThreshold = 1000;
 const renderInstallIntegrationIncludes = [
   "src/config/*.integration.test.ts",
   "src/diff/*.integration.test.ts",
@@ -32,6 +35,12 @@ export default defineConfig({
   test: {
     globals: false,
     passWithNoTests: true,
+    testTimeout: unitTestTimeout,
+    hookTimeout: unitTestTimeout,
+    teardownTimeout,
+    slowTestThreshold,
+    // Adds stack traces only when Vitest cannot terminate; normal output stays default.
+    reporters: ["default", "hanging-process"],
     projects: [
       {
         test: {
@@ -47,6 +56,8 @@ export default defineConfig({
           exclude: windowsIntegrationIncludes,
           testTimeout: integrationTestTimeout,
           hookTimeout: integrationTestTimeout,
+          teardownTimeout,
+          slowTestThreshold,
         },
       },
       {
@@ -55,6 +66,8 @@ export default defineConfig({
           include: renderInstallIntegrationIncludes,
           testTimeout: integrationTestTimeout,
           hookTimeout: integrationTestTimeout,
+          teardownTimeout,
+          slowTestThreshold,
         },
       },
       {
@@ -63,6 +76,8 @@ export default defineConfig({
           include: windowsHelperIntegrationIncludes,
           testTimeout: windowsHelperIntegrationTestTimeout,
           hookTimeout: windowsHelperIntegrationTestTimeout,
+          teardownTimeout,
+          slowTestThreshold,
         },
       },
     ],
