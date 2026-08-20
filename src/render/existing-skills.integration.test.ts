@@ -85,6 +85,61 @@ function expectSidecarParity(
 }
 
 describe("shipped skill rendering", () => {
+  it("materializes every D1-D17 route model binding from the configured capability", async () => {
+    const config = await loadConfig(
+      path.join(process.cwd(), "devcanon.config.yaml"),
+    );
+    const { outputs } = await renderAll(config, false, true);
+    const bindings = [
+      ["issue-priming-workflow", "D1_MODEL", "balanced"],
+      ["issue-priming-workflow", "D2_MODEL", "balanced"],
+      ["issue-priming-workflow", "D3_MODEL", "balanced"],
+      ["play-planning", "D5_MODEL", "frontier"],
+      ["play-planning", "D6_MODEL", "frontier"],
+      ["play-review", "D7_MODEL", "frontier"],
+      ["play-review", "D8_MODEL", "frontier"],
+      ["play-review", "D9_MODEL", "frontier"],
+      ["play-review", "D10_MODEL", "frontier"],
+      ["play-skill-authoring", "D11_MODEL", "balanced"],
+      ["play-subagent-execution", "D12_MODEL", "balanced"],
+      ["play-subagent-execution", "D13_MODEL", "efficient"],
+      ["play-subagent-execution", "D14_MODEL", "frontier"],
+      ["play-subagent-execution", "D15_MODEL", "frontier"],
+      ["play-subagent-execution", "D16_MODEL", "frontier"],
+      ["pr-merge", "D17_DIAGNOSIS_MODEL", "balanced"],
+      ["pr-merge", "D17_EXACT_FIX_MODEL", "efficient"],
+      ["pr-merge", "D17_JUDGMENT_FIX_MODEL", "balanced"],
+    ] as const;
+
+    for (const target of TARGETS) {
+      for (const [skill, binding, capability] of bindings) {
+        const { body } = parseFrontmatter(
+          getSkillOutput(outputs, skill, target).content,
+        );
+        const configuredModel = config.capabilityProfiles[capability][target];
+        const normalizedBody = body.replace(/\s+/g, " ");
+
+        expect(normalizedBody).toContain(
+          `\`${binding}\` resolves to \`${configuredModel}\``,
+        );
+        expect(normalizedBody).not.toContain(
+          `\`${binding}\` resolves to \`{{model:`,
+        );
+      }
+    }
+
+    for (const target of TARGETS) {
+      const { body } = parseFrontmatter(
+        getSkillOutput(outputs, "play-agent-dispatch", target).content,
+      );
+      for (const capability of ["efficient", "balanced", "frontier"] as const) {
+        expect(body).toContain(
+          `\`${capability}\` → \`${config.capabilityProfiles[capability][target]}\``,
+        );
+      }
+    }
+  });
+
   it("renders every validated source skill once for each enabled target", async () => {
     const config = await loadConfig(
       path.join(process.cwd(), "devcanon.config.yaml"),

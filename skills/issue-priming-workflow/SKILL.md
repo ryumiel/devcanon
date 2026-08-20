@@ -225,6 +225,9 @@ capability to be `balanced`, and require a nonblank resolved full model. Do not
 derive model or effort from conversation history, an ambient runtime, or an
 alias. Only after this validation, create exactly one fresh Codex child:
 
+Route model binding: `D1_MODEL` resolves to `{{model:balanced}}` from the
+configured balanced capability. The independent effort remains `medium`.
+
 ```text
 Codex.spawn_agent({
   task_name: d1_<instance_ordinal>,
@@ -351,6 +354,10 @@ rows, so no ordinal is reused in this flow. Resolve D2 `task_name` as
 each to be nonblank, match `^[a-z0-9_]+$`, and be absent from all retained
 controller ledger task names. Keep scope and sibling identity in the existing
 ledger dimensions, not in `task_name`.
+
+Route model bindings: `D2_MODEL` resolves to `{{model:balanced}}` and
+`D3_MODEL` resolves to `{{model:balanced}}` from the configured balanced
+capability. Their independent effort remains `high`.
 
 Create each permitted leaf once and only in its selected route:
 

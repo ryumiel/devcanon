@@ -429,6 +429,12 @@ route-specific values below.
 | D15   | `deep-reviewer` / `frontier` / `xhigh` | source-immutable; external none | Independent D15 prompt, captured task head, response-only report              | Provisional/final same-head disposition/fix loop                 |
 | D16   | `deep-reviewer` / `frontier` / `xhigh` | source-immutable; external none | Fresh D16 whole-range prompt, base/head, response-only report                 | Exact ADR-0016 skip or final fix/fresh-review/terminal route     |
 
+Route model bindings: `D12_MODEL` resolves to `{{model:balanced}}`;
+`D13_MODEL` resolves to `{{model:efficient}}`; `D14_MODEL` resolves to
+`{{model:frontier}}`; `D15_MODEL` resolves to `{{model:frontier}}`; and
+`D16_MODEL` resolves to `{{model:frontier}}`. Each retains the independent
+effort declared in its route row.
+
 After validation and the existing route-local capture, create exactly one fresh
 child with the actual Codex fields:
 

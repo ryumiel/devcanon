@@ -756,6 +756,10 @@ handoffs. Require the reviewer role capability to be `frontier`, every tuple
 field to be present, and the resolved model to be nonblank. Do not derive model
 or effort from the enclosing conversation, an ambient runtime, or an alias.
 
+Route model bindings: `D5_MODEL` resolves to `{{model:frontier}}` and
+`D6_MODEL` resolves to `{{model:frontier}}` from the configured frontier
+capability. Their independent effort remains `high`.
+
 Before capture, independently choose each route's `<instance_ordinal>` as the
 next positive base-10 integer not already used by a retained D5 or D6
 lifecycle-ledger row, respectively. The ledger retains completed and superseded

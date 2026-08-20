@@ -190,6 +190,11 @@ fresh-Codex tuple before its capture: `semantic_role: reviewer`;
 every tuple value, and nonblank resolved model; do not infer model or effort
 from an ambient runtime, alias, or inherited conversation.
 
+Route model bindings: `D7_MODEL` resolves to `{{model:frontier}}`, `D8_MODEL`
+resolves to `{{model:frontier}}`, and `D9_MODEL` resolves to
+`{{model:frontier}}` from the configured frontier capability. Their independent
+effort remains `high`.
+
 Before capture, independently choose each selected route's
 `<instance_ordinal>` as the next positive base-10 integer not already used by a
 retained D7, D8, or D9 lifecycle-ledger row, respectively. The ledger retains
@@ -470,6 +475,9 @@ completed and superseded rows, so do not reuse it. Resolve `task_name` as
 `d10_<instance_ordinal>` and require it to be nonblank, match `^[a-z0-9_]+$`,
 and be absent from all retained controller ledger task names. Keep critic and
 head identity in the existing ledger dimensions, not in `task_name`.
+
+Route model binding: `D10_MODEL` resolves to `{{model:frontier}}` from the
+configured frontier capability. The independent effort remains `xhigh`.
 
 After validation and the existing capture, make exactly one fresh critic
 creation:

@@ -215,6 +215,12 @@ authorized paths, collected CI evidence, response-only or mutable constraint,
 expected diagnosis/fix report, and the termination below. After validation and
 the existing lifecycle/capture gate, use the actual Codex fields:
 
+Route model bindings: `D17_DIAGNOSIS_MODEL` resolves to
+`{{model:balanced}}`; `D17_EXACT_FIX_MODEL` resolves to
+`{{model:efficient}}`; and `D17_JUDGMENT_FIX_MODEL` resolves to
+`{{model:balanced}}`. Each retains the independent effort declared in its
+classified route.
+
 ```text
 # Diagnosis: source-immutable, response-only; output is the evidence-only
 # diagnosis. Termination is diagnosis validation, cleanup, then classification.

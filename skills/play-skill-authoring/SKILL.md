@@ -65,6 +65,9 @@ match `^[a-z0-9_]+$`, and be absent from all retained controller ledger task
 names. Keep phase, scenario, and retest identity in the existing ledger
 dimensions, not in `task_name`.
 
+Route model binding: `D11_MODEL` resolves to `{{model:balanced}}` from the
+configured balanced capability. The independent effort remains `medium`.
+
 After validation and the existing capture, create exactly one fresh evaluator:
 
 ```text
