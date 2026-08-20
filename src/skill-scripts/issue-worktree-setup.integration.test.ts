@@ -797,12 +797,12 @@ describe(
       ).toBe(false);
     });
 
-    it("derives BASE_REF default from origin/HEAD when unset on a non-main repo", async () => {
+    it("derives BASE_REF from origin's advertised symbolic HEAD when unset on a non-main repo", async () => {
       const rootDir = await createTrackedTempDir(tempDirs);
       const { primaryDir } = await createOriginRepo(rootDir, "develop");
       const developSha = await runGit(["rev-parse", "HEAD"], primaryDir);
 
-      // BASE_REF intentionally unset to exercise the origin/HEAD derivation path.
+      // BASE_REF intentionally unset to exercise the advertised symbolic HEAD path.
       const result = await runSetup(helperScript, primaryDir, {
         BRANCH_NAME: "feat/derive-base",
         WORKTREE_LEAF: "derive-base",
