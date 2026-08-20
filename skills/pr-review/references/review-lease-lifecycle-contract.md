@@ -379,14 +379,24 @@ historical artifact validation before archive. A fresh `created` lease carries
 none of the terminal lease's artifact, validation, presentation, terminal,
 failure, GitHub, or cleanup metadata.
 
-The optional `cleanup` object is closed: it has exactly `last_outcome`,
+The current optional `cleanup` object is closed: it has exactly `last_outcome`,
 `last_checked_at`, and `removed_at`; outcomes are `removed`, `retained`,
 `skipped`, `failed`, or `null`; and non-null timestamps are RFC 3339 UTC at
-second precision with valid calendar dates. `removed_at` persists across later
-cleanup retries, but is set only by a successfully completed removal. Invalid
-cleanup metadata fails lease validation before archive or fresh creation.
-The exact historical two-key shape without `removed_at` is accepted only for
-backward-compatible strict validation; it can never grant archive authority.
+second precision with valid calendar dates. For terminal `posted` and `aborted`
+leases, terminal cleanup chronology is inclusive: non-null `last_checked_at`
+is not before `terminal.finished_at`; non-null `removed_at` requires a
+non-null `last_checked_at`; `removed_at` is not before `terminal.finished_at`;
+and `removed_at` is not after `last_checked_at`. Equal timestamps satisfy each
+ordering boundary. `removed_at` persists across later cleanup retries, but is
+set only by a successfully completed removal. Invalid cleanup chronology fails
+lease validation before discovery reentry, archive, or fresh creation can
+continue, leaving stored lease and archive bytes unchanged.
+
+The exact historical two-key shape without `removed_at` remains accepted only
+for backward-compatible strict validation, including the applicable
+`last_checked_at` ordering rule. It is not migrated or supplemented, and can
+never grant archive authority. These lifecycle rules do not add timestamp
+repair, clock-skew tolerance, cleanup outcomes, or archive-authority paths.
 
 Cleanup and archive are independently retryable. An interruption before a
 successful helper-recorded removal leaves ordinary validation in force. An

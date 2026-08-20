@@ -1943,6 +1943,7 @@ function validateLeaseShape(lease, options = {}) {
             validateDirectChild(label, value, suffix);
     }
     validateStateInvariants(lease, options);
+    validateTerminalCleanupChronology(lease);
 }
 function validateStateInvariants(lease, options = {}) {
     if (lease.state === "created" && lease.artifacts.result_file !== null) {
@@ -1987,6 +1988,31 @@ function validateStateInvariants(lease, options = {}) {
     }
     if (lease.state === "failed" && lease.failure.phase === null) {
         throw new PrReviewLeaseError("lease schema mismatch");
+    }
+}
+function validateTerminalCleanupChronology(lease) {
+    if (lease.state !== "posted" && lease.state !== "aborted")
+        return;
+    const finishedAt = lease.terminal.finished_at;
+    if (finishedAt === null || lease.cleanup === undefined)
+        return;
+    const { last_checked_at: lastCheckedAt } = lease.cleanup;
+    if (lastCheckedAt !== null &&
+        Date.parse(lastCheckedAt) < Date.parse(finishedAt)) {
+        throw new PrReviewLeaseError("cleanup.last_checked_at cannot precede terminal.finished_at");
+    }
+    if (!("removed_at" in lease.cleanup) || lease.cleanup.removed_at === null) {
+        return;
+    }
+    const removedAt = lease.cleanup.removed_at;
+    if (lastCheckedAt === null) {
+        throw new PrReviewLeaseError("cleanup.removed_at requires cleanup.last_checked_at");
+    }
+    if (Date.parse(removedAt) < Date.parse(finishedAt)) {
+        throw new PrReviewLeaseError("cleanup.removed_at cannot precede terminal.finished_at");
+    }
+    if (Date.parse(removedAt) > Date.parse(lastCheckedAt)) {
+        throw new PrReviewLeaseError("cleanup.removed_at cannot follow cleanup.last_checked_at");
     }
 }
 function clearPreviewRenderRecoveryArtifacts(lease) {

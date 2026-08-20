@@ -3707,6 +3707,160 @@ describe("pr-review lease command validation", () => {
       await rm(workspace.tempRoot, { recursive: true, force: true });
     }
   });
+
+  it("accepts inclusive terminal cleanup chronology for posted and aborted leases", async () => {
+    for (const state of ["posted", "aborted"] as const) {
+      const workspace = await makeGatedStatusWorkspace(
+        `pr-review-${state}-cleanup-chronology-equality-`,
+      );
+
+      try {
+        const terminal =
+          state === "posted"
+            ? postedCommandLease({
+                leaseFile: workspace.leaseFile,
+                worktreePath: workspace.physicalWorktree,
+                worktreeDigest: workspace.worktreeDigest,
+                resultFile: workspace.resultFile,
+                resultSha256: workspace.resultSha256,
+                approvedReviewFile: `.ephemeral/topic-${workspace.reviewHead}-approved-review.json`,
+                validatedPayloadFile: `.ephemeral/pr-432-${workspace.reviewHead}-validated-review-payload.json`,
+              })
+            : abortedCommandLease(
+                workspace.leaseFile,
+                workspace.physicalWorktree,
+                workspace.worktreeDigest,
+              );
+        if (state === "posted") {
+          await writeApprovedReviewArtifact(
+            workspace.worktree,
+            terminal.artifacts.approved_review_file ?? "",
+            workspace.reviewHead,
+          );
+          await writeValidatedPayloadArtifact(
+            workspace.worktree,
+            workspace.reviewHead,
+          );
+        }
+        const finishedAt = terminal.terminal.finished_at ?? "";
+        terminal.cleanup = {
+          last_outcome: "removed",
+          last_checked_at: finishedAt,
+          removed_at: finishedAt,
+        };
+        await writeFile(
+          path.join(workspace.primary, workspace.leaseFile),
+          `${JSON.stringify(terminal, null, 2)}\n`,
+        );
+
+        process.chdir(workspace.physicalPrimary);
+        setReadStatusEnv(workspace);
+        const result = await runPrReviewLeasesCommand(["validate"]);
+        expect(result.exitCode, state).toBe(0);
+      } finally {
+        process.chdir(originalCwd);
+        await rm(workspace.tempRoot, { recursive: true, force: true });
+      }
+    }
+  });
+
+  it("rejects each contradictory terminal cleanup timestamp without rewriting the lease", async () => {
+    for (const state of ["posted", "aborted"] as const) {
+      const workspace = await makeGatedStatusWorkspace(
+        `pr-review-${state}-cleanup-chronology-invalid-`,
+      );
+
+      try {
+        const terminal =
+          state === "posted"
+            ? postedCommandLease({
+                leaseFile: workspace.leaseFile,
+                worktreePath: workspace.physicalWorktree,
+                worktreeDigest: workspace.worktreeDigest,
+                resultFile: workspace.resultFile,
+                resultSha256: workspace.resultSha256,
+                approvedReviewFile: `.ephemeral/topic-${workspace.reviewHead}-approved-review.json`,
+                validatedPayloadFile: `.ephemeral/pr-432-${workspace.reviewHead}-validated-review-payload.json`,
+              })
+            : abortedCommandLease(
+                workspace.leaseFile,
+                workspace.physicalWorktree,
+                workspace.worktreeDigest,
+              );
+        if (state === "posted") {
+          await writeApprovedReviewArtifact(
+            workspace.worktree,
+            terminal.artifacts.approved_review_file ?? "",
+            workspace.reviewHead,
+          );
+          await writeValidatedPayloadArtifact(
+            workspace.worktree,
+            workspace.reviewHead,
+          );
+        }
+        const finishedAt = terminal.terminal.finished_at ?? "";
+        const invalidCleanup = [
+          {
+            cleanup: {
+              last_outcome: "retained" as const,
+              last_checked_at: "2026-06-11T00:00:00Z",
+              removed_at: null,
+            },
+            error:
+              "cleanup.last_checked_at cannot precede terminal.finished_at",
+          },
+          {
+            cleanup: {
+              last_outcome: "removed" as const,
+              last_checked_at: null,
+              removed_at: finishedAt,
+            },
+            error: "cleanup.removed_at requires cleanup.last_checked_at",
+          },
+          {
+            cleanup: {
+              last_outcome: "removed" as const,
+              last_checked_at: "2026-06-11T00:04:00Z",
+              removed_at: "2026-06-11T00:00:00Z",
+            },
+            error: "cleanup.removed_at cannot precede terminal.finished_at",
+          },
+          {
+            cleanup: {
+              last_outcome: "removed" as const,
+              last_checked_at: "2026-06-11T00:04:00Z",
+              removed_at: "2026-06-11T00:05:00Z",
+            },
+            error: "cleanup.removed_at cannot follow cleanup.last_checked_at",
+          },
+        ];
+
+        process.chdir(workspace.physicalPrimary);
+        setReadStatusEnv(workspace);
+        for (const { cleanup, error } of invalidCleanup) {
+          terminal.cleanup = cleanup;
+          await writeFile(
+            path.join(workspace.primary, workspace.leaseFile),
+            `${JSON.stringify(terminal, null, 2)}\n`,
+          );
+          const before = await readFile(
+            path.join(workspace.primary, workspace.leaseFile),
+            "utf8",
+          );
+
+          const result = await runPrReviewLeasesCommand(["validate"]);
+          expect(result.exitCode, `${state}: ${error}`).toBe(1);
+          expect(result.stderr, `${state}: ${error}`).toContain(error);
+          await expect(
+            readFile(path.join(workspace.primary, workspace.leaseFile), "utf8"),
+          ).resolves.toBe(before);
+        }
+      } finally {
+        process.chdir(originalCwd);
+        await rm(workspace.tempRoot, { recursive: true, force: true });
+      }
+    }
+  });
 });
 
 describe("pr-review lease read-status", () => {
@@ -5037,6 +5191,105 @@ describe("pr-review lease Git cleanup safety", () => {
     }
   });
 
+  it("rejects invalid cleanup chronology before discovery reentry or terminal archive writes", async () => {
+    for (const state of ["posted", "aborted"] as const) {
+      const workspace = await makeGatedStatusWorkspace(
+        `pr-review-${state}-archive-cleanup-chronology-`,
+        true,
+      );
+
+      try {
+        const terminal =
+          state === "posted"
+            ? postedCommandLease({
+                leaseFile: workspace.leaseFile,
+                worktreePath: workspace.physicalWorktree,
+                worktreeDigest: workspace.worktreeDigest,
+                resultFile: workspace.resultFile,
+                resultSha256: workspace.resultSha256,
+                approvedReviewFile: `.ephemeral/topic-${workspace.reviewHead}-approved-review.json`,
+                validatedPayloadFile: `.ephemeral/pr-432-${workspace.reviewHead}-validated-review-payload.json`,
+              })
+            : abortedCommandLease(
+                workspace.leaseFile,
+                workspace.physicalWorktree,
+                workspace.worktreeDigest,
+              );
+        const finishedAt = terminal.terminal.finished_at ?? "";
+        terminal.cleanup = {
+          last_outcome: "removed",
+          last_checked_at: "2026-06-11T00:00:00Z",
+          removed_at: finishedAt,
+        };
+        const terminalBytes = `${JSON.stringify(terminal, null, 2)}\n`;
+        await writeFile(
+          path.join(workspace.primary, workspace.leaseFile),
+          terminalBytes,
+        );
+        const archiveFile = `.ephemeral/pr-432-${workspace.worktreeDigest}-${finishedAt.replace(/[-:Z]/gu, "")}-${state}-archived-lease.json`;
+        const archivePath = path.join(workspace.primary, archiveFile);
+        await writeFile(archivePath, terminalBytes);
+        await execFileAsync(
+          "git",
+          ["worktree", "remove", "-f", workspace.worktree],
+          { cwd: workspace.primary },
+        );
+
+        process.chdir(workspace.physicalPrimary);
+        setLeaseCommandEnv(
+          workspace.physicalPrimary,
+          workspace.physicalWorktree,
+        );
+        expect(await discoverPrReviewSession()).toMatchObject({
+          disposition: "invalid",
+          active: [
+            {
+              lease_file: workspace.leaseFile,
+              classification: "invalid",
+            },
+          ],
+        });
+        await expect(
+          readFile(path.join(workspace.primary, workspace.leaseFile), "utf8"),
+        ).resolves.toBe(terminalBytes);
+        await expect(readFile(archivePath, "utf8")).resolves.toBe(
+          terminalBytes,
+        );
+
+        await execFileAsync(
+          "git",
+          ["worktree", "add", workspace.worktree, "review-topic"],
+          { cwd: workspace.primary },
+        );
+        process.chdir(workspace.physicalPrimary);
+        setLeaseCommandEnv(
+          workspace.physicalPrimary,
+          workspace.physicalWorktree,
+        );
+        process.env.LEASE_FILE = workspace.leaseFile;
+        process.env.STATE = "created";
+        process.env.BASE_REF = "main";
+        process.env.HEAD_REF = "topic";
+        process.env.CREATED_AT = "2026-06-11T00:04:00Z";
+        process.env.UPDATED_AT = "2026-06-11T00:04:00Z";
+        const write = await runPrReviewLeasesCommand(["write"]);
+        expect(write.exitCode, state).toBe(1);
+        expect(write.stderr, state).toContain(
+          "cleanup.last_checked_at cannot precede terminal.finished_at",
+        );
+        await expect(
+          readFile(path.join(workspace.primary, workspace.leaseFile), "utf8"),
+        ).resolves.toBe(terminalBytes);
+        await expect(readFile(archivePath, "utf8")).resolves.toBe(
+          terminalBytes,
+        );
+      } finally {
+        process.chdir(originalCwd);
+        await rm(workspace.tempRoot, { recursive: true, force: true });
+      }
+    }
+  });
+
   it("retries helper-recorded terminal archival after fresh creation is interrupted", async () => {
     for (const state of ["posted", "aborted"] as const) {
       const workspace = await makeGatedStatusWorkspace(
@@ -5313,6 +5566,16 @@ describe("pr-review lease Git cleanup safety", () => {
         path.join(workspace.primary, workspace.leaseFile),
         "utf8",
       );
+      process.chdir(workspace.physicalPrimary);
+      setReadStatusEnv(workspace);
+      const validation = await runPrReviewLeasesCommand(["validate"]);
+      expect(validation.exitCode, validation.stderr).toBe(0);
+      await expect(
+        readFile(path.join(workspace.primary, workspace.leaseFile), "utf8"),
+      ).resolves.toBe(before);
+      expect(
+        (await readLease(workspace.primary, workspace.leaseFile)).cleanup,
+      ).toEqual(legacy.cleanup);
       await execFileAsync(
         "git",
         ["worktree", "remove", "-f", workspace.worktree],
