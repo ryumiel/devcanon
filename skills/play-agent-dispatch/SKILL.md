@@ -88,7 +88,9 @@ Resolve Codex `model` from the selected role's exact capability through
 selected source capability to match the selected semantic role before
 resolution; a capability-less or mismatched source fails that parity check.
 Keep target-native effort independent: it must equal the selected role's
-matching source default, never a capability-derived or ambient value.
+matching Codex effort from the semantic-role catalog, never a
+capability-derived or ambient value. Validate `source_authority` separately
+against that same catalog; effort does not imply authority.
 `agents/*.yaml` are governed declarations and parity inputs,
 never semantic authorities; their target-local literal fields are governed
 values under the agent spec, but D4's fresh-Codex selection still resolves its
@@ -112,6 +114,7 @@ ask the child to fill any tuple field. Create exactly one fresh child only with:
 
 ```text
 Codex.spawn_agent({
+  task_name: D4_TASK_NAME,
   agent_type: SELECTED_ROLE_ID,
   model: RESOLVED_CODEX_MODEL,
   reasoning_effort: SELECTED_CODEX_EFFORT,
@@ -121,9 +124,12 @@ Codex.spawn_agent({
 ```
 
 Validate the semantic role, source capability parity, configured full model,
-independent effort/default parity, source and external authority, scope,
-termination, context, approval, tools, sandbox, network, output, and prompt
-inputs before that one creation. `fork_turns: "none"` is mandatory: no child
+independent matching-Codex-effort parity, source authority, external authority,
+scope, termination, context, approval, tools, sandbox, network, output, and
+prompt inputs before that one creation. Set `D4_TASK_NAME` to a nonblank,
+collision-free stable route instance containing `D4`, `target_id`,
+`selected_role_id`, and a controller-defined scope identity; validate it against
+the live lifecycle rows before creation. `fork_turns: "none"` is mandatory: no child
 inherits conversation history. Any missing, unresolved, or mismatched value
 blocks D4 before capture or spawn. If native Codex rejects the requested pair,
 report the exact `model=<RESOLVED_CODEX_MODEL>
@@ -248,6 +254,10 @@ and report the integrity failure instead of treating it as an ordinary child
 failure.
 
 ## Agent Prompt Structure
+
+The following is a task-body fragment only. Compose it with the complete D4
+route, authority, repository-root, guarded-path/context, termination, and
+task-name contract above before any fresh creation.
 
 Good agent prompts are:
 

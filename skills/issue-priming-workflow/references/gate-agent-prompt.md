@@ -10,22 +10,13 @@ semantic source role at
 the balanced/medium target pair and source-immutable constraint; this template
 owns only issue-priming gate method and response shape.
 
-The controller first resolves the complete D1 creation tuple: `assessor`,
-`balanced`, the full model at
-`devcanon.config.yaml` `capabilityProfiles.balanced.codex`, independent
-`medium` reasoning effort, source-immutable/response-only authority, and no
-handoffs. It validates that tuple plus every placeholder below, then makes one
-fresh Codex creation with `model`, `reasoning_effort: "medium"`, and
-`fork_turns: "none"`. This template supplies the entire prompt for that
-history-free child; do not rely on inherited turns. A missing tuple value or
-native rejection blocks the creation and follows Phase 2's existing unavailable
-gate path without a replacement model, effort, retry, escalation, or role.
+## Message Body Template
 
-```
-Agent(
-  description: "Assess issue complexity for research gate",
-  subagent_type: "assessor",
-  prompt: |
+This file supplies only the fully substituted message body. Phase 2 in
+[`SKILL.md`](../SKILL.md) owns tuple validation and the one fresh Codex creation;
+do not wrap this template in another spawning call.
+
+```text
     You are assessing whether an issue requires multi-agent research
     before design work begins. Read the issue-body file and scan the
     repository for existing architectural decisions.
@@ -93,7 +84,6 @@ Agent(
     SKIP_RESEARCH — <reason in under 20 words>
 
     Work from: <REPO_ROOT>
-)
 ```
 
 ## Placeholder Reference

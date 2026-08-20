@@ -19,14 +19,9 @@ The semantic route is `reviewer`, frontier/high, source-immutable,
 response-only, with zero handoffs. Return only the terminal review response.
 Do not modify durable source, write a handoff, or spawn another agent.
 
-This is a complete history-free prompt. Before creation, the controller resolves
-the full Codex model from `devcanon.config.yaml`
-`capabilityProfiles.frontier.codex`, keeps `high` effort independent, validates
-all listed paths and route fields, and creates one `reviewer` with that `model`,
-`reasoning_effort: "high"`, and `fork_turns: "none"`. Do not rely on inherited
-turns. Native rejection reports that exact model/effort pair and uses the
-existing topical unavailable path; it never changes model or effort, retries,
-escalates, or substitutes a role.
+This is a complete history-free prompt. You receive no inherited turns. Use
+only the supplied context and artifact paths; do not expect prior controller
+conversation.
 
 Read the shared review context at <path-to-context-file> before reviewing.
 The file contains: working directory, refs, changed files (active diff),

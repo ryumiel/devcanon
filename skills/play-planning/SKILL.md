@@ -756,6 +756,11 @@ handoffs. Require the reviewer role capability to be `frontier`, every tuple
 field to be present, and the resolved model to be nonblank. Do not derive model
 or effort from the enclosing conversation, an ambient runtime, or an alias.
 
+Set and validate nonblank collision-free route-instance task names against the
+controller's live lifecycle rows: `planning-D5-wave-<review_wave>-plan-review`
+and `planning-D6-wave-<review_wave>-executability-review`. The wave and remit
+make the two digest-bound siblings distinct.
+
 Build two independent, self-contained prompts from the frozen digest-bound
 tuple. Each names the planning worktree root; exact plan path; selected
 path-or-inline design input; criteria and readiness paths; recorded readiness
@@ -769,6 +774,7 @@ fresh creation for each independent session:
 
 ```text
 Codex.spawn_agent({
+  task_name: D5_TASK_NAME,
   agent_type: "reviewer",
   model: D5_MODEL,
   reasoning_effort: "high",
@@ -776,6 +782,7 @@ Codex.spawn_agent({
   message: D5_PLAN_REVIEW_PROMPT,
 })
 Codex.spawn_agent({
+  task_name: D6_TASK_NAME,
   agent_type: "reviewer",
   model: D6_MODEL,
   reasoning_effort: "high",
@@ -863,7 +870,8 @@ concrete defect it causes in that reviewer's own remit.
 
 Planning has a maximum of two paired review waves. Wave one is exhaustive in
 each distinct remit. An unchanged fresh-pair retry after wave one is allowed
-only when wave one contains no verified `CURRENT` gap. An unchanged fresh-pair
+only when wave one contains no verified `CURRENT` gap and neither a missing
+fresh-Codex tuple nor native exact-pair rejection. An unchanged fresh-pair
 retry is prohibited when wave one contains any verified `CURRENT` gap. In that
 case, every such record must receive its authorized correction and transition
 from `OPEN` + `NOT_RUN` to `CORRECTED` + `PENDING` before wave-two dispatch. If
@@ -885,7 +893,9 @@ owning-workflow handoff, recompute SHA-256 over the current exact plan bytes
 again and compare it with the expected, D5, D6, and join-time digests before
 applying dual PASS. A reviewer-computed, join-time, or pre-handoff digest
 mismatch invalidates both verdicts, as does any plan-byte edit; start a fresh
-pair within the remaining budget or stop when the budget is exhausted.
+pair within the remaining budget only when neither route had a missing tuple or
+native exact-pair rejection; otherwise stop via the existing unavailable review
+outcome.
 
 For wave one, `prior_verified_gaps` is explicitly none/inapplicable. For each
 verified wave-one `CURRENT` gap, the controller-local wave-two record contains
@@ -985,7 +995,11 @@ and verification rejection. An ordinary unavailable, failed, malformed, or
 verification-rejected review cannot pass. After safe cleanup, retain its result
 until the D6 sibling has also settled and cleaned; verify consolidated findings
 against authoritative scope, revise only verified CURRENT gaps, and rerun a
-fresh D5/D6 pair when the paired-wave budget remains. Detected source mutation
+fresh D5/D6 pair when the paired-wave budget remains and neither route had a
+missing tuple or native exact-pair rejection. After one native exact-pair
+rejection, let any already-started sibling settle and complete its exact guard
+cleanup, then terminate through the existing unavailable review outcome with no
+second creation. Detected source mutation
 or cleanup failure is guard-integrity terminal: retain the terminal condition,
 leave the source state visible, wait for every already-started sibling to settle
 and attempt its exact owned cleanup, then stop planning; never reset, check out,
@@ -1053,8 +1067,8 @@ zero handoffs, for this D6 Implementer Executability Review. Start the fresh D6
 session independently alongside D5 after both baselines exist; it must not
 reuse or collapse the D5 session, review question, PASS/FAIL result, or
 lifecycle state.
-The role's `{{model:frontier}}` capability is supplied by the configured
-semantic role, not selected as an ambient or per-call substitute.
+The `frontier` capability resolves to the prevalidated full configured
+`D6_MODEL`; it is not an ambient, alias, or per-call substitute.
 
 D6 uses only the prevalidated `D6_MODEL`, independent `high` effort, and
 history-free `D6_EXECUTABILITY_REVIEW_PROMPT` defined for this paired wave; it
@@ -1101,7 +1115,11 @@ and verification rejection. An ordinary unavailable, failed, malformed, or
 verification-rejected review cannot pass. After safe cleanup, retain its result
 until the D5 sibling has also settled and cleaned; block execution, verify
 consolidated findings against authoritative scope, revise only verified CURRENT
-gaps, and rerun a fresh D5/D6 pair only when the paired-wave budget remains.
+gaps, and rerun a fresh D5/D6 pair only when the paired-wave budget remains and
+neither route had a missing tuple or native exact-pair rejection. After one
+native exact-pair rejection, let any already-started sibling settle and complete
+its exact guard cleanup, then terminate through the existing unavailable review
+outcome with no second creation.
 Detected source mutation or cleanup failure is guard-integrity terminal: retain
 the terminal condition, leave the source state visible, wait for every
 already-started sibling to settle and attempt its exact owned cleanup, then stop

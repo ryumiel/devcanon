@@ -213,7 +213,9 @@ Before D1 capture, assemble and validate its complete fresh-Codex tuple:
 from `devcanon.config.yaml` `capabilityProfiles.balanced.codex`; independent
 `reasoning_effort: medium`; `source_authority: source-immutable`;
 `external_authority: none`; zero handoffs; and the fully substituted gate
-prompt. The prompt must name the issue title, source, identifier, guarded
+prompt. Set `task_name` to the nonblank, collision-free
+`issue-priming-D1-<identifier>-gate` route instance; validate it against the
+controller's live lifecycle rows. The prompt must name the issue title, source, identifier, guarded
 issue-body path, guarded-or-`(none)` comment-evidence path, and Phase 1
 repository root named by the template. Require every value, require the role
 capability to be `balanced`, and require a nonblank resolved full model. Do not
@@ -222,6 +224,7 @@ alias. Only after this validation, create exactly one fresh Codex child:
 
 ```text
 Codex.spawn_agent({
+  task_name: D1_GATE_TASK_NAME,
   agent_type: "assessor",
   model: D1_MODEL,
   reasoning_effort: "medium",
@@ -337,10 +340,17 @@ field, require the investigator capability to be `balanced`, and require a
 nonblank full model resolved from that configured profile. Do not infer any
 field from ambient runtime or inherited conversation.
 
+Set a nonblank, collision-free task name before each creation and validate it
+against the controller's live lifecycle rows: D2 is
+`issue-priming-D2-<identifier>-internal`; D3 is
+`issue-priming-D3-<identifier>-external-<immediate-or-late>`. These stable
+route/scope names distinguish every sibling and permitted route instance.
+
 Create each permitted leaf once and only as:
 
 ```text
 Codex.spawn_agent({
+  task_name: D2_OR_D3_TASK_NAME,
   agent_type: "investigator",
   model: D2_OR_D3_MODEL,
   reasoning_effort: "high",

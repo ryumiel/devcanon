@@ -57,12 +57,15 @@ and the closed input contract—while retaining the expected disposition and
 acceptance condition only in the controller. Do not derive model, effort, or
 scenario context from inherited conversation or an ambient runtime. Require all
 tuple and prompt inputs, a balanced assessor role, and a nonblank resolved
-model before capture.
+model before capture. Set `D11_TASK_NAME` to the nonblank collision-free
+`skill-pressure-D11-<scenario-id>-<RED-or-GREEN-or-REFACTOR>-<retest-index>`
+and validate it against the controller's live lifecycle rows before capture.
 
 After validation and the existing capture, create exactly one fresh evaluator:
 
 ```text
 Codex.spawn_agent({
+  task_name: D11_TASK_NAME,
   agent_type: "assessor",
   model: D11_MODEL,
   reasoning_effort: "medium",
