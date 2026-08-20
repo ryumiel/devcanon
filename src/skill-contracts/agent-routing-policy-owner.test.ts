@@ -348,6 +348,39 @@ describe("agent routing and mutation policy owner", () => {
         ].replace("model: D1_MODEL,", "model: D2_MODEL,"),
       }),
     ).toEqual(["D1:model-binding"]);
+    expect(
+      routeOwnerContractErrors(owner, roles, config, {
+        ...ownerSources,
+        "issue-priming-workflow": ownerSources[
+          "issue-priming-workflow"
+        ].replace(
+          "capabilityProfiles.balanced.codex",
+          "capabilityProfiles.frontier.codex",
+        ),
+      }),
+    ).toEqual(["D1:capability-model"]);
+  });
+
+  it("rejects route-local affirmative retries while preserving wrapped prohibitions", async () => {
+    const [owner, roles, config] = await Promise.all([
+      readAgentRoutingPolicyOwner(OWNER_PATH),
+      readAgentSemanticRoleOwner(AGENT_SPEC_PATH),
+      loadConfig("devcanon.config.yaml", true),
+    ]);
+    const ownerSources = await readRouteOwnerSources(owner);
+
+    expect(
+      routeOwnerContractErrors(owner, roles, config, ownerSources),
+    ).toEqual([]);
+    expect(
+      routeOwnerContractErrors(owner, roles, config, {
+        ...ownerSources,
+        "play-review": ownerSources["play-review"].replace(
+          "The controller's D10 handoff is structural only.",
+          "Retry with a fallback model. The controller's D10 handoff is structural only.",
+        ),
+      }),
+    ).toEqual(["D10:rejection"]);
   });
 
   it("rejects locally isolated spawn opener, message, and cardinality drift", async () => {
@@ -1100,13 +1133,25 @@ function routeOwnerContractErrors(
         addError(errors, `${route.id}:message`);
       }
       const section = canonicalRouteSection(source, block.start);
+      if (
+        fields.model === expectedModel &&
+        !modelBindsToRouteCapability(
+          section,
+          block,
+          route.id,
+          expectedModel,
+          clause.capability,
+        )
+      ) {
+        addError(errors, `${route.id}:capability-model`);
+      }
       if (!routeContextPresent(section))
         addError(errors, `${route.id}:context`);
       if (!routePrevalidates(section)) {
         addError(errors, `${route.id}:prevalidation`);
       }
-      if (route.id === "D1" && !routeFailClosed(section)) {
-        addError(errors, "D1:rejection");
+      if (!routeFailClosed(section)) {
+        addError(errors, `${route.id}:rejection`);
       }
     }
   }
@@ -1254,21 +1299,46 @@ function expectedRouteMessage(routeId: `D${number}`, role: string): string {
   return "D17_JUDGMENT_FIX_SELF_CONTAINED_PROMPT";
 }
 
+function modelBindsToRouteCapability(
+  section: string,
+  block: InvocationBlock,
+  routeId: `D${number}`,
+  model: string,
+  capability: string,
+): boolean {
+  const profile = `capabilityProfiles.${capability}.codex`;
+  if (routeId === "D17") {
+    return new RegExp(
+      `^\\s*model:\\s*${escapeRegularExpression(model)},?\\s*#\\s*${escapeRegularExpression(profile)}\\s*$`,
+      "m",
+    ).test(block.text);
+  }
+  if (routeId >= "D12" && routeId <= "D16") {
+    return section.includes(`# ${routeId}: ${model} = ${profile}`);
+  }
+  return section.includes(profile);
+}
+
+function escapeRegularExpression(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 function addError(errors: string[], error: string): void {
   if (!errors.includes(error)) errors.push(error);
 }
 
 function routeFailClosed(source: string): boolean {
+  const normalized = source.replace(/\s+/g, " ").trim();
   const requiresProhibition = /(?:do not\s+retry|without\s+substitution)/i.test(
-    source,
+    normalized,
   );
   return (
     /(?:native Codex (?:rejects|rejection)|target rejection|Native rejection)/i.test(
-      source,
+      normalized,
     ) &&
     requiresProhibition &&
-    !/(?:^|\n|[.!?]\s+)[ \t]*(?:retry\s+(?:using|with)|substitute\s+(?:a|the))\b/im.test(
-      source,
+    !/(?:^|[.!?]\s+)(?:retry\s+(?:using|with)|substitute\s+(?:a|the))\b/i.test(
+      normalized,
     )
   );
 }
