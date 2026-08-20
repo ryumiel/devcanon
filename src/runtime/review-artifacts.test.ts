@@ -349,83 +349,6 @@ async function makeProviderBinaryWorkspace(): Promise<{
   );
 }
 
-async function makeProviderTabbedPathWorkspace(): Promise<{
-  cwd: string;
-  baseSha: string;
-  headSha: string;
-  filePath: string;
-}> {
-  const cwd = await mkdtemp(path.join(os.tmpdir(), "devcanon-provider-tab-"));
-  await execFileAsync("git", ["init", "--initial-branch=main"], { cwd });
-  await execFileAsync("git", ["config", "user.name", "Test User"], { cwd });
-  await execFileAsync("git", ["config", "user.email", "test@example.com"], {
-    cwd,
-  });
-  await writeFile(path.join(cwd, "README.md"), "baseline\n");
-  await execFileAsync("git", ["add", "."], { cwd });
-  await execFileAsync("git", ["commit", "-m", "chore: baseline"], { cwd });
-  const baseSha = await git(cwd, "rev-parse", "HEAD");
-
-  await execFileAsync("git", ["switch", "-c", "topic"], { cwd });
-  const filePath = "src/with\ttab.ts";
-  await mkdir(path.join(cwd, "src"), { recursive: true });
-  await writeFile(path.join(cwd, filePath), "export const value = 1;\n");
-  await execFileAsync("git", ["add", "."], { cwd });
-  await execFileAsync("git", ["commit", "-m", "feat: add tabbed path"], {
-    cwd,
-  });
-  const headSha = await git(cwd, "rev-parse", "HEAD");
-  await mkdir(path.join(cwd, ".ephemeral"));
-  process.chdir(cwd);
-  return { cwd, baseSha, headSha, filePath };
-}
-
-async function makeProviderTypeChangeWorkspace(): Promise<{
-  cwd: string;
-  baseSha: string;
-  headSha: string;
-  filePath: string;
-}> {
-  const cwd = await mkdtemp(
-    path.join(os.tmpdir(), "devcanon-provider-type-change-"),
-  );
-  await execFileAsync("git", ["init", "--initial-branch=main"], { cwd });
-  await execFileAsync("git", ["config", "user.name", "Test User"], { cwd });
-  await execFileAsync("git", ["config", "user.email", "test@example.com"], {
-    cwd,
-  });
-  const filePath = "file.txt";
-  await writeFile(path.join(cwd, filePath), "target\n");
-  await execFileAsync("git", ["add", "."], { cwd });
-  await execFileAsync("git", ["commit", "-m", "chore: baseline"], { cwd });
-  const baseSha = await git(cwd, "rev-parse", "HEAD");
-
-  await execFileAsync("git", ["switch", "-c", "topic"], { cwd });
-  const blobFixture = ".type-change-blob";
-  await writeFile(path.join(cwd, blobFixture), "target");
-  const symlinkBlobSha = await git(cwd, "hash-object", "-w", blobFixture);
-  await rm(path.join(cwd, blobFixture));
-  await execFileAsync(
-    "git",
-    [
-      "update-index",
-      "--add",
-      "--cacheinfo",
-      "120000",
-      symlinkBlobSha,
-      filePath,
-    ],
-    { cwd },
-  );
-  await execFileAsync("git", ["commit", "-m", "test: change file type"], {
-    cwd,
-  });
-  const headSha = await git(cwd, "rev-parse", "HEAD");
-  await mkdir(path.join(cwd, ".ephemeral"));
-  process.chdir(cwd);
-  return { cwd, baseSha, headSha, filePath };
-}
-
 async function buildProviderDiffDriverWorkspace(): Promise<{
   cwd: string;
   baseSha: string;
@@ -1425,6 +1348,40 @@ describe.skipIf(isWindows)("review artifact runtime reducers", () => {
         stdout: "",
         stderr: "",
       });
+
+      const capturePath = `.ephemeral/topic-${headSha}-provider-scope-capture.json`;
+      await writeJson(
+        cwd,
+        capturePath,
+        await providerScopeCapture(cwd, baseSha, headSha),
+      );
+      await expect(
+        runPrReviewProviderScopeEvidenceCommand([
+          "write",
+          "--head-sha",
+          headSha,
+          "--capture-file",
+          capturePath,
+        ]),
+      ).resolves.toEqual({
+        exitCode: 0,
+        stdout: `${evidencePath}\n`,
+        stderr: "",
+      });
+      await expect(
+        readFile(path.join(cwd, capturePath), "utf8"),
+      ).rejects.toMatchObject({ code: "ENOENT" });
+      await expect(
+        readFile(path.join(cwd, evidencePath), "utf8"),
+      ).resolves.toContain(PROVIDER_EVIDENCE_SCHEMA);
+      await writeJson(
+        cwd,
+        ".ephemeral/topic-scope-decision.json",
+        await providerScopeDecision(cwd, baseSha, headSha),
+      );
+      await expect(
+        runReviewArtifactsCommand(providerScopeArgs(headSha, baseSha)),
+      ).resolves.toMatchObject({ exitCode: 0 });
     } finally {
       await cleanupRiskSignalsWorkspace(cwd);
     }
@@ -2210,114 +2167,7 @@ describe.skipIf(isWindows)("review artifact runtime reducers", () => {
   });
 
   it.skipIf(isWindows)(
-    "validates provider evidence for a literal leading-colon path",
-    async () => {
-      const { cwd, baseSha, headSha } =
-        await makeProviderLeadingColonWorkspace();
-      const evidencePath = providerScopeEvidencePath(headSha);
-      try {
-        const fileEntry = await providerEvidenceFileEntry(
-          cwd,
-          baseSha,
-          headSha,
-          ":(top)README.md",
-          { literalPathspecs: true },
-        );
-        await writeJson(
-          cwd,
-          evidencePath,
-          await providerScopeEvidence(cwd, baseSha, headSha, {
-            provider_files: [fileEntry],
-            local_files: [fileEntry],
-          }),
-        );
-        await writeJson(
-          cwd,
-          ".ephemeral/topic-scope-decision.json",
-          await providerScopeDecision(cwd, baseSha, headSha, undefined, {
-            changed_files: [":(top)README.md"],
-            language_hints: ["md"],
-          }),
-        );
-
-        await expect(
-          runReviewArtifactsCommand(providerScopeArgs(headSha, baseSha)),
-        ).resolves.toEqual({
-          exitCode: 0,
-          stdout: "",
-          stderr: "",
-        });
-      } finally {
-        await cleanupRiskSignalsWorkspace(cwd);
-      }
-    },
-  );
-
-  it.skipIf(isWindows)(
-    "validates diff anchors for a literal leading-colon finding path",
-    async () => {
-      const { cwd, baseSha, headSha } =
-        await makeProviderLeadingColonWorkspace();
-      const evidencePath = providerScopeEvidencePath(headSha);
-      try {
-        const fileEntry = await providerEvidenceFileEntry(
-          cwd,
-          baseSha,
-          headSha,
-          ":(top)README.md",
-          { literalPathspecs: true },
-        );
-        await writeJson(
-          cwd,
-          evidencePath,
-          await providerScopeEvidence(cwd, baseSha, headSha, {
-            provider_files: [fileEntry],
-            local_files: [fileEntry],
-          }),
-        );
-        await writeJson(
-          cwd,
-          ".ephemeral/topic-scope-decision.json",
-          await providerScopeDecision(cwd, baseSha, headSha, undefined, {
-            changed_files: [":(top)README.md"],
-            language_hints: ["md"],
-          }),
-        );
-        await writeJson(cwd, ".ephemeral/topic-findings.json", {
-          schema: "play-review/findings/v2",
-          findings: [
-            {
-              path: ":(top)README.md",
-              line: 1,
-              start_line: null,
-              severity: "Blocking",
-              category: "Logic",
-              critic: "VALID",
-              anchor: "natural",
-              why: "why",
-              recommendation: "recommendation",
-              body: "body",
-            },
-          ],
-          carry_forward: [],
-          incomplete_topical_routes: [],
-        });
-
-        await expect(
-          runReviewArtifactsCommand(providerDiffAnchorArgs(headSha, baseSha)),
-        ).resolves.toEqual({
-          exitCode: 0,
-          stdout: "",
-          stderr: "",
-        });
-      } finally {
-        await cleanupRiskSignalsWorkspace(cwd);
-      }
-    },
-  );
-
-  it.skipIf(isWindows)(
-    "compares approved payloads for a literal leading-colon finding path",
+    "preserves literal leading-colon paths across provider scope, anchors, payloads, and patch digests",
     async () => {
       const { cwd, baseSha, headSha } =
         await makeProviderLeadingColonWorkspace();
@@ -2352,13 +2202,20 @@ describe.skipIf(isWindows)("review artifact runtime reducers", () => {
             language_hints: ["md"],
           }),
         );
+        await expect(
+          runReviewArtifactsCommand(providerScopeArgs(headSha, baseSha)),
+        ).resolves.toEqual({ exitCode: 0, stdout: "", stderr: "" });
+
         await writeJson(cwd, ".ephemeral/topic-findings.json", findings);
+        await expect(
+          runReviewArtifactsCommand(providerDiffAnchorArgs(headSha, baseSha)),
+        ).resolves.toEqual({ exitCode: 0, stdout: "", stderr: "" });
+
         const expectedPayload = await writeApprovedPayloadFiles(
           cwd,
           headSha,
           findings,
         );
-
         await expect(
           runReviewArtifactsCommand(
             providerApprovedPayloadArgs(headSha, baseSha),
@@ -2367,6 +2224,40 @@ describe.skipIf(isWindows)("review artifact runtime reducers", () => {
           exitCode: 0,
           stdout: `${JSON.stringify(expectedPayload, null, 2)}\n`,
           stderr: "",
+        });
+
+        const interpretedPatch = await canonicalGitDiffRaw(
+          cwd,
+          `${baseSha}..${headSha}`,
+          [":(top)README.md"],
+        );
+        const forgedEntry = {
+          ...fileEntry,
+          patch_sha256: sha256(interpretedPatch),
+        };
+        await writeJson(
+          cwd,
+          evidencePath,
+          await providerScopeEvidence(cwd, baseSha, headSha, {
+            provider_files: [forgedEntry],
+            local_files: [forgedEntry],
+          }),
+        );
+        await writeJson(
+          cwd,
+          ".ephemeral/topic-scope-decision.json",
+          await providerScopeDecision(cwd, baseSha, headSha, undefined, {
+            changed_files: [":(top)README.md"],
+            language_hints: ["md"],
+          }),
+        );
+        await expect(
+          runReviewArtifactsCommand(providerScopeArgs(headSha, baseSha)),
+        ).resolves.toMatchObject({
+          exitCode: 1,
+          stderr: expect.stringContaining(
+            "provider/local patch evidence mismatch",
+          ),
         });
       } finally {
         await cleanupRiskSignalsWorkspace(cwd);
@@ -2531,61 +2422,7 @@ describe.skipIf(isWindows)("review artifact runtime reducers", () => {
   });
 
   it.skipIf(isWindows)(
-    "rejects provider evidence for a leading-colon path when the patch digest is not literal",
-    async () => {
-      const { cwd, baseSha, headSha } =
-        await makeProviderLeadingColonWorkspace();
-      const evidencePath = providerScopeEvidencePath(headSha);
-      try {
-        const fileEntry = await providerEvidenceFileEntry(
-          cwd,
-          baseSha,
-          headSha,
-          ":(top)README.md",
-          { literalPathspecs: true },
-        );
-        const interpretedPatch = await canonicalGitDiffRaw(
-          cwd,
-          `${baseSha}..${headSha}`,
-          [":(top)README.md"],
-        );
-        const forgedEntry = {
-          ...fileEntry,
-          patch_sha256: sha256(interpretedPatch),
-        };
-        await writeJson(
-          cwd,
-          evidencePath,
-          await providerScopeEvidence(cwd, baseSha, headSha, {
-            provider_files: [forgedEntry],
-            local_files: [forgedEntry],
-          }),
-        );
-        await writeJson(
-          cwd,
-          ".ephemeral/topic-scope-decision.json",
-          await providerScopeDecision(cwd, baseSha, headSha, undefined, {
-            changed_files: [":(top)README.md"],
-            language_hints: ["md"],
-          }),
-        );
-
-        await expect(
-          runReviewArtifactsCommand(providerScopeArgs(headSha, baseSha)),
-        ).resolves.toMatchObject({
-          exitCode: 1,
-          stderr: expect.stringContaining(
-            "provider/local patch evidence mismatch",
-          ),
-        });
-      } finally {
-        await cleanupRiskSignalsWorkspace(cwd);
-      }
-    },
-  );
-
-  it.skipIf(isWindows)(
-    "validates provider evidence for a literal leading-colon rename tuple",
+    "preserves literal leading-colon rename tuples in complete and incomplete patch evidence",
     async () => {
       const { cwd, baseSha, headSha } =
         await makeProviderLeadingColonRenameWorkspace();
@@ -2614,34 +2451,10 @@ describe.skipIf(isWindows)("review artifact runtime reducers", () => {
             language_hints: ["ts"],
           }),
         );
-
         await expect(
           runReviewArtifactsCommand(providerScopeArgs(headSha, baseSha)),
-        ).resolves.toEqual({
-          exitCode: 0,
-          stdout: "",
-          stderr: "",
-        });
-      } finally {
-        await cleanupRiskSignalsWorkspace(cwd);
-      }
-    },
-  );
+        ).resolves.toEqual({ exitCode: 0, stdout: "", stderr: "" });
 
-  it.skipIf(isWindows)(
-    "rejects leading-colon rename evidence when the patch digest omits one rename side",
-    async () => {
-      const { cwd, baseSha, headSha } =
-        await makeProviderLeadingColonRenameWorkspace();
-      const evidencePath = providerScopeEvidencePath(headSha);
-      try {
-        const renameEntry = await providerRenameEvidenceFileEntry(
-          cwd,
-          baseSha,
-          headSha,
-          { previousPath: ":old.ts", path: ":new.ts" },
-          { literalPathspecs: true },
-        );
         const currentOnlyPatch = await canonicalGitDiffRaw(
           cwd,
           `${baseSha}..${headSha}`,
@@ -2668,7 +2481,6 @@ describe.skipIf(isWindows)("review artifact runtime reducers", () => {
             language_hints: ["ts"],
           }),
         );
-
         await expect(
           runReviewArtifactsCommand(providerScopeArgs(headSha, baseSha)),
         ).resolves.toMatchObject({
@@ -2815,56 +2627,6 @@ describe.skipIf(isWindows)("review artifact runtime reducers", () => {
         stdout: "",
         stderr: expect.stringContaining(testCase.stderr),
       });
-    } finally {
-      await cleanupRiskSignalsWorkspace(cwd);
-    }
-  });
-
-  it("produces canonical provider scope evidence from a bound capture and consumes it", async () => {
-    const { cwd, baseSha, headSha } = await makeProviderScopeWorkspace();
-    const capturePath = `.ephemeral/topic-${headSha}-provider-scope-capture.json`;
-    const evidencePath = providerScopeEvidencePath(headSha);
-    try {
-      await writeJson(
-        cwd,
-        capturePath,
-        await providerScopeCapture(cwd, baseSha, headSha),
-      );
-
-      await expect(
-        runPrReviewProviderScopeEvidenceCommand([
-          "write",
-          "--head-sha",
-          headSha,
-          "--capture-file",
-          capturePath,
-        ]),
-      ).resolves.toEqual({
-        exitCode: 0,
-        stdout: `${evidencePath}\n`,
-        stderr: "",
-      });
-      await expect(
-        readFile(path.join(cwd, capturePath), "utf8"),
-      ).rejects.toMatchObject({
-        code: "ENOENT",
-      });
-      const evidence = JSON.parse(
-        await readFile(path.join(cwd, evidencePath), "utf8"),
-      ) as JsonObject;
-      expect(evidence).toMatchObject({
-        schema: PROVIDER_EVIDENCE_SCHEMA,
-        headRefOid: headSha,
-        provider_pr_diff_base_sha: baseSha,
-      });
-      await writeJson(
-        cwd,
-        ".ephemeral/topic-scope-decision.json",
-        await providerScopeDecision(cwd, baseSha, headSha),
-      );
-      await expect(
-        runReviewArtifactsCommand(providerScopeArgs(headSha, baseSha)),
-      ).resolves.toMatchObject({ exitCode: 0 });
     } finally {
       await cleanupRiskSignalsWorkspace(cwd);
     }

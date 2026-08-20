@@ -47,6 +47,10 @@ export default defineConfig({
           name: "unit",
           include: ["src/**/*.test.ts", "src/**/*.spec.ts"],
           exclude: ["src/**/*.integration.test.ts"],
+          testTimeout: unitTestTimeout,
+          hookTimeout: unitTestTimeout,
+          teardownTimeout,
+          slowTestThreshold,
         },
       },
       {
