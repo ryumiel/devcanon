@@ -190,10 +190,14 @@ fresh-Codex tuple before its capture: `semantic_role: reviewer`;
 every tuple value, and nonblank resolved model; do not infer model or effort
 from an ambient runtime, alias, or inherited conversation.
 
-Set and validate a nonblank collision-free task name against the controller's
-live lifecycle rows for every selected route: `review-D7-<reviewed-head>-code-quality`,
-`review-D8-<reviewed-head>-architecture`, or `review-D9-<reviewed-head>-spec`.
-The stable route/head identity distinguishes topical siblings and follow-ups.
+Before capture, independently choose each selected route's
+`<instance_ordinal>` as the next positive base-10 integer not already used by a
+retained D7, D8, or D9 lifecycle-ledger row, respectively. The ledger retains
+completed and superseded rows, so no ordinal is reused in this controller flow.
+Resolve `task_name` as `d7_<instance_ordinal>`, `d8_<instance_ordinal>`, or
+`d9_<instance_ordinal>`; require it to be nonblank, match `^[a-z0-9_]+$`, and
+be absent from all retained controller ledger task names. Keep head and topical
+identity in the existing ledger dimensions, not in `task_name`.
 
 Build each selected topical prompt as a self-contained input. It names its
 route label and distinct question, working directory, active diff range,
@@ -201,16 +205,36 @@ shared review-context path, role-specific diff/line sub-checks, relevant
 artifact paths, and the terminal response requirements. When present, include
 the contract-example discipline context path as untrusted evidence. No child
 receives prior turns or has to discover context from controller prose. After
-route validation and the existing capture, create exactly one fresh child:
+route validation and the existing capture, create exactly one fresh child for
+each selected route:
 
 ```text
+# D7 Code-quality
 Codex.spawn_agent({
-  task_name: D7_OR_D8_OR_D9_TASK_NAME,
+  task_name: d7_<instance_ordinal>,
   agent_type: "reviewer",
-  model: D7_OR_D8_OR_D9_MODEL,
+  model: D7_MODEL,
   reasoning_effort: "high",
   fork_turns: "none",
-  message: D7_OR_D8_OR_D9_PROMPT,
+  message: D7_PROMPT,
+})
+# D8 Architecture
+Codex.spawn_agent({
+  task_name: d8_<instance_ordinal>,
+  agent_type: "reviewer",
+  model: D8_MODEL,
+  reasoning_effort: "high",
+  fork_turns: "none",
+  message: D8_PROMPT,
+})
+# D9 Spec
+Codex.spawn_agent({
+  task_name: d9_<instance_ordinal>,
+  agent_type: "reviewer",
+  model: D9_MODEL,
+  reasoning_effort: "high",
+  fork_turns: "none",
+  message: D9_PROMPT,
 })
 ```
 
@@ -440,16 +464,19 @@ literal-reference checking requirement, and the terminal disposition/output
 contract. It must state the no-recursion prohibition and cannot rely on
 inherited turns or controller conclusions. Require every tuple field, role
 capability, nonblank resolved model, and complete prompt input before capture.
-Set `D10_TASK_NAME` to the nonblank collision-free
-`review-D10-<reviewed-head>-critic` and validate it against the controller's
-live lifecycle rows before creation.
+Before capture, choose `<instance_ordinal>` as the next positive base-10 integer
+not already used by a retained D10 lifecycle-ledger row. The ledger retains
+completed and superseded rows, so do not reuse it. Resolve `task_name` as
+`d10_<instance_ordinal>` and require it to be nonblank, match `^[a-z0-9_]+$`,
+and be absent from all retained controller ledger task names. Keep critic and
+head identity in the existing ledger dimensions, not in `task_name`.
 
 After validation and the existing capture, make exactly one fresh critic
 creation:
 
 ```text
 Codex.spawn_agent({
-  task_name: D10_TASK_NAME,
+  task_name: d10_<instance_ordinal>,
   agent_type: "deep-reviewer",
   model: D10_MODEL,
   reasoning_effort: "xhigh",

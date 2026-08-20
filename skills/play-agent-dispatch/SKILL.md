@@ -114,7 +114,7 @@ ask the child to fill any tuple field. Create exactly one fresh child only with:
 
 ```text
 Codex.spawn_agent({
-  task_name: D4_TASK_NAME,
+  task_name: d4_<instance_ordinal>,
   agent_type: SELECTED_ROLE_ID,
   model: RESOLVED_CODEX_MODEL,
   reasoning_effort: SELECTED_CODEX_EFFORT,
@@ -126,10 +126,13 @@ Codex.spawn_agent({
 Validate the semantic role, source capability parity, configured full model,
 independent matching-Codex-effort parity, source authority, external authority,
 scope, termination, context, approval, tools, sandbox, network, output, and
-prompt inputs before that one creation. Set `D4_TASK_NAME` to a nonblank,
-collision-free stable route instance containing `D4`, `target_id`,
-`selected_role_id`, and a controller-defined scope identity; validate it against
-the live lifecycle rows before creation. `fork_turns: "none"` is mandatory: no child
+prompt inputs before that one creation. Before capture, choose
+`<instance_ordinal>` as the next positive base-10 integer not already used by a
+retained D4 lifecycle-ledger row; the ledger retains completed and superseded
+rows, so do not reuse it. Resolve `task_name` as `d4_<instance_ordinal>` and
+require it to be nonblank, match `^[a-z0-9_]+$`, and be absent from all retained
+controller ledger task names. Keep target, role, and scope identity in the
+existing ledger dimensions, not in `task_name`. `fork_turns: "none"` is mandatory: no child
 inherits conversation history. Any missing, unresolved, or mismatched value
 blocks D4 before capture or spawn. If native Codex rejects the requested pair,
 report the exact `model=<RESOLVED_CODEX_MODEL>

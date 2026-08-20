@@ -57,15 +57,19 @@ and the closed input contract—while retaining the expected disposition and
 acceptance condition only in the controller. Do not derive model, effort, or
 scenario context from inherited conversation or an ambient runtime. Require all
 tuple and prompt inputs, a balanced assessor role, and a nonblank resolved
-model before capture. Set `D11_TASK_NAME` to the nonblank collision-free
-`skill-pressure-D11-<scenario-id>-<RED-or-GREEN-or-REFACTOR>-<retest-index>`
-and validate it against the controller's live lifecycle rows before capture.
+model before capture. Before capture, choose `<instance_ordinal>` as the next
+positive base-10 integer not already used by a retained D11 lifecycle-ledger
+row. The ledger retains completed and superseded rows, so do not reuse it.
+Resolve `task_name` as `d11_<instance_ordinal>` and require it to be nonblank,
+match `^[a-z0-9_]+$`, and be absent from all retained controller ledger task
+names. Keep phase, scenario, and retest identity in the existing ledger
+dimensions, not in `task_name`.
 
 After validation and the existing capture, create exactly one fresh evaluator:
 
 ```text
 Codex.spawn_agent({
-  task_name: D11_TASK_NAME,
+  task_name: d11_<instance_ordinal>,
   agent_type: "assessor",
   model: D11_MODEL,
   reasoning_effort: "medium",

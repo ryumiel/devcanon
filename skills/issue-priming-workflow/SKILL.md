@@ -213,9 +213,12 @@ Before D1 capture, assemble and validate its complete fresh-Codex tuple:
 from `devcanon.config.yaml` `capabilityProfiles.balanced.codex`; independent
 `reasoning_effort: medium`; `source_authority: source-immutable`;
 `external_authority: none`; zero handoffs; and the fully substituted gate
-prompt. Set `task_name` to the nonblank, collision-free
-`issue-priming-D1-<identifier>-gate` route instance; validate it against the
-controller's live lifecycle rows. The prompt must name the issue title, source, identifier, guarded
+prompt. Before capture, choose `<instance_ordinal>` as the next positive base-10
+integer not already used by a retained D1 lifecycle-ledger row; the ledger
+retains completed and superseded rows, so do not reuse it. Resolve `task_name`
+as `d1_<instance_ordinal>` and require it to be nonblank, match
+`^[a-z0-9_]+$`, and be absent from all retained controller ledger task names.
+The prompt must name the issue title, source, identifier, guarded
 issue-body path, guarded-or-`(none)` comment-evidence path, and Phase 1
 repository root named by the template. Require every value, require the role
 capability to be `balanced`, and require a nonblank resolved full model. Do not
@@ -224,7 +227,7 @@ alias. Only after this validation, create exactly one fresh Codex child:
 
 ```text
 Codex.spawn_agent({
-  task_name: D1_GATE_TASK_NAME,
+  task_name: d1_<instance_ordinal>,
   agent_type: "assessor",
   model: D1_MODEL,
   reasoning_effort: "medium",
@@ -340,22 +343,35 @@ field, require the investigator capability to be `balanced`, and require a
 nonblank full model resolved from that configured profile. Do not infer any
 field from ambient runtime or inherited conversation.
 
-Set a nonblank, collision-free task name before each creation and validate it
-against the controller's live lifecycle rows: D2 is
-`issue-priming-D2-<identifier>-internal`; D3 is
-`issue-priming-D3-<identifier>-external-<immediate-or-late>`. These stable
-route/scope names distinguish every sibling and permitted route instance.
+Before capture, independently choose each route's `<instance_ordinal>` as the
+next positive base-10 integer not already used by a retained D2 or D3
+lifecycle-ledger row, respectively. The ledger retains completed and superseded
+rows, so no ordinal is reused in this flow. Resolve D2 `task_name` as
+`d2_<instance_ordinal>` and D3 `task_name` as `d3_<instance_ordinal>`; require
+each to be nonblank, match `^[a-z0-9_]+$`, and be absent from all retained
+controller ledger task names. Keep scope and sibling identity in the existing
+ledger dimensions, not in `task_name`.
 
-Create each permitted leaf once and only as:
+Create each permitted leaf once and only in its selected route:
 
 ```text
+# D2 internal research
 Codex.spawn_agent({
-  task_name: D2_OR_D3_TASK_NAME,
+  task_name: d2_<instance_ordinal>,
   agent_type: "investigator",
-  model: D2_OR_D3_MODEL,
+  model: D2_MODEL,
   reasoning_effort: "high",
   fork_turns: "none",
-  message: D2_OR_D3_PROMPT,
+  message: D2_PROMPT,
+})
+# D3 external research
+Codex.spawn_agent({
+  task_name: d3_<instance_ordinal>,
+  agent_type: "investigator",
+  model: D3_MODEL,
+  reasoning_effort: "high",
+  fork_turns: "none",
+  message: D3_PROMPT,
 })
 ```
 

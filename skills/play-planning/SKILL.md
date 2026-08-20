@@ -756,10 +756,14 @@ handoffs. Require the reviewer role capability to be `frontier`, every tuple
 field to be present, and the resolved model to be nonblank. Do not derive model
 or effort from the enclosing conversation, an ambient runtime, or an alias.
 
-Set and validate nonblank collision-free route-instance task names against the
-controller's live lifecycle rows: `planning-D5-wave-<review_wave>-plan-review`
-and `planning-D6-wave-<review_wave>-executability-review`. The wave and remit
-make the two digest-bound siblings distinct.
+Before capture, independently choose each route's `<instance_ordinal>` as the
+next positive base-10 integer not already used by a retained D5 or D6
+lifecycle-ledger row, respectively. The ledger retains completed and superseded
+rows, so no ordinal is reused in this flow. Resolve D5 `task_name` as
+`d5_<instance_ordinal>` and D6 `task_name` as `d6_<instance_ordinal>`; require
+each to be nonblank, match `^[a-z0-9_]+$`, and be absent from all retained
+controller ledger task names. Keep wave and remit identity in the existing
+ledger dimensions, not in `task_name`.
 
 Build two independent, self-contained prompts from the frozen digest-bound
 tuple. Each names the planning worktree root; exact plan path; selected
@@ -774,7 +778,7 @@ fresh creation for each independent session:
 
 ```text
 Codex.spawn_agent({
-  task_name: D5_TASK_NAME,
+  task_name: d5_<instance_ordinal>,
   agent_type: "reviewer",
   model: D5_MODEL,
   reasoning_effort: "high",
@@ -782,7 +786,7 @@ Codex.spawn_agent({
   message: D5_PLAN_REVIEW_PROMPT,
 })
 Codex.spawn_agent({
-  task_name: D6_TASK_NAME,
+  task_name: d6_<instance_ordinal>,
   agent_type: "reviewer",
   model: D6_MODEL,
   reasoning_effort: "high",
