@@ -67,9 +67,13 @@ not as a claim that the dependency direction is ideal:
 ### Capability Profile Boundary
 
 `src/config/schema.ts` owns the strict version 2 source contract and required
-`capabilityProfiles` shape. `src/render/capability-profiles.ts` owns the small
-model-only resolver used by both agent renderers: literal target model,
-otherwise top-level capability mapping, otherwise ambient omission.
+`capabilityProfiles` shape. `src/render/codex.ts` owns explicit
+`codex.model: null` suppression, so that target emits no Codex model. The
+shared `src/render/capability-profiles.ts` resolver maps a literal target model
+or an absent target model through the normal capability/omission path used by
+both renderers; it does not decide explicit-null suppression. Claude model
+selection remains literal-or-absent; the agent spec rejects Claude null and
+owns both target-specific source rules.
 
 Capability resolution does not own target-native effort, tools, sandbox,
 approval policy, context, authority, orchestration, retries, or escalation.
@@ -85,7 +89,9 @@ owns the manual operator cutover and rollback procedure.
 ### Semantic Agent Routing Boundary
 
 The current architecture has six semantic source roles under `agents/` and
-both-target render convergence for that catalog. The
+both-target render convergence for that catalog. Their source `codex.model:
+null` and omitted source Codex effort intentionally suppress rendered Codex
+model/effort while leaving the Claude envelope unchanged. The
 [agent spec](../specs/agents.md#semantic-role-catalog) is the sole exact catalog
 owner; source definitions are authoritative for implementation state, while
 generated outputs and fresh renders are convergence evidence, not authority.
@@ -94,9 +100,9 @@ because source or render convergence is incomplete.
 
 The architecture exposes six thin semantic source roles:
 `assessor`, `investigator`, `executor`, `implementer`, `reviewer`, and
-`deep-reviewer`. Agent definitions own stable identity plus target-native
-capability, effort, tools, and sandbox constraints. Skills own task-local
-prompts, phase logic, schemas, fallbacks, retries, and termination.
+`deep-reviewer`. Agent definitions own stable identity plus capability, Claude
+effort, tools, and sandbox constraints. Skills own task-local prompts, phase
+logic, schemas, route-local failure, retries, and termination.
 
 Direct dispatch resolves cognitive demand and stance before selecting a
 semantic role and exact capability/effort pair. Capability, effort, source
@@ -105,6 +111,14 @@ remain independent. The evolving complete inventories live in the
 [Agent Routing and Mutation Policy](../guidelines/agent-routing-and-mutation-policy.md);
 [ADR-0027](../adr/adr-0027-semantic-agent-routing-and-mutation-authority.md)
 owns the stable decision.
+
+Fresh child controllers obtain the full Codex model from the route capability
+and `capabilityProfiles`, and effort from the independent route tuple. The
+running-session configuration is fixed by ADR-0027; changed required tuple or
+task identity needs a new session. The shared lifecycle procedure owns the
+transition mechanics, while route skills own permitted task-local continuation.
+This boundary avoids a source-agent default becoming an ambient runtime dispatch
+override.
 
 Source authority and external authority are separate closed axes. A
 source-immutable role may run permitted commands and write one

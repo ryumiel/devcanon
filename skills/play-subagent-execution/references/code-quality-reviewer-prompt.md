@@ -17,6 +17,18 @@ applies GUARD-001 independently around each session. Do not change source,
 tests, configuration, documentation, or external systems; return only the
 response. Never reuse a D15 session or result as D16.
 
+**Fresh configuration:** Before either capture, validate `deep-reviewer`,
+`frontier`, the nonblank full model resolved from `devcanon.config.yaml`
+`capabilityProfiles.frontier.codex`, independent `xhigh`, source-immutable and
+external-none authority, a route-local `d15_<instance_ordinal>` or
+`d16_<instance_ordinal>`, `fork_turns: "none"`, the fully substituted
+route-specific prompt, response-only output, and its distinct termination.
+D15 terminates through its independent/provisional same-head loop; D16 uses its
+fresh whole-range review and exact ADR-0016 skip or final
+fix/fresh-review/terminal route. Apply `subagent-lifecycle` for allocation and
+cleanup. D15 and D16 are always fresh one-shot reviewers and are never reused
+across routes or review rounds.
+
 **D15 question:** Is Task N at the supplied task head well-built, clean,
 tested, and maintainable within its task-local scope?
 
@@ -29,8 +41,11 @@ terminal handoff?
 ```
 Task tool (general-purpose):
   REVIEW_SURFACE: D15 per-task
+  WORKING_DIRECTORY: [repository root]
   WHAT_WAS_IMPLEMENTED: [from implementer's report]
-  PLAN_OR_REQUIREMENTS: Task N from [plan-file]
+  TASK_REQUIREMENTS: |
+    [FULL INLINE TEXT of Task N requirements]
+  TASK_SOURCE_LOCATOR: [optional plan-file or authoritative source path]
   EXTRACTED_PLAN_TASK_EXECUTION_CONTEXT: [EXTRACTED PLAN/TASK EXECUTION CONTEXT]
   BASE_SHA: [commit before task]
   HEAD_SHA: [captured task head]
@@ -42,6 +57,7 @@ Task tool (general-purpose):
 ```
 Task tool (general-purpose):
   REVIEW_SURFACE: D16 final whole-implementation
+  WORKING_DIRECTORY: [repository root]
   WHOLE_IMPLEMENTATION_SUMMARY: [whole-range implementation summary]
   PLAN_OR_REQUIREMENTS: [whole-plan or authoritative requirements]
   EXTRACTED_WHOLE_IMPLEMENTATION_CONTEXT: [whole-range execution context]
@@ -51,17 +67,21 @@ Task tool (general-purpose):
 ```
 
 D16 does not require or assume a task-local implementer report and therefore
-supports guarded inline D13. Its controller-curated whole-range fields are the
-review input even when one task has no child implementer or executor report.
+supports guarded inline D13. The working directory and base/head fields are
+controller-trusted structured inputs, distinct from untrusted implementer
+reports. Its controller-curated whole-range fields are the review input even
+when one task has no child implementer or executor report.
 
 **Trust boundary (load-bearing):** Read the implementation from disk. Do not consume any content snapshot the controller may hold — snapshots are for the controller's bookkeeping only; reviewers read from disk to stay independent of the implementer's framing.
 
-When `REVIEW_SURFACE` is D15, inspect only the captured task base/head and
-answer the D15 question.
+When `REVIEW_SURFACE` is D15, inspect only the captured task base/head from
+`WORKING_DIRECTORY` and answer the D15 question using the inline
+`TASK_REQUIREMENTS`; `TASK_SOURCE_LOCATOR` is provenance, not required child
+context.
 
 When `REVIEW_SURFACE` is D16, inspect the complete whole-implementation range
-and answer the D16 question. D16 is distinct from D15 and must not reuse D15
-scope, context, session, or verdict.
+from `WORKING_DIRECTORY` and answer the D16 question. D16 is distinct from D15
+and must not reuse D15 scope, context, session, or verdict.
 The extracted whole-implementation context covers the whole implementation
 scope.
 If the extracted plan/task execution context contains present Contract Example

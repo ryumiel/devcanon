@@ -58,6 +58,47 @@ Update the ledger before and after every dispatch. A pre-dispatch row may use
 source for controller recovery after orchestration failures; git remains the
 source for repository state.
 
+## Fresh Allocation And Configuration Continuity
+
+Route owners select and validate their exact semantic role, capability, full
+target model, independent effort, authority, output, termination, and
+self-contained task context. This lifecycle owner supplies the shared narrow
+allocation and continuity rules; it does not create a resolver, registry,
+schema, durable session artifact, or a new operational state.
+
+Before capture for every fresh Codex child, the controller chooses the route's
+`<instance_ordinal>` as the next positive base-10 integer not already used by a
+retained lifecycle-ledger row for that route. Completed and rows with a captured
+supersession decision remain retained, so an ordinal is never reused in the
+controller flow. The route-local `task_name` is `dN_<instance_ordinal>`; it
+must be nonblank, match `^[a-z0-9_]+$`, and be absent from every retained ledger
+task name before capture. Keep task, scope, wave, branch, head, and role
+identity in the existing separate ledger dimensions, not in `task_name`.
+
+The running configuration tuple is fixed for the stable session identity:
+semantic role, capability, resolved full model, independent effort,
+source/external authority, and the original fresh no-history boundary. When
+the tuple is unchanged, reuse is permitted only when the owning route explicitly
+allows same-session continuation for that stable task identity. That permitted
+continuation uses `followup_task` with an incremental message only. Do not send
+`agent_type`, `model`, `reasoning_effort`, `fork_turns`, or an equivalent
+configuration override in a follow-up. A route that does not explicitly permit
+reuse requires a fresh creation even when its tuple is unchanged.
+
+When a required tuple value changes, a follow-up is prohibited. Capture the
+role-specific state/result, record the controller supersession decision with
+that result, run the existing target-honest cleanup gate, and then have the
+route validate and create a new fresh child with its complete replacement
+tuple. On Responses API inventory-only targets, record exactly
+`close-unavailable: inventory-only; no close operation`; do not invent a close
+operation or operational state. Cleanup failure is terminal under the owning
+route: do not create the replacement child.
+
+A native target rejection reports the exact requested `model` and
+`reasoning_effort` and takes the owning route's existing unavailable or blocked
+terminal. It authorizes no fallback, alias, effort change, retry, escalation,
+or role substitution.
+
 ## Target Lifecycle Capability
 
 Before promising automatic cleanup, identify what lifecycle controls the
@@ -111,17 +152,22 @@ role-specific state has already been captured.
 
 1. Capture the role-specific state needed by the owning workflow before
    closing any session or recording its supersession decision.
-2. When the target is `automatic-close-supported`, attempt to close completed
-   sessions or sessions with a captured supersession decision after the
-   required state is recorded. Mark `closed=yes` only after observing a
-   successful close result for that stable session identity and exposed usable
-   close operation.
-3. When the target is `inventory-only` or `cleanup-unavailable`, first capture
+2. Before any closure attempt, keep a session open when its owning route
+   explicitly authorizes unchanged-tuple continuation for the same stable task
+   identity and that continuation window is pending, such as D12 awaiting the
+   applicable reviewer/fix-loop final disposition. This keep-open decision runs
+   before automatic closure.
+3. When the target is `automatic-close-supported`, attempt to close only a
+   completed session whose continuation window ended or a session with a
+   captured supersession decision, after the required state is recorded. Mark
+   `closed=yes` only after observing a successful close result for that stable
+   session identity and exposed usable close operation.
+4. When the target is `inventory-only` or `cleanup-unavailable`, first capture
    the same role-specific state, then record the `close-unavailable` reason
    before spawning instead of claiming closure.
-4. Keep sessions open when the owning workflow still requires same-session
-   follow-up and the captured state is not sufficient for a replacement
-   session.
+
+Close only after final disposition, explicit supersession, or the end of the
+route-authorized continuation window.
 
 Target-honest outcomes matter more than a clean-looking ledger. Waiting,
 interruption, completion, inventory, reuse, and a runtime's capability class do
@@ -146,8 +192,10 @@ When a spawn fails because of a slot/session limit:
 4. Reconstruct active workflow state from the lifecycle ledger and the
    repository state anchors the owning workflow uses, such as `git status`,
    current branch, and relevant base/head SHAs.
-5. Retry the spawn exactly once after automatic cleanup completes or after the
-   operator confirms manual cleanup.
+5. Retry the exact same already-validated tuple exactly once after automatic
+   cleanup completes or after the operator confirms manual cleanup. Slot
+   recovery never authorizes a different role, model, effort, or other tuple
+   value.
 6. If the retry still fails, stop and escalate to the user with a sanitized
    summary of the reconstructed state and remaining open-agent inventory, or
    with a clear statement that inventory is unavailable. Include only session

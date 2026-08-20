@@ -144,8 +144,10 @@ the user-facing boundary without replacing that source authority.
 
 - The paired values are DevCanon policy mappings, not provider equivalences.
 - Capability selects a model only. Claude `effort` and Codex
-  `model_reasoning_effort` remain explicit target-native agent or skill fields
-  and are never inherited from a profile.
+  `model_reasoning_effort` remain explicit target-native fields and are never
+  inherited from a profile. The agent contract separately defines literal,
+  absent, and explicit-null Codex-model source states; explicit suppression is
+  not configuration syntax or a profile behavior.
 - Skill tokens resolve per target: `{{model:frontier}}` becomes the configured
   `frontier.claude` or `frontier.codex` string. Agent target model fields do not
   accept model placeholders.
@@ -172,7 +174,9 @@ reasoning-effort value, and is rejected by this source contract.
 
 Local acceptance does not prove a selected provider model, client, or account
 supports the effort. Explicit effort takes effect independently of model
-capability; omission preserves ambient target behavior.
+capability; omission preserves ambient target behavior. Fresh semantic-child
+route effort is owned by the Agent Routing and Mutation Policy, not by
+`capabilityProfiles`.
 
 ---
 

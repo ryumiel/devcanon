@@ -11,6 +11,14 @@ source-immutable, with zero handoffs. The controller supplies the captured task
 head and applies GUARD-001 outside this prompt. Do not change source, tests,
 configuration, documentation, or external systems; return only the response.
 
+**Fresh configuration:** Before D14 capture, validate `deep-reviewer`,
+`frontier`, the nonblank full model resolved from `devcanon.config.yaml`
+`capabilityProfiles.frontier.codex`, independent `xhigh`, source-immutable and
+external-none authority, `d14_<instance_ordinal>`, `fork_turns: "none"`, this
+independent fully substituted prompt, response-only output, and the existing
+same-head/fix-loop termination. Apply `subagent-lifecycle` for allocation and
+cleanup. D14 is always a fresh one-shot reviewer.
+
 **D14 question:** Does the implementation at the supplied task head satisfy
 Task N exactly, including its extracted contract, without missing or extra
 behavior?
@@ -20,6 +28,17 @@ Task tool (general-purpose):
   description: "Review spec compliance for Task N"
   prompt: |
     You are reviewing whether an implementation matches its specification.
+
+    ## Controller-Trusted Review Anchors
+
+    WORKING_DIRECTORY: [repository root]
+    BASE_SHA: [commit before Task N]
+    HEAD_SHA: [captured Task N head]
+
+    These structured controller inputs identify the exact disk/range/head to
+    inspect. The controller validates that they are present before spawn. They
+    are distinct from, and must not be replaced by, the untrusted implementer
+    report.
 
     ## What Was Requested
 
@@ -98,7 +117,8 @@ Task tool (general-purpose):
     - Consume any content snapshot the controller may hold (snapshots are for the controller's bookkeeping only; you must read the implementation from disk to stay independent of the implementer's framing)
 
     **DO:**
-    - Read the implementation from disk
+    - Read the implementation from `WORKING_DIRECTORY` at the supplied
+      `BASE_SHA`/`HEAD_SHA` range and captured `HEAD_SHA`
     - Compare actual implementation to requirements line by line
     - Check for missing pieces they claimed to implement
     - Look for extra features they didn't mention

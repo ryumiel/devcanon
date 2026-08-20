@@ -7,14 +7,17 @@ prompt; the assessor returns only the gate response and receives zero handoffs.
 **Promotion classification:** Workflow-local prompt template paired with the
 semantic source role at
 [`agents/assessor.yaml`](../../../agents/assessor.yaml). The source role owns
-the balanced/medium target pair and source-immutable constraint; this template
-owns only issue-priming gate method and response shape.
+identity, capability, and source-authority envelope. The routing policy and
+Phase 2 own the fresh balanced/medium tuple; this template owns only
+issue-priming gate method and response shape.
 
-```
-Agent(
-  description: "Assess issue complexity for research gate",
-  subagent_type: "assessor",
-  prompt: |
+## Message Body Template
+
+This file supplies only the fully substituted message body. Phase 2 in
+[`SKILL.md`](../SKILL.md) owns tuple validation and the one fresh Codex creation;
+do not wrap this template in another spawning call.
+
+```text
     You are assessing whether an issue requires multi-agent research
     before design work begins. Read the issue-body file and scan the
     repository for existing architectural decisions.
@@ -82,7 +85,6 @@ Agent(
     SKIP_RESEARCH — <reason in under 20 words>
 
     Work from: <REPO_ROOT>
-)
 ```
 
 ## Placeholder Reference

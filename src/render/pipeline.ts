@@ -425,7 +425,7 @@ function validateLoadedInputs(
 function validateLoadedAgentLiteralModel(
   agentName: string,
   fieldPath: "claude.model" | "codex.model",
-  value: string | undefined,
+  value: string | null | undefined,
 ): void {
   if (!value?.includes("{{model:")) return;
 

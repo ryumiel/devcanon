@@ -275,8 +275,8 @@ controller-local parent state, leave `AUTO_HANDOFF_FILE` unset and
 
 The active parent controller may also pass a `Verified auto-route attestation:`
 field. Treat it as controller-provided context only when the active parent state
-and the auto-handoff artifact both validate. Before every D12 spawn or
-same-route redispatch, require a freshly validated attestation to state that
+and the auto-handoff artifact both validate. Before every fresh D12 spawn or
+route-authorized stable D12 continuation, require a freshly validated attestation to state that
 current issue authority was validated and to name
 the source provider and issue, owner thread, exact approved route identity,
 reviewed plan digest, auto-handoff identity, and the current head when one
@@ -286,12 +286,15 @@ durable artifact, or a reduced-route authority. If a prior D12 task changed the
 head or any other route fact, rebuild and validate the attestation from current
 controller-held facts before the next prompt.
 
-For every D12 spawn and same-route redispatch, substitute only the current
-retained attestation into the implementer prompt's `Verified Auto-Route
-Attestation` marker. If current validation fails or the field is missing,
-malformed, or unavailable after parent and auto-handoff validation, retain
-`unverified` and use the manual/default D12 behavior. Never reuse or infer an
-attestation from prior task text, a returned status, or copied invocation prose.
+For every fresh D12 spawn, substitute only the current retained attestation into
+the full implementer prompt's `Verified Auto-Route Attestation` marker. For a
+route-authorized stable D12 continuation, freshly revalidate the attestation and
+send it only in the incremental task-local `followup_task` message; do not
+substitute or resend the full implementer prompt or full task context. If current
+validation fails or the field is missing, malformed, or unavailable after parent
+and auto-handoff validation, retain `unverified` and use the manual/default D12
+behavior. Never reuse or infer an attestation from prior task text, a returned
+status, or copied invocation prose.
 
 ### Inline content (preserved for direct invocations)
 
@@ -397,10 +400,101 @@ Capability selects only the model. It never implies effort, authority, tools,
 sandbox, approvals, or `**Mode:** mechanical`. Mechanical mode does not select a
 capability.
 
-Preserve the capability and effort configured by a shipped role instead of
-overriding either at dispatch time. D12 uses `implementer`, balanced/high; D13
-uses `executor`, efficient/medium; and D14-D16 use `deep-reviewer`,
-frontier/xhigh. These pairs do not grant external mutation authority.
+The route owner supplies the capability and independent effort. Every fresh
+Codex dispatch resolves its full model from `devcanon.config.yaml`
+`capabilityProfiles.<capability>.codex` and passes both model and effort
+explicitly. Semantic role TOML omits those target-local dispatch values. D12
+uses `implementer`, balanced/high; D13 uses `executor`, efficient/medium; and
+D14-D16 use `deep-reviewer`, frontier/xhigh. These pairs do not grant external
+mutation authority.
+
+### D12-D16 fresh-Codex dispatch contract
+
+For every fresh D12-D16 child, resolve the full model exactly from
+`devcanon.config.yaml` `capabilityProfiles.<capability>.codex`; capability
+selects the model, while effort remains independent. Before lifecycle capture,
+validate the complete route tuple: route, semantic role, capability, nonblank
+configured full model, independent effort, source and external authority,
+runtime `task_name`, `fork_turns: "none"`, self-contained prompt/context,
+expected output, and termination. Any missing or mismatched field blocks before
+creation. Apply the shared allocation, continuity, rejection, cleanup, and
+slot-recovery rule in `subagent-lifecycle`; this workflow supplies only the
+route-specific values below.
+
+| Route | Semantic role / capability / effort    | Authority                       | Self-contained prompt and output                                              | Termination                                                      |
+| ----- | -------------------------------------- | ------------------------------- | ----------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| D12   | `implementer` / `balanced` / `high`    | source-mutable; external none   | Full task/context, authorized paths, snapshot request, report/status          | Existing scoped commit, report, snapshot, and status disposition |
+| D13   | `executor` / `efficient` / `medium`    | source-mutable; external none   | Exact guarded task/context, authorized paths, snapshot request, report/status | Existing five-guardrail stop/reclassify disposition              |
+| D14   | `deep-reviewer` / `frontier` / `xhigh` | source-immutable; external none | Independent D14 prompt, captured task head, response-only report              | Same-head D14 disposition/fix loop                               |
+| D15   | `deep-reviewer` / `frontier` / `xhigh` | source-immutable; external none | Independent D15 prompt, captured task head, response-only report              | Provisional/final same-head disposition/fix loop                 |
+| D16   | `deep-reviewer` / `frontier` / `xhigh` | source-immutable; external none | Fresh D16 whole-range prompt, base/head, response-only report                 | Exact ADR-0016 skip or final fix/fresh-review/terminal route     |
+
+Codex-only route bindings: `D12_MODEL` resolves from
+`capabilityProfiles.balanced.codex`; `D13_MODEL` resolves from
+`capabilityProfiles.efficient.codex`; and `D14_MODEL`, `D15_MODEL`, and
+`D16_MODEL` resolve from `capabilityProfiles.frontier.codex`. Target capability
+markers: `{{model:balanced}}`, `{{model:efficient}}`, and
+`{{model:frontier}}`. Each retains the independent effort declared in its route
+row.
+
+After validation and the existing route-local capture, create exactly one fresh
+child with the actual Codex fields:
+
+```text
+# D12: D12_MODEL = capabilityProfiles.balanced.codex
+Codex.spawn_agent({
+  task_name: d12_<instance_ordinal>,
+  agent_type: "implementer",
+  model: D12_MODEL,
+  reasoning_effort: "high",
+  fork_turns: "none",
+  message: D12_SELF_CONTAINED_PROMPT,
+})
+# D13: D13_MODEL = capabilityProfiles.efficient.codex
+Codex.spawn_agent({
+  task_name: d13_<instance_ordinal>,
+  agent_type: "executor",
+  model: D13_MODEL,
+  reasoning_effort: "medium",
+  fork_turns: "none",
+  message: D13_SELF_CONTAINED_PROMPT,
+})
+# D14: D14_MODEL = capabilityProfiles.frontier.codex
+Codex.spawn_agent({
+  task_name: d14_<instance_ordinal>,
+  agent_type: "deep-reviewer",
+  model: D14_MODEL,
+  reasoning_effort: "xhigh",
+  fork_turns: "none",
+  message: D14_SELF_CONTAINED_PROMPT,
+})
+# D15: D15_MODEL = capabilityProfiles.frontier.codex
+Codex.spawn_agent({
+  task_name: d15_<instance_ordinal>,
+  agent_type: "deep-reviewer",
+  model: D15_MODEL,
+  reasoning_effort: "xhigh",
+  fork_turns: "none",
+  message: D15_SELF_CONTAINED_PROMPT,
+})
+# D16: D16_MODEL = capabilityProfiles.frontier.codex
+Codex.spawn_agent({
+  task_name: d16_<instance_ordinal>,
+  agent_type: "deep-reviewer",
+  model: D16_MODEL,
+  reasoning_effort: "xhigh",
+  fork_turns: "none",
+  message: D16_SELF_CONTAINED_PROMPT,
+})
+```
+
+The route prompt references below own task-local content. An explicitly
+permitted same-session D12 fixup for the original stable task carries only
+incremental findings/context. D13-to-D12 reclassification and a D16 final
+whole-implementation fix use the lifecycle fresh-child path. D14/D15 are
+always fresh one-shot reviewers after a head-changing fix. A target rejection
+reports the exact requested `model=<Dn_MODEL> effort=<Dn_EFFORT>` and stops
+through the existing route terminal without substitution.
 
 ## Execution Route Classification
 

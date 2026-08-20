@@ -246,6 +246,71 @@ describe("renderCodexAgent", () => {
     expect(parsed.model_reasoning_effort).toBe("high");
   });
 
+  it("distinguishes explicit-null Codex model suppression from absence", () => {
+    const installed = installTestLogger();
+    try {
+      const suppressedAgent = withCodex(agent, {
+        model: null,
+        nickname_candidates: ["builder"],
+        approval_policy: "on-request",
+      });
+      const { model: _, ...codexWithoutModel } =
+        suppressedAgent.source.codex ?? {};
+      const suppressedAgentWithEffort = withCodex(suppressedAgent, {
+        model_reasoning_effort: "high",
+      });
+      const sourceWithCapability = {
+        ...suppressedAgent.source,
+        capability: "balanced" as const,
+      };
+      const suppressed = renderCodexAgent(
+        {
+          ...suppressedAgent,
+          source: sourceWithCapability,
+        },
+        emptySkills,
+        config,
+      );
+      const derived = renderCodexAgent(
+        {
+          ...suppressedAgent,
+          source: { ...sourceWithCapability, codex: codexWithoutModel },
+        },
+        emptySkills,
+        config,
+      );
+      const suppressedWithEffort = renderCodexAgent(
+        {
+          ...suppressedAgentWithEffort,
+          source: {
+            ...sourceWithCapability,
+            codex: suppressedAgentWithEffort.source.codex,
+          },
+        },
+        emptySkills,
+        config,
+      );
+      const suppressedParsed = parseRenderedTomlArtifact(suppressed.content);
+      const derivedParsed = parseRenderedTomlArtifact(derived.content);
+      const suppressedWithEffortParsed = parseRenderedTomlArtifact(
+        suppressedWithEffort.content,
+      );
+
+      expect(suppressedParsed).not.toHaveProperty("model");
+      expect(derivedParsed.model).toBe("gpt-5.4");
+      expect(derivedParsed).not.toHaveProperty("model_reasoning_effort");
+      expect(suppressedWithEffortParsed).not.toHaveProperty("model");
+      expect(suppressedWithEffortParsed.model_reasoning_effort).toBe("high");
+      expect(suppressedParsed.sandbox_mode).toBe("read-only");
+      expect(suppressedParsed.nickname_candidates).toEqual(["builder"]);
+      expect(suppressedParsed.approval_policy).toBe("on-request");
+      expect(suppressedParsed.developer_instructions).toContain("## Skills");
+      expect(installed.testLogger.warnings).toEqual([]);
+    } finally {
+      installed.restore();
+    }
+  });
+
   it("omits ambient model and reasoning effort", () => {
     const result = renderCodexAgent(
       { ...agent, source: { ...agent.source, codex: undefined } },

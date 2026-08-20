@@ -55,12 +55,23 @@ The accepted catalog is:
 These rows are DevCanon policy mappings, not claims that the paired provider
 models are equivalent.
 
-Agents may select one profile with the top-level `capability` field. Model
-resolution is target-local and follows this precedence:
+Agents may select one profile with the top-level `capability` field. Codex model
+resolution follows this precedence for `codex.model`:
 
-1. a literal model in the target block;
-2. the target model mapped by top-level `capability`;
-3. omission, allowing the target's ambient model selection.
+1. explicit `null` under the agent-source contract suppresses Codex resolution
+   and model emission;
+2. a literal model in the target block emits that literal;
+3. an absent field permits the Codex model mapped by top-level `capability`;
+4. absent capability resolution leaves the Codex model omitted.
+
+Explicit suppression bypasses resolution; it does not alter the model-only
+capability catalog or couple a profile to effort. Fresh route dispatch remains a
+separate controller concern: it resolves its configured full model from the
+route capability and selects independent route effort.
+
+Claude model selection remains literal-or-absent; `claude.model: null` is
+rejected by the agent-source contract. The agent spec owns both target-specific
+source rules.
 
 Effort remains an explicit target-native field: `claude.effort` or
 `codex.model_reasoning_effort`. An explicit effort is rendered; otherwise the
@@ -69,8 +80,9 @@ resolution never supplies, inherits, or changes effort.
 
 Skill prose and top-level string fields in skill target overrides may use only
 the canonical `{{model:efficient}}`, `{{model:balanced}}`, and
-`{{model:frontier}}` tokens. Agent target `model` fields accept literal target
-model strings only; model placeholders there are invalid.
+`{{model:frontier}}` tokens. Agent literal target `model` fields reject model
+placeholders; the agent spec's `codex.model: null` suppression is the only
+non-literal model-source state.
 
 Version 2 is a clean boundary. DevCanon does not provide v1 compatibility,
 automatic translation, custom capability names, transitional aliases, or
@@ -93,7 +105,8 @@ Operators must verify Luna in their own client and account before deployment.
   fails before ordinary schema validation.
 - Model capability can be changed without silently changing target-native
   effort, tools, sandbox, approval policy, context, authority, or workflow
-  policy.
+  policy. Explicit source null likewise changes only source-to-render model
+  emission; it does not change a capability profile or route effort.
 - Model strings remain locally validated syntax. DevCanon does not establish
   provider entitlement or silently fall back when a client or account rejects
   a selection.

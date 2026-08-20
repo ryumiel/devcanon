@@ -29,5 +29,5 @@ claude:
     - WebSearch
 
 codex:
-  model_reasoning_effort: high
+  model: null
   sandbox_mode: workspace-write

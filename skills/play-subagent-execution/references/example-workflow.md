@@ -52,6 +52,31 @@ performs the exact validated operation and stops for controller reclassification
 if judgment or a missing guardrail appears. Source-mutable task execution stays
 serial.
 
+[Fresh configuration examples]
+Before each fresh D12-D16 capture, resolve the full model from the named
+capability profile and validate the route's complete tuple, authority,
+self-contained prompt/context, output, and termination. Apply the shared
+`subagent-lifecycle` rule before creation. For this run the controller uses:
+
+D12: task_name=d12_1, agent_type=implementer,
+     model=capabilityProfiles.balanced.codex, reasoning_effort=high,
+     fork_turns=none, message=full task/context/snapshot/report prompt
+D13: task_name=d13_1, agent_type=executor,
+     model=capabilityProfiles.efficient.codex, reasoning_effort=medium,
+     fork_turns=none, message=exact guarded task/context/snapshot/report prompt
+D14: task_name=d14_1, agent_type=deep-reviewer,
+     model=capabilityProfiles.frontier.codex, reasoning_effort=xhigh,
+     fork_turns=none, message=independent D14 same-head response-only prompt
+D15: task_name=d15_1, agent_type=deep-reviewer,
+     model=capabilityProfiles.frontier.codex, reasoning_effort=xhigh,
+     fork_turns=none, message=independent D15 same-head response-only prompt
+D16: task_name=d16_1, agent_type=deep-reviewer,
+     model=capabilityProfiles.frontier.codex, reasoning_effort=xhigh,
+     fork_turns=none, message=fresh D16 whole-range response-only prompt
+
+Each `model` value above is the full nonblank configured resolution, not a
+literal capability name.
+
 Task 1: Hook lifecycle
 
 [Cleanup gate before spawn]
@@ -165,6 +190,12 @@ Controller records the combined spec and code-quality finding set routed to Task
 Task 2 implementer: closed=no because routed same-head findings need same-session fixup.
 
 [Implementer fixes issues]
+The D12 tuple is unchanged, so the controller keeps `impl-2` and sends only the
+incremental reviewer findings/task context with `followup_task`. When this is a
+verified-auto route, the message also carries the freshly revalidated
+controller-provided auto-route attestation as structured context; direct/manual
+routes do not invent it. It does not resend the full implementer prompt, full
+task context, role, model, effort, fork, or an equivalent configuration override.
 Implementer: Removed --json flag, added progress reporting, extracted PROGRESS_INTERVAL constant
 
 [Lifecycle ledger update]
@@ -275,6 +306,17 @@ D16 capture, spawn, verify, validate, cleanup, and apply cycle. The fresh D16
 reviews the refreshed whole implementation range; it never reuses D15 or the
 pre-fix D16 response.
 
+[Changed-tuple continuation example]
+A D14 finding routes to the compatible original D12 `impl-2` session, so the
+controller sends only incremental findings/task context with `followup_task`.
+The D12 tuple and stable task identity remain unchanged. The head-changing fix
+makes the D14/D15 verdicts stale, then fresh one-shot D14 and D15 reviewers
+inspect the refreshed head. By contrast, a D13 boundary reclassification or D16
+final whole-implementation fix captures its role-specific result, records the
+supersession decision, applies the lifecycle cleanup gate, and creates a
+complete fresh `d12_<instance_ordinal>` child. If no compatible original D12
+session exists, that fresh-child path also applies.
+
 [D16 alternate ordinary failure]
 After safe cleanup, an unavailable, failed, malformed, or
 verification-rejected D16 keeps final review incomplete and returns `BLOCKED`
@@ -314,6 +356,8 @@ Target capability for this separate run: cleanup-unavailable: target exposes nei
 Controller classifies a slot-limit spawn failure as orchestration resource exhaustion, not task failure.
 Controller runs the cleanup gate, records `close-unavailable: no inventory or close operation` for completed/superseded sessions, states that open-agent inventory is unavailable, gives explicit operator/UI cleanup guidance, waits for operator confirmation that manual cleanup is complete, reconstructs active task state from the lifecycle ledger and git, then retries the spawn exactly once.
 Retry succeeds.
+The retry uses the same previously validated role/model/effort pair; slot
+recovery does not permit a different configuration.
 
 [Repeated blocker-family branch in the cleanup-unavailable run]
 Initial blocker-family record:

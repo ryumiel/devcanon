@@ -34,11 +34,30 @@ The architectural decision is that shared roles describe stable reusable work
 identity rather than provider models, effort levels, or workflow phases.
 Capability and effort, tools, sandbox, authority, orchestration, retries, and
 escalation remain separate choices. Tool or sandbox availability never grants
-durable source or external mutation.
+durable source or external mutation. Source-agent explicit-null Codex model
+suppression is a source-to-render choice; it does not replace fresh-route model
+or effort selection.
 
 Skills remain the reusable method owner. They assemble task-local prompts,
 inputs, output contracts, retry and fallback behavior, skip criteria, and
 termination conditions. Agent definitions remain thin role wrappers.
+
+### Fresh route selection and running-task continuity
+
+The [Agent Routing and Mutation Policy](../guidelines/agent-routing-and-mutation-policy.md#fresh-codex-route-contract)
+owns selection of every fresh Codex role, configured full model from route
+capability, independent route effort, complete spawn inputs, and native-pair
+rejection. A fresh child never inherits ambient model or effort, and its route
+contract fails closed when native Codex rejects that exact pair.
+
+The shared [`subagent-lifecycle`](../../skills/subagent-lifecycle/SKILL.md)
+owns route-permitted reuse, supersession, cleanup, and slot recovery mechanics. A
+running session's required configuration is fixed: role, full model, effort,
+fork setting, and task identity do not change in place. A changed required tuple
+or task identity therefore needs a new session. The lifecycle owner performs
+route-permitted reuse, follow-up, supersession, cleanup, and slot-recovery
+mechanics; route skills own only task-local continuation and terminal behavior. D14, D15, and
+D16 remain one-shot fresh reviewers under the routing policy.
 
 ### Closed mutation vocabulary
 
@@ -163,8 +182,9 @@ rerun under separately authorized acceptance work.
 - ADR-0025 remains historical model-selection evidence. ADR-0026 remains the
   accepted owner of the model-only capability catalog and capability/effort
   independence.
-- Generated outputs remain disposable and neither source schemas nor rendered
-  target formats change because of this decision.
+- Generated outputs remain disposable. The agent source schema accepts an
+  explicit-null `codex.model` to suppress rendered model assignment despite a
+  capability; native TOML grammar and install boundaries remain unchanged.
 - No product requirement, extra behavior spec, root workflow, contribution
   policy, PR template, install/sync behavior, or external tracker lifecycle is
   introduced.

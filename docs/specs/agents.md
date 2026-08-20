@@ -59,7 +59,7 @@ claude:
     - Write
 
 codex:
-  model_reasoning_effort: medium
+  model: null
   sandbox_mode: workspace-write
 ```
 
@@ -75,7 +75,7 @@ evidence, not co-authority. ADR-0027 remains Proposed because bounded runtime
 acceptance is incomplete. Agent names describe reusable work identity, not
 provider models, effort levels, or workflow phases.
 
-| Agent           | Capability | Claude effort | Codex effort | Source default     | External default | Primary use                                           |
+| Agent           | Capability | Claude effort | Route effort | Source default     | External default | Primary use                                           |
 | --------------- | ---------- | ------------- | ------------ | ------------------ | ---------------- | ----------------------------------------------------- |
 | `assessor`      | balanced   | medium        | medium       | `source-immutable` | `none`           | Bounded classification or evaluation                  |
 | `investigator`  | balanced   | high          | high         | `source-immutable` | `none`           | Repository, document, or external evidence collection |
@@ -84,9 +84,10 @@ provider models, effort levels, or workflow phases.
 | `reviewer`      | frontier   | high          | high         | `source-immutable` | `none`           | Ordinary synthesis and adversarial review             |
 | `deep-reviewer` | frontier   | xhigh         | xhigh        | `source-immutable` | `none`           | Existing high-assurance review gates                  |
 
-Capability and target-native effort are both explicit for all six roles and
-remain independent. Neither setting implies tools, sandbox, network, mutation,
-or escalation behavior.
+Capability and route effort are explicit for all six semantic roles and remain
+independent. The route effort is selected by a direct-child route; it is not a
+source `codex.model_reasoning_effort` default. Neither setting implies tools,
+sandbox, network, mutation, or escalation behavior.
 
 The shared [`subagent-lifecycle`](../../skills/subagent-lifecycle/SKILL.md)
 procedure owns future capability-escalation declarations and the
@@ -151,17 +152,19 @@ through pressure scenarios rather than exact-sentence assertions.
 
 ### Render and runtime acceptance
 
-Under the current contract, each source role renders to both targets with
-the same semantic identity, capability-selected model, explicit target effort,
-and target-native tool or sandbox envelope above. Acceptance requires exactly
-six source roles to produce exactly six Claude agent files and six Codex agent
-files. Generated previews remain disposable and do not become authority; a
-fresh render is convergence evidence, not source authority.
+Under the current contract, each source role renders to both targets with the
+same semantic identity, capability, Claude effort, and target-native tool or
+sandbox envelope above. Acceptance requires exactly six source roles to produce
+exactly six Claude agent files and six Codex agent files. Generated previews
+remain disposable and do not become authority; a fresh render is convergence
+evidence, not source authority.
 
-The canonical `assessor` example above must render balanced/medium on both
-targets, retain its command and named-handoff envelope, prohibit durable and
-external mutation, and omit no Codex effort. A rendered role count other than
-six, omitted effort, or broader mutation instructions fails the contract.
+The canonical `assessor` example above must preserve the unchanged Claude
+envelope, retain its command and named-handoff envelope, prohibit durable and
+external mutation, and suppress both rendered Codex `model` and
+`model_reasoning_effort`. A rendered role count other than six, a derived Codex
+model or effort for these six source roles, or broader mutation instructions
+fails the contract.
 
 Source and render convergence do not complete runtime acceptance. After local
 validation and both-target render parsing, runtime acceptance is bounded to one
@@ -272,17 +275,29 @@ A dedicated model capability or effort level is a valid reason to define an agen
 when the role itself is stable and reusable. Those settings are part of the
 role boundary, not just render-time metadata.
 
-Model selection is target-local. A literal `claude.model` or `codex.model`
-takes precedence over the model mapped by top-level `capability`. If neither is
-present, the rendered model field is omitted and the target's ambient model
-selection applies. Literal target model fields must not contain `{{model:*}}`;
-validation and both render paths reject those former agent placeholders with
-guidance to use top-level capability or a literal model.
+Codex `model` selection has three source states:
+
+1. a literal string emits that literal model;
+2. an absent `codex.model` permits normal Codex capability resolution; and
+3. explicit `null` intentionally suppresses target model resolution and model
+   emission.
+
+Explicit `codex.model: null` is known agent-source schema, not passthrough or a
+warning. Claude `model` accepts only a literal string or absence; Claude null is
+rejected. The agent spec owns this target distinction.
+The six current semantic source roles retain their top-level capability and
+unchanged Claude envelope, set `codex.model: null`, and omit
+`codex.model_reasoning_effort`; their Codex render therefore omits both fields.
+Their Claude render remains byte-identical. Literal target model fields must not
+contain `{{model:*}}`; validation and both render paths reject those former
+agent placeholders with guidance to use top-level capability or a literal model.
 
 Effort is independent. An explicit `claude.effort` or
 `codex.model_reasoning_effort` is emitted as written; when absent it remains
 omitted and ambient target behavior applies. Capability never supplies or
-inherits effort.
+inherits effort. The six semantic-role Codex efforts instead come from the
+selected D1-D17 route in the Agent Routing and Mutation Policy; source agent
+Codex fields never override that route selection.
 
 Effort validation is local and syntactic. Accepting an effort such as `max`
 does not prove that a particular Codex client, model, or account can run it;

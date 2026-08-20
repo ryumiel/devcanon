@@ -121,20 +121,36 @@ Every current direct child surface must resolve to one of the six semantic
 roles, a deterministic helper, or a guarded inline path before dispatch. The
 complete mandatory inventory is D1 through D17 in the
 [Agent Routing and Mutation Policy](../guidelines/agent-routing-and-mutation-policy.md#direct-child-route-inventory).
-Each row's semantic role, capability, effort, source authority, output, and
-termination are normative.
+Each row's semantic role, capability, effort, and source authority are
+normative. Its final inventory column is a non-authoritative locator/summary;
+the route-owning source skill remains normative for prompt, output, failure, and
+termination.
 
 An inherited or generic workflow must classify each child independently. It
 must not use ambient model or effort, infer a route from the owning skill's
 highest mutation authority, collapse distinct review sessions because they
 share a semantic agent, or dispatch when the route is unresolved.
 
-For D4, resolve the complete pre-spawn declaration through the
-[D4 Declaration Obligation](../guidelines/agent-routing-and-mutation-policy.md#d4-declaration-obligation),
-the sole complete declaration authority. Observable semantic direct-child
-dispatch selects exactly one resolved route, and any unresolved route or
-declaration state blocks before spawn. Under the B3 routing boundary, a
-source-immutable D4 selection is response-only.
+For D4 and every other fresh semantic direct child, resolve the complete
+pre-spawn declaration through the
+[Fresh Codex Route Contract](../guidelines/agent-routing-and-mutation-policy.md#fresh-codex-route-contract)
+and the [D4 Declaration Obligation](../guidelines/agent-routing-and-mutation-policy.md#d4-declaration-obligation),
+the sole complete declaration authorities. The fresh child receives the
+route-owned semantic role, configured full model, independent effort,
+`fork_turns: "none"`, and self-contained context including authority plus the
+source-skill-owned output and termination contract. Observable semantic
+direct-child dispatch selects exactly one
+resolved route, and any unresolved route or declaration state blocks before
+spawn. Under the B3 routing boundary, a source-immutable D4 selection is
+response-only.
+
+The routing policy owns route-level fresh configuration, reuse eligibility,
+one-shot behavior, and the exact rejected-pair outcome. ADR-0027 owns the fixed
+running-session configuration invariant, while
+[`subagent-lifecycle`](../../skills/subagent-lifecycle/SKILL.md) owns the
+follow-up, supersession, cleanup, rejection, and slot-recovery mechanics. This
+spec records observable dispatch and guard evidence rather than duplicating
+those lifecycle rules.
 
 D4 contract verification is bounded to the canonical repository-authored
 policy, producer, routing-spec, and rendered forms. It does not establish a
@@ -143,10 +159,11 @@ arbitrary CommonMark-equivalent representations. The repository-wide
 [Markdown contract-testing boundary](../guidelines/documentation-standard.md#55-markdown-contract-testing-boundary)
 governs review and acceptance.
 
-Task-specific prompts, schemas, network authorization, failure fallbacks, skip
-criteria, retry loops, and termination remain owned by the source skill. A
-shared role provides stable work identity and target-native constraints, not
-workflow method.
+Task-specific prompts, schemas, network authorization, route-local failure,
+skip criteria, retry loops, and termination remain owned by the source skill.
+A shared role provides stable work identity and target-native constraints, not
+workflow method. This spec does not duplicate the D1-D17 fresh-route tuple or
+continuity rules.
 
 Capability-escalation adoption is not owned by this spec. For routing context,
 the shared [`subagent-lifecycle`](../../skills/subagent-lifecycle/SKILL.md)
@@ -493,9 +510,11 @@ resolution recommendation.
 - Guard tests exercise the valid baseline/handoff lifecycle and reject tracked
   content change, nested/existing/symlinked/missing handoffs, and directory
   leaves.
-- Both-target agent render tests prove exactly six roles, explicit capability
-  and effort, command/handoff envelopes, source-immutable instructions, and no
-  semantic-child external authority.
+- Both-target agent render tests prove exactly six roles, top-level capability
+  parity, unchanged Claude model/effort envelopes, and omitted Codex model and
+  effort for the six semantic roles. The agent spec owns the exact target-model
+  semantics. The same checks retain command/handoff envelopes,
+  source-immutable instructions, and no semantic-child external authority.
 
 ## Agent Context
 

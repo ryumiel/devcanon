@@ -83,14 +83,26 @@ semantic-role catalog and role-envelope owner. For that exact selected role and
 target, declare its
 `capability`, target-native `effort`, `source_authority`, `external_authority`,
 ordered duplicate-free `claude_tools`, `codex_sandbox`, and `default_network`.
-Resolve `model` first from the selected governed agent source's target-local
-literal `claude.model` or `codex.model`; use the exact target/capability
-resolution in `devcanon.config.yaml` only as fallback. Require the selected
-source capability to match the selected semantic role before resolving the
-model; a capability-less or mismatched source fails that parity check.
+Resolve Codex `model` from the selected role's exact capability through
+`devcanon.config.yaml` `capabilityProfiles.<capability>.codex`. Require the
+selected source capability to match the selected semantic role before
+resolution; a capability-less or mismatched source fails that parity check.
+Keep target-native effort independent: it must equal the selected role's
+matching Codex effort from the semantic-role catalog, never a
+capability-derived or ambient value. Validate `source_authority` separately
+against that same catalog; effort does not imply authority.
 `agents/*.yaml` are governed declarations and parity inputs,
 never semantic authorities; their target-local literal fields are governed
-values under the agent spec and take precedence over configuration fallback.
+values under the agent spec, but D4's fresh-Codex selection still resolves its
+full model through the configured capability profile.
+
+For the selected D4 role, the complete Codex-only model bindings are
+`efficient` → `capabilityProfiles.efficient.codex`, `balanced` →
+`capabilityProfiles.balanced.codex`, and `frontier` →
+`capabilityProfiles.frontier.codex`. Target capability markers:
+`{{model:efficient}}`, `{{model:balanced}}`, and `{{model:frontier}}`. The
+bindings select only the configured full model; the separately validated role
+effort remains independent.
 
 Classify each independent problem domain separately. The controller selects one
 of the policy-owned six-role set before spawn; a generic or inherited workflow
@@ -100,6 +112,41 @@ model, effort, tools, sandbox, network, authority, or any other declaration
 field from the child, parent, workflow, runtime, or controller authority. The
 route inventory is not a marker, annotation, or discovery grammar; the child
 prompt does not discover or select its own route.
+
+For Codex, freeze the validated declaration into one self-contained fresh
+prompt before lifecycle capture. It names the repository root, exact focused
+scope, authorized durable paths or response-only constraint, all guarded
+artifact/context paths, expected output, termination, and every dispatch
+constraint needed by the selected role. It must not rely on inherited turns or
+ask the child to fill any tuple field. Create exactly one fresh child only with:
+
+```text
+Codex.spawn_agent({
+  task_name: d4_<instance_ordinal>,
+  agent_type: SELECTED_ROLE_ID,
+  model: RESOLVED_CODEX_MODEL,
+  reasoning_effort: SELECTED_CODEX_EFFORT,
+  fork_turns: "none",
+  message: SELF_CONTAINED_PROMPT,
+})
+```
+
+Validate the semantic role, source capability parity, configured full model,
+independent matching-Codex-effort parity, source authority, external authority,
+scope, termination, context, approval, tools, sandbox, network, output, and
+prompt inputs before that one creation. Before capture, choose
+`<instance_ordinal>` as the next positive base-10 integer not already used by a
+retained D4 lifecycle-ledger row; the ledger retains completed and superseded
+rows, so do not reuse it. Resolve `task_name` as `d4_<instance_ordinal>` and
+require it to be nonblank, match `^[a-z0-9_]+$`, and be absent from all retained
+controller ledger task names. Keep target, role, and scope identity in the
+existing ledger dimensions, not in `task_name`. `fork_turns: "none"` is mandatory: no child
+inherits conversation history. Any missing, unresolved, or mismatched value
+blocks D4 before capture or spawn. If native Codex rejects the requested pair,
+report the exact `model=<RESOLVED_CODEX_MODEL>
+effort=<SELECTED_CODEX_EFFORT>` and follow the existing failed-domain
+disposition after required cleanup. Do not retry, alias, alter effort,
+escalate, or substitute a role.
 
 ### Source-Immutable Specialists
 
@@ -218,6 +265,10 @@ and report the integrity failure instead of treating it as an ordinary child
 failure.
 
 ## Agent Prompt Structure
+
+The following is a task-body fragment only. Compose it with the complete D4
+route, authority, repository-root, guarded-path/context, termination, and
+task-name contract above before any fresh creation.
 
 Good agent prompts are:
 

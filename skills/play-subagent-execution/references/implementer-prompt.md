@@ -13,6 +13,15 @@ balanced/high, for judgment-bearing scoped implementation. This prompt does
 not authorize external-system mutation, parallel task implementation, or work
 outside the controller-authorized paths.
 
+**Fresh configuration:** The controller validates D12's complete fresh tuple
+before capture: `implementer`, `balanced`, the nonblank full model resolved from
+`devcanon.config.yaml` `capabilityProfiles.balanced.codex`, independent
+`high`, source-mutable/external-none authority, `d12_<instance_ordinal>`,
+`fork_turns: "none"`, this fully substituted prompt, report output, and the
+existing snapshot/status/commit termination. Apply `subagent-lifecycle` for
+allocation and continuation; the lifecycle/status policy declares the permitted
+same-task D12 fix loop.
+
 ````
 Task tool (general-purpose):
   description: "Implement Task N: [task name]"

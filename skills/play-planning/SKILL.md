@@ -747,6 +747,68 @@ before either capture and pass the identical tuple to
 D5 and D6 without per-reviewer additions, while keeping their questions,
 remits, responses, and lifecycle state separate.
 
+Before either capture, resolve and validate the two complete fresh-Codex tuples.
+Both use `semantic_role: reviewer`, `capability: frontier`, the full model
+resolved exactly from `devcanon.config.yaml`
+`capabilityProfiles.frontier.codex`, independent `reasoning_effort: high`,
+`source_authority: source-immutable`, `external_authority: none`, and zero
+handoffs. Require the reviewer role capability to be `frontier`, every tuple
+field to be present, and the resolved model to be nonblank. Do not derive model
+or effort from the enclosing conversation, an ambient runtime, or an alias.
+
+Codex-only route bindings: `D5_MODEL` and `D6_MODEL` resolve from
+`capabilityProfiles.frontier.codex`. Target capability marker:
+`{{model:frontier}}`. Their independent effort remains `high`.
+
+Before capture, independently choose each route's `<instance_ordinal>` as the
+next positive base-10 integer not already used by a retained D5 or D6
+lifecycle-ledger row, respectively. The ledger retains completed and superseded
+rows, so no ordinal is reused in this flow. Resolve D5 `task_name` as
+`d5_<instance_ordinal>` and D6 `task_name` as `d6_<instance_ordinal>`; require
+each to be nonblank, match `^[a-z0-9_]+$`, and be absent from all retained
+controller ledger task names. Keep wave and remit identity in the existing
+ledger dimensions, not in `task_name`.
+
+Build two independent, self-contained prompts from the frozen digest-bound
+tuple. Each names the planning worktree root; exact plan path; selected
+path-or-inline design input; criteria and readiness paths; recorded readiness
+result; expected digest; review wave; prior verified gaps; and optional comment
+evidence when present. D5 additionally names its Plan Review remit and D6 its
+Executability Review remit. The prompts include no inherited turns and do not
+ask either child to discover a missing artifact or route.
+
+After both complete tuples validate and both captures succeed, make exactly one
+fresh creation for each independent session:
+
+```text
+# D5_MODEL = capabilityProfiles.frontier.codex
+Codex.spawn_agent({
+  task_name: d5_<instance_ordinal>,
+  agent_type: "reviewer",
+  model: D5_MODEL,
+  reasoning_effort: "high",
+  fork_turns: "none",
+  message: D5_PLAN_REVIEW_PROMPT,
+})
+# D6_MODEL = capabilityProfiles.frontier.codex
+Codex.spawn_agent({
+  task_name: d6_<instance_ordinal>,
+  agent_type: "reviewer",
+  model: D6_MODEL,
+  reasoning_effort: "high",
+  fork_turns: "none",
+  message: D6_EXECUTABILITY_REVIEW_PROMPT,
+})
+```
+
+`fork_turns: "none"` is required for each distinct digest-bound session. A
+missing or mismatched tuple prevents its creation and keeps the paired wave
+non-passing under the existing lifecycle. If native Codex rejects either one
+requested pair, report its exact `model=<D5_OR_D6_MODEL> effort=high`, retain
+the existing sibling/cleanup/join behavior, and use the existing unavailable
+review outcome. Do not retry, select an alias, change effort, escalate, or
+substitute a role.
+
 Before each authorized revision, retain a controller-local
 semantic-task-to-Task-ID baseline from the current plan. After saving the
 revised plan and before fresh reviewer dispatch, compare it with that baseline.
@@ -818,7 +880,8 @@ concrete defect it causes in that reviewer's own remit.
 
 Planning has a maximum of two paired review waves. Wave one is exhaustive in
 each distinct remit. An unchanged fresh-pair retry after wave one is allowed
-only when wave one contains no verified `CURRENT` gap. An unchanged fresh-pair
+only when wave one contains no verified `CURRENT` gap and neither a missing
+fresh-Codex tuple nor native exact-pair rejection. An unchanged fresh-pair
 retry is prohibited when wave one contains any verified `CURRENT` gap. In that
 case, every such record must receive its authorized correction and transition
 from `OPEN` + `NOT_RUN` to `CORRECTED` + `PENDING` before wave-two dispatch. If
@@ -840,7 +903,9 @@ owning-workflow handoff, recompute SHA-256 over the current exact plan bytes
 again and compare it with the expected, D5, D6, and join-time digests before
 applying dual PASS. A reviewer-computed, join-time, or pre-handoff digest
 mismatch invalidates both verdicts, as does any plan-byte edit; start a fresh
-pair within the remaining budget or stop when the budget is exhausted.
+pair within the remaining budget only when neither route had a missing tuple or
+native exact-pair rejection; otherwise stop via the existing unavailable review
+outcome.
 
 For wave one, `prior_verified_gaps` is explicitly none/inapplicable. For each
 verified wave-one `CURRENT` gap, the controller-local wave-two record contains
@@ -893,6 +958,10 @@ zero handoffs; do not substitute an ambient role, model, or effort. D5 remains
 independent from the concurrently started D6 session even though both use the
 same semantic role.
 
+D5 uses only the prevalidated `D5_MODEL`, independent `high` effort, and
+history-free `D5_PLAN_REVIEW_PROMPT` defined for this paired wave; it never
+inherits D6 or controller conversation context.
+
 Before dispatching the plan-review agent, use `subagent-lifecycle` for the controller-local lifecycle ledger, target
 lifecycle capability classification, cleanup gate, target-honest cleanup outcomes,
 and slot-limit recovery. Capture the plan path or inline scope, design
@@ -936,7 +1005,11 @@ and verification rejection. An ordinary unavailable, failed, malformed, or
 verification-rejected review cannot pass. After safe cleanup, retain its result
 until the D6 sibling has also settled and cleaned; verify consolidated findings
 against authoritative scope, revise only verified CURRENT gaps, and rerun a
-fresh D5/D6 pair when the paired-wave budget remains. Detected source mutation
+fresh D5/D6 pair when the paired-wave budget remains and neither route had a
+missing tuple or native exact-pair rejection. After one native exact-pair
+rejection, let any already-started sibling settle and complete its exact guard
+cleanup, then terminate through the existing unavailable review outcome with no
+second creation. Detected source mutation
 or cleanup failure is guard-integrity terminal: retain the terminal condition,
 leave the source state visible, wait for every already-started sibling to settle
 and attempt its exact owned cleanup, then stop planning; never reset, check out,
@@ -1004,8 +1077,12 @@ zero handoffs, for this D6 Implementer Executability Review. Start the fresh D6
 session independently alongside D5 after both baselines exist; it must not
 reuse or collapse the D5 session, review question, PASS/FAIL result, or
 lifecycle state.
-The role's `{{model:frontier}}` capability is supplied by the configured
-semantic role, not selected as an ambient or per-call substitute.
+The `frontier` capability resolves to the prevalidated full configured
+`D6_MODEL`; it is not an ambient, alias, or per-call substitute.
+
+D6 uses only the prevalidated `D6_MODEL`, independent `high` effort, and
+history-free `D6_EXECUTABILITY_REVIEW_PROMPT` defined for this paired wave; it
+never inherits D5 or controller conversation context.
 
 Use `subagent-lifecycle` for the controller-local lifecycle ledger, target
 lifecycle capability classification, cleanup gate, target-honest cleanup outcomes,
@@ -1048,7 +1125,11 @@ and verification rejection. An ordinary unavailable, failed, malformed, or
 verification-rejected review cannot pass. After safe cleanup, retain its result
 until the D5 sibling has also settled and cleaned; block execution, verify
 consolidated findings against authoritative scope, revise only verified CURRENT
-gaps, and rerun a fresh D5/D6 pair only when the paired-wave budget remains.
+gaps, and rerun a fresh D5/D6 pair only when the paired-wave budget remains and
+neither route had a missing tuple or native exact-pair rejection. After one
+native exact-pair rejection, let any already-started sibling settle and complete
+its exact guard cleanup, then terminate through the existing unavailable review
+outcome with no second creation.
 Detected source mutation or cleanup failure is guard-integrity terminal: retain
 the terminal condition, leave the source state visible, wait for every
 already-started sibling to settle and attempt its exact owned cleanup, then stop

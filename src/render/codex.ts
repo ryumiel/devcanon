@@ -163,12 +163,15 @@ export function renderCodexAgent(
     );
   }
 
-  const model = resolveCapabilityModel(
-    codex?.model,
-    agent.source.capability,
-    "codex",
-    config.capabilityProfiles,
-  );
+  const model =
+    codex?.model === null
+      ? undefined
+      : resolveCapabilityModel(
+          codex?.model,
+          agent.source.capability,
+          "codex",
+          config.capabilityProfiles,
+        );
   if (model) lines.push(`model = ${tomlQuote(model)}`);
 
   if (codex) {

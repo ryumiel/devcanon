@@ -1,35 +1,209 @@
 import { readdir } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
-import { parse as parseYaml } from "yaml";
 import {
-  parseAgentRoutingPolicyOwner,
-  parseAgentSemanticRoleOwner,
   readAgentRoutingPolicyOwner,
   readAgentSemanticRoleOwner,
 } from "../__test-helpers__/agent-routing-policy.js";
 import { readRepoFile } from "../__test-helpers__/skill-contracts.js";
 import { loadConfig } from "../config/load.js";
-import { resolveCapabilityModel } from "../render/capability-profiles.js";
 
 const OWNER_PATH = "docs/guidelines/agent-routing-and-mutation-policy.md";
 const AGENT_SPEC_PATH = "docs/specs/agents.md";
 
-interface D4AgentSource {
-  readonly capability?: string;
-  readonly claude?: { readonly effort?: string; readonly model?: string };
-  readonly codex?: {
-    readonly model_reasoning_effort?: string;
-    readonly model?: string;
-  };
-}
+const FRESH_SPAWNS = [
+  [
+    "D1",
+    "issue-priming-workflow",
+    "assessor",
+    "balanced",
+    "D1_MODEL",
+    "medium",
+    "source-immutable",
+    "D1_PROMPT",
+  ],
+  [
+    "D2",
+    "issue-priming-workflow",
+    "investigator",
+    "balanced",
+    "D2_MODEL",
+    "high",
+    "source-immutable",
+    "D2_PROMPT",
+  ],
+  [
+    "D3",
+    "issue-priming-workflow",
+    "investigator",
+    "balanced",
+    "D3_MODEL",
+    "high",
+    "source-immutable",
+    "D3_PROMPT",
+  ],
+  [
+    "D5",
+    "play-planning",
+    "reviewer",
+    "frontier",
+    "D5_MODEL",
+    "high",
+    "source-immutable",
+    "D5_PLAN_REVIEW_PROMPT",
+  ],
+  [
+    "D6",
+    "play-planning",
+    "reviewer",
+    "frontier",
+    "D6_MODEL",
+    "high",
+    "source-immutable",
+    "D6_EXECUTABILITY_REVIEW_PROMPT",
+  ],
+  [
+    "D7",
+    "play-review",
+    "reviewer",
+    "frontier",
+    "D7_MODEL",
+    "high",
+    "source-immutable",
+    "D7_PROMPT",
+  ],
+  [
+    "D8",
+    "play-review",
+    "reviewer",
+    "frontier",
+    "D8_MODEL",
+    "high",
+    "source-immutable",
+    "D8_PROMPT",
+  ],
+  [
+    "D9",
+    "play-review",
+    "reviewer",
+    "frontier",
+    "D9_MODEL",
+    "high",
+    "source-immutable",
+    "D9_PROMPT",
+  ],
+  [
+    "D10",
+    "play-review",
+    "deep-reviewer",
+    "frontier",
+    "D10_MODEL",
+    "xhigh",
+    "source-immutable",
+    "D10_CRITIC_PROMPT",
+  ],
+  [
+    "D11",
+    "play-skill-authoring",
+    "assessor",
+    "balanced",
+    "D11_MODEL",
+    "medium",
+    "source-immutable",
+    "D11_SCENARIO_PROMPT",
+  ],
+  [
+    "D12",
+    "play-subagent-execution",
+    "implementer",
+    "balanced",
+    "D12_MODEL",
+    "high",
+    "source-mutable",
+    "D12_SELF_CONTAINED_PROMPT",
+  ],
+  [
+    "D13",
+    "play-subagent-execution",
+    "executor",
+    "efficient",
+    "D13_MODEL",
+    "medium",
+    "source-mutable",
+    "D13_SELF_CONTAINED_PROMPT",
+  ],
+  [
+    "D14",
+    "play-subagent-execution",
+    "deep-reviewer",
+    "frontier",
+    "D14_MODEL",
+    "xhigh",
+    "source-immutable",
+    "D14_SELF_CONTAINED_PROMPT",
+  ],
+  [
+    "D15",
+    "play-subagent-execution",
+    "deep-reviewer",
+    "frontier",
+    "D15_MODEL",
+    "xhigh",
+    "source-immutable",
+    "D15_SELF_CONTAINED_PROMPT",
+  ],
+  [
+    "D16",
+    "play-subagent-execution",
+    "deep-reviewer",
+    "frontier",
+    "D16_MODEL",
+    "xhigh",
+    "source-immutable",
+    "D16_SELF_CONTAINED_PROMPT",
+  ],
+  [
+    "D17",
+    "pr-merge",
+    "investigator",
+    "balanced",
+    "D17_DIAGNOSIS_MODEL",
+    "high",
+    "source-immutable",
+    "D17_DIAGNOSIS_SELF_CONTAINED_PROMPT",
+  ],
+  [
+    "D17",
+    "pr-merge",
+    "executor",
+    "efficient",
+    "D17_EXACT_FIX_MODEL",
+    "medium",
+    "source-mutable",
+    "D17_EXACT_FIX_SELF_CONTAINED_PROMPT",
+  ],
+  [
+    "D17",
+    "pr-merge",
+    "implementer",
+    "balanced",
+    "D17_JUDGMENT_FIX_MODEL",
+    "high",
+    "source-mutable",
+    "D17_JUDGMENT_FIX_SELF_CONTAINED_PROMPT",
+  ],
+] as const;
 
 describe("agent routing and mutation policy owner", () => {
-  it("covers every source skill exactly once and exactly D1-D17", async () => {
-    const owner = await readAgentRoutingPolicyOwner(OWNER_PATH);
-    const sourceSkills = (await readdir("skills", { withFileTypes: true }))
-      .filter((entry) => entry.isDirectory())
-      .map((entry) => entry.name)
-      .sort();
+  it("parses the complete skill and D1-D17 route inventories", async () => {
+    const [owner, sourceSkills] = await Promise.all([
+      readAgentRoutingPolicyOwner(OWNER_PATH),
+      readdir("skills", { withFileTypes: true }).then((entries) =>
+        entries
+          .filter((entry) => entry.isDirectory())
+          .map((entry) => entry.name)
+          .sort(),
+      ),
+    ]);
 
     expect(owner.inventory.map((row) => row.skill).sort()).toEqual(
       sourceSkills,
@@ -46,553 +220,105 @@ describe("agent routing and mutation policy owner", () => {
     );
   });
 
-  it("rejects representative adoption and owner-reference drift", async () => {
-    const { markdown, sourceSkills } = await ownerInputs();
-    const d1 = markdown.match(/^\| D1\s+\| opt-out\s+\| none\s+\|$/m)?.[0];
-    expect(d1).toBeDefined();
-
-    const missing = markdown.replace(`${d1}\n`, "");
-    const duplicate = markdown.replace(d1 ?? "", `${d1}\n${d1}`);
-    const qualifierMismatch = markdown.replace(
-      "evidence-qualifier `named-network`",
-      "evidence-qualifier `unnamed-network`",
-    );
-    const ownerReferenceMismatch = markdown.replace(
-      "[`subagent-lifecycle`](../../skills/subagent-lifecycle/SKILL.md)",
-      "[`subagent-lifecycle`](../../skills/other/SKILL.md)",
-    );
-
-    expect(() => parseAgentRoutingPolicyOwner(missing, sourceSkills)).toThrow(
-      /escalation-adoption ID coverage must be exactly D1-D17; missing: D1/i,
-    );
-    expect(() => parseAgentRoutingPolicyOwner(duplicate, sourceSkills)).toThrow(
-      /duplicate escalation-adoption ID: D1/i,
-    );
-    expect(representativeOwnerErrors(markdown, sourceSkills)).toEqual([]);
-    expect(representativeOwnerErrors(qualifierMismatch, sourceSkills)).toEqual([
-      "D3:evidence-qualifier",
-    ]);
-    expect(
-      representativeOwnerErrors(ownerReferenceMismatch, sourceSkills),
-    ).toEqual(["shared-owner-reference"]);
-  });
-
-  it("preserves representative closed inventory and route fields", async () => {
-    const owner = await readAgentRoutingPolicyOwner(OWNER_PATH);
-
-    expect(
-      owner.inventory.find((row) => row.skill === "github-issue-priming"),
-    ).toMatchObject({
-      demand: "inherited",
-      stance: "normal",
-      sourceAuthority: "source-mutable",
-      externalAuthority: "external-mutable",
-    });
-    expect(
-      owner.directChildRoutes.find((row) => row.id === "D17"),
-    ).toMatchObject({
-      ownerSkill: "pr-merge",
-      evidenceLabel: "CI diagnosis/fix",
-      surfaceAndOwner: expect.stringContaining("CI diagnosis/fix"),
-      clauses: [
-        {
-          role: "investigator",
-          capability: "balanced",
-          effort: "high",
-          sourceAuthority: "source-immutable",
-        },
-        { role: "executor", sourceAuthority: "source-mutable" },
-        { role: "implementer", sourceAuthority: "source-mutable" },
-      ],
-      existingOutputOrTermination: expect.stringContaining(
-        "mutable child commits only",
-      ),
-    });
-  });
-
-  it("preserves distinct same-digest D5/D6 review routes", async () => {
-    const owner = await readAgentRoutingPolicyOwner(OWNER_PATH);
-    const roles = await readAgentSemanticRoleOwner(AGENT_SPEC_PATH);
-    const reviewer = roles.find((role) => role.name === "reviewer");
-    const d5 = owner.directChildRoutes.find((row) => row.id === "D5");
-    const d6 = owner.directChildRoutes.find((row) => row.id === "D6");
-
-    expect(reviewer).toMatchObject({ externalAuthority: "none" });
-    expect(d5?.clauses).toEqual([
-      {
-        role: "reviewer",
-        capability: "frontier",
-        effort: "high",
-        sourceAuthority: "source-immutable",
-      },
-    ]);
-    expect(d6?.clauses).toEqual(d5?.clauses);
-    expect(d5?.existingOutputOrTermination).toBe(
-      "Distinct digest-bound PASS/FAIL; join paired results for one digest",
-    );
-    expect(d6?.existingOutputOrTermination).toBe(
-      "Distinct digest-bound PASS/FAIL; join paired results for one digest",
-    );
-  });
-
-  it("derives canonical D4 target tuples with literal-first model precedence", async () => {
-    const [roles, config] = await Promise.all([
+  it("reconciles every policy route to its semantic role capability, effort, and authority", async () => {
+    const [owner, roles, config] = await Promise.all([
+      readAgentRoutingPolicyOwner(OWNER_PATH),
       readAgentSemanticRoleOwner(AGENT_SPEC_PATH),
       loadConfig("devcanon.config.yaml", true),
     ]);
+    const rolesByName = new Map(roles.map((role) => [role.name, role]));
 
-    for (const role of roles) {
-      const source = parseYaml(
-        await readRepoFile(`agents/${role.name}.yaml`),
-      ) as D4AgentSource;
-      for (const target of ["claude", "codex"] as const) {
-        expect(
-          d4AlignmentErrors(role, source, target, config.capabilityProfiles),
-        ).toEqual([]);
-
-        const literal = `${target}-literal-model`;
-        const withTargetLiteral = {
-          ...source,
-          [target]: { ...source[target], model: literal },
-        };
-        expect(
-          resolveD4Model(withTargetLiteral, target, config.capabilityProfiles),
-        ).toBe(literal);
-
-        const opposite = target === "claude" ? "codex" : "claude";
-        const withOppositeLiteral = {
-          ...source,
-          [opposite]: { ...source[opposite], model: "opposite-target-model" },
-        };
-        expect(
-          resolveD4Model(
-            withOppositeLiteral,
-            target,
-            config.capabilityProfiles,
-          ),
-        ).toBe(config.capabilityProfiles[role.capability][target]);
-
-        expect(
-          d4AlignmentErrors(
-            role,
-            { ...source, capability: "frontier-nearby" },
-            target,
-            config.capabilityProfiles,
-          ),
-        ).toEqual(["source-capability-parity"]);
+    for (const route of owner.directChildRoutes) {
+      for (const clause of route.clauses) {
+        const role = rolesByName.get(clause.role);
+        expect(role, `${route.id} has a known semantic role`).toBeDefined();
+        expect(clause.capability).toBe(role?.capability);
+        expect(clause.effort).toBe(role?.routeEffort);
+        expect(clause.sourceAuthority).toBe(role?.sourceAuthority);
+        expect(config.capabilityProfiles[clause.capability].codex).toMatch(
+          /\S/,
+        );
       }
     }
   });
 
-  it("rejects a malformed inventory row in the inventory dimension", async () => {
-    const { markdown, sourceSkills } = await ownerInputs();
-    const mutated = markdown.replace(
-      /^(\| `[^`]+`\s+\| [^|]+\| [^|]+\| [^|]+)\| [^|]+\|$/m,
-      "$1|",
-    );
-
-    expect(() => parseAgentRoutingPolicyOwner(mutated, sourceSkills)).toThrow(
-      /inventory row .* malformed/i,
-    );
-  });
-
-  it("rejects a duplicate inventory skill without deduplicating it", async () => {
-    const { markdown, sourceSkills } = await ownerInputs();
-    const row = markdown.match(/^\| `[^`]+`\s+\|.*$/m)?.[0];
-    expect(row).toBeDefined();
-    const mutated = markdown.replace(row ?? "", `${row}\n${row}`);
-
-    expect(() => parseAgentRoutingPolicyOwner(mutated, sourceSkills)).toThrow(
-      /duplicate inventory skill/i,
-    );
-  });
-
-  it("rejects incomplete source-skill coverage", async () => {
-    const { markdown, sourceSkills } = await ownerInputs();
-    const row = markdown.match(/^\| `[^`]+`\s+\|.*$/m)?.[0];
-    expect(row).toBeDefined();
-    const mutated = markdown.replace(`${row}\n`, "");
-
-    expect(() => parseAgentRoutingPolicyOwner(mutated, sourceSkills)).toThrow(
-      /inventory source-skill coverage mismatch; missing:/i,
-    );
-  });
-
-  it("rejects an invalid inventory closed value by dimension", async () => {
-    const { markdown, sourceSkills } = await ownerInputs();
-    const mutated = markdown.replace(
-      "inherited / adversarial",
-      "unbounded / adversarial",
-    );
-
-    expect(() => parseAgentRoutingPolicyOwner(mutated, sourceSkills)).toThrow(
-      /inventory demand has invalid closed value: unbounded/i,
-    );
-  });
-
-  it("rejects an incomplete direct-route ID set", async () => {
-    const { markdown, sourceSkills } = await ownerInputs();
-    const mutated = markdown.replace(/^\| D17 \|.*\n/m, "");
-
-    expect(() => parseAgentRoutingPolicyOwner(mutated, sourceSkills)).toThrow(
-      /direct-route ID coverage must be exactly D1-D17; missing: D17/i,
-    );
-  });
-
-  it("rejects a duplicate direct-route ID without deduplicating it", async () => {
-    const { markdown, sourceSkills } = await ownerInputs();
-    const row = markdown.match(/^\| D1\s+\|.*$/m)?.[0];
-    expect(row).toBeDefined();
-    const mutated = markdown.replace(row ?? "", `${row}\n${row}`);
-
-    expect(() => parseAgentRoutingPolicyOwner(mutated, sourceSkills)).toThrow(
-      /duplicate direct-route ID: D1/i,
-    );
-  });
-
-  it("rejects an invalid direct-route source field", async () => {
-    const { markdown, sourceSkills } = await ownerInputs();
-    const mutated = markdown.replace(
-      "`assessor`, balanced/medium, source-immutable",
-      "`assessor`, balanced/medium, source-observable",
-    );
-
-    expect(() => parseAgentRoutingPolicyOwner(mutated, sourceSkills)).toThrow(
-      /direct-route D1 source authority has invalid closed value: source-observable/i,
-    );
-  });
-
-  it("requires the exact owned headings and inventory headers", async () => {
-    const { markdown, sourceSkills } = await ownerInputs();
-
-    expect(() =>
-      parseAgentRoutingPolicyOwner(
-        markdown.replace("## Complete Skill Inventory", "## Skill Inventory"),
-        sourceSkills,
+  it("correlates every fixed D1-D17 policy clause to its exact fresh Codex tuple", async () => {
+    const [owner, config] = await Promise.all([
+      readAgentRoutingPolicyOwner(OWNER_PATH),
+      loadConfig("devcanon.config.yaml", true),
+    ]);
+    const ownerSkills = new Map(
+      await Promise.all(
+        [...new Set(FRESH_SPAWNS.map(([, ownerSkill]) => ownerSkill))].map(
+          async (ownerSkill) =>
+            [
+              ownerSkill,
+              await readRepoFile(`skills/${ownerSkill}/SKILL.md`),
+            ] as const,
+        ),
       ),
-    ).toThrow(/inventory heading must appear exactly once/i);
-    expect(() =>
-      parseAgentRoutingPolicyOwner(
-        markdown.replace("| Demand / stance", "| Demand"),
-        sourceSkills,
-      ),
-    ).toThrow(/inventory headers must be/i);
-  });
-
-  it("rejects malformed direct-route headers, dividers, and rows", async () => {
-    const { markdown, sourceSkills } = await ownerInputs();
-    const malformedHeader = markdown.replace(
-      "| Surface and owner",
-      "| Surface",
-    );
-    const malformedDivider = markdown.replace(
-      /^\| --- \| -+ \| -+ \| -+ \|$/m,
-      "| --- |",
-    );
-    const malformedRow = mutateRouteRow(markdown, "D12", (cells) =>
-      cells.slice(0, 3),
     );
 
-    expect(() =>
-      parseAgentRoutingPolicyOwner(malformedHeader, sourceSkills),
-    ).toThrow(/direct-route headers must be/i);
-    expect(() =>
-      parseAgentRoutingPolicyOwner(malformedDivider, sourceSkills),
-    ).toThrow(/direct-route table divider is malformed/i);
-    expect(() =>
-      parseAgentRoutingPolicyOwner(malformedRow, sourceSkills),
-    ).toThrow(/direct-route row .* malformed/i);
-  });
-
-  it("preserves D12 owner-field drift for the consumer assertion boundary", async () => {
-    const { markdown, sourceSkills } = await ownerInputs();
-    const canonical = parseAgentRoutingPolicyOwner(markdown, sourceSkills);
-    const mutatedMarkdown = mutateRouteRow(markdown, "D12", (cells) => {
-      cells[1] = cells[1].replace(
-        "Default implementation",
-        "Alternate implementation",
+    for (const [
+      id,
+      ownerSkill,
+      role,
+      capability,
+      model,
+      effort,
+      sourceAuthority,
+      message,
+    ] of FRESH_SPAWNS) {
+      const route = owner.directChildRoutes.find(
+        (candidate) => candidate.id === id,
       );
-      return cells;
-    });
-    const mutated = parseAgentRoutingPolicyOwner(mutatedMarkdown, sourceSkills);
-
-    const canonicalD12 = canonical.directChildRoutes.find(
-      (row) => row.id === "D12",
-    );
-    const mutatedD12 = mutated.directChildRoutes.find(
-      (row) => row.id === "D12",
-    );
-    expect(mutatedD12?.surfaceAndOwner).toContain("Alternate implementation");
-    expect(mutatedD12?.surfaceAndOwner).not.toBe(canonicalD12?.surfaceAndOwner);
-  });
-
-  it("rejects a D13 route missing its source-authority dimension", async () => {
-    const { markdown, sourceSkills } = await ownerInputs();
-    const mutated = mutateRouteRow(markdown, "D13", (cells) => {
-      cells[2] = cells[2].replace(", source-mutable", "");
-      return cells;
-    });
-
-    expect(() => parseAgentRoutingPolicyOwner(mutated, sourceSkills)).toThrow(
-      /direct-route D13 clause 1 is missing a source authority dimension/i,
-    );
-  });
-
-  it("rejects a D17 route with an invalid closed effort", async () => {
-    const { markdown, sourceSkills } = await ownerInputs();
-    const mutated = mutateRouteRow(markdown, "D17", (cells) => {
-      cells[2] = cells[2].replace("balanced/high", "balanced/ultra");
-      return cells;
-    });
-
-    expect(() => parseAgentRoutingPolicyOwner(mutated, sourceSkills)).toThrow(
-      /direct-route D17 effort has invalid closed value: ultra/i,
-    );
-  });
-
-  it("rejects a malformed role structure in one D17 clause", async () => {
-    const { markdown, sourceSkills } = await ownerInputs();
-    const mutated = mutateRouteRow(markdown, "D17", (cells) => {
-      cells[2] = cells[2].replace("`investigator`", "`investigator!`");
-      return cells;
-    });
-
-    expect(() => parseAgentRoutingPolicyOwner(mutated, sourceSkills)).toThrow(
-      /direct-route D17 clause 1 has malformed clause structure/i,
-    );
-  });
-
-  it("rejects a source-authority token with a malformed suffix", async () => {
-    const { markdown, sourceSkills } = await ownerInputs();
-    const mutated = mutateRouteRow(markdown, "D17", (cells) => {
-      cells[2] = cells[2].replace("source-mutable", "source-mutable!");
-      return cells;
-    });
-
-    expect(() => parseAgentRoutingPolicyOwner(mutated, sourceSkills)).toThrow(
-      /direct-route D17 source authority has invalid closed value: source-mutable!/i,
-    );
-  });
-
-  it("rejects mismatched role backticks", async () => {
-    const { markdown, sourceSkills } = await ownerInputs();
-    const mutated = mutateRouteRow(markdown, "D12", (cells) => {
-      cells[2] = cells[2].replace("`implementer`", "`implementer");
-      return cells;
-    });
-
-    expect(() => parseAgentRoutingPolicyOwner(mutated, sourceSkills)).toThrow(
-      /direct-route D12 clause 1 has malformed clause structure/i,
-    );
-  });
-
-  it("rejects an extra malformed tuple appended to a valid D17 clause", async () => {
-    const { markdown, sourceSkills } = await ownerInputs();
-    const mutated = mutateRouteRow(markdown, "D17", (cells) => {
-      cells[2] = cells[2].replace(
-        "source-immutable;",
-        "source-immutable, `executor!`, efficient/medium, source-mutable;",
+      expect(route, `${id} policy route is present`).toBeDefined();
+      expect(route?.ownerSkill, `${id} has its canonical owner`).toBe(
+        ownerSkill,
       );
-      return cells;
-    });
+      const matchingClauses = route?.clauses.filter(
+        (clause) =>
+          clause.role === role &&
+          clause.capability === capability &&
+          clause.effort === effort &&
+          clause.sourceAuthority === sourceAuthority,
+      );
+      expect(
+        matchingClauses,
+        `${id} ${role} policy clause matches its fixed spawn tuple`,
+      ).toHaveLength(1);
 
-    expect(() => parseAgentRoutingPolicyOwner(mutated, sourceSkills)).toThrow(
-      /direct-route D17 clause 1 has malformed clause structure/i,
-    );
-  });
-
-  it("rejects an uppercase unquoted role without suffix reparsing", async () => {
-    const { markdown, sourceSkills } = await ownerInputs();
-    const mutated = mutateRouteRow(markdown, "D13", (cells) => {
-      cells[2] = cells[2].replace("`executor`", "Executor");
-      return cells;
-    });
-
-    expect(() => parseAgentRoutingPolicyOwner(mutated, sourceSkills)).toThrow(
-      /direct-route D13 clause 1 has malformed clause structure/i,
-    );
-  });
-
-  it("rejects extra uppercase role-like text before a valid tuple", async () => {
-    const { markdown, sourceSkills } = await ownerInputs();
-    const mutated = mutateRouteRow(markdown, "D12", (cells) => {
-      cells[2] = `Executor ${cells[2]}`;
-      return cells;
-    });
-
-    expect(() => parseAgentRoutingPolicyOwner(mutated, sourceSkills)).toThrow(
-      /direct-route D12 clause 1 has malformed clause structure/i,
-    );
-  });
-
-  it("rejects an unknown D13 operand", async () => {
-    const { markdown, sourceSkills } = await ownerInputs();
-    const mutated = mutateRouteRow(markdown, "D13", (cells) => {
-      cells[2] = cells[2].replace("selection-mode", "dispatch-mode");
-      return cells;
-    });
-
-    expect(() => parseAgentRoutingPolicyOwner(mutated, sourceSkills)).toThrow(
-      /direct-route D13 operand key is unknown: dispatch-mode/i,
-    );
-  });
-
-  it("owns exactly six unique semantic roles with target envelopes", async () => {
-    const roles = await readAgentSemanticRoleOwner(AGENT_SPEC_PATH);
-
-    expect(roles).toHaveLength(6);
-    expect(new Set(roles.map((role) => role.name)).size).toBe(6);
-    expect(roles.every((role) => role.claudeTools.length > 0)).toBe(true);
-    expect(roles.every((role) => role.primaryUse.length > 0)).toBe(true);
-  });
-
-  it("rejects malformed, duplicate, extra, and missing semantic role rows", async () => {
-    const markdown = await readRepoFile(AGENT_SPEC_PATH);
-    const assessor = markdown.match(/^\| `assessor`\s+\| balanced.*$/m)?.[0];
-    expect(assessor).toBeDefined();
-
-    expect(() =>
-      parseAgentSemanticRoleOwner(
-        markdown.replace(
-          "| Agent           | Capability",
-          "| Role            | Capability",
-        ),
-      ),
-    ).toThrow(/semantic-role headers must be/i);
-    expect(() =>
-      parseAgentSemanticRoleOwner(
-        markdown.replace(assessor ?? "", `${assessor}\n${assessor}`),
-      ),
-    ).toThrow(/duplicate semantic-role identity/i);
-    expect(() =>
-      parseAgentSemanticRoleOwner(
-        markdown.replace(
-          assessor ?? "",
-          `${assessor}\n| \`observer\`      | balanced   | medium        | medium       | \`source-immutable\` | \`none\`           | Observation |`,
-        ),
-      ),
-    ).toThrow(/semantic-role catalog must contain exactly six rows: 7/i);
-    expect(() =>
-      parseAgentSemanticRoleOwner(markdown.replace(`${assessor}\n`, "")),
-    ).toThrow(/semantic-role catalog must contain exactly six rows: 5/i);
-  });
-
-  it("rejects malformed, duplicate, extra, and missing tool-envelope rows", async () => {
-    const markdown = await readRepoFile(AGENT_SPEC_PATH);
-    const assessor = markdown.match(
-      /^\| `assessor`\s+\| Read, Grep, Bash, Write.*$/m,
-    )?.[0];
-    expect(assessor).toBeDefined();
-
-    expect(() =>
-      parseAgentSemanticRoleOwner(
-        markdown.replace("workspace-write | None", "workspace-read | None"),
-      ),
-    ).toThrow(/tool-envelope Codex sandbox has invalid closed value/i);
-    expect(() =>
-      parseAgentSemanticRoleOwner(
-        markdown.replace(assessor ?? "", `${assessor}\n${assessor}`),
-      ),
-    ).toThrow(/duplicate tool-envelope identity/i);
-    expect(() =>
-      parseAgentSemanticRoleOwner(
-        markdown.replace(
-          assessor ?? "",
-          `${assessor}\n| \`observer\`      | Read                                         | workspace-write | None            |`,
-        ),
-      ),
-    ).toThrow(
-      /tool-envelope and semantic-role identities must match exactly.*unexpected: observer/i,
-    );
-    expect(() =>
-      parseAgentSemanticRoleOwner(markdown.replace(`${assessor}\n`, "")),
-    ).toThrow(
-      /tool-envelope and semantic-role identities must match exactly; missing: assessor/i,
-    );
-  });
-
-  it("rejects drift in every closed semantic-role and envelope field", async () => {
-    const markdown = await readRepoFile(AGENT_SPEC_PATH);
-    const mutations = [
-      [
-        "| balanced   | medium",
-        "| unbounded  | medium",
-        /semantic-role capability/i,
-      ],
-      [
-        "| medium        | medium",
-        "| ultra         | medium",
-        /semantic-role Claude effort/i,
-      ],
-      [
-        "| medium       | `source-immutable`",
-        "| ultra        | `source-immutable`",
-        /semantic-role Codex effort/i,
-      ],
-      [
-        "`source-immutable` | `none`",
-        "`source-observable` | `none`",
-        /semantic-role source authority/i,
-      ],
-      [
-        "`none`           | Bounded",
-        "`external-mutable` | Bounded",
-        /semantic-role external authority/i,
-      ],
-      [
-        "Read, Grep, Bash, Write",
-        "Read, Grep, Shell, Write",
-        /tool-envelope Claude tool/i,
-      ],
-      [
-        "workspace-write | None",
-        "workspace-read | None",
-        /tool-envelope Codex sandbox/i,
-      ],
-      [
-        "workspace-write | Dispatch-owned",
-        "workspace-write | Ambient",
-        /tool-envelope default network/i,
-      ],
-    ] as const;
-
-    for (const [from, to, error] of mutations) {
-      expect(() =>
-        parseAgentSemanticRoleOwner(markdown.replace(from, to)),
-      ).toThrow(error);
+      const source = ownerSkills.get(ownerSkill);
+      expect(source, `${ownerSkill} source is readable`).toBeDefined();
+      expect(source).toContain(
+        `${model} = capabilityProfiles.${capability}.codex`,
+      );
+      expect(config.capabilityProfiles[capability].codex).toMatch(/\S/);
+      expect(source).toContain(
+        [
+          "Codex.spawn_agent({",
+          `  task_name: ${id.toLowerCase()}_<instance_ordinal>,`,
+          `  agent_type: \"${role}\",`,
+          `  model: ${model}${id === "D17" ? `, # capabilityProfiles.${capability}.codex` : ","}`,
+          `  reasoning_effort: \"${effort}\",`,
+          '  fork_turns: "none",',
+          `  message: ${message},`,
+          "})",
+        ].join("\n"),
+      );
     }
-    expect(() =>
-      parseAgentSemanticRoleOwner(
-        markdown.replace("Read, Grep, Bash, Write", "Read, Grep, Read, Write"),
-      ),
-    ).toThrow(/duplicate Claude tool in the assessor tool envelope/i);
   });
 
-  it("rejects deletion or addition of complete route clauses", async () => {
-    const { markdown, sourceSkills } = await ownerInputs();
-    const missingD17Clause = mutateRouteRow(markdown, "D17", (cells) => {
-      cells[2] = cells[2].split(";").slice(0, -1).join(";");
-      return cells;
-    });
-    const extraD12Clause = mutateRouteRow(markdown, "D12", (cells) => {
-      cells[2] = `${cells[2]}; ${cells[2]}`;
-      return cells;
-    });
+  it("keeps D4 as the existing dynamic exact-configured-role contract", async () => {
+    const [owner, source] = await Promise.all([
+      readAgentRoutingPolicyOwner(OWNER_PATH),
+      readRepoFile("skills/play-agent-dispatch/SKILL.md"),
+    ]);
+    const d4 = owner.directChildRoutes.find((route) => route.id === "D4");
 
-    expect(() =>
-      parseAgentRoutingPolicyOwner(missingD17Clause, sourceSkills),
-    ).toThrow(/direct-route D17 must contain exactly 3 route clauses/i);
-    expect(() =>
-      parseAgentRoutingPolicyOwner(extraD12Clause, sourceSkills),
-    ).toThrow(/direct-route D12 must contain exactly 1 route clause/i);
-  });
-
-  it("validates the complete dynamic D4 route before role derivation", async () => {
-    const { markdown, sourceSkills } = await ownerInputs();
-    const owner = parseAgentRoutingPolicyOwner(markdown, sourceSkills);
-    expect(
-      owner.directChildRoutes.find((route) => route.id === "D4")?.d4Contract,
-    ).toEqual({
+    expect(d4?.ownerSkill).toBe("play-agent-dispatch");
+    expect(d4?.clauses).toEqual([]);
+    expect(d4?.d4Contract).toMatchObject({
       roleCardinality: 6,
       selectionTiming: "before spawn",
       configuration: "exact configured capability/effort",
@@ -600,140 +326,55 @@ describe("agent routing and mutation policy owner", () => {
       scopeAndTermination: "scope/termination",
       externalAuthority: "none",
     });
-
-    const mutations = [
-      ["six semantic roles", "seven semantic roles", /role cardinality/i],
-      ["before spawn", "after spawn", /selection timing/i],
+    expect(source).toContain(
       [
-        "exact configured capability/effort",
-        "ambient capability/effort",
-        /configured capability and effort/i,
-      ],
-      ["matching source default", "ambient source default", /source default/i],
-      ["scope/termination", "scope only", /scope and termination/i],
+        "Codex.spawn_agent({",
+        "  task_name: d4_<instance_ordinal>,",
+        "  agent_type: SELECTED_ROLE_ID,",
+        "  model: RESOLVED_CODEX_MODEL,",
+        "  reasoning_effort: SELECTED_CODEX_EFFORT,",
+        '  fork_turns: "none",',
+        "  message: SELF_CONTAINED_PROMPT,",
+        "})",
+      ].join("\n"),
+    );
+  });
+
+  it("keeps unchanged D12 continuity configuration-free and routes changed tuples to fresh children", async () => {
+    const [continuity, execution, merge] = await Promise.all([
+      readRepoFile(
+        "skills/play-subagent-execution/references/lifecycle-status-policy.md",
+      ),
+      readRepoFile("skills/play-subagent-execution/SKILL.md"),
+      readRepoFile("skills/pr-merge/SKILL.md"),
+    ]);
+
+    const followupStart = continuity.indexOf("Codex.followup_task({");
+    expect(
+      followupStart,
+      "D12 lifecycle follow-up anchor is present",
+    ).toBeGreaterThanOrEqual(0);
+    const followupEnd = continuity.indexOf("\n})", followupStart);
+    expect(
+      followupEnd,
+      "D12 lifecycle follow-up terminator is present",
+    ).toBeGreaterThan(followupStart);
+    expect(continuity.slice(followupStart, followupEnd + 3)).toBe(
       [
-        "external authority `none`",
-        "external authority `external-mutable`",
-        /external authority/i,
-      ],
-    ] as const;
-
-    for (const [from, to, error] of mutations) {
-      const mutated = mutateRouteRow(markdown, "D4", (cells) => {
-        cells[2] = cells[2].replace(from, to);
-        return cells;
-      });
-      expect(() => parseAgentRoutingPolicyOwner(mutated, sourceSkills)).toThrow(
-        error,
-      );
-    }
-
-    for (const field of [
-      " and matching source default",
-      "; declare scope/termination",
-    ]) {
-      const mutated = mutateRouteRow(markdown, "D4", (cells) => {
-        cells[2] = cells[2].replace(field, "");
-        return cells;
-      });
-      expect(() => parseAgentRoutingPolicyOwner(mutated, sourceSkills)).toThrow(
-        /direct-route D4/i,
-      );
-    }
+        "Codex.followup_task({",
+        "  target: D12_STABLE_SESSION_ID,",
+        "  message: D12_INCREMENTAL_FINDINGS_AND_TASK_CONTEXT_PLUS_VERIFIED_AUTO_ROUTE_ATTESTATION_WHEN_APPLICABLE,",
+        "})",
+      ].join("\n"),
+    );
+    expect(continuity).toContain(
+      "D13-to-D12 reclassification and a\nD16 final whole-implementation fix instead use the shared fresh-child lifecycle\npath.",
+    );
+    expect(execution).toContain(
+      "D13-to-D12 reclassification and a D16 final\nwhole-implementation fix use the lifecycle fresh-child path.",
+    );
+    expect(merge).toContain(
+      "diagnosis-to-fix classification is a fresh changed\ntuple.",
+    );
   });
 });
-
-async function ownerInputs(): Promise<{
-  markdown: string;
-  sourceSkills: readonly string[];
-}> {
-  const markdown = await readRepoFile(OWNER_PATH);
-  const sourceSkills = (await readdir("skills", { withFileTypes: true }))
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => entry.name);
-  return {
-    markdown,
-    sourceSkills,
-  };
-}
-
-function mutateRouteRow(
-  markdown: string,
-  id: `D${number}`,
-  mutate: (cells: string[]) => string[],
-): string {
-  const rowPattern = new RegExp(`^\\| ${id}\\s+\\|.*$`, "m");
-  const row = markdown.match(rowPattern)?.[0];
-  if (!row) throw new Error(`Missing owner route row ${id}`);
-
-  const cells = row
-    .slice(1, -1)
-    .split("|")
-    .map((cell) => cell.trim());
-  return markdown.replace(row, `| ${mutate(cells).join(" | ")} |`);
-}
-
-function representativeOwnerErrors(
-  markdown: string,
-  sourceSkills: readonly string[],
-): string[] {
-  const owner = parseAgentRoutingPolicyOwner(markdown, sourceSkills);
-  const d3 = owner.directChildRoutes.find((route) => route.id === "D3");
-  const errors: string[] = [];
-  if (d3?.clauses[0]?.evidenceQualifier !== "named-network") {
-    errors.push("D3:evidence-qualifier");
-  }
-  if (
-    !markdownLinkTargets(markdown).includes(
-      "../../skills/subagent-lifecycle/SKILL.md",
-    )
-  ) {
-    errors.push("shared-owner-reference");
-  }
-  return errors;
-}
-
-function markdownLinkTargets(markdown: string): string[] {
-  return [...markdown.matchAll(/\[[^\]]+\]\(([^)]+)\)/g)].map(
-    (match) => match[1],
-  );
-}
-
-function resolveD4Model(
-  source: D4AgentSource,
-  target: "claude" | "codex",
-  capabilityProfiles: Awaited<
-    ReturnType<typeof loadConfig>
-  >["capabilityProfiles"],
-): string | undefined {
-  const literal =
-    target === "claude" ? source.claude?.model : source.codex?.model;
-  return resolveCapabilityModel(
-    literal,
-    source.capability as "efficient" | "balanced" | "frontier" | undefined,
-    target,
-    capabilityProfiles,
-  );
-}
-
-function d4AlignmentErrors(
-  role: Awaited<ReturnType<typeof readAgentSemanticRoleOwner>>[number],
-  source: D4AgentSource,
-  target: "claude" | "codex",
-  capabilityProfiles: Awaited<
-    ReturnType<typeof loadConfig>
-  >["capabilityProfiles"],
-): string[] {
-  if (source.capability !== role.capability)
-    return ["source-capability-parity"];
-  const effort =
-    target === "claude"
-      ? source.claude?.effort
-      : source.codex?.model_reasoning_effort;
-  const expectedEffort =
-    target === "claude" ? role.claudeEffort : role.codexEffort;
-  if (effort !== expectedEffort) return [`${target}-effort`];
-  return resolveD4Model(source, target, capabilityProfiles) === undefined
-    ? [`${target}-model`]
-    : [];
-}

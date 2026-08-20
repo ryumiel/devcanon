@@ -15,7 +15,7 @@ const ROUTE_HEADERS = [
   "ID",
   "Surface and owner",
   "Route",
-  "Existing output / termination",
+  "Source-owner locator / summary (non-authoritative)",
 ] as const;
 const ESCALATION_ADOPTION_HEADERS = [
   "ID",
@@ -27,7 +27,7 @@ const SEMANTIC_ROLE_HEADERS = [
   "Agent",
   "Capability",
   "Claude effort",
-  "Codex effort",
+  "Route effort",
   "Source default",
   "External default",
   "Primary use",
@@ -75,7 +75,7 @@ export interface AgentRoutingDirectChildRouteRow {
   readonly id: `D${number}`;
   readonly surfaceAndOwner: string;
   readonly route: string;
-  readonly existingOutputOrTermination: string;
+  readonly sourceOwnerLocatorOrSummary: string;
   readonly ownerSkill: string;
   readonly evidenceLabel: string;
   readonly evidenceLocator?: string;
@@ -120,7 +120,7 @@ export interface AgentSemanticRoleContract {
   readonly name: string;
   readonly capability: (typeof ROUTE_CAPABILITIES)[number];
   readonly claudeEffort: (typeof ROUTE_EFFORTS)[number];
-  readonly codexEffort: (typeof ROUTE_EFFORTS)[number];
+  readonly routeEffort: (typeof ROUTE_EFFORTS)[number];
   readonly sourceAuthority: SourceAuthority;
   readonly externalAuthority: "none";
   readonly primaryUse: string;
@@ -178,10 +178,10 @@ export function parseAgentSemanticRoleOwner(
       ROUTE_EFFORTS,
       "semantic-role Claude effort",
     ),
-    codexEffort: closedValue(
+    routeEffort: closedValue(
       row[3],
       ROUTE_EFFORTS,
-      "semantic-role Codex effort",
+      "semantic-role route effort",
     ),
     sourceAuthority: exactCodeClosedValue(
       row[4],
@@ -584,6 +584,11 @@ function parseRouteRow(
   const explicitOwners = [...ownerSurface.matchAll(/`([a-z][a-z0-9-]*)`/g)]
     .map((match) => match[1])
     .filter((name) => knownSkills.has(name));
+  if (explicitOwners.length > 1) {
+    throw new Error(
+      `Agent routing policy owner direct-route ${id} must resolve exactly one explicit owner skill`,
+    );
+  }
   const ownerSkill =
     explicitOwners.length === 1
       ? explicitOwners[0]
@@ -603,7 +608,7 @@ function parseRouteRow(
     id: id as `D${number}`,
     surfaceAndOwner: cells[1],
     route: cells[2],
-    existingOutputOrTermination: cells[3],
+    sourceOwnerLocatorOrSummary: cells[3],
     ownerSkill,
     evidenceLabel,
     evidenceLocator,

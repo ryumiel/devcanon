@@ -17,18 +17,21 @@ validated source-schema field.
 
 ### Agent model and effort mapping
 
-For each target, agent model selection follows one precedence chain:
+Claude target `model` is literal or absent: a literal emits as supplied; when
+absent, the shared resolver maps the top-level `capability` through
+`capabilityProfiles`, or leaves the field omitted when there is no capability.
 
-1. a literal model in the target block;
-2. the target model from the agent's top-level `capability` and the required
-   `capabilityProfiles` catalog;
-3. omission, leaving model choice to the target's ambient configuration.
-
-`src/render/capability-profiles.ts` owns this model-only resolution. It does not
-resolve effort. Claude `effort` and Codex `model_reasoning_effort` are emitted
-only when explicitly present in the corresponding target block; otherwise
-they remain omitted. Tools, sandbox, approval policy, context, authority,
-orchestration, retries, and escalation do not derive from capability.
+Codex target `model` is literal, absent, or explicit `null`: a literal emits as
+supplied; when absent, the shared resolver maps the top-level `capability`
+through `capabilityProfiles`, or leaves the field omitted when there is no
+capability; explicit `null` suppresses both capability resolution and model
+emission. `src/render/codex.ts` owns that explicit-null suppression, while
+`src/render/capability-profiles.ts` owns the shared literal/absent mapping.
+Neither resolver owns effort. Claude `effort` and Codex
+`model_reasoning_effort` are emitted only when explicitly present in the
+corresponding target block; otherwise they remain omitted. Tools, sandbox,
+approval policy, context, authority, orchestration, retries, and escalation do
+not derive from capability.
 
 Skills use the same catalog only through canonical model placeholders in prose
 and supported top-level override strings. Agent target `model` fields accept
