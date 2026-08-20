@@ -756,9 +756,9 @@ handoffs. Require the reviewer role capability to be `frontier`, every tuple
 field to be present, and the resolved model to be nonblank. Do not derive model
 or effort from the enclosing conversation, an ambient runtime, or an alias.
 
-Route model bindings: `D5_MODEL` resolves to `{{model:frontier}}` and
-`D6_MODEL` resolves to `{{model:frontier}}` from the configured frontier
-capability. Their independent effort remains `high`.
+Codex-only route bindings: `D5_MODEL` and `D6_MODEL` resolve from
+`capabilityProfiles.frontier.codex`. Target capability marker:
+`{{model:frontier}}`. Their independent effort remains `high`.
 
 Before capture, independently choose each route's `<instance_ordinal>` as the
 next positive base-10 integer not already used by a retained D5 or D6
@@ -781,6 +781,7 @@ After both complete tuples validate and both captures succeed, make exactly one
 fresh creation for each independent session:
 
 ```text
+# D5_MODEL = capabilityProfiles.frontier.codex
 Codex.spawn_agent({
   task_name: d5_<instance_ordinal>,
   agent_type: "reviewer",
@@ -789,6 +790,7 @@ Codex.spawn_agent({
   fork_turns: "none",
   message: D5_PLAN_REVIEW_PROMPT,
 })
+# D6_MODEL = capabilityProfiles.frontier.codex
 Codex.spawn_agent({
   task_name: d6_<instance_ordinal>,
   agent_type: "reviewer",

@@ -225,10 +225,12 @@ capability to be `balanced`, and require a nonblank resolved full model. Do not
 derive model or effort from conversation history, an ambient runtime, or an
 alias. Only after this validation, create exactly one fresh Codex child:
 
-Route model binding: `D1_MODEL` resolves to `{{model:balanced}}` from the
-configured balanced capability. The independent effort remains `medium`.
+Codex-only route binding: `D1_MODEL` resolves from
+`capabilityProfiles.balanced.codex`. Target capability marker:
+`{{model:balanced}}`. The independent effort remains `medium`.
 
 ```text
+# D1_MODEL = capabilityProfiles.balanced.codex
 Codex.spawn_agent({
   task_name: d1_<instance_ordinal>,
   agent_type: "assessor",
@@ -355,14 +357,15 @@ each to be nonblank, match `^[a-z0-9_]+$`, and be absent from all retained
 controller ledger task names. Keep scope and sibling identity in the existing
 ledger dimensions, not in `task_name`.
 
-Route model bindings: `D2_MODEL` resolves to `{{model:balanced}}` and
-`D3_MODEL` resolves to `{{model:balanced}}` from the configured balanced
-capability. Their independent effort remains `high`.
+Codex-only route bindings: `D2_MODEL` and `D3_MODEL` resolve from
+`capabilityProfiles.balanced.codex`. Target capability marker:
+`{{model:balanced}}`. Their independent effort remains `high`.
 
 Create each permitted leaf once and only in its selected route:
 
 ```text
 # D2 internal research
+# D2_MODEL = capabilityProfiles.balanced.codex
 Codex.spawn_agent({
   task_name: d2_<instance_ordinal>,
   agent_type: "investigator",
@@ -372,6 +375,7 @@ Codex.spawn_agent({
   message: D2_PROMPT,
 })
 # D3 external research
+# D3_MODEL = capabilityProfiles.balanced.codex
 Codex.spawn_agent({
   task_name: d3_<instance_ordinal>,
   agent_type: "investigator",

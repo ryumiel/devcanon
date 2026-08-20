@@ -182,8 +182,9 @@ rerun under separately authorized acceptance work.
 - ADR-0025 remains historical model-selection evidence. ADR-0026 remains the
   accepted owner of the model-only capability catalog and capability/effort
   independence.
-- Generated outputs remain disposable and neither source schemas nor rendered
-  target formats change because of this decision.
+- Generated outputs remain disposable. The agent source schema accepts an
+  explicit-null `codex.model` to suppress rendered model assignment despite a
+  capability; native TOML grammar and install boundaries remain unchanged.
 - No product requirement, extra behavior spec, root workflow, contribution
   policy, PR template, install/sync behavior, or external tracker lifecycle is
   introduced.

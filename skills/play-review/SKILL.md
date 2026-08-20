@@ -190,10 +190,9 @@ fresh-Codex tuple before its capture: `semantic_role: reviewer`;
 every tuple value, and nonblank resolved model; do not infer model or effort
 from an ambient runtime, alias, or inherited conversation.
 
-Route model bindings: `D7_MODEL` resolves to `{{model:frontier}}`, `D8_MODEL`
-resolves to `{{model:frontier}}`, and `D9_MODEL` resolves to
-`{{model:frontier}}` from the configured frontier capability. Their independent
-effort remains `high`.
+Codex-only route bindings: `D7_MODEL`, `D8_MODEL`, and `D9_MODEL` resolve from
+`capabilityProfiles.frontier.codex`. Target capability marker:
+`{{model:frontier}}`. Their independent effort remains `high`.
 
 Before capture, independently choose each selected route's
 `<instance_ordinal>` as the next positive base-10 integer not already used by a
@@ -215,6 +214,7 @@ each selected route:
 
 ```text
 # D7 Code-quality
+# D7_MODEL = capabilityProfiles.frontier.codex
 Codex.spawn_agent({
   task_name: d7_<instance_ordinal>,
   agent_type: "reviewer",
@@ -224,6 +224,7 @@ Codex.spawn_agent({
   message: D7_PROMPT,
 })
 # D8 Architecture
+# D8_MODEL = capabilityProfiles.frontier.codex
 Codex.spawn_agent({
   task_name: d8_<instance_ordinal>,
   agent_type: "reviewer",
@@ -233,6 +234,7 @@ Codex.spawn_agent({
   message: D8_PROMPT,
 })
 # D9 Spec
+# D9_MODEL = capabilityProfiles.frontier.codex
 Codex.spawn_agent({
   task_name: d9_<instance_ordinal>,
   agent_type: "reviewer",
@@ -476,13 +478,15 @@ completed and superseded rows, so do not reuse it. Resolve `task_name` as
 and be absent from all retained controller ledger task names. Keep critic and
 head identity in the existing ledger dimensions, not in `task_name`.
 
-Route model binding: `D10_MODEL` resolves to `{{model:frontier}}` from the
-configured frontier capability. The independent effort remains `xhigh`.
+Codex-only route binding: `D10_MODEL` resolves from
+`capabilityProfiles.frontier.codex`. Target capability marker:
+`{{model:frontier}}`. The independent effort remains `xhigh`.
 
 After validation and the existing capture, make exactly one fresh critic
 creation:
 
 ```text
+# D10_MODEL = capabilityProfiles.frontier.codex
 Codex.spawn_agent({
   task_name: d10_<instance_ordinal>,
   agent_type: "deep-reviewer",

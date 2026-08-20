@@ -215,15 +215,16 @@ authorized paths, collected CI evidence, response-only or mutable constraint,
 expected diagnosis/fix report, and the termination below. After validation and
 the existing lifecycle/capture gate, use the actual Codex fields:
 
-Route model bindings: `D17_DIAGNOSIS_MODEL` resolves to
-`{{model:balanced}}`; `D17_EXACT_FIX_MODEL` resolves to
-`{{model:efficient}}`; and `D17_JUDGMENT_FIX_MODEL` resolves to
-`{{model:balanced}}`. Each retains the independent effort declared in its
-classified route.
+Codex-only route bindings: `D17_DIAGNOSIS_MODEL` and
+`D17_JUDGMENT_FIX_MODEL` resolve from `capabilityProfiles.balanced.codex`;
+`D17_EXACT_FIX_MODEL` resolves from `capabilityProfiles.efficient.codex`.
+Target capability markers: `{{model:balanced}}` and `{{model:efficient}}`.
+Each retains the independent effort declared in its classified route.
 
 ```text
 # Diagnosis: source-immutable, response-only; output is the evidence-only
 # diagnosis. Termination is diagnosis validation, cleanup, then classification.
+# D17_DIAGNOSIS_MODEL = capabilityProfiles.balanced.codex
 Codex.spawn_agent({
   task_name: d17_<instance_ordinal>,
   agent_type: "investigator",
@@ -234,6 +235,7 @@ Codex.spawn_agent({
 })
 # Exact mechanical fix: source-mutable; output is scoped committed fix/report.
 # Termination returns the committed result to the root for verification/push.
+# D17_EXACT_FIX_MODEL = capabilityProfiles.efficient.codex
 Codex.spawn_agent({
   task_name: d17_<instance_ordinal>,
   agent_type: "executor",
@@ -244,6 +246,7 @@ Codex.spawn_agent({
 })
 # Judgment-bearing fix: source-mutable; output is scoped committed fix/report.
 # Termination returns the committed result to the root for verification/push.
+# D17_JUDGMENT_FIX_MODEL = capabilityProfiles.balanced.codex
 Codex.spawn_agent({
   task_name: d17_<instance_ordinal>,
   agent_type: "implementer",

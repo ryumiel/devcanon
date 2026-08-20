@@ -15,131 +15,180 @@ const FRESH_SPAWNS = [
     "D1",
     "issue-priming-workflow",
     "assessor",
+    "balanced",
     "D1_MODEL",
     "medium",
+    "source-immutable",
     "D1_PROMPT",
   ],
   [
     "D2",
     "issue-priming-workflow",
     "investigator",
+    "balanced",
     "D2_MODEL",
     "high",
+    "source-immutable",
     "D2_PROMPT",
   ],
   [
     "D3",
     "issue-priming-workflow",
     "investigator",
+    "balanced",
     "D3_MODEL",
     "high",
+    "source-immutable",
     "D3_PROMPT",
-  ],
-  [
-    "D4",
-    "play-agent-dispatch",
-    "SELECTED_ROLE_ID",
-    "RESOLVED_CODEX_MODEL",
-    "SELECTED_CODEX_EFFORT",
-    "SELF_CONTAINED_PROMPT",
   ],
   [
     "D5",
     "play-planning",
     "reviewer",
+    "frontier",
     "D5_MODEL",
     "high",
+    "source-immutable",
     "D5_PLAN_REVIEW_PROMPT",
   ],
   [
     "D6",
     "play-planning",
     "reviewer",
+    "frontier",
     "D6_MODEL",
     "high",
+    "source-immutable",
     "D6_EXECUTABILITY_REVIEW_PROMPT",
   ],
-  ["D7", "play-review", "reviewer", "D7_MODEL", "high", "D7_PROMPT"],
-  ["D8", "play-review", "reviewer", "D8_MODEL", "high", "D8_PROMPT"],
-  ["D9", "play-review", "reviewer", "D9_MODEL", "high", "D9_PROMPT"],
+  [
+    "D7",
+    "play-review",
+    "reviewer",
+    "frontier",
+    "D7_MODEL",
+    "high",
+    "source-immutable",
+    "D7_PROMPT",
+  ],
+  [
+    "D8",
+    "play-review",
+    "reviewer",
+    "frontier",
+    "D8_MODEL",
+    "high",
+    "source-immutable",
+    "D8_PROMPT",
+  ],
+  [
+    "D9",
+    "play-review",
+    "reviewer",
+    "frontier",
+    "D9_MODEL",
+    "high",
+    "source-immutable",
+    "D9_PROMPT",
+  ],
   [
     "D10",
     "play-review",
     "deep-reviewer",
+    "frontier",
     "D10_MODEL",
     "xhigh",
+    "source-immutable",
     "D10_CRITIC_PROMPT",
   ],
   [
     "D11",
     "play-skill-authoring",
     "assessor",
+    "balanced",
     "D11_MODEL",
     "medium",
+    "source-immutable",
     "D11_SCENARIO_PROMPT",
   ],
   [
     "D12",
     "play-subagent-execution",
     "implementer",
+    "balanced",
     "D12_MODEL",
     "high",
+    "source-mutable",
     "D12_SELF_CONTAINED_PROMPT",
   ],
   [
     "D13",
     "play-subagent-execution",
     "executor",
+    "efficient",
     "D13_MODEL",
     "medium",
+    "source-mutable",
     "D13_SELF_CONTAINED_PROMPT",
   ],
   [
     "D14",
     "play-subagent-execution",
     "deep-reviewer",
+    "frontier",
     "D14_MODEL",
     "xhigh",
+    "source-immutable",
     "D14_SELF_CONTAINED_PROMPT",
   ],
   [
     "D15",
     "play-subagent-execution",
     "deep-reviewer",
+    "frontier",
     "D15_MODEL",
     "xhigh",
+    "source-immutable",
     "D15_SELF_CONTAINED_PROMPT",
   ],
   [
     "D16",
     "play-subagent-execution",
     "deep-reviewer",
+    "frontier",
     "D16_MODEL",
     "xhigh",
+    "source-immutable",
     "D16_SELF_CONTAINED_PROMPT",
   ],
   [
     "D17",
     "pr-merge",
     "investigator",
-    "D17_DIAGNOSIS_MODEL, # capabilityProfiles.balanced.codex",
+    "balanced",
+    "D17_DIAGNOSIS_MODEL",
     "high",
+    "source-immutable",
     "D17_DIAGNOSIS_SELF_CONTAINED_PROMPT",
   ],
   [
     "D17",
     "pr-merge",
     "executor",
-    "D17_EXACT_FIX_MODEL, # capabilityProfiles.efficient.codex",
+    "efficient",
+    "D17_EXACT_FIX_MODEL",
     "medium",
+    "source-mutable",
     "D17_EXACT_FIX_SELF_CONTAINED_PROMPT",
   ],
   [
     "D17",
     "pr-merge",
     "implementer",
-    "D17_JUDGMENT_FIX_MODEL, # capabilityProfiles.balanced.codex",
+    "balanced",
+    "D17_JUDGMENT_FIX_MODEL",
     "high",
+    "source-mutable",
     "D17_JUDGMENT_FIX_SELF_CONTAINED_PROMPT",
   ],
 ] as const;
@@ -193,8 +242,11 @@ describe("agent routing and mutation policy owner", () => {
     }
   });
 
-  it("declares the concrete fresh Codex tuple for every D1-D17 spawn", async () => {
-    const owner = await readAgentRoutingPolicyOwner(OWNER_PATH);
+  it("correlates every fixed D1-D17 policy clause to its exact fresh Codex tuple", async () => {
+    const [owner, config] = await Promise.all([
+      readAgentRoutingPolicyOwner(OWNER_PATH),
+      loadConfig("devcanon.config.yaml", true),
+    ]);
     const ownerSkills = new Map(
       await Promise.all(
         [...new Set(FRESH_SPAWNS.map(([, ownerSkill]) => ownerSkill))].map(
@@ -207,7 +259,16 @@ describe("agent routing and mutation policy owner", () => {
       ),
     );
 
-    for (const [id, ownerSkill, role, model, effort, message] of FRESH_SPAWNS) {
+    for (const [
+      id,
+      ownerSkill,
+      role,
+      capability,
+      model,
+      effort,
+      sourceAuthority,
+      message,
+    ] of FRESH_SPAWNS) {
       const route = owner.directChildRoutes.find(
         (candidate) => candidate.id === id,
       );
@@ -215,23 +276,68 @@ describe("agent routing and mutation policy owner", () => {
       expect(route?.ownerSkill, `${id} has its canonical owner`).toBe(
         ownerSkill,
       );
+      const matchingClauses = route?.clauses.filter(
+        (clause) =>
+          clause.role === role &&
+          clause.capability === capability &&
+          clause.effort === effort &&
+          clause.sourceAuthority === sourceAuthority,
+      );
+      expect(
+        matchingClauses,
+        `${id} ${role} policy clause matches its fixed spawn tuple`,
+      ).toHaveLength(1);
 
       const source = ownerSkills.get(ownerSkill);
       expect(source, `${ownerSkill} source is readable`).toBeDefined();
-      const d4Template = id === "D4";
+      expect(source).toContain(
+        `${model} = capabilityProfiles.${capability}.codex`,
+      );
+      expect(config.capabilityProfiles[capability].codex).toMatch(/\S/);
       expect(source).toContain(
         [
           "Codex.spawn_agent({",
           `  task_name: ${id.toLowerCase()}_<instance_ordinal>,`,
-          `  agent_type: ${d4Template ? role : `\"${role}\"`},`,
-          `  model: ${model}${id === "D17" ? "" : ","}`,
-          `  reasoning_effort: ${d4Template ? effort : `\"${effort}\"`},`,
+          `  agent_type: \"${role}\",`,
+          `  model: ${model}${id === "D17" ? `, # capabilityProfiles.${capability}.codex` : ","}`,
+          `  reasoning_effort: \"${effort}\",`,
           '  fork_turns: "none",',
           `  message: ${message},`,
           "})",
         ].join("\n"),
       );
     }
+  });
+
+  it("keeps D4 as the existing dynamic exact-configured-role contract", async () => {
+    const [owner, source] = await Promise.all([
+      readAgentRoutingPolicyOwner(OWNER_PATH),
+      readRepoFile("skills/play-agent-dispatch/SKILL.md"),
+    ]);
+    const d4 = owner.directChildRoutes.find((route) => route.id === "D4");
+
+    expect(d4?.ownerSkill).toBe("play-agent-dispatch");
+    expect(d4?.clauses).toEqual([]);
+    expect(d4?.d4Contract).toMatchObject({
+      roleCardinality: 6,
+      selectionTiming: "before spawn",
+      configuration: "exact configured capability/effort",
+      sourceDefault: "matching source default",
+      scopeAndTermination: "scope/termination",
+      externalAuthority: "none",
+    });
+    expect(source).toContain(
+      [
+        "Codex.spawn_agent({",
+        "  task_name: d4_<instance_ordinal>,",
+        "  agent_type: SELECTED_ROLE_ID,",
+        "  model: RESOLVED_CODEX_MODEL,",
+        "  reasoning_effort: SELECTED_CODEX_EFFORT,",
+        '  fork_turns: "none",',
+        "  message: SELF_CONTAINED_PROMPT,",
+        "})",
+      ].join("\n"),
+    );
   });
 
   it("keeps unchanged D12 continuity configuration-free and routes changed tuples to fresh children", async () => {

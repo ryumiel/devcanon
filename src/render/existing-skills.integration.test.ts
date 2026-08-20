@@ -111,19 +111,19 @@ describe("shipped skill rendering", () => {
       ["pr-merge", "D17_JUDGMENT_FIX_MODEL", "balanced"],
     ] as const;
 
-    for (const target of TARGETS) {
-      for (const [skill, binding, capability] of bindings) {
+    for (const [skill, binding, capability] of bindings) {
+      for (const target of TARGETS) {
         const { body } = parseFrontmatter(
           getSkillOutput(outputs, skill, target).content,
         );
         const configuredModel = config.capabilityProfiles[capability][target];
-        const normalizedBody = body.replace(/\s+/g, " ");
 
-        expect(normalizedBody).toContain(
-          `\`${binding}\` resolves to \`${configuredModel}\``,
+        expect(body).toContain(
+          `${binding} = capabilityProfiles.${capability}.codex`,
         );
-        expect(normalizedBody).not.toContain(
-          `\`${binding}\` resolves to \`{{model:`,
+        expect(body).toContain(configuredModel);
+        expect(body).not.toContain(
+          `\`${binding}\` resolves to \`${config.capabilityProfiles[capability].claude}\``,
         );
       }
     }

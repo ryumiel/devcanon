@@ -65,12 +65,14 @@ match `^[a-z0-9_]+$`, and be absent from all retained controller ledger task
 names. Keep phase, scenario, and retest identity in the existing ledger
 dimensions, not in `task_name`.
 
-Route model binding: `D11_MODEL` resolves to `{{model:balanced}}` from the
-configured balanced capability. The independent effort remains `medium`.
+Codex-only route binding: `D11_MODEL` resolves from
+`capabilityProfiles.balanced.codex`. Target capability marker:
+`{{model:balanced}}`. The independent effort remains `medium`.
 
 After validation and the existing capture, create exactly one fresh evaluator:
 
 ```text
+# D11_MODEL = capabilityProfiles.balanced.codex
 Codex.spawn_agent({
   task_name: d11_<instance_ordinal>,
   agent_type: "assessor",
