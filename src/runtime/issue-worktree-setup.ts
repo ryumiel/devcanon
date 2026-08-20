@@ -83,9 +83,13 @@ async function runIssueWorktreeSetup(
       currentWorktree,
       [0, 1, 2, 128],
     );
-    if (defaultBranchResult.exitCode !== 0) {
+    const defaultBranchDiagnostic = defaultBranchResult.stderr.trim();
+    if (
+      defaultBranchResult.exitCode !== 0 &&
+      defaultBranchDiagnostic.length > 0
+    ) {
       return plainFail(
-        `Unable to determine origin's default branch: ${defaultBranchResult.stderr.trim() || "git ls-remote --symref --exit-code origin HEAD failed"}`,
+        `Unable to determine origin's default branch: ${defaultBranchDiagnostic}`,
       );
     }
 

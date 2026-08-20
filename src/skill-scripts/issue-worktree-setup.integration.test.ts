@@ -896,14 +896,13 @@ describe(
       expect(await runGit(["rev-parse", "HEAD"], expectedPath)).toBe(trunkSha);
     });
 
-    it("refuses when origin does not advertise a symbolic default branch", async () => {
+    it("refuses when origin's symbolic default branch is absent", async () => {
       const rootDir = await createTrackedTempDir(tempDirs);
       const { primaryDir } = await createOriginRepo(rootDir, "trunk");
-      const trunkSha = await runGit(["rev-parse", "HEAD"], primaryDir);
       const originDir = path.join(rootDir, "origin.git");
 
       await runGit(
-        ["--git-dir", originDir, "update-ref", "--no-deref", "HEAD", trunkSha],
+        ["--git-dir", originDir, "symbolic-ref", "HEAD", "refs/heads/missing"],
         rootDir,
       );
       await runGit(
@@ -916,7 +915,9 @@ describe(
           BRANCH_NAME: "feat/unusable-default",
           WORKTREE_LEAF: "unusable-default",
         }),
-      ).rejects.toThrow(/Unable to determine origin's default branch:/u);
+      ).rejects.toThrow(
+        /Unable to determine origin's default branch: origin did not advertise a symbolic HEAD target/u,
+      );
 
       expect(
         await pathExists(
