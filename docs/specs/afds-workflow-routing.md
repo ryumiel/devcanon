@@ -141,14 +141,13 @@ resolved route, and any unresolved route or declaration state blocks before
 spawn. Under the B3 routing boundary, a source-immutable D4 selection is
 response-only.
 
-Where a route explicitly permits continuity, a same stable task and unchanged
-tuple may receive only incremental follow-up context, plus the verified-auto
-attestation when applicable. A changed tuple or task identity follows lifecycle
-capture, supersession, cleanup, and complete fresh spawn. D14-D16 are fresh
-one-shot reviewers. Native model/effort rejection reports the exact selected
-pair and reaches the route-local unavailable or `BLOCKED` terminal without
-fallback, alias, effort change, retry, escalation, or role substitution. Slot
-exhaustion remains the distinct lifecycle-owned exact-pair recovery case.
+The routing policy owns route-level fresh configuration, reuse eligibility,
+one-shot behavior, and the exact rejected-pair outcome. ADR-0027 owns the fixed
+running-session configuration invariant, while
+[`subagent-lifecycle`](../../skills/subagent-lifecycle/SKILL.md) owns the
+follow-up, supersession, cleanup, rejection, and slot-recovery mechanics. This
+spec records observable dispatch and guard evidence rather than duplicating
+those lifecycle rules.
 
 D4 contract verification is bounded to the canonical repository-authored
 policy, producer, routing-spec, and rendered forms. It does not establish a
@@ -508,9 +507,11 @@ resolution recommendation.
 - Guard tests exercise the valid baseline/handoff lifecycle and reject tracked
   content change, nested/existing/symlinked/missing handoffs, and directory
   leaves.
-- Both-target agent render tests prove exactly six roles, explicit capability
-  and effort, command/handoff envelopes, source-immutable instructions, and no
-  semantic-child external authority.
+- Both-target agent render tests prove exactly six roles, top-level capability
+  parity, unchanged Claude model/effort envelopes, and omitted Codex model and
+  effort for the six semantic roles. The agent spec owns the exact target-model
+  semantics. The same checks retain command/handoff envelopes,
+  source-immutable instructions, and no semantic-child external authority.
 
 ## Agent Context
 

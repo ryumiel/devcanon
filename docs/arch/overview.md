@@ -68,9 +68,11 @@ not as a claim that the dependency direction is ideal:
 
 `src/config/schema.ts` owns the strict version 2 source contract and required
 `capabilityProfiles` shape. `src/render/capability-profiles.ts` owns the small
-model-only resolver used by both agent renderers: explicit agent-model null
-suppresses resolution, a literal target model emits literally, otherwise a
+model-only resolver used by both agent renderers: explicit `codex.model: null`
+suppresses Codex resolution, a literal target model emits literally, otherwise a
 top-level capability maps to a model, otherwise the target model is omitted.
+Claude model selection remains literal-or-absent; the agent spec rejects Claude
+null and owns both target-specific source rules.
 
 Capability resolution does not own target-native effort, tools, sandbox,
 approval policy, context, authority, orchestration, retries, or escalation.
@@ -111,9 +113,11 @@ owns the stable decision.
 
 Fresh child controllers obtain the full Codex model from the route capability
 and `capabilityProfiles`, and effort from the independent route tuple. The
-shared lifecycle procedure owns reuse, supersession, cleanup, and slot recovery;
-route skills own permitted task-local continuation. This boundary avoids a
-source-agent default becoming an ambient runtime dispatch override.
+running-session configuration is fixed by ADR-0027; changed required tuple or
+task identity needs a new session. The shared lifecycle procedure owns the
+transition mechanics, while route skills own permitted task-local continuation.
+This boundary avoids a source-agent default becoming an ambient runtime dispatch
+override.
 
 Source authority and external authority are separate closed axes. A
 source-immutable role may run permitted commands and write one

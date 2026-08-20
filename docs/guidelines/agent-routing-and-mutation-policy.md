@@ -190,25 +190,24 @@ following from the selected policy route and existing configuration:
   authority, output, and termination.
 
 The controller must not derive a fresh Codex model or effort from source-agent
-Codex fields. The existing lifecycle owner retains task-name grammar, capture,
-supersession, cleanup, slot recovery, and session reuse mechanics; this policy
-does not create a naming schema or lifecycle registry. D14, D15, and D16 are
-one-shot fresh reviewers.
+Codex fields. This route contract identifies which routes permit compatible
+reuse and which are one-shot; D14, D15, and D16 are one-shot fresh reviewers.
+The existing lifecycle owner performs task-name allocation, follow-up,
+capture, supersession, cleanup, slot recovery, and rejection mechanics; this
+policy does not create a naming schema or lifecycle registry.
 
 A follow-up is permitted only where the selected route explicitly allows it,
 the stable task identity and complete tuple are unchanged, and the existing
-session remains compatible. The follow-up contains incremental context and the
-verified-auto attestation when applicable. It must not include `agent_type`,
-`model`, `reasoning_effort`, or `fork_turns`. A changed tuple or task identity
-uses lifecycle capture, supersession, and cleanup, then a complete fresh spawn;
-it never converts a follow-up into a configuration override.
+session remains compatible. It supplies incremental context and the
+verified-auto attestation when applicable, without configuration overrides. A
+changed tuple or task identity requires a complete fresh session; the lifecycle
+owner performs the transition mechanics.
 
 If native Codex rejects the selected pair, report exactly
 `model=<configured-full-model> effort=<route-effort>` and use the route-local
 unavailable or `BLOCKED` terminal. No fallback, alias, effort change, retry,
-escalation, or role substitution is permitted. Slot exhaustion is distinct: the
-lifecycle owner may retry only the exact same pair under its existing slot
-recovery rules.
+escalation, or role substitution is permitted. Slot exhaustion is distinct; the
+lifecycle owner owns exact-pair recovery and rejection mechanics.
 
 ### D4 Declaration Obligation
 

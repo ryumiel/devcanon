@@ -52,11 +52,12 @@ contract fails closed when native Codex rejects that exact pair.
 
 The shared [`subagent-lifecycle`](../../skills/subagent-lifecycle/SKILL.md)
 owns compatible-session reuse, supersession, cleanup, and slot recovery. A
-route skill owns only task-local continuation: it may send incremental context
-to a stable unchanged tuple where its route permits, but may not override a
-running child's role, model, effort, or fork setting. Changed tuple or task
-identity uses the lifecycle path and a complete fresh child. D14, D15, and D16
-remain one-shot fresh reviewers.
+running session's required configuration is fixed: role, full model, effort,
+fork setting, and task identity do not change in place. A changed required tuple
+or task identity therefore needs a new session. The lifecycle owner performs
+reuse, follow-up, supersession, cleanup, and slot-recovery mechanics; route
+skills own only task-local continuation and terminal behavior. D14, D15, and
+D16 remain one-shot fresh reviewers under the routing policy.
 
 ### Closed mutation vocabulary
 

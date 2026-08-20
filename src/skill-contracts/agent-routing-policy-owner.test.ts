@@ -190,30 +190,62 @@ describe("agent routing and mutation policy owner", () => {
     }
   });
 
-  it("requires the policy-owned fresh, follow-up, changed-tuple, and rejection contract", async () => {
-    const markdown = await readRepoFile(OWNER_PATH);
+  it("reconciles each D1-D17 route to its implemented owner spawn contract", async () => {
+    const [owner, roles, config] = await Promise.all([
+      readAgentRoutingPolicyOwner(OWNER_PATH),
+      readAgentSemanticRoleOwner(AGENT_SPEC_PATH),
+      loadConfig("devcanon.config.yaml", true),
+    ]);
+    const ownerSources = await readRouteOwnerSources(owner);
 
-    for (const requirement of [
-      "task_name",
-      "agent_type",
-      "configured full model",
-      "reasoning_effort",
-      'fork_turns: "none"',
-      "self-contained message",
-      "authority, output, and termination",
-      "incremental context",
-      "verified-auto attestation",
-      "must not include `agent_type`",
-      "`model`, `reasoning_effort`, or `fork_turns`",
-      "capture, supersession, and cleanup",
-      "complete fresh spawn",
-      "model=<configured-full-model> effort=<route-effort>",
-      "No fallback, alias, effort change, retry,",
-      "escalation, or role substitution",
-      "exact same pair",
-    ]) {
-      expect(markdown).toContain(requirement);
-    }
+    expect(
+      routeOwnerContractErrors(owner, roles, config, ownerSources),
+    ).toEqual([]);
+  });
+
+  it("rejects single-dimension route-owner spawn and continuity drift", async () => {
+    const [owner, roles, config] = await Promise.all([
+      readAgentRoutingPolicyOwner(OWNER_PATH),
+      readAgentSemanticRoleOwner(AGENT_SPEC_PATH),
+      loadConfig("devcanon.config.yaml", true),
+    ]);
+    const ownerSources = await readRouteOwnerSources(owner);
+
+    expect(
+      routeOwnerContractErrors(owner, roles, config, {
+        ...ownerSources,
+        "issue-priming-workflow": ownerSources[
+          "issue-priming-workflow"
+        ].replace('fork_turns: "none",', ""),
+      }),
+    ).toContain("D1:fork_turns");
+    expect(
+      routeOwnerContractErrors(owner, roles, config, {
+        ...ownerSources,
+        "play-subagent-execution": ownerSources[
+          "play-subagent-execution"
+        ].replace(
+          "message; do not\nsubstitute",
+          "message; model: OVERRIDE; do not\nsubstitute",
+        ),
+      }),
+    ).toContain("D12:followup-override");
+    expect(
+      routeOwnerContractErrors(owner, roles, config, {
+        ...ownerSources,
+        "play-subagent-execution": ownerSources[
+          "play-subagent-execution"
+        ].replace("use the lifecycle fresh-child path", "continue in place"),
+      }),
+    ).toContain("D16:changed-tuple-fresh");
+    expect(
+      routeOwnerContractErrors(owner, roles, config, {
+        "play-agent-dispatch": ownerSources["play-agent-dispatch"].replace(
+          "Do not retry, alias, alter effort,\nescalate, or substitute a role.",
+          "Retry with a fallback alias.",
+        ),
+      }),
+    ).toContain("D4:rejection");
   });
 
   it("rejects a malformed inventory row in the inventory dimension", async () => {
@@ -742,5 +774,251 @@ function resolveFreshCodexModel(
     source.capability as "efficient" | "balanced" | "frontier" | undefined,
     "codex",
     capabilityProfiles,
+  );
+}
+
+async function readRouteOwnerSources(
+  owner: Awaited<ReturnType<typeof readAgentRoutingPolicyOwner>>,
+): Promise<Record<string, string>> {
+  const ownerSkills = new Set(
+    owner.directChildRoutes.map((route) => route.ownerSkill),
+  );
+  const entries = await Promise.all(
+    [...ownerSkills].map(async (ownerSkill) => [
+      ownerSkill,
+      await readRepoFile(`skills/${ownerSkill}/SKILL.md`),
+    ]),
+  );
+  return Object.fromEntries(entries);
+}
+
+function routeOwnerContractErrors(
+  owner: Awaited<ReturnType<typeof readAgentRoutingPolicyOwner>>,
+  roles: Awaited<ReturnType<typeof readAgentSemanticRoleOwner>>,
+  config: Awaited<ReturnType<typeof loadConfig>>,
+  ownerSources: Record<string, string>,
+): string[] {
+  const errors: string[] = [];
+  const rolesByName = new Map(roles.map((role) => [role.name, role]));
+
+  for (const route of owner.directChildRoutes) {
+    const source = ownerSources[route.ownerSkill];
+    if (!source) {
+      errors.push(`${route.id}:owner-source`);
+      continue;
+    }
+
+    if (route.id === "D4") {
+      for (const role of roles) {
+        if (
+          resolveFreshCodexModel(
+            { capability: role.capability },
+            config.capabilityProfiles,
+          ) !== config.capabilityProfiles[role.capability].codex
+        ) {
+          errors.push(`D4:${role.name}:model`);
+        }
+        if (
+          !routeSpawnFieldsPresent(source, "D4", role.name, role.routeEffort)
+        ) {
+          errors.push(`D4:${role.name}:spawn`);
+        }
+      }
+      const evidence = routeEvidenceWindow(source, "D4", "SELECTED_ROLE_ID");
+      if (!evidence?.includes("capabilityProfiles.<capability>.codex")) {
+        errors.push("D4:capability-model");
+      }
+      if (
+        !evidence?.includes(
+          "selected source capability to match the selected semantic role",
+        )
+      ) {
+        errors.push("D4:source-capability-parity");
+      }
+      if (
+        !evidence?.includes(
+          "matching Codex effort from the semantic-role catalog",
+        )
+      ) {
+        errors.push("D4:catalog-effort");
+      }
+      if (!routeContextPresent(evidence ?? "")) errors.push("D4:context");
+      if (!routePrevalidates(evidence ?? "")) errors.push("D4:prevalidation");
+      if (!routeFailClosed(evidence ?? "")) errors.push("D4:rejection");
+      continue;
+    }
+
+    for (const clause of route.clauses) {
+      const role = rolesByName.get(clause.role);
+      if (!role) {
+        errors.push(`${route.id}:role`);
+        continue;
+      }
+      if (
+        role.capability !== clause.capability ||
+        role.routeEffort !== clause.effort ||
+        role.sourceAuthority !== clause.sourceAuthority
+      ) {
+        errors.push(`${route.id}:tuple`);
+      }
+      if (!config.capabilityProfiles[clause.capability].codex) {
+        errors.push(`${route.id}:configured-model`);
+      }
+      if (
+        !routeSpawnFieldsPresent(source, route.id, clause.role, clause.effort)
+      ) {
+        for (const field of [
+          "task_name",
+          "agent_type",
+          "model",
+          "reasoning_effort",
+          "fork_turns",
+          "message",
+        ]) {
+          if (!routeSpawnFieldPresent(source, route.id, clause.role, field)) {
+            errors.push(`${route.id}:${field}`);
+          }
+        }
+      }
+      const evidence = routeEvidenceWindow(source, route.id, clause.role);
+      if (
+        !evidence?.includes(`capabilityProfiles.${clause.capability}.codex`)
+      ) {
+        errors.push(`${route.id}:capability-model`);
+      }
+      if (!routeContextPresent(evidence ?? ""))
+        errors.push(`${route.id}:context`);
+      if (!routePrevalidates(evidence ?? "")) {
+        errors.push(`${route.id}:prevalidation`);
+      }
+      if (!routeFailClosed(evidence ?? ""))
+        errors.push(`${route.id}:rejection`);
+    }
+  }
+
+  const execution = ownerSources["play-subagent-execution"];
+  if (
+    !execution?.includes(
+      "only in the incremental task-local `followup_task` message; do not\nsubstitute",
+    )
+  ) {
+    errors.push("D12:followup-override");
+  }
+  if (
+    !execution?.includes(
+      "D13-to-D12 reclassification and a D16 final\nwhole-implementation fix use the lifecycle fresh-child path",
+    )
+  ) {
+    errors.push("D16:changed-tuple-fresh");
+  }
+  if (!execution?.includes("D14/D15 are\nalways fresh one-shot reviewers")) {
+    errors.push("D14-D15:one-shot");
+  }
+  const merge = ownerSources["pr-merge"];
+  if (
+    !merge?.includes(
+      "diagnosis-to-fix classification is a fresh changed\ntuple",
+    )
+  ) {
+    errors.push("D17:changed-tuple-fresh");
+  }
+  return errors;
+}
+
+function routeSpawnFieldsPresent(
+  source: string,
+  routeId: `D${number}`,
+  role: string,
+  effort: string,
+): boolean {
+  return [
+    "task_name",
+    "agent_type",
+    "model",
+    "reasoning_effort",
+    "fork_turns",
+    "message",
+  ].every((field) =>
+    routeSpawnFieldPresent(source, routeId, role, field, effort),
+  );
+}
+
+function routeSpawnFieldPresent(
+  source: string,
+  routeId: `D${number}` | "D4",
+  role: string,
+  field: string,
+  effort?: string,
+): boolean {
+  const match = spawnWindow(source, routeId, role);
+  if (!match) return false;
+  const expected = {
+    task_name: `task_name: ${routeId.toLowerCase()}_<instance_ordinal>`,
+    agent_type: `agent_type: ${routeId === "D4" ? "SELECTED_ROLE_ID" : `"${role}"`}`,
+    model: "model:",
+    reasoning_effort:
+      routeId === "D4"
+        ? "reasoning_effort: SELECTED_CODEX_EFFORT"
+        : `reasoning_effort: "${effort}"`,
+    fork_turns: 'fork_turns: "none"',
+    message: "message:",
+  }[field];
+  return expected !== undefined && match.includes(expected);
+}
+
+function spawnWindow(
+  source: string,
+  routeId: `D${number}` | "D4",
+  role: string,
+): string | undefined {
+  const taskName = `task_name: ${routeId.toLowerCase()}_<instance_ordinal>`;
+  let start = source.indexOf(taskName);
+  while (start !== -1) {
+    const end = source.indexOf("})", start);
+    const window = source.slice(start, end === -1 ? undefined : end + 2);
+    if (
+      window.includes(
+        `agent_type: ${routeId === "D4" ? "SELECTED_ROLE_ID" : `"${role}"`}`,
+      )
+    ) {
+      return window;
+    }
+    start = source.indexOf(taskName, start + taskName.length);
+  }
+  return undefined;
+}
+
+function routeEvidenceWindow(
+  source: string,
+  routeId: `D${number}` | "D4",
+  role: string,
+): string | undefined {
+  const spawn = spawnWindow(source, routeId, role);
+  if (!spawn) return undefined;
+
+  const start = source.indexOf(spawn);
+  return source.slice(
+    Math.max(0, start - 5_000),
+    Math.min(source.length, start + spawn.length + 8_000),
+  );
+}
+
+function routeFailClosed(source: string): boolean {
+  return (
+    /(?:native Codex (?:rejects|rejection)|target rejection|Native rejection)/i.test(
+      source,
+    ) && /(?:Do not\s+retry|without\s+substitution)/i.test(source)
+  );
+}
+
+function routePrevalidates(source: string): boolean {
+  return /(?:missing|mismatched)[\s\S]{0,160}(?:blocks|block|prevents)/i.test(
+    source,
+  );
+}
+
+function routeContextPresent(source: string): boolean {
+  return /(?:self-contained|fully substituted|complete prompt|independently substituted template)/i.test(
+    source,
   );
 }

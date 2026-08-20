@@ -167,7 +167,8 @@ thin semantic roles because fresh controller routes supply their configured full
 model and independent route effort. Do not add source
 `codex.model_reasoning_effort` to recreate precedence over the route. Literal
 models remain for a stable target-local source constraint; absent models permit
-ordinary capability resolution. The agent spec owns these three source states.
+ordinary capability resolution. The agent spec owns these three Codex source
+states and Claude's literal-or-absent rule.
 
 Reusable methods still stay in skills. The owning workflow must guard a
 source-immutable dispatch before consuming the result; the spec-owned

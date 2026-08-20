@@ -275,14 +275,16 @@ A dedicated model capability or effort level is a valid reason to define an agen
 when the role itself is stable and reusable. Those settings are part of the
 role boundary, not just render-time metadata.
 
-Model selection is target-local. A target `model` has three source states:
+Codex `model` selection has three source states:
 
 1. a literal string emits that literal model;
-2. an absent field permits normal target capability resolution; and
+2. an absent `codex.model` permits normal Codex capability resolution; and
 3. explicit `null` intentionally suppresses target model resolution and model
    emission.
 
-Explicit `null` is known agent-source schema, not passthrough or a warning.
+Explicit `codex.model: null` is known agent-source schema, not passthrough or a
+warning. Claude `model` accepts only a literal string or absence; Claude null is
+rejected. The agent spec owns this target distinction.
 The six current semantic source roles retain their top-level capability and
 unchanged Claude envelope, set `codex.model: null`, and omit
 `codex.model_reasoning_effort`; their Codex render therefore omits both fields.

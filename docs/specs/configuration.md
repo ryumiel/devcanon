@@ -146,7 +146,7 @@ the user-facing boundary without replacing that source authority.
 - Capability selects a model only. Claude `effort` and Codex
   `model_reasoning_effort` remain explicit target-native fields and are never
   inherited from a profile. The agent contract separately defines literal,
-  absent, and explicit-null target-model source states; explicit suppression is
+  absent, and explicit-null Codex-model source states; explicit suppression is
   not configuration syntax or a profile behavior.
 - Skill tokens resolve per target: `{{model:frontier}}` becomes the configured
   `frontier.claude` or `frontier.codex` string. Agent target model fields do not
