@@ -212,7 +212,7 @@ export async function loadAndValidateAgents(
 function validateAgentLiteralModel(
   agentName: string,
   fieldPath: "claude.model" | "codex.model",
-  value: string | undefined,
+  value: string | null | undefined,
   errors: string[],
 ): void {
   if (!value?.includes("{{model:")) return;

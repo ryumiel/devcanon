@@ -333,7 +333,7 @@ const CodexApprovalPolicySchema = z.union([
 ]);
 
 const CodexTargetShape = {
-  model: renderSafeString(1, TARGET_ENTRY_VALUE_MAX).optional(),
+  model: renderSafeString(1, TARGET_ENTRY_VALUE_MAX).nullable().optional(),
   model_reasoning_effort: CodexReasoningEffortSchema.optional(),
   sandbox_mode: z
     .enum(["read-only", "workspace-write", "danger-full-access"])

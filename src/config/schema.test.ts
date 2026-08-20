@@ -357,6 +357,37 @@ describe("AgentSourceSchema", () => {
     expect(result.success).toBe(false);
   });
 
+  it("preserves literal, absent, and explicit-null Codex model states", () => {
+    const literal = AgentSourceSchema.parse({
+      ...validAgent,
+      codex: { model: "gpt-5.6-terra" },
+    });
+    const absent = AgentSourceSchema.parse({
+      ...validAgent,
+      codex: { sandbox_mode: "read-only" },
+    });
+    const suppressed = AgentSourceSchema.parse({
+      ...validAgent,
+      codex: { model: null },
+    });
+
+    expect(literal.codex?.model).toBe("gpt-5.6-terra");
+    expect(absent.codex).not.toHaveProperty("model");
+    expect(suppressed.codex?.model).toBeNull();
+  });
+
+  it.each(["", false, 42, [], {}])(
+    "rejects invalid codex.model value %j",
+    (model) => {
+      const result = AgentSourceSchema.safeParse({
+        ...validAgent,
+        codex: { model },
+      });
+
+      expect(result.success).toBe(false);
+    },
+  );
+
   it("rejects claude.tools entries containing a newline", () => {
     const result = AgentSourceSchema.safeParse({
       ...validAgent,

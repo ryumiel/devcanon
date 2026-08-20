@@ -23,5 +23,5 @@ claude:
     - Write
 
 codex:
-  model_reasoning_effort: medium
+  model: null
   sandbox_mode: workspace-write

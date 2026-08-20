@@ -246,6 +246,38 @@ describe("renderCodexAgent", () => {
     expect(parsed.model_reasoning_effort).toBe("high");
   });
 
+  it("suppresses an explicit-null model without affecting other Codex fields", () => {
+    const installed = installTestLogger();
+    try {
+      const suppressedAgent = withCodex(agent, {
+        model: null,
+        nickname_candidates: ["builder"],
+        approval_policy: "on-request",
+      });
+      const result = renderCodexAgent(
+        {
+          ...suppressedAgent,
+          source: {
+            ...suppressedAgent.source,
+            capability: "balanced",
+          },
+        },
+        emptySkills,
+        config,
+      );
+      const parsed = parseRenderedTomlArtifact(result.content);
+
+      expect(parsed).not.toHaveProperty("model");
+      expect(parsed.sandbox_mode).toBe("read-only");
+      expect(parsed.nickname_candidates).toEqual(["builder"]);
+      expect(parsed.approval_policy).toBe("on-request");
+      expect(parsed.developer_instructions).toContain("## Skills");
+      expect(installed.testLogger.warnings).toEqual([]);
+    } finally {
+      installed.restore();
+    }
+  });
+
   it("omits ambient model and reasoning effort", () => {
     const result = renderCodexAgent(
       { ...agent, source: { ...agent.source, codex: undefined } },
