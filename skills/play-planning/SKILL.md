@@ -747,6 +747,51 @@ before either capture and pass the identical tuple to
 D5 and D6 without per-reviewer additions, while keeping their questions,
 remits, responses, and lifecycle state separate.
 
+Before either capture, resolve and validate the two complete fresh-Codex tuples.
+Both use `semantic_role: reviewer`, `capability: frontier`, the full model
+resolved exactly from `devcanon.config.yaml`
+`capabilityProfiles.frontier.codex`, independent `reasoning_effort: high`,
+`source_authority: source-immutable`, `external_authority: none`, and zero
+handoffs. Require the reviewer role capability to be `frontier`, every tuple
+field to be present, and the resolved model to be nonblank. Do not derive model
+or effort from the enclosing conversation, an ambient runtime, or an alias.
+
+Build two independent, self-contained prompts from the frozen digest-bound
+tuple. Each names the planning worktree root; exact plan path; selected
+path-or-inline design input; criteria and readiness paths; recorded readiness
+result; expected digest; review wave; prior verified gaps; and optional comment
+evidence when present. D5 additionally names its Plan Review remit and D6 its
+Executability Review remit. The prompts include no inherited turns and do not
+ask either child to discover a missing artifact or route.
+
+After both complete tuples validate and both captures succeed, make exactly one
+fresh creation for each independent session:
+
+```text
+Codex.spawn_agent({
+  agent_type: "reviewer",
+  model: D5_MODEL,
+  reasoning_effort: "high",
+  fork_turns: "none",
+  message: D5_PLAN_REVIEW_PROMPT,
+})
+Codex.spawn_agent({
+  agent_type: "reviewer",
+  model: D6_MODEL,
+  reasoning_effort: "high",
+  fork_turns: "none",
+  message: D6_EXECUTABILITY_REVIEW_PROMPT,
+})
+```
+
+`fork_turns: "none"` is required for each distinct digest-bound session. A
+missing or mismatched tuple prevents its creation and keeps the paired wave
+non-passing under the existing lifecycle. If native Codex rejects either one
+requested pair, report its exact `model=<D5_OR_D6_MODEL> effort=high`, retain
+the existing sibling/cleanup/join behavior, and use the existing unavailable
+review outcome. Do not retry, select an alias, change effort, escalate, or
+substitute a role.
+
 Before each authorized revision, retain a controller-local
 semantic-task-to-Task-ID baseline from the current plan. After saving the
 revised plan and before fresh reviewer dispatch, compare it with that baseline.
@@ -893,6 +938,10 @@ zero handoffs; do not substitute an ambient role, model, or effort. D5 remains
 independent from the concurrently started D6 session even though both use the
 same semantic role.
 
+D5 uses only the prevalidated `D5_MODEL`, independent `high` effort, and
+history-free `D5_PLAN_REVIEW_PROMPT` defined for this paired wave; it never
+inherits D6 or controller conversation context.
+
 Before dispatching the plan-review agent, use `subagent-lifecycle` for the controller-local lifecycle ledger, target
 lifecycle capability classification, cleanup gate, target-honest cleanup outcomes,
 and slot-limit recovery. Capture the plan path or inline scope, design
@@ -1006,6 +1055,10 @@ reuse or collapse the D5 session, review question, PASS/FAIL result, or
 lifecycle state.
 The role's `{{model:frontier}}` capability is supplied by the configured
 semantic role, not selected as an ambient or per-call substitute.
+
+D6 uses only the prevalidated `D6_MODEL`, independent `high` effort, and
+history-free `D6_EXECUTABILITY_REVIEW_PROMPT` defined for this paired wave; it
+never inherits D5 or controller conversation context.
 
 Use `subagent-lifecycle` for the controller-local lifecycle ledger, target
 lifecycle capability classification, cleanup gate, target-honest cleanup outcomes,

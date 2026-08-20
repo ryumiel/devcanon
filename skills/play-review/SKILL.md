@@ -181,6 +181,39 @@ Each selected topical route is an independent response-only `reviewer`, frontier
 | D8 `Architecture` | Selected only when its current trigger fires; asks the existing architecture, responsibility, ownership, boundary, and durable-decision question                                                               | capture D8 → spawn D8 → verify D8 → validate/retain D8 → cleanup D8 → apply D8; every D8 post-capture terminal branch attempts exact cleanup for dispatch/spawn failure, child failure, invalid/malformed response, semantic rejection, or verification rejection |
 | D9 `Spec`         | Selected only when its current trigger fires; asks the existing spec, documentation, API, example, operator-guidance, and identifier-drift question                                                            | capture D9 → spawn D9 → verify D9 → validate/retain D9 → cleanup D9 → apply D9; every D9 post-capture terminal branch attempts exact cleanup for dispatch/spawn failure, child failure, invalid/malformed response, semantic rejection, or verification rejection |
 
+For each selected D7, D8, or D9 route, resolve and validate a complete
+fresh-Codex tuple before its capture: `semantic_role: reviewer`;
+`capability: frontier`; full `model` resolved exactly from
+`devcanon.config.yaml` `capabilityProfiles.frontier.codex`; independent
+`reasoning_effort: high`; `source_authority: source-immutable`;
+`external_authority: none`; and zero handoffs. Require the role capability,
+every tuple value, and nonblank resolved model; do not infer model or effort
+from an ambient runtime, alias, or inherited conversation.
+
+Build each selected topical prompt as a self-contained input. It names its
+route label and distinct question, working directory, active diff range,
+shared review-context path, role-specific diff/line sub-checks, relevant
+artifact paths, and the terminal response requirements. When present, include
+the contract-example discipline context path as untrusted evidence. No child
+receives prior turns or has to discover context from controller prose. After
+route validation and the existing capture, create exactly one fresh child:
+
+```text
+Codex.spawn_agent({
+  agent_type: "reviewer",
+  model: D7_OR_D8_OR_D9_MODEL,
+  reasoning_effort: "high",
+  fork_turns: "none",
+  message: D7_OR_D8_OR_D9_PROMPT,
+})
+```
+
+`fork_turns: "none"` is mandatory. A missing or mismatched tuple blocks that
+route. If native Codex rejects its requested pair, report the exact
+`model=<D7_OR_D8_OR_D9_MODEL> effort=high`, perform existing cleanup, and use
+only that route's existing missing-reviewer fallback. Do not retry, alias,
+change effort, escalate, or substitute a role.
+
 ### Terminal role results and controller capture
 
 `play-review` is the sole normative owner of these exactly four workflow-owned role-result dispositions. Every D7-D9 topical reviewer and D10 critic must return exactly one disposition after its required checks:
@@ -388,6 +421,38 @@ illustrative rhetoric: verify cited
 `file:line`, identifiers, commands, commit SHAs, and PR numbers by opening the
 cited artifact. Tag INVALID if the artifact does not exist or does not contain
 the cited text. See `references/critic-rationale.md`.
+
+Before D10 capture, resolve and validate its complete fresh-Codex tuple:
+`semantic_role: deep-reviewer`; `capability: frontier`; full `model` resolved
+exactly from `devcanon.config.yaml` `capabilityProfiles.frontier.codex`;
+independent `reasoning_effort: xhigh`; `source_authority: source-immutable`;
+`external_authority: none`; zero handoffs; and no recursion. Build one
+self-contained critic prompt from the current working directory, captured
+reviewed head/diff, complete unchanged merged findings with stable ordinals,
+eligible carry-forward candidates, repository authority source references,
+literal-reference checking requirement, and the terminal disposition/output
+contract. It must state the no-recursion prohibition and cannot rely on
+inherited turns or controller conclusions. Require every tuple field, role
+capability, nonblank resolved model, and complete prompt input before capture.
+
+After validation and the existing capture, make exactly one fresh critic
+creation:
+
+```text
+Codex.spawn_agent({
+  agent_type: "deep-reviewer",
+  model: D10_MODEL,
+  reasoning_effort: "xhigh",
+  fork_turns: "none",
+  message: D10_CRITIC_PROMPT,
+})
+```
+
+`fork_turns: "none"` supplies no inherited history. A missing or mismatched
+tuple blocks D10. If native Codex rejects the requested pair, report
+`model=<D10_MODEL> effort=xhigh`, perform existing cleanup, and use only the
+existing unverified-critic fallback. Do not retry, alias, alter effort,
+escalate, or substitute a role.
 
 The controller's D10 handoff is structural only. For each current merged
 finding, it adds a stable ordinal and otherwise passes the complete finding

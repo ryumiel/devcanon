@@ -5,6 +5,17 @@ depth-0 `issue-priming-workflow` root fills and validates the complete tuple,
 then dispatches either an internal or external depth-1 `investigator`. A
 research child performs one assigned scope and never dispatches another agent.
 
+The validated creation tuple is D2 or D3 `investigator`, `balanced`, the full
+model resolved from `devcanon.config.yaml`
+`capabilityProfiles.balanced.codex`, independent `high` reasoning effort,
+source-immutable/response-only authority, zero handoffs, and this fully
+substituted prompt. The controller creates exactly one fresh Codex child with
+that `model`, `reasoning_effort: "high"`, and `fork_turns: "none"`; it supplies
+no inherited turns. D3 additionally carries its dispatch-named network binding
+and `named-network` qualifier. Missing or rejected configuration uses only the
+existing Phase 3 unavailable outcome, with no fallback, alias, effort change,
+retry, escalation, or role substitution.
+
 **Promotion classification:** Workflow-local prompt template paired with the
 source agent at
 [`agents/investigator.yaml`](../../../agents/investigator.yaml) — referenced

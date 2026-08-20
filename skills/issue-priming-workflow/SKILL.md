@@ -208,6 +208,34 @@ checks `AGENTS.md` for relevant rules. The route has external authority `none`,
 no network access, and zero handoffs. Do not substitute an ambient role, model,
 or effort and do not escalate this bounded gate into a different route.
 
+Before D1 capture, assemble and validate its complete fresh-Codex tuple:
+`semantic_role: assessor`; `capability: balanced`; `model` resolved exactly
+from `devcanon.config.yaml` `capabilityProfiles.balanced.codex`; independent
+`reasoning_effort: medium`; `source_authority: source-immutable`;
+`external_authority: none`; zero handoffs; and the fully substituted gate
+prompt. The prompt must name the issue title, source, identifier, guarded
+issue-body path, guarded-or-`(none)` comment-evidence path, and Phase 1
+repository root named by the template. Require every value, require the role
+capability to be `balanced`, and require a nonblank resolved full model. Do not
+derive model or effort from conversation history, an ambient runtime, or an
+alias. Only after this validation, create exactly one fresh Codex child:
+
+```text
+Codex.spawn_agent({
+  agent_type: "assessor",
+  model: D1_MODEL,
+  reasoning_effort: "medium",
+  fork_turns: "none",
+  message: D1_PROMPT,
+})
+```
+
+`fork_turns: "none"` is required: the child receives no inherited turns. A
+missing or mismatched tuple blocks creation. If native Codex rejects the one
+requested pair, report `model=<D1_MODEL> effort=medium` and use the existing
+unavailable-gate fallback after the required cleanup. Do not retry, select an
+alias, change effort, escalate, or substitute a role.
+
 Use the enclosing flow's already-resolved
 `$ISSUE_PRIMING_WORKFLOW_DIR/scripts/source-immutability.sh` binding and apply
 the GUARD-001 lifecycle to this leaf:
@@ -293,6 +321,39 @@ authority `none` and no network access. External research also receives
 external authority `none`, but the dispatch explicitly grants
 named network access for its one root-curated external question. Network access does not
 grant external mutation.
+
+For each D2 or D3 leaf, after its guarded prompt inputs have passed validation
+and before capture, assemble its complete fresh-Codex tuple. Set
+`semantic_role: investigator`; `capability: balanced`; resolve `model` exactly
+from `devcanon.config.yaml` `capabilityProfiles.balanced.codex`; set independent
+`reasoning_effort: high`; `source_authority: source-immutable`; and
+`external_authority: none`. D2 declares no network access. D3 preserves its
+dispatch-named network binding and `named-network` evidence qualifier for only
+the curated external question; neither grants external mutation. The complete
+prompt is the independently substituted template and names source, identifier,
+title, guarded issue-body and comment-evidence paths, gate reason, repository
+root, research scope, necessity, and external question. Require every tuple
+field, require the investigator capability to be `balanced`, and require a
+nonblank full model resolved from that configured profile. Do not infer any
+field from ambient runtime or inherited conversation.
+
+Create each permitted leaf once and only as:
+
+```text
+Codex.spawn_agent({
+  agent_type: "investigator",
+  model: D2_OR_D3_MODEL,
+  reasoning_effort: "high",
+  fork_turns: "none",
+  message: D2_OR_D3_PROMPT,
+})
+```
+
+The fresh child receives no inherited turns. A missing or mismatched tuple
+blocks its creation. If native Codex rejects the requested pair, record the
+exact `model=<D2_OR_D3_MODEL> effort=high` and use only the existing
+unavailable investigator outcome precedence after required cleanup. Do not
+retry, use a fallback or alias, alter effort, escalate, or substitute a role.
 
 Use the enclosing flow's already-resolved
 `$ISSUE_PRIMING_WORKFLOW_DIR/scripts/source-immutability.sh` binding. Give

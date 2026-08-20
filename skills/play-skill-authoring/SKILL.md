@@ -45,6 +45,39 @@ disposition and acceptance condition outside the spawned scenario input. Never
 include the expected answer, pass/fail criteria, or equivalent hints in that
 input.
 
+Before every D11 RED, GREEN, or REFACTOR capture, resolve and validate the
+complete fresh-Codex tuple: `semantic_role: assessor`; `capability: balanced`;
+full `model` resolved exactly from `devcanon.config.yaml`
+`capabilityProfiles.balanced.codex`; independent `reasoning_effort: medium`;
+`source_authority: source-immutable`; `external_authority: none`; and zero
+handoffs. Build a self-contained scenario prompt naming the repository root,
+the exact skill/artifact paths the scenario may read, scenario identifier,
+task and pressure conditions, allowed context, response-only output boundary,
+and the closed input contract—while retaining the expected disposition and
+acceptance condition only in the controller. Do not derive model, effort, or
+scenario context from inherited conversation or an ambient runtime. Require all
+tuple and prompt inputs, a balanced assessor role, and a nonblank resolved
+model before capture.
+
+After validation and the existing capture, create exactly one fresh evaluator:
+
+```text
+Codex.spawn_agent({
+  agent_type: "assessor",
+  model: D11_MODEL,
+  reasoning_effort: "medium",
+  fork_turns: "none",
+  message: D11_SCENARIO_PROMPT,
+})
+```
+
+`fork_turns: "none"` is mandatory: evaluator evidence cannot inherit parent
+history. A missing or mismatched tuple blocks creation. A native Codex rejection
+reports the exact `model=<D11_MODEL> effort=medium` and stops the applicable
+scenario as unavailable after required cleanup; it never enters the ordinary
+fresh-scenario/retest path. Do not retry, select an alias, change effort,
+escalate, or substitute a role.
+
 Resolve `SKILL_PRESSURE_GUARD` to this installed skill bundle's
 `scripts/source-immutability.sh` shim. For every RED baseline, GREEN
 same-scenario check, and REFACTOR retest, keep this order exact:
@@ -71,6 +104,10 @@ verification-rejected response, after safe cleanup, follows the existing
 fresh-scenario/retest path and cannot count as baseline failure, compliance, or
 retained rationalization evidence. Rerun the same pressure scenario with a
 fresh evaluator under the applicable RED, GREEN, or REFACTOR retest step.
+
+The fresh-scenario/retest rule is for an ordinary evaluator outcome after an
+accepted creation attempt. It never converts a missing D11 tuple or native
+model/effort rejection into a second creation attempt.
 
 Detected source mutation or cleanup failure is guard-integrity terminal:
 preserve the visible source state, stop the skill-authoring run, and never
