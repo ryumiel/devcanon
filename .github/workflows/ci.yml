@@ -135,7 +135,7 @@ jobs:
         run: pnpm run build
 
   test:
-    name: Tests (${{ matrix.os }})
+    name: Tests (${{ matrix.name }})
     needs: [changes]
     if: needs.changes.outputs.code == 'true'
     runs-on: ${{ matrix.os }}
@@ -144,10 +144,24 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
-            test-command: timeout 75s pnpm run test:ci:ubuntu
+          - name: Ubuntu unit
+            os: ubuntu-latest
+            test-command: timeout 75s pnpm run test:unit
             timeout_minutes: 3
-          - os: windows-latest
+          - name: Ubuntu POSIX integration
+            os: ubuntu-latest
+            test-command: timeout 75s pnpm run test:integration:posix
+            timeout_minutes: 3
+          - name: Ubuntu render/install integration
+            os: ubuntu-latest
+            test-command: timeout 75s pnpm run test:integration:render-install
+            timeout_minutes: 3
+          - name: Ubuntu Windows-helper integration
+            os: ubuntu-latest
+            test-command: timeout 75s pnpm run test:integration:windows
+            timeout_minutes: 3
+          - name: Windows PR-review behavior
+            os: windows-latest
             test-command: pnpm run test:ci:windows:pr-review
             timeout_minutes: 3
     steps:

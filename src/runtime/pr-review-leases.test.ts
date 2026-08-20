@@ -13,6 +13,7 @@ import {
 } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import ts from "typescript";
 import {
   afterAll,
   afterEach,
@@ -83,6 +84,7 @@ const refreshedResultDigest =
   "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc";
 
 const originalCwd = process.cwd();
+const windowsLaneCollectionDeadlineMs = 4_800;
 const managedEnvKeys = [
   "REPOSITORY",
   "PR_NUMBER",
@@ -229,7 +231,7 @@ it("selects the exact issue-578 Windows PR-review lane", async () => {
     "src/runtime/source-immutability.test.ts",
   ];
   const selector =
-    "PR-review command harness|pr-review process protocol|pr-review root identity|pr-review process lifecycle|(?:rejects stale or mismatched gated result evidence: (?:stale-timestamp|presentation-mismatch)|requires explicit provider evidence input for adapter scope validation|rejects noncanonical retained fingerprint path (?:\\.\\./outside|/absolute) before verify or cleanup deletion|selects the exact issue-578 Windows PR-review lane)$";
+    "PR-review command harness|pr-review process protocol|pr-review root identity|pr-review process lifecycle|(?:rejects stale or mismatched gated result evidence: (?:stale-timestamp|presentation-mismatch)|requires explicit provider evidence input for adapter scope validation|rejects noncanonical retained fingerprint path (?:\\.\\./outside|/absolute) before verify or cleanup deletion)$";
 
   expect(packageJson.scripts?.["test:ci:windows:pr-review"]).toBe(
     [
@@ -238,8 +240,87 @@ it("selects the exact issue-578 Windows PR-review lane", async () => {
       `--testNamePattern "${selector}"`,
     ].join(" "),
   );
+  const rootIdentitySource = await readFile(
+    path.join(
+      repositoryRoot,
+      "src/__test-helpers__/pr-review-root-identity.test.ts",
+    ),
+    "utf8",
+  );
+  const rootIdentitySourceFile = ts.createSourceFile(
+    "pr-review-root-identity.test.ts",
+    rootIdentitySource,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  );
+  const windowsExecutableTitle =
+    "enrolls a real Windows executable and rejects a wrong extension";
+  let rootSuiteCount = 0;
+  const windowsRegistrations: Array<{
+    insideRootSuite: boolean;
+    title: string;
+  }> = [];
+  const isWindowsRunIf = (node: ts.CallExpression): boolean => {
+    if (!ts.isCallExpression(node.expression)) return false;
+    const runIf = node.expression;
+    if (
+      !ts.isPropertyAccessExpression(runIf.expression) ||
+      !ts.isIdentifier(runIf.expression.expression) ||
+      runIf.expression.expression.text !== "test" ||
+      runIf.expression.name.text !== "runIf"
+    ) {
+      return false;
+    }
+    const condition = runIf.arguments[0];
+    return (
+      condition !== undefined &&
+      ts.isBinaryExpression(condition) &&
+      condition.operatorToken.kind === ts.SyntaxKind.EqualsEqualsEqualsToken &&
+      ts.isPropertyAccessExpression(condition.left) &&
+      ts.isIdentifier(condition.left.expression) &&
+      condition.left.expression.text === "process" &&
+      condition.left.name.text === "platform" &&
+      ts.isStringLiteral(condition.right) &&
+      condition.right.text === "win32"
+    );
+  };
+  const visitRootIdentity = (node: ts.Node, insideRootSuite = false): void => {
+    if (
+      ts.isCallExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      node.expression.text === "describe" &&
+      ts.isStringLiteral(node.arguments[0]) &&
+      node.arguments[0].text === "pr-review root identity" &&
+      node.arguments[1] !== undefined &&
+      (ts.isArrowFunction(node.arguments[1]) ||
+        ts.isFunctionExpression(node.arguments[1]))
+    ) {
+      rootSuiteCount += 1;
+      ts.forEachChild(node.arguments[1].body, (child) =>
+        visitRootIdentity(child, true),
+      );
+      return;
+    }
+    if (ts.isCallExpression(node) && isWindowsRunIf(node)) {
+      const title = node.arguments[0];
+      windowsRegistrations.push({
+        insideRootSuite,
+        title:
+          title !== undefined && ts.isStringLiteral(title)
+            ? title.text
+            : "<nonliteral>",
+      });
+    }
+    ts.forEachChild(node, (child) => visitRootIdentity(child, insideRootSuite));
+  };
+  visitRootIdentity(rootIdentitySourceFile);
+  expect(rootSuiteCount).toBe(1);
+  expect(windowsRegistrations).toEqual([
+    { insideRootSuite: true, title: windowsExecutableTitle },
+  ]);
 
-  const collection = await execFileAsync(
+  const collection = await commandHarness.run(
     process.execPath,
     [
       path.join(repositoryRoot, "node_modules/vitest/vitest.mjs"),
@@ -252,27 +333,39 @@ it("selects the exact issue-578 Windows PR-review lane", async () => {
       "--testNamePattern",
       selector,
     ],
-    { cwd: repositoryRoot },
+    { cwd: repositoryRoot, deadlineMs: windowsLaneCollectionDeadlineMs },
   );
   expect(collection.exitCode, collection.stderr).toBe(0);
-  const collectedInventory = (
-    JSON.parse(collection.stdout) as Array<{
-      file: string;
-      name: string;
-      projectName: string;
-    }>
-  )
-    .map(({ file, name, projectName }) => ({
+  expect(collection.stderr).toBe("");
+  type LaneTestInventory = {
+    file: string;
+    name: string;
+    projectName: string;
+  };
+  const compareInventory = (
+    left: LaneTestInventory,
+    right: LaneTestInventory,
+  ): number => {
+    const leftKey = `${left.file}\0${left.name}\0${left.projectName}`;
+    const rightKey = `${right.file}\0${right.name}\0${right.projectName}`;
+    return leftKey < rightKey ? -1 : leftKey > rightKey ? 1 : 0;
+  };
+  const sortInventory = (inventory: LaneTestInventory[]) =>
+    [...inventory].sort(compareInventory);
+  const collectedInventory = sortInventory(
+    (
+      JSON.parse(collection.stdout) as Array<{
+        file: string;
+        name: string;
+        projectName: string;
+      }>
+    ).map(({ file, name, projectName }) => ({
       file: path.relative(repositoryRoot, file).split(path.sep).join("/"),
       name,
       projectName,
-    }))
-    .sort((left, right) =>
-      `${left.file}\0${left.name}`.localeCompare(
-        `${right.file}\0${right.name}`,
-      ),
-    );
-  const expectedCollectedInventory = [
+    })),
+  );
+  const expectedCollectedInventory: LaneTestInventory[] = [
     {
       file: "src/__test-helpers__/pr-review-command-harness.test.ts",
       name: "PR-review command harness process ownership > does not report an outer rejection already delivered before its deadline",
@@ -532,11 +625,6 @@ it("selects the exact issue-578 Windows PR-review lane", async () => {
       projectName: "unit",
     },
     {
-      file: "src/runtime/pr-review-leases.test.ts",
-      name: "selects the exact issue-578 Windows PR-review lane",
-      projectName: "unit",
-    },
-    {
       file: "src/runtime/pr-review-manifests.test.ts",
       name: "pr-review Phase 5 audit summary renderer > requires explicit provider evidence input for adapter scope validation",
       projectName: "unit",
@@ -553,8 +641,8 @@ it("selects the exact issue-578 Windows PR-review lane", async () => {
     },
   ];
 
-  expect(collectedInventory).toHaveLength(55);
-  expect(collectedInventory).toEqual(expectedCollectedInventory);
+  expect(collectedInventory).toHaveLength(54);
+  expect(collectedInventory).toEqual(sortInventory(expectedCollectedInventory));
 });
 
 function createLease(): PrReviewLease {

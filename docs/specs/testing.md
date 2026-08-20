@@ -4,11 +4,19 @@
 
 ## Required Validation Budget
 
-`pnpm test` runs every retained test locally and on pull requests. It has no
-separate exhaustive, scheduled, manual, or main-only lane. On hosted Ubuntu
-CI, the required test command has a 75-second runtime budget and the complete
-test job—including checkout, setup, dependency installation, and cleanup—has
-a three-minute hard limit.
+`pnpm test` runs every retained test locally. On pull requests that change code,
+every retained test remains required; documentation-only changes run their
+applicable documentation checks. There is no separate exhaustive, scheduled,
+manual, or main-only test lane. Hosted Ubuntu CI runs the four existing Vitest
+projects as parallel required legs, each with a 75-second runtime budget. The
+focused Windows PR-review lane runs its 54 actual lifecycle, lease, manifest,
+and source-immutability behaviors; its Ubuntu unit contract proves that exact
+lane selection. Each test job—including checkout, setup, dependency
+installation, and cleanup—has a three-minute hard limit.
+
+The practical required PR test wall-clock target is 60 seconds or less,
+excluding runner queueing. The 75-second per-Ubuntu-leg budget and three-minute
+job hard cap bound normal variance and cleanup without replacing the target.
 
 An individual required test should normally finish within one second. Vitest
 reports tests above that threshold as slow. Longer tests require a documented
