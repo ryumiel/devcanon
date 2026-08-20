@@ -15,7 +15,7 @@ const ROUTE_HEADERS = [
   "ID",
   "Surface and owner",
   "Route",
-  "Existing output / termination",
+  "Source-owner locator / summary (non-authoritative)",
 ] as const;
 const ESCALATION_ADOPTION_HEADERS = [
   "ID",

@@ -5,10 +5,10 @@ and mutation authority. The stable decision and rationale live in
 [ADR-0027](../adr/adr-0027-semantic-agent-routing-and-mutation-authority.md).
 The [agent spec](../specs/agents.md) owns the exact six-role envelope,
 source-level model omission, and observable target fields. This policy owns the
-complete fresh-Codex route tuple and continuity contract. The AFDS workflow spec
-references that routing owner and owns observable dispatch and guard behavior.
-Source skills retain task-local prompts, phase mechanics, route-local output,
-failure, and termination.
+complete fresh-Codex route tuple and route-level continuity permission. The AFDS
+workflow spec references that routing owner and owns observable dispatch and
+guard behavior. Source skills retain task-local prompts, phase mechanics,
+route-local output, failure, and termination.
 
 This is a target contract, not a claim that every source-agent, skill, runtime,
 test, or generated-output migration has already landed. Deployment remains
@@ -110,7 +110,7 @@ language. Each source-immutable row is response-only unless it explicitly
 declares a handoff. It uses the minimum source-immutable guard around the
 existing response contract.
 
-| ID  | Surface and owner                                                                       | Route                                                                                                                                                                                                      | Existing output / termination                                                                                                 |
+| ID  | Surface and owner                                                                       | Route                                                                                                                                                                                                      | Source-owner locator / summary (non-authoritative)                                                                            |
 | --- | --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | D1  | Issue gate — `issue-priming-workflow` Phase 2                                           | `assessor`, balanced/medium, source-immutable                                                                                                                                                              | Gate enum; terminal Phase 2 route                                                                                             |
 | D2  | Internal research — issue priming Phase 3                                               | `investigator`, balanced/high, source-immutable                                                                                                                                                            | Existing report headings; root synthesizes                                                                                    |
@@ -133,10 +133,11 @@ existing response contract.
 ## Capability Escalation Adoption Inventory
 
 The Direct-Child Route Inventory and the adoption table below are the single
-authoritative representation of current route identity, ownership, and
-adoption state. They do not authorize workflow evolution: workflow-local
-operational behavior remains owned by the applicable skill and workflow
-sources.
+authoritative representation of current route identity, tuple, authority, and
+adoption state. The final inventory column is a source-owner locator and summary,
+not a second output or termination authority. They do not authorize workflow
+evolution: workflow-local prompts, output, failure, and termination remain owned
+by the applicable skill and workflow sources.
 
 The shared [`subagent-lifecycle`](../../skills/subagent-lifecycle/SKILL.md)
 procedure owns eligibility, declaration, support, invariants, evidence, budget,
@@ -187,17 +188,19 @@ following from the selected policy route and existing configuration:
 - the exact independent route `reasoning_effort`;
 - `fork_turns: "none"`; and
 - a self-contained message that includes the task context and the route's
-  authority, output, and termination.
+  authority plus source-skill-owned output and termination instructions.
 
 The controller must not derive a fresh Codex model or effort from source-agent
-Codex fields. This route contract identifies which routes permit compatible
-reuse and which are one-shot; D14, D15, and D16 are one-shot fresh reviewers.
-The existing lifecycle owner performs task-name allocation, follow-up,
-capture, supersession, cleanup, slot recovery, and rejection mechanics; this
-policy does not create a naming schema or lifecycle registry.
+Codex fields. Compatible same-session reuse is permitted only for D12's
+original stable-task fix or within-scope continuation and D17's unchanged stable
+branch/task. Every other D1-D17 route is fresh-only; D14, D15, and D16 are
+explicitly one-shot fresh reviewers. After this route permission, the existing
+lifecycle owner performs task-name allocation, follow-up, capture,
+supersession, cleanup, slot recovery, and rejection mechanics; this policy does
+not create a naming schema or lifecycle registry.
 
-A follow-up is permitted only where the selected route explicitly allows it,
-the stable task identity and complete tuple are unchanged, and the existing
+A follow-up for D12 or D17 is permitted only under the route permission above,
+when the stable task identity and complete tuple are unchanged, and the existing
 session remains compatible. It supplies incremental context and the
 verified-auto attestation when applicable, without configuration overrides. A
 changed tuple or task identity requires a complete fresh session; the lifecycle
@@ -270,6 +273,9 @@ workflow may still return its ordinary recoverable failure or `BLOCKED` state.
 - [ADR-0027](../adr/adr-0027-semantic-agent-routing-and-mutation-authority.md)
   owns the stable role decision, minimum guard rationale, bounded 10+6 runtime
   gate, human deployment block, and explicit deferrals.
+- Each route-owning source skill owns its task-local prompt, output, failure,
+  and termination contract. The Direct-Child Route Inventory's final column is
+  only its locator/summary.
 
 ## See Also
 

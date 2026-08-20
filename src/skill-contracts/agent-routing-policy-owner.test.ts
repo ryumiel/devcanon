@@ -104,9 +104,6 @@ describe("agent routing and mutation policy owner", () => {
         { role: "executor", sourceAuthority: "source-mutable" },
         { role: "implementer", sourceAuthority: "source-mutable" },
       ],
-      existingOutputOrTermination: expect.stringContaining(
-        "mutable child commits only",
-      ),
     });
   });
 
@@ -127,12 +124,8 @@ describe("agent routing and mutation policy owner", () => {
       },
     ]);
     expect(d6?.clauses).toEqual(d5?.clauses);
-    expect(d5?.existingOutputOrTermination).toBe(
-      "Distinct digest-bound PASS/FAIL; join paired results for one digest",
-    );
-    expect(d6?.existingOutputOrTermination).toBe(
-      "Distinct digest-bound PASS/FAIL; join paired results for one digest",
-    );
+    expect(d5?.surfaceAndOwner).toContain("play-planning");
+    expect(d6?.surfaceAndOwner).toContain("play-planning");
   });
 
   it("keeps the six source agents target-neutral for Codex while preserving Claude", async () => {
@@ -218,34 +211,93 @@ describe("agent routing and mutation policy owner", () => {
           "issue-priming-workflow"
         ].replace('fork_turns: "none",', ""),
       }),
-    ).toContain("D1:fork_turns");
+    ).toEqual(["D1:fork_turns"]);
     expect(
       routeOwnerContractErrors(owner, roles, config, {
         ...ownerSources,
-        "play-subagent-execution": ownerSources[
-          "play-subagent-execution"
+        "issue-priming-workflow": ownerSources[
+          "issue-priming-workflow"
+        ].replace('agent_type: "assessor",', 'agent_type: "investigator",'),
+      }),
+    ).toEqual(["D1:agent_type"]);
+    expect(
+      routeOwnerContractErrors(owner, roles, config, {
+        ...ownerSources,
+        "issue-priming-workflow": ownerSources[
+          "issue-priming-workflow"
         ].replace(
-          "message; do not\nsubstitute",
-          "message; model: OVERRIDE; do not\nsubstitute",
+          "If native Codex rejects the one",
+          "If native target declines the one",
         ),
       }),
-    ).toContain("D12:followup-override");
+    ).toEqual(["D1:rejection"]);
     expect(
       routeOwnerContractErrors(owner, roles, config, {
         ...ownerSources,
-        "play-subagent-execution": ownerSources[
-          "play-subagent-execution"
-        ].replace("use the lifecycle fresh-child path", "continue in place"),
-      }),
-    ).toContain("D16:changed-tuple-fresh");
-    expect(
-      routeOwnerContractErrors(owner, roles, config, {
         "play-agent-dispatch": ownerSources["play-agent-dispatch"].replace(
-          "Do not retry, alias, alter effort,\nescalate, or substitute a role.",
-          "Retry with a fallback alias.",
+          "agent_type: SELECTED_ROLE_ID,",
+          'agent_type: "assessor",',
         ),
       }),
-    ).toContain("D4:rejection");
+    ).toEqual(["D4:selector"]);
+    expect(
+      routeOwnerContractErrors(owner, roles, config, {
+        ...ownerSources,
+        "D12:continuity-reference": ownerSources[
+          "D12:continuity-reference"
+        ].replace(
+          "message: D12_INCREMENTAL_FINDINGS_AND_TASK_CONTEXT_PLUS_VERIFIED_AUTO_ROUTE_ATTESTATION_WHEN_APPLICABLE,",
+          "message: D12_INCREMENTAL_FINDINGS_AND_TASK_CONTEXT_PLUS_VERIFIED_AUTO_ROUTE_ATTESTATION_WHEN_APPLICABLE,\n  model: OVERRIDE,",
+        ),
+      }),
+    ).toEqual(["D12:followup-override"]);
+    expect(
+      routeOwnerContractErrors(owner, roles, config, {
+        ...ownerSources,
+        "D12:continuity-reference": ownerSources[
+          "D12:continuity-reference"
+        ].replace(
+          "If no compatible reusable D12 session exists, use that path as well.",
+          "If no compatible reusable D12 session exists, use that path as well. D16 may continue in place.",
+        ),
+      }),
+    ).toEqual(["D16:changed-tuple-fresh"]);
+    expect(
+      routeOwnerContractErrors(owner, roles, config, {
+        ...ownerSources,
+        "play-agent-dispatch": ownerSources["play-agent-dispatch"].replace(
+          "escalate, or substitute a role.",
+          "escalate, or substitute a role. Retry with a fallback alias.",
+        ),
+      }),
+    ).toEqual(["D4:rejection"]);
+    expect(
+      routeOwnerContractErrors(owner, roles, config, {
+        ...ownerSources,
+        "pr-merge": ownerSources["pr-merge"].replace(
+          "Native rejection uses the existing unavailable/blocked terminal without\nsubstitution.",
+          "Native rejection uses the existing unavailable/blocked terminal without\nsubstitution. D17 may continue in place after a changed tuple.",
+        ),
+      }),
+    ).toEqual(["D17:changed-tuple-fresh"]);
+  });
+
+  it("binds a static route spawn model to its canonical policy capability", async () => {
+    const [owner, roles, config] = await Promise.all([
+      readAgentRoutingPolicyOwner(OWNER_PATH),
+      readAgentSemanticRoleOwner(AGENT_SPEC_PATH),
+      loadConfig("devcanon.config.yaml", true),
+    ]);
+    const ownerSources = await readRouteOwnerSources(owner);
+
+    expect(
+      routeOwnerContractErrors(owner, roles, config, {
+        ...ownerSources,
+        "issue-priming-workflow": ownerSources[
+          "issue-priming-workflow"
+        ].replace("model: D1_MODEL,", "model: D2_MODEL,"),
+      }),
+    ).toContain("D1:model-binding");
   });
 
   it("rejects a malformed inventory row in the inventory dimension", async () => {
@@ -789,7 +841,25 @@ async function readRouteOwnerSources(
       await readRepoFile(`skills/${ownerSkill}/SKILL.md`),
     ]),
   );
-  return Object.fromEntries(entries);
+  const sources = Object.fromEntries(entries) as Record<string, string>;
+  const d12Owner = owner.directChildRoutes.find(
+    (route) => route.id === "D12",
+  )?.ownerSkill;
+  const d12Source = d12Owner ? sources[d12Owner] : undefined;
+  const reference = d12Source
+    ? markdownLinkTargets(d12Source).find(
+        (target) => target === "references/lifecycle-status-policy.md",
+      )
+    : undefined;
+  if (!d12Owner || !reference) {
+    throw new Error(
+      "D12 owner is missing its lifecycle-status-policy reference",
+    );
+  }
+  sources["D12:continuity-reference"] = await readRepoFile(
+    `skills/${d12Owner}/${reference}`,
+  );
+  return sources;
 }
 
 function routeOwnerContractErrors(
@@ -809,6 +879,46 @@ function routeOwnerContractErrors(
     }
 
     if (route.id === "D4") {
+      const block = findSpawnBlock(source, route.id, "SELECTED_ROLE_ID");
+      if (!block) {
+        errors.push("D4:spawn");
+        continue;
+      }
+      const fields = parseInvocationFields(block);
+      for (const [field, expected] of [
+        ["task_name", "d4_<instance_ordinal>"],
+        ["model", "RESOLVED_CODEX_MODEL"],
+        ["reasoning_effort", "SELECTED_CODEX_EFFORT"],
+        ["fork_turns", '"none"'],
+        ["message", "SELF_CONTAINED_PROMPT"],
+      ]) {
+        if (fields[field] !== expected) errors.push(`D4:${field}`);
+      }
+      const section = canonicalRouteSection(source, block.start);
+      if (
+        fields.agent_type !== "SELECTED_ROLE_ID" ||
+        !/six(?:-| )role(?:s| set)/i.test(section)
+      ) {
+        errors.push("D4:selector");
+      }
+      if (!/selected_role_id/i.test(section)) errors.push("D4:selector");
+      if (!section.includes("capabilityProfiles.<capability>.codex")) {
+        errors.push("D4:capability-model");
+      }
+      if (
+        !section.includes(
+          "selected source capability to match the selected semantic role",
+        )
+      ) {
+        errors.push("D4:source-capability-parity");
+      }
+      if (
+        !section.includes(
+          "matching Codex effort from the semantic-role catalog",
+        )
+      ) {
+        errors.push("D4:catalog-effort");
+      }
       for (const role of roles) {
         if (
           resolveFreshCodexModel(
@@ -818,33 +928,10 @@ function routeOwnerContractErrors(
         ) {
           errors.push(`D4:${role.name}:model`);
         }
-        if (
-          !routeSpawnFieldsPresent(source, "D4", role.name, role.routeEffort)
-        ) {
-          errors.push(`D4:${role.name}:spawn`);
-        }
       }
-      const evidence = routeEvidenceWindow(source, "D4", "SELECTED_ROLE_ID");
-      if (!evidence?.includes("capabilityProfiles.<capability>.codex")) {
-        errors.push("D4:capability-model");
-      }
-      if (
-        !evidence?.includes(
-          "selected source capability to match the selected semantic role",
-        )
-      ) {
-        errors.push("D4:source-capability-parity");
-      }
-      if (
-        !evidence?.includes(
-          "matching Codex effort from the semantic-role catalog",
-        )
-      ) {
-        errors.push("D4:catalog-effort");
-      }
-      if (!routeContextPresent(evidence ?? "")) errors.push("D4:context");
-      if (!routePrevalidates(evidence ?? "")) errors.push("D4:prevalidation");
-      if (!routeFailClosed(evidence ?? "")) errors.push("D4:rejection");
+      if (!routeContextPresent(section)) errors.push("D4:context");
+      if (!routePrevalidates(section)) errors.push("D4:prevalidation");
+      if (!routeFailClosed(section)) errors.push("D4:rejection");
       continue;
     }
 
@@ -864,142 +951,219 @@ function routeOwnerContractErrors(
       if (!config.capabilityProfiles[clause.capability].codex) {
         errors.push(`${route.id}:configured-model`);
       }
-      if (
-        !routeSpawnFieldsPresent(source, route.id, clause.role, clause.effort)
-      ) {
-        for (const field of [
-          "task_name",
-          "agent_type",
-          "model",
-          "reasoning_effort",
-          "fork_turns",
-          "message",
-        ]) {
-          if (!routeSpawnFieldPresent(source, route.id, clause.role, field)) {
-            errors.push(`${route.id}:${field}`);
-          }
+      const block = findSpawnBlock(source, route.id, clause.role);
+      if (!block) {
+        errors.push(`${route.id}:spawn`);
+        continue;
+      }
+      const fields = parseInvocationFields(block);
+      const expectedModel = expectedRouteModel(route.id, clause.role);
+      const expectedFields: Record<string, string> = {
+        task_name: `${route.id.toLowerCase()}_<instance_ordinal>`,
+        agent_type: `"${clause.role}"`,
+        model: expectedModel,
+        reasoning_effort: `"${clause.effort}"`,
+        fork_turns: '"none"',
+      };
+      for (const [field, expected] of Object.entries(expectedFields)) {
+        if (fields[field] !== expected) {
+          errors.push(
+            field === "model"
+              ? `${route.id}:model-binding`
+              : `${route.id}:${field}`,
+          );
         }
       }
-      const evidence = routeEvidenceWindow(source, route.id, clause.role);
-      if (
-        !evidence?.includes(`capabilityProfiles.${clause.capability}.codex`)
-      ) {
+      if (!fields.message) errors.push(`${route.id}:message`);
+      const section = canonicalRouteSection(source, block.start);
+      if (!section.includes(route.id)) errors.push(`${route.id}:section`);
+      const groupMembers = routesInSection(
+        owner,
+        route.ownerSkill,
+        source,
+        section,
+      );
+      for (const member of groupMembers) {
+        if (!section.includes(member.id)) errors.push(`${route.id}:group`);
+      }
+      if (!modelResolvesInSection(section, expectedModel, clause.capability)) {
         errors.push(`${route.id}:capability-model`);
       }
-      if (!routeContextPresent(evidence ?? ""))
-        errors.push(`${route.id}:context`);
-      if (!routePrevalidates(evidence ?? "")) {
+      if (!routeContextPresent(section)) errors.push(`${route.id}:context`);
+      if (!routePrevalidates(section)) {
         errors.push(`${route.id}:prevalidation`);
       }
-      if (!routeFailClosed(evidence ?? ""))
-        errors.push(`${route.id}:rejection`);
+      if (!routeFailClosed(section)) errors.push(`${route.id}:rejection`);
     }
   }
 
-  const execution = ownerSources["play-subagent-execution"];
-  if (
-    !execution?.includes(
-      "only in the incremental task-local `followup_task` message; do not\nsubstitute",
-    )
-  ) {
-    errors.push("D12:followup-override");
+  const d12Continuity = ownerSources["D12:continuity-reference"];
+  const followup = findInvocationBlock(
+    d12Continuity ?? "",
+    "Codex.followup_task",
+  );
+  if (!followup) {
+    errors.push("D12:followup-block");
+  } else {
+    const fields = parseInvocationFields(followup);
+    if (
+      fields.target !== "D12_STABLE_SESSION_ID" ||
+      !fields.message?.includes("D12_INCREMENTAL_FINDINGS")
+    ) {
+      errors.push("D12:followup-block");
+    }
+    for (const field of [
+      "agent_type",
+      "model",
+      "reasoning_effort",
+      "fork_turns",
+    ]) {
+      if (fields[field] !== undefined) errors.push("D12:followup-override");
+    }
   }
   if (
-    !execution?.includes(
-      "D13-to-D12 reclassification and a D16 final\nwhole-implementation fix use the lifecycle fresh-child path",
+    !/D13-to-D12 reclassification and a\s+D16 final\s+whole-implementation fix instead use the shared fresh-child lifecycle\s+path/.test(
+      followup
+        ? canonicalRouteSection(d12Continuity ?? "", followup.start)
+        : "",
+    ) ||
+    /(?:continue in place|configuration-changing followup)/i.test(
+      followup
+        ? canonicalRouteSection(d12Continuity ?? "", followup.start)
+        : "",
     )
   ) {
     errors.push("D16:changed-tuple-fresh");
   }
-  if (!execution?.includes("D14/D15 are\nalways fresh one-shot reviewers")) {
+  const d14Anchor = d12Continuity?.indexOf("D14 and D15 use independent");
+  if (
+    d14Anchor === undefined ||
+    d14Anchor === -1 ||
+    !canonicalRouteSection(d12Continuity, d14Anchor).includes(
+      "D14 and D15 use independent fresh one-shot",
+    )
+  ) {
     errors.push("D14-D15:one-shot");
   }
   const merge = ownerSources["pr-merge"];
+  const d17Block = merge
+    ? findSpawnBlock(merge, "D17", "investigator")
+    : undefined;
+  const d17Section = d17Block
+    ? canonicalRouteSection(merge ?? "", d17Block.start)
+    : "";
   if (
-    !merge?.includes(
+    !d17Section.includes(
       "diagnosis-to-fix classification is a fresh changed\ntuple",
-    )
+    ) ||
+    /(?:continue in place|configuration-changing followup)/i.test(d17Section)
   ) {
     errors.push("D17:changed-tuple-fresh");
   }
   return errors;
 }
 
-function routeSpawnFieldsPresent(
+interface InvocationBlock {
+  readonly start: number;
+  readonly text: string;
+}
+
+function findSpawnBlock(
   source: string,
   routeId: `D${number}`,
   role: string,
-  effort: string,
-): boolean {
-  return [
-    "task_name",
-    "agent_type",
-    "model",
-    "reasoning_effort",
-    "fork_turns",
-    "message",
-  ].every((field) =>
-    routeSpawnFieldPresent(source, routeId, role, field, effort),
-  );
-}
-
-function routeSpawnFieldPresent(
-  source: string,
-  routeId: `D${number}` | "D4",
-  role: string,
-  field: string,
-  effort?: string,
-): boolean {
-  const match = spawnWindow(source, routeId, role);
-  if (!match) return false;
-  const expected = {
-    task_name: `task_name: ${routeId.toLowerCase()}_<instance_ordinal>`,
-    agent_type: `agent_type: ${routeId === "D4" ? "SELECTED_ROLE_ID" : `"${role}"`}`,
-    model: "model:",
-    reasoning_effort:
-      routeId === "D4"
-        ? "reasoning_effort: SELECTED_CODEX_EFFORT"
-        : `reasoning_effort: "${effort}"`,
-    fork_turns: 'fork_turns: "none"',
-    message: "message:",
-  }[field];
-  return expected !== undefined && match.includes(expected);
-}
-
-function spawnWindow(
-  source: string,
-  routeId: `D${number}` | "D4",
-  role: string,
-): string | undefined {
+): InvocationBlock | undefined {
   const taskName = `task_name: ${routeId.toLowerCase()}_<instance_ordinal>`;
   let start = source.indexOf(taskName);
+  let firstBlock: InvocationBlock | undefined;
   while (start !== -1) {
-    const end = source.indexOf("})", start);
-    const window = source.slice(start, end === -1 ? undefined : end + 2);
+    const invocationStart = source.lastIndexOf("Codex.spawn_agent({", start);
+    const end = source.indexOf("\n})", start);
+    const text = source.slice(
+      invocationStart,
+      end === -1 ? undefined : end + 3,
+    );
+    const block = { start: invocationStart, text };
+    if (!firstBlock) firstBlock = block;
     if (
-      window.includes(
-        `agent_type: ${routeId === "D4" ? "SELECTED_ROLE_ID" : `"${role}"`}`,
+      text.includes(
+        `agent_type: ${role === "SELECTED_ROLE_ID" ? role : `"${role}"`}`,
       )
     ) {
-      return window;
+      return block;
     }
     start = source.indexOf(taskName, start + taskName.length);
   }
-  return undefined;
+  return firstBlock;
 }
 
-function routeEvidenceWindow(
+function findInvocationBlock(
   source: string,
-  routeId: `D${number}` | "D4",
-  role: string,
-): string | undefined {
-  const spawn = spawnWindow(source, routeId, role);
-  if (!spawn) return undefined;
+  invocation: string,
+): InvocationBlock | undefined {
+  const start = source.indexOf(`${invocation}({`);
+  if (start === -1) return undefined;
+  const end = source.indexOf("\n})", start);
+  return { start, text: source.slice(start, end === -1 ? undefined : end + 3) };
+}
 
-  const start = source.indexOf(spawn);
-  return source.slice(
-    Math.max(0, start - 5_000),
-    Math.min(source.length, start + spawn.length + 8_000),
+function parseInvocationFields(block: InvocationBlock): Record<string, string> {
+  return Object.fromEntries(
+    [...block.text.matchAll(/^ {2}([a-z_]+):\s*(.+?),?$/gm)].map((match) => [
+      match[1],
+      match[2].replace(/,?\s+#.*$/, "").replace(/,$/, ""),
+    ]),
+  );
+}
+
+function canonicalRouteSection(source: string, anchor: number): string {
+  const start = Math.max(
+    source.lastIndexOf("\n## ", anchor),
+    source.lastIndexOf("\n### ", anchor),
+  );
+  const endCandidates = [
+    source.indexOf("\n## ", anchor),
+    source.indexOf("\n### ", anchor),
+  ].filter((index) => index !== -1);
+  const end =
+    endCandidates.length === 0 ? source.length : Math.min(...endCandidates);
+  return source.slice(start === -1 ? 0 : start, end);
+}
+
+function routesInSection(
+  owner: Awaited<ReturnType<typeof readAgentRoutingPolicyOwner>>,
+  ownerSkill: string,
+  source: string,
+  section: string,
+) {
+  return owner.directChildRoutes.filter((route) => {
+    if (route.ownerSkill !== ownerSkill) return false;
+    return route.clauses.some((clause) => {
+      const block = findSpawnBlock(source, route.id, clause.role);
+      return block !== undefined && section.includes(block.text);
+    });
+  });
+}
+
+function expectedRouteModel(routeId: `D${number}`, role: string): string {
+  if (routeId !== "D17") return `${routeId.toUpperCase()}_MODEL`;
+  if (role === "investigator") return "D17_DIAGNOSIS_MODEL";
+  if (role === "executor") return "D17_EXACT_FIX_MODEL";
+  return "D17_JUDGMENT_FIX_MODEL";
+}
+
+function modelResolvesInSection(
+  section: string,
+  model: string,
+  capability: string,
+): boolean {
+  const modelLine = new RegExp(
+    `model:\\s+${model.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&")}[^\\n]*capabilityProfiles\\.${capability}\\.codex`,
+  );
+  return (
+    modelLine.test(section) ||
+    (section.includes(model) &&
+      section.includes(`capabilityProfiles.${capability}.codex`))
   );
 }
 
@@ -1007,7 +1171,9 @@ function routeFailClosed(source: string): boolean {
   return (
     /(?:native Codex (?:rejects|rejection)|target rejection|Native rejection)/i.test(
       source,
-    ) && /(?:Do not\s+retry|without\s+substitution)/i.test(source)
+    ) &&
+    /(?:Do not\s+retry|without\s+substitution)/i.test(source) &&
+    !/(?:retry with|fallback alias)/i.test(source)
   );
 }
 

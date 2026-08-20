@@ -121,8 +121,10 @@ Every current direct child surface must resolve to one of the six semantic
 roles, a deterministic helper, or a guarded inline path before dispatch. The
 complete mandatory inventory is D1 through D17 in the
 [Agent Routing and Mutation Policy](../guidelines/agent-routing-and-mutation-policy.md#direct-child-route-inventory).
-Each row's semantic role, capability, effort, source authority, output, and
-termination are normative.
+Each row's semantic role, capability, effort, and source authority are
+normative. Its final inventory column is a non-authoritative locator/summary;
+the route-owning source skill remains normative for prompt, output, failure, and
+termination.
 
 An inherited or generic workflow must classify each child independently. It
 must not use ambient model or effort, infer a route from the owning skill's
@@ -135,8 +137,9 @@ pre-spawn declaration through the
 and the [D4 Declaration Obligation](../guidelines/agent-routing-and-mutation-policy.md#d4-declaration-obligation),
 the sole complete declaration authorities. The fresh child receives the
 route-owned semantic role, configured full model, independent effort,
-`fork_turns: "none"`, and self-contained context including authority, output,
-and termination. Observable semantic direct-child dispatch selects exactly one
+`fork_turns: "none"`, and self-contained context including authority plus the
+source-skill-owned output and termination contract. Observable semantic
+direct-child dispatch selects exactly one
 resolved route, and any unresolved route or declaration state blocks before
 spawn. Under the B3 routing boundary, a source-immutable D4 selection is
 response-only.
