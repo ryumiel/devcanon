@@ -180,21 +180,19 @@ captured task head before either result is final.
 [Ledger post-dispatch: Task 2 code-quality reviewer, agent_id=quality-2]
 Spec reviewer: ❌ Issues:
   - Missing: Progress reporting (spec says "report every 100 items")
-  - Extra: Added --json flag (not requested)
 Code-quality reviewer: Strengths: Solid. Issues (Nit): Magic number (100)
 
 [Lifecycle ledger update]
-Task 2 spec reviewer: agent_id=spec-2, status=findings-recorded, review scope captured, base/head SHA captured, reviewed head SHA=task-2-head, report captured, reviewer result disposition=final-findings, findings captured: Missing progress reporting; Extra --json flag, disposition pending controller preview/classification, observed close result=success, closed=yes after findings retained.
+Task 2 spec reviewer: agent_id=spec-2, status=findings-recorded, review scope captured, base/head SHA captured, reviewed head SHA=task-2-head, report captured, reviewer result disposition=final-findings, findings captured: Missing progress reporting, disposition pending controller preview/classification, observed close result=success, closed=yes after findings retained.
 Task 2 code-quality reviewer: agent_id=quality-2, status=findings-recorded, review scope captured, base/head SHA captured, reviewed head SHA=task-2-head, report captured, reviewer result disposition=advisory, findings captured: Magic number (100), disposition pending controller preview/classification, observed close result=success, closed=yes after advisory findings retained.
 Controller first retains a bounded impact preview for every candidate and
 classifies independently before grouping: the missing progress report is an
 in-scope product blocker because the extracted Task 2 acceptance requires
-progress reporting every 100 items; the `--json` flag is an in-scope product
-blocker because the extracted Task 2 contract authorizes only verify/repair
-modes; the magic-number suggestion is an adjacent independently releasable
-defect. The adjacent finding receives a separate-work handoff and does not
-enter the fix. This complete same-head wave counts as failed round 1, so only
-the two smallest authorized corrections can route to Task 2 implementer.
+progress reporting every 100 items and omitting it affects the reachable batch
+path; the magic-number suggestion is an adjacent independently releasable
+defect. The adjacent finding receives a separate-work handoff and does not enter
+the fix. This complete same-head wave counts as failed round 1, so only the
+progress-reporting correction can route to Task 2 implementer.
 
 [Lifecycle ledger disposition update]
 Task 2 spec reviewer: routing target=Task 2 implementer, re-review target=spec-2-rereview after the authorized fix.
@@ -208,7 +206,7 @@ verified-auto route, the message also carries the freshly revalidated
 controller-provided auto-route attestation as structured context; direct/manual
 routes do not invent it. It does not resend the full implementer prompt, full
 task context, role, model, effort, fork, or an equivalent configuration override.
-Implementer: Removed --json flag and added progress reporting
+Implementer: Added progress reporting
 
 [Lifecycle ledger update]
 Task 2 implementer: fixup count=1, blocker state=none, report refreshed,

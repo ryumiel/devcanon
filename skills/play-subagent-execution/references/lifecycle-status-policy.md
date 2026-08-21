@@ -136,10 +136,13 @@ alone is not new evidence.
 After a `review-loop-limit` block, explicit resumption approval must be
 finding-bound, current-head/current-route/current-contract/current-evidence,
 single-use. It authorizes exactly one identified D12 attempt without clearing
-history or resetting count. A stale approval cannot revive after a changed
-head, route, contract, or material evidence; current evidence needs new
-explicit approval unless the revised-contract route applies. A failed fresh
-wave after that extra attempt blocks before any further D12.
+history or resetting count. Before the approved attempt is dispatched, a
+changed head, route, contract, or material evidence invalidates it and requires
+a replacement current approval unless the revised-contract route applies. Once
+dispatched, the episode's finding-bound approval escape hatch is consumed;
+preserve that fact in the existing controller-local ledger. A failed fresh wave
+after the extra attempt blocks before any further D12, and only revised-contract
+resumption may authorize another attempt.
 
 Revised-contract resumption instead requires material authoritative scope or
 acceptance change, refreshed extracted context, structural contract validation,
