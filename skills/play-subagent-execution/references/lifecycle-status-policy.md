@@ -146,13 +146,17 @@ resumption may authorize another attempt.
 
 Revised-contract resumption instead requires material authoritative scope or
 acceptance change, refreshed extracted context, structural contract validation,
-head and route revalidation, and reclassification. When the revised contract
-authorizes correction, reset only existing current-episode fixup count to `0`,
-retain prior ledger and family history, dispatch through the existing D12
-compatibility logic, and begin the new three-round budget with post-fix fresh
-review. Cosmetic wording or still-unauthorized evidence cannot reset or
-dispatch. Prior family history supports early stop only when authority, outcome,
-and impact remain materially unchanged.
+head and route revalidation, and reclassification. After that material
+revalidation, reset only existing current-episode fixup count to `0` and retain
+prior ledger and family history. When the revised contract authorizes
+correction, dispatch through the existing D12 compatibility logic and begin the
+new three-round budget with post-fix fresh review. When the unchanged
+implementation satisfies the revised contract and no correction is authorized,
+skip D12 and dispatch every reviewer required by the revalidated route as a
+fresh one-shot wave against the current head and revised contract; no prior
+verdict survives the contract change. Cosmetic wording or still-unauthorized
+evidence cannot reset or dispatch. Prior family history supports early stop only
+when authority, outcome, and impact remain materially unchanged.
 
 Resolve the installed `play-subagent-execution` bundle before the first guarded
 review and discover the local guard contract once for the enclosing D14-D16

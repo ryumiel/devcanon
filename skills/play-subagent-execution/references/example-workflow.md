@@ -188,15 +188,18 @@ Task 2 code-quality reviewer: agent_id=quality-2, status=findings-recorded, revi
 Controller first retains a bounded impact preview for every candidate and
 classifies independently before grouping: the missing progress report is an
 in-scope product blocker because the extracted Task 2 acceptance requires
-progress reporting every 100 items and omitting it affects the reachable batch
-path; the magic-number suggestion is an adjacent independently releasable
-defect. The adjacent finding receives a separate-work handoff and does not enter
-the fix. This complete same-head wave counts as failed round 1, so only the
-progress-reporting correction can route to Task 2 implementer.
+progress reporting every 100 items, the reachable long-running batch path
+otherwise leaves operators without its required liveness signal, and the
+minimal behavioral regression is that single omitted emission; the magic-number
+suggestion is an adjacent independently releasable defect. Because D14
+authorizes a fix, the controller retains that D15 disposition provisionally but
+does not emit a caller handoff. This complete same-head wave counts as failed
+round 1, so only the progress-reporting correction can route to Task 2
+implementer.
 
 [Lifecycle ledger disposition update]
 Task 2 spec reviewer: routing target=Task 2 implementer, re-review target=spec-2-rereview after the authorized fix.
-Task 2 code-quality reviewer: adjacent separate-work handoff, routing target=none, re-review target=quality-2-rereview after the authorized fix.
+Task 2 code-quality reviewer: provisional adjacent disposition, caller handoff deferred, routing target=none, re-review target=quality-2-rereview after the authorized fix.
 Task 2 implementer: closed=no because routed same-head findings need same-session fixup.
 
 [Implementer fixes issues]
@@ -213,7 +216,7 @@ Task 2 implementer: fixup count=1, blocker state=none, report refreshed,
 changed files and head SHA refreshed, test state refreshed, snapshot
 state=emitted, closed=no because spec re-review and any required code-quality
 re-review or disposition are pending.
-Task 2 D14 and D15 results: dispositions=stale; the fix invalidates both results.
+Task 2 D14 and D15 results: dispositions=stale; the fix invalidates both results, and the provisional D15 disposition becomes stale before any caller handoff.
 
 [If the review-loop limit is reached]
 After a third complete same-head wave that requires an authorized correction,
@@ -249,6 +252,8 @@ Task 2 implementer: closed=no because code-quality fixups may still need same-se
 [Dispatch code-quality re-reviewer]
 [Ledger post-dispatch: Task 2 code-quality re-reviewer, agent_id=quality-2-rereview]
 Code-quality reviewer: ✅ Approved
+The earlier magic-number candidate is absent, so no caller handoff is emitted;
+only a fresh post-fix D15 candidate could support one.
 
 [Lifecycle ledger update]
 Task 2 code-quality re-reviewer: review scope captured, base/head SHA captured, reviewed head SHA=task-2-fixup-head, report captured, reviewer result disposition=final-pass after same-head spec pass and current task-head validation, observed close result=success, closed=yes after PASS verdict recorded.
